@@ -1,0 +1,28 @@
+FROM golang:alpine AS development
+
+# Install build dependencies for CGO (required for SQLite)
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+# Install air for hot reloading
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app
+
+# Set CGO_ENABLED=1 for SQLite support
+ENV CGO_ENABLED=1
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Create data directory for SQLite
+RUN mkdir -p /app/data
+
+# Expose port
+EXPOSE 8080
+
+# Use air for hot reloading in development
+CMD ["air", "-c", ".air.toml"]

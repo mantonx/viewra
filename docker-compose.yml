@@ -1,38 +1,41 @@
-version: '3.8'
-
 services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
-      - '8080:8080'
+      - '${BACKEND_PORT:-8081}:8080'
     environment:
-      - GIN_MODE=debug
+      - GIN_MODE=${GIN_MODE:-debug}
+      - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
+      - SQLITE_PATH=${SQLITE_PATH:-/app/data/viewra.db}
+      - PORT=8080
     volumes:
-      # Future: Mount media directories here
-      # - /path/to/media:/media:ro
       - ./backend:/app
-    working_dir: /app
-    command: go run cmd/viewra/main.go
+      - backend-data:/app/data
     networks:
       - viewra-network
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
-      - '5173:5173'
+      - '${FRONTEND_PORT:-5175}:5173'
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8081}
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    working_dir: /app
-    command: npm run dev -- --host
     depends_on:
       - backend
     networks:
       - viewra-network
+    restart: unless-stopped
+
+volumes:
+  backend-data:
 
 networks:
   viewra-network:
