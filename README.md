@@ -1,5 +1,10 @@
 # Viewra
 
+[![GitHub license](https://img.shields.io/github/license/mantonx/viewra)](https://github.com/mantonx/viewra/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/mantonx/viewra)](https://github.com/mantonx/viewra/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/mantonx/viewra)](https://github.com/mantonx/viewra/issues)
+[![GitHub forks](https://img.shields.io/github/forks/mantonx/viewra)](https://github.com/mantonx/viewra/network)
+
 A modern media management system built with React and Go, similar to Emby or Jellyfin.
 
 ## 🚧 Current Status: Hello World Setup
@@ -12,42 +17,49 @@ This project is currently in its initial setup phase with a basic hello world ex
 - **Backend**: Go + Gin framework
 - **Development**: Vite + Docker Compose
 
-## Quick Start
+## 🚀 Quick Start
 
-### Development Setup
+### Option 1: Development Helper (Recommended)
+```bash
+chmod +x dev.sh
+./dev.sh
+# Choose option 3 for Tilt (recommended) or 2 for Docker Compose
+```
 
-1. **Clone and navigate:**
+### Option 2: Tilt (Advanced Development)
+```bash
+# Install Tilt
+./install-tilt.sh
 
-   ```bash
-   git clone <your-repo>
-   cd viewra
-   ```
+# Start development environment
+tilt up
+# Open http://localhost:10350 for Tilt UI
+```
 
-2. **Start with Docker Compose:**
+### Option 3: Docker Compose
+```bash
+docker-compose up --build
+```
 
-   ```bash
-   docker-compose up --build
-   ```
+### Option 4: Manual Setup
 
-3. **Or run manually:**
+### Option 4: Manual Setup
 
-   Backend:
-
+1. **Backend:**
    ```bash
    cd backend
    go mod tidy
    go run cmd/viewra/main.go
    ```
 
-   Frontend:
-
+2. **Frontend:**
    ```bash
    cd frontend
    npm install
    npm run dev
    ```
 
-4. **Access the application:**
+3. **Access the application:**
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:8080/api/health
 
@@ -59,6 +71,7 @@ This project is currently in its initial setup phase with a basic hello world ex
 - ✅ State management with Jotai
 - ✅ Tailwind CSS styling
 - ✅ Docker development environment
+- ✅ Tilt development orchestration
 - ✅ TypeScript setup
 
 ## Planned Features (Media Manager)
