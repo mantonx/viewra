@@ -22,7 +22,7 @@ func setupRoutes(r *gin.Engine) {
 		
 		// Hello world endpoint
 		api.GET("/hello", func(c *gin.Context) {
-			c.String(http.StatusOK, "Hello from Viewra backend! (Docker Compose development environment)")
+			c.String(http.StatusOK, "Hello from Viewra backend!")
 		})
 		
 		// Database status endpoint
