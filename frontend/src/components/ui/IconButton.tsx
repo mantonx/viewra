@@ -12,7 +12,7 @@ const IconButton: React.FC<IconButtonProps> = ({
   className,
   ...props
 }) => {
-  const base = 'flex items-center justify-center rounded-full p-2 transition-colors';
+  const base = 'flex items-center justify-center rounded-full p-2 transition-colors cursor-pointer';
 
   const variants: Record<typeof variant, string> = {
     primary: 'bg-purple-600 hover:bg-purple-700 text-white',

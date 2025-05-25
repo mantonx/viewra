@@ -17,6 +17,7 @@ import {
   Activity,
 } from '@/components/ui/icons';
 import AudioBadge from './AudioBadge';
+import AlbumArtwork from './AlbumArtwork';
 import AnimatedPlayPause from '@/components/ui/AnimatedPlayPause';
 import { cn } from '@/lib/utils';
 import IconButton from '@/components/ui/IconButton';
@@ -176,6 +177,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         paddingBottom: '12px',
         bottom: '0px',
         position: 'fixed',
+        boxShadow: '0 -10px 25px -5px rgba(0, 0, 0, 0.3)',
       }}
     >
       <div className="w-full max-w-none mx-auto">
@@ -188,26 +190,20 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
           {/* Left Section: Track Artwork & Info */}
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {/* Track Artwork */}
-            <div
-              className={cn(
-                'flex-shrink-0 transition-all duration-300 ease-in-out relative group',
-                isMinimized ? 'w-10 h-10' : 'w-16 h-16'
-              )}
-            >
-              {currentTrack?.music_metadata?.has_artwork ? (
-                <img
-                  src={`/api/media/${currentTrack.id}/artwork`}
-                  alt={currentTrack.music_metadata?.album || 'Album Artwork'}
-                  className="w-full h-full object-cover rounded-lg shadow-lg"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center rounded-lg shadow-lg">
-                  <span className={cn('transition-all', isMinimized ? 'text-sm' : 'text-2xl')}>
-                    🎵
-                  </span>
-                </div>
-              )}
-            </div>
+            <AlbumArtwork
+              artworkUrl={
+                currentTrack?.music_metadata?.has_artwork
+                  ? `/api/media/${currentTrack.id}/artwork`
+                  : undefined
+              }
+              altText={currentTrack?.music_metadata?.album || 'Album Artwork'}
+              isPlaying={isPlaying}
+              isMinimized={isMinimized}
+              className={isMinimized ? 'w-10 h-10' : 'w-16 h-16'}
+              trackTitle={currentTrack?.music_metadata?.title}
+              artistName={currentTrack?.music_metadata?.artist}
+              albumName={currentTrack?.music_metadata?.album}
+            />
 
             {/* Track Info */}
             <div className="flex-1 min-w-0">
@@ -315,7 +311,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                       key={rate}
                       onClick={() => onPlaybackRateChange(rate)}
                       className={cn(
-                        'px-3 py-1.5 text-xs rounded-lg transition-all duration-200 font-medium',
+                        'px-3 py-1.5 text-xs rounded-lg transition-all duration-200 font-medium cursor-pointer',
                         playbackRate === rate
                           ? 'bg-purple-600 text-white shadow-lg scale-105'
                           : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:scale-105'
@@ -438,7 +434,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       {showNerdInfo && (
         <div
           data-nerd-info
-          className="absolute bottom-full left-4 right-4 mb-2 bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl p-4 transform transition-all duration-300 ease-out"
+          className="absolute bottom-full left-4 right-4 mb-2 bg-slate-900/95 backdrop-blur-sm border border-slate-600 rounded-lg shadow-2xl p-4 transform transition-all duration-300 ease-out"
         >
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-white font-bold flex items-center gap-2">
@@ -447,7 +443,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
             </h3>
             <button
               onClick={() => setShowNerdInfo(false)}
-              className="text-slate-400 hover:text-white transition-colors"
+              className="text-slate-400 hover:text-white transition-colors cursor-pointer"
               aria-label="Close technical information"
             >
               <X size={18} />
