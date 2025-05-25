@@ -4,6 +4,7 @@ package server
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/server/handlers"
 )
 
@@ -24,9 +25,41 @@ func setupRoutes(r *gin.Engine) {
 		setupMediaRoutes(api)
 		setupUserRoutes(api)
 		setupAdminRoutes(api)
+		setupEventRoutes(api)
 		
 		// Development routes - these would be removed in production
 		api.POST("/dev/load-test-music", handlers.LoadTestMusicData)
+	}
+}
+
+// setupRoutesWithEventHandlers configures routes with event handlers
+func setupRoutesWithEventHandlers(r *gin.Engine) {
+	// Setup basic routes first
+	setupRoutes(r)
+	
+	// Add event system routes with handlers
+	if systemEventBus != nil {
+		eventsHandler := handlers.NewEventsHandler(systemEventBus)
+		api := r.Group("/api")
+		events := api.Group("/events")
+		{
+			events.GET("/", eventsHandler.GetEvents)
+			events.GET("/by-time", eventsHandler.GetEventsByTimeRange)
+			events.GET("/stats", eventsHandler.GetEventStats)
+			events.GET("/types", eventsHandler.GetEventTypes)
+			events.POST("/", eventsHandler.PublishEvent)
+			events.GET("/subscriptions", eventsHandler.GetSubscriptions)
+			events.DELETE("/", eventsHandler.ClearEvents)
+		}
+		
+		// Update media routes with event-enabled handlers
+		setupMediaRoutesWithEvents(api, systemEventBus)
+		
+		// Update user routes with event-enabled handlers
+		setupUserRoutesWithEvents(api, systemEventBus)
+		
+		// Update admin routes with event-enabled handlers
+		setupAdminRoutesWithEvents(api, systemEventBus)
 	}
 }
 
@@ -58,6 +91,26 @@ func setupMediaRoutes(api *gin.RouterGroup) {
 	}
 }
 
+// setupMediaRoutesWithEvents configures media-related endpoints with event support
+func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) {
+	// Create music handler with event bus
+	musicHandler := handlers.NewMusicHandler(eventBus)
+	
+	media := api.Group("/media")
+	{
+		media.GET("/:id/metadata", musicHandler.GetMusicMetadata)
+		media.GET("/music", musicHandler.GetMusicFiles)
+		
+		// Add playback tracking endpoints with events
+		playback := media.Group("/playback")
+		{
+			playback.POST("/start", musicHandler.RecordPlaybackStarted)
+			playback.POST("/end", musicHandler.RecordPlaybackFinished)
+			playback.POST("/progress", musicHandler.RecordPlaybackProgress)
+		}
+	}
+}
+
 // =============================================================================
 // USER ROUTES
 // =============================================================================
@@ -68,6 +121,22 @@ func setupUserRoutes(api *gin.RouterGroup) {
 	{
 		users.GET("/", handlers.GetUsers)
 		users.POST("/", handlers.CreateUser)
+	}
+}
+
+// setupUserRoutesWithEvents configures user management endpoints with event support
+func setupUserRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) {
+	// Create users handler with event bus
+	usersHandler := handlers.NewUsersHandler(eventBus)
+	
+	users := api.Group("/users")
+	{
+		users.GET("/", usersHandler.GetUsers)
+		users.POST("/", usersHandler.CreateUser)
+		
+		// Add authentication endpoints with events
+		users.POST("/login", usersHandler.LoginUser)
+		users.POST("/logout", usersHandler.LogoutUser)
 	}
 }
 
@@ -98,37 +167,25 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 			scanner.POST("/pause/:id", handlers.StopLibraryScan)           // POST /api/admin/scanner/pause/:id
 			scanner.POST("/stop/:id", handlers.StopLibraryScan)            // POST /api/admin/scanner/stop/:id (for backward compatibility)
 			scanner.POST("/resume/:id", handlers.ResumeLibraryScan)        // POST /api/admin/scanner/resume/:id
-			scanner.POST("/cancel-all", handlers.CancelAllScans)           // POST /api/admin/scanner/cancel-all
-			scanner.GET("/library-stats", handlers.GetAllLibraryStats)     // GET /api/admin/scanner/library-stats
-			scanner.GET("/scans", handlers.GetAllScans)                    // GET /api/admin/scanner/scans
-			scanner.GET("/scan/:id", handlers.GetScanStatus)               // GET /api/admin/scanner/scan/:id
-			
-			// Performance configuration routes
-			scanner.GET("/config", handlers.GetScanConfig)                 // GET /api/admin/scanner/config
-			scanner.PUT("/config", handlers.UpdateScanConfig)              // PUT /api/admin/scanner/config
-			scanner.GET("/performance", handlers.GetScanPerformanceStats)  // GET /api/admin/scanner/performance
 		}
-		
-		// Plugin management routes
-		plugins := admin.Group("/plugins")
+	}
+}
+
+// setupAdminRoutesWithEvents configures administrative endpoints with event support
+func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) {
+	// Create admin handler with event bus
+	adminHandler := handlers.NewAdminHandler(eventBus)
+	
+	admin := api.Group("/admin")
+	{
+		// Media library management routes with events
+		libraries := admin.Group("/media-libraries")
 		{
-			plugins.GET("/", handlers.GetPlugins)                          // GET /api/admin/plugins/
-			plugins.POST("/refresh", handlers.RefreshPlugins)              // POST /api/admin/plugins/refresh
-			plugins.POST("/install", handlers.InstallPlugin)               // POST /api/admin/plugins/install
-			plugins.GET("/admin-pages", handlers.GetPluginAdminPages)      // GET /api/admin/plugins/admin-pages
-			plugins.GET("/ui-components", handlers.GetPluginUIComponents)  // GET /api/admin/plugins/ui-components
-			plugins.GET("/events", handlers.GetAllPluginEvents)            // GET /api/admin/plugins/events
-			
-			// Individual plugin routes
-			plugins.GET("/:id", handlers.GetPlugin)                        // GET /api/admin/plugins/:id
-			plugins.POST("/:id/enable", handlers.EnablePlugin)             // POST /api/admin/plugins/:id/enable
-			plugins.POST("/:id/disable", handlers.DisablePlugin)           // POST /api/admin/plugins/:id/disable
-			plugins.DELETE("/:id", handlers.UninstallPlugin)               // DELETE /api/admin/plugins/:id
-			plugins.GET("/:id/health", handlers.GetPluginHealth)           // GET /api/admin/plugins/:id/health
-			plugins.GET("/:id/config", handlers.GetPluginConfig)           // GET /api/admin/plugins/:id/config
-			plugins.PUT("/:id/config", handlers.UpdatePluginConfig)        // PUT /api/admin/plugins/:id/config
-			plugins.GET("/:id/manifest", handlers.GetPluginManifest)       // GET /api/admin/plugins/:id/manifest
-			plugins.GET("/:id/events", handlers.GetPluginEvents)           // GET /api/admin/plugins/:id/events
+			libraries.GET("/", adminHandler.GetMediaLibraries)
+			libraries.POST("/", adminHandler.CreateMediaLibrary)
+			libraries.DELETE("/:id", adminHandler.DeleteMediaLibrary)
+			libraries.GET("/:id/stats", adminHandler.GetLibraryStats)
+			libraries.GET("/:id/files", adminHandler.GetMediaFiles)
 		}
 	}
 }

@@ -1,10 +1,12 @@
 package scanner
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 )
@@ -18,15 +20,17 @@ type Manager struct {
 	parallelScanners map[uint]*ParallelFileScanner // jobID -> parallel scanner mapping
 	mu               sync.RWMutex                  // protects scanners maps
 	useParallel      bool                         // flag to enable parallel scanning
+	eventBus         events.EventBus              // system event bus for notifications
 }
 
 // NewManager creates a new scanner manager instance.
-func NewManager(db *gorm.DB) *Manager {
+func NewManager(db *gorm.DB, eventBus events.EventBus) *Manager {
 	return &Manager{
 		db:               db,
 		scanners:         make(map[uint]*FileScanner),
 		parallelScanners: make(map[uint]*ParallelFileScanner),
 		useParallel:      true, // Enable parallel scanning by default
+		eventBus:         eventBus,
 	}
 }
 
@@ -54,15 +58,35 @@ func (m *Manager) StartScan(libraryID uint) (*database.ScanJob, error) {
 		return nil, err
 	}
 
+	// Get library info for the event
+	var library database.MediaLibrary
+	m.db.First(&library, libraryID)
+	libraryPath := library.Path
+	
+	// Publish scan start event
+	if m.eventBus != nil {
+		startEvent := events.NewSystemEvent(
+			events.EventScanStarted,
+			"Media Scan Started", 
+			fmt.Sprintf("Starting scan for library #%d at path: %s", libraryID, libraryPath),
+		)
+		startEvent.Data = map[string]interface{}{
+			"libraryId": libraryID,
+			"scanJobId": scanJob.ID,
+			"path":      libraryPath,
+		}
+		m.eventBus.PublishAsync(startEvent)
+	}
+
 	// Create and register scanner
 	if m.useParallel {
-		parallelScanner := NewParallelFileScanner(m.db, scanJob.ID)
+		parallelScanner := NewParallelFileScanner(m.db, scanJob.ID, m.eventBus)
 		m.parallelScanners[scanJob.ID] = parallelScanner
 		
 		// Start scanning in background
 		go m.runParallelScanJob(parallelScanner, scanJob.ID, libraryID)
 	} else {
-		scanner := NewFileScanner(m.db, scanJob.ID)
+		scanner := NewFileScanner(m.db, scanJob.ID, m.eventBus)
 		m.scanners[scanJob.ID] = scanner
 		
 		// Start scanning in background
@@ -134,18 +158,57 @@ func (m *Manager) StopScan(jobID uint) error {
 	parallelScanner, parallelExists := m.parallelScanners[jobID]
 	m.mu.RUnlock()
 
+	// Get job details for the event
+	var scanJob database.ScanJob
+	var libraryID uint
+	if err := m.db.First(&scanJob, jobID).Error; err == nil {
+		libraryID = scanJob.LibraryID
+	}
+
 	if parallelExists {
 		// Pause the active parallel scanner
 		parallelScanner.Pause()
 		// Update job status to paused
-		return utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
+		err := utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
+		
+		// Publish scan paused event
+		if err == nil && m.eventBus != nil {
+			pauseEvent := events.NewSystemEvent(
+				events.EventScanPaused,
+				"Media Scan Paused", 
+				fmt.Sprintf("Scan job #%d for library #%d has been paused", jobID, libraryID),
+			)
+			pauseEvent.Data = map[string]interface{}{
+				"libraryId": libraryID,
+				"scanJobId": jobID,
+			}
+			m.eventBus.PublishAsync(pauseEvent)
+		}
+		
+		return err
 	}
 
 	if exists {
 		// Pause the active regular scanner
 		scanner.Pause()
 		// Update job status to paused
-		return utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
+		err := utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
+		
+		// Publish scan paused event
+		if err == nil && m.eventBus != nil {
+			pauseEvent := events.NewSystemEvent(
+				events.EventScanPaused,
+				"Media Scan Paused", 
+				fmt.Sprintf("Scan job #%d for library #%d has been paused", jobID, libraryID),
+			)
+			pauseEvent.Data = map[string]interface{}{
+				"libraryId": libraryID,
+				"scanJobId": jobID,
+			}
+			m.eventBus.PublishAsync(pauseEvent)
+		}
+		
+		return err
 	}
 
 	return m.handleInactiveJobStop(jobID)
@@ -187,10 +250,26 @@ func (m *Manager) ResumeScan(jobID uint) error {
 	if scanJob.Status != string(utils.StatusPaused) {
 		return fmt.Errorf("cannot resume scan job with status: %s", scanJob.Status)
 	}
-
+	
 	// Create and register new scanner
-	scanner := NewFileScanner(m.db, jobID)
+	scanner := NewFileScanner(m.db, jobID, m.eventBus)
 	m.scanners[jobID] = scanner
+	
+	// Publish scan resumed event
+	if m.eventBus != nil {
+		resumeEvent := events.NewSystemEvent(
+			events.EventScanResumed,
+			"Media Scan Resumed",
+			fmt.Sprintf("Resumed scan job #%d for library #%d", jobID, scanJob.LibraryID),
+		)
+		resumeEvent.Data = map[string]interface{}{
+			"libraryId": scanJob.LibraryID,
+			"scanJobId": jobID,
+			"path":      scanJob.Library.Path,
+			"progress":  scanJob.Progress,
+		}
+		m.eventBus.PublishAsync(resumeEvent)
+	}
 
 	// Start resumed scanning in background
 	go m.runResumedScanJob(scanner, jobID, scanJob.LibraryID)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/metadata"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
@@ -34,6 +35,7 @@ type ParallelFileScanner struct {
 	cancel       context.CancelFunc
 	pathResolver *utils.PathResolver
 	workers      int
+	eventBus     events.EventBus
 }
 
 // FileTask represents a file to be processed
@@ -43,7 +45,7 @@ type FileTask struct {
 }
 
 // NewParallelFileScanner creates a new parallel file scanner instance
-func NewParallelFileScanner(db *gorm.DB, jobID uint) *ParallelFileScanner {
+func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *ParallelFileScanner {
 	ctx, cancel := context.WithCancel(context.Background())
 	workers := runtime.NumCPU()
 	if workers < 2 {
@@ -60,6 +62,7 @@ func NewParallelFileScanner(db *gorm.DB, jobID uint) *ParallelFileScanner {
 		cancel:       cancel,
 		pathResolver: utils.NewPathResolver(),
 		workers:      workers,
+		eventBus:     eventBus,
 	}
 }
 
@@ -88,10 +91,38 @@ func (pfs *ParallelFileScanner) Start(libraryID uint) error {
 // Pause pauses the scanning process
 func (pfs *ParallelFileScanner) Pause() {
 	pfs.cancel()
+	
+	// Publish pause event
+	if pfs.eventBus != nil {
+		pauseEvent := events.NewSystemEvent(
+			events.EventScanPaused,
+			"Media Scan Paused", 
+			fmt.Sprintf("Scan job #%d has been paused", pfs.jobID),
+		)
+		
+		// Get current scan stats
+		pfs.mu.RLock()
+		scanJob := pfs.scanJob
+		pfs.mu.RUnlock()
+		
+		if scanJob != nil {
+			pauseEvent.Data = map[string]interface{}{
+				"libraryId":      scanJob.LibraryID,
+				"scanJobId":      pfs.jobID,
+				"progress":       scanJob.Progress,
+				"filesFound":     scanJob.FilesFound,
+				"filesProcessed": scanJob.FilesProcessed,
+			}
+		}
+		
+		pfs.eventBus.PublishAsync(pauseEvent)
+	}
 }
 
 // scanDirectoryParallel performs parallel directory scanning
 func (pfs *ParallelFileScanner) scanDirectoryParallel() error {
+	startTime := time.Now() // Track start time for duration calculation
+	
 	defer func() {
 		// Update job completion status if it wasn't paused
 		var currentJob database.ScanJob
@@ -190,7 +221,41 @@ func (pfs *ParallelFileScanner) scanDirectoryParallel() error {
 
 	if walkErr != nil {
 		pfs.updateJobError(walkErr.Error())
+		
+		// Publish scan failed event
+		if pfs.eventBus != nil {
+			failEvent := events.NewSystemEvent(
+				events.EventScanFailed,
+				"Media Scan Failed",
+				fmt.Sprintf("Scan job #%d failed: %s", pfs.jobID, walkErr.Error()),
+			)
+			failEvent.Data = map[string]interface{}{
+				"libraryId": pfs.scanJob.LibraryID,
+				"scanJobId": pfs.jobID,
+				"error": walkErr.Error(),
+				"filesProcessed": totalFiles,
+				"duration": time.Since(startTime).String(),
+			}
+			pfs.eventBus.PublishAsync(failEvent)
+		}
+		
 		return walkErr
+	}
+
+	// Publish scan completion event
+	if pfs.eventBus != nil {
+		completionEvent := events.NewSystemEvent(
+			events.EventScanCompleted,
+			"Media Scan Completed",
+			fmt.Sprintf("Completed scan job #%d, processed %d files", pfs.jobID, totalFiles),
+		)
+		completionEvent.Data = map[string]interface{}{
+			"libraryId": pfs.scanJob.LibraryID,
+			"scanJobId": pfs.jobID,
+			"filesProcessed": totalFiles,
+			"duration": time.Since(startTime).String(),
+		}
+		pfs.eventBus.PublishAsync(completionEvent)
 	}
 
 	fmt.Printf("Parallel scan completed. Processed %d files\n", totalFiles)
@@ -272,6 +337,24 @@ func (pfs *ParallelFileScanner) createNewFile(filePath string, info os.FileInfo)
 		Hash:      hash,
 		LibraryID: pfs.scanJob.LibraryID,
 		LastSeen:  time.Now(),
+	}
+
+	// Publish event for new file found
+	if pfs.eventBus != nil {
+		fileFoundEvent := events.NewSystemEvent(
+			events.EventMediaFileFound,
+			"Media File Found",
+			fmt.Sprintf("Found new file: %s", filepath.Base(filePath)),
+		)
+		fileFoundEvent.Data = map[string]interface{}{
+			"path": filePath,
+			"size": info.Size(),
+			"hash": hash,
+			"scanJobId": pfs.jobID,
+			"libraryId": pfs.scanJob.LibraryID,
+			"extension": filepath.Ext(filePath),
+		}
+		pfs.eventBus.PublishAsync(fileFoundEvent)
 	}
 
 	return mediaFile, nil
@@ -436,6 +519,27 @@ func (pfs *ParallelFileScanner) updateJobProgress(progress, filesFound, filesPro
 	pfs.scanJob.FilesFound = filesFound
 	pfs.scanJob.FilesProcessed = filesProcessed
 	pfs.db.Save(pfs.scanJob)
+	
+	// Only publish progress events for significant progress changes (every 10%)
+	// or large file counts (every 100 files) to avoid overwhelming the event bus
+	if progress%10 == 0 || filesProcessed%100 == 0 || filesProcessed == 1 {
+		if pfs.eventBus != nil {
+			progressEvent := events.NewSystemEvent(
+				events.EventScanProgress,
+				"Media Scan Progress",
+				fmt.Sprintf("Scan #%d: %d%% complete, %d files processed", 
+					pfs.jobID, progress, filesProcessed),
+			)
+			progressEvent.Data = map[string]interface{}{
+				"libraryId":      pfs.scanJob.LibraryID,
+				"scanJobId":      pfs.jobID,
+				"progress":       progress,
+				"filesFound":     filesFound,
+				"filesProcessed": filesProcessed,
+			}
+			pfs.eventBus.PublishAsync(progressEvent)
+		}
+	}
 }
 
 // updateJobError updates the scan job with an error

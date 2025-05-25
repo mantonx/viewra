@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/events"
 )
 
 // GetMusicMetadata retrieves music metadata for a media file
@@ -62,19 +64,78 @@ func GetMusicFiles(c *gin.Context) {
 
 	db := database.GetDB()
 
-	// Get total count of music files
-	var total int64
-	db.Model(&database.MediaFile{}).
-		Joins("JOIN music_metadata ON music_metadata.media_file_id = media_files.id").
-		Count(&total)
+	// Enable debug mode to show SQL queries
+	fmt.Println("=== DEBUG: MUSIC FILES QUERY ===")
 
+	// Define additional filters if provided
+	artistFilter := c.Query("artist")
+	albumFilter := c.Query("album")
+	genreFilter := c.Query("genre")
+	
+	// Build base query for counting
+	countQuery := db.Model(&database.MediaFile{}).
+		Debug(). // Enable debug for GORM
+		// Get all files with music extensions
+		Where("path LIKE '%.mp3' OR path LIKE '%.flac' OR path LIKE '%.aac' OR path LIKE '%.ogg' OR path LIKE '%.wav' OR path LIKE '%.m4a'")
+	
+	// Add additional filters if provided
+	if artistFilter != "" {
+		countQuery = countQuery.Joins("LEFT JOIN music_metadata ON music_metadata.media_file_id = media_files.id").
+			Where("music_metadata.artist LIKE ?", "%"+artistFilter+"%")
+	}
+	
+	if albumFilter != "" {
+		if artistFilter == "" {
+			countQuery = countQuery.Joins("LEFT JOIN music_metadata ON music_metadata.media_file_id = media_files.id")
+		}
+		countQuery = countQuery.Where("music_metadata.album LIKE ?", "%"+albumFilter+"%")
+	}
+	
+	if genreFilter != "" {
+		if artistFilter == "" && albumFilter == "" {
+			countQuery = countQuery.Joins("LEFT JOIN music_metadata ON music_metadata.media_file_id = media_files.id")
+		}
+		countQuery = countQuery.Where("music_metadata.genre LIKE ?", "%"+genreFilter+"%")
+	}
+
+	// Count distinct media files to avoid duplicates
+	var total int64
+	countQuery.Distinct("media_files.id").Count(&total)
+	fmt.Printf("Total music files found: %d\n", total)
+
+	// Build query for fetching files
+	fileQuery := db.Debug(). // Enable debug for GORM
+		Preload("MusicMetadata").
+		// Get all files with music extensions
+		Where("path LIKE '%.mp3' OR path LIKE '%.flac' OR path LIKE '%.aac' OR path LIKE '%.ogg' OR path LIKE '%.wav' OR path LIKE '%.m4a'")
+		
+	// Add additional filters if provided
+	if artistFilter != "" {
+		fileQuery = fileQuery.Joins("LEFT JOIN music_metadata ON music_metadata.media_file_id = media_files.id").
+			Where("music_metadata.artist LIKE ?", "%"+artistFilter+"%")
+	}
+	
+	if albumFilter != "" {
+		if artistFilter == "" {
+			fileQuery = fileQuery.Joins("LEFT JOIN music_metadata ON music_metadata.media_file_id = media_files.id")
+		}
+		fileQuery = fileQuery.Where("music_metadata.album LIKE ?", "%"+albumFilter+"%")
+	}
+	
+	if genreFilter != "" {
+		if artistFilter == "" && albumFilter == "" {
+			fileQuery = fileQuery.Joins("LEFT JOIN music_metadata ON music_metadata.media_file_id = media_files.id")
+		}
+		fileQuery = fileQuery.Where("music_metadata.genre LIKE ?", "%"+genreFilter+"%")
+	}
+	
 	// Get paginated results with music metadata preloaded
 	var mediaFiles []database.MediaFile
-	result := db.Preload("MusicMetadata").
-		Joins("JOIN music_metadata ON music_metadata.media_file_id = media_files.id").
+	result := fileQuery.
+		Distinct("media_files.*"). // Ensure we don't get duplicates
 		Limit(limit).
 		Offset(offset).
-		Order("media_files.path").
+		Order("media_files.path"). // Order by path for consistent results
 		Find(&mediaFiles)
 
 	if result.Error != nil {
@@ -84,7 +145,15 @@ func GetMusicFiles(c *gin.Context) {
 		})
 		return
 	}
-	
+
+	// Log files found
+	fmt.Printf("Found %d music files in pagination\n", len(mediaFiles))
+	for i, file := range mediaFiles {
+		if i < 5 { // Just log the first 5 for brevity
+			fmt.Printf("File %d: %s (Library: %d)\n", i+1, file.Path, file.LibraryID)
+		}
+	}
+
 	// For debugging, manually create a music test entry if none exist
 	if len(mediaFiles) == 0 {
 		// Create a test library
@@ -93,7 +162,7 @@ func GetMusicFiles(c *gin.Context) {
 			Type: "music",
 		}
 		db.Create(&testLib)
-		
+
 		// Create a test media file
 		mediaFile := database.MediaFile{
 			Path:      "/test-music-path/test-song.mp3",
@@ -103,7 +172,7 @@ func GetMusicFiles(c *gin.Context) {
 			LastSeen:  time.Now(),
 		}
 		db.Create(&mediaFile)
-		
+
 		// Create a test music metadata entry
 		musicMeta := &database.MusicMetadata{
 			MediaFileID: mediaFile.ID,
@@ -121,11 +190,13 @@ func GetMusicFiles(c *gin.Context) {
 			HasArtwork:  false,
 		}
 		db.Create(musicMeta)
-		
+
 		// Load the created file with its metadata
 		db.Preload("MusicMetadata").First(&mediaFile, mediaFile.ID)
 		mediaFiles = append(mediaFiles, mediaFile)
 		total = 1
+		
+		fmt.Println("Created test music entry")
 	}
 
 	c.JSON(http.StatusOK, gin.H{

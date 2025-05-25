@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/metadata"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
@@ -22,15 +23,17 @@ type FileScanner struct {
 	stopChan     chan struct{}
 	stopped      bool
 	pathResolver *utils.PathResolver
+	eventBus     events.EventBus
 }
 
 // NewFileScanner creates a new file scanner instance
-func NewFileScanner(db *gorm.DB, jobID uint) *FileScanner {
+func NewFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *FileScanner {
 	return &FileScanner{
 		db:           db,
 		jobID:        jobID,
 		stopChan:     make(chan struct{}),
 		pathResolver: utils.NewPathResolver(),
+		eventBus:     eventBus,
 	}
 }
 
