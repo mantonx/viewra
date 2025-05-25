@@ -1,138 +1,104 @@
+// Package server provides HTTP server functionality for the Viewra application.
+// This file contains all API route definitions organized by functionality.
 package server
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/yourusername/viewra/internal/server/handlers"
 )
 
-// setupRoutes configures all API routes
+// setupRoutes configures all API routes for the Viewra application.
+// It sets up versioned API endpoints organized by functionality:
+// - Health and status endpoints for monitoring
+// - Media management endpoints
+// - User management endpoints
+// - Admin endpoints for system configuration
 func setupRoutes(r *gin.Engine) {
-	// API v1 routes
+	// API v1 routes group
 	api := r.Group("/api")
 	{
-		// Health check endpoint
-		api.GET("/health", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
-				"status":  "ok",
-				"service": "viewra",
-			})
-		})
+		setupHealthRoutes(api)
+		setupMediaRoutes(api)
+		setupUserRoutes(api)
+		setupAdminRoutes(api)
 		
-		// Hello world endpoint
-		api.GET("/hello", func(c *gin.Context) {
-			c.String(http.StatusOK, "Hello from Viewra backend!")
-		})
-		
-		// Database status endpoint
-		api.GET("/db-status", func(c *gin.Context) {
-			db := database.GetDB()
-			sqlDB, err := db.DB()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status": "error",
-					"error":  err.Error(),
-				})
-				return
-			}
-			
-			err = sqlDB.Ping()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status": "error",
-					"error":  err.Error(),
-				})
-				return
-			}
-			
-			c.JSON(http.StatusOK, gin.H{
-				"status": "connected",
-				"database": "ready",
-			})
-		})
-		
-		// Media routes
-		media := api.Group("/media")
+		// Development routes - these would be removed in production
+		api.POST("/dev/load-test-music", handlers.LoadTestMusicData)
+	}
+}
+
+// =============================================================================
+// HEALTH AND STATUS ROUTES
+// =============================================================================
+
+// setupHealthRoutes configures health check and status endpoints
+func setupHealthRoutes(api *gin.RouterGroup) {
+	api.GET("/health", handlers.HandleHealthCheck)
+	api.GET("/hello", handlers.HandleHello)
+	api.GET("/db-status", handlers.HandleDBStatus)
+}
+
+// =============================================================================
+// MEDIA ROUTES
+// =============================================================================
+
+// setupMediaRoutes configures media-related endpoints
+func setupMediaRoutes(api *gin.RouterGroup) {
+	media := api.Group("/media")
+	{
+		media.GET("/", handlers.GetMedia)
+		media.POST("/", handlers.UploadMedia)
+		media.GET("/:id/stream", handlers.StreamMedia)      // GET /api/media/:id/stream - Stream media file
+		media.GET("/:id/artwork", handlers.GetArtwork)     // GET /api/media/:id/artwork
+		media.GET("/:id/metadata", handlers.GetMusicMetadata) // GET /api/media/:id/metadata
+		media.GET("/music", handlers.GetMusicFiles)        // GET /api/media/music
+	}
+}
+
+// =============================================================================
+// USER ROUTES
+// =============================================================================
+
+// setupUserRoutes configures user management endpoints
+func setupUserRoutes(api *gin.RouterGroup) {
+	users := api.Group("/users")
+	{
+		users.GET("/", handlers.GetUsers)
+		users.POST("/", handlers.CreateUser)
+	}
+}
+
+// =============================================================================
+// ADMIN ROUTES
+// =============================================================================
+
+// setupAdminRoutes configures administrative endpoints
+func setupAdminRoutes(api *gin.RouterGroup) {
+	admin := api.Group("/admin")
+	{
+		// Media library management routes
+		libraries := admin.Group("/media-libraries")
 		{
-			media.GET("/", getMedia)
-			media.POST("/", uploadMedia) // Will implement file upload later
+			libraries.GET("/", handlers.GetMediaLibraries)
+			libraries.POST("/", handlers.CreateMediaLibrary)
+			libraries.DELETE("/:id", handlers.DeleteMediaLibrary)
+			libraries.GET("/:id/stats", handlers.GetLibraryStats)
+			libraries.GET("/:id/files", handlers.GetMediaFiles)
 		}
 		
-		// User routes
-		users := api.Group("/users")
+		// Scanner routes
+		scanner := admin.Group("/scanner")
 		{
-			users.GET("/", getUsers)
-			users.POST("/", createUser)
+			scanner.GET("/stats", handlers.GetScannerStats)                // GET /api/admin/scanner/stats
+			scanner.GET("/status", handlers.GetScannerStatus)              // GET /api/admin/scanner/status  
+			scanner.POST("/start/:id", handlers.StartLibraryScanByID)      // POST /api/admin/scanner/start/:id
+			scanner.POST("/pause/:id", handlers.StopLibraryScan)           // POST /api/admin/scanner/pause/:id
+			scanner.POST("/stop/:id", handlers.StopLibraryScan)            // POST /api/admin/scanner/stop/:id (for backward compatibility)
+			scanner.POST("/resume/:id", handlers.ResumeLibraryScan)        // POST /api/admin/scanner/resume/:id
+			scanner.POST("/cancel-all", handlers.CancelAllScans)           // POST /api/admin/scanner/cancel-all
+			scanner.GET("/library-stats", handlers.GetAllLibraryStats)     // GET /api/admin/scanner/library-stats
+			scanner.GET("/scans", handlers.GetAllScans)                    // GET /api/admin/scanner/scans
+			scanner.GET("/scan/:id", handlers.GetScanStatus)               // GET /api/admin/scanner/scan/:id
 		}
 	}
-}
-
-// Media handlers
-func getMedia(c *gin.Context) {
-	var media []database.Media
-	db := database.GetDB()
-	
-	result := db.Preload("User").Find(&media)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": result.Error.Error(),
-		})
-		return
-	}
-	
-	c.JSON(http.StatusOK, gin.H{
-		"media": media,
-		"count": len(media),
-	})
-}
-
-func uploadMedia(c *gin.Context) {
-	// TODO: Implement file upload
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"message": "File upload coming soon",
-	})
-}
-
-// User handlers
-func getUsers(c *gin.Context) {
-	var users []database.User
-	db := database.GetDB()
-	
-	result := db.Find(&users)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": result.Error.Error(),
-		})
-		return
-	}
-	
-	c.JSON(http.StatusOK, gin.H{
-		"users": users,
-		"count": len(users),
-	})
-}
-
-func createUser(c *gin.Context) {
-	var user database.User
-	
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-	
-	db := database.GetDB()
-	result := db.Create(&user)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": result.Error.Error(),
-		})
-		return
-	}
-	
-	c.JSON(http.StatusCreated, gin.H{
-		"user": user,
-	})
 }

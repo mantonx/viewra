@@ -23,7 +23,7 @@ show_help() {
     echo ""
     echo "Services will be available at:"
     echo "  🌐 Frontend: http://localhost:5175"
-    echo "  🔧 Backend:  http://localhost:8081"
+    echo "  🔧 Backend:  http://localhost:8080"
 }
 
 # Parse command
@@ -36,7 +36,7 @@ case $COMMAND in
         echo ""
         echo "✅ Development environment is running!"
         echo "🌐 Frontend: http://localhost:5175"
-        echo "🔧 Backend:  http://localhost:8081"
+        echo "🔧 Backend:  http://localhost:8080"
         echo ""
         echo "📋 Useful commands:"
         echo "  ./dev-compose.sh logs    - View logs"

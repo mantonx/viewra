@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/yourusername/viewra/internal/server/handlers"
 )
 
 // SetupRouter configures and returns the main router
@@ -27,6 +28,9 @@ func SetupRouter() *gin.Engine {
 	
 	// Setup routes
 	setupRoutes(r)
+	
+	// Initialize scanner manager
+	handlers.InitializeScanner()
 	
 	return r
 }

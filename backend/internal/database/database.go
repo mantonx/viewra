@@ -36,7 +36,7 @@ func Initialize() {
 	}
 	
 	// Auto-migrate the schema
-	err = DB.AutoMigrate(&Media{}, &User{})
+	err = DB.AutoMigrate(&Media{}, &User{}, &MediaLibrary{}, &MediaFile{}, &MusicMetadata{}, &ScanJob{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}

@@ -26,8 +26,8 @@ const SystemInfo = () => {
       framework: 'React 19 + Vite + TypeScript',
     },
     backend: {
-      url: 'http://localhost:8081',
-      port: '8081',
+      url: 'http://localhost:8083',
+      port: '8083',
       framework: 'Go + Gin + GORM',
     },
     database: {

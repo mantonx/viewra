@@ -4,6 +4,8 @@ import { apiStatusAtom, backendMessageAtom } from '../store/atoms';
 import ApiTester from '../components/ApiTester';
 import SystemInfo from '../components/SystemInfo';
 import MediaUpload from '../components/MediaUpload';
+import MediaLibraryManager from '../components/MediaLibraryManager';
+import MusicLibrary from '../components/MusicLibrary';
 
 interface User {
   id: number;
@@ -175,6 +177,16 @@ const Home = () => {
       {/* Media Upload Section */}
       <div className="mt-8">
         <MediaUpload />
+      </div>
+
+      {/* Media Library Manager Section */}
+      <div className="mt-8">
+        <MediaLibraryManager />
+      </div>
+
+      {/* Music Library Section */}
+      <div className="mt-8">
+        <MusicLibrary />
       </div>
 
       {/* System Information */}
