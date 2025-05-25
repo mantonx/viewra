@@ -138,7 +138,9 @@ const SystemEvents: React.FC = () => {
 
   // Clear all events
   const clearEvents = async () => {
-    if (!window.confirm('Are you sure you want to clear all system events? This cannot be undone.')) {
+    if (
+      !window.confirm('Are you sure you want to clear all system events? This cannot be undone.')
+    ) {
       return;
     }
 
@@ -153,17 +155,15 @@ const SystemEvents: React.FC = () => {
       }
 
       await response.json(); // Read response but we don't need to use it
-      
+
       // Reload data after clearing
       loadEvents();
       loadStats();
-      
+
       // Show success message
       alert('All events have been cleared successfully.');
     } catch (err) {
-      setError(
-        'Failed to clear events: ' + (err instanceof Error ? err.message : String(err))
-      );
+      setError('Failed to clear events: ' + (err instanceof Error ? err.message : String(err)));
       console.error('Error clearing events:', err);
     } finally {
       setLoading(false);
@@ -225,7 +225,7 @@ const SystemEvents: React.FC = () => {
           >
             Refresh
           </button>
-          
+
           <button
             onClick={clearEvents}
             className="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition-colors"
