@@ -12,11 +12,8 @@ COPY . .
 # Replace the vite config with Docker-specific version
 RUN cp vite.config.docker.ts vite.config.ts
 
-# Make startup script executable
-RUN chmod +x docker-startup.sh
-
 # Expose port
 EXPOSE 5173
 
-# Start development server with hot reload using our startup script
-CMD ["./docker-startup.sh"]
+# Use sh to run the startup script (works even if not executable)
+CMD ["sh", "./docker-startup.sh"]

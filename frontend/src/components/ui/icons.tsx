@@ -31,6 +31,11 @@ export const {
   Hash,
   Disc,
   Activity,
+  AudioWaveform,
+  Radio,
+  Signal,
+  Zap,
+  AlertTriangle,
 } = LucideIcons;
 
 // Re-export all icons if needed

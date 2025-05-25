@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Play,
-  Pause,
   Volume2,
   VolumeX,
   SkipForward,
@@ -10,9 +8,6 @@ import {
   Shuffle,
   ChevronUp,
   ChevronDown,
-  Crown,
-  BadgeCheck,
-  Sparkles,
   Info,
   X,
   Clock,
@@ -21,8 +16,11 @@ import {
   Disc,
   Activity,
 } from '@/components/ui/icons';
+import AudioBadge from './AudioBadge';
+import AnimatedPlayPause from '@/components/ui/AnimatedPlayPause';
 import { cn } from '@/lib/utils';
 import IconButton from '@/components/ui/IconButton';
+import { Tooltip } from 'react-tooltip';
 
 interface MusicMetadata {
   id: number;
@@ -164,50 +162,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   if (!currentTrack) return null;
 
   const audioFormat = currentTrack.music_metadata.format || 'Unknown';
-  const audioBitrate = currentTrack.music_metadata.bitrate
-    ? `${Math.round(currentTrack.music_metadata.bitrate / 1000)}kbps`
-    : '';
-  const audioQuality = audioBitrate ? `${audioFormat} ${audioBitrate}` : audioFormat;
-
-  // Determine quality tier for better visual representation
-  const getQualityTier = () => {
-    if (!audioBitrate) return 'standard';
-
-    const bitrateNum = parseInt(audioBitrate);
-    if (audioFormat.toLowerCase().includes('flac') || audioFormat.toLowerCase().includes('wav')) {
-      return 'lossless';
-    } else if (bitrateNum >= 320) {
-      return 'high';
-    } else if (bitrateNum >= 192) {
-      return 'medium';
-    } else {
-      return 'standard';
-    }
-  };
-
-  const qualityTier = getQualityTier();
-
-  // Get quality icon and color based on tier
-  const getQualityIcon = () => {
-    const iconSize = isMinimized ? 16 : 24;
-    switch (qualityTier) {
-      case 'lossless':
-        return <Crown size={iconSize} className="text-amber-400 drop-shadow-lg" />;
-      case 'high':
-        return <BadgeCheck size={iconSize} className="text-purple-400 drop-shadow-lg" />;
-      case 'medium':
-        return <Sparkles size={iconSize} className="text-blue-400 drop-shadow-lg" />;
-      default:
-        return <Sparkles size={iconSize} className="text-slate-400 drop-shadow-lg" />;
-    }
-  };
-
-  const qualityColors = {
-    lossless: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
-    high: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-    medium: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-    standard: 'text-slate-400 bg-slate-400/10 border-slate-400/20',
-  };
+  const audioBitrate = currentTrack.music_metadata.bitrate || 0;
 
   return (
     <div
@@ -308,16 +263,18 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 !onPrevious && 'opacity-50 cursor-not-allowed'
               )}
               disabled={!onPrevious}
+              data-tooltip-id="previous-tooltip"
+              data-tooltip-content="Previous track"
             />
 
             {/* Play/Pause Button */}
             <IconButton
               icon={
-                isPlaying ? (
-                  <Pause size={isMinimized ? 16 : 18} />
-                ) : (
-                  <Play size={isMinimized ? 16 : 18} />
-                )
+                <AnimatedPlayPause
+                  isPlaying={isPlaying}
+                  size={isMinimized ? 16 : 18}
+                  className="text-white"
+                />
               }
               variant="primary"
               onClick={onPlayPause}
@@ -326,6 +283,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 isMinimized ? 'w-8 h-8' : 'w-12 h-12'
               )}
               aria-label={isPlaying ? 'Pause' : 'Play'}
+              data-tooltip-id="play-pause-tooltip"
+              data-tooltip-content={isPlaying ? 'Pause' : 'Play'}
             />
 
             {/* Next Track Button */}
@@ -339,6 +298,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 !onNext && 'opacity-50 cursor-not-allowed'
               )}
               disabled={!onNext}
+              data-tooltip-id="next-tooltip"
+              data-tooltip-content="Next track"
             />
           </div>
 
@@ -377,6 +338,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   )}
                   aria-label="Shuffle"
                   disabled={!onShuffle}
+                  data-tooltip-id="shuffle-tooltip"
+                  data-tooltip-content={isShuffleOn ? 'Disable shuffle' : 'Enable shuffle'}
                 />
 
                 {/* Repeat Button */}
@@ -391,6 +354,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   )}
                   aria-label="Repeat"
                   disabled={!onRepeat}
+                  data-tooltip-id="repeat-tooltip"
+                  data-tooltip-content={isRepeatOn ? 'Disable repeat' : 'Enable repeat'}
                 />
 
                 {/* Volume Control */}
@@ -438,6 +403,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
               onClick={toggleMinimize}
               className="transition-all duration-200 hover:scale-105"
               aria-label={isMinimized ? 'Expand player' : 'Minimize player'}
+              data-tooltip-id="minimize-tooltip"
+              data-tooltip-content={isMinimized ? 'Expand player' : 'Minimize player'}
             />
 
             {/* Nerd Info Button */}
@@ -451,24 +418,18 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   showNerdInfo && 'text-purple-500 bg-purple-500/10'
                 )}
                 aria-label="Show technical information"
+                data-tooltip-id="nerd-info-tooltip"
+                data-tooltip-content="Show technical information"
               />
             )}
 
-            {/* Quality Badge - Larger and More Prominent */}
-            <div
-              className={cn(
-                'inline-flex items-center gap-3 px-6 py-3 rounded-full font-bold border-2 transition-all duration-200 shadow-xl',
-                qualityColors[qualityTier],
-                'hover:scale-105 hover:shadow-2xl hover:brightness-110',
-                isMinimized ? 'px-4 py-2 text-sm' : 'text-lg'
-              )}
-            >
-              <div className={cn(isMinimized ? 'w-4 h-4' : 'w-6 h-6')}>{getQualityIcon()}</div>
-              {!isMinimized && (
-                <span className="font-bold tracking-wide uppercase">{audioQuality}</span>
-              )}
-              {isMinimized && <span className="font-bold text-xs">{audioQuality}</span>}
-            </div>
+            {/* Quality Badge - Using new AudioBadge component */}
+            <AudioBadge
+              format={audioFormat}
+              bitrate={audioBitrate}
+              isMinimized={isMinimized}
+              className="shadow-xl hover:scale-105 hover:shadow-2xl hover:brightness-110"
+            />
           </div>
         </div>
       </div>
@@ -628,6 +589,15 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         onEnded={onNext}
         loop={isRepeatOn}
       />
+
+      {/* Tooltips */}
+      <Tooltip id="play-pause-tooltip" />
+      <Tooltip id="previous-tooltip" />
+      <Tooltip id="next-tooltip" />
+      <Tooltip id="shuffle-tooltip" />
+      <Tooltip id="repeat-tooltip" />
+      <Tooltip id="minimize-tooltip" />
+      <Tooltip id="nerd-info-tooltip" />
     </div>
   );
 };
