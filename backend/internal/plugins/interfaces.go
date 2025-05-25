@@ -55,100 +55,100 @@ type PluginInfo struct {
 	UpdatedAt   time.Time         `json:"updated_at"`
 }
 
-// PluginManifest defines the structure of plugin.json
+// PluginManifest defines the structure of plugin.yml/plugin.yaml
 type PluginManifest struct {
-	SchemaVersion string                 `json:"schema_version"`
-	ID            string                 `json:"id"`
-	Name          string                 `json:"name"`
-	Version       string                 `json:"version"`
-	Description   string                 `json:"description"`
-	Author        string                 `json:"author"`
-	Website       string                 `json:"website,omitempty"`
-	Repository    string                 `json:"repository,omitempty"`
-	License       string                 `json:"license,omitempty"`
-	Type          PluginType             `json:"type"`
-	Tags          []string               `json:"tags,omitempty"`
+	SchemaVersion string                 `yaml:"schema_version"`
+	ID            string                 `yaml:"id"`
+	Name          string                 `yaml:"name"`
+	Version       string                 `yaml:"version"`
+	Description   string                 `yaml:"description"`
+	Author        string                 `yaml:"author"`
+	Website       string                 `yaml:"website,omitempty"`
+	Repository    string                 `yaml:"repository,omitempty"`
+	License       string                 `yaml:"license,omitempty"`
+	Type          PluginType             `yaml:"type"`
+	Tags          []string               `yaml:"tags,omitempty"`
 	
 	// Plugin capabilities
-	Capabilities  PluginCapabilities     `json:"capabilities"`
+	Capabilities  PluginCapabilities     `yaml:"capabilities"`
 	
 	// Dependencies
-	Dependencies  PluginDependencies     `json:"dependencies,omitempty"`
+	Dependencies  PluginDependencies     `yaml:"dependencies,omitempty"`
 	
 	// Configuration schema
-	ConfigSchema  map[string]interface{} `json:"config_schema,omitempty"`
+	ConfigSchema  map[string]interface{} `yaml:"config_schema,omitempty"`
 	
 	// Entry points
-	EntryPoints   PluginEntryPoints      `json:"entry_points"`
+	EntryPoints   PluginEntryPoints      `yaml:"entry_points"`
 	
 	// UI components (for frontend plugins)
-	UI            *PluginUI              `json:"ui,omitempty"`
+	UI            *PluginUI              `yaml:"ui,omitempty"`
 	
 	// Permissions required
-	Permissions   []string               `json:"permissions,omitempty"`
+	Permissions   []string               `yaml:"permissions,omitempty"`
 }
 
 // PluginCapabilities defines what the plugin can do
 type PluginCapabilities struct {
-	MetadataExtraction bool `json:"metadata_extraction,omitempty"`
-	AdminPages         bool `json:"admin_pages,omitempty"`
-	UIComponents       bool `json:"ui_components,omitempty"`
-	APIEndpoints       bool `json:"api_endpoints,omitempty"`
-	BackgroundTasks    bool `json:"background_tasks,omitempty"`
-	FileTranscoding    bool `json:"file_transcoding,omitempty"`
-	Notifications      bool `json:"notifications,omitempty"`
-	DatabaseAccess     bool `json:"database_access,omitempty"`
-	ExternalServices   bool `json:"external_services,omitempty"`
+	MetadataExtraction bool `yaml:"metadata_extraction,omitempty"`
+	AdminPages         bool `yaml:"admin_pages,omitempty"`
+	UIComponents       bool `yaml:"ui_components,omitempty"`
+	APIEndpoints       bool `yaml:"api_endpoints,omitempty"`
+	BackgroundTasks    bool `yaml:"background_tasks,omitempty"`
+	FileTranscoding    bool `yaml:"file_transcoding,omitempty"`
+	Notifications      bool `yaml:"notifications,omitempty"`
+	DatabaseAccess     bool `yaml:"database_access,omitempty"`
+	ExternalServices   bool `yaml:"external_services,omitempty"`
 }
 
 // PluginDependencies defines plugin dependencies
 type PluginDependencies struct {
-	ViewraVersion string            `json:"viewra_version,omitempty"`
-	Plugins       map[string]string `json:"plugins,omitempty"`
-	System        []string          `json:"system,omitempty"`
+	ViewraVersion string            `yaml:"viewra_version,omitempty"`
+	Plugins       map[string]string `yaml:"plugins,omitempty"`
+	System        []string          `yaml:"system,omitempty"`
 }
 
 // PluginEntryPoints defines how to run the plugin
 type PluginEntryPoints struct {
-	Main      string            `json:"main,omitempty"`       // Main executable/script
-	Setup     string            `json:"setup,omitempty"`      // Setup script
-	Teardown  string            `json:"teardown,omitempty"`   // Cleanup script
-	WebServer string            `json:"web_server,omitempty"` // Plugin web server
-	Workers   map[string]string `json:"workers,omitempty"`    // Background workers
+	Main      string            `yaml:"main,omitempty"`       // Main executable/script
+	Setup     string            `yaml:"setup,omitempty"`      // Setup script
+	Teardown  string            `yaml:"teardown,omitempty"`   // Cleanup script
+	WebServer string            `yaml:"web_server,omitempty"` // Plugin web server
+	Workers   map[string]string `yaml:"workers,omitempty"`    // Background workers
 }
 
 // PluginUI defines frontend UI components
 type PluginUI struct {
-	AdminPages []AdminPageConfig `json:"admin_pages,omitempty"`
-	Components []UIComponentConfig `json:"components,omitempty"`
-	Assets     PluginAssets      `json:"assets,omitempty"`
+	AdminPages []AdminPageConfig `yaml:"admin_pages,omitempty"`
+	Components []UIComponentConfig `yaml:"components,omitempty"`
+	Assets     PluginAssets      `yaml:"assets,omitempty"`
 }
 
 // AdminPageConfig defines an admin page provided by the plugin
 type AdminPageConfig struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Path     string `json:"path"`
-	Icon     string `json:"icon,omitempty"`
-	Category string `json:"category,omitempty"`
-	URL      string `json:"url"`      // URL to load (iframe or module)
-	Type     string `json:"type"`     // "iframe", "module", "component"
+	ID       string `yaml:"id"`
+	Title    string `yaml:"title"`
+	Path     string `yaml:"path"`
+	Icon     string `yaml:"icon,omitempty"`
+	Category string `yaml:"category,omitempty"`
+	URL      string `yaml:"url"`      // URL to load (iframe or module)
+	Type     string `yaml:"type"`     // "iframe", "module", "component"
 }
 
 // UIComponentConfig defines a UI component provided by the plugin
 type UIComponentConfig struct {
-	ID       string            `json:"id"`
-	Name     string            `json:"name"`
-	Type     string            `json:"type"` // "widget", "modal", "page"
-	Props    map[string]string `json:"props,omitempty"`
-	URL      string            `json:"url"`
+	ID       string            `yaml:"id"`
+	Name     string            `yaml:"name"`
+	Type     string            `yaml:"type"` // "widget", "modal", "page"
+	Props    map[string]string `yaml:"props,omitempty"`
+	URL      string            `yaml:"url"`
 }
 
 // PluginAssets defines static assets
 type PluginAssets struct {
-	CSS        []string `json:"css,omitempty"`
-	JavaScript []string `json:"javascript,omitempty"`
-	Images     []string `json:"images,omitempty"`
+	CSS        []string `yaml:"css,omitempty"`
+	JavaScript []string `yaml:"javascript,omitempty"`
+	Images     []string `yaml:"images,omitempty"`
 }
 
 // PluginContext provides context and utilities for plugins

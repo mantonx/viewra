@@ -3,7 +3,7 @@ package plugins
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json" // Still needed for event data
 	"fmt"
 	"io/fs"
 	"os"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
+	"gopkg.in/yaml.v3"
 	"github.com/mantonx/viewra/internal/events"
 	"gorm.io/gorm"
 )
@@ -121,13 +122,13 @@ func (m *Manager) DiscoverPlugins(ctx context.Context) error {
 			return err
 		}
 		
-		// Look for plugin.json files
-		if d.Name() == "plugin.json" {
+		// Look for plugin manifest files (plugin.yaml, plugin.yml)
+		if d.Name() == "plugin.yaml" || d.Name() == "plugin.yml" {
 			manifestPath := path
 			pluginDir := filepath.Dir(path)
 			
-			// Read and parse manifest
-			manifest, err := m.readPluginManifest(manifestPath)
+			// Read and parse manifest using our helper function
+			manifest, err := ReadPluginManifestFile(manifestPath)
 			if err != nil {
 				m.logger.Error("Failed to read plugin manifest", "path", manifestPath, "error", err)
 				return nil // Continue with other plugins
@@ -163,7 +164,7 @@ func (m *Manager) DiscoverPlugins(ctx context.Context) error {
 				// Parse config if exists
 				if dbPlugin.ConfigData != "" {
 					var config map[string]interface{}
-					if err := json.Unmarshal([]byte(dbPlugin.ConfigData), &config); err == nil {
+					if err := yaml.Unmarshal([]byte(dbPlugin.ConfigData), &config); err == nil {
 						info.Config = config
 					}
 				}
@@ -475,24 +476,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 // Helper methods
 
-func (m *Manager) readPluginManifest(path string) (*PluginManifest, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	
-	var manifest PluginManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return nil, err
-	}
-	
-	// Validate required fields
-	if manifest.ID == "" || manifest.Name == "" || manifest.Version == "" {
-		return nil, fmt.Errorf("invalid manifest: missing required fields")
-	}
-	
-	return &manifest, nil
-}
+// readPluginManifest was moved to manifest.go as ReadPluginManifestFile
 
 func (m *Manager) addToTypeSpecificList(plugin Plugin) {
 	if scraper, ok := plugin.(MetadataScraperPlugin); ok {

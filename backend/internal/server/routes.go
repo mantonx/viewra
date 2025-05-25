@@ -15,8 +15,9 @@ import (
 // - User management endpoints
 // - Admin endpoints for system configuration
 func setupRoutes(r *gin.Engine) {
-	// Static plugin assets
-	r.Static("/plugins", "./data/plugins")
+	// Static plugin assets - Using consistent path from GetPluginDirectory
+	pluginsPath := GetPluginDirectory()
+	r.Static("/plugins", pluginsPath)
 	
 	// API v1 routes group
 	api := r.Group("/api")
@@ -34,8 +35,9 @@ func setupRoutes(r *gin.Engine) {
 
 // setupRoutesWithEventHandlers configures routes with event handlers
 func setupRoutesWithEventHandlers(r *gin.Engine) {
-	// Static plugin assets
-	r.Static("/plugins", "./data/plugins")
+	// Static plugin assets - Using consistent path from GetPluginDirectory
+	pluginsPath := GetPluginDirectory()
+	r.Static("/plugins", pluginsPath)
 	
 	// API v1 routes group
 	api := r.Group("/api")

@@ -20,7 +20,7 @@ Each plugin is a self-contained directory with the following structure:
 
 ```
 plugin_name/
-├── plugin.json         # Plugin manifest
+├── plugin.yml          # Plugin manifest (can also be plugin.yaml)
 ├── main.go             # Main entry point (optional)
 ├── assets/             # Static assets (optional)
 │   ├── css/
@@ -30,25 +30,26 @@ plugin_name/
 └── README.md           # Plugin documentation
 ```
 
-## Plugin Manifest (plugin.json)
+## Plugin Manifest (plugin.yml)
 
-The `plugin.json` file defines the plugin's metadata and capabilities:
+The `plugin.yml` file defines the plugin's metadata and capabilities:
 
-```json
-{
-  "schema_version": "1.0",
-  "id": "unique_plugin_id",
-  "name": "My Plugin",
-  "version": "1.0.0",
-  "description": "Description of the plugin",
-  "author": "Your Name",
-  "website": "https://example.com",
-  "repository": "https://github.com/username/viewra-plugin",
-  "license": "MIT",
-  "type": "metadata_scraper",
-  "tags": ["metadata", "example"],
+```yaml
+schema_version: "1.0"
+id: "unique_plugin_id"
+name: "My Plugin"
+version: "1.0.0"
+description: "Description of the plugin"
+author: "Your Name"
+website: "https://example.com"
+repository: "https://github.com/username/viewra-plugin"
+license: "MIT"
+type: "metadata_scraper"
+tags:
+  - "metadata"
+  - "example"
 
-  "capabilities": {
+capabilities:
     "metadata_extraction": true,
     "admin_pages": false,
     "ui_components": false,
@@ -236,7 +237,7 @@ type HookRegistry interface {
 
 ## Plugin Lifecycle
 
-1. **Discovery**: The system scans plugin directories for `plugin.json` files
+1. **Discovery**: The system scans plugin directories for `plugin.yml` and `plugin.yaml` files
 2. **Loading**: When enabled, the plugin is loaded and initialized
 3. **Initialization**: The plugin's `Initialize(ctx)` method is called
 4. **Starting**: The plugin's `Start(ctx)` method is called

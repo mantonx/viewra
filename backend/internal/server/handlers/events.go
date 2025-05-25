@@ -152,24 +152,6 @@ func (h *EventsHandler) GetEventsByTimeRange(c *gin.Context) {
 	})
 }
 
-// GetEventStats returns event bus statistics with accurate counts
-func (h *EventsHandler) GetEventStats(c *gin.Context) {
-	// Get base stats from event bus
-	stats := h.eventBus.GetStats()
-	
-	// Create an empty filter to get all events
-	filter := events.EventFilter{}
-	
-	// Get accurate event count from storage
-	_, total, err := h.eventBus.GetEvents(filter, 1, 0)
-	if err == nil {
-		// Update the total count with the accurate value
-		stats.TotalEvents = total
-	}
-	
-	c.JSON(http.StatusOK, stats)
-}
-
 // GetEventTypes returns available event types
 func (h *EventsHandler) GetEventTypes(c *gin.Context) {
 	eventTypes := []string{

@@ -1,0 +1,38 @@
+---
+schema_version: "1.0"
+id: "example_metadata_scraper"
+name: "Example Metadata Scraper"
+version: "0.1.0"
+description: "An example metadata scraper plugin for Viewra"
+author: "Viewra"
+website: "https://viewra.example.com"
+repository: "https://github.com/example/viewra-plugin-example"
+license: "MIT"
+type: "metadata_scraper"
+tags:
+  - "metadata"
+  - "example"
+  - "mp3"
+
+capabilities:
+  metadata_extraction: true
+
+dependencies:
+  viewra_version: ">=0.1.0"
+
+config_schema:
+  type: "object"
+  properties:
+    extract_artwork:
+      type: "boolean"
+      title: "Extract Artwork"
+      description: "Whether to extract artwork from media files"
+      default: true
+    artwork_max_size:
+      type: "number"
+      title: "Max Artwork Size"
+      description: "Maximum artwork size in pixels"
+      default: 500
+
+entry_points:
+  main: "main.go"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
@@ -57,16 +58,8 @@ func SetupRouter() *gin.Engine {
 
 // initializePluginManager sets up the plugin system
 func initializePluginManager() error {
-	// Get plugin directory from environment or use default
-	pluginDir := os.Getenv("PLUGIN_DIR")
-	if pluginDir == "" {
-		// Try to find a local path for development
-		if _, err := os.Stat("./data/plugins"); err == nil {
-			pluginDir = "./data/plugins"
-		} else {
-			pluginDir = "/app/data/plugins"
-		}
-	}
+	// Get plugin directory path
+	pluginDir := GetPluginDirectory()
 	
 	// Ensure plugin directory exists
 	if err := os.MkdirAll(pluginDir, 0755); err != nil {
@@ -240,4 +233,37 @@ func initializeEventBus() error {
 	}
 	
 	return nil
+}
+
+// GetPluginDirectory returns the absolute path to the plugins directory
+// This ensures consistency between plugin manager and static file serving
+func GetPluginDirectory() string {
+	// Get plugin directory from environment or use default
+	pluginDir := os.Getenv("PLUGIN_DIR")
+	if pluginDir == "" {
+		// Get absolute path based on working directory
+		workDir, err := os.Getwd()
+		if err == nil {
+			pluginDir = filepath.Join(workDir, "data/plugins")
+		} else {
+			// Fallback to relative path or Docker path
+			if _, err := os.Stat("./data/plugins"); err == nil {
+				pluginDir = "./data/plugins"
+			} else {
+				pluginDir = "/app/data/plugins"
+			}
+		}
+	}
+	
+	// Debug logging to see what path is being used
+	log.Printf("🔍 Plugin directory path: %s", pluginDir)
+	
+	// Check if directory exists
+	if _, err := os.Stat(pluginDir); err != nil {
+		log.Printf("⚠️ Plugin directory not found: %s", err)
+	} else {
+		log.Printf("✅ Plugin directory exists")
+	}
+	
+	return pluginDir
 }

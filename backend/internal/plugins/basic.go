@@ -4,7 +4,6 @@ package plugins
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
+	"gopkg.in/yaml.v3"
 )
 
 // BasicPlugin provides a basic implementation of the Plugin interface
@@ -127,7 +127,7 @@ func (c *basicPluginConfig) Set(key string, value interface{}) error {
 	info.Config[key] = value
 	
 	// Update in database
-	configData, _ := json.Marshal(info.Config)
+	configData, _ := yaml.Marshal(info.Config)
 	db := c.manager.getDB()
 	return db.Model(&database.Plugin{}).
 		Where("plugin_id = ?", c.pluginID).
