@@ -239,6 +239,20 @@ func (s *databaseEventStorage) Delete(ctx context.Context, olderThan time.Durati
 	return nil
 }
 
+// DeleteByID removes a specific event by its ID
+func (s *databaseEventStorage) DeleteByID(ctx context.Context, eventID string) error {
+	result := s.db.WithContext(ctx).Where("event_id = ?", eventID).Delete(&SystemEvent{})
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete event %s: %w", eventID, result.Error)
+	}
+	
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("event not found: %s", eventID)
+	}
+	
+	return nil
+}
+
 // Count returns the total number of stored events
 func (s *databaseEventStorage) Count(ctx context.Context) (int64, error) {
 	var count int64
@@ -371,6 +385,22 @@ func (s *memoryEventStorage) Delete(ctx context.Context, olderThan time.Duration
 	
 	s.events = filtered
 	return nil
+}
+
+// DeleteByID removes a specific event by its ID
+func (s *memoryEventStorage) DeleteByID(ctx context.Context, eventID string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	
+	for i, event := range s.events {
+		if event.ID == eventID {
+			// Remove the event from the slice
+			s.events = append(s.events[:i], s.events[i+1:]...)
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("event not found: %s", eventID)
 }
 
 // Count returns the total number of stored events

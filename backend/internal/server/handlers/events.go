@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -151,9 +152,21 @@ func (h *EventsHandler) GetEventsByTimeRange(c *gin.Context) {
 	})
 }
 
-// GetEventStats returns event bus statistics
+// GetEventStats returns event bus statistics with accurate counts
 func (h *EventsHandler) GetEventStats(c *gin.Context) {
+	// Get base stats from event bus
 	stats := h.eventBus.GetStats()
+	
+	// Create an empty filter to get all events
+	filter := events.EventFilter{}
+	
+	// Get accurate event count from storage
+	_, total, err := h.eventBus.GetEvents(filter, 1, 0)
+	if err == nil {
+		// Update the total count with the accurate value
+		stats.TotalEvents = total
+	}
+	
 	c.JSON(http.StatusOK, stats)
 }
 
@@ -271,6 +284,129 @@ func (h *EventsHandler) GetSubscriptions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"subscriptions": response,
 		"count":         len(response),
+	})
+}
+
+// StreamEvents streams events in real-time using Server-Sent Events
+func (h *EventsHandler) StreamEvents(c *gin.Context) {
+	// Set headers for SSE
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Headers", "Cache-Control")
+
+	// Create a channel to receive events
+	eventChan := make(chan events.Event, 100)
+	
+	// Subscribe to all events
+	filter := events.EventFilter{} // Empty filter subscribes to all events
+	subscription, err := h.eventBus.Subscribe(c.Request.Context(), filter, func(event events.Event) error {
+		select {
+		case eventChan <- event:
+		default:
+			// Channel is full, skip this event
+		}
+		return nil
+	})
+	
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to subscribe to events",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	defer h.eventBus.Unsubscribe(subscription.ID)
+	
+	// Send initial connection message
+	c.Writer.Write([]byte("data: {\"type\":\"connected\",\"message\":\"Event stream connected\"}\n\n"))
+	c.Writer.Flush()
+	
+	// Stream events
+	for {
+		select {
+		case event := <-eventChan:
+			// Format event as JSON and send via SSE
+			eventData := map[string]interface{}{
+				"type": "event",
+				"data": map[string]interface{}{
+					"id":        event.ID,
+					"type":      event.Type,
+					"source":    event.Source,
+					"target":    event.Target,
+					"title":     event.Title,
+					"message":   event.Message,
+					"data":      event.Data,
+					"priority":  event.Priority,
+					"tags":      event.Tags,
+					"timestamp": event.Timestamp.Format(time.RFC3339),
+					"ttl":       event.TTL,
+				},
+			}
+			
+			// Send the event data
+			if err := writeSSEEvent(c.Writer, "event", eventData); err != nil {
+				return
+			}
+			c.Writer.Flush()
+			
+		case <-c.Request.Context().Done():
+			// Client disconnected
+			return
+		}
+	}
+}
+
+// Helper function to write SSE events
+func writeSSEEvent(w http.ResponseWriter, eventType string, data interface{}) error {
+	if eventType != "" {
+		if _, err := w.Write([]byte("event: " + eventType + "\n")); err != nil {
+			return err
+		}
+	}
+	
+	// Convert data to JSON string
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	
+	if _, err := w.Write([]byte("data: " + string(jsonData) + "\n\n")); err != nil {
+		return err
+	}
+	
+	return nil
+}
+
+// DeleteEvent removes a specific event by its ID
+func (h *EventsHandler) DeleteEvent(c *gin.Context) {
+	eventID := c.Param("id")
+	if eventID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Event ID is required",
+		})
+		return
+	}
+
+	// Create a background context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Delete the specific event
+	if err := h.eventBus.DeleteEvent(ctx, eventID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete event",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Event deleted successfully",
+		"event_id": eventID,
+		"success":  true,
 	})
 }
 

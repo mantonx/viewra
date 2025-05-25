@@ -6,6 +6,11 @@ import tailwindcss from '@tailwindcss/vite';
 // Uses the backend service name for Docker Compose networking
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
   server: {
     proxy: {
       '/api': {
@@ -13,5 +18,8 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  optimizeDeps: {
+    include: ['lucide-react'],
   },
 });

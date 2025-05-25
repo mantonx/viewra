@@ -32,6 +32,9 @@ type EventBus interface {
 	// GetStats returns event bus statistics
 	GetStats() EventStats
 	
+	// DeleteEvent removes a specific event by its ID
+	DeleteEvent(ctx context.Context, eventID string) error
+	
 	// ClearEvents removes all events from storage
 	ClearEvents(ctx context.Context) error
 	
@@ -66,6 +69,9 @@ type EventStorage interface {
 	
 	// Delete removes events older than the specified duration
 	Delete(ctx context.Context, olderThan time.Duration) error
+	
+	// DeleteByID removes a specific event by its ID
+	DeleteByID(ctx context.Context, eventID string) error
 	
 	// DeleteAllEvents removes all events from storage
 	DeleteAllEvents(ctx context.Context) error

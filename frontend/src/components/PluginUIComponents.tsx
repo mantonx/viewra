@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Plugin, UIComponent, UIComponentsResponse } from '../types/plugin.types';
+import type { UIComponent, UIComponentsResponse } from '../types/plugin.types';
 
 const PluginUIComponents: React.FC = () => {
   const [components, setComponents] = useState<UIComponent[]>([]);

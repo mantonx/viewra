@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MediaCard from './MediaCard';
+import AudioPlayer from '@/components/AudioPlayer';
 import type { MusicFile, GroupedMusicFile, SortField, SortDirection } from '../types/music.types';
 import type { ApiResponse } from '../types/api.types';
 
@@ -20,6 +21,12 @@ const MusicLibrary = () => {
   const [volume, setVolume] = useState(0.7);
   const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // New state for loop and shuffle functionality
+  const [isLoopOn, setIsLoopOn] = useState(false);
+  const [isShuffleOn, setIsShuffleOn] = useState(false);
+  const [currentPlaylist, setCurrentPlaylist] = useState<MusicFile[]>([]);
+  const [currentPlaylistIndex, setCurrentPlaylistIndex] = useState(-1);
 
   // Sorting and filtering
   const [sortField, setSortField] = useState<SortField>('artist');
@@ -234,23 +241,97 @@ const MusicLibrary = () => {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // New methods for track navigation and loop functionality
+  const playNext = () => {
+    if (!currentPlaylist.length || currentPlaylistIndex === -1) return;
+
+    // If shuffle is on, pick a random track
+    if (isShuffleOn) {
+      const randomIndex = Math.floor(Math.random() * currentPlaylist.length);
+      setCurrentPlaylistIndex(randomIndex);
+      setCurrentTrack(currentPlaylist[randomIndex]);
+      setIsPlaying(true);
+      return;
+    }
+
+    // Normal sequential playback
+    const nextIndex = (currentPlaylistIndex + 1) % currentPlaylist.length;
+    setCurrentPlaylistIndex(nextIndex);
+    setCurrentTrack(currentPlaylist[nextIndex]);
+    setIsPlaying(true);
+  };
+
+  const playPrevious = () => {
+    if (!currentPlaylist.length || currentPlaylistIndex === -1) return;
+
+    // If at the start or less than 3 seconds into the track, go to previous track
+    // Otherwise restart the current track
+    if (currentTime > 3) {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+      }
+      return;
+    }
+
+    const prevIndex = (currentPlaylistIndex - 1 + currentPlaylist.length) % currentPlaylist.length;
+    setCurrentPlaylistIndex(prevIndex);
+    setCurrentTrack(currentPlaylist[prevIndex]);
+    setIsPlaying(true);
+  };
+
+  const toggleLoop = () => {
+    setIsLoopOn(!isLoopOn);
+    if (audioRef.current) {
+      audioRef.current.loop = !isLoopOn;
+    }
+  };
+
+  const toggleShuffle = () => {
+    setIsShuffleOn(!isShuffleOn);
+  };
+
   const handlePlayPause = (track: MusicFile) => {
     if (currentTrack && currentTrack.id === track.id) {
       setIsPlaying(!isPlaying);
     } else {
+      // Find which view mode we're in and set the appropriate playlist
+      let playlist: MusicFile[] = [];
+      let trackIndex = -1;
+
+      if (viewMode === 'albums') {
+        // Find the album this track belongs to
+        for (const artistGroup of groupedFiles) {
+          for (const album of artistGroup.albums) {
+            const index = album.tracks.findIndex((t) => t.id === track.id);
+            if (index !== -1) {
+              playlist = album.tracks;
+              trackIndex = index;
+              break;
+            }
+          }
+          if (trackIndex !== -1) break;
+        }
+      } else {
+        // In grid or list view, use the filtered and sorted musicFiles
+        playlist = musicFiles;
+        trackIndex = playlist.findIndex((t) => t.id === track.id);
+      }
+
+      setCurrentPlaylist(playlist);
+      setCurrentPlaylistIndex(trackIndex);
       setCurrentTrack(track);
       setIsPlaying(true);
     }
   };
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = Number(e.target.value);
-    setVolume(newVolume);
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-    }
-  };
-
+  // Seek functionality
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = Number(e.target.value);
     setCurrentTime(newTime);
@@ -259,6 +340,16 @@ const MusicLibrary = () => {
     }
   };
 
+  // Volume control
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = Number(e.target.value);
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
+    }
+  };
+
+  // Playback rate control
   const handlePlaybackRateChange = (rate: number) => {
     setPlaybackRate(rate);
     if (audioRef.current) {
@@ -266,13 +357,12 @@ const MusicLibrary = () => {
     }
   };
 
-  const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  // View mode toggle
+  const toggleViewMode = (mode: 'grid' | 'list' | 'albums') => {
+    setViewMode(mode);
   };
 
+  // Sorting functionality
   const handleSortChange = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -280,10 +370,6 @@ const MusicLibrary = () => {
       setSortField(field);
       setSortDirection('asc');
     }
-  };
-
-  const toggleViewMode = (mode: 'grid' | 'list' | 'albums') => {
-    setViewMode(mode);
   };
 
   return (
@@ -318,110 +404,28 @@ const MusicLibrary = () => {
       {!loading && musicFiles.length > 0 && (
         <div className="space-y-6">
           {/* Audio Player */}
-          <div
-            className={`fixed bottom-0 left-0 right-0 bg-slate-800 p-4 shadow-lg border-t border-slate-700 z-50 ${!currentTrack ? 'hidden' : ''}`}
-          >
-            <div className="max-w-6xl mx-auto">
-              <div className="flex items-center gap-4">
-                {/* Track Artwork */}
-                <div className="w-16 h-16 flex-shrink-0">
-                  {currentTrack?.music_metadata?.has_artwork ? (
-                    <img
-                      src={`/api/media/${currentTrack.id}/artwork`}
-                      alt={currentTrack.music_metadata?.album || 'Album Artwork'}
-                      className="w-full h-full object-cover rounded"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-slate-700 flex items-center justify-center rounded">
-                      <span className="text-2xl">🎵</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Track Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-medium truncate">
-                    {currentTrack?.music_metadata?.title ||
-                      currentTrack?.path.split('/').pop() ||
-                      'Unknown Track'}
-                  </h3>
-                  <p className="text-slate-400 text-sm truncate">
-                    {currentTrack?.music_metadata?.artist || 'Unknown Artist'}
-                  </p>
-
-                  {/* Progress Bar */}
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-slate-500 w-10">{formatTime(currentTime)}</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max={duration || 100}
-                      value={currentTime || 0}
-                      onChange={handleSeek}
-                      className="flex-1 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <span className="text-xs text-slate-500 w-10">{formatTime(duration)}</span>
-                  </div>
-                </div>
-
-                {/* Playback Controls */}
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className="bg-purple-600 hover:bg-purple-700 rounded-full p-3 text-white"
-                  >
-                    {isPlaying ? (
-                      <span className="block w-4 h-4">⏸</span>
-                    ) : (
-                      <span className="block w-4 h-4">▶️</span>
-                    )}
-                  </button>
-
-                  {/* Playback Speed */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handlePlaybackRateChange(0.5)}
-                      className={`px-2 py-1 text-xs rounded ${playbackRate === 0.5 ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'}`}
-                    >
-                      0.5x
-                    </button>
-                    <button
-                      onClick={() => handlePlaybackRateChange(1)}
-                      className={`px-2 py-1 text-xs rounded ${playbackRate === 1 ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'}`}
-                    >
-                      1x
-                    </button>
-                    <button
-                      onClick={() => handlePlaybackRateChange(1.5)}
-                      className={`px-2 py-1 text-xs rounded ${playbackRate === 1.5 ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'}`}
-                    >
-                      1.5x
-                    </button>
-                  </div>
-
-                  {/* Volume Control */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-white">🔊</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value={volume}
-                      onChange={handleVolumeChange}
-                      className="w-24"
-                    />
-                  </div>
-                </div>
-
-                <audio
-                  ref={audioRef}
-                  src={currentTrack ? `/api/media/${currentTrack.id}/stream` : undefined}
-                  onEnded={() => setIsPlaying(false)}
-                />
-              </div>
-            </div>
-          </div>
+          {currentTrack && (
+            <AudioPlayer
+              currentTrack={currentTrack}
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              duration={duration}
+              volume={volume}
+              playbackRate={playbackRate}
+              audioRef={audioRef as React.RefObject<HTMLAudioElement>}
+              onPlayPause={() => setIsPlaying(!isPlaying)}
+              onSeek={handleSeek}
+              onVolumeChange={handleVolumeChange}
+              onPlaybackRateChange={handlePlaybackRateChange}
+              onNext={currentPlaylist.length > 1 ? playNext : undefined}
+              onPrevious={currentPlaylist.length > 1 ? playPrevious : undefined}
+              onRepeat={toggleLoop}
+              onShuffle={currentPlaylist.length > 1 ? toggleShuffle : undefined}
+              isRepeatOn={isLoopOn}
+              isShuffleOn={isShuffleOn}
+              formatTime={formatTime}
+            />
+          )}
 
           {/* Controls and Filters */}
           <div className="bg-slate-800 rounded-lg p-4 mb-4">

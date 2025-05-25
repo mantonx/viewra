@@ -55,8 +55,10 @@ func setupRoutesWithEventHandlers(r *gin.Engine) {
 				events.GET("/by-time", eventsHandler.GetEventsByTimeRange)
 				events.GET("/stats", eventsHandler.GetEventStats)
 				events.GET("/types", eventsHandler.GetEventTypes)
+				events.GET("/stream", eventsHandler.EventStream)
 				events.POST("/", eventsHandler.PublishEvent)
 				events.GET("/subscriptions", eventsHandler.GetSubscriptions)
+				events.DELETE("/:id", eventsHandler.DeleteEvent)
 				events.DELETE("/", eventsHandler.ClearEvents)
 			}
 			

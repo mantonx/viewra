@@ -77,18 +77,13 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 
 	db := database.GetDB()
 
-	// Query to join MediaFile with MusicMetadata
-	var results []struct {
-		MediaFile     database.MediaFile     `json:"media_file"`
-		MusicMetadata database.MusicMetadata `json:"music_metadata"`
-	}
-
-	err = db.Table("media_files").
-		Select("media_files.*, music_metadata.*").
-		Joins("JOIN music_metadata ON media_files.id = music_metadata.media_file_id").
+	// Query to fetch MediaFiles with their MusicMetadata preloaded - only from /media/music library (ID 8)
+	var mediaFiles []database.MediaFile
+	err = db.Preload("MusicMetadata").
+		Where("library_id = ?", 8).
 		Limit(limit).
 		Offset(offset).
-		Scan(&results).Error
+		Find(&mediaFiles).Error
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -97,19 +92,19 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 		})
 		return
 	}
+	
+	// Get total count for this library
+	var total int64
+	db.Model(&database.MediaFile{}).Where("library_id = ?", 8).Count(&total)
 
-	// Format the response to include both file info and metadata
-	var musicFiles []gin.H
-	for _, result := range results {
-		musicFiles = append(musicFiles, gin.H{
-			"file":     result.MediaFile,
-			"metadata": result.MusicMetadata,
-		})
-	}
+	// Use all media files - even if some don't have metadata yet
+	// This ensures the files appear in the UI while metadata is still being processed
+	var musicFiles []database.MediaFile = mediaFiles
 
 	c.JSON(http.StatusOK, gin.H{
 		"music_files": musicFiles,
 		"count":       len(musicFiles),
+		"total":       total,
 		"limit":       limit,
 		"offset":      offset,
 	})

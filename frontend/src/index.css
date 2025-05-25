@@ -1,8 +1,11 @@
 @import 'tailwindcss';
 
 /* Base styles for Viewra media manager */
+html,
 body {
   margin: 0;
+  padding: 0;
+  height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -10,4 +13,40 @@ body {
   color: #f1f5f9;
 }
 
+#root {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
 /* Future: Media manager specific styles will go here */
+
+/* System Events animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes highlight {
+  0% {
+    background-color: rgba(34, 197, 94, 0.2);
+  }
+  50% {
+    background-color: rgba(34, 197, 94, 0.1);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.new-event-animation {
+  animation:
+    fadeIn 0.5s ease-out,
+    highlight 3s ease-out;
+}

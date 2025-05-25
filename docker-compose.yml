@@ -28,7 +28,7 @@ services:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - frontend-node-modules:/app/node_modules
       - /nfs/fictionalserver/music:/media/music:ro
     depends_on:
       - backend

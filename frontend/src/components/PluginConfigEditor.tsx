@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
-import type {
-  PropertySchema,
-  ConfigSchema,
-  ConfigValue,
-  PluginConfigEditorProps,
-} from '../types/plugin.types';
+import type { PropertySchema, ConfigValue, PluginConfigEditorProps } from '../types/plugin.types';
 
 const PluginConfigEditor: React.FC<PluginConfigEditorProps> = ({
   schema,

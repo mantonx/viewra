@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import type { SystemInfo as SystemInfoType } from '../types/system.types';
 
 const SystemInfo = () => {

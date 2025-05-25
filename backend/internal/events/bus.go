@@ -312,6 +312,30 @@ func (eb *eventBus) GetStats() EventStats {
 	return stats
 }
 
+// DeleteEvent removes a specific event by its ID
+func (eb *eventBus) DeleteEvent(ctx context.Context, eventID string) error {
+	eb.mu.Lock()
+	defer eb.mu.Unlock()
+	
+	// Remove from recent events in memory
+	for i, event := range eb.recentEvents {
+		if event.ID == eventID {
+			eb.recentEvents = append(eb.recentEvents[:i], eb.recentEvents[i+1:]...)
+			break
+		}
+	}
+	
+	// Remove from persistent storage if available
+	if eb.storage != nil {
+		if err := eb.storage.DeleteByID(ctx, eventID); err != nil {
+			return fmt.Errorf("failed to delete event from storage: %w", err)
+		}
+	}
+	
+	eb.logger.Debug("Event deleted", "event_id", eventID)
+	return nil
+}
+
 // ClearEvents removes all events from storage
 func (eb *eventBus) ClearEvents(ctx context.Context) error {
 	eb.mu.Lock()

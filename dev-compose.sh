@@ -18,6 +18,7 @@ show_help() {
     echo "  logs    Show logs from all services"
     echo "  restart Restart all services"
     echo "  build   Rebuild all images"
+    echo "  rebuild Clean rebuild of all services (fixes dependency issues)"
     echo "  clean   Stop and remove all containers and volumes"
     echo "  help    Show this help message"
     echo ""
@@ -61,6 +62,19 @@ case $COMMAND in
         echo "🔨 Rebuilding images..."
         ~/.local/bin/docker-compose build
         echo "✅ Images rebuilt"
+        ;;
+    "rebuild")
+        echo "🔄 Performing clean rebuild of all services..."
+        ~/.local/bin/docker-compose down
+        echo "🧹 Removing frontend node modules volume..."
+        docker volume rm viewra_frontend-node-modules || true
+        echo "🔨 Rebuilding images..."
+        ~/.local/bin/docker-compose build --no-cache
+        echo "🚀 Starting services..."
+        ~/.local/bin/docker-compose up -d
+        echo "✅ Clean rebuild complete!"
+        echo "🌐 Frontend: http://localhost:5175"
+        echo "🔧 Backend:  http://localhost:8080"
         ;;
     "clean")
         echo "🧹 Cleaning up all containers and volumes..."
