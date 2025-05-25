@@ -9,7 +9,7 @@ import (
 // CancelAllScans stops all running scan jobs and marks them as paused
 func CancelAllScans(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	count, err := scannerManager.CancelAllScans()

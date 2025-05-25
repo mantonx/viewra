@@ -11,7 +11,7 @@ import (
 // GetAllLibraryStats returns statistics for all libraries
 func GetAllLibraryStats(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	// Get all libraries

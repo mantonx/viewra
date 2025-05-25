@@ -6,14 +6,21 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/scanner"
 )
 
 var scannerManager *scanner.Manager
 
 // InitializeScanner initializes the scanner manager
-func InitializeScanner() {
-	scannerManager = scanner.NewManager(database.GetDB())
+func InitializeScanner(eventBus events.EventBus) {
+	scannerManager = scanner.NewManager(database.GetDB(), eventBus)
+}
+
+// InitializeScannerCompat provides backward compatibility for scanner initialization
+func InitializeScannerCompat() {
+	// Initialize with nil event bus for backward compatibility
+	scannerManager = scanner.NewManager(database.GetDB(), nil)
 }
 
 // StartLibraryScan starts a scan for a specific media library
@@ -28,7 +35,7 @@ func StartLibraryScan(c *gin.Context) {
 	}
 	
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	scanJob, err := scannerManager.StartScan(uint(libraryID))
@@ -58,7 +65,7 @@ func StopScan(c *gin.Context) {
 	}
 	
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	err = scannerManager.StopScan(uint(jobID))
@@ -87,7 +94,7 @@ func GetScanStatus(c *gin.Context) {
 	}
 	
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	scanJob, err := scannerManager.GetScanStatus(uint(jobID))
@@ -107,7 +114,7 @@ func GetScanStatus(c *gin.Context) {
 // GetAllScans returns all scan jobs
 func GetAllScans(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	scanJobs, err := scannerManager.GetAllScans()
@@ -137,7 +144,7 @@ func GetLibraryStats(c *gin.Context) {
 	}
 	
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	stats, err := scannerManager.GetLibraryStats(uint(libraryID))
@@ -215,7 +222,7 @@ func GetMediaFiles(c *gin.Context) {
 // GetScannerStats returns overall scanner statistics
 func GetScannerStats(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	// Get active scan count
@@ -253,7 +260,7 @@ func GetScannerStats(c *gin.Context) {
 // GetScannerStatus returns all running and recent scan jobs
 func GetScannerStatus(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	scanJobs, err := scannerManager.GetAllScans()
@@ -288,7 +295,7 @@ func StopLibraryScan(c *gin.Context) {
 	}
 	
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	// Find running scan job for this library

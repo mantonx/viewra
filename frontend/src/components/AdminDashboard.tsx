@@ -4,8 +4,15 @@ import PluginAdminPages from './PluginAdminPages';
 import PluginUIComponents from './PluginUIComponents';
 import PluginEvents from './PluginEvents';
 import PluginPermissions from './PluginPermissions';
+import SystemEvents from './SystemEvents';
 
-type AdminTab = 'plugins' | 'admin-pages' | 'ui-components' | 'events' | 'permissions';
+type AdminTab =
+  | 'plugins'
+  | 'admin-pages'
+  | 'ui-components'
+  | 'events'
+  | 'system-events'
+  | 'permissions';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('plugins');
@@ -51,7 +58,15 @@ const AdminDashboard: React.FC = () => {
             activeTab === 'events' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
           }`}
         >
-          📝 Activity Log
+          📝 Plugin Events
+        </button>
+        <button
+          onClick={() => setActiveTab('system-events')}
+          className={`px-5 py-3 text-sm font-medium ${
+            activeTab === 'system-events' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
+          }`}
+        >
+          🌐 System Events
         </button>
       </div>
 
@@ -60,6 +75,7 @@ const AdminDashboard: React.FC = () => {
       {activeTab === 'ui-components' && <PluginUIComponents />}
       {activeTab === 'permissions' && <PluginPermissions />}
       {activeTab === 'events' && <PluginEvents />}
+      {activeTab === 'system-events' && <SystemEvents />}
     </div>
   );
 };

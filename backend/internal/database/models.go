@@ -157,6 +157,23 @@ type PluginEvent struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// SystemEvent represents a system event in the database (for the new event bus system)
+type SystemEvent struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	EventID   string    `gorm:"uniqueIndex;not null" json:"event_id"`
+	Type      string    `gorm:"not null;index" json:"type"`
+	Source    string    `gorm:"not null;index" json:"source"`
+	Target    string    `gorm:"index" json:"target"`
+	Title     string    `json:"title"`
+	Message   string    `json:"message"`
+	Data      string    `gorm:"type:text" json:"data"` // JSON-encoded event data
+	Priority  int       `gorm:"not null;index" json:"priority"`
+	Tags      string    `gorm:"type:text" json:"tags"` // JSON-encoded tags
+	TTL       *int64    `json:"ttl"` // TTL in seconds
+	CreatedAt time.Time `gorm:"index" json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // PluginHook represents hooks that plugins can register for
 type PluginHook struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`

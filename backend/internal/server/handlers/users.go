@@ -157,3 +157,20 @@ func (h *UsersHandler) LogoutUser(c *gin.Context) {
 		"message": "Logout successful",
 	})
 }
+
+// Keep original function-based handlers for backward compatibility
+// These will delegate to the struct-based handlers
+
+// GetUsers function-based handler for backward compatibility
+func GetUsers(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &UsersHandler{}
+	handler.GetUsers(c)
+}
+
+// CreateUser function-based handler for backward compatibility
+func CreateUser(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &UsersHandler{}
+	handler.CreateUser(c)
+}

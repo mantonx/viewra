@@ -20,7 +20,7 @@ func ResumeLibraryScan(c *gin.Context) {
 	}
 	
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 	
 	// Find paused scan job for this library

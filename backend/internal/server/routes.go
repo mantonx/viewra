@@ -34,32 +34,42 @@ func setupRoutes(r *gin.Engine) {
 
 // setupRoutesWithEventHandlers configures routes with event handlers
 func setupRoutesWithEventHandlers(r *gin.Engine) {
-	// Setup basic routes first
-	setupRoutes(r)
+	// Static plugin assets
+	r.Static("/plugins", "./data/plugins")
 	
-	// Add event system routes with handlers
-	if systemEventBus != nil {
-		eventsHandler := handlers.NewEventsHandler(systemEventBus)
-		api := r.Group("/api")
-		events := api.Group("/events")
-		{
-			events.GET("/", eventsHandler.GetEvents)
-			events.GET("/by-time", eventsHandler.GetEventsByTimeRange)
-			events.GET("/stats", eventsHandler.GetEventStats)
-			events.GET("/types", eventsHandler.GetEventTypes)
-			events.POST("/", eventsHandler.PublishEvent)
-			events.GET("/subscriptions", eventsHandler.GetSubscriptions)
-			events.DELETE("/", eventsHandler.ClearEvents)
+	// API v1 routes group
+	api := r.Group("/api")
+	{
+		setupHealthRoutes(api)
+		
+		// Development routes - these would be removed in production
+		api.POST("/dev/load-test-music", handlers.LoadTestMusicData)
+		
+		// Setup routes with event handlers if event bus is available
+		if systemEventBus != nil {
+			// Event system routes
+			eventsHandler := handlers.NewEventsHandler(systemEventBus)
+			events := api.Group("/events")
+			{
+				events.GET("/", eventsHandler.GetEvents)
+				events.GET("/by-time", eventsHandler.GetEventsByTimeRange)
+				events.GET("/stats", eventsHandler.GetEventStats)
+				events.GET("/types", eventsHandler.GetEventTypes)
+				events.POST("/", eventsHandler.PublishEvent)
+				events.GET("/subscriptions", eventsHandler.GetSubscriptions)
+				events.DELETE("/", eventsHandler.ClearEvents)
+			}
+			
+			// Setup all routes with event-enabled handlers
+			setupMediaRoutesWithEvents(api, systemEventBus)
+			setupUserRoutesWithEvents(api, systemEventBus)
+			setupAdminRoutesWithEvents(api, systemEventBus)
+		} else {
+			// Fallback to basic routes without events
+			setupMediaRoutes(api)
+			setupUserRoutes(api)
+			setupAdminRoutes(api)
 		}
-		
-		// Update media routes with event-enabled handlers
-		setupMediaRoutesWithEvents(api, systemEventBus)
-		
-		// Update user routes with event-enabled handlers
-		setupUserRoutesWithEvents(api, systemEventBus)
-		
-		// Update admin routes with event-enabled handlers
-		setupAdminRoutesWithEvents(api, systemEventBus)
 	}
 }
 
@@ -96,10 +106,17 @@ func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 	// Create music handler with event bus
 	musicHandler := handlers.NewMusicHandler(eventBus)
 	
+	// Create media handler with event bus  
+	mediaHandler := handlers.NewMediaHandler(eventBus)
+	
 	media := api.Group("/media")
 	{
-		media.GET("/:id/metadata", musicHandler.GetMusicMetadata)
-		media.GET("/music", musicHandler.GetMusicFiles)
+		media.GET("/", mediaHandler.GetMedia)
+		media.POST("/", mediaHandler.UploadMedia)
+		media.GET("/:id/stream", mediaHandler.StreamMedia)      // GET /api/media/:id/stream - Stream media file
+		media.GET("/:id/artwork", handlers.GetArtwork)         // Keep original handler for artwork
+		media.GET("/:id/metadata", musicHandler.GetMusicMetadata) // GET /api/media/:id/metadata
+		media.GET("/music", musicHandler.GetMusicFiles)        // GET /api/media/music
 		
 		// Add playback tracking endpoints with events
 		playback := media.Group("/playback")
@@ -187,5 +204,26 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			libraries.GET("/:id/stats", adminHandler.GetLibraryStats)
 			libraries.GET("/:id/files", adminHandler.GetMediaFiles)
 		}
+		
+		// Scanner routes (without events for now - keep original handlers)
+		scanner := admin.Group("/scanner")
+		{
+			scanner.GET("/stats", handlers.GetScannerStats)                // GET /api/admin/scanner/stats
+			scanner.GET("/status", handlers.GetScannerStatus)              // GET /api/admin/scanner/status  
+			scanner.POST("/start/:id", handlers.StartLibraryScanByID)      // POST /api/admin/scanner/start/:id
+			scanner.POST("/pause/:id", handlers.StopLibraryScan)           // POST /api/admin/scanner/pause/:id
+			scanner.POST("/stop/:id", handlers.StopLibraryScan)            // POST /api/admin/scanner/stop/:id (for backward compatibility)
+			scanner.POST("/resume/:id", handlers.ResumeLibraryScan)        // POST /api/admin/scanner/resume/:id
+		}
 	}
+}
+
+// =============================================================================
+// EVENT ROUTES
+// =============================================================================
+
+// setupEventRoutes configures event system endpoints
+func setupEventRoutes(api *gin.RouterGroup) {
+	// Basic event routes will be set up by setupRoutesWithEventHandlers
+	// This function is kept for compatibility
 }

@@ -40,6 +40,8 @@ func Initialize() {
 		&Media{}, &User{}, &MediaLibrary{}, &MediaFile{}, &MusicMetadata{}, &ScanJob{},
 		// Plugin system tables
 		&Plugin{}, &PluginPermission{}, &PluginEvent{}, &PluginHook{}, &PluginAdminPage{}, &PluginUIComponent{},
+		// Event system tables
+		&SystemEvent{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)

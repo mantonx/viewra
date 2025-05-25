@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/events"
 	"gorm.io/gorm"
 )
 
@@ -35,6 +36,7 @@ type Manager struct {
 	notificationPlugins []NotificationPlugin
 	hooks             map[string][]HookHandler
 	events            chan PluginEventData
+	eventBus          events.EventBus             // New system-wide event bus
 	db                Database
 	pluginDir         string
 	devMode           bool
@@ -70,10 +72,18 @@ func NewManager(db Database, pluginDir string, logger PluginLogger) *Manager {
 		notificationPlugins: make([]NotificationPlugin, 0),
 		hooks:               make(map[string][]HookHandler),
 		events:              make(chan PluginEventData, 100),
+		eventBus:            nil, // Will be set via SetEventBus method
 		db:                  db,
 		pluginDir:           pluginDir,
 		logger:              logger,
 	}
+}
+
+// SetEventBus sets the system-wide event bus
+func (m *Manager) SetEventBus(eventBus events.EventBus) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.eventBus = eventBus
 }
 
 // Initialize initializes the plugin manager
@@ -558,11 +568,39 @@ func (m *Manager) removeFromTypeSpecificList(plugin Plugin) {
 }
 
 func (m *Manager) emitEvent(event PluginEventData) {
+	// Send to legacy plugin event channel
 	select {
 	case m.events <- event:
 	default:
 		// Channel full, drop event
 		m.logger.Warn("Plugin event channel full, dropping event", "event", event.EventType)
+	}
+	
+	// Also publish to the new system-wide event bus
+	if m.eventBus != nil {
+		systemEvent := events.NewPluginEvent(
+			events.EventType("plugin."+event.EventType), 
+			event.PluginID,
+			fmt.Sprintf("Plugin %s: %s", event.PluginID, event.EventType),
+			event.Message,
+		)
+		
+		// Add plugin-specific data
+		if event.Data != nil {
+			if dataMap, ok := event.Data.(map[string]interface{}); ok {
+				systemEvent.Data = dataMap
+			} else {
+				systemEvent.Data["original_data"] = event.Data
+			}
+		}
+		
+		systemEvent.Data["plugin_id"] = event.PluginID
+		systemEvent.Tags = []string{"plugin", event.PluginID}
+		
+		// Publish asynchronously to avoid blocking
+		if err := m.eventBus.PublishAsync(systemEvent); err != nil {
+			m.logger.Warn("Failed to publish event to system event bus", "error", err, "event_type", event.EventType)
+		}
 	}
 }
 

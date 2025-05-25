@@ -33,7 +33,7 @@ type ScanConfigRequest struct {
 // GetScanConfig returns the current scanning configuration
 func GetScanConfig(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 
 	// Get current configuration from scanner manager
@@ -57,7 +57,7 @@ func GetScanConfig(c *gin.Context) {
 // UpdateScanConfig updates the scanning configuration
 func UpdateScanConfig(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 
 	var request ScanConfigRequest
@@ -122,7 +122,7 @@ func UpdateScanConfig(c *gin.Context) {
 // GetScanPerformanceStats returns performance statistics for scanning operations
 func GetScanPerformanceStats(c *gin.Context) {
 	if scannerManager == nil {
-		InitializeScanner()
+		InitializeScannerCompat()
 	}
 
 	// Get recent scan jobs with timing information

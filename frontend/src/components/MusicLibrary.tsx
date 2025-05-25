@@ -142,13 +142,13 @@ const MusicLibrary = () => {
       const response = await fetch(`/api/media/music?limit=${limit}&offset=${offset}`);
       const data: ApiResponse = await response.json();
 
-      setMusicFiles(data.music_files);
-      setTotal(data.total);
+      setMusicFiles(data.music_files ?? []);
+      setTotal(data.total ?? 0);
 
       // Extract unique genres
       const genres = Array.from(
         new Set(
-          data.music_files
+          (data.music_files ?? [])
             .filter((file) => file.music_metadata?.genre)
             .map((file) => file.music_metadata.genre)
         )
@@ -157,7 +157,7 @@ const MusicLibrary = () => {
       setAvailableGenres(genres);
 
       // Group files by artist and album
-      groupMusicFiles(data.music_files);
+      groupMusicFiles(data.music_files ?? []);
     } catch (err) {
       console.error('Failed to load music files:', err);
       setError('Failed to load music files. Please try again later.');

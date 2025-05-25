@@ -160,3 +160,27 @@ func (h *AdminHandler) GetLibraryStats(c *gin.Context) {
 func (h *AdminHandler) GetMediaFiles(c *gin.Context) {
 	// Implementation remains the same
 }
+
+// Keep original function-based handlers for backward compatibility
+// These will delegate to the struct-based handlers
+
+// GetMediaLibraries function-based handler for backward compatibility
+func GetMediaLibraries(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &AdminHandler{}
+	handler.GetMediaLibraries(c)
+}
+
+// CreateMediaLibrary function-based handler for backward compatibility
+func CreateMediaLibrary(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &AdminHandler{}
+	handler.CreateMediaLibrary(c)
+}
+
+// DeleteMediaLibrary function-based handler for backward compatibility
+func DeleteMediaLibrary(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &AdminHandler{}
+	handler.DeleteMediaLibrary(c)
+}

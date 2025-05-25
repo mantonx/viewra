@@ -49,8 +49,8 @@ func SetupRouter() *gin.Engine {
 	// Setup routes with event handlers
 	setupRoutesWithEventHandlers(r)
 	
-	// Initialize scanner manager
-	handlers.InitializeScanner()
+	// Initialize scanner manager with event bus
+	handlers.InitializeScanner(systemEventBus)
 	
 	return r
 }
@@ -240,26 +240,4 @@ func initializeEventBus() error {
 	}
 	
 	return nil
-}
-
-// setupRoutesWithEventHandlers configures routes with event handlers
-func setupRoutesWithEventHandlers(r *gin.Engine) {
-	// Setup basic routes first
-	setupRoutes(r)
-	
-	// Add event system routes with handlers
-	if systemEventBus != nil {
-		eventsHandler := handlers.NewEventsHandler(systemEventBus)
-		api := r.Group("/api")
-		events := api.Group("/events")
-		{
-			events.GET("/", eventsHandler.GetEvents)
-			events.GET("/by-time", eventsHandler.GetEventsByTimeRange)
-			events.GET("/stats", eventsHandler.GetEventStats)
-			events.GET("/types", eventsHandler.GetEventTypes)
-			events.POST("/", eventsHandler.PublishEvent)
-			events.GET("/subscriptions", eventsHandler.GetSubscriptions)
-			events.DELETE("/", eventsHandler.ClearEvents) // New endpoint to clear all events
-		}
-	}
 }

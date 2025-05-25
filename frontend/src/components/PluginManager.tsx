@@ -4,9 +4,6 @@ import PluginDependencies from './PluginDependencies';
 import PluginConfigEditor from './PluginConfigEditor';
 import type {
   Plugin,
-  PluginManifest,
-  AdminPageConfig,
-  UIComponentConfig,
   PluginResponse,
 } from '../types/plugin.types';
 
@@ -308,7 +305,7 @@ const PluginManager: React.FC = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-white font-medium">{plugin.name}</h3>
                       <span className="text-slate-400 text-xs">v{plugin.version}</span>
-                      {renderTypeBadge(plugin.type)}
+                      {renderTypeBadge(plugin.type || 'unknown')}
                       {plugin.enabled ? (
                         <span className="bg-green-600/20 text-green-400 text-xs px-2 py-1 rounded">
                           Enabled
@@ -380,7 +377,7 @@ const PluginManager: React.FC = () => {
 
             <div className="p-6">
               <div className="flex flex-wrap gap-2 mb-4">
-                {renderTypeBadge(selectedPlugin.type)}
+                {renderTypeBadge(selectedPlugin.type || 'unknown')}
                 {selectedPlugin.enabled ? (
                   <span className="bg-green-600/20 text-green-400 text-xs px-2 py-1 rounded">
                     Enabled

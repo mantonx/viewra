@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -299,6 +298,30 @@ func (h *MediaHandler) UploadMedia(c *gin.Context) {
 	})
 }
 
+// Keep original function-based handlers for backward compatibility
+// These will delegate to the struct-based handlers
+
+// GetMedia function-based handler for backward compatibility
+func GetMedia(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &MediaHandler{}
+	handler.GetMedia(c)
+}
+
+// UploadMedia function-based handler for backward compatibility
+func UploadMedia(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &MediaHandler{}
+	handler.UploadMedia(c)
+}
+
+// StreamMedia function-based handler for backward compatibility
+func StreamMedia(c *gin.Context) {
+	// Create a temporary handler without event bus for backward compatibility
+	handler := &MediaHandler{}
+	handler.StreamMedia(c)
+}
+
 // Helper function to check if a file is a music file
 func isMusicFile(extension string) bool {
 	ext := strings.ToLower(extension)
@@ -315,8 +338,15 @@ func isMusicFile(extension string) bool {
 
 // Helper function to process music metadata
 func processMusicMetadata(filePath string, mediaFileID uint) (*database.MusicMetadata, error) {
+	// Get the media file for metadata extraction
+	db := database.GetDB()
+	var mediaFile database.MediaFile
+	if err := db.First(&mediaFile, mediaFileID).Error; err != nil {
+		return nil, fmt.Errorf("failed to find media file: %w", err)
+	}
+	
 	// Extract metadata using the metadata package
-	md, err := metadata.ExtractMusicMetadata(filePath)
+	md, err := metadata.ExtractMusicMetadata(filePath, &mediaFile)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +364,6 @@ func processMusicMetadata(filePath string, mediaFileID uint) (*database.MusicMet
 	}
 	
 	// Save to database
-	db := database.GetDB()
 	if err := db.Create(&musicMetadata).Error; err != nil {
 		return nil, err
 	}
