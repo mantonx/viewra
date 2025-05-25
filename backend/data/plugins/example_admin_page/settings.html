@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Example Settings</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+          Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .settings {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        margin-top: 0;
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+      }
+      .checkbox-group input {
+        width: auto;
+        margin-right: 10px;
+      }
+      button {
+        background-color: #0d6efd;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      button:hover {
+        background-color: #0b5ed7;
+      }
+      .success-message,
+      .error-message {
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 15px;
+      }
+      .success-message {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+      }
+      .error-message {
+        background-color: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="settings">
+      <h1>Example Settings</h1>
+      <p>Configure settings for the Example Plugin</p>
+
+      <form id="settings-form">
+        <div class="form-group">
+          <label for="page-title">Page Title</label>
+          <input type="text" id="page-title" name="page_title" placeholder="Enter page title" />
+        </div>
+
+        <div class="form-group">
+          <label for="refresh-interval">Refresh Interval (seconds)</label>
+          <input type="number" id="refresh-interval" name="refresh_interval" min="5" max="3600" />
+        </div>
+
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="feature-enabled" name="feature_enabled" />
+          <label for="feature-enabled">Enable Advanced Features</label>
+        </div>
+
+        <div class="form-group">
+          <label for="theme">Theme</label>
+          <select id="theme" name="theme">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System Default</option>
+          </select>
+        </div>
+
+        <button type="submit">Save Settings</button>
+      </form>
+
+      <div id="message"></div>
+    </div>
+
+    <script>
+      // Fetch current config when page loads
+      async function fetchConfig() {
+        try {
+          const response = await fetch('/api/admin/plugins/example_admin_page/config');
+          const data = await response.json();
+
+          if (data.config) {
+            document.getElementById('page-title').value = data.config.page_title || '';
+            document.getElementById('refresh-interval').value = data.config.refresh_interval || 30;
+            document.getElementById('feature-enabled').checked =
+              data.config.feature_enabled || false;
+            document.getElementById('theme').value = data.config.theme || 'light';
+          }
+        } catch (error) {
+          console.error('Error fetching config:', error);
+        }
+      }
+
+      // Handle form submission
+      document.getElementById('settings-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const config = {
+          page_title: formData.get('page_title'),
+          refresh_interval: parseInt(formData.get('refresh_interval')),
+          feature_enabled: formData.get('feature_enabled') === 'on',
+          theme: formData.get('theme'),
+        };
+
+        try {
+          const response = await fetch('/api/admin/plugins/example_admin_page/config', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ config }),
+          });
+
+          const result = await response.json();
+
+          const messageDiv = document.getElementById('message');
+          if (response.ok) {
+            messageDiv.className = 'success-message';
+            messageDiv.textContent = 'Settings saved successfully!';
+          } else {
+            messageDiv.className = 'error-message';
+            messageDiv.textContent = result.error || 'Failed to save settings';
+          }
+        } catch (error) {
+          const messageDiv = document.getElementById('message');
+          messageDiv.className = 'error-message';
+          messageDiv.textContent = `Error: ${error.message}`;
+        }
+      });
+
+      // Load config when the page loads
+      window.addEventListener('load', fetchConfig);
+    </script>
+  </body>
+</html>

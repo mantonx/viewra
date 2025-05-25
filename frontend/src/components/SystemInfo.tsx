@@ -1,25 +1,8 @@
-import { useState, useEffect } from 'react';
-
-interface SystemInfo {
-  frontend: {
-    url: string;
-    port: string;
-    framework: string;
-  };
-  backend: {
-    url: string;
-    port: string;
-    framework: string;
-  };
-  database: {
-    type: string;
-    status: string;
-  };
-  environment: string;
-}
+import React, { useState, useEffect } from 'react';
+import type { SystemInfo as SystemInfoType } from '../types/system.types';
 
 const SystemInfo = () => {
-  const [systemInfo, setSystemInfo] = useState<SystemInfo>({
+  const [systemInfo, setSystemInfo] = useState<SystemInfoType>({
     frontend: {
       url: window.location.origin,
       port: window.location.port || '5175',
@@ -173,14 +156,6 @@ const SystemInfo = () => {
             <div>
               <span className="text-slate-400">Environment:</span>
               <span className="text-white ml-2 capitalize">{systemInfo.environment}</span>
-            </div>
-            <div>
-              <span className="text-slate-400">Proxy:</span>
-              <span className="text-green-400 ml-2">✅ Vite</span>
-            </div>
-            <div>
-              <span className="text-slate-400">State:</span>
-              <span className="text-green-400 ml-2">✅ Jotai</span>
             </div>
             <div>
               <span className="text-slate-400">Styling:</span>

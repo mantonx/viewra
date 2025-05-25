@@ -36,7 +36,11 @@ func Initialize() {
 	}
 	
 	// Auto-migrate the schema
-	err = DB.AutoMigrate(&Media{}, &User{}, &MediaLibrary{}, &MediaFile{}, &MusicMetadata{}, &ScanJob{})
+	err = DB.AutoMigrate(
+		&Media{}, &User{}, &MediaLibrary{}, &MediaFile{}, &MusicMetadata{}, &ScanJob{},
+		// Plugin system tables
+		&Plugin{}, &PluginPermission{}, &PluginEvent{}, &PluginHook{}, &PluginAdminPage{}, &PluginUIComponent{},
+	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}

@@ -1,21 +1,6 @@
 import React from 'react';
-
-type SortField = 'title' | 'artist' | 'album' | 'year' | 'genre';
-type SortDirection = 'asc' | 'desc';
-
-interface ViewControlsProps {
-  viewMode: 'grid' | 'list' | 'albums';
-  filterText: string;
-  filterGenre: string;
-  sortField: SortField;
-  sortDirection: SortDirection;
-  availableGenres: string[];
-  onViewModeChange: (mode: 'grid' | 'list' | 'albums') => void;
-  onFilterTextChange: (text: string) => void;
-  onFilterGenreChange: (genre: string) => void;
-  onSortChange: (field: SortField) => void;
-  onSortDirectionToggle: () => void;
-}
+import type { ViewControlsProps } from '../types/ui.types';
+import type { SortField } from '../types/music.types';
 
 const ViewControls: React.FC<ViewControlsProps> = ({
   viewMode,

@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Provider } from 'jotai';
 import Header from './components/Header';
 import Home from './pages/Home';
+import Admin from './pages/Admin';
 
 const App = () => {
   return (
@@ -12,6 +13,7 @@ const App = () => {
           {/* Docker Compose Development Environment */}
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/admin" element={<Admin />} />
             {/* Future routes for media manager:
                 <Route path="/library" element={<Library />} />
                 <Route path="/media/:id" element={<MediaDetail />} />

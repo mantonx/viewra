@@ -13,17 +13,28 @@ import (
 // It manages the lifecycle of scan jobs and provides a centralized
 // interface for starting, stopping, and monitoring scan operations.
 type Manager struct {
-	db       *gorm.DB
-	scanners map[uint]*FileScanner // jobID -> scanner mapping
-	mu       sync.RWMutex          // protects scanners map
+	db               *gorm.DB
+	scanners         map[uint]*FileScanner        // jobID -> old scanner mapping (for compatibility)
+	parallelScanners map[uint]*ParallelFileScanner // jobID -> parallel scanner mapping
+	mu               sync.RWMutex                  // protects scanners maps
+	useParallel      bool                         // flag to enable parallel scanning
 }
 
 // NewManager creates a new scanner manager instance.
 func NewManager(db *gorm.DB) *Manager {
 	return &Manager{
-		db:       db,
-		scanners: make(map[uint]*FileScanner),
+		db:               db,
+		scanners:         make(map[uint]*FileScanner),
+		parallelScanners: make(map[uint]*ParallelFileScanner),
+		useParallel:      true, // Enable parallel scanning by default
 	}
+}
+
+// SetParallelMode enables or disables parallel scanning
+func (m *Manager) SetParallelMode(enabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.useParallel = enabled
 }
 
 // StartScan creates and starts a new scan job for the specified library.
@@ -44,11 +55,19 @@ func (m *Manager) StartScan(libraryID uint) (*database.ScanJob, error) {
 	}
 
 	// Create and register scanner
-	scanner := NewFileScanner(m.db, scanJob.ID)
-	m.scanners[scanJob.ID] = scanner
-
-	// Start scanning in background
-	go m.runScanJob(scanner, scanJob.ID, libraryID)
+	if m.useParallel {
+		parallelScanner := NewParallelFileScanner(m.db, scanJob.ID)
+		m.parallelScanners[scanJob.ID] = parallelScanner
+		
+		// Start scanning in background
+		go m.runParallelScanJob(parallelScanner, scanJob.ID, libraryID)
+	} else {
+		scanner := NewFileScanner(m.db, scanJob.ID)
+		m.scanners[scanJob.ID] = scanner
+		
+		// Start scanning in background
+		go m.runScanJob(scanner, scanJob.ID, libraryID)
+	}
 
 	return scanJob, nil
 }
@@ -80,22 +99,56 @@ func (m *Manager) runScanJob(scanner *FileScanner, jobID, libraryID uint) {
 	}
 }
 
+// runParallelScanJob executes a parallel scan job in a goroutine and handles cleanup.
+func (m *Manager) runParallelScanJob(scanner *ParallelFileScanner, jobID, libraryID uint) {
+	defer func() {
+		// Clean up completed or failed scans from active scanners map
+		var currentJob database.ScanJob
+		if err := m.db.First(&currentJob, jobID).Error; err == nil {
+			if currentJob.Status == string(utils.StatusCompleted) || 
+			   currentJob.Status == string(utils.StatusFailed) {
+				m.removeParallelScanner(jobID)
+			}
+		}
+	}()
+
+	// Start the actual scanning process
+	if err := scanner.Start(libraryID); err != nil {
+		// Check if this was a pause request (not an actual error)
+		if err.Error() == "scan cancelled" {
+			return // Status already updated by StopScan
+		}
+
+		// Update job with error status
+		if updateErr := utils.UpdateJobStatus(m.db, jobID, utils.StatusFailed, err.Error()); updateErr != nil {
+			fmt.Printf("Failed to update job status after error: %v\n", updateErr)
+		}
+	}
+}
+
 // StopScan pauses a running scan job.
 // The scan can be resumed later using ResumeScan.
 func (m *Manager) StopScan(jobID uint) error {
 	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
+	parallelScanner, parallelExists := m.parallelScanners[jobID]
 	m.mu.RUnlock()
 
-	if !exists {
-		return m.handleInactiveJobStop(jobID)
+	if parallelExists {
+		// Pause the active parallel scanner
+		parallelScanner.Pause()
+		// Update job status to paused
+		return utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
 	}
 
-	// Pause the active scanner
-	scanner.Pause()
+	if exists {
+		// Pause the active regular scanner
+		scanner.Pause()
+		// Update job status to paused
+		return utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
+	}
 
-	// Update job status to paused
-	return utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
+	return m.handleInactiveJobStop(jobID)
 }
 
 // handleInactiveJobStop handles stopping a job that isn't actively running.
@@ -250,6 +303,13 @@ func (m *Manager) removeScanner(jobID uint) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.scanners, jobID)
+}
+
+// removeParallelScanner removes a parallel scanner from the active scanners map
+func (m *Manager) removeParallelScanner(jobID uint) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.parallelScanners, jobID)
 }
 
 // Shutdown gracefully shuts down the manager by pausing all active scans.

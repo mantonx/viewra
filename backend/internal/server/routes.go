@@ -14,6 +14,9 @@ import (
 // - User management endpoints
 // - Admin endpoints for system configuration
 func setupRoutes(r *gin.Engine) {
+	// Static plugin assets
+	r.Static("/plugins", "./data/plugins")
+	
 	// API v1 routes group
 	api := r.Group("/api")
 	{
@@ -99,6 +102,33 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 			scanner.GET("/library-stats", handlers.GetAllLibraryStats)     // GET /api/admin/scanner/library-stats
 			scanner.GET("/scans", handlers.GetAllScans)                    // GET /api/admin/scanner/scans
 			scanner.GET("/scan/:id", handlers.GetScanStatus)               // GET /api/admin/scanner/scan/:id
+			
+			// Performance configuration routes
+			scanner.GET("/config", handlers.GetScanConfig)                 // GET /api/admin/scanner/config
+			scanner.PUT("/config", handlers.UpdateScanConfig)              // PUT /api/admin/scanner/config
+			scanner.GET("/performance", handlers.GetScanPerformanceStats)  // GET /api/admin/scanner/performance
+		}
+		
+		// Plugin management routes
+		plugins := admin.Group("/plugins")
+		{
+			plugins.GET("/", handlers.GetPlugins)                          // GET /api/admin/plugins/
+			plugins.POST("/refresh", handlers.RefreshPlugins)              // POST /api/admin/plugins/refresh
+			plugins.POST("/install", handlers.InstallPlugin)               // POST /api/admin/plugins/install
+			plugins.GET("/admin-pages", handlers.GetPluginAdminPages)      // GET /api/admin/plugins/admin-pages
+			plugins.GET("/ui-components", handlers.GetPluginUIComponents)  // GET /api/admin/plugins/ui-components
+			plugins.GET("/events", handlers.GetAllPluginEvents)            // GET /api/admin/plugins/events
+			
+			// Individual plugin routes
+			plugins.GET("/:id", handlers.GetPlugin)                        // GET /api/admin/plugins/:id
+			plugins.POST("/:id/enable", handlers.EnablePlugin)             // POST /api/admin/plugins/:id/enable
+			plugins.POST("/:id/disable", handlers.DisablePlugin)           // POST /api/admin/plugins/:id/disable
+			plugins.DELETE("/:id", handlers.UninstallPlugin)               // DELETE /api/admin/plugins/:id
+			plugins.GET("/:id/health", handlers.GetPluginHealth)           // GET /api/admin/plugins/:id/health
+			plugins.GET("/:id/config", handlers.GetPluginConfig)           // GET /api/admin/plugins/:id/config
+			plugins.PUT("/:id/config", handlers.UpdatePluginConfig)        // PUT /api/admin/plugins/:id/config
+			plugins.GET("/:id/manifest", handlers.GetPluginManifest)       // GET /api/admin/plugins/:id/manifest
+			plugins.GET("/:id/events", handlers.GetPluginEvents)           // GET /api/admin/plugins/:id/events
 		}
 	}
 }

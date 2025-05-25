@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // MediaExtensions contains supported media file extensions
@@ -22,7 +23,7 @@ var MediaExtensions = map[string]bool{
 	".m4v":  true,
 	".3gp":  true,
 	".ogv":  true,
-	
+
 	// Audio formats
 	".mp3":  true,
 	".wav":  true,
@@ -42,12 +43,57 @@ func CalculateFileHash(filePath string) (string, error) {
 		return "", err
 	}
 	defer file.Close()
-	
+
 	hasher := sha1.New()
 	if _, err := io.Copy(hasher, file); err != nil {
 		return "", err
 	}
-	
+
+	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+}
+
+// CalculateFileHashIfNeeded calculates SHA1 hash only if the file has changed
+// Returns the existing hash if file hasn't changed based on size and modification time
+func CalculateFileHashIfNeeded(filePath string, existingHash string, existingSize int64, existingModTime time.Time) (string, error) {
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	// If size and modification time haven't changed, return existing hash
+	if existingHash != "" && fileInfo.Size() == existingSize && !fileInfo.ModTime().After(existingModTime) {
+		return existingHash, nil
+	}
+
+	// File has changed, calculate new hash
+	return CalculateFileHash(filePath)
+}
+
+// CalculateFileHashFast calculates SHA1 hash using a larger buffer for better performance
+func CalculateFileHashFast(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hasher := sha1.New()
+	// Use a larger buffer (64KB) for better I/O performance
+	buffer := make([]byte, 65536)
+
+	for {
+		n, err := file.Read(buffer)
+		if n > 0 {
+			hasher.Write(buffer[:n])
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
@@ -60,13 +106,13 @@ func IsMediaFile(filePath string) bool {
 // GetContentType returns the appropriate content type for a file extension
 func GetContentType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
-	
+
 	// Try MIME type detection first
 	contentType := ""
 	if ct := getBasicContentType(ext); ct != "" {
 		contentType = ct
 	}
-	
+
 	// Fallback to specific mappings for audio formats
 	if contentType == "" {
 		switch ext {
@@ -86,7 +132,7 @@ func GetContentType(filePath string) string {
 			contentType = "application/octet-stream"
 		}
 	}
-	
+
 	return contentType
 }
 

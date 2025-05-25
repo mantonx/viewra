@@ -1,52 +1,6 @@
 import { useState, useEffect } from 'react';
-
-interface MediaLibrary {
-  id: number;
-  path: string;
-  type: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface ScanJob {
-  id: string;
-  library_id: number;
-  status: string;
-  files_found: number;
-  files_processed: number;
-  bytes_processed: number;
-  errors: string[];
-  started_at: string;
-  completed_at?: string;
-}
-
-interface ScanStats {
-  active_scans: number;
-  total_files_scanned: number;
-  total_bytes_scanned: number;
-}
-
-interface LibraryStats {
-  [key: number]: {
-    total_files: number;
-    total_size: number;
-    extension_stats: Array<{
-      extension: string;
-      count: number;
-    }>;
-    scan_status?: string;
-    progress?: number;
-    files_found?: number;
-    files_processed?: number;
-    bytes_processed?: number;
-  };
-}
-
-interface ApiResponse {
-  status: number;
-  data: unknown;
-  error?: string;
-}
+import type { MediaLibrary, ScanJob, ScanStats, LibraryStats } from '../types/media.types';
+import type { ApiResponse } from '../types/system.types';
 
 const MediaLibraryManager = () => {
   const [libraries, setLibraries] = useState<MediaLibrary[]>([]);

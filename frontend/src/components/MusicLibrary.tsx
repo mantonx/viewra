@@ -168,7 +168,7 @@ const MusicLibrary = () => {
 
   useEffect(() => {
     loadMusicFiles();
-  }, [loadMusicFiles, sortField, sortDirection]);
+  }, [loadMusicFiles]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -341,7 +341,9 @@ const MusicLibrary = () => {
                 {/* Track Info */}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white font-medium truncate">
-                    {currentTrack?.music_metadata?.title || currentTrack?.path.split('/').pop()}
+                    {currentTrack?.music_metadata?.title ||
+                      currentTrack?.path.split('/').pop() ||
+                      'Unknown Track'}
                   </h3>
                   <p className="text-slate-400 text-sm truncate">
                     {currentTrack?.music_metadata?.artist || 'Unknown Artist'}
@@ -570,7 +572,9 @@ const MusicLibrary = () => {
                         </div>
                       )}
                       <span className="text-white truncate">
-                        {file.music_metadata?.title || file.path.split('/').pop()}
+                        {file.music_metadata?.title ||
+                          file.path.split('/').pop() ||
+                          'Unknown Track'}
                         {currentTrack && currentTrack.id === file.id && (
                           <span className="ml-2 text-purple-400">{isPlaying ? '▶️' : '⏸'}</span>
                         )}
