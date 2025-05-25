@@ -10,7 +10,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/utils"
 )
 
 // GetMedia retrieves all media items with associated user information
@@ -55,51 +56,24 @@ func StreamMedia(c *gin.Context) {
 		return
 	}
 
-	// Check if file exists on disk
-	filePath := mediaFile.Path
-	file, err := os.Open(filePath)
+	// Resolve the file path using the path resolver
+	pathResolver := utils.NewPathResolver()
+	validPath, err := pathResolver.ResolvePath(mediaFile.Path)
 	if err != nil {
-		// Try alternative paths if the original path doesn't work
-		pathVariants := []string{filePath}
-		
-		// Add common path mappings
-		if strings.HasPrefix(filePath, "/app/") {
-			pathVariants = append(pathVariants, strings.TrimPrefix(filePath, "/app"))
-			pathVariants = append(pathVariants, filepath.Join(".", strings.TrimPrefix(filePath, "/app")))
-		}
-		
-		// Try workspace-relative paths
-		pwd, err := os.Getwd()
-		if err == nil {
-			pathVariants = append(pathVariants, filepath.Join(pwd, filePath))
-			
-			// Special handling for test data paths
-			if strings.Contains(filePath, "data/test-music") {
-				parts := strings.Split(filePath, "data/test-music")
-				if len(parts) > 1 {
-					relPath := "data/test-music" + parts[len(parts)-1]
-					pathVariants = append(pathVariants, filepath.Join(pwd, relPath))
-				}
-			}
-		}
-		
-		// Try each path variant
-		var validPath string
-		for _, path := range pathVariants {
-			if f, err := os.Open(path); err == nil {
-				file = f
-				validPath = path
-				break
-			}
-		}
-		
-		if validPath == "" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Media file not found on disk",
-				"path":  filePath,
-			})
-			return
-		}
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found on disk",
+			"path":  mediaFile.Path,
+		})
+		return
+	}
+
+	// Open the resolved file
+	file, err := os.Open(validPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to open media file",
+		})
+		return
 	}
 	defer file.Close()
 
@@ -112,25 +86,11 @@ func StreamMedia(c *gin.Context) {
 		return
 	}
 
-	// Detect content type based on file extension
-	ext := strings.ToLower(filepath.Ext(filePath))
-	contentType := mime.TypeByExtension(ext)
+	// Get content type using utility
+	contentType := utils.GetContentType(validPath)
 	if contentType == "" {
-		// Default content types for common audio formats
-		switch ext {
-		case ".mp3":
-			contentType = "audio/mpeg"
-		case ".wav":
-			contentType = "audio/wav"
-		case ".flac":
-			contentType = "audio/flac"
-		case ".ogg":
-			contentType = "audio/ogg"
-		case ".m4a":
-			contentType = "audio/mp4"
-		case ".aac":
-			contentType = "audio/aac"
-		default:
+		contentType = mime.TypeByExtension(strings.ToLower(filepath.Ext(validPath)))
+		if contentType == "" {
 			contentType = "application/octet-stream"
 		}
 	}

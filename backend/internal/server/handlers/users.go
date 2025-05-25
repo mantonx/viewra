@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/database"
 )
 
 // GetUsers retrieves all users from the database

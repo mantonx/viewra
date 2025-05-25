@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/utils"
 )
 
 // Resume resumes a previously paused scan
@@ -63,11 +64,14 @@ func (fs *FileScanner) resumeDirectory() {
 	
 	libraryPath := fs.scanJob.Library.Path
 	
-	// Check if directory exists
-	if _, err := os.Stat(libraryPath); os.IsNotExist(err) {
+	// Resolve the library path using the path resolver
+	basePath, err := fs.pathResolver.ResolveDirectory(libraryPath)
+	if err != nil {
 		fs.updateJobError(fmt.Sprintf("Directory does not exist: %s", libraryPath))
 		return
 	}
+	
+	fmt.Printf("Resumed scanning at resolved path: %s\n", basePath)
 	
 	// Get the number of files already processed
 	filesProcessed := fs.scanJob.FilesProcessed
@@ -77,7 +81,7 @@ func (fs *FileScanner) resumeDirectory() {
 	// Also recount if we're resuming a scan that might have been paused for a long time
 	// This helps with accuracy if files were added/removed while scan was paused
 	totalFiles = 0
-	filepath.WalkDir(libraryPath, func(path string, d os.DirEntry, err error) error {
+	filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
 		// Check if we should stop
 		select {
 		case <-fs.stopChan:
@@ -93,7 +97,7 @@ func (fs *FileScanner) resumeDirectory() {
 			return nil
 		}
 		
-		if fs.isMediaFile(path) {
+		if utils.IsMediaFile(path) {
 			totalFiles++
 		}
 		
@@ -130,7 +134,7 @@ func (fs *FileScanner) resumeDirectory() {
 	}
 	
 	// Process files, skipping the ones we've already processed
-	err := filepath.WalkDir(libraryPath, func(path string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
 		// Check if we should stop
 		select {
 		case <-fs.stopChan:
@@ -148,7 +152,7 @@ func (fs *FileScanner) resumeDirectory() {
 			return nil
 		}
 		
-		if !fs.isMediaFile(path) {
+		if !utils.IsMediaFile(path) {
 			return nil
 		}
 		

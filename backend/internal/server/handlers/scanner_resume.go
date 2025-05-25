@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/database"
 )
 
 // ResumeLibraryScan resumes a previously paused scan for a specific library
@@ -55,10 +55,20 @@ func ResumeLibraryScan(c *gin.Context) {
 	}
 	
 	// Resume the paused scan
-	scanJob, err := scannerManager.ResumeScan(jobID)
+	err = scannerManager.ResumeScan(jobID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Failed to resume scan",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Get the updated scan job status
+	scanJob, err := scannerManager.GetScanStatus(jobID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get scan status after resume",
 			"details": err.Error(),
 		})
 		return

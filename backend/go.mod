@@ -1,4 +1,4 @@
-module github.com/yourusername/viewra
+module github.com/mantonx/viewra
 
 go 1.24.3
 

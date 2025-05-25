@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/database"
 )
 
 // GetMusicMetadata retrieves music metadata for a media file

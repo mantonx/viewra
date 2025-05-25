@@ -4,7 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/utils"
 )
 
 // GetAllLibraryStats returns statistics for all libraries
@@ -25,7 +26,7 @@ func GetAllLibraryStats(c *gin.Context) {
 	}
 	
 	// Get stats for each library
-	libraryStats := make(map[uint]map[string]interface{})
+	libraryStats := make(map[uint]*utils.LibraryStats)
 	for _, lib := range libraries {
 		stats, err := scannerManager.GetLibraryStats(lib.ID)
 		if err != nil {
@@ -39,16 +40,27 @@ func GetAllLibraryStats(c *gin.Context) {
 	if err == nil {
 		for _, job := range scanJobs {
 			if job.Status == "running" || job.Status == "paused" {
-				// Add scan job details to the library stats
+				// Create stats entry if it doesn't exist
 				if _, ok := libraryStats[job.LibraryID]; !ok {
-					libraryStats[job.LibraryID] = make(map[string]interface{})
+					libraryStats[job.LibraryID] = &utils.LibraryStats{}
 				}
 				
-				libraryStats[job.LibraryID]["scan_status"] = job.Status
-				libraryStats[job.LibraryID]["progress"] = job.Progress
-				libraryStats[job.LibraryID]["files_found"] = job.FilesFound
-				libraryStats[job.LibraryID]["files_processed"] = job.FilesProcessed
-				libraryStats[job.LibraryID]["bytes_processed"] = job.BytesProcessed
+				// Create enhanced response with scan job details
+				enhancedStats := map[string]interface{}{
+					"total_files":      libraryStats[job.LibraryID].TotalFiles,
+					"total_size":       libraryStats[job.LibraryID].TotalSize,
+					"extension_stats":  libraryStats[job.LibraryID].ExtensionStats,
+					"scan_status":      job.Status,
+					"progress":         job.Progress,
+					"files_found":      job.FilesFound,
+					"files_processed":  job.FilesProcessed,
+					"bytes_processed":  job.BytesProcessed,
+				}
+				
+				c.JSON(http.StatusOK, gin.H{
+					"library_stats": enhancedStats,
+				})
+				return
 			}
 		}
 	}

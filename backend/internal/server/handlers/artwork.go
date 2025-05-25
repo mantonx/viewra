@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/metadata"
 )
 
 // GetArtwork serves album artwork for a media file

@@ -4,7 +4,7 @@ package server
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/server/handlers"
+	"github.com/mantonx/viewra/internal/server/handlers"
 )
 
 // setupRoutes configures all API routes for the Viewra application.

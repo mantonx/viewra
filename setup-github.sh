@@ -5,7 +5,7 @@
 
 echo "🚀 Setting up GitHub remote for Viewra..."
 
-# You'll need to replace 'yourusername' with your actual GitHub username
+# You'll need to replace 'mantonx' with your actual GitHub username
 read -p "Enter your GitHub username: " username
 
 if [ -z "$username" ]; then

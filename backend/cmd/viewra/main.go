@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/yourusername/viewra/internal/database"
-	"github.com/yourusername/viewra/internal/server"
+	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/server"
 )
 
 func main() {

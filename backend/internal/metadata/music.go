@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/dhowden/tag"
-	"github.com/yourusername/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/database"
 )
 
 // MusicFileExtensions defines supported music file formats

@@ -14,7 +14,7 @@ Thank you for your interest in contributing to Viewra! This document provides gu
 ### Development Setup
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/yourusername/viewra.git`
+2. Clone your fork: `git clone https://github.com/mantonx/viewra.git`
 3. Navigate to the project: `cd viewra`
 
 #### Option 1: Docker Compose (Recommended)
@@ -31,12 +31,14 @@ Thank you for your interest in contributing to Viewra! This document provides gu
 #### Option 2: Manual Setup
 
 1. Install dependencies:
+
    ```bash
    cd backend && go mod tidy
    cd ../frontend && npm install
    ```
 
 2. Start development servers:
+
    ```bash
    # Terminal 1 - Backend
    cd backend && SQLITE_PATH=./data/viewra.db PORT=8081 go run cmd/viewra/main.go

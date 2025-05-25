@@ -12,8 +12,8 @@ import (
 
 	"github.com/dhowden/tag"
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/viewra/internal/database"
-	"github.com/yourusername/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/metadata"
 )
 
 // LoadTestMusicData loads test music data into the database
