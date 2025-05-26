@@ -70,7 +70,7 @@ type MediaFile struct {
 // MusicMetadata represents extracted metadata from music files
 type MusicMetadata struct {
 	ID          uint          `gorm:"primaryKey" json:"id"`
-	MediaFileID uint          `gorm:"index;not null" json:"media_file_id"`
+	MediaFileID uint          `gorm:"uniqueIndex;not null" json:"media_file_id"`
 	Title       string        `json:"title"`
 	Album       string        `json:"album"`
 	Artist      string        `json:"artist"`
@@ -87,6 +87,10 @@ type MusicMetadata struct {
 	HasArtwork  bool          `json:"has_artwork"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
+	
+	// Temporary fields for artwork processing (not stored in database)
+	ArtworkData []byte `gorm:"-" json:"-"`
+	ArtworkExt  string `gorm:"-" json:"-"`
 }
 
 // ScanJob represents a background scanning job

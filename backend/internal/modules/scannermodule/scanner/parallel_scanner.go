@@ -93,6 +93,7 @@ type BatchProcessor struct {
 	timeout      time.Duration
 	mediaFiles   []*database.MediaFile
 	musicMetas   []*database.MusicMetadata
+	metaToPath   map[*database.MusicMetadata]string  // Track metadata to file path mapping
 	mu           sync.Mutex
 }
 
@@ -167,6 +168,7 @@ func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *
 		timeout:    scanner.batchTimeout,
 		mediaFiles: make([]*database.MediaFile, 0, scanner.batchSize),
 		musicMetas: make([]*database.MusicMetadata, 0, scanner.batchSize),
+		metaToPath: make(map[*database.MusicMetadata]string),
 	}
 	
 	// Initialize metadata cache
@@ -850,7 +852,7 @@ func (ps *ParallelFileScanner) resultProcessor() {
 				ps.batchProcessor.AddMediaFile(result.mediaFile)
 			}
 			if result.musicMeta != nil {
-				ps.batchProcessor.AddMusicMetadata(result.musicMeta)
+				ps.batchProcessor.AddMusicMetadataWithPath(result.musicMeta, result.path)
 			}
 			
 		case <-updateTicker.C:
@@ -1149,6 +1151,14 @@ func (bp *BatchProcessor) AddMusicMetadata(meta *database.MusicMetadata) {
 	bp.musicMetas = append(bp.musicMetas, meta)
 }
 
+func (bp *BatchProcessor) AddMusicMetadataWithPath(meta *database.MusicMetadata, path string) {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	
+	bp.musicMetas = append(bp.musicMetas, meta)
+	bp.metaToPath[meta] = path
+}
+
 func (bp *BatchProcessor) FlushIfNeeded() error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
@@ -1173,23 +1183,86 @@ func (bp *BatchProcessor) flushInternal() error {
 	
 	// Use transaction for batch operations
 	err := bp.db.Transaction(func(tx *gorm.DB) error {
-		// Batch upsert media files
+		// Create a map to track path -> media file for metadata linking
+		pathToMediaFile := make(map[string]*database.MediaFile)
+		
+		// Batch upsert media files first
 		if len(bp.mediaFiles) > 0 {
+			// Build path map before insertion
+			for _, mediaFile := range bp.mediaFiles {
+				pathToMediaFile[mediaFile.Path] = mediaFile
+			}
+			
 			if err := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "path"}},
 				DoUpdates: clause.AssignmentColumns([]string{"size", "hash", "last_seen"}),
 			}).CreateInBatches(bp.mediaFiles, 100).Error; err != nil {
 				return err
 			}
+			
+			// After insertion, get the actual IDs from database for all paths
+			var savedFiles []database.MediaFile
+			paths := make([]string, 0, len(bp.mediaFiles))
+			for _, mf := range bp.mediaFiles {
+				paths = append(paths, mf.Path)
+			}
+			
+			if err := tx.Where("path IN ?", paths).Find(&savedFiles).Error; err != nil {
+				return fmt.Errorf("failed to retrieve saved media files: %w", err)
+			}
+			
+			// Update the path map with actual database IDs
+			for _, savedFile := range savedFiles {
+				if originalFile, exists := pathToMediaFile[savedFile.Path]; exists {
+					originalFile.ID = savedFile.ID
+				}
+			}
 		}
 		
-		// Batch insert music metadata
+		// Now process music metadata with correct media file IDs
 		if len(bp.musicMetas) > 0 {
-			if err := tx.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "media_file_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"title", "artist", "album", "year", "genre", "duration", "bitrate"}),
-			}).CreateInBatches(bp.musicMetas, 100).Error; err != nil {
-				return err
+			// Update metadata with correct media file IDs using path mapping
+			validMetas := make([]*database.MusicMetadata, 0, len(bp.musicMetas))
+			
+			for _, musicMeta := range bp.musicMetas {
+				// Find the corresponding media file by path
+				if path, exists := bp.metaToPath[musicMeta]; exists {
+					if mediaFile, pathExists := pathToMediaFile[path]; pathExists && mediaFile.ID > 0 {
+						// Update the metadata with the correct media file ID
+						musicMeta.MediaFileID = mediaFile.ID
+						validMetas = append(validMetas, musicMeta)
+						fmt.Printf("DEBUG: Linked metadata for %s to media file ID %d\n", path, mediaFile.ID)
+					} else {
+						fmt.Printf("WARNING: Could not find media file for path %s\n", path)
+					}
+				} else if musicMeta.MediaFileID > 0 {
+					// Metadata already has a valid ID (from cache or previous processing)
+					validMetas = append(validMetas, musicMeta)
+				} else {
+					fmt.Printf("WARNING: Music metadata has no path mapping and MediaFileID = 0, skipping\n")
+				}
+			}
+			
+			if len(validMetas) > 0 {
+				if err := tx.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "media_file_id"}},
+					DoUpdates: clause.AssignmentColumns([]string{"title", "artist", "album", "year", "genre", "duration", "bitrate"}),
+				}).CreateInBatches(validMetas, 100).Error; err != nil {
+					return err
+				}
+				fmt.Printf("DEBUG: Successfully inserted %d music metadata records\n", len(validMetas))
+				
+				// Save artwork for metadata that has artwork data
+				for _, meta := range validMetas {
+					if meta.HasArtwork && len(meta.ArtworkData) > 0 && meta.MediaFileID > 0 {
+						err := metadata.SaveArtworkWithID(meta.MediaFileID, meta.ArtworkData, meta.ArtworkExt)
+						if err != nil {
+							fmt.Printf("Warning: failed to save artwork for media file ID %d: %v\n", meta.MediaFileID, err)
+						} else {
+							fmt.Printf("Successfully saved artwork for media file ID %d\n", meta.MediaFileID)
+						}
+					}
+				}
 			}
 		}
 		
@@ -1200,6 +1273,10 @@ func (bp *BatchProcessor) flushInternal() error {
 		// Clear batches
 		bp.mediaFiles = bp.mediaFiles[:0]
 		bp.musicMetas = bp.musicMetas[:0]
+		// Clear path mapping
+		for k := range bp.metaToPath {
+			delete(bp.metaToPath, k)
+		}
 	}
 	
 	return err

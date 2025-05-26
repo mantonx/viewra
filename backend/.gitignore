@@ -50,3 +50,15 @@ coverage.html
 
 # Air live reload
 tmp/
+
+# Test artifacts and compiled binaries
+test_*
+*_test
+main
+viewra
+app.db
+
+# Test data directories
+test-music/
+test_media/
+test_media_*/

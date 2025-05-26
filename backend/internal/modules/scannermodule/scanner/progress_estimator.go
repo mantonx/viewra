@@ -118,17 +118,34 @@ func (pe *ProgressEstimator) GetEstimate() (progress float64, eta time.Time, fil
 	}
 	
 	// Calculate ETA
-	if pe.currentRate > 0 && pe.totalFiles > 0 {
+	if pe.currentRate > 0 && pe.totalFiles > 0 && pe.processedFiles < pe.totalFiles {
 		remainingFiles := pe.totalFiles - pe.processedFiles
-		remainingSeconds := float64(remainingFiles) / pe.currentRate
-		eta = time.Now().Add(time.Duration(remainingSeconds) * time.Second)
-	} else {
-		// Fallback: simple linear estimation
+		if remainingFiles > 0 {
+			remainingSeconds := float64(remainingFiles) / pe.currentRate
+			eta = time.Now().Add(time.Duration(remainingSeconds) * time.Second)
+		}
+	} else if pe.processedFiles > 0 && pe.totalFiles > 0 && pe.processedFiles < pe.totalFiles {
+		// Fallback: simple linear estimation based on elapsed time
 		elapsed := time.Since(pe.startTime)
-		if progress > 0 {
+		if elapsed.Seconds() > 0 {
+			avgRate := float64(pe.processedFiles) / elapsed.Seconds()
+			if avgRate > 0 {
+				remainingFiles := pe.totalFiles - pe.processedFiles
+				remainingSeconds := float64(remainingFiles) / avgRate
+				eta = time.Now().Add(time.Duration(remainingSeconds) * time.Second)
+			}
+		}
+	}
+	
+	// If ETA is still zero and we have progress, use simple percentage-based estimation
+	if eta.IsZero() && progress > 0 && progress < 100 {
+		elapsed := time.Since(pe.startTime)
+		if elapsed.Seconds() > 0 {
 			totalDuration := elapsed.Seconds() * (100 / progress)
 			remainingDuration := totalDuration - elapsed.Seconds()
-			eta = time.Now().Add(time.Duration(remainingDuration) * time.Second)
+			if remainingDuration > 0 {
+				eta = time.Now().Add(time.Duration(remainingDuration) * time.Second)
+			}
 		}
 	}
 	
@@ -149,7 +166,13 @@ func (pe *ProgressEstimator) GetStats() map[string]interface{} {
 		"total_bytes":        pe.totalBytes,
 		"elapsed_time":       elapsed.String(),
 		"files_per_second":   pe.currentRate,
-		"average_file_size":  float64(pe.processedBytes) / float64(pe.processedFiles),
+	}
+	
+	// Calculate average file size safely
+	if pe.processedFiles > 0 {
+		stats["average_file_size"] = float64(pe.processedBytes) / float64(pe.processedFiles)
+	} else {
+		stats["average_file_size"] = 0.0
 	}
 	
 	// Add throughput in MB/s

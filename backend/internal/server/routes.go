@@ -189,10 +189,12 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 		{
 			scanner.GET("/stats", handlers.GetScannerStats)                // GET /api/admin/scanner/stats
 			scanner.GET("/status", handlers.GetScannerStatus)              // GET /api/admin/scanner/status  
+			scanner.GET("/current-jobs", handlers.GetCurrentJobs)          // GET /api/admin/scanner/current-jobs
 			scanner.POST("/start/:id", handlers.StartLibraryScanByID)      // POST /api/admin/scanner/start/:id
 			scanner.POST("/pause/:id", handlers.StopLibraryScan)           // POST /api/admin/scanner/pause/:id
 			scanner.POST("/stop/:id", handlers.StopLibraryScan)            // POST /api/admin/scanner/stop/:id (for backward compatibility)
 			scanner.POST("/resume/:id", handlers.ResumeLibraryScan)        // POST /api/admin/scanner/resume/:id
+			scanner.POST("/cleanup-orphaned", handlers.CleanupOrphanedJobs) // POST /api/admin/scanner/cleanup-orphaned
 			
 			// Real-time scan progress endpoint
 			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
@@ -222,10 +224,15 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 		{
 			scanner.GET("/stats", handlers.GetScannerStats)                // GET /api/admin/scanner/stats
 			scanner.GET("/status", handlers.GetScannerStatus)              // GET /api/admin/scanner/status  
+			scanner.GET("/current-jobs", handlers.GetCurrentJobs)          // GET /api/admin/scanner/current-jobs
 			scanner.POST("/start/:id", handlers.StartLibraryScanByID)      // POST /api/admin/scanner/start/:id
 			scanner.POST("/pause/:id", handlers.StopLibraryScan)           // POST /api/admin/scanner/pause/:id
 			scanner.POST("/stop/:id", handlers.StopLibraryScan)            // POST /api/admin/scanner/stop/:id (for backward compatibility)
 			scanner.POST("/resume/:id", handlers.ResumeLibraryScan)        // POST /api/admin/scanner/resume/:id
+			scanner.POST("/cleanup-orphaned", handlers.CleanupOrphanedJobs) // POST /api/admin/scanner/cleanup-orphaned
+			
+			// Real-time scan progress endpoint
+			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
 		}
 	}
 }

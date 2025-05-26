@@ -39,45 +39,85 @@ func NewManager(db *gorm.DB, eventBus events.EventBus) *Manager {
 }
 
 // recoverOrphanedJobs handles scan jobs that were marked as "running" when the backend restarted
+// and automatically resumes paused jobs that have made progress
 func (m *Manager) recoverOrphanedJobs() error {
 	// Find all jobs marked as "running" but not actually running
 	var orphanedJobs []database.ScanJob
-	if err := m.db.Where("status = ?", "running").Find(&orphanedJobs).Error; err != nil {
+	if err := m.db.Where("status = ?", "running").Preload("Library").Find(&orphanedJobs).Error; err != nil {
 		return fmt.Errorf("failed to query orphaned jobs: %w", err)
 	}
 	
-	if len(orphanedJobs) == 0 {
-		fmt.Println("No orphaned scan jobs found")
+	// Find paused jobs that could be auto-resumed
+	var pausedJobs []database.ScanJob
+	if err := m.db.Where("status = ? AND files_processed > 0", "paused").Preload("Library").Find(&pausedJobs).Error; err != nil {
+		fmt.Printf("Warning: Failed to query paused jobs for auto-resume: %v\n", err)
+	}
+	
+	if len(orphanedJobs) == 0 && len(pausedJobs) == 0 {
+		fmt.Println("No orphaned or resumable scan jobs found")
 		return nil
 	}
 	
-	fmt.Printf("Found %d orphaned scan jobs, marking as failed\n", len(orphanedJobs))
-	
-	// Mark all orphaned jobs as failed
-	for _, job := range orphanedJobs {
-		errorMsg := "Scanner process terminated during backend restart"
-		if err := utils.UpdateJobStatus(m.db, job.ID, utils.StatusFailed, errorMsg); err != nil {
-			fmt.Printf("Failed to update orphaned job %d: %v\n", job.ID, err)
-			continue
-		}
+	// Handle orphaned running jobs - mark as paused for potential resume
+	if len(orphanedJobs) > 0 {
+		fmt.Printf("Found %d orphaned scan jobs, marking as paused for potential resume\n", len(orphanedJobs))
 		
-		// Publish scan failed event
-		if m.eventBus != nil {
-			failEvent := events.NewSystemEvent(
-				events.EventScanFailed,
-				"Media Scan Failed",
-				fmt.Sprintf("Scan job #%d failed due to backend restart", job.ID),
-			)
-			failEvent.Data = map[string]interface{}{
-				"libraryId": job.LibraryID,
-				"scanJobId": job.ID,
-				"error":     errorMsg,
-				"recovery":  true,
+		for _, job := range orphanedJobs {
+			errorMsg := "Scanner process terminated during backend restart - marked for resume"
+			if err := utils.UpdateJobStatus(m.db, job.ID, utils.StatusPaused, errorMsg); err != nil {
+				fmt.Printf("Failed to update orphaned job %d: %v\n", job.ID, err)
+				continue
 			}
-			m.eventBus.PublishAsync(failEvent)
+			
+			fmt.Printf("Marked orphaned scan job %d as paused\n", job.ID)
 		}
 		
-		fmt.Printf("Marked orphaned scan job %d as failed\n", job.ID)
+		// Add orphaned jobs to paused jobs for potential auto-resume
+		pausedJobs = append(pausedJobs, orphanedJobs...)
+	}
+	
+	// Auto-resume paused jobs that have made significant progress
+	if len(pausedJobs) > 0 {
+		fmt.Printf("Found %d paused scan jobs, checking for auto-resume candidates\n", len(pausedJobs))
+		
+		for _, job := range pausedJobs {
+			// Auto-resume jobs that have processed at least 10 files or 1% progress
+			shouldAutoResume := job.FilesProcessed >= 10 || 
+				(job.FilesFound > 0 && float64(job.FilesProcessed)/float64(job.FilesFound) >= 0.01)
+			
+			if shouldAutoResume {
+				fmt.Printf("Auto-resuming scan job %d (processed %d/%d files)\n", 
+					job.ID, job.FilesProcessed, job.FilesFound)
+				
+				// Resume the job
+				if err := m.ResumeScan(job.ID); err != nil {
+					fmt.Printf("Failed to auto-resume job %d: %v\n", job.ID, err)
+					continue
+				}
+				
+				// Publish auto-resume event
+				if m.eventBus != nil {
+					resumeEvent := events.NewSystemEvent(
+						events.EventScanResumed,
+						"Media Scan Auto-Resumed",
+						fmt.Sprintf("Auto-resumed scan job #%d after backend restart", job.ID),
+					)
+					resumeEvent.Data = map[string]interface{}{
+						"libraryId":      job.LibraryID,
+						"scanJobId":      job.ID,
+						"autoResume":     true,
+						"filesProcessed": job.FilesProcessed,
+						"progress":       job.Progress,
+					}
+					m.eventBus.PublishAsync(resumeEvent)
+				}
+				
+				fmt.Printf("Successfully auto-resumed scan job %d\n", job.ID)
+			} else {
+				fmt.Printf("Scan job %d not eligible for auto-resume (processed %d files)\n", 
+					job.ID, job.FilesProcessed)
+			}
+		}
 	}
 	
 	return nil
@@ -275,8 +315,10 @@ func (m *Manager) ResumeScan(jobID uint) error {
 		return fmt.Errorf("scan job not found: %w", err)
 	}
 
-	// Allow resuming paused or pending jobs
-	if scanJob.Status != string(utils.StatusPaused) && scanJob.Status != string(utils.StatusPending) {
+	// Allow resuming paused, pending, or failed jobs (failed jobs are usually from system restarts)
+	if scanJob.Status != string(utils.StatusPaused) && 
+	   scanJob.Status != string(utils.StatusPending) && 
+	   scanJob.Status != string(utils.StatusFailed) {
 		return fmt.Errorf("cannot resume scan job with status: %s", scanJob.Status)
 	}
 	
@@ -373,6 +415,194 @@ func (m *Manager) CleanupOldJobs() (int64, error) {
 		fmt.Printf("Cleaned up %d old scan jobs\n", count)
 	}
 	return count, nil
+}
+
+// CleanupJobsByLibrary removes all scan jobs associated with a specific library.
+// This should be called when a library is deleted to prevent orphaned jobs.
+// Returns the number of jobs that were cleaned up.
+func (m *Manager) CleanupJobsByLibrary(libraryID uint) (int64, error) {
+	// First, identify scanners to stop (without holding the lock)
+	var scannersToStop []struct {
+		jobID   uint
+		scanner *ParallelFileScanner
+	}
+	
+	m.mu.RLock()
+	for jobID, scanner := range m.scanners {
+		// Get the job to check library ID
+		var scanJob database.ScanJob
+		if err := m.db.First(&scanJob, jobID).Error; err == nil {
+			if scanJob.LibraryID == libraryID {
+				scannersToStop = append(scannersToStop, struct {
+					jobID   uint
+					scanner *ParallelFileScanner
+				}{jobID, scanner})
+			}
+		}
+	}
+	m.mu.RUnlock()
+
+	// Stop scanners without holding the manager lock (to avoid deadlock)
+	var stoppedScanners []uint
+	for _, item := range scannersToStop {
+		fmt.Printf("Stopping active scanner for job %d (library %d)\n", item.jobID, libraryID)
+		
+		// Use a timeout to prevent hanging
+		done := make(chan bool, 1)
+		go func() {
+			item.scanner.Pause()
+			done <- true
+		}()
+		
+		select {
+		case <-done:
+			fmt.Printf("Successfully paused scanner for job %d\n", item.jobID)
+			stoppedScanners = append(stoppedScanners, item.jobID)
+		case <-time.After(5 * time.Second):
+			fmt.Printf("Timeout pausing scanner for job %d, forcing cleanup\n", item.jobID)
+			stoppedScanners = append(stoppedScanners, item.jobID)
+		}
+	}
+
+	// Now acquire lock to remove scanners from the map
+	m.mu.Lock()
+	for _, jobID := range stoppedScanners {
+		delete(m.scanners, jobID)
+	}
+	m.mu.Unlock()
+
+	// Delete all scan jobs for this library from the database
+	result := m.db.Where("library_id = ?", libraryID).Delete(&database.ScanJob{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to cleanup scan jobs for library %d: %w", libraryID, result.Error)
+	}
+
+	// Publish cleanup event
+	if m.eventBus != nil && result.RowsAffected > 0 {
+		cleanupEvent := events.NewSystemEvent(
+			events.EventInfo,
+			"Scan Jobs Cleaned Up",
+			fmt.Sprintf("Cleaned up %d scan jobs for deleted library #%d", result.RowsAffected, libraryID),
+		)
+		cleanupEvent.Data = map[string]interface{}{
+			"libraryId":     libraryID,
+			"jobsDeleted":   result.RowsAffected,
+			"stoppedScans":  len(stoppedScanners),
+		}
+		m.eventBus.PublishAsync(cleanupEvent)
+	}
+
+	fmt.Printf("Cleaned up %d scan jobs for library %d\n", result.RowsAffected, libraryID)
+	return result.RowsAffected, nil
+}
+
+// CleanupOrphanedJobs removes scan jobs for libraries that no longer exist.
+// Returns the number of jobs that were cleaned up.
+func (m *Manager) CleanupOrphanedJobs() (int64, error) {
+	// Get all existing library IDs
+	var existingLibraryIDs []uint
+	if err := m.db.Model(&database.MediaLibrary{}).Pluck("id", &existingLibraryIDs).Error; err != nil {
+		return 0, fmt.Errorf("failed to get existing library IDs: %w", err)
+	}
+
+	// Find scan jobs for non-existent libraries
+	var orphanedJobs []database.ScanJob
+	query := m.db.Where("library_id NOT IN (?)", existingLibraryIDs)
+	if len(existingLibraryIDs) == 0 {
+		// If no libraries exist, all scan jobs are orphaned
+		query = m.db
+	}
+	
+	if err := query.Find(&orphanedJobs).Error; err != nil {
+		return 0, fmt.Errorf("failed to find orphaned scan jobs: %w", err)
+	}
+
+	if len(orphanedJobs) == 0 {
+		fmt.Println("No orphaned scan jobs found")
+		return 0, nil
+	}
+
+	// Identify active scanners to stop (without holding the lock)
+	var scannersToStop []struct {
+		jobID   uint
+		scanner *ParallelFileScanner
+	}
+	
+	m.mu.RLock()
+	for _, job := range orphanedJobs {
+		if scanner, exists := m.scanners[job.ID]; exists {
+			scannersToStop = append(scannersToStop, struct {
+				jobID   uint
+				scanner *ParallelFileScanner
+			}{job.ID, scanner})
+		}
+	}
+	m.mu.RUnlock()
+
+	// Stop scanners without holding the manager lock (to avoid deadlock)
+	var stoppedScanners []uint
+	for _, item := range scannersToStop {
+		// Find the corresponding job for library ID
+		var libraryID uint
+		for _, job := range orphanedJobs {
+			if job.ID == item.jobID {
+				libraryID = job.LibraryID
+				break
+			}
+		}
+		fmt.Printf("Stopping active scanner for orphaned job %d (library %d)\n", item.jobID, libraryID)
+		
+		// Use a timeout to prevent hanging
+		done := make(chan bool, 1)
+		go func() {
+			item.scanner.Pause()
+			done <- true
+		}()
+		
+		select {
+		case <-done:
+			fmt.Printf("Successfully paused orphaned scanner for job %d\n", item.jobID)
+			stoppedScanners = append(stoppedScanners, item.jobID)
+		case <-time.After(5 * time.Second):
+			fmt.Printf("Timeout pausing orphaned scanner for job %d, forcing cleanup\n", item.jobID)
+			stoppedScanners = append(stoppedScanners, item.jobID)
+		}
+	}
+
+	// Now acquire lock to remove scanners from the map
+	m.mu.Lock()
+	for _, jobID := range stoppedScanners {
+		delete(m.scanners, jobID)
+	}
+	m.mu.Unlock()
+
+	// Delete orphaned scan jobs from the database
+	var orphanedJobIDs []uint
+	for _, job := range orphanedJobs {
+		orphanedJobIDs = append(orphanedJobIDs, job.ID)
+	}
+
+	result := m.db.Where("id IN (?)", orphanedJobIDs).Delete(&database.ScanJob{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to delete orphaned scan jobs: %w", result.Error)
+	}
+
+	// Publish cleanup event
+	if m.eventBus != nil && result.RowsAffected > 0 {
+		cleanupEvent := events.NewSystemEvent(
+			events.EventInfo,
+			"Orphaned Scan Jobs Cleaned Up",
+			fmt.Sprintf("Cleaned up %d orphaned scan jobs", result.RowsAffected),
+		)
+		cleanupEvent.Data = map[string]interface{}{
+			"jobsDeleted":   result.RowsAffected,
+			"stoppedScans":  len(stoppedScanners),
+		}
+		m.eventBus.PublishAsync(cleanupEvent)
+	}
+
+	fmt.Printf("Cleaned up %d orphaned scan jobs\n", result.RowsAffected)
+	return result.RowsAffected, nil
 }
 
 // GetLibraryStats returns comprehensive statistics for a library's scanned files.

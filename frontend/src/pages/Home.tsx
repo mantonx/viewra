@@ -3,7 +3,7 @@ import { useAtom } from 'jotai';
 import { apiStatusAtom } from '../store/atoms';
 import ApiTester from '../components/ApiTester';
 import SystemInfo from '../components/SystemInfo';
-import MediaLibraryManager from '../components/MediaLibraryManager';
+import MediaLibraryManager from '../components/media/MediaLibraryManager';
 import MusicLibrary from '../components/MusicLibrary';
 import ScanPerformanceManager from '../components/ScanPerformanceManager';
 import PluginAdminPageCards from '../components/PluginAdminPageCards';

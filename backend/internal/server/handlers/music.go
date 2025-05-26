@@ -77,10 +77,39 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 
 	db := database.GetDB()
 
-	// Query to fetch MediaFiles with their MusicMetadata preloaded - only from /media/music library (ID 8)
+	// Find all music libraries dynamically
+	var musicLibraries []database.MediaLibrary
+	err = db.Where("type = ?", "music").Find(&musicLibraries).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to find music libraries",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	if len(musicLibraries) == 0 {
+		// No music libraries found
+		c.JSON(http.StatusOK, gin.H{
+			"music_files": []database.MediaFile{},
+			"count":       0,
+			"total":       0,
+			"limit":       limit,
+			"offset":      offset,
+		})
+		return
+	}
+
+	// Extract library IDs
+	var libraryIDs []uint
+	for _, lib := range musicLibraries {
+		libraryIDs = append(libraryIDs, lib.ID)
+	}
+
+	// Query to fetch MediaFiles with their MusicMetadata preloaded from all music libraries
 	var mediaFiles []database.MediaFile
 	err = db.Preload("MusicMetadata").
-		Where("library_id = ?", 8).
+		Where("library_id IN ?", libraryIDs).
 		Limit(limit).
 		Offset(offset).
 		Find(&mediaFiles).Error
@@ -93,9 +122,9 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 		return
 	}
 	
-	// Get total count for this library
+	// Get total count for all music libraries
 	var total int64
-	db.Model(&database.MediaFile{}).Where("library_id = ?", 8).Count(&total)
+	db.Model(&database.MediaFile{}).Where("library_id IN ?", libraryIDs).Count(&total)
 
 	// Use all media files - even if some don't have metadata yet
 	// This ensures the files appear in the UI while metadata is still being processed

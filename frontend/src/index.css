@@ -19,7 +19,80 @@ body {
   padding: 0;
 }
 
-/* Future: Media manager specific styles will go here */
+/* Library Management Animations */
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideOutToTop {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 200px;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+    max-height: 0;
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Library item animations */
+.library-item {
+  animation: slideInFromTop 0.3s ease-out;
+}
+
+.library-removing {
+  animation: slideOutToTop 0.3s ease-in forwards;
+  overflow: hidden;
+}
+
+/* Empty state animation */
+.empty-state {
+  animation: fadeInScale 0.5s ease-out;
+}
+
+/* Progress bar smooth transitions */
+.progress-bar {
+  transition: width 0.3s ease-out;
+}
+
+/* Button hover effects */
+.library-button {
+  transition: all 0.2s ease-out;
+}
+
+.library-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Status badge animations */
+.status-badge {
+  transition: all 0.2s ease-out;
+}
+
+.scanning-badge {
+  animation: pulse 2s infinite;
+}
 
 /* System Events animations */
 @keyframes fadeIn {

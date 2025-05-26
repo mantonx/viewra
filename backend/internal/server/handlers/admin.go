@@ -120,6 +120,27 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 	libraryPath := library.Path
 	libraryType := library.Type
 	
+	// Clean up associated scan jobs first
+	scannerManager, err := getScannerManager()
+	if err == nil {
+		jobsDeleted, cleanupErr := scannerManager.CleanupJobsByLibrary(libraryID)
+		if cleanupErr != nil {
+			fmt.Printf("Warning: Failed to cleanup scan jobs for library %d: %v\n", libraryID, cleanupErr)
+		} else if jobsDeleted > 0 {
+			fmt.Printf("Cleaned up %d scan jobs for library %d\n", jobsDeleted, libraryID)
+		}
+	} else {
+		fmt.Printf("Warning: Scanner manager not available for cleanup: %v\n", err)
+	}
+	
+	// Delete associated media files
+	mediaFilesResult := db.Where("library_id = ?", libraryID).Delete(&database.MediaFile{})
+	if mediaFilesResult.Error != nil {
+		fmt.Printf("Warning: Failed to delete media files for library %d: %v\n", libraryID, mediaFilesResult.Error)
+	} else if mediaFilesResult.RowsAffected > 0 {
+		fmt.Printf("Deleted %d media files for library %d\n", mediaFilesResult.RowsAffected, libraryID)
+	}
+	
 	// Delete the library
 	result = db.Delete(&library)
 	if result.Error != nil {

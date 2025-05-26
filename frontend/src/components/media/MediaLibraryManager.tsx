@@ -938,18 +938,27 @@ const MediaLibraryManager = () => {
                     {/* Animated Progress Bar */}
                     <div className="w-full bg-slate-600 rounded-full h-3 overflow-hidden shadow-inner">
                       <div
-                        className={`h-3 rounded-full transition-all duration-500 ease-out relative ${
+                        className={`h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden ${
                           isFailed
                             ? 'bg-red-500 shadow-red-500/20'
                             : isPaused
                               ? 'bg-amber-500 shadow-amber-500/20'
                               : 'bg-gradient-to-r from-blue-500 to-blue-400'
                         } ${isScanning ? 'shadow-lg shadow-blue-500/30' : 'shadow-md'}`}
-                        style={{ width: `${progressPercent}%` }}
+                        style={{
+                          width: `${progressPercent}%`,
+                          animation: isScanning ? 'progress-glow 3s ease-in-out infinite' : 'none',
+                        }}
                       >
-                        {/* Smooth shimmer effect for active scans */}
+                        {/* Subtle shimmer effect for active scans */}
                         {isScanning && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-200 to-transparent opacity-40 animate-shimmer"></div>
+                          <div
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-transparent via-blue-200 to-transparent opacity-20"
+                            style={{
+                              width: '60px',
+                              animation: 'shimmer-slide 3s ease-in-out infinite',
+                            }}
+                          ></div>
                         )}
                       </div>
                     </div>
@@ -1111,22 +1120,30 @@ const MediaLibraryManager = () => {
 
       {/* Add custom CSS for smooth shimmer animation */}
       <style>{`
-        @keyframes shimmer {
+        @keyframes shimmer-slide {
           0% {
-            transform: translateX(-100%);
+            transform: translateX(-60px);
             opacity: 0;
           }
-          50% {
-            opacity: 1;
+          30% {
+            opacity: 0.5;
+          }
+          70% {
+            opacity: 0.5;
           }
           100% {
-            transform: translateX(100%);
+            transform: translateX(calc(100% + 60px));
             opacity: 0;
           }
         }
-        .animate-shimmer {
-          animation: shimmer 3s ease-in-out infinite;
-          width: 50%;
+        
+        @keyframes progress-glow {
+          0%, 100% {
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+          }
         }
       `}</style>
     </div>

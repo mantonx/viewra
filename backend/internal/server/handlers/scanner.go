@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
@@ -282,7 +283,145 @@ func GetMediaFiles(c *gin.Context) {
 	})
 }
 
-// GetScannerStats returns overall scanner statistics
+// GetCurrentJobs returns the most relevant current job for each library
+func GetCurrentJobs(c *gin.Context) {
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Get all scan jobs
+	scanJobs, err := scannerManager.GetAllScans()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get scan jobs",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Group jobs by library and find the most relevant one for each
+	currentJobs := make(map[uint]interface{})
+	
+	for _, job := range scanJobs {
+		existing, exists := currentJobs[job.LibraryID]
+		
+		var shouldReplace bool
+		if !exists {
+			shouldReplace = true
+		} else {
+			// Extract the job from the existing enhanced job data
+			existingJob := existing.(map[string]interface{})["job"].(database.ScanJob)
+			shouldReplace = shouldReplaceJob(existingJob, job)
+		}
+		
+		if shouldReplace {
+			// Create enhanced job data with ETA information
+			enhancedJob := map[string]interface{}{
+				"job": job,
+			}
+			
+			// Add ETA and performance metrics for running jobs
+			if job.Status == "running" {
+				if detailedStats, err := scannerManager.GetDetailedScanProgress(job.ID); err == nil {
+					// Add ETA in proper timestamp format
+					if etaStr, ok := detailedStats["eta"].(string); ok && etaStr != "" {
+						enhancedJob["eta"] = etaStr
+					}
+					
+					// Add performance metrics
+					if filesPerSec, ok := detailedStats["files_per_second"].(float64); ok {
+						enhancedJob["files_per_second"] = filesPerSec
+					}
+					
+					// Add real-time progress
+					if processedFiles, ok := detailedStats["processed_files"].(int64); ok {
+						enhancedJob["real_time_files_processed"] = processedFiles
+					}
+					
+					if processedBytes, ok := detailedStats["processed_bytes"].(int64); ok {
+						enhancedJob["real_time_bytes_processed"] = processedBytes
+					}
+				}
+				
+				// Calculate ETA using basic progress estimation if detailed stats failed
+				if enhancedJob["eta"] == nil && job.FilesFound > 0 && job.FilesProcessed > 0 {
+					if job.StartedAt != nil {
+						elapsed := time.Since(*job.StartedAt)
+						progress := float64(job.FilesProcessed) / float64(job.FilesFound)
+						if progress > 0 {
+							totalDuration := elapsed.Seconds() / progress
+							remainingDuration := totalDuration - elapsed.Seconds()
+							if remainingDuration > 0 {
+								eta := time.Now().Add(time.Duration(remainingDuration) * time.Second)
+								enhancedJob["eta"] = eta.Format(time.RFC3339)
+							}
+						}
+					}
+				}
+			} else if job.Status == "paused" {
+				// For paused jobs, calculate potential ETA if resumed
+				if job.FilesFound > 0 && job.FilesProcessed > 0 && job.StartedAt != nil {
+					// Calculate average rate from completed work
+					elapsed := time.Since(*job.StartedAt)
+					if elapsed.Seconds() > 0 {
+						avgFilesPerSec := float64(job.FilesProcessed) / elapsed.Seconds()
+						if avgFilesPerSec > 0 {
+							remainingFiles := job.FilesFound - job.FilesProcessed
+							remainingSeconds := float64(remainingFiles) / avgFilesPerSec
+							eta := time.Now().Add(time.Duration(remainingSeconds) * time.Second)
+							enhancedJob["eta_if_resumed"] = eta.Format(time.RFC3339)
+							enhancedJob["avg_files_per_second"] = avgFilesPerSec
+						}
+					}
+				}
+			}
+			
+			// Add time-based information
+			if job.StartedAt != nil {
+				enhancedJob["elapsed_time"] = time.Since(*job.StartedAt).String()
+			}
+			
+			currentJobs[job.LibraryID] = enhancedJob
+		}
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"current_jobs": currentJobs,
+		"count":        len(currentJobs),
+	})
+}
+
+// shouldReplaceJob determines if newJob should replace existingJob
+func shouldReplaceJob(existing, newJob database.ScanJob) bool {
+	// Priority order: running > paused > failed > completed
+	statusPriority := map[string]int{
+		"running":   4,
+		"paused":    3,
+		"failed":    2,
+		"completed": 1,
+	}
+	
+	existingPriority := statusPriority[existing.Status]
+	newPriority := statusPriority[newJob.Status]
+	
+	// Higher priority status wins
+	if newPriority > existingPriority {
+		return true
+	}
+	
+	// Same priority, prefer more recent
+	if newPriority == existingPriority {
+		return newJob.UpdatedAt.After(existing.UpdatedAt)
+	}
+	
+	return false
+}
+
 func GetScannerStats(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
@@ -293,7 +432,7 @@ func GetScannerStats(c *gin.Context) {
 		return
 	}
 	
-	// Get active scan count
+	// Get active scan jobs
 	scanJobs, err := scannerManager.GetAllScans()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -304,19 +443,64 @@ func GetScannerStats(c *gin.Context) {
 	}
 	
 	activeScans := 0
-	for _, job := range scanJobs {
-		if job.Status == "running" {
-			activeScans++
-		}
-	}
-	
-	// Get total files and bytes scanned from database
 	var totalFilesScanned int64
 	var totalBytesScanned int64
 	
-	db := database.GetDB()
-	db.Model(&database.MediaFile{}).Count(&totalFilesScanned)
-	db.Model(&database.MediaFile{}).Select("COALESCE(SUM(size), 0)").Scan(&totalBytesScanned)
+	// Track which libraries have active or paused scans
+	var librariesWithScans []uint
+	
+	// Get progress from all scan jobs (running, paused, etc.)
+	for _, job := range scanJobs {
+		if job.Status == "running" {
+			activeScans++
+			// Try to get real-time progress for running jobs
+			realTimeFilesProcessed := int64(job.FilesProcessed)
+			realTimeBytesProcessed := job.BytesProcessed
+			
+			if detailedStats, err := scannerManager.GetDetailedScanProgress(job.ID); err == nil {
+				if filesProcessed, ok := detailedStats["processed_files"].(int64); ok {
+					realTimeFilesProcessed = filesProcessed
+				}
+				if bytesProcessed, ok := detailedStats["processed_bytes"].(int64); ok {
+					realTimeBytesProcessed = bytesProcessed
+				}
+			}
+			
+			totalFilesScanned += realTimeFilesProcessed
+			totalBytesScanned += realTimeBytesProcessed
+			librariesWithScans = append(librariesWithScans, job.LibraryID)
+		} else if job.Status == "paused" || job.Status == "completed" {
+			// Include progress from paused and completed jobs
+			totalFilesScanned += int64(job.FilesProcessed)
+			totalBytesScanned += job.BytesProcessed
+			librariesWithScans = append(librariesWithScans, job.LibraryID)
+		}
+	}
+	
+	// Add files from libraries that don't have any scan jobs
+	if len(librariesWithScans) > 0 {
+		db := database.GetDB()
+		var completedFiles int64
+		var completedBytes int64
+		
+		// Get files from libraries without any scan jobs
+		db.Raw(`
+			SELECT COALESCE(COUNT(*), 0) as files, COALESCE(SUM(size), 0) as bytes 
+			FROM media_files mf 
+			WHERE mf.library_id NOT IN (?)
+		`, librariesWithScans).Scan(&struct {
+			Files int64 `json:"files"`
+			Bytes int64 `json:"bytes"`
+		}{Files: completedFiles, Bytes: completedBytes})
+		
+		totalFilesScanned += completedFiles
+		totalBytesScanned += completedBytes
+	} else {
+		// No scan jobs exist, count all files in database
+		db := database.GetDB()
+		db.Model(&database.MediaFile{}).Count(&totalFilesScanned)
+		db.Model(&database.MediaFile{}).Select("COALESCE(SUM(size), 0)").Scan(&totalBytesScanned)
+	}
 	
 	c.JSON(http.StatusOK, gin.H{
 		"active_scans":          activeScans,
@@ -631,5 +815,31 @@ func GetScanResults(c *gin.Context) {
 		"percentage":   percentage,
 		"results":      mediaFiles,
 		"scan_job":     scanJob,
+	})
+}
+
+// CleanupOrphanedJobs removes scan jobs for libraries that no longer exist
+func CleanupOrphanedJobs(c *gin.Context) {
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	jobsDeleted, err := scannerManager.CleanupOrphanedJobs()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to cleanup orphaned jobs",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Orphaned scan jobs cleaned up successfully",
+		"jobs_deleted": jobsDeleted,
 	})
 }

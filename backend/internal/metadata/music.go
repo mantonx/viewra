@@ -105,14 +105,10 @@ func ExtractMusicMetadata(filePath string, mediaFile *database.MediaFile) (*data
 			}
 		}
 		
-		// Save artwork to cache
-		err := SaveArtwork(mediaFile.ID, picture.Data, ext)
-		if err != nil {
-			// Log error but don't fail the metadata extraction
-			fmt.Printf("Warning: failed to save artwork for file %s: %v\n", filePath, err)
-		} else {
-			fmt.Printf("Successfully saved artwork for file %s\n", filePath)
-		}
+		// Store artwork data temporarily - will be saved after MediaFile gets its ID
+		musicMeta.ArtworkData = picture.Data
+		musicMeta.ArtworkExt = ext
+		fmt.Printf("Stored artwork data for file %s (will save after MediaFile gets ID)\n", filePath)
 	} else {
 		fmt.Printf("No artwork found in file %s\n", filePath)
 	}
@@ -151,6 +147,12 @@ func SaveArtwork(mediaFileID uint, data []byte, ext string) error {
 	}
 
 	return nil
+}
+
+// SaveArtworkWithID saves album artwork with a specific media file ID
+// This is used when the MediaFile has already been saved to the database
+func SaveArtworkWithID(mediaFileID uint, data []byte, ext string) error {
+	return SaveArtwork(mediaFileID, data, ext)
 }
 
 // GetArtworkPath returns the path to the artwork file for a given media file ID
