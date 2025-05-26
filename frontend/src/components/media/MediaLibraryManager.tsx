@@ -463,7 +463,17 @@ const MediaLibraryManager = () => {
       const result = await res.json();
 
       if (res.ok && result.current_jobs) {
-        setCurrentJobs(result.current_jobs);
+        // Extract job data from nested structure: {libraryId: {job: actualJobData}}
+        const extractedJobs: Record<number, ScanJob> = {};
+
+        for (const [libraryId, jobWrapper] of Object.entries(result.current_jobs)) {
+          if (jobWrapper && typeof jobWrapper === 'object' && 'job' in jobWrapper) {
+            const wrapper = jobWrapper as { job: ScanJob };
+            extractedJobs[Number(libraryId)] = wrapper.job;
+          }
+        }
+
+        setCurrentJobs(extractedJobs);
       }
     } catch (error) {
       console.error('Failed to load current jobs:', error);
