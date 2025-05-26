@@ -930,11 +930,10 @@ const MediaLibraryManager = () => {
                         </div>
                       )}
 
-                      {scanJob && scanJob.error_message && scanJob.error_message && (
+                      {scanJob && scanJob.error_message && (
                         <div className="text-sm">
-                          <span className="text-red-400">
-                            Errors: {scanJob.error_message.length}
-                          </span>
+                          <span className="text-red-400">Error:</span>
+                          <span className="text-slate-300 ml-2">{scanJob.error_message}</span>
                         </div>
                       )}
 
