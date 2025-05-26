@@ -936,20 +936,20 @@ const MediaLibraryManager = () => {
                     </div>
 
                     {/* Animated Progress Bar */}
-                    <div className="w-full bg-slate-600 rounded-full h-3 overflow-hidden">
+                    <div className="w-full bg-slate-600 rounded-full h-3 overflow-hidden shadow-inner">
                       <div
                         className={`h-3 rounded-full transition-all duration-500 ease-out relative ${
                           isFailed
-                            ? 'bg-red-500'
+                            ? 'bg-red-500 shadow-red-500/20'
                             : isPaused
-                              ? 'bg-amber-500'
+                              ? 'bg-amber-500 shadow-amber-500/20'
                               : 'bg-gradient-to-r from-blue-500 to-blue-400'
-                        } ${isScanning ? 'animate-pulse' : ''}`}
+                        } ${isScanning ? 'shadow-lg shadow-blue-500/30' : 'shadow-md'}`}
                         style={{ width: `${progressPercent}%` }}
                       >
-                        {/* Subtle glow effect for active scans */}
+                        {/* Smooth shimmer effect for active scans */}
                         {isScanning && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-20 animate-shimmer"></div>
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-200 to-transparent opacity-40 animate-shimmer"></div>
                         )}
                       </div>
                     </div>
@@ -1109,18 +1109,24 @@ const MediaLibraryManager = () => {
         </div>
       )}
 
-      {/* Add custom CSS for shimmer animation */}
+      {/* Add custom CSS for smooth shimmer animation */}
       <style>{`
         @keyframes shimmer {
           0% {
             transform: translateX(-100%);
+            opacity: 0;
+          }
+          50% {
+            opacity: 1;
           }
           100% {
             transform: translateX(100%);
+            opacity: 0;
           }
         }
         .animate-shimmer {
-          animation: shimmer 2s infinite;
+          animation: shimmer 3s ease-in-out infinite;
+          width: 50%;
         }
       `}</style>
     </div>
