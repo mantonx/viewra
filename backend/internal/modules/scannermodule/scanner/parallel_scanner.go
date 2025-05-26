@@ -187,6 +187,11 @@ func (ps *ParallelFileScanner) Start(libraryID uint) error {
 		return err
 	}
 	
+	// Update job status to running
+	if err := utils.UpdateJobStatus(ps.db, ps.jobID, utils.StatusRunning, ""); err != nil {
+		return fmt.Errorf("failed to update job status to running: %w", err)
+	}
+	
 	// Pre-load existing files into cache for fast lookup
 	if err := ps.preloadFileCache(libraryID); err != nil {
 		fmt.Printf("Warning: Failed to preload file cache: %v\n", err)
@@ -207,6 +212,10 @@ func (ps *ParallelFileScanner) Start(libraryID uint) error {
 	// Start directory queue manager
 	ps.wg.Add(1)
 	go ps.dirQueueManager()
+	
+	// Start work queue closer that waits for all directory scanning to complete
+	ps.wg.Add(1)
+	go ps.workQueueCloser()
 	
 	// Start worker pool manager for adaptive scaling
 	ps.wg.Add(1)
@@ -326,7 +335,6 @@ func (ps *ParallelFileScanner) preloadFileCache(libraryID uint) error {
 // scanDirectory initiates parallel directory walking
 func (ps *ParallelFileScanner) scanDirectory(libraryID uint) {
 	defer ps.wg.Done()
-	defer close(ps.dirQueue)
 	
 	libraryPath := ps.scanJob.Library.Path
 	basePath, err := ps.pathResolver.ResolveDirectory(libraryPath)
@@ -344,6 +352,8 @@ func (ps *ParallelFileScanner) scanDirectory(libraryID uint) {
 	case <-ps.ctx.Done():
 		return
 	}
+	
+	// This method just initiates the scanning; the dirQueueManager will handle closing
 }
 
 // worker processes files from the work queue
@@ -868,10 +878,10 @@ func (ps *ParallelFileScanner) processDirWork(work dirWork) {
 	}
 }
 
-// dirQueueManager monitors directory workers and closes work queue when done
+// dirQueueManager monitors directory workers and closes directory queue when done
 func (ps *ParallelFileScanner) dirQueueManager() {
 	defer ps.wg.Done()
-	defer close(ps.workQueue)
+	defer close(ps.dirQueue)
 	
 	// Wait for all directory workers to finish
 	for {
@@ -881,7 +891,32 @@ func (ps *ParallelFileScanner) dirQueueManager() {
 		case <-time.After(100 * time.Millisecond):
 			// Check if directory queue is empty and all directory workers are idle
 			if len(ps.dirQueue) == 0 && ps.activeDirWorkers.Load() == 0 {
+				// All directory scanning is done, close the directory queue
 				return
+			}
+		}
+	}
+}
+
+// workQueueCloser waits for directory scanning to complete and then closes the work queue
+func (ps *ParallelFileScanner) workQueueCloser() {
+	defer ps.wg.Done()
+	defer close(ps.workQueue)
+	
+	// Wait for directory scanning to complete
+	for {
+		select {
+		case <-ps.ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+			// Check if all directory workers are idle and directory queue is empty
+			if ps.activeDirWorkers.Load() == 0 && len(ps.dirQueue) == 0 {
+				// Give a small grace period for any final file submissions
+				time.Sleep(200 * time.Millisecond)
+				// Double-check the condition
+				if ps.activeDirWorkers.Load() == 0 && len(ps.dirQueue) == 0 {
+					return
+				}
 			}
 		}
 	}
