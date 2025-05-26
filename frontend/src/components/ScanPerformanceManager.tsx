@@ -12,6 +12,10 @@ interface ActiveScan {
   bytesProcessed: number;
   totalFiles: number;
   status: string;
+  activeWorkers?: number;
+  minWorkers?: number;
+  maxWorkers?: number;
+  queueDepth?: number;
 }
 
 const ScanPerformanceManager: React.FC = () => {
@@ -79,6 +83,11 @@ const ScanPerformanceManager: React.FC = () => {
             bytesProcessed: progressData.bytes_processed || 0,
             totalFiles: job.files_found || 0,
             status: job.status,
+            // Worker pool stats (if available)
+            activeWorkers: progressData.active_workers,
+            minWorkers: progressData.min_workers,
+            maxWorkers: progressData.max_workers,
+            queueDepth: progressData.queue_depth,
           };
         });
 
@@ -99,7 +108,7 @@ const ScanPerformanceManager: React.FC = () => {
       setLoading(false);
     };
     loadData();
-    
+
     // Set up polling for active scans (every 2 seconds)
     const pollingInterval = setInterval(() => {
       // Only fetch progress if we have active scans
@@ -107,7 +116,7 @@ const ScanPerformanceManager: React.FC = () => {
         fetchScanProgress();
       }
     }, 2000);
-    
+
     // Clean up interval on component unmount
     return () => clearInterval(pollingInterval);
   }, [activeScans.length]);
@@ -381,7 +390,10 @@ const ScanPerformanceManager: React.FC = () => {
             </div>
 
             {activeScans.map((scan) => (
-              <div key={scan.jobId} className="space-y-2 p-4 border border-slate-600 rounded-lg mb-4 bg-slate-700">
+              <div
+                key={scan.jobId}
+                className="space-y-2 p-4 border border-slate-600 rounded-lg mb-4 bg-slate-700"
+              >
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <span className="bg-blue-600 text-blue-100 px-2 py-1 rounded text-xs font-medium">
@@ -390,13 +402,23 @@ const ScanPerformanceManager: React.FC = () => {
                     <span className="bg-slate-600 text-slate-200 px-2 py-1 rounded text-xs font-medium">
                       {scan.filesPerSecond.toFixed(1)} files/sec
                     </span>
+                    {scan.activeWorkers !== undefined && (
+                      <span className="bg-green-700 text-green-100 px-2 py-1 rounded text-xs font-medium">
+                        Workers: {scan.activeWorkers}/{scan.maxWorkers}
+                      </span>
+                    )}
+                    {scan.queueDepth !== undefined && (
+                      <span className="bg-purple-700 text-purple-100 px-2 py-1 rounded text-xs font-medium">
+                        Queue: {scan.queueDepth}
+                      </span>
+                    )}
                   </div>
                   <span className="text-sm text-slate-400">ETA: {formatETA(scan.eta)}</span>
                 </div>
 
                 <div className="w-full bg-slate-600 rounded-full h-2">
-                  <div 
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${scan.progress}%` }}
                   />
                 </div>
@@ -408,6 +430,18 @@ const ScanPerformanceManager: React.FC = () => {
                   </span>
                   <span>{formatBytes(scan.bytesProcessed)} processed</span>
                 </div>
+                
+                {scan.activeWorkers !== undefined && (
+                  <div className="mt-2 p-2 bg-slate-800 rounded-md">
+                    <div className="text-xs font-medium text-slate-300 mb-1">Adaptive Worker Pool</div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-400">
+                      <span>Active Workers: <span className="text-slate-200">{scan.activeWorkers}</span></span>
+                      <span>Queue Depth: <span className="text-slate-200">{scan.queueDepth || 0}</span></span>
+                      <span>Min Workers: <span className="text-slate-200">{scan.minWorkers}</span></span>
+                      <span>Max Workers: <span className="text-slate-200">{scan.maxWorkers}</span></span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-2 mt-2">
                   <button

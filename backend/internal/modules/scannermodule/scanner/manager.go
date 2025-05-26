@@ -365,3 +365,42 @@ func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, fil
 	
 	return 0, "", 0, fmt.Errorf("no progress available for job %d", jobID)
 }
+
+// GetDetailedScanProgress returns detailed scan progress including adaptive worker pool stats
+func (m *Manager) GetDetailedScanProgress(jobID uint) (map[string]interface{}, error) {
+	m.mu.RLock()
+	scanner, exists := m.scanners[jobID]
+	m.mu.RUnlock()
+	
+	if !exists {
+		return nil, fmt.Errorf("no active scanner for job %d", jobID)
+	}
+	
+	// Get basic progress stats
+	progress, etaTime, filesPerSec := scanner.progressEstimator.GetEstimate()
+	eta := etaTime.Format(time.RFC3339)
+	
+	// Get worker pool stats
+	activeWorkers, minWorkers, maxWorkers, queueLen := scanner.GetWorkerStats()
+	
+	// Get additional stats from progress estimator
+	progressStats := scanner.progressEstimator.GetStats()
+	
+	// Merge all stats
+	result := map[string]interface{}{
+		"progress":       progress,
+		"eta":            eta,
+		"files_per_sec":  filesPerSec,
+		"active_workers": activeWorkers,
+		"min_workers":    minWorkers,
+		"max_workers":    maxWorkers,
+		"queue_depth":    queueLen,
+	}
+	
+	// Add all progress estimator stats
+	for k, v := range progressStats {
+		result[k] = v
+	}
+	
+	return result, nil
+}

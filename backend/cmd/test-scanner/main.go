@@ -9,8 +9,8 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule" // Import to trigger registration
+	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
 )
 
 func main() {

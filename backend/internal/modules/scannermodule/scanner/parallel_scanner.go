@@ -26,12 +26,22 @@ type ParallelFileScanner struct {
 	scanJob          *database.ScanJob
 	pathResolver     *utils.PathResolver
 	progressEstimator *ProgressEstimator
+	systemMonitor    *SystemLoadMonitor
 	
 	// Worker management
 	workerCount      int
+	minWorkers       int              // Minimum number of workers
+	maxWorkers       int              // Maximum number of workers
+	activeWorkers    atomic.Int32     // Current number of active workers
+	workerExitChan   chan int         // Channel for signaling workers to exit
 	workQueue        chan scanWork
 	resultQueue      chan *scanResult
 	errorQueue       chan error
+	
+	// Directory walking - parallel implementation
+	dirWorkerCount   int              // Number of directory walking workers
+	dirQueue         chan dirWork     // Queue for directory scanning work
+	activeDirWorkers atomic.Int32     // Current number of active directory workers
 	
 	// Batch processing
 	batchSize        int
@@ -61,6 +71,12 @@ type scanWork struct {
 	libraryID uint
 }
 
+// dirWork represents a unit of work for directory scanning
+type dirWork struct {
+	path      string
+	libraryID uint
+}
+
 // scanResult represents the result of scanning a file
 type scanResult struct {
 	mediaFile    *database.MediaFile
@@ -77,7 +93,6 @@ type BatchProcessor struct {
 	mediaFiles   []*database.MediaFile
 	musicMetas   []*database.MusicMetadata
 	mu           sync.Mutex
-	flushTimer   *time.Timer
 }
 
 // FileCache provides fast lookups for existing files
@@ -105,13 +120,33 @@ func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *
 		workerCount = 8 // Cap at 8 workers to avoid overwhelming the system
 	}
 	
+	// Set up adaptive worker pool parameters
+	minWorkers := 2
+	maxWorkers := runtime.NumCPU() * 2 // Allow up to 2x CPU cores for I/O bound operations
+	if maxWorkers > 16 {
+		maxWorkers = 16 // Cap at 16 workers
+	}
+	
+	// Calculate directory worker count (fewer workers for directory scanning)
+	dirWorkerCount := runtime.NumCPU() / 2
+	if dirWorkerCount < 1 {
+		dirWorkerCount = 1
+	} else if dirWorkerCount > 4 {
+		dirWorkerCount = 4 // Cap at 4 directory workers
+	}
+	
 	scanner := &ParallelFileScanner{
 		db:            db,
 		jobID:         jobID,
 		eventBus:      eventBus,
 		pathResolver:  utils.NewPathResolver(),
 		workerCount:   workerCount,
+		minWorkers:    minWorkers,
+		maxWorkers:    maxWorkers,
+		dirWorkerCount: dirWorkerCount,
+		workerExitChan: make(chan int, maxWorkers),
 		workQueue:     make(chan scanWork, workerCount*100), // Buffered queue
+		dirQueue:      make(chan dirWork, dirWorkerCount*50), // Buffered directory queue
 		resultQueue:   make(chan *scanResult, workerCount*10),
 		errorQueue:    make(chan error, workerCount),
 		batchSize:     100, // Process files in batches of 100
@@ -137,6 +172,9 @@ func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *
 	// Initialize progress estimator
 	scanner.progressEstimator = NewProgressEstimator()
 	
+	// Initialize system load monitor
+	scanner.systemMonitor = NewSystemLoadMonitor()
+	
 	return scanner
 }
 
@@ -154,11 +192,25 @@ func (ps *ParallelFileScanner) Start(libraryID uint) error {
 		fmt.Printf("Warning: Failed to preload file cache: %v\n", err)
 	}
 	
-	// Start workers
-	for i := 0; i < ps.workerCount; i++ {
+	// Start initial workers (start with minimum workers)
+	for i := 0; i < ps.minWorkers; i++ {
 		ps.wg.Add(1)
 		go ps.worker(i)
 	}
+	
+	// Start directory workers for parallel directory walking
+	for i := 0; i < ps.dirWorkerCount; i++ {
+		ps.wg.Add(1)
+		go ps.directoryWorker(i)
+	}
+	
+	// Start directory queue manager
+	ps.wg.Add(1)
+	go ps.dirQueueManager()
+	
+	// Start worker pool manager for adaptive scaling
+	ps.wg.Add(1)
+	go ps.workerPoolManager()
 	
 	// Start result processor
 	ps.wg.Add(1)
@@ -261,6 +313,7 @@ func (ps *ParallelFileScanner) preloadFileCache(libraryID uint) error {
 		existingFiles = append(existingFiles, chunk...)
 		offset += chunkSize
 		
+		// If we got fewer results than requested, we've reached the end
 		if len(chunk) < chunkSize {
 			break
 		}
@@ -270,10 +323,10 @@ func (ps *ParallelFileScanner) preloadFileCache(libraryID uint) error {
 	return nil
 }
 
-// scanDirectory walks the directory tree and submits work to the queue
+// scanDirectory initiates parallel directory walking
 func (ps *ParallelFileScanner) scanDirectory(libraryID uint) {
 	defer ps.wg.Done()
-	defer close(ps.workQueue)
+	defer close(ps.dirQueue)
 	
 	libraryPath := ps.scanJob.Library.Path
 	basePath, err := ps.pathResolver.ResolveDirectory(libraryPath)
@@ -282,71 +335,55 @@ func (ps *ParallelFileScanner) scanDirectory(libraryID uint) {
 		return
 	}
 	
-	// Use filepath.WalkDir for better performance than filepath.Walk
-	err = filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
-		// Check for cancellation
-		select {
-		case <-ps.ctx.Done():
-			return fmt.Errorf("scan cancelled")
-		default:
-		}
-		
-		if err != nil {
-			ps.errorsCount.Add(1)
-			return nil // Continue scanning despite errors
-		}
-		
-		if d.IsDir() {
-			return nil
-		}
-		
-		// Quick file type check before getting full file info
-		if !utils.IsMediaFile(path) {
-			return nil
-		}
-		
-		// Get file info
-		info, err := d.Info()
-		if err != nil {
-			ps.errorsCount.Add(1)
-			return nil
-		}
-		
-		// Submit work to queue
-		select {
-		case ps.workQueue <- scanWork{
-			path:      path,
-			info:      info,
-			libraryID: libraryID,
-		}:
-		case <-ps.ctx.Done():
-			return fmt.Errorf("scan cancelled")
-		}
-		
-		return nil
-	})
-	
-	if err != nil && err.Error() != "scan cancelled" {
-		ps.errorQueue <- err
+	// Start with the root directory in the queue
+	select {
+	case ps.dirQueue <- dirWork{
+		path:      basePath,
+		libraryID: libraryID,
+	}:
+	case <-ps.ctx.Done():
+		return
 	}
 }
 
 // worker processes files from the work queue
 func (ps *ParallelFileScanner) worker(id int) {
 	defer ps.wg.Done()
+	defer ps.activeWorkers.Add(-1) // Decrement active worker count when exiting
 	
-	for work := range ps.workQueue {
-		// Check for cancellation
+	ps.activeWorkers.Add(1) // Increment active worker count
+	
+	for {
 		select {
-		case <-ps.ctx.Done():
-			return
-		default:
-		}
-		
-		result := ps.processFile(work)
-		
-		select {
-		case ps.resultQueue <- result:
+		case work, ok := <-ps.workQueue:
+			if !ok {
+				// Work queue closed, exit
+				return
+			}
+			
+			// Check for cancellation
+			select {
+			case <-ps.ctx.Done():
+				return
+			default:
+			}
+			
+			result := ps.processFile(work)
+			
+			select {
+			case ps.resultQueue <- result:
+			case <-ps.ctx.Done():
+				return
+			}
+			
+		case exitID := <-ps.workerExitChan:
+			if exitID == id {
+				// This worker was signaled to exit
+				return
+			}
+			// Put the signal back if it's not for this worker
+			ps.workerExitChan <- exitID
+			
 		case <-ps.ctx.Done():
 			return
 		}
@@ -522,7 +559,10 @@ func (ps *ParallelFileScanner) updateProgress() {
 		event := events.NewSystemEvent(
 			events.EventScanProgress,
 			"Scan Progress Update",
-			fmt.Sprintf("Processed %d files (%.2f GB)", filesProcessed, float64(bytesProcessed)/(1024*1024*1024)),
+			fmt.Sprintf("Processed %d files (%.2f GB) - Workers: %d active", 
+				filesProcessed, 
+				float64(bytesProcessed)/(1024*1024*1024),
+				ps.activeWorkers.Load()),
 		)
 		event.Data = map[string]interface{}{
 			"jobId":          ps.jobID,
@@ -530,6 +570,10 @@ func (ps *ParallelFileScanner) updateProgress() {
 			"bytesProcessed": bytesProcessed,
 			"errorsCount":    errorsCount,
 			"progress":       progress,
+			"activeWorkers":  ps.activeWorkers.Load(),
+			"minWorkers":     ps.minWorkers,
+			"maxWorkers":     ps.maxWorkers,
+			"queueDepth":     len(ps.workQueue),
 		}
 		ps.eventBus.PublishAsync(event)
 	}
@@ -538,6 +582,129 @@ func (ps *ParallelFileScanner) updateProgress() {
 // Pause pauses the scanner
 func (ps *ParallelFileScanner) Pause() {
 	ps.cancel()
+}
+
+// Adaptive Worker Pool Management
+
+// adjustWorkers dynamically adjusts the number of workers based on queue depth and system load
+func (ps *ParallelFileScanner) adjustWorkers() {
+	queueLen := len(ps.workQueue)
+	currentWorkers := int(ps.activeWorkers.Load())
+	
+	// Get system load metrics
+	cpuUsage, memUsage, _ := ps.systemMonitor.GetMetrics()
+	loadScore := ps.systemMonitor.GetLoadScore()
+	
+	// Calculate target workers based on queue depth and system load
+	targetWorkers := currentWorkers
+	
+	// Scale up if queue is getting backed up and system can handle more load
+	if queueLen > currentWorkers && currentWorkers < ps.maxWorkers && loadScore < 70 {
+		// Scale more aggressively if queue is very full and system load is low
+		if queueLen > currentWorkers*3 && loadScore < 40 {
+			// Add up to 2 workers at once if load is very low and queue is very backed up
+			targetWorkers = currentWorkers + 2
+		} else {
+			targetWorkers = currentWorkers + 1
+		}
+		
+		// Respect max workers limit
+		if targetWorkers > ps.maxWorkers {
+			targetWorkers = ps.maxWorkers
+		}
+	}
+	
+	// Scale down under various conditions
+	if currentWorkers > ps.minWorkers {
+		// Scale down if queue is empty
+		if queueLen == 0 {
+			targetWorkers = currentWorkers - 1
+		}
+		
+		// Scale down if system is overloaded
+		if cpuUsage > 90 || memUsage > 90 {
+			targetWorkers = currentWorkers - 1
+			fmt.Printf("Scaling down due to high system load: CPU: %.1f%%, Mem: %.1f%%\n",
+				cpuUsage, memUsage)
+		}
+		
+		// Ensure we respect minimum workers limit
+		if targetWorkers < ps.minWorkers {
+			targetWorkers = ps.minWorkers
+		}
+	}
+	
+	// Apply worker adjustments
+	if targetWorkers > currentWorkers {
+		// Add workers
+		for i := currentWorkers; i < targetWorkers; i++ {
+			ps.wg.Add(1)
+			go ps.worker(i)
+		}
+		fmt.Printf("Scaled up workers: %d -> %d (queue depth: %d)\n", currentWorkers, targetWorkers, queueLen)
+	} else if targetWorkers < currentWorkers {
+		// Remove workers
+		workersToRemove := currentWorkers - targetWorkers
+		for i := 0; i < workersToRemove; i++ {
+			// Signal workers to exit by sending their IDs
+			// We'll signal the highest numbered workers first
+			select {
+			case ps.workerExitChan <- currentWorkers - 1 - i:
+			default:
+				// Channel full, skip this worker for now
+			}
+		}
+		fmt.Printf("Scaled down workers: %d -> %d (queue depth: %d)\n", currentWorkers, targetWorkers, queueLen)
+	}
+}
+
+// workerPoolManager monitors the system and adjusts workers accordingly
+func (ps *ParallelFileScanner) workerPoolManager() {
+	defer ps.wg.Done()
+	
+	// Check worker pool every 2 seconds
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	
+	// Initial metrics
+	var lastFilesProcessed int64
+	var lastCheck time.Time = time.Now()
+	
+	for {
+		select {
+		case <-ticker.C:
+			// Get current metrics
+			currentFiles := ps.filesProcessed.Load()
+			currentTime := time.Now()
+			
+			// Calculate throughput (files per second)
+			timeDelta := currentTime.Sub(lastCheck).Seconds()
+			filesDelta := currentFiles - lastFilesProcessed
+			throughput := float64(filesDelta) / timeDelta
+			
+			// Log performance metrics
+			queueLen := len(ps.workQueue)
+			activeWorkers := ps.activeWorkers.Load()
+			
+			fmt.Printf("Worker Pool Status: Active: %d, Queue: %d, Throughput: %.2f files/sec\n", 
+				activeWorkers, queueLen, throughput)
+			
+			// Adjust workers based on current conditions
+			ps.adjustWorkers()
+			
+			// Update metrics for next iteration
+			lastFilesProcessed = currentFiles
+			lastCheck = currentTime
+			
+		case <-ps.ctx.Done():
+			return
+		}
+	}
+}
+
+// GetWorkerStats returns current worker pool statistics
+func (ps *ParallelFileScanner) GetWorkerStats() (active, min, max, queueLen int) {
+	return int(ps.activeWorkers.Load()), ps.minWorkers, ps.maxWorkers, len(ps.workQueue)
 }
 
 // BatchProcessor methods
@@ -614,4 +781,108 @@ func (bp *BatchProcessor) flushInternal() error {
 	}
 	
 	return err
+}
+
+// directoryWorker processes directories from the directory queue
+func (ps *ParallelFileScanner) directoryWorker(id int) {
+	defer ps.wg.Done()
+	defer ps.activeDirWorkers.Add(-1)
+	
+	ps.activeDirWorkers.Add(1)
+	
+	for {
+		select {
+		case dirWork, ok := <-ps.dirQueue:
+			if !ok {
+				// Directory queue closed, exit
+				return
+			}
+			
+			// Check for cancellation
+			select {
+			case <-ps.ctx.Done():
+				return
+			default:
+			}
+			
+			ps.processDirWork(dirWork)
+			
+		case <-ps.ctx.Done():
+			return
+		}
+	}
+}
+
+// processDirWork processes a single directory
+func (ps *ParallelFileScanner) processDirWork(work dirWork) {
+	entries, err := os.ReadDir(work.path)
+	if err != nil {
+		ps.errorsCount.Add(1)
+		return
+	}
+	
+	for _, entry := range entries {
+		// Check for cancellation
+		select {
+		case <-ps.ctx.Done():
+			return
+		default:
+		}
+		
+		fullPath := filepath.Join(work.path, entry.Name())
+		
+		if entry.IsDir() {
+			// Add subdirectory to directory queue for parallel processing
+			select {
+			case ps.dirQueue <- dirWork{
+				path:      fullPath,
+				libraryID: work.libraryID,
+			}:
+			case <-ps.ctx.Done():
+				return
+			}
+		} else {
+			// Quick file type check before getting full file info
+			if !utils.IsMediaFile(fullPath) {
+				continue
+			}
+			
+			// Get file info
+			info, err := entry.Info()
+			if err != nil {
+				ps.errorsCount.Add(1)
+				continue
+			}
+			
+			// Submit file work to file processing queue
+			select {
+			case ps.workQueue <- scanWork{
+				path:      fullPath,
+				info:      info,
+				libraryID: work.libraryID,
+			}:
+			case <-ps.ctx.Done():
+				return
+			}
+		}
+	}
+}
+
+// dirQueueManager monitors directory workers and closes work queue when done
+func (ps *ParallelFileScanner) dirQueueManager() {
+	defer ps.wg.Done()
+	defer close(ps.workQueue)
+	
+	// Wait for all directory workers to finish
+	for {
+		select {
+		case <-ps.ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+			// Check if directory queue is empty and all directory workers are idle
+			if len(ps.dirQueue) == 0 && ps.activeDirWorkers.Load() == 0 {
+				return
+			}
+		}
+	}
 }

@@ -420,7 +420,22 @@ func GetScanProgress(c *gin.Context) {
 		return
 	}
 
-	// Get progress from scanner manager
+	// Try to get detailed progress including worker stats
+	detailedStats, err := scannerManager.GetDetailedScanProgress(uint(id))
+	if err == nil {
+		// Get additional info from database to enrich the detailed stats
+		scanJob, _ := scannerManager.GetScanStatus(uint(id))
+		
+		// Add database fields not included in detailed stats
+		detailedStats["files_found"] = scanJob.FilesFound
+		detailedStats["status"] = scanJob.Status
+		
+		// Return detailed stats for active jobs
+		c.JSON(http.StatusOK, detailedStats)
+		return
+	}
+	
+	// If detailed stats are not available, fall back to basic progress
 	progress, eta, filesPerSec, err := scannerManager.GetScanProgress(uint(id))
 	if err != nil {
 		// If no active scanner, try to get progress from database
@@ -434,13 +449,13 @@ func GetScanProgress(c *gin.Context) {
 		
 		// Return database progress for inactive jobs
 		c.JSON(http.StatusOK, gin.H{
-			"progress":       scanJob.Progress,
-			"eta":           "",
-			"files_per_sec": 0,
+			"progress":        scanJob.Progress,
+			"eta":             "",
+			"files_per_sec":   0,
 			"bytes_processed": scanJob.BytesProcessed,
 			"files_processed": scanJob.FilesProcessed,
-			"files_found":    scanJob.FilesFound,
-			"status":        scanJob.Status,
+			"files_found":     scanJob.FilesFound,
+			"status":          scanJob.Status,
 		})
 		return
 	}
@@ -449,12 +464,12 @@ func GetScanProgress(c *gin.Context) {
 	scanJob, _ := scannerManager.GetScanStatus(uint(id))
 	
 	c.JSON(http.StatusOK, gin.H{
-		"progress":       progress,
-		"eta":           eta,
-		"files_per_sec": filesPerSec,
+		"progress":        progress,
+		"eta":             eta,
+		"files_per_sec":   filesPerSec,
 		"bytes_processed": scanJob.BytesProcessed,
 		"files_processed": scanJob.FilesProcessed,
-		"files_found":    scanJob.FilesFound,
-		"status":        scanJob.Status,
+		"files_found":     scanJob.FilesFound,
+		"status":          scanJob.Status,
 	})
 }
