@@ -1,26 +1,64 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
-	"github.com/mantonx/viewra/internal/scanner"
+	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/scannermodule"
+	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
 )
+
+// getScannerModule retrieves the scanner module from the module registry
+func getScannerModule() (*scannermodule.Module, error) {
+	module, exists := modulemanager.GetModule(scannermodule.ModuleID)
+	if !exists {
+		return nil, fmt.Errorf("scanner module not found")
+	}
+	
+	scannerMod, ok := module.(*scannermodule.Module)
+	if !ok {
+		return nil, fmt.Errorf("invalid scanner module type")
+	}
+	
+	return scannerMod, nil
+}
+
+// getScannerManager retrieves the scanner manager from the scanner module
+func getScannerManager() (*scanner.Manager, error) {
+	scannerMod, err := getScannerModule()
+	if err != nil {
+		return nil, err
+	}
+	
+	return scannerMod.GetScannerManager(), nil
+}
+
+// Legacy functions for backward compatibility (deprecated)
+// These are kept for any existing code that might still reference them
 
 var scannerManager *scanner.Manager
 
-// InitializeScanner initializes the scanner manager
+// InitializeScanner initializes the scanner manager (deprecated - use module system)
 func InitializeScanner(eventBus events.EventBus) {
-	scannerManager = scanner.NewManager(database.GetDB(), eventBus)
+	// This function is now deprecated - scanner is initialized via module system
+	// We can optionally get the scanner from module system for compatibility
+	if manager, err := getScannerManager(); err == nil {
+		scannerManager = manager
+	}
 }
 
-// InitializeScannerCompat provides backward compatibility for scanner initialization
+// InitializeScannerCompat provides backward compatibility for scanner initialization (deprecated)
 func InitializeScannerCompat() {
-	// Initialize with nil event bus for backward compatibility
-	scannerManager = scanner.NewManager(database.GetDB(), nil)
+	// This function is now deprecated - scanner is initialized via module system
+	// We can optionally get the scanner from module system for compatibility
+	if manager, err := getScannerManager(); err == nil {
+		scannerManager = manager
+	}
 }
 
 // StartLibraryScan starts a scan for a specific media library
@@ -34,8 +72,13 @@ func StartLibraryScan(c *gin.Context) {
 		return
 	}
 	
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 	
 	scanJob, err := scannerManager.StartScan(uint(libraryID))
@@ -64,8 +107,13 @@ func StopScan(c *gin.Context) {
 		return
 	}
 	
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 	
 	err = scannerManager.StopScan(uint(jobID))
@@ -93,8 +141,13 @@ func GetScanStatus(c *gin.Context) {
 		return
 	}
 	
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 	
 	scanJob, err := scannerManager.GetScanStatus(uint(jobID))
@@ -113,8 +166,13 @@ func GetScanStatus(c *gin.Context) {
 
 // GetAllScans returns all scan jobs
 func GetAllScans(c *gin.Context) {
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 	
 	scanJobs, err := scannerManager.GetAllScans()
@@ -143,8 +201,13 @@ func GetLibraryStats(c *gin.Context) {
 		return
 	}
 	
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 	
 	stats, err := scannerManager.GetLibraryStats(uint(libraryID))
@@ -221,8 +284,13 @@ func GetMediaFiles(c *gin.Context) {
 
 // GetScannerStats returns overall scanner statistics
 func GetScannerStats(c *gin.Context) {
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 	
 	// Get active scan count

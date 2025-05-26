@@ -1,19 +1,19 @@
 ---
 # Example YAML plugin configuration
-schema_version: "1.0"
-id: "example_yaml_plugin"
-name: "Example YAML Plugin"
-version: "0.1.0"
-description: "An example plugin with YAML configuration"
-author: "Viewra Team"
-website: "https://viewra.example.com"
-repository: "https://github.com/example/viewra-plugin-yaml"
-license: "MIT"
-type: "admin_page"
+schema_version: '1.0'
+id: 'example_yaml_plugin'
+name: 'Example YAML Plugin'
+version: '0.1.0'
+description: 'An example plugin with YAML configuration'
+author: 'Viewra Team'
+website: 'https://viewra.example.com'
+repository: 'https://github.com/example/viewra-plugin-yaml'
+license: 'MIT'
+type: 'admin_page'
 tags:
-  - "yaml"
-  - "admin"
-  - "example"
+  - 'yaml'
+  - 'admin'
+  - 'example'
 
 capabilities:
   admin_pages: true
@@ -21,42 +21,42 @@ capabilities:
   ui_components: false
 
 dependencies:
-  viewra_version: ">=0.1.0"
+  viewra_version: '>=0.1.0'
 
 config_schema:
-  type: "object"
+  type: 'object'
   properties:
     page_title:
-      type: "string"
-      title: "Page Title"
-      description: "Title of the admin page"
-      default: "YAML Example Page"
+      type: 'string'
+      title: 'Page Title'
+      description: 'Title of the admin page'
+      default: 'YAML Example Page'
     refresh_interval:
-      type: "number"
-      title: "Refresh Interval"
-      description: "Auto-refresh interval in seconds"
+      type: 'number'
+      title: 'Refresh Interval'
+      description: 'Auto-refresh interval in seconds'
       default: 30
 
 entry_points:
-  main: "main.go"
+  main: 'main.go'
 
 ui:
   admin_pages:
-    - id: "yaml_dashboard"
-      title: "YAML Dashboard"
-      path: "yaml-dashboard"
-      icon: "chart-bar"
-      category: "YAML Examples"
-      url: "/plugins/example_yaml_plugin/dashboard.html"
-      type: "iframe"
-    - id: "yaml_settings"
-      title: "YAML Settings"
-      path: "yaml-settings"
-      icon: "cog"
-      category: "YAML Examples"
-      url: "/plugins/example_yaml_plugin/settings.html"
-      type: "iframe"
+    - id: 'yaml_dashboard'
+      title: 'YAML Dashboard'
+      path: 'yaml-dashboard'
+      icon: 'chart-bar'
+      category: 'YAML Examples'
+      url: '/plugins/example_yaml_plugin/dashboard.html'
+      type: 'iframe'
+    - id: 'yaml_settings'
+      title: 'YAML Settings'
+      path: 'yaml-settings'
+      icon: 'cog'
+      category: 'YAML Examples'
+      url: '/plugins/example_yaml_plugin/settings.html'
+      type: 'iframe'
 
 permissions:
-  - "database_read"
-  - "api_access"
+  - 'database_read'
+  - 'api_access'

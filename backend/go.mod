@@ -5,6 +5,7 @@ go 1.24.3
 require (
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/gin-gonic/gin v1.10.0
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/driver/sqlite v1.5.7
 	gorm.io/gorm v1.26.1
@@ -46,5 +47,4 @@ require (
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.20.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

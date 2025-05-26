@@ -14,8 +14,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
-	"gopkg.in/yaml.v3"
 	"github.com/mantonx/viewra/internal/events"
+	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
 

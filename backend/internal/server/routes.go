@@ -5,6 +5,7 @@ package server
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/server/handlers"
 )
 
@@ -74,6 +75,9 @@ func setupRoutesWithEventHandlers(r *gin.Engine) {
 			setupUserRoutes(api)
 			setupAdminRoutes(api)
 		}
+		
+		// Register module routes
+		modulemanager.RegisterRoutes(r)
 	}
 }
 

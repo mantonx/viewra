@@ -1,12 +1,12 @@
 package main
 
 import (
-"fmt"
-"log"
-"os"
-"path/filepath"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 
-"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/plugins"
 )
 
 // Simple logger that implements the PluginLogger interface

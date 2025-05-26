@@ -9,12 +9,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/server/handlers"
+	
+	// Import all modules to trigger their registration
+	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
 
 var pluginManager *plugins.Manager
 var systemEventBus events.EventBus
+var moduleInitialized bool
+var disabledModules = make(map[string]bool)
 
 // SetupRouter configures and returns the main router
 func SetupRouter() *gin.Engine {
@@ -37,23 +44,102 @@ func SetupRouter() *gin.Engine {
 		c.Next()
 	})
 	
-	// Initialize plugin manager
-	if err := initializePluginManager(); err != nil {
-		log.Printf("Failed to initialize plugin manager: %v", err)
-	}
-	
 	// Initialize event bus system
 	if err := initializeEventBus(); err != nil {
 		log.Printf("Failed to initialize event bus: %v", err)
 	}
 	
+	// Initialize plugin manager
+	if err := initializePluginManager(); err != nil {
+		log.Printf("Failed to initialize plugin manager: %v", err)
+	}
+
+	// Initialize module system
+	if err := initializeModules(); err != nil {
+		log.Printf("Failed to initialize modules: %v", err)
+	}
+	
 	// Setup routes with event handlers
 	setupRoutesWithEventHandlers(r)
 	
-	// Initialize scanner manager with event bus
-	handlers.InitializeScanner(systemEventBus)
-	
 	return r
+}
+
+// DisableModule disables a specific module (for development/testing only)
+func DisableModule(moduleID string) {
+	if moduleInitialized {
+		logger.Warn("Attempting to disable module %s after modules have been initialized", moduleID)
+		return
+	}
+	
+	disabledModules[moduleID] = true
+	modulemanager.DisableModule(moduleID)
+	logger.Info("Module disabled for development: %s", moduleID)
+}
+
+// registerAllModules registers all available modules
+func registerAllModules() {
+	// Modules are now auto-registered when imported via init() functions
+	// This function is kept for any future manual registration needs
+}
+
+// initializeModules sets up the module system and loads all modules
+func initializeModules() error {
+	if moduleInitialized {
+		return nil
+	}
+	
+	// Get database connection
+	db := database.GetDB()
+	
+	// Register the event bus globally so modules can access it
+	events.SetGlobalEventBus(systemEventBus)
+	
+	// Register all modules
+	registerAllModules()
+	
+	// Load all modules
+	if err := modulemanager.LoadAll(db); err != nil {
+		return err
+	}
+	
+	moduleInitialized = true
+	logModuleStatus()
+	
+	return nil
+}
+
+// logModuleStatus logs the loaded modules 
+func logModuleStatus() {
+	modules := modulemanager.ListModules()
+	
+	log.Printf("✅ Module system initialized with %d modules", len(modules))
+	
+	// Log loaded modules with nice formatting
+	log.Printf("┌────────────────────────────────────────────────────────────────┐")
+	log.Printf("│ %-20s │ %-25s │ %-8s │", "MODULE NAME", "MODULE ID", "CORE")
+	log.Printf("├────────────────────────────────────────────────────────────────┤")
+	
+	for _, module := range modules {
+		coreStatus := "No"
+		if module.Core() {
+			coreStatus = "Yes"
+		}
+		log.Printf("│ %-20s │ %-25s │ %-8s │", 
+			truncate(module.Name(), 20), 
+			truncate(module.ID(), 25), 
+			coreStatus)
+	}
+	
+	log.Printf("└────────────────────────────────────────────────────────────────┘")
+}
+
+// truncate shortens a string to the given length, adding ... if needed
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
 
 // initializePluginManager sets up the plugin system
@@ -189,6 +275,15 @@ func (l *eventLogger) Debug(msg string, args ...interface{}) {
 	log.Printf("[EVENT-DEBUG] "+msg, args...)
 }
 
+// GetPluginDirectory returns the plugin directory path
+func GetPluginDirectory() string {
+	dir := os.Getenv("PLUGIN_DIR")
+	if dir == "" {
+		dir = filepath.Join(".", "data", "plugins")
+	}
+	return dir
+}
+
 // initializeEventBus sets up the system-wide event bus
 func initializeEventBus() error {
 	// Create event bus configuration
@@ -226,44 +321,14 @@ func initializeEventBus() error {
 		"System Started",
 		"Viewra backend system has started successfully",
 	)
-	startupEvent.Data["version"] = "1.0.0" // TODO: Get from build info
+	
+	startupEvent.Data = map[string]interface{}{
+		"version": "1.0.0", // TODO: Get from build info
+	}
 	
 	if err := systemEventBus.PublishAsync(startupEvent); err != nil {
 		log.Printf("Failed to publish startup event: %v", err)
 	}
 	
 	return nil
-}
-
-// GetPluginDirectory returns the absolute path to the plugins directory
-// This ensures consistency between plugin manager and static file serving
-func GetPluginDirectory() string {
-	// Get plugin directory from environment or use default
-	pluginDir := os.Getenv("PLUGIN_DIR")
-	if pluginDir == "" {
-		// Get absolute path based on working directory
-		workDir, err := os.Getwd()
-		if err == nil {
-			pluginDir = filepath.Join(workDir, "data/plugins")
-		} else {
-			// Fallback to relative path or Docker path
-			if _, err := os.Stat("./data/plugins"); err == nil {
-				pluginDir = "./data/plugins"
-			} else {
-				pluginDir = "/app/data/plugins"
-			}
-		}
-	}
-	
-	// Debug logging to see what path is being used
-	log.Printf("🔍 Plugin directory path: %s", pluginDir)
-	
-	// Check if directory exists
-	if _, err := os.Stat(pluginDir); err != nil {
-		log.Printf("⚠️ Plugin directory not found: %s", err)
-	} else {
-		log.Printf("✅ Plugin directory exists")
-	}
-	
-	return pluginDir
 }

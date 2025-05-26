@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/scanner"
+	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
 )
 
 // ScanConfigResponse represents the scanning configuration response
@@ -32,8 +32,13 @@ type ScanConfigRequest struct {
 
 // GetScanConfig returns the current scanning configuration
 func GetScanConfig(c *gin.Context) {
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	_, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 
 	// Get current configuration from scanner manager
@@ -56,8 +61,13 @@ func GetScanConfig(c *gin.Context) {
 
 // UpdateScanConfig updates the scanning configuration
 func UpdateScanConfig(c *gin.Context) {
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 
 	var request ScanConfigRequest
@@ -121,8 +131,13 @@ func UpdateScanConfig(c *gin.Context) {
 
 // GetScanPerformanceStats returns performance statistics for scanning operations
 func GetScanPerformanceStats(c *gin.Context) {
-	if scannerManager == nil {
-		InitializeScannerCompat()
+	_, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
 	}
 
 	// Get recent scan jobs with timing information
