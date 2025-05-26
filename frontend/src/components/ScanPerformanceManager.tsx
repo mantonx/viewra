@@ -1,21 +1,45 @@
+/**
+ * Scan Performance Manager Component
+ *
+ * This component provides a comprehensive interface for managing and monitoring
+ * media library scan operations. It displays real-time scan progress, worker
+ * statistics, and allows configuration of scan performance settings.
+ *
+ * Key Features:
+ * - Real-time scan progress monitoring
+ * - Worker pool statistics (active workers, queue depth)
+ * - Performance configuration (parallel scanning, worker count, etc.)
+ * - Historical scan performance statistics
+ * - ETA calculations and throughput metrics
+ *
+ * Recent Updates:
+ * - Fixed API endpoint from /api/scanner/status to /api/scanner/jobs
+ * - Updated data types to match backend (jobId: number, error_message: string)
+ * - Added proper TypeScript interfaces for better type safety
+ */
+
 import React, { useState, useEffect } from 'react';
 import type { ScanConfig, ScanPerformanceStats, ScanJob } from '../types/media.types';
 import { formatBytes, formatDuration } from '../lib/utils';
 
+/**
+ * Interface for active scan display data
+ * Combines scan job data with real-time progress information
+ */
 interface ActiveScan {
-  jobId: string;
-  libraryId: number;
-  progress: number;
-  eta: string;
-  filesPerSecond: number;
-  filesProcessed: number;
-  bytesProcessed: number;
-  totalFiles: number;
-  status: string;
-  activeWorkers?: number;
-  minWorkers?: number;
-  maxWorkers?: number;
-  queueDepth?: number;
+  jobId: number; // Scan job ID (numeric, matches backend)
+  libraryId: number; // Library being scanned
+  progress: number; // Progress percentage (0-100)
+  eta: string; // Estimated time of completion
+  filesPerSecond: number; // Current processing rate
+  filesProcessed: number; // Files processed so far
+  bytesProcessed: number; // Bytes processed so far
+  totalFiles: number; // Total files to process
+  status: string; // Current job status
+  activeWorkers?: number; // Number of active worker threads
+  minWorkers?: number; // Minimum worker count
+  maxWorkers?: number; // Maximum worker count
+  queueDepth?: number; // Current work queue depth
 }
 
 const ScanPerformanceManager: React.FC = () => {
@@ -47,10 +71,16 @@ const ScanPerformanceManager: React.FC = () => {
     }
   };
 
-  // Fetch active scans
+  /**
+   * Fetch active scans and their real-time progress
+   *
+   * This function was updated to use the correct API endpoint:
+   * - Changed from /api/scanner/status to /api/scanner/jobs
+   * - Now properly handles numeric job IDs from the backend
+   */
   const fetchScanProgress = async () => {
     try {
-      const response = await fetch('/api/scanner/status');
+      const response = await fetch('/api/scanner/jobs');
       const data = await response.json();
 
       // Fetch detailed progress for each active scan
@@ -430,15 +460,25 @@ const ScanPerformanceManager: React.FC = () => {
                   </span>
                   <span>{formatBytes(scan.bytesProcessed)} processed</span>
                 </div>
-                
+
                 {scan.activeWorkers !== undefined && (
                   <div className="mt-2 p-2 bg-slate-800 rounded-md">
-                    <div className="text-xs font-medium text-slate-300 mb-1">Adaptive Worker Pool</div>
+                    <div className="text-xs font-medium text-slate-300 mb-1">
+                      Adaptive Worker Pool
+                    </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-400">
-                      <span>Active Workers: <span className="text-slate-200">{scan.activeWorkers}</span></span>
-                      <span>Queue Depth: <span className="text-slate-200">{scan.queueDepth || 0}</span></span>
-                      <span>Min Workers: <span className="text-slate-200">{scan.minWorkers}</span></span>
-                      <span>Max Workers: <span className="text-slate-200">{scan.maxWorkers}</span></span>
+                      <span>
+                        Active Workers: <span className="text-slate-200">{scan.activeWorkers}</span>
+                      </span>
+                      <span>
+                        Queue Depth: <span className="text-slate-200">{scan.queueDepth || 0}</span>
+                      </span>
+                      <span>
+                        Min Workers: <span className="text-slate-200">{scan.minWorkers}</span>
+                      </span>
+                      <span>
+                        Max Workers: <span className="text-slate-200">{scan.maxWorkers}</span>
+                      </span>
                     </div>
                   </div>
                 )}
@@ -446,7 +486,9 @@ const ScanPerformanceManager: React.FC = () => {
                 <div className="flex gap-2 mt-2">
                   <button
                     className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-sm transition-colors border border-slate-500"
-                    onClick={() => fetch(`/api/scanner/pause/${scan.jobId}`, { method: 'POST' })}
+                    onClick={() =>
+                      fetch(`/api/admin/scanner/pause/${scan.jobId}`, { method: 'POST' })
+                    }
                   >
                     Pause
                   </button>
