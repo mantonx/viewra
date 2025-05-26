@@ -13,7 +13,7 @@ import (
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/server/handlers"
-	
+
 	// Import all modules to trigger their registration
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )

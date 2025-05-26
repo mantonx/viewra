@@ -2,7 +2,7 @@ package scannermodule
 
 import (
 	"fmt"
-	
+
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"

@@ -1,11 +1,11 @@
 package modulemanager
 
 import (
-"fmt"
-"os"
-"path/filepath"
+	"fmt"
+	"os"
+	"path/filepath"
 
-"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 )
 
 // ModuleConfig represents the module configuration structure
