@@ -319,6 +319,13 @@ func (ps *ParallelFileScanner) Resume(libraryID uint) error {
 	// Reset the context to ensure we have a fresh context for the resumed scan
 	ps.ctx, ps.cancel = context.WithCancel(context.Background())
 	
+	// Reinitialize channels for resumed scan (they may have been closed during pause)
+	ps.workQueue = make(chan scanWork, ps.workerCount*100)
+	ps.dirQueue = make(chan dirWork, ps.dirWorkerCount*500)
+	ps.resultQueue = make(chan *scanResult, ps.workerCount*10)
+	ps.errorQueue = make(chan error, ps.workerCount)
+	ps.workerExitChan = make(chan int, ps.maxWorkers)
+	
 	// Load the scan job to get current status
 	if err := ps.loadScanJob(); err != nil {
 		return fmt.Errorf("failed to load scan job for resume: %w", err)
@@ -327,6 +334,7 @@ func (ps *ParallelFileScanner) Resume(libraryID uint) error {
 	// Update job status to running (for resumed jobs)
 	updates := map[string]interface{}{
 		"status": string(utils.StatusRunning),
+		"error_message": "", // Clear any previous error message when resuming
 	}
 	
 	// Only set the start time if it's not already set (preserve original start time)
@@ -343,6 +351,7 @@ func (ps *ParallelFileScanner) Resume(libraryID uint) error {
 	
 	// Update in-memory status
 	ps.scanJob.Status = string(utils.StatusRunning)
+	ps.scanJob.ErrorMessage = "" // Clear error message in memory as well
 	fmt.Printf("Successfully updated job %d status to running (resumed)\n", ps.jobID)
 	
 	// Pre-load existing files into cache for fast lookup
