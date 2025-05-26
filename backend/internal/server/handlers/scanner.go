@@ -473,3 +473,163 @@ func GetScanProgress(c *gin.Context) {
 		"status":          scanJob.Status,
 	})
 }
+
+// =============================================================================
+// DIRECTORY-BASED SCAN HANDLERS
+// =============================================================================
+
+// StartDirectoryScan starts a scan on a specified directory path
+func StartDirectoryScan(c *gin.Context) {
+	var request struct {
+		Directory string `json:"directory" binding:"required"`
+	}
+	
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request body",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// For now, we'll use library ID 1 as default or create a temporary library
+	// In a full implementation, you might want to create a temporary library entry
+	// or modify the scanner to work with direct paths
+	
+	// First, let's try to get or create a library for this directory
+	db := database.GetDB()
+	
+	// Check if a library exists for this path
+	var library database.MediaLibrary
+	err = db.Where("path = ?", request.Directory).First(&library).Error
+	if err != nil {
+		// Create a temporary library entry
+		library = database.MediaLibrary{
+			Path: request.Directory,
+			Type: "mixed",
+		}
+		if err := db.Create(&library).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to create temporary library",
+				"details": err.Error(),
+			})
+			return
+		}
+	}
+	
+	scanJob, err := scannerManager.StartScan(library.ID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Failed to start scan",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusCreated, gin.H{
+		"message":  "Scan started successfully",
+		"scanId":   fmt.Sprintf("%d", scanJob.ID),
+		"scan_job": scanJob,
+	})
+}
+
+// ResumeScan resumes a paused scan job
+func ResumeScan(c *gin.Context) {
+	jobIDStr := c.Param("id")
+	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid scan ID",
+		})
+		return
+	}
+	
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	err = scannerManager.ResumeScan(uint(jobID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Failed to resume scan",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Scan resumed successfully",
+		"scan_id": jobID,
+	})
+}
+
+// GetScanResults gets the final results of a completed scan
+func GetScanResults(c *gin.Context) {
+	jobIDStr := c.Param("id")
+	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid scan ID",
+		})
+		return
+	}
+	
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	scanJob, err := scannerManager.GetScanStatus(uint(jobID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Scan job not found",
+		})
+		return
+	}
+	
+	// Get additional results from database
+	db := database.GetDB()
+	
+	var mediaFiles []database.MediaFile
+	var mediaCount int64
+	
+	if scanJob.LibraryID > 0 {
+		db.Where("library_id = ?", scanJob.LibraryID).Find(&mediaFiles)
+		db.Model(&database.MediaFile{}).Where("library_id = ?", scanJob.LibraryID).Count(&mediaCount)
+	}
+	
+	// Calculate percentage
+	var percentage float64
+	if scanJob.FilesFound > 0 {
+		percentage = float64(scanJob.FilesProcessed) / float64(scanJob.FilesFound) * 100
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"scanId":       jobID,
+		"status":       scanJob.Status,
+		"totalFiles":   scanJob.FilesFound,
+		"processedFiles": scanJob.FilesProcessed,
+		"mediaFiles":   mediaCount,
+		"percentage":   percentage,
+		"results":      mediaFiles,
+		"scan_job":     scanJob,
+	})
+}

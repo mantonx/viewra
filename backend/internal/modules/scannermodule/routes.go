@@ -24,6 +24,7 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		// Individual scan job operations
 		api.GET("/jobs/:id", m.getScanStatus)
 		api.DELETE("/jobs/:id", m.cancelScan)
+		api.POST("/resume/:id", m.resumeScan)
 		
 		// Real-time scan progress endpoint
 		api.GET("/progress/:id", m.getScanProgress)

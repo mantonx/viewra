@@ -6,7 +6,7 @@ export const API_ENDPOINTS = {
   SCANNER: {
     START: '/api/admin/scanner/start',
     PAUSE: '/api/admin/scanner/pause',
-    RESUME: '/api/admin/scanner/resume',
+    RESUME: '/api/scanner/resume',
     STATUS: '/api/admin/scanner/status',
     STATS: '/api/admin/scanner/stats',
     CONFIG: '/api/admin/scanner/config',

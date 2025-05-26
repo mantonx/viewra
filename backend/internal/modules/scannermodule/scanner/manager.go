@@ -24,11 +24,63 @@ type Manager struct {
 
 // NewManager creates a new scanner manager instance.
 func NewManager(db *gorm.DB, eventBus events.EventBus) *Manager {
-	return &Manager{
+	manager := &Manager{
 		db:       db,
 		scanners: make(map[uint]*ParallelFileScanner),
 		eventBus: eventBus,
 	}
+	
+	// Recover any orphaned scan jobs from previous sessions
+	if err := manager.recoverOrphanedJobs(); err != nil {
+		fmt.Printf("Warning: Failed to recover orphaned scan jobs: %v\n", err)
+	}
+	
+	return manager
+}
+
+// recoverOrphanedJobs handles scan jobs that were marked as "running" when the backend restarted
+func (m *Manager) recoverOrphanedJobs() error {
+	// Find all jobs marked as "running" but not actually running
+	var orphanedJobs []database.ScanJob
+	if err := m.db.Where("status = ?", "running").Find(&orphanedJobs).Error; err != nil {
+		return fmt.Errorf("failed to query orphaned jobs: %w", err)
+	}
+	
+	if len(orphanedJobs) == 0 {
+		fmt.Println("No orphaned scan jobs found")
+		return nil
+	}
+	
+	fmt.Printf("Found %d orphaned scan jobs, marking as failed\n", len(orphanedJobs))
+	
+	// Mark all orphaned jobs as failed
+	for _, job := range orphanedJobs {
+		errorMsg := "Scanner process terminated during backend restart"
+		if err := utils.UpdateJobStatus(m.db, job.ID, utils.StatusFailed, errorMsg); err != nil {
+			fmt.Printf("Failed to update orphaned job %d: %v\n", job.ID, err)
+			continue
+		}
+		
+		// Publish scan failed event
+		if m.eventBus != nil {
+			failEvent := events.NewSystemEvent(
+				events.EventScanFailed,
+				"Media Scan Failed",
+				fmt.Sprintf("Scan job #%d failed due to backend restart", job.ID),
+			)
+			failEvent.Data = map[string]interface{}{
+				"libraryId": job.LibraryID,
+				"scanJobId": job.ID,
+				"error":     errorMsg,
+				"recovery":  true,
+			}
+			m.eventBus.PublishAsync(failEvent)
+		}
+		
+		fmt.Printf("Marked orphaned scan job %d as failed\n", job.ID)
+	}
+	
+	return nil
 }
 
 // StartScan creates and starts a new scan job for the specified library.
@@ -73,13 +125,13 @@ func (m *Manager) StartScan(libraryID uint) (*database.ScanJob, error) {
 	m.scanners[scanJob.ID] = scanner
 	
 	// Start scanning in background
-	go m.runScanJob(scanner, scanJob.ID, libraryID)
+	go m.runScanJob(scanner, scanJob.ID, libraryID, false)
 
 	return scanJob, nil
 }
 
 // runScanJob executes a scan job in a goroutine and handles cleanup.
-func (m *Manager) runScanJob(scanner *ParallelFileScanner, jobID, libraryID uint) {
+func (m *Manager) runScanJob(scanner *ParallelFileScanner, jobID, libraryID uint, isResume bool) {
 	defer func() {
 		// Clean up completed or failed scans from active scanners map
 		m.removeScanner(jobID)
@@ -94,20 +146,35 @@ func (m *Manager) runScanJob(scanner *ParallelFileScanner, jobID, libraryID uint
 					"Media Scan Completed",
 					fmt.Sprintf("Scan completed for library #%d", libraryID),
 				)
-				completeEvent.Data = map[string]interface{}{
+				eventData := map[string]interface{}{
 					"libraryId":      libraryID,
 					"scanJobId":      jobID,
 					"filesProcessed": currentJob.FilesProcessed,
 					"bytesProcessed": currentJob.BytesProcessed,
-					"duration":       currentJob.CompletedAt.Sub(*currentJob.StartedAt).String(),
 				}
+				
+				// Only calculate duration if StartedAt is not nil
+				if currentJob.StartedAt != nil {
+					eventData["duration"] = currentJob.CompletedAt.Sub(*currentJob.StartedAt).String()
+				} else {
+					eventData["duration"] = "unknown"
+				}
+				
+				completeEvent.Data = eventData
 				m.eventBus.PublishAsync(completeEvent)
 			}
 		}
 	}()
 
-	// Start the actual scanning process
-	if err := scanner.Start(libraryID); err != nil {
+	// Start or resume the scanning process
+	var err error
+	if isResume {
+		err = scanner.Resume(libraryID)
+	} else {
+		err = scanner.Start(libraryID)
+	}
+	
+	if err != nil {
 		// Check if this was a pause request (not an actual error)
 		var currentJob database.ScanJob
 		if err := m.db.First(&currentJob, jobID).Error; err == nil {
@@ -208,8 +275,8 @@ func (m *Manager) ResumeScan(jobID uint) error {
 		return fmt.Errorf("scan job not found: %w", err)
 	}
 
-	// Only allow resuming paused jobs
-	if scanJob.Status != string(utils.StatusPaused) {
+	// Allow resuming paused or pending jobs
+	if scanJob.Status != string(utils.StatusPaused) && scanJob.Status != string(utils.StatusPending) {
 		return fmt.Errorf("cannot resume scan job with status: %s", scanJob.Status)
 	}
 	
@@ -234,7 +301,7 @@ func (m *Manager) ResumeScan(jobID uint) error {
 	}
 
 	// Start resumed scanning in background
-	go m.runScanJob(scanner, jobID, scanJob.LibraryID)
+	go m.runScanJob(scanner, jobID, scanJob.LibraryID, true)
 
 	return nil
 }

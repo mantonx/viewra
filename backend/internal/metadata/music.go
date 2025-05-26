@@ -31,10 +31,8 @@ func IsMusicFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	result := MusicFileExtensions[ext]
 	
-	// Debug info
-	if result {
-		fmt.Printf("Found music file: %s\n", filename)
-	}
+	// Enhanced debug info - log all checks
+	fmt.Printf("[DEBUG][IsMusicFile] Path=%s, Ext=%s, Result=%t\n", filename, ext, result)
 	
 	return result
 }

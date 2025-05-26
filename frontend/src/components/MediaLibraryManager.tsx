@@ -326,7 +326,7 @@ const MediaLibraryManager = () => {
   const resumeScan = async (libraryId: number) => {
     setScanLoading(true);
     try {
-      const res = await fetch(`/api/admin/scanner/resume/${libraryId}`, {
+      const res = await fetch(`/api/scanner/resume/${libraryId}`, {
         method: 'POST',
       });
       const result = await res.json();

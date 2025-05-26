@@ -28,6 +28,7 @@ func setupRoutes(r *gin.Engine) {
 		setupUserRoutes(api)
 		setupAdminRoutes(api)
 		setupEventRoutes(api)
+		setupScanRoutes(api)
 		
 		// Development routes - these would be removed in production
 		api.POST("/dev/load-test-music", handlers.LoadTestMusicData)
@@ -237,4 +238,20 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 func setupEventRoutes(api *gin.RouterGroup) {
 	// Basic event routes will be set up by setupRoutesWithEventHandlers
 	// This function is kept for compatibility
+}
+
+// =============================================================================
+// SCAN ROUTES
+// =============================================================================
+
+// setupScanRoutes configures scan endpoints for directory-based scanning
+func setupScanRoutes(api *gin.RouterGroup) {
+	scan := api.Group("/scan")
+	{
+		scan.POST("/start", handlers.StartDirectoryScan)           // POST /api/scan/start
+		scan.GET("/:id/progress", handlers.GetScanProgress)       // GET /api/scan/:id/progress  
+		scan.POST("/:id/stop", handlers.StopScan)                 // POST /api/scan/:id/stop
+		scan.POST("/:id/resume", handlers.ResumeScan)             // POST /api/scan/:id/resume
+		scan.GET("/:id/results", handlers.GetScanResults)         // GET /api/scan/:id/results
+	}
 }

@@ -166,7 +166,9 @@ func CalculateFileHashSampled(filePath string, fileSize int64) (string, error) {
 // IsMediaFile checks if a file has a supported media extension
 func IsMediaFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
-	return MediaExtensions[ext]
+	result := MediaExtensions[ext]
+	fmt.Printf("[DEBUG] IsMediaFile: path=%s, ext=%s, result=%t\n", filePath, ext, result)
+	return result
 }
 
 // IsMediaFileOptimized checks if a file is a media file using optimized string operations
