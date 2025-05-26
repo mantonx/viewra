@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mantonx/viewra/internal/database"
@@ -14,542 +15,603 @@ import (
 	"github.com/mantonx/viewra/internal/metadata"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-const (
-	// Number of worker goroutines for file processing
-	DefaultWorkers = 4
-	// Buffer size for file channel
-	FileChannelBuffer = 100
-	// Batch size for database operations
-	BatchSize = 50
-)
-
-// ParallelFileScanner handles concurrent scanning of media directories
+// ParallelFileScanner implements a high-performance parallel file scanner
 type ParallelFileScanner struct {
+	db               *gorm.DB
+	jobID            uint
+	eventBus         events.EventBus
+	scanJob          *database.ScanJob
+	pathResolver     *utils.PathResolver
+	progressEstimator *ProgressEstimator
+	
+	// Worker management
+	workerCount      int
+	workQueue        chan scanWork
+	resultQueue      chan *scanResult
+	errorQueue       chan error
+	
+	// Batch processing
+	batchSize        int
+	batchTimeout     time.Duration
+	batchProcessor   *BatchProcessor
+	
+	// State management
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
+	
+	// Performance metrics
+	filesProcessed   atomic.Int64
+	bytesProcessed   atomic.Int64
+	errorsCount      atomic.Int64
+	startTime        time.Time
+	
+	// Cache for improved performance
+	fileCache        *FileCache
+	metadataCache    *MetadataCache
+}
+
+// scanWork represents a unit of work for scanning
+type scanWork struct {
+	path      string
+	info      os.FileInfo
+	libraryID uint
+}
+
+// scanResult represents the result of scanning a file
+type scanResult struct {
+	mediaFile    *database.MediaFile
+	musicMeta    *database.MusicMetadata
+	path         string
+	error        error
+}
+
+// BatchProcessor handles batch database operations
+type BatchProcessor struct {
 	db           *gorm.DB
-	jobID        uint
-	scanJob      *database.ScanJob
-	mu           sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	pathResolver *utils.PathResolver
-	workers      int
-	eventBus     events.EventBus
+	batchSize    int
+	timeout      time.Duration
+	mediaFiles   []*database.MediaFile
+	musicMetas   []*database.MusicMetadata
+	mu           sync.Mutex
+	flushTimer   *time.Timer
 }
 
-// FileTask represents a file to be processed
-type FileTask struct {
-	Path     string
-	FileInfo os.FileInfo
+// FileCache provides fast lookups for existing files
+type FileCache struct {
+	cache map[string]*database.MediaFile
+	mu    sync.RWMutex
 }
 
-// NewParallelFileScanner creates a new parallel file scanner instance
+// MetadataCache caches metadata extraction results
+type MetadataCache struct {
+	cache map[string]*database.MusicMetadata
+	mu    sync.RWMutex
+	ttl   time.Duration
+}
+
+// NewParallelFileScanner creates a new parallel file scanner with optimizations
 func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *ParallelFileScanner {
 	ctx, cancel := context.WithCancel(context.Background())
-	workers := runtime.NumCPU()
-	if workers < 2 {
-		workers = 2
-	}
-	if workers > 8 {
-		workers = 8
+	
+	// Calculate optimal worker count based on CPU cores
+	workerCount := runtime.NumCPU()
+	if workerCount < 2 {
+		workerCount = 2
+	} else if workerCount > 8 {
+		workerCount = 8 // Cap at 8 workers to avoid overwhelming the system
 	}
 	
-	return &ParallelFileScanner{
-		db:           db,
-		jobID:        jobID,
-		ctx:          ctx,
-		cancel:       cancel,
-		pathResolver: utils.NewPathResolver(),
-		workers:      workers,
-		eventBus:     eventBus,
+	scanner := &ParallelFileScanner{
+		db:            db,
+		jobID:         jobID,
+		eventBus:      eventBus,
+		pathResolver:  utils.NewPathResolver(),
+		workerCount:   workerCount,
+		workQueue:     make(chan scanWork, workerCount*100), // Buffered queue
+		resultQueue:   make(chan *scanResult, workerCount*10),
+		errorQueue:    make(chan error, workerCount),
+		batchSize:     100, // Process files in batches of 100
+		batchTimeout:  5 * time.Second,
+		ctx:           ctx,
+		cancel:        cancel,
+		fileCache:     &FileCache{cache: make(map[string]*database.MediaFile)},
+		metadataCache: &MetadataCache{
+			cache: make(map[string]*database.MusicMetadata),
+			ttl:   30 * time.Minute,
+		},
 	}
+	
+	// Initialize batch processor
+	scanner.batchProcessor = &BatchProcessor{
+		db:         db,
+		batchSize:  scanner.batchSize,
+		timeout:    scanner.batchTimeout,
+		mediaFiles: make([]*database.MediaFile, 0, scanner.batchSize),
+		musicMetas: make([]*database.MusicMetadata, 0, scanner.batchSize),
+	}
+	
+	// Initialize progress estimator
+	scanner.progressEstimator = NewProgressEstimator()
+	
+	return scanner
 }
 
-// Start begins the parallel scanning process for a specific library
-func (pfs *ParallelFileScanner) Start(libraryID uint) error {
-	// Load the scan job
-	var scanJob database.ScanJob
-	if err := pfs.db.Preload("Library").First(&scanJob, pfs.jobID).Error; err != nil {
-		return fmt.Errorf("failed to load scan job: %w", err)
-	}
+// Start begins the parallel scanning process
+func (ps *ParallelFileScanner) Start(libraryID uint) error {
+	ps.startTime = time.Now()
 	
-	pfs.scanJob = &scanJob
-	
-	// Update job status to running
-	now := time.Now()
-	scanJob.Status = "running"
-	scanJob.StartedAt = &now
-	if err := pfs.db.Save(&scanJob).Error; err != nil {
-		return fmt.Errorf("failed to update scan job status: %w", err)
-	}
-	
-	// Start parallel scanning
-	return pfs.scanDirectoryParallel()
-}
-
-// Pause pauses the scanning process
-func (pfs *ParallelFileScanner) Pause() {
-	pfs.cancel()
-	
-	// Publish pause event
-	if pfs.eventBus != nil {
-		pauseEvent := events.NewSystemEvent(
-			events.EventScanPaused,
-			"Media Scan Paused", 
-			fmt.Sprintf("Scan job #%d has been paused", pfs.jobID),
-		)
-		
-		// Get current scan stats
-		pfs.mu.RLock()
-		scanJob := pfs.scanJob
-		pfs.mu.RUnlock()
-		
-		if scanJob != nil {
-			pauseEvent.Data = map[string]interface{}{
-				"libraryId":      scanJob.LibraryID,
-				"scanJobId":      pfs.jobID,
-				"progress":       scanJob.Progress,
-				"filesFound":     scanJob.FilesFound,
-				"filesProcessed": scanJob.FilesProcessed,
-			}
-		}
-		
-		pfs.eventBus.PublishAsync(pauseEvent)
-	}
-}
-
-// scanDirectoryParallel performs parallel directory scanning
-func (pfs *ParallelFileScanner) scanDirectoryParallel() error {
-	startTime := time.Now() // Track start time for duration calculation
-	
-	defer func() {
-		// Update job completion status if it wasn't paused
-		var currentJob database.ScanJob
-		if err := pfs.db.First(&currentJob, pfs.jobID).Error; err == nil {
-			if currentJob.Status != "paused" {
-				now := time.Now()
-				currentJob.CompletedAt = &now
-				if currentJob.Status == "running" {
-					currentJob.Status = "completed"
-					currentJob.Progress = 100
-				}
-				pfs.db.Save(&currentJob)
-			}
-		}
-	}()
-
-	libraryPath := pfs.scanJob.Library.Path
-	
-	// Resolve the library path
-	basePath, err := pfs.pathResolver.ResolveDirectory(libraryPath)
-	if err != nil {
-		pfs.updateJobError(fmt.Sprintf("Directory does not exist: %s", libraryPath))
+	// Load scan job
+	if err := ps.loadScanJob(); err != nil {
 		return err
 	}
-
-	fmt.Printf("Starting parallel scan of directory: %s with %d workers\n", basePath, pfs.workers)
-
-	// Get existing files from database for quick lookup
-	existingFiles, err := pfs.getExistingFilesMap()
-	if err != nil {
-		pfs.updateJobError(fmt.Sprintf("Failed to load existing files: %v", err))
-		return err
+	
+	// Pre-load existing files into cache for fast lookup
+	if err := ps.preloadFileCache(libraryID); err != nil {
+		fmt.Printf("Warning: Failed to preload file cache: %v\n", err)
 	}
-
-	// Channels for worker communication
-	fileChan := make(chan FileTask, FileChannelBuffer)
-	resultChan := make(chan *database.MediaFile, FileChannelBuffer)
-	errorChan := make(chan error, pfs.workers)
 	
 	// Start workers
-	var wg sync.WaitGroup
-	for i := 0; i < pfs.workers; i++ {
-		wg.Add(1)
-		go pfs.worker(i, fileChan, resultChan, errorChan, existingFiles, &wg)
+	for i := 0; i < ps.workerCount; i++ {
+		ps.wg.Add(1)
+		go ps.worker(i)
 	}
-
-	// Start result collector
-	var collectorWg sync.WaitGroup
-	collectorWg.Add(1)
-	go pfs.resultCollector(resultChan, &collectorWg)
-
-	// Walk directory and send files to workers
-	var totalFiles int
-	walkErr := filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
-		select {
-		case <-pfs.ctx.Done():
-			return fmt.Errorf("scan cancelled")
-		default:
-		}
-
-		if err != nil {
-			fmt.Printf("Error accessing %s: %v\n", path, err)
-			return nil
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		if !utils.IsMediaFile(path) {
-			return nil
-		}
-
-		totalFiles++
-		select {
-		case fileChan <- FileTask{Path: path, FileInfo: info}:
-		case <-pfs.ctx.Done():
-			return fmt.Errorf("scan cancelled")
-		}
-
-		return nil
-	})
-
-	// Close file channel to signal workers to finish
-	close(fileChan)
-
-	// Wait for all workers to finish
-	wg.Wait()
-	close(resultChan)
-
-	// Wait for result collector to finish
-	collectorWg.Wait()
-
-	// Update final progress
-	pfs.updateJobProgress(100, totalFiles, totalFiles)
-
-	if walkErr != nil {
-		pfs.updateJobError(walkErr.Error())
-		
-		// Publish scan failed event
-		if pfs.eventBus != nil {
-			failEvent := events.NewSystemEvent(
-				events.EventScanFailed,
-				"Media Scan Failed",
-				fmt.Sprintf("Scan job #%d failed: %s", pfs.jobID, walkErr.Error()),
-			)
-			failEvent.Data = map[string]interface{}{
-				"libraryId": pfs.scanJob.LibraryID,
-				"scanJobId": pfs.jobID,
-				"error": walkErr.Error(),
-				"filesProcessed": totalFiles,
-				"duration": time.Since(startTime).String(),
-			}
-			pfs.eventBus.PublishAsync(failEvent)
-		}
-		
-		return walkErr
+	
+	// Start result processor
+	ps.wg.Add(1)
+	go ps.resultProcessor()
+	
+	// Start batch flush timer
+	ps.wg.Add(1)
+	go ps.batchFlusher()
+	
+	// Start directory scanner
+	ps.wg.Add(1)
+	go ps.scanDirectory(libraryID)
+	
+	// Wait for completion
+	ps.wg.Wait()
+	
+	// Final batch flush
+	if err := ps.batchProcessor.Flush(); err != nil {
+		fmt.Printf("Error flushing final batch: %v\n", err)
 	}
-
-	// Publish scan completion event
-	if pfs.eventBus != nil {
-		completionEvent := events.NewSystemEvent(
-			events.EventScanCompleted,
-			"Media Scan Completed",
-			fmt.Sprintf("Completed scan job #%d, processed %d files", pfs.jobID, totalFiles),
-		)
-		completionEvent.Data = map[string]interface{}{
-			"libraryId": pfs.scanJob.LibraryID,
-			"scanJobId": pfs.jobID,
-			"filesProcessed": totalFiles,
-			"duration": time.Since(startTime).String(),
-		}
-		pfs.eventBus.PublishAsync(completionEvent)
-	}
-
-	fmt.Printf("Parallel scan completed. Processed %d files\n", totalFiles)
+	
+	// Update final job status
+	ps.updateFinalStatus()
+	
 	return nil
 }
 
-// worker processes files from the file channel
-func (pfs *ParallelFileScanner) worker(id int, fileChan <-chan FileTask, resultChan chan<- *database.MediaFile, errorChan chan<- error, existingFiles map[string]*database.MediaFile, wg *sync.WaitGroup) {
-	defer wg.Done()
+// Resume resumes a previously paused scan
+func (ps *ParallelFileScanner) Resume(libraryID uint) error {
+	// This method is called when resuming, but Start handles both new and resumed scans
+	return ps.Start(libraryID)
+}
 
-	fmt.Printf("Worker %d started\n", id)
+// loadScanJob loads the scan job from the database
+func (ps *ParallelFileScanner) loadScanJob() error {
+	if err := ps.db.Preload("Library").First(&ps.scanJob, ps.jobID).Error; err != nil {
+		return fmt.Errorf("failed to load scan job: %w", err)
+	}
+	return nil
+}
+
+// updateFinalStatus updates the final status of the scan job
+func (ps *ParallelFileScanner) updateFinalStatus() {
+	filesProcessed := ps.filesProcessed.Load()
+	bytesProcessed := ps.bytesProcessed.Load()
+	errorsCount := ps.errorsCount.Load()
 	
-	for task := range fileChan {
+	// Update scan job with final stats
+	now := time.Now()
+	ps.scanJob.FilesProcessed = int(filesProcessed)
+	ps.scanJob.BytesProcessed = bytesProcessed
+	ps.scanJob.Progress = 100
+	ps.scanJob.CompletedAt = &now
+	ps.scanJob.UpdatedAt = now
+	
+	// Set status based on whether there were errors
+	if errorsCount > 0 {
+		ps.scanJob.Status = "completed_with_errors"
+		ps.scanJob.ErrorMessage = fmt.Sprintf("Completed with %d errors", errorsCount)
+	} else {
+		ps.scanJob.Status = "completed"
+		ps.scanJob.ErrorMessage = ""
+	}
+	
+	if err := ps.db.Save(ps.scanJob).Error; err != nil {
+		fmt.Printf("Failed to update final scan job status: %v\n", err)
+	}
+}
+
+// preloadFileCache loads existing files into memory for fast lookup
+func (ps *ParallelFileScanner) preloadFileCache(libraryID uint) error {
+	var existingFiles []database.MediaFile
+	
+	// Load files in chunks to avoid memory issues
+	chunkSize := 1000
+	offset := 0
+	
+	for {
+		var chunk []database.MediaFile
+		err := ps.db.Where("library_id = ?", libraryID).
+			Offset(offset).
+			Limit(chunkSize).
+			Find(&chunk).Error
+		
+		if err != nil {
+			return err
+		}
+		
+		if len(chunk) == 0 {
+			break
+		}
+		
+		// Add to cache
+		ps.fileCache.mu.Lock()
+		for _, file := range chunk {
+			ps.fileCache.cache[file.Path] = &file
+		}
+		ps.fileCache.mu.Unlock()
+		
+		existingFiles = append(existingFiles, chunk...)
+		offset += chunkSize
+		
+		if len(chunk) < chunkSize {
+			break
+		}
+	}
+	
+	fmt.Printf("Preloaded %d existing files into cache\n", len(existingFiles))
+	return nil
+}
+
+// scanDirectory walks the directory tree and submits work to the queue
+func (ps *ParallelFileScanner) scanDirectory(libraryID uint) {
+	defer ps.wg.Done()
+	defer close(ps.workQueue)
+	
+	libraryPath := ps.scanJob.Library.Path
+	basePath, err := ps.pathResolver.ResolveDirectory(libraryPath)
+	if err != nil {
+		ps.errorQueue <- fmt.Errorf("failed to resolve directory: %w", err)
+		return
+	}
+	
+	// Use filepath.WalkDir for better performance than filepath.Walk
+	err = filepath.WalkDir(basePath, func(path string, d os.DirEntry, err error) error {
+		// Check for cancellation
 		select {
-		case <-pfs.ctx.Done():
-			return
+		case <-ps.ctx.Done():
+			return fmt.Errorf("scan cancelled")
 		default:
 		}
-
-		mediaFile, err := pfs.processFileTask(task, existingFiles)
+		
 		if err != nil {
-			select {
-			case errorChan <- err:
-			default:
-			}
-			continue
+			ps.errorsCount.Add(1)
+			return nil // Continue scanning despite errors
 		}
-
-		if mediaFile != nil {
-			select {
-			case resultChan <- mediaFile:
-			case <-pfs.ctx.Done():
-				return
-			}
+		
+		if d.IsDir() {
+			return nil
 		}
-	}
-	
-	fmt.Printf("Worker %d finished\n", id)
-}
-
-// processFileTask processes a single file task
-func (pfs *ParallelFileScanner) processFileTask(task FileTask, existingFiles map[string]*database.MediaFile) (*database.MediaFile, error) {
-	actualPath, err := pfs.pathResolver.ResolvePath(task.Path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve path %s: %w", task.Path, err)
-	}
-
-	// Check if file exists in our map
-	if existingFile, exists := existingFiles[actualPath]; exists {
-		// File exists - check if we need to update
-		if pfs.shouldUpdateFile(existingFile, task.FileInfo) {
-			return pfs.updateExistingFile(existingFile, actualPath, task.FileInfo)
+		
+		// Quick file type check before getting full file info
+		if !utils.IsMediaFile(path) {
+			return nil
 		}
-		// No update needed, just update last seen
-		existingFile.LastSeen = time.Now()
-		return existingFile, nil
-	}
-
-	// New file - create record
-	return pfs.createNewFile(actualPath, task.FileInfo)
-}
-
-// shouldUpdateFile determines if a file needs to be updated based on modification time and size
-func (pfs *ParallelFileScanner) shouldUpdateFile(existing *database.MediaFile, info os.FileInfo) bool {
-	return existing.Size != info.Size() || existing.LastSeen.Before(info.ModTime())
-}
-
-// createNewFile creates a new media file record
-func (pfs *ParallelFileScanner) createNewFile(filePath string, info os.FileInfo) (*database.MediaFile, error) {
-	// Only calculate hash for new files
-	hash, err := utils.CalculateFileHash(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate hash: %w", err)
-	}
-
-	mediaFile := &database.MediaFile{
-		Path:      filePath,
-		Size:      info.Size(),
-		Hash:      hash,
-		LibraryID: pfs.scanJob.LibraryID,
-		LastSeen:  time.Now(),
-	}
-
-	// Publish event for new file found
-	if pfs.eventBus != nil {
-		fileFoundEvent := events.NewSystemEvent(
-			events.EventMediaFileFound,
-			"Media File Found",
-			fmt.Sprintf("Found new file: %s", filepath.Base(filePath)),
-		)
-		fileFoundEvent.Data = map[string]interface{}{
-			"path": filePath,
-			"size": info.Size(),
-			"hash": hash,
-			"scanJobId": pfs.jobID,
-			"libraryId": pfs.scanJob.LibraryID,
-			"extension": filepath.Ext(filePath),
-		}
-		pfs.eventBus.PublishAsync(fileFoundEvent)
-	}
-
-	return mediaFile, nil
-}
-
-// updateExistingFile updates an existing file record
-func (pfs *ParallelFileScanner) updateExistingFile(existing *database.MediaFile, filePath string, info os.FileInfo) (*database.MediaFile, error) {
-	// Only recalculate hash if size changed
-	if existing.Size != info.Size() {
-		hash, err := utils.CalculateFileHash(filePath)
+		
+		// Get file info
+		info, err := d.Info()
 		if err != nil {
-			return nil, fmt.Errorf("failed to calculate hash: %w", err)
+			ps.errorsCount.Add(1)
+			return nil
 		}
-		existing.Hash = hash
-	}
-
-	existing.Size = info.Size()
-	existing.LastSeen = time.Now()
-
-	return existing, nil
-}
-
-// resultCollector collects results and performs batch database operations
-func (pfs *ParallelFileScanner) resultCollector(resultChan <-chan *database.MediaFile, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	var batch []*database.MediaFile
-	var processedCount int
-
-	// Process metadata in batches asynchronously
-	metadataChan := make(chan *database.MediaFile, FileChannelBuffer)
-	var metadataWg sync.WaitGroup
-	
-	// Start metadata workers
-	for i := 0; i < 2; i++ { // Use 2 workers for metadata extraction
-		metadataWg.Add(1)
-		go pfs.metadataWorker(metadataChan, &metadataWg)
-	}
-
-	flushBatch := func() {
-		if len(batch) == 0 {
-			return
+		
+		// Submit work to queue
+		select {
+		case ps.workQueue <- scanWork{
+			path:      path,
+			info:      info,
+			libraryID: libraryID,
+		}:
+		case <-ps.ctx.Done():
+			return fmt.Errorf("scan cancelled")
 		}
-
-		// Perform batch database operations
-		if err := pfs.saveBatch(batch); err != nil {
-			fmt.Printf("Error saving batch: %v\n", err)
-		}
-
-		// Send files for metadata extraction
-		for _, file := range batch {
-			if metadata.IsMusicFile(file.Path) {
-				select {
-				case metadataChan <- file:
-				case <-pfs.ctx.Done():
-					return
-				}
-			}
-		}
-
-		processedCount += len(batch)
-		pfs.updateProcessedCount(processedCount)
-		batch = batch[:0] // Clear batch
-	}
-
-	for mediaFile := range resultChan {
-		batch = append(batch, mediaFile)
-
-		if len(batch) >= BatchSize {
-			flushBatch()
-		}
-	}
-
-	// Flush remaining batch
-	flushBatch()
-
-	// Close metadata channel and wait for metadata workers
-	close(metadataChan)
-	metadataWg.Wait()
-
-	fmt.Printf("Result collector finished. Processed %d files\n", processedCount)
-}
-
-// saveBatch saves a batch of media files to the database
-func (pfs *ParallelFileScanner) saveBatch(batch []*database.MediaFile) error {
-	if len(batch) == 0 {
-		return nil
-	}
-
-	return pfs.db.Transaction(func(tx *gorm.DB) error {
-		for _, file := range batch {
-			if file.ID == 0 {
-				// New file
-				if err := tx.Create(file).Error; err != nil {
-					return err
-				}
-			} else {
-				// Update existing file
-				if err := tx.Save(file).Error; err != nil {
-					return err
-				}
-			}
-		}
+		
 		return nil
 	})
+	
+	if err != nil && err.Error() != "scan cancelled" {
+		ps.errorQueue <- err
+	}
 }
 
-// metadataWorker processes metadata extraction asynchronously
-func (pfs *ParallelFileScanner) metadataWorker(metadataChan <-chan *database.MediaFile, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	for mediaFile := range metadataChan {
+// worker processes files from the work queue
+func (ps *ParallelFileScanner) worker(id int) {
+	defer ps.wg.Done()
+	
+	for work := range ps.workQueue {
+		// Check for cancellation
 		select {
-		case <-pfs.ctx.Done():
+		case <-ps.ctx.Done():
 			return
 		default:
 		}
+		
+		result := ps.processFile(work)
+		
+		select {
+		case ps.resultQueue <- result:
+		case <-ps.ctx.Done():
+			return
+		}
+	}
+}
 
-		if musicMeta, err := metadata.ExtractMusicMetadata(mediaFile.Path, mediaFile); err != nil {
-			fmt.Printf("Warning: failed to extract metadata for %s: %v\n", mediaFile.Path, err)
+// processFile processes a single file
+func (ps *ParallelFileScanner) processFile(work scanWork) *scanResult {
+	result := &scanResult{path: work.path}
+	
+	// Check cache first
+	ps.fileCache.mu.RLock()
+	cachedFile, exists := ps.fileCache.cache[work.path]
+	ps.fileCache.mu.RUnlock()
+	
+	if exists && cachedFile.Size == work.info.Size() {
+		// File hasn't changed, skip processing
+		ps.filesProcessed.Add(1)
+		ps.bytesProcessed.Add(work.info.Size())
+		return result
+	}
+	
+	// Calculate file hash (use a faster algorithm for large files)
+	hash, err := ps.calculateFileHashOptimized(work.path, work.info.Size())
+	if err != nil {
+		result.error = err
+		return result
+	}
+	
+	// Create or update media file
+	mediaFile := &database.MediaFile{
+		Path:      work.path,
+		Size:      work.info.Size(),
+		Hash:      hash,
+		LibraryID: work.libraryID,
+		LastSeen:  time.Now(),
+	}
+	
+	// If file exists in cache, update the ID
+	if cachedFile != nil {
+		mediaFile.ID = cachedFile.ID
+	}
+	
+	result.mediaFile = mediaFile
+	
+	// Extract metadata for music files
+	if metadata.IsMusicFile(work.path) {
+		// Check metadata cache
+		ps.metadataCache.mu.RLock()
+		cachedMeta, metaExists := ps.metadataCache.cache[hash]
+		ps.metadataCache.mu.RUnlock()
+		
+		if !metaExists {
+			musicMeta, err := metadata.ExtractMusicMetadata(work.path, mediaFile)
+			if err != nil {
+				fmt.Printf("Failed to extract metadata from %s: %v\n", work.path, err)
+			} else {
+				result.musicMeta = musicMeta
+				
+				// Cache the metadata
+				ps.metadataCache.mu.Lock()
+				ps.metadataCache.cache[hash] = musicMeta
+				ps.metadataCache.mu.Unlock()
+			}
 		} else {
-			if err := pfs.db.Create(musicMeta).Error; err != nil {
-				fmt.Printf("Warning: failed to save metadata for %s: %v\n", mediaFile.Path, err)
+			result.musicMeta = cachedMeta
+		}
+	}
+	
+	// Update metrics
+	ps.filesProcessed.Add(1)
+	ps.bytesProcessed.Add(work.info.Size())
+	
+	return result
+}
+
+// calculateFileHashOptimized calculates file hash with optimizations for large files
+func (ps *ParallelFileScanner) calculateFileHashOptimized(path string, size int64) (string, error) {
+	// For small files, hash the entire file
+	if size < 10*1024*1024 { // 10MB
+		return utils.CalculateFileHash(path)
+	}
+	
+	// For large files, use a sampling approach
+	// Hash the first 1MB, middle 1MB, and last 1MB
+	return utils.CalculateFileHashSampled(path, size)
+}
+
+// resultProcessor handles results from workers
+func (ps *ParallelFileScanner) resultProcessor() {
+	defer ps.wg.Done()
+	defer close(ps.resultQueue)
+	
+	updateTicker := time.NewTicker(1 * time.Second)
+	defer updateTicker.Stop()
+	
+	for {
+		select {
+		case result, ok := <-ps.resultQueue:
+			if !ok {
+				return
 			}
+			
+			if result.error != nil {
+				ps.errorsCount.Add(1)
+				continue
+			}
+			
+			// Add to batch
+			if result.mediaFile != nil {
+				ps.batchProcessor.AddMediaFile(result.mediaFile)
+			}
+			if result.musicMeta != nil {
+				ps.batchProcessor.AddMusicMetadata(result.musicMeta)
+			}
+			
+		case <-updateTicker.C:
+			// Update progress periodically
+			ps.updateProgress()
+			
+		case <-ps.ctx.Done():
+			return
 		}
 	}
 }
 
-// getExistingFilesMap loads existing files from database into a map for quick lookup
-func (pfs *ParallelFileScanner) getExistingFilesMap() (map[string]*database.MediaFile, error) {
-	var files []database.MediaFile
-	if err := pfs.db.Where("library_id = ?", pfs.scanJob.LibraryID).Find(&files).Error; err != nil {
-		return nil, err
-	}
-
-	fileMap := make(map[string]*database.MediaFile, len(files))
-	for i := range files {
-		fileMap[files[i].Path] = &files[i]
-	}
-
-	return fileMap, nil
-}
-
-// updateProcessedCount updates the processed file count
-func (pfs *ParallelFileScanner) updateProcessedCount(count int) {
-	pfs.mu.Lock()
-	defer pfs.mu.Unlock()
+// batchFlusher periodically flushes batches to the database
+func (ps *ParallelFileScanner) batchFlusher() {
+	defer ps.wg.Done()
 	
-	pfs.scanJob.FilesProcessed = count
-	if pfs.scanJob.FilesFound > 0 {
-		pfs.scanJob.Progress = int((float64(count) / float64(pfs.scanJob.FilesFound)) * 100)
-	}
-	pfs.db.Save(pfs.scanJob)
-}
-
-// updateJobProgress updates the scan job progress
-func (pfs *ParallelFileScanner) updateJobProgress(progress, filesFound, filesProcessed int) {
-	pfs.mu.Lock()
-	defer pfs.mu.Unlock()
-
-	pfs.scanJob.Progress = progress
-	pfs.scanJob.FilesFound = filesFound
-	pfs.scanJob.FilesProcessed = filesProcessed
-	pfs.db.Save(pfs.scanJob)
+	ticker := time.NewTicker(ps.batchTimeout)
+	defer ticker.Stop()
 	
-	// Only publish progress events for significant progress changes (every 10%)
-	// or large file counts (every 100 files) to avoid overwhelming the event bus
-	if progress%10 == 0 || filesProcessed%100 == 0 || filesProcessed == 1 {
-		if pfs.eventBus != nil {
-			progressEvent := events.NewSystemEvent(
-				events.EventScanProgress,
-				"Media Scan Progress",
-				fmt.Sprintf("Scan #%d: %d%% complete, %d files processed", 
-					pfs.jobID, progress, filesProcessed),
-			)
-			progressEvent.Data = map[string]interface{}{
-				"libraryId":      pfs.scanJob.LibraryID,
-				"scanJobId":      pfs.jobID,
-				"progress":       progress,
-				"filesFound":     filesFound,
-				"filesProcessed": filesProcessed,
+	for {
+		select {
+		case <-ticker.C:
+			if err := ps.batchProcessor.FlushIfNeeded(); err != nil {
+				fmt.Printf("Error flushing batch: %v\n", err)
 			}
-			pfs.eventBus.PublishAsync(progressEvent)
+			
+		case <-ps.ctx.Done():
+			return
 		}
 	}
 }
 
-// updateJobError updates the scan job with an error
-func (pfs *ParallelFileScanner) updateJobError(errorMsg string) {
-	pfs.mu.Lock()
-	defer pfs.mu.Unlock()
+// updateProgress updates the scan job progress
+func (ps *ParallelFileScanner) updateProgress() {
+	filesProcessed := ps.filesProcessed.Load()
+	bytesProcessed := ps.bytesProcessed.Load()
+	errorsCount := ps.errorsCount.Load()
+	
+	// Update progress estimator
+	ps.progressEstimator.Update(filesProcessed, bytesProcessed)
+	
+	// Calculate progress percentage (simplified for now)
+	progress := 0
+	if ps.scanJob.FilesFound > 0 {
+		progress = int((float64(filesProcessed) / float64(ps.scanJob.FilesFound)) * 100)
+	}
+	
+	// Update scan job
+	ps.scanJob.FilesProcessed = int(filesProcessed)
+	ps.scanJob.Progress = progress
+	ps.scanJob.UpdatedAt = time.Now()
+	
+	if err := ps.db.Save(ps.scanJob).Error; err != nil {
+		fmt.Printf("Failed to update scan job progress: %v\n", err)
+	}
+	
+	// Publish progress event
+	if ps.eventBus != nil && filesProcessed%100 == 0 {
+		event := events.NewSystemEvent(
+			events.EventScanProgress,
+			"Scan Progress Update",
+			fmt.Sprintf("Processed %d files (%.2f GB)", filesProcessed, float64(bytesProcessed)/(1024*1024*1024)),
+		)
+		event.Data = map[string]interface{}{
+			"jobId":          ps.jobID,
+			"filesProcessed": filesProcessed,
+			"bytesProcessed": bytesProcessed,
+			"errorsCount":    errorsCount,
+			"progress":       progress,
+		}
+		ps.eventBus.PublishAsync(event)
+	}
+}
 
-	pfs.scanJob.Status = "failed"
-	pfs.scanJob.ErrorMessage = errorMsg
-	now := time.Now()
-	pfs.scanJob.CompletedAt = &now
-	pfs.db.Save(pfs.scanJob)
+// Pause pauses the scanner
+func (ps *ParallelFileScanner) Pause() {
+	ps.cancel()
+}
+
+// BatchProcessor methods
+
+func (bp *BatchProcessor) AddMediaFile(file *database.MediaFile) {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	
+	bp.mediaFiles = append(bp.mediaFiles, file)
+	
+	if len(bp.mediaFiles) >= bp.batchSize {
+		go bp.Flush()
+	}
+}
+
+func (bp *BatchProcessor) AddMusicMetadata(meta *database.MusicMetadata) {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	
+	bp.musicMetas = append(bp.musicMetas, meta)
+}
+
+func (bp *BatchProcessor) FlushIfNeeded() error {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	
+	if len(bp.mediaFiles) > 0 || len(bp.musicMetas) > 0 {
+		return bp.flushInternal()
+	}
+	return nil
+}
+
+func (bp *BatchProcessor) Flush() error {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	
+	return bp.flushInternal()
+}
+
+func (bp *BatchProcessor) flushInternal() error {
+	if len(bp.mediaFiles) == 0 && len(bp.musicMetas) == 0 {
+		return nil
+	}
+	
+	// Use transaction for batch operations
+	err := bp.db.Transaction(func(tx *gorm.DB) error {
+		// Batch upsert media files
+		if len(bp.mediaFiles) > 0 {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "path"}},
+				DoUpdates: clause.AssignmentColumns([]string{"size", "hash", "last_seen"}),
+			}).CreateInBatches(bp.mediaFiles, 100).Error; err != nil {
+				return err
+			}
+		}
+		
+		// Batch insert music metadata
+		if len(bp.musicMetas) > 0 {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "media_file_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"title", "artist", "album", "year", "genre", "duration", "bitrate"}),
+			}).CreateInBatches(bp.musicMetas, 100).Error; err != nil {
+				return err
+			}
+		}
+		
+		return nil
+	})
+	
+	if err == nil {
+		// Clear batches
+		bp.mediaFiles = bp.mediaFiles[:0]
+		bp.musicMetas = bp.musicMetas[:0]
+	}
+	
+	return err
 }

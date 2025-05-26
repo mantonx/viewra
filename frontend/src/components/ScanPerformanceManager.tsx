@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import type { ScanConfig, ScanPerformanceStats } from '../types/media.types';
+import type { ScanConfig, ScanPerformanceStats, ScanJob } from '../types/media.types';
+import { formatBytes, formatDuration } from '../lib/utils';
+
+interface ActiveScan {
+  jobId: string;
+  libraryId: number;
+  progress: number;
+  eta: string;
+  filesPerSecond: number;
+  filesProcessed: number;
+  bytesProcessed: number;
+  totalFiles: number;
+  status: string;
+}
 
 const ScanPerformanceManager: React.FC = () => {
   const [config, setConfig] = useState<ScanConfig | null>(null);
   const [performanceStats, setPerformanceStats] = useState<ScanPerformanceStats[]>([]);
+  const [activeScans, setActiveScans] = useState<ActiveScan[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -29,15 +43,74 @@ const ScanPerformanceManager: React.FC = () => {
     }
   };
 
+  // Fetch active scans
+  const fetchScanProgress = async () => {
+    try {
+      const response = await fetch('/api/scanner/status');
+      const data = await response.json();
+
+      // Fetch detailed progress for each active scan
+      const progressPromises = data.jobs
+        .filter((job: ScanJob) => job.status === 'running')
+        .map(async (job: ScanJob) => {
+          // Try the scanner module endpoint first, fall back to admin endpoint if needed
+          let progressData;
+          try {
+            const progressResponse = await fetch(`/api/scanner/progress/${job.id}`);
+            if (progressResponse.ok) {
+              progressData = await progressResponse.json();
+            } else {
+              // Fall back to admin endpoint if module endpoint fails
+              const adminProgressResponse = await fetch(`/api/admin/scanner/progress/${job.id}`);
+              progressData = await adminProgressResponse.json();
+            }
+          } catch (err: unknown) {
+            console.error(`Error fetching progress for job ${job.id}:`, err);
+            progressData = { progress: 0, eta: 'Unknown', files_per_sec: 0, bytes_processed: 0 };
+          }
+
+          return {
+            jobId: job.id,
+            libraryId: job.library_id,
+            progress: progressData.progress || 0,
+            eta: progressData.eta || 'Unknown',
+            filesPerSecond: progressData.files_per_sec || 0,
+            filesProcessed: job.files_processed || 0,
+            bytesProcessed: progressData.bytes_processed || 0,
+            totalFiles: job.files_found || 0,
+            status: job.status,
+          };
+        });
+
+      const scans = await Promise.all(progressPromises);
+      setActiveScans(scans);
+    } catch (error) {
+      console.error('Failed to fetch scan progress:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchConfig(), fetchPerformanceStats()]);
+      await Promise.all([fetchConfig(), fetchPerformanceStats(), fetchScanProgress()]);
       setLoading(false);
     };
     loadData();
-  }, []);
+    
+    // Set up polling for active scans (every 2 seconds)
+    const pollingInterval = setInterval(() => {
+      // Only fetch progress if we have active scans
+      if (activeScans.length > 0) {
+        fetchScanProgress();
+      }
+    }, 2000);
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(pollingInterval);
+  }, [activeScans.length]);
 
   // Update configuration
   const updateConfig = async (updates: Partial<ScanConfig>) => {
@@ -87,21 +160,26 @@ const ScanPerformanceManager: React.FC = () => {
     }
   };
 
-  // Format bytes for display
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-  };
+  const formatETA = (eta: string) => {
+    if (eta === 'Unknown') return eta;
 
-  // Format duration for display
-  const formatDuration = (seconds: number): string => {
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
+    try {
+      const etaDate = new Date(eta);
+      const now = new Date();
+      const diff = etaDate.getTime() - now.getTime();
+
+      if (diff <= 0) return 'Completing...';
+
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+
+      if (days > 0) return `${days}d ${hours % 24}h`;
+      if (hours > 0) return `${hours}h ${minutes % 60}m`;
+      return `${minutes}m`;
+    } catch {
+      return eta;
+    }
   };
 
   if (loading) {
@@ -294,6 +372,55 @@ const ScanPerformanceManager: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Active Scans */}
+        {activeScans.length > 0 && (
+          <div className="bg-slate-800 rounded-lg p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-lg font-medium text-white">Active Scans</h3>
+            </div>
+
+            {activeScans.map((scan) => (
+              <div key={scan.jobId} className="space-y-2 p-4 border border-slate-600 rounded-lg mb-4 bg-slate-700">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-blue-600 text-blue-100 px-2 py-1 rounded text-xs font-medium">
+                      Library #{scan.libraryId}
+                    </span>
+                    <span className="bg-slate-600 text-slate-200 px-2 py-1 rounded text-xs font-medium">
+                      {scan.filesPerSecond.toFixed(1)} files/sec
+                    </span>
+                  </div>
+                  <span className="text-sm text-slate-400">ETA: {formatETA(scan.eta)}</span>
+                </div>
+
+                <div className="w-full bg-slate-600 rounded-full h-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${scan.progress}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between text-sm text-slate-400">
+                  <span>
+                    {scan.filesProcessed.toLocaleString()} / {scan.totalFiles.toLocaleString()}{' '}
+                    files
+                  </span>
+                  <span>{formatBytes(scan.bytesProcessed)} processed</span>
+                </div>
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-sm transition-colors border border-slate-500"
+                    onClick={() => fetch(`/api/scanner/pause/${scan.jobId}`, { method: 'POST' })}
+                  >
+                    Pause
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -192,6 +192,9 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 			scanner.POST("/pause/:id", handlers.StopLibraryScan)           // POST /api/admin/scanner/pause/:id
 			scanner.POST("/stop/:id", handlers.StopLibraryScan)            // POST /api/admin/scanner/stop/:id (for backward compatibility)
 			scanner.POST("/resume/:id", handlers.ResumeLibraryScan)        // POST /api/admin/scanner/resume/:id
+			
+			// Real-time scan progress endpoint
+			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
 		}
 	}
 }

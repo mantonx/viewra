@@ -3,6 +3,7 @@ package scanner
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
@@ -14,30 +15,20 @@ import (
 // It manages the lifecycle of scan jobs and provides a centralized
 // interface for starting, stopping, and monitoring scan operations.
 type Manager struct {
-	db               *gorm.DB
-	scanners         map[uint]*FileScanner        // jobID -> old scanner mapping (for compatibility)
-	parallelScanners map[uint]*ParallelFileScanner // jobID -> parallel scanner mapping
-	mu               sync.RWMutex                  // protects scanners maps
-	useParallel      bool                         // flag to enable parallel scanning
-	eventBus         events.EventBus              // system event bus for notifications
+	db           *gorm.DB
+	scanners     map[uint]*ParallelFileScanner // jobID -> scanner mapping
+	mu           sync.RWMutex                  // protects scanners map
+	eventBus     events.EventBus               // system event bus for notifications
+	parallelMode bool                          // whether parallel scanning is enabled
 }
 
 // NewManager creates a new scanner manager instance.
 func NewManager(db *gorm.DB, eventBus events.EventBus) *Manager {
 	return &Manager{
-		db:               db,
-		scanners:         make(map[uint]*FileScanner),
-		parallelScanners: make(map[uint]*ParallelFileScanner),
-		useParallel:      true, // Enable parallel scanning by default
-		eventBus:         eventBus,
+		db:       db,
+		scanners: make(map[uint]*ParallelFileScanner),
+		eventBus: eventBus,
 	}
-}
-
-// SetParallelMode enables or disables parallel scanning
-func (m *Manager) SetParallelMode(enabled bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.useParallel = enabled
 }
 
 // StartScan creates and starts a new scan job for the specified library.
@@ -78,32 +69,39 @@ func (m *Manager) StartScan(libraryID uint) (*database.ScanJob, error) {
 	}
 
 	// Create and register scanner
-	if m.useParallel {
-		parallelScanner := NewParallelFileScanner(m.db, scanJob.ID, m.eventBus)
-		m.parallelScanners[scanJob.ID] = parallelScanner
-		
-		// Start scanning in background
-		go m.runParallelScanJob(parallelScanner, scanJob.ID, libraryID)
-	} else {
-		scanner := NewFileScanner(m.db, scanJob.ID, m.eventBus)
-		m.scanners[scanJob.ID] = scanner
-		
-		// Start scanning in background
-		go m.runScanJob(scanner, scanJob.ID, libraryID)
-	}
+	scanner := NewParallelFileScanner(m.db, scanJob.ID, m.eventBus)
+	m.scanners[scanJob.ID] = scanner
+	
+	// Start scanning in background
+	go m.runScanJob(scanner, scanJob.ID, libraryID)
 
 	return scanJob, nil
 }
 
 // runScanJob executes a scan job in a goroutine and handles cleanup.
-func (m *Manager) runScanJob(scanner *FileScanner, jobID, libraryID uint) {
+func (m *Manager) runScanJob(scanner *ParallelFileScanner, jobID, libraryID uint) {
 	defer func() {
 		// Clean up completed or failed scans from active scanners map
+		m.removeScanner(jobID)
+		
+		// Get final job status
 		var currentJob database.ScanJob
 		if err := m.db.First(&currentJob, jobID).Error; err == nil {
-			if currentJob.Status == string(utils.StatusCompleted) || 
-			   currentJob.Status == string(utils.StatusFailed) {
-				m.removeScanner(jobID)
+			// Publish scan completed event
+			if m.eventBus != nil && currentJob.Status == "completed" {
+				completeEvent := events.NewSystemEvent(
+					events.EventScanCompleted,
+					"Media Scan Completed",
+					fmt.Sprintf("Scan completed for library #%d", libraryID),
+				)
+				completeEvent.Data = map[string]interface{}{
+					"libraryId":      libraryID,
+					"scanJobId":      jobID,
+					"filesProcessed": currentJob.FilesProcessed,
+					"bytesProcessed": currentJob.BytesProcessed,
+					"duration":       currentJob.CompletedAt.Sub(*currentJob.StartedAt).String(),
+				}
+				m.eventBus.PublishAsync(completeEvent)
 			}
 		}
 	}()
@@ -111,40 +109,27 @@ func (m *Manager) runScanJob(scanner *FileScanner, jobID, libraryID uint) {
 	// Start the actual scanning process
 	if err := scanner.Start(libraryID); err != nil {
 		// Check if this was a pause request (not an actual error)
-		if err.Error() == "scan paused" {
-			return // Status already updated by StopScan
-		}
-
-		// Update job with error status
-		if updateErr := utils.UpdateJobStatus(m.db, jobID, utils.StatusFailed, err.Error()); updateErr != nil {
-			fmt.Printf("Failed to update job status after error: %v\n", updateErr)
-		}
-	}
-}
-
-// runParallelScanJob executes a parallel scan job in a goroutine and handles cleanup.
-func (m *Manager) runParallelScanJob(scanner *ParallelFileScanner, jobID, libraryID uint) {
-	defer func() {
-		// Clean up completed or failed scans from active scanners map
 		var currentJob database.ScanJob
 		if err := m.db.First(&currentJob, jobID).Error; err == nil {
-			if currentJob.Status == string(utils.StatusCompleted) || 
-			   currentJob.Status == string(utils.StatusFailed) {
-				m.removeParallelScanner(jobID)
+			if currentJob.Status != "paused" {
+				// Update job with error status
+				utils.UpdateJobStatus(m.db, jobID, utils.StatusFailed, err.Error())
+				
+				// Publish scan failed event
+				if m.eventBus != nil {
+					failEvent := events.NewSystemEvent(
+						events.EventScanFailed,
+						"Media Scan Failed",
+						fmt.Sprintf("Scan failed for library #%d: %v", libraryID, err),
+					)
+					failEvent.Data = map[string]interface{}{
+						"libraryId": libraryID,
+						"scanJobId": jobID,
+						"error":     err.Error(),
+					}
+					m.eventBus.PublishAsync(failEvent)
+				}
 			}
-		}
-	}()
-
-	// Start the actual scanning process
-	if err := scanner.Start(libraryID); err != nil {
-		// Check if this was a pause request (not an actual error)
-		if err.Error() == "scan cancelled" {
-			return // Status already updated by StopScan
-		}
-
-		// Update job with error status
-		if updateErr := utils.UpdateJobStatus(m.db, jobID, utils.StatusFailed, err.Error()); updateErr != nil {
-			fmt.Printf("Failed to update job status after error: %v\n", updateErr)
 		}
 	}
 }
@@ -154,8 +139,11 @@ func (m *Manager) runParallelScanJob(scanner *ParallelFileScanner, jobID, librar
 func (m *Manager) StopScan(jobID uint) error {
 	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
-	parallelScanner, parallelExists := m.parallelScanners[jobID]
 	m.mu.RUnlock()
+
+	if !exists {
+		return m.handleInactiveJobStop(jobID)
+	}
 
 	// Get job details for the event
 	var scanJob database.ScanJob
@@ -164,60 +152,35 @@ func (m *Manager) StopScan(jobID uint) error {
 		libraryID = scanJob.LibraryID
 	}
 
-	if parallelExists {
-		// Pause the active parallel scanner
-		parallelScanner.Pause()
-		// Update job status to paused
-		err := utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
-		
-		// Publish scan paused event
-		if err == nil && m.eventBus != nil {
-			pauseEvent := events.NewSystemEvent(
-				events.EventScanPaused,
-				"Media Scan Paused", 
-				fmt.Sprintf("Scan job #%d for library #%d has been paused", jobID, libraryID),
-			)
-			pauseEvent.Data = map[string]interface{}{
-				"libraryId": libraryID,
-				"scanJobId": jobID,
-			}
-			m.eventBus.PublishAsync(pauseEvent)
+	// Pause the active scanner
+	scanner.Pause()
+	
+	// Update job status to paused
+	err := utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
+	
+	// Publish scan paused event
+	if err == nil && m.eventBus != nil {
+		pauseEvent := events.NewSystemEvent(
+			events.EventScanPaused,
+			"Media Scan Paused",
+			fmt.Sprintf("Scan paused for library #%d", libraryID),
+		)
+		pauseEvent.Data = map[string]interface{}{
+			"libraryId": libraryID,
+			"scanJobId": jobID,
+			"progress":  scanJob.Progress,
 		}
-		
-		return err
+		m.eventBus.PublishAsync(pauseEvent)
 	}
-
-	if exists {
-		// Pause the active regular scanner
-		scanner.Pause()
-		// Update job status to paused
-		err := utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "")
-		
-		// Publish scan paused event
-		if err == nil && m.eventBus != nil {
-			pauseEvent := events.NewSystemEvent(
-				events.EventScanPaused,
-				"Media Scan Paused", 
-				fmt.Sprintf("Scan job #%d for library #%d has been paused", jobID, libraryID),
-			)
-			pauseEvent.Data = map[string]interface{}{
-				"libraryId": libraryID,
-				"scanJobId": jobID,
-			}
-			m.eventBus.PublishAsync(pauseEvent)
-		}
-		
-		return err
-	}
-
-	return m.handleInactiveJobStop(jobID)
+	
+	return err
 }
 
 // handleInactiveJobStop handles stopping a job that isn't actively running.
 func (m *Manager) handleInactiveJobStop(jobID uint) error {
 	var scanJob database.ScanJob
 	if err := m.db.First(&scanJob, jobID).Error; err != nil {
-		return fmt.Errorf("scan job %d not found", jobID)
+		return fmt.Errorf("scan job not found: %w", err)
 	}
 
 	// Only allow pausing running jobs
@@ -251,7 +214,7 @@ func (m *Manager) ResumeScan(jobID uint) error {
 	}
 	
 	// Create and register new scanner
-	scanner := NewFileScanner(m.db, jobID, m.eventBus)
+	scanner := NewParallelFileScanner(m.db, jobID, m.eventBus)
 	m.scanners[jobID] = scanner
 	
 	// Publish scan resumed event
@@ -271,35 +234,9 @@ func (m *Manager) ResumeScan(jobID uint) error {
 	}
 
 	// Start resumed scanning in background
-	go m.runResumedScanJob(scanner, jobID, scanJob.LibraryID)
+	go m.runScanJob(scanner, jobID, scanJob.LibraryID)
 
 	return nil
-}
-
-// runResumedScanJob executes a resumed scan job.
-func (m *Manager) runResumedScanJob(scanner *FileScanner, jobID, libraryID uint) {
-	defer func() {
-		// Clean up completed or failed scans from active scanners map
-		var currentJob database.ScanJob
-		if err := m.db.First(&currentJob, jobID).Error; err == nil {
-			if currentJob.Status == string(utils.StatusCompleted) || 
-			   currentJob.Status == string(utils.StatusFailed) {
-				m.removeScanner(jobID)
-			}
-		}
-	}()
-
-	// Resume the scanning process
-	if err := scanner.Resume(libraryID); err != nil {
-		if err.Error() == "scan paused" {
-			return // Status already updated
-		}
-
-		// Update job with error status
-		if updateErr := utils.UpdateJobStatus(m.db, jobID, utils.StatusFailed, err.Error()); updateErr != nil {
-			fmt.Printf("Failed to update job status after resume error: %v\n", updateErr)
-		}
-	}
 }
 
 // GetScanStatus returns the current status of a scan job.
@@ -344,8 +281,8 @@ func (m *Manager) CancelAllScans() (int, error) {
 		scanner.Pause()
 
 		// Update job status
-		if err := utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, ""); err != nil {
-			fmt.Printf("Error updating scan job %d to paused: %v\n", jobID, err)
+		if err := utils.UpdateJobStatus(m.db, jobID, utils.StatusPaused, "System shutdown"); err != nil {
+			fmt.Printf("Failed to update status for job %d: %v\n", jobID, err)
 			continue
 		}
 
@@ -383,11 +320,18 @@ func (m *Manager) removeScanner(jobID uint) {
 	delete(m.scanners, jobID)
 }
 
-// removeParallelScanner removes a parallel scanner from the active scanners map
-func (m *Manager) removeParallelScanner(jobID uint) {
+// SetParallelMode enables or disables parallel scanning mode.
+func (m *Manager) SetParallelMode(enabled bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.parallelScanners, jobID)
+	m.parallelMode = enabled
+}
+
+// GetParallelMode returns whether parallel scanning is currently enabled.
+func (m *Manager) GetParallelMode() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.parallelMode
 }
 
 // Shutdown gracefully shuts down the manager by pausing all active scans.
@@ -395,9 +339,29 @@ func (m *Manager) Shutdown() error {
 	fmt.Println("Shutting down scan manager...")
 	count, err := m.CancelAllScans()
 	if err != nil {
-		return fmt.Errorf("failed to cancel all scans during shutdown: %w", err)
+		return fmt.Errorf("error during shutdown: %w", err)
 	}
 	
 	fmt.Printf("Scan manager shutdown complete. Paused %d active scans.\n", count)
 	return nil
+}
+
+// GetScanProgress returns progress, ETA, and files/sec for a scan job
+func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, filesPerSec float64, err error) {
+	m.mu.RLock()
+	scanner, exists := m.scanners[jobID]
+	m.mu.RUnlock()
+	
+	if !exists {
+		return 0, "", 0, fmt.Errorf("no active scanner for job %d", jobID)
+	}
+	
+	// Get progress from the scanner's progress estimator
+	if scanner.progressEstimator != nil {
+		progress, etaTime, filesPerSec := scanner.progressEstimator.GetEstimate()
+		eta = etaTime.Format(time.RFC3339)
+		return progress, eta, filesPerSec, nil
+	}
+	
+	return 0, "", 0, fmt.Errorf("no progress available for job %d", jobID)
 }

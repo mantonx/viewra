@@ -2,7 +2,11 @@ package utils
 
 import (
 	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"io"
 	"os"
 	"path/filepath"
@@ -97,10 +101,99 @@ func CalculateFileHashFast(filePath string) (string, error) {
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
+// CalculateFileHashSampled calculates a hash by sampling parts of large files
+// This is much faster for large files while still providing good uniqueness
+func CalculateFileHashSampled(filePath string, fileSize int64) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+
+	// Sample size: 1MB chunks
+	sampleSize := int64(1024 * 1024)
+
+	// Hash the file size first (helps differentiate files of different sizes)
+	fmt.Fprintf(hasher, "size:%d", fileSize)
+
+	// Read first chunk
+	buffer := make([]byte, sampleSize)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	hasher.Write(buffer[:n])
+
+	// Read middle chunk if file is large enough
+	if fileSize > sampleSize*3 {
+		middleOffset := (fileSize / 2) - (sampleSize / 2)
+		_, err = file.Seek(middleOffset, 0)
+		if err != nil {
+			return "", err
+		}
+
+		n, err = file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+		hasher.Write(buffer[:n])
+	}
+
+	// Read last chunk if file is large enough
+	if fileSize > sampleSize*2 {
+		lastOffset := fileSize - sampleSize
+		if lastOffset < 0 {
+			lastOffset = 0
+		}
+
+		_, err = file.Seek(lastOffset, 0)
+		if err != nil {
+			return "", err
+		}
+
+		n, err = file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+		hasher.Write(buffer[:n])
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
 // IsMediaFile checks if a file has a supported media extension
 func IsMediaFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	return MediaExtensions[ext]
+}
+
+// IsMediaFileOptimized checks if a file is a media file using optimized string operations
+func IsMediaFileOptimized(path string) bool {
+	// Get extension without allocating new string
+	lastDot := strings.LastIndexByte(path, '.')
+	if lastDot == -1 || lastDot == len(path)-1 {
+		return false
+	}
+
+	// Convert to lowercase inline for comparison
+	ext := path[lastDot+1:]
+
+	// Check against known extensions using a switch for better performance
+	switch strings.ToLower(ext) {
+	// Audio formats
+	case "mp3", "m4a", "flac", "wav", "ogg", "opus", "aac", "wma", "alac", "ape", "dsd", "dsf":
+		return true
+	// Video formats
+	case "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg", "3gp", "ogv":
+		return true
+	// Image formats (album art, etc.)
+	case "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetContentType returns the appropriate content type for a file extension
@@ -140,4 +233,14 @@ func GetContentType(filePath string) string {
 func getBasicContentType(ext string) string {
 	// This would use mime.TypeByExtension in the actual implementation
 	return ""
+}
+
+// NewFastHash returns a new FNV-1a 64-bit hash
+func NewFastHash() hash.Hash64 {
+	return fnv.New64a()
+}
+
+// SumString returns the hex string of the hash
+func SumString(h hash.Hash64) string {
+	return fmt.Sprintf("%x", h.Sum64())
 }

@@ -1,21 +1,25 @@
-import React, { useState } from 'react';
-import PluginManager from '../plugins/PluginManager';
-import PluginAdminPages from '../plugins/PluginAdminPages';
-import PluginUIComponents from '../plugins/PluginUIComponents';
-import PluginEvents from '../plugins/PluginEvents';
-import PluginPermissions from '../plugins/PluginPermissions';
-import SystemEvents from '../system/SystemEvents';
-
-type AdminTab =
-  | 'plugins'
-  | 'admin-pages'
-  | 'ui-components'
-  | 'events'
-  | 'system-events'
-  | 'permissions';
+import React from 'react';
+import PluginManager from '../PluginManager';
+import PluginAdminPages from '../PluginAdminPages';
+import PluginUIComponents from '../PluginUIComponents';
+import PluginEvents from '../PluginEvents';
+import PluginPermissions from '../PluginPermissions';
+import SystemEvents from '../SystemEvents';
 
 const AdminDashboard: React.FC = () => {
-  // ...existing code...
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+      <div className="space-y-6">
+        <PluginManager />
+        <PluginAdminPages />
+        <PluginUIComponents />
+        <PluginEvents />
+        <PluginPermissions />
+        <SystemEvents />
+      </div>
+    </div>
+  );
 };
 
 export default AdminDashboard;
