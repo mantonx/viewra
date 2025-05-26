@@ -338,104 +338,9 @@ func (m *Module) getFileMetadata(c *gin.Context) {
 	})
 }
 
-// uploadFile handles file uploads
-func (m *Module) uploadFile(c *gin.Context) {
-	// Get library ID if provided
-	libraryIDStr := c.DefaultQuery("libraryId", "0")
-	libraryID, err := strconv.ParseUint(libraryIDStr, 10, 32)
-	if err != nil {
-		libraryID = 0
-	}
-	
-	// Get the uploaded file
-	file, header, err := c.Request.FormFile("file")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "No file uploaded",
-		})
-		return
-	}
-	defer file.Close()
-	
-	// Process the upload
-	result, err := m.uploadHandler.ProcessUpload(file, header, uint(libraryID))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Upload failed: %v", err),
-		})
-		return
-	}
-	
-	// Process the file in background
-	go func() {
-		jobID, err := m.fileProcessor.ProcessFile(result.MediaFileID)
-		if err != nil {
-			log.Printf("WARNING: Failed to create processing job for file %d: %v", result.MediaFileID, err)
-		} else {
-			log.Printf("INFO: Created processing job %s for file %d", jobID, result.MediaFileID)
-		}
-	}()
-	
-	c.JSON(http.StatusOK, gin.H{
-		"message": "File uploaded successfully",
-		"result":  result,
-	})
-}
+// Upload functionality has been removed as the app will not support media uploads
 
-// uploadToLibrary handles file uploads to a specific library
-func (m *Module) uploadToLibrary(c *gin.Context) {
-	idStr := c.Param("id")
-	libraryID, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid library ID",
-		})
-		return
-	}
-	
-	// Check if library exists
-	var library database.MediaLibrary
-	if err := m.db.First(&library, libraryID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Library not found",
-		})
-		return
-	}
-	
-	// Get the uploaded file
-	file, header, err := c.Request.FormFile("file")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "No file uploaded",
-		})
-		return
-	}
-	defer file.Close()
-	
-	// Process the upload
-	result, err := m.uploadHandler.ProcessUpload(file, header, uint(libraryID))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Upload failed: %v", err),
-		})
-		return
-	}
-	
-	// Process the file in background
-	go func() {
-		jobID, err := m.fileProcessor.ProcessFile(result.MediaFileID)
-		if err != nil {
-			log.Printf("WARNING: Failed to create processing job for file %d: %v", result.MediaFileID, err)
-		} else {
-			log.Printf("INFO: Created processing job %s for file %d", jobID, result.MediaFileID)
-		}
-	}()
-	
-	c.JSON(http.StatusOK, gin.H{
-		"message": "File uploaded successfully",
-		"result":  result,
-	})
-}
+// Upload to library functionality has been removed as the app will not support media uploads
 
 // extractMetadata extracts metadata from a media file
 func (m *Module) extractMetadata(c *gin.Context) {
@@ -569,12 +474,10 @@ func (m *Module) getStats(c *gin.Context) {
 	// Collect stats from components
 	processorStats := m.fileProcessor.GetStats()
 	metadataStats := m.metadataManager.GetStats()
-	uploadStats := m.uploadHandler.GetStats()
 	
 	c.JSON(http.StatusOK, gin.H{
 		"processor_stats": processorStats,
 		"metadata_stats":  metadataStats,
-		"upload_stats":    uploadStats,
 	})
 }
 

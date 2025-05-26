@@ -38,6 +38,7 @@ services:
 
 volumes:
   backend-data:
+  frontend-node-modules:
 
 networks:
   viewra-network:

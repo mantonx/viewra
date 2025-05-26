@@ -26,7 +26,6 @@ type Module struct {
 	libraryManager  *LibraryManager
 	fileProcessor   *FileProcessor
 	metadataManager *MetadataManager
-	uploadHandler   *UploadHandler
 }
 
 // Auto-register the module when imported
@@ -159,12 +158,7 @@ func (m *Module) initializeComponents() error {
 	}
 	log.Println("INFO: Metadata manager initialized successfully")
 	
-	log.Println("INFO: Initializing upload handler")
-	m.uploadHandler = NewUploadHandler(m.db, m.eventBus)
-	if err := m.uploadHandler.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize upload handler: %w", err)
-	}
-	log.Println("INFO: Upload handler initialized successfully")
+	// Upload handler has been removed as the app will not support media uploads
 	
 	return nil
 }
@@ -189,9 +183,7 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.GET("/files/:id/stream", m.streamFile)
 		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
 		
-		// Upload endpoints
-		mediaGroup.POST("/upload", m.uploadFile)
-		mediaGroup.POST("/libraries/:id/upload", m.uploadToLibrary)
+		// Upload endpoints removed as app doesn't support uploads
 		
 		// Metadata endpoints
 		mediaGroup.POST("/files/:id/metadata/extract", m.extractMetadata)
@@ -213,11 +205,7 @@ func (m *Module) Shutdown(ctx context.Context) error {
 	log.Println("INFO: Shutting down media module")
 	
 	// Shutdown components in reverse order
-	if m.uploadHandler != nil {
-		if err := m.uploadHandler.Shutdown(ctx); err != nil {
-			log.Printf("ERROR: Failed to shutdown upload handler: %v", err)
-		}
-	}
+	// Upload handler shutdown code removed
 	
 	if m.metadataManager != nil {
 		if err := m.metadataManager.Shutdown(ctx); err != nil {
@@ -257,7 +245,4 @@ func (m *Module) GetMetadataManager() *MetadataManager {
 	return m.metadataManager
 }
 
-// GetUploadHandler returns the upload handler
-func (m *Module) GetUploadHandler() *UploadHandler {
-	return m.uploadHandler
-}
+// Upload handler functionality has been removed

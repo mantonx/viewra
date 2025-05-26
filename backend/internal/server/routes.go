@@ -101,7 +101,7 @@ func setupMediaRoutes(api *gin.RouterGroup) {
 	media := api.Group("/media")
 	{
 		media.GET("/", handlers.GetMedia)
-		media.POST("/", handlers.UploadMedia)
+		// Upload functionality removed as the app will not support media uploads
 		media.GET("/:id/stream", handlers.StreamMedia)      // GET /api/media/:id/stream - Stream media file
 		media.GET("/:id/artwork", handlers.GetArtwork)     // GET /api/media/:id/artwork
 		media.GET("/:id/metadata", handlers.GetMusicMetadata) // GET /api/media/:id/metadata
@@ -120,7 +120,7 @@ func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 	media := api.Group("/media")
 	{
 		media.GET("/", mediaHandler.GetMedia)
-		media.POST("/", mediaHandler.UploadMedia)
+		// Upload functionality removed as the app will not support media uploads
 		media.GET("/:id/stream", mediaHandler.StreamMedia)      // GET /api/media/:id/stream - Stream media file
 		media.GET("/:id/artwork", handlers.GetArtwork)         // Keep original handler for artwork
 		media.GET("/:id/metadata", musicHandler.GetMusicMetadata) // GET /api/media/:id/metadata

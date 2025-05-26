@@ -16,7 +16,7 @@ const (
 	EventMediaFileFound        EventType = "media.file.found"
 	EventMediaMetadataEnriched EventType = "media.metadata.enriched"
 	EventMediaFileDeleted      EventType = "media.file.deleted"
-	EventMediaFileUploaded     EventType = "media.file.uploaded"
+	// EventMediaFileUploaded event type removed as app won't support uploads
 	
 	// User events
 	EventUserCreated          EventType = "user.created"

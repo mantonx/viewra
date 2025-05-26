@@ -10,7 +10,7 @@ export { default as AudioBadge } from './audio/AudioBadge';
 // Media Components
 export { default as MediaCard } from './media/MediaCard';
 export { default as MediaLibraryManager } from './media/MediaLibraryManager';
-export { default as MediaUpload } from './media/MediaUpload';
+// MediaUpload component removed as app won't support uploads
 export { default as MusicLibrary } from './media/MusicLibrary';
 export { default as ViewControls } from './media/ViewControls';
 
