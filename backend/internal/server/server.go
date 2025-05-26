@@ -15,6 +15,8 @@ import (
 	"github.com/mantonx/viewra/internal/server/handlers"
 
 	// Import all modules to trigger their registration
+	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
+	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
 
