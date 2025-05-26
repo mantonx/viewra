@@ -39,6 +39,9 @@ const MediaLibraryManager = () => {
   const [libraryStats, setLibraryStats] = useState<LibraryStats>({});
   const [scanLoading, setScanLoading] = useState<Set<number>>(new Set());
 
+  // Nerd panel state
+  const [expandedNerdPanels, setExpandedNerdPanels] = useState<Set<number>>(new Set());
+
   // Real-time scan progress tracking
   const [scanProgress, setScanProgress] = useState<
     Map<
@@ -612,12 +615,41 @@ const MediaLibraryManager = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatTimeLeft = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const formatHumanReadableETA = (seconds: number) => {
+    if (seconds < 60) return `${seconds} seconds remaining`;
+    if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} remaining`;
+    }
+
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
+
+    if (hours < 24) {
+      if (minutes === 0) {
+        return `${hours} hour${hours !== 1 ? 's' : ''} remaining`;
+      }
+      return `${hours}h ${minutes}m remaining`;
+    }
+
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    if (remainingHours === 0) {
+      return `${days} day${days !== 1 ? 's' : ''} remaining`;
+    }
+    return `${days}d ${remainingHours}h remaining`;
+  };
+
+  const toggleNerdPanel = (libraryId: number) => {
+    setExpandedNerdPanels((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(libraryId)) {
+        newSet.delete(libraryId);
+      } else {
+        newSet.add(libraryId);
+      }
+      return newSet;
+    });
   };
 
   const getScanJobForLibrary = (libraryId: number) => {
@@ -758,6 +790,16 @@ const MediaLibraryManager = () => {
           libraries.map((library) => {
             const scanJob = getScanJobForLibrary(library.id);
             const isScanning = scanJob?.status === 'running';
+            const isPaused = scanJob?.status === 'paused';
+            const isFailed = scanJob?.status === 'failed';
+            const isNerdPanelExpanded = expandedNerdPanels.has(library.id);
+            const progressData = scanJob ? scanProgress.get(Number(scanJob.id)) : null;
+
+            // Calculate progress percentage
+            const progressPercent =
+              scanJob && scanJob.files_found > 0
+                ? Math.round((scanJob.files_processed / scanJob.files_found) * 100)
+                : 0;
 
             return (
               <div
@@ -781,8 +823,18 @@ const MediaLibraryManager = () => {
                         {library.type.toUpperCase()}
                       </span>
                       {isScanning && (
-                        <span className="scanning-badge px-2 py-1 bg-yellow-600 text-yellow-100 rounded text-xs font-medium">
+                        <span className="scanning-badge px-2 py-1 bg-yellow-600 text-yellow-100 rounded text-xs font-medium animate-pulse">
                           SCANNING
+                        </span>
+                      )}
+                      {isPaused && (
+                        <span className="px-2 py-1 bg-amber-600 text-amber-100 rounded text-xs font-medium">
+                          PAUSED
+                        </span>
+                      )}
+                      {isFailed && (
+                        <span className="px-2 py-1 bg-red-600 text-red-100 rounded text-xs font-medium">
+                          FAILED
                         </span>
                       )}
                     </div>
@@ -838,138 +890,176 @@ const MediaLibraryManager = () => {
                   </div>
                 </div>
 
-                {/* Scan Progress */}
-                {(scanJob ||
-                  (libraryStats[library.id] && libraryStats[library.id].scan_status)) && (
+                {/* Simplified Scan Progress Display */}
+                {scanJob && (
                   <div className="mt-3 bg-slate-700 rounded p-3">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium text-white">
-                        Scan {scanJob ? scanJob.status : libraryStats[library.id]?.scan_status}
-                      </span>
-                      <div className="flex gap-4 text-xs text-slate-300">
-                        {scanJob && scanJob.started_at && (
-                          <span>Started: {new Date(scanJob.started_at).toLocaleTimeString()}</span>
-                        )}
-                        {scanJob && scanProgress.get(Number(scanJob.id))?.estimatedTimeLeft && (
-                          <span className="text-blue-400">
-                            ETA:{' '}
-                            {formatTimeLeft(
-                              scanProgress.get(Number(scanJob.id))!.estimatedTimeLeft!
-                            )}
+                    {/* Main Progress Info */}
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-white">
+                          {scanJob.files_processed.toLocaleString()} /{' '}
+                          {scanJob.files_found.toLocaleString()} files
+                        </span>
+                        <span className="text-xs text-slate-300">({progressPercent}%)</span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {/* Human-readable ETA */}
+                        {isScanning && progressData?.estimatedTimeLeft && (
+                          <span className="text-xs text-blue-400 font-medium">
+                            {formatHumanReadableETA(progressData.estimatedTimeLeft)}
                           </span>
+                        )}
+
+                        {/* Nerd Panel Toggle */}
+                        <button
+                          onClick={() => toggleNerdPanel(library.id)}
+                          className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+                          title="Toggle detailed information"
+                        >
+                          <span>Details</span>
+                          <svg
+                            className={`w-3 h-3 transition-transform duration-200 ${isNerdPanelExpanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Animated Progress Bar */}
+                    <div className="w-full bg-slate-600 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-3 rounded-full transition-all duration-500 ease-out relative ${
+                          isFailed
+                            ? 'bg-red-500'
+                            : isPaused
+                              ? 'bg-amber-500'
+                              : 'bg-gradient-to-r from-blue-500 to-blue-400'
+                        } ${isScanning ? 'animate-pulse' : ''}`}
+                        style={{ width: `${progressPercent}%` }}
+                      >
+                        {/* Subtle glow effect for active scans */}
+                        {isScanning && (
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-20 animate-shimmer"></div>
                         )}
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      {/* Use either scanJob data or libraryStats data, giving preference to scanJob */}
-                      {((scanJob && scanJob.files_found > 0) ||
-                        (libraryStats[library.id] && libraryStats[library.id].files_found)) && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-300">Progress:</span>
-                          <span className="text-white">
-                            {(scanJob && scanJob.files_processed) ||
-                              (libraryStats[library.id] &&
-                                libraryStats[library.id].files_processed) ||
-                              0}{' '}
-                            /
-                            {(scanJob && scanJob.files_found) ||
-                              (libraryStats[library.id] && libraryStats[library.id].files_found) ||
-                              0}{' '}
-                            files
-                            {((scanJob && scanJob.files_found > 0) ||
-                              (libraryStats[library.id] &&
-                                libraryStats[library.id].files_found)) && (
-                              <span className="text-slate-400 ml-2">
-                                (
-                                {Math.round(
-                                  (((scanJob && scanJob.files_processed) ||
-                                    (libraryStats[library.id] &&
-                                      libraryStats[library.id].files_processed) ||
-                                    0) /
-                                    ((scanJob && scanJob.files_found) ||
-                                      (libraryStats[library.id] &&
-                                        libraryStats[library.id].files_found) ||
-                                      1)) *
-                                    100
-                                )}
-                                %)
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      )}
+                    {/* Error Message (if any) */}
+                    {scanJob.error_message && (
+                      <div className="mt-2 text-sm">
+                        <span className="text-red-400">Error:</span>
+                        <span className="text-slate-300 ml-2">{scanJob.error_message}</span>
+                      </div>
+                    )}
 
-                      {((scanJob && scanJob.bytes_processed > 0) ||
-                        (libraryStats[library.id] && libraryStats[library.id].bytes_processed)) && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-300">Data processed:</span>
-                          <span className="text-white">
-                            {formatBytes(
-                              (scanJob && scanJob.bytes_processed) ||
-                                (libraryStats[library.id] &&
-                                  libraryStats[library.id].bytes_processed) ||
-                                0
-                            )}
-                          </span>
-                        </div>
-                      )}
+                    {/* Nerd Panel - Detailed Information */}
+                    <div
+                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                        isNerdPanelExpanded ? 'max-h-96 opacity-100 mt-4' : 'max-h-0 opacity-0'
+                      }`}
+                    >
+                      <div className="border-t border-slate-600 pt-4">
+                        <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                          🤓 Detailed Information
+                        </h4>
 
-                      {/* Real-time worker information */}
-                      {scanJob && scanProgress.get(Number(scanJob.id)) && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-300">Workers:</span>
-                          <span className="text-white">
-                            {scanProgress.get(Number(scanJob.id))!.activeWorkers} active
-                            {scanProgress.get(Number(scanJob.id))!.queueDepth > 0 && (
-                              <span className="text-slate-400 ml-2">
-                                ({scanProgress.get(Number(scanJob.id))!.queueDepth} queued)
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      )}
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          {/* Job Information */}
+                          <div className="space-y-2">
+                            <div className="text-slate-400 font-medium">Job Details</div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-slate-300">Job ID:</span>
+                                <span className="text-white font-mono">#{scanJob.id}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-300">Status:</span>
+                                <span className="text-white">{scanJob.status}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-300">Started:</span>
+                                <span className="text-white">
+                                  {scanJob.started_at
+                                    ? new Date(scanJob.started_at).toLocaleString()
+                                    : 'N/A'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-300">Last Update:</span>
+                                <span className="text-white">
+                                  {scanJob.updated_at
+                                    ? new Date(scanJob.updated_at).toLocaleString()
+                                    : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
-                      {scanJob && scanJob.error_message && (
-                        <div className="text-sm">
-                          <span className="text-red-400">Error:</span>
-                          <span className="text-slate-300 ml-2">{scanJob.error_message}</span>
+                          {/* Performance Metrics */}
+                          <div className="space-y-2">
+                            <div className="text-slate-400 font-medium">Performance</div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-slate-300">Data Processed:</span>
+                                <span className="text-white">
+                                  {formatBytes(scanJob.bytes_processed)}
+                                </span>
+                              </div>
+                              {progressData && (
+                                <>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Active Workers:</span>
+                                    <span className="text-white">{progressData.activeWorkers}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Queue Depth:</span>
+                                    <span className="text-white">{progressData.queueDepth}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Last Seen:</span>
+                                    <span className="text-white">
+                                      {progressData.lastUpdate.toLocaleTimeString()}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
 
-                      {/* Display progress bar */}
-                      {((scanJob && scanJob.files_found > 0) ||
-                        (libraryStats[library.id] && libraryStats[library.id].files_found)) && (
-                        <div className="w-full bg-slate-600 rounded-full h-2">
-                          <div
-                            className={`progress-bar h-2 rounded-full transition-all duration-300 ${
-                              (scanJob &&
-                                (scanJob.status === 'paused' || scanJob.status === 'failed')) ||
-                              (libraryStats[library.id] &&
-                                (libraryStats[library.id].scan_status === 'paused' ||
-                                  libraryStats[library.id].scan_status === 'failed'))
-                                ? scanJob?.status === 'failed' ||
-                                  libraryStats[library.id]?.scan_status === 'failed'
-                                  ? 'bg-red-500'
-                                  : 'bg-amber-500'
-                                : 'bg-blue-500'
-                            }`}
-                            style={{
-                              width: `${Math.round(
-                                (((scanJob && scanJob.files_processed) ||
-                                  (libraryStats[library.id] &&
-                                    libraryStats[library.id].files_processed) ||
-                                  0) /
-                                  ((scanJob && scanJob.files_found) ||
-                                    (libraryStats[library.id] &&
-                                      libraryStats[library.id].files_found) ||
-                                    1)) *
-                                  100
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      )}
+                        {/* Progress Timeline */}
+                        {scanJob.started_at && (
+                          <div className="mt-4 pt-3 border-t border-slate-600">
+                            <div className="text-slate-400 font-medium text-xs mb-2">Timeline</div>
+                            <div className="text-xs text-slate-300">
+                              <div>Started: {new Date(scanJob.started_at).toLocaleString()}</div>
+                              {scanJob.completed_at && (
+                                <div>
+                                  Completed: {new Date(scanJob.completed_at).toLocaleString()}
+                                </div>
+                              )}
+                              {isScanning && progressData?.estimatedTimeLeft && (
+                                <div>
+                                  Estimated completion:{' '}
+                                  {new Date(
+                                    Date.now() + progressData.estimatedTimeLeft * 1000
+                                  ).toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1018,6 +1108,21 @@ const MediaLibraryManager = () => {
           </div>
         </div>
       )}
+
+      {/* Add custom CSS for shimmer animation */}
+      <style>{`
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+      `}</style>
     </div>
   );
 };
