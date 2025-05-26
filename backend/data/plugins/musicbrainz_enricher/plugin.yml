@@ -1,0 +1,138 @@
+---
+schema_version: '1.0'
+id: 'musicbrainz_enricher'
+name: 'MusicBrainz Metadata Enricher'
+version: '1.0.0'
+description: 'Enriches music metadata and artwork using the MusicBrainz database and Cover Art Archive'
+author: 'Viewra Team'
+website: 'https://musicbrainz.org'
+repository: 'https://github.com/viewra/musicbrainz-enricher'
+license: 'MIT'
+type: 'metadata_scraper'
+tags:
+  - 'musicbrainz'
+  - 'metadata'
+  - 'enrichment'
+  - 'artwork'
+  - 'music'
+
+capabilities:
+  metadata_extraction: true
+  external_services: true
+  database_access: true
+  api_endpoints: true
+  admin_pages: true
+
+dependencies:
+  viewra_version: '>=0.1.0'
+
+config_schema:
+  type: 'object'
+  properties:
+    enabled:
+      type: 'boolean'
+      title: 'Enable MusicBrainz Enrichment'
+      description: 'Enable automatic metadata enrichment using MusicBrainz'
+      default: true
+
+    api_rate_limit:
+      type: 'number'
+      title: 'API Rate Limit (requests/second)'
+      description: 'Rate limit for MusicBrainz API requests (max 1.0 for anonymous)'
+      default: 0.8
+      minimum: 0.1
+      maximum: 1.0
+
+    user_agent:
+      type: 'string'
+      title: 'User Agent'
+      description: 'User agent string for MusicBrainz API requests'
+      default: 'Viewra/1.0.0 (https://github.com/viewra/viewra)'
+
+    enable_artwork:
+      type: 'boolean'
+      title: 'Enable Artwork Download'
+      description: 'Download album artwork from Cover Art Archive'
+      default: true
+
+    artwork_max_size:
+      type: 'number'
+      title: 'Max Artwork Size (pixels)'
+      description: 'Maximum artwork size to download'
+      default: 1200
+      minimum: 250
+      maximum: 2000
+
+    artwork_quality:
+      type: 'string'
+      title: 'Artwork Quality'
+      description: 'Preferred artwork quality'
+      default: 'front'
+      enum:
+        [
+          'front',
+          'back',
+          'booklet',
+          'medium',
+          'obi',
+          'spine',
+          'track',
+          'liner',
+          'sticker',
+          'poster',
+        ]
+
+    match_threshold:
+      type: 'number'
+      title: 'Match Threshold'
+      description: 'Minimum similarity score for automatic matching (0.0-1.0)'
+      default: 0.85
+      minimum: 0.5
+      maximum: 1.0
+
+    auto_enrich:
+      type: 'boolean'
+      title: 'Auto-Enrich New Files'
+      description: 'Automatically enrich metadata for newly scanned files'
+      default: false
+
+    overwrite_existing:
+      type: 'boolean'
+      title: 'Overwrite Existing Metadata'
+      description: 'Overwrite existing metadata with MusicBrainz data'
+      default: false
+
+    cache_duration_hours:
+      type: 'number'
+      title: 'Cache Duration (hours)'
+      description: 'How long to cache MusicBrainz responses'
+      default: 168
+      minimum: 1
+      maximum: 8760
+
+entry_points:
+  main: 'main.go'
+
+ui:
+  admin_pages:
+    - id: 'musicbrainz_dashboard'
+      title: 'MusicBrainz Enricher'
+      path: 'musicbrainz'
+      icon: 'music-note'
+      category: 'Metadata'
+      url: '/plugins/musicbrainz_enricher/dashboard.html'
+      type: 'iframe'
+    - id: 'musicbrainz_settings'
+      title: 'MusicBrainz Settings'
+      path: 'musicbrainz-settings'
+      icon: 'cog'
+      category: 'Metadata'
+      url: '/plugins/musicbrainz_enricher/settings.html'
+      type: 'iframe'
+
+permissions:
+  - 'database_read'
+  - 'database_write'
+  - 'api_access'
+  - 'external_http'
+  - 'file_write'

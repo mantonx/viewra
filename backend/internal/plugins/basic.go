@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"gopkg.in/yaml.v3"
 )
@@ -375,92 +374,8 @@ func (h *basicHookRegistry) Remove(hook string, handler func(data interface{}) i
 }
 
 // =============================================================================
-// SPECIFIC PLUGIN TYPE IMPLEMENTATIONS
+// PLUGIN TYPE IMPLEMENTATIONS
 // =============================================================================
 
-// ExampleMetadataScraperPlugin demonstrates how to implement a metadata scraper plugin
-type ExampleMetadataScraperPlugin struct {
-	*BasicPlugin
-}
-
-// NewExampleMetadataScraperPlugin creates a new example metadata scraper plugin
-func NewExampleMetadataScraperPlugin(info *PluginInfo) *ExampleMetadataScraperPlugin {
-	return &ExampleMetadataScraperPlugin{
-		BasicPlugin: NewBasicPlugin(info),
-	}
-}
-
-// CanHandle implements MetadataScraperPlugin.CanHandle
-func (p *ExampleMetadataScraperPlugin) CanHandle(filePath string, mimeType string) bool {
-	// Example: handle MP3 files
-	return strings.HasSuffix(strings.ToLower(filePath), ".mp3")
-}
-
-// ExtractMetadata implements MetadataScraperPlugin.ExtractMetadata
-func (p *ExampleMetadataScraperPlugin) ExtractMetadata(ctx context.Context, filePath string) (map[string]interface{}, error) {
-	// Example metadata extraction
-	metadata := map[string]interface{}{
-		"extracted_by": p.info.ID,
-		"file_path":    filePath,
-		"extracted_at": time.Now(),
-	}
-	
-	p.ctx.Logger.Info("Metadata extracted", "file", filePath)
-	return metadata, nil
-}
-
-// SupportedTypes implements MetadataScraperPlugin.SupportedTypes
-func (p *ExampleMetadataScraperPlugin) SupportedTypes() []string {
-	return []string{"audio/mpeg", ".mp3"}
-}
-
-// ExampleAdminPagePlugin demonstrates how to implement an admin page plugin
-type ExampleAdminPagePlugin struct {
-	*BasicPlugin
-}
-
-// NewExampleAdminPagePlugin creates a new example admin page plugin
-func NewExampleAdminPagePlugin(info *PluginInfo) *ExampleAdminPagePlugin {
-	return &ExampleAdminPagePlugin{
-		BasicPlugin: NewBasicPlugin(info),
-	}
-}
-
-// RegisterRoutes implements AdminPagePlugin.RegisterRoutes
-func (p *ExampleAdminPagePlugin) RegisterRoutes(router *gin.RouterGroup) error {
-	// Example: register a simple admin endpoint
-	pluginGroup := router.Group("/plugins/" + p.info.ID)
-	{
-		pluginGroup.GET("/status", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"plugin": p.info.ID,
-				"status": "running",
-				"health": p.Health() == nil,
-			})
-		})
-		
-		pluginGroup.GET("/config", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"config": p.info.Config,
-			})
-		})
-	}
-	
-	p.ctx.Logger.Info("Admin routes registered", "plugin", p.info.ID)
-	return nil
-}
-
-// GetAdminPages implements AdminPagePlugin.GetAdminPages
-func (p *ExampleAdminPagePlugin) GetAdminPages() []AdminPageConfig {
-	return []AdminPageConfig{
-		{
-			ID:       p.info.ID + "_dashboard",
-			Title:    p.info.Name + " Dashboard",
-			Path:     "/admin/plugins/" + p.info.ID,
-			Icon:     "plugin",
-			Category: "Plugins",
-			URL:      "/api/admin/plugins/" + p.info.ID + "/dashboard",
-			Type:     "iframe",
-		},
-	}
-}
+// This file provides basic plugin implementations and context helpers.
+// Specific plugin implementations should be created in separate files.

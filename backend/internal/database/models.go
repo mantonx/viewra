@@ -88,6 +88,13 @@ type MusicMetadata struct {
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
 	
+	// MusicBrainz enrichment fields
+	MusicBrainzRecordingID string `json:"musicbrainz_recording_id,omitempty"`
+	MusicBrainzReleaseID   string `json:"musicbrainz_release_id,omitempty"`
+	MusicBrainzArtistID    string `json:"musicbrainz_artist_id,omitempty"`
+	EnrichedAt             *time.Time `json:"enriched_at,omitempty"`
+	EnrichedBy             string `json:"enriched_by,omitempty"`
+	
 	// Temporary fields for artwork processing (not stored in database)
 	ArtworkData []byte `gorm:"-" json:"-"`
 	ArtworkExt  string `gorm:"-" json:"-"`
