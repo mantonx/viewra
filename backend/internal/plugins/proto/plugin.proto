@@ -1,0 +1,249 @@
+syntax = "proto3";
+
+package plugin;
+
+option go_package = "github.com/mantonx/viewra/internal/plugins/proto";
+
+// Plugin service - core interface all plugins must implement
+service PluginService {
+  rpc Initialize(InitializeRequest) returns (InitializeResponse);
+  rpc Start(StartRequest) returns (StartResponse);
+  rpc Stop(StopRequest) returns (StopResponse);
+  rpc Info(InfoRequest) returns (InfoResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// Metadata scraper service for plugins that extract metadata
+service MetadataScraperService {
+  rpc CanHandle(CanHandleRequest) returns (CanHandleResponse);
+  rpc ExtractMetadata(ExtractMetadataRequest) returns (ExtractMetadataResponse);
+  rpc GetSupportedTypes(GetSupportedTypesRequest) returns (GetSupportedTypesResponse);
+}
+
+// Scanner hook service for plugins that hook into the scanner
+service ScannerHookService {
+  rpc OnMediaFileScanned(OnMediaFileScannedRequest) returns (OnMediaFileScannedResponse);
+  rpc OnScanStarted(OnScanStartedRequest) returns (OnScanStartedResponse);
+  rpc OnScanCompleted(OnScanCompletedRequest) returns (OnScanCompletedResponse);
+}
+
+// Database service for plugins that need database access
+service DatabaseService {
+  rpc GetModels(GetModelsRequest) returns (GetModelsResponse);
+  rpc Migrate(MigrateRequest) returns (MigrateResponse);
+  rpc Rollback(RollbackRequest) returns (RollbackResponse);
+}
+
+// Admin page service for plugins that provide admin interfaces
+service AdminPageService {
+  rpc GetAdminPages(GetAdminPagesRequest) returns (GetAdminPagesResponse);
+  rpc RegisterRoutes(RegisterRoutesRequest) returns (RegisterRoutesResponse);
+}
+
+// APIRoute message for route registration
+message APIRoute {
+  string path = 1;
+  string method = 2;
+  string description = 3;
+  // string plugin_id = 4; // Plugin ID will be known by the manager
+}
+
+// APIRegistrationService allows plugins to register their API routes with the host.
+service APIRegistrationService {
+  // GetRegisteredRoutes returns a list of API routes the plugin wishes to register.
+  // The host application will typically prefix these routes, e.g., /api/plugins/<plugin-id>/<route.path>
+  rpc GetRegisteredRoutes(GetRegisteredRoutesRequest) returns (GetRegisteredRoutesResponse);
+}
+
+message GetRegisteredRoutesRequest {}
+
+message GetRegisteredRoutesResponse {
+  repeated APIRoute routes = 1;
+}
+
+// Core plugin interface messages
+message InitializeRequest {
+  PluginContext context = 1;
+}
+
+message InitializeResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message StartRequest {
+  // Empty for now, may include context in future
+}
+
+message StartResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message StopRequest {
+  // Empty for now
+}
+
+message StopResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message InfoRequest {
+  // Empty for now
+}
+
+message InfoResponse {
+  PluginInfo info = 1;
+}
+
+message HealthRequest {
+  // Empty for now
+}
+
+message HealthResponse {
+  bool healthy = 1;
+  string error = 2;
+}
+
+// Metadata scraper messages
+message CanHandleRequest {
+  string file_path = 1;
+  string mime_type = 2;
+}
+
+message CanHandleResponse {
+  bool can_handle = 1;
+}
+
+message ExtractMetadataRequest {
+  string file_path = 1;
+}
+
+message ExtractMetadataResponse {
+  map<string, string> metadata = 1;
+  string error = 2;
+}
+
+message GetSupportedTypesRequest {
+  // Empty for now
+}
+
+message GetSupportedTypesResponse {
+  repeated string types = 1;
+}
+
+// Scanner hook messages
+message OnMediaFileScannedRequest {
+  uint32 media_file_id = 1;
+  string file_path = 2;
+  map<string, string> metadata = 3;
+}
+
+message OnMediaFileScannedResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message OnScanStartedRequest {
+  uint32 scan_job_id = 1;
+  uint32 library_id = 2;
+  string library_path = 3;
+}
+
+message OnScanStartedResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message OnScanCompletedRequest {
+  uint32 scan_job_id = 1;
+  uint32 library_id = 2;
+  map<string, string> stats = 3;
+}
+
+message OnScanCompletedResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// Database messages
+message GetModelsRequest {
+  // Empty for now
+}
+
+message GetModelsResponse {
+  repeated string model_names = 1;
+}
+
+message MigrateRequest {
+  string connection_string = 1;
+}
+
+message MigrateResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message RollbackRequest {
+  string connection_string = 1;
+}
+
+message RollbackResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// Admin page messages
+message GetAdminPagesRequest {
+  // Empty for now
+}
+
+message GetAdminPagesResponse {
+  repeated AdminPageConfig pages = 1;
+}
+
+message RegisterRoutesRequest {
+  string base_path = 1;
+}
+
+message RegisterRoutesResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// Common data structures
+message PluginContext {
+  string plugin_id = 1;
+  map<string, string> config = 2;
+  string log_level = 3;
+  string database_url = 4;
+  string base_path = 5;
+}
+
+message PluginInfo {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string description = 4;
+  string author = 5;
+  string website = 6;
+  string repository = 7;
+  string license = 8;
+  string type = 9;
+  repeated string tags = 10;
+  string status = 11;
+  string install_path = 12;
+  int64 created_at = 13;
+  int64 updated_at = 14;
+}
+
+message AdminPageConfig {
+  string id = 1;
+  string title = 2;
+  string path = 3;
+  string icon = 4;
+  string category = 5;
+  string url = 6;
+  string type = 7;
+} 

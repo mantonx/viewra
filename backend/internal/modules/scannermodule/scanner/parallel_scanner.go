@@ -223,20 +223,79 @@ func (ps *ParallelFileScanner) Start(libraryID uint) error {
 		fmt.Printf("Warning: Failed to preload file cache: %v\n", err)
 	}
 	
-	// Count total files for accurate progress tracking
-	// This is critical for both new and resumed scans
-	if ps.scanJob.FilesFound == 0 || ps.scanJob.Status == string(utils.StatusPaused) {
+	// Always re-count files for accurate progress tracking unless the job is already completed.
+	// This ensures FilesFound is up-to-date for new, resumed, or previously crashed scans.
+	if ps.scanJob.Status != string(utils.StatusCompleted) {
+		fmt.Printf("Recounting files for job %d (status: %s)...\n", ps.jobID, ps.scanJob.Status)
 		fileCount, err := ps.countFilesToScan(ps.scanJob.Library.Path)
 		if err != nil {
-			fmt.Printf("Warning: Failed to count files: %v\n", err)
-		} else {
-			// Update the database with the file count
-			ps.scanJob.FilesFound = fileCount
-			if err := ps.db.Model(&database.ScanJob{}).Where("id = ?", ps.jobID).
-				Update("files_found", fileCount).Error; err != nil {
-				fmt.Printf("Failed to update files_found in database: %v\n", err)
+			fmt.Printf("Warning: Failed to count files for job %d: %v\n", ps.jobID, err)
+			// If counting fails, and we had a previous count, prefer that. Otherwise, estimator might have 0 total.
+			if ps.scanJob.FilesFound > 0 {
+				ps.progressEstimator.SetTotal(int64(ps.scanJob.FilesFound), 0)
+				fmt.Printf("Using previous file count %d for job %d due to recount error.\n", ps.scanJob.FilesFound, ps.jobID)
+			} else {
+				// No previous count and recount failed, estimator will start with 0 total until files are found.
+				// This is not ideal but better than crashing.
+				ps.progressEstimator.SetTotal(0, 0)
+				fmt.Printf("Warning: No previous file count and recount failed for job %d. Progress may be inaccurate initially.\n", ps.jobID)
 			}
+		} else {
+			fmt.Printf("Job %d: Recounted %d files. Previous count: %d.\n", ps.jobID, fileCount, ps.scanJob.FilesFound)
+			if fileCount != ps.scanJob.FilesFound {
+				fmt.Printf("Job %d: Updating FilesFound in DB from %d to %d.\n", ps.jobID, ps.scanJob.FilesFound, fileCount)
+				ps.scanJob.FilesFound = fileCount // Update in-memory job object
+				if errDb := ps.db.Model(&database.ScanJob{}).Where("id = ?", ps.jobID).
+					Update("files_found", fileCount).Error; errDb != nil {
+					fmt.Printf("Failed to update files_found in database for job %d: %v\n", ps.jobID, errDb)
+				}
+			} else {
+				fmt.Printf("Job %d: File count %d remains unchanged.\n", ps.jobID, fileCount)
+			}
+			ps.progressEstimator.SetTotal(int64(fileCount), 0)
 		}
+	} else {
+		// Job is completed, just set the estimator total from the existing FilesFound.
+		ps.progressEstimator.SetTotal(int64(ps.scanJob.FilesFound), 0)
+		fmt.Printf("Job %d is completed. Using existing FilesFound: %d for progress estimator total.\n", ps.jobID, ps.scanJob.FilesFound)
+	}
+
+	// Load existing progress from database (for resumed/restarted scans)
+	// This should happen *after* FilesFound is potentially re-counted and estimator total is set.
+	// We check FilesProcessed > 0 to see if there's any progress to load.
+	// For a brand new scan that was never paused/crashed, FilesProcessed would be 0.
+	if ps.scanJob.FilesProcessed > 0 && ps.scanJob.Status != string(utils.StatusCompleted) {
+		currentFilesProcessed := int64(ps.scanJob.FilesProcessed)
+		currentBytesProcessed := ps.scanJob.BytesProcessed
+
+		// Ensure FilesProcessed does not exceed the (potentially new) FilesFound
+		if currentFilesProcessed > int64(ps.scanJob.FilesFound) && ps.scanJob.FilesFound > 0 {
+			fmt.Printf("Warning: Job %d - FilesProcessed (%d) from DB exceeds new FilesFound (%d). Resetting FilesProcessed to 0 for resume.\n",
+				ps.jobID, currentFilesProcessed, ps.scanJob.FilesFound)
+			currentFilesProcessed = 0 // Reset to avoid starting with > 100% progress
+			currentBytesProcessed = 0
+			// Optionally, update DB here if we want this reset to be persistent immediately
+			// For now, it will be corrected on the next progress update.
+		}
+		
+		ps.filesProcessed.Store(currentFilesProcessed)
+		ps.bytesProcessed.Store(currentBytesProcessed)
+		
+		ps.progressEstimator.Update(currentFilesProcessed, currentBytesProcessed)
+		fmt.Printf("Resuming/restarting scan job %d with %d/%d files processed (from DB).\n",
+			ps.jobID, currentFilesProcessed, ps.scanJob.FilesFound)
+	} else if ps.scanJob.Status == string(utils.StatusCompleted) {
+		// For completed jobs, ensure the atomic counters reflect the final DB state.
+		ps.filesProcessed.Store(int64(ps.scanJob.FilesProcessed))
+		ps.bytesProcessed.Store(ps.scanJob.BytesProcessed)
+		ps.progressEstimator.Update(int64(ps.scanJob.FilesProcessed), ps.scanJob.BytesProcessed) // Ensure estimator reflects final state
+		fmt.Printf("Job %d is completed. Initializing counters to final values: %d files, %d bytes.\n", ps.jobID, ps.scanJob.FilesProcessed, ps.scanJob.BytesProcessed)
+	} else {
+		// New scan or no prior progress, counters start at 0. Estimator total is set, current is 0.
+		ps.filesProcessed.Store(0)
+		ps.bytesProcessed.Store(0)
+		ps.progressEstimator.Update(0,0) // Start fresh
+		fmt.Printf("Starting new scan or scan with no prior progress for job %d. FilesFound: %d.\n", ps.jobID, ps.scanJob.FilesFound)
 	}
 	
 	// Start initial workers (start with minimum workers)
@@ -535,6 +594,30 @@ func (ps *ParallelFileScanner) updateFinalStatus() {
 	
 	if err := ps.db.Save(ps.scanJob).Error; err != nil {
 		fmt.Printf("Failed to update final scan job status: %v\n", err)
+	} else {
+		// Publish completion event if DB save was successful
+		if ps.eventBus != nil {
+			completionEvent := events.NewSystemEvent(
+				events.EventScanCompleted,
+				"Scan Job Completed",
+				fmt.Sprintf("Scan job %d completed. Processed %d/%d files. Errors: %d, Skipped: %d", 
+					ps.jobID, filesProcessed, totalFilesFound, errorsCount, filesSkipped),
+			)
+			completionEvent.Data = map[string]interface{}{
+				"jobId":          ps.jobID,
+				"libraryId":      ps.scanJob.LibraryID,
+				"status":         ps.scanJob.Status, // Should be "completed"
+				"filesFound":     totalFilesFound,
+				"filesProcessed": filesProcessed,
+				"bytesProcessed": bytesProcessed,
+				"errorsCount":    errorsCount,
+				"filesSkipped":   filesSkipped,
+				"progress":       ps.scanJob.Progress, // Should be 100
+				"errorMessage":   ps.scanJob.ErrorMessage,
+				"completedAt":    ps.scanJob.CompletedAt.Format(time.RFC3339),
+			}
+			ps.eventBus.PublishAsync(completionEvent)
+		}
 	}
 }
 
@@ -917,11 +1000,12 @@ func (ps *ParallelFileScanner) updateProgress() {
 	bytesProcessed := ps.bytesProcessed.Load()
 	errorsCount := ps.errorsCount.Load()
 	filesSkipped := ps.filesSkipped.Load()
-	
+	_ = filesSkipped // Prevent unused variable error
+
 	// Debug logging to help track progress updates
-	fmt.Printf("DEBUG: updateProgress called - files: %d, bytes: %d, skipped: %d, errors: %d, queue: %d, active workers: %d\n", 
-		filesProcessed, bytesProcessed, filesSkipped, errorsCount, len(ps.workQueue), ps.activeWorkers.Load())
-	
+	// fmt.Printf("DEBUG: updateProgress called - files: %d, bytes: %d, skipped: %d, errors: %d, queue: %d, active workers: %d\n",
+	// filesProcessed, bytesProcessed, filesSkipped, errorsCount, len(ps.workQueue), ps.activeWorkers.Load())
+
 	// Update progress estimator
 	ps.progressEstimator.Update(filesProcessed, bytesProcessed)
 	
@@ -1002,6 +1086,7 @@ func (ps *ParallelFileScanner) updateProgress() {
 			"jobId":          ps.jobID,
 			"filesProcessed": filesProcessed,
 			"bytesProcessed": bytesProcessed,
+			"filesFound":     ps.scanJob.FilesFound,
 			"errorsCount":    errorsCount,
 			"progress":       progress,
 			"activeWorkers":  ps.activeWorkers.Load(),
@@ -1031,6 +1116,24 @@ func (ps *ParallelFileScanner) Pause() {
 		fmt.Printf("Failed to update scan job as paused: %v\n", err)
 	}
 	
+	// Publish pause event
+	if ps.eventBus != nil {
+		pausedEvent := events.NewSystemEvent(
+			events.EventScanPaused,
+			"Scan Job Paused",
+			fmt.Sprintf("Scan job %d has been paused.", ps.jobID),
+		)
+		pausedEvent.Data = map[string]interface{}{
+			"jobId":          ps.jobID,
+			"libraryId":      ps.scanJob.LibraryID,
+			"status":         "paused",
+			"filesProcessed": ps.filesProcessed.Load(), // Current progress at time of pause
+			"bytesProcessed": ps.bytesProcessed.Load(),
+			"progress":       ps.scanJob.Progress,      // Progress percentage from job object
+		}
+		ps.eventBus.PublishAsync(pausedEvent)
+	}
+
 	// Cancel all operations
 	ps.cancel()
 }
@@ -1445,9 +1548,9 @@ func (ps *ParallelFileScanner) dirQueueManager() {
 				continue
 			}
 			
-			fmt.Printf("DEBUG: dirQueueManager - checking status: queue=%d, workers=%d, idleCount=%d\n", 
-				queueLen, activeWorkers, idleCount)
-			
+			// fmt.Printf("DEBUG: dirQueueManager - checking status: queue=%d, workers=%d, idleCount=%d\n",
+			// 	queueLen, activeWorkers, idleCount)
+
 			if queueLen == 0 && activeWorkers == 0 {
 				idleCount++
 				fmt.Printf("DEBUG: dirQueueManager - idle check %d/%d (queue: %d, workers: %d)\n", 

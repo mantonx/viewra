@@ -2,11 +2,16 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hashicorp/go-hclog"
+	"github.com/mantonx/viewra/internal/apiroutes"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
@@ -20,7 +25,7 @@ import (
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
 
-var pluginManager *plugins.Manager
+var pluginManager plugins.Manager
 var systemEventBus events.EventBus
 var moduleInitialized bool
 var disabledModules = make(map[string]bool)
@@ -61,6 +66,13 @@ func SetupRouter() *gin.Engine {
 		log.Printf("Failed to initialize modules: %v", err)
 	}
 	
+	// Register core API routes for discovery
+	apiroutes.Register("/api", "GET", "Lists all available API endpoints.")
+	apiroutes.Register("/api/v1/users", "GET, POST, PUT, DELETE", "Manages user accounts and authentication.") // Example methods
+	apiroutes.Register("/api/v1/media", "GET, POST, PUT, DELETE", "Manages media items, libraries, and metadata.")
+	apiroutes.Register("/api/v1/plugins", "GET, POST, PUT, DELETE", "Manages plugins, their configurations, and status.")
+	apiroutes.Register("/swagger/index.html", "GET", "Serves API documentation (Swagger UI).")
+
 	// Setup routes with event handlers
 	setupRoutesWithEventHandlers(r)
 	
@@ -124,7 +136,7 @@ func connectPluginManagerToModules() error {
 		if module.ID() == "system.media" {
 			if mediaModule, ok := module.(*mediamodule.Module); ok {
 				metadataManager := mediaModule.GetMetadataManager()
-				if metadataManager != nil {
+				if metadataManager != nil && pluginManager != nil {
 					metadataManager.SetPluginManager(pluginManager)
 					log.Printf("✅ Connected plugin manager to media module metadata manager")
 				}
@@ -168,6 +180,36 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
+// simpleLogger implements hclog.Logger for plugin manager
+type simpleLogger struct{}
+
+func (l *simpleLogger) GetLevel() hclog.Level { return hclog.Info }
+func (l *simpleLogger) Log(level hclog.Level, msg string, args ...interface{}) {
+	log.Printf("[%s] %s %v", level, msg, args)
+}
+func (l *simpleLogger) Trace(msg string, args ...interface{}) { l.Log(hclog.Trace, msg, args...) }
+func (l *simpleLogger) Info(msg string, args ...interface{})  { l.Log(hclog.Info, msg, args...) }
+func (l *simpleLogger) Error(msg string, args ...interface{}) { l.Log(hclog.Error, msg, args...) }
+func (l *simpleLogger) Warn(msg string, args ...interface{})  { l.Log(hclog.Warn, msg, args...) }
+func (l *simpleLogger) Debug(msg string, args ...interface{}) { l.Log(hclog.Debug, msg, args...) }
+func (l *simpleLogger) IsTrace() bool { return l.GetLevel() <= hclog.Trace }
+func (l *simpleLogger) IsDebug() bool { return l.GetLevel() <= hclog.Debug }
+func (l *simpleLogger) IsInfo() bool  { return l.GetLevel() <= hclog.Info }
+func (l *simpleLogger) IsWarn() bool  { return l.GetLevel() <= hclog.Warn }
+func (l *simpleLogger) IsError() bool { return l.GetLevel() <= hclog.Error }
+func (l *simpleLogger) ImpliedArgs() []interface{} { return []interface{}{} }
+func (l *simpleLogger) With(args ...interface{}) hclog.Logger { return l }
+func (l *simpleLogger) Name() string { return "" }
+func (l *simpleLogger) Named(name string) hclog.Logger { return l }
+func (l *simpleLogger) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writer {
+	return os.Stderr
+}
+func (l *simpleLogger) StandardLogger(opts *hclog.StandardLoggerOptions) *log.Logger {
+	return log.New(l.StandardWriter(opts), "", log.LstdFlags)
+}
+func (l *simpleLogger) SetLevel(level hclog.Level) {}
+func (l *simpleLogger) ResetNamed(name string) hclog.Logger { return l }
+
 // initializePluginManager sets up the plugin system
 func initializePluginManager() error {
 	// Get plugin directory path
@@ -179,13 +221,13 @@ func initializePluginManager() error {
 	}
 	
 	// Create plugin logger
-	logger := &simpleLogger{}
+	appLogger := &simpleLogger{}
 	
-	// Create database wrapper
-	db := &databaseWrapper{}
+	// Get database connection
+	db := database.GetDB()
 	
 	// Create plugin manager
-	pluginManager = plugins.NewManager(db, pluginDir, logger)
+	pluginManager = plugins.NewManager(pluginDir, db, appLogger)
 	
 	// Initialize plugin manager
 	ctx := context.Background()
@@ -203,158 +245,107 @@ func initializePluginManager() error {
 		log.Printf("📋 Discovered plugins:")
 		for _, info := range pluginManager.ListPlugins() {
 			log.Printf("  - %s (v%s) [%s]", info.Name, info.Version, info.ID)
-			
+
+			// The Manifest field is gone. Admin pages would be discoverable via plugin services if needed here.
+			// For simplicity, this detailed logging is removed for now.
+			/*
 			// Log admin page URLs if present
 			if info.Manifest != nil && info.Manifest.UI != nil {
 				for _, page := range info.Manifest.UI.AdminPages {
 					log.Printf("    📄 Admin Page: %s - http://localhost:8080%s", page.Title, page.URL)
 				}
 			}
+			*/
 		}
 	}
 	
 	return nil
 }
 
-// GetPluginManager returns the global plugin manager instance
-func GetPluginManager() *plugins.Manager {
+// GetPluginManager returns the plugin manager instance
+func GetPluginManager() plugins.Manager {
 	return pluginManager
 }
 
-// GetEventBus returns the global event bus instance
+// GetEventBus returns the system event bus instance
 func GetEventBus() events.EventBus {
 	return systemEventBus
 }
 
 // ShutdownPluginManager gracefully shuts down the plugin manager
 func ShutdownPluginManager() error {
-	if pluginManager != nil {
-		ctx := context.Background()
-		return pluginManager.Shutdown(ctx)
+	if pluginManager == nil {
+		return nil
 	}
-	return nil
+	log.Println("INFO: Shutting down plugin manager...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return pluginManager.Shutdown(ctx)
 }
 
 // ShutdownEventBus gracefully shuts down the event bus
 func ShutdownEventBus() error {
-	if systemEventBus != nil {
-		ctx := context.Background()
-		
-		// Publish system shutdown event
-		shutdownEvent := events.NewSystemEvent(
-			events.EventSystemStopped,
-			"System Stopped",
-			"Viewra backend system is shutting down",
-		)
-		
-		// Try to publish shutdown event (best effort)
-		systemEventBus.PublishAsync(shutdownEvent)
-		
-		// Stop the event bus
-		return systemEventBus.Stop(ctx)
+	if systemEventBus == nil {
+		return nil
 	}
-	return nil
+	log.Println("INFO: Shutting down event bus...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return systemEventBus.Stop(ctx)
 }
 
-// Simple logger implementation for plugins
-type simpleLogger struct{}
-
-func (l *simpleLogger) Info(msg string, args ...interface{}) {
-	log.Printf("[PLUGIN-INFO] "+msg, args...)
-}
-
-func (l *simpleLogger) Error(msg string, args ...interface{}) {
-	log.Printf("[PLUGIN-ERROR] "+msg, args...)
-}
-
-func (l *simpleLogger) Warn(msg string, args ...interface{}) {
-	log.Printf("[PLUGIN-WARN] "+msg, args...)
-}
-
-func (l *simpleLogger) Debug(msg string, args ...interface{}) {
-	log.Printf("[PLUGIN-DEBUG] "+msg, args...)
-}
-
-// Database wrapper to implement the plugins.Database interface
-type databaseWrapper struct{}
-
-func (d *databaseWrapper) GetDB() interface{} {
-	return database.GetDB()
-}
-
-// Event logger implementation for the event bus
+// eventLogger implements the events.EventLogger interface
 type eventLogger struct{}
 
-func (l *eventLogger) Info(msg string, args ...interface{}) {
-	log.Printf("[EVENT-INFO] "+msg, args...)
-}
+func (l *eventLogger) Info(msg string, args ...interface{})  { log.Printf("[EVENT-INFO] "+msg, args...) }
+func (l *eventLogger) Error(msg string, args ...interface{}) { log.Printf("[EVENT-ERROR] "+msg, args...) }
+func (l *eventLogger) Warn(msg string, args ...interface{})  { log.Printf("[EVENT-WARN] "+msg, args...) }
+func (l *eventLogger) Debug(msg string, args ...interface{}) { log.Printf("[EVENT-DEBUG] "+msg, args...) }
 
-func (l *eventLogger) Error(msg string, args ...interface{}) {
-	log.Printf("[EVENT-ERROR] "+msg, args...)
-}
-
-func (l *eventLogger) Warn(msg string, args ...interface{}) {
-	log.Printf("[EVENT-WARN] "+msg, args...)
-}
-
-func (l *eventLogger) Debug(msg string, args ...interface{}) {
-	log.Printf("[EVENT-DEBUG] "+msg, args...)
-}
-
-// GetPluginDirectory returns the plugin directory path
+// GetPluginDirectory returns the configured plugin directory
 func GetPluginDirectory() string {
-	dir := os.Getenv("PLUGIN_DIR")
-	if dir == "" {
-		dir = filepath.Join(".", "data", "plugins")
+	// TODO: Make this configurable via environment variable or config file
+	defaultDir := filepath.Join(".", "backend", "data", "plugins") // Adjusted default
+	exePath, err := os.Executable()
+	if err == nil {
+		baseDir := filepath.Dir(exePath)
+		// If running from a typical Go bin layout, adjust path relative to project root
+		// This is a heuristic and might need refinement for different deployment scenarios
+		if filepath.Base(baseDir) == "bin" || filepath.Base(baseDir) == "cmd" {
+			projectRoot := filepath.Dir(filepath.Dir(baseDir)) // Go up two levels
+            if filepath.Base(projectRoot) == "backend" { // If exe is in backend/cmd/xxx/main or backend/bin/xxx
+                projectRoot = filepath.Dir(projectRoot) // Go up one more for viewra root
+            }
+			return filepath.Join(projectRoot, "backend", "data", "plugins")
+		}
+		// If not in a typical Go bin layout, assume running from project root or similar structure
+		return filepath.Join(baseDir, "backend", "data", "plugins") 
 	}
-	return dir
+	return defaultDir
 }
 
 // initializeEventBus sets up the system-wide event bus
 func initializeEventBus() error {
-	// Create event bus configuration
-	config := events.DefaultEventBusConfig()
-	
-	// Create event logger
-	logger := &eventLogger{}
-	
-	// Create database storage
-	db := database.GetDB()
+	config := events.DefaultEventBusConfig() // Use default config
+	config.BufferSize = 1000 // Example capacity, can be tuned
+
+	appEventLogger := &eventLogger{}
+	db := database.GetDB() // Assuming database is initialized before event bus
+	if db == nil {
+		return fmt.Errorf("database not initialized before event bus")
+	}
 	storage := events.NewDatabaseEventStorage(db)
-	
-	// Create metrics
 	metrics := events.NewBasicEventMetrics()
-	
-	// Create event bus
-	systemEventBus = events.NewEventBus(config, logger, storage, metrics)
-	
-	// Start event bus
-	ctx := context.Background()
-	if err := systemEventBus.Start(ctx); err != nil {
+
+	systemEventBus = events.NewEventBus(config, appEventLogger, storage, metrics)
+
+	// Start the event bus
+	ctx := context.Background() // Define context for Start
+	if err := systemEventBus.Start(ctx); err != nil { // Pass context to Start
+		log.Printf("Failed to start event bus: %v", err)
 		return err
 	}
-	
-	// Connect event bus to plugin manager
-	if pluginManager != nil {
-		pluginManager.SetEventBus(systemEventBus)
-	}
-	
-	log.Printf("✅ Event bus initialized and started")
-	
-	// Publish system startup event
-	startupEvent := events.NewSystemEvent(
-		events.EventSystemStarted,
-		"System Started",
-		"Viewra backend system has started successfully",
-	)
-	
-	startupEvent.Data = map[string]interface{}{
-		"version": "1.0.0", // TODO: Get from build info
-	}
-	
-	if err := systemEventBus.PublishAsync(startupEvent); err != nil {
-		log.Printf("Failed to publish startup event: %v", err)
-	}
-	
+
+	log.Println("✅ System event bus initialized and started")
 	return nil
 }

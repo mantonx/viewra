@@ -16,6 +16,16 @@ import (
 )
 
 func main() {
+	// Super early file log
+	f, err_f := os.OpenFile("/app/startup.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err_f == nil {
+		defer f.Close()
+		f.WriteString(fmt.Sprintf("Viewra Main Started at: %s\n", time.Now().Format(time.RFC3339)))
+	} else {
+		// If we can't write to file, try stdout for this specific early log
+		fmt.Println("Viewra Main Started (file log failed)")
+	}
+
 	// Print startup banner
 	fmt.Println("=======================================")
 	fmt.Println("  Viewra Media Server - Module System  ")

@@ -12,6 +12,7 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/metadata"
 	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/plugins/proto"
 	"gorm.io/gorm"
 )
 
@@ -71,10 +72,10 @@ func NewMetadataManager(db *gorm.DB, eventBus events.EventBus) *MetadataManager 
 }
 
 // SetPluginManager sets the plugin manager for the metadata manager
-func (mm *MetadataManager) SetPluginManager(pluginManager *plugins.Manager) {
+func (mm *MetadataManager) SetPluginManager(pluginMgr plugins.Manager) {
 	mm.mutex.Lock()
 	defer mm.mutex.Unlock()
-	mm.pluginManager = pluginManager
+	mm.pluginManager = &pluginMgr
 }
 
 // Initialize initializes the metadata manager
@@ -168,22 +169,37 @@ func (mm *MetadataManager) extractMusicMetadata(mediaFile *database.MediaFile) e
 	}
 	
 	// Call plugin hooks for media file scanned
-	if mm.pluginManager != nil {
-		scannerHookPlugins := mm.pluginManager.GetScannerHookPlugins()
-		for _, plugin := range scannerHookPlugins {
+	if mm.pluginManager != nil && *mm.pluginManager != nil { // Ensure the interface itself is not nil
+		scannerHookClients := (*mm.pluginManager).GetScannerHooks()
+		ctx := context.Background() // Or a more appropriate context if available
+
+		for _, client := range scannerHookClients {
+			// Convert metadataMap from map[string]interface{} to map[string]string
+			protoMetadata := make(map[string]string)
 			metadataMap := map[string]interface{}{
-				"title":       musicMeta.Title,
-				"artist":      musicMeta.Artist,
-				"album":       musicMeta.Album,
-				"year":        musicMeta.Year,
-				"track":       musicMeta.Track,
-				"genre":       musicMeta.Genre,
-				"duration":    musicMeta.Duration,
-				"hasArtwork":  musicMeta.HasArtwork,
+				"title":      musicMeta.Title,
+				"artist":     musicMeta.Artist,
+				"album":      musicMeta.Album,
+				"year":       fmt.Sprintf("%d", musicMeta.Year),
+				"track":      fmt.Sprintf("%d", musicMeta.Track),
+				"genre":      musicMeta.Genre,
+				"duration":   fmt.Sprintf("%f", musicMeta.Duration),
+				"hasArtwork": fmt.Sprintf("%t", musicMeta.HasArtwork),
+			}
+			for k, v := range metadataMap {
+				protoMetadata[k] = fmt.Sprint(v)
+			}
+
+			req := &proto.OnMediaFileScannedRequest{ // Changed to proto.OnMediaFileScannedRequest
+				MediaFileId: uint32(mediaFile.ID),
+				FilePath:    mediaFile.Path,
+				Metadata:    protoMetadata,
 			}
 			
-			if err := plugin.OnMediaFileScanned(mediaFile.ID, mediaFile.Path, metadataMap); err != nil {
-				log.Printf("WARNING: Plugin hook failed for %s: %v", plugin.Info().ID, err)
+			_, err := client.OnMediaFileScanned(ctx, req)
+			if err != nil {
+				// TODO: Consider how to get the specific plugin ID for more detailed logging
+				log.Printf("WARNING: plugin scanner hook OnMediaFileScanned failed: %v", err)
 			}
 		}
 	}

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,6 +14,8 @@ import (
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
+	"github.com/mantonx/viewra/internal/utils"
+	"gorm.io/gorm"
 )
 
 // getScannerModule retrieves the scanner module from the module registry
@@ -432,76 +436,82 @@ func GetScannerStats(c *gin.Context) {
 		return
 	}
 	
-	// Get active scan jobs
-	scanJobs, err := scannerManager.GetAllScans()
-	if err != nil {
+	db := database.GetDB()
+	var totalFilesScanned int64
+	var totalBytesScanned int64
+	activeScans := 0
+
+	// Get all libraries
+	var allLibraries []database.MediaLibrary
+	if err := db.Find(&allLibraries).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to get scan jobs",
+			"error":   "Failed to retrieve libraries",
 			"details": err.Error(),
 		})
 		return
 	}
-	
-	activeScans := 0
-	var totalFilesScanned int64
-	var totalBytesScanned int64
-	
-	// Track which libraries have active or paused scans
-	var librariesWithScans []uint
-	
-	// Get progress from all scan jobs (running, paused, etc.)
+
+	processedLibraryIDs := make(map[uint]bool)
+
+	// Prioritize active (running/paused) scans
+	scanJobs, err := scannerManager.GetAllScans() // Assuming this gets all types of jobs
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve scan jobs",
+			"details": err.Error(),
+		})
+		return
+	}
+
 	for _, job := range scanJobs {
-		if job.Status == "running" {
-			activeScans++
-			// Try to get real-time progress for running jobs
-			realTimeFilesProcessed := int64(job.FilesProcessed)
+		if job.Status == string(utils.StatusRunning) || job.Status == string(utils.StatusPaused) {
+			if job.Status == string(utils.StatusRunning) {
+				activeScans++
+			}
+			// Use live progress for active scans if possible
 			realTimeBytesProcessed := job.BytesProcessed
-			
-			if detailedStats, err := scannerManager.GetDetailedScanProgress(job.ID); err == nil {
-				if filesProcessed, ok := detailedStats["processed_files"].(int64); ok {
-					realTimeFilesProcessed = filesProcessed
-				}
+			realTimeFilesProcessed := int64(job.FilesProcessed)
+			if detailedStats, detailErr := scannerManager.GetDetailedScanProgress(job.ID); detailErr == nil {
 				if bytesProcessed, ok := detailedStats["processed_bytes"].(int64); ok {
 					realTimeBytesProcessed = bytesProcessed
 				}
+				if filesProcessed, ok := detailedStats["processed_files"].(int64); ok {
+					realTimeFilesProcessed = filesProcessed
+				}
 			}
-			
-			totalFilesScanned += realTimeFilesProcessed
 			totalBytesScanned += realTimeBytesProcessed
-			librariesWithScans = append(librariesWithScans, job.LibraryID)
-		} else if job.Status == "paused" || job.Status == "completed" {
-			// Include progress from paused and completed jobs
-			totalFilesScanned += int64(job.FilesProcessed)
-			totalBytesScanned += job.BytesProcessed
-			librariesWithScans = append(librariesWithScans, job.LibraryID)
+			totalFilesScanned += realTimeFilesProcessed
+			processedLibraryIDs[job.LibraryID] = true
 		}
 	}
-	
-	// Add files from libraries that don't have any scan jobs
-	if len(librariesWithScans) > 0 {
-		db := database.GetDB()
-		var completedFiles int64
-		var completedBytes int64
+
+	// For libraries not actively being scanned, use their latest completed scan job stats or sum media_files
+	for _, lib := range allLibraries {
+		if processedLibraryIDs[lib.ID] {
+			continue // Already accounted for by an active/paused scan
+		}
+
+		var latestCompletedJob database.ScanJob
+		errDb := db.Where("library_id = ? AND status = ?", lib.ID, string(utils.StatusCompleted)).Order("completed_at DESC").First(&latestCompletedJob).Error
 		
-		// Get files from libraries without any scan jobs
-		db.Raw(`
-			SELECT COALESCE(COUNT(*), 0) as files, COALESCE(SUM(size), 0) as bytes 
-			FROM media_files mf 
-			WHERE mf.library_id NOT IN (?)
-		`, librariesWithScans).Scan(&struct {
-			Files int64 `json:"files"`
-			Bytes int64 `json:"bytes"`
-		}{Files: completedFiles, Bytes: completedBytes})
-		
-		totalFilesScanned += completedFiles
-		totalBytesScanned += completedBytes
-	} else {
-		// No scan jobs exist, count all files in database
-		db := database.GetDB()
-		db.Model(&database.MediaFile{}).Count(&totalFilesScanned)
-		db.Model(&database.MediaFile{}).Select("COALESCE(SUM(size), 0)").Scan(&totalBytesScanned)
+		if errDb == nil { // Found a completed job
+			totalBytesScanned += latestCompletedJob.BytesProcessed
+			totalFilesScanned += int64(latestCompletedJob.FilesProcessed)
+			// processedLibraryIDs[lib.ID] = true // Mark here if we add more stages
+		} else if errors.Is(errDb, gorm.ErrRecordNotFound) {
+			// No completed job, sum from media_files for this library if it wasn't touched by any job at all
+			// (active/paused already handled, completed handled above)
+			// This path means the library has no active, paused, or completed jobs.
+			var libFileStats struct { Files int64; Bytes int64 }
+			db.Model(&database.MediaFile{}).Where("library_id = ?", lib.ID).Select("COALESCE(COUNT(*), 0) as files, COALESCE(SUM(size), 0) as bytes").Scan(&libFileStats)
+			totalBytesScanned += libFileStats.Bytes
+			totalFilesScanned += libFileStats.Files
+		} else {
+			// DB error fetching latest completed job, log it but don't fail the whole stat
+			log.Printf("[WARN] Error fetching latest completed scan for library %d: %v\n", lib.ID, errDb)
+		}
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"active_scans":          activeScans,
 		"total_files_scanned":   totalFilesScanned,

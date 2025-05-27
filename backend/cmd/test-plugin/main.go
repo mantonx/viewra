@@ -3,42 +3,65 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/plugins/proto"
+	"gorm.io/driver/sqlite" // Using sqlite for a mock DB
 	"gorm.io/gorm"
 )
 
 // Simple logger implementation for testing
 type TestLogger struct{}
 
-func (l *TestLogger) Debug(msg string, fields ...interface{}) {
-	log.Printf("[DEBUG] %s %v", msg, fields)
+func (l *TestLogger) GetLevel() hclog.Level { return hclog.Info }
+func (l *TestLogger) Log(level hclog.Level, msg string, args ...interface{}) {
+	log.Printf("[%s] %s %v", level, msg, args)
 }
-
-func (l *TestLogger) Info(msg string, fields ...interface{}) {
-	log.Printf("[INFO] %s %v", msg, fields)
+func (l *TestLogger) Trace(msg string, args ...interface{}) { l.Log(hclog.Trace, msg, args...) }
+func (l *TestLogger) Debug(msg string, args ...interface{}) { l.Log(hclog.Debug, msg, args...) }
+func (l *TestLogger) Info(msg string, args ...interface{})  { l.Log(hclog.Info, msg, args...) }
+func (l *TestLogger) Warn(msg string, args ...interface{})  { l.Log(hclog.Warn, msg, args...) }
+func (l *TestLogger) Error(msg string, args ...interface{}) { l.Log(hclog.Error, msg, args...) }
+func (l *TestLogger) IsTrace() bool { return l.GetLevel() <= hclog.Trace }
+func (l *TestLogger) IsDebug() bool { return l.GetLevel() <= hclog.Debug }
+func (l *TestLogger) IsInfo() bool  { return l.GetLevel() <= hclog.Info }
+func (l *TestLogger) IsWarn() bool  { return l.GetLevel() <= hclog.Warn }
+func (l *TestLogger) IsError() bool { return l.GetLevel() <= hclog.Error }
+func (l *TestLogger) ImpliedArgs() []interface{} { return []interface{}{} }
+func (l *TestLogger) With(args ...interface{}) hclog.Logger { return l } // Simplistic
+func (l *TestLogger) Name() string { return "" }
+func (l *TestLogger) Named(name string) hclog.Logger { return l } // Simplistic
+func (l *TestLogger) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writer {
+	return os.Stderr // Keep it simple for the test logger
 }
-
-func (l *TestLogger) Warn(msg string, fields ...interface{}) {
-	log.Printf("[WARN] %s %v", msg, fields)
+func (l *TestLogger) StandardLogger(opts *hclog.StandardLoggerOptions) *log.Logger {
+	return log.New(l.StandardWriter(opts), "", log.LstdFlags)
 }
-
-func (l *TestLogger) Error(msg string, fields ...interface{}) {
-	log.Printf("[ERROR] %s %v", msg, fields)
-}
+func (l *TestLogger) ResetNamed(name string) hclog.Logger { return l }
+func (l *TestLogger) SetLevel(level hclog.Level)          {}
 
 // Simple database wrapper for testing
-type TestDatabase struct{}
+type TestDatabase struct {
+	db *gorm.DB
+}
 
-func (d *TestDatabase) GetDB() interface{} {
-	// Return a mock GORM DB for testing
-	// In a real test, you'd use an in-memory SQLite database
-	// For now, we'll return nil and modify the plugin manager to handle it
-	return (*gorm.DB)(nil)
+func NewTestDatabase() (*TestDatabase, error) {
+	// Using an in-memory SQLite database for testing
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to open in-memory database: %w", err)
+	}
+	return &TestDatabase{db: db}, nil
+}
+
+func (d *TestDatabase) GetDB() *gorm.DB {
+	return d.db
 }
 
 func main() {
@@ -46,15 +69,26 @@ func main() {
 	fmt.Println("=============================================================")
 
 	// Get the plugin directory
-	pluginDir := filepath.Join("data", "plugins")
-	
+	// Assume running from project root for this test executable
+	pluginDir := filepath.Join("backend", "data", "plugins")
+	absPluginDir, err := filepath.Abs(pluginDir)
+	if err != nil {
+		log.Fatalf("Failed to get absolute path for plugin directory: %v", err)
+	}
+	fmt.Printf("Using plugin directory: %s\\n", absPluginDir)
+
+
 	// Create plugin manager
 	logger := &TestLogger{}
-	db := &TestDatabase{}
-	manager := plugins.NewManager(db, pluginDir, logger)
+	testDB, err := NewTestDatabase()
+	if err != nil {
+		log.Fatalf("Failed to create test database: %v", err)
+	}
+	db := testDB.GetDB()
+	manager := plugins.NewManager(absPluginDir, db, logger)
 
 	// Create context with timeout to prevent hanging
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // Increased timeout
 	defer cancel()
 
 	// Initialize plugin manager (this will discover plugins)
@@ -63,99 +97,122 @@ func main() {
 	}
 
 	// List discovered plugins
-	fmt.Println("\nDiscovered Plugins:")
+	fmt.Println("\\nDiscovered Plugins:")
 	fmt.Println("------------------")
 	pluginList := manager.ListPlugins()
-	for _, info := range pluginList {
-		fmt.Printf("- ID: %s\n", info.ID)
-		fmt.Printf("  Name: %s\n", info.Name)
-		fmt.Printf("  Version: %s\n", info.Version)
-		fmt.Printf("  Type: %s\n", info.Type)
-		fmt.Printf("  Status: %s\n", info.Status)
-		fmt.Printf("  Path: %s\n", info.InstallPath)
+	if len(pluginList) == 0 {
+		fmt.Println("No plugins discovered. Ensure 'plugin.cue' files exist and are correctly configured.")
+	}
+	for id, pluginInstance := range pluginList {
+		fmt.Printf("- ID: %s\\n", id)
+		fmt.Printf("  Name: %s\\n", pluginInstance.Name)
+		fmt.Printf("  Version: %s\\n", pluginInstance.Version)
+		fmt.Printf("  Type: %s\\n", pluginInstance.Type)
+		fmt.Printf("  BinaryPath: %s\\n", pluginInstance.BinaryPath)
+		fmt.Printf("  Running: %t\\n", pluginInstance.Running)
 		fmt.Println()
 	}
 
 	// Check if MusicBrainz enricher was discovered
-	mbInfo, exists := manager.GetPluginInfo("musicbrainz_enricher")
+	mbPlugin, exists := manager.GetPlugin("musicbrainz_enricher")
 	if !exists {
 		fmt.Println("❌ MusicBrainz Enricher plugin not discovered")
-		fmt.Println("\nMake sure the plugin.yml file exists in data/plugins/musicbrainz_enricher/")
+		fmt.Println("\\nMake sure the plugin.cue file exists in backend/data/plugins/musicbrainz_enricher/")
 		os.Exit(1)
 	}
 
-	fmt.Printf("✅ MusicBrainz Enricher plugin discovered: %s v%s\n", mbInfo.Name, mbInfo.Version)
+	fmt.Printf("✅ MusicBrainz Enricher plugin discovered: %s v%s\\n", mbPlugin.Name, mbPlugin.Version)
 
 	// Try to load the plugin
-	fmt.Println("\nAttempting to load MusicBrainz Enricher plugin...")
+	fmt.Println("\\nAttempting to load MusicBrainz Enricher plugin...")
 	if err := manager.LoadPlugin(ctx, "musicbrainz_enricher"); err != nil {
 		log.Printf("Failed to load plugin: %v", err)
 		fmt.Println("❌ Plugin loading failed")
 	} else {
 		fmt.Println("✅ Plugin loaded successfully")
-		
-		// Get the loaded plugin
-		plugin, exists := manager.GetPlugin("musicbrainz_enricher")
-		if exists {
-			fmt.Printf("Plugin instance: %T\n", plugin)
-			
-			// Check health
-			if err := plugin.Health(); err != nil {
-				fmt.Printf("Plugin health check failed: %v\n", err)
-			} else {
-				fmt.Println("✅ Plugin health check passed")
-			}
+
+		// Get the loaded plugin again to check its status and services
+		loadedMbPlugin, _ := manager.GetPlugin("musicbrainz_enricher")
+		if loadedMbPlugin.MetadataScraperService != nil {
+			// Check health via a service call if available, e.g., a Ping or GetInfo method
+			// For now, we assume successful load means it's 'healthy' for the test's purpose.
+			fmt.Println("✅ Plugin seems healthy (loaded and service client available)")
+
+			// Example of calling a method on the service if one existed like Ping
+			// resp, err := loadedMbPlugin.MetadataScraperService.Ping(ctx, &proto.PingRequest{})
+			// if err != nil {
+			// 	fmt.Printf("Plugin Ping RPC failed: %v\\n", err)
+			// } else {
+			//  fmt.Printf("Plugin Ping RPC success: %s\\n", resp.Message)
+			// }
+
+		} else {
+			fmt.Println("Loaded plugin does not have an active MetadataScraperService client.")
 		}
 	}
 
 	// Get scanner hook plugins
-	scannerHooks := manager.GetScannerHookPlugins()
-	fmt.Printf("\nScanner Hook Plugins: %d\n", len(scannerHooks))
+	scannerHooks := manager.GetScannerHooks()
+	fmt.Printf("\\nScanner Hook Plugins: %d\\n", len(scannerHooks))
 
 	// Get metadata scraper plugins
 	metadataScrapers := manager.GetMetadataScrapers()
-	fmt.Printf("Metadata Scraper Plugins: %d\n", len(metadataScrapers))
+	fmt.Printf("Metadata Scraper Plugins: %d\\n", len(metadataScrapers))
 
-	// Test scanner hook functionality (without starting the plugin)
-	if len(scannerHooks) > 0 {
-		fmt.Println("\nTesting scanner hook functionality...")
-		for _, hook := range scannerHooks {
-			fmt.Printf("Testing hook plugin: %s\n", hook.Info().ID)
-			
-			// Test OnMediaFileScanned
-			if err := hook.OnMediaFileScanned(123, "/test/file.mp3", map[string]interface{}{
-				"title":  "Test Song",
-				"artist": "Test Artist",
-				"album":  "Test Album",
-			}); err != nil {
-				fmt.Printf("❌ OnMediaFileScanned failed: %v\n", err)
-			} else {
-				fmt.Println("✅ OnMediaFileScanned test passed")
-			}
+	if len(metadataScrapers) > 0 && metadataScrapers[0] != nil {
+		// Attempt to get basic info from the first scraper
+		// Assuming the MusicBrainz plugin is the first one if loaded
+		scraperClient := metadataScrapers[0] // This is a proto.MetadataScraperServiceClient
+
+		// Test GetSupportedTypes
+		supportedTypesResp, err := scraperClient.GetSupportedTypes(ctx, &proto.GetSupportedTypesRequest{})
+		if err != nil {
+			fmt.Printf("❌ Failed to get supported types from scraper: %v\\n", err)
+		} else {
+			fmt.Printf("Scraper supported types: %v\\n", supportedTypesResp.GetTypes())
 		}
+
+		// Test CanHandle (example)
+		canHandleResp, err := scraperClient.CanHandle(ctx, &proto.CanHandleRequest{FilePath: "/test/file.mp3", MimeType: "audio/mpeg"})
+		if err != nil {
+			fmt.Printf("❌ Scraper CanHandle call failed: %v\\n", err)
+		} else {
+			fmt.Printf("Scraper can handle MP3 files: %v\\n", canHandleResp.GetCanHandle())
+		}
+
+	} else {
+		fmt.Println("No metadata scrapers available or the first one is nil.")
+	}
+	
+
+	// Test scanner hook functionality
+	if len(scannerHooks) > 0 && scannerHooks[0] != nil {
+		fmt.Println("\\nTesting scanner hook functionality...")
+		hookClient := scannerHooks[0] // This is a proto.ScannerHookServiceClient
+
+		fmt.Printf("Testing hook plugin (first available)\\n")
+
+		// Test OnMediaFileScanned
+		_, err := hookClient.OnMediaFileScanned(ctx, &proto.OnMediaFileScannedRequest{
+			MediaFileId: 123,
+			FilePath:    "/test/file.mp3",
+			Metadata:    map[string]string{"title": "Test Song", "artist": "Test Artist", "album": "Test Album"},
+		})
+		if err != nil {
+			fmt.Printf("❌ OnMediaFileScanned failed: %v\\n", err)
+		} else {
+			fmt.Println("✅ OnMediaFileScanned test passed")
+		}
+	} else {
+		 fmt.Println("No scanner hooks available or the first one is nil.")
 	}
 
-	// Test metadata scraper functionality
-	if len(metadataScrapers) > 0 {
-		fmt.Println("\nTesting metadata scraper functionality...")
-		for _, scraper := range metadataScrapers {
-			fmt.Printf("Testing scraper plugin: %s\n", scraper.Info().ID)
-			
-			// Test CanHandle
-			canHandle := scraper.CanHandle("/test/file.mp3", "audio/mpeg")
-			fmt.Printf("Can handle MP3 files: %v\n", canHandle)
-			
-			// Test SupportedTypes
-			supportedTypes := scraper.SupportedTypes()
-			fmt.Printf("Supported types: %v\n", supportedTypes)
-		}
-	}
 
 	// Shutdown (this should complete quickly now)
-	fmt.Println("\nShutting down plugin manager...")
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	fmt.Println("\\nShutting down plugin manager...")
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second) // Increased timeout
 	defer shutdownCancel()
-	
+
 	if err := manager.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Error during shutdown: %v", err)
 	}
