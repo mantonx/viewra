@@ -10,13 +10,13 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/server/handlers"
 
 	// Import all modules to trigger their registration
 	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
-	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
 
@@ -105,9 +105,33 @@ func initializeModules() error {
 		return err
 	}
 	
+	// Connect plugin manager to modules that need it
+	if err := connectPluginManagerToModules(); err != nil {
+		log.Printf("Warning: Failed to connect plugin manager to modules: %v", err)
+	}
+	
 	moduleInitialized = true
 	logModuleStatus()
 	
+	return nil
+}
+
+// connectPluginManagerToModules connects the plugin manager to modules that need it
+func connectPluginManagerToModules() error {
+	// Get the media module and connect the plugin manager
+	modules := modulemanager.ListModules()
+	for _, module := range modules {
+		if module.ID() == "system.media" {
+			if mediaModule, ok := module.(*mediamodule.Module); ok {
+				metadataManager := mediaModule.GetMetadataManager()
+				if metadataManager != nil {
+					metadataManager.SetPluginManager(pluginManager)
+					log.Printf("✅ Connected plugin manager to media module metadata manager")
+				}
+			}
+			break
+		}
+	}
 	return nil
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/plugins"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,9 @@ type MetadataManager struct {
 	// Metadata providers
 	providers     []MetadataProvider
 	providerStats map[string]*ProviderStats
+	
+	// Plugin system integration
+	pluginManager *plugins.Manager
 }
 
 // MetadataProvider defines the interface for metadata providers
@@ -62,7 +66,15 @@ func NewMetadataManager(db *gorm.DB, eventBus events.EventBus) *MetadataManager 
 		db:            db,
 		eventBus:      eventBus,
 		providerStats: make(map[string]*ProviderStats),
+		pluginManager: nil, // Will be set later via SetPluginManager
 	}
+}
+
+// SetPluginManager sets the plugin manager for the metadata manager
+func (mm *MetadataManager) SetPluginManager(pluginManager *plugins.Manager) {
+	mm.mutex.Lock()
+	defer mm.mutex.Unlock()
+	mm.pluginManager = pluginManager
 }
 
 // Initialize initializes the metadata manager
@@ -153,6 +165,27 @@ func (mm *MetadataManager) extractMusicMetadata(mediaFile *database.MediaFile) e
 			"hasArtwork":  musicMeta.HasArtwork,
 		}
 		mm.eventBus.PublishAsync(event)
+	}
+	
+	// Call plugin hooks for media file scanned
+	if mm.pluginManager != nil {
+		scannerHookPlugins := mm.pluginManager.GetScannerHookPlugins()
+		for _, plugin := range scannerHookPlugins {
+			metadataMap := map[string]interface{}{
+				"title":       musicMeta.Title,
+				"artist":      musicMeta.Artist,
+				"album":       musicMeta.Album,
+				"year":        musicMeta.Year,
+				"track":       musicMeta.Track,
+				"genre":       musicMeta.Genre,
+				"duration":    musicMeta.Duration,
+				"hasArtwork":  musicMeta.HasArtwork,
+			}
+			
+			if err := plugin.OnMediaFileScanned(mediaFile.ID, mediaFile.Path, metadataMap); err != nil {
+				log.Printf("WARNING: Plugin hook failed for %s: %v", plugin.Info().ID, err)
+			}
+		}
 	}
 	
 	log.Printf("INFO: Successfully extracted metadata for file ID %d", mediaFile.ID)

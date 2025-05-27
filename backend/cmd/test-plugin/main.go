@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mantonx/viewra/internal/plugins"
 	"gorm.io/gorm"
@@ -52,8 +53,11 @@ func main() {
 	db := &TestDatabase{}
 	manager := plugins.NewManager(db, pluginDir, logger)
 
+	// Create context with timeout to prevent hanging
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// Initialize plugin manager (this will discover plugins)
-	ctx := context.Background()
 	if err := manager.Initialize(ctx); err != nil {
 		log.Fatalf("Failed to initialize plugin manager: %v", err)
 	}
@@ -82,11 +86,11 @@ func main() {
 
 	fmt.Printf("✅ MusicBrainz Enricher plugin discovered: %s v%s\n", mbInfo.Name, mbInfo.Version)
 
-	// Try to load the plugin (this will use the basic plugin for now)
+	// Try to load the plugin
 	fmt.Println("\nAttempting to load MusicBrainz Enricher plugin...")
 	if err := manager.LoadPlugin(ctx, "musicbrainz_enricher"); err != nil {
 		log.Printf("Failed to load plugin: %v", err)
-		fmt.Println("❌ Plugin loading failed (expected with current basic implementation)")
+		fmt.Println("❌ Plugin loading failed")
 	} else {
 		fmt.Println("✅ Plugin loaded successfully")
 		
@@ -112,9 +116,47 @@ func main() {
 	metadataScrapers := manager.GetMetadataScrapers()
 	fmt.Printf("Metadata Scraper Plugins: %d\n", len(metadataScrapers))
 
-	// Shutdown
+	// Test scanner hook functionality (without starting the plugin)
+	if len(scannerHooks) > 0 {
+		fmt.Println("\nTesting scanner hook functionality...")
+		for _, hook := range scannerHooks {
+			fmt.Printf("Testing hook plugin: %s\n", hook.Info().ID)
+			
+			// Test OnMediaFileScanned
+			if err := hook.OnMediaFileScanned(123, "/test/file.mp3", map[string]interface{}{
+				"title":  "Test Song",
+				"artist": "Test Artist",
+				"album":  "Test Album",
+			}); err != nil {
+				fmt.Printf("❌ OnMediaFileScanned failed: %v\n", err)
+			} else {
+				fmt.Println("✅ OnMediaFileScanned test passed")
+			}
+		}
+	}
+
+	// Test metadata scraper functionality
+	if len(metadataScrapers) > 0 {
+		fmt.Println("\nTesting metadata scraper functionality...")
+		for _, scraper := range metadataScrapers {
+			fmt.Printf("Testing scraper plugin: %s\n", scraper.Info().ID)
+			
+			// Test CanHandle
+			canHandle := scraper.CanHandle("/test/file.mp3", "audio/mpeg")
+			fmt.Printf("Can handle MP3 files: %v\n", canHandle)
+			
+			// Test SupportedTypes
+			supportedTypes := scraper.SupportedTypes()
+			fmt.Printf("Supported types: %v\n", supportedTypes)
+		}
+	}
+
+	// Shutdown (this should complete quickly now)
 	fmt.Println("\nShutting down plugin manager...")
-	if err := manager.Shutdown(ctx); err != nil {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	
+	if err := manager.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Error during shutdown: %v", err)
 	}
 

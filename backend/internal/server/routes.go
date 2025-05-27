@@ -199,6 +199,26 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 			// Real-time scan progress endpoint
 			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
 		}
+		
+		// Plugin management routes
+		plugins := admin.Group("/plugins")
+		{
+			plugins.GET("/", handlers.GetPlugins)                         // GET /api/admin/plugins/
+			plugins.GET("/:id", handlers.GetPlugin)                       // GET /api/admin/plugins/:id
+			plugins.POST("/:id/enable", handlers.EnablePlugin)            // POST /api/admin/plugins/:id/enable
+			plugins.POST("/:id/disable", handlers.DisablePlugin)          // POST /api/admin/plugins/:id/disable
+			plugins.GET("/:id/health", handlers.GetPluginHealth)          // GET /api/admin/plugins/:id/health
+			plugins.GET("/:id/config", handlers.GetPluginConfig)          // GET /api/admin/plugins/:id/config
+			plugins.PUT("/:id/config", handlers.UpdatePluginConfig)       // PUT /api/admin/plugins/:id/config
+			plugins.POST("/:id/install", handlers.InstallPlugin)          // POST /api/admin/plugins/:id/install
+			plugins.DELETE("/:id", handlers.UninstallPlugin)              // DELETE /api/admin/plugins/:id
+			plugins.GET("/:id/events", handlers.GetPluginEvents)          // GET /api/admin/plugins/:id/events
+			plugins.GET("/events", handlers.GetAllPluginEvents)           // GET /api/admin/plugins/events
+			plugins.POST("/refresh", handlers.RefreshPlugins)             // POST /api/admin/plugins/refresh
+			plugins.GET("/:id/manifest", handlers.GetPluginManifest)      // GET /api/admin/plugins/:id/manifest
+			plugins.GET("/admin-pages", handlers.GetPluginAdminPages)     // GET /api/admin/plugins/admin-pages
+			plugins.GET("/ui-components", handlers.GetPluginUIComponents) // GET /api/admin/plugins/ui-components
+		}
 	}
 }
 
@@ -233,6 +253,26 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			
 			// Real-time scan progress endpoint
 			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
+		}
+		
+		// Plugin management routes
+		plugins := admin.Group("/plugins")
+		{
+			plugins.GET("/", handlers.GetPlugins)                         // GET /api/admin/plugins/
+			plugins.GET("/:id", handlers.GetPlugin)                       // GET /api/admin/plugins/:id
+			plugins.POST("/:id/enable", handlers.EnablePlugin)            // POST /api/admin/plugins/:id/enable
+			plugins.POST("/:id/disable", handlers.DisablePlugin)          // POST /api/admin/plugins/:id/disable
+			plugins.GET("/:id/health", handlers.GetPluginHealth)          // GET /api/admin/plugins/:id/health
+			plugins.GET("/:id/config", handlers.GetPluginConfig)          // GET /api/admin/plugins/:id/config
+			plugins.PUT("/:id/config", handlers.UpdatePluginConfig)       // PUT /api/admin/plugins/:id/config
+			plugins.POST("/:id/install", handlers.InstallPlugin)          // POST /api/admin/plugins/:id/install
+			plugins.DELETE("/:id", handlers.UninstallPlugin)              // DELETE /api/admin/plugins/:id
+			plugins.GET("/:id/events", handlers.GetPluginEvents)          // GET /api/admin/plugins/:id/events
+			plugins.GET("/events", handlers.GetAllPluginEvents)           // GET /api/admin/plugins/events
+			plugins.POST("/refresh", handlers.RefreshPlugins)             // POST /api/admin/plugins/refresh
+			plugins.GET("/:id/manifest", handlers.GetPluginManifest)      // GET /api/admin/plugins/:id/manifest
+			plugins.GET("/admin-pages", handlers.GetPluginAdminPages)     // GET /api/admin/plugins/admin-pages
+			plugins.GET("/ui-components", handlers.GetPluginUIComponents) // GET /api/admin/plugins/ui-components
 		}
 	}
 }

@@ -181,6 +181,20 @@ type Plugin interface {
 	Health() error
 }
 
+// DatabasePlugin interface for plugins that need to create their own database tables
+type DatabasePlugin interface {
+	Plugin
+	
+	// GetModels returns the database models that this plugin needs
+	GetModels() []interface{}
+	
+	// Migrate creates/updates the plugin's database tables
+	Migrate(db interface{}) error
+	
+	// Rollback removes the plugin's database tables (optional)
+	Rollback(db interface{}) error
+}
+
 // MetadataScraperPlugin interface for plugins that extract metadata
 type MetadataScraperPlugin interface {
 	Plugin
