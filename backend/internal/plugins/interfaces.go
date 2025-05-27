@@ -228,6 +228,20 @@ type ScannerPlugin interface {
 	ShouldProcess(filePath string, info PluginFileInfo) bool
 }
 
+// ScannerHookPlugin interface for plugins that want to hook into the scanner
+type ScannerHookPlugin interface {
+	Plugin
+	
+	// OnMediaFileScanned is called when a media file is scanned and processed
+	OnMediaFileScanned(mediaFileID uint, filePath string, metadata map[string]interface{}) error
+	
+	// OnScanStarted is called when a scan job starts
+	OnScanStarted(scanJobID uint, libraryID uint, libraryPath string) error
+	
+	// OnScanCompleted is called when a scan job completes
+	OnScanCompleted(scanJobID uint, libraryID uint, stats map[string]interface{}) error
+}
+
 // AnalyzerPlugin interface for file analysis
 type AnalyzerPlugin interface {
 	Plugin

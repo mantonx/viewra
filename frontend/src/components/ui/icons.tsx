@@ -36,7 +36,9 @@ export const {
   Signal,
   Zap,
   AlertTriangle,
+  Grid,
+  List,
 } = LucideIcons;
 
-// Re-export all icons if needed
-export * from 'lucide-react';
+// Note: We don't re-export all icons to avoid conflicts with other types
+// If you need additional icons, add them to the destructured export above

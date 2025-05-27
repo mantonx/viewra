@@ -792,14 +792,19 @@ const MediaLibraryManager = () => {
             const isScanning = scanJob?.status === 'running';
             const isPaused = scanJob?.status === 'paused';
             const isFailed = scanJob?.status === 'failed';
+            const isCompleted = scanJob?.status === 'completed';
             const isNerdPanelExpanded = expandedNerdPanels.has(library.id);
             const progressData = scanJob ? scanProgress.get(Number(scanJob.id)) : null;
 
             // Calculate progress percentage
-            const progressPercent =
-              scanJob && scanJob.files_found > 0
-                ? Math.round((scanJob.files_processed / scanJob.files_found) * 100)
-                : 0;
+            // Use the backend's progress field if available, otherwise calculate from files
+            const progressPercent = scanJob
+              ? scanJob.progress !== undefined && scanJob.progress !== null
+                ? scanJob.progress
+                : scanJob.files_found > 0
+                  ? Math.round((scanJob.files_processed / scanJob.files_found) * 100)
+                  : 0
+              : 0;
 
             return (
               <div
@@ -835,6 +840,11 @@ const MediaLibraryManager = () => {
                       {isFailed && (
                         <span className="px-2 py-1 bg-red-600 text-red-100 rounded text-xs font-medium">
                           FAILED
+                        </span>
+                      )}
+                      {isCompleted && (
+                        <span className="px-2 py-1 bg-green-600 text-green-100 rounded text-xs font-medium">
+                          COMPLETED
                         </span>
                       )}
                     </div>
@@ -943,7 +953,9 @@ const MediaLibraryManager = () => {
                             ? 'bg-red-500 shadow-red-500/20'
                             : isPaused
                               ? 'bg-amber-500 shadow-amber-500/20'
-                              : 'bg-gradient-to-r from-blue-500 to-blue-400'
+                              : isCompleted
+                                ? 'bg-green-500 shadow-green-500/20'
+                                : 'bg-gradient-to-r from-blue-500 to-blue-400'
                         } ${isScanning ? 'shadow-lg shadow-blue-500/30' : 'shadow-md'}`}
                         style={{
                           width: `${progressPercent}%`,

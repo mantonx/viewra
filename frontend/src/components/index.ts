@@ -1,35 +1,38 @@
-// UI Components
-export { default as Header } from './Header';
-export { default as IconButton } from './ui/IconButton';
-export * from './ui/icons';
+// Re-export all components from organized subdirectories
 
-// Audio Components
-export { default as AudioPlayer } from './audio/AudioPlayer';
-export { default as AudioBadge } from './audio/AudioBadge';
+// Layout Components
+export { Header } from './layout';
 
 // Media Components
-export { default as MediaCard } from './MediaCard';
-export { default as MediaLibraryManager } from './media/MediaLibraryManager';
-// MediaUpload component removed as app won't support uploads
-export { default as MusicLibrary } from './MusicLibrary';
-export { default as ViewControls } from './ViewControls';
+export { MediaLibraryManager, MusicLibrary, MediaCard, ViewControls } from './media';
 
-// Plugin Components
-export { default as PluginManager } from './PluginManager';
-export { default as PluginAdminPages } from './PluginAdminPages';
-export { default as PluginAdminPageCards } from './PluginAdminPageCards';
-export { default as PluginUIComponents } from './PluginUIComponents';
-export { default as PluginEvents } from './PluginEvents';
-export { default as PluginPermissions } from './PluginPermissions';
-export { default as PluginInstaller } from './PluginInstaller';
-export { default as PluginConfigEditor } from './PluginConfigEditor';
-export { default as PluginDependencies } from './PluginDependencies';
+// Audio Components
+export { AudioPlayer, AudioBadge, AlbumArtwork } from './audio';
 
 // System Components
-export { default as SystemInfo } from './SystemInfo';
-export { default as SystemEvents } from './SystemEvents';
-export { default as ScanPerformanceManager } from './ScanPerformanceManager';
-export { default as ApiTester } from './ApiTester';
+export { SystemInfo, SystemEvents, ApiTester } from './system';
+
+// Plugin Components
+export {
+  PluginManager,
+  PluginAdminPageCards,
+  PluginAdminPages,
+  PluginConfigEditor,
+  PluginDependencies,
+  PluginEvents,
+  PluginInstaller,
+  PluginPermissions,
+  PluginUIComponents,
+} from './plugins';
 
 // Admin Components
-export { default as AdminDashboard } from './AdminDashboard';
+export { AdminDashboard } from './admin';
+
+// UI Components
+export { default as IconButton } from './ui/IconButton';
+export { default as ImageModal } from './ui/ImageModal';
+export { default as Modal } from './ui/Modal';
+export { default as AnimatedPlayPause } from './ui/AnimatedPlayPause';
+
+// Icons (re-export from ui)
+export * from './ui/icons';

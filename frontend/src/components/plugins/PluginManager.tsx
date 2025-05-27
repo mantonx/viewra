@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PluginInstaller from './PluginInstaller';
 import PluginDependencies from './PluginDependencies';
 import PluginConfigEditor from './PluginConfigEditor';
-import type { Plugin, PluginResponse } from '../types/plugin.types';
+import type { Plugin, PluginResponse } from '@/types/plugin.types';
 
 const PluginManager: React.FC = () => {
   const [plugins, setPlugins] = useState<Plugin[]>([]);

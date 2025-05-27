@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { PluginPermission, PermissionsResponse } from '../types/plugin.types';
+import type { PluginPermission, PermissionsResponse } from '@/types/plugin.types';
 
 const PluginPermissions: React.FC<{ pluginId?: string }> = ({ pluginId }) => {
   const [permissions, setPermissions] = useState<PluginPermission[]>([]);

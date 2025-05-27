@@ -11,7 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 )
 
-// MusicFileExtensions defines supported music file formats
+// MusicFileExtensions defines supported music file formats (audio only)
 var MusicFileExtensions = map[string]bool{
 	".mp3":  true,
 	".flac": true,
@@ -24,17 +24,49 @@ var MusicFileExtensions = map[string]bool{
 	".ape":  true,
 	".mpc":  true,
 	".wv":   true,
+	".opus": true,
+	".aiff": true,
 }
 
-// IsMusicFile checks if a file is a supported music format
+// MediaLibraryExtensions defines supported media file formats for music libraries (audio + video)
+var MediaLibraryExtensions = map[string]bool{
+	// Audio formats
+	".mp3":  true,
+	".flac": true,
+	".m4a":  true,
+	".aac":  true,
+	".ogg":  true,
+	".wav":  true,
+	".wma":  true,
+	".ape":  true,
+	".mpc":  true,
+	".wv":   true,
+	".opus": true,
+	".aiff": true,
+	
+	// Video formats (for music videos, concerts, etc.)
+	".mp4":  true,
+	".mkv":  true,
+	".avi":  true,
+	".mov":  true,
+	".wmv":  true,
+	".flv":  true,
+	".webm": true,
+	".m4v":  true,
+	".3gp":  true,
+	".ogv":  true,
+}
+
+// IsMusicFile checks if a file is a supported music format (audio only)
 func IsMusicFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
-	result := MusicFileExtensions[ext]
-	
-	// Enhanced debug info - log all checks
-	fmt.Printf("[DEBUG][IsMusicFile] Path=%s, Ext=%s, Result=%t\n", filename, ext, result)
-	
-	return result
+	return MusicFileExtensions[ext]
+}
+
+// IsMediaLibraryFile checks if a file is supported in a media library (audio + video)
+func IsMediaLibraryFile(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	return MediaLibraryExtensions[ext]
 }
 
 // ExtractMusicMetadata extracts metadata from a music file and saves artwork

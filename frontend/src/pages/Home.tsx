@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAtom } from 'jotai';
 import { apiStatusAtom } from '../store/atoms';
-import ApiTester from '../components/ApiTester';
-import SystemInfo from '../components/SystemInfo';
-import MediaLibraryManager from '../components/media/MediaLibraryManager';
-import MusicLibrary from '../components/MusicLibrary';
-import ScanPerformanceManager from '../components/ScanPerformanceManager';
-import PluginAdminPageCards from '../components/PluginAdminPageCards';
+import {
+  ApiTester,
+  SystemInfo,
+  MediaLibraryManager,
+  MusicLibrary,
+  PluginAdminPageCards,
+} from '../components';
 import type { User } from '../types/system.types';
 
 const Home = () => {
@@ -79,7 +80,6 @@ const Home = () => {
       {/* MediaUpload component removed as app won't support uploads */}
       <MediaLibraryManager />
       <MusicLibrary />
-      <ScanPerformanceManager />
       <PluginAdminPageCards />
     </div>
   );

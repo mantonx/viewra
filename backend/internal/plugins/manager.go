@@ -21,7 +21,14 @@ import (
 
 // getDB is a helper function to get the GORM DB instance from the interface
 func (m *Manager) getDB() *gorm.DB {
-	return m.db.GetDB().(*gorm.DB)
+	if m.db == nil {
+		return nil
+	}
+	dbInterface := m.db.GetDB()
+	if dbInterface == nil {
+		return nil
+	}
+	return dbInterface.(*gorm.DB)
 }
 
 // Manager handles plugin lifecycle and management
@@ -33,6 +40,7 @@ type Manager struct {
 	adminPagePlugins  []AdminPagePlugin
 	uiComponentPlugins []UIComponentPlugin
 	scannerPlugins    []ScannerPlugin
+	scannerHookPlugins []ScannerHookPlugin
 	analyzerPlugins   []AnalyzerPlugin
 	notificationPlugins []NotificationPlugin
 	hooks             map[string][]HookHandler
@@ -69,6 +77,7 @@ func NewManager(db Database, pluginDir string, logger PluginLogger) *Manager {
 		adminPagePlugins:    make([]AdminPagePlugin, 0),
 		uiComponentPlugins:  make([]UIComponentPlugin, 0),
 		scannerPlugins:      make([]ScannerPlugin, 0),
+		scannerHookPlugins:  make([]ScannerHookPlugin, 0),
 		analyzerPlugins:     make([]AnalyzerPlugin, 0),
 		notificationPlugins: make([]NotificationPlugin, 0),
 		hooks:               make(map[string][]HookHandler),
@@ -155,17 +164,20 @@ func (m *Manager) DiscoverPlugins(ctx context.Context) error {
 			
 			// Check if plugin exists in database
 			var dbPlugin database.Plugin
-			if err := m.getDB().Where("plugin_id = ?", manifest.ID).First(&dbPlugin).Error; err == nil {
-				// Plugin exists in database, update info
-				info.Status = PluginStatus(dbPlugin.Status)
-				info.CreatedAt = dbPlugin.CreatedAt
-				info.UpdatedAt = dbPlugin.UpdatedAt
-				
-				// Parse config if exists
-				if dbPlugin.ConfigData != "" {
-					var config map[string]interface{}
-					if err := yaml.Unmarshal([]byte(dbPlugin.ConfigData), &config); err == nil {
-						info.Config = config
+			db := m.getDB()
+			if db != nil {
+				if err := db.Where("plugin_id = ?", manifest.ID).First(&dbPlugin).Error; err == nil {
+					// Plugin exists in database, update info
+					info.Status = PluginStatus(dbPlugin.Status)
+					info.CreatedAt = dbPlugin.CreatedAt
+					info.UpdatedAt = dbPlugin.UpdatedAt
+					
+					// Parse config if exists
+					if dbPlugin.ConfigData != "" {
+						var config map[string]interface{}
+						if err := yaml.Unmarshal([]byte(dbPlugin.ConfigData), &config); err == nil {
+							info.Config = config
+						}
 					}
 				}
 			}
@@ -183,8 +195,15 @@ func (m *Manager) DiscoverPlugins(ctx context.Context) error {
 
 // LoadEnabledPlugins loads and starts all enabled plugins
 func (m *Manager) LoadEnabledPlugins(ctx context.Context) error {
+	db := m.getDB()
+	if db == nil {
+		// No database available, skip loading enabled plugins
+		m.logger.Info("No database available, skipping enabled plugins loading")
+		return nil
+	}
+	
 	var enabledPlugins []database.Plugin
-	if err := m.getDB().Where("status = ?", "enabled").Find(&enabledPlugins).Error; err != nil {
+	if err := db.Where("status = ?", "enabled").Find(&enabledPlugins).Error; err != nil {
 		return fmt.Errorf("failed to query enabled plugins: %w", err)
 	}
 	
@@ -192,7 +211,7 @@ func (m *Manager) LoadEnabledPlugins(ctx context.Context) error {
 		if err := m.LoadPlugin(ctx, dbPlugin.PluginID); err != nil {
 			m.logger.Error("Failed to load enabled plugin", "plugin", dbPlugin.PluginID, "error", err)
 			// Update status to error in database
-			m.getDB().Model(&dbPlugin).Update("status", "error")
+			db.Model(&dbPlugin).Update("status", "error")
 			continue
 		}
 	}
@@ -274,11 +293,14 @@ func (m *Manager) LoadPlugin(ctx context.Context, pluginID string) error {
 	
 	// Update database
 	var dbPlugin database.Plugin
-	if err := m.getDB().Where("plugin_id = ?", pluginID).First(&dbPlugin).Error; err == nil {
-		m.getDB().Model(&dbPlugin).Updates(map[string]interface{}{
-			"status":     "enabled",
-			"enabled_at": time.Now(),
-		})
+	db := m.getDB()
+	if db != nil {
+		if err := db.Where("plugin_id = ?", pluginID).First(&dbPlugin).Error; err == nil {
+			db.Model(&dbPlugin).Updates(map[string]interface{}{
+				"status":     "enabled",
+				"enabled_at": time.Now(),
+			})
+		}
 	}
 	
 	// Emit event
@@ -322,8 +344,11 @@ func (m *Manager) UnloadPlugin(ctx context.Context, pluginID string) error {
 	
 	// Update database
 	var dbPlugin database.Plugin
-	if err := m.getDB().Where("plugin_id = ?", pluginID).First(&dbPlugin).Error; err == nil {
-		m.getDB().Model(&dbPlugin).Update("status", "disabled")
+	db := m.getDB()
+	if db != nil {
+		if err := db.Where("plugin_id = ?", pluginID).First(&dbPlugin).Error; err == nil {
+			db.Model(&dbPlugin).Update("status", "disabled")
+		}
 	}
 	
 	// Emit event
@@ -406,6 +431,14 @@ func (m *Manager) GetUIComponentPlugins() []UIComponentPlugin {
 	defer m.mu.RUnlock()
 	
 	return append([]UIComponentPlugin(nil), m.uiComponentPlugins...)
+}
+
+// GetScannerHookPlugins returns all loaded scanner hook plugins
+func (m *Manager) GetScannerHookPlugins() []ScannerHookPlugin {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	return append([]ScannerHookPlugin(nil), m.scannerHookPlugins...)
 }
 
 // RegisterHook registers a hook handler
@@ -491,6 +524,9 @@ func (m *Manager) addToTypeSpecificList(plugin Plugin) {
 	if scanner, ok := plugin.(ScannerPlugin); ok {
 		m.scannerPlugins = append(m.scannerPlugins, scanner)
 	}
+	if scannerHook, ok := plugin.(ScannerHookPlugin); ok {
+		m.scannerHookPlugins = append(m.scannerHookPlugins, scannerHook)
+	}
 	if analyzer, ok := plugin.(AnalyzerPlugin); ok {
 		m.analyzerPlugins = append(m.analyzerPlugins, analyzer)
 	}
@@ -530,6 +566,14 @@ func (m *Manager) removeFromTypeSpecificList(plugin Plugin) {
 	for i, scanner := range m.scannerPlugins {
 		if scanner.Info().ID == pluginID {
 			m.scannerPlugins = append(m.scannerPlugins[:i], m.scannerPlugins[i+1:]...)
+			break
+		}
+	}
+	
+	// Remove from scanner hook plugins
+	for i, scannerHook := range m.scannerHookPlugins {
+		if scannerHook.Info().ID == pluginID {
+			m.scannerHookPlugins = append(m.scannerHookPlugins[:i], m.scannerHookPlugins[i+1:]...)
 			break
 		}
 	}
@@ -636,9 +680,35 @@ func (m *Manager) storeEvent(event PluginEventData) {
 
 // Plugin factory methods (to be implemented based on plugin types)
 func (m *Manager) createMetadataScraperPlugin(info *PluginInfo) (Plugin, error) {
-	// For now, return a basic implementation
+	// Check for specific Go-based plugins
+	if info.ID == "musicbrainz_enricher" {
+		return m.createMusicBrainzEnricherPlugin(info)
+	}
+	
+	// For other plugins, return a basic implementation
 	// In a real implementation, this would load the actual plugin executable/script
 	return NewBasicPlugin(info), nil
+}
+
+// createMusicBrainzEnricherPlugin creates the MusicBrainz enricher plugin
+func (m *Manager) createMusicBrainzEnricherPlugin(info *PluginInfo) (Plugin, error) {
+	// This is a special case for our Go-based MusicBrainz enricher plugin
+	// We need to import and instantiate it directly
+	
+	// For now, we'll create a wrapper that loads the plugin
+	// In a production system, this could use Go's plugin system or direct imports
+	
+	// Create a basic plugin that will be enhanced with the actual implementation
+	basicPlugin := NewBasicPlugin(info)
+	
+	// TODO: Load the actual MusicBrainz enricher plugin
+	// This would involve:
+	// 1. Reading the plugin configuration from info.Config
+	// 2. Creating the plugin instance with the database connection
+	// 3. Initializing the plugin
+	
+	m.logger.Info("Created MusicBrainz enricher plugin", "plugin", info.ID)
+	return basicPlugin, nil
 }
 
 func (m *Manager) createAdminPagePlugin(info *PluginInfo) (Plugin, error) {

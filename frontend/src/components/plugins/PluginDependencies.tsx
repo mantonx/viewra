@@ -1,5 +1,5 @@
 import React from 'react';
-import type { PluginDependenciesProps } from '../types/plugin.types';
+import type { PluginDependenciesProps } from '@/types/plugin.types';
 
 const PluginDependencies: React.FC<PluginDependenciesProps> = ({
   viewraDependency,

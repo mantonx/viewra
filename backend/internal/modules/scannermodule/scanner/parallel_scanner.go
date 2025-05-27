@@ -58,6 +58,7 @@ type ParallelFileScanner struct {
 	filesProcessed   atomic.Int64
 	bytesProcessed   atomic.Int64
 	errorsCount      atomic.Int64
+	filesSkipped     atomic.Int64  // Files that couldn't be processed
 	startTime        time.Time
 	
 	// Cache for improved performance
@@ -496,21 +497,39 @@ func (ps *ParallelFileScanner) updateFinalStatus() {
 	filesProcessed := ps.filesProcessed.Load()
 	bytesProcessed := ps.bytesProcessed.Load()
 	errorsCount := ps.errorsCount.Load()
+	filesSkipped := ps.filesSkipped.Load()
+	
+	// Calculate completion statistics
+	totalFilesFound := int64(ps.scanJob.FilesFound)
+	filesNotProcessed := totalFilesFound - filesProcessed
+	
+	// Log comprehensive scan summary
+	fmt.Printf("\n=== SCAN COMPLETED ===\n")
+	fmt.Printf("Job ID: %d\n", ps.jobID)
+	fmt.Printf("Files found: %d\n", totalFilesFound)
+	fmt.Printf("Files processed: %d\n", filesProcessed)
+	fmt.Printf("Files skipped (metadata errors): %d\n", filesSkipped)
+	fmt.Printf("Files not processed: %d\n", filesNotProcessed)
+	fmt.Printf("Processing errors: %d\n", errorsCount)
+	fmt.Printf("Data processed: %.2f GB\n", float64(bytesProcessed)/(1024*1024*1024))
+	fmt.Printf("Success rate: %.1f%%\n", (float64(filesProcessed)/float64(totalFilesFound))*100)
+	fmt.Printf("======================\n\n")
 	
 	// Update scan job with final stats
 	now := time.Now()
 	ps.scanJob.FilesProcessed = int(filesProcessed)
 	ps.scanJob.BytesProcessed = bytesProcessed
-	ps.scanJob.Progress = 100
+	ps.scanJob.Progress = 100  // Always mark as 100% when scan completes
 	ps.scanJob.CompletedAt = &now
 	ps.scanJob.UpdatedAt = now
 	
-	// Set status based on whether there were errors
-	if errorsCount > 0 {
-		ps.scanJob.Status = "completed_with_errors"
-		ps.scanJob.ErrorMessage = fmt.Sprintf("Completed with %d errors", errorsCount)
+	// Always mark as completed, but include summary in error message if there were issues
+	ps.scanJob.Status = "completed"
+	
+	if filesNotProcessed > 0 || errorsCount > 0 || filesSkipped > 0 {
+		ps.scanJob.ErrorMessage = fmt.Sprintf("Processed %d/%d files. Skipped: %d (metadata errors), Errors: %d", 
+			filesProcessed, totalFilesFound, filesSkipped, errorsCount)
 	} else {
-		ps.scanJob.Status = "completed"
 		ps.scanJob.ErrorMessage = ""
 	}
 	
@@ -596,8 +615,9 @@ func (ps *ParallelFileScanner) countFilesToScan(libraryPath string) (int, error)
 			return nil
 		}
 		
-		// Only count media files
-		if utils.IsMediaFile(path) {
+		// Only count files that will actually be processed
+		// For media libraries, include both audio and video files
+		if metadata.IsMediaLibraryFile(path) {
 			totalCount.Add(1)
 			
 			// Log progress periodically
@@ -749,7 +769,8 @@ func (ps *ParallelFileScanner) processFile(work scanWork) *scanResult {
 	ps.fileCache.mu.RUnlock()
 	
 	if exists && cachedFile.Size == work.info.Size() {
-		// File hasn't changed, skip processing
+		// File hasn't changed, skip processing but still count it
+		// Note: We count files here and return early, so we don't double-count later
 		ps.filesProcessed.Add(1)
 		ps.bytesProcessed.Add(work.info.Size())
 		return result
@@ -778,7 +799,7 @@ func (ps *ParallelFileScanner) processFile(work scanWork) *scanResult {
 	
 	result.mediaFile = mediaFile
 	
-	// Extract metadata for music files
+	// Extract metadata for music files (audio files only)
 	isMusicFile := metadata.IsMusicFile(work.path)
 	fmt.Printf("[DEBUG][processFile] Processing %s, isMusicFile=%t\n", work.path, isMusicFile)
 	if isMusicFile {
@@ -792,6 +813,8 @@ func (ps *ParallelFileScanner) processFile(work scanWork) *scanResult {
 			musicMeta, err := metadata.ExtractMusicMetadata(work.path, mediaFile)
 			if err != nil {
 				fmt.Printf("[ERROR][processFile] Failed to extract metadata from %s: %v\n", work.path, err)
+				ps.filesSkipped.Add(1)
+				// Still save the media file record, just without metadata
 			} else {
 				result.musicMeta = musicMeta
 				fmt.Printf("[DEBUG][processFile] Successfully extracted metadata for %s\n", work.path)
@@ -805,9 +828,12 @@ func (ps *ParallelFileScanner) processFile(work scanWork) *scanResult {
 			fmt.Printf("[DEBUG][processFile] Using cached metadata for %s\n", work.path)
 			result.musicMeta = cachedMeta
 		}
+	} else {
+		// Video files - just save the media file record without music metadata
+		fmt.Printf("[DEBUG][processFile] Video file detected: %s\n", work.path)
 	}
 	
-	// Update metrics
+	// Update metrics (only for files that weren't found in cache)
 	ps.filesProcessed.Add(1)
 	ps.bytesProcessed.Add(work.info.Size())
 	
@@ -890,10 +916,11 @@ func (ps *ParallelFileScanner) updateProgress() {
 	filesProcessed := ps.filesProcessed.Load()
 	bytesProcessed := ps.bytesProcessed.Load()
 	errorsCount := ps.errorsCount.Load()
+	filesSkipped := ps.filesSkipped.Load()
 	
 	// Debug logging to help track progress updates
-	fmt.Printf("DEBUG: updateProgress called - files: %d, bytes: %d, queue: %d, active workers: %d\n", 
-		filesProcessed, bytesProcessed, len(ps.workQueue), ps.activeWorkers.Load())
+	fmt.Printf("DEBUG: updateProgress called - files: %d, bytes: %d, skipped: %d, errors: %d, queue: %d, active workers: %d\n", 
+		filesProcessed, bytesProcessed, filesSkipped, errorsCount, len(ps.workQueue), ps.activeWorkers.Load())
 	
 	// Update progress estimator
 	ps.progressEstimator.Update(filesProcessed, bytesProcessed)
@@ -1352,7 +1379,8 @@ func (ps *ParallelFileScanner) processDirWork(work dirWork) {
 		} else {
 			fmt.Printf("DEBUG: Found file: %s\n", fullPath)
 			// Quick file type check before getting full file info
-			if !utils.IsMediaFile(fullPath) {
+			// Use metadata.IsMediaLibraryFile for consistency with countFilesToScan
+			if !metadata.IsMediaLibraryFile(fullPath) {
 				fmt.Printf("DEBUG: Skipping non-media file: %s\n", fullPath)
 				continue
 			}

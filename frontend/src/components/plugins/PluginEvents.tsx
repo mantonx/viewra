@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { PluginEvent, PluginEventsResponse } from '../types/plugin.types';
+import type { PluginEvent, PluginEventsResponse } from '@/types/plugin.types';
 
 const PluginEvents: React.FC = () => {
   const [events, setEvents] = useState<PluginEvent[]>([]);

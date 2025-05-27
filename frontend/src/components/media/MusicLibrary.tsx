@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MediaCard from './MediaCard';
 import AudioPlayer from '@/components/audio/AudioPlayer';
-import type { MusicFile, GroupedMusicFile, SortField, SortDirection } from '../types/music.types';
-import type { ApiResponse } from '../types/api.types';
+import type { MusicFile, GroupedMusicFile, SortField, SortDirection } from '@/types/music.types';
+import type { ApiResponse } from '@/types/api.types';
 
 const MusicLibrary = () => {
   const [musicFiles, setMusicFiles] = useState<MusicFile[]>([]);
