@@ -24,6 +24,8 @@ type MockImplementation struct {
 	ScannerHookFunc        func() ScannerHookService
 	DatabaseFunc           func() DatabaseService
 	AdminPageFunc          func() AdminPageService
+	APIRegistrationFunc    func() APIRegistrationService
+	SearchFunc             func() SearchService
 }
 
 func (m *MockImplementation) Initialize(ctx *proto.PluginContext) error {
@@ -89,6 +91,20 @@ func (m *MockImplementation) DatabaseService() DatabaseService {
 func (m *MockImplementation) AdminPageService() AdminPageService {
 	if m.AdminPageFunc != nil {
 		return m.AdminPageFunc()
+	}
+	return nil
+}
+
+func (m *MockImplementation) APIRegistrationService() APIRegistrationService {
+	if m.APIRegistrationFunc != nil {
+		return m.APIRegistrationFunc()
+	}
+	return nil
+}
+
+func (m *MockImplementation) SearchService() SearchService {
+	if m.SearchFunc != nil {
+		return m.SearchFunc()
 	}
 	return nil
 }

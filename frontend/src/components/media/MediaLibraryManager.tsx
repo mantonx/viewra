@@ -789,22 +789,33 @@ const MediaLibraryManager = () => {
         ) : (
           libraries.map((library) => {
             const scanJob = getScanJobForLibrary(library.id);
-            const isScanning = scanJob?.status === 'running';
-            const isPaused = scanJob?.status === 'paused';
-            const isFailed = scanJob?.status === 'failed';
-            const isCompleted = scanJob?.status === 'completed';
-            const isNerdPanelExpanded = expandedNerdPanels.has(library.id);
-            const progressData = scanJob ? scanProgress.get(Number(scanJob.id)) : null;
 
-            // Calculate progress percentage
+            // Calculate progress percentage first since status variables depend on it
             // Use the backend's progress field if available, otherwise calculate from files
             const progressPercent = scanJob
               ? scanJob.progress !== undefined && scanJob.progress !== null
-                ? scanJob.progress
+                ? Math.min(scanJob.progress, 100) // Cap at 100%
                 : scanJob.files_found > 0
-                  ? Math.round((scanJob.files_processed / scanJob.files_found) * 100)
+                  ? Math.min(Math.round((scanJob.files_processed / scanJob.files_found) * 100), 100)
                   : 0
               : 0;
+
+            const isScanning = scanJob?.status === 'running' && progressPercent < 100;
+            const isPaused = scanJob?.status === 'paused';
+            const isFailed = scanJob?.status === 'failed';
+            const isCompleted = scanJob?.status === 'completed' || progressPercent >= 100;
+            const isNerdPanelExpanded = expandedNerdPanels.has(library.id);
+            const progressData = scanJob ? scanProgress.get(Number(scanJob.id)) : null;
+
+            // DEBUGGING: Log job status for specific library or all
+            // Replace YOUR_PROBLEMATIC_LIBRARY_ID with the actual ID if known, otherwise logs for all
+            // if (library.id === YOUR_PROBLEMATIC_LIBRARY_ID) {
+            /* console.log(
+              `[Debug] LibID: ${library.id}, JobID: ${scanJob?.id}, Status: ${scanJob?.status}, isCompleted: ${isCompleted}, Files: ${scanJob?.files_processed}/${scanJob?.files_found}, Progress: ${scanJob?.progress}%`
+            );
+            */
+            // console.log('Full scanJob for LibID ' + library.id + ':', JSON.stringify(scanJob));
+            // }
 
             return (
               <div
@@ -908,7 +919,11 @@ const MediaLibraryManager = () => {
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-white">
                           {scanJob.files_processed.toLocaleString()} /{' '}
-                          {scanJob.files_found.toLocaleString()} files
+                          {(isCompleted && scanJob.files_processed > scanJob.files_found
+                            ? scanJob.files_processed
+                            : scanJob.files_found
+                          ).toLocaleString()}{' '}
+                          files
                         </span>
                         <span className="text-xs text-slate-300">({progressPercent}%)</span>
                       </div>

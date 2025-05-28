@@ -44,7 +44,7 @@ func TestFileCountingNoDuplicates(t *testing.T) {
 	}
 
 	// Create test scanner (pass nil for eventBus since we're just testing file counting)
-	scanner := NewParallelFileScanner(db, scanJob.ID, nil)
+	scanner := NewParallelFileScanner(db, scanJob.ID, nil, nil)
 
 	// Create test files in cache (simulating existing files)
 	testFile1 := &database.MediaFile{

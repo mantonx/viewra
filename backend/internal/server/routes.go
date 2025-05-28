@@ -24,6 +24,12 @@ func setupRoutesWithEventHandlers(r *gin.Engine) {
 		api.POST("/dev/load-test-music", handlers.LoadTestMusicData)
 		apiroutes.Register(api.BasePath()+"/dev/load-test-music", "POST", "Load test music data (development only).")
 		
+		// Plugin routes - handle all /api/plugins/* requests
+		plugins := api.Group("/plugins")
+		{
+			plugins.Any("/*path", handlers.HandlePluginRoute)
+		}
+		
 		// Event system routes
 		// Ensure systemEventBus is checked before using, or handlers are robust to nil
 		if systemEventBus != nil {
@@ -179,6 +185,8 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 		{
 			scanner.GET("/stats", handlers.GetScannerStats)
 			apiroutes.Register(scanner.BasePath()+"/stats", "GET", "Get scanner statistics.")
+			scanner.GET("/library-stats", handlers.GetAllLibraryStats)
+			apiroutes.Register(scanner.BasePath()+"/library-stats", "GET", "Get statistics for all libraries.")
 			scanner.GET("/status", handlers.GetScannerStatus)
 			apiroutes.Register(scanner.BasePath()+"/status", "GET", "Get current scanner status.")
 			scanner.GET("/current-jobs", handlers.GetCurrentJobs)
@@ -217,6 +225,10 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(pluginsGR.BasePath()+"/admin-pages", "GET", "List admin pages provided by plugins.")
 			pluginsGR.GET("/ui-components", handlers.GetPluginUIComponents)
 			apiroutes.Register(pluginsGR.BasePath()+"/ui-components", "GET", "List UI components provided by plugins.")
+			pluginsGR.POST("/:id/enable", handlers.EnablePlugin)
+			apiroutes.Register(pluginsGR.BasePath()+"/:id/enable", "POST", "Enable a plugin.")
+			pluginsGR.POST("/:id/disable", handlers.DisablePlugin)
+			apiroutes.Register(pluginsGR.BasePath()+"/:id/disable", "POST", "Disable a plugin.")
 			pluginsGR.POST("/:id/install", handlers.InstallPlugin)
 			apiroutes.Register(pluginsGR.BasePath()+"/:id/install", "POST", "Install a plugin.")
 			pluginsGR.DELETE("/:id", handlers.UninstallPlugin)

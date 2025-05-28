@@ -48,6 +48,11 @@ func (p *GRPCPlugin) GRPCServer(broker *goplugin.GRPCBroker, s *grpc.Server) err
 		proto.RegisterAPIRegistrationServiceServer(s, &APIRegistrationServer{Impl: apiRegService})
 	}
 	
+	// Register SearchService if implemented
+	if searchService := p.Impl.SearchService(); searchService != nil {
+		proto.RegisterSearchServiceServer(s, &SearchServer{Impl: searchService})
+	}
+	
 	return nil
 }
 
@@ -60,6 +65,7 @@ func (p *GRPCPlugin) GRPCClient(ctx context.Context, broker *goplugin.GRPCBroker
 		DatabaseServiceClient:        proto.NewDatabaseServiceClient(c),
 		AdminPageServiceClient:       proto.NewAdminPageServiceClient(c),
 		APIRegistrationServiceClient: proto.NewAPIRegistrationServiceClient(c),
+		SearchServiceClient:          proto.NewSearchServiceClient(c),
 	}, nil
 }
 
@@ -71,6 +77,7 @@ type GRPCClient struct {
 	proto.DatabaseServiceClient
 	proto.AdminPageServiceClient
 	proto.APIRegistrationServiceClient
+	proto.SearchServiceClient
 }
 
 // Server implementations
@@ -280,4 +287,40 @@ func (m *APIRegistrationServiceGRPCClient) GetRegisteredRoutes(ctx context.Conte
 		return nil, err
 	}
 	return resp.Routes, nil
+}
+
+// SearchServer implements the search service
+type SearchServer struct {
+	proto.UnimplementedSearchServiceServer
+	Impl SearchService
+}
+
+func (s *SearchServer) Search(ctx context.Context, req *proto.SearchRequest) (*proto.SearchResponse, error) {
+	results, totalCount, hasMore, err := s.Impl.Search(ctx, req.Query, req.Limit, req.Offset)
+	if err != nil {
+		return &proto.SearchResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+	
+	return &proto.SearchResponse{
+		Success:    true,
+		Results:    results,
+		TotalCount: totalCount,
+		HasMore:    hasMore,
+	}, nil
+}
+
+func (s *SearchServer) GetSearchCapabilities(ctx context.Context, req *proto.GetSearchCapabilitiesRequest) (*proto.GetSearchCapabilitiesResponse, error) {
+	supportedFields, supportsPagination, maxResults, err := s.Impl.GetSearchCapabilities(ctx)
+	if err != nil {
+		return &proto.GetSearchCapabilitiesResponse{}, err
+	}
+	
+	return &proto.GetSearchCapabilitiesResponse{
+		SupportedFields:    supportedFields,
+		SupportsPagination: supportsPagination,
+		MaxResults:         maxResults,
+	}, nil
 } 

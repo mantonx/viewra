@@ -17,6 +17,7 @@ import (
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/server/handlers"
 
@@ -130,9 +131,9 @@ func initializeModules() error {
 
 // connectPluginManagerToModules connects the plugin manager to modules that need it
 func connectPluginManagerToModules() error {
-	// Get the media module and connect the plugin manager
 	modules := modulemanager.ListModules()
 	for _, module := range modules {
+		// Connect to media module
 		if module.ID() == "system.media" {
 			if mediaModule, ok := module.(*mediamodule.Module); ok {
 				metadataManager := mediaModule.GetMetadataManager()
@@ -141,7 +142,16 @@ func connectPluginManagerToModules() error {
 					log.Printf("✅ Connected plugin manager to media module metadata manager")
 				}
 			}
-			break
+		}
+		
+		// Connect to scanner module
+		if module.ID() == "system.scanner" {
+			if scannerModule, ok := module.(*scannermodule.Module); ok {
+				if pluginManager != nil {
+					scannerModule.SetPluginManager(pluginManager)
+					log.Printf("✅ Connected plugin manager to scanner module")
+				}
+			}
 		}
 	}
 	return nil
@@ -304,7 +314,12 @@ func (l *eventLogger) Debug(msg string, args ...interface{}) { log.Printf("[EVEN
 
 // GetPluginDirectory returns the configured plugin directory
 func GetPluginDirectory() string {
-	// TODO: Make this configurable via environment variable or config file
+	// Check environment variable first
+	if pluginDir := os.Getenv("PLUGIN_DIR"); pluginDir != "" {
+		return pluginDir
+	}
+	
+	// TODO: Make this configurable via config file
 	defaultDir := filepath.Join(".", "backend", "data", "plugins") // Adjusted default
 	exePath, err := os.Executable()
 	if err == nil {

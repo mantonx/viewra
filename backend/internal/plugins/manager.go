@@ -219,6 +219,9 @@ func (m *manager) loadPluginConfig(configPath string) error {
 	m.plugins[config.ID] = plugin
 	m.mu.Unlock()
 	
+	// Register plugin in database if not already registered
+	m.registerPluginInDatabase(plugin)
+	
 	m.logger.Info("discovered plugin", 
 		"id", config.ID,
 		"name", config.Name,
@@ -325,6 +328,9 @@ func (m *manager) LoadPlugin(ctx context.Context, pluginID string) error {
 		m.logger.Info("Plugin does not implement APIRegistrationService or client is nil", "plugin_id", pluginID)
 	}
 
+	// Register plugin in service registries for all services it implements
+	m.registerPlugin(plugin)
+
 	m.plugins[pluginID] = plugin
 	
 	m.logger.Info("plugin loaded successfully", "plugin", pluginID)
@@ -370,6 +376,8 @@ func (m *manager) UnloadPlugin(ctx context.Context, pluginID string) error {
 	plugin.ScannerHookService = nil
 	plugin.DatabaseService = nil
 	plugin.AdminPageService = nil
+	plugin.APIRegistrationService = nil
+	plugin.SearchService = nil
 	
 	// Unregister from type-specific registries
 	m.unregisterPlugin(plugin)
@@ -430,12 +438,26 @@ func (m *manager) GetMetadataScrapers() []proto.MetadataScraperServiceClient {
 func (m *manager) GetScannerHooks() []proto.ScannerHookServiceClient {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	
+	// Debug logging
+	m.logger.Debug("GetScannerHooks called", "registry_count", len(m.registry.ScannerHooks), "plugins_count", len(m.plugins))
+	for _, pluginID := range m.registry.ScannerHooks {
+		m.logger.Debug("Checking scanner hook plugin", "plugin_id", pluginID)
+		if plugin, exists := m.plugins[pluginID]; exists {
+			m.logger.Debug("Plugin found", "plugin_id", pluginID, "running", plugin.Running, "has_scanner_service", plugin.ScannerHookService != nil)
+		} else {
+			m.logger.Debug("Plugin not found in plugins map", "plugin_id", pluginID)
+		}
+	}
+	
 	clients := make([]proto.ScannerHookServiceClient, 0, len(m.registry.ScannerHooks))
 	for _, pluginID := range m.registry.ScannerHooks {
 		if plugin, exists := m.plugins[pluginID]; exists && plugin.Running && plugin.ScannerHookService != nil {
 			clients = append(clients, plugin.ScannerHookService)
 		}
 	}
+	
+	m.logger.Debug("GetScannerHooks returning", "client_count", len(clients))
 	return clients // Ensures a non-nil slice is returned
 }
 
@@ -494,27 +516,34 @@ func (m *manager) initializeServiceClients(plugin *Plugin, grpcClient *GRPCClien
 	plugin.ScannerHookService = grpcClient.ScannerHookServiceClient
 	plugin.DatabaseService = grpcClient.DatabaseServiceClient
 	plugin.AdminPageService = grpcClient.AdminPageServiceClient
+	plugin.APIRegistrationService = grpcClient.APIRegistrationServiceClient
+	plugin.SearchService = grpcClient.SearchServiceClient
 }
 
 func (m *manager) registerPlugin(plugin *Plugin) {
-	switch plugin.Type {
-	case "metadata_scraper":
-		if plugin.MetadataScraperService != nil {
-			m.registry.MetadataScrapers = append(m.registry.MetadataScrapers, plugin.ID)
-		}
-	case "scanner_hook":
-		if plugin.ScannerHookService != nil {
-			m.registry.ScannerHooks = append(m.registry.ScannerHooks, plugin.ID)
-		}
-	case "database":
-		if plugin.DatabaseService != nil {
-			m.registry.Databases = append(m.registry.Databases, plugin.ID)
-		}
-	case "admin_page":
-		if plugin.AdminPageService != nil {
-			m.registry.AdminPages = append(m.registry.AdminPages, plugin.ID)
-		}
+	// Register plugin for all services it implements, not just its primary type
+	m.logger.Debug("Registering plugin services", "plugin_id", plugin.ID)
+	
+	if plugin.MetadataScraperService != nil {
+		m.registry.MetadataScrapers = append(m.registry.MetadataScrapers, plugin.ID)
+		m.logger.Debug("Registered plugin as metadata scraper", "plugin_id", plugin.ID)
 	}
+	if plugin.ScannerHookService != nil {
+		m.registry.ScannerHooks = append(m.registry.ScannerHooks, plugin.ID)
+		m.logger.Debug("Registered plugin as scanner hook", "plugin_id", plugin.ID)
+	}
+	if plugin.DatabaseService != nil {
+		m.registry.Databases = append(m.registry.Databases, plugin.ID)
+		m.logger.Debug("Registered plugin as database service", "plugin_id", plugin.ID)
+	}
+	if plugin.AdminPageService != nil {
+		m.registry.AdminPages = append(m.registry.AdminPages, plugin.ID)
+		m.logger.Debug("Registered plugin as admin page", "plugin_id", plugin.ID)
+	}
+	
+	m.logger.Debug("Plugin registration complete", "plugin_id", plugin.ID, 
+		"scanner_hooks_count", len(m.registry.ScannerHooks),
+		"metadata_scrapers_count", len(m.registry.MetadataScrapers))
 }
 
 func (m *manager) unregisterPlugin(plugin *Plugin) {
@@ -565,7 +594,9 @@ func (m *manager) handleFileUpdate(filePath string) {
 }
 
 func (m *manager) getDatabaseURL() string {
-	return "sqlite://./data/viewra.db"
+	// Use absolute path to ensure plugins can find the database
+	// regardless of their working directory
+	return "sqlite:///app/data/viewra.db"
 }
 
 func removeFromSlice(slice []string, item string) []string {
@@ -575,4 +606,49 @@ func removeFromSlice(slice []string, item string) []string {
 		}
 	}
 	return slice
+}
+
+func (m *manager) registerPluginInDatabase(plugin *Plugin) {
+	if m.db == nil {
+		m.logger.Warn("database not available, skipping plugin registration", "plugin", plugin.ID)
+		return
+	}
+
+	// Import the database models package
+	// We need to check if plugin already exists in database
+	var existingPlugin struct {
+		ID       uint   `gorm:"primaryKey"`
+		PluginID string `gorm:"uniqueIndex;not null"`
+		Status   string `gorm:"not null;default:'disabled'"`
+	}
+	
+	err := m.db.Table("plugins").Where("plugin_id = ?", plugin.ID).First(&existingPlugin).Error
+	if err == nil {
+		// Plugin already exists in database, don't overwrite
+		m.logger.Debug("plugin already registered in database", "plugin", plugin.ID, "status", existingPlugin.Status)
+		return
+	}
+	
+	// Plugin doesn't exist, create new database entry
+	now := time.Now()
+	dbPlugin := map[string]interface{}{
+		"plugin_id":    plugin.ID,
+		"name":         plugin.Name,
+		"version":      plugin.Version,
+		"description":  plugin.Description,
+		"author":       plugin.Author,
+		"type":         plugin.Type,
+		"status":       "disabled", // Default to disabled, user must explicitly enable
+		"install_path": plugin.BasePath,
+		"installed_at": now,
+		"created_at":   now,
+		"updated_at":   now,
+	}
+	
+	if err := m.db.Table("plugins").Create(dbPlugin).Error; err != nil {
+		m.logger.Error("failed to register plugin in database", "plugin", plugin.ID, "error", err)
+		return
+	}
+	
+	m.logger.Info("plugin registered in database", "plugin", plugin.ID, "status", "disabled")
 } 

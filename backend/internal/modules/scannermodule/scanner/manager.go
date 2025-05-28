@@ -7,6 +7,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 )
@@ -15,19 +16,21 @@ import (
 // It manages the lifecycle of scan jobs and provides a centralized
 // interface for starting, stopping, and monitoring scan operations.
 type Manager struct {
-	db           *gorm.DB
-	scanners     map[uint]*ParallelFileScanner // jobID -> scanner mapping
-	mu           sync.RWMutex                  // protects scanners map
-	eventBus     events.EventBus               // system event bus for notifications
-	parallelMode bool                          // whether parallel scanning is enabled
+	db            *gorm.DB
+	scanners      map[uint]*ParallelFileScanner // jobID -> scanner mapping
+	mu            sync.RWMutex                  // protects scanners map
+	eventBus      events.EventBus               // system event bus for notifications
+	pluginManager plugins.Manager               // plugin manager for scanner hooks
+	parallelMode  bool                          // whether parallel scanning is enabled
 }
 
 // NewManager creates a new scanner manager instance.
-func NewManager(db *gorm.DB, eventBus events.EventBus) *Manager {
+func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager) *Manager {
 	manager := &Manager{
-		db:       db,
-		scanners: make(map[uint]*ParallelFileScanner),
-		eventBus: eventBus,
+		db:            db,
+		scanners:      make(map[uint]*ParallelFileScanner),
+		eventBus:      eventBus,
+		pluginManager: pluginManager,
 	}
 	
 	// Recover any orphaned scan jobs from previous sessions
@@ -161,7 +164,7 @@ func (m *Manager) StartScan(libraryID uint) (*database.ScanJob, error) {
 	}
 
 	// Create and register scanner
-	scanner := NewParallelFileScanner(m.db, scanJob.ID, m.eventBus)
+	scanner := NewParallelFileScanner(m.db, scanJob.ID, m.eventBus, m.pluginManager)
 	m.scanners[scanJob.ID] = scanner
 	
 	// Start scanning in background
@@ -323,7 +326,7 @@ func (m *Manager) ResumeScan(jobID uint) error {
 	}
 	
 	// Create and register new scanner
-	scanner := NewParallelFileScanner(m.db, jobID, m.eventBus)
+	scanner := NewParallelFileScanner(m.db, jobID, m.eventBus, m.pluginManager)
 	m.scanners[jobID] = scanner
 	
 	// Publish scan resumed event
@@ -700,4 +703,21 @@ func (m *Manager) GetDetailedScanProgress(jobID uint) (map[string]interface{}, e
 	}
 	
 	return result, nil
+}
+
+// SetPluginManager updates the plugin manager for this scanner manager
+// and all currently running scanners
+func (m *Manager) SetPluginManager(pluginMgr plugins.Manager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	m.pluginManager = pluginMgr
+	
+	// Update plugin manager in all existing scanners
+	for jobID, scanner := range m.scanners {
+		scanner.pluginManager = pluginMgr
+		fmt.Printf("INFO: Updated plugin manager for scanner job %d\n", jobID)
+	}
+	
+	fmt.Printf("INFO: Scanner manager plugin manager updated, affected %d active scanners\n", len(m.scanners))
 }

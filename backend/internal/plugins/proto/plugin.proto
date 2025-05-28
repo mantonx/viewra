@@ -55,10 +55,50 @@ service APIRegistrationService {
   rpc GetRegisteredRoutes(GetRegisteredRoutesRequest) returns (GetRegisteredRoutesResponse);
 }
 
+// SearchService allows plugins to provide search functionality
+service SearchService {
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc GetSearchCapabilities(GetSearchCapabilitiesRequest) returns (GetSearchCapabilitiesResponse);
+}
+
 message GetRegisteredRoutesRequest {}
 
 message GetRegisteredRoutesResponse {
   repeated APIRoute routes = 1;
+}
+
+// Search service messages
+message SearchRequest {
+  map<string, string> query = 1;  // Flexible query parameters (title, artist, album, etc.)
+  uint32 limit = 2;               // Maximum number of results
+  uint32 offset = 3;              // Offset for pagination
+}
+
+message SearchResponse {
+  bool success = 1;
+  string error = 2;
+  repeated SearchResult results = 3;
+  uint32 total_count = 4;         // Total results available
+  bool has_more = 5;              // Whether more results are available
+}
+
+message SearchResult {
+  string id = 1;                  // Unique identifier (e.g., MusicBrainz ID)
+  string title = 2;               // Track/item title
+  string artist = 3;              // Artist name
+  string album = 4;               // Album name
+  double score = 5;               // Match confidence score (0.0-1.0)
+  map<string, string> metadata = 6; // Additional metadata
+}
+
+message GetSearchCapabilitiesRequest {
+  // Empty for now
+}
+
+message GetSearchCapabilitiesResponse {
+  repeated string supported_fields = 1;  // Fields that can be searched (title, artist, album, etc.)
+  bool supports_pagination = 2;          // Whether pagination is supported
+  uint32 max_results = 3;                // Maximum results per search
 }
 
 // Core plugin interface messages

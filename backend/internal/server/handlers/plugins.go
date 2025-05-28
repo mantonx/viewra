@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,10 +35,56 @@ func GetPlugins(c *gin.Context) {
 		return
 	}
 
+	// Get plugins from manager (filesystem discovery)
 	pluginsList := pluginManager.ListPlugins()
+	
+	// Get database connection to fetch status information
+	db := database.GetDB()
+	
+	// Create enhanced plugin list with database status
+	enhancedPlugins := make([]map[string]interface{}, 0, len(pluginsList))
+	
+	for _, plugin := range pluginsList {
+		// Get database status for this plugin
+		var dbPlugin database.Plugin
+		err := db.Where("plugin_id = ?", plugin.ID).First(&dbPlugin).Error
+		
+		// Create enhanced plugin info
+		pluginInfo := map[string]interface{}{
+			"id":          plugin.ID,
+			"name":        plugin.Name,
+			"version":     plugin.Version,
+			"type":        plugin.Type,
+			"description": plugin.Description,
+			"author":      plugin.Author,
+			"binary_path": plugin.BinaryPath,
+			"config_path": plugin.ConfigPath,
+			"base_path":   plugin.BasePath,
+			"running":     plugin.Running,
+		}
+		
+		if err == nil {
+			// Plugin found in database, use database status
+			pluginInfo["enabled"] = dbPlugin.Status == "enabled"
+			pluginInfo["status"] = dbPlugin.Status
+			pluginInfo["installed_at"] = dbPlugin.InstalledAt
+			pluginInfo["enabled_at"] = dbPlugin.EnabledAt
+			pluginInfo["error_message"] = dbPlugin.ErrorMessage
+		} else {
+			// Plugin not in database, show as discovered but not registered
+			pluginInfo["enabled"] = false
+			pluginInfo["status"] = "discovered"
+			pluginInfo["installed_at"] = nil
+			pluginInfo["enabled_at"] = nil
+			pluginInfo["error_message"] = ""
+		}
+		
+		enhancedPlugins = append(enhancedPlugins, pluginInfo)
+	}
+	
 	c.JSON(http.StatusOK, gin.H{
-		"plugins": pluginsList,
-		"count":   len(pluginsList),
+		"plugins": enhancedPlugins,
+		"count":   len(enhancedPlugins),
 	})
 }
 
@@ -112,18 +159,174 @@ func GetPluginHealth(c *gin.Context) {
 // PLUGIN CONFIGURATION ENDPOINTS
 // =============================================================================
 
+// EnablePlugin enables a plugin and loads it
+func EnablePlugin(c *gin.Context) {
+	pluginID := c.Param("id")
+
+	if pluginManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Get database connection
+	db := database.GetDB()
+
+	// Check if plugin exists in manager
+	plugin, exists := pluginManager.GetPlugin(pluginID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Plugin not found",
+		})
+		return
+	}
+
+	// Register plugin in database if not already registered
+	var dbPlugin database.Plugin
+	err := db.Where("plugin_id = ?", pluginID).First(&dbPlugin).Error
+	if err != nil {
+		// Plugin not in database, create it
+		dbPlugin = database.Plugin{
+			PluginID:    pluginID,
+			Name:        plugin.Name,
+			Version:     plugin.Version,
+			Description: plugin.Description,
+			Author:      plugin.Author,
+			Type:        plugin.Type,
+			Status:      "enabled",
+			InstallPath: plugin.BasePath,
+			InstalledAt: time.Now(),
+			EnabledAt:   &[]time.Time{time.Now()}[0],
+		}
+		if err := db.Create(&dbPlugin).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to register plugin in database",
+				"details": err.Error(),
+			})
+			return
+		}
+	} else {
+		// Plugin exists, update status to enabled
+		now := time.Now()
+		dbPlugin.Status = "enabled"
+		dbPlugin.EnabledAt = &now
+		if err := db.Save(&dbPlugin).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to update plugin status",
+				"details": err.Error(),
+			})
+			return
+		}
+	}
+
+	// Load the plugin if not already running
+	if !plugin.Running {
+		if err := pluginManager.LoadPlugin(ctx, pluginID); err != nil {
+			// Update database status to error
+			dbPlugin.Status = "error"
+			dbPlugin.ErrorMessage = err.Error()
+			db.Save(&dbPlugin)
+			
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to load plugin",
+				"details": err.Error(),
+			})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Plugin enabled successfully",
+		"plugin":  pluginID,
+		"status":  "enabled",
+	})
+}
+
+// DisablePlugin disables a plugin and unloads it
+func DisablePlugin(c *gin.Context) {
+	pluginID := c.Param("id")
+
+	if pluginManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Get database connection
+	db := database.GetDB()
+
+	// Update database status to disabled
+	var dbPlugin database.Plugin
+	err := db.Where("plugin_id = ?", pluginID).First(&dbPlugin).Error
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Plugin not found in database",
+		})
+		return
+	}
+
+	dbPlugin.Status = "disabled"
+	dbPlugin.EnabledAt = nil
+	if err := db.Save(&dbPlugin).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to update plugin status",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Unload the plugin if it's running
+	plugin, exists := pluginManager.GetPlugin(pluginID)
+	if exists && plugin.Running {
+		if err := pluginManager.UnloadPlugin(ctx, pluginID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to unload plugin",
+				"details": err.Error(),
+			})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Plugin disabled successfully",
+		"plugin":  pluginID,
+		"status":  "disabled",
+	})
+}
+
 // =============================================================================
 // PLUGIN INSTALLATION ENDPOINTS
 // =============================================================================
 
-// InstallPlugin installs a new plugin (placeholder - actual install might be manual or via other means)
+// InstallPlugin loads and starts a plugin (renamed from install for clarity)
 func InstallPlugin(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Plugin installation not implemented via API yet"})
-	// Actual implementation would involve:
-	// 1. Receiving plugin package (e.g., zip file)
-	// 2. Unpacking to plugin directory
-	// 3. Calling pluginManager.DiscoverPlugins()
-	// 4. Potentially auto-enabling or prompting user
+	pluginID := c.Param("id")
+
+	if pluginManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Attempt to load the plugin
+	if err := pluginManager.LoadPlugin(ctx, pluginID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to load plugin",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Plugin loaded successfully",
+		"plugin":  pluginID,
+	})
 }
 
 // UninstallPlugin disables and removes a plugin
@@ -374,4 +577,211 @@ func GetPluginUIComponents(c *gin.Context) {
 		"ui_components": components,
 		"count":         len(components),
 	})
+}
+
+// =============================================================================
+// PLUGIN ROUTE DISPATCHING
+// =============================================================================
+
+// HandlePluginRoute handles dynamic routing to plugin endpoints
+// URL format: /api/plugins/{plugin_id}/{plugin_route}
+func HandlePluginRoute(c *gin.Context) {
+	if pluginManager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Plugin manager not initialized",
+		})
+		return
+	}
+
+	// Parse the path: /plugin_id/route/path...
+	path := strings.TrimPrefix(c.Param("path"), "/")
+	pathParts := strings.SplitN(path, "/", 2)
+	
+	if len(pathParts) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid plugin route format. Expected: /api/plugins/{plugin_id}/{route}",
+		})
+		return
+	}
+	
+	pluginID := pathParts[0]
+	pluginRoute := "/" + pathParts[1]
+	
+	// Get the plugin
+	plugin, exists := pluginManager.GetPlugin(pluginID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": fmt.Sprintf("Plugin '%s' not found", pluginID),
+		})
+		return
+	}
+	
+	if !plugin.Running {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": fmt.Sprintf("Plugin '%s' is not running", pluginID),
+		})
+		return
+	}
+	
+	// Handle the route based on plugin implementation
+	// For now, implement the MusicBrainz enricher routes
+	if pluginID == "musicbrainz_enricher" {
+		handleMusicBrainzRoute(c, pluginRoute, plugin)
+		return
+	}
+	
+	// Generic fallback for other plugins
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": fmt.Sprintf("Plugin '%s' route '%s' not implemented", pluginID, pluginRoute),
+		"plugin_id": pluginID,
+		"route": pluginRoute,
+	})
+}
+
+// handleMusicBrainzRoute handles specific routes for the MusicBrainz enricher plugin
+func handleMusicBrainzRoute(c *gin.Context, route string, plugin *plugins.Plugin) {
+	switch {
+	case route == "/config" && c.Request.Method == "GET":
+		handleMusicBrainzConfig(c, plugin)
+	case route == "/search" && c.Request.Method == "GET":
+		handleMusicBrainzSearch(c, plugin)
+	default:
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": fmt.Sprintf("MusicBrainz route '%s' with method '%s' not found", route, c.Request.Method),
+			"available_routes": []string{
+				"GET /config - Get plugin configuration",
+				"GET /search - Search MusicBrainz database",
+			},
+		})
+	}
+}
+
+// handleMusicBrainzConfig returns the current plugin configuration
+func handleMusicBrainzConfig(c *gin.Context, plugin *plugins.Plugin) {
+	config := gin.H{
+		"plugin_id": plugin.ID,
+		"name": plugin.Name,
+		"version": plugin.Version,
+		"description": plugin.Description,
+		"running": plugin.Running,
+		"configuration": gin.H{
+			"enabled": true,
+			"api_rate_limit": 0.8,
+			"user_agent": "Viewra/2.0",
+			"enable_artwork": true,
+			"artwork_max_size": 1200,
+			"artwork_quality": "front",
+			"match_threshold": 0.85,
+			"auto_enrich": true,
+			"overwrite_existing": false,
+			"cache_duration_hours": 168,
+		},
+		"endpoints": []gin.H{
+			{
+				"path": "/api/plugins/musicbrainz_enricher/config",
+				"method": "GET",
+				"description": "Get current plugin configuration",
+			},
+			{
+				"path": "/api/plugins/musicbrainz_enricher/search",
+				"method": "GET", 
+				"description": "Search MusicBrainz for a track",
+				"parameters": []gin.H{
+					{"name": "title", "type": "string", "required": true, "description": "Song title"},
+					{"name": "artist", "type": "string", "required": true, "description": "Artist name"},
+					{"name": "album", "type": "string", "required": false, "description": "Album name"},
+				},
+			},
+		},
+	}
+	
+	c.JSON(http.StatusOK, config)
+}
+
+// handleMusicBrainzSearch performs a MusicBrainz search via the plugin
+func handleMusicBrainzSearch(c *gin.Context, plugin *plugins.Plugin) {
+	// Get query parameters
+	title := c.Query("title")
+	artist := c.Query("artist")
+	album := c.Query("album")
+	
+	if title == "" || artist == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing required parameters",
+			"required": []string{"title", "artist"},
+			"optional": []string{"album"},
+			"example": "/api/plugins/musicbrainz_enricher/search?title=Bohemian%20Rhapsody&artist=Queen&album=A%20Night%20at%20the%20Opera",
+		})
+		return
+	}
+	
+	// Use the dedicated SearchService
+	if plugin.SearchService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Plugin search service not available",
+		})
+		return
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	// Build search query
+	query := map[string]string{
+		"title":  title,
+		"artist": artist,
+	}
+	if album != "" {
+		query["album"] = album
+	}
+	
+	// Call the plugin's Search method
+	searchResp, err := plugin.SearchService.Search(ctx, &proto.SearchRequest{
+		Query:  query,
+		Limit:  5,
+		Offset: 0,
+	})
+	
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Search request failed",
+			"details": err.Error(),
+			"plugin_id": plugin.ID,
+		})
+		return
+	}
+	
+	if !searchResp.Success {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Plugin search failed",
+			"details": searchResp.Error,
+			"plugin_id": plugin.ID,
+		})
+		return
+	}
+	
+	// Format the response
+	response := gin.H{
+		"query": gin.H{
+			"title": title,
+			"artist": artist,
+			"album": album,
+		},
+		"plugin_info": gin.H{
+			"plugin_id": plugin.ID,
+			"name": plugin.Name,
+			"version": plugin.Version,
+			"running": plugin.Running,
+		},
+		"search_results": gin.H{
+			"success": searchResp.Success,
+			"total_count": searchResp.TotalCount,
+			"has_more": searchResp.HasMore,
+			"results": searchResp.Results,
+		},
+		"status": "success",
+		"message": "MusicBrainz search completed successfully",
+	}
+	
+	c.JSON(http.StatusOK, response)
 }

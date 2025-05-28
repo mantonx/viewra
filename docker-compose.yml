@@ -10,6 +10,7 @@ services:
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
       - SQLITE_PATH=${SQLITE_PATH:-/app/data/viewra.db}
       - PORT=8080
+      - PLUGIN_DIR=/app/data/plugins
     volumes:
       - ./backend:/app
       - backend-data:/app/data

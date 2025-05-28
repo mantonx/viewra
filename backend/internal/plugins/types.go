@@ -49,6 +49,7 @@ type Plugin struct {
 	DatabaseService        proto.DatabaseServiceClient
 	AdminPageService       proto.AdminPageServiceClient
 	APIRegistrationService proto.APIRegistrationServiceClient
+	SearchService          proto.SearchServiceClient
 	
 	// Add other service clients as needed
 }
@@ -133,6 +134,7 @@ type Implementation interface {
 	DatabaseService() DatabaseService
 	AdminPageService() AdminPageService
 	APIRegistrationService() APIRegistrationService
+	SearchService() SearchService
 }
 
 // Service interfaces
@@ -162,6 +164,12 @@ type AdminPageService interface {
 // APIRegistrationService interface (to be implemented by plugins)
 type APIRegistrationService interface {
 	GetRegisteredRoutes(ctx context.Context) ([]*proto.APIRoute, error)
+}
+
+// SearchService interface (to be implemented by plugins)
+type SearchService interface {
+	Search(ctx context.Context, query map[string]string, limit, offset uint32) ([]*proto.SearchResult, uint32, bool, error)
+	GetSearchCapabilities(ctx context.Context) ([]string, bool, uint32, error)
 }
 
 // Plugin registry for organizing plugins by type

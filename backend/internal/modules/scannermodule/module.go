@@ -8,6 +8,7 @@ import (
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
+	"github.com/mantonx/viewra/internal/plugins"
 	"gorm.io/gorm"
 )
 
@@ -29,13 +30,15 @@ type Module struct {
 	scannerManager *scanner.Manager
 	db             *gorm.DB
 	eventBus       events.EventBus
+	pluginManager  plugins.Manager
 }
 
 // NewModule creates a new scanner module
-func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
+func NewModule(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager) *Module {
 	return &Module{
-		db:       db,
-		eventBus: eventBus,
+		db:            db,
+		eventBus:      eventBus,
+		pluginManager: pluginManager,
 	}
 }
 
@@ -83,7 +86,7 @@ func (m *Module) Init() error {
 	}
 	
 	// Create scanner manager
-	m.scannerManager = scanner.NewManager(m.db, m.eventBus)
+	m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager)
 	
 	if m.scannerManager == nil {
 		logger.Error("Failed to initialize scanner manager")
@@ -109,22 +112,32 @@ func (m *Module) GetScannerManager() *scanner.Manager {
 			m.eventBus = events.GetGlobalEventBus()
 		}
 		
-		m.scannerManager = scanner.NewManager(m.db, m.eventBus)
+		m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager)
 		logger.Info("Re-initialized scanner manager: %v", m.scannerManager)
 	}
 	
 	return m.scannerManager
 }
 
+// SetPluginManager sets the plugin manager for the scanner module
+func (m *Module) SetPluginManager(pluginMgr plugins.Manager) {
+	m.pluginManager = pluginMgr
+	
+	// If scanner manager already exists, we need to recreate it with the plugin manager
+	if m.scannerManager != nil {
+		logger.Info("Recreating scanner manager with plugin manager")
+		// Update plugin manager in existing scanner manager
+		m.scannerManager.SetPluginManager(pluginMgr)
+	}
+}
+
 // Register registers this module with the module system
 func Register() {
-	// Get database connection
-	db := database.GetDB()
-	
-	// Get event bus (possibly from global event bus)
-	bus := events.GetGlobalEventBus()
-	
-	// Create and register module
-	module := NewModule(db, bus)
+	// Create module without dependencies - they will be initialized later
+	module := &Module{
+		db:            nil, // Will be set during Init()
+		eventBus:      nil, // Will be set during Init()
+		pluginManager: nil, // Will be set later via SetPluginManager()
+	}
 	modulemanager.Register(module)
 }

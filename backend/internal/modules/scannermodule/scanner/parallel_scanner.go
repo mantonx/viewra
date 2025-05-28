@@ -14,6 +14,8 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/plugins/proto"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -28,6 +30,7 @@ type ParallelFileScanner struct {
 	pathResolver     *utils.PathResolver
 	progressEstimator *ProgressEstimator
 	systemMonitor    *SystemLoadMonitor
+	pluginManager    plugins.Manager
 	
 	// Worker management
 	workerCount      int
@@ -81,10 +84,11 @@ type dirWork struct {
 
 // scanResult represents the result of scanning a file
 type scanResult struct {
-	mediaFile    *database.MediaFile
-	musicMeta    *database.MusicMetadata
-	path         string
-	error        error
+	mediaFile        *database.MediaFile
+	musicMeta        *database.MusicMetadata
+	path             string
+	error            error
+	needsPluginHooks bool
 }
 
 // BatchProcessor handles batch database operations
@@ -112,7 +116,7 @@ type MetadataCache struct {
 }
 
 // NewParallelFileScanner creates a new parallel file scanner with optimizations
-func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *ParallelFileScanner {
+func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, pluginManager plugins.Manager) *ParallelFileScanner {
 	ctx, cancel := context.WithCancel(context.Background())
 	
 	// Calculate optimal worker count based on CPU cores
@@ -143,6 +147,7 @@ func NewParallelFileScanner(db *gorm.DB, jobID uint, eventBus events.EventBus) *
 		jobID:         jobID,
 		eventBus:      eventBus,
 		pathResolver:  utils.NewPathResolver(),
+		pluginManager: pluginManager,
 		workerCount:   workerCount,
 		minWorkers:    minWorkers,
 		maxWorkers:    maxWorkers,
@@ -561,6 +566,15 @@ func (ps *ParallelFileScanner) updateFinalStatus() {
 	// Calculate completion statistics
 	totalFilesFound := int64(ps.scanJob.FilesFound)
 	filesNotProcessed := totalFilesFound - filesProcessed
+
+	// If more files were processed than initially found (e.g., files added mid-scan),
+	// update totalFilesFound to reflect the actual number of files handled.
+	if filesProcessed > totalFilesFound {
+		fmt.Printf("Job ID %d: Adjusting FilesFound from %d to %d as more files were processed.\n", ps.jobID, totalFilesFound, filesProcessed)
+		totalFilesFound = filesProcessed
+		filesNotProcessed = 0 // Since all processed files are now considered 'found'
+		ps.scanJob.FilesFound = int(totalFilesFound) // Update the job object as well for DB save
+	}
 	
 	// Log comprehensive scan summary
 	fmt.Printf("\n=== SCAN COMPLETED ===\n")
@@ -852,10 +866,26 @@ func (ps *ParallelFileScanner) processFile(work scanWork) *scanResult {
 	ps.fileCache.mu.RUnlock()
 	
 	if exists && cachedFile.Size == work.info.Size() {
-		// File hasn't changed, skip processing but still count it
+		// File hasn't changed, but we still need to call plugin hooks if it's a music file
 		// Note: We count files here and return early, so we don't double-count later
 		ps.filesProcessed.Add(1)
 		ps.bytesProcessed.Add(work.info.Size())
+		
+		// Check if this is a music file and if we should call plugin hooks
+		if metadata.IsMusicFile(work.path) {
+			// Try to get existing metadata for this file
+			var existingMeta database.MusicMetadata
+			if err := ps.db.Where("media_file_id = ?", cachedFile.ID).First(&existingMeta).Error; err == nil {
+				// Found existing metadata, set up result for plugin hooks
+				result.mediaFile = cachedFile
+				result.musicMeta = &existingMeta
+				result.needsPluginHooks = true
+				fmt.Printf("[DEBUG][processFile] Cached file with metadata, will call plugin hooks: %s\n", work.path)
+			} else {
+				fmt.Printf("[DEBUG][processFile] Cached file but no metadata found: %s\n", work.path)
+			}
+		}
+		
 		return result
 	}
 	
@@ -906,10 +936,15 @@ func (ps *ParallelFileScanner) processFile(work scanWork) *scanResult {
 				ps.metadataCache.mu.Lock()
 				ps.metadataCache.cache[hash] = musicMeta
 				ps.metadataCache.mu.Unlock()
+				
+				// Mark that this file needs plugin hook processing
+				result.needsPluginHooks = true
 			}
 		} else {
 			fmt.Printf("[DEBUG][processFile] Using cached metadata for %s\n", work.path)
 			result.musicMeta = cachedMeta
+			// Mark that this file needs plugin hook processing even when using cached metadata
+			result.needsPluginHooks = true
 		}
 	} else {
 		// Video files - just save the media file record without music metadata
@@ -935,6 +970,50 @@ func (ps *ParallelFileScanner) calculateFileHashOptimized(path string, size int6
 	return utils.CalculateFileHashSampled(path, size)
 }
 
+// callPluginHooks calls scanner hook plugins for a processed media file
+func (ps *ParallelFileScanner) callPluginHooks(mediaFile *database.MediaFile, musicMeta *database.MusicMetadata) {
+	if ps.pluginManager == nil {
+		fmt.Printf("[DEBUG][callPluginHooks] Plugin manager is nil\n")
+		return
+	}
+	
+	// Get scanner hook clients
+	scannerHookClients := ps.pluginManager.GetScannerHooks()
+	fmt.Printf("[DEBUG][callPluginHooks] Found %d scanner hook clients\n", len(scannerHookClients))
+	if len(scannerHookClients) == 0 {
+		return
+	}
+	
+	// Convert metadata to map[string]string for plugin interface
+	metadataMap := map[string]string{
+		"title":      musicMeta.Title,
+		"artist":     musicMeta.Artist,
+		"album":      musicMeta.Album,
+		"year":       fmt.Sprintf("%d", musicMeta.Year),
+		"track":      fmt.Sprintf("%d", musicMeta.Track),
+		"genre":      musicMeta.Genre,
+		"duration":   fmt.Sprintf("%f", musicMeta.Duration),
+		"hasArtwork": fmt.Sprintf("%t", musicMeta.HasArtwork),
+	}
+	
+	// Call each scanner hook plugin
+	ctx := context.Background()
+	for _, client := range scannerHookClients {
+		req := &proto.OnMediaFileScannedRequest{
+			MediaFileId: uint32(mediaFile.ID),
+			FilePath:    mediaFile.Path,
+			Metadata:    metadataMap,
+		}
+		
+		_, err := client.OnMediaFileScanned(ctx, req)
+		if err != nil {
+			fmt.Printf("WARNING: plugin scanner hook OnMediaFileScanned failed for file %s: %v\n", mediaFile.Path, err)
+		} else {
+			fmt.Printf("DEBUG: Successfully called plugin hook for file %s\n", mediaFile.Path)
+		}
+	}
+}
+
 // resultProcessor handles results from workers
 func (ps *ParallelFileScanner) resultProcessor() {
 	defer ps.wg.Done()
@@ -956,13 +1035,26 @@ func (ps *ParallelFileScanner) resultProcessor() {
 				continue
 			}
 			
-			// Add to batch
-			if result.mediaFile != nil {
-				ps.batchProcessor.AddMediaFile(result.mediaFile)
+					// Add to batch
+		if result.mediaFile != nil {
+			ps.batchProcessor.AddMediaFile(result.mediaFile)
+		}
+		if result.musicMeta != nil {
+			ps.batchProcessor.AddMusicMetadataWithPath(result.musicMeta, result.path)
+		}
+		
+		// Call plugin hooks if needed (after metadata is extracted)
+		if result.needsPluginHooks {
+			fmt.Printf("[DEBUG][resultProcessor] needsPluginHooks=true for file: %s\n", result.path)
+			if result.musicMeta != nil && result.mediaFile != nil {
+				fmt.Printf("[DEBUG][resultProcessor] Calling plugin hooks for: %s\n", result.path)
+				ps.callPluginHooks(result.mediaFile, result.musicMeta)
+			} else {
+				fmt.Printf("[DEBUG][resultProcessor] Skipping plugin hooks - musicMeta=%v, mediaFile=%v\n", result.musicMeta != nil, result.mediaFile != nil)
 			}
-			if result.musicMeta != nil {
-				ps.batchProcessor.AddMusicMetadataWithPath(result.musicMeta, result.path)
-			}
+		} else {
+			fmt.Printf("[DEBUG][resultProcessor] needsPluginHooks=false for file: %s\n", result.path)
+		}
 			
 		case <-updateTicker.C:
 			// Update progress periodically
@@ -1415,10 +1507,9 @@ func (bp *BatchProcessor) flushInternal() error {
 // directoryWorker processes directories from the directory queue
 func (ps *ParallelFileScanner) directoryWorker(workerID int) {
 	defer ps.wg.Done()
-	defer ps.activeDirWorkers.Add(-1)
-	
+
 	fmt.Printf("DEBUG: directoryWorker %d started\n", workerID)
-	
+
 	for {
 		select {
 		case <-ps.ctx.Done():
