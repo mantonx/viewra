@@ -56,7 +56,30 @@ test_*
 *_test
 main
 viewra
+viewra-backend
 app.db
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Plugin binaries
+data/plugins/*/musicbrainz_enricher
+data/plugins/*/test-plugin
+data/plugins/*/*.exe
+data/plugins/*/*.bin
+cmd/*/test-plugin
+cmd/*/musicbrainz_enricher
+cmd/*/*.exe
+cmd/*/*.bin
+
+# Plugin build artifacts
+data/plugins/*/go.sum
+data/plugins/*/vendor/
 
 # Test data directories
 test-music/
