@@ -992,7 +992,7 @@ func (ps *ParallelFileScanner) callPluginHooks(mediaFile *database.MediaFile, mu
 		"year":       fmt.Sprintf("%d", musicMeta.Year),
 		"track":      fmt.Sprintf("%d", musicMeta.Track),
 		"genre":      musicMeta.Genre,
-		"duration":   fmt.Sprintf("%f", musicMeta.Duration),
+		"duration":   fmt.Sprintf("%.2f", musicMeta.Duration.Seconds()),
 		"hasArtwork": fmt.Sprintf("%t", musicMeta.HasArtwork),
 	}
 	
@@ -1192,6 +1192,16 @@ func (ps *ParallelFileScanner) updateProgress() {
 
 // Pause pauses the scanner
 func (ps *ParallelFileScanner) Pause() {
+	// If scanJob is not loaded yet, load it first
+	if ps.scanJob == nil {
+		if err := ps.loadScanJob(); err != nil {
+			fmt.Printf("Failed to load scan job for pause: %v\n", err)
+			// Still cancel the context even if we can't update the database
+			ps.cancel()
+			return
+		}
+	}
+	
 	// Mark the job as paused in memory before canceling
 	ps.scanJob.Status = "paused"
 	
