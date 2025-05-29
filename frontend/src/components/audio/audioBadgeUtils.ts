@@ -17,7 +17,7 @@ export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo =
       label: 'LOSSLESS',
       className:
         'bg-gradient-to-r from-purple-600/30 to-pink-600/30 text-purple-100 border border-purple-400/40 backdrop-blur-md shadow-lg shadow-purple-500/20',
-      tooltip: `Lossless ${upperFormat} format - Perfect quality preservation${bitrateKbps > 0 ? ` (${bitrateKbps}kbps)` : ''}`,
+      tooltip: `${upperFormat}${bitrateKbps > 0 ? ` - ${bitrateKbps}kbps` : ''}`,
     };
   }
 
@@ -29,7 +29,7 @@ export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo =
         label: 'HI-FI',
         className:
           'bg-gradient-to-r from-emerald-600/30 to-cyan-600/30 text-emerald-100 border border-emerald-400/40 backdrop-blur-md shadow-lg shadow-emerald-500/20',
-        tooltip: `Hi-Fi Quality ${upperFormat} - ${bitrateKbps}kbps • Near-CD quality`,
+        tooltip: `${upperFormat} - ${bitrateKbps}kbps`,
       };
     }
 
@@ -39,7 +39,7 @@ export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo =
         label: 'ENHANCED',
         className:
           'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 text-blue-100 border border-blue-400/40 backdrop-blur-md shadow-lg shadow-blue-500/20',
-        tooltip: `Enhanced Quality ${upperFormat} - ${bitrateKbps}kbps • High quality lossy`,
+        tooltip: `${upperFormat} - ${bitrateKbps}kbps`,
       };
     }
 
@@ -49,7 +49,7 @@ export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo =
         label: 'STANDARD',
         className:
           'bg-gradient-to-r from-slate-600/30 to-gray-600/30 text-slate-100 border border-slate-400/40 backdrop-blur-md shadow-lg shadow-slate-500/20',
-        tooltip: `Standard Quality ${upperFormat} - ${bitrateKbps}kbps • Basic listening quality`,
+        tooltip: `${upperFormat} - ${bitrateKbps}kbps`,
       };
     }
 
@@ -58,7 +58,7 @@ export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo =
       label: 'GOOD',
       className:
         'bg-gradient-to-r from-amber-600/30 to-orange-600/30 text-amber-100 border border-amber-400/40 backdrop-blur-md shadow-lg shadow-amber-500/20',
-      tooltip: `Good Quality ${upperFormat} - ${bitrateKbps}kbps • Decent listening quality`,
+      tooltip: `${upperFormat} - ${bitrateKbps}kbps`,
     };
   }
 
@@ -68,7 +68,7 @@ export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo =
       label: 'VBR',
       className:
         'bg-gradient-to-r from-sky-600/30 to-blue-600/30 text-sky-100 border border-sky-400/40 backdrop-blur-md shadow-lg shadow-sky-500/20',
-      tooltip: `Variable Bitrate MP3 • Quality varies throughout the track`,
+      tooltip: `${upperFormat} - Variable Bitrate`,
     };
   }
 
@@ -77,6 +77,6 @@ export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo =
     label: upperFormat || 'AUDIO',
     className:
       'bg-gradient-to-r from-gray-600/30 to-slate-600/30 text-gray-100 border border-gray-400/40 backdrop-blur-md shadow-lg shadow-gray-500/20',
-    tooltip: `${upperFormat || 'Audio'} format${bitrateKbps > 0 ? ` - ${bitrateKbps}kbps` : ''}`,
+    tooltip: `${upperFormat || 'Audio'}${bitrateKbps > 0 ? ` - ${bitrateKbps}kbps` : ''}`,
   };
 };
