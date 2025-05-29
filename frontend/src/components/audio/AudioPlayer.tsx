@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -22,29 +22,8 @@ import AnimatedPlayPause from '@/components/ui/AnimatedPlayPause';
 import { cn } from '@/lib/utils';
 import IconButton from '@/components/ui/IconButton';
 import { Tooltip } from 'react-tooltip';
-import { MusicFile } from '@/components/media/music.types';
+import type { MusicFile } from '@/types/music.types';
 import { buildArtworkUrl } from '@/utils/api';
-
-interface MusicMetadata {
-  id: number;
-  media_file_id: number;
-  title: string;
-  album: string;
-  artist: string;
-  album_artist: string;
-  genre: string;
-  year: number;
-  track: number;
-  track_total: number;
-  disc: number;
-  disc_total: number;
-  duration: number;
-  bitrate: number;
-  sample_rate: number;
-  channels: number;
-  format: string;
-  has_artwork: boolean;
-}
 
 interface AudioPlayerProps {
   currentTrack: MusicFile | null;

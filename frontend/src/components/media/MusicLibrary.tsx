@@ -1,6 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Search, SortAsc, SortDesc, Filter, Play, Pause } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MediaCard from './MediaCard';
 import AudioPlayer from '@/components/audio/AudioPlayer';
 import type { MusicFile, GroupedMusicFile, SortField, SortDirection } from '@/types/music.types';
