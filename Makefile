@@ -11,7 +11,7 @@ GREEN = \033[0;32m
 YELLOW = \033[1;33m
 NC = \033[0m # No Color
 
-.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup
+.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs
 
 help: ## Show this help message
 	@echo "Viewra Development Commands:"
@@ -167,4 +167,20 @@ dev-setup: ## Initial development environment setup
 rebuild-troublesome: ## Rebuild plugins that commonly have issues (CGO-dependent ones)
 	@echo "$(GREEN)Rebuilding CGO-dependent plugins with container builds...$(NC)"
 	@$(MAKE) build-plugin p=audiodb_enricher mode=container
-	@echo "$(GREEN)Troublesome plugins rebuilt$(NC)" 
+	@echo "$(GREEN)Troublesome plugins rebuilt$(NC)"
+
+db-web: ## Start SQLite Web for database visualization
+	@echo "$(GREEN)Starting SQLite Web...$(NC)"
+	@$(DOCKER_COMPOSE) --profile dev up -d sqliteweb
+	@echo "SQLite Web available at http://localhost:8081"
+
+db-web-stop: ## Stop SQLite Web
+	@echo "$(GREEN)Stopping SQLite Web...$(NC)"
+	@$(DOCKER_COMPOSE) stop sqliteweb
+
+db-web-restart: ## Restart SQLite Web
+	@echo "$(GREEN)Restarting SQLite Web...$(NC)"
+	@$(DOCKER_COMPOSE) restart sqliteweb
+	@echo "SQLite Web available at http://localhost:8081"
+
+db-web-logs: ## Show SQLite Web logs

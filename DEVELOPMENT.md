@@ -233,6 +233,15 @@ make migrate-db        # Move database to proper location
 make check-db          # Verify database configuration
 ```
 
+### Database Visualization
+
+```bash
+make db-web            # Start SQLite Web for database visualization (http://localhost:8081)
+make db-web-stop       # Stop SQLite Web
+make db-web-restart    # Restart SQLite Web
+make db-web-logs       # Show SQLite Web logs
+```
+
 ### Development
 
 ```bash
@@ -318,6 +327,7 @@ docker-compose up -d backend
 - Verify mount points in docker-compose.yml
 - Check plugin database URL configuration
 - Ensure `viewra-data/` directory exists
+- **Use SQLite Web for visualization**: `make db-web` then visit http://localhost:8081
 
 ### Container Issues
 
@@ -346,6 +356,9 @@ make test-plugin p=my_plugin
 
 # Restart backend to reload
 make restart-backend
+
+# Visualize database changes (optional)
+make db-web  # Visit http://localhost:8081
 ```
 
 ### Pre-Deployment
