@@ -101,7 +101,7 @@ type PluginRouter struct {
 	pluginManager plugins.Manager
 	mu            sync.RWMutex
 	hooks         []ScannerPluginHook
-	plugins       map[string]plugins.Plugin
+	plugins       map[string]*plugins.Plugin
 }
 
 // ScannerPluginHook defines the interface for scanner plugin hooks
@@ -116,7 +116,7 @@ func NewPluginRouter(pluginManager plugins.Manager) *PluginRouter {
 	return &PluginRouter{
 		pluginManager: pluginManager,
 		hooks:         make([]ScannerPluginHook, 0),
-		plugins:       make(map[string]plugins.Plugin),
+		plugins:       make(map[string]*plugins.Plugin),
 	}
 }
 
@@ -185,12 +185,12 @@ func (pr *PluginRouter) CallOnMediaFileScanned(mediaFile *database.MediaFile, me
 	}
 }
 
-func (pr *PluginRouter) RegisterPlugin(plugin plugins.Plugin) {
-	pr.plugins[plugin.GetName()] = plugin
-	logger.Debug("Plugin registered", "name", plugin.GetName())
+func (pr *PluginRouter) RegisterPlugin(plugin *plugins.Plugin) {
+	pr.plugins[plugin.ID] = plugin
+	logger.Debug("Plugin registered", "name", plugin.Name)
 }
 
-func (pr *PluginRouter) UnregisterPlugin(pluginName string) {
-	delete(pr.plugins, pluginName)
-	logger.Debug("Plugin unregistered", "name", pluginName)
+func (pr *PluginRouter) UnregisterPlugin(pluginID string) {
+	delete(pr.plugins, pluginID)
+	logger.Debug("Plugin unregistered", "name", pluginID)
 } 

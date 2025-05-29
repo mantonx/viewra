@@ -8,6 +8,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
@@ -762,4 +763,18 @@ func (m *Manager) SetParallelMode(enabled bool) {
 func (m *Manager) GetParallelMode() bool {
 	// Always return true since the new implementation always uses parallel scanning
 	return true
+}
+
+func (m *Manager) GetScannerManager() *Manager {
+	if m == nil {
+		logger.Error("Scanner manager is nil")
+		return nil
+	}
+
+	if m.db == nil {
+		logger.Error("Scanner manager database connection is nil")
+		return nil
+	}
+
+	return m
 }
