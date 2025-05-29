@@ -612,7 +612,7 @@ func (m *manager) getDatabaseURL() string {
 	if dbPath == "" {
 		dbPath = "/app/data/viewra.db"
 	}
-	return "sqlite:" + dbPath
+	return "sqlite://" + dbPath
 }
 
 func removeFromSlice(slice []string, item string) []string {

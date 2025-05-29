@@ -37,10 +37,19 @@ func getScannerModule() (*scannermodule.Module, error) {
 func getScannerManager() (*scanner.Manager, error) {
 	scannerMod, err := getScannerModule()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get scanner module: %w", err)
 	}
 	
-	return scannerMod.GetScannerManager(), nil
+	if scannerMod == nil {
+		return nil, fmt.Errorf("scanner module is nil")
+	}
+	
+	manager := scannerMod.GetScannerManager()
+	if manager == nil {
+		return nil, fmt.Errorf("scanner manager is nil from module")
+	}
+	
+	return manager, nil
 }
 
 // Legacy functions for backward compatibility (deprecated)
@@ -614,15 +623,51 @@ func GetScanProgress(c *gin.Context) {
 		return
 	}
 
+	// Safely get scanner manager with comprehensive error handling
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner manager not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	if scannerManager == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner manager is nil",
+		})
+		return
+	}
+
 	// Try to get detailed progress including worker stats
-	detailedStats, err := scannerManager.GetDetailedScanProgress(uint(id))
-	if err == nil {
+	detailedStats, err := func() (map[string]interface{}, error) {
+		var detailedErr error
+		defer func() {
+			if r := recover(); r != nil {
+				detailedErr = fmt.Errorf("panic in GetDetailedScanProgress: %v", r)
+			}
+		}()
+		stats, detailedErr := scannerManager.GetDetailedScanProgress(uint(id))
+		return stats, detailedErr
+	}()
+	
+	if err == nil && detailedStats != nil {
 		// Get additional info from database to enrich the detailed stats
-		scanJob, _ := scannerManager.GetScanStatus(uint(id))
-		
-		// Add database fields not included in detailed stats
-		detailedStats["files_found"] = scanJob.FilesFound
-		detailedStats["status"] = scanJob.Status
+		if scanJob, scanErr := func() (*database.ScanJob, error) {
+			var dbErr error
+			defer func() {
+				if r := recover(); r != nil {
+					dbErr = fmt.Errorf("panic in GetScanStatus: %v", r)
+				}
+			}()
+			job, dbErr := scannerManager.GetScanStatus(uint(id))
+			return job, dbErr
+		}(); scanErr == nil && scanJob != nil {
+			// Add database fields not included in detailed stats
+			detailedStats["files_found"] = scanJob.FilesFound
+			detailedStats["status"] = scanJob.Status
+		}
 		
 		// Return detailed stats for active jobs
 		c.JSON(http.StatusOK, detailedStats)
@@ -630,17 +675,61 @@ func GetScanProgress(c *gin.Context) {
 	}
 	
 	// If detailed stats are not available, fall back to basic progress
-	progress, eta, filesPerSec, err := scannerManager.GetScanProgress(uint(id))
-	if err != nil {
-		// If no active scanner, try to get progress from database
-		scanJob, dbErr := scannerManager.GetScanStatus(uint(id))
-		if dbErr != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Scan job not found",
+	progress, eta, filesPerSec, progressErr := func() (float64, string, float64, error) {
+		var progErr error
+		defer func() {
+			if r := recover(); r != nil {
+				progErr = fmt.Errorf("panic in GetScanProgress: %v", r)
+			}
+		}()
+		prog, etaStr, fps, progErr := scannerManager.GetScanProgress(uint(id))
+		return prog, etaStr, fps, progErr
+	}()
+	
+	if progressErr == nil {
+		// Get additional info from database
+		if scanJob, scanErr := func() (*database.ScanJob, error) {
+			var dbErr error
+			defer func() {
+				if r := recover(); r != nil {
+					dbErr = fmt.Errorf("panic in GetScanStatus: %v", r)
+				}
+			}()
+			job, dbErr := scannerManager.GetScanStatus(uint(id))
+			return job, dbErr
+		}(); scanErr == nil && scanJob != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"progress":        progress,
+				"eta":             eta,
+				"files_per_sec":   filesPerSec,
+				"bytes_processed": scanJob.BytesProcessed,
+				"files_processed": scanJob.FilesProcessed,
+				"files_found":     scanJob.FilesFound,
+				"status":          scanJob.Status,
 			})
 			return
 		}
 		
+		// Return basic progress without database info if DB access fails
+		c.JSON(http.StatusOK, gin.H{
+			"progress":      progress,
+			"eta":           eta,
+			"files_per_sec": filesPerSec,
+		})
+		return
+	}
+	
+	// If no active scanner, try to get progress from database only
+	if scanJob, dbErr := func() (*database.ScanJob, error) {
+		var dbError error
+		defer func() {
+			if r := recover(); r != nil {
+				dbError = fmt.Errorf("panic in GetScanStatus: %v", r)
+			}
+		}()
+		job, dbError := scannerManager.GetScanStatus(uint(id))
+		return job, dbError
+	}(); dbErr == nil && scanJob != nil {
 		// Return database progress for inactive jobs
 		c.JSON(http.StatusOK, gin.H{
 			"progress":        scanJob.Progress,
@@ -653,18 +742,11 @@ func GetScanProgress(c *gin.Context) {
 		})
 		return
 	}
-
-	// Get additional info from database
-	scanJob, _ := scannerManager.GetScanStatus(uint(id))
 	
-	c.JSON(http.StatusOK, gin.H{
-		"progress":        progress,
-		"eta":             eta,
-		"files_per_sec":   filesPerSec,
-		"bytes_processed": scanJob.BytesProcessed,
-		"files_processed": scanJob.FilesProcessed,
-		"files_found":     scanJob.FilesFound,
-		"status":          scanJob.Status,
+	// All methods failed
+	c.JSON(http.StatusNotFound, gin.H{
+		"error": "Scan job not found or scanner manager unavailable",
+		"details": fmt.Sprintf("detailed_error: %v, progress_error: %v", err, progressErr),
 	})
 }
 
