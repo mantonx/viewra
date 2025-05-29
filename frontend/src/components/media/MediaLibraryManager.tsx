@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { MediaLibrary, ScanJob, ScanStats, LibraryStats } from '@/types/media.types';
 import type { ApiResponse } from '@/types/system.types';
+import { Tooltip } from 'react-tooltip';
 
 // Add interface for scan events
 interface ScanEvent {
@@ -42,7 +43,7 @@ const MediaLibraryManager = () => {
   // Nerd panel state
   const [expandedNerdPanels, setExpandedNerdPanels] = useState<Set<number>>(new Set());
 
-  // Real-time scan progress tracking
+  // Real-time scan progress tracking - enhanced with detailed stats
   const [scanProgress, setScanProgress] = useState<
     Map<
       number,
@@ -51,10 +52,16 @@ const MediaLibraryManager = () => {
         bytesProcessed: number;
         progress: number;
         activeWorkers: number;
+        maxWorkers?: number;
+        minWorkers?: number;
         queueDepth: number;
         lastUpdate: Date;
         startTime?: Date;
         estimatedTimeLeft?: number;
+        eta?: string;
+        filesPerSecond?: number;
+        throughputMbps?: number;
+        elapsedTime?: string;
       }
     >
   >(new Map());
@@ -66,6 +73,18 @@ const MediaLibraryManager = () => {
     loadCurrentJobs();
     loadLibraryStats();
   }, []);
+
+  // Periodic polling for detailed progress data
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      // Refresh detailed progress for active jobs
+      scanProgress.forEach((_, jobId) => {
+        loadDetailedProgress(jobId);
+      });
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(intervalId);
+  }, [scanProgress]);
 
   // Real-time event streaming for scan updates
   useEffect(() => {
@@ -192,6 +211,13 @@ const MediaLibraryManager = () => {
               lastUpdate: now,
               startTime: current?.startTime || now,
               estimatedTimeLeft: current?.estimatedTimeLeft,
+              // Keep existing detailed data if available
+              maxWorkers: current?.maxWorkers,
+              minWorkers: current?.minWorkers,
+              eta: current?.eta,
+              filesPerSecond: current?.filesPerSecond,
+              throughputMbps: current?.throughputMbps,
+              elapsedTime: current?.elapsedTime,
             };
 
             // Calculate estimated time left
@@ -213,6 +239,9 @@ const MediaLibraryManager = () => {
             newMap.set(jobId, newProgress);
             return newMap;
           });
+
+          // Also fetch detailed progress data to get the missing worker info
+          loadDetailedProgress(jobId);
         }
 
         // Handle scan start events
@@ -477,9 +506,61 @@ const MediaLibraryManager = () => {
         }
 
         setCurrentJobs(extractedJobs);
+
+        // Fetch detailed progress for each active job
+        for (const [, job] of Object.entries(extractedJobs)) {
+          if (job.status === 'running') {
+            loadDetailedProgress(job.id);
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to load current jobs:', error);
+    }
+  };
+
+  // New function to fetch detailed progress data
+  const loadDetailedProgress = async (jobId: number) => {
+    try {
+      const res = await fetch(`/api/admin/scanner/progress/${jobId}`);
+      const result = await res.json();
+
+      if (res.ok) {
+        const now = new Date();
+
+        // Parse ETA if available
+        let estimatedTimeLeft: number | undefined;
+        if (result.eta) {
+          const etaTime = new Date(result.eta);
+          estimatedTimeLeft = Math.max(0, Math.floor((etaTime.getTime() - now.getTime()) / 1000));
+        }
+
+        setScanProgress((prev) => {
+          const current = prev.get(jobId);
+          const newProgress = {
+            filesProcessed: result.processed_files || result.files_processed || 0,
+            bytesProcessed: result.processed_bytes || result.bytes_processed || 0,
+            progress: result.progress ? result.progress * 100 : 0, // Convert to percentage
+            activeWorkers: result.active_workers || 0,
+            maxWorkers: result.max_workers,
+            minWorkers: result.min_workers,
+            queueDepth: result.queue_depth || 0,
+            lastUpdate: now,
+            startTime: current?.startTime || now,
+            estimatedTimeLeft,
+            eta: result.eta,
+            filesPerSecond: result.files_per_second || result.files_per_sec,
+            throughputMbps: result.throughput_mbps,
+            elapsedTime: result.elapsed_time,
+          };
+
+          const newMap = new Map(prev);
+          newMap.set(jobId, newProgress);
+          return newMap;
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to load detailed progress for job ${jobId}:`, error);
     }
   };
 
@@ -640,6 +721,51 @@ const MediaLibraryManager = () => {
     return `${days}d ${remainingHours}h remaining`;
   };
 
+  // New function to format elapsed time from backend
+  const formatElapsedTime = (elapsedTimeStr: string) => {
+    if (!elapsedTimeStr) return 'Unknown';
+
+    // Parse duration string like "6m27.245602529s" or "1h30m45.123s"
+    const timeMatch = elapsedTimeStr.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?/);
+    if (!timeMatch) return elapsedTimeStr; // Return original if parsing fails
+
+    const [, hours, minutes, seconds] = timeMatch;
+    const parts = [];
+
+    if (hours && parseInt(hours) > 0) {
+      parts.push(`${hours}h`);
+    }
+    if (minutes && parseInt(minutes) > 0) {
+      parts.push(`${minutes}m`);
+    }
+    if (seconds && parseFloat(seconds) > 0) {
+      const secondsInt = Math.floor(parseFloat(seconds));
+      parts.push(`${secondsInt}s`);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : '0s';
+  };
+
+  // Helper function to get the total file count for progress display
+  const getTotalFileCount = (scanJob: ScanJob) => {
+    // Priority order:
+    // 1. files_found from scan job (if > 0)
+    // 2. files_processed (as minimum count when discovery is ongoing)
+    // 3. fallback to 1 to avoid division by zero
+
+    if (scanJob.files_found > 0) {
+      return scanJob.files_found;
+    }
+
+    if (scanJob.files_processed > 0) {
+      // If we're processing files but haven't counted total yet,
+      // use files_processed as minimum (scanning in progress)
+      return Math.max(scanJob.files_processed, 1);
+    }
+
+    return 1; // Fallback to prevent division by zero
+  };
+
   const toggleNerdPanel = (libraryId: number) => {
     setExpandedNerdPanels((prev) => {
       const newSet = new Set(prev);
@@ -665,8 +791,12 @@ const MediaLibraryManager = () => {
         <h2 className="text-xl font-semibold text-white">📚 Media Libraries</h2>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm transition-colors"
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm transition-colors cursor-pointer"
           disabled={loading}
+          data-tooltip-id="add-library-tooltip"
+          data-tooltip-content={
+            showAddForm ? 'Cancel adding new library' : 'Add a new media library'
+          }
         >
           {showAddForm ? 'Cancel' : 'Add Library'}
         </button>
@@ -719,8 +849,10 @@ const MediaLibraryManager = () => {
                 />
                 <button
                   onClick={handleDirectorySelect}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors cursor-pointer"
                   type="button"
+                  data-tooltip-id="browse-button-tooltip"
+                  data-tooltip-content="Browse and enter a custom directory path"
                 >
                   Browse
                 </button>
@@ -738,8 +870,10 @@ const MediaLibraryManager = () => {
                       <button
                         key={path}
                         onClick={() => handleQuickSelect(path)}
-                        className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-200 px-2 py-1 rounded transition-colors"
+                        className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-200 px-2 py-1 rounded transition-colors cursor-pointer"
                         type="button"
+                        data-tooltip-id="quick-path-tooltip"
+                        data-tooltip-content={`Select ${path} as library directory`}
                       >
                         {path}
                       </button>
@@ -765,13 +899,17 @@ const MediaLibraryManager = () => {
               <button
                 onClick={addLibrary}
                 disabled={loading || !newLibrary.path}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                className="bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors cursor-pointer"
+                data-tooltip-id="add-library-form-tooltip"
+                data-tooltip-content="Create new media library and start scanning"
               >
                 Add Library
               </button>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded text-sm transition-colors"
+                className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded text-sm transition-colors cursor-pointer"
+                data-tooltip-id="cancel-form-tooltip"
+                data-tooltip-content="Cancel and close the form"
               >
                 Cancel
               </button>
@@ -792,11 +930,12 @@ const MediaLibraryManager = () => {
 
             // Calculate progress percentage first since status variables depend on it
             // Use the backend's progress field if available, otherwise calculate from files
+            const totalFileCount = getTotalFileCount(scanJob);
             const progressPercent = scanJob
               ? scanJob.progress !== undefined && scanJob.progress !== null
                 ? Math.min(scanJob.progress, 100) // Cap at 100%
-                : scanJob.files_found > 0
-                  ? Math.min(Math.round((scanJob.files_processed / scanJob.files_found) * 100), 100)
+                : totalFileCount > 0
+                  ? Math.min(Math.round((scanJob.files_processed / totalFileCount) * 100), 100)
                   : 0
               : 0;
 
@@ -879,7 +1018,9 @@ const MediaLibraryManager = () => {
                       <button
                         onClick={() => pauseScan(library.id)}
                         disabled={scanLoading.has(library.id)}
-                        className="library-button bg-orange-600 hover:bg-orange-700 disabled:bg-slate-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                        className="library-button bg-orange-600 hover:bg-orange-700 disabled:bg-slate-600 text-white px-3 py-1 rounded text-sm transition-colors cursor-pointer"
+                        data-tooltip-id="pause-scan-tooltip"
+                        data-tooltip-content="Pause the ongoing scan for this library"
                       >
                         {scanLoading.has(library.id) ? '...' : 'Pause Scan'}
                       </button>
@@ -887,7 +1028,9 @@ const MediaLibraryManager = () => {
                       <button
                         onClick={() => resumeScan(library.id)}
                         disabled={scanLoading.has(library.id)}
-                        className="library-button bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                        className="library-button bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white px-3 py-1 rounded text-sm transition-colors cursor-pointer"
+                        data-tooltip-id="resume-scan-tooltip"
+                        data-tooltip-content="Resume the paused scan for this library"
                       >
                         {scanLoading.has(library.id) ? '...' : 'Resume Scan'}
                       </button>
@@ -895,7 +1038,9 @@ const MediaLibraryManager = () => {
                       <button
                         onClick={() => startScan(library.id)}
                         disabled={scanLoading.has(library.id)}
-                        className="library-button bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                        className="library-button bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-3 py-1 rounded text-sm transition-colors cursor-pointer"
+                        data-tooltip-id="start-scan-tooltip"
+                        data-tooltip-content="Start scanning this library for media files"
                       >
                         {scanLoading.has(library.id) ? '...' : 'Scan'}
                       </button>
@@ -903,8 +1048,10 @@ const MediaLibraryManager = () => {
 
                     <button
                       onClick={() => removeLibrary(library.id)}
-                      className="library-button bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                      className="library-button bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors cursor-pointer"
                       disabled={loading}
+                      data-tooltip-id="remove-library-tooltip"
+                      data-tooltip-content="Remove this library from the media server"
                     >
                       Remove
                     </button>
@@ -917,15 +1064,31 @@ const MediaLibraryManager = () => {
                     {/* Main Progress Info */}
                     <div className="flex justify-between items-center mb-3">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-white">
-                          {scanJob.files_processed.toLocaleString()} /{' '}
-                          {(isCompleted && scanJob.files_processed > scanJob.files_found
-                            ? scanJob.files_processed
-                            : scanJob.files_found
-                          ).toLocaleString()}{' '}
-                          files
+                        <span
+                          className="text-sm font-medium text-white cursor-help"
+                          data-tooltip-id="progress-tooltip"
+                          data-tooltip-content={
+                            scanJob.files_found === 0
+                              ? 'Scanner is discovering and processing files. Progress is estimated based on directory size.'
+                              : 'Files processed out of total files found in the directory.'
+                          }
+                        >
+                          {scanJob.files_found > 0
+                            ? `${scanJob.files_processed.toLocaleString()} / ${scanJob.files_found.toLocaleString()} files`
+                            : `${scanJob.files_processed.toLocaleString()} files scanned`}
                         </span>
-                        <span className="text-xs text-slate-300">({progressPercent}%)</span>
+                        <span
+                          className="text-xs text-slate-300 cursor-help"
+                          data-tooltip-id="progress-percent-tooltip"
+                          data-tooltip-content={
+                            scanJob.files_found === 0
+                              ? 'Estimated progress based on directory traversal and file sizes'
+                              : 'Percentage of files processed'
+                          }
+                        >
+                          ({progressPercent.toFixed(1)}%{' '}
+                          {scanJob.files_found === 0 ? 'estimated' : 'complete'})
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -936,11 +1099,24 @@ const MediaLibraryManager = () => {
                           </span>
                         )}
 
+                        {/* Backend ETA if available and different */}
+                        {isScanning && progressData?.eta && (
+                          <span
+                            className="text-xs text-green-400 font-medium cursor-help"
+                            data-tooltip-id="eta-tooltip"
+                            data-tooltip-content="Estimated completion time calculated by the backend based on current performance"
+                          >
+                            ETA: {new Date(progressData.eta).toLocaleTimeString()}
+                          </span>
+                        )}
+
                         {/* Nerd Panel Toggle */}
                         <button
                           onClick={() => toggleNerdPanel(library.id)}
-                          className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+                          className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
                           title="Toggle detailed information"
+                          data-tooltip-id="details-toggle-tooltip"
+                          data-tooltip-content="Show/hide detailed scan progress information"
                         >
                           <span>Details</span>
                           <svg
@@ -1030,14 +1206,6 @@ const MediaLibraryManager = () => {
                                     : 'N/A'}
                                 </span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-300">Last Update:</span>
-                                <span className="text-white">
-                                  {scanJob.updated_at
-                                    ? new Date(scanJob.updated_at).toLocaleString()
-                                    : 'N/A'}
-                                </span>
-                              </div>
                             </div>
                           </div>
 
@@ -1048,21 +1216,83 @@ const MediaLibraryManager = () => {
                               <div className="flex justify-between">
                                 <span className="text-slate-300">Data Processed:</span>
                                 <span className="text-white">
-                                  {formatBytes(scanJob.bytes_processed)}
+                                  {formatBytes(
+                                    progressData?.bytesProcessed || scanJob.bytes_processed || 0
+                                  )}
                                 </span>
                               </div>
                               {progressData && (
                                 <>
-                                  <div className="flex justify-between">
+                                  {/* Worker Information */}
+                                  <div
+                                    className="flex justify-between cursor-help"
+                                    data-tooltip-id="active-workers-tooltip"
+                                    data-tooltip-content="Number of parallel worker threads currently processing files"
+                                  >
                                     <span className="text-slate-300">Active Workers:</span>
-                                    <span className="text-white">{progressData.activeWorkers}</span>
+                                    <span className="text-white font-medium">
+                                      {progressData.activeWorkers}
+                                    </span>
                                   </div>
-                                  <div className="flex justify-between">
+                                  {progressData.maxWorkers && (
+                                    <div
+                                      className="flex justify-between cursor-help"
+                                      data-tooltip-id="worker-range-tooltip"
+                                      data-tooltip-content="Scanner adapts worker count based on system load (min-max range)"
+                                    >
+                                      <span className="text-slate-300">Worker Range:</span>
+                                      <span className="text-white">
+                                        {progressData.minWorkers}-{progressData.maxWorkers}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Performance Metrics */}
+                                  {progressData.filesPerSecond && (
+                                    <div
+                                      className="flex justify-between cursor-help"
+                                      data-tooltip-id="files-per-sec-tooltip"
+                                      data-tooltip-content="Files being processed per second"
+                                    >
+                                      <span className="text-slate-300">Files/sec:</span>
+                                      <span className="text-white">
+                                        {progressData.filesPerSecond.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {progressData.throughputMbps && (
+                                    <div
+                                      className="flex justify-between cursor-help"
+                                      data-tooltip-id="throughput-tooltip"
+                                      data-tooltip-content="Data processing throughput in megabytes per second"
+                                    >
+                                      <span className="text-slate-300">Throughput:</span>
+                                      <span className="text-white">
+                                        {progressData.throughputMbps.toFixed(1)} MB/s
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Queue and System Info */}
+                                  <div
+                                    className="flex justify-between cursor-help"
+                                    data-tooltip-id="queue-depth-tooltip"
+                                    data-tooltip-content="Number of files waiting to be processed"
+                                  >
                                     <span className="text-slate-300">Queue Depth:</span>
                                     <span className="text-white">{progressData.queueDepth}</span>
                                   </div>
+                                  {progressData.elapsedTime && (
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-300">Elapsed:</span>
+                                      <span className="text-white">
+                                        {formatElapsedTime(progressData.elapsedTime)}
+                                      </span>
+                                    </div>
+                                  )}
+
                                   <div className="flex justify-between">
-                                    <span className="text-slate-300">Last Seen:</span>
+                                    <span className="text-slate-300">Last Update:</span>
                                     <span className="text-white">
                                       {progressData.lastUpdate.toLocaleTimeString()}
                                     </span>
@@ -1084,14 +1314,20 @@ const MediaLibraryManager = () => {
                                   Completed: {new Date(scanJob.completed_at).toLocaleString()}
                                 </div>
                               )}
-                              {isScanning && progressData?.estimatedTimeLeft && (
-                                <div>
-                                  Estimated completion:{' '}
-                                  {new Date(
-                                    Date.now() + progressData.estimatedTimeLeft * 1000
-                                  ).toLocaleString()}
-                                </div>
-                              )}
+                              {/* Consolidated ETA display - prefer backend ETA if available */}
+                              {isScanning &&
+                                (progressData?.eta || progressData?.estimatedTimeLeft) && (
+                                  <div>
+                                    <span className="text-green-400">Estimated completion:</span>{' '}
+                                    {progressData.eta
+                                      ? new Date(progressData.eta).toLocaleString()
+                                      : progressData.estimatedTimeLeft
+                                        ? new Date(
+                                            Date.now() + progressData.estimatedTimeLeft * 1000
+                                          ).toLocaleString()
+                                        : 'Calculating...'}
+                                  </div>
+                                )}
                             </div>
                           </div>
                         )}
@@ -1144,6 +1380,30 @@ const MediaLibraryManager = () => {
           </div>
         </div>
       )}
+
+      {/* Tooltips for all data-tooltip-id elements */}
+      <Tooltip id="progress-tooltip" place="top" />
+      <Tooltip id="progress-percent-tooltip" place="top" />
+      <Tooltip id="eta-tooltip" place="top" />
+      <Tooltip id="active-workers-tooltip" place="top" />
+      <Tooltip id="worker-range-tooltip" place="top" />
+      <Tooltip id="files-per-sec-tooltip" place="top" />
+      <Tooltip id="throughput-tooltip" place="top" />
+      <Tooltip id="queue-depth-tooltip" place="top" />
+
+      {/* Button tooltips */}
+      <Tooltip id="add-library-tooltip" place="bottom" />
+      <Tooltip id="start-scan-tooltip" place="top" />
+      <Tooltip id="pause-scan-tooltip" place="top" />
+      <Tooltip id="resume-scan-tooltip" place="top" />
+      <Tooltip id="remove-library-tooltip" place="top" />
+      <Tooltip id="details-toggle-tooltip" place="top" />
+
+      {/* Form tooltips */}
+      <Tooltip id="browse-button-tooltip" place="top" />
+      <Tooltip id="quick-path-tooltip" place="top" />
+      <Tooltip id="add-library-form-tooltip" place="top" />
+      <Tooltip id="cancel-form-tooltip" place="top" />
 
       {/* Add custom CSS for smooth shimmer animation */}
       <style>{`
