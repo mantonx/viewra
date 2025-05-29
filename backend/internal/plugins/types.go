@@ -74,6 +74,9 @@ type Config struct {
 	Tags        []string `cue:"tags"`
 	Help        string   `cue:"help"`
 	
+	// Plugin behavior
+	EnabledByDefault bool `cue:"enabled_by_default"`
+	
 	// Plugin capabilities
 	Capabilities struct {
 		MetadataExtraction bool `cue:"metadata_extraction"`

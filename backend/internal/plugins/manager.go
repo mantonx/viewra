@@ -181,6 +181,17 @@ func (m *manager) loadPluginConfig(configPath string) error {
 		}
 	}
 	
+	// Workaround for CUE decoding issue with enabled_by_default boolean
+	enabledByDefaultValue := pluginValue.LookupPath(cue.ParsePath("enabled_by_default"))
+	if enabledByDefaultValue.Exists() {
+		if enabledBool, err := enabledByDefaultValue.Bool(); err == nil {
+			config.EnabledByDefault = enabledBool
+			m.logger.Debug("Populated EnabledByDefault via LookupPath workaround", "plugin_id", config.ID, "value", enabledBool)
+		} else {
+			m.logger.Warn("enabled_by_default found by LookupPath but not a boolean", "plugin_id", config.ID, "error", err)
+		}
+	}
+	
 	// Validate required fields
 	if config.ID == "" || config.Name == "" || config.Version == "" {
 		return fmt.Errorf("missing required fields: id, name, or version")
@@ -220,13 +231,14 @@ func (m *manager) loadPluginConfig(configPath string) error {
 	m.mu.Unlock()
 	
 	// Register plugin in database if not already registered
-	m.registerPluginInDatabase(plugin)
+	m.registerPluginInDatabase(plugin, config.EnabledByDefault)
 	
 	m.logger.Info("discovered plugin", 
 		"id", config.ID,
 		"name", config.Name,
 		"version", config.Version,
-		"type", config.Type)
+		"type", config.Type,
+		"enabled_by_default", config.EnabledByDefault)
 	
 	return nil
 }
@@ -596,7 +608,11 @@ func (m *manager) handleFileUpdate(filePath string) {
 func (m *manager) getDatabaseURL() string {
 	// Use absolute path to ensure plugins can find the database
 	// regardless of their working directory
-	return "sqlite:///app/data/viewra.db"
+	dbPath := os.Getenv("SQLITE_PATH")
+	if dbPath == "" {
+		dbPath = "/app/data/viewra.db"
+	}
+	return "sqlite:" + dbPath
 }
 
 func removeFromSlice(slice []string, item string) []string {
@@ -608,7 +624,7 @@ func removeFromSlice(slice []string, item string) []string {
 	return slice
 }
 
-func (m *manager) registerPluginInDatabase(plugin *Plugin) {
+func (m *manager) registerPluginInDatabase(plugin *Plugin, enabledByDefault bool) {
 	if m.db == nil {
 		m.logger.Warn("database not available, skipping plugin registration", "plugin", plugin.ID)
 		return
@@ -632,13 +648,13 @@ func (m *manager) registerPluginInDatabase(plugin *Plugin) {
 	// Plugin doesn't exist, create new database entry
 	now := time.Now()
 	
-	// Enable MusicBrainz plugin by default, keep others disabled
+	// Use the plugin's enabled_by_default setting
 	defaultStatus := "disabled"
 	var enabledAt *time.Time
-	if plugin.ID == "musicbrainz_enricher" {
+	if enabledByDefault {
 		defaultStatus = "enabled"
 		enabledAt = &now
-		m.logger.Info("MusicBrainz plugin enabled by default", "plugin", plugin.ID)
+		m.logger.Info("plugin enabled by default", "plugin", plugin.ID)
 	}
 	
 	dbPlugin := map[string]interface{}{

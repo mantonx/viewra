@@ -17,6 +17,9 @@
 		"artwork"
 	]
 	
+	// Plugin behavior
+	enabled_by_default: true
+	
 	capabilities: {
 		metadata_extraction: true
 		api_endpoints:       true
