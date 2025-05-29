@@ -105,15 +105,39 @@ func (m *Module) GetScannerManager() *scanner.Manager {
 		
 		// Try to re-initialize
 		if m.db == nil {
+			logger.Error("Module database is nil, getting from global database")
 			m.db = database.GetDB()
 		}
 		
 		if m.eventBus == nil {
+			logger.Error("Module eventBus is nil, getting from global event bus")
 			m.eventBus = events.GetGlobalEventBus()
+		}
+		
+		if m.db == nil {
+			logger.Error("CRITICAL: Cannot create scanner manager - database connection is nil")
+			return nil
 		}
 		
 		m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager)
 		logger.Info("Re-initialized scanner manager: %v", m.scannerManager)
+		
+		// Double-check that the manager was created properly
+		if m.scannerManager == nil {
+			logger.Error("CRITICAL: Failed to create scanner manager")
+			return nil
+		}
+	}
+	
+	// Additional safety checks to ensure the manager is properly initialized
+	if m.scannerManager != nil {
+		// Use reflection or check internal state if possible, but for now just validate it's not obviously broken
+		// We can't access private fields directly, but we can try a basic operation
+		if m.scannerManager.GetActiveScanCount() < 0 {
+			// This should never be negative, indicates a problem
+			logger.Error("Scanner manager appears to be corrupted, reinitializing...")
+			m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager)
+		}
 	}
 	
 	return m.scannerManager

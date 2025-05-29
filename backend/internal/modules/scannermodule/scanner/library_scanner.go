@@ -724,22 +724,17 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 		// Check if file has been modified since last scan
 		if cachedFile.UpdatedAt.Before(info.ModTime()) || cachedFile.Size != info.Size() {
 			// File has changed, process it
-			fmt.Printf("DEBUG: File changed, processing: %s\n", path)
 		} else {
 			// File hasn't changed, skip processing
-			fmt.Printf("DEBUG: Skipping unchanged file: %s\n", path)
 			ps.filesSkipped.Add(1)
 			return &scanResult{path: path}
 		}
-	} else {
-		fmt.Printf("DEBUG: New file, processing: %s\n", path)
 	}
 
 	// Calculate file hash for duplicate detection
 	hash, err := ps.calculateFileHashOptimized(path)
 	if err != nil {
 		ps.errorsCount.Add(1)
-		fmt.Printf("DEBUG: Hash calculation failed for %s: %v\n", path, err)
 		return &scanResult{
 			path:  path,
 			error: fmt.Errorf("failed to calculate file hash: %w", err),
@@ -760,7 +755,6 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	// Save MediaFile to database first to get an ID
 	if err := ps.db.Create(mediaFile).Error; err != nil {
 		ps.errorsCount.Add(1)
-		fmt.Printf("DEBUG: Failed to save media file %s: %v\n", path, err)
 		return &scanResult{
 			path:  path,
 			error: fmt.Errorf("failed to save media file: %w", err),
@@ -786,7 +780,6 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 				// Use the new HandleFile method that returns MediaItem + assets
 				mediaItem, assets, err := corePlugin.HandleFile(path, info, ctx)
 				if err != nil {
-					fmt.Printf("DEBUG: Plugin %s failed to handle file %s: %v\n", corePlugin.GetName(), path, err)
 					// Continue without metadata - not a fatal error
 					break
 				}
@@ -794,14 +787,11 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 				// Save using MediaManager
 				if mediaItem != nil {
 					if err := ps.mediaManager.SaveMediaItem(mediaItem, assets); err != nil {
-						fmt.Printf("DEBUG: MediaManager failed to save item %s: %v\n", path, err)
 						// Continue - this will be handled as a warning
 					} else {
 						// Extract metadata and type for legacy compatibility
 						metadata = mediaItem.Metadata
 						metadataType = mediaItem.Type
-						fmt.Printf("DEBUG: Plugin %s processed %s → saved via MediaManager (%d assets)\n", 
-							corePlugin.GetName(), path, len(assets))
 					}
 				}
 				break
@@ -812,7 +802,6 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	ps.filesProcessed.Add(1)
 	ps.bytesProcessed.Add(info.Size())
 
-	fmt.Printf("DEBUG: Successfully processed file: %s\n", path)
 	return &scanResult{
 		mediaFile:        mediaFile,
 		metadata:         metadata,
@@ -828,50 +817,97 @@ func (ps *LibraryScanner) calculateFileHashOptimized(path string) (string, error
 }
 
 func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadata interface{}) {
-	// Call plugin hooks for the old plugin system
-	if ps.pluginRouter != nil {
-		ps.pluginRouter.CallOnMediaFileScanned(mediaFile, metadata)
-	}
-	
-	// Call hooks for the new core media plugins system
-	if ps.corePluginsManager != nil {
-		ps.corePluginsManager.GetRegistry().CallOnMediaFileScanned(mediaFile, metadata)
-	}
+	// Call local plugin hooks first
+	ps.pluginRouter.CallOnMediaFileScanned(mediaFile, metadata)
 	
 	// Call external plugin scanner hooks (e.g., MusicBrainz enricher)
-	if ps.pluginManager != nil {
-		scannerHooks := ps.pluginManager.GetScannerHooks()
-		if len(scannerHooks) > 0 {
-			// Convert metadata to map[string]string for protobuf
-			metadataMap := make(map[string]string)
-			if metadata != nil {
-				if musicMeta, ok := metadata.(map[string]interface{}); ok {
-					for k, v := range musicMeta {
-						metadataMap[k] = fmt.Sprint(v)
-					}
-				} else {
-					// Try to convert other metadata types if needed
-					metadataMap["type"] = fmt.Sprintf("%T", metadata)
+	if ps.pluginManager == nil {
+		fmt.Printf("ERROR: METADATA_DEBUG: pluginManager is nil for file %s\n", mediaFile.Path)
+		return
+	}
+	
+	scannerHooks := ps.pluginManager.GetScannerHooks()
+	fmt.Printf("ERROR: METADATA_DEBUG: Found %d scanner hooks for file %s\n", len(scannerHooks), mediaFile.Path)
+	
+	if len(scannerHooks) > 0 {
+		// Convert metadata to map[string]string for protobuf
+		metadataMap := make(map[string]string)
+		if metadata != nil {
+			fmt.Printf("ERROR: METADATA_DEBUG: Raw metadata type: %T, value: %+v\n", metadata, metadata)
+			if musicMeta, ok := metadata.(map[string]interface{}); ok {
+				for k, v := range musicMeta {
+					metadataMap[k] = fmt.Sprint(v)
 				}
+				fmt.Printf("ERROR: METADATA_DEBUG: Converted map[string]interface{} metadata for file %s: %+v\n", mediaFile.Path, metadataMap)
+			} else if musicMeta, ok := metadata.(*database.MusicMetadata); ok {
+				// Handle MusicMetadata struct conversion
+				metadataMap["title"] = musicMeta.Title
+				metadataMap["artist"] = musicMeta.Artist
+				metadataMap["album"] = musicMeta.Album
+				metadataMap["album_artist"] = musicMeta.AlbumArtist
+				metadataMap["genre"] = musicMeta.Genre
+				metadataMap["year"] = fmt.Sprintf("%d", musicMeta.Year)
+				metadataMap["track"] = fmt.Sprintf("%d", musicMeta.Track)
+				metadataMap["track_total"] = fmt.Sprintf("%d", musicMeta.TrackTotal)
+				metadataMap["disc"] = fmt.Sprintf("%d", musicMeta.Disc)
+				metadataMap["disc_total"] = fmt.Sprintf("%d", musicMeta.DiscTotal)
+				metadataMap["duration"] = fmt.Sprintf("%.0f", musicMeta.Duration)
+				metadataMap["bitrate"] = fmt.Sprintf("%d", musicMeta.Bitrate)
+				metadataMap["sample_rate"] = fmt.Sprintf("%d", musicMeta.SampleRate)
+				metadataMap["channels"] = fmt.Sprintf("%d", musicMeta.Channels)
+				metadataMap["format"] = musicMeta.Format
+				metadataMap["has_artwork"] = fmt.Sprintf("%t", musicMeta.HasArtwork)
+				fmt.Printf("ERROR: METADATA_DEBUG: Converted MusicMetadata struct for file %s: title='%s', artist='%s', album='%s'\n", 
+					mediaFile.Path, musicMeta.Title, musicMeta.Artist, musicMeta.Album)
+			} else {
+				// Try to convert other metadata types if needed
+				metadataMap["type"] = fmt.Sprintf("%T", metadata)
+				fmt.Printf("ERROR: METADATA_DEBUG: Metadata not in expected format for file %s: %T\n", mediaFile.Path, metadata)
 			}
-			
-			// Call each external scanner hook
-			for _, hook := range scannerHooks {
-				go func(h proto.ScannerHookServiceClient) {
-					ctx := context.Background()
-					req := &proto.OnMediaFileScannedRequest{
-						MediaFileId: uint32(mediaFile.ID),
-						FilePath:    mediaFile.Path,
-						Metadata:    metadataMap,
-					}
-					
-					_, err := h.OnMediaFileScanned(ctx, req)
-					if err != nil {
-						fmt.Printf("External plugin scanner hook OnMediaFileScanned failed: %v\n", err)
-					}
-				}(hook)
-			}
+		} else {
+			fmt.Printf("ERROR: METADATA_DEBUG: No metadata provided for file %s\n", mediaFile.Path)
 		}
+		
+		// Call each external scanner hook asynchronously
+		for i, hook := range scannerHooks {
+			go func(hookIndex int, h proto.ScannerHookServiceClient) {
+				fmt.Printf("ERROR: METADATA_DEBUG: Calling gRPC OnMediaFileScanned hook %d for file %s (ID: %d) with %d metadata keys\n", 
+					hookIndex, mediaFile.Path, mediaFile.ID, len(metadataMap))
+				
+				// Log the specific keys being sent
+				if len(metadataMap) > 0 {
+					fmt.Printf("ERROR: METADATA_DEBUG: Metadata keys: %v\n", func() []string {
+						var keys []string
+						for k := range metadataMap {
+							keys = append(keys, k)
+						}
+						return keys
+					}())
+					
+					// Log the critical fields the plugin needs
+					fmt.Printf("ERROR: METADATA_DEBUG: Critical fields - title='%s', artist='%s', album='%s'\n", 
+						metadataMap["title"], metadataMap["artist"], metadataMap["album"])
+				}
+				
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				
+				req := &proto.OnMediaFileScannedRequest{
+					MediaFileId: uint32(mediaFile.ID),
+					FilePath:    mediaFile.Path,
+					Metadata:    metadataMap,
+				}
+				
+				resp, err := h.OnMediaFileScanned(ctx, req)
+				if err != nil {
+					fmt.Printf("ERROR: External plugin scanner hook %d failed for %s: %v\n", hookIndex, mediaFile.Path, err)
+				} else {
+					fmt.Printf("SUCCESS: External plugin scanner hook %d completed for %s, response: %+v\n", hookIndex, mediaFile.Path, resp)
+				}
+			}(i, hook)
+		}
+	} else {
+		fmt.Printf("ERROR: METADATA_DEBUG: No scanner hooks available for file %s\n", mediaFile.Path)
 	}
 }
 

@@ -351,6 +351,14 @@ func (m *Manager) ResumeScan(jobID uint) error {
 
 // GetScanStatus returns the current status of a scan job.
 func (m *Manager) GetScanStatus(jobID uint) (*database.ScanJob, error) {
+	// Safety checks for nil manager and nil database
+	if m == nil {
+		return nil, fmt.Errorf("scanner manager is nil")
+	}
+	if m.db == nil {
+		return nil, fmt.Errorf("scanner manager database connection is nil")
+	}
+	
 	var scanJob database.ScanJob
 	err := m.db.Preload("Library").First(&scanJob, jobID).Error
 	if err != nil {
@@ -632,12 +640,27 @@ func (m *Manager) Shutdown() error {
 
 // GetScanProgress returns progress, ETA, and files/sec for a scan job
 func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, filesPerSec float64, err error) {
+	// Safety check for nil manager
+	if m == nil {
+		return 0, "", 0, fmt.Errorf("scanner manager is nil")
+	}
+	
+	// Safety check for nil mutex
+	if m.scanners == nil {
+		return 0, "", 0, fmt.Errorf("scanner manager scanners map is nil")
+	}
+	
 	m.scannersMu.RLock()
 	scanner, exists := m.scanners[jobID]
 	m.scannersMu.RUnlock()
 
 	if !exists {
 		return 0, "", 0, fmt.Errorf("no active scanner for job %d", jobID)
+	}
+
+	// Safety check for nil scanner
+	if scanner == nil {
+		return 0, "", 0, fmt.Errorf("scanner for job %d is nil", jobID)
 	}
 
 	// Get progress from the scanner's progress estimator
@@ -652,12 +675,32 @@ func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, fil
 
 // GetDetailedScanProgress returns detailed scan progress including adaptive worker pool stats
 func (m *Manager) GetDetailedScanProgress(jobID uint) (map[string]interface{}, error) {
+	// Safety check for nil manager
+	if m == nil {
+		return nil, fmt.Errorf("scanner manager is nil")
+	}
+	
+	// Safety check for nil mutex - this prevents the nil pointer dereference we've been seeing
+	if m.scanners == nil {
+		return nil, fmt.Errorf("scanner manager scanners map is nil")
+	}
+	
 	m.scannersMu.RLock()
 	scanner, exists := m.scanners[jobID]
 	m.scannersMu.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("no active scanner for job %d", jobID)
+	}
+
+	// Safety check for nil scanner
+	if scanner == nil {
+		return nil, fmt.Errorf("scanner for job %d is nil", jobID)
+	}
+
+	// Safety check for nil progress estimator
+	if scanner.progressEstimator == nil {
+		return nil, fmt.Errorf("progress estimator for job %d is nil", jobID)
 	}
 
 	// Get basic progress stats
