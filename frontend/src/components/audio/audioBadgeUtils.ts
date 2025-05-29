@@ -8,91 +8,82 @@ export interface AudioBadgeInfo {
 export const getAudioBadge = (format: string, bitrate: number): AudioBadgeInfo => {
   const upperFormat = format.toUpperCase();
 
-  // FLAC - Lossless format
-  if (upperFormat === 'FLAC') {
+  // First check for lossless formats (highest priority)
+  const losslessFormats = ['FLAC', 'WAV', 'ALAC', 'APE', 'AIFF', 'DSD', 'WV'];
+  const isLossless = losslessFormats.some((losslessFormat) => upperFormat.includes(losslessFormat));
+
+  if (isLossless) {
     return {
-      label: 'FLAC',
+      label: 'LOSSLESS',
       className:
-        'bg-gradient-to-br from-emerald-500/30 to-emerald-600/50 text-emerald-100 border-emerald-300/30 backdrop-blur-sm',
+        'bg-gradient-to-r from-purple-600/30 to-pink-600/30 text-purple-100 border border-purple-400/40 backdrop-blur-md shadow-lg shadow-purple-500/20',
       iconName: 'Crown',
-      tooltip: 'Lossless FLAC format - highest quality',
+      tooltip: `Lossless ${upperFormat} format - maximum quality`,
     };
   }
 
-  // WAV - Raw PCM
-  if (upperFormat === 'WAV') {
+  // Bitrate-based quality tiers for lossy formats
+  if (bitrate > 0) {
+    // Hi-Fi: 320 kbps and above
+    if (bitrate >= 320000) {
+      return {
+        label: 'HI-FI',
+        className:
+          'bg-gradient-to-r from-emerald-600/30 to-cyan-600/30 text-emerald-100 border border-emerald-400/40 backdrop-blur-md shadow-lg shadow-emerald-500/20',
+        iconName: 'Zap',
+        tooltip: `Hi-Fi quality - ${Math.round(bitrate / 1000)}kbps`,
+      };
+    }
+
+    // Enhanced: 192-319 kbps
+    if (bitrate >= 192000) {
+      return {
+        label: 'ENHANCED',
+        className:
+          'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 text-blue-100 border border-blue-400/40 backdrop-blur-md shadow-lg shadow-blue-500/20',
+        iconName: 'Volume2',
+        tooltip: `Enhanced quality - ${Math.round(bitrate / 1000)}kbps`,
+      };
+    }
+
+    // Standard: 128 kbps and below
+    if (bitrate <= 128000) {
+      return {
+        label: 'STANDARD',
+        className:
+          'bg-gradient-to-r from-slate-600/30 to-gray-600/30 text-slate-100 border border-slate-400/40 backdrop-blur-md shadow-lg shadow-slate-500/20',
+        iconName: 'Signal',
+        tooltip: `Standard quality - ${Math.round(bitrate / 1000)}kbps`,
+      };
+    }
+
+    // Mid-range: 129-191 kbps (falls between Standard and Enhanced)
     return {
-      label: 'WAV',
+      label: 'GOOD',
       className:
-        'bg-gradient-to-br from-slate-500/30 to-slate-600/50 text-slate-100 border-slate-300/30 backdrop-blur-sm',
-      iconName: 'AudioWaveform',
-      tooltip: 'Uncompressed WAV format - lossless',
+        'bg-gradient-to-r from-amber-600/30 to-orange-600/30 text-amber-100 border border-amber-400/40 backdrop-blur-md shadow-lg shadow-amber-500/20',
+      iconName: 'TrendingUp',
+      tooltip: `Good quality - ${Math.round(bitrate / 1000)}kbps`,
     };
   }
 
-  // OGG Vorbis - handle both OGG and VORBIS format strings
-  if (upperFormat === 'OGG' || upperFormat === 'VORBIS' || upperFormat === 'OGG VORBIS') {
-    return {
-      label: 'OGG',
-      className:
-        'bg-gradient-to-br from-amber-500/30 to-amber-600/50 text-amber-100 border-amber-300/30 backdrop-blur-sm',
-      iconName: 'Zap',
-      tooltip: 'OGG Vorbis format - good quality lossy compression',
-    };
-  }
-
-  // MP3 High Quality (320kbps) - only if bitrate is meaningful (> 0)
-  if (upperFormat === 'MP3' && bitrate > 0 && bitrate >= 320000) {
-    return {
-      label: 'MP3 320',
-      className:
-        'bg-gradient-to-br from-blue-500/30 to-blue-600/50 text-blue-100 border-blue-300/30 backdrop-blur-sm',
-      iconName: 'Volume2',
-      tooltip: 'High quality MP3 at 320kbps',
-    };
-  }
-
-  // MP3 Variable Bitrate or standard quality
+  // Fallback for variable bitrate or unknown bitrate
   if (upperFormat === 'MP3') {
-    const bitrateDisplay = bitrate > 0 ? `~${Math.round(bitrate / 1000)}kbps` : 'VBR';
     return {
-      label: bitrate > 0 && bitrate >= 256000 ? 'MP3 HQ' : 'MP3 VBR',
+      label: 'VBR',
       className:
-        'bg-gradient-to-br from-sky-500/30 to-sky-600/50 text-sky-100 border-sky-300/30 backdrop-blur-sm',
-      iconName: 'Signal',
-      tooltip: `MP3 format (${bitrateDisplay})`,
+        'bg-gradient-to-r from-sky-600/30 to-blue-600/30 text-sky-100 border border-sky-400/40 backdrop-blur-md shadow-lg shadow-sky-500/20',
+      iconName: 'Activity',
+      tooltip: 'Variable bitrate MP3',
     };
   }
 
-  // AAC High Quality
-  if (upperFormat === 'AAC' || upperFormat === 'M4A') {
-    return {
-      label: 'AAC 256',
-      className:
-        'bg-gradient-to-br from-purple-500/30 to-purple-600/50 text-purple-100 border-purple-300/30 backdrop-blur-sm',
-      iconName: 'Radio',
-      tooltip: 'Advanced Audio Codec at 256kbps',
-    };
-  }
-
-  // Low bitrate warning - only for lossy formats with meaningful bitrate
-  if (bitrate > 0 && bitrate <= 128000 && !['FLAC', 'WAV', 'OGG', 'VORBIS'].includes(upperFormat)) {
-    return {
-      label: 'Low',
-      className:
-        'bg-gradient-to-br from-red-500/30 to-red-600/50 text-red-100 border-red-300/30 backdrop-blur-sm',
-      iconName: 'AlertTriangle',
-      tooltip: `Low quality audio (${Math.round(bitrate / 1000)}kbps or lower)`,
-    };
-  }
-
-  // Default fallback
-  const bitrateInfo = bitrate > 0 ? ` at ${Math.round(bitrate / 1000)}kbps` : '';
+  // Generic fallback for other formats
   return {
-    label: upperFormat,
+    label: upperFormat || 'AUDIO',
     className:
-      'bg-gradient-to-br from-slate-500/30 to-slate-600/50 text-slate-100 border-slate-300/30 backdrop-blur-sm',
-    iconName: 'AudioWaveform',
-    tooltip: `${upperFormat} format${bitrateInfo}`,
+      'bg-gradient-to-r from-gray-600/30 to-slate-600/30 text-gray-100 border border-gray-400/40 backdrop-blur-md shadow-lg shadow-gray-500/20',
+    iconName: 'FileAudio',
+    tooltip: `${upperFormat || 'Audio'} format`,
   };
 };

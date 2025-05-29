@@ -38,6 +38,7 @@ export const {
   AlertTriangle,
   Grid,
   List,
+  TrendingUp,
 } = LucideIcons;
 
 // Note: We don't re-export all icons to avoid conflicts with other types

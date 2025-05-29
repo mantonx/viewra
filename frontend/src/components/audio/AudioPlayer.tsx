@@ -511,7 +511,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 <div className="flex justify-between">
                   <span>Duration:</span>
                   <span className="text-white">
-                    {formatTime(currentTrack.music_metadata?.duration || 0)}
+                    {formatTime((currentTrack.music_metadata?.duration || 0) / 1000000000)}
                   </span>
                 </div>
               </div>
