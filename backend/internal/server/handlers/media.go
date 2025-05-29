@@ -15,6 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 	"github.com/mantonx/viewra/internal/utils"
 )
 
@@ -48,6 +49,31 @@ func (h *MediaHandler) GetMedia(c *gin.Context) {
 		"media": media,
 		"count": len(media),
 	})
+}
+
+// GetMediaByID retrieves a specific media file by ID
+func (h *MediaHandler) GetMediaByID(c *gin.Context) {
+	mediaIDStr := c.Param("id")
+	mediaID, err := strconv.ParseUint(mediaIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid media ID",
+		})
+		return
+	}
+
+	// Get the media file from database with music metadata
+	var mediaFile database.MediaFile
+	db := database.GetDB()
+	result := db.Preload("MusicMetadata").First(&mediaFile, mediaID)
+	if result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, mediaFile)
 }
 
 // StreamMedia serves the actual media file content for streaming
@@ -190,16 +216,73 @@ func StreamMedia(c *gin.Context) {
 
 // GetArtwork serves album artwork for a media file
 func GetArtwork(c *gin.Context) {
-	fmt.Printf("DEBUG: GetArtwork function called with path: %s\n", c.Request.URL.Path)
-	
 	mediaFileIDStr := c.Param("id")
-	
-	// Simple test response
-	c.JSON(http.StatusOK, gin.H{
-		"message": "GetArtwork function working",
-		"media_id": mediaFileIDStr,
-		"path": c.Request.URL.Path,
-	})
+	mediaID, err := strconv.ParseUint(mediaFileIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid media file ID",
+		})
+		return
+	}
+
+	// Get artwork from the mediaassetmodule
+	assetManager := mediaassetmodule.GetAssetManager()
+	if assetManager == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Asset manager not available",
+		})
+		return
+	}
+
+	// Get artwork assets for this media file
+	assets, err := assetManager.GetAssetsByMediaFile(uint(mediaID), mediaassetmodule.AssetTypeMusic)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "No artwork found",
+		})
+		return
+	}
+
+	// Find artwork asset
+	var artworkAsset *mediaassetmodule.AssetResponse
+	for _, asset := range assets {
+		if asset.Category == mediaassetmodule.CategoryAlbum && asset.Subtype == mediaassetmodule.SubtypeArtwork {
+			artworkAsset = asset
+			break
+		}
+	}
+
+	if artworkAsset == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "No artwork found for this media file",
+		})
+		return
+	}
+
+	// Set appropriate headers for image serving
+	c.Header("Content-Type", artworkAsset.MimeType)
+	c.Header("Content-Length", strconv.FormatInt(artworkAsset.Size, 10))
+	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
+	c.Header("Accept-Ranges", "bytes")
+
+	// For HEAD requests, only return headers
+	if c.Request.Method == "HEAD" {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	// Get the artwork data for GET requests
+	data, err := assetManager.GetAssetData(artworkAsset.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve artwork data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Serve the image data
+	c.Data(http.StatusOK, artworkAsset.MimeType, data)
 }
 
 // Helper function to check if a file is a music file

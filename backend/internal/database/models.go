@@ -83,6 +83,8 @@ type MusicMetadata struct {
 	DiscTotal   int           `json:"disc_total"`
 	Duration    time.Duration `json:"duration"`
 	Bitrate     int           `json:"bitrate"`
+	SampleRate  int           `json:"sample_rate"`  // Sample rate in Hz (e.g., 44100, 48000)
+	Channels    int           `json:"channels"`     // Number of audio channels (1=mono, 2=stereo, etc.)
 	Format      string        `json:"format"`
 	HasArtwork  bool          `json:"has_artwork"`
 	CreatedAt   time.Time     `json:"created_at"`

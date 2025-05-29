@@ -15,6 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
@@ -24,6 +25,7 @@ import (
 	// Import all modules to trigger their registration
 	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
 	_ "github.com/mantonx/viewra/internal/modules/mediaassetmodule"
+	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
 
@@ -113,6 +115,13 @@ func initializeModules() error {
 	
 	// Register all modules
 	registerAllModules()
+	
+	// Ensure mediaassetmodule is loaded by calling a function from it
+	// This forces the Go linker to include the package
+	assetManager := mediaassetmodule.GetAssetManager() // This will be nil before module loading, but forces inclusion
+	if assetManager != nil {
+		log.Println("INFO: mediaassetmodule already initialized with manager")
+	}
 	
 	// Load all modules
 	if err := modulemanager.LoadAll(db); err != nil {
