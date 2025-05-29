@@ -631,6 +631,16 @@ func (m *manager) registerPluginInDatabase(plugin *Plugin) {
 	
 	// Plugin doesn't exist, create new database entry
 	now := time.Now()
+	
+	// Enable MusicBrainz plugin by default, keep others disabled
+	defaultStatus := "disabled"
+	var enabledAt *time.Time
+	if plugin.ID == "musicbrainz_enricher" {
+		defaultStatus = "enabled"
+		enabledAt = &now
+		m.logger.Info("MusicBrainz plugin enabled by default", "plugin", plugin.ID)
+	}
+	
 	dbPlugin := map[string]interface{}{
 		"plugin_id":    plugin.ID,
 		"name":         plugin.Name,
@@ -638,11 +648,16 @@ func (m *manager) registerPluginInDatabase(plugin *Plugin) {
 		"description":  plugin.Description,
 		"author":       plugin.Author,
 		"type":         plugin.Type,
-		"status":       "disabled", // Default to disabled, user must explicitly enable
+		"status":       defaultStatus,
 		"install_path": plugin.BasePath,
 		"installed_at": now,
 		"created_at":   now,
 		"updated_at":   now,
+	}
+	
+	// Add enabled_at if plugin is enabled by default
+	if enabledAt != nil {
+		dbPlugin["enabled_at"] = *enabledAt
 	}
 	
 	if err := m.db.Table("plugins").Create(dbPlugin).Error; err != nil {
@@ -650,5 +665,5 @@ func (m *manager) registerPluginInDatabase(plugin *Plugin) {
 		return
 	}
 	
-	m.logger.Info("plugin registered in database", "plugin", plugin.ID, "status", "disabled")
+	m.logger.Info("plugin registered in database", "plugin", plugin.ID, "status", defaultStatus)
 } 
