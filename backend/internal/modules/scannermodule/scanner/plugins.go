@@ -1,13 +1,13 @@
 package scanner
 
 import (
-	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/plugins"
 )
 
@@ -46,7 +46,7 @@ func (r *PluginRegistry) Register(plugin FileHandlerPlugin) {
 	defer r.mu.Unlock()
 	
 	r.plugins = append(r.plugins, plugin)
-	fmt.Printf("DEBUG: Registered plugin: %s\n", plugin.GetName())
+	logger.Debug("Plugin registered", "name", plugin.GetName())
 }
 
 // Unregister removes a plugin from the registry
@@ -57,7 +57,7 @@ func (r *PluginRegistry) Unregister(pluginName string) {
 	for i, plugin := range r.plugins {
 		if plugin.GetName() == pluginName {
 			r.plugins = append(r.plugins[:i], r.plugins[i+1:]...)
-			fmt.Printf("DEBUG: Unregistered plugin: %s\n", pluginName)
+			logger.Debug("Plugin unregistered", "name", pluginName)
 			return
 		}
 	}
@@ -101,6 +101,7 @@ type PluginRouter struct {
 	pluginManager plugins.Manager
 	mu            sync.RWMutex
 	hooks         []ScannerPluginHook
+	plugins       map[string]plugins.Plugin
 }
 
 // ScannerPluginHook defines the interface for scanner plugin hooks
@@ -115,6 +116,7 @@ func NewPluginRouter(pluginManager plugins.Manager) *PluginRouter {
 	return &PluginRouter{
 		pluginManager: pluginManager,
 		hooks:         make([]ScannerPluginHook, 0),
+		plugins:       make(map[string]plugins.Plugin),
 	}
 }
 
@@ -147,7 +149,7 @@ func (pr *PluginRouter) CallOnScanStarted(jobID, libraryID uint, path string) {
 		go func(h ScannerPluginHook) {
 			if err := h.OnScanStarted(jobID, libraryID, path); err != nil {
 				// Log error but don't fail the scan
-				fmt.Printf("Plugin hook OnScanStarted failed: %v\n", err)
+				logger.Error("Plugin hook OnScanStarted failed", "error", err)
 			}
 		}(hook)
 	}
@@ -162,7 +164,7 @@ func (pr *PluginRouter) CallOnScanCompleted(jobID, libraryID uint, stats map[str
 		go func(h ScannerPluginHook) {
 			if err := h.OnScanCompleted(jobID, libraryID, stats); err != nil {
 				// Log error but don't fail the scan
-				fmt.Printf("Plugin hook OnScanCompleted failed: %v\n", err)
+				logger.Error("Plugin hook OnScanCompleted failed", "error", err)
 			}
 		}(hook)
 	}
@@ -177,8 +179,18 @@ func (pr *PluginRouter) CallOnMediaFileScanned(mediaFile *database.MediaFile, me
 		go func(h ScannerPluginHook) {
 			if err := h.OnMediaFileScanned(mediaFile, metadata); err != nil {
 				// Log error but don't fail the scan
-				fmt.Printf("Plugin hook OnMediaFileScanned failed: %v\n", err)
+				logger.Error("Plugin hook OnMediaFileScanned failed", "error", err)
 			}
 		}(hook)
 	}
+}
+
+func (pr *PluginRouter) RegisterPlugin(plugin plugins.Plugin) {
+	pr.plugins[plugin.GetName()] = plugin
+	logger.Debug("Plugin registered", "name", plugin.GetName())
+}
+
+func (pr *PluginRouter) UnregisterPlugin(pluginName string) {
+	delete(pr.plugins, pluginName)
+	logger.Debug("Plugin unregistered", "name", pluginName)
 } 

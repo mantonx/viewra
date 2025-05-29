@@ -13,6 +13,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/plugins/music"
 	"github.com/mantonx/viewra/internal/plugins/proto"
@@ -231,31 +232,26 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 // Start begins the parallel scanning process
 func (ps *LibraryScanner) Start(libraryID uint) error {
 	ps.startTime = time.Now()
-	fmt.Printf("DEBUG: Scanner Start() called for library %d\n", libraryID)
+	logger.Info("Starting library scan", "library_id", libraryID)
 
 	ps.dbMutex.Lock()
-	// Load scan job
 	if err := ps.loadScanJob(); err != nil {
 		ps.dbMutex.Unlock()
 		return fmt.Errorf("failed to load scan job: %w", err)
 	}
-	fmt.Printf("DEBUG: Scan job loaded successfully\n")
 
-	// Load library
 	var library database.MediaLibrary
 	if err := ps.db.First(&library, libraryID).Error; err != nil {
 		ps.dbMutex.Unlock()
 		return fmt.Errorf("failed to load library: %w", err)
 	}
-	fmt.Printf("DEBUG: Library loaded: %s\n", library.Path)
-	ps.dbMutex.Unlock() // Unlock after initial reads
+	ps.dbMutex.Unlock()
 
 	if library.Path == "" {
 		return fmt.Errorf("library path is empty")
 	}
 
 	ps.dbMutex.Lock()
-	// Update job status to running
 	ps.scanJob.Status = "running"
 	ps.scanJob.StartedAt = &ps.startTime
 	if err := ps.db.Save(ps.scanJob).Error; err != nil {
@@ -263,9 +259,7 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 		return fmt.Errorf("failed to update scan job status: %w", err)
 	}
 	ps.dbMutex.Unlock()
-	fmt.Printf("DEBUG: Job status updated to running\n")
 
-	// Emit scan started event
 	event := events.Event{
 		Type:    "scan.started",
 		Source:  "scanner",
@@ -278,77 +272,51 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 		},
 	}
 	ps.eventBus.PublishAsync(event)
-	fmt.Printf("DEBUG: Scan started event published\n")
 
-	// Call plugin hooks for scan started
 	if ps.pluginRouter != nil {
 		ps.pluginRouter.CallOnScanStarted(ps.jobID, libraryID, library.Path)
 	}
-	fmt.Printf("DEBUG: Plugin hooks called\n")
 
-	// Preload file cache for performance
 	if err := ps.preloadFileCache(libraryID); err != nil {
-		// Log warning but continue
-		fmt.Printf("Warning: Failed to preload file cache: %v\n", err)
+		logger.Warn("Failed to preload file cache", "error", err)
 	}
-	fmt.Printf("DEBUG: File cache preloaded\n")
 
-	// Count files for progress estimation
 	fileCount, err := ps.countFilesToScan(library.Path)
 	if err != nil {
-		fmt.Printf("Warning: Failed to count files for progress estimation: %v\n", err)
-		fileCount = 1000 // Fallback estimate
+		logger.Warn("Failed to count files for progress estimation", "error", err)
+		fileCount = 1000
 	}
 	ps.progressEstimator.SetTotal(int64(fileCount), 0)
-	fmt.Printf("DEBUG: File count estimated: %d\n", fileCount)
 
-	// Start the worker pool
-	fmt.Printf("DEBUG: Starting worker pool manager\n")
+	// Start all workers and processors
 	ps.wg.Add(1)
 	go ps.workerPoolManager()
 
-	// Start result processor
-	fmt.Printf("DEBUG: Starting result processor\n")
 	ps.wg.Add(1)
 	go ps.resultProcessor()
 
-	// Start batch flusher
-	fmt.Printf("DEBUG: Starting batch flusher\n")
 	ps.wg.Add(1)
 	go ps.batchFlusher()
 
-	// Start queue managers
-	fmt.Printf("DEBUG: Starting directory queue manager\n")
 	ps.wg.Add(1)
 	go ps.dirQueueManager()
 
-	fmt.Printf("DEBUG: Starting work queue closer\n")
 	ps.wg.Add(1)
 	go ps.workQueueCloser()
 
-	// Start progress updates
-	fmt.Printf("DEBUG: Starting progress updates\n")
 	ps.wg.Add(1)
 	go ps.updateProgress()
 
-	// Start directory workers
-	fmt.Printf("DEBUG: Starting %d directory workers\n", ps.dirWorkerCount)
 	for i := 0; i < ps.dirWorkerCount; i++ {
 		ps.wg.Add(1)
 		go ps.directoryWorker(i)
 	}
 
-	// Kick off the scanning process
-	fmt.Printf("DEBUG: Starting directory scanning\n")
 	ps.wg.Add(1)
 	go ps.scanDirectory(libraryID)
 
-	fmt.Printf("DEBUG: All goroutines started, waiting for completion\n")
-	// Wait for completion or cancellation
 	ps.wg.Wait()
 
-	fmt.Printf("DEBUG: Scanner completed, updating final status\n")
-	// Update final status
 	ps.updateFinalStatus()
 
 	return nil
@@ -677,7 +645,6 @@ func (ps *LibraryScanner) worker(id int) {
 	defer ps.wg.Done()
 	defer ps.activeWorkers.Add(-1)
 
-	fmt.Printf("DEBUG: Worker %d starting\n", id)
 	ps.activeWorkers.Add(1)
 	processedCount := 0
 
@@ -685,13 +652,12 @@ func (ps *LibraryScanner) worker(id int) {
 		select {
 		case work, ok := <-ps.workQueue:
 			if !ok {
-				fmt.Printf("DEBUG: Worker %d shutting down, processed %d files\n", id, processedCount)
 				return
 			}
 
 			processedCount++
-			if processedCount == 1 || processedCount%100 == 0 {
-				fmt.Printf("DEBUG: Worker %d has processed %d files\n", id, processedCount)
+			if processedCount%1000 == 0 {
+				logger.Debug("Worker progress", "worker_id", id, "files_processed", processedCount)
 			}
 
 			result := ps.processFile(work)
@@ -699,12 +665,10 @@ func (ps *LibraryScanner) worker(id int) {
 			select {
 			case ps.resultQueue <- result:
 			case <-ps.ctx.Done():
-				fmt.Printf("DEBUG: Worker %d cancelled, processed %d files\n", id, processedCount)
 				return
 			}
 
 		case <-ps.ctx.Done():
-			fmt.Printf("DEBUG: Worker %d cancelled, processed %d files\n", id, processedCount)
 			return
 		}
 	}
@@ -817,97 +781,64 @@ func (ps *LibraryScanner) calculateFileHashOptimized(path string) (string, error
 }
 
 func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadata interface{}) {
-	// Call local plugin hooks first
 	ps.pluginRouter.CallOnMediaFileScanned(mediaFile, metadata)
-	
-	// Call external plugin scanner hooks (e.g., MusicBrainz enricher)
+
 	if ps.pluginManager == nil {
-		fmt.Printf("ERROR: METADATA_DEBUG: pluginManager is nil for file %s\n", mediaFile.Path)
+		logger.Error("Plugin manager is nil", "file", mediaFile.Path)
 		return
 	}
-	
+
 	scannerHooks := ps.pluginManager.GetScannerHooks()
-	fmt.Printf("ERROR: METADATA_DEBUG: Found %d scanner hooks for file %s\n", len(scannerHooks), mediaFile.Path)
-	
-	if len(scannerHooks) > 0 {
-		// Convert metadata to map[string]string for protobuf
-		metadataMap := make(map[string]string)
-		if metadata != nil {
-			fmt.Printf("ERROR: METADATA_DEBUG: Raw metadata type: %T, value: %+v\n", metadata, metadata)
-			if musicMeta, ok := metadata.(map[string]interface{}); ok {
-				for k, v := range musicMeta {
-					metadataMap[k] = fmt.Sprint(v)
-				}
-				fmt.Printf("ERROR: METADATA_DEBUG: Converted map[string]interface{} metadata for file %s: %+v\n", mediaFile.Path, metadataMap)
-			} else if musicMeta, ok := metadata.(*database.MusicMetadata); ok {
-				// Handle MusicMetadata struct conversion
-				metadataMap["title"] = musicMeta.Title
-				metadataMap["artist"] = musicMeta.Artist
-				metadataMap["album"] = musicMeta.Album
-				metadataMap["album_artist"] = musicMeta.AlbumArtist
-				metadataMap["genre"] = musicMeta.Genre
-				metadataMap["year"] = fmt.Sprintf("%d", musicMeta.Year)
-				metadataMap["track"] = fmt.Sprintf("%d", musicMeta.Track)
-				metadataMap["track_total"] = fmt.Sprintf("%d", musicMeta.TrackTotal)
-				metadataMap["disc"] = fmt.Sprintf("%d", musicMeta.Disc)
-				metadataMap["disc_total"] = fmt.Sprintf("%d", musicMeta.DiscTotal)
-				metadataMap["duration"] = fmt.Sprintf("%.0f", musicMeta.Duration)
-				metadataMap["bitrate"] = fmt.Sprintf("%d", musicMeta.Bitrate)
-				metadataMap["sample_rate"] = fmt.Sprintf("%d", musicMeta.SampleRate)
-				metadataMap["channels"] = fmt.Sprintf("%d", musicMeta.Channels)
-				metadataMap["format"] = musicMeta.Format
-				metadataMap["has_artwork"] = fmt.Sprintf("%t", musicMeta.HasArtwork)
-				fmt.Printf("ERROR: METADATA_DEBUG: Converted MusicMetadata struct for file %s: title='%s', artist='%s', album='%s'\n", 
-					mediaFile.Path, musicMeta.Title, musicMeta.Artist, musicMeta.Album)
-			} else {
-				// Try to convert other metadata types if needed
-				metadataMap["type"] = fmt.Sprintf("%T", metadata)
-				fmt.Printf("ERROR: METADATA_DEBUG: Metadata not in expected format for file %s: %T\n", mediaFile.Path, metadata)
+	if len(scannerHooks) == 0 {
+		return
+	}
+
+	metadataMap := make(map[string]string)
+	if metadata != nil {
+		if musicMeta, ok := metadata.(map[string]interface{}); ok {
+			for k, v := range musicMeta {
+				metadataMap[k] = fmt.Sprint(v)
 			}
+		} else if musicMeta, ok := metadata.(*database.MusicMetadata); ok {
+			metadataMap["title"] = musicMeta.Title
+			metadataMap["artist"] = musicMeta.Artist
+			metadataMap["album"] = musicMeta.Album
+			metadataMap["album_artist"] = musicMeta.AlbumArtist
+			metadataMap["genre"] = musicMeta.Genre
+			metadataMap["year"] = fmt.Sprintf("%d", musicMeta.Year)
+			metadataMap["track"] = fmt.Sprintf("%d", musicMeta.Track)
+			metadataMap["track_total"] = fmt.Sprintf("%d", musicMeta.TrackTotal)
+			metadataMap["disc"] = fmt.Sprintf("%d", musicMeta.Disc)
+			metadataMap["disc_total"] = fmt.Sprintf("%d", musicMeta.DiscTotal)
+			metadataMap["duration"] = fmt.Sprintf("%.0f", musicMeta.Duration)
+			metadataMap["bitrate"] = fmt.Sprintf("%d", musicMeta.Bitrate)
+			metadataMap["sample_rate"] = fmt.Sprintf("%d", musicMeta.SampleRate)
+			metadataMap["channels"] = fmt.Sprintf("%d", musicMeta.Channels)
+			metadataMap["format"] = musicMeta.Format
+			metadataMap["has_artwork"] = fmt.Sprintf("%t", musicMeta.HasArtwork)
 		} else {
-			fmt.Printf("ERROR: METADATA_DEBUG: No metadata provided for file %s\n", mediaFile.Path)
+			metadataMap["type"] = fmt.Sprintf("%T", metadata)
 		}
-		
-		// Call each external scanner hook asynchronously
-		for i, hook := range scannerHooks {
-			go func(hookIndex int, h proto.ScannerHookServiceClient) {
-				fmt.Printf("ERROR: METADATA_DEBUG: Calling gRPC OnMediaFileScanned hook %d for file %s (ID: %d) with %d metadata keys\n", 
-					hookIndex, mediaFile.Path, mediaFile.ID, len(metadataMap))
-				
-				// Log the specific keys being sent
-				if len(metadataMap) > 0 {
-					fmt.Printf("ERROR: METADATA_DEBUG: Metadata keys: %v\n", func() []string {
-						var keys []string
-						for k := range metadataMap {
-							keys = append(keys, k)
-						}
-						return keys
-					}())
-					
-					// Log the critical fields the plugin needs
-					fmt.Printf("ERROR: METADATA_DEBUG: Critical fields - title='%s', artist='%s', album='%s'\n", 
-						metadataMap["title"], metadataMap["artist"], metadataMap["album"])
-				}
-				
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				
-				req := &proto.OnMediaFileScannedRequest{
-					MediaFileId: uint32(mediaFile.ID),
-					FilePath:    mediaFile.Path,
-					Metadata:    metadataMap,
-				}
-				
-				resp, err := h.OnMediaFileScanned(ctx, req)
-				if err != nil {
-					fmt.Printf("ERROR: External plugin scanner hook %d failed for %s: %v\n", hookIndex, mediaFile.Path, err)
-				} else {
-					fmt.Printf("SUCCESS: External plugin scanner hook %d completed for %s, response: %+v\n", hookIndex, mediaFile.Path, resp)
-				}
-			}(i, hook)
-		}
-	} else {
-		fmt.Printf("ERROR: METADATA_DEBUG: No scanner hooks available for file %s\n", mediaFile.Path)
+	}
+
+	for i, hook := range scannerHooks {
+		go func(hookIndex int, h proto.ScannerHookServiceClient) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			req := &proto.OnMediaFileScannedRequest{
+				MediaFileId: uint32(mediaFile.ID),
+				FilePath:    mediaFile.Path,
+				Metadata:    metadataMap,
+			}
+
+			if _, err := h.OnMediaFileScanned(ctx, req); err != nil {
+				logger.Error("External plugin scanner hook failed",
+					"hook_index", hookIndex,
+					"file", mediaFile.Path,
+					"error", err)
+			}
+		}(i, hook)
 	}
 }
 
@@ -922,7 +853,7 @@ func (ps *LibraryScanner) resultProcessor() {
 			}
 
 			if result.error != nil {
-				fmt.Printf("Scan error for %s: %v\n", result.path, result.error)
+				logger.Error("Scan error", "path", result.path, "error", result.error)
 				continue
 			}
 
@@ -930,9 +861,6 @@ func (ps *LibraryScanner) resultProcessor() {
 				// Skipped file
 				continue
 			}
-
-			// MediaFile and metadata are already saved via MediaManager
-			// Just update cache and call plugin hooks
 
 			// Update cache
 			ps.fileCache.mu.Lock()
@@ -961,7 +889,7 @@ func (ps *LibraryScanner) batchFlusher() {
 		case <-ticker.C:
 			ps.dbMutex.Lock()
 			if err := ps.batchProcessor.Flush(); err != nil {
-				fmt.Printf("Error in batch flush: %v\n", err)
+				logger.Error("Batch flush failed", "error", err)
 			}
 			ps.dbMutex.Unlock()
 		case <-ps.ctx.Done():
@@ -1039,7 +967,7 @@ func (ps *LibraryScanner) updateProgress() {
 				"progress":        int(progress),
 				"updated_at":      time.Now(),
 			}).Error; err != nil {
-				fmt.Printf("Error updating scan job progress: %v\n", err)
+				logger.Error("Failed to update scan job progress", "error", err)
 			}
 			ps.dbMutex.Unlock()
 
@@ -1051,19 +979,16 @@ func (ps *LibraryScanner) updateProgress() {
 
 // Pause pauses the scanning process
 func (ps *LibraryScanner) Pause() {
-	ps.wasExplicitlyPaused.Store(true) // Set the flag
-
-	// Ensure context is cancelled first
+	ps.wasExplicitlyPaused.Store(true)
 	ps.cancel()
 
 	ps.dbMutex.Lock()
 	defer ps.dbMutex.Unlock()
-	// Update job status in database
+
 	if err := ps.db.Model(&database.ScanJob{}).Where("id = ?", ps.jobID).Update("status", "paused").Error; err != nil {
-		fmt.Printf("Error updating scan job status to paused: %v\n", err)
+		logger.Error("Failed to update scan job status to paused", "error", err)
 	}
 
-	// Emit scan paused event
 	event := events.Event{
 		Type:    "scan.paused",
 		Source:  "scanner",
@@ -1133,16 +1058,16 @@ func (ps *LibraryScanner) adjustWorkers() {
 func (ps *LibraryScanner) workerPoolManager() {
 	defer ps.wg.Done()
 
-	fmt.Printf("DEBUG: Starting worker pool manager\n")
+	logger.Debug("Starting worker pool")
 
 	// Start initial workers
 	for i := 0; i < ps.workerCount; i++ {
-		fmt.Printf("DEBUG: Starting worker %d\n", i)
+		logger.Debug("Starting worker", "worker_id", i)
 		ps.wg.Add(1)
 		go ps.worker(i)
 	}
 
-	fmt.Printf("DEBUG: Started %d initial workers\n", ps.workerCount)
+	logger.Debug("Started initial workers", "count", ps.workerCount)
 
 	// Monitor and adjust worker count
 	ticker := time.NewTicker(5 * time.Second)
@@ -1153,7 +1078,7 @@ func (ps *LibraryScanner) workerPoolManager() {
 		case <-ticker.C:
 			ps.adjustWorkers()
 		case <-ps.ctx.Done():
-			fmt.Printf("DEBUG: Worker pool manager shutting down\n")
+			logger.Debug("Worker pool manager shutting down")
 			return
 		}
 	}
@@ -1210,59 +1135,57 @@ func (bp *BatchProcessor) flushInternal() error {
 		})
 		
 		if err != nil {
-			fmt.Printf("ERROR: Failed to insert media files: %v\n", err)
+			logger.Error("Failed to insert media files", "error", err)
 			return err
 		}
 		
-		fmt.Printf("DEBUG: Successfully inserted %d media files\n", len(bp.mediaFiles))
-		// Clear the slice but keep capacity
+		logger.Debug("Media files inserted", "count", len(bp.mediaFiles))
 		bp.mediaFiles = bp.mediaFiles[:0]
 	}
 
-	// Second transaction: Process metadata items through the MediaManager
-	// The MediaManager handles type-specific logic - the scanner stays generic
+	// Second transaction: Process metadata items
 	if len(bp.metadataItems) > 0 {
 		err := bp.db.Transaction(func(tx *gorm.DB) error {
-			// Create MediaManager for handling metadata
 			mediaManager := plugins.NewMediaManager(tx)
 			
 			for _, item := range bp.metadataItems {
 				if item.Data != nil {
-					// Find the corresponding media file
 					var mediaFile database.MediaFile
 					if err := tx.Where("path = ?", item.Path).First(&mediaFile).Error; err != nil {
-						fmt.Printf("WARNING: Failed to find media file for path %s when processing %s metadata: %v\n", item.Path, item.Type, err)
+						logger.Warn("Failed to find media file for metadata",
+							"path", item.Path,
+							"type", item.Type,
+							"error", err)
 						continue
 					}
 					
-					// Create a MediaItem that wraps the metadata
 					mediaItem := &plugins.MediaItem{
 						Type:      item.Type,
 						MediaFile: &mediaFile,
 						Metadata:  item.Data,
 					}
 					
-					// Let the MediaManager handle the type-specific logic
-					// It knows how to save music metadata, video metadata, etc.
 					if err := mediaManager.SaveMediaItem(mediaItem, []plugins.MediaAsset{}); err != nil {
-						fmt.Printf("WARNING: Failed to save %s metadata for file %s: %v\n", item.Type, item.Path, err)
-						// Continue processing other items even if one fails
+						logger.Warn("Failed to save metadata",
+							"type", item.Type,
+							"path", item.Path,
+							"error", err)
 						continue
 					}
 					
-					fmt.Printf("DEBUG: Successfully processed %s metadata for file %s via MediaManager\n", item.Type, item.Path)
+					logger.Debug("Processed metadata",
+						"type", item.Type,
+						"path", item.Path)
 				}
 			}
 			return nil
 		})
 		
 		if err != nil {
-			fmt.Printf("WARNING: Failed to process metadata items: %v\n", err)
-			// Don't return error - we want to continue processing even if metadata fails
+			logger.Warn("Failed to process metadata items", "error", err)
 		}
 
-		fmt.Printf("DEBUG: Successfully processed %d metadata items via MediaManager\n", len(bp.metadataItems))
-		// Clear the slices but keep capacity
+		logger.Debug("Metadata items processed", "count", len(bp.metadataItems))
 		bp.metadataItems = bp.metadataItems[:0]
 	}
 
@@ -1297,7 +1220,6 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 		return
 	}
 
-	// Get supported extensions from all registered plugins
 	var supportedExts map[string]bool
 	if ps.corePluginsManager != nil {
 		supportedExts = make(map[string]bool)
@@ -1309,7 +1231,6 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 		}
 	}
 	
-	// Fallback to the generic media extensions from utils package if no plugins available
 	if len(supportedExts) == 0 {
 		supportedExts = utils.MediaExtensions
 	}
@@ -1321,7 +1242,6 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 		fullPath := filepath.Join(work.path, entry.Name())
 
 		if entry.IsDir() {
-			// Queue subdirectory for processing
 			select {
 			case ps.dirQueue <- dirWork{path: fullPath, libraryID: work.libraryID}:
 				dirsQueued++
@@ -1329,15 +1249,13 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 				return
 			}
 		} else {
-			// Check if it's a supported media file
 			ext := filepath.Ext(entry.Name())
 			if supportedExts[ext] {
 				info, err := entry.Info()
 				if err != nil {
-					continue // Skip files we can't stat
+					continue
 				}
 
-				// Queue file for scanning
 				select {
 				case ps.workQueue <- scanWork{
 					path:      fullPath,
@@ -1352,9 +1270,11 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 		}
 	}
 
-	// Debug logging - only log if we queued something
 	if filesQueued > 0 || dirsQueued > 0 {
-		fmt.Printf("DEBUG: Processed directory %s - queued %d files, %d subdirs\n", work.path, filesQueued, dirsQueued)
+		logger.Debug("Directory processed",
+			"path", work.path,
+			"files_queued", filesQueued,
+			"dirs_queued", dirsQueued)
 	}
 }
 
@@ -1362,8 +1282,7 @@ func (ps *LibraryScanner) dirQueueManager() {
 	defer ps.wg.Done()
 	defer close(ps.dirQueue)
 
-	// Monitor directory processing until all are done
-	ticker := time.NewTicker(500 * time.Millisecond) // Check every 500ms
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	consecutiveEmptyChecks := 0
@@ -1371,38 +1290,35 @@ func (ps *LibraryScanner) dirQueueManager() {
 	for {
 		select {
 		case <-ticker.C:
-			// Check if all directory work is complete
 			activeDirWorkers := ps.activeDirWorkers.Load()
 			dirQueueLen := len(ps.dirQueue)
 
-			fmt.Printf("DEBUG: DirQueueManager - Active workers: %d, Queue length: %d\n", activeDirWorkers, dirQueueLen)
+			logger.Debug("Directory queue status",
+				"active_workers", activeDirWorkers,
+				"queue_length", dirQueueLen)
 
-			// Only consider closing if we've been idle for a while and no work is pending
 			if activeDirWorkers == 0 && dirQueueLen == 0 {
 				consecutiveEmptyChecks++
 				
-				// Require multiple consecutive empty checks before considering shutdown
-				if consecutiveEmptyChecks >= 5 { // 2.5 seconds of emptiness
-					fmt.Printf("DEBUG: Directory queue manager: Detected extended idle period, checking for completion\n")
+				if consecutiveEmptyChecks >= 5 {
+					logger.Debug("Directory queue manager detected extended idle period")
 					
-					// Final verification with a longer pause
 					time.Sleep(1 * time.Second)
 					
 					if ps.activeDirWorkers.Load() == 0 && len(ps.dirQueue) == 0 {
-						fmt.Printf("DEBUG: Directory queue manager: All directory work complete\n")
+						logger.Debug("Directory queue manager completed")
 						return
 					} else {
-						fmt.Printf("DEBUG: Directory queue manager: Work resumed during final check, continuing\n")
+						logger.Debug("Directory queue manager work resumed")
 						consecutiveEmptyChecks = 0
 					}
 				}
 			} else {
-				// Reset counter if we see activity
 				consecutiveEmptyChecks = 0
 			}
 
 		case <-ps.ctx.Done():
-			fmt.Printf("DEBUG: Directory queue manager: Context cancelled\n")
+			logger.Debug("Directory queue manager cancelled")
 			return
 		}
 	}
