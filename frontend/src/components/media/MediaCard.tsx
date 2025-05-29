@@ -31,7 +31,9 @@ const MediaCard: React.FC<MediaCardProps> = ({
           {album.artwork ? (
             <img
               src={buildArtworkUrl(
-                album.artwork.replace('/api/media/', '').replace('/artwork', '')
+                album.artwork.includes('/files/')
+                  ? album.artwork.split('/files/')[1].split('/artwork')[0]
+                  : album.artwork.replace('/api/media/', '').replace('/artwork', '')
               )}
               alt={album.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

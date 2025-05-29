@@ -21,7 +21,7 @@ export const buildImageUrl = (baseUrl: string, quality: number = 90): string => 
  * @returns Optimized artwork URL
  */
 export const buildArtworkUrl = (mediaFileId: number | string, quality: number = 90): string => {
-  return buildImageUrl(`/api/media/${mediaFileId}/artwork`, quality);
+  return buildImageUrl(`/api/media/files/${mediaFileId}/artwork`, quality);
 };
 
 /**
