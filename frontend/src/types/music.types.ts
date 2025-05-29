@@ -13,6 +13,8 @@ export interface MusicMetadata {
   disc_total: number;
   duration: number;
   bitrate: number;
+  sample_rate: number;
+  channels: number;
   format: string;
   has_artwork: boolean;
 }

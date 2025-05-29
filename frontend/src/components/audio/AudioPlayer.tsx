@@ -38,6 +38,8 @@ interface MusicMetadata {
   disc_total: number;
   duration: number;
   bitrate: number;
+  sample_rate: number;
+  channels: number;
   format: string;
   has_artwork: boolean;
 }
@@ -426,6 +428,18 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
               isMinimized={isMinimized}
               className="shadow-xl hover:scale-105 hover:shadow-2xl hover:brightness-110"
             />
+
+            {/* Bitrate display - show only if we have meaningful bitrate data */}
+            {!isMinimized && audioBitrate > 0 && (
+              <div
+                className="flex flex-col items-end text-xs text-slate-400 min-w-0 cursor-help"
+                data-tooltip-id="bitrate-tooltip"
+                data-tooltip-content={`Audio bitrate: ${Math.round(audioBitrate / 1000)}kbps`}
+              >
+                <span className="font-mono">{Math.round(audioBitrate / 1000)}kbps</span>
+                <span className="text-slate-500 text-[10px]">bitrate</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -469,6 +483,28 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   <span className="text-white">
                     {currentTrack.music_metadata?.bitrate
                       ? `${Math.round(currentTrack.music_metadata.bitrate / 1000)}kbps`
+                      : 'Unknown'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Sample Rate:</span>
+                  <span className="text-white">
+                    {currentTrack.music_metadata?.sample_rate
+                      ? `${(currentTrack.music_metadata.sample_rate / 1000).toFixed(1)}kHz`
+                      : 'Unknown'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Channels:</span>
+                  <span className="text-white">
+                    {currentTrack.music_metadata?.channels
+                      ? `${currentTrack.music_metadata.channels} (${
+                          currentTrack.music_metadata.channels === 1
+                            ? 'Mono'
+                            : currentTrack.music_metadata.channels === 2
+                              ? 'Stereo'
+                              : `${currentTrack.music_metadata.channels}ch`
+                        })`
                       : 'Unknown'}
                   </span>
                 </div>
@@ -594,6 +630,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       <Tooltip id="repeat-tooltip" />
       <Tooltip id="minimize-tooltip" />
       <Tooltip id="nerd-info-tooltip" />
+      <Tooltip id="bitrate-tooltip" />
     </div>
   );
 };
