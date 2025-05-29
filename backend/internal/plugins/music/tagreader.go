@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dhowden/tag"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/metadata"
 )
 
 // TagReader handles reading metadata from music files using dhowden/tag
@@ -59,44 +61,70 @@ func (tr *TagReader) ReadMetadata(path string) (*database.MusicMetadata, error) 
 	defer file.Close()
 	
 	// Extract metadata using dhowden/tag
-	metadata, err := tag.ReadFrom(file)
+	tagMetadata, err := tag.ReadFrom(file)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read metadata from file: %w", err)
 	}
 	
-	if metadata == nil {
+	if tagMetadata == nil {
 		return nil, fmt.Errorf("no metadata found in file")
+	}
+	
+	// Extract technical information using FFprobe (if available)
+	var technicalInfo *metadata.AudioTechnicalInfo
+	if metadata.IsFFProbeAvailable() {
+		technicalInfo, err = metadata.ExtractAudioTechnicalInfo(path)
+		if err != nil {
+			fmt.Printf("WARNING: [TagReader] FFprobe extraction failed for %s: %v\n", path, err)
+			// Continue with fallback approach
+		}
 	}
 	
 	// Convert to our database model
 	musicMeta := &database.MusicMetadata{
-		Title:       cleanString(metadata.Title()),
-		Artist:      cleanString(metadata.Artist()),
-		Album:       cleanString(metadata.Album()),
-		AlbumArtist: cleanString(metadata.AlbumArtist()),
-		Genre:       cleanString(metadata.Genre()),
-		Format:      string(metadata.Format()),
+		Title:       cleanString(tagMetadata.Title()),
+		Artist:      cleanString(tagMetadata.Artist()),
+		Album:       cleanString(tagMetadata.Album()),
+		AlbumArtist: cleanString(tagMetadata.AlbumArtist()),
+		Genre:       cleanString(tagMetadata.Genre()),
+	}
+
+	// Use FFprobe data if available, otherwise fall back to file extension
+	if technicalInfo != nil {
+		musicMeta.Format = technicalInfo.Format
+		musicMeta.Bitrate = technicalInfo.Bitrate
+		musicMeta.SampleRate = technicalInfo.SampleRate
+		musicMeta.Channels = technicalInfo.Channels
+		if technicalInfo.Duration > 0 {
+			musicMeta.Duration = time.Duration(technicalInfo.Duration * float64(time.Second))
+		}
+	} else {
+		// Fallback to file extension
+		musicMeta.Format = getFileExtension(path)
+		musicMeta.Bitrate = 0 // No bitrate available without FFprobe
+		musicMeta.SampleRate = 0 // No sample rate available without FFprobe
+		musicMeta.Channels = 0 // No channel info available without FFprobe
 	}
 	
 	// Handle year
-	if year := metadata.Year(); year != 0 {
+	if year := tagMetadata.Year(); year != 0 {
 		musicMeta.Year = year
 	}
 	
 	// Handle track number
-	if track, total := metadata.Track(); track != 0 {
+	if track, total := tagMetadata.Track(); track != 0 {
 		musicMeta.Track = track
 		musicMeta.TrackTotal = total
 	}
 	
 	// Handle disc number 
-	if disc, total := metadata.Disc(); disc != 0 {
+	if disc, total := tagMetadata.Disc(); disc != 0 {
 		musicMeta.Disc = disc
 		musicMeta.DiscTotal = total
 	}
 	
 	// Check for artwork
-	if picture := metadata.Picture(); picture != nil && len(picture.Data) > 0 {
+	if picture := tagMetadata.Picture(); picture != nil && len(picture.Data) > 0 {
 		musicMeta.HasArtwork = true
 		// Store artwork data temporarily for later processing
 		musicMeta.ArtworkData = picture.Data

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dhowden/tag"
 	"github.com/mantonx/viewra/internal/database"
@@ -86,6 +87,16 @@ func ExtractMusicMetadata(filePath string, mediaFile *database.MediaFile) (*data
 		return nil, fmt.Errorf("failed to read metadata: %w", err)
 	}
 
+	// Extract technical information using FFprobe (if available)
+	var technicalInfo *AudioTechnicalInfo
+	if IsFFProbeAvailable() {
+		technicalInfo, err = ExtractAudioTechnicalInfo(filePath)
+		if err != nil {
+			fmt.Printf("WARNING: FFprobe extraction failed for %s: %v\n", filePath, err)
+			// Continue with fallback approach
+		}
+	}
+
 	// Create MusicMetadata instance
 	musicMeta := &database.MusicMetadata{
 		MediaFileID: mediaFile.ID,
@@ -94,7 +105,23 @@ func ExtractMusicMetadata(filePath string, mediaFile *database.MediaFile) (*data
 		Artist:      metadata.Artist(),
 		AlbumArtist: metadata.AlbumArtist(),
 		Genre:       metadata.Genre(),
-		Format:      strings.ToLower(filepath.Ext(filePath)[1:]), // Remove the dot
+	}
+
+	// Use FFprobe data if available, otherwise fall back to file extension
+	if technicalInfo != nil {
+		musicMeta.Format = technicalInfo.Format
+		musicMeta.Bitrate = technicalInfo.Bitrate
+		musicMeta.SampleRate = technicalInfo.SampleRate
+		musicMeta.Channels = technicalInfo.Channels
+		if technicalInfo.Duration > 0 {
+			musicMeta.Duration = time.Duration(technicalInfo.Duration * float64(time.Second))
+		}
+	} else {
+		// Fallback to file extension
+		musicMeta.Format = strings.ToLower(filepath.Ext(filePath)[1:])
+		musicMeta.Bitrate = 0 // No bitrate available without FFprobe
+		musicMeta.SampleRate = 0 // No sample rate available without FFprobe
+		musicMeta.Channels = 0 // No channel info available without FFprobe
 	}
 
 	// Handle track and disc numbers which return multiple values
@@ -111,10 +138,6 @@ func ExtractMusicMetadata(filePath string, mediaFile *database.MediaFile) (*data
 		musicMeta.Year = metadata.Year()
 	}
 
-	// Handle duration (if available)
-	// Note: The tag library doesn't provide duration, we might need to use a different library
-	// or skip this for now
-	
 	// Handle artwork
 	picture := metadata.Picture()
 	if picture != nil && len(picture.Data) > 0 {
