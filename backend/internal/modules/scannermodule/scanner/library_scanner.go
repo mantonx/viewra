@@ -15,6 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/plugins/music"
+	"github.com/mantonx/viewra/internal/plugins/proto"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 )
@@ -835,6 +836,42 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 	// Call hooks for the new core media plugins system
 	if ps.corePluginsManager != nil {
 		ps.corePluginsManager.GetRegistry().CallOnMediaFileScanned(mediaFile, metadata)
+	}
+	
+	// Call external plugin scanner hooks (e.g., MusicBrainz enricher)
+	if ps.pluginManager != nil {
+		scannerHooks := ps.pluginManager.GetScannerHooks()
+		if len(scannerHooks) > 0 {
+			// Convert metadata to map[string]string for protobuf
+			metadataMap := make(map[string]string)
+			if metadata != nil {
+				if musicMeta, ok := metadata.(map[string]interface{}); ok {
+					for k, v := range musicMeta {
+						metadataMap[k] = fmt.Sprint(v)
+					}
+				} else {
+					// Try to convert other metadata types if needed
+					metadataMap["type"] = fmt.Sprintf("%T", metadata)
+				}
+			}
+			
+			// Call each external scanner hook
+			for _, hook := range scannerHooks {
+				go func(h proto.ScannerHookServiceClient) {
+					ctx := context.Background()
+					req := &proto.OnMediaFileScannedRequest{
+						MediaFileId: uint32(mediaFile.ID),
+						FilePath:    mediaFile.Path,
+						Metadata:    metadataMap,
+					}
+					
+					_, err := h.OnMediaFileScanned(ctx, req)
+					if err != nil {
+						fmt.Printf("External plugin scanner hook OnMediaFileScanned failed: %v\n", err)
+					}
+				}(hook)
+			}
+		}
 	}
 }
 
