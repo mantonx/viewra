@@ -98,13 +98,25 @@ func (ip *ImageProcessor) decodeImage(data []byte, mimeType string) (image.Image
 func (ip *ImageProcessor) encodeImageWithQuality(img image.Image, quality int) ([]byte, string, error) {
 	var buf bytes.Buffer
 
-	// Use JPEG for quality-adjusted images as it has the best quality control
-	options := &jpeg.Options{Quality: quality}
-	if err := jpeg.Encode(&buf, img, options); err != nil {
-		return nil, "", fmt.Errorf("failed to encode image with quality %d: %w", quality, err)
+	// Use WebP for quality-adjusted images as it provides better compression
+	// Convert quality percentage to WebP quality factor (0-100)
+	webpQuality := float32(quality)
+	options := &webp.Options{
+		Lossless: false,
+		Quality:  webpQuality,
+	}
+	
+	if err := webp.Encode(&buf, img, options); err != nil {
+		// Fallback to JPEG if WebP encoding fails
+		buf.Reset()
+		jpegOptions := &jpeg.Options{Quality: quality}
+		if err := jpeg.Encode(&buf, img, jpegOptions); err != nil {
+			return nil, "", fmt.Errorf("failed to encode image with quality %d: %w", quality, err)
+		}
+		return buf.Bytes(), "image/jpeg", nil
 	}
 
-	return buf.Bytes(), "image/jpeg", nil
+	return buf.Bytes(), "image/webp", nil
 }
 
 // GetImageDimensions extracts width and height from image data
