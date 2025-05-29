@@ -18,7 +18,9 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/plugins/proto"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // MediaAssetService defines the interface for asset management operations
@@ -68,6 +70,7 @@ type AudioDBEnricher struct {
 	db               *gorm.DB
 	config           *AudioDBConfig
 	basePath         string
+	dbURL            string
 	assetService     MediaAssetService // Service for asset operations
 }
 
@@ -264,6 +267,10 @@ func (a *AudioDBEnricher) Initialize(ctx *proto.PluginContext) error {
 	// Store base path for file operations
 	a.basePath = filepath.Dir(os.Args[0])
 	
+	// Store database URL for connection
+	a.dbURL = ctx.DatabaseUrl
+	a.logger.Info("AudioDB received database URL", "db_url", a.dbURL)
+	
 	// Load default configuration
 	a.config = &AudioDBConfig{
 		Enabled:              true,
@@ -279,7 +286,7 @@ func (a *AudioDBEnricher) Initialize(ctx *proto.PluginContext) error {
 		SkipExistingAssets:   true,              // Skip if asset already exists
 		RetryFailedDownloads: true,              // Retry failed downloads
 		MaxRetries:           3,                 // Maximum 3 retry attempts
-		MatchThreshold:       0.75,
+		MatchThreshold:       0.5,               // Lower threshold due to limited free API
 		AutoEnrich:           true,
 		OverwriteExisting:    false,
 		CacheDurationHours:   168, // 1 week
@@ -353,6 +360,7 @@ func (a *AudioDBEnricher) Initialize(ctx *proto.PluginContext) error {
 	
 	a.logger.Info("AudioDB enricher configuration loaded", 
 		"enabled", a.config.Enabled,
+		"api_key_configured", a.config.APIKey != "",
 		"auto_enrich", a.config.AutoEnrich,
 		"enable_artwork", a.config.EnableArtwork,
 		"download_album_art", a.config.DownloadAlbumArt,
@@ -363,6 +371,19 @@ func (a *AudioDBEnricher) Initialize(ctx *proto.PluginContext) error {
 		"retry_failed_downloads", a.config.RetryFailedDownloads,
 		"max_retries", a.config.MaxRetries,
 		"match_threshold", a.config.MatchThreshold)
+	
+	// Log API key status for future configuration guidance
+	if a.config.APIKey == "" {
+		a.logger.Info("AudioDB: Using free API tier with limited functionality", 
+			"note", "To enable full AudioDB functionality, configure an API key via plugin config: 'api_key': 'your_premium_key'")
+	} else {
+		a.logger.Info("AudioDB: Premium API key configured", "api_key_length", len(a.config.APIKey))
+	}
+	
+	// Initialize database connection
+	if err := a.initDatabase(); err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
 	
 	return nil
 }
@@ -376,16 +397,6 @@ func (a *AudioDBEnricher) Start() error {
 		return nil
 	}
 	
-	// Initialize database connection via the host application
-	if a.db == nil {
-		return fmt.Errorf("database connection not available")
-	}
-	
-	// Migrate our tables
-	if err := a.Migrate(""); err != nil {
-		return fmt.Errorf("failed to migrate AudioDB tables: %w", err)
-	}
-	
 	a.logger.Info("AudioDB enricher plugin started successfully")
 	return nil
 }
@@ -396,13 +407,86 @@ func (a *AudioDBEnricher) Stop() error {
 	return nil
 }
 
+// initDatabase initializes the database connection
+func (a *AudioDBEnricher) initDatabase() error {
+	if a.dbURL == "" {
+		a.logger.Error("database URL is empty")
+		return fmt.Errorf("database URL is empty")
+	}
+	
+	a.logger.Info("initializing database connection", "db_url", a.dbURL)
+	
+	// Parse database URL and create connection
+	// For now, assume it's SQLite
+	if strings.HasPrefix(a.dbURL, "sqlite://") {
+		dbPath := strings.TrimPrefix(a.dbURL, "sqlite://")
+		a.logger.Info("parsed database path", "db_path", dbPath)
+		
+		// Ensure directory exists
+		dbDir := filepath.Dir(dbPath)
+		a.logger.Info("ensuring database directory exists", "db_dir", dbDir)
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
+			a.logger.Error("failed to create database directory", "error", err)
+			return fmt.Errorf("failed to create database directory: %w", err)
+		}
+		
+		a.logger.Info("opening database connection", "db_path", dbPath)
+		// Use sqlite driver with modernc explicitly
+		dsn := dbPath + "?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)"
+		db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Silent),
+		})
+		if err != nil {
+			// Check if this is a CGO error
+			if strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "cgo") {
+				a.logger.Warn("Database connection failed due to CGO disabled - plugin will work without database caching", "error", err)
+				// Don't return error, allow plugin to work without database
+				a.db = nil
+				return nil
+			}
+			a.logger.Error("failed to connect to database", "error", err)
+			return fmt.Errorf("failed to connect to database: %w", err)
+		}
+		
+		// Test the connection
+		a.logger.Info("testing database connection")
+		sqlDB, err := db.DB()
+		if err != nil {
+			a.logger.Error("failed to get underlying sql.DB", "error", err)
+			return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		}
+		
+		if err := sqlDB.Ping(); err != nil {
+			a.logger.Error("failed to ping database", "error", err)
+			return fmt.Errorf("failed to ping database: %w", err)
+		}
+		
+		a.db = db
+		a.logger.Info("database connection established successfully")
+		
+		// Auto-migrate tables
+		a.logger.Info("starting database table migration")
+		if err := a.db.AutoMigrate(&AudioDBCache{}, &AudioDBEnrichment{}); err != nil {
+			a.logger.Error("failed to migrate database tables", "error", err)
+			return fmt.Errorf("failed to migrate database: %w", err)
+		}
+		
+		a.logger.Info("database tables migrated successfully")
+		a.logger.Info("database initialized successfully", "db_path", dbPath)
+		return nil
+	}
+	
+	a.logger.Error("unsupported database URL", "db_url", a.dbURL)
+	return fmt.Errorf("unsupported database URL: %s", a.dbURL)
+}
+
 // Info implements the Implementation interface
 func (a *AudioDBEnricher) Info() (*proto.PluginInfo, error) {
 	return &proto.PluginInfo{
 		Id:          "audiodb_enricher",
 		Name:        "AudioDB Metadata Enricher",
 		Version:     "1.0.0",
-		Description: "Enriches music metadata using The AudioDB database",
+		Description: "Enriches music metadata using The AudioDB database. Free tier supports limited artists (e.g., Coldplay). For full functionality, configure 'api_key' in plugin settings with a premium AudioDB API key ($8/month at theaudiodb.com).",
 		Author:      "Viewra Team",
 		Website:     "https://github.com/mantonx/viewra",
 		Repository:  "https://github.com/mantonx/viewra",
@@ -444,10 +528,8 @@ func (a *AudioDBEnricher) MetadataScraperService() plugins.MetadataScraperServic
 
 // ScannerHookService returns the scanner hook implementation
 func (a *AudioDBEnricher) ScannerHookService() plugins.ScannerHookService {
-	if a.config != nil && a.config.AutoEnrich {
-		return a
-	}
-	return nil
+	// Always return self - the AutoEnrich check is done in individual hook methods
+	return a
 }
 
 // DatabaseService returns the database service implementation
@@ -543,44 +625,63 @@ func (a *AudioDBEnricher) GetSupportedTypes() []string {
 
 // Scanner hook interface implementation
 func (a *AudioDBEnricher) OnMediaFileScanned(mediaFileID uint32, filePath string, metadata map[string]string) error {
-	if !a.config.Enabled || !a.config.AutoEnrich {
+	if a.config == nil {
+		a.logger.Error("AudioDB: config is nil")
+		return nil // Don't fail the scan, just skip
+	}
+	
+	if !a.config.AutoEnrich {
 		return nil
 	}
 	
-	a.logger.Debug("AudioDB: OnMediaFileScanned called", 
-		"media_file_id", mediaFileID, 
-		"file_path", filePath,
-		"metadata_keys", len(metadata))
-	
-	// Extract basic metadata for enrichment
+	// Extract metadata from map
 	title := metadata["title"]
 	artist := metadata["artist"]
 	album := metadata["album"]
 	
 	if title == "" || artist == "" {
-		a.logger.Debug("AudioDB: Skipping enrichment - missing title or artist", 
-			"file_path", filePath)
 		return nil
 	}
-	
+
+	// Ensure database connection is available
+	if a.db == nil {
+		if err := a.initDatabase(); err != nil {
+			a.logger.Error("AudioDB: Failed to initialize database", "error", err)
+			return nil // Don't fail scan, just skip this file
+		}
+	}
+
 	// Check if already enriched
 	var existing AudioDBEnrichment
 	err := a.db.Where("media_file_id = ?", mediaFileID).First(&existing).Error
 	if err == nil && !a.config.OverwriteExisting {
-		a.logger.Debug("AudioDB: Already enriched, skipping", 
-			"media_file_id", mediaFileID)
 		return nil
 	}
-	
-	// Perform enrichment
-	go func() {
-		if err := a.enrichTrack(uint(mediaFileID), title, artist, album); err != nil {
-			a.logger.Error("AudioDB: Failed to enrich track", 
-				"media_file_id", mediaFileID,
-				"error", err)
+
+	a.logger.Info("AudioDB: Starting enrichment for media file", 
+		"media_file_id", mediaFileID,
+		"title", title,
+		"artist", artist)
+
+	// Call the full enrichment method that does real AudioDB API calls
+	err = a.enrichTrack(uint(mediaFileID), title, artist, album)
+	if err != nil {
+		a.logger.Warn("AudioDB: enrichTrack failed, creating minimal record", "error", err)
+		
+		// Fallback: create minimal record if API enrichment fails
+		enrichment := AudioDBEnrichment{
+			MediaFileID: uint(mediaFileID),
+			MatchScore:  0.0, // Mark as failed enrichment
+			EnrichedAt:  time.Now(),
 		}
-	}()
-	
+		
+		if dbErr := a.db.Create(&enrichment).Error; dbErr != nil {
+			a.logger.Error("AudioDB: Failed to create fallback enrichment record", "error", dbErr)
+		}
+		return nil // Don't fail scan for enrichment failures
+	}
+
+	a.logger.Info("AudioDB: Full enrichment completed successfully", "media_file_id", mediaFileID)
 	return nil
 }
 
@@ -723,25 +824,56 @@ func (a *AudioDBEnricher) GetSearchCapabilities(ctx context.Context) ([]string, 
 // Internal helper methods
 
 func (a *AudioDBEnricher) enrichTrack(mediaFileID uint, title, artist, album string) error {
-	a.logger.Debug("AudioDB: Starting track enrichment", 
+	a.logger.Info("AudioDB: Starting track enrichment", 
 		"media_file_id", mediaFileID,
 		"title", title,
 		"artist", artist,
-		"album", album)
+		"album", album,
+		"db_available", a.db != nil)
+	
+	if a.db == nil {
+		a.logger.Info("AudioDB: Database not available, performing enrichment without storage", "media_file_id", mediaFileID)
+	}
 	
 	// Add delay to respect API rate limits
 	time.Sleep(time.Duration(a.config.RequestDelay) * time.Millisecond)
 	
 	// Search for tracks
+	a.logger.Debug("AudioDB: Searching for tracks")
 	tracks, err := a.searchTracks(title, artist, album)
 	if err != nil {
+		a.logger.Error("AudioDB: Track search failed", "error", err)
 		return fmt.Errorf("track search failed: %w", err)
 	}
 	
+	a.logger.Info("AudioDB: Search completed", "tracks_found", len(tracks))
+	
 	if len(tracks) == 0 {
-		a.logger.Debug("AudioDB: No tracks found", 
+		a.logger.Info("AudioDB: No tracks found for search", 
 			"title", title,
 			"artist", artist)
+		
+		// Only create database record if database is available
+		if a.db != nil {
+			enrichment := AudioDBEnrichment{
+				MediaFileID: mediaFileID,
+				MatchScore:  0.0,
+				EnrichedAt:  time.Now(),
+			}
+			
+			a.logger.Info("AudioDB: Creating minimal enrichment record")
+			if err := a.db.Create(&enrichment).Error; err != nil {
+				a.logger.Error("AudioDB: Failed to create minimal enrichment record", "error", err)
+				return fmt.Errorf("failed to create enrichment record: %w", err)
+			}
+			
+			a.logger.Info("AudioDB: Minimal enrichment record created", 
+				"enrichment_id", enrichment.ID,
+				"media_file_id", mediaFileID)
+		} else {
+			a.logger.Info("AudioDB: No tracks found, database not available for storing result", 
+				"media_file_id", mediaFileID)
+		}
 		return nil
 	}
 	
@@ -749,18 +881,51 @@ func (a *AudioDBEnricher) enrichTrack(mediaFileID uint, title, artist, album str
 	var bestTrack *AudioDBTrack
 	bestScore := 0.0
 	
+	a.logger.Debug("AudioDB: Finding best match from tracks", "track_count", len(tracks))
 	for _, track := range tracks {
 		score := a.calculateMatchScore(title, artist, album, track.StrTrack, track.StrArtist, track.StrAlbum)
+		a.logger.Debug("AudioDB: Track match score", 
+			"track", track.StrTrack,
+			"artist", track.StrArtist,
+			"score", score)
 		if score > bestScore {
 			bestScore = score
 			bestTrack = &track
 		}
 	}
 	
+	a.logger.Info("AudioDB: Best match found", 
+		"track", bestTrack.StrTrack,
+		"artist", bestTrack.StrArtist,
+		"score", bestScore,
+		"threshold", a.config.MatchThreshold)
+	
 	if bestScore < a.config.MatchThreshold {
-		a.logger.Debug("AudioDB: No matches above threshold", 
+		a.logger.Info("AudioDB: No matches above threshold", 
 			"best_score", bestScore,
 			"threshold", a.config.MatchThreshold)
+		
+		// Only create database record if database is available
+		if a.db != nil {
+			enrichment := AudioDBEnrichment{
+				MediaFileID: mediaFileID,
+				MatchScore:  bestScore,
+				EnrichedAt:  time.Now(),
+			}
+			
+			a.logger.Info("AudioDB: Creating below-threshold enrichment record")
+			if err := a.db.Create(&enrichment).Error; err != nil {
+				a.logger.Error("AudioDB: Failed to create below-threshold enrichment record", "error", err)
+				return fmt.Errorf("failed to create enrichment record: %w", err)
+			}
+			
+			a.logger.Info("AudioDB: Below-threshold enrichment record created", 
+				"enrichment_id", enrichment.ID,
+				"media_file_id", mediaFileID)
+		} else {
+			a.logger.Info("AudioDB: Match below threshold, database not available for storing result", 
+				"media_file_id", mediaFileID, "score", bestScore)
+		}
 		return nil
 	}
 	
@@ -778,16 +943,21 @@ func (a *AudioDBEnricher) enrichTrack(mediaFileID uint, title, artist, album str
 		EnrichedAt:      time.Now(),
 	}
 	
+	a.logger.Info("AudioDB: Creating full enrichment record")
+	
 	// Parse year if available (from album)
 	if bestTrack.IDAlbum != "" {
+		a.logger.Debug("AudioDB: Getting album info for year", "album_id", bestTrack.IDAlbum)
 		if albumInfo, err := a.getAlbumInfo(bestTrack.IDAlbum); err == nil && len(albumInfo.Album) > 0 {
 			if year, err := strconv.Atoi(albumInfo.Album[0].IntYearReleased); err == nil {
 				enrichment.EnrichedYear = year
+				a.logger.Debug("AudioDB: Found album year", "year", year)
 			}
 			
 			// Store the artwork URL for reference
 			if a.config.EnableArtwork && albumInfo.Album[0].StrAlbumThumb != "" {
 				enrichment.ArtworkURL = albumInfo.Album[0].StrAlbumThumb
+				a.logger.Debug("AudioDB: Found artwork URL", "url", albumInfo.Album[0].StrAlbumThumb)
 			}
 			
 			// Download and store album artwork if enabled
@@ -819,15 +989,30 @@ func (a *AudioDBEnricher) enrichTrack(mediaFileID uint, title, artist, album str
 		}(bestTrack.IDArtist)
 	}
 	
-	// Save enrichment
-	if err := a.db.Save(&enrichment).Error; err != nil {
-		return fmt.Errorf("failed to save enrichment: %w", err)
+	// Save enrichment only if database is available
+	if a.db != nil {
+		a.logger.Info("AudioDB: Saving enrichment to database", 
+			"media_file_id", mediaFileID,
+			"track_id", bestTrack.IDTrack)
+		
+		if err := a.db.Create(&enrichment).Error; err != nil {
+			a.logger.Error("AudioDB: Failed to save enrichment", "error", err)
+			return fmt.Errorf("failed to save enrichment: %w", err)
+		}
+		
+		a.logger.Info("AudioDB: Track enriched successfully", 
+			"media_file_id", mediaFileID,
+			"enrichment_id", enrichment.ID,
+			"match_score", bestScore,
+			"audiodb_track_id", bestTrack.IDTrack)
+	} else {
+		a.logger.Info("AudioDB: Track enriched successfully (no database storage)", 
+			"media_file_id", mediaFileID,
+			"match_score", bestScore,
+			"audiodb_track_id", bestTrack.IDTrack,
+			"enriched_title", bestTrack.StrTrack,
+			"enriched_artist", bestTrack.StrArtist)
 	}
-	
-	a.logger.Info("AudioDB: Track enriched successfully", 
-		"media_file_id", mediaFileID,
-		"match_score", bestScore,
-		"audiodb_track_id", bestTrack.IDTrack)
 	
 	return nil
 }
@@ -839,15 +1024,19 @@ func (a *AudioDBEnricher) searchTracks(title, artist, album string) ([]AudioDBTr
 		strings.ToLower(artist),
 		strings.ToLower(album))
 	
-	// Check cache first
-	var cached AudioDBCache
-	err := a.db.Where("search_query = ? AND expires_at > ?", cacheKey, time.Now()).First(&cached).Error
-	if err == nil {
-		a.logger.Debug("AudioDB: Using cached result", "cache_key", cacheKey)
-		var response AudioDBTrackResponse
-		if err := json.Unmarshal([]byte(cached.APIResponse), &response); err == nil {
-			return response.Track, nil
+	// Check cache first only if database is available
+	if a.db != nil {
+		var cached AudioDBCache
+		err := a.db.Where("search_query = ? AND expires_at > ?", cacheKey, time.Now()).First(&cached).Error
+		if err == nil {
+			a.logger.Debug("AudioDB: Using cached result", "cache_key", cacheKey)
+			var response AudioDBTrackResponse
+			if err := json.Unmarshal([]byte(cached.APIResponse), &response); err == nil {
+				return response.Track, nil
+			}
 		}
+	} else {
+		a.logger.Debug("AudioDB: Database not available, skipping cache lookup")
 	}
 
 	// Apply rate limiting
@@ -860,13 +1049,86 @@ func (a *AudioDBEnricher) searchTracks(title, artist, album string) ([]AudioDBTr
 	if a.config.APIKey != "" {
 		apiURL = fmt.Sprintf("https://www.theaudiodb.com/api/v1/json/%s", a.config.APIKey)
 	} else {
-		apiURL = "https://www.theaudiodb.com/api/v1/json/1"
+		apiURL = "https://www.theaudiodb.com/api/v1/json/2"  // Use test key 2 instead of 1
 	}
 	
-	// Search by artist first to get artist info
-	// Normalize artist name for AudioDB (case sensitive)
-	normalizedArtist := strings.ToLower(strings.TrimSpace(artist))
-	searchURL := fmt.Sprintf("%s/search.php?s=%s", apiURL, url.QueryEscape(normalizedArtist))
+	// Check if using free API and warn about limitations
+	if a.config.APIKey == "" {
+		a.logger.Debug("AudioDB: Using free API tier with limited artist support", 
+			"artist", artist, 
+			"note", "Free API only supports specific artists like 'Coldplay' - consider upgrading to premium API")
+	}
+	
+	// First try direct track search if we have both artist and track
+	if title != "" && artist != "" {
+		a.logger.Debug("AudioDB: Attempting direct track search", "title", title, "artist", artist)
+		
+		// Use the track search endpoint: searchtrack.php?s={artist}&t={track}
+		trackSearchURL := fmt.Sprintf("%s/searchtrack.php?s=%s&t=%s", 
+			apiURL, 
+			url.QueryEscape(artist), 
+			url.QueryEscape(title))
+		
+		a.logger.Debug("AudioDB: Track search URL", "url", trackSearchURL)
+		
+		client := &http.Client{Timeout: 30 * time.Second}
+		req, err := http.NewRequest("GET", trackSearchURL, nil)
+		if err == nil {
+			req.Header.Set("User-Agent", a.config.UserAgent)
+			
+			resp, err := client.Do(req)
+			if err == nil {
+				defer resp.Body.Close()
+				
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err == nil {
+					// Check if we got an HTML error page instead of JSON
+					contentType := resp.Header.Get("Content-Type")
+					if strings.Contains(string(bodyBytes), "<!DOCTYPE html") || strings.Contains(contentType, "text/html") {
+						a.logger.Info("AudioDB: API returned HTML error page, likely rate limited or artist not supported in free tier", 
+							"artist", artist, "status", resp.StatusCode)
+					} else if resp.StatusCode == 200 {
+						var trackResponse AudioDBTrackResponse
+						if err := json.Unmarshal(bodyBytes, &trackResponse); err == nil && len(trackResponse.Track) > 0 {
+							a.logger.Info("AudioDB: Direct track search successful", "tracks_found", len(trackResponse.Track))
+							
+							// Cache the result only if database is available
+							if a.db != nil {
+								cacheEntry := AudioDBCache{
+									SearchQuery: cacheKey,
+									APIResponse: string(bodyBytes),
+									CachedAt:    time.Now(),
+									ExpiresAt:   time.Now().Add(time.Duration(a.config.CacheDurationHours) * time.Hour),
+								}
+								a.db.Save(&cacheEntry)
+							} else {
+								a.logger.Debug("AudioDB: Database not available, skipping cache storage")
+							}
+							
+							return trackResponse.Track, nil
+						} else {
+							a.logger.Debug("AudioDB: Track search returned no results or invalid JSON", "artist", artist)
+						}
+					} else {
+						a.logger.Info("AudioDB: Track search API error", "status", resp.StatusCode, "artist", artist)
+					}
+				}
+			} else {
+				a.logger.Debug("AudioDB: Track search request failed", "error", err, "artist", artist)
+			}
+		}
+		
+		a.logger.Debug("AudioDB: Direct track search failed, falling back to artist search")
+	}
+	
+	// Fallback: Search by artist first to get artist info
+	normalizedArtist := strings.TrimSpace(artist)
+	
+	// Use the artist search endpoint instead of the old search.php
+	// Note: Free API only supports specific artists like "Coldplay"
+	searchURL := fmt.Sprintf("%s/artist.php?s=%s", apiURL, url.QueryEscape(normalizedArtist))
+	
+	a.logger.Debug("AudioDB: Artist search URL", "url", searchURL)
 	
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequest("GET", searchURL, nil)
@@ -878,43 +1140,62 @@ func (a *AudioDBEnricher) searchTracks(title, artist, album string) ([]AudioDBTr
 	
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
+		a.logger.Info("AudioDB: Artist search request failed, free API may not support this artist", 
+			"artist", artist, "error", err)
+		return []AudioDBTrack{}, nil  // Return empty instead of error for unsupported artists
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+		a.logger.Info("AudioDB: Artist search failed", 
+			"status", resp.StatusCode, 
+			"artist", artist,
+			"note", "Free API has limited artist support - consider premium API key")
+		return []AudioDBTrack{}, nil  // Return empty instead of error
 	}
 	
 	// Read response body first
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read artist response body: %w", err)
+		a.logger.Warn("AudioDB: Failed to read artist response", "error", err, "artist", artist)
+		return []AudioDBTrack{}, nil
+	}
+	
+	// Check if we got an HTML error page instead of JSON
+	if strings.Contains(string(bodyBytes), "<!DOCTYPE html") {
+		a.logger.Info("AudioDB: API returned HTML error page for artist search", 
+			"artist", artist,
+			"note", "Free API only supports limited artists like 'Coldplay' - this artist may require premium API")
+		return []AudioDBTrack{}, nil
 	}
 	
 	// Debug logging for response content
-	previewLength := 500
-	if len(bodyBytes) < 500 {
-		previewLength = len(bodyBytes)
-	}
-	a.logger.Debug("AudioDB artist search response", 
+	a.logger.Debug("AudioDB: Artist search response", 
 		"url", searchURL,
 		"status", resp.StatusCode,
-		"content_length", len(bodyBytes),
-		"content_preview", string(bodyBytes[:previewLength]))
+		"content_length", len(bodyBytes))
 	
 	var artistResponse AudioDBArtistResponse
 	if err := json.Unmarshal(bodyBytes, &artistResponse); err != nil {
-		a.logger.Error("Failed to decode artist response", 
+		previewLen := len(bodyBytes)
+		if previewLen > 100 {
+			previewLen = 100
+		}
+		a.logger.Info("AudioDB: Failed to decode artist response", 
 			"error", err,
-			"response_length", len(bodyBytes),
-			"response_content", string(bodyBytes))
-		return nil, fmt.Errorf("failed to decode artist response: %w", err)
+			"artist", artist,
+			"response_preview", string(bodyBytes[:previewLen]))
+		return []AudioDBTrack{}, nil
 	}
 	
 	if len(artistResponse.Artists) == 0 {
+		a.logger.Info("AudioDB: No artists found - free API limitation", 
+			"artist", artist,
+			"note", "Free API only supports specific artists, consider premium subscription")
 		return []AudioDBTrack{}, nil
 	}
+	
+	a.logger.Info("AudioDB: Found artists", "count", len(artistResponse.Artists), "first_artist", artistResponse.Artists[0].StrArtist)
 	
 	// Rate limiting for second request
 	if a.config.RequestDelay > 0 {
@@ -924,6 +1205,8 @@ func (a *AudioDBEnricher) searchTracks(title, artist, album string) ([]AudioDBTr
 	// Get all albums for the artist first
 	artistID := artistResponse.Artists[0].IDArtist
 	albumsURL := fmt.Sprintf("%s/album.php?i=%s", apiURL, artistID)
+	
+	a.logger.Debug("AudioDB: Getting albums", "artist_id", artistID, "url", albumsURL)
 	
 	req, err = http.NewRequest("GET", albumsURL, nil)
 	if err != nil {
@@ -939,7 +1222,8 @@ func (a *AudioDBEnricher) searchTracks(title, artist, album string) ([]AudioDBTr
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("albums API returned status %d", resp.StatusCode)
+		a.logger.Warn("AudioDB: Albums API returned non-200 status", "status", resp.StatusCode)
+		return []AudioDBTrack{}, nil // Return empty instead of error
 	}
 	
 	// Read response body first  
@@ -950,19 +1234,29 @@ func (a *AudioDBEnricher) searchTracks(title, artist, album string) ([]AudioDBTr
 	
 	var albumResponse AudioDBAlbumResponse
 	if err := json.Unmarshal(bodyBytes, &albumResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode albums response: %w", err)
+		a.logger.Warn("Failed to decode albums response", "error", err)
+		return []AudioDBTrack{}, nil // Return empty instead of error
 	}
+	
+	a.logger.Info("AudioDB: Found albums", "count", len(albumResponse.Album))
 	
 	var allTracks []AudioDBTrack
 	
 	// Get tracks from each album
-	for _, albumData := range albumResponse.Album {
+	for i, albumData := range albumResponse.Album {
+		if i >= 10 { // Limit to first 10 albums to avoid too many requests
+			a.logger.Debug("AudioDB: Limiting to first 10 albums")
+			break
+		}
+		
 		// Rate limiting for each album request
 		if a.config.RequestDelay > 0 {
 			time.Sleep(time.Duration(a.config.RequestDelay) * time.Millisecond)
 		}
 		
 		tracksURL := fmt.Sprintf("%s/track.php?m=%s", apiURL, albumData.IDAlbum)
+		
+		a.logger.Debug("AudioDB: Getting tracks for album", "album", albumData.StrAlbum, "album_id", albumData.IDAlbum)
 		
 		req, err = http.NewRequest("GET", tracksURL, nil)
 		if err != nil {
@@ -999,19 +1293,26 @@ func (a *AudioDBEnricher) searchTracks(title, artist, album string) ([]AudioDBTr
 		}
 		
 		// Add tracks from this album
+		a.logger.Debug("AudioDB: Found tracks in album", "album", albumData.StrAlbum, "track_count", len(trackResponse.Track))
 		allTracks = append(allTracks, trackResponse.Track...)
 	}
 	
-	// Cache the result
-	trackResult := AudioDBTrackResponse{Track: allTracks}
-	responseBytes, _ := json.Marshal(trackResult)
-	cacheEntry := AudioDBCache{
-		SearchQuery: cacheKey,
-		APIResponse: string(responseBytes),
-		CachedAt:    time.Now(),
-		ExpiresAt:   time.Now().Add(time.Duration(a.config.CacheDurationHours) * time.Hour),
+	a.logger.Info("AudioDB: Total tracks collected", "track_count", len(allTracks))
+	
+	// Cache the result only if database is available
+	if a.db != nil {
+		trackResult := AudioDBTrackResponse{Track: allTracks}
+		responseBytes, _ := json.Marshal(trackResult)
+		cacheEntry := AudioDBCache{
+			SearchQuery: cacheKey,
+			APIResponse: string(responseBytes),
+			CachedAt:    time.Now(),
+			ExpiresAt:   time.Now().Add(time.Duration(a.config.CacheDurationHours) * time.Hour),
+		}
+		a.db.Save(&cacheEntry)
+	} else {
+		a.logger.Debug("AudioDB: Database not available, skipping cache storage")
 	}
-	a.db.Save(&cacheEntry)
 	
 	return allTracks, nil
 }

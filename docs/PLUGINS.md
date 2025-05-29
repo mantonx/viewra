@@ -1,52 +1,116 @@
-# Viewra Plugin System
+# Viewra Plugin System Architecture
+
+> 📖 **For build instructions and development workflow, see [DEVELOPMENT.md](../DEVELOPMENT.md)**
 
 ## Overview
 
-The Viewra plugin system allows for extending the core functionality of the application. It is built upon HashiCorp's go-plugin architecture, providing:
+The Viewra plugin system extends core functionality through HashiCorp's go-plugin architecture, providing:
 
-- **Subprocess Isolation**: Plugins run as separate processes, ensuring safety and preventing a crashing plugin from taking down the main application.
-- **Hot Reload**: Plugins can often be updated, restarted, or added/removed without restarting the main Viewra application (depending on the plugin type and changes).
-- **gRPC Communication**: Efficient and strongly-typed communication between the Viewra host application and plugins.
-- **Plugin Discovery**: Automatic discovery of plugins placed in designated plugin directories.
-- **Runtime Management**: Capabilities to load, unload, and manage plugins at runtime.
+- **Subprocess Isolation**: Plugins run as separate processes, ensuring safety
+- **Hot Reload**: Plugins can be updated without restarting the main application
+- **gRPC Communication**: Efficient and strongly-typed communication
+- **Plugin Discovery**: Automatic discovery in designated plugin directories
+- **Runtime Management**: Load, unload, and manage plugins at runtime
 
-## Architecture
+## Core Architecture Components
 
-### Core Components
+### 1. Plugin Manager (`backend/internal/plugins/manager.go`)
 
-1.  **Plugin Manager** (`backend/internal/plugins/manager.go`)
+- Manages the lifecycle of all plugins (discovery, loading, unloading, restarting)
+- Monitors plugin directories for changes to support hot reloading
+- Registers discovered plugins and their capabilities
+- Handles plugin process management and cleanup
 
-    - Manages the lifecycle of all plugins (discovery, loading, unloading, restarting).
-    - Monitors plugin directories for changes (e.g., new plugins, updates) to support hot reloading.
-    - Registers discovered plugins and their capabilities.
-    - Handles plugin process management and cleanup.
+### 2. gRPC Interface & Implementation (`backend/internal/plugins/grpc_impl.go`)
 
-2.  **gRPC Interface & Implementation** (`backend/internal/plugins/grpc_impl.go`)
+- Implements the server and client sides of the HashiCorp go-plugin gRPC interface
+- Defines how the host application communicates with each plugin process
+- Includes service definitions for various plugin types
 
-    - Implements the server and client sides of the HashiCorp go-plugin gRPC interface.
-    - Defines how the host application communicates with each plugin process.
-    - Includes service definitions for various plugin types (see below).
+### 3. Protocol Definitions (`backend/internal/plugins/proto/plugin.proto`)
 
-3.  **Protocol Definitions** (`backend/internal/plugins/proto/plugin.proto`)
+- Contains Protocol Buffer (protobuf) definitions for gRPC services and messages
+- Provides the contract for communication, ensuring type safety
 
-    - Contains the Protocol Buffer (protobuf) definitions for gRPC services and messages.
-    - These definitions provide the contract for communication, ensuring type safety.
+### 4. Core Types & Interfaces (`backend/internal/plugins/types.go`)
 
-4.  **Core Types & Interfaces** (`backend/internal/plugins/types.go`)
-    - Defines the core Go interfaces that plugins must implement (e.g., `Implementation` interface).
-    - Includes structs for plugin metadata, configuration (`Config`), and runtime state (`Plugin`).
+- Defines the core Go interfaces that plugins must implement
+- Includes structs for plugin metadata, configuration, and runtime state
 
-### Plugin Configuration (CueLang)
+## Plugin Service Interfaces
 
-Plugins are configured using CueLang (`.cue` files), replacing the previous YAML-based system. Each plugin must have a `plugin.cue` file in its root directory.
+### Core Plugin Interface (`Implementation`)
 
-**Key benefits of CueLang:**
+All plugins must implement this base interface:
 
-- **Type Safety & Validation**: Configurations are validated against a schema, reducing errors.
-- **Modularity & Reusability**: CueLang allows for defining and importing configuration schemas.
-- **Expressiveness**: More powerful than YAML for defining complex configurations and constraints.
+```go
+type Implementation interface {
+    Initialize(ctx *proto.PluginContext) error
+    Start() error
+    Stop() error
+    Info() (*proto.PluginInfo, error)
+    Health() error
 
-**Example `plugin.cue` structure:**
+    // Service getters (return nil if not implemented)
+    MetadataScraperService() MetadataScraperService
+    ScannerHookService() ScannerHookService
+    DatabaseService() DatabaseService
+    AdminPageService() AdminPageService
+    APIRegistrationService() APIRegistrationService
+    SearchService() SearchService
+}
+```
+
+### Metadata Scraper Service
+
+For plugins that extract metadata from files:
+
+```go
+type MetadataScraperService interface {
+    CanHandle(filePath, mimeType string) bool
+    ExtractMetadata(filePath string) (map[string]string, error)
+    GetSupportedTypes() []string
+}
+```
+
+### Scanner Hook Service
+
+For plugins that react to scan events:
+
+```go
+type ScannerHookService interface {
+    OnMediaFileScanned(mediaFileID uint32, filePath string, metadata map[string]string) error
+    OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error
+    OnScanCompleted(scanJobID, libraryID uint32, stats map[string]string) error
+}
+```
+
+### Database Service
+
+For plugins that require their own database tables:
+
+```go
+type DatabaseService interface {
+    GetModels() []string
+    Migrate(connectionString string) error
+    Rollback(connectionString string) error
+}
+```
+
+### Admin Page Service
+
+For plugins that expose configuration/management pages:
+
+```go
+type AdminPageService interface {
+    GetAdminPages() ([]*proto.AdminPage, error)
+    RegisterRoutes(router interface{}) error
+}
+```
+
+## Plugin Configuration Schema
+
+Plugins use CueLang (`.cue` files) for configuration:
 
 ```cue
 #Plugin: {
@@ -71,6 +135,8 @@ Plugins are configured using CueLang (`.cue` files), replacing the previous YAML
         scanner_hook?:     bool
         database_service?: bool
         admin_page?:       bool
+        api_registration?: bool
+        search_service?:   bool
     }
 
     permissions?: [
@@ -82,176 +148,204 @@ Plugins are configured using CueLang (`.cue` files), replacing the previous YAML
 
     settings?: {
         // Plugin-specific settings defined here
-        // Example:
-        // my_setting: string | *"default_value"
-        // api_key?: string
+        api_key?: string
+        user_agent?: string
+        timeout_seconds?: int | *30
+        // ... other settings
     }
 }
 ```
 
-### Supported Plugin Service Types
+## Implementation Example
 
-Plugins can implement one or more service interfaces to extend different parts of Viewra:
+### Basic Plugin Structure
 
-- **Core Plugin Interface** (`Implementation` in `types.go`):
-  - All plugins must implement this base interface.
-  - Methods: `Initialize`, `Start`, `Stop`, `Info`, `Health`.
-- **Metadata Scraper Service** (`MetadataScraperService` in `types.go`):
-  - For plugins that extract metadata from files (e.g., music tags, video resolution).
-  - Methods: `CanHandle`, `ExtractMetadata`, `GetSupportedTypes`.
-- **Scanner Hook Service** (`ScannerHookService` in `types.go`):
-  - For plugins that need to react to events during media library scans.
-  - Methods: `OnMediaFileScanned`, `OnScanStarted`, `OnScanCompleted`.
-- **Database Service** (`DatabaseService` in `types.go`):
-  - For plugins that require their own database tables or need to interact with the database in a custom way.
-  - Methods: `GetModels` (to define GORM models), `Migrate`, `Rollback`.
-- **Admin Page Service** (`AdminPageService` in `types.go`):
-  - For plugins that want to expose configuration or management pages within the Viewra admin interface.
-  - Methods: `GetAdminPages`, `RegisterRoutes`.
+```go
+package main
 
-## Developing a Plugin
+import (
+    "github.com/hashicorp/go-hclog"
+    goplugin "github.com/hashicorp/go-plugin"
+    "github.com/mantonx/viewra/internal/plugins"
+    "github.com/mantonx/viewra/internal/plugins/proto"
+)
 
-Plugins are standalone Go applications that are compiled into executables.
+type MyPlugin struct {
+    logger hclog.Logger
+    config *MyPluginConfig
+    // ... other fields
+}
 
-1.  **Project Structure:**
-    A typical plugin will have a structure like this:
+type MyPluginConfig struct {
+    APIKey    string `json:"api_key"`
+    UserAgent string `json:"user_agent"`
+    Timeout   int    `json:"timeout_seconds"`
+}
 
-    ```
-    my_viewra_plugin/
-    ├── main.go          # Plugin implementation (main package)
-    ├── plugin.cue       # Plugin configuration and manifest
-    ├── go.mod           # Go module definition for the plugin
-    ├── go.sum           # Go module checksums
-    └── (any_other_plugin_specific_code_or_assets)
-    ```
+// Core Plugin Interface Implementation
+func (p *MyPlugin) Initialize(ctx *proto.PluginContext) error {
+    p.logger = hclog.New(&hclog.LoggerOptions{
+        Name:  ctx.PluginId,
+        Level: hclog.LevelFromString(ctx.LogLevel),
+    })
 
-2.  **Implement Plugin Interfaces:**
+    // Parse configuration from ctx.Config
+    // Initialize connections, etc.
 
-    - In your `main.go`, define a struct that will be your plugin's implementation.
-    - This struct must satisfy the `plugins.Implementation` interface from Viewra's `backend/internal/plugins/types.go`.
-    - Optionally, implement any of the service-specific interfaces (`MetadataScraperService`, `ScannerHookService`, etc.) by having your main plugin struct return an implementation for those services (often, the main struct itself).
+    return nil
+}
 
-    ```go
-    package main
+func (p *MyPlugin) Start() error {
+    p.logger.Info("MyPlugin Starting")
+    return nil
+}
 
-    import (
-        "github.com/hashicorp/go-hclog"
-        goplugin "github.com/hashicorp/go-plugin"
-        "github.com/mantonx/viewra/internal/plugins" // Viewra plugin types
-        "github.com/mantonx/viewra/internal/plugins/proto" // Viewra plugin protobuf types
-    )
+func (p *MyPlugin) Stop() error {
+    p.logger.Info("MyPlugin Stopping")
+    return nil
+}
 
-    type MyPlugin struct {
-        logger hclog.Logger
-        // ... other fields like config, db connections etc.
+func (p *MyPlugin) Info() (*proto.PluginInfo, error) {
+    return &proto.PluginInfo{
+        Id:          "my_plugin_id",
+        Name:        "My Awesome Plugin",
+        Version:     "1.0.0",
+        Description: "Does awesome things",
+        Author:      "Developer Name",
+        Type:        "metadata_scraper",
+        Capabilities: []string{"metadata_scraper"},
+    }, nil
+}
+
+func (p *MyPlugin) Health() error {
+    // Check dependencies, API connectivity, etc.
+    return nil
+}
+
+// Service Interface Implementations
+func (p *MyPlugin) MetadataScraperService() plugins.MetadataScraperService {
+    return p // Return self if this plugin implements metadata scraping
+}
+
+func (p *MyPlugin) ScannerHookService() plugins.ScannerHookService {
+    return nil // Return nil if not implemented
+}
+
+// ... implement other service getters
+
+// Metadata Scraper Implementation
+func (p *MyPlugin) CanHandle(filePath, mimeType string) bool {
+    // Check if this plugin can handle the file type
+    return strings.HasSuffix(filePath, ".mp3")
+}
+
+func (p *MyPlugin) ExtractMetadata(filePath string) (map[string]string, error) {
+    // Extract metadata from the file
+    return map[string]string{
+        "title":  "Extracted Title",
+        "artist": "Extracted Artist",
+    }, nil
+}
+
+func (p *MyPlugin) GetSupportedTypes() []string {
+    return []string{"audio/mpeg", "audio/mp3"}
+}
+
+func main() {
+    goplugin.Serve(&goplugin.ServeConfig{
+        HandshakeConfig: plugins.Handshake,
+        Plugins: map[string]goplugin.Plugin{
+            "plugin": &plugins.GRPCPlugin{Impl: &MyPlugin{}},
+        },
+        GRPCServer: goplugin.DefaultGRPCServer,
+    })
+}
+```
+
+## Plugin Lifecycle
+
+1. **Discovery**: Plugin manager scans plugin directories for `.cue` configuration files
+2. **Validation**: Configuration is validated against the schema
+3. **Loading**: Plugin binary is launched as a subprocess
+4. **Handshake**: gRPC connection is established using HashiCorp's plugin protocol
+5. **Initialization**: `Initialize()` method is called with context and configuration
+6. **Service Registration**: Plugin services are registered with the host application
+7. **Runtime**: Plugin responds to service calls from the host
+8. **Shutdown**: `Stop()` method is called, process is terminated gracefully
+
+## Plugin Communication Flow
+
+```
+Host Application
+       ↓
+Plugin Manager
+       ↓ (gRPC)
+Plugin Process
+       ↓
+Service Implementation
+       ↓
+External APIs/Resources
+```
+
+## Security Considerations
+
+- **Process Isolation**: Plugins run in separate processes, limiting impact of crashes
+- **Permission System**: Plugins declare required permissions in configuration
+- **Resource Limits**: Host can enforce CPU, memory, and network limits
+- **API Validation**: All gRPC messages are validated against protobuf schemas
+
+## Performance Considerations
+
+- **Lazy Loading**: Plugins are only loaded when needed
+- **Connection Pooling**: gRPC connections are reused for efficiency
+- **Timeout Handling**: Operations have configurable timeouts
+- **Resource Monitoring**: Host monitors plugin resource usage
+
+## Debugging Plugins
+
+### Logging
+
+Plugins should use structured logging with appropriate levels:
+
+```go
+p.logger.Debug("Processing file", "path", filePath)
+p.logger.Info("Plugin started successfully")
+p.logger.Warn("API rate limit approaching")
+p.logger.Error("Failed to connect to external service", "error", err)
+```
+
+### Health Checks
+
+Implement comprehensive health checks:
+
+```go
+func (p *MyPlugin) Health() error {
+    // Check external API connectivity
+    if err := p.checkAPIConnection(); err != nil {
+        return fmt.Errorf("API connection failed: %w", err)
     }
 
-    // --- Implementation interface ---
-    func (p *MyPlugin) Initialize(ctx *proto.PluginContext) error {
-        p.logger = hclog.New(&hclog.LoggerOptions{
-            Name:  ctx.PluginId,
-            Level: hclog.LevelFromString(ctx.LogLevel),
-        })
-        p.logger.Info("MyPlugin Initializing", "version", "1.0.0")
-        // Parse ctx.Config, setup database connections, etc.
-        return nil
+    // Check database connectivity
+    if err := p.checkDatabaseConnection(); err != nil {
+        return fmt.Errorf("database connection failed: %w", err)
     }
 
-    func (p *MyPlugin) Start() error {
-        p.logger.Info("MyPlugin Starting")
-        return nil
+    return nil
+}
+```
+
+### Error Handling
+
+Use proper error wrapping and context:
+
+```go
+func (p *MyPlugin) ExtractMetadata(filePath string) (map[string]string, error) {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
     }
+    defer file.Close()
 
-    func (p *MyPlugin) Stop() error {
-        p.logger.Info("MyPlugin Stopping")
-        return nil
-    }
-
-    func (p *MyPlugin) Info() (*proto.PluginInfo, error) {
-        return &proto.PluginInfo{
-            Id: "my_plugin_id", // Should match plugin.cue
-            Name: "My Awesome Plugin",
-            Version: "1.0.0",
-            // ... other fields
-        }, nil
-    }
-
-    func (p *MyPlugin) Health() error {
-        // Check dependencies, etc.
-        return nil
-    }
-
-    // --- Optional: MetadataScraperService ---
-    func (p *MyPlugin) MetadataScraperService() plugins.MetadataScraperService {
-        // Return 'p' if MyPlugin implements MetadataScraperService, or another struct
-        return p
-    }
-
-    func (p *MyPlugin) CanHandle(filePath, mimeType string) bool { return false }
-    func (p *MyPlugin) ExtractMetadata(filePath string) (map[string]string, error) { return nil, nil }
-    func (p *MyPlugin) GetSupportedTypes() []string { return nil }
-
-    // ... implement other service interfaces as needed
-
-    func main() {
-        goplugin.Serve(&goplugin.ServeConfig{
-            HandshakeConfig: plugins.Handshake, // Use Viewra's handshake
-            Plugins: map[string]goplugin.Plugin{
-                // The key here must match the one expected by Viewra's manager
-                // It is usually "plugin" or the plugin's ID.
-                // For Viewra, the standard key is "plugin".
-                "plugin": &plugins.GRPCPlugin{Impl: &MyPlugin{}},
-            },
-            GRPCServer: goplugin.DefaultGRPCServer, // Use default gRPC server
-        })
-    }
-    ```
-
-3.  **Create `plugin.cue`:**
-    Define your plugin's metadata, entry point (executable name), and any specific settings as shown in the example structure earlier.
-
-4.  **Build the Plugin:**
-    Navigate to your plugin's directory and build the executable:
-
-    ```bash
-    go build -o <entry_point_name_from_cue_file> main.go
-    ```
-
-    For example, if `entry_points: { main: "my_plugin_executable" }` in `plugin.cue`, then:
-
-    ```bash
-    go build -o my_plugin_executable main.go
-    ```
-
-5.  **Deploy the Plugin:**
-    - Create a directory for your plugin within Viewra's designated plugin directory (e.g., `backend/data/plugins/my_viewra_plugin/`).
-    - Place the compiled plugin executable (e.g., `my_plugin_executable`) and the `plugin.cue` file into this directory.
-    - Viewra should automatically discover and load it (or it may require a restart/manual load depending on the Viewra configuration and plugin type).
-
-### Communication with Viewra Host
-
-- **Plugin Context**: The `Initialize` method receives a `PluginContext` which includes:
-  - `PluginId`: The ID of the plugin.
-  - `Config`: A `map[string]string` of the plugin-specific settings from its `plugin.cue` file.
-  - `LogLevel`: Suggested log level from the host.
-  - `DatabaseUrl`: Connection string for the main Viewra database (if the plugin needs it and has permissions).
-  - `BasePath`: The file system path to the plugin's directory.
-- **Logging**: Use the `hclog.Logger` provided or created in `Initialize` for logging. These logs are typically captured by the Viewra host.
-
-## Plugin Management in Viewra
-
-Viewra's plugin manager handles:
-
-- **Discovery**: Scanning the `backend/data/plugins` directory (or configured path) for valid plugin structures (executable + `plugin.cue`).
-- **Loading/Unloading**: Starting and stopping plugin processes.
-- **Service Registration**: Making plugin-implemented services (like metadata scrapers) available to the core application.
-- **Health Checks**: Periodically checking plugin health.
-- **Hot Reload (Experimental/Partial)**: Some changes to `plugin.cue` or plugin binaries might be detected and reloaded.
-
-## Advanced Topics
-
-- **Plugin-Specific Database Tables**: Use the `DatabaseService` to have GORM auto-migrate your plugin's models.
-- **Custom Admin UI**: Use `AdminPageService` to serve HTML/JS for a custom admin section for your plugin.
-- **Security**: Be mindful of the permissions your plugin requires and what operations it performs, as it runs as a separate process but can still interact with the system based on its code.
-
-This document provides a starting point for understanding and developing plugins for Viewra. Refer to the example plugins (like MusicBrainz Enricher) and the core plugin system code for more detailed insights.
+    // ... processing
+}
+```

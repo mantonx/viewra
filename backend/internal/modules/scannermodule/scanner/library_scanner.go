@@ -483,7 +483,7 @@ func (ps *LibraryScanner) updateFinalStatus() {
 			"status":          "completed",
 			"completed_at":    &endTime,
 			"files_processed": int(ps.filesProcessed.Load()),
-			"bytes_processed": ps.bytesProcessed.Load(), // Added for completeness
+			"bytes_processed": ps.bytesProcessed.Load(),
 			"error_message":   "",                       // Clear any previous error
 		}
 
@@ -964,6 +964,7 @@ func (ps *LibraryScanner) updateProgress() {
 			ps.dbMutex.Lock()
 			if err := ps.db.Model(&database.ScanJob{}).Where("id = ?", ps.jobID).Updates(map[string]interface{}{
 				"files_processed": processed,
+				"bytes_processed": ps.bytesProcessed.Load(),
 				"progress":        int(progress),
 				"updated_at":      time.Now(),
 			}).Error; err != nil {

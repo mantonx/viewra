@@ -30,6 +30,24 @@ volumes/
 # Data directories
 viewra-data/
 
+# Plugin binaries (compiled executables)
+backend/data/plugins/*/audiodb_enricher
+backend/data/plugins/*/musicbrainz_enricher
+backend/data/plugins/*/*_enricher
+backend/data/plugins/*/plugin
+backend/data/plugins/*/main
+backend/data/plugins/*/*
+!backend/data/plugins/*/*.go
+!backend/data/plugins/*/*.mod
+!backend/data/plugins/*/*.sum
+!backend/data/plugins/*/*.cue
+!backend/data/plugins/*/config/
+!backend/data/plugins/*/internal/
+!backend/data/plugins/*/audiodb/
+!backend/data/plugins/*/musicbrainz/
+!backend/data/plugins/*/tagreader/
+!backend/data/plugins/*/testdata/
+
 # Backup files
 *.bak
 *.backup

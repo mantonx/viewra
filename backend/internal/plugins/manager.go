@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/internal/apiroutes"
+	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/plugins/proto"
 	"gorm.io/gorm"
 )
@@ -606,13 +607,8 @@ func (m *manager) handleFileUpdate(filePath string) {
 }
 
 func (m *manager) getDatabaseURL() string {
-	// Use absolute path to ensure plugins can find the database
-	// regardless of their working directory
-	dbPath := os.Getenv("SQLITE_PATH")
-	if dbPath == "" {
-		dbPath = "/app/data/viewra.db"
-	}
-	return "sqlite://" + dbPath
+	// Use centralized database configuration
+	return config.GetDatabaseURL()
 }
 
 func removeFromSlice(slice []string, item string) []string {

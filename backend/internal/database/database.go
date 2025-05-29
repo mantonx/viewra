@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/mantonx/viewra/internal/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -47,7 +48,7 @@ func Initialize() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	
-	log.Printf("✅ Database initialized with %s", dbType)
+	log.Printf("✅ Database initialized with %s at %s", dbType, config.GetDatabasePath())
 }
 
 func connectPostgres() (*gorm.DB, error) {
@@ -73,13 +74,7 @@ func connectPostgres() (*gorm.DB, error) {
 }
 
 func connectSQLite() (*gorm.DB, error) {
-	dbPath := os.Getenv("SQLITE_PATH")
-	if dbPath == "" {
-		dbPath = "/app/data/viewra.db"
-	}
-	
-	// Create directory if it doesn't exist
-	os.MkdirAll("/app/data", 0755)
+	dbPath := config.GetDatabasePath()
 	
 	return gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),

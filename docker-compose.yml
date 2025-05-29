@@ -9,7 +9,8 @@ services:
     environment:
       - GIN_MODE=${GIN_MODE:-debug}
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
-      - SQLITE_PATH=${SQLITE_PATH:-/app/data/viewra.db}
+      - VIEWRA_DATA_DIR=/app/viewra-data
+      - VIEWRA_DATABASE_PATH=/app/viewra-data/database.db
       - PORT=8080
       - PLUGIN_DIR=/app/data/plugins
     volumes:

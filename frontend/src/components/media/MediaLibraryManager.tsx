@@ -330,7 +330,7 @@ const MediaLibraryManager = () => {
     );
 
     if (path && path.trim()) {
-      setNewLibrary((prev) => ({ ...prev, path: path.trim() }));
+      handlePathChange(path.trim());
     }
   };
 
@@ -347,8 +347,71 @@ const MediaLibraryManager = () => {
     ];
   };
 
+  // Helper function to detect library type based on path patterns
+  const detectLibraryType = (path: string): string => {
+    const lowerPath = path.toLowerCase();
+
+    // Check for music indicators
+    if (
+      lowerPath.includes('music') ||
+      lowerPath.includes('audio') ||
+      lowerPath.includes('mp3') ||
+      lowerPath.includes('songs') ||
+      lowerPath.includes('albums') ||
+      lowerPath.endsWith('/music') ||
+      lowerPath.endsWith('/audio')
+    ) {
+      return 'music';
+    }
+
+    // Check for TV show indicators
+    if (
+      lowerPath.includes('tv') ||
+      lowerPath.includes('shows') ||
+      lowerPath.includes('series') ||
+      lowerPath.includes('television') ||
+      lowerPath.endsWith('/tv-shows') ||
+      lowerPath.endsWith('/shows') ||
+      lowerPath.endsWith('/series')
+    ) {
+      return 'tv';
+    }
+
+    // Check for movie indicators
+    if (
+      lowerPath.includes('movie') ||
+      lowerPath.includes('film') ||
+      lowerPath.includes('cinema') ||
+      lowerPath.includes('video') ||
+      lowerPath.endsWith('/movies') ||
+      lowerPath.endsWith('/films') ||
+      lowerPath.endsWith('/videos')
+    ) {
+      return 'movie';
+    }
+
+    // Default fallback - if path contains "media" or other generic terms, default to movies
+    // since movies are often the most common media type
+    return 'movie';
+  };
+
   const handleQuickSelect = (path: string) => {
-    setNewLibrary((prev) => ({ ...prev, path }));
+    const detectedType = detectLibraryType(path);
+    setNewLibrary((prev) => ({
+      ...prev,
+      path,
+      type: detectedType,
+    }));
+  };
+
+  // Also add automatic type detection when path is manually entered
+  const handlePathChange = (path: string) => {
+    const detectedType = detectLibraryType(path);
+    setNewLibrary((prev) => ({
+      ...prev,
+      path,
+      type: detectedType,
+    }));
   };
 
   const addLibrary = async () => {
@@ -405,9 +468,56 @@ const MediaLibraryManager = () => {
                 loadScanStats();
                 loadLibraryStats();
               }, 1000);
+            } else {
+              // Handle scan start error - show user-friendly message
+              let scanErrorMessage = `HTTP ${scanRes.status}: ${JSON.stringify(scanResult)}`;
+              if (scanResult.error && scanResult.details) {
+                // Check for specific error types and provide user-friendly messages
+                if (scanResult.details.includes('scan already running for path')) {
+                  const pathMatch = scanResult.details.match(/path '([^']+)'/);
+                  const jobMatch = scanResult.details.match(/job ID: (\d+)/);
+                  const libraryMatch = scanResult.details.match(/library ID: (\d+)/);
+
+                  const path = pathMatch ? pathMatch[1] : 'this directory';
+                  const jobId = jobMatch ? jobMatch[1] : 'unknown';
+                  const conflictLibraryId = libraryMatch ? libraryMatch[1] : 'unknown';
+
+                  scanErrorMessage = `Library created successfully, but automatic scan could not start: Another scan is already running on ${path} (Job ${jobId}, Library ${conflictLibraryId}). You can start the scan manually once the current scan completes.`;
+                } else if (scanResult.details.includes('scan already running for library')) {
+                  const jobMatch = scanResult.details.match(/job ID: (\d+)/);
+                  const jobId = jobMatch ? jobMatch[1] : 'unknown';
+
+                  scanErrorMessage = `Library created successfully, but automatic scan could not start: This library already has a running scan (Job ${jobId}).`;
+                } else {
+                  scanErrorMessage = `Library created successfully, but automatic scan failed: ${scanResult.details || scanResult.error}`;
+                }
+              } else if (scanResult.error) {
+                scanErrorMessage = `Library created successfully, but automatic scan failed: ${scanResult.error}`;
+              }
+
+              // Update response to show the scan error
+              setResponse({
+                status: res.status, // Keep the successful library creation status
+                data: {
+                  library: result.library,
+                  message: 'Library created successfully',
+                  scan_error: scanErrorMessage,
+                },
+                error: scanErrorMessage,
+              });
             }
           } catch (scanError) {
             console.error('Failed to start scan for new library:', scanError);
+            // Update response to show the scan error
+            setResponse({
+              status: res.status, // Keep the successful library creation status
+              data: {
+                library: result.library,
+                message: 'Library created successfully',
+                scan_error: 'Failed to start automatic scan due to network error',
+              },
+              error: `Library created, but automatic scan failed: ${scanError instanceof Error ? scanError.message : 'Unknown error'}`,
+            });
           }
         }
 
@@ -574,7 +684,44 @@ const MediaLibraryManager = () => {
       // Check if response is ok before trying to parse JSON
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errorText}`);
+
+        // Try to parse JSON error response for better error messages
+        let errorMessage = `HTTP ${res.status}: ${errorText}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error && errorJson.details) {
+            // Check for specific error types and provide user-friendly messages
+            if (errorJson.details.includes('scan already running for path')) {
+              const pathMatch = errorJson.details.match(/path '([^']+)'/);
+              const jobMatch = errorJson.details.match(/job ID: (\d+)/);
+              const libraryMatch = errorJson.details.match(/library ID: (\d+)/);
+
+              const path = pathMatch ? pathMatch[1] : 'this directory';
+              const jobId = jobMatch ? jobMatch[1] : 'unknown';
+              const conflictLibraryId = libraryMatch ? libraryMatch[1] : 'unknown';
+
+              errorMessage = `Cannot start scan: Another scan is already running on ${path} (Job ${jobId}, Library ${conflictLibraryId}). Please wait for the current scan to complete or pause it before starting a new one.`;
+            } else if (errorJson.details.includes('scan already running for library')) {
+              const jobMatch = errorJson.details.match(/job ID: (\d+)/);
+              const jobId = jobMatch ? jobMatch[1] : 'unknown';
+
+              errorMessage = `Cannot start scan: This library already has a running scan (Job ${jobId}). Please wait for it to complete or pause it first.`;
+            } else {
+              errorMessage = errorJson.details || errorJson.error || errorMessage;
+            }
+          } else if (errorJson.error) {
+            errorMessage = errorJson.error;
+          }
+        } catch {
+          // If JSON parsing fails, use the original error text
+          // But make it more user-friendly if it contains common patterns
+          if (errorText.includes('scan already running')) {
+            errorMessage =
+              'Cannot start scan: A scan is already running. Please wait for it to complete or pause it first.';
+          }
+        }
+
+        throw new Error(errorMessage);
       }
 
       const result = await res.json();
@@ -747,7 +894,12 @@ const MediaLibraryManager = () => {
   };
 
   // Helper function to get the total file count for progress display
-  const getTotalFileCount = (scanJob: ScanJob) => {
+  const getTotalFileCount = (scanJob: ScanJob | undefined) => {
+    // If no scan job exists, return 1 as fallback
+    if (!scanJob) {
+      return 1;
+    }
+
     // Priority order:
     // 1. files_found from scan job (if > 0)
     // 2. files_processed (as minimum count when discovery is ongoing)
@@ -843,7 +995,7 @@ const MediaLibraryManager = () => {
                 <input
                   type="text"
                   value={newLibrary.path}
-                  onChange={(e) => setNewLibrary((prev) => ({ ...prev, path: e.target.value }))}
+                  onChange={(e) => handlePathChange(e.target.value)}
                   placeholder="/path/to/your/media/directory"
                   className="flex-1 bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:border-blue-500 focus:outline-none"
                 />
@@ -852,7 +1004,7 @@ const MediaLibraryManager = () => {
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors cursor-pointer"
                   type="button"
                   data-tooltip-id="browse-button-tooltip"
-                  data-tooltip-content="Browse and enter a custom directory path"
+                  data-tooltip-content="Browse and enter a custom directory path (type will be auto-detected)"
                 >
                   Browse
                 </button>
@@ -873,7 +1025,7 @@ const MediaLibraryManager = () => {
                         className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-200 px-2 py-1 rounded transition-colors cursor-pointer"
                         type="button"
                         data-tooltip-id="quick-path-tooltip"
-                        data-tooltip-content={`Select ${path} as library directory`}
+                        data-tooltip-content={`Select ${path} as library directory (type will be auto-detected)`}
                       >
                         {path}
                       </button>
@@ -893,6 +1045,10 @@ const MediaLibraryManager = () => {
                 <option value="tv">TV Shows</option>
                 <option value="music">Music</option>
               </select>
+              <p className="text-xs text-slate-400 mt-1">
+                💡 Library type is automatically detected based on your path (e.g., "/media/music" →
+                Music)
+              </p>
             </div>
 
             <div className="flex gap-2">

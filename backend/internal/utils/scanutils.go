@@ -43,17 +43,33 @@ func ValidateScanJob(db *gorm.DB, libraryID uint) error {
 		return fmt.Errorf("library not found: %w", err)
 	}
 
-	// Check if there's already a running scan for this library
-	var existingJob database.ScanJob
+	// Check if there's already a running scan for this library ID
+	var existingJobForLibrary database.ScanJob
 	err := db.Where("library_id = ? AND status IN ?", libraryID, []string{
 		string(StatusPending), 
 		string(StatusRunning),
-	}).First(&existingJob).Error
+	}).First(&existingJobForLibrary).Error
 	
 	if err == nil {
-		return fmt.Errorf("scan already running for library %d (job ID: %d)", libraryID, existingJob.ID)
+		return fmt.Errorf("scan already running for library %d (job ID: %d)", libraryID, existingJobForLibrary.ID)
 	} else if err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("database error while checking for existing scans: %w", err)
+	}
+
+	// Check if there's already a running scan for the same path (from any library)
+	var existingJobForPath database.ScanJob
+	err = db.Joins("JOIN media_libraries ON media_libraries.id = scan_jobs.library_id").
+		Where("media_libraries.path = ? AND scan_jobs.status IN ?", library.Path, []string{
+			string(StatusPending),
+			string(StatusRunning),
+		}).
+		First(&existingJobForPath).Error
+
+	if err == nil {
+		return fmt.Errorf("scan already running for path '%s' (job ID: %d, library ID: %d)", 
+			library.Path, existingJobForPath.ID, existingJobForPath.LibraryID)
+	} else if err != gorm.ErrRecordNotFound {
+		return fmt.Errorf("database error while checking for existing path scans: %w", err)
 	}
 
 	return nil
