@@ -27,6 +27,9 @@ logs/
 docker-data/
 volumes/
 
+# Data directories
+viewra-data/
+
 # Backup files
 *.bak
 *.backup

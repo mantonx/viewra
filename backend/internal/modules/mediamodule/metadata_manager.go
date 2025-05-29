@@ -11,6 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/plugins/proto"
 	"gorm.io/gorm"
@@ -131,13 +132,17 @@ func (mm *MetadataManager) ExtractMetadata(mediaFileID uint) error {
 	return fmt.Errorf("unsupported file type for metadata extraction")
 }
 
-// extractMusicMetadata handles metadata extraction for music files
+// extractMusicMetadata extracts music metadata from a media file
 func (mm *MetadataManager) extractMusicMetadata(mediaFile *database.MediaFile) error {
-	log.Printf("INFO: Extracting music metadata for file ID %d: %s", mediaFile.ID, mediaFile.Path)
-	
-	// Delete existing metadata if it exists
+	// Remove any existing music metadata to start fresh
 	if err := mm.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
 		log.Printf("WARNING: Failed to delete existing music metadata: %v", err)
+	}
+	
+	// Clean up existing assets to prevent cross-contamination
+	if err := mediaassetmodule.RemoveMediaAssetsByMediaFile(mediaFile.ID); err != nil {
+		log.Printf("WARNING: Failed to cleanup existing assets for file ID %d: %v", mediaFile.ID, err)
+		// Continue anyway - cleanup failure shouldn't prevent metadata extraction
 	}
 	
 	// Extract metadata
@@ -149,6 +154,18 @@ func (mm *MetadataManager) extractMusicMetadata(mediaFile *database.MediaFile) e
 	// Save to database
 	if err := mm.db.Create(musicMeta).Error; err != nil {
 		return fmt.Errorf("failed to save music metadata: %w", err)
+	}
+	
+	// Check if artwork already exists
+	manager := mediaassetmodule.GetAssetManager()
+	if manager != nil {
+		exists, _, err := manager.ExistsAsset(mediaFile.ID, mediaassetmodule.AssetTypeMusic, mediaassetmodule.CategoryAlbum)
+		if err != nil {
+			fmt.Printf("WARNING: Failed to check for existing artwork: %v\n", err)
+		} else if exists {
+			fmt.Printf("DEBUG: Artwork already exists for file %s, skipping\n", mediaFile.Path)
+			return nil
+		}
 	}
 	
 	// Publish metadata extracted event

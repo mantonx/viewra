@@ -2,7 +2,7 @@ FROM node:20-alpine AS development
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies as root first
 COPY package*.json ./
 RUN npm ci
 
@@ -11,6 +11,11 @@ COPY . .
 
 # Replace the vite config with Docker-specific version
 RUN cp vite.config.docker.ts vite.config.ts
+
+# Create node_modules directory with proper permissions
+RUN mkdir -p /app/node_modules && \
+    chmod 755 /app/node_modules && \
+    chmod -R 755 /app
 
 # Expose port
 EXPOSE 5173

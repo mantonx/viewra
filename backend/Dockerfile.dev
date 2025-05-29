@@ -11,6 +11,10 @@ WORKDIR /app
 # Set CGO_ENABLED=1 for SQLite support
 ENV CGO_ENABLED=1
 
+# Create cache directory with proper permissions
+RUN mkdir -p /tmp/go-cache && chmod -R 777 /tmp/go-cache
+ENV GOCACHE=/tmp/go-cache
+
 # Copy go mod files
 COPY go.mod go.sum ./
 RUN go mod download
@@ -28,11 +32,10 @@ RUN make build-plugins
 RUN go build -o /app/tmp/main /app/cmd/viewra/main.go
 
 # Create data directory for SQLite
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && chmod 755 /app/data
 
 # Expose port
 EXPOSE 8080
 
-# CMD ["air", "-c", ".air.toml"]
-# CMD ["./tmp/main"]
-CMD ["go", "run", "./cmd/viewra/main.go"]
+# Use the pre-built binary instead of go run to avoid cache issues
+CMD ["./tmp/main"]

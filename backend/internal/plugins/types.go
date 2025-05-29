@@ -2,10 +2,12 @@ package plugins
 
 import (
 	"context"
+	"io/fs"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
+	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/plugins/proto"
 )
 
@@ -187,4 +189,64 @@ type Logger interface {
 	Warn(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
 	With(args ...interface{}) hclog.Logger
+}
+
+// MetadataContext provides context and utilities for file processing plugins
+type MetadataContext struct {
+	DB          interface{} // Will be *gorm.DB but kept as interface for flexibility
+	MediaFile   *database.MediaFile
+	LibraryID   uint
+	EventBus    interface{} // Will be events.EventBus but kept as interface for flexibility
+}
+
+// FileHandlerPlugin defines the interface for file processing plugins
+// These plugins handle metadata extraction from different media file types
+type FileHandlerPlugin interface {
+	// Match determines if this plugin can handle the given file
+	Match(path string, info fs.FileInfo) bool
+	
+	// HandleFile processes the file and extracts metadata
+	HandleFile(path string, ctx MetadataContext) error
+	
+	// GetName returns the name of the plugin
+	GetName() string
+	
+	// GetSupportedExtensions returns the file extensions this plugin supports
+	GetSupportedExtensions() []string
+	
+	// GetPluginType returns the type of media this plugin handles (music, video, image, etc.)
+	GetPluginType() string
+}
+
+// ScannerPluginHook defines the interface for scanner plugin hooks
+// These provide lifecycle callbacks during the scanning process
+type ScannerPluginHook interface {
+	OnScanStarted(jobID, libraryID uint, path string) error
+	OnScanCompleted(jobID, libraryID uint, stats map[string]interface{}) error
+	OnMediaFileScanned(mediaFile *database.MediaFile, metadata interface{}) error
+}
+
+// CorePlugin represents a built-in plugin that's always available
+type CorePlugin interface {
+	FileHandlerPlugin
+	
+	// IsEnabled returns whether this core plugin is enabled
+	IsEnabled() bool
+	
+	// Initialize performs any setup needed for the plugin
+	Initialize() error
+	
+	// Shutdown performs any cleanup needed when the plugin is disabled
+	Shutdown() error
+}
+
+// PluginInfo contains metadata about a plugin
+type PluginInfo struct {
+	Name            string   `json:"name"`
+	Type            string   `json:"type"`
+	Version         string   `json:"version"`
+	Description     string   `json:"description"`
+	SupportedExts   []string `json:"supported_extensions"`
+	Enabled         bool     `json:"enabled"`
+	IsCore          bool     `json:"is_core"`
 } 

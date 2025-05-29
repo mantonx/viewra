@@ -22,15 +22,6 @@ type LibraryManager struct {
 	
 	// Library management
 	libraries map[uint]*database.MediaLibrary
-	scanners  map[uint]*LibraryScanner
-}
-
-// LibraryScanner represents a library scanner
-type LibraryScanner struct {
-	libraryID uint
-	running   bool
-	lastScan  time.Time
-	mutex     sync.RWMutex
 }
 
 // LibraryStats represents library statistics
@@ -51,7 +42,6 @@ func NewLibraryManager(db *gorm.DB, eventBus events.EventBus) *LibraryManager {
 		db:        db,
 		eventBus:  eventBus,
 		libraries: make(map[uint]*database.MediaLibrary),
-		scanners:  make(map[uint]*LibraryScanner),
 	}
 }
 
@@ -62,11 +52,6 @@ func (lm *LibraryManager) Initialize() error {
 	// Load existing libraries from database
 	if err := lm.loadLibraries(); err != nil {
 		return fmt.Errorf("failed to load libraries: %w", err)
-	}
-	
-	// Initialize scanners for existing libraries
-	if err := lm.initializeScanners(); err != nil {
-		return fmt.Errorf("failed to initialize scanners: %w", err)
 	}
 	
 	lm.initialized = true
@@ -93,22 +78,6 @@ func (lm *LibraryManager) loadLibraries() error {
 	return nil
 }
 
-// initializeScanners initializes scanners for all libraries
-func (lm *LibraryManager) initializeScanners() error {
-	lm.mutex.Lock()
-	defer lm.mutex.Unlock()
-	
-	for id := range lm.libraries {
-		lm.scanners[id] = &LibraryScanner{
-			libraryID: id,
-			running:   false,
-			lastScan:  time.Time{},
-		}
-	}
-	
-	return nil
-}
-
 // CreateLibrary creates a new media library
 func (lm *LibraryManager) CreateLibrary(name, path, libraryType string) (*database.MediaLibrary, error) {
 	if !lm.initialized {
@@ -128,11 +97,6 @@ func (lm *LibraryManager) CreateLibrary(name, path, libraryType string) (*databa
 	
 	lm.mutex.Lock()
 	lm.libraries[library.ID] = library
-	lm.scanners[library.ID] = &LibraryScanner{
-		libraryID: library.ID,
-		running:   false,
-		lastScan:  time.Time{},
-	}
 	lm.mutex.Unlock()
 	
 	// Publish library created event
@@ -173,12 +137,24 @@ func (lm *LibraryManager) GetAllLibraries() ([]*database.MediaLibrary, error) {
 	}
 	
 	lm.mutex.RLock()
-	defer lm.mutex.RUnlock()
+	// If cache is empty, try to reload from database
+	if len(lm.libraries) == 0 {
+		lm.mutex.RUnlock()
+		
+		// Reload libraries from database
+		log.Println("INFO: Library cache is empty, reloading from database")
+		if err := lm.loadLibraries(); err != nil {
+			return nil, fmt.Errorf("failed to reload libraries: %w", err)
+		}
+		
+		lm.mutex.RLock()
+	}
 	
 	libraries := make([]*database.MediaLibrary, 0, len(lm.libraries))
 	for _, library := range lm.libraries {
 		libraries = append(libraries, library)
 	}
+	lm.mutex.RUnlock()
 	
 	return libraries, nil
 }
@@ -194,14 +170,6 @@ func (lm *LibraryManager) DeleteLibrary(id uint) error {
 	if !exists {
 		lm.mutex.Unlock()
 		return fmt.Errorf("library not found")
-	}
-	
-	// Stop scanner if running
-	if scanner, exists := lm.scanners[id]; exists {
-		scanner.mutex.Lock()
-		scanner.running = false
-		scanner.mutex.Unlock()
-		delete(lm.scanners, id)
 	}
 	
 	delete(lm.libraries, id)
@@ -281,114 +249,16 @@ func (lm *LibraryManager) GetLibraryStats(id uint) (*LibraryStats, error) {
 	}
 	stats.ImageFiles = int(imageFiles)
 	
-	// Get last scan time
-	if scanner, exists := lm.scanners[id]; exists {
-		scanner.mutex.RLock()
-		stats.LastScan = scanner.lastScan
-		scanner.mutex.RUnlock()
-	}
+	// Note: LastScan and ScanDuration are now handled by the scanner module
+	// This information should be retrieved from scan jobs if needed
 	
 	log.Printf("INFO: Generated stats for library %s: %d files, %d bytes", library.Path, stats.TotalFiles, stats.TotalSize)
 	return stats, nil
 }
 
-// ScanLibrary scans a library for media files
-func (lm *LibraryManager) ScanLibrary(id uint) error {
-	if !lm.initialized {
-		return fmt.Errorf("library manager not initialized")
-	}
-	
-	library, err := lm.GetLibrary(id)
-	if err != nil {
-		return err
-	}
-	
-	scanner, exists := lm.scanners[id]
-	if !exists {
-		return fmt.Errorf("scanner not found for library %d", id)
-	}
-	
-	scanner.mutex.Lock()
-	if scanner.running {
-		scanner.mutex.Unlock()
-		return fmt.Errorf("scan already running for library %d", id)
-	}
-	scanner.running = true
-	scanner.mutex.Unlock()
-	
-	// Start scan in background
-	go func() {
-		defer func() {
-			scanner.mutex.Lock()
-			scanner.running = false
-			scanner.lastScan = time.Now()
-			scanner.mutex.Unlock()
-		}()
-		
-		log.Printf("INFO: Starting scan for library: %s (ID: %d)", library.Path, id)
-		
-		// Publish scan started event
-		if lm.eventBus != nil {
-			event := events.NewSystemEvent(
-				"library.scan.started",
-				"Library Scan Started",
-				fmt.Sprintf("Started scanning library '%s' (ID: %d)", library.Path, id),
-			)
-			lm.eventBus.PublishAsync(event)
-		}
-		
-		// TODO: Implement actual file scanning logic
-		// This would involve:
-		// 1. Walking the file system
-		// 2. Identifying media files
-		// 3. Extracting metadata
-		// 4. Updating database
-		
-		time.Sleep(1 * time.Second) // Simulate scan time
-		
-		// Publish scan completed event
-		if lm.eventBus != nil {
-			event := events.NewSystemEvent(
-				"library.scan.completed",
-				"Library Scan Completed",
-				fmt.Sprintf("Completed scanning library '%s' (ID: %d)", library.Path, id),
-			)
-			lm.eventBus.PublishAsync(event)
-		}
-		
-		log.Printf("INFO: Completed scan for library: %s (ID: %d)", library.Path, id)
-	}()
-	
-	return nil
-}
-
-// IsScanning checks if a library is currently being scanned
-func (lm *LibraryManager) IsScanning(id uint) bool {
-	scanner, exists := lm.scanners[id]
-	if !exists {
-		return false
-	}
-	
-	scanner.mutex.RLock()
-	defer scanner.mutex.RUnlock()
-	return scanner.running
-}
-
 // Shutdown gracefully shuts down the library manager
 func (lm *LibraryManager) Shutdown(ctx context.Context) error {
 	log.Println("INFO: Shutting down library manager")
-	
-	// Stop all running scanners
-	lm.mutex.Lock()
-	for id, scanner := range lm.scanners {
-		scanner.mutex.Lock()
-		if scanner.running {
-			log.Printf("INFO: Stopping scanner for library %d", id)
-			scanner.running = false
-		}
-		scanner.mutex.Unlock()
-	}
-	lm.mutex.Unlock()
 	
 	lm.initialized = false
 	log.Println("INFO: Library manager shutdown complete")

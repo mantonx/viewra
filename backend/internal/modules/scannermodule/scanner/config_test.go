@@ -68,7 +68,7 @@ func TestConfigComparison(t *testing.T) {
 	assert.Greater(t, aggressiveConfig.BatchSize, conservativeConfig.BatchSize)
 	assert.Greater(t, aggressiveConfig.ChannelBufferSize, conservativeConfig.ChannelBufferSize)
 	assert.Greater(t, aggressiveConfig.MetadataWorkerCount, conservativeConfig.MetadataWorkerCount)
-	
+
 	// Aggressive should be at least as aggressive as conservative, and often more than default
 	// But we can't guarantee it's always > default since CPU count varies by system
 	assert.Greater(t, aggressiveConfig.BatchSize, defaultConfig.BatchSize)
@@ -101,12 +101,12 @@ func TestConfigValidation(t *testing.T) {
 			name: "Zero worker count should be valid (uses CPU count)",
 			config: &ScanConfig{
 				ParallelScanningEnabled: true,
-				WorkerCount:            0,
-				BatchSize:             50,
-				ChannelBufferSize:     100,
-				SmartHashEnabled:      true,
-				AsyncMetadataEnabled:  true,
-				MetadataWorkerCount:   2,
+				WorkerCount:             0,
+				BatchSize:               50,
+				ChannelBufferSize:       100,
+				SmartHashEnabled:        true,
+				AsyncMetadataEnabled:    true,
+				MetadataWorkerCount:     2,
 			},
 			valid: true,
 		},
@@ -114,12 +114,12 @@ func TestConfigValidation(t *testing.T) {
 			name: "Negative worker count should be invalid",
 			config: &ScanConfig{
 				ParallelScanningEnabled: true,
-				WorkerCount:            -1,
-				BatchSize:             50,
-				ChannelBufferSize:     100,
-				SmartHashEnabled:      true,
-				AsyncMetadataEnabled:  true,
-				MetadataWorkerCount:   2,
+				WorkerCount:             -1,
+				BatchSize:               50,
+				ChannelBufferSize:       100,
+				SmartHashEnabled:        true,
+				AsyncMetadataEnabled:    true,
+				MetadataWorkerCount:     2,
 			},
 			valid: false,
 		},
@@ -127,12 +127,12 @@ func TestConfigValidation(t *testing.T) {
 			name: "Zero batch size should be invalid",
 			config: &ScanConfig{
 				ParallelScanningEnabled: true,
-				WorkerCount:            4,
-				BatchSize:             0,
-				ChannelBufferSize:     100,
-				SmartHashEnabled:      true,
-				AsyncMetadataEnabled:  true,
-				MetadataWorkerCount:   2,
+				WorkerCount:             4,
+				BatchSize:               0,
+				ChannelBufferSize:       100,
+				SmartHashEnabled:        true,
+				AsyncMetadataEnabled:    true,
+				MetadataWorkerCount:     2,
 			},
 			valid: false,
 		},
@@ -140,12 +140,12 @@ func TestConfigValidation(t *testing.T) {
 			name: "Zero channel buffer size should be invalid",
 			config: &ScanConfig{
 				ParallelScanningEnabled: true,
-				WorkerCount:            4,
-				BatchSize:             50,
-				ChannelBufferSize:     0,
-				SmartHashEnabled:      true,
-				AsyncMetadataEnabled:  true,
-				MetadataWorkerCount:   2,
+				WorkerCount:             4,
+				BatchSize:               50,
+				ChannelBufferSize:       0,
+				SmartHashEnabled:        true,
+				AsyncMetadataEnabled:    true,
+				MetadataWorkerCount:     2,
 			},
 			valid: false,
 		},
@@ -161,7 +161,7 @@ func TestConfigValidation(t *testing.T) {
 
 func TestConfigWorkerCountResolution(t *testing.T) {
 	config := DefaultScanConfig()
-	
+
 	// When WorkerCount is 0, it should resolve to CPU count
 	if config.WorkerCount == 0 {
 		expectedWorkerCount := runtime.NumCPU()
@@ -201,11 +201,11 @@ func TestConfigMemoryEstimation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			estimatedMemory := estimateConfigMemoryUsage(tt.config)
-			
+
 			// Memory estimation should be within reasonable bounds
 			assert.Greater(t, estimatedMemory, int64(0))
 			assert.LessOrEqual(t, estimatedMemory, int64(100*1024*1024)) // Less than 100MB
-			
+
 			// The estimation should be proportional to the config aggressiveness
 			if tt.name == "Conservative config should use less memory" {
 				assert.LessOrEqual(t, estimatedMemory, tt.expectedMemory*2)
@@ -242,18 +242,18 @@ func resolveWorkerCount(workerCount int) int {
 func estimateConfigMemoryUsage(config *ScanConfig) int64 {
 	// Rough estimation based on channel buffer sizes and worker counts
 	workerCount := resolveWorkerCount(config.WorkerCount)
-	
+
 	// Estimate memory per worker (channels, buffers, etc.)
-	memoryPerWorker := int64(1024 * 100) // 100KB per worker
+	memoryPerWorker := int64(1024 * 100)                    // 100KB per worker
 	channelMemory := int64(config.ChannelBufferSize * 1024) // 1KB per channel slot
-	batchMemory := int64(config.BatchSize * 512) // 512 bytes per batch item
-	
+	batchMemory := int64(config.BatchSize * 512)            // 512 bytes per batch item
+
 	totalMemory := int64(workerCount)*memoryPerWorker + channelMemory + batchMemory
-	
+
 	if config.AsyncMetadataEnabled {
 		metadataMemory := int64(config.MetadataWorkerCount) * memoryPerWorker
 		totalMemory += metadataMemory
 	}
-	
+
 	return totalMemory
-} 
+}

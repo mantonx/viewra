@@ -1,7 +1,6 @@
 package metadata
 
 import (
-	"crypto/md5"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/dhowden/tag"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 )
 
 // MusicFileExtensions defines supported music file formats (audio only)
@@ -121,26 +121,20 @@ func ExtractMusicMetadata(filePath string, mediaFile *database.MediaFile) (*data
 		musicMeta.HasArtwork = true
 		fmt.Printf("Found artwork in file %s with MIME type: %s\n", filePath, picture.MIMEType)
 		
-		// Determine extension if not provided
-		ext := picture.Ext
-		if ext == "" {
-			// Try to determine from MIME type
-			switch picture.MIMEType {
-			case "image/jpeg":
-				ext = "jpg"
-			case "image/png":
-				ext = "png"
-			case "image/gif":
-				ext = "gif"
-			default:
-				ext = "jpg" // Default to jpg
-			}
-		}
-		
 		// Store artwork data temporarily - will be saved after MediaFile gets its ID
 		musicMeta.ArtworkData = picture.Data
-		musicMeta.ArtworkExt = ext
-		fmt.Printf("Stored artwork data for file %s (will save after MediaFile gets ID)\n", filePath)
+		musicMeta.ArtworkExt = picture.Ext
+		
+		// If we have the MediaFile ID, save the artwork immediately
+		if mediaFile.ID != 0 {
+			if err := SaveArtworkForMediaFile(mediaFile.ID, picture.Data, picture.MIMEType); err != nil {
+				fmt.Printf("WARNING: Failed to save artwork for file %s: %v\n", filePath, err)
+			} else {
+				fmt.Printf("Successfully saved artwork for file %s\n", filePath)
+			}
+		} else {
+			fmt.Printf("Stored artwork data for file %s (will save after MediaFile gets ID)\n", filePath)
+		}
 	} else {
 		fmt.Printf("No artwork found in file %s\n", filePath)
 	}
@@ -148,88 +142,32 @@ func ExtractMusicMetadata(filePath string, mediaFile *database.MediaFile) (*data
 	return musicMeta, nil
 }
 
-// SaveArtwork saves album artwork to the cache directory
-func SaveArtwork(mediaFileID uint, data []byte, ext string) error {
-	// Create cache directory if it doesn't exist
-	// Support both Docker path and local development path
-	cacheDir := "./data/artwork"
-	if _, err := os.Stat("/app/data"); err == nil {
-		cacheDir = "/app/data/artwork"
-	}
-	err := os.MkdirAll(cacheDir, 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	// Generate filename based on media file ID and data hash
-	hash := md5.Sum(data)
-	filename := fmt.Sprintf("%d_%x.%s", mediaFileID, hash, ext)
-	artworkPath := filepath.Join(cacheDir, filename)
-
-	// Save the artwork file
-	file, err := os.Create(artworkPath)
-	if err != nil {
-		return fmt.Errorf("failed to create artwork file: %w", err)
-	}
-	defer file.Close()
-
-	_, err = file.Write(data)
-	if err != nil {
-		return fmt.Errorf("failed to write artwork data: %w", err)
-	}
-
-	return nil
-}
-
-// SaveArtworkWithID saves album artwork with a specific media file ID
-// This is used when the MediaFile has already been saved to the database
-func SaveArtworkWithID(mediaFileID uint, data []byte, ext string) error {
-	return SaveArtwork(mediaFileID, data, ext)
-}
-
-// GetArtworkPath returns the path to the artwork file for a given media file ID
-func GetArtworkPath(mediaFileID uint) (string, error) {
-	// Support both Docker path and local development path
-	cacheDir := "./data/artwork"
-	if _, err := os.Stat("/app/data"); err == nil {
-		cacheDir = "/app/data/artwork"
+// SaveArtworkForMediaFile saves artwork for a media file using the new asset system
+func SaveArtworkForMediaFile(mediaFileID uint, data []byte, mimeType string) error {
+	if len(data) == 0 {
+		return fmt.Errorf("artwork data cannot be empty")
 	}
 	
-	// Find artwork file by media file ID prefix
-	files, err := filepath.Glob(filepath.Join(cacheDir, fmt.Sprintf("%d_*", mediaFileID)))
-	if err != nil {
-		return "", fmt.Errorf("failed to search for artwork: %w", err)
-	}
-
-	if len(files) == 0 {
-		return "", fmt.Errorf("no artwork found for media file ID %d", mediaFileID)
-	}
-
-	// Return the first match (there should only be one)
-	return files[0], nil
-}
-
-// CleanupArtwork removes artwork files for a given media file ID
-func CleanupArtwork(mediaFileID uint) error {
-	// Support both Docker path and local development path
-	cacheDir := "./data/artwork"
-	if _, err := os.Stat("/app/data"); err == nil {
-		cacheDir = "/app/data/artwork"
+	if mimeType == "" {
+		mimeType = "image/jpeg" // Default MIME type
 	}
 	
-	// Find artwork files by media file ID prefix
-	files, err := filepath.Glob(filepath.Join(cacheDir, fmt.Sprintf("%d_*", mediaFileID)))
+	// Create asset request
+	request := &mediaassetmodule.AssetRequest{
+		MediaFileID: mediaFileID,
+		Type:        mediaassetmodule.AssetTypeMusic,
+		Category:    mediaassetmodule.CategoryAlbum,
+		Subtype:     mediaassetmodule.SubtypeArtwork,
+		Data:        data,
+		MimeType:    mimeType,
+	}
+
+	// Save using the new asset manager
+	_, err := mediaassetmodule.SaveMediaAsset(request)
 	if err != nil {
-		return fmt.Errorf("failed to search for artwork: %w", err)
+		return fmt.Errorf("failed to save artwork with new asset system: %w", err)
 	}
 
-	// Remove all matching files
-	for _, file := range files {
-		err := os.Remove(file)
-		if err != nil {
-			return fmt.Errorf("failed to remove artwork file %s: %w", file, err)
-		}
-	}
-
+	fmt.Printf("INFO: Successfully saved artwork for media file ID %d\n", mediaFileID)
 	return nil
 }

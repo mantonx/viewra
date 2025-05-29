@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 )
 
 // LoadTestMusicData loads test music data into the database
@@ -187,12 +188,37 @@ func LoadTestMusicData(c *gin.Context) {
 		if picture != nil && len(picture.Data) > 0 {
 			musicMeta.HasArtwork = true
 
-			// Save artwork to cache
-			err := metadata.SaveArtwork(mediaFile.ID, picture.Data, picture.Ext)
+			// Determine MIME type from the picture
+			mimeType := picture.MIMEType
+			if mimeType == "" {
+				// Fallback based on extension
+				switch strings.ToLower(picture.Ext) {
+				case "png":
+					mimeType = "image/png"
+				case "gif":
+					mimeType = "image/gif"
+				case "webp":
+					mimeType = "image/webp"
+				default:
+					mimeType = "image/jpeg"
+				}
+			}
+
+			// Save artwork using the new asset system
+			request := &mediaassetmodule.AssetRequest{
+				MediaFileID: mediaFile.ID,
+				Type:        mediaassetmodule.AssetTypeMusic,
+				Category:    mediaassetmodule.CategoryAlbum,
+				Subtype:     mediaassetmodule.SubtypeArtwork,
+				Data:        picture.Data,
+				MimeType:    mimeType,
+			}
+
+			_, err := mediaassetmodule.SaveMediaAsset(request)
 			if err != nil {
 				fmt.Printf("Warning: failed to save artwork for file %s: %v\n", fullPath, err)
 			} else {
-				fmt.Printf("Successfully saved artwork for file %s\n", fullPath)
+				fmt.Printf("Successfully saved artwork for file %s using new asset system\n", fullPath)
 			}
 		}
 

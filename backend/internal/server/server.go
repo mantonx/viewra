@@ -23,6 +23,7 @@ import (
 
 	// Import all modules to trigger their registration
 	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
+	_ "github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
 

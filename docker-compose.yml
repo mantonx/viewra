@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - '${BACKEND_PORT:-8080}:8080'
+    user: '${UID:-1000}:${GID:-1000}'
     environment:
       - GIN_MODE=${GIN_MODE:-debug}
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
@@ -14,6 +15,7 @@ services:
     volumes:
       - ./backend:/app
       - backend-data:/app/data
+      - ./viewra-data:/app/viewra-data
       - /nfs/fictionalserver/music:/media/music:ro
     networks:
       - viewra-network
@@ -25,6 +27,7 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - '${FRONTEND_PORT:-5175}:5173'
+    # user: '${UID:-1000}:${GID:-1000}'  # Temporarily disabled for permission fix
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
     volumes:
