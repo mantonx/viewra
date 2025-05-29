@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { Search, SortAsc, SortDesc, Filter, Play, Pause } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import MediaCard from './MediaCard';
 import AudioPlayer from '@/components/audio/AudioPlayer';
 import type { MusicFile, GroupedMusicFile, SortField, SortDirection } from '@/types/music.types';
 import type { ApiResponse } from '@/types/api.types';
+import { buildArtworkUrl } from '@/utils/api';
 
 const MusicLibrary = () => {
   const [musicFiles, setMusicFiles] = useState<MusicFile[]>([]);
@@ -115,9 +118,7 @@ const MusicLibrary = () => {
 
           // Find album artwork from the first track that has it
           const trackWithArtwork = tracks.find((t) => t.music_metadata?.has_artwork);
-          const artworkUrl = trackWithArtwork
-            ? `/api/media/${trackWithArtwork.id}/artwork`
-            : undefined;
+          const artworkUrl = trackWithArtwork ? buildArtworkUrl(trackWithArtwork.id) : undefined;
 
           artistGroup.albums.push({
             title: albumTitle,
@@ -566,7 +567,7 @@ const MusicLibrary = () => {
                     <div className="col-span-5 flex items-center gap-3">
                       {file.music_metadata?.has_artwork ? (
                         <img
-                          src={`/api/media/${file.id}/artwork`}
+                          src={buildArtworkUrl(file.id)}
                           alt={file.music_metadata?.album || 'Album Artwork'}
                           className="w-8 h-8 object-cover rounded"
                         />

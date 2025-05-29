@@ -9,28 +9,30 @@ import (
 	"gorm.io/gorm"
 )
 
-// Manager provides the main logic for managing media assets
+// Manager handles media asset operations
 type Manager struct {
-	db          *gorm.DB
-	eventBus    events.EventBus
-	fileStore   *FileStore
-	pathUtil    *PathUtil
-	hashCalc    *HashCalculator
-	initialized bool
+	db             *gorm.DB
+	eventBus       events.EventBus
+	fileStore      *FileStore
+	pathUtil       *PathUtil
+	hashCalc       *HashCalculator
+	imageProcessor *ImageProcessor
+	initialized    bool
 }
 
-// NewManager creates a new asset manager instance
+// NewManager creates a new asset manager
 func NewManager(db *gorm.DB, eventBus events.EventBus) *Manager {
 	pathUtil := GetDefaultPathUtil()
 	fileStore := NewFileStore(pathUtil)
 	hashCalc := NewHashCalculator()
 	
 	return &Manager{
-		db:        db,
-		eventBus:  eventBus,
-		fileStore: fileStore,
-		pathUtil:  pathUtil,
-		hashCalc:  hashCalc,
+		db:             db,
+		eventBus:       eventBus,
+		fileStore:      fileStore,
+		pathUtil:       pathUtil,
+		hashCalc:       hashCalc,
+		imageProcessor: NewImageProcessor(),
 	}
 }
 
@@ -51,7 +53,7 @@ func (m *Manager) Initialize() error {
 	return nil
 }
 
-// SaveAsset saves a media asset to disk and database
+// SaveAsset saves a media asset to the filesystem and database
 func (m *Manager) SaveAsset(request *AssetRequest) (*MediaAsset, error) {
 	if request == nil {
 		return nil, fmt.Errorf("asset request cannot be nil")
@@ -65,12 +67,32 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*MediaAsset, error) {
 		return nil, fmt.Errorf("media file ID cannot be zero")
 	}
 
-	// Calculate hash of the data
-	hash := m.hashCalc.CalculateDataHash(request.Data)
+	// Process asset data - convert images to WebP at full quality and extract dimensions
+	processedData, processedMimeType, width, height, err := m.imageProcessor.ProcessAssetData(request.Data, request.MimeType)
+	if err != nil {
+		// Log warning but continue with original data
+		log.Printf("WARNING: Failed to process image asset: %v\n", err)
+		processedData = request.Data
+		processedMimeType = request.MimeType
+		width = request.Width
+		height = request.Height
+	} else {
+		// Use extracted dimensions if they were successfully determined
+		if width > 0 && height > 0 {
+			// Override any provided dimensions with extracted ones for accuracy
+		} else {
+			// Fallback to provided dimensions if extraction failed
+			width = request.Width
+			height = request.Height
+		}
+	}
+
+	// Calculate hash of the processed data
+	hash := m.hashCalc.CalculateDataHash(processedData)
 	
 	// Check if we already have this asset
 	var existingAsset MediaAsset
-	err := m.db.Where("media_file_id = ? AND type = ? AND category = ? AND subtype = ? AND hash = ?",
+	err = m.db.Where("media_file_id = ? AND type = ? AND category = ? AND subtype = ? AND hash = ?",
 		request.MediaFileID, request.Type, request.Category, request.Subtype, hash).First(&existingAsset).Error
 	
 	if err == nil {
@@ -82,8 +104,8 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*MediaAsset, error) {
 		return nil, fmt.Errorf("failed to check for existing asset: %w", err)
 	}
 
-	// Save asset to filesystem
-	relativePath, err := m.fileStore.SaveAsset(request.Type, request.Category, hash, request.MimeType, request.Data)
+	// Save processed asset to filesystem
+	relativePath, err := m.fileStore.SaveAsset(request.Type, request.Category, hash, processedMimeType, processedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save asset to filesystem: %w", err)
 	}
@@ -96,10 +118,10 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*MediaAsset, error) {
 		Subtype:      request.Subtype,
 		RelativePath: relativePath,
 		Hash:         hash,
-		MimeType:     request.MimeType,
-		Size:         int64(len(request.Data)),
-		Width:        request.Width,
-		Height:       request.Height,
+		MimeType:     processedMimeType,
+		Size:         int64(len(processedData)),
+		Width:        width,
+		Height:       height,
 	}
 
 	if err := m.db.Create(asset).Error; err != nil {
@@ -219,6 +241,40 @@ func (m *Manager) GetAssetData(id uint) ([]byte, error) {
 	}
 
 	return m.fileStore.GetAssetData(asset.RelativePath)
+}
+
+// GetAssetDataWithQuality retrieves asset data with quality adjustment for images
+func (m *Manager) GetAssetDataWithQuality(id uint, quality int) ([]byte, string, error) {
+	var asset MediaAsset
+	if err := m.db.First(&asset, id).Error; err != nil {
+		return nil, "", fmt.Errorf("asset not found: %w", err)
+	}
+
+	// Get the original asset data
+	originalData, err := m.fileStore.GetAssetData(asset.RelativePath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// If it's not an image, return original data
+	if !m.imageProcessor.IsImageMimeType(asset.MimeType) {
+		return originalData, asset.MimeType, nil
+	}
+
+	// If no quality specified or quality is 100, return original
+	if quality <= 0 || quality >= 100 {
+		return originalData, asset.MimeType, nil
+	}
+
+	// Process image with quality adjustment
+	processedData, processedMimeType, err := m.imageProcessor.ProcessImageWithQuality(originalData, asset.MimeType, quality)
+	if err != nil {
+		// If processing fails, return original data
+		log.Printf("WARNING: Failed to process image with quality %d: %v\n", quality, err)
+		return originalData, asset.MimeType, nil
+	}
+
+	return processedData, processedMimeType, nil
 }
 
 // ExistsAsset checks if an asset exists for the given criteria

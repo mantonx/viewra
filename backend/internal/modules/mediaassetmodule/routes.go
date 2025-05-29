@@ -64,6 +64,13 @@ func (m *Module) getAssetData(c *gin.Context) {
 		return
 	}
 
+	// Parse quality parameter (default to 100% for backend)
+	qualityStr := c.DefaultQuery("quality", "100")
+	quality, err := strconv.Atoi(qualityStr)
+	if err != nil || quality < 1 || quality > 100 {
+		quality = 100 // Default to 100% quality
+	}
+
 	// Get asset metadata first
 	asset, err := m.manager.GetAsset(uint(id))
 	if err != nil {
@@ -74,8 +81,8 @@ func (m *Module) getAssetData(c *gin.Context) {
 		return
 	}
 
-	// Get asset data
-	data, err := m.manager.GetAssetData(uint(id))
+	// Get asset data with quality adjustment
+	data, mimeType, err := m.manager.GetAssetDataWithQuality(uint(id), quality)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to retrieve asset data",
@@ -85,12 +92,16 @@ func (m *Module) getAssetData(c *gin.Context) {
 	}
 
 	// Set appropriate headers
-	c.Header("Content-Type", asset.MimeType)
-	c.Header("Content-Length", strconv.FormatInt(asset.Size, 10))
+	c.Header("Content-Type", mimeType)
+	c.Header("Content-Length", strconv.Itoa(len(data)))
 	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
 	
+	// Add quality info to headers for debugging
+	c.Header("X-Image-Quality", strconv.Itoa(quality))
+	c.Header("X-Original-MimeType", asset.MimeType)
+	
 	// Stream the data
-	c.Data(http.StatusOK, asset.MimeType, data)
+	c.Data(http.StatusOK, mimeType, data)
 }
 
 // updateAsset handles PUT /api/assets/:id

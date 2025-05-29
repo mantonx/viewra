@@ -1,8 +1,9 @@
 import React from 'react';
 import type { MusicFile, Album } from '@/types/music.types';
+import { buildArtworkUrl } from '@/utils/api';
 
 interface MediaCardProps {
-  variant: 'track' | 'album';
+  variant: 'album' | 'track';
   item: MusicFile | Album;
   isCurrentTrack?: boolean;
   isPlaying?: boolean;
@@ -29,7 +30,9 @@ const MediaCard: React.FC<MediaCardProps> = ({
         <div className="relative aspect-square overflow-hidden bg-slate-700">
           {album.artwork ? (
             <img
-              src={album.artwork}
+              src={buildArtworkUrl(
+                album.artwork.replace('/api/media/', '').replace('/artwork', '')
+              )}
               alt={album.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
@@ -78,7 +81,7 @@ const MediaCard: React.FC<MediaCardProps> = ({
           <div className="relative w-full aspect-square mb-3">
             {track.music_metadata?.has_artwork ? (
               <img
-                src={`/api/media/${track.id}/artwork`}
+                src={buildArtworkUrl(track.id)}
                 alt={track.music_metadata?.album || 'Album Artwork'}
                 className="w-full h-full object-cover rounded-md"
               />

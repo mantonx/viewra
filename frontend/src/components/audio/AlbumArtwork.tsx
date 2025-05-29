@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Tooltip } from 'react-tooltip';
 import ImageModal from '@/components/ui/ImageModal';
+import { buildImageUrl } from '@/utils/api';
 
 interface AlbumArtworkProps {
   artworkUrl?: string;
@@ -45,7 +46,7 @@ const AlbumArtwork: React.FC<AlbumArtworkProps> = ({
       {/* Main artwork or fallback */}
       {artworkUrl ? (
         <img
-          src={artworkUrl}
+          src={buildImageUrl(artworkUrl)}
           alt={altText}
           className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
         />

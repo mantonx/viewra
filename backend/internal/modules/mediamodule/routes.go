@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 )
 
 // getLibraries returns all media libraries
@@ -479,6 +480,90 @@ func (m *Module) getStats(c *gin.Context) {
 		"processor_stats": processorStats,
 		"metadata_stats":  metadataStats,
 	})
+}
+
+// getArtwork serves artwork for a media file with quality parameter support
+func (m *Module) getArtwork(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid file ID",
+		})
+		return
+	}
+	
+	// Parse quality parameter (default to 100% for backend, but frontend should request 90%)
+	qualityStr := c.DefaultQuery("quality", "100")
+	quality, err := strconv.Atoi(qualityStr)
+	if err != nil || quality < 1 || quality > 100 {
+		quality = 100 // Default to 100% quality
+	}
+	
+	// Check if media file exists
+	var mediaFile database.MediaFile
+	if err := m.db.First(&mediaFile, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+	
+	// Import the mediaasset module to use the asset manager
+	assetManager := mediaassetmodule.GetAssetManager()
+	if assetManager == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Asset manager not available",
+		})
+		return
+	}
+	
+	// Get artwork assets for this media file
+	assets, err := assetManager.GetAssetsByMediaFile(uint(id), mediaassetmodule.AssetTypeMusic)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "No artwork found for this media file",
+		})
+		return
+	}
+	
+	// Filter for artwork assets
+	var artworkAsset *mediaassetmodule.AssetResponse
+	for _, asset := range assets {
+		if asset.Subtype == mediaassetmodule.SubtypeArtwork {
+			artworkAsset = asset
+			break
+		}
+	}
+	
+	if artworkAsset == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "No artwork found for this media file",
+		})
+		return
+	}
+	
+	// Get asset data with quality adjustment
+	data, mimeType, err := assetManager.GetAssetDataWithQuality(artworkAsset.ID, quality)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve artwork data",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Set appropriate headers
+	c.Header("Content-Type", mimeType)
+	c.Header("Content-Length", strconv.Itoa(len(data)))
+	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
+	
+	// Add quality info to headers for debugging
+	c.Header("X-Image-Quality", strconv.Itoa(quality))
+	c.Header("X-Original-MimeType", artworkAsset.MimeType)
+	
+	// Stream the data
+	c.Data(http.StatusOK, mimeType, data)
 }
 
 // Helper function to get content type based on file extension

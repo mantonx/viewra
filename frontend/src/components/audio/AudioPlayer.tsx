@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -22,6 +22,8 @@ import AnimatedPlayPause from '@/components/ui/AnimatedPlayPause';
 import { cn } from '@/lib/utils';
 import IconButton from '@/components/ui/IconButton';
 import { Tooltip } from 'react-tooltip';
+import { MusicFile } from '@/components/media/music.types';
+import { buildArtworkUrl } from '@/utils/api';
 
 interface MusicMetadata {
   id: number;
@@ -42,18 +44,6 @@ interface MusicMetadata {
   channels: number;
   format: string;
   has_artwork: boolean;
-}
-
-interface MusicFile {
-  id: number;
-  path: string;
-  size: number;
-  hash: string;
-  library_id: number;
-  last_seen: string;
-  created_at: string;
-  updated_at: string;
-  music_metadata: MusicMetadata;
 }
 
 interface AudioPlayerProps {
@@ -195,7 +185,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
             <AlbumArtwork
               artworkUrl={
                 currentTrack?.music_metadata?.has_artwork
-                  ? `/api/media/${currentTrack.id}/artwork`
+                  ? buildArtworkUrl(currentTrack.id)
                   : undefined
               }
               altText={currentTrack?.music_metadata?.album || 'Album Artwork'}

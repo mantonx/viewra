@@ -183,6 +183,7 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.DELETE("/files/:id", m.deleteFile)
 		mediaGroup.GET("/files/:id/stream", m.streamFile)
 		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
+		mediaGroup.GET("/:id/artwork", m.getArtwork)
 		
 		// Upload endpoints removed as app doesn't support uploads
 		
