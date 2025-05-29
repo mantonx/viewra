@@ -428,18 +428,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
               isMinimized={isMinimized}
               className="shadow-xl hover:scale-105 hover:shadow-2xl hover:brightness-110"
             />
-
-            {/* Bitrate display - show only if we have meaningful bitrate data */}
-            {!isMinimized && audioBitrate > 0 && (
-              <div
-                className="flex flex-col items-end text-xs text-slate-400 min-w-0 cursor-help"
-                data-tooltip-id="bitrate-tooltip"
-                data-tooltip-content={`Audio bitrate: ${Math.round(audioBitrate / 1000)}kbps`}
-              >
-                <span className="font-mono">{Math.round(audioBitrate / 1000)}kbps</span>
-                <span className="text-slate-500 text-[10px]">bitrate</span>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -630,7 +618,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       <Tooltip id="repeat-tooltip" />
       <Tooltip id="minimize-tooltip" />
       <Tooltip id="nerd-info-tooltip" />
-      <Tooltip id="bitrate-tooltip" />
+      <Tooltip id="audio-quality-tooltip" />
     </div>
   );
 };
