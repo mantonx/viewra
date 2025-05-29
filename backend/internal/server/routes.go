@@ -109,6 +109,9 @@ func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 		media.GET("/", mediaHandler.GetMedia)
 		apiroutes.Register(media.BasePath()+"/", "GET", "List all media items.")
 
+		media.GET("/:id", mediaHandler.GetMediaByID)
+		apiroutes.Register(media.BasePath()+"/:id", "GET", "Get a specific media item by ID.")
+
 		media.GET("/:id/stream", mediaHandler.StreamMedia)
 		apiroutes.Register(media.BasePath()+"/:id/stream", "GET", "Stream a specific media file.")
 
