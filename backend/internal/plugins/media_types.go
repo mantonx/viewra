@@ -17,13 +17,14 @@ type MediaItem struct {
 
 // MediaAsset represents an asset associated with a media file
 type MediaAsset struct {
-	Type        string `json:"type"`         // "artwork", "subtitle", "thumbnail", "preview"
-	Data        []byte `json:"data"`         // Asset binary data
-	Path        string `json:"path"`         // Original file path for reference
-	Extension   string `json:"extension"`    // File extension (.jpg, .png, .srt, etc.)
-	MediaFileID uint   `json:"media_file_id"` // Associated media file ID
-	MimeType    string `json:"mime_type"`    // MIME type of the asset
-	Size        int64  `json:"size"`         // Size in bytes
+	Type        string            `json:"type"`         // "artwork", "subtitle", "thumbnail", "preview"
+	Data        []byte            `json:"data"`         // Asset binary data
+	Path        string            `json:"path"`         // Original file path for reference
+	Extension   string            `json:"extension"`    // File extension (.jpg, .png, .srt, etc.)
+	MediaFileID uint              `json:"media_file_id"` // Associated media file ID
+	MimeType    string            `json:"mime_type"`    // MIME type of the asset
+	Size        int64             `json:"size"`         // Size in bytes
+	Metadata    map[string]string `json:"metadata,omitempty"` // Metadata about the asset source
 }
 
 // MediaContext provides context for media processing operations

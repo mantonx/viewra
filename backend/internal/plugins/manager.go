@@ -3,10 +3,13 @@ package plugins
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +20,9 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/internal/apiroutes"
 	"github.com/mantonx/viewra/internal/config"
+	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 	"github.com/mantonx/viewra/internal/plugins/proto"
+	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
 
@@ -37,6 +42,12 @@ type manager struct {
 	watcher *fsnotify.Watcher
 	ctx     context.Context
 	cancel  context.CancelFunc
+	
+	// Host services for plugins
+	hostGRPCServer   *grpc.Server
+	hostGRPCListener net.Listener
+	hostAssetService *HostAssetService
+	hostServiceAddr  string
 }
 
 // NewManager creates a new plugin manager
@@ -80,18 +91,26 @@ func (m *manager) Initialize(ctx context.Context) error {
 		return fmt.Errorf("failed to discover plugins: %w", err)
 	}
 	
-	// Load enabled plugins
+	// Start host services for bidirectional communication BEFORE loading plugins
+	if err := m.startHostServices(); err != nil {
+		return fmt.Errorf("failed to start host services: %w", err)
+	}
+	
+	// Load enabled plugins (now with host service address available)
 	if err := m.loadEnabledPlugins(ctx); err != nil {
 		return fmt.Errorf("failed to load enabled plugins: %w", err)
 	}
 	
-	m.logger.Info("plugin manager initialized", "plugins_discovered", len(m.plugins))
+	m.logger.Info("plugin manager initialized", "plugins_discovered", len(m.plugins), "host_service_addr", m.hostServiceAddr)
 	return nil
 }
 
 // Shutdown gracefully stops all plugins and cleans up resources
 func (m *manager) Shutdown(ctx context.Context) error {
 	m.logger.Info("shutting down plugin manager")
+	
+	// Stop host services first
+	m.stopHostServices()
 	
 	// Stop file watcher
 	if m.watcher != nil {
@@ -308,9 +327,10 @@ func (m *manager) LoadPlugin(ctx context.Context, pluginID string) error {
 	dbURL := m.getDatabaseURL()
 	_, err = plugin.GRPCClient.Initialize(ctx, &proto.InitializeRequest{
 		Context: &proto.PluginContext{
-			DatabaseUrl: dbURL,
-			PluginId:    pluginID,
-			BasePath:    plugin.BasePath,
+			DatabaseUrl:     dbURL,
+			PluginId:        pluginID,
+			BasePath:        plugin.BasePath,
+			HostServiceAddr: m.hostServiceAddr,
 		},
 	})
 	if err != nil {
@@ -678,4 +698,234 @@ func (m *manager) registerPluginInDatabase(plugin *Plugin, enabledByDefault bool
 	}
 	
 	m.logger.Info("plugin registered in database", "plugin", plugin.ID, "status", defaultStatus)
+}
+
+// HostAssetService implements AssetService for the host side
+// This allows plugins to save assets through the host's media asset module
+type HostAssetService struct {
+	logger hclog.Logger
+}
+
+// NewHostAssetService creates a new host asset service
+func NewHostAssetService(logger hclog.Logger) *HostAssetService {
+	return &HostAssetService{
+		logger: logger.Named("host-asset-service"),
+	}
+}
+
+// SaveAsset implements the AssetService interface for the host
+func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) (uint32, string, string, error) {
+	h.logger.Debug("saving asset", "media_file_id", mediaFileID, "type", assetType, "category", category, "subtype", subtype, "mime_type", mimeType, "size", len(data))
+	
+	// Convert string types to typed constants for the asset module
+	var assetTypeConst mediaassetmodule.AssetType
+	var categoryConst mediaassetmodule.AssetCategory  
+	var subtypeConst mediaassetmodule.AssetSubtype
+	
+	// Map asset type
+	switch strings.ToLower(assetType) {
+	case "music":
+		assetTypeConst = mediaassetmodule.AssetTypeMusic
+	case "movie":
+		assetTypeConst = mediaassetmodule.AssetTypeMovie
+	case "tv":
+		assetTypeConst = mediaassetmodule.AssetTypeTV
+	case "people":
+		assetTypeConst = mediaassetmodule.AssetTypePeople
+	case "meta":
+		assetTypeConst = mediaassetmodule.AssetTypeMeta
+	default:
+		assetTypeConst = mediaassetmodule.AssetTypeMusic
+	}
+	
+	// Map category
+	switch strings.ToLower(category) {
+	case "album":
+		categoryConst = mediaassetmodule.CategoryAlbum
+	case "artist":
+		categoryConst = mediaassetmodule.CategoryArtist
+	case "track":
+		categoryConst = mediaassetmodule.CategoryTrack
+	case "label":
+		categoryConst = mediaassetmodule.CategoryLabel
+	case "genre":
+		categoryConst = mediaassetmodule.CategoryGenre
+	case "poster":
+		categoryConst = mediaassetmodule.CategoryPoster
+	case "backdrop":
+		categoryConst = mediaassetmodule.CategoryBackdrop
+	case "logo":
+		categoryConst = mediaassetmodule.CategoryLogo
+	default:
+		categoryConst = mediaassetmodule.CategoryAlbum // Default to album
+	}
+	
+	// Map subtype
+	switch strings.ToLower(subtype) {
+	case "artwork":
+		subtypeConst = mediaassetmodule.SubtypeArtwork
+	case "poster":
+		subtypeConst = mediaassetmodule.SubtypePoster
+	case "backdrop":
+		subtypeConst = mediaassetmodule.SubtypeBackdrop
+	case "thumbnail":
+		subtypeConst = mediaassetmodule.SubtypeThumbnail
+	case "subtitle":
+		subtypeConst = mediaassetmodule.SubtypeSubtitle
+	case "lyrics":
+		subtypeConst = mediaassetmodule.SubtypeLyrics
+	default:
+		subtypeConst = mediaassetmodule.SubtypeArtwork // Default to artwork
+	}
+	
+	// Extract dimensions from metadata if available
+	var width, height int
+	if widthStr, ok := metadata["width"]; ok {
+		if w, err := strconv.Atoi(widthStr); err == nil {
+			width = w
+		}
+	}
+	if heightStr, ok := metadata["height"]; ok {
+		if h, err := strconv.Atoi(heightStr); err == nil {
+			height = h
+		}
+	}
+	
+	// Create asset request
+	request := &mediaassetmodule.AssetRequest{
+		MediaFileID: uint(mediaFileID),
+		Type:        assetTypeConst,
+		Category:    categoryConst,
+		Subtype:     subtypeConst,
+		Data:        data,
+		MimeType:    mimeType,
+		Width:       width,
+		Height:      height,
+		Metadata:    metadata,
+	}
+	
+	// Save using the media asset module
+	asset, err := mediaassetmodule.SaveMediaAsset(request)
+	if err != nil {
+		h.logger.Error("failed to save asset", "error", err, "media_file_id", mediaFileID)
+		return 0, "", "", fmt.Errorf("failed to save asset: %w", err)
+	}
+	
+	h.logger.Debug("asset saved successfully", "asset_id", asset.ID, "hash", asset.Hash, "path", asset.RelativePath)
+	return uint32(asset.ID), asset.Hash, asset.RelativePath, nil
+}
+
+// AssetExists implements the AssetService interface for the host
+func (h *HostAssetService) AssetExists(mediaFileID uint32, assetType, category, subtype, hash string) (bool, uint32, string, error) {
+	h.logger.Debug("checking asset existence", "media_file_id", mediaFileID, "type", assetType, "category", category, "hash", hash)
+	
+	// Convert string types to typed constants
+	var assetTypeConst mediaassetmodule.AssetType
+	var categoryConst mediaassetmodule.AssetCategory
+	
+	// Map asset type
+	switch strings.ToLower(assetType) {
+	case "music":
+		assetTypeConst = mediaassetmodule.AssetTypeMusic
+	case "movie":
+		assetTypeConst = mediaassetmodule.AssetTypeMovie
+	case "tv":
+		assetTypeConst = mediaassetmodule.AssetTypeTV
+	case "people":
+		assetTypeConst = mediaassetmodule.AssetTypePeople
+	case "meta":
+		assetTypeConst = mediaassetmodule.AssetTypeMeta
+	default:
+		assetTypeConst = mediaassetmodule.AssetTypeMusic
+	}
+	
+	// Map category
+	switch strings.ToLower(category) {
+	case "album":
+		categoryConst = mediaassetmodule.CategoryAlbum
+	case "artist":
+		categoryConst = mediaassetmodule.CategoryArtist
+	case "track":
+		categoryConst = mediaassetmodule.CategoryTrack
+	default:
+		categoryConst = mediaassetmodule.CategoryAlbum
+	}
+	
+	// Check if asset exists
+	exists, asset, err := mediaassetmodule.ExistsMediaAsset(uint(mediaFileID), assetTypeConst, categoryConst)
+	if err != nil {
+		h.logger.Error("failed to check asset existence", "error", err)
+		return false, 0, "", fmt.Errorf("failed to check asset existence: %w", err)
+	}
+	
+	if exists && asset != nil {
+		h.logger.Debug("asset exists", "asset_id", asset.ID, "path", asset.RelativePath)
+		return true, uint32(asset.ID), asset.RelativePath, nil
+	}
+	
+	h.logger.Debug("asset does not exist", "media_file_id", mediaFileID)
+	return false, 0, "", nil
+}
+
+// RemoveAsset implements the AssetService interface for the host
+func (h *HostAssetService) RemoveAsset(assetID uint32) error {
+	h.logger.Debug("removing asset", "asset_id", assetID)
+	
+	err := mediaassetmodule.RemoveMediaAsset(uint(assetID))
+	if err != nil {
+		h.logger.Error("failed to remove asset", "error", err, "asset_id", assetID)
+		return fmt.Errorf("failed to remove asset: %w", err)
+	}
+	
+	h.logger.Debug("asset removed successfully", "asset_id", assetID)
+	return nil
+}
+
+// startHostServices starts the host-side gRPC server for plugin communication
+func (m *manager) startHostServices() error {
+	// Create listener on available port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("failed to create listener: %w", err)
+	}
+	
+	m.hostGRPCListener = listener
+	m.hostServiceAddr = listener.Addr().String()
+	
+	// Create host asset service
+	m.hostAssetService = NewHostAssetService(m.logger)
+	
+	// Create gRPC server
+	m.hostGRPCServer = grpc.NewServer()
+	
+	// Register AssetService on the host server
+	proto.RegisterAssetServiceServer(m.hostGRPCServer, &AssetServer{Impl: m.hostAssetService})
+	
+	// Start server in background
+	go func() {
+		m.logger.Info("starting host gRPC server", "addr", m.hostServiceAddr)
+		if err := m.hostGRPCServer.Serve(m.hostGRPCListener); err != nil {
+			m.logger.Error("host gRPC server error", "error", err)
+		}
+	}()
+	
+	m.logger.Info("host services started", "addr", m.hostServiceAddr)
+	return nil
+}
+
+// stopHostServices stops the host-side gRPC server
+func (m *manager) stopHostServices() {
+	if m.hostGRPCServer != nil {
+		m.logger.Info("stopping host gRPC server")
+		m.hostGRPCServer.GracefulStop()
+		m.hostGRPCServer = nil
+	}
+	
+	if m.hostGRPCListener != nil {
+		m.hostGRPCListener.Close()
+		m.hostGRPCListener = nil
+	}
+	
+	m.hostServiceAddr = ""
+	m.hostAssetService = nil
 } 

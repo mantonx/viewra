@@ -76,6 +76,7 @@ type MediaAsset struct {
 	Size         int64         `gorm:"not null" json:"size"`
 	Width        int           `json:"width,omitempty"`
 	Height       int           `json:"height,omitempty"`
+	Metadata     string        `gorm:"type:text" json:"metadata,omitempty"`
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 }
@@ -87,31 +88,33 @@ func (MediaAsset) TableName() string {
 
 // AssetRequest represents a request to save a media asset
 type AssetRequest struct {
-	MediaFileID uint          `json:"media_file_id"`
-	Type        AssetType     `json:"type"`
-	Category    AssetCategory `json:"category"`
-	Subtype     AssetSubtype  `json:"subtype"`
-	Data        []byte        `json:"data"`
-	MimeType    string        `json:"mime_type"`
-	Width       int           `json:"width,omitempty"`
-	Height      int           `json:"height,omitempty"`
+	MediaFileID uint                   `json:"media_file_id"`
+	Type        AssetType              `json:"type"`
+	Category    AssetCategory          `json:"category"`
+	Subtype     AssetSubtype           `json:"subtype"`
+	Data        []byte                 `json:"data"`
+	MimeType    string                 `json:"mime_type"`
+	Width       int                    `json:"width,omitempty"`
+	Height      int                    `json:"height,omitempty"`
+	Metadata    map[string]string      `json:"metadata,omitempty"` // Metadata about the asset source
 }
 
 // AssetResponse represents the response when retrieving a media asset
 type AssetResponse struct {
-	ID           uint          `json:"id"`
-	MediaFileID  uint          `json:"media_file_id"`
-	Type         AssetType     `json:"type"`
-	Category     AssetCategory `json:"category"`
-	Subtype      AssetSubtype  `json:"subtype"`
-	RelativePath string        `json:"relative_path"`
-	Hash         string        `json:"hash"`
-	MimeType     string        `json:"mime_type"`
-	Size         int64         `json:"size"`
-	Width        int           `json:"width,omitempty"`
-	Height       int           `json:"height,omitempty"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+	ID           uint                   `json:"id"`
+	MediaFileID  uint                   `json:"media_file_id"`
+	Type         AssetType              `json:"type"`
+	Category     AssetCategory          `json:"category"`
+	Subtype      AssetSubtype           `json:"subtype"`
+	RelativePath string                 `json:"relative_path"`
+	Hash         string                 `json:"hash"`
+	MimeType     string                 `json:"mime_type"`
+	Size         int64                  `json:"size"`
+	Width        int                    `json:"width,omitempty"`
+	Height       int                    `json:"height,omitempty"`
+	Metadata     map[string]string      `json:"metadata,omitempty"` // Metadata about the asset source
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
 }
 
 // AssetFilter represents filters for querying assets

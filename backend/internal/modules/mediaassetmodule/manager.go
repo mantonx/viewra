@@ -1,6 +1,7 @@
 package mediaassetmodule
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -122,6 +123,16 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*MediaAsset, error) {
 		Size:         int64(len(processedData)),
 		Width:        width,
 		Height:       height,
+	}
+
+	// Serialize metadata to JSON if provided
+	if request.Metadata != nil && len(request.Metadata) > 0 {
+		metadataJSON, err := json.Marshal(request.Metadata)
+		if err != nil {
+			log.Printf("WARNING: Failed to serialize asset metadata: %v\n", err)
+		} else {
+			asset.Metadata = string(metadataJSON)
+		}
 	}
 
 	if err := m.db.Create(asset).Error; err != nil {
@@ -593,7 +604,7 @@ func (m *Manager) validateAssetRequest(request *AssetRequest) error {
 
 // buildAssetResponse builds an asset response from a MediaAsset
 func (m *Manager) buildAssetResponse(asset *MediaAsset) *AssetResponse {
-	return &AssetResponse{
+	response := &AssetResponse{
 		ID:           asset.ID,
 		MediaFileID:  asset.MediaFileID,
 		Type:         asset.Type,
@@ -608,4 +619,16 @@ func (m *Manager) buildAssetResponse(asset *MediaAsset) *AssetResponse {
 		CreatedAt:    asset.CreatedAt,
 		UpdatedAt:    asset.UpdatedAt,
 	}
+
+	// Deserialize metadata from JSON if present
+	if asset.Metadata != "" {
+		var metadata map[string]string
+		if err := json.Unmarshal([]byte(asset.Metadata), &metadata); err != nil {
+			log.Printf("WARNING: Failed to deserialize asset metadata for asset %d: %v\n", asset.ID, err)
+		} else {
+			response.Metadata = metadata
+		}
+	}
+
+	return response
 } 

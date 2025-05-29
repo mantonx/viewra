@@ -143,6 +143,7 @@ func (mm *MediaManager) saveArtworkAsset(asset MediaAsset) error {
 		Subtype:     mediaassetmodule.SubtypeArtwork,
 		Data:        asset.Data,
 		MimeType:    mimeType,
+		Metadata:    asset.Metadata,
 	}
 
 	// Save using the new asset manager

@@ -1,69 +1,46 @@
 # Viewra Plugin System Architecture
 
-> 📖 **For build instructions and development workflow, see [DEVELOPMENT.md](../DEVELOPMENT.md)**
+Viewra uses a modular plugin architecture built on HashiCorp's go-plugin framework to provide extensible functionality for media processing, metadata enrichment, and custom features.
 
 ## Overview
 
-The Viewra plugin system extends core functionality through HashiCorp's go-plugin architecture, providing:
+The plugin system is designed to be:
 
-- **Subprocess Isolation**: Plugins run as separate processes, ensuring safety
-- **Hot Reload**: Plugins can be updated without restarting the main application
-- **gRPC Communication**: Efficient and strongly-typed communication
-- **Plugin Discovery**: Automatic discovery in designated plugin directories
-- **Runtime Management**: Load, unload, and manage plugins at runtime
+- **Isolated**: Plugins run in separate processes and communicate via gRPC
+- **Modular**: Clean interfaces with minimal dependencies on core application
+- **Extensible**: Support for multiple service types within a single plugin
+- **Developer-Friendly**: Simple SDK for external plugin development
 
-## Core Architecture Components
+## Architecture
 
-### 1. Plugin Manager (`backend/internal/plugins/manager.go`)
+### Core Components
 
-- Manages the lifecycle of all plugins (discovery, loading, unloading, restarting)
-- Monitors plugin directories for changes to support hot reloading
-- Registers discovered plugins and their capabilities
-- Handles plugin process management and cleanup
+1. **Plugin SDK** (`backend/pkg/plugins/`)
 
-### 2. gRPC Interface & Implementation (`backend/internal/plugins/grpc_impl.go`)
+   - Standalone Go module for plugin development
+   - Clean interfaces without dependencies on main application
+   - gRPC communication helpers
+   - Standard plugin lifecycle management
 
-- Implements the server and client sides of the HashiCorp go-plugin gRPC interface
-- Defines how the host application communicates with each plugin process
-- Includes service definitions for various plugin types
+2. **Plugin Manager** (`backend/internal/plugins/`)
 
-### 3. Protocol Definitions (`backend/internal/plugins/proto/plugin.proto`)
+   - Discovers and loads plugins at runtime
+   - Manages plugin lifecycle (start/stop/health checks)
+   - Routes service calls to appropriate plugins
+   - Handles plugin communication and error recovery
 
-- Contains Protocol Buffer (protobuf) definitions for gRPC services and messages
-- Provides the contract for communication, ensuring type safety
+3. **Build System**
+   - Automated plugin building with `make build-plugin`
+   - Smart CGO detection and container builds
+   - Cross-platform compatibility
 
-### 4. Core Types & Interfaces (`backend/internal/plugins/types.go`)
+## Plugin Types & Services
 
-- Defines the core Go interfaces that plugins must implement
-- Includes structs for plugin metadata, configuration, and runtime state
+Plugins can implement multiple service interfaces:
 
-## Plugin Service Interfaces
+### MetadataScraperService
 
-### Core Plugin Interface (`Implementation`)
-
-All plugins must implement this base interface:
-
-```go
-type Implementation interface {
-    Initialize(ctx *proto.PluginContext) error
-    Start() error
-    Stop() error
-    Info() (*proto.PluginInfo, error)
-    Health() error
-
-    // Service getters (return nil if not implemented)
-    MetadataScraperService() MetadataScraperService
-    ScannerHookService() ScannerHookService
-    DatabaseService() DatabaseService
-    AdminPageService() AdminPageService
-    APIRegistrationService() APIRegistrationService
-    SearchService() SearchService
-}
-```
-
-### Metadata Scraper Service
-
-For plugins that extract metadata from files:
+Extracts metadata from media files.
 
 ```go
 type MetadataScraperService interface {
@@ -73,9 +50,9 @@ type MetadataScraperService interface {
 }
 ```
 
-### Scanner Hook Service
+### ScannerHookService
 
-For plugins that react to scan events:
+Hooks into the media scanning process.
 
 ```go
 type ScannerHookService interface {
@@ -85,9 +62,20 @@ type ScannerHookService interface {
 }
 ```
 
-### Database Service
+### SearchService
 
-For plugins that require their own database tables:
+Provides search capabilities across external data sources.
+
+```go
+type SearchService interface {
+    Search(ctx context.Context, query map[string]string, limit, offset uint32) ([]*SearchResult, uint32, bool, error)
+    GetSearchCapabilities(ctx context.Context) ([]string, bool, uint32, error)
+}
+```
+
+### DatabaseService
+
+Manages plugin-specific database models and migrations.
 
 ```go
 type DatabaseService interface {
@@ -97,255 +85,352 @@ type DatabaseService interface {
 }
 ```
 
-### Admin Page Service
+### APIRegistrationService
 
-For plugins that expose configuration/management pages:
+Registers custom API endpoints.
 
 ```go
-type AdminPageService interface {
-    GetAdminPages() ([]*proto.AdminPage, error)
-    RegisterRoutes(router interface{}) error
+type APIRegistrationService interface {
+    GetRegisteredRoutes(ctx context.Context) ([]*APIRoute, error)
 }
 ```
 
-## Plugin Configuration Schema
+### AssetService
 
-Plugins use CueLang (`.cue` files) for configuration:
+Manages media assets (artwork, fanart, etc.).
 
-```cue
-#Plugin: {
-    schema_version: "1.0"
-    id:             string // Unique identifier for the plugin
-    name:           string // Human-readable name
-    version:        string // Semantic version (e.g., "1.0.2")
-    description:    string
-    author?:        string
-    website?:       string
-    repository?:    string
-    license?:       string
-    type:           "metadata_scraper" | "scanner_hook" | "database" | "admin_page" | "generic"
-    tags?:          [...string]
-
-    entry_points: {
-        main: string // Name of the plugin executable relative to plugin directory
-    }
-
-    capabilities?: {
-        metadata_scraper?: bool
-        scanner_hook?:     bool
-        database_service?: bool
-        admin_page?:       bool
-        api_registration?: bool
-        search_service?:   bool
-    }
-
-    permissions?: [
-        {
-            resource: string // e.g., "filesystem", "network", "database"
-            actions: [...string] // e.g., ["read", "write"]
-        },
-    ]
-
-    settings?: {
-        // Plugin-specific settings defined here
-        api_key?: string
-        user_agent?: string
-        timeout_seconds?: int | *30
-        // ... other settings
-    }
+```go
+type AssetService interface {
+    SaveAsset(mediaFileID uint32, assetType, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) (uint32, string, string, error)
+    AssetExists(mediaFileID uint32, assetType, category, subtype, hash string) (bool, uint32, string, error)
+    RemoveAsset(assetID uint32) error
 }
 ```
 
-## Implementation Example
+## Plugin Development
 
-### Basic Plugin Structure
+### Template Plugin
+
+For a comprehensive reference implementation, see the **Template Plugin** at `backend/pkg/plugins/template/`:
+
+- **Complete SDK showcase**: Demonstrates all service interfaces and modern patterns
+- **Comprehensive documentation**: Includes README with code examples and best practices
+- **Production-ready structure**: Database models, configuration, logging, error handling
+- **Copy-and-modify approach**: Easy starting point for new plugin development
+- **Part of SDK**: Co-located with interface definitions for easy reference
+
+**Quick start with template**:
+
+```bash
+# Copy template to create new plugin
+cp -r backend/pkg/plugins/template backend/data/plugins/my_plugin
+cd backend/data/plugins/my_plugin
+
+# Update module path and identifiers
+sed -i 's|pkg/plugins/template|plugins/my_plugin|' go.mod
+sed -i 's|=> ../|=> ../../../pkg/plugins|' go.mod
+# Update plugin.cue identifiers and implement your logic
+make build-plugin p=my_plugin
+```
+
+### Quick Start
+
+1. **Create Plugin Directory**
+
+```bash
+mkdir backend/data/plugins/my_plugin
+cd backend/data/plugins/my_plugin
+```
+
+2. **Initialize Go Module**
+
+```bash
+go mod init github.com/mantonx/viewra/plugins/my_plugin
+```
+
+3. **Add Dependencies**
 
 ```go
+// go.mod
+require (
+    github.com/mantonx/viewra/pkg/plugins v0.0.0
+)
+
+replace github.com/mantonx/viewra/pkg/plugins => ../../../pkg/plugins
+```
+
+4. **Implement Plugin**
+
+```go
+// main.go
 package main
 
 import (
-    "github.com/hashicorp/go-hclog"
-    goplugin "github.com/hashicorp/go-plugin"
-    "github.com/mantonx/viewra/internal/plugins"
-    "github.com/mantonx/viewra/internal/plugins/proto"
+    "github.com/mantonx/viewra/pkg/plugins"
 )
 
 type MyPlugin struct {
-    logger hclog.Logger
-    config *MyPluginConfig
-    // ... other fields
+    logger plugins.Logger
+    config *Config
 }
 
-type MyPluginConfig struct {
-    APIKey    string `json:"api_key"`
-    UserAgent string `json:"user_agent"`
-    Timeout   int    `json:"timeout_seconds"`
-}
-
-// Core Plugin Interface Implementation
-func (p *MyPlugin) Initialize(ctx *proto.PluginContext) error {
-    p.logger = hclog.New(&hclog.LoggerOptions{
-        Name:  ctx.PluginId,
-        Level: hclog.LevelFromString(ctx.LogLevel),
-    })
-
-    // Parse configuration from ctx.Config
-    // Initialize connections, etc.
-
+func (p *MyPlugin) Initialize(ctx *plugins.PluginContext) error {
+    p.logger = ctx.Logger
+    // Initialize plugin
     return nil
 }
 
 func (p *MyPlugin) Start() error {
-    p.logger.Info("MyPlugin Starting")
+    p.logger.Info("My plugin started")
     return nil
 }
 
 func (p *MyPlugin) Stop() error {
-    p.logger.Info("MyPlugin Stopping")
     return nil
 }
 
-func (p *MyPlugin) Info() (*proto.PluginInfo, error) {
-    return &proto.PluginInfo{
-        Id:          "my_plugin_id",
-        Name:        "My Awesome Plugin",
+func (p *MyPlugin) Info() (*plugins.PluginInfo, error) {
+    return &plugins.PluginInfo{
+        ID:          "my_plugin",
+        Name:        "My Plugin",
         Version:     "1.0.0",
-        Description: "Does awesome things",
-        Author:      "Developer Name",
         Type:        "metadata_scraper",
-        Capabilities: []string{"metadata_scraper"},
+        Description: "Example plugin",
+        Author:      "Your Name",
     }, nil
 }
 
 func (p *MyPlugin) Health() error {
-    // Check dependencies, API connectivity, etc.
     return nil
 }
 
-// Service Interface Implementations
+// Implement service interfaces as needed
 func (p *MyPlugin) MetadataScraperService() plugins.MetadataScraperService {
-    return p // Return self if this plugin implements metadata scraping
+    return p
 }
 
-func (p *MyPlugin) ScannerHookService() plugins.ScannerHookService {
-    return nil // Return nil if not implemented
-}
-
-// ... implement other service getters
-
-// Metadata Scraper Implementation
-func (p *MyPlugin) CanHandle(filePath, mimeType string) bool {
-    // Check if this plugin can handle the file type
-    return strings.HasSuffix(filePath, ".mp3")
-}
-
-func (p *MyPlugin) ExtractMetadata(filePath string) (map[string]string, error) {
-    // Extract metadata from the file
-    return map[string]string{
-        "title":  "Extracted Title",
-        "artist": "Extracted Artist",
-    }, nil
-}
-
-func (p *MyPlugin) GetSupportedTypes() []string {
-    return []string{"audio/mpeg", "audio/mp3"}
-}
+// ... other service methods return nil if not implemented
 
 func main() {
-    goplugin.Serve(&goplugin.ServeConfig{
-        HandshakeConfig: plugins.Handshake,
-        Plugins: map[string]goplugin.Plugin{
-            "plugin": &plugins.GRPCPlugin{Impl: &MyPlugin{}},
-        },
-        GRPCServer: goplugin.DefaultGRPCServer,
-    })
+    plugin := &MyPlugin{}
+    plugins.StartPlugin(plugin)
 }
 ```
 
-## Plugin Lifecycle
+5. **Build Plugin**
 
-1. **Discovery**: Plugin manager scans plugin directories for `.cue` configuration files
-2. **Validation**: Configuration is validated against the schema
-3. **Loading**: Plugin binary is launched as a subprocess
-4. **Handshake**: gRPC connection is established using HashiCorp's plugin protocol
-5. **Initialization**: `Initialize()` method is called with context and configuration
-6. **Service Registration**: Plugin services are registered with the host application
-7. **Runtime**: Plugin responds to service calls from the host
-8. **Shutdown**: `Stop()` method is called, process is terminated gracefully
-
-## Plugin Communication Flow
-
-```
-Host Application
-       ↓
-Plugin Manager
-       ↓ (gRPC)
-Plugin Process
-       ↓
-Service Implementation
-       ↓
-External APIs/Resources
+```bash
+make build-plugin p=my_plugin
 ```
 
-## Security Considerations
+### Configuration
 
-- **Process Isolation**: Plugins run in separate processes, limiting impact of crashes
-- **Permission System**: Plugins declare required permissions in configuration
-- **Resource Limits**: Host can enforce CPU, memory, and network limits
-- **API Validation**: All gRPC messages are validated against protobuf schemas
+Plugins receive configuration through the `PluginContext.Config` field during initialization. Configuration should be JSON-serializable:
 
-## Performance Considerations
-
-- **Lazy Loading**: Plugins are only loaded when needed
-- **Connection Pooling**: gRPC connections are reused for efficiency
-- **Timeout Handling**: Operations have configurable timeouts
-- **Resource Monitoring**: Host monitors plugin resource usage
-
-## Debugging Plugins
+```go
+type Config struct {
+    Enabled     bool   `json:"enabled"`
+    APIKey      string `json:"api_key"`
+    UserAgent   string `json:"user_agent"`
+    // ... other config fields
+}
+```
 
 ### Logging
 
-Plugins should use structured logging with appropriate levels:
+Use the provided logger interface for consistent logging:
 
 ```go
-p.logger.Debug("Processing file", "path", filePath)
-p.logger.Info("Plugin started successfully")
-p.logger.Warn("API rate limit approaching")
-p.logger.Error("Failed to connect to external service", "error", err)
-```
-
-### Health Checks
-
-Implement comprehensive health checks:
-
-```go
-func (p *MyPlugin) Health() error {
-    // Check external API connectivity
-    if err := p.checkAPIConnection(); err != nil {
-        return fmt.Errorf("API connection failed: %w", err)
-    }
-
-    // Check database connectivity
-    if err := p.checkDatabaseConnection(); err != nil {
-        return fmt.Errorf("database connection failed: %w", err)
-    }
-
-    return nil
+func (p *MyPlugin) someMethod() {
+    p.logger.Info("Processing started", "file", filepath)
+    p.logger.Debug("Debug info", "details", data)
+    p.logger.Warn("Warning message", "reason", reason)
+    p.logger.Error("Error occurred", "error", err)
 }
 ```
+
+### Database Integration
+
+Plugins can define their own database models and migrations:
+
+```go
+type MyModel struct {
+    ID        uint      `gorm:"primaryKey"`
+    MediaFileID uint    `gorm:"not null;index"`
+    Data      string    `gorm:"type:text"`
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
+func (p *MyPlugin) GetModels() []string {
+    return []string{"MyModel"}
+}
+
+func (p *MyPlugin) Migrate(connectionString string) error {
+    db, err := gorm.Open(sqlite.Open(connectionString), &gorm.Config{})
+    if err != nil {
+        return err
+    }
+    return db.AutoMigrate(&MyModel{})
+}
+```
+
+## Built-in Plugins
+
+### Template Plugin
+
+**Location**: `backend/pkg/plugins/template/`
+
+Comprehensive reference implementation demonstrating all plugin capabilities:
+
+- **Services**: All service interfaces (MetadataScraperService, ScannerHookService, SearchService, DatabaseService, APIRegistrationService)
+- **Features**: Complete SDK usage, database models, configuration validation, structured logging
+- **Purpose**: Developer reference and starting point for new plugins
+- **Documentation**: Extensive README with code patterns and best practices
+- **SDK Integration**: Part of the plugin SDK package for easy discovery
+
+### MusicBrainz Enricher
+
+**Location**: `backend/data/plugins/musicbrainz_enricher/`
+
+Enriches music metadata using the MusicBrainz database:
+
+- **Services**: MetadataScraperService, ScannerHookService, SearchService, DatabaseService, APIRegistrationService
+- **Features**: Caching, rate limiting, fuzzy matching, score-based selection
+- **API**: `/api/plugins/musicbrainz/search`
+
+### AudioDB Enricher
+
+**Location**: `backend/data/plugins/audiodb_enricher/`
+
+Enriches music metadata using The AudioDB API:
+
+- **Services**: MetadataScraperService, ScannerHookService, SearchService, DatabaseService, APIRegistrationService
+- **Features**: Artist/album artwork, biography, genre classification
+- **API**: `/api/plugins/audiodb/search`, `/api/plugins/audiodb/enrich`
+
+## Build System
+
+### Building Plugins
+
+```bash
+# Build single plugin
+make build-plugin p=plugin_name
+
+# Build all plugins
+make build-plugins
+
+# Specify build mode
+make build-plugin p=plugin_name mode=container  # Force container build
+make build-plugin p=plugin_name mode=host       # Force host build
+make build-plugin p=plugin_name mode=auto       # Auto-detect (default)
+```
+
+### Build Modes
+
+- **Auto**: Automatically detects CGO dependencies and chooses optimal build strategy
+- **Host**: Builds directly on host system (faster, requires native dependencies)
+- **Container**: Builds in Docker container (slower, maximum compatibility)
+
+### CGO Detection
+
+The build system automatically detects CGO requirements by analyzing:
+
+- Import statements in Go files
+- Dependencies in `go.mod`
+- Transitive dependencies in `go.sum`
+
+CGO-dependent plugins (like those using SQLite) automatically use container builds for maximum compatibility.
+
+## Plugin Discovery
+
+Plugins are discovered at runtime from:
+
+1. `backend/data/plugins/*/plugin_name` (compiled binaries)
+2. Plugin metadata in `plugin.cue` files
+3. Dynamic registration via plugin manager
+
+## Communication Protocol
+
+Plugins communicate with the host application via gRPC:
+
+- **Handshake**: Secure plugin authentication
+- **Service Discovery**: Dynamic capability detection
+- **Health Checks**: Automatic plugin monitoring
+- **Graceful Shutdown**: Clean resource cleanup
+
+## Development Best Practices
 
 ### Error Handling
 
-Use proper error wrapping and context:
+- Return descriptive errors with context
+- Use structured logging for debugging
+- Implement proper health checks
 
-```go
-func (p *MyPlugin) ExtractMetadata(filePath string) (map[string]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
-    }
-    defer file.Close()
+### Performance
 
-    // ... processing
-}
+- Implement caching for external API calls
+- Use rate limiting for API requests
+- Minimize database queries
+
+### Configuration
+
+- Provide sensible defaults
+- Validate configuration on startup
+- Support runtime configuration updates
+
+### Testing
+
+- Write unit tests for core logic
+- Mock external dependencies
+- Test plugin lifecycle management
+
+### Security
+
+- Validate all input data
+- Use secure communication protocols
+- Implement proper authentication for external APIs
+
+## Migration from Legacy Plugins
+
+Legacy plugins using internal interfaces can be migrated to the new architecture:
+
+1. **Update Dependencies**: Replace internal imports with `github.com/mantonx/viewra/pkg/plugins`
+2. **Update Interfaces**: Implement new service interfaces
+3. **Update Configuration**: Use new configuration structure
+4. **Update Build**: Use new build system commands
+5. **Test Integration**: Verify plugin loads and functions correctly
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Build Failures**
+
+   - Check CGO dependencies
+   - Verify Go module structure
+   - Ensure proper replace directives
+
+2. **Plugin Not Loading**
+
+   - Check plugin binary permissions
+   - Verify plugin responds to `--help`
+   - Check plugin logs for initialization errors
+
+3. **Service Registration**
+   - Implement required interface methods
+   - Return proper service instances
+   - Check method signatures match interfaces
+
+### Debugging
+
+Enable debug logging to troubleshoot plugin issues:
+
+```bash
+LOG_LEVEL=debug ./viewra-backend
+```
+
+Check plugin-specific logs:
+
+```bash
+tail -f backend/data/plugins/plugin_name/plugin.log
 ```

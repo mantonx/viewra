@@ -15,7 +15,7 @@ services:
       - PLUGIN_DIR=/app/data/plugins
     volumes:
       - ./backend:/app
-      - backend-data:/app/data
+      - ./backend/data:/app/data
       - ./viewra-data:/app/viewra-data
       - /nfs/fictionalserver/music:/media/music:ro
     networks:

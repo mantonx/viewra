@@ -177,6 +177,10 @@ func (p *MusicPlugin) HandleFile(path string, info os.FileInfo, ctx plugins.Medi
 			MediaFileID: ctx.MediaFile.ID,
 			MimeType:    getMimeTypeFromExt(musicMeta.ArtworkExt),
 			Size:        int64(len(musicMeta.ArtworkData)),
+			Metadata:    map[string]string{
+				"source": "embedded",
+				"extracted_from": "audio_file_tags",
+			},
 		}
 		assets = append(assets, artworkAsset)
 		

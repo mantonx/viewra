@@ -50,7 +50,7 @@ build-plugins:
 			cd "$$plugin_dir" && \
 			$(GOMOD) download && \
 			$(GOMOD) tidy && \
-			$(GOBUILD) -o "$$plugin_name" . && \
+			GOOS=linux GOARCH=amd64 $(GOBUILD) -o "$$plugin_name" . && \
 			cd - > /dev/null; \
 		fi \
 	done
@@ -133,7 +133,7 @@ build-plugin:
 		cd "$$plugin_dir" && \
 		$(GOMOD) download && \
 		$(GOMOD) tidy && \
-		$(GOBUILD) -o "$(PLUGIN)" . && \
+		CC=musl-gcc GOOS=linux GOARCH=amd64 $(GOBUILD) -ldflags '-linkmode external -extldflags "-static"' -o "$(PLUGIN)" . && \
 		cd - > /dev/null; \
 	else \
 		echo "Plugin not found: $(PLUGIN)"; \

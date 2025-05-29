@@ -53,6 +53,11 @@ func (p *GRPCPlugin) GRPCServer(broker *goplugin.GRPCBroker, s *grpc.Server) err
 		proto.RegisterSearchServiceServer(s, &SearchServer{Impl: searchService})
 	}
 	
+	// Register AssetService if implemented
+	if assetService := p.Impl.AssetService(); assetService != nil {
+		proto.RegisterAssetServiceServer(s, &AssetServer{Impl: assetService})
+	}
+	
 	return nil
 }
 
@@ -66,6 +71,7 @@ func (p *GRPCPlugin) GRPCClient(ctx context.Context, broker *goplugin.GRPCBroker
 		AdminPageServiceClient:       proto.NewAdminPageServiceClient(c),
 		APIRegistrationServiceClient: proto.NewAPIRegistrationServiceClient(c),
 		SearchServiceClient:          proto.NewSearchServiceClient(c),
+		AssetServiceClient:           proto.NewAssetServiceClient(c),
 	}, nil
 }
 
@@ -78,6 +84,7 @@ type GRPCClient struct {
 	proto.AdminPageServiceClient
 	proto.APIRegistrationServiceClient
 	proto.SearchServiceClient
+	proto.AssetServiceClient
 }
 
 // Server implementations
@@ -323,4 +330,69 @@ func (s *SearchServer) GetSearchCapabilities(ctx context.Context, req *proto.Get
 		SupportsPagination: supportsPagination,
 		MaxResults:         maxResults,
 	}, nil
+}
+
+// AssetServer implements the asset service for plugins
+type AssetServer struct {
+	proto.UnimplementedAssetServiceServer
+	Impl AssetService
+}
+
+func (s *AssetServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest) (*proto.SaveAssetResponse, error) {
+	assetID, hash, relativePath, err := s.Impl.SaveAsset(
+		req.MediaFileId,
+		req.AssetType,
+		req.Category,
+		req.Subtype,
+		req.Data,
+		req.MimeType,
+		req.SourceUrl,
+		req.Metadata,
+	)
+	
+	if err != nil {
+		return &proto.SaveAssetResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+	
+	return &proto.SaveAssetResponse{
+		Success:      true,
+		AssetId:      assetID,
+		Hash:         hash,
+		RelativePath: relativePath,
+	}, nil
+}
+
+func (s *AssetServer) AssetExists(ctx context.Context, req *proto.AssetExistsRequest) (*proto.AssetExistsResponse, error) {
+	exists, assetID, relativePath, err := s.Impl.AssetExists(
+		req.MediaFileId,
+		req.AssetType,
+		req.Category,
+		req.Subtype,
+		req.Hash,
+	)
+	
+	if err != nil {
+		return &proto.AssetExistsResponse{}, err
+	}
+	
+	return &proto.AssetExistsResponse{
+		Exists:       exists,
+		AssetId:      assetID,
+		RelativePath: relativePath,
+	}, nil
+}
+
+func (s *AssetServer) RemoveAsset(ctx context.Context, req *proto.RemoveAssetRequest) (*proto.RemoveAssetResponse, error) {
+	err := s.Impl.RemoveAsset(req.AssetId)
+	if err != nil {
+		return &proto.RemoveAssetResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+	
+	return &proto.RemoveAssetResponse{Success: true}, nil
 } 
