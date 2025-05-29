@@ -645,12 +645,18 @@ func handleMusicBrainzRoute(c *gin.Context, route string, plugin *plugins.Plugin
 		handleMusicBrainzConfig(c, plugin)
 	case route == "/search" && c.Request.Method == "GET":
 		handleMusicBrainzSearch(c, plugin)
+	case route == "/enrichments" && c.Request.Method == "GET":
+		handleMusicBrainzEnrichments(c)
+	case strings.HasPrefix(route, "/enrich/") && c.Request.Method == "POST":
+		handleMusicBrainzEnrich(c, route, plugin)
 	default:
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": fmt.Sprintf("MusicBrainz route '%s' with method '%s' not found", route, c.Request.Method),
 			"available_routes": []string{
 				"GET /config - Get plugin configuration",
 				"GET /search - Search MusicBrainz database",
+				"GET /enrichments - Get existing enrichments",
+				"POST /enrich/{mediaFileId} - Manually enrich a media file",
 			},
 		})
 	}
@@ -784,4 +790,274 @@ func handleMusicBrainzSearch(c *gin.Context, plugin *plugins.Plugin) {
 	}
 	
 	c.JSON(http.StatusOK, response)
+}
+
+// handleMusicBrainzEnrich handles the enrich route for the MusicBrainz enricher plugin
+func handleMusicBrainzEnrich(c *gin.Context, route string, plugin *plugins.Plugin) {
+	// Extract media file ID from route: /enrich/{mediaFileId}
+	parts := strings.Split(route, "/")
+	if len(parts) != 3 || parts[1] != "enrich" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid enrich route format. Expected: /enrich/{mediaFileId}",
+		})
+		return
+	}
+	
+	mediaFileIDStr := parts[2]
+	mediaFileID, err := strconv.ParseUint(mediaFileIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid media file ID",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Get the media file from database to extract metadata
+	db := database.GetDB()
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Database not available",
+		})
+		return
+	}
+	
+	// Query media file with metadata
+	var mediaFile struct {
+		ID       uint   `json:"id"`
+		Path     string `json:"path"`
+		Title    string `json:"title"`
+		Artist   string `json:"artist"`
+		Album    string `json:"album"`
+	}
+	
+	err = db.Table("media_files").
+		Select("media_files.id, media_files.path, music_metadata.title, music_metadata.artist, music_metadata.album").
+		Joins("LEFT JOIN music_metadata ON media_files.id = music_metadata.media_file_id").
+		Where("media_files.id = ?", mediaFileID).
+		First(&mediaFile).Error
+	
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+			"media_file_id": mediaFileID,
+		})
+		return
+	}
+	
+	// Check if we have sufficient metadata
+	if mediaFile.Title == "" || mediaFile.Artist == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Insufficient metadata for enrichment",
+			"media_file_id": mediaFileID,
+			"available_metadata": gin.H{
+				"title": mediaFile.Title,
+				"artist": mediaFile.Artist,
+				"album": mediaFile.Album,
+			},
+		})
+		return
+	}
+	
+	// Use the working search API instead of broken gRPC
+	if plugin.SearchService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Plugin search service not available",
+		})
+		return
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	// Build search query
+	query := map[string]string{
+		"title":  mediaFile.Title,
+		"artist": mediaFile.Artist,
+	}
+	if mediaFile.Album != "" {
+		query["album"] = mediaFile.Album
+	}
+	
+	// Call the plugin's Search method
+	searchResp, err := plugin.SearchService.Search(ctx, &proto.SearchRequest{
+		Query:  query,
+		Limit:  5,
+		Offset: 0,
+	})
+	
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "MusicBrainz search failed",
+			"details": err.Error(),
+			"media_file_id": mediaFileID,
+		})
+		return
+	}
+	
+	if !searchResp.Success || len(searchResp.Results) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "No MusicBrainz matches found",
+			"media_file_id": mediaFileID,
+			"query": query,
+		})
+		return
+	}
+	
+	// Get the best match (first result, since they're sorted by score)
+	bestMatch := searchResp.Results[0]
+	
+	// Check if match score is above threshold (0.85)
+	if bestMatch.Score < 0.85 {
+		c.JSON(http.StatusNotAcceptable, gin.H{
+			"error": "Best match score below threshold",
+			"media_file_id": mediaFileID,
+			"best_score": bestMatch.Score,
+			"threshold": 0.85,
+			"best_match": bestMatch,
+		})
+		return
+	}
+	
+	// Define the enrichment struct (matching the plugin's model)
+	type MusicBrainzEnrichment struct {
+		ID                     uint      `gorm:"primaryKey"`
+		MediaFileID            uint      `gorm:"not null;index"`
+		MusicBrainzRecordingID string    `gorm:"size:36"`
+		MusicBrainzArtistID    string    `gorm:"size:36"`
+		MusicBrainzReleaseID   string    `gorm:"size:36"`
+		EnrichedTitle          string    `gorm:"size:512"`
+		EnrichedArtist         string    `gorm:"size:512"`
+		EnrichedAlbum          string    `gorm:"size:512"`
+		EnrichedGenre          string    `gorm:"size:255"`
+		EnrichedYear           int
+		MatchScore             float64
+		EnrichedAt             time.Time `gorm:"autoCreateTime"`
+		UpdatedAt              time.Time `gorm:"autoUpdateTime"`
+	}
+	
+	// Create enrichment record
+	enrichment := MusicBrainzEnrichment{
+		MediaFileID:            uint(mediaFileID),
+		MusicBrainzRecordingID: bestMatch.Id,
+		EnrichedTitle:          bestMatch.Title,
+		EnrichedArtist:         bestMatch.Artist,
+		EnrichedAlbum:          bestMatch.Album,
+		MatchScore:             bestMatch.Score,
+		EnrichedAt:             time.Now(),
+	}
+	
+	// Add metadata if available
+	if artistID, ok := bestMatch.Metadata["artist_id"]; ok {
+		enrichment.MusicBrainzArtistID = artistID
+	}
+	if releaseID, ok := bestMatch.Metadata["release_id"]; ok {
+		enrichment.MusicBrainzReleaseID = releaseID
+	}
+	if tags, ok := bestMatch.Metadata["tags"]; ok {
+		enrichment.EnrichedGenre = tags
+	}
+	if releaseDate, ok := bestMatch.Metadata["release_date"]; ok && len(releaseDate) >= 4 {
+		if year, err := strconv.Atoi(releaseDate[:4]); err == nil {
+			enrichment.EnrichedYear = year
+		}
+	}
+	
+	// Check if already enriched and remove old record
+	db.Where("media_file_id = ?", mediaFileID).Delete(&MusicBrainzEnrichment{})
+	
+	// Save new enrichment
+	if err := db.Create(&enrichment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to save enrichment",
+			"details": err.Error(),
+			"media_file_id": mediaFileID,
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Enrichment created successfully",
+		"media_file_id": mediaFileID,
+		"enrichment": gin.H{
+			"recording_id": enrichment.MusicBrainzRecordingID,
+			"title": enrichment.EnrichedTitle,
+			"artist": enrichment.EnrichedArtist,
+			"album": enrichment.EnrichedAlbum,
+			"genre": enrichment.EnrichedGenre,
+			"year": enrichment.EnrichedYear,
+			"match_score": enrichment.MatchScore,
+		},
+		"musicbrainz_match": bestMatch,
+		"status": "success",
+	})
+}
+
+// Add new route handler after the existing routes
+func handleMusicBrainzEnrichments(c *gin.Context) {
+	// Get database connection
+	db := database.GetDB()
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Database not available",
+		})
+		return
+	}
+	
+	// Define the enrichment struct for querying
+	type MusicBrainzEnrichment struct {
+		ID                     uint      `json:"id" gorm:"primaryKey"`
+		MediaFileID            uint      `json:"media_file_id" gorm:"not null;index"`
+		MusicBrainzRecordingID string    `json:"recording_id" gorm:"size:36"`
+		MusicBrainzArtistID    string    `json:"artist_id" gorm:"size:36"`
+		MusicBrainzReleaseID   string    `json:"release_id" gorm:"size:36"`
+		EnrichedTitle          string    `json:"title" gorm:"size:512"`
+		EnrichedArtist         string    `json:"artist" gorm:"size:512"`
+		EnrichedAlbum          string    `json:"album" gorm:"size:512"`
+		EnrichedGenre          string    `json:"genre" gorm:"size:255"`
+		EnrichedYear           int       `json:"year"`
+		MatchScore             float64   `json:"match_score"`
+		EnrichedAt             time.Time `json:"enriched_at" gorm:"autoCreateTime"`
+		UpdatedAt              time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	}
+	
+	// Get query parameters
+	mediaFileIDStr := c.Query("media_file_id")
+	limitStr := c.DefaultQuery("limit", "50")
+	offsetStr := c.DefaultQuery("offset", "0")
+	
+	limit, _ := strconv.Atoi(limitStr)
+	offset, _ := strconv.Atoi(offsetStr)
+	
+	// Build query
+	query := db.Model(&MusicBrainzEnrichment{})
+	
+	if mediaFileIDStr != "" {
+		if mediaFileID, err := strconv.ParseUint(mediaFileIDStr, 10, 32); err == nil {
+			query = query.Where("media_file_id = ?", mediaFileID)
+		}
+	}
+	
+	// Get total count
+	var total int64
+	query.Count(&total)
+	
+	// Get enrichments with pagination
+	var enrichments []MusicBrainzEnrichment
+	err := query.Limit(limit).Offset(offset).Order("enriched_at DESC").Find(&enrichments).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve enrichments",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"enrichments": enrichments,
+		"total": total,
+		"limit": limit,
+		"offset": offset,
+		"has_more": total > int64(offset + limit),
+	})
 }

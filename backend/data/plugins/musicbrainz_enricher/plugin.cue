@@ -62,7 +62,7 @@
 		// Matching configuration
 		matching: {
 			threshold:           float & >=0.5 & <=1.0 | *0.85
-			auto_enrich:         bool | *false
+			auto_enrich:         bool | *true
 			overwrite_existing:  bool | *false
 		}
 		

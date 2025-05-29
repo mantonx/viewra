@@ -680,6 +680,11 @@ func (m *MusicBrainzEnricher) GetRegisteredRoutes(ctx context.Context) ([]*proto
 			Method:      "GET",
 			Description: "Get current MusicBrainz enricher plugin configuration.",
 		},
+		{
+			Path:        "/enrich/{mediaFileId}",
+			Method:      "POST",
+			Description: "Manually enrich a specific media file by ID.",
+		},
 	}
 	return routes, nil
 }
