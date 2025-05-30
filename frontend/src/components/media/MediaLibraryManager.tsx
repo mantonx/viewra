@@ -893,29 +893,33 @@ const MediaLibraryManager = () => {
     return parts.length > 0 ? parts.join(' ') : '0s';
   };
 
-  // Helper function to get the total file count for progress display
-  const getTotalFileCount = (scanJob: ScanJob | undefined) => {
-    // If no scan job exists, return 1 as fallback
-    if (!scanJob) {
-      return 1;
+  // Helper function to get simple, clear progress info
+  const getProgressInfo = (library: MediaLibrary, scanJob: ScanJob | undefined) => {
+    const databaseFileCount = libraryStats[library.id]?.total_files || 0;
+    const isActivelyScanning = scanJob?.status === 'running';
+    const isPaused = scanJob?.status === 'paused';
+
+    // Simple progress: if scan is active, show estimated progress, otherwise 100% if files exist
+    let progressPercent = 0;
+    if (scanJob?.progress !== undefined && scanJob.progress > 0) {
+      progressPercent = Math.min(scanJob.progress, 100);
+    } else if (databaseFileCount > 0) {
+      progressPercent = 100; // If we have files, consider it complete unless actively scanning
     }
 
-    // Priority order:
-    // 1. files_found from scan job (if > 0)
-    // 2. files_processed (as minimum count when discovery is ongoing)
-    // 3. fallback to 1 to avoid division by zero
-
-    if (scanJob.files_found > 0) {
-      return scanJob.files_found;
-    }
-
-    if (scanJob.files_processed > 0) {
-      // If we're processing files but haven't counted total yet,
-      // use files_processed as minimum (scanning in progress)
-      return Math.max(scanJob.files_processed, 1);
-    }
-
-    return 1; // Fallback to prevent division by zero
+    return {
+      fileCount: databaseFileCount,
+      progressPercent,
+      isActivelyScanning,
+      isPaused,
+      statusText: isActivelyScanning
+        ? 'Scanning...'
+        : isPaused
+          ? 'Paused'
+          : databaseFileCount > 0
+            ? 'Complete'
+            : 'Not scanned',
+    };
   };
 
   const toggleNerdPanel = (libraryId: number) => {
@@ -1084,16 +1088,9 @@ const MediaLibraryManager = () => {
           libraries.map((library) => {
             const scanJob = getScanJobForLibrary(library.id);
 
-            // Calculate progress percentage first since status variables depend on it
-            // Use the backend's progress field if available, otherwise calculate from files
-            const totalFileCount = getTotalFileCount(scanJob);
-            const progressPercent = scanJob
-              ? scanJob.progress !== undefined && scanJob.progress !== null
-                ? Math.min(scanJob.progress, 100) // Cap at 100%
-                : totalFileCount > 0
-                  ? Math.min(Math.round((scanJob.files_processed / totalFileCount) * 100), 100)
-                  : 0
-              : 0;
+            // Get simple progress info
+            const progressInfo = getProgressInfo(library, scanJob);
+            const progressPercent = progressInfo.progressPercent;
 
             const isScanning = scanJob?.status === 'running' && progressPercent < 100;
             const isPaused = scanJob?.status === 'paused';
@@ -1101,16 +1098,6 @@ const MediaLibraryManager = () => {
             const isCompleted = scanJob?.status === 'completed' || progressPercent >= 100;
             const isNerdPanelExpanded = expandedNerdPanels.has(library.id);
             const progressData = scanJob ? scanProgress.get(Number(scanJob.id)) : null;
-
-            // DEBUGGING: Log job status for specific library or all
-            // Replace YOUR_PROBLEMATIC_LIBRARY_ID with the actual ID if known, otherwise logs for all
-            // if (library.id === YOUR_PROBLEMATIC_LIBRARY_ID) {
-            /* console.log(
-              `[Debug] LibID: ${library.id}, JobID: ${scanJob?.id}, Status: ${scanJob?.status}, isCompleted: ${isCompleted}, Files: ${scanJob?.files_processed}/${scanJob?.files_found}, Progress: ${scanJob?.progress}%`
-            );
-            */
-            // console.log('Full scanJob for LibID ' + library.id + ':', JSON.stringify(scanJob));
-            // }
 
             return (
               <div
@@ -1217,55 +1204,16 @@ const MediaLibraryManager = () => {
                 {/* Simplified Scan Progress Display */}
                 {scanJob && (
                   <div className="mt-3 bg-slate-700 rounded p-3">
-                    {/* Main Progress Info */}
+                    {/* Simple Progress Info */}
                     <div className="flex justify-between items-center mb-3">
                       <div className="flex items-center gap-3">
-                        <span
-                          className="text-sm font-medium text-white cursor-help"
-                          data-tooltip-id="progress-tooltip"
-                          data-tooltip-content={
-                            scanJob.files_found === 0
-                              ? 'Scanner is discovering and processing files. Progress is estimated based on directory size.'
-                              : 'Files processed out of total files found in the directory.'
-                          }
-                        >
-                          {scanJob.files_found > 0
-                            ? `${scanJob.files_processed.toLocaleString()} / ${scanJob.files_found.toLocaleString()} files`
-                            : `${scanJob.files_processed.toLocaleString()} files scanned`}
+                        <span className="text-sm font-medium text-white">
+                          {progressInfo.fileCount.toLocaleString()} files
                         </span>
-                        <span
-                          className="text-xs text-slate-300 cursor-help"
-                          data-tooltip-id="progress-percent-tooltip"
-                          data-tooltip-content={
-                            scanJob.files_found === 0
-                              ? 'Estimated progress based on directory traversal and file sizes'
-                              : 'Percentage of files processed'
-                          }
-                        >
-                          ({progressPercent.toFixed(1)}%{' '}
-                          {scanJob.files_found === 0 ? 'estimated' : 'complete'})
-                        </span>
+                        <span className="text-xs text-slate-300">({progressInfo.statusText})</span>
                       </div>
 
                       <div className="flex items-center gap-3">
-                        {/* Human-readable ETA */}
-                        {isScanning && progressData?.estimatedTimeLeft && (
-                          <span className="text-xs text-blue-400 font-medium">
-                            {formatHumanReadableETA(progressData.estimatedTimeLeft)}
-                          </span>
-                        )}
-
-                        {/* Backend ETA if available and different */}
-                        {isScanning && progressData?.eta && (
-                          <span
-                            className="text-xs text-green-400 font-medium cursor-help"
-                            data-tooltip-id="eta-tooltip"
-                            data-tooltip-content="Estimated completion time calculated by the backend based on current performance"
-                          >
-                            ETA: {new Date(progressData.eta).toLocaleTimeString()}
-                          </span>
-                        )}
-
                         {/* Nerd Panel Toggle */}
                         <button
                           onClick={() => toggleNerdPanel(library.id)}
@@ -1452,6 +1400,17 @@ const MediaLibraryManager = () => {
                                       </span>
                                     </div>
                                   )}
+
+                                  {/* ETA Information */}
+                                  {progressInfo.isActivelyScanning &&
+                                    progressData?.estimatedTimeLeft && (
+                                      <div className="flex justify-between">
+                                        <span className="text-slate-300">Est. Time Left:</span>
+                                        <span className="text-white">
+                                          {formatHumanReadableETA(progressData.estimatedTimeLeft)}
+                                        </span>
+                                      </div>
+                                    )}
 
                                   <div className="flex justify-between">
                                     <span className="text-slate-300">Last Update:</span>
