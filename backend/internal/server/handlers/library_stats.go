@@ -29,12 +29,27 @@ func GetAllLibraryStats(c *gin.Context) {
 	for _, lib := range libraries {
 		stats, err := scannerManager.GetLibraryStats(lib.ID)
 		if err != nil {
-			// For libraries where we can't get base stats, provide minimal structure
-			libraryStats[lib.ID] = map[string]interface{}{
-				"total_files":      0,
-				"total_size":       0,
-				"extension_stats":  map[string]interface{}{},
-				"stats_error":      "Failed to retrieve base stats", // Keep error info but don't use "error" key
+			// For libraries where GetLibraryStats fails, get basic counts directly from MediaFile table
+			var totalFiles int64
+			var totalSize int64
+			
+			if err := db.Model(&database.MediaFile{}).Where("library_id = ?", lib.ID).Count(&totalFiles).Error; err == nil {
+				// Successfully got file count
+				db.Model(&database.MediaFile{}).Where("library_id = ?", lib.ID).Select("COALESCE(SUM(size), 0)").Scan(&totalSize)
+				
+				libraryStats[lib.ID] = map[string]interface{}{
+					"total_files":      totalFiles,
+					"total_size":       totalSize,
+					"extension_stats":  map[string]interface{}{},
+				}
+			} else {
+				// Complete failure - provide minimal structure
+				libraryStats[lib.ID] = map[string]interface{}{
+					"total_files":      0,
+					"total_size":       0,
+					"extension_stats":  map[string]interface{}{},
+					"stats_error":      "Failed to retrieve library stats",
+				}
 			}
 			continue 
 		}
@@ -57,13 +72,8 @@ func GetAllLibraryStats(c *gin.Context) {
 					entry["files_processed"] = job.FilesProcessed
 					entry["bytes_processed"] = job.BytesProcessed
 					
-					// If we don't have base stats, use scan job data as fallback
-					if entry["total_files"] == 0 && job.FilesFound > 0 {
-						entry["total_files"] = job.FilesFound  // Use files found from scan as best estimate
-					}
-					if entry["total_size"] == 0 && job.BytesProcessed > 0 {
-						entry["total_size"] = job.BytesProcessed  // Use bytes processed so far
-					}
+					// Don't override accurate MediaFile counts with scan job data
+					// The MediaFile count is more reliable than scan job's files_found
 				} else {
 					// This case should ideally not happen if all libraries are pre-populated.
 					// If it can, initialize a basic map here before adding job details.
