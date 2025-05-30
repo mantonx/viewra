@@ -711,6 +711,7 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 		Size:      info.Size(),
 		Hash:      hash,
 		LibraryID: libraryID,
+		ScanJobID: &ps.jobID,
 		LastSeen:  time.Now(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

@@ -536,6 +536,7 @@ func (fp *FileProcessor) scanAndSaveFile(filePath string, libraryID uint) error 
 		LibraryID: libraryID,
 		Path:      filePath,
 		Size:      fileInfo.Size(),
+		ScanJobID: nil, // Files discovered by monitoring don't belong to a specific scan job
 		LastSeen:  time.Now(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

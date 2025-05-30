@@ -56,11 +56,12 @@ type MediaLibraryRequest struct {
 // MediaFile represents a scanned media file on disk
 type MediaFile struct {
 	ID         uint         `gorm:"primaryKey" json:"id"`
-	Path       string       `gorm:"uniqueIndex;not null" json:"path"`
+	LibraryID  uint         `gorm:"not null;index:idx_media_files_library_id" json:"library_id"`
+	ScanJobID  *uint        `gorm:"index:idx_media_files_scan_job_id" json:"scan_job_id,omitempty"` // Track which job discovered this file
+	Path       string       `gorm:"not null;uniqueIndex" json:"path"`
 	Size       int64        `gorm:"not null" json:"size"`
 	Hash       string       `gorm:"index" json:"hash"`
-	LibraryID  uint         `gorm:"not null" json:"library_id"`
-	Library    MediaLibrary `gorm:"foreignKey:LibraryID" json:"library,omitempty"`
+	MimeType   string       `json:"mime_type"`
 	LastSeen   time.Time    `gorm:"not null" json:"last_seen"`
 	CreatedAt  time.Time    `json:"created_at"`
 	UpdatedAt  time.Time    `json:"updated_at"`

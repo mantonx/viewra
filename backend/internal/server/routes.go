@@ -204,6 +204,8 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(scanner.BasePath()+"/resume/:id", "POST", "Resume scanning a media library.")
 			scanner.POST("/cleanup-orphaned", handlers.CleanupOrphanedJobs)
 			apiroutes.Register(scanner.BasePath()+"/cleanup-orphaned", "POST", "Cleanup orphaned scanner jobs.")
+			scanner.DELETE("/jobs/:id", handlers.DeleteScanJob)
+			apiroutes.Register(scanner.BasePath()+"/jobs/:id", "DELETE", "Delete a scan job and all its discovered files/assets.")
 			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
 			apiroutes.Register(scanner.BasePath()+"/progress/:id", "GET", "Get scan progress for a library.")
 		}

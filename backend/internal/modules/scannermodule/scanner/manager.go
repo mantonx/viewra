@@ -27,6 +27,9 @@ type Manager struct {
 	
 	// File monitoring
 	fileMonitor   *FileMonitor
+	
+	// Cleanup service
+	cleanupService *CleanupService
 }
 
 // NewManager creates a new scanner manager
@@ -50,6 +53,7 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Man
 		ctx:           ctx,
 		cancel:        cancel,
 		fileMonitor:   fileMonitor,
+		cleanupService: NewCleanupService(db),
 	}
 }
 
@@ -528,6 +532,10 @@ func (m *Manager) CleanupJobsByLibrary(libraryID uint) (int64, error) {
 		return 0, fmt.Errorf("failed to cleanup scan jobs for library %d: %w", libraryID, result.Error)
 	}
 
+	// NOTE: We do NOT clean up media files and assets when deleting scan jobs
+	// Media files should persist even after scan jobs are removed
+	// Only the library deletion should trigger comprehensive cleanup
+
 	// Publish cleanup event
 	if m.eventBus != nil && result.RowsAffected > 0 {
 		cleanupEvent := events.NewSystemEvent(
@@ -846,4 +854,33 @@ func (m *Manager) GetMonitoringStatus() map[uint]*MonitoredLibrary {
 		return make(map[uint]*MonitoredLibrary)
 	}
 	return m.fileMonitor.GetMonitoringStatus()
+}
+
+// CleanupOrphanedAssets removes assets that reference non-existent media files
+func (m *Manager) CleanupOrphanedAssets() (int, int, error) {
+	if m.cleanupService == nil {
+		return 0, 0, fmt.Errorf("cleanup service not available")
+	}
+	return m.cleanupService.CleanupOrphanedAssets()
+}
+
+// CleanupScanJob removes a scan job and all its discovered files and assets
+func (m *Manager) CleanupScanJob(scanJobID uint) error {
+	if m.cleanupService == nil {
+		return fmt.Errorf("cleanup service not available")
+	}
+	
+	// Clean up all data discovered by this scan job
+	if err := m.cleanupService.CleanupScanJobData(scanJobID); err != nil {
+		return fmt.Errorf("failed to cleanup scan job data: %w", err)
+	}
+	
+	// Remove the scan job record itself
+	result := m.db.Delete(&database.ScanJob{}, scanJobID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete scan job record: %w", result.Error)
+	}
+	
+	logger.Info("Scan job completely removed", "scan_job_id", scanJobID)
+	return nil
 }

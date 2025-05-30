@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
@@ -948,5 +949,73 @@ func GetMonitoringStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"monitoring_status": monitoringStatus,
 		"monitoring_count":  len(monitoringStatus),
+	})
+}
+
+// CleanupOrphanedAssets removes assets that reference non-existent media files
+func CleanupOrphanedAssets(c *gin.Context) {
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	assetsRemoved, filesRemoved, err := scannerManager.CleanupOrphanedAssets()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to cleanup orphaned assets",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Orphaned assets cleaned up successfully",
+		"assets_removed": assetsRemoved,
+		"files_removed":  filesRemoved,
+	})
+}
+
+// DeleteScanJob removes a scan job and all its discovered files and assets
+func DeleteScanJob(c *gin.Context) {
+	jobIDStr := c.Param("id")
+	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid job ID",
+		})
+		return
+	}
+	
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Stop the scan if it's currently running
+	if err := scannerManager.StopScan(uint(jobID)); err != nil {
+		// It's okay if stopping fails (job might not be running)
+		logger.Info("Could not stop scan job (might not be running)", "job_id", jobID, "error", err)
+	}
+	
+	// Clean up the scan job and all its data
+	if err := scannerManager.CleanupScanJob(uint(jobID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete scan job",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Scan job and all its data removed successfully",
+		"job_id":  jobID,
 	})
 }
