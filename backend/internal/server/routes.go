@@ -206,6 +206,8 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(scanner.BasePath()+"/cleanup-orphaned", "POST", "Cleanup orphaned scanner jobs.")
 			scanner.POST("/cleanup-orphaned-assets", handlers.CleanupOrphanedAssets)
 			apiroutes.Register(scanner.BasePath()+"/cleanup-orphaned-assets", "POST", "Cleanup orphaned assets that reference non-existent media files.")
+			scanner.POST("/cleanup-orphaned-files", handlers.CleanupOrphanedFiles)
+			apiroutes.Register(scanner.BasePath()+"/cleanup-orphaned-files", "POST", "Cleanup orphaned asset files from filesystem that have no database records.")
 			scanner.DELETE("/jobs/:id", handlers.DeleteScanJob)
 			apiroutes.Register(scanner.BasePath()+"/jobs/:id", "DELETE", "Delete a scan job and all its discovered files/assets.")
 			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id

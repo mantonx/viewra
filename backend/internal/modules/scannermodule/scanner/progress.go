@@ -140,7 +140,11 @@ func (spt *ScanProgressTracker) updatePerformanceMetrics(currentRate float64) {
 	
 	// Keep only recent samples
 	if len(spt.performanceSamples) > spt.maxPerfSamples {
-		spt.performanceSamples = spt.performanceSamples[len(spt.performanceSamples)-spt.maxPerfSamples:]
+		startIndex := len(spt.performanceSamples) - spt.maxPerfSamples
+		if startIndex < 0 {
+			startIndex = 0
+		}
+		spt.performanceSamples = spt.performanceSamples[startIndex:]
 	}
 }
 

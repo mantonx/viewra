@@ -4,10 +4,12 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/logger"
 )
 
 // AdminHandler handles administrative API endpoints
@@ -120,36 +122,140 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 	libraryPath := library.Path
 	libraryType := library.Type
 	
-	// Clean up associated scan jobs first
+	logger.Info("Starting library deletion", "library_id", libraryID, "path", libraryPath)
+	
+	// Get scanner manager for proper cleanup
 	scannerManager, err := getScannerManager()
-	if err == nil {
-		jobsDeleted, cleanupErr := scannerManager.CleanupJobsByLibrary(libraryID)
-		if cleanupErr != nil {
-			fmt.Printf("Warning: Failed to cleanup scan jobs for library %d: %v\n", libraryID, cleanupErr)
-		} else if jobsDeleted > 0 {
-			fmt.Printf("Cleaned up %d scan jobs for library %d\n", jobsDeleted, libraryID)
-		}
-	} else {
-		fmt.Printf("Warning: Scanner manager not available for cleanup: %v\n", err)
+	if err != nil {
+		logger.Error("Scanner manager not available for cleanup", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to access scanner manager for cleanup",
+			"details": err.Error(),
+		})
+		return
 	}
 	
-	// Delete associated media files
+	// STEP 1: Force stop any active scans for this library
+	logger.Info("Checking for active scans", "library_id", libraryID)
+	allJobs, jobsErr := scannerManager.GetAllScans()
+	if jobsErr != nil {
+		logger.Error("Failed to get scan jobs", "error", jobsErr)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to check active scans",
+			"details": jobsErr.Error(),
+		})
+		return
+	}
+	
+	var activeJobsForLibrary []database.ScanJob
+	for _, job := range allJobs {
+		if job.LibraryID == libraryID && (job.Status == "running" || job.Status == "paused") {
+			activeJobsForLibrary = append(activeJobsForLibrary, job)
+		}
+	}
+	
+	if len(activeJobsForLibrary) > 0 {
+		logger.Info("Found active scans to stop", "library_id", libraryID, "job_count", len(activeJobsForLibrary))
+		
+		// Force stop all active jobs for this library
+		for _, job := range activeJobsForLibrary {
+			logger.Info("Terminating scan job", "job_id", job.ID, "status", job.Status)
+			if stopErr := scannerManager.TerminateScan(job.ID); stopErr != nil {
+				logger.Warn("Failed to terminate scan job", "job_id", job.ID, "error", stopErr)
+			}
+		}
+		
+		// Wait longer and verify scans have actually stopped
+		logger.Info("Waiting for scans to stop completely", "library_id", libraryID)
+		maxWaitTime := 10 * time.Second
+		checkInterval := 500 * time.Millisecond
+		waited := time.Duration(0)
+		
+		for waited < maxWaitTime {
+			time.Sleep(checkInterval)
+			waited += checkInterval
+			
+			// Check if scans are still active
+			stillActive := false
+			currentJobs, checkErr := scannerManager.GetAllScans()
+			if checkErr == nil {
+				for _, job := range currentJobs {
+					if job.LibraryID == libraryID && job.Status == "running" {
+						stillActive = true
+						break
+					}
+				}
+			}
+			
+			if !stillActive {
+				logger.Info("All scans stopped successfully", "library_id", libraryID, "waited", waited)
+				break
+			}
+		}
+		
+		if waited >= maxWaitTime {
+			logger.Warn("Timeout waiting for scans to stop, proceeding with forced cleanup", "library_id", libraryID)
+		}
+	}
+	
+	// STEP 2: Clean up scan jobs
+	jobsDeleted, cleanupErr := scannerManager.CleanupJobsByLibrary(libraryID)
+	if cleanupErr != nil {
+		logger.Error("Failed to cleanup scan jobs", "library_id", libraryID, "error", cleanupErr)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to cleanup scan jobs for library",
+			"details": cleanupErr.Error(),
+		})
+		return
+	} else if jobsDeleted > 0 {
+		logger.Info("Cleaned up scan jobs", "library_id", libraryID, "jobs_deleted", jobsDeleted)
+	}
+	
+	// STEP 3: Delete all media files for this library (this will orphan the assets)
+	logger.Info("Deleting media files", "library_id", libraryID)
 	mediaFilesResult := db.Where("library_id = ?", libraryID).Delete(&database.MediaFile{})
 	if mediaFilesResult.Error != nil {
-		fmt.Printf("Warning: Failed to delete media files for library %d: %v\n", libraryID, mediaFilesResult.Error)
+		logger.Error("Failed to delete media files", "library_id", libraryID, "error", mediaFilesResult.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to cleanup media files for library",
+			"details": mediaFilesResult.Error.Error(),
+		})
+		return
 	} else if mediaFilesResult.RowsAffected > 0 {
-		fmt.Printf("Deleted %d media files for library %d\n", mediaFilesResult.RowsAffected, libraryID)
+		logger.Info("Deleted media files", "library_id", libraryID, "files_deleted", mediaFilesResult.RowsAffected)
 	}
 	
-	// Delete the library
+	// STEP 4: Clean up orphaned assets (now orphaned by deleting media files)
+	logger.Info("Cleaning up orphaned assets", "library_id", libraryID)
+	assetsRemoved, filesRemoved, cleanupErr := scannerManager.CleanupOrphanedAssets()
+	if cleanupErr != nil {
+		logger.Warn("Failed to cleanup orphaned assets", "error", cleanupErr)
+	} else if assetsRemoved > 0 || filesRemoved > 0 {
+		logger.Info("Cleaned up orphaned assets", "assets_removed", assetsRemoved, "files_removed", filesRemoved)
+	}
+	
+	// STEP 5: Clean up any remaining orphaned files from filesystem
+	logger.Info("Cleaning up orphaned files", "library_id", libraryID)
+	orphanedFilesRemoved, cleanupErr := scannerManager.CleanupOrphanedFiles()
+	if cleanupErr != nil {
+		logger.Warn("Failed to cleanup orphaned files", "error", cleanupErr)
+	} else if orphanedFilesRemoved > 0 {
+		logger.Info("Cleaned up orphaned files", "files_removed", orphanedFilesRemoved)
+	}
+	
+	// STEP 6: Delete the library record
+	logger.Info("Deleting library record", "library_id", libraryID)
 	result = db.Delete(&library)
 	if result.Error != nil {
+		logger.Error("Failed to delete library record", "library_id", libraryID, "error", result.Error)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to delete media library",
 			"details": result.Error.Error(),
 		})
 		return
 	}
+	
+	logger.Info("Library deletion completed successfully", "library_id", libraryID, "path", libraryPath)
 	
 	// Publish event for library deletion
 	if h.eventBus != nil {

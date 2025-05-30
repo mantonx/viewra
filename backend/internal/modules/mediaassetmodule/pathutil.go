@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mantonx/viewra/internal/config"
 )
 
 // PathUtil provides utilities for managing asset file paths
@@ -21,7 +23,11 @@ func NewPathUtil(rootPath string) *PathUtil {
 
 // GetDefaultPathUtil returns a default path utility with standard root path
 func GetDefaultPathUtil() *PathUtil {
-	return NewPathUtil("./viewra-data/artwork")
+	// Use the configuration system to get the data directory
+	// This respects the VIEWRA_DATA_DIR environment variable
+	dataDir := config.GetDataDir()
+	artworkPath := filepath.Join(dataDir, "artwork")
+	return NewPathUtil(artworkPath)
 }
 
 // GetRootPath returns the root path for asset storage

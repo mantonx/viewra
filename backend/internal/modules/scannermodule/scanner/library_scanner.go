@@ -679,6 +679,13 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	info := work.info
 	libraryID := work.libraryID
 
+	// Check context at the start of processing
+	select {
+	case <-ps.ctx.Done():
+		return &scanResult{path: path, error: fmt.Errorf("scan cancelled")}
+	default:
+	}
+
 	// Check if file exists in cache first
 	ps.fileCache.mu.RLock()
 	cachedFile, exists := ps.fileCache.cache[path]
@@ -695,6 +702,13 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 		}
 	}
 
+	// Check context before expensive operations
+	select {
+	case <-ps.ctx.Done():
+		return &scanResult{path: path, error: fmt.Errorf("scan cancelled")}
+	default:
+	}
+
 	// Calculate file hash for duplicate detection
 	hash, err := ps.calculateFileHashOptimized(path)
 	if err != nil {
@@ -703,6 +717,13 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 			path:  path,
 			error: fmt.Errorf("failed to calculate file hash: %w", err),
 		}
+	}
+
+	// Check context before database operations
+	select {
+	case <-ps.ctx.Done():
+		return &scanResult{path: path, error: fmt.Errorf("scan cancelled")}
+	default:
 	}
 
 	// Create media file record
@@ -717,13 +738,49 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 		UpdatedAt: time.Now(),
 	}
 
-	// Save MediaFile to database first to get an ID
-	if err := ps.db.Create(mediaFile).Error; err != nil {
+	// Check if media file already exists and handle accordingly
+	var existingFile database.MediaFile
+	err = ps.db.Where("path = ?", path).First(&existingFile).Error
+	if err == nil {
+		// File exists, update it
+		existingFile.Size = info.Size()
+		existingFile.Hash = hash
+		existingFile.LibraryID = libraryID
+		existingFile.ScanJobID = &ps.jobID
+		existingFile.LastSeen = time.Now()
+		existingFile.UpdatedAt = time.Now()
+		
+		if err := ps.db.Save(&existingFile).Error; err != nil {
+			ps.errorsCount.Add(1)
+			return &scanResult{
+				path:  path,
+				error: fmt.Errorf("failed to update existing media file: %w", err),
+			}
+		}
+		mediaFile = &existingFile
+	} else if err == gorm.ErrRecordNotFound {
+		// File doesn't exist, create new one
+		if err := ps.db.Create(mediaFile).Error; err != nil {
+			ps.errorsCount.Add(1)
+			return &scanResult{
+				path:  path,
+				error: fmt.Errorf("failed to save media file: %w", err),
+			}
+		}
+	} else {
+		// Database error
 		ps.errorsCount.Add(1)
 		return &scanResult{
 			path:  path,
-			error: fmt.Errorf("failed to save media file: %w", err),
+			error: fmt.Errorf("failed to check for existing media file: %w", err),
 		}
+	}
+
+	// Check context before plugin processing
+	select {
+	case <-ps.ctx.Done():
+		return &scanResult{path: path, error: fmt.Errorf("scan cancelled")}
+	default:
 	}
 
 	// Attempt metadata extraction using the plugin system
@@ -824,7 +881,8 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 
 	for i, hook := range scannerHooks {
 		go func(hookIndex int, h proto.ScannerHookServiceClient) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			// Use the scanner's context with a timeout, so hooks are cancelled when scan is terminated
+			ctx, cancel := context.WithTimeout(ps.ctx, 30*time.Second)
 			defer cancel()
 
 			req := &proto.OnMediaFileScannedRequest{

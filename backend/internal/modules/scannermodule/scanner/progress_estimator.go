@@ -68,7 +68,11 @@ func (pe *ProgressEstimator) Update(processedFiles, processedBytes int64) {
 
 	// Keep only recent samples
 	if len(pe.recentSamples) > pe.maxSamples {
-		pe.recentSamples = pe.recentSamples[len(pe.recentSamples)-pe.maxSamples:]
+		startIndex := len(pe.recentSamples) - pe.maxSamples
+		if startIndex < 0 {
+			startIndex = 0
+		}
+		pe.recentSamples = pe.recentSamples[startIndex:]
 	}
 
 	// Update counters

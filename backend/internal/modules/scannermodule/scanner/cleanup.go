@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
@@ -168,8 +169,22 @@ func (c *CleanupService) removeAssetFile(relativePath string) error {
 	fullPath := filepath.Join(assetsBasePath, relativePath)
 	
 	// Safety check - make sure we're not deleting files outside the assets directory
+	// Clean both paths to ensure consistent comparison
 	cleanPath := filepath.Clean(fullPath)
-	if !strings.HasPrefix(cleanPath, assetsBasePath) {
+	cleanBasePath := filepath.Clean(assetsBasePath)
+	
+	// Get absolute paths for comparison to handle relative path issues
+	absCleanPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for %s: %w", cleanPath, err)
+	}
+	
+	absBasePath, err := filepath.Abs(cleanBasePath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute base path for %s: %w", cleanBasePath, err)
+	}
+	
+	if !strings.HasPrefix(absCleanPath, absBasePath) {
 		return fmt.Errorf("path traversal attempt detected: %s", relativePath)
 	}
 	
@@ -187,16 +202,17 @@ func (c *CleanupService) removeAssetFile(relativePath string) error {
 	logger.Debug("Removed asset file", "path", cleanPath)
 	
 	// Try to remove empty parent directories
-	c.removeEmptyDirs(filepath.Dir(cleanPath), assetsBasePath)
+	c.removeEmptyDirs(filepath.Dir(cleanPath), cleanBasePath)
 	
 	return nil
 }
 
 // getAssetsBasePath returns the base path for asset storage
 func (c *CleanupService) getAssetsBasePath() string {
-	// TODO: Get this from configuration
-	// For now, use a default path relative to the current working directory
-	return "./data/assets"
+	// Use the configuration system to get the data directory
+	// This respects the VIEWRA_DATA_DIR environment variable
+	dataDir := config.GetDataDir()
+	return filepath.Join(dataDir, "artwork")
 }
 
 // removeEmptyDirs removes empty directories up to the base path
@@ -270,4 +286,92 @@ func (c *CleanupService) CleanupOrphanedAssets() (int, int, error) {
 		"files_removed", filesRemoved)
 	
 	return int(result.RowsAffected), filesRemoved, nil
+}
+
+// CleanupOrphanedFiles removes asset files from disk that have no corresponding database records
+func (c *CleanupService) CleanupOrphanedFiles() (int, error) {
+	logger.Info("Starting cleanup of orphaned files from filesystem")
+	
+	assetsBasePath := c.getAssetsBasePath()
+	
+	// Check if the assets directory exists
+	if _, err := os.Stat(assetsBasePath); os.IsNotExist(err) {
+		logger.Info("Assets directory does not exist", "path", assetsBasePath)
+		return 0, nil
+	}
+	
+	filesRemoved := 0
+	
+	// Walk through all files in the assets directory
+	err := filepath.Walk(assetsBasePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			logger.Warn("Error accessing path during cleanup", "path", path, "error", err)
+			return nil // Continue walking
+		}
+		
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+		
+		// Get relative path for database lookup
+		relativePath, err := filepath.Rel(assetsBasePath, path)
+		if err != nil {
+			logger.Warn("Failed to get relative path", "path", path, "error", err)
+			return nil // Continue walking
+		}
+		
+		// Check if this file has a corresponding database record
+		var count int64
+		err = c.db.Model(&mediaassetmodule.MediaAsset{}).Where("relative_path = ?", relativePath).Count(&count).Error
+		if err != nil {
+			logger.Warn("Failed to check database for asset", "relative_path", relativePath, "error", err)
+			return nil // Continue walking
+		}
+		
+		// If no database record exists, this is an orphaned file
+		if count == 0 {
+			if err := os.Remove(path); err != nil {
+				logger.Warn("Failed to remove orphaned file", "path", path, "error", err)
+			} else {
+				logger.Debug("Removed orphaned file", "path", path)
+				filesRemoved++
+			}
+		}
+		
+		return nil
+	})
+	
+	if err != nil {
+		return filesRemoved, fmt.Errorf("failed to walk assets directory: %w", err)
+	}
+	
+	// Clean up empty directories after removing files
+	c.cleanupEmptyDirectories(assetsBasePath)
+	
+	logger.Info("Orphaned files cleanup completed", "files_removed", filesRemoved)
+	return filesRemoved, nil
+}
+
+// cleanupEmptyDirectories recursively removes empty directories
+func (c *CleanupService) cleanupEmptyDirectories(basePath string) {
+	filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() || path == basePath {
+			return nil
+		}
+		
+		// Check if directory is empty
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return nil
+		}
+		
+		if len(entries) == 0 {
+			if err := os.Remove(path); err == nil {
+				logger.Debug("Removed empty directory", "path", path)
+			}
+		}
+		
+		return nil
+	})
 } 

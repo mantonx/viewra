@@ -618,6 +618,7 @@ func GetScanProgress(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
+		logger.Debug("Invalid scan job ID in progress request", "id", idStr, "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid scan job ID",
 		})
@@ -627,6 +628,7 @@ func GetScanProgress(c *gin.Context) {
 	// Safely get scanner manager with comprehensive error handling
 	scannerManager, err := getScannerManager()
 	if err != nil {
+		logger.Error("Scanner manager not available for progress request", "job_id", id, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Scanner manager not available",
 			"details": err.Error(),
@@ -635,6 +637,7 @@ func GetScanProgress(c *gin.Context) {
 	}
 	
 	if scannerManager == nil {
+		logger.Error("Scanner manager is nil for progress request", "job_id", id)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Scanner manager is nil",
 		})
@@ -647,6 +650,7 @@ func GetScanProgress(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
 				detailedErr = fmt.Errorf("panic in GetDetailedScanProgress: %v", r)
+				logger.Error("Panic in GetDetailedScanProgress", "job_id", id, "panic", r)
 			}
 		}()
 		stats, detailedErr := scannerManager.GetDetailedScanProgress(uint(id))
@@ -660,6 +664,7 @@ func GetScanProgress(c *gin.Context) {
 			defer func() {
 				if r := recover(); r != nil {
 					dbErr = fmt.Errorf("panic in GetScanStatus: %v", r)
+					logger.Error("Panic in GetScanStatus", "job_id", id, "panic", r)
 				}
 			}()
 			job, dbErr := scannerManager.GetScanStatus(uint(id))
@@ -670,6 +675,7 @@ func GetScanProgress(c *gin.Context) {
 			detailedStats["status"] = scanJob.Status
 		}
 		
+		logger.Debug("Returning detailed progress stats", "job_id", id)
 		// Return detailed stats for active jobs
 		c.JSON(http.StatusOK, detailedStats)
 		return
@@ -681,6 +687,7 @@ func GetScanProgress(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
 				progErr = fmt.Errorf("panic in GetScanProgress: %v", r)
+				logger.Error("Panic in GetScanProgress", "job_id", id, "panic", r)
 			}
 		}()
 		prog, etaStr, fps, progErr := scannerManager.GetScanProgress(uint(id))
@@ -694,11 +701,13 @@ func GetScanProgress(c *gin.Context) {
 			defer func() {
 				if r := recover(); r != nil {
 					dbErr = fmt.Errorf("panic in GetScanStatus: %v", r)
+					logger.Error("Panic in GetScanStatus", "job_id", id, "panic", r)
 				}
 			}()
 			job, dbErr := scannerManager.GetScanStatus(uint(id))
 			return job, dbErr
 		}(); scanErr == nil && scanJob != nil {
+			logger.Debug("Returning basic progress with database info", "job_id", id)
 			c.JSON(http.StatusOK, gin.H{
 				"progress":        progress,
 				"eta":             eta,
@@ -711,6 +720,7 @@ func GetScanProgress(c *gin.Context) {
 			return
 		}
 		
+		logger.Debug("Returning basic progress without database info", "job_id", id)
 		// Return basic progress without database info if DB access fails
 		c.JSON(http.StatusOK, gin.H{
 			"progress":      progress,
@@ -726,11 +736,13 @@ func GetScanProgress(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
 				dbError = fmt.Errorf("panic in GetScanStatus: %v", r)
+				logger.Error("Panic in GetScanStatus", "job_id", id, "panic", r)
 			}
 		}()
 		job, dbError := scannerManager.GetScanStatus(uint(id))
 		return job, dbError
 	}(); dbErr == nil && scanJob != nil {
+		logger.Debug("Returning database-only progress", "job_id", id, "status", scanJob.Status)
 		// Return database progress for inactive jobs
 		c.JSON(http.StatusOK, gin.H{
 			"progress":        scanJob.Progress,
@@ -744,10 +756,12 @@ func GetScanProgress(c *gin.Context) {
 		return
 	}
 	
-	// All methods failed
+	// All methods failed - this is likely during cleanup/deletion
+	logger.Info("Scan job not found in progress request", "job_id", id, "detailed_error", err, "progress_error", progressErr)
 	c.JSON(http.StatusNotFound, gin.H{
 		"error": "Scan job not found or scanner manager unavailable",
-		"details": fmt.Sprintf("detailed_error: %v, progress_error: %v", err, progressErr),
+		"details": fmt.Sprintf("Job %d may have been deleted or cleaned up", id),
+		"job_id": id,
 	})
 }
 
@@ -976,6 +990,32 @@ func CleanupOrphanedAssets(c *gin.Context) {
 		"message":        "Orphaned assets cleaned up successfully",
 		"assets_removed": assetsRemoved,
 		"files_removed":  filesRemoved,
+	})
+}
+
+// CleanupOrphanedFiles removes asset files from disk that have no corresponding database records
+func CleanupOrphanedFiles(c *gin.Context) {
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	filesRemoved, err := scannerManager.CleanupOrphanedFiles()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to cleanup orphaned files",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Orphaned files cleaned up successfully",
+		"files_removed": filesRemoved,
 	})
 }
 

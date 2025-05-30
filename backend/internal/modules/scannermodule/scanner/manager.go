@@ -330,6 +330,53 @@ func (m *Manager) StopScan(jobID uint) error {
 	return err
 }
 
+// TerminateScan completely terminates a running scan job and removes it from memory.
+// Unlike StopScan which pauses, this permanently stops the scan and cleans up resources.
+func (m *Manager) TerminateScan(jobID uint) error {
+	m.scannersMu.Lock()
+	defer m.scannersMu.Unlock()
+
+	scanner, exists := m.scanners[jobID]
+	if !exists {
+		// Job is not active, just update database status
+		return m.handleInactiveJobTermination(jobID)
+	}
+
+	// Get job details for the event
+	var scanJob database.ScanJob
+	var libraryID uint
+	if err := m.db.First(&scanJob, jobID).Error; err == nil {
+		libraryID = scanJob.LibraryID
+	}
+
+	// Cancel the active scanner (this calls the context cancel function)
+	scanner.Pause()
+	
+	// Remove from active scanners map immediately
+	delete(m.scanners, jobID)
+
+	// Update job status to cancelled
+	err := utils.UpdateJobStatus(m.db, jobID, utils.StatusFailed, "Terminated during library deletion")
+
+	// Publish scan terminated event
+	if err == nil && m.eventBus != nil {
+		terminateEvent := events.NewSystemEvent(
+			events.EventScanFailed,
+			"Media Scan Terminated",
+			fmt.Sprintf("Scan terminated for library #%d", libraryID),
+		)
+		terminateEvent.Data = map[string]interface{}{
+			"libraryId": libraryID,
+			"scanJobId": jobID,
+			"reason":    "library_deletion",
+		}
+		m.eventBus.PublishAsync(terminateEvent)
+	}
+
+	logger.Info("Scan job terminated", "job_id", jobID, "library_id", libraryID)
+	return err
+}
+
 // handleInactiveJobStop handles stopping a job that isn't actively running.
 func (m *Manager) handleInactiveJobStop(jobID uint) error {
 	var scanJob database.ScanJob
@@ -344,6 +391,17 @@ func (m *Manager) handleInactiveJobStop(jobID uint) error {
 
 	return fmt.Errorf("scan job %d exists but is not running (current status: %s)",
 		jobID, scanJob.Status)
+}
+
+// handleInactiveJobTermination handles terminating a job that isn't actively running.
+func (m *Manager) handleInactiveJobTermination(jobID uint) error {
+	var scanJob database.ScanJob
+	if err := m.db.First(&scanJob, jobID).Error; err != nil {
+		return fmt.Errorf("scan job not found: %w", err)
+	}
+
+	// Update status to cancelled/failed
+	return utils.UpdateJobStatus(m.db, jobID, utils.StatusFailed, "Terminated during library deletion")
 }
 
 // ResumeScan resumes a previously paused scan job.
@@ -862,6 +920,14 @@ func (m *Manager) CleanupOrphanedAssets() (int, int, error) {
 		return 0, 0, fmt.Errorf("cleanup service not available")
 	}
 	return m.cleanupService.CleanupOrphanedAssets()
+}
+
+// CleanupOrphanedFiles removes asset files from disk that have no corresponding database records
+func (m *Manager) CleanupOrphanedFiles() (int, error) {
+	if m.cleanupService == nil {
+		return 0, fmt.Errorf("cleanup service not available")
+	}
+	return m.cleanupService.CleanupOrphanedFiles()
 }
 
 // CleanupScanJob removes a scan job and all its discovered files and assets

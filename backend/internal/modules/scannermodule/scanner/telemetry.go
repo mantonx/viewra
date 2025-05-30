@@ -169,8 +169,12 @@ func (st *ScanTelemetry) addLogEntry(level, message string, fields map[string]in
 	
 	// Trim logs if we exceed the maximum
 	if len(st.logs) > st.maxLogs {
-		// Keep the last maxLogs entries
-		st.logs = st.logs[len(st.logs)-st.maxLogs:]
+		// Keep the last maxLogs entries - ensure we don't get negative indices
+		startIndex := len(st.logs) - st.maxLogs
+		if startIndex < 0 {
+			startIndex = 0
+		}
+		st.logs = st.logs[startIndex:]
 	}
 	
 	// Also log to console for debugging
