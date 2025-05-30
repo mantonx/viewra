@@ -15,7 +15,6 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/plugins"
-	"github.com/mantonx/viewra/internal/plugins/music"
 	"github.com/mantonx/viewra/internal/plugins/proto"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
@@ -186,20 +185,10 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 	// Initialize plugin integration components
 	scanner.pluginRouter = NewPluginRouter(pluginManager)
 	
-	// Initialize core media plugins
-	coreManager := plugins.NewCorePluginsManager()
-	
-	// Register music plugin factory
-	coreManager.RegisterPluginFactory("music", func() plugins.CoreMediaPlugin {
-		return music.NewMusicPlugin()
-	})
-	
-	// Initialize core plugins
-	if err := coreManager.InitializeCorePlugins(); err != nil {
-		fmt.Printf("WARNING: Failed to initialize core plugins: %v\n", err)
-	}
-	
-	scanner.corePluginsManager = coreManager
+	// Initialize core plugins manager
+	// Note: Core plugins are now managed by the main plugin manager
+	// This scanner will integrate with the plugin system when available
+	scanner.corePluginsManager = nil // Will be set by plugin integration
 
 	// Initialize batch processor
 	scanner.batchProcessor = &BatchProcessor{

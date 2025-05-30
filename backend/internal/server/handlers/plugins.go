@@ -35,22 +35,52 @@ func GetPlugins(c *gin.Context) {
 		return
 	}
 
-	// Get plugins from manager (filesystem discovery)
-	pluginsList := pluginManager.ListPlugins()
+	// Get all plugins and enhance with database information
+	allPlugins := pluginManager.ListPlugins()
+	enhancedPlugins := make([]map[string]interface{}, 0, len(allPlugins))
 	
 	// Get database connection to fetch status information
 	db := database.GetDB()
 	
-	// Create enhanced plugin list with database status
-	enhancedPlugins := make([]map[string]interface{}, 0, len(pluginsList))
-	
-	for _, plugin := range pluginsList {
-		// Get database status for this plugin
+	for _, pluginInfo := range allPlugins {
+		// Use ID for external plugins, Name for core plugins as identifier
+		var pluginIdentifier string
+		if pluginInfo.IsCore {
+			pluginIdentifier = pluginInfo.Name
+		} else {
+			pluginIdentifier = pluginInfo.ID
+		}
+		
+		// Get the full plugin object for additional details
+		plugin, exists := pluginManager.GetPlugin(pluginIdentifier)
+		if !exists {
+			// If plugin doesn't exist in manager, use info from PluginInfo
+			pluginData := map[string]interface{}{
+				"id":          pluginIdentifier,
+				"name":        pluginInfo.Name,
+				"version":     pluginInfo.Version,
+				"type":        pluginInfo.Type,
+				"description": pluginInfo.Description,
+				"author":      "",
+				"binary_path": "",
+				"config_path": "",
+				"base_path":   "",
+				"running":     pluginInfo.Enabled,
+				"enabled":     pluginInfo.Enabled,
+				"status":      "unknown",
+				"is_core":     pluginInfo.IsCore,
+				"category":    pluginInfo.Category,
+			}
+			enhancedPlugins = append(enhancedPlugins, pluginData)
+			continue
+		}
+
+		// Check database status
 		var dbPlugin database.Plugin
-		err := db.Where("plugin_id = ?", plugin.ID).First(&dbPlugin).Error
+		err := db.Where("plugin_id = ?", pluginIdentifier).First(&dbPlugin).Error
 		
 		// Create enhanced plugin info
-		pluginInfo := map[string]interface{}{
+		pluginData := map[string]interface{}{
 			"id":          plugin.ID,
 			"name":        plugin.Name,
 			"version":     plugin.Version,
@@ -61,25 +91,27 @@ func GetPlugins(c *gin.Context) {
 			"config_path": plugin.ConfigPath,
 			"base_path":   plugin.BasePath,
 			"running":     plugin.Running,
+			"is_core":     pluginInfo.IsCore,
+			"category":    pluginInfo.Category,
 		}
 		
 		if err == nil {
 			// Plugin found in database, use database status
-			pluginInfo["enabled"] = dbPlugin.Status == "enabled"
-			pluginInfo["status"] = dbPlugin.Status
-			pluginInfo["installed_at"] = dbPlugin.InstalledAt
-			pluginInfo["enabled_at"] = dbPlugin.EnabledAt
-			pluginInfo["error_message"] = dbPlugin.ErrorMessage
+			pluginData["enabled"] = dbPlugin.Status == "enabled"
+			pluginData["status"] = dbPlugin.Status
+			pluginData["installed_at"] = dbPlugin.InstalledAt
+			pluginData["enabled_at"] = dbPlugin.EnabledAt
+			pluginData["error_message"] = dbPlugin.ErrorMessage
 		} else {
 			// Plugin not in database, show as discovered but not registered
-			pluginInfo["enabled"] = false
-			pluginInfo["status"] = "discovered"
-			pluginInfo["installed_at"] = nil
-			pluginInfo["enabled_at"] = nil
-			pluginInfo["error_message"] = ""
+			pluginData["enabled"] = false
+			pluginData["status"] = "discovered"
+			pluginData["installed_at"] = nil
+			pluginData["enabled_at"] = nil
+			pluginData["error_message"] = ""
 		}
 		
-		enhancedPlugins = append(enhancedPlugins, pluginInfo)
+		enhancedPlugins = append(enhancedPlugins, pluginData)
 	}
 	
 	c.JSON(http.StatusOK, gin.H{

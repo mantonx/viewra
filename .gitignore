@@ -23,6 +23,15 @@ Thumbs.db
 *.log
 logs/
 
+# Build artifacts and binaries
+/main
+/migrate
+/server
+/viewra
+/viewra-backend
+/test-*
+*.exe
+
 # Docker volumes
 docker-data/
 volumes/

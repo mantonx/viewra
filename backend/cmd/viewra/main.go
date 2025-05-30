@@ -12,13 +12,12 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/metadata"
 	"github.com/mantonx/viewra/internal/server"
 
 	// Force module inclusion by importing directly in main
+	"github.com/mantonx/viewra/internal/modules/assetmodule"
 	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
-	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
-	_ "github.com/mantonx/viewra/internal/modules/mediaassetmodule"
+	_ "github.com/mantonx/viewra/internal/modules/eventsmodule"
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
@@ -39,17 +38,6 @@ func main() {
 	fmt.Println("  Viewra Media Server - Module System  ")
 	fmt.Println("=======================================")
 	
-	// Initialize FFprobe logging (reduce verbosity for production scanning)
-	metadata.InitializeFFProbeLogging()
-	metadata.SetDebugLogging(false) // Disable verbose logging for scanning
-	
-	// Check FFprobe availability at startup
-	if metadata.IsFFProbeAvailable() {
-		fmt.Println("✅ FFprobe detected - Enhanced audio metadata available")
-	} else {
-		fmt.Println("⚠️  FFprobe not found - Using basic metadata extraction")
-	}
-	
 	// Initialize database
 	database.Initialize()
 	db := database.GetDB()
@@ -57,9 +45,9 @@ func main() {
 		log.Fatal("Failed to initialize database")
 	}
 	
-	// Force mediaassetmodule inclusion by calling a function from it
+	// Force assetmodule inclusion by calling a function from it
 	// This prevents the Go linker from optimizing it away
-	_ = mediaassetmodule.GetAssetManager()
+	_ = assetmodule.GetAssetManager()
 	
 	// Setup router with plugins and modules
 	r := server.SetupRouter()

@@ -146,14 +146,17 @@ func (m *Module) initializeComponents() error {
 	log.Println("INFO: Library manager initialized successfully")
 	
 	log.Println("INFO: Initializing media file processor")
-	m.fileProcessor = NewFileProcessor(m.db, m.eventBus)
+	// TODO: Plugin manager integration needs to be added to the module system
+	// For now, create processor without plugin manager - metadata extraction will be limited
+	m.fileProcessor = NewFileProcessor(m.db, m.eventBus, nil)
 	if err := m.fileProcessor.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize file processor: %w", err)
 	}
 	log.Println("INFO: File processor initialized successfully")
 	
 	log.Println("INFO: Initializing metadata manager")
-	m.metadataManager = NewMetadataManager(m.db, m.eventBus)
+	// TODO: Plugin manager integration needs to be added to the module system
+	m.metadataManager = NewMetadataManager(m.db, m.eventBus, nil)
 	if err := m.metadataManager.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize metadata manager: %w", err)
 	}
@@ -183,7 +186,8 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.DELETE("/files/:id", m.deleteFile)
 		mediaGroup.GET("/files/:id/stream", m.streamFile)
 		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
-		mediaGroup.GET("/files/:id/artwork", m.getArtwork)
+		mediaGroup.GET("/files/:id/album-id", m.getFileAlbumId)
+		mediaGroup.GET("/files/:id/album-artwork", m.getFileAlbumArtwork)
 		
 		// Upload endpoints removed as app doesn't support uploads
 		

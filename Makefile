@@ -95,32 +95,33 @@ test-plugin: ## Test a specific plugin build (usage: make test-plugin p=PLUGIN_N
 		exit 1; \
 	fi
 
-migrate-db: ## Move database to proper location (viewra-data/database.db)
-	@echo "$(GREEN)Migrating database to viewra-data/database.db...$(NC)"
-	@if [ -f "$(BACKEND_DIR)/data/viewra.db" ] && [ ! -f "viewra-data/database.db" ]; then \
-		mkdir -p viewra-data; \
-		mv "$(BACKEND_DIR)/data/viewra.db" "viewra-data/database.db"; \
-		echo "Database migrated successfully"; \
-	elif [ -f "viewra-data/database.db" ]; then \
-		echo "Database already at correct location"; \
+migrate-db: ## Move database to proper location (viewra-data/viewra.db)
+	@echo "$(GREEN)Migrating database to viewra-data/viewra.db...$(NC)"
+	@if [ -f "$(BACKEND_DIR)/data/viewra.db" ] && [ ! -f "viewra-data/viewra.db" ]; then \
+		echo "Moving database from backend/data/ to viewra-data/"; \
+		mv "$(BACKEND_DIR)/data/viewra.db" "viewra-data/viewra.db"; \
+		echo "✅ Database migrated successfully"; \
+	elif [ -f "viewra-data/viewra.db" ]; then \
+		echo "✅ Database already in correct location"; \
 	else \
-		echo "No database to migrate"; \
+		echo "ℹ️ No existing database to migrate"; \
 	fi
 
-check-db: ## Check database status and size
-	@echo "$(GREEN)Checking database status...$(NC)"
-	@if [ -f "viewra-data/database.db" ]; then \
-		echo "Database location: viewra-data/database.db"; \
-		echo "Database size: $$(du -h viewra-data/database.db | cut -f1)"; \
-		if command -v docker >/dev/null 2>&1; then \
-			container_id=$$(docker ps --filter "expose=8080" --format "{{.ID}}" | head -1); \
-			if [ -n "$$container_id" ]; then \
-				echo "Container database path: /app/viewra-data/database.db"; \
-				docker exec "$$container_id" test -f "/app/viewra-data/database.db" && echo "✅ Database accessible in container" || echo "❌ Database not accessible in container"; \
-			fi; \
+check-db: ## Check database status and show information
+	@echo "$(CYAN)Database Status:$(NC)"
+	@if [ -f "viewra-data/viewra.db" ]; then \
+		echo "Database location: viewra-data/viewra.db"; \
+		echo "Database size: $$(du -h viewra-data/viewra.db | cut -f1)"; \
+		echo "Tables: $$(sqlite3 viewra-data/viewra.db '.tables' 2>/dev/null | wc -w || echo 'Error reading database')"; \
+		if [ -n "$$(docker ps -q -f name=viewra-backend)" ]; then \
+			container_id=$$(docker ps -q -f name=viewra-backend); \
+			echo "Container database path: /app/viewra-data/viewra.db"; \
+			docker exec "$$container_id" test -f "/app/viewra-data/viewra.db" && echo "✅ Database accessible in container" || echo "❌ Database not accessible in container"; \
+		else \
+			echo "ℹ️ Backend container not running"; \
 		fi; \
 	else \
-		echo "❌ Database not found at viewra-data/database.db"; \
+		echo "❌ Database not found at viewra-data/viewra.db"; \
 	fi
 
 restart-backend: ## Restart the backend container

@@ -5,12 +5,12 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - '${BACKEND_PORT:-8080}:8080'
-    user: '${UID:-1000}:${GID:-1000}'
+    # user: '${UID:-1000}:${GID:-1000}'  # Temporarily disabled for permission fix
     environment:
       - GIN_MODE=${GIN_MODE:-debug}
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
       - VIEWRA_DATA_DIR=/app/viewra-data
-      - VIEWRA_DATABASE_PATH=/app/viewra-data/database.db
+      - VIEWRA_DATABASE_PATH=${VIEWRA_DATABASE_PATH:-/app/viewra-data/viewra.db}
       - PORT=8080
       - PLUGIN_DIR=/app/data/plugins
     volumes:
@@ -47,7 +47,7 @@ services:
       - '${SQLITEWEB_PORT:-8081}:8080'
     volumes:
       - ./viewra-data:/data
-    command: ['sqlite_web', '/data/database.db', '--host', '0.0.0.0', '--port', '8080']
+    command: ['sqlite_web', '/data/viewra.db', '--host', '0.0.0.0', '--port', '8080']
     networks:
       - viewra-network
     restart: unless-stopped

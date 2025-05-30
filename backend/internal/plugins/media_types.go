@@ -16,6 +16,8 @@ type MediaItem struct {
 }
 
 // MediaAsset represents an asset associated with a media file
+// Deprecated: Use the new entity-based asset system via /api/v1/assets/ endpoints
+// This struct is kept for plugin compatibility but should not be used for new code
 type MediaAsset struct {
 	Type        string            `json:"type"`         // "artwork", "subtitle", "thumbnail", "preview"
 	Data        []byte            `json:"data"`         // Asset binary data
@@ -36,6 +38,7 @@ type MediaContext struct {
 }
 
 // CoreMediaPlugin defines the interface for core media plugins with the new architecture
+// Note: Asset handling via MediaAsset is deprecated - plugins should use the entity-based asset system
 type CoreMediaPlugin interface {
 	// Basic plugin info
 	GetName() string
@@ -49,7 +52,7 @@ type CoreMediaPlugin interface {
 	Initialize() error
 	Shutdown() error
 	
-	// Media processing - new architecture
+	// Media processing - MediaAsset return is deprecated, use entity-based asset system instead
 	HandleFile(path string, info os.FileInfo, ctx MediaContext) (*MediaItem, []MediaAsset, error)
 	GetMediaType() string
 	GetSupportedExtensions() []string
@@ -61,6 +64,7 @@ type CoreMediaPlugin interface {
 }
 
 // MediaHandlerPlugin defines the interface for handling media files (legacy)
+// Deprecated: Use the new entity-based asset system via gRPC plugin interfaces
 type MediaHandlerPlugin interface {
 	GetName() string
 	GetMediaType() string

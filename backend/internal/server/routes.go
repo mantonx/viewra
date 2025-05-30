@@ -7,11 +7,12 @@ import (
 	"github.com/mantonx/viewra/internal/apiroutes"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/server/handlers"
 )
 
 // setupRoutesWithEventHandlers configures routes with event handlers
-func setupRoutesWithEventHandlers(r *gin.Engine) {
+func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr plugins.Manager) {
 	// Static plugin assets - Using consistent path from GetPluginDirectory
 	pluginsPath := GetPluginDirectory()
 	r.Static("/plugins", pluginsPath)
@@ -28,6 +29,25 @@ func setupRoutesWithEventHandlers(r *gin.Engine) {
 		plugins := api.Group("/plugins")
 		{
 			plugins.Any("/*path", handlers.HandlePluginRoute)
+		}
+		
+		// Core plugin management routes
+		corePlugins := api.Group("/core-plugins")
+		{
+			if pluginMgr != nil {
+				corePluginHandler := handlers.NewCorePluginsHandler(pluginMgr)
+				corePlugins.GET("/", corePluginHandler.ListCorePlugins)
+				apiroutes.Register(corePlugins.BasePath()+"/", "GET", "List all core plugins.")
+				
+				corePlugins.GET("/:name", corePluginHandler.GetCorePluginInfo)
+				apiroutes.Register(corePlugins.BasePath()+"/:name", "GET", "Get information about a specific core plugin.")
+				
+				corePlugins.POST("/:name/enable", corePluginHandler.EnableCorePlugin)
+				apiroutes.Register(corePlugins.BasePath()+"/:name/enable", "POST", "Enable a core plugin.")
+				
+				corePlugins.POST("/:name/disable", corePluginHandler.DisableCorePlugin)
+				apiroutes.Register(corePlugins.BasePath()+"/:name/disable", "POST", "Disable a core plugin.")
+			}
 		}
 		
 		// Event system routes

@@ -10,23 +10,24 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
-	"github.com/mantonx/viewra/internal/metadata"
+	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 )
 
 // FileProcessor handles media file processing operations
 type FileProcessor struct {
-	db           *gorm.DB
-	eventBus     events.EventBus
-	initialized  bool
-	mutex        sync.RWMutex
+	db                *gorm.DB
+	eventBus          events.EventBus
+	pluginManager     plugins.Manager
+	initialized       bool
+	mutex             sync.RWMutex
 	
 	// Processing queues and workers
-	processingQueue chan *ProcessJob
-	workerCount     int
-	activeJobs      map[string]*ProcessJob
-	jobsMutex       sync.RWMutex
+	processingQueue   chan *ProcessJob
+	workerCount       int
+	activeJobs        map[string]*ProcessJob
+	jobsMutex         sync.RWMutex
 }
 
 // ProcessJob represents a file processing job
@@ -52,10 +53,11 @@ type ProcessingStats struct {
 }
 
 // NewFileProcessor creates a new file processor
-func NewFileProcessor(db *gorm.DB, eventBus events.EventBus) *FileProcessor {
+func NewFileProcessor(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager) *FileProcessor {
 	return &FileProcessor{
-		db:             db,
-		eventBus:       eventBus,
+		db:              db,
+		eventBus:        eventBus,
+		pluginManager:   pluginManager,
 		processingQueue: make(chan *ProcessJob, 100), // Buffer size of 100
 		workerCount:     3, // Default to 3 workers
 		activeJobs:      make(map[string]*ProcessJob),
@@ -275,21 +277,9 @@ func (fp *FileProcessor) processFileJob(job *ProcessJob) error {
 		}
 	}
 	
-	// Process based on file type
-	switch {
-	case metadata.IsMusicFile(job.FilePath):
-		// Update progress
-		fp.updateJobProgress(job.ID, 50)
-		
-		// Process music file
-		if err := fp.processMusicFile(job, &mediaFile); err != nil {
-			return fmt.Errorf("failed to process music file: %w", err)
-		}
-		
-	// TODO: Add processing for other file types (video, images, etc.)
-	default:
-		// Generic processing for unknown file types
-		log.Printf("WARNING: Unknown file type for %s, performing generic processing", job.FilePath)
+	// Process using plugin system
+	if err := fp.processWithPlugins(job, &mediaFile); err != nil {
+		return fmt.Errorf("failed to process file with plugins: %w", err)
 	}
 	
 	// Update progress
@@ -307,27 +297,63 @@ func (fp *FileProcessor) processFileJob(job *ProcessJob) error {
 	return nil
 }
 
-// processMusicFile processes a music file and extracts metadata
-func (fp *FileProcessor) processMusicFile(job *ProcessJob, mediaFile *database.MediaFile) error {
-	log.Printf("INFO: Processing music file: %s", job.FilePath)
+// processWithPlugins processes a file using the appropriate core plugins
+func (fp *FileProcessor) processWithPlugins(job *ProcessJob, mediaFile *database.MediaFile) error {
+	log.Printf("INFO: Processing file with plugins: %s", job.FilePath)
 	
-	// Delete existing metadata if it exists
-	if err := fp.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
-		log.Printf("WARNING: Failed to delete existing music metadata: %v", err)
+	// Check if plugin manager is available
+	if fp.pluginManager == nil {
+		log.Printf("WARNING: No plugin manager available for file: %s - skipping metadata extraction", job.FilePath)
+		return nil // Not an error, just no plugins available
 	}
 	
-	// Extract new metadata
-	musicMeta, err := metadata.ExtractMusicMetadata(job.FilePath, mediaFile)
+	// Get file info
+	fileInfo, err := os.Stat(job.FilePath)
 	if err != nil {
-		return fmt.Errorf("failed to extract music metadata: %w", err)
+		return fmt.Errorf("failed to get file info: %w", err)
 	}
 	
-	// Save new metadata to database
-	if err := fp.db.Create(musicMeta).Error; err != nil {
-		return fmt.Errorf("failed to save music metadata: %w", err)
+	// Get all available file handlers from plugin manager
+	handlers := fp.pluginManager.GetFileHandlers()
+	
+	// Find a matching handler
+	var matchingHandler plugins.FileHandlerPlugin
+	for _, handler := range handlers {
+		if handler.Match(job.FilePath, fileInfo) {
+			matchingHandler = handler
+			break
+		}
 	}
 	
-	log.Printf("INFO: Successfully processed music file: %s", job.FilePath)
+	if matchingHandler == nil {
+		log.Printf("WARNING: No plugin handler found for file: %s", job.FilePath)
+		return nil // Not an error, just no handler available
+	}
+	
+	log.Printf("INFO: Processing file %s with handler: %s", job.FilePath, matchingHandler.GetName())
+	
+	// Update progress
+	fp.updateJobProgress(job.ID, 50)
+	
+	// Create metadata context for plugin
+	ctx := plugins.MetadataContext{
+		DB:        fp.db,
+		MediaFile: mediaFile,
+		LibraryID: mediaFile.LibraryID,
+		EventBus:  fp.eventBus,
+	}
+	
+	// Delete existing metadata if it exists (clean slate approach)
+	if err := fp.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
+		log.Printf("WARNING: Failed to delete existing metadata: %v", err)
+	}
+	
+	// Process file with the matching handler
+	if err := matchingHandler.HandleFile(job.FilePath, ctx); err != nil {
+		return fmt.Errorf("plugin handler failed: %w", err)
+	}
+	
+	log.Printf("INFO: Successfully processed file with plugin: %s", job.FilePath)
 	return nil
 }
 

@@ -5,31 +5,27 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
-	"github.com/mantonx/viewra/internal/metadata"
-	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 	"github.com/mantonx/viewra/internal/plugins"
-	"github.com/mantonx/viewra/internal/plugins/proto"
 	"gorm.io/gorm"
 )
 
-// MetadataManager handles metadata enrichment and management
+// MetadataManager handles extraction and enrichment of media metadata
 type MetadataManager struct {
-	db          *gorm.DB
-	eventBus    events.EventBus
-	initialized bool
-	mutex       sync.RWMutex
+	db            *gorm.DB
+	eventBus      events.EventBus
+	pluginManager plugins.Manager
+	initialized   bool
+	mutex         sync.RWMutex
 	
 	// Metadata providers
 	providers     []MetadataProvider
 	providerStats map[string]*ProviderStats
-	
-	// Plugin system integration
-	pluginManager *plugins.Manager
 }
 
 // MetadataProvider defines the interface for metadata providers
@@ -63,20 +59,13 @@ type MetadataStats struct {
 }
 
 // NewMetadataManager creates a new metadata manager
-func NewMetadataManager(db *gorm.DB, eventBus events.EventBus) *MetadataManager {
+func NewMetadataManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager) *MetadataManager {
 	return &MetadataManager{
 		db:            db,
 		eventBus:      eventBus,
+		pluginManager: pluginManager,
 		providerStats: make(map[string]*ProviderStats),
-		pluginManager: nil, // Will be set later via SetPluginManager
 	}
-}
-
-// SetPluginManager sets the plugin manager for the metadata manager
-func (mm *MetadataManager) SetPluginManager(pluginMgr plugins.Manager) {
-	mm.mutex.Lock()
-	defer mm.mutex.Unlock()
-	mm.pluginManager = &pluginMgr
 }
 
 // Initialize initializes the metadata manager
@@ -105,123 +94,75 @@ func (mm *MetadataManager) registerProviders() {
 	}
 }
 
-// ExtractMetadata extracts metadata from a media file
-func (mm *MetadataManager) ExtractMetadata(mediaFileID uint) error {
-	if !mm.initialized {
-		return fmt.Errorf("metadata manager not initialized")
-	}
-	
-	// Get file from database
-	var mediaFile database.MediaFile
-	if err := mm.db.First(&mediaFile, mediaFileID).Error; err != nil {
-		return fmt.Errorf("failed to find media file: %w", err)
-	}
+// ExtractMetadata extracts metadata from a media file using appropriate plugins
+func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error {
+	log.Printf("INFO: Extracting metadata for file: %s", mediaFile.Path)
 	
 	// Check if file exists
 	if _, err := os.Stat(mediaFile.Path); os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist: %s", mediaFile.Path)
 	}
 	
-	// Process based on file type
-	if metadata.IsMusicFile(mediaFile.Path) {
-		return mm.extractMusicMetadata(&mediaFile)
+	// Check if plugin manager is available
+	if mm.pluginManager == nil {
+		log.Printf("WARNING: No plugin manager available for file: %s - skipping metadata extraction", mediaFile.Path)
+		return nil // Not an error, just no plugins available
 	}
 	
-	// TODO: Add extractors for other file types (video, image, etc.)
-	
-	return fmt.Errorf("unsupported file type for metadata extraction")
-}
-
-// extractMusicMetadata extracts music metadata from a media file
-func (mm *MetadataManager) extractMusicMetadata(mediaFile *database.MediaFile) error {
-	// Remove any existing music metadata to start fresh
-	if err := mm.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
-		log.Printf("WARNING: Failed to delete existing music metadata: %v", err)
-	}
-	
-	// Clean up existing assets to prevent cross-contamination
-	if err := mediaassetmodule.RemoveMediaAssetsByMediaFile(mediaFile.ID); err != nil {
-		log.Printf("WARNING: Failed to cleanup existing assets for file ID %d: %v", mediaFile.ID, err)
-		// Continue anyway - cleanup failure shouldn't prevent metadata extraction
-	}
-	
-	// Extract metadata
-	musicMeta, err := metadata.ExtractMusicMetadata(mediaFile.Path, mediaFile)
+	// Get file info for plugin matching
+	fileInfo, err := os.Stat(mediaFile.Path)
 	if err != nil {
-		return fmt.Errorf("failed to extract music metadata: %w", err)
+		return fmt.Errorf("failed to get file info: %w", err)
 	}
 	
-	// Save to database
-	if err := mm.db.Create(musicMeta).Error; err != nil {
-		return fmt.Errorf("failed to save music metadata: %w", err)
-	}
+	// Get all available file handlers from plugin manager
+	handlers := mm.pluginManager.GetFileHandlers()
 	
-	// Check if artwork already exists
-	manager := mediaassetmodule.GetAssetManager()
-	if manager != nil {
-		exists, _, err := manager.ExistsAsset(mediaFile.ID, mediaassetmodule.AssetTypeMusic, mediaassetmodule.CategoryAlbum)
-		if err != nil {
-			fmt.Printf("WARNING: Failed to check for existing artwork: %v\n", err)
-		} else if exists {
-			fmt.Printf("DEBUG: Artwork already exists for file %s, skipping\n", mediaFile.Path)
-			return nil
+	// Find a matching handler
+	var matchingHandler plugins.FileHandlerPlugin
+	for _, handler := range handlers {
+		if handler.Match(mediaFile.Path, fileInfo) {
+			matchingHandler = handler
+			break
 		}
 	}
 	
-	// Publish metadata extracted event
+	if matchingHandler == nil {
+		log.Printf("WARNING: No plugin handler found for file: %s", mediaFile.Path)
+		return nil // Not an error, just no handler available
+	}
+	
+	log.Printf("INFO: Processing file %s with handler: %s", mediaFile.Path, matchingHandler.GetName())
+	
+	// Create metadata context for plugin
+	ctx := plugins.MetadataContext{
+		DB:        mm.db,
+		MediaFile: mediaFile,
+		LibraryID: mediaFile.LibraryID,
+		EventBus:  mm.eventBus,
+	}
+	
+	// Delete existing metadata if it exists (clean slate approach)
+	if err := mm.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
+		log.Printf("WARNING: Failed to delete existing metadata: %v", err)
+	}
+	
+	// Process file with the matching handler
+	if err := matchingHandler.HandleFile(mediaFile.Path, ctx); err != nil {
+		return fmt.Errorf("plugin handler failed: %w", err)
+	}
+	
+	// Publish event
 	if mm.eventBus != nil {
 		event := events.NewSystemEvent(
 			"media.metadata.extracted",
-			"Music Metadata Extracted",
-			fmt.Sprintf("Extracted metadata for %s - %s", musicMeta.Artist, musicMeta.Title),
+			"Metadata Extracted",
+			fmt.Sprintf("Metadata extracted for %s using %s", filepath.Base(mediaFile.Path), matchingHandler.GetName()),
 		)
-		event.Data = map[string]interface{}{
-			"mediaFileID": mediaFile.ID,
-			"title":       musicMeta.Title,
-			"artist":      musicMeta.Artist,
-			"album":       musicMeta.Album,
-			"hasArtwork":  musicMeta.HasArtwork,
-		}
 		mm.eventBus.PublishAsync(event)
 	}
 	
-	// Call plugin hooks for media file scanned
-	if mm.pluginManager != nil && *mm.pluginManager != nil { // Ensure the interface itself is not nil
-		scannerHookClients := (*mm.pluginManager).GetScannerHooks()
-		ctx := context.Background() // Or a more appropriate context if available
-
-		for _, client := range scannerHookClients {
-			// Convert metadataMap from map[string]interface{} to map[string]string
-			protoMetadata := make(map[string]string)
-			metadataMap := map[string]interface{}{
-				"title":      musicMeta.Title,
-				"artist":     musicMeta.Artist,
-				"album":      musicMeta.Album,
-				"year":       fmt.Sprintf("%d", musicMeta.Year),
-				"track":      fmt.Sprintf("%d", musicMeta.Track),
-				"genre":      musicMeta.Genre,
-				"duration":   fmt.Sprintf("%f", musicMeta.Duration),
-				"hasArtwork": fmt.Sprintf("%t", musicMeta.HasArtwork),
-			}
-			for k, v := range metadataMap {
-				protoMetadata[k] = fmt.Sprint(v)
-			}
-
-			req := &proto.OnMediaFileScannedRequest{ // Changed to proto.OnMediaFileScannedRequest
-				MediaFileId: uint32(mediaFile.ID),
-				FilePath:    mediaFile.Path,
-				Metadata:    protoMetadata,
-			}
-			
-			_, err := client.OnMediaFileScanned(ctx, req)
-			if err != nil {
-				// TODO: Consider how to get the specific plugin ID for more detailed logging
-				log.Printf("WARNING: plugin scanner hook OnMediaFileScanned failed: %v", err)
-			}
-		}
-	}
-	
-	log.Printf("INFO: Successfully extracted metadata for file ID %d", mediaFile.ID)
+	log.Printf("INFO: Successfully extracted metadata for file: %s", mediaFile.Path)
 	return nil
 }
 

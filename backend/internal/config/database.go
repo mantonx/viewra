@@ -8,7 +8,7 @@ import (
 const (
 	// Default database paths
 	DefaultDataDir      = "/app/viewra-data"
-	DefaultDatabaseFile = "database.db"
+	DefaultDatabaseFile = "viewra.db"
 	
 	// Environment variables
 	EnvDataDir    = "VIEWRA_DATA_DIR"

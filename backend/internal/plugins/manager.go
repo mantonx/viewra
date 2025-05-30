@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -8,7 +9,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,11 +16,12 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/internal/apiroutes"
 	"github.com/mantonx/viewra/internal/config"
-	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
+	"github.com/mantonx/viewra/internal/modules/assetmodule"
 	"github.com/mantonx/viewra/internal/plugins/proto"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
@@ -48,13 +49,14 @@ type manager struct {
 	hostGRPCListener net.Listener
 	hostAssetService *HostAssetService
 	hostServiceAddr  string
+	corePluginManager *CorePluginManager
 }
 
 // NewManager creates a new plugin manager
 func NewManager(pluginDir string, db *gorm.DB, logger hclog.Logger) Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	
-	return &manager{
+	m := &manager{
 		pluginDir: pluginDir,
 		db:        db,
 		logger:    logger.Named("plugin-manager"),
@@ -62,7 +64,10 @@ func NewManager(pluginDir string, db *gorm.DB, logger hclog.Logger) Manager {
 		registry:  Registry{},
 		ctx:       ctx,
 		cancel:    cancel,
+		corePluginManager: NewCorePluginManager(db),
 	}
+	
+	return m
 }
 
 // Initialize starts the plugin manager
@@ -101,6 +106,13 @@ func (m *manager) Initialize(ctx context.Context) error {
 		return fmt.Errorf("failed to load enabled plugins: %w", err)
 	}
 	
+	// Initialize core plugins
+	if m.corePluginManager != nil {
+		if err := m.corePluginManager.InitializeAllPlugins(); err != nil {
+			m.logger.Error("Failed to initialize core plugins", "error", err)
+		}
+	}
+	
 	m.logger.Info("plugin manager initialized", "plugins_discovered", len(m.plugins), "host_service_addr", m.hostServiceAddr)
 	return nil
 }
@@ -133,6 +145,13 @@ func (m *manager) Shutdown(ctx context.Context) error {
 	
 	// Cancel context
 	m.cancel()
+	
+	// Shutdown core plugins
+	if m.corePluginManager != nil {
+		if err := m.corePluginManager.ShutdownAllPlugins(); err != nil {
+			m.logger.Error("Failed to shutdown core plugins", "error", err)
+		}
+	}
 	
 	m.logger.Info("plugin manager shutdown complete")
 	return nil
@@ -434,15 +453,23 @@ func (m *manager) RestartPlugin(ctx context.Context, pluginID string) error {
 }
 
 // ListPlugins returns all discovered plugins
-func (m *manager) ListPlugins() map[string]*Plugin {
+func (m *manager) ListPlugins() []PluginInfo {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	
-	result := make(map[string]*Plugin, len(m.plugins))
-	for id, plugin := range m.plugins {
-		result[id] = plugin
+	var infos []PluginInfo
+	for _, plugin := range m.plugins {
+		info := PluginInfo{
+			Name:        plugin.Name,
+			Type:        plugin.Type,
+			Version:     plugin.Version,
+			Description: plugin.Description,
+			Enabled:     plugin.Running,
+			IsCore:      false, // External plugins are never core
+		}
+		infos = append(infos, info)
 	}
-	return result
+	return infos
 }
 
 // GetPlugin returns a specific plugin
@@ -715,223 +742,149 @@ func NewHostAssetService(logger hclog.Logger) *HostAssetService {
 
 // SaveAsset implements the AssetService interface for the host
 func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) (uint32, string, string, error) {
-	h.logger.Debug("saving asset", "media_file_id", mediaFileID, "type", assetType, "category", category, "subtype", subtype, "mime_type", mimeType, "size", len(data))
+	h.logger.Debug("saving asset via plugin interface", "media_file_id", mediaFileID, "type", assetType, "category", category, "subtype", subtype, "mime_type", mimeType, "size", len(data))
 	
-	// Convert string types to typed constants for the asset module
-	var assetTypeConst mediaassetmodule.AssetType
-	var categoryConst mediaassetmodule.AssetCategory  
-	var subtypeConst mediaassetmodule.AssetSubtype
+	// Convert old plugin asset format to new entity-based asset system
+	h.logger.Info("Converting plugin asset to new entity-based asset system", "media_file_id", mediaFileID)
 	
-	// Map asset type
-	switch strings.ToLower(assetType) {
+	// Detect proper MIME type from data if the provided one is generic
+	if mimeType == "" || mimeType == "application/octet-stream" || mimeType == "binary/octet-stream" {
+		mimeType = h.detectImageMimeType(data)
+		h.logger.Info("Detected MIME type", "mime_type", mimeType, "media_file_id", mediaFileID)
+	}
+	
+	// Determine the source based on metadata and sourceURL
+	var source assetmodule.AssetSource = assetmodule.SourcePlugin // Default fallback
+	
+	// Check metadata for source hints
+	if sourceHint, exists := metadata["source"]; exists {
+		switch sourceHint {
+		case "musicbrainz_cover_art_archive", "musicbrainz":
+			source = assetmodule.SourceMusicBrainz
+		case "audiodb", "theaudiodb":
+			source = assetmodule.SourceAudioDB
+		case "fanart.tv":
+			source = assetmodule.SourceFanArtTV
+		case "lastfm", "last.fm":
+			source = assetmodule.SourceLastFM
+		case "tmdb":
+			source = assetmodule.SourceTMDB
+		case "embedded":
+			source = assetmodule.SourceEmbedded
+		}
+	}
+	
+	// Also check sourceURL for additional hints
+	if sourceURL != "" {
+		switch {
+		case strings.Contains(sourceURL, "coverartarchive.org"):
+			source = assetmodule.SourceMusicBrainz
+		case strings.Contains(sourceURL, "theaudiodb.com"):
+			source = assetmodule.SourceAudioDB
+		case strings.Contains(sourceURL, "fanart.tv"):
+			source = assetmodule.SourceFanArtTV
+		case strings.Contains(sourceURL, "last.fm"):
+			source = assetmodule.SourceLastFM
+		case strings.Contains(sourceURL, "themoviedb.org"):
+			source = assetmodule.SourceTMDB
+		}
+	}
+	
+	h.logger.Info("Determined asset source", "source", source, "media_file_id", mediaFileID, "source_url", sourceURL)
+	
+	// For music assets, associate with album entity
+	// Generate a deterministic UUID for the album based on mediaFileID
+	albumIDString := fmt.Sprintf("album-placeholder-%d", mediaFileID)
+	albumID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(albumIDString))
+	
+	// Map old plugin asset types to new system
+	var entityType assetmodule.EntityType
+	var assetTypeNew assetmodule.AssetType
+	
+	switch assetType {
 	case "music":
-		assetTypeConst = mediaassetmodule.AssetTypeMusic
-	case "movie":
-		assetTypeConst = mediaassetmodule.AssetTypeMovie
-	case "tv":
-		assetTypeConst = mediaassetmodule.AssetTypeTV
-	case "people":
-		assetTypeConst = mediaassetmodule.AssetTypePeople
-	case "meta":
-		assetTypeConst = mediaassetmodule.AssetTypeMeta
-	default:
-		assetTypeConst = mediaassetmodule.AssetTypeMusic
-	}
-	
-	// Map category
-	switch strings.ToLower(category) {
-	case "album":
-		categoryConst = mediaassetmodule.CategoryAlbum
-	case "artist":
-		categoryConst = mediaassetmodule.CategoryArtist
-	case "track":
-		categoryConst = mediaassetmodule.CategoryTrack
-	case "label":
-		categoryConst = mediaassetmodule.CategoryLabel
-	case "genre":
-		categoryConst = mediaassetmodule.CategoryGenre
-	case "poster":
-		categoryConst = mediaassetmodule.CategoryPoster
-	case "backdrop":
-		categoryConst = mediaassetmodule.CategoryBackdrop
-	case "logo":
-		categoryConst = mediaassetmodule.CategoryLogo
-	default:
-		categoryConst = mediaassetmodule.CategoryAlbum // Default to album
-	}
-	
-	// Map subtype
-	switch strings.ToLower(subtype) {
-	// Legacy/General subtypes
-	case "artwork":
-		subtypeConst = mediaassetmodule.SubtypeArtwork
-	case "poster":
-		subtypeConst = mediaassetmodule.SubtypePoster
-	case "backdrop":
-		subtypeConst = mediaassetmodule.SubtypeBackdrop
-	case "thumbnail":
-		subtypeConst = mediaassetmodule.SubtypeThumbnail
-	case "subtitle":
-		subtypeConst = mediaassetmodule.SubtypeSubtitle
-	case "lyrics":
-		subtypeConst = mediaassetmodule.SubtypeLyrics
-	
-	// Music Album Artwork (MusicBrainz Cover Art Archive types)
-	case "album_front":
-		subtypeConst = mediaassetmodule.SubtypeAlbumFront
-	case "album_back":
-		subtypeConst = mediaassetmodule.SubtypeAlbumBack
-	case "album_booklet":
-		subtypeConst = mediaassetmodule.SubtypeAlbumBooklet
-	case "album_medium":
-		subtypeConst = mediaassetmodule.SubtypeAlbumMedium
-	case "album_tray":
-		subtypeConst = mediaassetmodule.SubtypeAlbumTray
-	case "album_obi":
-		subtypeConst = mediaassetmodule.SubtypeAlbumObi
-	case "album_spine":
-		subtypeConst = mediaassetmodule.SubtypeAlbumSpine
-	case "album_liner":
-		subtypeConst = mediaassetmodule.SubtypeAlbumLiner
-	case "album_sticker":
-		subtypeConst = mediaassetmodule.SubtypeAlbumSticker
-	case "album_poster":
-		subtypeConst = mediaassetmodule.SubtypeAlbumPoster
-	
-	// Music Artist Artwork (AudioDB types)
-	case "artist_thumb":
-		subtypeConst = mediaassetmodule.SubtypeArtistThumb
-	case "artist_logo":
-		subtypeConst = mediaassetmodule.SubtypeArtistLogo
-	case "artist_clearart":
-		subtypeConst = mediaassetmodule.SubtypeArtistClearart
-	case "artist_fanart":
-		subtypeConst = mediaassetmodule.SubtypeArtistFanart
-	case "artist_fanart2":
-		subtypeConst = mediaassetmodule.SubtypeArtistFanart2
-	case "artist_fanart3":
-		subtypeConst = mediaassetmodule.SubtypeArtistFanart3
-	case "artist_banner":
-		subtypeConst = mediaassetmodule.SubtypeArtistBanner
-	
-	// Music Track Artwork
-	case "track_thumb":
-		subtypeConst = mediaassetmodule.SubtypeTrackThumb
-	
-	// AudioDB Album Artwork (additional types)
-	case "album_thumb":
-		subtypeConst = mediaassetmodule.SubtypeAlbumThumb
-	case "album_thumb_hq":
-		subtypeConst = mediaassetmodule.SubtypeAlbumThumbHQ
-	case "album_thumb_back":
-		subtypeConst = mediaassetmodule.SubtypeAlbumThumbBack
-	case "album_cdart":
-		subtypeConst = mediaassetmodule.SubtypeAlbumCDart
-	default:
-		subtypeConst = mediaassetmodule.SubtypeArtwork // Default to artwork
-	}
-	
-	// Extract dimensions from metadata if available
-	var width, height int
-	if widthStr, ok := metadata["width"]; ok {
-		if w, err := strconv.Atoi(widthStr); err == nil {
-			width = w
+		entityType = assetmodule.EntityTypeAlbum
+		switch subtype {
+		case "artwork", "cover":
+			assetTypeNew = assetmodule.AssetTypeCover
+		default:
+			assetTypeNew = assetmodule.AssetTypeCover // Default to cover
 		}
-	}
-	if heightStr, ok := metadata["height"]; ok {
-		if h, err := strconv.Atoi(heightStr); err == nil {
-			height = h
-		}
-	}
-	
-	// Create asset request
-	request := &mediaassetmodule.AssetRequest{
-		MediaFileID: uint(mediaFileID),
-		Type:        assetTypeConst,
-		Category:    categoryConst,
-		Subtype:     subtypeConst,
-		Data:        data,
-		MimeType:    mimeType,
-		Width:       width,
-		Height:      height,
-		Metadata:    metadata,
+	default:
+		// Default fallback
+		entityType = assetmodule.EntityTypeAlbum
+		assetTypeNew = assetmodule.AssetTypeCover
 	}
 	
-	// Save using the media asset module
-	asset, err := mediaassetmodule.SaveMediaAsset(request)
+	// Create asset request for new system
+	request := &assetmodule.AssetRequest{
+		EntityType: entityType,
+		EntityID:   albumID,
+		Type:       assetTypeNew,
+		Source:     source, // Use the determined source instead of generic SourcePlugin
+		Data:       data,
+		Format:     mimeType,
+		Preferred:  true, // Mark plugin assets as preferred
+	}
+
+	// Save using the new asset manager
+	response, err := assetmodule.SaveMediaAsset(request)
 	if err != nil {
-		h.logger.Error("failed to save asset", "error", err, "media_file_id", mediaFileID)
-		return 0, "", "", fmt.Errorf("failed to save asset: %w", err)
+		h.logger.Error("Failed to save asset with new system", "error", err)
+		return 0, "", "", fmt.Errorf("failed to save asset with new system: %w", err)
+	}
+
+	h.logger.Info("Successfully saved asset with new system", "asset_id", response.ID, "path", response.Path, "source", source)
+	
+	// Return values compatible with old interface (using dummy values since new system uses UUIDs)
+	return 1, response.ID.String(), response.Path, nil
+}
+
+// detectImageMimeType detects MIME type from image data
+func (h *HostAssetService) detectImageMimeType(data []byte) string {
+	if len(data) < 16 {
+		return "image/jpeg" // Default fallback
 	}
 	
-	h.logger.Debug("asset saved successfully", "asset_id", asset.ID, "hash", asset.Hash, "path", asset.RelativePath)
-	return uint32(asset.ID), asset.Hash, asset.RelativePath, nil
+	// Check for common image signatures
+	switch {
+	case bytes.HasPrefix(data, []byte{0xFF, 0xD8, 0xFF}): // JPEG
+		return "image/jpeg"
+	case bytes.HasPrefix(data, []byte{0x89, 0x50, 0x4E, 0x47}): // PNG
+		return "image/png"
+	case bytes.HasPrefix(data, []byte{0x47, 0x49, 0x46}): // GIF
+		return "image/gif"
+	case bytes.HasPrefix(data, []byte{0x52, 0x49, 0x46, 0x46}) && bytes.Contains(data[8:12], []byte("WEBP")): // WebP
+		return "image/webp"
+	case bytes.HasPrefix(data, []byte{0x42, 0x4D}): // BMP
+		return "image/bmp"
+	default:
+		return "image/jpeg" // Default fallback
+	}
 }
 
 // AssetExists implements the AssetService interface for the host
 func (h *HostAssetService) AssetExists(mediaFileID uint32, assetType, category, subtype, hash string) (bool, uint32, string, error) {
-	h.logger.Debug("checking asset existence", "media_file_id", mediaFileID, "type", assetType, "category", category, "hash", hash)
+	h.logger.Debug("checking asset existence via plugin interface", "media_file_id", mediaFileID, "type", assetType, "category", category, "hash", hash)
 	
-	// Convert string types to typed constants
-	var assetTypeConst mediaassetmodule.AssetType
-	var categoryConst mediaassetmodule.AssetCategory
+	// TODO: This is a compatibility stub for the old plugin asset system
+	// Plugins will need to be updated to use the new entity-based asset system
+	// For now, we'll disable plugin asset functionality to avoid breaking the build
 	
-	// Map asset type
-	switch strings.ToLower(assetType) {
-	case "music":
-		assetTypeConst = mediaassetmodule.AssetTypeMusic
-	case "movie":
-		assetTypeConst = mediaassetmodule.AssetTypeMovie
-	case "tv":
-		assetTypeConst = mediaassetmodule.AssetTypeTV
-	case "people":
-		assetTypeConst = mediaassetmodule.AssetTypePeople
-	case "meta":
-		assetTypeConst = mediaassetmodule.AssetTypeMeta
-	default:
-		assetTypeConst = mediaassetmodule.AssetTypeMusic
-	}
-	
-	// Map category
-	switch strings.ToLower(category) {
-	case "album":
-		categoryConst = mediaassetmodule.CategoryAlbum
-	case "artist":
-		categoryConst = mediaassetmodule.CategoryArtist
-	case "track":
-		categoryConst = mediaassetmodule.CategoryTrack
-	default:
-		categoryConst = mediaassetmodule.CategoryAlbum
-	}
-	
-	// Check if asset exists
-	exists, asset, err := mediaassetmodule.ExistsMediaAsset(uint(mediaFileID), assetTypeConst, categoryConst)
-	if err != nil {
-		h.logger.Error("failed to check asset existence", "error", err)
-		return false, 0, "", fmt.Errorf("failed to check asset existence: %w", err)
-	}
-	
-	if exists && asset != nil {
-		h.logger.Debug("asset exists", "asset_id", asset.ID, "path", asset.RelativePath)
-		return true, uint32(asset.ID), asset.RelativePath, nil
-	}
-	
-	h.logger.Debug("asset does not exist", "media_file_id", mediaFileID)
-	return false, 0, "", nil
+	h.logger.Warn("plugin asset interface is deprecated - plugins need to be updated for new entity-based asset system")
+	return false, 0, "", fmt.Errorf("plugin asset interface is deprecated - please update plugin to use new entity-based asset system")
 }
 
 // RemoveAsset implements the AssetService interface for the host
 func (h *HostAssetService) RemoveAsset(assetID uint32) error {
-	h.logger.Debug("removing asset", "asset_id", assetID)
+	h.logger.Debug("removing asset via plugin interface", "asset_id", assetID)
 	
-	err := mediaassetmodule.RemoveMediaAsset(uint(assetID))
-	if err != nil {
-		h.logger.Error("failed to remove asset", "error", err, "asset_id", assetID)
-		return fmt.Errorf("failed to remove asset: %w", err)
-	}
+	// TODO: This is a compatibility stub for the old plugin asset system
+	// Plugins will need to be updated to use the new entity-based asset system
+	// For now, we'll disable plugin asset functionality to avoid breaking the build
 	
-	h.logger.Debug("asset removed successfully", "asset_id", assetID)
-	return nil
+	h.logger.Warn("plugin asset interface is deprecated - plugins need to be updated for new entity-based asset system")
+	return fmt.Errorf("plugin asset interface is deprecated - please update plugin to use new entity-based asset system")
 }
 
 // startHostServices starts the host-side gRPC server for plugin communication
@@ -981,4 +934,211 @@ func (m *manager) stopHostServices() {
 	
 	m.hostServiceAddr = ""
 	m.hostAssetService = nil
+}
+
+// ListCorePlugins returns information about all core plugins
+func (m *manager) ListCorePlugins() []PluginInfo {
+	if m.corePluginManager == nil {
+		return []PluginInfo{}
+	}
+	return m.corePluginManager.ListCorePluginInfo()
+}
+
+// EnableCorePlugin enables a core plugin
+func (m *manager) EnableCorePlugin(name string) error {
+	if m.corePluginManager == nil {
+		return fmt.Errorf("core plugin manager not initialized")
+	}
+	return m.corePluginManager.EnablePlugin(name)
+}
+
+// DisableCorePlugin disables a core plugin
+func (m *manager) DisableCorePlugin(name string) error {
+	if m.corePluginManager == nil {
+		return fmt.Errorf("core plugin manager not initialized")
+	}
+	return m.corePluginManager.DisablePlugin(name)
+}
+
+// GetEnabledFileHandlers returns all enabled core file handlers
+func (m *manager) GetEnabledFileHandlers() []FileHandlerPlugin {
+	if m.corePluginManager == nil {
+		return []FileHandlerPlugin{}
+	}
+	return m.corePluginManager.GetEnabledFileHandlers()
+}
+
+// RegisterCorePlugin allows external registration of core plugins
+func (m *manager) RegisterCorePlugin(plugin CorePlugin) error {
+	if m.corePluginManager == nil {
+		return fmt.Errorf("core plugin manager not initialized")
+	}
+	return m.corePluginManager.RegisterCorePlugin(plugin)
+}
+
+// ListExternalPlugins returns information about external (non-core) plugins only
+func (m *manager) ListExternalPlugins() []PluginInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	var infos []PluginInfo
+	for _, plugin := range m.plugins {
+		info := PluginInfo{
+			ID:          plugin.ID,
+			Name:        plugin.Name,
+			Type:        plugin.Type,
+			Version:     plugin.Version,
+			Description: plugin.Description,
+			Enabled:     plugin.Running,
+			IsCore:      false, // External plugins are never core
+			Category:    fmt.Sprintf("external_%s", plugin.Type),
+		}
+		infos = append(infos, info)
+	}
+	return infos
+}
+
+// InstallExternalPlugin installs an external plugin from a path
+func (m *manager) InstallExternalPlugin(path string) error {
+	// This would typically involve copying the plugin to the plugin directory
+	// and registering it. For now, we'll implement basic discovery from the path.
+	return fmt.Errorf("external plugin installation not yet implemented")
+}
+
+// UninstallExternalPlugin removes an external plugin
+func (m *manager) UninstallExternalPlugin(pluginID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	plugin, exists := m.plugins[pluginID]
+	if !exists {
+		return fmt.Errorf("plugin not found: %s", pluginID)
+	}
+	
+	// Stop the plugin if running
+	if plugin.Running {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := m.UnloadPlugin(ctx, pluginID); err != nil {
+			m.logger.Error("failed to unload plugin during uninstall", "plugin", pluginID, "error", err)
+		}
+	}
+	
+	// Remove from plugins map
+	delete(m.plugins, pluginID)
+	
+	// Remove from database
+	if m.db != nil {
+		if err := m.db.Where("plugin_id = ?", pluginID).Delete(&struct {
+			ID       uint   `gorm:"primaryKey"`
+			PluginID string `gorm:"uniqueIndex;not null"`
+		}{}).Error; err != nil {
+			m.logger.Error("failed to remove plugin from database", "plugin", pluginID, "error", err)
+		}
+	}
+	
+	m.logger.Info("external plugin uninstalled", "plugin", pluginID)
+	return nil
+}
+
+// GetRunningPlugins returns information about currently running plugins
+func (m *manager) GetRunningPlugins() []PluginInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	var infos []PluginInfo
+	for _, plugin := range m.plugins {
+		if plugin.Running {
+			info := PluginInfo{
+				Name:        plugin.Name,
+				Type:        plugin.Type,
+				Version:     plugin.Version,
+				Description: plugin.Description,
+				Enabled:     true,
+				IsCore:      false,
+			}
+			infos = append(infos, info)
+		}
+	}
+	return infos
+}
+
+// CallPlugin calls a method on a specific plugin
+func (m *manager) CallPlugin(ctx context.Context, pluginID string, method string, args interface{}) (interface{}, error) {
+	m.mu.RLock()
+	plugin, exists := m.plugins[pluginID]
+	m.mu.RUnlock()
+	
+	if !exists {
+		return nil, fmt.Errorf("plugin not found: %s", pluginID)
+	}
+	
+	if !plugin.Running {
+		return nil, fmt.Errorf("plugin not running: %s", pluginID)
+	}
+	
+	// This would implement gRPC calls to the plugin
+	return nil, fmt.Errorf("plugin method calls not yet implemented")
+}
+
+// ProcessMediaFile processes a media file using appropriate plugins
+func (m *manager) ProcessMediaFile(filePath string, mediaFile interface{}) error {
+	// Get all file handlers (both core and external)
+	handlers := m.GetFileHandlers()
+	
+	// Try each handler until one succeeds
+	for _, handler := range handlers {
+		// Check if this handler can process the file
+		fileInfo, err := os.Stat(filePath)
+		if err != nil {
+			continue
+		}
+		
+		if handler.Match(filePath, fileInfo) {
+			// This handler can process the file, but we need to convert the interface
+			// to the proper MetadataContext. This is a simplified version.
+			m.logger.Info("processing file with handler", "file", filePath, "handler", handler.GetName())
+			return fmt.Errorf("media file processing not fully implemented")
+		}
+	}
+	
+	return fmt.Errorf("no suitable handler found for file: %s", filePath)
+}
+
+// GetFileHandlers returns all available file handlers (core and external)
+func (m *manager) GetFileHandlers() []FileHandlerPlugin {
+	var handlers []FileHandlerPlugin
+	
+	// Add core plugin handlers
+	if m.corePluginManager != nil {
+		coreHandlers := m.corePluginManager.GetEnabledFileHandlers()
+		handlers = append(handlers, coreHandlers...)
+	}
+	
+	// Add external plugin handlers (would need to be implemented)
+	// This would iterate through running external plugins and extract their handlers
+	
+	return handlers
+}
+
+// RegisterHook registers a hook for a plugin
+func (m *manager) RegisterHook(pluginID string, hookName string, handler interface{}) error {
+	// Store hook registration in database or memory
+	m.logger.Info("hook registered", "plugin", pluginID, "hook", hookName)
+	return fmt.Errorf("hook registration not yet implemented")
+}
+
+// TriggerHook triggers all registered hooks for a specific event
+func (m *manager) TriggerHook(hookName string, data interface{}) error {
+	// Find all plugins with registered hooks for this event and trigger them
+	m.logger.Debug("triggering hook", "hook", hookName)
+	return fmt.Errorf("hook triggering not yet implemented")
+}
+
+// GetCorePlugin returns a specific core plugin by name
+func (m *manager) GetCorePlugin(name string) (CorePlugin, bool) {
+	if m.corePluginManager != nil {
+		return m.corePluginManager.GetCorePlugin(name)
+	}
+	return nil, false
 } 

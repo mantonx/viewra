@@ -18,6 +18,12 @@ const (
 	EventMediaFileDeleted      EventType = "media.file.deleted"
 	// EventMediaFileUploaded event type removed as app won't support uploads
 	
+	// Media Asset events
+	EventAssetCreated   EventType = "asset.created"
+	EventAssetUpdated   EventType = "asset.updated"
+	EventAssetRemoved   EventType = "asset.removed"
+	EventAssetPreferred EventType = "asset.preferred"
+	
 	// User events
 	EventUserCreated          EventType = "user.created"
 	EventUserLoggedIn         EventType = "user.logged_in"

@@ -35,10 +35,10 @@ make logs
 
 The database configuration is now centralized and consistent across the entire codebase:
 
-- **Database Location**: `viewra-data/database.db` (Docker volume mounted)
+- **Database Location**: `viewra-data/viewra.db` (Docker volume mounted)
 - **Environment Variables**:
   - `VIEWRA_DATA_DIR`: Data directory path (default: `/app/viewra-data`)
-  - `VIEWRA_DATABASE_PATH`: Database file path (default: `/app/viewra-data/database.db`)
+  - `VIEWRA_DATABASE_PATH`: Database file path (default: `/app/viewra-data/viewra.db`)
 
 All database paths are handled by `backend/internal/config/database.go` to ensure consistency.
 
@@ -269,19 +269,19 @@ viewra/
 │   └── scripts/
 │       └── build-plugin.sh         # Bulletproof build script
 ├── viewra-data/
-│   └── database.db                 # SQLite database
+│   └── viewra.db                 # SQLite database
 ├── Makefile                        # Development commands
 └── DEVELOPMENT.md                  # This comprehensive guide
 ```
 
 ## ⚙️ Environment Variables
 
-| Variable               | Default                        | Description         |
-| ---------------------- | ------------------------------ | ------------------- |
-| `VIEWRA_DATA_DIR`      | `/app/viewra-data`             | Data directory path |
-| `VIEWRA_DATABASE_PATH` | `/app/viewra-data/database.db` | Database file path  |
-| `DATABASE_TYPE`        | `sqlite`                       | Database type       |
-| `PLUGIN_DIR`           | `/app/data/plugins`            | Plugin directory    |
+| Variable               | Default                      | Description         |
+| ---------------------- | ---------------------------- | ------------------- |
+| `VIEWRA_DATA_DIR`      | `/app/viewra-data`           | Data directory path |
+| `VIEWRA_DATABASE_PATH` | `/app/viewra-data/viewra.db` | Database file path  |
+| `DATABASE_TYPE`        | `sqlite`                     | Database type       |
+| `PLUGIN_DIR`           | `/app/data/plugins`          | Plugin directory    |
 
 ## 🐛 Troubleshooting
 

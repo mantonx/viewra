@@ -15,18 +15,21 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
-	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/plugins/enrichment"
 	"github.com/mantonx/viewra/internal/server/handlers"
 
 	// Import all modules to trigger their registration
+	_ "github.com/mantonx/viewra/internal/modules/assetmodule"
 	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
-	_ "github.com/mantonx/viewra/internal/modules/mediaassetmodule"
+	_ "github.com/mantonx/viewra/internal/modules/eventsmodule"
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
+
+	// Import core plugins
+	"github.com/mantonx/viewra/internal/plugins/ffmpeg"
 )
 
 var pluginManager plugins.Manager
@@ -78,7 +81,7 @@ func SetupRouter() *gin.Engine {
 	apiroutes.Register("/swagger/index.html", "GET", "Serves API documentation (Swagger UI).")
 
 	// Setup routes with event handlers
-	setupRoutesWithEventHandlers(r)
+	setupRoutesWithEventHandlers(r, pluginManager)
 	
 	return r
 }
@@ -116,13 +119,6 @@ func initializeModules() error {
 	// Register all modules
 	registerAllModules()
 	
-	// Ensure mediaassetmodule is loaded by calling a function from it
-	// This forces the Go linker to include the package
-	assetManager := mediaassetmodule.GetAssetManager() // This will be nil before module loading, but forces inclusion
-	if assetManager != nil {
-		log.Println("INFO: mediaassetmodule already initialized with manager")
-	}
-	
 	// Load all modules
 	if err := modulemanager.LoadAll(db); err != nil {
 		return err
@@ -150,13 +146,9 @@ func connectPluginManagerToModules() error {
 	for _, module := range modules {
 		// Connect to media module
 		if module.ID() == "system.media" {
-			if mediaModule, ok := module.(*mediamodule.Module); ok {
-				metadataManager := mediaModule.GetMetadataManager()
-				if metadataManager != nil && pluginManager != nil {
-					metadataManager.SetPluginManager(pluginManager)
-					log.Printf("✅ Connected plugin manager to media module metadata manager")
-				}
-			}
+			// Plugin manager is already passed to metadata manager through constructor
+			// No additional setup needed here
+			log.Printf("✅ Media module already connected to plugin system")
 		}
 		
 		// Connect to scanner module
@@ -279,6 +271,11 @@ func initializePluginManager() error {
 		return err
 	}
 	
+	// Register core plugins
+	if err := registerCorePlugins(); err != nil {
+		log.Printf("WARNING: Failed to register core plugins: %v", err)
+	}
+	
 	// Register plugin manager with handlers
 	handlers.InitializePluginManager(pluginManager)
 	
@@ -303,6 +300,24 @@ func initializePluginManager() error {
 		}
 	}
 	
+	return nil
+}
+
+// registerCorePlugins registers core plugins
+func registerCorePlugins() error {
+	// Register FFmpeg core plugin (for video files)
+	ffmpegPlugin := ffmpeg.NewFFmpegCorePlugin()
+	if err := pluginManager.RegisterCorePlugin(ffmpegPlugin); err != nil {
+		return fmt.Errorf("failed to register FFmpeg core plugin: %w", err)
+	}
+	
+	// Register enrichment core plugin (for music metadata and artwork extraction)
+	enrichmentPlugin := enrichment.NewEnrichmentCorePlugin()
+	if err := pluginManager.RegisterCorePlugin(enrichmentPlugin); err != nil {
+		return fmt.Errorf("failed to register enrichment core plugin: %w", err)
+	}
+	
+	log.Printf("✅ Registered core plugins: FFmpeg, Enrichment")
 	return nil
 }
 

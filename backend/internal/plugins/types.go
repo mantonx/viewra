@@ -104,25 +104,49 @@ type PluginEntryPoints struct {
 
 // Manager manages the plugin lifecycle
 type Manager interface {
-	// Lifecycle
+	// Core system
 	Initialize(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 	
-	// Plugin management
+	// Plugin discovery and management
+	DiscoverPlugins() error
 	LoadPlugin(ctx context.Context, pluginID string) error
 	UnloadPlugin(ctx context.Context, pluginID string) error
 	RestartPlugin(ctx context.Context, pluginID string) error
 	
-	// Discovery and querying
-	DiscoverPlugins() error
-	ListPlugins() map[string]*Plugin
+	// Plugin querying
+	ListPlugins() []PluginInfo
 	GetPlugin(pluginID string) (*Plugin, bool)
+	GetRunningPlugins() []PluginInfo
 	
-	// Service accessors
+	// Core plugin management
+	RegisterCorePlugin(plugin CorePlugin) error
+	ListCorePlugins() []PluginInfo
+	EnableCorePlugin(name string) error
+	DisableCorePlugin(name string) error
+	GetCorePlugin(name string) (CorePlugin, bool)
+	
+	// External plugin management (for clarity)
+	ListExternalPlugins() []PluginInfo
+	InstallExternalPlugin(path string) error
+	UninstallExternalPlugin(pluginID string) error
+	
+	// Plugin communication
+	CallPlugin(ctx context.Context, pluginID string, method string, args interface{}) (interface{}, error)
+	
+	// File processing with plugins
+	ProcessMediaFile(filePath string, mediaFile interface{}) error
+	GetFileHandlers() []FileHandlerPlugin
+	
+	// Service access methods
 	GetMetadataScrapers() []proto.MetadataScraperServiceClient
 	GetScannerHooks() []proto.ScannerHookServiceClient
 	GetDatabases() []proto.DatabaseServiceClient
 	GetAdminPages() []proto.AdminPageServiceClient
+	
+	// Hooks and events
+	RegisterHook(pluginID string, hookName string, handler interface{}) error
+	TriggerHook(hookName string, data interface{}) error
 }
 
 // Implementation interfaces that plugins must implement
@@ -254,10 +278,12 @@ type CorePlugin interface {
 // PluginInfo contains metadata about a plugin
 type PluginInfo struct {
 	Name            string   `json:"name"`
+	ID              string   `json:"id,omitempty"`       // Only for external plugins
 	Type            string   `json:"type"`
 	Version         string   `json:"version"`
 	Description     string   `json:"description"`
 	SupportedExts   []string `json:"supported_extensions"`
 	Enabled         bool     `json:"enabled"`
 	IsCore          bool     `json:"is_core"`
+	Category        string   `json:"category,omitempty"` // core_metadata, core_scanner, external_enrichment, etc.
 } 

@@ -14,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
-	"github.com/mantonx/viewra/internal/metadata"
-	"github.com/mantonx/viewra/internal/modules/mediaassetmodule"
 	"github.com/mantonx/viewra/internal/utils"
 )
 
@@ -214,75 +212,14 @@ func StreamMedia(c *gin.Context) {
 	handler.StreamMedia(c)
 }
 
-// GetArtwork serves album artwork for a media file
+// GetArtwork serves album artwork for a media file - deprecated, use entity-based asset system instead
 func GetArtwork(c *gin.Context) {
-	mediaFileIDStr := c.Param("id")
-	mediaID, err := strconv.ParseUint(mediaFileIDStr, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid media file ID",
-		})
-		return
-	}
-
-	// Get artwork from the mediaassetmodule
-	assetManager := mediaassetmodule.GetAssetManager()
-	if assetManager == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Asset manager not available",
-		})
-		return
-	}
-
-	// Get artwork assets for this media file
-	assets, err := assetManager.GetAssetsByMediaFile(uint(mediaID), mediaassetmodule.AssetTypeMusic)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "No artwork found",
-		})
-		return
-	}
-
-	// Find artwork asset
-	var artworkAsset *mediaassetmodule.AssetResponse
-	for _, asset := range assets {
-		if asset.Category == mediaassetmodule.CategoryAlbum && asset.Subtype == mediaassetmodule.SubtypeArtwork {
-			artworkAsset = asset
-			break
-		}
-	}
-
-	if artworkAsset == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "No artwork found for this media file",
-		})
-		return
-	}
-
-	// Set appropriate headers for image serving
-	c.Header("Content-Type", artworkAsset.MimeType)
-	c.Header("Content-Length", strconv.FormatInt(artworkAsset.Size, 10))
-	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
-	c.Header("Accept-Ranges", "bytes")
-
-	// For HEAD requests, only return headers
-	if c.Request.Method == "HEAD" {
-		c.Status(http.StatusOK)
-		return
-	}
-
-	// Get the artwork data for GET requests
-	data, err := assetManager.GetAssetData(artworkAsset.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to retrieve artwork data",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	// Serve the image data
-	c.Data(http.StatusOK, artworkAsset.MimeType, data)
+	c.JSON(http.StatusGone, gin.H{
+		"error":       "This endpoint is deprecated",
+		"message":     "Artwork is now managed through the entity-based asset system",
+		"suggestion":  "Use /api/v1/assets/entity/{type}/{id}/preferred/cover for album artwork",
+		"documentation": "See /api/v1/assets/ endpoints for the new asset management system",
+	})
 }
 
 // Helper function to check if a file is a music file
@@ -299,37 +236,11 @@ func isMusicFile(extension string) bool {
 	return false
 }
 
-// Helper function to process music metadata
-func processMusicMetadata(filePath string, mediaFileID uint) (*database.MusicMetadata, error) {
-	// Get the media file for metadata extraction
-	db := database.GetDB()
-	var mediaFile database.MediaFile
-	if err := db.First(&mediaFile, mediaFileID).Error; err != nil {
-		return nil, fmt.Errorf("failed to find media file: %w", err)
-	}
-
-	// Extract metadata using the metadata package
-	md, err := metadata.ExtractMusicMetadata(filePath, &mediaFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create music metadata record
-	musicMetadata := database.MusicMetadata{
-		MediaFileID: mediaFileID,
-		Title:       md.Title,
-		Artist:      md.Artist,
-		Album:       md.Album,
-		Genre:       md.Genre,
-		Year:        md.Year,
-		Track:       md.Track,
-		Duration:    md.Duration,
-	}
-
-	// Save to database
-	if err := db.Create(&musicMetadata).Error; err != nil {
-		return nil, err
-	}
-
-	return &musicMetadata, nil
+// LoadTestMusicData loads test music data for development - deprecated
+func LoadTestMusicData(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": "Load test music data functionality is deprecated",
+		"message": "Test data loading is no longer supported",
+		"suggestion": "Use real media files and the scanner system instead",
+	})
 }
