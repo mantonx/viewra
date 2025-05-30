@@ -257,12 +257,12 @@ type PluginLoadedData struct {
 
 // ScanProgressData represents data for scan progress events
 type ScanProgressData struct {
-	ScanID         string `json:"scan_id"`
-	LibraryID      uint   `json:"library_id"`
-	Progress       int    `json:"progress"`
-	FilesFound     int    `json:"files_found"`
-	FilesProcessed int    `json:"files_processed"`
-	BytesProcessed int64  `json:"bytes_processed"`
-	ErrorCount     int    `json:"error_count,omitempty"`
-	CurrentFile    string `json:"current_file,omitempty"`
+	ScanID         string  `json:"scan_id"`
+	LibraryID      uint    `json:"library_id"`
+	Progress       float64 `json:"progress"`
+	FilesFound     int     `json:"files_found"`
+	FilesProcessed int     `json:"files_processed"`
+	BytesProcessed int64   `json:"bytes_processed"`
+	ErrorCount     int     `json:"error_count,omitempty"`
+	CurrentFile    string  `json:"current_file,omitempty"`
 }

@@ -672,7 +672,7 @@ const MediaLibraryManager = () => {
           const newProgress = {
             filesProcessed: result.processed_files || result.files_processed || 0,
             bytesProcessed: result.processed_bytes || result.bytes_processed || 0,
-            progress: result.progress ? result.progress * 100 : 0, // Convert to percentage
+            progress: result.progress || 0, // Backend already sends as percentage 0.0-100.0
             activeWorkers: result.active_workers || 0,
             maxWorkers: result.max_workers,
             minWorkers: result.min_workers,
@@ -942,7 +942,7 @@ const MediaLibraryManager = () => {
     let progressPercent = 0;
     if (scanJob?.progress !== undefined && scanJob.progress > 0) {
       progressPercent = Math.min(scanJob.progress, 100);
-    } else if (databaseFileCount > 0) {
+    } else if (databaseFileCount > 0 && !isActivelyScanning) {
       progressPercent = 100; // If we have files, consider it complete unless actively scanning
     }
 
@@ -1131,10 +1131,11 @@ const MediaLibraryManager = () => {
             const progressInfo = getProgressInfo(library, scanJob);
             const progressPercent = progressInfo.progressPercent;
 
-            const isScanning = scanJob?.status === 'running' && progressPercent < 100;
+            const isScanning = scanJob?.status === 'running';
             const isPaused = scanJob?.status === 'paused';
             const isFailed = scanJob?.status === 'failed';
-            const isCompleted = scanJob?.status === 'completed' || progressPercent >= 100;
+            const isCompleted =
+              scanJob?.status === 'completed' || (progressPercent >= 100 && !isScanning);
             const isNerdPanelExpanded = expandedNerdPanels.has(library.id);
             const progressData = scanJob ? scanProgress.get(Number(scanJob.id)) : null;
 

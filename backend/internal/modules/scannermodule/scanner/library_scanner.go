@@ -966,7 +966,7 @@ func (ps *LibraryScanner) updateProgress() {
 			if err := ps.db.Model(&database.ScanJob{}).Where("id = ?", ps.jobID).Updates(map[string]interface{}{
 				"files_processed": processed,
 				"bytes_processed": ps.bytesProcessed.Load(),
-				"progress":        int(progress),
+				"progress":        progress,
 				"updated_at":      time.Now(),
 			}).Error; err != nil {
 				logger.Error("Failed to update scan job progress", "error", err)

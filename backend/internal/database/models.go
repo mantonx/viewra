@@ -100,21 +100,22 @@ type MusicMetadata struct {
 
 // ScanJob represents a background scanning operation
 type ScanJob struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	LibraryID uint      `gorm:"not null" json:"library_id"`
-	Library   MediaLibrary `gorm:"foreignKey:LibraryID" json:"library,omitempty"`
-	Status    string    `gorm:"not null;default:'pending'" json:"status"` // pending, running, completed, failed, paused
-	Progress  int       `gorm:"default:0" json:"progress"` // 0-100
-	FilesFound int      `gorm:"default:0" json:"files_found"`
-	FilesProcessed int  `gorm:"default:0" json:"files_processed"`
-	BytesProcessed int64 `gorm:"default:0" json:"bytes_processed"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	StatusMessage string `json:"status_message,omitempty"` // For informational messages like recovery status
-	StartedAt *time.Time `json:"started_at,omitempty"`
-	ResumedAt *time.Time `json:"resumed_at,omitempty"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID             uint         `gorm:"primaryKey" json:"id"`
+	LibraryID      uint         `gorm:"not null;index:idx_scan_jobs_library_id" json:"library_id"`
+	Library        MediaLibrary `gorm:"foreignKey:LibraryID" json:"library,omitempty"`
+	Status         string       `gorm:"not null;default:'pending'" json:"status"` // pending, running, completed, failed, paused
+	Progress       float64      `gorm:"default:0" json:"progress"`                // 0.0-100.0 with decimal precision
+	FilesFound     int          `gorm:"default:0" json:"files_found"`
+	FilesProcessed int          `gorm:"default:0" json:"files_processed"`
+	FilesSkipped   int          `gorm:"default:0" json:"files_skipped"`
+	BytesProcessed int64        `gorm:"default:0" json:"bytes_processed"`
+	ErrorMessage   string       `json:"error_message,omitempty"`
+	StatusMessage  string       `json:"status_message,omitempty"` // For informational messages like recovery status
+	StartedAt      *time.Time   `json:"started_at,omitempty"`
+	ResumedAt      *time.Time   `json:"resumed_at,omitempty"`
+	CompletedAt    *time.Time   `json:"completed_at,omitempty"`
+	CreatedAt      time.Time    `json:"created_at"`
+	UpdatedAt      time.Time    `json:"updated_at"`
 }
 
 // =============================================================================

@@ -999,14 +999,66 @@ func DeleteScanJob(c *gin.Context) {
 		return
 	}
 	
-	// Stop the scan if it's currently running
-	if err := scannerManager.StopScan(uint(jobID)); err != nil {
-		// It's okay if stopping fails (job might not be running)
-		logger.Info("Could not stop scan job (might not be running)", "job_id", jobID, "error", err)
+	// Check if the scan job exists first
+	scanJob, err := scannerManager.GetScanStatus(uint(jobID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Scan job not found",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// If the scan is running, we need to stop it first and wait for it to actually stop
+	if scanJob.Status == "running" {
+		logger.Info("Stopping running scan before deletion", "job_id", jobID)
+		
+		if err := scannerManager.StopScan(uint(jobID)); err != nil {
+			logger.Error("Failed to stop scan job", "job_id", jobID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to stop running scan job",
+				"details": err.Error(),
+			})
+			return
+		}
+		
+		// Wait for the scan to actually stop (with timeout)
+		timeout := time.After(30 * time.Second)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-timeout:
+				logger.Error("Timeout waiting for scan to stop", "job_id", jobID)
+				c.JSON(http.StatusRequestTimeout, gin.H{
+					"error": "Timeout waiting for scan to stop",
+					"details": "The scan job did not stop within 30 seconds",
+				})
+				return
+			case <-ticker.C:
+				// Check if scan has stopped
+				currentJob, err := scannerManager.GetScanStatus(uint(jobID))
+				if err != nil {
+					// Job might have been cleaned up already
+					break
+				}
+				if currentJob.Status != "running" {
+					logger.Info("Scan successfully stopped", "job_id", jobID, "final_status", currentJob.Status)
+					goto scanStopped
+				}
+			}
+		}
+		
+		scanStopped:
+		// Give it a moment to fully clean up
+		time.Sleep(1 * time.Second)
 	}
 	
 	// Clean up the scan job and all its data
+	logger.Info("Starting cleanup for scan job", "job_id", jobID)
 	if err := scannerManager.CleanupScanJob(uint(jobID)); err != nil {
+		logger.Error("Failed to cleanup scan job", "job_id", jobID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to delete scan job",
 			"details": err.Error(),
@@ -1014,6 +1066,7 @@ func DeleteScanJob(c *gin.Context) {
 		return
 	}
 	
+	logger.Info("Scan job successfully deleted", "job_id", jobID)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Scan job and all its data removed successfully",
 		"job_id":  jobID,
