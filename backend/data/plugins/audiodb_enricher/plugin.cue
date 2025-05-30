@@ -65,10 +65,33 @@
 			enabled:        bool | *true
 			max_size:       int & >=250 & <=2000 | *1200
 			quality:        "front" | "back" | "all" | *"front"
-			download_album: bool | *true
-			download_artist: bool | *true
+			
+			// Album artwork settings
+			download_album_art:      bool | *true
+			download_album_thumb:    bool | *true
+			download_album_thumb_hq: bool | *true
+			download_album_back:     bool | *true
+			download_album_cdart:    bool | *true
+			
+			// Artist artwork settings
+			download_artist_images:  bool | *true
+			download_artist_thumb:   bool | *true
+			download_artist_logo:    bool | *true
+			download_artist_clearart: bool | *true
+			download_artist_fanart:  bool | *true
+			download_artist_fanart2: bool | *false
+			download_artist_fanart3: bool | *false
+			download_artist_banner:  bool | *true
+			
+			// Track artwork settings
+			download_track_thumb:    bool | *false
+			
 			prefer_hq:      bool | *true
 			max_file_size:  int & >=1048576 & <=52428800 | *10485760 // 1MB to 50MB
+			timeout_sec:    int & >=10 & <=120 | *30
+			skip_existing:  bool | *true
+			retry_failed:   bool | *true
+			max_retries:    int & >=1 & <=5 | *3
 		}
 
 		// Matching configuration

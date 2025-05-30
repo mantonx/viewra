@@ -28,6 +28,9 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		
 		// Real-time scan progress endpoint
 		api.GET("/progress/:id", m.getScanProgress)
+		
+		// File monitoring endpoints
+		api.GET("/monitoring", m.getMonitoringStatus)
 	}
 }
 
@@ -73,5 +76,22 @@ func (m *Module) cancelScan(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Scan cancelled successfully",
+	})
+}
+
+// getMonitoringStatus returns the file monitoring status for all libraries
+func (m *Module) getMonitoringStatus(c *gin.Context) {
+	if m.scannerManager == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner manager not initialized",
+		})
+		return
+	}
+	
+	monitoringStatus := m.scannerManager.GetMonitoringStatus()
+	
+	c.JSON(http.StatusOK, gin.H{
+		"monitoring_status": monitoringStatus,
+		"monitoring_count":  len(monitoringStatus),
 	})
 }

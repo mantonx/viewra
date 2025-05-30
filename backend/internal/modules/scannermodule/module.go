@@ -98,6 +98,34 @@ func (m *Module) Init() error {
 	return nil
 }
 
+// Start starts the scanner module services and performs recovery
+func (m *Module) Start() error {
+	logger.Info("Starting scanner module")
+	
+	if m.scannerManager == nil {
+		return fmt.Errorf("scanner manager not initialized - call Init() first")
+	}
+	
+	// Recover orphaned jobs from previous backend instances
+	logger.Info("Recovering orphaned scan jobs...")
+	if err := m.scannerManager.RecoverOrphanedJobs(); err != nil {
+		logger.Error("Failed to recover orphaned jobs: %v", err)
+		// Don't fail startup, just log the error
+	}
+	
+	// Start file monitoring service
+	logger.Info("Starting file monitoring service...")
+	if err := m.scannerManager.StartFileMonitoring(); err != nil {
+		logger.Error("Failed to start file monitoring: %v", err)
+		// Don't fail startup, just log the error
+	} else {
+		logger.Info("File monitoring service started successfully")
+	}
+	
+	logger.Info("Scanner module started successfully")
+	return nil
+}
+
 // GetScannerManager returns the underlying scanner manager
 func (m *Module) GetScannerManager() *scanner.Manager {
 	if m.scannerManager == nil {

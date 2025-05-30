@@ -24,11 +24,23 @@ type Manager struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
+	
+	// File monitoring
+	fileMonitor   *FileMonitor
 }
 
 // NewManager creates a new scanner manager
 func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
+	
+	// Create file monitor
+	fileMonitor, err := NewFileMonitor(db, eventBus, pluginManager)
+	if err != nil {
+		logger.Error("Failed to create file monitor", "error", err)
+		// Continue without file monitoring
+		fileMonitor = nil
+	}
+	
 	return &Manager{
 		db:            db,
 		eventBus:      eventBus,
@@ -37,6 +49,7 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Man
 		scannersMu:    sync.RWMutex{},
 		ctx:           ctx,
 		cancel:        cancel,
+		fileMonitor:   fileMonitor,
 	}
 }
 
@@ -221,6 +234,17 @@ func (m *Manager) runScanJob(scanner *LibraryScanner, jobID, libraryID uint, isR
 
 				completeEvent.Data = eventData
 				m.eventBus.PublishAsync(completeEvent)
+				
+				// Start file monitoring for completed scans
+				if m.fileMonitor != nil {
+					if err := m.fileMonitor.StartMonitoring(libraryID, jobID); err != nil {
+						logger.Error("Failed to start file monitoring for completed scan", 
+							"library_id", libraryID, "job_id", jobID, "error", err)
+					} else {
+						logger.Info("Started file monitoring for completed scan", 
+							"library_id", libraryID, "job_id", jobID)
+					}
+				}
 			}
 		}
 	}()
@@ -652,6 +676,13 @@ func (m *Manager) Shutdown() error {
 		return fmt.Errorf("error during shutdown: %w", err)
 	}
 
+	// Stop file monitor
+	if m.fileMonitor != nil {
+		if err := m.fileMonitor.Stop(); err != nil {
+			fmt.Printf("Error stopping file monitor: %v\n", err)
+		}
+	}
+
 	fmt.Printf("Scan manager shutdown complete. Paused %d active scans.\n", count)
 	return nil
 }
@@ -799,4 +830,20 @@ func (m *Manager) GetScannerManager() *Manager {
 // RecoverOrphanedJobs exposes the orphaned job recovery functionality for public use
 func (m *Manager) RecoverOrphanedJobs() error {
 	return m.recoverOrphanedJobs()
+}
+
+// StartFileMonitoring starts the file monitoring service
+func (m *Manager) StartFileMonitoring() error {
+	if m.fileMonitor == nil {
+		return fmt.Errorf("file monitor not available")
+	}
+	return m.fileMonitor.Start()
+}
+
+// GetMonitoringStatus returns the current monitoring status for libraries
+func (m *Manager) GetMonitoringStatus() map[uint]*MonitoredLibrary {
+	if m.fileMonitor == nil {
+		return make(map[uint]*MonitoredLibrary)
+	}
+	return m.fileMonitor.GetMonitoringStatus()
 }

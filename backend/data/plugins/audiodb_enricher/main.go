@@ -5,12 +5,14 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/pkg/plugins"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -18,12 +20,16 @@ import (
 
 // AudioDBEnricher implements the AudioDB enrichment plugin
 type AudioDBEnricher struct {
-	logger      plugins.Logger
+	logger      hclog.Logger
 	config      *Config
 	db          *gorm.DB
 	dbURL       string
 	basePath    string
 	lastAPICall *time.Time
+	
+	// Host service connection
+	assetService    plugins.AssetServiceClient
+	hostServiceAddr string
 }
 
 // Config holds the plugin configuration
@@ -34,8 +40,27 @@ type Config struct {
 	EnableArtwork        bool    `json:"enable_artwork" default:"true"`
 	ArtworkMaxSize       int     `json:"artwork_max_size" default:"1200"`
 	ArtworkQuality       string  `json:"artwork_quality" default:"front"`
+	
+	// Album artwork settings
 	DownloadAlbumArt     bool    `json:"download_album_art" default:"true"`
+	DownloadAlbumThumb   bool    `json:"download_album_thumb" default:"true"`
+	DownloadAlbumThumbHQ bool    `json:"download_album_thumb_hq" default:"true"`
+	DownloadAlbumBack    bool    `json:"download_album_back" default:"true"`
+	DownloadAlbumCDart   bool    `json:"download_album_cdart" default:"true"`
+	
+	// Artist artwork settings
 	DownloadArtistImages bool    `json:"download_artist_images" default:"true"`
+	DownloadArtistThumb  bool    `json:"download_artist_thumb" default:"true"`
+	DownloadArtistLogo   bool    `json:"download_artist_logo" default:"true"`
+	DownloadArtistClearart bool  `json:"download_artist_clearart" default:"true"`
+	DownloadArtistFanart bool    `json:"download_artist_fanart" default:"true"`
+	DownloadArtistFanart2 bool   `json:"download_artist_fanart2" default:"false"`
+	DownloadArtistFanart3 bool   `json:"download_artist_fanart3" default:"false"`
+	DownloadArtistBanner bool    `json:"download_artist_banner" default:"true"`
+	
+	// Track artwork settings
+	DownloadTrackThumb   bool    `json:"download_track_thumb" default:"false"`
+	
 	PreferHighQuality    bool    `json:"prefer_high_quality" default:"true"`
 	MaxAssetSize         int64   `json:"max_asset_size" default:"10485760"` // 10MB
 	AssetTimeout         int     `json:"asset_timeout_sec" default:"30"`
@@ -152,11 +177,117 @@ type AudioDBTrack struct {
 	StrMusicBrainzArtistID string `json:"strMusicBrainzArtistID"`
 }
 
+// AudioDB artwork downloading
+type AudioDBArtworkType struct {
+	Name     string
+	URL      func(*AudioDBTrack, *AudioDBAlbum, *AudioDBArtist) string
+	Category string
+	Subtype  string
+	Enabled  func(*Config) bool
+}
+
+var audiodbArtworkTypes = []AudioDBArtworkType{
+	// Track artwork
+	{
+		Name:     "track_thumb",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return track.StrTrackThumb },
+		Category: "track",
+		Subtype:  "track_thumb",
+		Enabled:  func(c *Config) bool { return c.DownloadTrackThumb },
+	},
+	
+	// Album artwork
+	{
+		Name:     "album_thumb",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumThumb },
+		Category: "album",
+		Subtype:  "album_thumb",
+		Enabled:  func(c *Config) bool { return c.DownloadAlbumThumb },
+	},
+	{
+		Name:     "album_thumb_hq",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumThumbHQ },
+		Category: "album",
+		Subtype:  "album_thumb_hq",
+		Enabled:  func(c *Config) bool { return c.DownloadAlbumThumbHQ },
+	},
+	{
+		Name:     "album_back",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumThumbBack },
+		Category: "album",
+		Subtype:  "album_thumb_back",
+		Enabled:  func(c *Config) bool { return c.DownloadAlbumBack },
+	},
+	{
+		Name:     "album_cdart",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumCDart },
+		Category: "album",
+		Subtype:  "album_cdart",
+		Enabled:  func(c *Config) bool { return c.DownloadAlbumCDart },
+	},
+	
+	// Artist artwork
+	{
+		Name:     "artist_thumb",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistThumb },
+		Category: "artist",
+		Subtype:  "artist_thumb",
+		Enabled:  func(c *Config) bool { return c.DownloadArtistThumb },
+	},
+	{
+		Name:     "artist_logo",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistLogo },
+		Category: "artist",
+		Subtype:  "artist_logo",
+		Enabled:  func(c *Config) bool { return c.DownloadArtistLogo },
+	},
+	{
+		Name:     "artist_clearart",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistClearart },
+		Category: "artist",
+		Subtype:  "artist_clearart",
+		Enabled:  func(c *Config) bool { return c.DownloadArtistClearart },
+	},
+	{
+		Name:     "artist_fanart",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistFanart },
+		Category: "artist",
+		Subtype:  "artist_fanart",
+		Enabled:  func(c *Config) bool { return c.DownloadArtistFanart },
+	},
+	{
+		Name:     "artist_fanart2",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistFanart2 },
+		Category: "artist",
+		Subtype:  "artist_fanart2",
+		Enabled:  func(c *Config) bool { return c.DownloadArtistFanart2 },
+	},
+	{
+		Name:     "artist_fanart3",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistFanart3 },
+		Category: "artist",
+		Subtype:  "artist_fanart3",
+		Enabled:  func(c *Config) bool { return c.DownloadArtistFanart3 },
+	},
+	{
+		Name:     "artist_banner",
+		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistBanner },
+		Category: "artist",
+		Subtype:  "artist_banner",
+		Enabled:  func(c *Config) bool { return c.DownloadArtistBanner },
+	},
+}
+
 // Plugin interface implementations
 func (a *AudioDBEnricher) Initialize(ctx *plugins.PluginContext) error {
-	a.logger = ctx.Logger
+	a.logger = hclog.New(&hclog.LoggerOptions{
+		Name:  "audiodb-enricher",
+		Level: hclog.LevelFromString(ctx.LogLevel),
+	})
+
 	a.basePath = ctx.BasePath
 	a.dbURL = ctx.DatabaseURL
+	a.hostServiceAddr = ctx.HostServiceAddr
 
 	// Set default configuration
 	a.config = &Config{
@@ -165,8 +296,27 @@ func (a *AudioDBEnricher) Initialize(ctx *plugins.PluginContext) error {
 		EnableArtwork:        true,
 		ArtworkMaxSize:       1200,
 		ArtworkQuality:       "front",
+		
+		// Album artwork settings
 		DownloadAlbumArt:     true,
+		DownloadAlbumThumb:   true,
+		DownloadAlbumThumbHQ: true,
+		DownloadAlbumBack:    true,
+		DownloadAlbumCDart:   true,
+		
+		// Artist artwork settings
 		DownloadArtistImages: true,
+		DownloadArtistThumb:  true,
+		DownloadArtistLogo:   true,
+		DownloadArtistClearart: true,
+		DownloadArtistFanart: true,
+		DownloadArtistFanart2: false,
+		DownloadArtistFanart3: false,
+		DownloadArtistBanner: true,
+		
+		// Track artwork settings
+		DownloadTrackThumb:   false,
+		
 		PreferHighQuality:    true,
 		MaxAssetSize:         10485760, // 10MB
 		AssetTimeout:         30,
@@ -180,7 +330,34 @@ func (a *AudioDBEnricher) Initialize(ctx *plugins.PluginContext) error {
 		RequestDelay:         100,
 	}
 
-	return a.initDatabase()
+	a.logger.Info("Initializing AudioDB enricher plugin", 
+		"base_path", a.basePath,
+		"database_url", a.dbURL,
+		"host_service_addr", a.hostServiceAddr,
+		"auto_enrich", a.config.AutoEnrich,
+		"enable_artwork", a.config.EnableArtwork)
+
+	// Initialize database connection
+	if err := a.initDatabase(); err != nil {
+		a.logger.Error("Failed to initialize database", "error", err)
+		return fmt.Errorf("database initialization failed: %w", err)
+	}
+
+	// Initialize host asset service connection if address provided
+	if a.hostServiceAddr != "" {
+		assetClient, err := plugins.NewAssetServiceClient(a.hostServiceAddr)
+		if err != nil {
+			a.logger.Error("Failed to connect to host asset service", "error", err, "addr", a.hostServiceAddr)
+			return fmt.Errorf("failed to connect to host asset service: %w", err)
+		}
+		a.assetService = assetClient
+		a.logger.Info("Connected to host asset service", "addr", a.hostServiceAddr)
+	} else {
+		a.logger.Warn("No host service address provided - asset saving will be disabled")
+	}
+
+	a.logger.Info("AudioDB enricher plugin initialized successfully")
+	return nil
 }
 
 func (a *AudioDBEnricher) Start() error {
@@ -190,6 +367,23 @@ func (a *AudioDBEnricher) Start() error {
 
 func (a *AudioDBEnricher) Stop() error {
 	a.logger.Info("AudioDB Enricher plugin stopped")
+	
+	// Close asset service connection
+	if a.assetService != nil {
+		if closer, ok := a.assetService.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				a.logger.Warn("Failed to close asset service connection", "error", err)
+			}
+		}
+	}
+	
+	// Close database connection
+	if a.db != nil {
+		if sqlDB, err := a.db.DB(); err == nil {
+			sqlDB.Close()
+		}
+	}
+	
 	return nil
 }
 
@@ -512,6 +706,16 @@ func (a *AudioDBEnricher) enrichTrack(mediaFileID uint, title, artist, album str
 		"artist", bestTrack.StrArtist,
 		"score", bestScore)
 
+	// Download artwork if enabled
+	if a.config.EnableArtwork {
+		if err := a.downloadAllArtwork(context.Background(), uint32(mediaFileID), bestTrack); err != nil {
+			a.logger.Warn("Failed to download artwork", "error", err, "mediaFileID", mediaFileID)
+			// Don't fail enrichment if artwork download fails
+		} else {
+			a.logger.Info("Successfully downloaded artwork", "mediaFileID", mediaFileID)
+		}
+	}
+
 	return nil
 }
 
@@ -736,6 +940,233 @@ func min(a, b, c int) int {
 		return b
 	}
 	return c
+}
+
+// downloadAllArtwork downloads all enabled artwork types for a track
+func (a *AudioDBEnricher) downloadAllArtwork(ctx context.Context, mediaFileID uint32, track *AudioDBTrack) error {
+	var album *AudioDBAlbum
+	var artist *AudioDBArtist
+
+	// Get album info if available
+	if track.IDAlbum != "" {
+		if albumResp, err := a.getAlbumInfo(track.IDAlbum); err == nil && len(albumResp.Album) > 0 {
+			album = &albumResp.Album[0]
+		}
+	}
+
+	// Get artist info if available
+	if track.IDArtist != "" {
+		if artistResp, err := a.getArtistInfo(track.IDArtist); err == nil && len(artistResp.Artists) > 0 {
+			artist = &artistResp.Artists[0]
+		}
+	}
+
+	var downloadErrors []string
+	successCount := 0
+
+	for _, artType := range audiodbArtworkTypes {
+		if !artType.Enabled(a.config) {
+			a.logger.Debug("Skipping artwork type (disabled)", "type", artType.Name)
+			continue
+		}
+
+		artworkURL := artType.URL(track, album, artist)
+		if artworkURL == "" {
+			a.logger.Debug("No URL available for artwork type", "type", artType.Name)
+			continue
+		}
+
+		if err := a.downloadArtworkFromURL(ctx, mediaFileID, artType, artworkURL); err != nil {
+			downloadErrors = append(downloadErrors, fmt.Sprintf("%s: %v", artType.Name, err))
+			a.logger.Debug("Failed to download artwork type", "type", artType.Name, "error", err)
+		} else {
+			successCount++
+			a.logger.Debug("Successfully downloaded artwork", "type", artType.Name, "media_file_id", mediaFileID)
+		}
+	}
+
+	a.logger.Info("AudioDB artwork download completed", 
+		"media_file_id", mediaFileID, 
+		"success_count", successCount, 
+		"error_count", len(downloadErrors))
+
+	// Return error only if all downloads failed
+	if len(downloadErrors) > 0 && successCount == 0 {
+		return fmt.Errorf("all artwork downloads failed: %s", strings.Join(downloadErrors, "; "))
+	}
+
+	return nil
+}
+
+// downloadArtworkFromURL downloads artwork from a specific URL
+func (a *AudioDBEnricher) downloadArtworkFromURL(ctx context.Context, mediaFileID uint32, artType AudioDBArtworkType, artworkURL string) error {
+	if artworkURL == "" {
+		return fmt.Errorf("no artwork URL available")
+	}
+
+	a.logger.Debug("Downloading AudioDB artwork", "type", artType.Name, "url", artworkURL)
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: time.Duration(a.config.AssetTimeout) * time.Second,
+	}
+
+	// Download with retry logic
+	var imageData []byte
+	var mimeType string
+	var downloadErr error
+
+	for attempt := 0; attempt <= a.config.MaxRetries; attempt++ {
+		if attempt > 0 {
+			a.logger.Debug("Retrying AudioDB artwork download", "type", artType.Name, "attempt", attempt)
+			time.Sleep(time.Duration(attempt) * time.Second) // Progressive backoff
+		}
+
+		req, err := http.NewRequest("GET", artworkURL, nil)
+		if err != nil {
+			downloadErr = err
+			continue
+		}
+		req.Header.Set("User-Agent", a.config.UserAgent)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			downloadErr = err
+			continue
+		}
+
+		if resp.StatusCode == 404 {
+			resp.Body.Close()
+			return fmt.Errorf("no artwork available")
+		}
+
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			downloadErr = fmt.Errorf("download failed with status %d", resp.StatusCode)
+			continue
+		}
+
+		// Check content length
+		if resp.ContentLength > a.config.MaxAssetSize {
+			resp.Body.Close()
+			return fmt.Errorf("artwork too large: %d bytes (max: %d)", resp.ContentLength, a.config.MaxAssetSize)
+		}
+
+		// Read the image data
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if err != nil {
+			downloadErr = err
+			continue
+		}
+
+		// Check actual size
+		if int64(len(data)) > a.config.MaxAssetSize {
+			return fmt.Errorf("artwork too large: %d bytes (max: %d)", len(data), a.config.MaxAssetSize)
+		}
+
+		// Get MIME type
+		mimeType = resp.Header.Get("Content-Type")
+		if mimeType == "" {
+			mimeType = "image/jpeg" // Default fallback
+		}
+
+		imageData = data
+		downloadErr = nil
+		break
+	}
+
+	if downloadErr != nil {
+		return fmt.Errorf("failed after %d attempts: %w", a.config.MaxRetries+1, downloadErr)
+	}
+
+	a.logger.Debug("Downloaded AudioDB artwork data", "type", artType.Name, "size", len(imageData), "mime_type", mimeType)
+
+	// Save the artwork using the host's AssetService
+	metadata := map[string]string{
+		"source":    "audiodb",
+		"art_type":  artType.Name,
+		"category":  artType.Category,
+	}
+
+	return a.saveArtworkAsset(ctx, mediaFileID, artType.Category, artType.Subtype, imageData, mimeType, artworkURL, metadata)
+}
+
+// getArtistInfo retrieves artist information from AudioDB
+func (a *AudioDBEnricher) getArtistInfo(artistID string) (*AudioDBArtistResponse, error) {
+	searchURL := fmt.Sprintf("https://www.theaudiodb.com/api/v1/json/1/artist.php?i=%s", artistID)
+
+	req, err := http.NewRequest("GET", searchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", a.config.UserAgent)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var artistResp AudioDBArtistResponse
+	if err := json.NewDecoder(resp.Body).Decode(&artistResp); err != nil {
+		return nil, err
+	}
+
+	return &artistResp, nil
+}
+
+// saveArtworkAsset saves artwork using the host's asset service
+func (a *AudioDBEnricher) saveArtworkAsset(ctx context.Context, mediaFileID uint32, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) error {
+	if a.assetService == nil {
+		a.logger.Warn("Asset service not available - cannot save artwork", "media_file_id", mediaFileID, "category", category, "subtype", subtype)
+		return fmt.Errorf("asset service not available")
+	}
+
+	a.logger.Debug("Saving AudioDB artwork asset via host service", 
+		"media_file_id", mediaFileID, 
+		"category", category,
+		"subtype", subtype, 
+		"size", len(data), 
+		"mime_type", mimeType,
+		"source_url", sourceURL)
+
+	// Create save asset request
+	request := &plugins.SaveAssetRequest{
+		MediaFileID: mediaFileID,
+		AssetType:   "music",
+		Category:    category,
+		Subtype:     subtype,
+		Data:        data,
+		MimeType:    mimeType,
+		SourceURL:   sourceURL,
+		Metadata:    metadata,
+	}
+
+	// Call host asset service
+	response, err := a.assetService.SaveAsset(ctx, request)
+	if err != nil {
+		a.logger.Error("Failed to save asset via host service", "error", err, "media_file_id", mediaFileID, "category", category, "subtype", subtype)
+		return fmt.Errorf("failed to save asset: %w", err)
+	}
+
+	if !response.Success {
+		a.logger.Error("Host service reported save failure", "error", response.Error, "media_file_id", mediaFileID, "category", category, "subtype", subtype)
+		return fmt.Errorf("asset save failed: %s", response.Error)
+	}
+
+	a.logger.Info("Successfully saved AudioDB artwork asset", 
+		"media_file_id", mediaFileID, 
+		"category", category,
+		"subtype", subtype, 
+		"asset_id", response.AssetID,
+		"hash", response.Hash,
+		"path", response.RelativePath,
+		"size", len(data))
+
+	return nil
 }
 
 func main() {

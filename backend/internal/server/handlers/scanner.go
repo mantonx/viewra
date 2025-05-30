@@ -899,14 +899,10 @@ func GetScanResults(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, gin.H{
-		"scanId":       jobID,
-		"status":       scanJob.Status,
-		"totalFiles":   scanJob.FilesFound,
-		"processedFiles": scanJob.FilesProcessed,
-		"mediaFiles":   mediaCount,
-		"percentage":   percentage,
-		"results":      mediaFiles,
 		"scan_job":     scanJob,
+		"media_files":  mediaFiles,
+		"media_count":  mediaCount,
+		"percentage":   percentage,
 	})
 }
 
@@ -933,5 +929,24 @@ func CleanupOrphanedJobs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "Orphaned scan jobs cleaned up successfully",
 		"jobs_deleted": jobsDeleted,
+	})
+}
+
+// GetMonitoringStatus returns the file monitoring status for all libraries
+func GetMonitoringStatus(c *gin.Context) {
+	scannerManager, err := getScannerManager()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Scanner module not available",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	monitoringStatus := scannerManager.GetMonitoringStatus()
+	
+	c.JSON(http.StatusOK, gin.H{
+		"monitoring_status": monitoringStatus,
+		"monitoring_count":  len(monitoringStatus),
 	})
 }

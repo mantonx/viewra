@@ -133,6 +133,11 @@ func initializeModules() error {
 		log.Printf("Warning: Failed to connect plugin manager to modules: %v", err)
 	}
 	
+	// Start modules that need post-initialization setup
+	if err := startModules(); err != nil {
+		log.Printf("Warning: Failed to start some modules: %v", err)
+	}
+	
 	moduleInitialized = true
 	logModuleStatus()
 	
@@ -161,6 +166,25 @@ func connectPluginManagerToModules() error {
 					scannerModule.SetPluginManager(pluginManager)
 					log.Printf("✅ Connected plugin manager to scanner module")
 				}
+			}
+		}
+	}
+	return nil
+}
+
+// startModules performs post-initialization startup for modules that need it
+func startModules() error {
+	modules := modulemanager.ListModules()
+	for _, module := range modules {
+		// Start scanner module and perform orphaned job recovery
+		if module.ID() == "system.scanner" {
+			if scannerModule, ok := module.(*scannermodule.Module); ok {
+				log.Printf("🔄 Starting scanner module and performing orphaned job recovery...")
+				if err := scannerModule.Start(); err != nil {
+					log.Printf("❌ Failed to start scanner module: %v", err)
+					return err
+				}
+				log.Printf("✅ Scanner module started successfully")
 			}
 		}
 	}

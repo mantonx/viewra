@@ -762,6 +762,7 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 	
 	// Map subtype
 	switch strings.ToLower(subtype) {
+	// Legacy/General subtypes
 	case "artwork":
 		subtypeConst = mediaassetmodule.SubtypeArtwork
 	case "poster":
@@ -774,6 +775,58 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		subtypeConst = mediaassetmodule.SubtypeSubtitle
 	case "lyrics":
 		subtypeConst = mediaassetmodule.SubtypeLyrics
+	
+	// Music Album Artwork (MusicBrainz Cover Art Archive types)
+	case "album_front":
+		subtypeConst = mediaassetmodule.SubtypeAlbumFront
+	case "album_back":
+		subtypeConst = mediaassetmodule.SubtypeAlbumBack
+	case "album_booklet":
+		subtypeConst = mediaassetmodule.SubtypeAlbumBooklet
+	case "album_medium":
+		subtypeConst = mediaassetmodule.SubtypeAlbumMedium
+	case "album_tray":
+		subtypeConst = mediaassetmodule.SubtypeAlbumTray
+	case "album_obi":
+		subtypeConst = mediaassetmodule.SubtypeAlbumObi
+	case "album_spine":
+		subtypeConst = mediaassetmodule.SubtypeAlbumSpine
+	case "album_liner":
+		subtypeConst = mediaassetmodule.SubtypeAlbumLiner
+	case "album_sticker":
+		subtypeConst = mediaassetmodule.SubtypeAlbumSticker
+	case "album_poster":
+		subtypeConst = mediaassetmodule.SubtypeAlbumPoster
+	
+	// Music Artist Artwork (AudioDB types)
+	case "artist_thumb":
+		subtypeConst = mediaassetmodule.SubtypeArtistThumb
+	case "artist_logo":
+		subtypeConst = mediaassetmodule.SubtypeArtistLogo
+	case "artist_clearart":
+		subtypeConst = mediaassetmodule.SubtypeArtistClearart
+	case "artist_fanart":
+		subtypeConst = mediaassetmodule.SubtypeArtistFanart
+	case "artist_fanart2":
+		subtypeConst = mediaassetmodule.SubtypeArtistFanart2
+	case "artist_fanart3":
+		subtypeConst = mediaassetmodule.SubtypeArtistFanart3
+	case "artist_banner":
+		subtypeConst = mediaassetmodule.SubtypeArtistBanner
+	
+	// Music Track Artwork
+	case "track_thumb":
+		subtypeConst = mediaassetmodule.SubtypeTrackThumb
+	
+	// AudioDB Album Artwork (additional types)
+	case "album_thumb":
+		subtypeConst = mediaassetmodule.SubtypeAlbumThumb
+	case "album_thumb_hq":
+		subtypeConst = mediaassetmodule.SubtypeAlbumThumbHQ
+	case "album_thumb_back":
+		subtypeConst = mediaassetmodule.SubtypeAlbumThumbBack
+	case "album_cdart":
+		subtypeConst = mediaassetmodule.SubtypeAlbumCDart
 	default:
 		subtypeConst = mediaassetmodule.SubtypeArtwork // Default to artwork
 	}

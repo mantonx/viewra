@@ -165,7 +165,7 @@ func ExtractMusicMetadata(filePath string, mediaFile *database.MediaFile) (*data
 	return musicMeta, nil
 }
 
-// SaveArtworkForMediaFile saves artwork for a media file using the new asset system
+// SaveArtworkForMediaFile saves artwork for a media file using the new asset system with enhanced subtype detection
 func SaveArtworkForMediaFile(mediaFileID uint, data []byte, mimeType string) error {
 	if len(data) == 0 {
 		return fmt.Errorf("artwork data cannot be empty")
@@ -175,12 +175,15 @@ func SaveArtworkForMediaFile(mediaFileID uint, data []byte, mimeType string) err
 		mimeType = "image/jpeg" // Default MIME type
 	}
 	
-	// Create asset request
+	// Determine more specific subtype based on artwork characteristics
+	subtype := determineArtworkSubtype(data, mimeType)
+	
+	// Create asset request with enhanced subtype
 	request := &mediaassetmodule.AssetRequest{
 		MediaFileID: mediaFileID,
 		Type:        mediaassetmodule.AssetTypeMusic,
 		Category:    mediaassetmodule.CategoryAlbum,
-		Subtype:     mediaassetmodule.SubtypeArtwork,
+		Subtype:     subtype,
 		Data:        data,
 		MimeType:    mimeType,
 	}
@@ -191,6 +194,30 @@ func SaveArtworkForMediaFile(mediaFileID uint, data []byte, mimeType string) err
 		return fmt.Errorf("failed to save artwork with new asset system: %w", err)
 	}
 
-	fmt.Printf("INFO: Successfully saved artwork for media file ID %d\n", mediaFileID)
+	fmt.Printf("INFO: Successfully saved artwork for media file ID %d with subtype %s\n", mediaFileID, subtype)
 	return nil
+}
+
+// determineArtworkSubtype analyzes artwork to determine the most appropriate subtype
+func determineArtworkSubtype(data []byte, mimeType string) mediaassetmodule.AssetSubtype {
+	// For now, use album_front as the primary subtype for embedded artwork
+	// This is more specific than the generic "artwork" and represents the most common case
+	// In the future, this could be enhanced with image analysis to detect:
+	// - Image dimensions (square = likely front cover, rectangular = might be booklet)
+	// - Image content analysis (text detection, layout analysis)
+	// - File size (larger images might be higher quality front covers)
+	
+	// Basic size-based heuristics
+	dataSize := len(data)
+	
+	if dataSize > 500000 { // > 500KB - likely high quality front cover
+		return mediaassetmodule.SubtypeAlbumFront
+	} else if dataSize > 100000 { // > 100KB - likely standard front cover
+		return mediaassetmodule.SubtypeAlbumFront
+	} else if dataSize > 50000 { // > 50KB - could be thumbnail or medium quality
+		return mediaassetmodule.SubtypeAlbumThumb
+	} else {
+		// Small images - likely thumbnails
+		return mediaassetmodule.SubtypeAlbumThumb
+	}
 }

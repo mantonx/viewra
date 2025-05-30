@@ -24,6 +24,21 @@ interface ScanEvent {
   timestamp: string;
 }
 
+// Add interface for monitoring status
+interface MonitoredLibrary {
+  id: number;
+  path: string;
+  type: string;
+  last_scan_job_id: number;
+  start_time: string;
+  files_processed: number;
+  status: string; // "monitoring", "processing", "error"
+}
+
+interface MonitoringStatus {
+  [libraryId: number]: MonitoredLibrary;
+}
+
 const MediaLibraryManager = () => {
   const [libraries, setLibraries] = useState<MediaLibrary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,6 +57,9 @@ const MediaLibraryManager = () => {
 
   // Nerd panel state
   const [expandedNerdPanels, setExpandedNerdPanels] = useState<Set<number>>(new Set());
+
+  // File monitoring state
+  const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>({});
 
   // Real-time scan progress tracking - enhanced with detailed stats
   const [scanProgress, setScanProgress] = useState<
@@ -72,6 +90,7 @@ const MediaLibraryManager = () => {
     loadScanStats();
     loadCurrentJobs();
     loadLibraryStats();
+    loadMonitoringStatus();
   }, []);
 
   // Periodic polling for detailed progress data
@@ -81,6 +100,9 @@ const MediaLibraryManager = () => {
       scanProgress.forEach((_, jobId) => {
         loadDetailedProgress(jobId);
       });
+
+      // Also refresh monitoring status periodically
+      loadMonitoringStatus();
     }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(intervalId);
@@ -668,9 +690,26 @@ const MediaLibraryManager = () => {
           newMap.set(jobId, newProgress);
           return newMap;
         });
+
+        // Load file monitoring status
+        loadMonitoringStatus();
       }
     } catch (error) {
       console.error(`Failed to load detailed progress for job ${jobId}:`, error);
+    }
+  };
+
+  // Load file monitoring status
+  const loadMonitoringStatus = async () => {
+    try {
+      const res = await fetch('/api/scanner/monitoring');
+      const result = await res.json();
+
+      if (res.ok && result.monitoring_status) {
+        setMonitoringStatus(result.monitoring_status);
+      }
+    } catch (error) {
+      console.error('Failed to load monitoring status:', error);
     }
   };
 
@@ -1120,11 +1159,6 @@ const MediaLibraryManager = () => {
                       >
                         {library.type.toUpperCase()}
                       </span>
-                      {isScanning && (
-                        <span className="scanning-badge px-2 py-1 bg-yellow-600 text-yellow-100 rounded text-xs font-medium animate-pulse">
-                          SCANNING
-                        </span>
-                      )}
                       {isPaused && (
                         <span className="px-2 py-1 bg-amber-600 text-amber-100 rounded text-xs font-medium">
                           PAUSED
@@ -1138,6 +1172,11 @@ const MediaLibraryManager = () => {
                       {isCompleted && (
                         <span className="px-2 py-1 bg-green-600 text-green-100 rounded text-xs font-medium">
                           COMPLETED
+                        </span>
+                      )}
+                      {monitoringStatus[library.id] && (
+                        <span className="px-2 py-1 bg-blue-600 text-blue-100 rounded text-xs font-medium">
+                          MONITORING
                         </span>
                       )}
                     </div>
@@ -1213,13 +1252,6 @@ const MediaLibraryManager = () => {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        {/* ETA display for active scans */}
-                        {progressInfo.isActivelyScanning && progressData?.estimatedTimeLeft && (
-                          <span className="text-xs text-blue-400 font-medium">
-                            {formatHumanReadableETA(progressData.estimatedTimeLeft)} remaining
-                          </span>
-                        )}
-
                         {/* Nerd Panel Toggle */}
                         <button
                           onClick={() => toggleNerdPanel(library.id)}
@@ -1246,12 +1278,10 @@ const MediaLibraryManager = () => {
                       </div>
                     </div>
 
-                    {/* Clean Modern Progress Bar with subtle track */}
+                    {/* Clean Modern Progress Bar with visible track */}
                     <div className="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden relative">
-                      {/* Subtle background track */}
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-500/30 to-transparent"></div>
-                      </div>
+                      {/* Full-height background track */}
+                      <div className="absolute inset-0 bg-slate-600/40 rounded-full"></div>
 
                       <div
                         className={`h-2 rounded-full transition-all duration-700 ease-out relative z-10 ${
@@ -1278,7 +1308,6 @@ const MediaLibraryManager = () => {
                     <div className="flex justify-between items-center mt-2 text-xs">
                       <span className="text-slate-300">
                         {progressPercent > 0 ? `${progressPercent.toFixed(1)}%` : '0%'}
-                        {isScanning && ' • Processing...'}
                       </span>
                       {progressInfo.isActivelyScanning && progressData?.estimatedTimeLeft && (
                         <span className="text-blue-400">

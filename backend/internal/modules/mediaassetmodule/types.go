@@ -51,16 +51,47 @@ const (
 	CategoryRating  AssetCategory = "rating"
 )
 
-// AssetSubtype represents different variations of assets (deprecated - kept for compatibility)
+// AssetSubtype represents different variations of assets
 type AssetSubtype string
 
 const (
+	// Legacy/General subtypes (kept for compatibility)
 	SubtypeArtwork    AssetSubtype = "artwork"
 	SubtypePoster     AssetSubtype = "poster"
 	SubtypeBackdrop   AssetSubtype = "backdrop"
 	SubtypeThumbnail  AssetSubtype = "thumbnail"
 	SubtypeSubtitle   AssetSubtype = "subtitle"
 	SubtypeLyrics     AssetSubtype = "lyrics"
+	
+	// Music Album Artwork (MusicBrainz Cover Art Archive types)
+	SubtypeAlbumFront     AssetSubtype = "album_front"     // Front cover
+	SubtypeAlbumBack      AssetSubtype = "album_back"      // Back cover
+	SubtypeAlbumBooklet   AssetSubtype = "album_booklet"   // Booklet pages
+	SubtypeAlbumMedium    AssetSubtype = "album_medium"    // CD/vinyl disc art
+	SubtypeAlbumTray      AssetSubtype = "album_tray"      // CD tray artwork
+	SubtypeAlbumObi       AssetSubtype = "album_obi"       // Japanese obi strip
+	SubtypeAlbumSpine     AssetSubtype = "album_spine"     // Spine artwork
+	SubtypeAlbumLiner     AssetSubtype = "album_liner"     // Liner notes
+	SubtypeAlbumSticker   AssetSubtype = "album_sticker"   // Promotional stickers
+	SubtypeAlbumPoster    AssetSubtype = "album_poster"    // Promotional posters
+	
+	// Music Artist Artwork (AudioDB types)
+	SubtypeArtistThumb    AssetSubtype = "artist_thumb"    // Artist thumbnail/portrait
+	SubtypeArtistLogo     AssetSubtype = "artist_logo"     // Artist logo (transparent)
+	SubtypeArtistClearart AssetSubtype = "artist_clearart" // Artist clearart/logo
+	SubtypeArtistFanart   AssetSubtype = "artist_fanart"   // Artist fanart/background
+	SubtypeArtistFanart2  AssetSubtype = "artist_fanart2"  // Secondary fanart
+	SubtypeArtistFanart3  AssetSubtype = "artist_fanart3"  // Tertiary fanart
+	SubtypeArtistBanner   AssetSubtype = "artist_banner"   // Artist banner
+	
+	// Music Track Artwork
+	SubtypeTrackThumb     AssetSubtype = "track_thumb"     // Track-specific artwork
+	
+	// AudioDB Album Artwork (additional types)
+	SubtypeAlbumThumb     AssetSubtype = "album_thumb"     // Standard quality album cover
+	SubtypeAlbumThumbHQ   AssetSubtype = "album_thumb_hq"  // High quality album cover
+	SubtypeAlbumThumbBack AssetSubtype = "album_thumb_back" // Album back cover (AudioDB)
+	SubtypeAlbumCDart     AssetSubtype = "album_cdart"     // CD disc artwork (AudioDB)
 )
 
 // MediaAsset represents a media asset (artwork, poster, etc.) stored in the filesystem
