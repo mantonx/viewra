@@ -1208,12 +1208,18 @@ const MediaLibraryManager = () => {
                     <div className="flex justify-between items-center mb-3">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-white">
-                          {progressInfo.fileCount.toLocaleString()} files
+                          {progressInfo.statusText}
                         </span>
-                        <span className="text-xs text-slate-300">({progressInfo.statusText})</span>
                       </div>
 
                       <div className="flex items-center gap-3">
+                        {/* ETA display for active scans */}
+                        {progressInfo.isActivelyScanning && progressData?.estimatedTimeLeft && (
+                          <span className="text-xs text-blue-400 font-medium">
+                            {formatHumanReadableETA(progressData.estimatedTimeLeft)} remaining
+                          </span>
+                        )}
+
                         {/* Nerd Panel Toggle */}
                         <button
                           onClick={() => toggleNerdPanel(library.id)}
@@ -1240,34 +1246,49 @@ const MediaLibraryManager = () => {
                       </div>
                     </div>
 
-                    {/* Animated Progress Bar */}
-                    <div className="w-full bg-slate-600 rounded-full h-3 overflow-hidden shadow-inner">
+                    {/* Modern Progress Bar with Percentage */}
+                    <div className="w-full bg-slate-600 rounded-full h-6 overflow-hidden shadow-inner relative">
                       <div
-                        className={`h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden ${
+                        className={`h-6 rounded-full transition-all duration-500 ease-out relative overflow-hidden flex items-center justify-center ${
                           isFailed
-                            ? 'bg-red-500 shadow-red-500/20'
+                            ? 'bg-red-500'
                             : isPaused
-                              ? 'bg-amber-500 shadow-amber-500/20'
+                              ? 'bg-amber-500'
                               : isCompleted
-                                ? 'bg-green-500 shadow-green-500/20'
-                                : 'bg-gradient-to-r from-blue-500 to-blue-400'
-                        } ${isScanning ? 'shadow-lg shadow-blue-500/30' : 'shadow-md'}`}
+                                ? 'bg-green-500'
+                                : 'bg-gradient-to-r from-blue-500 via-blue-400 to-blue-600'
+                        }`}
                         style={{
                           width: `${progressPercent}%`,
-                          animation: isScanning ? 'progress-glow 3s ease-in-out infinite' : 'none',
+                          animation: isScanning
+                            ? 'modern-progress 2s ease-in-out infinite'
+                            : 'none',
                         }}
                       >
-                        {/* Subtle shimmer effect for active scans */}
+                        {/* Percentage text on the progress bar */}
+                        {progressPercent > 0 && (
+                          <span className="text-white text-xs font-medium px-2 text-shadow relative z-10">
+                            {progressPercent.toFixed(1)}%
+                          </span>
+                        )}
+
+                        {/* Modern wave effect for active scans */}
                         {isScanning && (
                           <div
-                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-transparent via-blue-200 to-transparent opacity-20"
+                            className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-10"
                             style={{
-                              width: '60px',
-                              animation: 'shimmer-slide 3s ease-in-out infinite',
+                              animation: 'modern-wave 3s ease-in-out infinite',
                             }}
                           ></div>
                         )}
                       </div>
+
+                      {/* Background text for empty progress */}
+                      {progressPercent === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-slate-400 text-xs font-medium">Not started</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Status/Error Messages */}
@@ -1526,32 +1547,35 @@ const MediaLibraryManager = () => {
       <Tooltip id="add-library-form-tooltip" place="top" />
       <Tooltip id="cancel-form-tooltip" place="top" />
 
-      {/* Add custom CSS for smooth shimmer animation */}
+      {/* Add custom CSS for modern progress animations */}
       <style>{`
-        @keyframes shimmer-slide {
+        @keyframes modern-progress {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.9;
+            transform: scale(1.001);
+          }
+        }
+        
+        @keyframes modern-wave {
           0% {
-            transform: translateX(-60px);
+            transform: translateX(-100%) skewX(-15deg);
             opacity: 0;
           }
-          30% {
-            opacity: 0.5;
-          }
-          70% {
-            opacity: 0.5;
+          50% {
+            opacity: 0.4;
           }
           100% {
-            transform: translateX(calc(100% + 60px));
+            transform: translateX(200%) skewX(-15deg);
             opacity: 0;
           }
         }
         
-        @keyframes progress-glow {
-          0%, 100% {
-            box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
-          }
-          50% {
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
-          }
+        .text-shadow {
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
         }
       `}</style>
     </div>
