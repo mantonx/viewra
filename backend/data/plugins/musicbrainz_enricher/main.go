@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/pkg/plugins"
+	"google.golang.org/grpc"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -29,6 +30,11 @@ type MusicBrainzEnricher struct {
 	dbURL       string
 	basePath    string
 	lastAPICall *time.Time
+	
+	// Host service connection
+	hostConn        *grpc.ClientConn
+	assetService    plugins.AssetServiceClient
+	hostServiceAddr string
 }
 
 // Config represents the plugin configuration
@@ -39,6 +45,25 @@ type Config struct {
 	EnableArtwork       bool    `json:"enable_artwork" default:"true"`
 	ArtworkMaxSize      int     `json:"artwork_max_size" default:"1200"`
 	ArtworkQuality      string  `json:"artwork_quality" default:"front"`
+	
+	// Cover Art Archive settings
+	DownloadFrontCover  bool    `json:"download_front_cover" default:"true"`
+	DownloadBackCover   bool    `json:"download_back_cover" default:"true"`
+	DownloadBooklet     bool    `json:"download_booklet" default:"true"`
+	DownloadMedium      bool    `json:"download_medium" default:"true"`
+	DownloadTray        bool    `json:"download_tray" default:"true"`
+	DownloadObi         bool    `json:"download_obi" default:"false"`
+	DownloadSpine       bool    `json:"download_spine" default:"true"`
+	DownloadLiner       bool    `json:"download_liner" default:"true"`
+	DownloadSticker     bool    `json:"download_sticker" default:"false"`
+	DownloadPoster      bool    `json:"download_poster" default:"false"`
+	
+	MaxAssetSize        int64   `json:"max_asset_size" default:"10485760"` // 10MB
+	AssetTimeout        int     `json:"asset_timeout_sec" default:"30"`
+	SkipExistingAssets  bool    `json:"skip_existing_assets" default:"true"`
+	RetryFailedDownloads bool   `json:"retry_failed_downloads" default:"true"`
+	MaxRetries          int     `json:"max_retries" default:"3"`
+	
 	MatchThreshold      float64 `json:"match_threshold" default:"0.85"`
 	AutoEnrich          bool    `json:"auto_enrich" default:"true"`
 	OverwriteExisting   bool    `json:"overwrite_existing" default:"false"`
@@ -132,6 +157,26 @@ type MusicBrainzGenre struct {
 	Count int    `json:"count"`
 }
 
+// Cover Art Archive artwork downloading
+type CoverArtType struct {
+	Name    string
+	Subtype string
+	Enabled func(*Config) bool
+}
+
+var coverArtTypes = []CoverArtType{
+	{"front", "album_front", func(c *Config) bool { return c.DownloadFrontCover }},
+	{"back", "album_back", func(c *Config) bool { return c.DownloadBackCover }},
+	{"booklet", "album_booklet", func(c *Config) bool { return c.DownloadBooklet }},
+	{"medium", "album_medium", func(c *Config) bool { return c.DownloadMedium }},
+	{"tray", "album_tray", func(c *Config) bool { return c.DownloadTray }},
+	{"obi", "album_obi", func(c *Config) bool { return c.DownloadObi }},
+	{"spine", "album_spine", func(c *Config) bool { return c.DownloadSpine }},
+	{"liner", "album_liner", func(c *Config) bool { return c.DownloadLiner }},
+	{"sticker", "album_sticker", func(c *Config) bool { return c.DownloadSticker }},
+	{"poster", "album_poster", func(c *Config) bool { return c.DownloadPoster }},
+}
+
 // Core plugin interface implementation
 func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 	m.logger = hclog.New(&hclog.LoggerOptions{
@@ -141,6 +186,7 @@ func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 
 	m.basePath = ctx.BasePath
 	m.dbURL = ctx.DatabaseURL
+	m.hostServiceAddr = ctx.HostServiceAddr
 
 	// Initialize configuration with defaults
 	m.config = &Config{
@@ -150,6 +196,25 @@ func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 		EnableArtwork:       true,
 		ArtworkMaxSize:      1200,
 		ArtworkQuality:      "front",
+		
+		// Cover Art Archive settings
+		DownloadFrontCover:  true,
+		DownloadBackCover:   true,
+		DownloadBooklet:     true,
+		DownloadMedium:      true,
+		DownloadTray:        true,
+		DownloadObi:         false,
+		DownloadSpine:       true,
+		DownloadLiner:       true,
+		DownloadSticker:     false,
+		DownloadPoster:      false,
+		
+		MaxAssetSize:        10485760, // 10MB
+		AssetTimeout:        30,
+		SkipExistingAssets:  true,
+		RetryFailedDownloads: true,
+		MaxRetries:          3,
+		
 		MatchThreshold:      0.85,
 		AutoEnrich:          true,
 		OverwriteExisting:   false,
@@ -159,6 +224,7 @@ func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 	m.logger.Info("Initializing MusicBrainz enricher plugin", 
 		"base_path", m.basePath,
 		"database_url", m.dbURL,
+		"host_service_addr", m.hostServiceAddr,
 		"api_rate_limit", m.config.APIRateLimit,
 		"match_threshold", m.config.MatchThreshold)
 
@@ -166,6 +232,19 @@ func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 	if err := m.initDatabase(); err != nil {
 		m.logger.Error("Failed to initialize database", "error", err)
 		return fmt.Errorf("database initialization failed: %w", err)
+	}
+
+	// Initialize host asset service connection if address provided
+	if m.hostServiceAddr != "" {
+		assetClient, err := plugins.NewAssetServiceClient(m.hostServiceAddr)
+		if err != nil {
+			m.logger.Error("Failed to connect to host asset service", "error", err, "addr", m.hostServiceAddr)
+			return fmt.Errorf("failed to connect to host asset service: %w", err)
+		}
+		m.assetService = assetClient
+		m.logger.Info("Connected to host asset service", "addr", m.hostServiceAddr)
+	} else {
+		m.logger.Warn("No host service address provided - asset saving will be disabled")
 	}
 
 	m.logger.Info("MusicBrainz enricher plugin initialized successfully")
@@ -179,6 +258,17 @@ func (m *MusicBrainzEnricher) Start() error {
 
 func (m *MusicBrainzEnricher) Stop() error {
 	m.logger.Info("MusicBrainz enricher stopped")
+	
+	// Close asset service connection
+	if m.assetService != nil {
+		if closer, ok := m.assetService.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				m.logger.Warn("Failed to close asset service connection", "error", err)
+			}
+		}
+	}
+	
+	// Close database connection
 	if m.db != nil {
 		if sqlDB, err := m.db.DB(); err == nil {
 			sqlDB.Close()
@@ -339,6 +429,23 @@ func (m *MusicBrainzEnricher) OnMediaFileScanned(mediaFileID uint32, filePath st
 	if err := m.saveEnrichment(uint(mediaFileID), recording); err != nil {
 		m.logger.Error("Failed to save enrichment", "error", err)
 		return err
+	}
+
+	// Download artwork if enabled and release ID is available
+	if m.config.EnableArtwork && len(recording.Releases) > 0 {
+		releaseID := recording.Releases[0].ID
+		m.logger.Info("Attempting to download cover art", "media_file_id", mediaFileID, "release_id", releaseID)
+		
+		if err := m.downloadAllArtwork(context.Background(), releaseID, mediaFileID); err != nil {
+			m.logger.Warn("Failed to download artwork", "error", err, "media_file_id", mediaFileID, "release_id", releaseID)
+			// Don't fail the enrichment if artwork download fails
+		} else {
+			m.logger.Info("Successfully downloaded artwork", "media_file_id", mediaFileID, "release_id", releaseID)
+		}
+	} else if !m.config.EnableArtwork {
+		m.logger.Debug("Artwork downloading disabled", "media_file_id", mediaFileID)
+	} else {
+		m.logger.Debug("No release ID available for artwork download", "media_file_id", mediaFileID)
 	}
 
 	return nil
@@ -925,6 +1032,190 @@ func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint, recording *MusicB
 		"artist", artistName,
 		"score", recording.Score)
 	
+	return nil
+}
+
+// downloadAllArtwork downloads all enabled artwork types for a release
+func (m *MusicBrainzEnricher) downloadAllArtwork(ctx context.Context, releaseID string, mediaFileID uint32) error {
+	if releaseID == "" {
+		return fmt.Errorf("no release ID available for artwork download")
+	}
+
+	var downloadErrors []string
+	successCount := 0
+
+	for _, artType := range coverArtTypes {
+		if !artType.Enabled(m.config) {
+			m.logger.Debug("Skipping artwork type (disabled)", "type", artType.Name)
+			continue
+		}
+
+		if err := m.downloadArtworkType(ctx, releaseID, mediaFileID, artType); err != nil {
+			if err.Error() != "no artwork available" {
+				downloadErrors = append(downloadErrors, fmt.Sprintf("%s: %v", artType.Name, err))
+			}
+			m.logger.Debug("Failed to download artwork type", "type", artType.Name, "error", err)
+		} else {
+			successCount++
+			m.logger.Debug("Successfully downloaded artwork", "type", artType.Name, "media_file_id", mediaFileID)
+		}
+	}
+
+	m.logger.Info("Artwork download completed", 
+		"release_id", releaseID, 
+		"media_file_id", mediaFileID, 
+		"success_count", successCount, 
+		"error_count", len(downloadErrors))
+
+	// Return error only if all downloads failed
+	if len(downloadErrors) > 0 && successCount == 0 {
+		return fmt.Errorf("all artwork downloads failed: %s", strings.Join(downloadErrors, "; "))
+	}
+
+	return nil
+}
+
+// downloadArtworkType downloads a specific type of artwork
+func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID string, mediaFileID uint32, artType CoverArtType) error {
+	// Check if asset already exists
+	if m.config.SkipExistingAssets {
+		// TODO: Check if asset already exists via AssetService
+		// For now, continue with download
+	}
+
+	// Construct Cover Art Archive URL
+	coverArtURL := fmt.Sprintf("https://coverartarchive.org/release/%s/%s", releaseID, artType.Name)
+	
+	m.logger.Debug("Downloading artwork", "type", artType.Name, "release_id", releaseID, "url", coverArtURL)
+	
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: time.Duration(m.config.AssetTimeout) * time.Second,
+	}
+
+	// Download with retry logic
+	var imageData []byte
+	var mimeType string
+	var downloadErr error
+
+	for attempt := 0; attempt <= m.config.MaxRetries; attempt++ {
+		if attempt > 0 {
+			m.logger.Debug("Retrying artwork download", "type", artType.Name, "attempt", attempt)
+			time.Sleep(time.Duration(attempt) * time.Second) // Progressive backoff
+		}
+
+		resp, err := client.Get(coverArtURL)
+		if err != nil {
+			downloadErr = err
+			continue
+		}
+
+		if resp.StatusCode == 404 {
+			resp.Body.Close()
+			return fmt.Errorf("no artwork available")
+		}
+
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			downloadErr = fmt.Errorf("download failed with status %d", resp.StatusCode)
+			continue
+		}
+
+		// Check content length
+		if resp.ContentLength > m.config.MaxAssetSize {
+			resp.Body.Close()
+			return fmt.Errorf("artwork too large: %d bytes (max: %d)", resp.ContentLength, m.config.MaxAssetSize)
+		}
+
+		// Read the image data
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if err != nil {
+			downloadErr = err
+			continue
+		}
+
+		// Check actual size
+		if int64(len(data)) > m.config.MaxAssetSize {
+			return fmt.Errorf("artwork too large: %d bytes (max: %d)", len(data), m.config.MaxAssetSize)
+		}
+
+		// Get MIME type
+		mimeType = resp.Header.Get("Content-Type")
+		if mimeType == "" {
+			mimeType = "image/jpeg" // Default fallback
+		}
+
+		imageData = data
+		downloadErr = nil
+		break
+	}
+
+	if downloadErr != nil {
+		return fmt.Errorf("failed after %d attempts: %w", m.config.MaxRetries+1, downloadErr)
+	}
+
+	m.logger.Debug("Downloaded artwork data", "type", artType.Name, "size", len(imageData), "mime_type", mimeType)
+
+	// Save the artwork using the host's AssetService via the plugin SDK
+	metadata := map[string]string{
+		"source":     "musicbrainz_cover_art_archive",
+		"release_id": releaseID,
+		"art_type":   artType.Name,
+	}
+
+	// Use the plugin context to save the asset
+	// This will be handled by the host's AssetService
+	return m.saveArtworkAsset(ctx, mediaFileID, artType.Subtype, imageData, mimeType, coverArtURL, metadata)
+}
+
+// saveArtworkAsset saves artwork using the host's asset service
+func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID uint32, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) error {
+	if m.assetService == nil {
+		m.logger.Warn("Asset service not available - cannot save artwork", "media_file_id", mediaFileID, "subtype", subtype)
+		return fmt.Errorf("asset service not available")
+	}
+
+	m.logger.Debug("Saving artwork asset via host service", 
+		"media_file_id", mediaFileID, 
+		"subtype", subtype, 
+		"size", len(data), 
+		"mime_type", mimeType,
+		"source_url", sourceURL)
+
+	// Create save asset request
+	request := &plugins.SaveAssetRequest{
+		MediaFileID: mediaFileID,
+		AssetType:   "music",
+		Category:    "album", 
+		Subtype:     subtype,
+		Data:        data,
+		MimeType:    mimeType,
+		SourceURL:   sourceURL,
+		Metadata:    metadata,
+	}
+
+	// Call host asset service
+	response, err := m.assetService.SaveAsset(ctx, request)
+	if err != nil {
+		m.logger.Error("Failed to save asset via host service", "error", err, "media_file_id", mediaFileID, "subtype", subtype)
+		return fmt.Errorf("failed to save asset: %w", err)
+	}
+
+	if !response.Success {
+		m.logger.Error("Host service reported save failure", "error", response.Error, "media_file_id", mediaFileID, "subtype", subtype)
+		return fmt.Errorf("asset save failed: %s", response.Error)
+	}
+
+	m.logger.Info("Successfully saved artwork asset", 
+		"media_file_id", mediaFileID, 
+		"subtype", subtype, 
+		"asset_id", response.AssetID,
+		"hash", response.Hash,
+		"path", response.RelativePath,
+		"size", len(data))
+
 	return nil
 }
 

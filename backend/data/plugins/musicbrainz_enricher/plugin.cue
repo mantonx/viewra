@@ -48,18 +48,35 @@
 		// Core settings
 		enabled: bool | *true
 
-		// API configuration with validation
+		// API configuration
 		api: {
-			rate_limit:   float & >=0.1 & <=1.0 | *0.8
-			user_agent:   string | *"Viewra/2.0"
-			timeout_sec:  int & >=5 & <=30 | *30
+			rate_limit:  float & >=0.1 & <=2.0 | *0.8
+			user_agent:  string | *"Viewra/2.0"
 		}
 
 		// Artwork settings
 		artwork: {
-			enabled:     bool | *true
-			max_size:    int & >=250 & <=2000 | *1200
-			quality:     "front" | "back" | "all" | *"front"
+			enabled:    bool | *true
+			max_size:   int & >=250 & <=2000 | *1200
+			quality:    "front" | "back" | "all" | *"front"
+			
+			// Cover Art Archive settings
+			download_front_cover:  bool | *true
+			download_back_cover:   bool | *true
+			download_booklet:      bool | *true
+			download_medium:       bool | *true
+			download_tray:         bool | *true
+			download_obi:          bool | *false
+			download_spine:        bool | *true
+			download_liner:        bool | *true
+			download_sticker:      bool | *false
+			download_poster:       bool | *false
+			
+			max_asset_size:        int & >=1048576 & <=52428800 | *10485760 // 1MB to 50MB
+			timeout_sec:           int & >=10 & <=120 | *30
+			skip_existing:         bool | *true
+			retry_failed:          bool | *true
+			max_retries:           int & >=1 & <=5 | *3
 		}
 
 		// Matching configuration
