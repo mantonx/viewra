@@ -1246,10 +1246,15 @@ const MediaLibraryManager = () => {
                       </div>
                     </div>
 
-                    {/* Clean Modern Progress Bar */}
+                    {/* Clean Modern Progress Bar with subtle track */}
                     <div className="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden relative">
+                      {/* Subtle background track */}
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-500/30 to-transparent"></div>
+                      </div>
+
                       <div
-                        className={`h-2 rounded-full transition-all duration-700 ease-out relative ${
+                        className={`h-2 rounded-full transition-all duration-700 ease-out relative z-10 ${
                           isFailed
                             ? 'bg-red-400'
                             : isPaused
