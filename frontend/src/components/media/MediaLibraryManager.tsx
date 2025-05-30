@@ -1246,64 +1246,41 @@ const MediaLibraryManager = () => {
                       </div>
                     </div>
 
-                    {/* Modern Progress Bar with Percentage */}
-                    <div className="w-full bg-slate-600 rounded-full h-6 overflow-hidden shadow-inner relative">
+                    {/* Clean Modern Progress Bar */}
+                    <div className="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden relative">
                       <div
-                        className={`h-6 rounded-full transition-all duration-500 ease-out relative overflow-hidden flex items-center justify-center ${
+                        className={`h-2 rounded-full transition-all duration-700 ease-out relative ${
                           isFailed
-                            ? 'bg-red-500'
+                            ? 'bg-red-400'
                             : isPaused
-                              ? 'bg-amber-500'
+                              ? 'bg-amber-400'
                               : isCompleted
-                                ? 'bg-green-500'
-                                : 'bg-gradient-to-r from-blue-500 via-blue-400 to-blue-600'
+                                ? 'bg-emerald-400'
+                                : 'bg-blue-400'
                         }`}
                         style={{
                           width: `${progressPercent}%`,
-                          animation: isScanning
-                            ? 'modern-progress 2s ease-in-out infinite'
-                            : 'none',
                         }}
                       >
-                        {/* Percentage text on the progress bar */}
-                        {progressPercent > 0 && (
-                          <span className="text-white text-xs font-medium px-2 text-shadow relative z-10">
-                            {progressPercent.toFixed(1)}%
-                          </span>
-                        )}
-
-                        {/* Modern wave effect for active scans */}
+                        {/* Subtle glow for active scans only */}
                         {isScanning && (
-                          <div
-                            className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-10"
-                            style={{
-                              animation: 'modern-wave 3s ease-in-out infinite',
-                            }}
-                          ></div>
+                          <div className="absolute inset-0 bg-blue-300 rounded-full opacity-40 animate-pulse"></div>
                         )}
                       </div>
-
-                      {/* Background text for empty progress */}
-                      {progressPercent === 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-slate-400 text-xs font-medium">Not started</span>
-                        </div>
-                      )}
                     </div>
 
-                    {/* Status/Error Messages */}
-                    {scanJob.status_message && isPaused && (
-                      <div className="mt-2 text-sm">
-                        <span className="text-blue-400">Status:</span>
-                        <span className="text-slate-300 ml-2">{scanJob.status_message}</span>
-                      </div>
-                    )}
-                    {scanJob.error_message && (
-                      <div className="mt-2 text-sm">
-                        <span className="text-red-400">Error:</span>
-                        <span className="text-slate-300 ml-2">{scanJob.error_message}</span>
-                      </div>
-                    )}
+                    {/* Progress info below the bar */}
+                    <div className="flex justify-between items-center mt-2 text-xs">
+                      <span className="text-slate-300">
+                        {progressPercent > 0 ? `${progressPercent.toFixed(1)}%` : '0%'}
+                        {isScanning && ' • Processing...'}
+                      </span>
+                      {progressInfo.isActivelyScanning && progressData?.estimatedTimeLeft && (
+                        <span className="text-blue-400">
+                          {formatHumanReadableETA(progressData.estimatedTimeLeft)} left
+                        </span>
+                      )}
+                    </div>
 
                     {/* Nerd Panel - Detailed Information */}
                     <div
@@ -1315,6 +1292,20 @@ const MediaLibraryManager = () => {
                         <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
                           🤓 Detailed Information
                         </h4>
+
+                        {/* Status and Error Messages */}
+                        {scanJob.status_message && isPaused && (
+                          <div className="mb-3 p-2 bg-blue-900/30 rounded text-sm">
+                            <span className="text-blue-400">Status:</span>
+                            <span className="text-slate-300 ml-2">{scanJob.status_message}</span>
+                          </div>
+                        )}
+                        {scanJob.error_message && (
+                          <div className="mb-3 p-2 bg-red-900/30 rounded text-sm">
+                            <span className="text-red-400">Error:</span>
+                            <span className="text-slate-300 ml-2">{scanJob.error_message}</span>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4 text-xs">
                           {/* Job Information */}
@@ -1547,33 +1538,8 @@ const MediaLibraryManager = () => {
       <Tooltip id="add-library-form-tooltip" place="top" />
       <Tooltip id="cancel-form-tooltip" place="top" />
 
-      {/* Add custom CSS for modern progress animations */}
+      {/* Minimal CSS for modern design */}
       <style>{`
-        @keyframes modern-progress {
-          0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.9;
-            transform: scale(1.001);
-          }
-        }
-        
-        @keyframes modern-wave {
-          0% {
-            transform: translateX(-100%) skewX(-15deg);
-            opacity: 0;
-          }
-          50% {
-            opacity: 0.4;
-          }
-          100% {
-            transform: translateX(200%) skewX(-15deg);
-            opacity: 0;
-          }
-        }
-        
         .text-shadow {
           text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
         }
