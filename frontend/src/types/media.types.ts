@@ -32,6 +32,7 @@ export interface ScanJob {
   files_processed: number; // Number of files processed so far
   bytes_processed: number; // Total bytes processed
   error_message?: string; // Error message if job failed (single string)
+  status_message?: string; // Informational status message (e.g., recovery status)
   started_at: string; // ISO timestamp when job started
   completed_at?: string; // ISO timestamp when job completed (if finished)
   progress?: number; // Progress percentage (0-100)

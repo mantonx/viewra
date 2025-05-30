@@ -1322,7 +1322,13 @@ const MediaLibraryManager = () => {
                       </div>
                     </div>
 
-                    {/* Error Message (if any) */}
+                    {/* Status/Error Messages */}
+                    {scanJob.status_message && isPaused && (
+                      <div className="mt-2 text-sm">
+                        <span className="text-blue-400">Status:</span>
+                        <span className="text-slate-300 ml-2">{scanJob.status_message}</span>
+                      </div>
+                    )}
                     {scanJob.error_message && (
                       <div className="mt-2 text-sm">
                         <span className="text-red-400">Error:</span>

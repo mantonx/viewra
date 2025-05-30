@@ -97,7 +97,7 @@ type MusicMetadata struct {
 	ArtworkExt  string `gorm:"-" json:"-"`
 }
 
-// ScanJob represents a background scanning job
+// ScanJob represents a background scanning operation
 type ScanJob struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	LibraryID uint      `gorm:"not null" json:"library_id"`
@@ -108,6 +108,7 @@ type ScanJob struct {
 	FilesProcessed int  `gorm:"default:0" json:"files_processed"`
 	BytesProcessed int64 `gorm:"default:0" json:"bytes_processed"`
 	ErrorMessage string `json:"error_message,omitempty"`
+	StatusMessage string `json:"status_message,omitempty"` // For informational messages like recovery status
 	StartedAt *time.Time `json:"started_at,omitempty"`
 	ResumedAt *time.Time `json:"resumed_at,omitempty"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`

@@ -62,16 +62,25 @@ func (m *Manager) recoverOrphanedJobs() error {
 
 	// Handle orphaned running jobs - mark as paused for potential resume
 	if len(orphanedJobs) > 0 {
-		fmt.Printf("Found %d orphaned scan jobs, marking as paused for potential resume\n", len(orphanedJobs))
+		logger.Info("Found %d orphaned scan jobs from backend restart, initiating recovery...", len(orphanedJobs))
 
 		for _, job := range orphanedJobs {
-			errorMsg := "Scanner process terminated during backend restart - marked for resume"
-			if err := utils.UpdateJobStatus(m.db, job.ID, utils.StatusPaused, errorMsg); err != nil {
-				fmt.Printf("Failed to update orphaned job %d: %v\n", job.ID, err)
+			recoveryMsg := fmt.Sprintf("Resuming scan from backend restart (had processed %d/%d files)", 
+				job.FilesProcessed, job.FilesFound)
+			
+			// Use status_message for informational recovery message, not error_message
+			updates := map[string]interface{}{
+				"status": string(utils.StatusPaused),
+				"status_message": recoveryMsg,
+				"error_message": "", // Clear any previous error message
+			}
+			
+			if err := m.db.Model(&database.ScanJob{}).Where("id = ?", job.ID).Updates(updates).Error; err != nil {
+				logger.Error("Failed to recover orphaned job %d: %v", job.ID, err)
 				continue
 			}
 
-			fmt.Printf("Marked orphaned scan job %d as paused\n", job.ID)
+			logger.Info("✅ Recovered scan job %d for library %d", job.ID, job.LibraryID)
 		}
 
 		// Add orphaned jobs to paused jobs for potential auto-resume
@@ -80,20 +89,21 @@ func (m *Manager) recoverOrphanedJobs() error {
 
 	// Auto-resume paused jobs that have made significant progress
 	if len(pausedJobs) > 0 {
-		fmt.Printf("Found %d paused scan jobs, checking for auto-resume candidates\n", len(pausedJobs))
+		logger.Info("Checking %d paused scan jobs for auto-resume eligibility...", len(pausedJobs))
 
+		autoResumedCount := 0
 		for _, job := range pausedJobs {
 			// Auto-resume jobs that have processed at least 10 files or 1% progress
 			shouldAutoResume := job.FilesProcessed >= 10 ||
 				(job.FilesFound > 0 && float64(job.FilesProcessed)/float64(job.FilesFound) >= 0.01)
 
 			if shouldAutoResume {
-				fmt.Printf("Auto-resuming scan job %d (processed %d/%d files)\n",
-					job.ID, job.FilesProcessed, job.FilesFound)
+				logger.Info("🔄 Auto-resuming scan job %d (processed %d/%d files, %.1f%% complete)",
+					job.ID, job.FilesProcessed, job.FilesFound, job.Progress)
 
 				// Resume the job
 				if err := m.ResumeScan(job.ID); err != nil {
-					fmt.Printf("Failed to auto-resume job %d: %v\n", job.ID, err)
+					logger.Error("Failed to auto-resume job %d: %v", job.ID, err)
 					continue
 				}
 
@@ -114,11 +124,18 @@ func (m *Manager) recoverOrphanedJobs() error {
 					m.eventBus.PublishAsync(resumeEvent)
 				}
 
-				fmt.Printf("Successfully auto-resumed scan job %d\n", job.ID)
+				autoResumedCount++
+				logger.Info("✅ Successfully auto-resumed scan job %d", job.ID)
 			} else {
-				fmt.Printf("Scan job %d not eligible for auto-resume (processed %d files)\n",
-					job.ID, job.FilesProcessed)
+				logger.Debug("Scan job %d not eligible for auto-resume (processed %d files, %.1f%% complete)",
+					job.ID, job.FilesProcessed, job.Progress)
 			}
+		}
+		
+		if autoResumedCount > 0 {
+			logger.Info("🎉 Auto-resumed %d scan jobs after backend restart", autoResumedCount)
+		} else {
+			logger.Info("No paused jobs met auto-resume criteria")
 		}
 	}
 
@@ -777,4 +794,9 @@ func (m *Manager) GetScannerManager() *Manager {
 	}
 
 	return m
+}
+
+// RecoverOrphanedJobs exposes the orphaned job recovery functionality for public use
+func (m *Manager) RecoverOrphanedJobs() error {
+	return m.recoverOrphanedJobs()
 }

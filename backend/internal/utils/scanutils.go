@@ -104,6 +104,8 @@ func UpdateJobStatus(db *gorm.DB, jobID uint, status ScanJobStatus, errorMsg str
 	case StatusRunning:
 		updates["started_at"] = &now
 		updates["resumed_at"] = &now
+		updates["status_message"] = ""
+		updates["error_message"] = ""
 	case StatusCompleted, StatusFailed:
 		updates["completed_at"] = &now
 	}
