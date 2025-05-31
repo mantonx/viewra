@@ -676,7 +676,7 @@ func (m *manager) registerPluginInDatabase(plugin *Plugin, enabledByDefault bool
 	// Import the database models package
 	// We need to check if plugin already exists in database
 	var existingPlugin struct {
-		ID       uint   `gorm:"primaryKey"`
+		ID       uint32 `gorm:"primaryKey"`
 		PluginID string `gorm:"uniqueIndex;not null"`
 		Status   string `gorm:"not null;default:'disabled'"`
 	}
@@ -1034,7 +1034,7 @@ func (m *manager) UninstallExternalPlugin(pluginID string) error {
 	// Remove from database
 	if m.db != nil {
 		if err := m.db.Where("plugin_id = ?", pluginID).Delete(&struct {
-			ID       uint   `gorm:"primaryKey"`
+			ID       uint32 `gorm:"primaryKey"`
 			PluginID string `gorm:"uniqueIndex;not null"`
 		}{}).Error; err != nil {
 			m.logger.Error("failed to remove plugin from database", "plugin", pluginID, "error", err)
@@ -1145,4 +1145,16 @@ func (m *manager) GetCorePlugin(name string) (CorePlugin, bool) {
 		return m.corePluginManager.GetCorePlugin(name)
 	}
 	return nil, false
+}
+
+type PluginAssetInfo struct {
+	ID       uint32 `gorm:"primaryKey"`
+	PluginID string `gorm:"not null;index"`
+	// ... rest of fields ...
+}
+
+type PluginPermissionInfo struct {
+	ID       uint32 `gorm:"primaryKey"`
+	PluginID string `gorm:"not null;index"`
+	// ... rest of fields ...
 } 

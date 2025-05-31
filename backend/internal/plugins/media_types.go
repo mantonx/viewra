@@ -15,18 +15,13 @@ type MediaItem struct {
 	Type      string               `json:"type"` // "music", "video", "image", etc.
 }
 
-// MediaAsset represents an asset associated with a media file
-// Deprecated: Use the new entity-based asset system via /api/v1/assets/ endpoints
-// This struct is kept for plugin compatibility but should not be used for new code
+// MediaAsset represents a media asset (e.g., artwork, subtitle, thumbnail)
 type MediaAsset struct {
-	Type        string            `json:"type"`         // "artwork", "subtitle", "thumbnail", "preview"
-	Data        []byte            `json:"data"`         // Asset binary data
-	Path        string            `json:"path"`         // Original file path for reference
-	Extension   string            `json:"extension"`    // File extension (.jpg, .png, .srt, etc.)
-	MediaFileID uint              `json:"media_file_id"` // Associated media file ID
-	MimeType    string            `json:"mime_type"`    // MIME type of the asset
-	Size        int64             `json:"size"`         // Size in bytes
-	Metadata    map[string]string `json:"metadata,omitempty"` // Metadata about the asset source
+	Type         string            `json:"type"`          // Asset type (artwork, subtitle, thumbnail)
+	MimeType     string            `json:"mime_type"`     // MIME type of the asset
+	Data         []byte            `json:"data"`          // Asset data
+	Metadata     map[string]string `json:"metadata"`      // Additional metadata
+	MediaFileID  string            `json:"media_file_id"` // Associated media file ID
 }
 
 // MediaContext provides context for media processing operations

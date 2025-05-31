@@ -72,8 +72,8 @@ type Config struct {
 
 // Database models for plugin data
 type MusicBrainzEnrichment struct {
-	ID                     uint      `gorm:"primaryKey"`
-	MediaFileID            uint      `gorm:"not null;index"`
+	ID                     uint32    `gorm:"primaryKey"`
+	MediaFileID            uint32    `gorm:"not null;index"`
 	MusicBrainzRecordingID string    `gorm:"size:36"`
 	MusicBrainzArtistID    string    `gorm:"size:36"`
 	MusicBrainzReleaseID   string    `gorm:"size:36"`
@@ -88,7 +88,7 @@ type MusicBrainzEnrichment struct {
 }
 
 type MusicBrainzCache struct {
-	ID        uint      `gorm:"primaryKey"`
+	ID        uint32    `gorm:"primaryKey"`
 	CacheKey  string    `gorm:"uniqueIndex;not null"`
 	Data      string    `gorm:"type:text"`
 	ExpiresAt time.Time `gorm:"index"`
@@ -426,7 +426,7 @@ func (m *MusicBrainzEnricher) OnMediaFileScanned(mediaFileID uint32, filePath st
 	}
 
 	// Save enrichment
-	if err := m.saveEnrichment(uint(mediaFileID), recording); err != nil {
+	if err := m.saveEnrichment(mediaFileID, recording); err != nil {
 		m.logger.Error("Failed to save enrichment", "error", err)
 		return err
 	}
@@ -971,7 +971,7 @@ func (m *MusicBrainzEnricher) cacheResults(cacheKey string, recordings []MusicBr
 	m.db.Save(&cache)
 }
 
-func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint, recording *MusicBrainzRecording) error {
+func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint32, recording *MusicBrainzRecording) error {
 	if m.db == nil {
 		return fmt.Errorf("database not available")
 	}

@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -40,27 +41,48 @@ import (
 //    - Resource cleanup on library deletion
 //    - Protection against concurrent operations on same library
 //
+// 5. ENHANCED SAFEGUARDS:
+//    - Transactional operations with rollback capabilities
+//    - Distributed locking to prevent race conditions
+//    - Comprehensive validation and verification
+//    - Automated monitoring and self-healing
+//
 // This design ensures the scanner remains robust across backend restarts,
 // network issues, system crashes, and other failure scenarios.
 type Manager struct {
 	db            *gorm.DB
 	eventBus      events.EventBus
 	pluginManager plugins.Manager
-	scanners      map[uint]*LibraryScanner // jobID -> scanner mapping
-	scannersMu    sync.RWMutex
+	safeguards    *SafeguardSystem
+	mu            sync.RWMutex
+	scanners      map[uint32]*LibraryScanner // jobID -> scanner mapping
+	stopChannels  map[uint32]chan struct{}   // jobID -> stop channel mapping
+	workers       int
+	done          chan struct{}
+	cleanupTicker *time.Ticker
+	monitorTicker *time.Ticker
+	// performance tracking
+	workerPool   *utils.WorkerPool
+	rateLimiter  *utils.RateLimiter
+	lastCleanup  time.Time
 	ctx           context.Context
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
 	
 	// File monitoring
 	fileMonitor   *FileMonitor
-	
-	// Cleanup service
-	cleanupService *CleanupService
 }
 
 // NewManager creates a new scanner manager
-func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager) *Manager {
+func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager, opts *ManagerOptions) *Manager {
+	// Default options
+	if opts == nil {
+		opts = &ManagerOptions{
+			Workers:      runtime.NumCPU(),
+			CleanupHours: 24,
+		}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	
 	// Create file monitor
@@ -71,17 +93,25 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Man
 		fileMonitor = nil
 	}
 	
-	return &Manager{
+	manager := &Manager{
 		db:            db,
 		eventBus:      eventBus,
 		pluginManager: pluginManager,
-		scanners:      make(map[uint]*LibraryScanner),
-		scannersMu:    sync.RWMutex{},
+		scanners:      make(map[uint32]*LibraryScanner),
+		stopChannels:  make(map[uint32]chan struct{}),
+		workers:       opts.Workers,
+		done:          make(chan struct{}),
+		workerPool:    utils.NewWorkerPool(opts.Workers),
+		rateLimiter:   utils.NewRateLimiter(10, time.Second), // 10 operations per second
 		ctx:           ctx,
 		cancel:        cancel,
 		fileMonitor:   fileMonitor,
-		cleanupService: NewCleanupService(db),
 	}
+	
+	// Initialize safeguards system
+	manager.safeguards = NewSafeguardSystem(db, eventBus, manager)
+	
+	return manager
 }
 
 // recoverOrphanedJobs handles scan jobs that were marked as "running" when the backend restarted
@@ -331,9 +361,16 @@ func (m *Manager) cleanupDuplicateJobs() error {
 
 // StartScan creates and starts a new scan job for the specified library.
 // It validates that no scan is already running for the library before starting.
-func (m *Manager) StartScan(libraryID uint) (*database.ScanJob, error) {
-	m.scannersMu.Lock()
-	defer m.scannersMu.Unlock()
+func (m *Manager) StartScan(libraryID uint32) (*database.ScanJob, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Perform cleanup before starting scan
+	logger.Info("Performing pre-scan cleanup", "library_id", libraryID)
+	if err := m.CleanupLibraryData(libraryID); err != nil {
+		logger.Warn("Pre-scan cleanup had issues", "library_id", libraryID, "error", err)
+		// Continue with scan even if cleanup had issues
+	}
 
 	// Validate that we can start a scan for this library
 	if err := utils.ValidateScanJob(m.db, libraryID); err != nil {
@@ -377,7 +414,7 @@ func (m *Manager) StartScan(libraryID uint) (*database.ScanJob, error) {
 }
 
 // runScanJob executes a scan job in a goroutine and handles cleanup.
-func (m *Manager) runScanJob(scanner *LibraryScanner, jobID, libraryID uint, isResume bool) {
+func (m *Manager) runScanJob(scanner *LibraryScanner, jobID, libraryID uint32, isResume bool) {
 	defer func() {
 		// Clean up completed or failed scans from active scanners map
 		m.removeScanner(jobID)
@@ -411,7 +448,7 @@ func (m *Manager) runScanJob(scanner *LibraryScanner, jobID, libraryID uint, isR
 				
 				// Start file monitoring for completed scans
 				if m.fileMonitor != nil {
-					if err := m.fileMonitor.StartMonitoring(libraryID, jobID); err != nil {
+					if err := m.fileMonitor.StartMonitoring(uint(libraryID), uint(jobID)); err != nil {
 						logger.Error("Failed to start file monitoring for completed scan", 
 							"library_id", libraryID, "job_id", jobID, "error", err)
 					} else {
@@ -460,10 +497,10 @@ func (m *Manager) runScanJob(scanner *LibraryScanner, jobID, libraryID uint, isR
 
 // StopScan pauses a running scan job.
 // The scan can be resumed later using ResumeScan.
-func (m *Manager) StopScan(jobID uint) error {
-	m.scannersMu.RLock()
+func (m *Manager) StopScan(jobID uint32) error {
+	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	if !exists {
 		return m.handleInactiveJobStop(jobID)
@@ -471,7 +508,7 @@ func (m *Manager) StopScan(jobID uint) error {
 
 	// Get job details for the event
 	var scanJob database.ScanJob
-	var libraryID uint
+	var libraryID uint32
 	if err := m.db.First(&scanJob, jobID).Error; err == nil {
 		libraryID = scanJob.LibraryID
 	}
@@ -502,9 +539,9 @@ func (m *Manager) StopScan(jobID uint) error {
 
 // TerminateScan completely terminates a running scan job and removes it from memory.
 // Unlike StopScan which pauses, this permanently stops the scan and cleans up resources.
-func (m *Manager) TerminateScan(jobID uint) error {
-	m.scannersMu.Lock()
-	defer m.scannersMu.Unlock()
+func (m *Manager) TerminateScan(jobID uint32) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	scanner, exists := m.scanners[jobID]
 	if !exists {
@@ -514,7 +551,7 @@ func (m *Manager) TerminateScan(jobID uint) error {
 
 	// Get job details for the event
 	var scanJob database.ScanJob
-	var libraryID uint
+	var libraryID uint32
 	if err := m.db.First(&scanJob, jobID).Error; err == nil {
 		libraryID = scanJob.LibraryID
 	}
@@ -548,7 +585,7 @@ func (m *Manager) TerminateScan(jobID uint) error {
 }
 
 // handleInactiveJobStop handles stopping a job that isn't actively running.
-func (m *Manager) handleInactiveJobStop(jobID uint) error {
+func (m *Manager) handleInactiveJobStop(jobID uint32) error {
 	var scanJob database.ScanJob
 	if err := m.db.First(&scanJob, jobID).Error; err != nil {
 		return fmt.Errorf("scan job not found: %w", err)
@@ -564,7 +601,7 @@ func (m *Manager) handleInactiveJobStop(jobID uint) error {
 }
 
 // handleInactiveJobTermination handles terminating a job that isn't actively running.
-func (m *Manager) handleInactiveJobTermination(jobID uint) error {
+func (m *Manager) handleInactiveJobTermination(jobID uint32) error {
 	var scanJob database.ScanJob
 	if err := m.db.First(&scanJob, jobID).Error; err != nil {
 		return fmt.Errorf("scan job not found: %w", err)
@@ -575,9 +612,9 @@ func (m *Manager) handleInactiveJobTermination(jobID uint) error {
 }
 
 // ResumeScan resumes a previously paused scan job.
-func (m *Manager) ResumeScan(jobID uint) error {
-	m.scannersMu.Lock()
-	defer m.scannersMu.Unlock()
+func (m *Manager) ResumeScan(jobID uint32) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	// Check if scanner is already running
 	if _, exists := m.scanners[jobID]; exists {
@@ -624,7 +661,7 @@ func (m *Manager) ResumeScan(jobID uint) error {
 }
 
 // GetScanStatus returns the current status of a scan job.
-func (m *Manager) GetScanStatus(jobID uint) (*database.ScanJob, error) {
+func (m *Manager) GetScanStatus(jobID uint32) (*database.ScanJob, error) {
 	// Safety checks for nil manager and nil database
 	if m == nil {
 		return nil, fmt.Errorf("scanner manager is nil")
@@ -655,8 +692,8 @@ func (m *Manager) GetAllScans() ([]database.ScanJob, error) {
 
 // GetActiveScanCount returns the number of currently active scans.
 func (m *Manager) GetActiveScanCount() int {
-	m.scannersMu.RLock()
-	defer m.scannersMu.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return len(m.scanners)
 }
 
@@ -664,8 +701,8 @@ func (m *Manager) GetActiveScanCount() int {
 // This is useful for graceful shutdowns or system restarts.
 // Returns the number of scans that were successfully paused.
 func (m *Manager) CancelAllScans() (int, error) {
-	m.scannersMu.Lock()
-	defer m.scannersMu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	successCount := 0
 	for jobID, scanner := range m.scanners {
@@ -703,30 +740,30 @@ func (m *Manager) CleanupOldJobs() (int64, error) {
 // CleanupJobsByLibrary removes all scan jobs associated with a specific library.
 // This should be called when a library is deleted to prevent orphaned jobs.
 // Returns the number of jobs that were cleaned up.
-func (m *Manager) CleanupJobsByLibrary(libraryID uint) (int64, error) {
+func (m *Manager) CleanupJobsByLibrary(libraryID uint32) (int64, error) {
 	// First, identify scanners to stop (without holding the lock)
 	var scannersToStop []struct {
-		jobID   uint
+		jobID   uint32
 		scanner *LibraryScanner
 	}
 
-	m.scannersMu.RLock()
+	m.mu.RLock()
 	for jobID, scanner := range m.scanners {
 		// Get the job to check library ID
 		var scanJob database.ScanJob
 		if err := m.db.First(&scanJob, jobID).Error; err == nil {
 			if scanJob.LibraryID == libraryID {
 				scannersToStop = append(scannersToStop, struct {
-					jobID   uint
+					jobID   uint32
 					scanner *LibraryScanner
 				}{jobID, scanner})
 			}
 		}
 	}
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	// Stop scanners without holding the manager lock (to avoid deadlock)
-	var stoppedScanners []uint
+	var stoppedScanners []uint32
 	for _, item := range scannersToStop {
 		fmt.Printf("Stopping active scanner for job %d (library %d)\n", item.jobID, libraryID)
 
@@ -748,11 +785,11 @@ func (m *Manager) CleanupJobsByLibrary(libraryID uint) (int64, error) {
 	}
 
 	// Now acquire lock to remove scanners from the map
-	m.scannersMu.Lock()
+	m.mu.Lock()
 	for _, jobID := range stoppedScanners {
 		delete(m.scanners, jobID)
 	}
-	m.scannersMu.Unlock()
+	m.mu.Unlock()
 
 	// Delete all scan jobs for this library from the database
 	result := m.db.Where("library_id = ?", libraryID).Delete(&database.ScanJob{})
@@ -787,7 +824,7 @@ func (m *Manager) CleanupJobsByLibrary(libraryID uint) (int64, error) {
 // Returns the number of jobs that were cleaned up.
 func (m *Manager) CleanupOrphanedJobs() (int64, error) {
 	// Get all existing library IDs
-	var existingLibraryIDs []uint
+	var existingLibraryIDs []uint32
 	if err := m.db.Model(&database.MediaLibrary{}).Pluck("id", &existingLibraryIDs).Error; err != nil {
 		return 0, fmt.Errorf("failed to get existing library IDs: %w", err)
 	}
@@ -811,26 +848,26 @@ func (m *Manager) CleanupOrphanedJobs() (int64, error) {
 
 	// Identify active scanners to stop (without holding the lock)
 	var scannersToStop []struct {
-		jobID   uint
+		jobID   uint32
 		scanner *LibraryScanner
 	}
 
-	m.scannersMu.RLock()
+	m.mu.RLock()
 	for _, job := range orphanedJobs {
 		if scanner, exists := m.scanners[job.ID]; exists {
 			scannersToStop = append(scannersToStop, struct {
-				jobID   uint
+				jobID   uint32
 				scanner *LibraryScanner
 			}{job.ID, scanner})
 		}
 	}
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	// Stop scanners without holding the manager lock (to avoid deadlock)
-	var stoppedScanners []uint
+	var stoppedScanners []uint32
 	for _, item := range scannersToStop {
 		// Find the corresponding job for library ID
-		var libraryID uint
+		var libraryID uint32
 		for _, job := range orphanedJobs {
 			if job.ID == item.jobID {
 				libraryID = job.LibraryID
@@ -857,14 +894,14 @@ func (m *Manager) CleanupOrphanedJobs() (int64, error) {
 	}
 
 	// Now acquire lock to remove scanners from the map
-	m.scannersMu.Lock()
+	m.mu.Lock()
 	for _, jobID := range stoppedScanners {
 		delete(m.scanners, jobID)
 	}
-	m.scannersMu.Unlock()
+	m.mu.Unlock()
 
 	// Delete orphaned scan jobs from the database
-	var orphanedJobIDs []uint
+	var orphanedJobIDs []uint32
 	for _, job := range orphanedJobs {
 		orphanedJobIDs = append(orphanedJobIDs, job.ID)
 	}
@@ -893,14 +930,14 @@ func (m *Manager) CleanupOrphanedJobs() (int64, error) {
 }
 
 // GetLibraryStats returns comprehensive statistics for a library's scanned files.
-func (m *Manager) GetLibraryStats(libraryID uint) (*utils.LibraryStats, error) {
+func (m *Manager) GetLibraryStats(libraryID uint32) (*utils.LibraryStats, error) {
 	return utils.GetLibraryStatistics(m.db, libraryID)
 }
 
 // removeScanner safely removes a scanner from the active scanners map.
-func (m *Manager) removeScanner(jobID uint) {
-	m.scannersMu.Lock()
-	defer m.scannersMu.Unlock()
+func (m *Manager) removeScanner(jobID uint32) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.scanners, jobID)
 }
 
@@ -924,7 +961,7 @@ func (m *Manager) Shutdown() error {
 }
 
 // GetScanProgress returns progress, ETA, and files/sec for a scan job
-func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, filesPerSec float64, err error) {
+func (m *Manager) GetScanProgress(jobID uint32) (progress float64, eta string, filesPerSec float64, err error) {
 	// Safety check for nil manager
 	if m == nil {
 		return 0, "", 0, fmt.Errorf("scanner manager is nil")
@@ -935,9 +972,9 @@ func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, fil
 		return 0, "", 0, fmt.Errorf("scanner manager scanners map is nil")
 	}
 	
-	m.scannersMu.RLock()
+	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	if !exists {
 		return 0, "", 0, fmt.Errorf("no active scanner for job %d", jobID)
@@ -959,10 +996,10 @@ func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, fil
 }
 
 // GetDetailedScanProgress returns detailed metrics including adaptive throttling data
-func (m *Manager) GetDetailedScanProgress(jobID uint) (map[string]interface{}, error) {
-	m.scannersMu.RLock()
+func (m *Manager) GetDetailedScanProgress(jobID uint32) (map[string]interface{}, error) {
+	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("scan job %d not found or not running", jobID)
@@ -1024,6 +1061,7 @@ func (m *Manager) GetDetailedScanProgress(jobID uint) (map[string]interface{}, e
 		"files_found":      scanner.filesFound.Load(),
 		"files_skipped":    scanner.filesSkipped.Load(),
 		"bytes_processed":  scanner.bytesProcessed.Load(),
+		"bytes_found":      scanner.bytesFound.Load(), // Total bytes discovered during scan
 		"errors_count":     scanner.errorsCount.Load(),
 
 		// Progress and ETA information
@@ -1031,6 +1069,11 @@ func (m *Manager) GetDetailedScanProgress(jobID uint) (map[string]interface{}, e
 		"eta":              eta,
 		"estimated_time_left": estimatedTimeLeft,
 		"files_per_second": filesPerSec,
+
+		// Additional total information for better UI display
+		"total_files":      scanner.filesFound.Load(), // Alias for files_found
+		"total_bytes":      scanner.progressEstimator.GetTotalBytes(), // CRITICAL: Total expected bytes for UI
+		"remaining_files":  scanner.filesFound.Load() - scanner.filesProcessed.Load(),
 
 		// Worker statistics
 		"active_workers":   activeWorkers,
@@ -1108,21 +1151,21 @@ func (m *Manager) SetPluginManager(pm plugins.Manager) {
 	m.pluginManager = pm
 	
 	// Update all active scanners
-	m.scannersMu.RLock()
+	m.mu.RLock()
 	for _, scanner := range m.scanners {
 		scanner.pluginManager = pm
 		if scanner.pluginRouter != nil {
 			scanner.pluginRouter = NewPluginRouter(pm)
 		}
 	}
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 }
 
 // DisableThrottlingForJob disables adaptive throttling for a specific scan job
-func (m *Manager) DisableThrottlingForJob(jobID uint) error {
-	m.scannersMu.RLock()
+func (m *Manager) DisableThrottlingForJob(jobID uint32) error {
+	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	if !exists {
 		return fmt.Errorf("scan job %d not found or not running", jobID)
@@ -1138,10 +1181,10 @@ func (m *Manager) DisableThrottlingForJob(jobID uint) error {
 }
 
 // EnableThrottlingForJob re-enables adaptive throttling for a specific scan job
-func (m *Manager) EnableThrottlingForJob(jobID uint) error {
-	m.scannersMu.RLock()
+func (m *Manager) EnableThrottlingForJob(jobID uint32) error {
+	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	if !exists {
 		return fmt.Errorf("scan job %d not found or not running", jobID)
@@ -1199,44 +1242,50 @@ func (m *Manager) StartFileMonitoring() error {
 }
 
 // GetMonitoringStatus returns the current monitoring status for libraries
-func (m *Manager) GetMonitoringStatus() map[uint]*MonitoredLibrary {
+func (m *Manager) GetMonitoringStatus() map[uint32]*MonitoredLibrary {
 	if m.fileMonitor == nil {
-		return make(map[uint]*MonitoredLibrary)
+		return make(map[uint32]*MonitoredLibrary)
 	}
-	return m.fileMonitor.GetMonitoringStatus()
+	
+	// Convert from map[uint] to map[uint32]
+	sourceMap := m.fileMonitor.GetMonitoringStatus()
+	resultMap := make(map[uint32]*MonitoredLibrary)
+	for libraryID, monitoredLib := range sourceMap {
+		resultMap[uint32(libraryID)] = monitoredLib
+	}
+	return resultMap
 }
 
 // CleanupOrphanedAssets removes assets that reference non-existent media files
+// Note: This is now deprecated as asset cleanup is handled by the entity-based asset system
 func (m *Manager) CleanupOrphanedAssets() (int, int, error) {
-	if m.cleanupService == nil {
-		return 0, 0, fmt.Errorf("cleanup service not available")
-	}
-	return m.cleanupService.CleanupOrphanedAssets()
+	logger.Info("Orphaned asset cleanup is now handled by the entity-based asset system")
+	logger.Info("Use the /api/v1/assets/cleanup endpoint for asset cleanup")
+	return 0, 0, nil
 }
 
 // CleanupOrphanedFiles removes asset files from disk that have no corresponding database records
+// Note: This is now deprecated as asset cleanup is handled by the entity-based asset system
 func (m *Manager) CleanupOrphanedFiles() (int, error) {
-	if m.cleanupService == nil {
-		return 0, fmt.Errorf("cleanup service not available")
-	}
-	return m.cleanupService.CleanupOrphanedFiles()
+	logger.Info("Orphaned file cleanup is now handled by the entity-based asset system")
+	logger.Info("Use the /api/v1/assets/cleanup endpoint for asset cleanup")
+	return 0, nil
 }
 
 // CleanupScanJob removes a scan job and all its discovered files and assets
-func (m *Manager) CleanupScanJob(scanJobID uint) error {
-	if m.cleanupService == nil {
-		return fmt.Errorf("cleanup service not available")
+func (m *Manager) CleanupScanJob(scanJobID uint32) error {
+	if m.safeguards == nil {
+		return fmt.Errorf("safeguard system not initialized")
 	}
 	
-	// Clean up all data discovered by this scan job
-	if err := m.cleanupService.CleanupScanJobData(scanJobID); err != nil {
-		return fmt.Errorf("failed to cleanup scan job data: %w", err)
+	// Use safeguarded deletion which handles comprehensive cleanup
+	result, err := m.safeguards.DeleteSafeguardedScan(scanJobID)
+	if err != nil {
+		return fmt.Errorf("failed to cleanup scan job: %w", err)
 	}
 	
-	// Remove the scan job record itself
-	result := m.db.Delete(&database.ScanJob{}, scanJobID)
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete scan job record: %w", result.Error)
+	if !result.Success {
+		return fmt.Errorf("scan job cleanup failed: %s", result.Message)
 	}
 	
 	logger.Info("Scan job completely removed", "scan_job_id", scanJobID)
@@ -1245,7 +1294,7 @@ func (m *Manager) CleanupScanJob(scanJobID uint) error {
 
 // PauseScanByLibrary pauses any running scan for the specified library
 // This method provides a consistent API that always uses library IDs
-func (m *Manager) PauseScanByLibrary(libraryID uint) error {
+func (m *Manager) PauseScanByLibrary(libraryID uint32) error {
 	// Find the currently running job for this library
 	var runningJob database.ScanJob
 	if err := m.db.Where("library_id = ? AND status = ?", libraryID, "running").First(&runningJob).Error; err != nil {
@@ -1261,7 +1310,7 @@ func (m *Manager) PauseScanByLibrary(libraryID uint) error {
 
 // ResumeScanByLibrary resumes the most recent paused scan for the specified library
 // This method provides a consistent API that always uses library IDs
-func (m *Manager) ResumeScanByLibrary(libraryID uint) error {
+func (m *Manager) ResumeScanByLibrary(libraryID uint32) error {
 	// Find the most recent paused job for this library
 	var pausedJob database.ScanJob
 	if err := m.db.Where("library_id = ? AND status = ?", libraryID, "paused").
@@ -1281,7 +1330,7 @@ func (m *Manager) ResumeScanByLibrary(libraryID uint) error {
 
 // GetLibraryScanStatus returns the status of the most relevant scan job for a library
 // This returns the currently running job, or the most recent paused/completed job
-func (m *Manager) GetLibraryScanStatus(libraryID uint) (*database.ScanJob, error) {
+func (m *Manager) GetLibraryScanStatus(libraryID uint32) (*database.ScanJob, error) {
 	// First try to find a running job
 	var scanJob database.ScanJob
 	err := m.db.Where("library_id = ? AND status = ?", libraryID, "running").
@@ -1313,8 +1362,8 @@ func (m *Manager) GetLibraryScanStatus(libraryID uint) (*database.ScanJob, error
 }
 
 // GetActiveLibraries returns a list of library IDs that have active (running) scans
-func (m *Manager) GetActiveLibraries() ([]uint, error) {
-	var libraryIDs []uint
+func (m *Manager) GetActiveLibraries() ([]uint32, error) {
+	var libraryIDs []uint32
 	if err := m.db.Model(&database.ScanJob{}).
 		Where("status = ?", "running").
 		Distinct("library_id").
@@ -1349,12 +1398,12 @@ func (m *Manager) StartStateSynchronizer() {
 
 // synchronizeState checks for inconsistencies between database and in-memory state
 func (m *Manager) synchronizeState() error {
-	m.scannersMu.RLock()
-	inMemoryJobs := make(map[uint]bool)
+	m.mu.RLock()
+	inMemoryJobs := make(map[uint32]bool)
 	for jobID := range m.scanners {
 		inMemoryJobs[jobID] = true
 	}
-	m.scannersMu.RUnlock()
+	m.mu.RUnlock()
 
 	// Find database jobs marked as "running"
 	var runningJobs []database.ScanJob
@@ -1385,9 +1434,9 @@ func (m *Manager) synchronizeState() error {
 				inconsistencies = append(inconsistencies, fmt.Sprintf("In-memory scanner for job %d but no database record", jobID))
 				
 				// Auto-fix: remove from memory
-				m.scannersMu.Lock()
+				m.mu.Lock()
 				delete(m.scanners, jobID)
-				m.scannersMu.Unlock()
+				m.mu.Unlock()
 				logger.Info("Auto-fixed orphaned in-memory scanner for job %d", jobID)
 			}
 		} else if job.Status != "running" {
@@ -1402,5 +1451,145 @@ func (m *Manager) synchronizeState() error {
 		}
 	}
 
+	return nil
+}
+
+// StartSafeguardedScan provides a safeguarded way to start scans with enhanced reliability
+func (m *Manager) StartSafeguardedScan(libraryID uint32) (*OperationResult, error) {
+	if m.safeguards == nil {
+		return nil, fmt.Errorf("safeguard system not initialized")
+	}
+	return m.safeguards.StartSafeguardedScan(libraryID)
+}
+
+// PauseSafeguardedScan provides a safeguarded way to pause scans with enhanced reliability
+func (m *Manager) PauseSafeguardedScan(jobID uint32) (*OperationResult, error) {
+	if m.safeguards == nil {
+		return nil, fmt.Errorf("safeguard system not initialized")
+	}
+	return m.safeguards.PauseSafeguardedScan(jobID)
+}
+
+// DeleteSafeguardedScan provides a safeguarded way to delete scans with enhanced reliability
+func (m *Manager) DeleteSafeguardedScan(jobID uint32) (*OperationResult, error) {
+	if m.safeguards == nil {
+		return nil, fmt.Errorf("safeguard system not initialized")
+	}
+	return m.safeguards.DeleteSafeguardedScan(jobID)
+}
+
+// ResumeSafeguardedScan provides a safeguarded way to resume scans
+func (m *Manager) ResumeSafeguardedScan(jobID uint32) (*OperationResult, error) {
+	if m.safeguards == nil {
+		return nil, fmt.Errorf("safeguard system not initialized")
+	}
+	
+	// For resume, we use the existing ResumeScan method but with enhanced validation
+	startTime := time.Now()
+	result := &OperationResult{
+		Operation: OpResume,
+		JobID:     jobID,
+	}
+
+	// Validate job exists and can be resumed
+	scanJob, err := m.GetScanStatus(jobID)
+	if err != nil {
+		result.Error = fmt.Errorf("job validation failed: %w", err)
+		return result, result.Error
+	}
+
+	if scanJob.Status != "paused" {
+		result.Error = fmt.Errorf("job %d is not paused (status: %s)", jobID, scanJob.Status)
+		return result, result.Error
+	}
+
+	// Acquire library lock to prevent conflicts
+	if err := m.safeguards.lockManager.AcquireLibraryLock(scanJob.LibraryID); err != nil {
+		result.Error = fmt.Errorf("failed to acquire library lock: %w", err)
+		return result, result.Error
+	}
+	defer m.safeguards.lockManager.ReleaseLibraryLock(scanJob.LibraryID)
+
+	// Resume the scan
+	if err := m.ResumeScan(jobID); err != nil {
+		result.Error = fmt.Errorf("failed to resume scan: %w", err)
+		return result, result.Error
+	}
+
+	result.Success = true
+	result.Duration = time.Since(startTime)
+	result.Message = fmt.Sprintf("Scan %d resumed successfully", jobID)
+
+	// Publish safeguard event
+	if m.eventBus != nil {
+		event := events.NewSystemEvent(
+			events.EventInfo,
+			"Safeguard: scan_resumed_safely",
+			fmt.Sprintf("Safeguarded operation completed: scan_resumed_safely"),
+		)
+		event.Data = map[string]interface{}{
+			"job_id":     jobID,
+			"library_id": scanJob.LibraryID,
+			"duration":   result.Duration.Milliseconds(),
+		}
+		m.eventBus.PublishAsync(event)
+	}
+
+	return result, nil
+}
+
+// StartSafeguards initializes and starts the safeguard system
+func (m *Manager) StartSafeguards() error {
+	if m.safeguards == nil {
+		return fmt.Errorf("safeguard system not initialized")
+	}
+	return m.safeguards.Start()
+}
+
+// StopSafeguards gracefully stops the safeguard system
+func (m *Manager) StopSafeguards() error {
+	if m.safeguards == nil {
+		return nil // Nothing to stop
+	}
+	return m.safeguards.Stop()
+}
+
+// GetSafeguardStatus returns information about the safeguard system status
+func (m *Manager) GetSafeguardStatus() map[string]interface{} {
+	if m.safeguards == nil {
+		return map[string]interface{}{
+			"enabled": false,
+			"error":   "safeguard system not initialized",
+		}
+	}
+
+	return map[string]interface{}{
+		"enabled":                  true,
+		"health_check_interval":    m.safeguards.config.HealthCheckInterval.String(),
+		"state_validation_interval": m.safeguards.config.StateValidationInterval.String(),
+		"cleanup_interval":         m.safeguards.config.CleanupInterval.String(),
+		"operation_timeout":        m.safeguards.config.OperationTimeout.String(),
+		"orphaned_job_threshold":   m.safeguards.config.OrphanedJobThreshold.String(),
+		"emergency_cleanup_enabled": m.safeguards.config.EmergencyCleanupEnabled,
+	}
+}
+
+// CleanupLibraryData performs comprehensive cleanup of trickplay files and duplicate scan jobs
+func (m *Manager) CleanupLibraryData(libraryID uint32) error {
+	logger.Info("Starting comprehensive library cleanup", "library_id", libraryID)
+	
+	// Clean up duplicate scan jobs first
+	if err := utils.CleanupDuplicateScanJobs(m.db, libraryID); err != nil {
+		logger.Error("Failed to cleanup duplicate scan jobs", "library_id", libraryID, "error", err)
+		// Don't fail the whole cleanup for this
+	}
+	
+	// Clean up skipped files (trickplay, subtitles, etc.)
+	if err := utils.CleanupSkippedFiles(m.db, libraryID); err != nil {
+		logger.Error("Failed to cleanup skipped files", "library_id", libraryID, "error", err)
+		// Don't fail the whole cleanup for this
+	}
+	
+	logger.Info("Completed library cleanup", "library_id", libraryID)
 	return nil
 }

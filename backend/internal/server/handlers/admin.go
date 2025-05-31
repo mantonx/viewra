@@ -225,21 +225,13 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 		return
 	}
 	
-	if len(mediaFileIDs) > 0 {
-		// Delete all music metadata for these media files
-		metadataResult := db.Where("media_file_id IN ?", mediaFileIDs).Delete(&database.MusicMetadata{})
-		if metadataResult.Error != nil {
-			logger.Error("Failed to delete music metadata", "library_id", libraryID, "error", metadataResult.Error)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to cleanup music metadata for library",
-				"details": metadataResult.Error.Error(),
-			})
-			return
-		} else if metadataResult.RowsAffected > 0 {
-			logger.Info("Deleted music metadata", "library_id", libraryID, "metadata_deleted", metadataResult.RowsAffected)
-		}
-	}
-
+	// TODO: With new schema, metadata deletion would be through Artist/Album/Track relationships
+	// For now, just skip the old MusicMetadata deletion
+	// metadataResult := db.Where("media_file_id IN ?", mediaFileIDs).Delete(&database.MusicMetadata{})
+	// if metadataResult.Error != nil {
+	//	 return c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete metadata"})
+	// }
+	
 	// STEP 4: Delete all media files for this library (now safe since metadata is gone)
 	logger.Info("Deleting media files", "library_id", libraryID)
 	mediaFilesResult := db.Where("library_id = ?", libraryID).Delete(&database.MediaFile{})

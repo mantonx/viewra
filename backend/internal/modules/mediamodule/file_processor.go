@@ -33,7 +33,7 @@ type FileProcessor struct {
 // ProcessJob represents a file processing job
 type ProcessJob struct {
 	ID           string    `json:"id"`
-	MediaFileID  uint      `json:"media_file_id"`
+	MediaFileID  string    `json:"media_file_id"`
 	FilePath     string    `json:"file_path"`
 	Status       string    `json:"status"` // pending, processing, completed, failed
 	Progress     float64   `json:"progress"`
@@ -79,24 +79,24 @@ func (fp *FileProcessor) Initialize() error {
 }
 
 // ProcessFile processes a media file with the given ID
-func (fp *FileProcessor) ProcessFile(mediaFileID uint) (string, error) {
+func (fp *FileProcessor) ProcessFile(mediaFileID string) (string, error) {
 	if !fp.initialized {
 		return "", fmt.Errorf("file processor not initialized")
 	}
 	
 	// Get file information from database
 	var mediaFile database.MediaFile
-	if err := fp.db.First(&mediaFile, mediaFileID).Error; err != nil {
+	if err := fp.db.Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
 		return "", fmt.Errorf("failed to find media file: %w", err)
 	}
 	
 	// Generate a unique job ID
-	jobID := fmt.Sprintf("job-%d-%d", mediaFileID, time.Now().UnixNano())
+	jobID := fmt.Sprintf("job-%s-%d", mediaFileID, time.Now().UnixNano())
 	
 	// Create job
 	job := &ProcessJob{
 		ID:          jobID,
-		MediaFileID: mediaFileID,
+		MediaFileID: mediaFile.ID,
 		FilePath:    mediaFile.Path,
 		Status:      "pending",
 		Progress:    0,
@@ -111,7 +111,7 @@ func (fp *FileProcessor) ProcessFile(mediaFileID uint) (string, error) {
 	// Submit to processing queue
 	select {
 	case fp.processingQueue <- job:
-		log.Printf("INFO: File processing job %s queued for media file ID %d", jobID, mediaFileID)
+		log.Printf("INFO: File processing job %s queued for media file ID %s", jobID, mediaFileID)
 	default:
 		// Queue full, handle gracefully
 		fp.jobsMutex.Lock()
@@ -125,11 +125,11 @@ func (fp *FileProcessor) ProcessFile(mediaFileID uint) (string, error) {
 		event := events.NewSystemEvent(
 			"media.file.processing.queued",
 			"File Processing Queued",
-			fmt.Sprintf("Processing job %s queued for file ID %d", jobID, mediaFileID),
+			fmt.Sprintf("Processing job %s queued for file ID %s", jobID, mediaFileID),
 		)
 		event.Data = map[string]interface{}{
 			"jobID":       jobID,
-			"mediaFileID": mediaFileID,
+			"mediaFileID": mediaFile.ID,
 			"filePath":    mediaFile.Path,
 		}
 		fp.eventBus.PublishAsync(event)
@@ -253,7 +253,7 @@ func (fp *FileProcessor) processFileJob(job *ProcessJob) error {
 	
 	// Get file from database
 	var mediaFile database.MediaFile
-	if err := fp.db.First(&mediaFile, job.MediaFileID).Error; err != nil {
+	if err := fp.db.Where("id = ?", job.MediaFileID).First(&mediaFile).Error; err != nil {
 		return fmt.Errorf("failed to find media file in database: %w", err)
 	}
 	
@@ -339,14 +339,15 @@ func (fp *FileProcessor) processWithPlugins(job *ProcessJob, mediaFile *database
 	ctx := plugins.MetadataContext{
 		DB:        fp.db,
 		MediaFile: mediaFile,
-		LibraryID: mediaFile.LibraryID,
+		LibraryID: uint(mediaFile.LibraryID),
 		EventBus:  fp.eventBus,
 	}
 	
-	// Delete existing metadata if it exists (clean slate approach)
-	if err := fp.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
-		log.Printf("WARNING: Failed to delete existing metadata: %v", err)
-	}
+	// TODO: With new schema, metadata deletion would be through Artist/Album/Track relationships
+	// For now, just skip the old MusicMetadata deletion
+	// if err := fp.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
+	//	 return fmt.Errorf("failed to delete music metadata: %w", err)
+	// }
 	
 	// Process file with the matching handler
 	if err := matchingHandler.HandleFile(job.FilePath, ctx); err != nil {

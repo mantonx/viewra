@@ -75,7 +75,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get absolute path for plugin directory: %v", err)
 	}
-	fmt.Printf("Using plugin directory: %s\\n", absPluginDir)
+	fmt.Printf("Using plugin directory: %s\n", absPluginDir)
 
 
 	// Create plugin manager
@@ -97,34 +97,35 @@ func main() {
 	}
 
 	// List discovered plugins
-	fmt.Println("\\nDiscovered Plugins:")
+	fmt.Println("\nDiscovered Plugins:")
 	fmt.Println("------------------")
 	pluginList := manager.ListPlugins()
 	if len(pluginList) == 0 {
 		fmt.Println("No plugins discovered. Ensure 'plugin.cue' files exist and are correctly configured.")
-	}
-	for id, pluginInstance := range pluginList {
-		fmt.Printf("- ID: %s\\n", id)
-		fmt.Printf("  Name: %s\\n", pluginInstance.Name)
-		fmt.Printf("  Version: %s\\n", pluginInstance.Version)
-		fmt.Printf("  Type: %s\\n", pluginInstance.Type)
-		fmt.Printf("  BinaryPath: %s\\n", pluginInstance.BinaryPath)
-		fmt.Printf("  Running: %t\\n", pluginInstance.Running)
-		fmt.Println()
+	} else {
+		for _, pluginInfo := range pluginList {
+			fmt.Printf("- Name: %s\n", pluginInfo.Name)
+			fmt.Printf("  Version: %s\n", pluginInfo.Version)
+			fmt.Printf("  Type: %s\n", pluginInfo.Type)
+			fmt.Printf("  Description: %s\n", pluginInfo.Description)
+			fmt.Printf("  Enabled: %t\n", pluginInfo.Enabled)
+			fmt.Printf("  IsCore: %t\n", pluginInfo.IsCore)
+			fmt.Println()
+		}
 	}
 
 	// Check if MusicBrainz enricher was discovered
 	mbPlugin, exists := manager.GetPlugin("musicbrainz_enricher")
 	if !exists {
 		fmt.Println("❌ MusicBrainz Enricher plugin not discovered")
-		fmt.Println("\\nMake sure the plugin.cue file exists in backend/data/plugins/musicbrainz_enricher/")
+		fmt.Println("\nMake sure the plugin.cue file exists in backend/data/plugins/musicbrainz_enricher/")
 		os.Exit(1)
 	}
 
-	fmt.Printf("✅ MusicBrainz Enricher plugin discovered: %s v%s\\n", mbPlugin.Name, mbPlugin.Version)
+	fmt.Printf("✅ MusicBrainz Enricher plugin discovered: %s v%s\n", mbPlugin.Name, mbPlugin.Version)
 
 	// Try to load the plugin
-	fmt.Println("\\nAttempting to load MusicBrainz Enricher plugin...")
+	fmt.Println("\nAttempting to load MusicBrainz Enricher plugin...")
 	if err := manager.LoadPlugin(ctx, "musicbrainz_enricher"); err != nil {
 		log.Printf("Failed to load plugin: %v", err)
 		fmt.Println("❌ Plugin loading failed")
@@ -141,9 +142,9 @@ func main() {
 			// Example of calling a method on the service if one existed like Ping
 			// resp, err := loadedMbPlugin.MetadataScraperService.Ping(ctx, &proto.PingRequest{})
 			// if err != nil {
-			// 	fmt.Printf("Plugin Ping RPC failed: %v\\n", err)
+			// 	fmt.Printf("Plugin Ping RPC failed: %v\n", err)
 			// } else {
-			//  fmt.Printf("Plugin Ping RPC success: %s\\n", resp.Message)
+			//  fmt.Printf("Plugin Ping RPC success: %s\n", resp.Message)
 			// }
 
 		} else {
@@ -153,11 +154,11 @@ func main() {
 
 	// Get scanner hook plugins
 	scannerHooks := manager.GetScannerHooks()
-	fmt.Printf("\\nScanner Hook Plugins: %d\\n", len(scannerHooks))
+	fmt.Printf("\nScanner Hook Plugins: %d\n", len(scannerHooks))
 
 	// Get metadata scraper plugins
 	metadataScrapers := manager.GetMetadataScrapers()
-	fmt.Printf("Metadata Scraper Plugins: %d\\n", len(metadataScrapers))
+	fmt.Printf("Metadata Scraper Plugins: %d\n", len(metadataScrapers))
 
 	if len(metadataScrapers) > 0 && metadataScrapers[0] != nil {
 		// Attempt to get basic info from the first scraper
@@ -167,17 +168,17 @@ func main() {
 		// Test GetSupportedTypes
 		supportedTypesResp, err := scraperClient.GetSupportedTypes(ctx, &proto.GetSupportedTypesRequest{})
 		if err != nil {
-			fmt.Printf("❌ Failed to get supported types from scraper: %v\\n", err)
+			fmt.Printf("❌ Failed to get supported types from scraper: %v\n", err)
 		} else {
-			fmt.Printf("Scraper supported types: %v\\n", supportedTypesResp.GetTypes())
+			fmt.Printf("Scraper supported types: %v\n", supportedTypesResp.GetTypes())
 		}
 
 		// Test CanHandle (example)
 		canHandleResp, err := scraperClient.CanHandle(ctx, &proto.CanHandleRequest{FilePath: "/test/file.mp3", MimeType: "audio/mpeg"})
 		if err != nil {
-			fmt.Printf("❌ Scraper CanHandle call failed: %v\\n", err)
+			fmt.Printf("❌ Scraper CanHandle call failed: %v\n", err)
 		} else {
-			fmt.Printf("Scraper can handle MP3 files: %v\\n", canHandleResp.GetCanHandle())
+			fmt.Printf("Scraper can handle MP3 files: %v\n", canHandleResp.GetCanHandle())
 		}
 
 	} else {
@@ -187,10 +188,10 @@ func main() {
 
 	// Test scanner hook functionality
 	if len(scannerHooks) > 0 && scannerHooks[0] != nil {
-		fmt.Println("\\nTesting scanner hook functionality...")
+		fmt.Println("\nTesting scanner hook functionality...")
 		hookClient := scannerHooks[0] // This is a proto.ScannerHookServiceClient
 
-		fmt.Printf("Testing hook plugin (first available)\\n")
+		fmt.Printf("Testing hook plugin (first available)\n")
 
 		// Test OnMediaFileScanned
 		_, err := hookClient.OnMediaFileScanned(ctx, &proto.OnMediaFileScannedRequest{
@@ -199,7 +200,7 @@ func main() {
 			Metadata:    map[string]string{"title": "Test Song", "artist": "Test Artist", "album": "Test Album"},
 		})
 		if err != nil {
-			fmt.Printf("❌ OnMediaFileScanned failed: %v\\n", err)
+			fmt.Printf("❌ OnMediaFileScanned failed: %v\n", err)
 		} else {
 			fmt.Println("✅ OnMediaFileScanned test passed")
 		}
@@ -209,7 +210,7 @@ func main() {
 
 
 	// Shutdown (this should complete quickly now)
-	fmt.Println("\\nShutting down plugin manager...")
+	fmt.Println("\nShutting down plugin manager...")
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second) // Increased timeout
 	defer shutdownCancel()
 

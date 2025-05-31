@@ -87,14 +87,19 @@ func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr plugins.Manager) {
 			
 		// Setup all routes with event-enabled handlers (now the standard)
 		// Pass systemEventBus, handlers should be robust if it's nil or this block guarded by systemEventBus != nil
-		setupMediaRoutesWithEvents(api, systemEventBus) // Renamed from setupMediaRoutesWithEvents
-		setupUserRoutesWithEvents(api, systemEventBus)   // Renamed from setupUserRoutesWithEvents
-		setupAdminRoutesWithEvents(api, systemEventBus)  // Renamed from setupAdminRoutesWithEvents
+		setupMediaRoutesWithEvents(api, systemEventBus)
+		setupUserRoutesWithEvents(api, systemEventBus)
+		setupAdminRoutesWithEvents(api, systemEventBus)
 		
-		// Call setupEventRoutes and setupScanRoutes here
-		setupEventRoutes(api) // Ensures event routes are setup
-		setupScanRoutes(api)  // Ensures scan routes are setup
+		// Call setup functions
+		setupEventRoutes(api)
+		setupScanRoutes(api)
 		
+		// Scan management routes - only keep non-conflicting routes here
+		api.POST("/scan/library/:id", handlers.StartLibraryScan)
+		api.GET("/library/:id/trickplay-analysis", handlers.AnalyzeTrickplayContent)
+		api.POST("/library/:id/cleanup", handlers.CleanupLibraryData)
+
 		// Register module routes
 		modulemanager.RegisterRoutes(r) // Should this be api? Check usage
 	}
@@ -235,9 +240,27 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			scanner.POST("/cleanup-orphaned-files", handlers.CleanupOrphanedFiles)
 			apiroutes.Register(scanner.BasePath()+"/cleanup-orphaned-files", "POST", "Cleanup orphaned asset files from filesystem that have no database records.")
 			scanner.DELETE("/jobs/:id", handlers.DeleteScanJob)
-			apiroutes.Register(scanner.BasePath()+"/jobs/:id", "DELETE", "Delete a scan job and all its discovered files/assets.")
-			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
-			apiroutes.Register(scanner.BasePath()+"/progress/:id", "GET", "Get scan progress for a library.")
+			apiroutes.Register(scanner.BasePath()+"/jobs/:id", "DELETE", "Delete a scan job and all its discovered files and assets.")
+			scanner.GET("/monitoring-status", handlers.GetMonitoringStatus)
+			apiroutes.Register(scanner.BasePath()+"/monitoring-status", "GET", "Get file monitoring status for all libraries.")
+			
+			// Enhanced safeguarded endpoints
+			scanner.POST("/safe/start/:id", handlers.StartSafeguardedLibraryScan)
+			apiroutes.Register(scanner.BasePath()+"/safe/start/:id", "POST", "Start scanning a library using enhanced safeguards.")
+			scanner.POST("/safe/pause/:id", handlers.PauseSafeguardedLibraryScan)
+			apiroutes.Register(scanner.BasePath()+"/safe/pause/:id", "POST", "Pause a scan using enhanced safeguards.")
+			scanner.POST("/safe/resume/:id", handlers.ResumeSafeguardedLibraryScan)
+			apiroutes.Register(scanner.BasePath()+"/safe/resume/:id", "POST", "Resume a scan using enhanced safeguards.")
+			scanner.DELETE("/safe/jobs/:id", handlers.DeleteSafeguardedLibraryScan)
+			apiroutes.Register(scanner.BasePath()+"/safe/jobs/:id", "DELETE", "Delete a scan job using enhanced safeguards.")
+			scanner.GET("/safeguards/status", handlers.GetSafeguardStatus)
+			apiroutes.Register(scanner.BasePath()+"/safeguards/status", "GET", "Get safeguard system status and configuration.")
+			scanner.POST("/emergency/cleanup", handlers.ForceEmergencyCleanup)
+			apiroutes.Register(scanner.BasePath()+"/emergency/cleanup", "POST", "Perform emergency cleanup of all orphaned data.")
+			
+			// Administrative endpoints
+			scanner.POST("/force-complete/:id", handlers.ForceCompleteScan)
+			apiroutes.Register(scanner.BasePath()+"/force-complete/:id", "POST", "Manually mark a scan job as completed (admin function).")
 			
 			// Throttling control endpoints
 			scanner.POST("/throttle/disable/:jobId", handlers.DisableThrottling)
@@ -250,6 +273,10 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(scanner.BasePath()+"/throttle/config", "POST", "Update global throttling configuration.")
 			scanner.GET("/throttle/performance/:jobId", handlers.GetThrottlePerformanceHistory)
 			apiroutes.Register(scanner.BasePath()+"/throttle/performance/:jobId", "GET", "Get throttling performance history for a scan job.")
+			
+			// Health monitoring endpoints
+			scanner.GET("/health/:id", handlers.GetScanHealth)
+			apiroutes.Register(scanner.BasePath()+"/health/:id", "GET", "Monitor scan health and detect potential issues.")
 		}
 
 		pluginsGR := admin.Group("/plugins")
@@ -326,5 +353,15 @@ func setupScanRoutes(api *gin.RouterGroup) {
 
 		scan.GET("/:id/results", handlers.GetScanResults)
 		apiroutes.Register(scan.BasePath()+"/:id/results", "GET", "Get results of a completed scan job.")
+		
+		// Additional scan management routes
+		scan.DELETE("/:id", handlers.DeleteScan)
+		apiroutes.Register(scan.BasePath()+"/:id", "DELETE", "Delete a scan job.")
+
+		scan.POST("/:id/pause", handlers.PauseScan)
+		apiroutes.Register(scan.BasePath()+"/:id/pause", "POST", "Pause a specific scan job.")
+
+		scan.GET("/:id/details", handlers.GetScanDetails)
+		apiroutes.Register(scan.BasePath()+"/:id/details", "GET", "Get detailed information about a scan job.")
 	}
 }

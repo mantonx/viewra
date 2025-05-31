@@ -55,7 +55,7 @@ type Config struct {
 
 // Database models
 type TMDbCache struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
 	QueryHash string    `gorm:"uniqueIndex;not null" json:"query_hash"`
 	QueryType string    `gorm:"not null" json:"query_type"`
 	Response  string    `gorm:"type:text;not null" json:"response"`
@@ -64,8 +64,8 @@ type TMDbCache struct {
 }
 
 type TMDbEnrichment struct {
-	ID                 uint      `gorm:"primaryKey" json:"id"`
-	MediaFileID        uint      `gorm:"uniqueIndex;not null" json:"media_file_id"`
+	ID                 uint32    `gorm:"primaryKey" json:"id"`
+	MediaFileID        uint32    `gorm:"uniqueIndex;not null" json:"media_file_id"`
 	TMDbID             int       `gorm:"index" json:"tmdb_id,omitempty"`
 	MediaType          string    `gorm:"not null" json:"media_type"` // "movie", "tv", "episode"
 	SeasonNumber       int       `json:"season_number,omitempty"`
@@ -375,7 +375,7 @@ func (t *TMDbEnricher) OnMediaFileScanned(mediaFileID uint32, filePath string, m
 	}
 	
 	// Save enrichment
-	return t.saveEnrichment(uint(mediaFileID), bestMatch)
+	return t.saveEnrichment(uint32(mediaFileID), bestMatch)
 }
 
 // OnScanStarted implements the plugins.ScannerHookService interface
@@ -631,7 +631,7 @@ func (t *TMDbEnricher) getResultYear(result Result) int {
 	return 0
 }
 
-func (t *TMDbEnricher) saveEnrichment(mediaFileID uint, result *Result) error {
+func (t *TMDbEnricher) saveEnrichment(mediaFileID uint32, result *Result) error {
 	enrichment := &TMDbEnrichment{
 		MediaFileID:      mediaFileID,
 		TMDbID:           result.ID,

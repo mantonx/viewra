@@ -79,8 +79,18 @@ func (m *Module) Initialize() error {
 	err := m.db.AutoMigrate(
 		&database.MediaLibrary{},
 		&database.MediaFile{},
-		&database.Media{},
-		&database.MusicMetadata{},
+		&database.MediaAsset{},
+		&database.People{},
+		&database.Roles{},
+		&database.Artist{},
+		&database.Album{},
+		&database.Track{},
+		&database.Movie{},
+		&database.TVShow{},
+		&database.Season{},
+		&database.Episode{},
+		&database.MediaExternalIDs{},
+		&database.MediaEnrichment{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate media schema: %w", err)
@@ -97,8 +107,18 @@ func (m *Module) Migrate(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		&database.MediaLibrary{},
 		&database.MediaFile{},
-		&database.Media{},
-		&database.MusicMetadata{},
+		&database.MediaAsset{},
+		&database.People{},
+		&database.Roles{},
+		&database.Artist{},
+		&database.Album{},
+		&database.Track{},
+		&database.Movie{},
+		&database.TVShow{},
+		&database.Season{},
+		&database.Episode{},
+		&database.MediaExternalIDs{},
+		&database.MediaEnrichment{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate media schema: %w", err)

@@ -18,7 +18,8 @@ import (
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/plugins"
-	"github.com/mantonx/viewra/internal/plugins/enrichment"
+
+	// "github.com/mantonx/viewra/internal/plugins/enrichment" // Temporarily disabled
 	"github.com/mantonx/viewra/internal/server/handlers"
 
 	// Import all modules to trigger their registration
@@ -27,9 +28,8 @@ import (
 	_ "github.com/mantonx/viewra/internal/modules/eventsmodule"
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
-
 	// Import core plugins
-	"github.com/mantonx/viewra/internal/plugins/ffmpeg"
+	// "github.com/mantonx/viewra/internal/plugins/ffmpeg" // Temporarily disabled
 )
 
 var pluginManager plugins.Manager
@@ -305,6 +305,12 @@ func initializePluginManager() error {
 
 // registerCorePlugins registers core plugins
 func registerCorePlugins() error {
+	// Temporarily disabled - core plugins moved to external packages
+	log.Printf("⚠️  Core plugins temporarily disabled during schema migration")
+	return nil
+	
+	// TODO: Re-enable once plugins are updated for new schema
+	/*
 	// Register FFmpeg core plugin (for video files)
 	ffmpegPlugin := ffmpeg.NewFFmpegCorePlugin()
 	if err := pluginManager.RegisterCorePlugin(ffmpegPlugin); err != nil {
@@ -318,7 +324,7 @@ func registerCorePlugins() error {
 	}
 	
 	log.Printf("✅ Registered core plugins: FFmpeg, Enrichment")
-	return nil
+	*/
 }
 
 // GetPluginManager returns the plugin manager instance

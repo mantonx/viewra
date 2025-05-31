@@ -147,30 +147,20 @@ func (h *MediaHandler) StreamMedia(c *gin.Context) {
 
 		// Publish playback started event
 		if h.eventBus != nil {
-			// Get title/artist for music files
-			var title, artist, album string
-			var musicMetadata database.MusicMetadata
-
-			if err := db.Where("media_file_id = ?", mediaID).First(&musicMetadata).Error; err == nil {
-				title = musicMetadata.Title
-				artist = musicMetadata.Artist
-				album = musicMetadata.Album
-			} else {
-				title = filepath.Base(mediaFile.Path)
-			}
-
+			// TODO: With new schema, metadata would be retrieved through Artist/Album/Track relationships
+			// For now, use basic file info
+			title := filepath.Base(mediaFile.Path)
+			
 			playEvent := events.NewSystemEvent(
 				events.EventPlaybackStarted,
 				"Playback Started",
-				fmt.Sprintf("Started streaming: %s - %s", artist, title),
+				fmt.Sprintf("Started streaming: %s", title),
 			)
 			playEvent.Data = map[string]interface{}{
 				"mediaId":   mediaID,
 				"userId":    userID,
 				"timestamp": time.Now().Unix(),
 				"title":     title,
-				"artist":    artist,
-				"album":     album,
 				"path":      mediaFile.Path,
 			}
 			h.eventBus.PublishAsync(playEvent)

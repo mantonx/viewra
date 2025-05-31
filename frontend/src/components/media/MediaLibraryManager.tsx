@@ -19,6 +19,8 @@ interface ScanEvent {
     activeWorkers?: number;
     queueDepth?: number;
     filesFound?: number;
+    totalFiles?: number;
+    remainingFiles?: number;
     [key: string]: unknown;
   };
   timestamp: string;
@@ -80,6 +82,12 @@ const MediaLibraryManager = () => {
         filesPerSecond?: number;
         throughputMbps?: number;
         elapsedTime?: string;
+        // New fields for total files and bytes display
+        totalFiles?: number;
+        totalBytes?: number;
+        filesFound?: number;
+        remainingFiles?: number;
+        discoveryComplete: boolean;
       }
     >
   >(new Map());
@@ -158,150 +166,106 @@ const MediaLibraryManager = () => {
     };
 
     const handleScanEvent = (event: ScanEvent) => {
-      console.log('Received scan event:', event.type, event.data);
+      const jobId = event.data.jobId;
+      if (!jobId) return;
 
-      // Handle library deletion events
-      if (event.type === 'library.deleted' && event.data.libraryId) {
-        const libraryId = event.data.libraryId;
+      const now = new Date();
 
-        // Add removal animation before updating state
-        const libraryElement = document.querySelector(`[data-library-id="${libraryId}"]`);
-        if (libraryElement) {
-          libraryElement.classList.add('library-removing');
-          setTimeout(() => {
-            // Clean up state after animation
-            setCurrentJobs((prev) => {
-              const newJobs = { ...prev };
-              delete newJobs[libraryId];
-              return newJobs;
-            });
-            setLibraryStats((prev) => {
-              const newStats = { ...prev };
-              delete newStats[libraryId];
-              return newStats;
-            });
-            setScanProgress((prev) => {
-              const newMap = new Map(prev);
-              // Remove progress tracking for jobs related to this library
-              const libraryJob = currentJobs[libraryId];
-              if (libraryJob) {
-                newMap.delete(Number(libraryJob.id));
-              }
-              return newMap;
-            });
+      if (event.type === 'scan.progress') {
+        setScanProgress((prev) => {
+          const current = prev.get(jobId);
+          const newProgress = {
+            filesProcessed: (event.data.filesProcessed as number) || 0,
+            bytesProcessed: (event.data.bytesProcessed as number) || 0,
+            progress: (event.data.progress as number) || 0,
+            activeWorkers: (event.data.activeWorkers as number) || 0,
+            queueDepth: (event.data.queueDepth as number) || 0,
+            lastUpdate: now,
+            startTime: current?.startTime || now,
+            estimatedTimeLeft:
+              (event.data.estimatedTimeLeft as number) || current?.estimatedTimeLeft || 0,
+            // Keep existing detailed data if available
+            maxWorkers: current?.maxWorkers,
+            minWorkers: current?.minWorkers,
+            eta: current?.eta,
+            filesPerSecond: (event.data.filesPerSecond as number) || current?.filesPerSecond,
+            throughputMbps: (event.data.throughputMbps as number) || current?.throughputMbps,
+            elapsedTime: current?.elapsedTime,
 
-            // Reload libraries to get updated list
-            loadLibraries();
-          }, 300); // Match CSS animation duration
-        } else {
-          // No animation element found, update immediately
-          setCurrentJobs((prev) => {
-            const newJobs = { ...prev };
-            delete newJobs[libraryId];
-            return newJobs;
-          });
-          setLibraryStats((prev) => {
-            const newStats = { ...prev };
-            delete newStats[libraryId];
-            return newStats;
-          });
-          loadLibraries();
-        }
-        return;
-      }
+            // New fields for total files and bytes display
+            totalFiles:
+              (event.data.totalFiles as number) ||
+              (event.data.filesFound as number) ||
+              current?.totalFiles ||
+              0,
+            totalBytes: (event.data.totalBytes as number) || current?.totalBytes || 0,
+            filesFound: (event.data.filesFound as number) || current?.filesFound || 0,
+            remainingFiles: (() => {
+              const totalFiles =
+                (event.data.totalFiles as number) || (event.data.filesFound as number) || 0;
+              const processed = (event.data.filesProcessed as number) || 0;
+              return (event.data.remainingFiles as number) || Math.max(0, totalFiles - processed);
+            })(),
+            discoveryComplete: false,
+          };
 
-      // Update scan jobs and stats when scan events occur
-      if (event.type.startsWith('scan.')) {
-        // Reload current jobs and stats
-        loadCurrentJobs();
-        loadScanStats();
-        loadLibraryStats();
+          const updatedMap = new Map(prev);
+          updatedMap.set(jobId, newProgress);
+          return updatedMap;
+        });
+      } else if (event.type === 'scan.discovery') {
+        // Handle discovery events to show file discovery progress
+        const filesInDir = (event.data.files_found_in_dir as number) || 0;
+        const directory = (event.data.directory as string) || '';
 
-        // Handle progress events specifically
-        if (event.type === 'scan.progress' && event.data.jobId) {
-          const jobId = event.data.jobId;
-          const now = new Date();
+        // Log discovery progress (could be enhanced with notifications later)
+        console.log(`Discovering files: found ${filesInDir} in ${directory.split('/').pop()}`);
+      } else if (event.type === 'scan.discovery_complete') {
+        // Discovery phase is complete - now we have the final total
+        const finalTotal = (event.data.final_total_files as number) || 0;
+        const finalBytes = (event.data.final_total_bytes as number) || 0;
 
-          setScanProgress((prev) => {
-            const current = prev.get(jobId);
-            const newProgress = {
-              filesProcessed: event.data.filesProcessed || 0,
-              bytesProcessed: event.data.bytesProcessed || 0,
-              progress: event.data.progress || 0,
-              activeWorkers: event.data.activeWorkers || 0,
-              queueDepth: event.data.queueDepth || 0,
-              lastUpdate: now,
-              startTime: current?.startTime || now,
-              estimatedTimeLeft: current?.estimatedTimeLeft || 0,
-              // Keep existing detailed data if available
-              maxWorkers: current?.maxWorkers,
-              minWorkers: current?.minWorkers,
-              eta: current?.eta,
-              filesPerSecond: current?.filesPerSecond,
-              throughputMbps: current?.throughputMbps,
-              elapsedTime: current?.elapsedTime,
+        console.log(
+          `Discovery complete: ${finalTotal.toLocaleString()} files found (${formatBytes(finalBytes)}). Starting processing...`
+        );
+
+        // Update scan progress with final totals
+        setScanProgress((prev) => {
+          const current = prev.get(jobId);
+          if (current) {
+            const updatedProgress = {
+              ...current,
+              totalFiles: finalTotal,
+              totalBytes: finalBytes,
+              filesFound: finalTotal,
+              discoveryComplete: true,
             };
-
-            // Calculate estimated time left
-            if (current && newProgress.filesProcessed > current.filesProcessed) {
-              const timeElapsed = now.getTime() - (current.startTime || now).getTime();
-              const filesProcessed = newProgress.filesProcessed;
-              const totalFiles = event.data.filesFound || 1;
-              const filesRemaining = totalFiles - filesProcessed;
-
-              if (filesProcessed > 0 && filesRemaining > 0) {
-                const avgTimePerFile = timeElapsed / filesProcessed;
-                newProgress.estimatedTimeLeft = Math.round(
-                  (avgTimePerFile * filesRemaining) / 1000
-                ); // in seconds
-              }
-            }
-
-            const newMap = new Map(prev);
-            newMap.set(jobId, newProgress);
-            return newMap;
+            const updatedMap = new Map(prev);
+            updatedMap.set(jobId, updatedProgress);
+            return updatedMap;
+          }
+          return prev;
+        });
+      } else if (event.type === 'scan.started') {
+        setScanProgress((prev) => {
+          const updatedMap = new Map(prev);
+          updatedMap.set(jobId, {
+            filesProcessed: 0,
+            bytesProcessed: 0,
+            progress: 0,
+            activeWorkers: 0,
+            queueDepth: 0,
+            lastUpdate: now,
+            startTime: now,
+            estimatedTimeLeft: 0,
+            totalFiles: 0,
+            totalBytes: 0,
+            filesFound: 0,
+            remainingFiles: 0,
+            discoveryComplete: false,
           });
-
-          // Also fetch detailed progress data to get the missing worker info
-          loadDetailedProgress(jobId);
-        }
-
-        // Handle scan start events
-        if (
-          event.type === 'scan.started' &&
-          event.data.scanJobId &&
-          typeof event.data.scanJobId === 'number'
-        ) {
-          const jobId = event.data.scanJobId;
-          setScanProgress((prev) => {
-            const newMap = new Map(prev);
-            newMap.set(jobId, {
-              filesProcessed: 0,
-              bytesProcessed: 0,
-              progress: 0,
-              activeWorkers: 0,
-              queueDepth: 0,
-              lastUpdate: new Date(),
-              startTime: new Date(),
-              estimatedTimeLeft: 0,
-            });
-            return newMap;
-          });
-        }
-
-        // Clean up progress tracking for completed/failed scans
-        if (
-          (event.type === 'scan.completed' || event.type === 'scan.failed') &&
-          event.data.scanJobId &&
-          typeof event.data.scanJobId === 'number'
-        ) {
-          const jobId = event.data.scanJobId;
-          setScanProgress((prev) => {
-            const newMap = new Map(prev);
-            newMap.delete(jobId);
-            return newMap;
-          });
-        }
+          return updatedMap;
+        });
       }
     };
 
@@ -678,6 +642,18 @@ const MediaLibraryManager = () => {
             filesPerSecond: result.files_per_second || result.files_per_sec,
             throughputMbps: result.throughput_mbps,
             elapsedTime: result.elapsed_time,
+            // New fields for total files and bytes display
+            totalFiles: result.total_files || result.files_found || current?.totalFiles || 0,
+            totalBytes: (result.total_bytes as number) || current?.totalBytes || 0,
+            filesFound: result.files_found || current?.filesFound || 0,
+            remainingFiles:
+              result.remaining_files ||
+              Math.max(
+                0,
+                (result.total_files || result.files_found || 0) -
+                  (result.processed_files || result.files_processed || 0)
+              ),
+            discoveryComplete: false,
           };
 
           const newMap = new Map(prev);
@@ -932,26 +908,65 @@ const MediaLibraryManager = () => {
     const isActivelyScanning = scanJob?.status === 'running';
     const isPaused = scanJob?.status === 'paused';
 
+    // Get real-time progress data if available
+    const progressData = scanJob ? scanProgress.get(scanJob.id) : undefined;
+    const filesProcessed = progressData?.filesProcessed || scanJob?.files_processed || 0;
+    const totalFiles = progressData?.totalFiles || scanJob?.files_found || 0;
+    const totalBytes = progressData?.totalBytes || 0;
+    const bytesProcessed = progressData?.bytesProcessed || 0;
+    const discoveryComplete = progressData?.discoveryComplete || false;
+
     // Simple progress: if scan is active, show estimated progress, otherwise 100% if files exist
     let progressPercent = 0;
-    if (scanJob?.progress !== undefined && scanJob.progress > 0) {
-      progressPercent = Math.min(scanJob.progress, 100);
-    } else if (databaseFileCount > 0 && !isActivelyScanning) {
-      progressPercent = 100; // If we have files, consider it complete unless actively scanning
+    if (scanJob?.progress !== undefined) {
+      progressPercent = scanJob.progress;
+    } else if (progressData?.progress !== undefined) {
+      progressPercent = progressData.progress;
+    }
+
+    let statusText = '';
+    if (isActivelyScanning) {
+      if (!discoveryComplete && totalFiles === 0) {
+        // Discovery phase - no files found yet
+        statusText = 'Discovering files...';
+      } else if (!discoveryComplete && totalFiles > 0) {
+        // Discovery phase - files being found
+        statusText = `Discovering files... (${totalFiles.toLocaleString()} found)`;
+      } else if (discoveryComplete && totalFiles > 0) {
+        // Processing phase - stable total
+        if (totalBytes > 0) {
+          statusText = `Processing ${filesProcessed.toLocaleString()} of ${totalFiles.toLocaleString()} files (${formatBytes(bytesProcessed)} of ${formatBytes(totalBytes)})`;
+        } else {
+          statusText = `Processing ${filesProcessed.toLocaleString()} of ${totalFiles.toLocaleString()} files`;
+        }
+      } else {
+        // Fallback
+        statusText = 'Scanning in progress...';
+      }
+    } else if (isPaused) {
+      if (totalFiles > 0) {
+        if (totalBytes > 0) {
+          statusText = `Paused at ${filesProcessed.toLocaleString()} of ${totalFiles.toLocaleString()} files (${formatBytes(bytesProcessed)} of ${formatBytes(totalBytes)})`;
+        } else {
+          statusText = `Paused at ${filesProcessed.toLocaleString()} of ${totalFiles.toLocaleString()} files`;
+        }
+      } else {
+        statusText = 'Scan paused';
+      }
+    } else if (databaseFileCount > 0) {
+      statusText = `${databaseFileCount.toLocaleString()} files scanned`;
+    } else {
+      statusText = 'No files scanned yet';
     }
 
     return {
-      fileCount: databaseFileCount,
+      fileCount: Math.max(databaseFileCount, totalFiles),
       progressPercent,
       isActivelyScanning,
       isPaused,
-      statusText: isActivelyScanning
-        ? 'Scanning...'
-        : isPaused
-          ? 'Paused'
-          : databaseFileCount > 0
-            ? 'Complete'
-            : 'Not scanned',
+      statusText,
+      filesProcessed,
+      totalFiles,
     };
   };
 
@@ -1301,12 +1316,14 @@ const MediaLibraryManager = () => {
 
                     {/* Progress info below the bar */}
                     <div className="flex justify-between items-center mt-2 text-xs">
-                      <span className="text-slate-300">
-                        {progressPercent > 0 ? `${progressPercent.toFixed(1)}%` : '0%'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-300">
+                          {progressPercent > 0 ? `${progressPercent.toFixed(1)}%` : '0%'}
+                        </span>
+                      </div>
                       {progressInfo.isActivelyScanning && progressData?.estimatedTimeLeft && (
-                        <span className="text-blue-400">
-                          {formatHumanReadableETA(progressData.estimatedTimeLeft)} left
+                        <span className="text-slate-400">
+                          {formatHumanReadableETA(progressData.estimatedTimeLeft)}
                         </span>
                       )}
                     </div>
@@ -1349,14 +1366,66 @@ const MediaLibraryManager = () => {
                                 <span className="text-slate-300">Status:</span>
                                 <span className="text-white">{scanJob.status}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-300">Started:</span>
-                                <span className="text-white">
-                                  {scanJob.started_at
-                                    ? new Date(scanJob.started_at).toLocaleString()
-                                    : 'N/A'}
-                                </span>
-                              </div>
+
+                              {/* File Progress Information */}
+                              {progressInfo.totalFiles > 0 && (
+                                <>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Files Processed:</span>
+                                    <span className="text-white">
+                                      {progressInfo.filesProcessed.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Total Files:</span>
+                                    <span className="text-white">
+                                      {progressInfo.totalFiles.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Remaining Files:</span>
+                                    <span className="text-white">
+                                      {(
+                                        progressInfo.totalFiles - progressInfo.filesProcessed
+                                      ).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  {progressData?.totalBytes && progressData.totalBytes > 0 && (
+                                    <>
+                                      <div className="flex justify-between">
+                                        <span className="text-slate-300">Bytes Processed:</span>
+                                        <span className="text-white">
+                                          {formatBytes(progressData.bytesProcessed || 0)}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-slate-300">Total Size:</span>
+                                        <span className="text-white">
+                                          {formatBytes(progressData.totalBytes)}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-slate-300">Remaining Size:</span>
+                                        <span className="text-white">
+                                          {formatBytes(
+                                            (progressData.totalBytes || 0) -
+                                              (progressData.bytesProcessed || 0)
+                                          )}
+                                        </span>
+                                      </div>
+                                    </>
+                                  )}
+
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Started:</span>
+                                    <span className="text-white">
+                                      {scanJob.started_at
+                                        ? new Date(scanJob.started_at).toLocaleString()
+                                        : 'N/A'}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
 

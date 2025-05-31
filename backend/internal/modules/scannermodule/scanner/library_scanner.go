@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"io/fs"
 	"math"
 	"os"
@@ -25,60 +26,67 @@ import (
 // LibraryScanner implements a high-performance parallel file scanner
 type LibraryScanner struct {
 	db                *gorm.DB
-	jobID             uint
 	eventBus          events.EventBus
-	scanJob           *database.ScanJob
-	pathResolver      *utils.PathResolver
-	progressEstimator *ProgressEstimator
-	systemMonitor     *SystemLoadMonitor
-	adaptiveThrottler *AdaptiveThrottler // New intelligent throttling system
 	pluginManager     plugins.Manager
-
+	throttler         *AdaptiveThrottler
+	telemetry        *ScanTelemetry
+	
+	// Configuration
+	jobID             uint32
+	status            string
+	
+	// Scanning infrastructure
+	workerCount       int
+	minWorkers        int
+	maxWorkers        int
+	dirWorkerCount    int
+	activeWorkers     atomic.Int32
+	activeDirWorkers  atomic.Int32
+	
+	// Concurrency management
+	workerExitChan    chan int
+	workQueue         chan scanWork
+	dirQueue          chan dirWork
+	resultQueue       chan *scanResult
+	errorQueue        chan error
+	
+	// Batch processing
+	batchSize         int
+	batchTimeout      time.Duration
+	batchProcessor    *BatchProcessor
+	
+	// Context and lifecycle
+	ctx               context.Context
+	cancel            context.CancelFunc
+	wg                sync.WaitGroup
+	
+	// Caching
+	fileCache         *FileCache
+	metadataCache     *MetadataCache
+	
 	// Plugin integration
 	pluginRouter      *PluginRouter
-	corePluginsManager *plugins.CorePluginsManager
+	corePluginsManager *plugins.CorePluginManager // Changed from interface{} to proper type
 	mediaManager      *plugins.MediaManager
-
-	// Worker management
-	workerCount    int
-	minWorkers     int          // Minimum number of workers
-	maxWorkers     int          // Maximum number of workers
-	activeWorkers  atomic.Int32 // Current number of active workers
-	workerExitChan chan int     // Channel for signaling workers to exit
-	workQueue      chan scanWork
-	resultQueue    chan *scanResult
-	errorQueue     chan error
-
-	// Directory walking - parallel implementation
-	dirWorkerCount   int          // Number of directory walking workers
-	dirQueue         chan dirWork // Queue for directory scanning work
-	activeDirWorkers atomic.Int32 // Current number of active directory workers
-
-	// Batch processing
-	batchSize      int
-	batchTimeout   time.Duration
-	batchProcessor *BatchProcessor
-
+	
+	// Progress tracking
+	progressEstimator *ProgressEstimator
+	systemMonitor     *SystemLoadMonitor
+	adaptiveThrottler *AdaptiveThrottler
+	
 	// State management
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-
-	// Performance metrics
-	filesProcessed atomic.Int64
-	bytesProcessed atomic.Int64
-	errorsCount    atomic.Int64
-	filesSkipped   atomic.Int64 // Files that couldn't be processed
-	filesFound     atomic.Int64 // Files discovered during scan
-	startTime      time.Time
-
-	// Cache for improved performance
-	fileCache     *FileCache
-	metadataCache *MetadataCache
-
-	// Control flags
+	scanJob           *database.ScanJob
+	startTime         time.Time
+	dbMutex           sync.RWMutex
 	wasExplicitlyPaused atomic.Bool
-	dbMutex             sync.Mutex // Mutex for serializing DB write operations
+	
+	// Counters
+	filesProcessed    atomic.Int64
+	filesFound        atomic.Int64
+	filesSkipped      atomic.Int64
+	bytesProcessed    atomic.Int64
+	bytesFound        atomic.Int64
+	errorsCount       atomic.Int64
 }
 
 // scanWork represents a unit of work for scanning
@@ -125,10 +133,10 @@ type MetadataItem struct {
 type FileCache struct {
 	cache map[string]*database.MediaFile
 	mu    sync.RWMutex
-	// OPTIMIZATION 9: Add LRU tracking for cache eviction
+	// LRU tracking for cache eviction
 	accessTimes map[string]time.Time
 	maxSize     int
-	// OPTIMIZATION 20: Bloom filter for fast pre-screening of known files
+	// Bloom filter for fast pre-screening of known files
 	knownFiles  *BloomFilter // Fast membership test for files seen in previous scans
 	bloomMu     sync.RWMutex // Separate mutex for bloom filter operations
 }
@@ -220,7 +228,7 @@ type MetadataCache struct {
 	cache map[string]interface{} // Generic metadata cache
 	mu    sync.RWMutex
 	ttl   time.Duration
-	// OPTIMIZATION 10: Add cache hit/miss tracking
+	// Cache hit/miss tracking for performance monitoring
 	hits   atomic.Int64
 	misses atomic.Int64
 }
@@ -301,7 +309,7 @@ func (teh *ThrottleEventHandler) OnEmergencyBrakeRelease(metrics SystemMetrics) 
 }
 
 // NewLibraryScanner creates a new parallel file scanner with optimizations
-func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, pluginManager plugins.Manager) *LibraryScanner {
+func NewLibraryScanner(db *gorm.DB, jobID uint32, eventBus events.EventBus, pluginManager plugins.Manager) *LibraryScanner {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Calculate worker counts for maximum performance
@@ -333,20 +341,46 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 		dirWorkerCount = 6 // Cap at 6 directory workers
 	}
 
-	// OPTIMIZED QUEUE SIZES: Smaller queues for better memory management with large files
-	workQueueBuffer := workerCount * 50     // Reduced buffer size for large files
-	dirQueueBuffer := dirWorkerCount * 5000  // Smaller directory buffer
+	// OPTIMIZED QUEUE SIZES: Larger queues for massive media libraries
+	workQueueBuffer := workerCount * 2000     // Increased buffer size for large libraries (handles ~24k files)
+	dirQueueBuffer := dirWorkerCount * 10000  // Larger directory buffer for deep directory trees
 
 	scanner := &LibraryScanner{
 		db:             db,
-		jobID:          jobID,
 		eventBus:       eventBus,
-		pathResolver:   utils.NewPathResolver(),
 		pluginManager:  pluginManager,
+		throttler:      NewAdaptiveThrottler(ThrottleConfig{
+			MinWorkers:              minWorkers,
+			MaxWorkers:              maxWorkers,
+			InitialWorkers:          workerCount,
+			TargetCPUPercent:        75.0, // Higher CPU target for better performance
+			MaxCPUPercent:           90.0, // Higher CPU limit for processing large files
+			TargetMemoryPercent:     70.0, // Conservative memory for variable file sizes
+			MaxMemoryPercent:        85.0, // Safe memory limit for large batches
+			TargetNetworkThroughput: 90.0,  // Reasonable network target for various file sizes
+			MaxNetworkThroughput:    130.0, // Conservative network limit for large transfers
+			MaxIOWaitPercent:        60.0,  // Allow higher I/O wait for large files
+			TargetIOWaitPercent:     40.0,  // Balanced I/O wait target
+			MinBatchSize:            1,     // Allow single-file processing for huge files
+			MaxBatchSize:            10,    // Reasonable max batch for small files
+			DefaultBatchSize:        5,     // Balanced default batch size
+			MinProcessingDelay:      0,     // No minimum delay for performance
+			MaxProcessingDelay:      75 * time.Millisecond, // Brief delays for system stability
+			DefaultProcessingDelay:  8 * time.Millisecond,  // Minimal processing delay
+			AdjustmentInterval:      18 * time.Second, // Reasonable adjustment frequency
+			EmergencyBrakeThreshold: 98.0,   // Much higher emergency threshold (was 95.0)
+			EmergencyBrakeDuration:  4 * time.Second, // Brief emergency brake for recovery
+			DNSTimeoutMs:            1800,   // Reasonable DNS timeout for various conditions
+			NetworkHealthCheckURL:   "8.8.8.8:53",
+		}),
+		telemetry: NewScanTelemetry(eventBus, uint(jobID)),
+		jobID:    jobID,
+		status:   "running",
 		workerCount:    workerCount,
 		minWorkers:     minWorkers,
 		maxWorkers:     maxWorkers,
 		dirWorkerCount: dirWorkerCount,
+		
 		workerExitChan: make(chan int, maxWorkers),
 		workQueue:      make(chan scanWork, workQueueBuffer),   // Library-specific work queue
 		dirQueue:       make(chan dirWork, dirQueueBuffer),     // Library-specific directory queue
@@ -406,14 +440,14 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 		MinWorkers:              minWorkers,
 		MaxWorkers:              maxWorkers,
 		InitialWorkers:          workerCount,
-		TargetCPUPercent:        70.0, // Balanced CPU target for mixed workloads
-		MaxCPUPercent:           85.0, // Conservative CPU limit for large file processing
-		TargetMemoryPercent:     65.0, // Conservative memory for variable file sizes
-		MaxMemoryPercent:        80.0, // Safe memory limit for large batches
+		TargetCPUPercent:        75.0, // Higher CPU target for better performance
+		MaxCPUPercent:           90.0, // Higher CPU limit for processing large files
+		TargetMemoryPercent:     70.0, // Conservative memory for variable file sizes
+		MaxMemoryPercent:        85.0, // Safe memory limit for large batches
 		TargetNetworkThroughput: 90.0,  // Reasonable network target for various file sizes
 		MaxNetworkThroughput:    130.0, // Conservative network limit for large transfers
-		MaxIOWaitPercent:        50.0,  // Allow higher I/O wait for large files
-		TargetIOWaitPercent:     30.0,  // Balanced I/O wait target
+		MaxIOWaitPercent:        60.0,  // Allow higher I/O wait for large files
+		TargetIOWaitPercent:     40.0,  // Balanced I/O wait target
 		MinBatchSize:            1,     // Allow single-file processing for huge files
 		MaxBatchSize:            10,    // Reasonable max batch for small files
 		DefaultBatchSize:        5,     // Balanced default batch size
@@ -421,7 +455,7 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 		MaxProcessingDelay:      75 * time.Millisecond, // Brief delays for system stability
 		DefaultProcessingDelay:  8 * time.Millisecond,  // Minimal processing delay
 		AdjustmentInterval:      18 * time.Second, // Reasonable adjustment frequency
-		EmergencyBrakeThreshold: 88.0,   // Conservative emergency threshold
+		EmergencyBrakeThreshold: 98.0,   // Much higher emergency threshold (was 95.0)
 		EmergencyBrakeDuration:  4 * time.Second, // Brief emergency brake for recovery
 		DNSTimeoutMs:            1800,   // Reasonable DNS timeout for various conditions
 		NetworkHealthCheckURL:   "8.8.8.8:53",
@@ -432,7 +466,7 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 	throttleHandler := &ThrottleEventHandler{
 		scanner:  scanner,
 		eventBus: eventBus,
-		jobID:    jobID,
+		jobID:    uint(jobID),
 	}
 	scanner.adaptiveThrottler.RegisterEventCallback(throttleHandler)
 
@@ -445,7 +479,7 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 }
 
 // Start begins the parallel scanning process
-func (ps *LibraryScanner) Start(libraryID uint) error {
+func (ps *LibraryScanner) Start(libraryID uint32) error {
 	logger.Debug("LibraryScanner.Start called", "library_id", libraryID)
 
 	// Load library
@@ -496,10 +530,11 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 	ps.errorsCount.Store(0)
 	ps.filesSkipped.Store(0)
 	ps.filesFound.Store(0)
+	ps.bytesFound.Store(0)
 
 	logger.Debug("Scanner state initialized")
 
-	if err := ps.preloadFileCache(libraryID); err != nil {
+	if err := ps.preloadFileCache(uint(libraryID)); err != nil {
 		logger.Warn("Failed to preload file cache", "error", err)
 	}
 
@@ -544,7 +579,7 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 	}
 
 	ps.wg.Add(1)
-	go ps.scanDirectory(libraryID)
+	go ps.scanDirectory(uint(libraryID))
 	logger.Debug("Started scanDirectory goroutine")
 
 	logger.Debug("All goroutines started, waiting for completion")
@@ -559,7 +594,7 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 }
 
 // Resume resumes a paused scan job
-func (ps *LibraryScanner) Resume(libraryID uint) error {
+func (ps *LibraryScanner) Resume(libraryID uint32) error {
 	logger.Debug("LibraryScanner.Resume called", "library_id", libraryID)
 
 	// Load scan job
@@ -622,6 +657,7 @@ func (ps *LibraryScanner) Resume(libraryID uint) error {
 	ps.filesProcessed.Store(existingFilesProcessed)
 	ps.bytesProcessed.Store(existingBytesProcessed)
 	ps.filesFound.Store(existingFilesFound)
+	ps.bytesFound.Store(0) // Reset bytes found for discovery during resume
 	
 	// Reset error counters (these should start fresh)
 	ps.errorsCount.Store(0)
@@ -630,7 +666,7 @@ func (ps *LibraryScanner) Resume(libraryID uint) error {
 	logger.Debug("Resume state initialized", "existing_files_processed", existingFilesProcessed, "existing_bytes_processed", existingBytesProcessed, "existing_files_found", existingFilesFound)
 
 	// Preload file cache for performance
-	if err := ps.preloadFileCache(libraryID); err != nil {
+	if err := ps.preloadFileCache(uint(libraryID)); err != nil {
 		// Log warning but continue
 		fmt.Printf("Warning: Failed to preload file cache: %v\n", err)
 	}
@@ -700,7 +736,7 @@ func (ps *LibraryScanner) Resume(libraryID uint) error {
 
 	// Kick off the scanning process
 	ps.wg.Add(1)
-	go ps.scanDirectory(libraryID)
+	go ps.scanDirectory(uint(libraryID))
 	logger.Debug("Started scanDirectory goroutine for resume")
 
 	logger.Debug("All goroutines started for resume, waiting for completion")
@@ -821,7 +857,7 @@ func (ps *LibraryScanner) updateFinalStatus() {
 		// Call plugin hooks for scan completed  
 		if ps.pluginRouter != nil {
 			// Get the library ID from the scan job
-			libraryID := uint(0)
+			libraryID := uint32(0)
 			if ps.scanJob != nil {
 				libraryID = ps.scanJob.LibraryID
 			}
@@ -835,7 +871,7 @@ func (ps *LibraryScanner) updateFinalStatus() {
 				"throughput_fps":  float64(ps.filesProcessed.Load()) / duration.Seconds(),
 			}
 			
-			ps.pluginRouter.CallOnScanCompleted(ps.jobID, libraryID, stats)
+			ps.pluginRouter.CallOnScanCompleted(uint(ps.jobID), uint(libraryID), stats)
 		}
 	}
 }
@@ -874,12 +910,13 @@ func (ps *LibraryScanner) countFilesToScan(libraryPath string) (int, error) {
 	var supportedExts map[string]bool
 	if ps.corePluginsManager != nil {
 		supportedExts = make(map[string]bool)
-		plugins := ps.corePluginsManager.GetRegistry().GetPlugins()
-		for _, plugin := range plugins {
-			for _, ext := range plugin.GetSupportedExtensions() {
+		handlers := ps.corePluginsManager.GetEnabledFileHandlers()
+		for _, handler := range handlers {
+			for _, ext := range handler.GetSupportedExtensions() {
 				supportedExts[ext] = true
 			}
 		}
+		logger.Debug("Using core plugins extensions", "path", libraryPath, "ext_count", len(supportedExts))
 	}
 	
 	// Fallback to the generic media extensions from utils package if no plugins available
@@ -1024,9 +1061,9 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	// Create media file record and save to database immediately to get an ID
 	mediaFile := &database.MediaFile{
 		Path:      path,
-		Size:      info.Size(),
+		SizeBytes: info.Size(),
 		Hash:      hash,
-		LibraryID: libraryID,
+		LibraryID: uint32(libraryID),
 		ScanJobID: &ps.jobID,
 		LastSeen:  time.Now(),
 		CreatedAt: time.Now(),
@@ -1072,13 +1109,11 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 				} else {
 					logger.Debug("Successfully extracted metadata", "plugin", handler.GetName(), "file", path)
 					
-					// Query the database for the extracted metadata
-					var musicMeta database.MusicMetadata
-					if err := ps.db.Where("media_file_id = ?", mediaFile.ID).First(&musicMeta).Error; err == nil {
-						extractedMetadata = &musicMeta
-						metadataType = "music"
-						logger.Debug("Retrieved music metadata from database", "title", musicMeta.Title, "artist", musicMeta.Artist, "album", musicMeta.Album)
-					}
+					// TODO: Query for metadata using new schema (Artist/Album/Track tables)
+					// For now, just mark as successfully processed
+					extractedMetadata = map[string]interface{}{"processed": true}
+					metadataType = "music"
+					logger.Debug("Metadata extraction completed", "file", path)
 				}
 				break // Use first matching plugin
 			}
@@ -1140,60 +1175,31 @@ func (ps *LibraryScanner) calculateFileHashOptimized(path string) (string, error
 	}
 }
 
+// uuidToUint32 converts a UUID string to uint32 for plugin compatibility
+// This is a temporary solution until plugins are updated to support string UUIDs
+func uuidToUint32(uuidStr string) uint32 {
+	// Use CRC32 hash of the UUID string to create a deterministic uint32
+	hash := crc32.ChecksumIEEE([]byte(uuidStr))
+	return hash
+}
+
 func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadata interface{}) {
-	logger.Debug("callPluginHooks called", "file", mediaFile.Path, "file_id", mediaFile.ID)
-	
-	ps.pluginRouter.CallOnMediaFileScanned(mediaFile, metadata)
-
 	if ps.pluginManager == nil {
-		logger.Error("Plugin manager is nil", "file", mediaFile.Path)
 		return
 	}
 
+	// Get scanner hooks from plugin manager
 	scannerHooks := ps.pluginManager.GetScannerHooks()
-	logger.Debug("Got scanner hooks", "count", len(scannerHooks), "file", mediaFile.Path)
-	
 	if len(scannerHooks) == 0 {
-		logger.Debug("No scanner hooks available", "file", mediaFile.Path)
 		return
 	}
 
+	// Convert metadata to string map for plugins
 	metadataMap := make(map[string]string)
-	logger.Debug("Building metadata map for hooks", "file", mediaFile.Path, "metadata_type", fmt.Sprintf("%T", metadata), "metadata_nil", metadata == nil)
-	
 	if metadata != nil {
-		if musicMeta, ok := metadata.(map[string]interface{}); ok {
-			logger.Debug("Metadata is map[string]interface{}", "file", mediaFile.Path, "keys", len(musicMeta))
-			for k, v := range musicMeta {
-				metadataMap[k] = fmt.Sprint(v)
-			}
-		} else if musicMeta, ok := metadata.(*database.MusicMetadata); ok {
-			logger.Debug("Metadata is *database.MusicMetadata", "file", mediaFile.Path, "title", musicMeta.Title, "artist", musicMeta.Artist)
-			metadataMap["title"] = musicMeta.Title
-			metadataMap["artist"] = musicMeta.Artist
-			metadataMap["album"] = musicMeta.Album
-			metadataMap["album_artist"] = musicMeta.AlbumArtist
-			metadataMap["genre"] = musicMeta.Genre
-			metadataMap["year"] = fmt.Sprintf("%d", musicMeta.Year)
-			metadataMap["track"] = fmt.Sprintf("%d", musicMeta.Track)
-			metadataMap["track_total"] = fmt.Sprintf("%d", musicMeta.TrackTotal)
-			metadataMap["disc"] = fmt.Sprintf("%d", musicMeta.Disc)
-			metadataMap["disc_total"] = fmt.Sprintf("%d", musicMeta.DiscTotal)
-			metadataMap["duration"] = fmt.Sprintf("%.0f", musicMeta.Duration.Seconds())
-			metadataMap["bitrate"] = fmt.Sprintf("%d", musicMeta.Bitrate)
-			metadataMap["sample_rate"] = fmt.Sprintf("%d", musicMeta.SampleRate)
-			metadataMap["channels"] = fmt.Sprintf("%d", musicMeta.Channels)
-			metadataMap["format"] = musicMeta.Format
-			metadataMap["has_artwork"] = fmt.Sprintf("%t", musicMeta.HasArtwork)
-		} else {
-			logger.Debug("Metadata is unknown type", "file", mediaFile.Path, "type", fmt.Sprintf("%T", metadata))
-			metadataMap["type"] = fmt.Sprintf("%T", metadata)
-		}
-	} else {
-		logger.Debug("Metadata is nil", "file", mediaFile.Path)
+		// TODO: Convert metadata based on type once new schema is implemented
+		logger.Debug("Metadata conversion for plugins not yet implemented", "file", mediaFile.Path)
 	}
-	
-	logger.Debug("Final metadata map for hooks", "file", mediaFile.Path, "title", metadataMap["title"], "artist", metadataMap["artist"], "album", metadataMap["album"], "map_size", len(metadataMap))
 
 	for i, hook := range scannerHooks {
 		logger.Debug("Processing scanner hook", "hook_index", i, "file", mediaFile.Path)
@@ -1204,7 +1210,7 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 			defer cancel()
 
 			req := &proto.OnMediaFileScannedRequest{
-				MediaFileId: uint32(mediaFile.ID),
+				MediaFileId: uuidToUint32(mediaFile.ID), // Convert UUID to uint32 for plugin compatibility
 				FilePath:    mediaFile.Path,
 				Metadata:    metadataMap,
 			}
@@ -1255,7 +1261,7 @@ func (ps *LibraryScanner) resultProcessor() {
 			// Only process metadata if it was extracted
 			if result.metadataType == "music" && result.metadata != nil {
 				// Music metadata was successfully extracted and saved
-				logger.Debug("Music metadata processed", "file", result.path, "title", result.metadata.(*database.MusicMetadata).Title)
+				logger.Debug("Music metadata processed", "file", result.path)
 			}
 			
 			// Update cache after successful processing
@@ -1319,6 +1325,7 @@ func (ps *LibraryScanner) updateProgress() {
 			currentErrors := ps.errorsCount.Load()
 			currentSkipped := ps.filesSkipped.Load()
 			currentFound := ps.filesFound.Load()
+			currentBytesFound := ps.bytesFound.Load()
 			now := time.Now()
 
 			// CRITICAL FIX: Update progress estimator with current progress
@@ -1362,7 +1369,7 @@ func (ps *LibraryScanner) updateProgress() {
 				emergencyBrakeActive = false
 			}
 
-			// OPTIMIZATION 12: Cache performance metrics
+			// Cache performance metrics
 			cacheHitRate := ps.metadataCache.GetHitRate()
 			cacheSize := len(ps.fileCache.cache)
 
@@ -1392,49 +1399,56 @@ func (ps *LibraryScanner) updateProgress() {
 				Type:    "scan.progress",
 				Source:  "scanner",
 				Title:   "Scan Progress",
-				Message: fmt.Sprintf("Processed %d of %d files (%.1f%%)", currentFiles, currentFound, progress),
+				Message: fmt.Sprintf("Scanning in progress: %.1f%% complete", progress),
 				Data: map[string]interface{}{
 					"jobId":           ps.jobID,
 					"filesProcessed":  currentFiles,
 					"filesFound":      currentFound,
 					"filesSkipped":    currentSkipped,
-					"errorCount":      currentErrors,
 					"bytesProcessed":  currentBytes,
+					"errorsCount":     currentErrors,
 					"progress":        progress,
+					"activeWorkers":   int(ps.activeWorkers.Load()),
+					"queueDepth":      len(ps.workQueue),
 					"filesPerSecond":  filesPerSecond,
 					"throughputMbps":  mbPerSecond,
-					"elapsedTime":     now.Sub(ps.startTime).Seconds(),
 					
-					// Worker and queue statistics
-					"activeWorkers":   int(ps.activeWorkers.Load()),
-					"minWorkers":      throttleConfig.MinWorkers,
-					"maxWorkers":      throttleConfig.MaxWorkers,
-					"queueDepth":      len(ps.workQueue),
-					"batchSize":       throttleLimits.BatchSize,
+					// Additional UI-friendly fields
+					"totalFiles":      currentFound, // Alias for filesFound
+					"totalBytes":      currentBytesFound, // Total bytes discovered
+					"remainingFiles":  currentFound - currentFiles,
 					
-					// Adaptive throttling metrics
 					"throttling": map[string]interface{}{
 						"enabled":               throttleLimits.Enabled,
-						"processingDelay":       throttleLimits.ProcessingDelay.Milliseconds(),
+						"batchSize":             throttleLimits.BatchSize,
+						"processingDelayMs":     throttleLimits.ProcessingDelay.Milliseconds(),
 						"networkBandwidthLimit": throttleLimits.NetworkBandwidth,
 						"ioThrottlePercent":     throttleLimits.IOThrottle,
 						"emergencyBrakeActive":  emergencyBrakeActive,
 					},
-					
-					// System metrics
+
 					"systemMetrics": map[string]interface{}{
-						"cpuPercent":      systemMetrics.CPUPercent,
-						"memoryPercent":   systemMetrics.MemoryPercent,
-						"memoryUsedMB":    systemMetrics.MemoryUsedMB,
-						"ioWaitPercent":   systemMetrics.IOWaitPercent,
-						"loadAverage":     systemMetrics.LoadAverage,
-						"networkUtilMBps": systemMetrics.NetworkUtilMBps,
-						"diskReadMBps":    systemMetrics.DiskReadMBps,
-						"diskWriteMBps":   systemMetrics.DiskWriteMBps,
-						"lastUpdated":     systemMetrics.TimestampUTC,
+						"cpuPercent":       systemMetrics.CPUPercent,
+						"memoryPercent":    systemMetrics.MemoryPercent,
+						"memoryUsedMB":     systemMetrics.MemoryUsedMB,
+						"ioWaitPercent":    systemMetrics.IOWaitPercent,
+						"loadAverage":      systemMetrics.LoadAverage,
+						"networkMbps":      systemMetrics.NetworkUtilMBps,
+						"diskReadMbps":     systemMetrics.DiskReadMBps,
+						"diskWriteMbps":    systemMetrics.DiskWriteMBps,
+						"metricsTimestamp": systemMetrics.TimestampUTC,
+					},
+
+					"throttleConfig": map[string]interface{}{
+						"targetCpuPercent":        throttleConfig.TargetCPUPercent,
+						"maxCpuPercent":           throttleConfig.MaxCPUPercent,
+						"targetMemoryPercent":     throttleConfig.TargetMemoryPercent,
+						"maxMemoryPercent":        throttleConfig.MaxMemoryPercent,
+						"targetNetworkMbps":       throttleConfig.TargetNetworkThroughput,
+						"maxNetworkMbps":          throttleConfig.MaxNetworkThroughput,
+						"emergencyBrakeThreshold": throttleConfig.EmergencyBrakeThreshold,
 					},
 					
-					// Network health
 					"networkHealth": map[string]interface{}{
 						"dnsLatencyMs":      networkStats.DNSLatencyMs,
 						"networkLatencyMs":  networkStats.NetworkLatencyMs,
@@ -1444,7 +1458,7 @@ func (ps *LibraryScanner) updateProgress() {
 						"lastHealthCheck":   networkStats.LastHealthCheck,
 					},
 					
-					// OPTIMIZATION 12: Cache performance metrics
+					// Cache performance metrics
 					"cacheMetrics": map[string]interface{}{
 						"hitRate":     cacheHitRate,
 						"cacheSize":   cacheSize,
@@ -1644,9 +1658,9 @@ func (bp *BatchProcessor) FlushIfNeeded() error {
 	
 	// Analyze current batch characteristics
 	for _, mediaFile := range bp.mediaFiles {
-		totalBatchSize += mediaFile.Size
-		if mediaFile.Size > maxFileSize {
-			maxFileSize = mediaFile.Size
+		totalBatchSize += mediaFile.SizeBytes
+		if mediaFile.SizeBytes > maxFileSize {
+			maxFileSize = mediaFile.SizeBytes
 		}
 	}
 	
@@ -1792,7 +1806,7 @@ func (ps *LibraryScanner) directoryWorker(workerID int) {
 }
 
 func (ps *LibraryScanner) processDirWork(work dirWork) {
-	// OPTIMIZATION 15: NFS-optimized directory reading with error resilience
+	// NFS-optimized directory reading with error resilience
 	entries, err := os.ReadDir(work.path)
 	if err != nil {
 		// NFS can have temporary issues, retry once before failing
@@ -1804,13 +1818,13 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 		}
 	}
 
-	// OPTIMIZATION 16: Pre-filter and batch process directory entries
+	// Pre-filter and batch process directory entries
 	var supportedExts map[string]bool
 	if ps.corePluginsManager != nil {
 		supportedExts = make(map[string]bool)
-		plugins := ps.corePluginsManager.GetRegistry().GetPlugins()
-		for _, plugin := range plugins {
-			for _, ext := range plugin.GetSupportedExtensions() {
+		handlers := ps.corePluginsManager.GetEnabledFileHandlers()
+		for _, handler := range handlers {
+			for _, ext := range handler.GetSupportedExtensions() {
 				supportedExts[ext] = true
 			}
 		}
@@ -1828,7 +1842,7 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 	skippedDirs := 0
 	skippedFiles := 0
 
-	// OPTIMIZATION 17: Smart directory filtering for performance
+	// Smart directory filtering for performance
 	knownSkipDirs := map[string]bool{
 		".git": true, ".svn": true, ".hg": true,
 		"node_modules": true, ".DS_Store": true,
@@ -1838,9 +1852,36 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 		".Trash": true, ".Trashes": true, // macOS trash
 		"lost+found": true, // Linux filesystem
 		"$RECYCLE.BIN": true, // Windows recycle bin
+		
+		// Media server specific directories
+		"Plex Versions": true, // Plex optimized versions
+		"Optimized for TV": true, // Plex TV optimizations
+		".plex": true, // Plex metadata
+		".emby": true, // Emby metadata
+		".jellyfin": true, // Jellyfin metadata
+		"metadata": true, // Generic metadata dirs
+		"cache": true, // Cache directories
+		"tmp": true, "temp": true, // Temporary directories
+		
+		// Trickplay and preview directories (multiple patterns)
+		"trickplay": true, "Trickplay": true, "TRICKPLAY": true,
+		"previews": true, "Previews": true, "PREVIEWS": true,
+		"thumbnails": true, "Thumbnails": true, "THUMBNAILS": true,
+		"sprites": true, "Sprites": true, "SPRITES": true,
+		"chapters": true, "Chapters": true, "CHAPTERS": true,
+		"keyframes": true, "Keyframes": true, "KEYFRAMES": true,
+		"timeline": true, "Timeline": true, "TIMELINE": true,
+		"storyboard": true, "Storyboard": true, "STORYBOARD": true,
+	}
+	
+	// Enhanced trickplay directory detection patterns
+	trickplayPatterns := []string{
+		"trickplay", "preview", "thumbnail", "sprite", "chapter",
+		"keyframe", "timeline", "storyboard", "scene", "frame",
+		"bif", "vtt", "cache", "temp", "meta",
 	}
 
-	// OPTIMIZATION 18: Batch file operations for NFS efficiency
+	// Batch file operations for NFS efficiency
 	mediaFiles := make([]fs.DirEntry, 0, len(entries))
 	subdirs := make([]fs.DirEntry, 0, len(entries))
 
@@ -1860,6 +1901,19 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 				skippedDirs++
 				continue
 			}
+			// Skip trickplay directories entirely using enhanced pattern matching
+			entryNameLower := strings.ToLower(entryName)
+			isTrickplayDir := false
+			for _, pattern := range trickplayPatterns {
+				if strings.Contains(entryNameLower, pattern) {
+					isTrickplayDir = true
+					break
+				}
+			}
+			if isTrickplayDir {
+				skippedDirs++
+				continue
+			}
 			// Skip very deep nested directories (potential infinite loops)
 			if strings.Count(work.path, string(filepath.Separator)) > 50 {
 				skippedDirs++
@@ -1867,17 +1921,62 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 			}
 			subdirs = append(subdirs, entry)
 		} else {
-			// Quick extension check before expensive operations
+			// ENHANCED TRICKPLAY FILTERING: Apply multiple layers of filtering during discovery
+			fullPath := filepath.Join(work.path, entryName)
+			
+			// Layer 1: Quick extension check for media files FIRST
 			ext := strings.ToLower(filepath.Ext(entryName))
-			if supportedExts[ext] {
-				mediaFiles = append(mediaFiles, entry)
-			} else {
+			if !supportedExts[ext] {
 				skippedFiles++
+				continue
 			}
+			
+			// Layer 2: Skip files that are explicitly marked to be skipped (trickplay, subtitles, etc.)
+			if utils.IsSkippedFile(fullPath) {
+				skippedFiles++
+				continue
+			}
+			
+			// Layer 3: Enhanced trickplay file detection using patterns
+			if utils.IsTrickplayFile(fullPath) {
+				skippedFiles++
+				continue
+			}
+			
+			// Layer 4: Skip trickplay files by filename patterns (additional safety net)
+			entryNameLower := strings.ToLower(entryName)
+			isTrickplayFile := false
+			for _, pattern := range trickplayPatterns {
+				if strings.Contains(entryNameLower, pattern) {
+					isTrickplayFile = true
+					break
+				}
+			}
+			if isTrickplayFile {
+				skippedFiles++
+				continue
+			}
+			
+			// Layer 5: Skip files in parent directories that suggest trickplay content
+			parentDir := strings.ToLower(filepath.Base(work.path))
+			isInTrickplayDir := false
+			for _, pattern := range trickplayPatterns {
+				if strings.Contains(parentDir, pattern) {
+					isInTrickplayDir = true
+					break
+				}
+			}
+			if isInTrickplayDir {
+				skippedFiles++
+				continue
+			}
+			
+			// If we reach here, it's a valid media file that should be processed
+			mediaFiles = append(mediaFiles, entry)
 		}
 	}
 
-	// OPTIMIZATION 19: Batch file info operations for NFS
+	// Batch file info operations for NFS
 	// Process media files in batches to reduce NFS round trips
 	const batchSize = 25 // Smaller batches for NFS optimization
 	
@@ -1892,7 +1991,7 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 			entry := mediaFiles[j]
 			fullPath := filepath.Join(work.path, entry.Name())
 			
-			// OPTIMIZATION 20: Bloom filter pre-screening for ultra-fast rescan performance
+			// Bloom filter pre-screening for ultra-fast rescan performance
 			// Stage 1: Check bloom filter first (< 1μs, no I/O)
 			ps.fileCache.bloomMu.RLock()
 			likelyKnown := ps.fileCache.knownFiles.Contains(fullPath)
@@ -1903,7 +2002,7 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 				if cachedFile, exists := ps.fileCache.Get(fullPath); exists {
 					// Stage 3: Quick metadata check to see if file changed (NFS I/O)
 					if info, err := entry.Info(); err == nil {
-						if cachedFile.Size == info.Size() && !cachedFile.UpdatedAt.Before(info.ModTime()) {
+						if cachedFile.SizeBytes == info.Size() && !cachedFile.UpdatedAt.Before(info.ModTime()) {
 							// File hasn't changed, skip processing entirely
 							skippedFiles++
 							continue
@@ -1929,6 +2028,7 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 
 			// Increment files found counter immediately when we discover a supported file
 			ps.filesFound.Add(1)
+			ps.bytesFound.Add(info.Size()) // Track total bytes discovered
 			filesFoundInThisDir++
 
 			select {
@@ -1962,10 +2062,8 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 
 	// Immediately update progress estimator total if we found significant files
 	if filesFoundInThisDir > 0 {
-		// Update progress estimator with new total based on discovered files
-		currentTotal := ps.progressEstimator.GetTotal()
-		newTotal := currentTotal + int64(filesFoundInThisDir)
-		ps.progressEstimator.SetTotal(newTotal, ps.bytesProcessed.Load())
+		// Don't constantly update progress estimator total - causes unstable progress
+		// Instead, just emit discovery events for UI feedback
 		
 		// Emit immediate discovery event for responsive UI feedback
 		event := events.Event{
@@ -1978,12 +2076,73 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 				"directory":           work.path,
 				"files_found_in_dir":  filesFoundInThisDir,
 				"total_files_found":   ps.filesFound.Load(),
-				"new_estimated_total": newTotal,
+				"discovery_phase":     true, // Indicate this is discovery, not final progress
 				"dirs_skipped":        skippedDirs,
 				"files_skipped":       skippedFiles,
 			},
 		}
 		ps.eventBus.PublishAsync(event)
+	}
+
+	// SAFEGUARD: Worker queue monitoring to prevent starvation
+	totalFilesFound := ps.filesFound.Load()
+	totalFilesProcessed := ps.filesProcessed.Load()
+	currentQueueDepth := len(ps.workQueue)
+	
+	// Check for potential queue starvation (files found but not being processed)
+	if totalFilesFound > 50 && totalFilesProcessed == 0 && currentQueueDepth == 0 && filesQueued == 0 {
+		logger.Warn("Worker queue starvation detected",
+			"job_id", ps.jobID,
+			"files_found", totalFilesFound,
+			"files_processed", totalFilesProcessed,
+			"queue_depth", currentQueueDepth,
+			"files_queued_this_dir", filesQueued,
+			"directory", work.path,
+			"recommendation", "Check filtering logic - files are being discovered but not queued for processing")
+		
+		// Emit warning event for monitoring systems
+		warningEvent := events.Event{
+			Type:    "scan.queue_starvation_warning",
+			Source:  "scanner",
+			Title:   "Worker Queue Starvation Detected",
+			Message: fmt.Sprintf("Scan job %d has found %d files but none are being processed", ps.jobID, totalFilesFound),
+			Data: map[string]interface{}{
+				"job_id":              ps.jobID,
+				"files_found":         totalFilesFound,
+				"files_processed":     totalFilesProcessed,
+				"queue_depth":         currentQueueDepth,
+				"active_workers":      ps.activeWorkers.Load(),
+				"issue_type":          "queue_starvation",
+				"severity":            "warning",
+			},
+		}
+		ps.eventBus.PublishAsync(warningEvent)
+		
+		// FALLBACK: Try to queue at least a few files with minimal filtering
+		logger.Warn("Activating fallback processing mode", "job_id", ps.jobID, "directory", work.path)
+		fallbackCount := 0
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			ext := strings.ToLower(filepath.Ext(entry.Name()))
+			if supportedExts[ext] && fallbackCount < 5 {
+				if info, err := entry.Info(); err == nil && info.Size() > 1024 {
+					fullPath := filepath.Join(work.path, entry.Name())
+					select {
+					case ps.workQueue <- scanWork{path: fullPath, info: info, libraryID: work.libraryID}:
+						fallbackCount++
+						filesQueued++
+						ps.filesFound.Add(1)
+					case <-ps.ctx.Done():
+						return
+					}
+				}
+			}
+		}
+		if fallbackCount > 0 {
+			logger.Info("Fallback queued files", "count", fallbackCount, "directory", work.path)
+		}
 	}
 
 	if filesQueued > 0 || dirsQueued > 0 || skippedFiles > 0 || skippedDirs > 0 {
@@ -1992,9 +2151,9 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 			"files_queued", filesQueued,
 			"files_found", filesFoundInThisDir,
 			"dirs_queued", dirsQueued,
-			"dirs_skipped", skippedDirs,
 			"files_skipped", skippedFiles,
-			"total_found", ps.filesFound.Load())
+			"dirs_skipped", skippedDirs,
+			"total_entries", len(entries))
 	}
 }
 
@@ -2029,9 +2188,40 @@ func (ps *LibraryScanner) dirQueueManager() {
 					
 					if ps.activeDirWorkers.Load() == 0 && len(ps.dirQueue) == 0 {
 						logger.Debug("Directory queue manager completed")
+						
+						// Directory discovery is now complete - set final total for stable progress
+						finalTotal := ps.filesFound.Load()
+						finalBytes := ps.bytesFound.Load()
+						if finalTotal > 0 {
+							ps.progressEstimator.SetTotal(finalTotal, finalBytes)
+							ps.progressEstimator.SetDiscoveryComplete()
+							
+							// Emit discovery completion event
+							event := events.Event{
+								Type:    "scan.discovery_complete",
+								Source:  "scanner",
+								Title:   "File Discovery Complete",
+								Message: fmt.Sprintf("Discovery complete: found %d files to process", finalTotal),
+								Data: map[string]interface{}{
+									"job_id":              ps.jobID,
+									"final_total_files":   finalTotal,
+									"final_total_bytes":   finalBytes,
+									"discovery_complete":  true,
+								},
+							}
+							ps.eventBus.PublishAsync(event)
+							
+							logger.Info("File discovery completed", 
+								"job_id", ps.jobID, 
+								"total_files_found", finalTotal,
+								"total_bytes_found", finalBytes)
+						}
+						
 						return
 					} else {
 						logger.Debug("Directory queue manager work resumed")
+						
+						// Reset consecutive empty checks
 						consecutiveEmptyChecks = 0
 					}
 				}
@@ -2079,7 +2269,7 @@ func (ps *LibraryScanner) workQueueCloser() {
 	}
 }
 
-// OPTIMIZATION 11: Cache management methods for performance monitoring
+// Cache management methods for performance monitoring
 func (fc *FileCache) Get(path string) (*database.MediaFile, bool) {
 	fc.mu.RLock()
 	file, exists := fc.cache[path]

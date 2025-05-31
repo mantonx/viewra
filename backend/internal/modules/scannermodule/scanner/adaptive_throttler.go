@@ -615,7 +615,7 @@ func (at *AdaptiveThrottler) shouldTriggerEmergencyBrake(metrics SystemMetrics) 
 		metrics.CPUPercent > at.config.EmergencyBrakeThreshold,
 		metrics.MemoryPercent > at.config.EmergencyBrakeThreshold,
 		metrics.IOWaitPercent > at.config.MaxIOWaitPercent*1.5, // 1.5x the normal max
-		metrics.LoadAverage > float64(runtime.NumCPU())*2.0,    // 2x CPU count
+		metrics.LoadAverage > float64(runtime.NumCPU())*4.0,    // 4x CPU count (increased from 2x)
 	}
 
 	// Trigger if any emergency condition is met
@@ -640,7 +640,7 @@ func (at *AdaptiveThrottler) shouldReleaseEmergencyBrake(metrics SystemMetrics) 
 	return metrics.CPUPercent < safeThreshold &&
 		   metrics.MemoryPercent < safeThreshold &&
 		   metrics.IOWaitPercent < at.config.MaxIOWaitPercent &&
-		   metrics.LoadAverage < float64(runtime.NumCPU())*1.2
+		   metrics.LoadAverage < float64(runtime.NumCPU())*2.0  // Release when load < 2x CPU count
 }
 
 // triggerEmergencyBrake activates emergency throttling

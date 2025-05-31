@@ -45,7 +45,7 @@ type UploadRequest struct {
 
 // UploadResult represents the result of a file upload
 type UploadResult struct {
-	MediaFileID  uint      `json:"media_file_id"`
+	MediaFileID  string    `json:"media_file_id"`
 	FileName     string    `json:"file_name"`
 	OriginalName string    `json:"original_name"`
 	Size         int64     `json:"size"`
@@ -161,9 +161,9 @@ func (uh *UploadHandler) ProcessUpload(file multipart.File, header *multipart.Fi
 	// Create media file record
 	mediaFile := database.MediaFile{
 		Path:      filePath,
-		Size:      header.Size,
+		SizeBytes: header.Size,
 		Hash:      fileHash,
-		LibraryID: libraryID,
+		LibraryID: uint32(libraryID),
 		LastSeen:  time.Now(),
 	}
 	

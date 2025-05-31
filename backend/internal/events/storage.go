@@ -13,7 +13,7 @@ import (
 
 // SystemEvent represents a system event in the database
 type SystemEvent struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
 	EventID   string    `gorm:"uniqueIndex;not null" json:"event_id"`
 	Type      string    `gorm:"not null;index" json:"type"`
 	Source    string    `gorm:"not null;index" json:"source"`

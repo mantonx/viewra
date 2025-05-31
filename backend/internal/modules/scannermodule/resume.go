@@ -22,7 +22,7 @@ func (m *Module) resumeScan(c *gin.Context) {
 	}
 
 	// Use the ID directly as a job ID
-	jobID := uint(id)
+	jobID := uint32(id)
 	
 	// Check if the job exists and is in a paused or pending state
 	scanJob, jobErr := m.scannerManager.GetScanStatus(jobID)

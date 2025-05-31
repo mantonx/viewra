@@ -76,8 +76,8 @@ type Config struct {
 
 // AudioDBEnrichment represents enriched metadata
 type AudioDBEnrichment struct {
-	ID              uint      `gorm:"primaryKey"`
-	MediaFileID     uint      `gorm:"not null;index"`
+	ID              uint32    `gorm:"primaryKey"`
+	MediaFileID     uint32    `gorm:"not null;index"`
 	AudioDBTrackID  string    `gorm:"size:36"`
 	AudioDBArtistID string    `gorm:"size:36"`
 	AudioDBAlbumID  string    `gorm:"size:36"`
@@ -96,7 +96,7 @@ type AudioDBEnrichment struct {
 
 // AudioDBCache represents cached API responses
 type AudioDBCache struct {
-	ID          uint      `gorm:"primaryKey"`
+	ID          uint32    `gorm:"primaryKey"`
 	CacheKey    string    `gorm:"uniqueIndex;not null"`
 	Data        string    `gorm:"type:text"`
 	ExpiresAt   time.Time `gorm:"index"`
@@ -515,7 +515,7 @@ func (a *AudioDBEnricher) OnMediaFileScanned(mediaFileID uint32, filePath string
 		return nil
 	}
 
-	return a.enrichTrack(uint(mediaFileID), title, artist, album)
+	return a.enrichTrack(mediaFileID, title, artist, album)
 }
 
 func (a *AudioDBEnricher) OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error {
@@ -638,7 +638,7 @@ func (a *AudioDBEnricher) initDatabase() error {
 }
 
 // Core enrichment logic
-func (a *AudioDBEnricher) enrichTrack(mediaFileID uint, title, artist, album string) error {
+func (a *AudioDBEnricher) enrichTrack(mediaFileID uint32, title, artist, album string) error {
 	// Check if already enriched and not overwriting
 	if !a.config.OverwriteExisting {
 		var existing AudioDBEnrichment
@@ -708,7 +708,7 @@ func (a *AudioDBEnricher) enrichTrack(mediaFileID uint, title, artist, album str
 
 	// Download artwork if enabled
 	if a.config.EnableArtwork {
-		if err := a.downloadAllArtwork(context.Background(), uint32(mediaFileID), bestTrack); err != nil {
+		if err := a.downloadAllArtwork(context.Background(), mediaFileID, bestTrack); err != nil {
 			a.logger.Warn("Failed to download artwork", "error", err, "mediaFileID", mediaFileID)
 			// Don't fail enrichment if artwork download fails
 		} else {

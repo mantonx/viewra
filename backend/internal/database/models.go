@@ -1,12 +1,14 @@
 package database
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 )
 
 // User represents a user in the system
 type User struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
 	Username  string    `gorm:"uniqueIndex;not null" json:"username"`
 	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
 	Password  string    `gorm:"not null" json:"-"` // Don't include password in JSON responses
@@ -14,35 +16,11 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Media represents a media file in the system
-type Media struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	Filename    string    `gorm:"not null" json:"filename"`
-	OriginalName string   `gorm:"not null" json:"original_name"`
-	Path        string    `gorm:"not null" json:"path"`
-	Size        int64     `json:"size"`
-	MimeType    string    `json:"mime_type"`
-	Duration    *float64  `json:"duration,omitempty"` // For video/audio files
-	Resolution  string    `json:"resolution,omitempty"` // For video/image files
-	UserID      uint      `gorm:"not null" json:"user_id"`
-	User        User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-// MediaFilter represents filters for media queries
-type MediaFilter struct {
-	UserID   *uint   `json:"user_id,omitempty"`
-	MimeType *string `json:"mime_type,omitempty"`
-	Limit    int     `json:"limit,omitempty"`
-	Offset   int     `json:"offset,omitempty"`
-}
-
 // MediaLibrary represents a directory to scan for media files
 type MediaLibrary struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
 	Path      string    `gorm:"not null" json:"path"`
-	Type      string    `gorm:"not null" json:"type"` // "movie" or "tv"
+	Type      string    `gorm:"not null" json:"type"` // "movie", "tv", "music"
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -53,55 +31,246 @@ type MediaLibraryRequest struct {
 	Type string `json:"type" binding:"required,oneof=movie tv music"`
 }
 
-// MediaFile represents a scanned media file on disk
+// MediaType enum for media_files.media_type and related fields
+type MediaType string
+
+const (
+	MediaTypeMovie   MediaType = "movie"
+	MediaTypeEpisode MediaType = "episode"
+	MediaTypeTrack   MediaType = "track"
+)
+
+func (mt MediaType) Value() (driver.Value, error) {
+	return string(mt), nil
+}
+
+func (mt *MediaType) Scan(value interface{}) error {
+	if value == nil {
+		*mt = ""
+		return nil
+	}
+	switch s := value.(type) {
+	case string:
+		*mt = MediaType(s)
+	case []byte:
+		*mt = MediaType(s)
+	default:
+		return fmt.Errorf("cannot scan %T into MediaType", value)
+	}
+	return nil
+}
+
+// =============================================================================
+// CORE MEDIA FILES TABLE
+// =============================================================================
+
+// MediaFile represents each file version of a media item
 type MediaFile struct {
-	ID         uint         `gorm:"primaryKey" json:"id"`
-	LibraryID  uint         `gorm:"not null;index:idx_media_files_library_id" json:"library_id"`
-	ScanJobID  *uint        `gorm:"index:idx_media_files_scan_job_id" json:"scan_job_id,omitempty"` // Track which job discovered this file
-	Path       string       `gorm:"not null;uniqueIndex" json:"path"`
-	Size       int64        `gorm:"not null" json:"size"`
-	Hash       string       `gorm:"index" json:"hash"`
-	MimeType   string       `json:"mime_type"`
-	LastSeen   time.Time    `gorm:"not null" json:"last_seen"`
-	CreatedAt  time.Time    `json:"created_at"`
-	UpdatedAt  time.Time    `json:"updated_at"`
-	MusicMetadata *MusicMetadata `gorm:"foreignKey:MediaFileID" json:"music_metadata,omitempty"`
+	ID           string    `gorm:"type:varchar(36);primaryKey" json:"id"`
+	MediaID      string    `gorm:"type:varchar(36);not null;index" json:"media_id"` // FK to movie, episode, or track
+	MediaType    MediaType `gorm:"type:text;not null;index" json:"media_type"` // ENUM: movie, episode, track
+	LibraryID    uint32    `gorm:"not null;index" json:"library_id"` // FK to MediaLibrary
+	ScanJobID    *uint32   `gorm:"index" json:"scan_job_id,omitempty"` // Track which job discovered this file
+	Path         string    `gorm:"not null;uniqueIndex" json:"path"` // Absolute or relative file path
+	Container    string    `json:"container"`    // e.g., mkv, mp4, flac
+	VideoCodec   string    `json:"video_codec"` // Optional: h264, vp9, etc.
+	AudioCodec   string    `json:"audio_codec"` // Optional: aac, flac, dts
+	Channels     string    `json:"channels"`    // e.g., 2.0, 5.1, 7.1
+	Resolution   string    `json:"resolution"`  // e.g., 1080p, 4K
+	Duration     int       `json:"duration"`    // In seconds
+	SizeBytes    int64     `gorm:"not null" json:"size_bytes"` // File size
+	BitrateKbps  int       `json:"bitrate_kbps"` // Total bitrate estimate
+	Language     string    `json:"language"`     // Default language (e.g. en)
+	Hash         string    `gorm:"index" json:"hash"` // SHA256 or similar, for deduplication
+	VersionName  string    `json:"version_name"` // Optional (e.g., "Director's Cut", "Remastered")
+	LastSeen     time.Time `gorm:"not null" json:"last_seen"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// MusicMetadata represents extracted metadata from music files
-type MusicMetadata struct {
-	ID          uint          `gorm:"primaryKey" json:"id"`
-	MediaFileID uint          `gorm:"uniqueIndex;not null" json:"media_file_id"`
-	Title       string        `json:"title"`
-	Album       string        `json:"album"`
-	Artist      string        `json:"artist"`
-	AlbumArtist string        `json:"album_artist"`
-	Genre       string        `json:"genre"`
-	Year        int           `json:"year"`
-	Track       int           `json:"track"`
-	TrackTotal  int           `json:"track_total"`
-	Disc        int           `json:"disc"`
-	DiscTotal   int           `json:"disc_total"`
-	Duration    time.Duration `json:"duration"`
-	Bitrate     int           `json:"bitrate"`
-	SampleRate  int           `json:"sample_rate"`  // Sample rate in Hz (e.g., 44100, 48000)
-	Channels    int           `json:"channels"`     // Number of audio channels (1=mono, 2=stereo, etc.)
-	Format      string        `json:"format"`
-	HasArtwork  bool          `json:"has_artwork"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
-	
+// =============================================================================
+// SHARED ASSET TABLE
+// =============================================================================
 
-	
-	// Temporary fields for artwork processing (not stored in database)
-	ArtworkData []byte `gorm:"-" json:"-"`
-	ArtworkExt  string `gorm:"-" json:"-"`
+// MediaAsset handles associated assets (artwork, subtitles, thumbnails)
+type MediaAsset struct {
+	ID          string    `gorm:"type:varchar(36);primaryKey" json:"id"`
+	MediaID     string    `gorm:"type:varchar(36);not null;index" json:"media_id"` // FK to movie, episode, or track
+	MediaType   MediaType `gorm:"type:text;not null;index" json:"media_type"` // ENUM: movie, episode, track
+	AssetType   string    `gorm:"not null;index" json:"asset_type"` // poster, backdrop, subtitle, artwork, etc.
+	Path        string    `gorm:"not null" json:"path"` // File path or URL
+	Language    string    `json:"language"` // For subtitles, audio tracks
+	Format      string    `json:"format"`   // File format/codec
+	Resolution  string    `json:"resolution"` // For images/videos
+	SizeBytes   int64     `json:"size_bytes"`
+	IsDefault   bool      `gorm:"default:false" json:"is_default"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
+
+// =============================================================================
+// PEOPLE AND ROLES TABLES
+// =============================================================================
+
+// People - Unified table for cast, crew, artists
+type People struct {
+	ID        string     `gorm:"type:varchar(36);primaryKey" json:"id"`
+	Name      string     `gorm:"not null;index" json:"name"`
+	Birthdate *time.Time `json:"birthdate"` // Optional
+	Image     string     `json:"image"`     // URL or path to portrait
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+// Roles - Many-to-many relationship between people and media entities
+type Roles struct {
+	PersonID  string    `gorm:"type:varchar(36);not null;index" json:"person_id"` // FK to people
+	MediaID   string    `gorm:"type:varchar(36);not null;index" json:"media_id"`  // FK to movie, episode, or track
+	MediaType MediaType `gorm:"type:text;not null;index" json:"media_type"` // ENUM: movie, episode, track
+	Role      string    `gorm:"not null;index" json:"role"` // e.g. director, actor, composer, guest
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// =============================================================================
+// MUSIC TABLES
+// =============================================================================
+
+// Artist table
+type Artist struct {
+	ID          string    `gorm:"type:varchar(36);primaryKey" json:"id"`
+	Name        string    `gorm:"not null;index" json:"name"`
+	Description string    `json:"description"`
+	Image       string    `json:"image"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Album table
+type Album struct {
+	ID          string     `gorm:"type:varchar(36);primaryKey" json:"id"`
+	Title       string     `gorm:"not null;index" json:"title"`
+	ArtistID    string     `gorm:"type:varchar(36);not null;index" json:"artist_id"` // FK to Artist
+	Artist      Artist     `gorm:"foreignKey:ArtistID" json:"artist,omitempty"`
+	ReleaseDate *time.Time `json:"release_date"`
+	Artwork     string     `json:"artwork"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// Track table
+type Track struct {
+	ID          string    `gorm:"type:varchar(36);primaryKey" json:"id"`
+	Title       string    `gorm:"not null;index" json:"title"`
+	AlbumID     string    `gorm:"type:varchar(36);not null;index" json:"album_id"` // FK to Album
+	Album       Album     `gorm:"foreignKey:AlbumID" json:"album,omitempty"`
+	ArtistID    string    `gorm:"type:varchar(36);not null;index" json:"artist_id"` // FK to Artist
+	Artist      Artist    `gorm:"foreignKey:ArtistID" json:"artist,omitempty"`
+	TrackNumber int       `json:"track_number"`
+	Duration    int       `json:"duration"` // In seconds
+	Lyrics      string    `gorm:"type:text" json:"lyrics"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// =============================================================================
+// MOVIE TABLES
+// =============================================================================
+
+// Movie table
+type Movie struct {
+	ID          string     `gorm:"type:varchar(36);primaryKey" json:"id"`
+	Title       string     `gorm:"not null;index" json:"title"`
+	ReleaseDate *time.Time `json:"release_date"`
+	Plot        string     `gorm:"type:text" json:"plot"`
+	Runtime     int        `json:"runtime"` // In minutes
+	Rating      string     `json:"rating"`  // e.g. PG-13
+	Poster      string     `json:"poster"`
+	Backdrop    string     `json:"backdrop"`
+	Studio      string     `json:"studio"`
+	TmdbID      string     `gorm:"index" json:"tmdb_id"`
+	ImdbID      string     `gorm:"index" json:"imdb_id"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// =============================================================================
+// TV SHOW TABLES
+// =============================================================================
+
+// TVShow table
+type TVShow struct {
+	ID            string     `gorm:"type:varchar(36);primaryKey" json:"id"`
+	Title         string     `gorm:"not null;index" json:"title"`
+	Description   string     `gorm:"type:text" json:"description"`
+	FirstAirDate  *time.Time `json:"first_air_date"`
+	Status        string     `json:"status"` // e.g., Running, Ended
+	Poster        string     `json:"poster"`
+	Backdrop      string     `json:"backdrop"`
+	TmdbID        string     `gorm:"index" json:"tmdb_id"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+// Season table
+type Season struct {
+	ID           string     `gorm:"type:varchar(36);primaryKey" json:"id"`
+	TVShowID     string     `gorm:"type:varchar(36);not null;index" json:"tv_show_id"` // FK to TVShow
+	TVShow       TVShow     `gorm:"foreignKey:TVShowID" json:"tv_show,omitempty"`
+	SeasonNumber int        `gorm:"not null;index" json:"season_number"`
+	Description  string     `gorm:"type:text" json:"description"`
+	Poster       string     `json:"poster"`
+	AirDate      *time.Time `json:"air_date"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+// Episode table
+type Episode struct {
+	ID            string     `gorm:"type:varchar(36);primaryKey" json:"id"`
+	SeasonID      string     `gorm:"type:varchar(36);not null;index" json:"season_id"` // FK to Season
+	Season        Season     `gorm:"foreignKey:SeasonID" json:"season,omitempty"`
+	Title         string     `gorm:"not null;index" json:"title"`
+	EpisodeNumber int        `gorm:"not null;index" json:"episode_number"`
+	AirDate       *time.Time `json:"air_date"`
+	Description   string     `gorm:"type:text" json:"description"`
+	Duration      int        `json:"duration"` // In seconds
+	StillImage    string     `json:"still_image"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+// =============================================================================
+// METADATA ENRICHMENT TABLES
+// =============================================================================
+
+// MediaExternalIDs - Handles multiple metadata sources
+type MediaExternalIDs struct {
+	MediaID    string    `gorm:"type:varchar(36);not null;index" json:"media_id"`
+	MediaType  MediaType `gorm:"type:text;not null;index" json:"media_type"`
+	Source     string    `gorm:"not null;index" json:"source"` // e.g. tmdb, tvdb, musicbrainz
+	ExternalID string    `gorm:"not null" json:"external_id"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// MediaEnrichment - Stores raw enriched metadata blobs
+type MediaEnrichment struct {
+	MediaID   string    `gorm:"type:varchar(36);not null;index" json:"media_id"`
+	MediaType MediaType `gorm:"type:text;not null;index" json:"media_type"`
+	Plugin    string    `gorm:"not null;index" json:"plugin"`
+	Payload   string    `gorm:"type:text" json:"payload"` // Use TEXT for SQLite compatibility
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// =============================================================================
+// SCAN JOB (remains mostly the same)
+// =============================================================================
 
 // ScanJob represents a background scanning operation
 type ScanJob struct {
-	ID             uint         `gorm:"primaryKey" json:"id"`
-	LibraryID      uint         `gorm:"not null;index:idx_scan_jobs_library_id" json:"library_id"`
+	ID             uint32       `gorm:"primaryKey" json:"id"`
+	LibraryID      uint32       `gorm:"not null;index:idx_scan_jobs_library_id" json:"library_id"`
 	Library        MediaLibrary `gorm:"foreignKey:LibraryID" json:"library,omitempty"`
 	Status         string       `gorm:"not null;default:'pending'" json:"status"` // pending, running, completed, failed, paused
 	Progress       float64      `gorm:"default:0" json:"progress"`                // 0.0-100.0 with decimal precision
@@ -119,12 +288,12 @@ type ScanJob struct {
 }
 
 // =============================================================================
-// PLUGIN SYSTEM MODELS
+// PLUGIN SYSTEM MODELS (unchanged)
 // =============================================================================
 
 // Plugin represents an installed plugin
 type Plugin struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
+	ID           uint32    `gorm:"primaryKey" json:"id"`
 	PluginID     string    `gorm:"uniqueIndex;not null" json:"plugin_id"` // Unique plugin identifier
 	Name         string    `gorm:"not null" json:"name"`
 	Version      string    `gorm:"not null" json:"version"`
@@ -147,8 +316,8 @@ type Plugin struct {
 
 // PluginPermission represents a permission granted to a plugin
 type PluginPermission struct {
-	ID         uint   `gorm:"primaryKey" json:"id"`
-	PluginID   uint   `gorm:"not null;index" json:"plugin_id"`
+	ID         uint32 `gorm:"primaryKey" json:"id"`
+	PluginID   uint32 `gorm:"not null;index" json:"plugin_id"`
 	Plugin     Plugin `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
 	Permission string `gorm:"not null" json:"permission"` // database_read, database_write, file_system, etc.
 	Granted    bool   `gorm:"default:false" json:"granted"`
@@ -159,8 +328,8 @@ type PluginPermission struct {
 
 // PluginEvent represents events generated by plugins
 type PluginEvent struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	PluginID  uint      `gorm:"not null;index" json:"plugin_id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
+	PluginID  uint32    `gorm:"not null;index" json:"plugin_id"`
 	Plugin    Plugin    `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
 	EventType string    `gorm:"not null" json:"event_type"` // install, enable, disable, error, etc.
 	Message   string    `json:"message"`
@@ -170,7 +339,7 @@ type PluginEvent struct {
 
 // SystemEvent represents a system event in the database (for the new event bus system)
 type SystemEvent struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
 	EventID   string    `gorm:"uniqueIndex;not null" json:"event_id"`
 	Type      string    `gorm:"not null;index" json:"type"`
 	Source    string    `gorm:"not null;index" json:"source"`
@@ -187,8 +356,8 @@ type SystemEvent struct {
 
 // PluginHook represents hooks that plugins can register for
 type PluginHook struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	PluginID  uint      `gorm:"not null;index" json:"plugin_id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
+	PluginID  uint32    `gorm:"not null;index" json:"plugin_id"`
 	Plugin    Plugin    `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
 	HookName  string    `gorm:"not null" json:"hook_name"` // file_scanned, metadata_extracted, etc.
 	Handler   string    `gorm:"not null" json:"handler"`   // Function/endpoint to call
@@ -200,8 +369,8 @@ type PluginHook struct {
 
 // PluginAdminPage represents admin pages provided by plugins
 type PluginAdminPage struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	PluginID  uint      `gorm:"not null;index" json:"plugin_id"`
+	ID        uint32    `gorm:"primaryKey" json:"id"`
+	PluginID  uint32    `gorm:"not null;index" json:"plugin_id"`
 	Plugin    Plugin    `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
 	PageID    string    `gorm:"not null" json:"page_id"`
 	Title     string    `gorm:"not null" json:"title"`
@@ -218,17 +387,31 @@ type PluginAdminPage struct {
 
 // PluginUIComponent represents UI components provided by plugins
 type PluginUIComponent struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	PluginID  uint      `gorm:"not null;index" json:"plugin_id"`
-	Plugin    Plugin    `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
-	ComponentID string  `gorm:"not null" json:"component_id"`
-	Name      string    `gorm:"not null" json:"name"`
-	Type      string    `gorm:"not null" json:"type"` // widget, modal, page
-	Props     string    `gorm:"type:text" json:"props"` // JSON-encoded props
-	URL       string    `gorm:"not null" json:"url"`
-	Enabled   bool      `gorm:"default:true" json:"enabled"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          uint32    `gorm:"primaryKey" json:"id"`
+	PluginID    uint32    `gorm:"not null;index" json:"plugin_id"`
+	Plugin      Plugin    `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
+	ComponentID string    `gorm:"not null" json:"component_id"`
+	Name        string    `gorm:"not null" json:"name"`
+	Type        string    `gorm:"not null" json:"type"` // widget, modal, page
+	Props       string    `gorm:"type:text" json:"props"` // JSON-encoded props
+	URL         string    `gorm:"not null" json:"url"`
+	Enabled     bool      `gorm:"default:true" json:"enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-
+// TEMPORARY: Legacy MusicMetadata stub for compilation compatibility
+// TODO: Remove this once all references are updated to use Artist/Album/Track
+type MusicMetadata struct {
+	ID           uint32 `gorm:"primaryKey" json:"id"`
+	MediaFileID  string `gorm:"type:varchar(36);not null;index" json:"media_file_id"` // FIXED: Use string to match MediaFile.ID
+	Title        string `json:"title"`
+	Artist       string `json:"artist"`
+	Album        string `json:"album"`
+	Genre        string `json:"genre"`
+	Year         int    `json:"year"`
+	TrackNumber  int    `json:"track_number"`
+	Duration     int    `json:"duration"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}

@@ -138,14 +138,19 @@ func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error 
 	ctx := plugins.MetadataContext{
 		DB:        mm.db,
 		MediaFile: mediaFile,
-		LibraryID: mediaFile.LibraryID,
+		LibraryID: uint(mediaFile.LibraryID),
 		EventBus:  mm.eventBus,
 	}
 	
-	// Delete existing metadata if it exists (clean slate approach)
-	if err := mm.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
-		log.Printf("WARNING: Failed to delete existing metadata: %v", err)
-	}
+	// TODO: With new schema, metadata deletion would be through Artist/Album/Track relationships
+	// For now, just skip the old MusicMetadata deletion
+	// if err := mm.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
+	//	 return fmt.Errorf("failed to delete existing metadata: %w", err)
+	// }
+	
+	// TODO: With new schema, music file counting would be done differently
+	// For now, just return 0
+	// mm.db.Model(&database.MusicMetadata{}).Count(&musicFiles)
 	
 	// Process file with the matching handler
 	if err := matchingHandler.HandleFile(mediaFile.Path, ctx); err != nil {
@@ -167,14 +172,14 @@ func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error 
 }
 
 // EnrichMetadata enriches media metadata using registered providers
-func (mm *MetadataManager) EnrichMetadata(mediaFileID uint) error {
+func (mm *MetadataManager) EnrichMetadata(mediaFileID string) error {
 	if !mm.initialized {
 		return fmt.Errorf("metadata manager not initialized")
 	}
 	
 	// Get file from database with its metadata
 	var mediaFile database.MediaFile
-	if err := mm.db.First(&mediaFile, mediaFileID).Error; err != nil {
+	if err := mm.db.Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
 		return fmt.Errorf("failed to find media file: %w", err)
 	}
 	
@@ -222,7 +227,7 @@ func (mm *MetadataManager) EnrichMetadata(mediaFileID uint) error {
 			event := events.NewSystemEvent(
 				"media.metadata.enriched",
 				"Media Metadata Enriched",
-				fmt.Sprintf("Enriched metadata for media file %d using provider %s", mediaFileID, provider.Name()),
+				fmt.Sprintf("Enriched metadata for media file %s using provider %s", mediaFileID, provider.Name()),
 			)
 			event.Data = map[string]interface{}{
 				"mediaFileID":  mediaFileID,
@@ -242,10 +247,10 @@ func (mm *MetadataManager) EnrichMetadata(mediaFileID uint) error {
 }
 
 // updateMediaWithEnrichedData updates the media record with enriched metadata
-func (mm *MetadataManager) updateMediaWithEnrichedData(mediaFileID uint, providerID string, data map[string]interface{}) error {
+func (mm *MetadataManager) updateMediaWithEnrichedData(mediaFileID string, providerID string, data map[string]interface{}) error {
 	// Implementation depends on what type of metadata we're enriching
 	// For now, just log the enrichment
-	log.Printf("INFO: Enriched media file %d with provider %s: %v", mediaFileID, providerID, getMapKeys(data))
+	log.Printf("INFO: Enriched media file %s with provider %s: %v", mediaFileID, providerID, getMapKeys(data))
 	return nil
 }
 
@@ -258,9 +263,10 @@ func (mm *MetadataManager) GetStats() *MetadataStats {
 	mm.db.Model(&database.MediaFile{}).Count(&totalFiles)
 	stats.TotalFiles = int(totalFiles)
 	
-	// Count music files with metadata
-	var musicFiles int64
-	mm.db.Model(&database.MusicMetadata{}).Count(&musicFiles)
+	// TODO: With new schema, music file counting would be done differently
+	// For now, just return 0
+	// mm.db.Model(&database.MusicMetadata{}).Count(&musicFiles)
+	musicFiles := int64(0)
 	stats.MusicFiles = int(musicFiles)
 	
 	// Files with metadata is the sum of all specific types

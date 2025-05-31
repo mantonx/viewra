@@ -19,7 +19,7 @@ func (m *Module) getScanProgress(c *gin.Context) {
 	}
 
 	// Try to get detailed progress including worker stats
-	detailedStats, err := m.scannerManager.GetDetailedScanProgress(uint(jobID))
+	detailedStats, err := m.scannerManager.GetDetailedScanProgress(uint32(jobID))
 	if err == nil {
 		// Return detailed stats for active jobs
 		c.JSON(http.StatusOK, detailedStats)
@@ -27,10 +27,10 @@ func (m *Module) getScanProgress(c *gin.Context) {
 	}
 	
 	// If no detailed stats available, fall back to basic progress
-	progress, eta, filesPerSec, err := m.scannerManager.GetScanProgress(uint(jobID))
+	progress, eta, filesPerSec, err := m.scannerManager.GetScanProgress(uint32(jobID))
 	if err != nil {
 		// If no active scanner, try to get progress from database
-		scanJob, dbErr := m.scannerManager.GetScanStatus(uint(jobID))
+		scanJob, dbErr := m.scannerManager.GetScanStatus(uint32(jobID))
 		if dbErr != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "Scan job not found",

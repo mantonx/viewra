@@ -45,7 +45,7 @@ func (m *Module) getScanStatus(c *gin.Context) {
 		return
 	}
 
-	status, err := m.scannerManager.GetScanStatus(uint(jobID))
+	status, err := m.scannerManager.GetScanStatus(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Scan job not found",
@@ -67,7 +67,7 @@ func (m *Module) cancelScan(c *gin.Context) {
 		return
 	}
 
-	if err := m.scannerManager.StopScan(uint(jobID)); err != nil {
+	if err := m.scannerManager.StopScan(uint32(jobID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})

@@ -2,6 +2,7 @@ package scannermodule
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
@@ -86,7 +87,10 @@ func (m *Module) Init() error {
 	}
 	
 	// Create scanner manager
-	m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager)
+	m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager, &scanner.ManagerOptions{
+		Workers:      runtime.NumCPU(),
+		CleanupHours: 24,
+	})
 	
 	if m.scannerManager == nil {
 		logger.Error("Failed to initialize scanner manager")
@@ -113,6 +117,15 @@ func (m *Module) Start() error {
 		// Don't fail startup, just log the error
 	}
 	
+	// Start enhanced safeguards system
+	logger.Info("Starting enhanced safeguards system...")
+	if err := m.scannerManager.StartSafeguards(); err != nil {
+		logger.Error("Failed to start safeguards system: %v", err)
+		// Don't fail startup, but this is concerning
+	} else {
+		logger.Info("Enhanced safeguards system started successfully")
+	}
+	
 	// Start background state synchronizer to prevent future inconsistencies
 	logger.Info("Starting background state synchronizer...")
 	m.scannerManager.StartStateSynchronizer()
@@ -127,6 +140,30 @@ func (m *Module) Start() error {
 	}
 	
 	logger.Info("Scanner module started successfully")
+	return nil
+}
+
+// Stop gracefully shuts down the scanner module
+func (m *Module) Stop() error {
+	logger.Info("Stopping scanner module")
+	
+	if m.scannerManager == nil {
+		return nil
+	}
+	
+	// Stop safeguards system first
+	logger.Info("Stopping safeguards system...")
+	if err := m.scannerManager.StopSafeguards(); err != nil {
+		logger.Error("Error stopping safeguards system: %v", err)
+	}
+	
+	// Stop scanner manager
+	if err := m.scannerManager.Shutdown(); err != nil {
+		logger.Error("Error shutting down scanner manager: %v", err)
+		return err
+	}
+	
+	logger.Info("Scanner module stopped successfully")
 	return nil
 }
 
@@ -151,7 +188,10 @@ func (m *Module) GetScannerManager() *scanner.Manager {
 			return nil
 		}
 		
-		m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager)
+		m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager, &scanner.ManagerOptions{
+			Workers:      runtime.NumCPU(),
+			CleanupHours: 24,
+		})
 		logger.Info("Re-initialized scanner manager: %v", m.scannerManager)
 		
 		// Double-check that the manager was created properly
@@ -168,7 +208,10 @@ func (m *Module) GetScannerManager() *scanner.Manager {
 		if m.scannerManager.GetActiveScanCount() < 0 {
 			// This should never be negative, indicates a problem
 			logger.Error("Scanner manager appears to be corrupted, reinitializing...")
-			m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager)
+			m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginManager, &scanner.ManagerOptions{
+				Workers:      runtime.NumCPU(),
+				CleanupHours: 24,
+			})
 		}
 	}
 	

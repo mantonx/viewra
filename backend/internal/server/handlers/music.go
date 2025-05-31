@@ -26,37 +26,12 @@ func NewMusicHandler(eventBus events.EventBus) *MusicHandler {
 
 // GetMusicMetadata retrieves music metadata for a media file
 func (h *MusicHandler) GetMusicMetadata(c *gin.Context) {
-	mediaFileIDStr := c.Param("id")
-	mediaFileID, err := strconv.ParseUint(mediaFileIDStr, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid media file ID",
-		})
-		return
-	}
-
-	db := database.GetDB()
-
-	// First check if the media file exists
-	var mediaFile database.MediaFile
-	if err := db.First(&mediaFile, mediaFileID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Media file not found",
-		})
-		return
-	}
-
-	// Get music metadata
-	var musicMetadata database.MusicMetadata
-	if err := db.Where("media_file_id = ?", mediaFileID).First(&musicMetadata).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Music metadata not found for this file",
-		})
-		return
-	}
-
-	// Return metadata
-	c.JSON(http.StatusOK, musicMetadata)
+	// TODO: With new schema, music metadata would be retrieved through Artist/Album/Track relationships
+	// For now, return a placeholder response
+	c.JSON(http.StatusNotFound, gin.H{
+		"error": "Music metadata retrieval not yet implemented for new schema",
+		"note":  "Music metadata is now stored in Artist/Album/Track tables",
+	})
 }
 
 // GetMusicFiles retrieves all music files with their metadata
@@ -101,7 +76,7 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 	}
 
 	// Extract library IDs
-	var libraryIDs []uint
+	var libraryIDs []uint32
 	for _, lib := range musicLibraries {
 		libraryIDs = append(libraryIDs, lib.ID)
 	}

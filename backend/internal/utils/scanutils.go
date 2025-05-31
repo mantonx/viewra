@@ -36,7 +36,7 @@ type ExtensionStat struct {
 }
 
 // ValidateScanJob checks if a scan job can be started for the given library
-func ValidateScanJob(db *gorm.DB, libraryID uint) error {
+func ValidateScanJob(db *gorm.DB, libraryID uint32) error {
 	// Check if library exists
 	var library database.MediaLibrary
 	if err := db.First(&library, libraryID).Error; err != nil {
@@ -53,7 +53,7 @@ func ValidateScanJob(db *gorm.DB, libraryID uint) error {
 	if err == nil && len(oldJobs) > 1 {
 		// Keep the most recent paused/failed job, delete the rest
 		jobsToDelete := oldJobs[1:] // Skip the first (most recent) one
-		var idsToDelete []uint
+		var idsToDelete []uint32
 		for _, job := range jobsToDelete {
 			idsToDelete = append(idsToDelete, job.ID)
 		}
@@ -99,7 +99,7 @@ func ValidateScanJob(db *gorm.DB, libraryID uint) error {
 }
 
 // CreateScanJob creates a new scan job in the database
-func CreateScanJob(db *gorm.DB, libraryID uint) (*database.ScanJob, error) {
+func CreateScanJob(db *gorm.DB, libraryID uint32) (*database.ScanJob, error) {
 	scanJob := database.ScanJob{
 		LibraryID: libraryID,
 		Status:    string(StatusPending),
@@ -113,7 +113,7 @@ func CreateScanJob(db *gorm.DB, libraryID uint) (*database.ScanJob, error) {
 }
 
 // UpdateJobStatus updates the status of a scan job
-func UpdateJobStatus(db *gorm.DB, jobID uint, status ScanJobStatus, errorMsg string) error {
+func UpdateJobStatus(db *gorm.DB, jobID uint32, status ScanJobStatus, errorMsg string) error {
 	updates := map[string]interface{}{
 		"status": string(status),
 	}
@@ -137,7 +137,7 @@ func UpdateJobStatus(db *gorm.DB, jobID uint, status ScanJobStatus, errorMsg str
 }
 
 // GetLibraryStatistics calculates and returns statistics for a library
-func GetLibraryStatistics(db *gorm.DB, libraryID uint) (*LibraryStats, error) {
+func GetLibraryStatistics(db *gorm.DB, libraryID uint32) (*LibraryStats, error) {
 	var stats struct {
 		TotalFiles int64 `json:"total_files"`
 		TotalSize  int64 `json:"total_size"`
@@ -188,4 +188,77 @@ func CleanupOldScanJobs(db *gorm.DB) (int64, error) {
 	}
 
 	return result.RowsAffected, nil
+}
+
+// CleanupSkippedFiles removes files from the database that should be skipped
+// based on the SkippedExtensions list (e.g., trickplay files, subtitles, etc.)
+func CleanupSkippedFiles(db *gorm.DB, libraryID uint32) error {
+	// Get all media files for this library
+	var mediaFiles []database.MediaFile
+	if err := db.Where("library_id = ?", libraryID).Find(&mediaFiles).Error; err != nil {
+		return fmt.Errorf("failed to get media files: %w", err)
+	}
+
+	var filesToDelete []string
+	skippedCount := 0
+
+	for _, file := range mediaFiles {
+		if IsSkippedFile(file.Path) {
+			filesToDelete = append(filesToDelete, file.ID)
+			skippedCount++
+		}
+	}
+
+	if len(filesToDelete) > 0 {
+		// Delete in batches for better performance
+		batchSize := 100
+		for i := 0; i < len(filesToDelete); i += batchSize {
+			end := i + batchSize
+			if end > len(filesToDelete) {
+				end = len(filesToDelete)
+			}
+			
+			batch := filesToDelete[i:end]
+			if err := db.Where("id IN ?", batch).Delete(&database.MediaFile{}).Error; err != nil {
+				return fmt.Errorf("failed to delete skipped files batch: %w", err)
+			}
+		}
+		
+		fmt.Printf("Cleaned up %d skipped files (trickplay, subtitles, etc.) from library %d\n", 
+			skippedCount, libraryID)
+	}
+
+	return nil
+}
+
+// CleanupDuplicateScanJobs removes duplicate scan jobs for a library, keeping only the most recent one
+func CleanupDuplicateScanJobs(db *gorm.DB, libraryID uint32) error {
+	// Get all scan jobs for this library
+	var scanJobs []database.ScanJob
+	if err := db.Where("library_id = ?", libraryID).Order("created_at DESC").Find(&scanJobs).Error; err != nil {
+		return fmt.Errorf("failed to get scan jobs: %w", err)
+	}
+
+	if len(scanJobs) <= 1 {
+		return nil // No duplicates
+	}
+
+	// Keep the most recent job, delete the rest
+	jobsToDelete := scanJobs[1:] // Skip the first (most recent) one
+	var idsToDelete []uint32
+	for _, job := range jobsToDelete {
+		idsToDelete = append(idsToDelete, job.ID)
+	}
+
+	if len(idsToDelete) > 0 {
+		result := db.Where("id IN ?", idsToDelete).Delete(&database.ScanJob{})
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete duplicate scan jobs: %w", result.Error)
+		}
+		
+		fmt.Printf("Cleaned up %d duplicate scan jobs for library %d, kept job %d\n", 
+			result.RowsAffected, libraryID, scanJobs[0].ID)
+	}
+
+	return nil
 }

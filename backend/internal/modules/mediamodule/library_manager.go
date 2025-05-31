@@ -70,7 +70,7 @@ func (lm *LibraryManager) loadLibraries() error {
 	}
 	
 	for i := range libraries {
-		lm.libraries[libraries[i].ID] = &libraries[i]
+		lm.libraries[uint(libraries[i].ID)] = &libraries[i]
 		log.Printf("INFO: Loaded library: %s (ID: %d)", libraries[i].Path, libraries[i].ID)
 	}
 	
@@ -96,7 +96,7 @@ func (lm *LibraryManager) CreateLibrary(name, path, libraryType string) (*databa
 	}
 	
 	lm.mutex.Lock()
-	lm.libraries[library.ID] = library
+	lm.libraries[uint(library.ID)] = library
 	lm.mutex.Unlock()
 	
 	// Publish library created event

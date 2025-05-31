@@ -31,9 +31,9 @@ func GetAllLibraryStats(c *gin.Context) {
 	}
 	
 	// Get stats for each library
-	libraryStats := make(map[uint]map[string]interface{}) 
+	libraryStats := make(map[uint32]map[string]interface{}) 
 	for _, lib := range libraries {
-		stats, err := scannerManager.GetLibraryStats(lib.ID)
+		stats, err := scannerManager.GetLibraryStats(uint32(lib.ID))
 		if err != nil {
 			// For libraries where GetLibraryStats fails, get basic counts directly from MediaFile table
 			var totalFiles int64
@@ -110,7 +110,7 @@ func GetLibraryMetrics(c *gin.Context) {
 		return
 	}
 
-	stats, err := scannerManager.GetLibraryStats(uint(libraryID))
+	stats, err := scannerManager.GetLibraryStats(uint32(libraryID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to get library metrics",
@@ -149,7 +149,7 @@ func GetLibraryMetrics(c *gin.Context) {
 	if err == nil {
 		// Filter to only this library
 		for _, scan := range scanHistory {
-			if scan.LibraryID == uint(libraryID) {
+			if scan.LibraryID == uint32(libraryID) {
 				libraryScans = append(libraryScans, scan)
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,106 @@ var MediaExtensions = map[string]bool{
 	".m4a":  true,
 	".opus": true,
 	".aiff": true,
+}
+
+// SkippedExtensions contains file extensions that should never be processed
+// These are typically system files, previews, thumbnails, or other non-media files
+var SkippedExtensions = map[string]bool{
+	// Trickplay and preview files (Plex, Jellyfin, Emby, etc.)
+	".bif":         true, // Roku/Plex trickplay files
+	".vtt":         true, // WebVTT subtitle files (often trickplay metadata)
+	".storyboard":  true, // Storyboard preview files
+	".chapter":     true, // Chapter thumbnail files
+	".thumbnail":   true, // Thumbnail files
+	".preview":     true, // Preview image files
+	".sprite":      true, // Sprite sheet files for trickplay
+	".keyframe":    true, // Keyframe extraction files
+	".scene":       true, // Scene detection files
+	".timeline":    true, // Timeline preview files
+	
+	// Media server metadata and cache files
+	".nfo":         true, // Media info files (Kodi, Plex, etc.)
+	".xml":         true, // Metadata files
+	".plist":       true, // Property list files (macOS media metadata)
+	".meta":        true, // Generic metadata files
+	".info":        true, // Info files
+	".dat":         true, // Data files (often cache)
+	".cache":       true, // Cache files
+	".index":       true, // Index files
+	".temp":        true, // Temporary files
+	".tmp":         true, // Temporary files
+	".part":        true, // Partial download files
+	".crdownload":  true, // Chrome partial downloads
+	".download":    true, // Generic partial downloads
+	
+	// Subtitle files (not media content)
+	".srt":         true, // SubRip subtitle files
+	".sub":         true, // MicroDVD subtitle files
+	".idx":         true, // VobSub subtitle index files
+	".ass":         true, // Advanced SubStation Alpha subtitle files
+	".ssa":         true, // SubStation Alpha subtitle files
+	".sup":         true, // Blu-ray PGS subtitle files
+	".usf":         true, // Universal Subtitle Format
+	".smi":         true, // SAMI subtitle files
+	".rt":          true, // RealText subtitle files
+	".sbv":         true, // SubViewer subtitle files
+	
+	// Thumbnail and preview files
+	".jpg":         true, // Often thumbnails or cover art
+	".jpeg":        true, // Often thumbnails or cover art
+	".png":         true, // Often thumbnails or cover art
+	".gif":         true, // Often thumbnails or animated previews
+	".bmp":         true, // Bitmap images
+	".webp":        true, // Web images
+	".tiff":        true, // Image files
+	".tif":         true, // Image files
+	".svg":         true, // Vector graphics
+	".ico":         true, // Icon files
+	".psd":         true, // Photoshop files
+	".ai":          true, // Adobe Illustrator files
+	".eps":         true, // Encapsulated PostScript files
+	
+	// System and metadata files
+	".txt":         true, // Text files, often logs or metadata
+	".log":         true, // Log files
+	".db":          true, // Database files
+	".db-journal":  true, // SQLite journal files
+	".db-wal":      true, // SQLite WAL files
+	".db-shm":      true, // SQLite shared memory files
+	".json":        true, // JSON metadata files
+	".yml":         true, // YAML configuration files
+	".yaml":        true, // YAML configuration files
+	".ini":         true, // Configuration files
+	".cfg":         true, // Configuration files
+	".conf":        true, // Configuration files
+	".config":      true, // Configuration files
+	".properties":  true, // Properties files
+	
+	// Lock and temporary files
+	".lock":        true, // Lock files
+	".lck":         true, // Lock files
+	".backup":      true, // Backup files
+	".bak":         true, // Backup files
+	".old":         true, // Old backup files
+	".orig":        true, // Original backup files
+	".swp":         true, // Vim swap files
+	".swo":         true, // Vim swap files
+	".~":           true, // Temporary files
+	
+	// Archive files (not media)
+	".zip":         true, // Archive files
+	".rar":         true, // Archive files
+	".7z":          true, // Archive files
+	".tar":         true, // Archive files
+	".gz":          true, // Compressed files
+	".bz2":         true, // Compressed files
+	".xz":          true, // Compressed files
+	".z":           true, // Compressed files
+	".lz":          true, // Compressed files
+	".lzma":        true, // Compressed files
+	".cab":         true, // Cabinet files
+	".dmg":         true, // macOS disk images
+	".iso":         true, // Disk images (unless specifically for media)
 }
 
 // CalculateFileHash calculates SHA1 hash of a file
@@ -246,7 +347,15 @@ func IsMediaFile(filePath string) bool {
 	return result
 }
 
-// IsMediaFileOptimized checks if a file is a media file using optimized string operations
+// IsSkippedFile returns true if a file should be skipped during scanning
+// based on its extension being in the SkippedExtensions list
+func IsSkippedFile(filePath string) bool {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	return SkippedExtensions[ext]
+}
+
+// IsMediaFileOptimized returns true if a file is a supported media file and should be processed
+// This also checks that the file is not in the skipped extensions list
 func IsMediaFileOptimized(path string) bool {
 	// Get extension without allocating new string
 	lastDot := strings.LastIndexByte(path, '.')
@@ -255,18 +364,25 @@ func IsMediaFileOptimized(path string) bool {
 	}
 
 	// Convert to lowercase inline for comparison
-	ext := path[lastDot+1:]
+	ext := strings.ToLower(path[lastDot:])
 
-	// Check against known extensions using a switch for better performance
-	switch strings.ToLower(ext) {
+	// First check if it's explicitly skipped
+	if SkippedExtensions[ext] {
+		return false
+	}
+
+	// Check if it's a supported media extension
+	if MediaExtensions[ext] {
+		return true
+	}
+
+	// Detailed extension check for audio/video formats
+	switch ext {
 	// Audio formats
-	case "mp3", "m4a", "flac", "wav", "ogg", "opus", "aac", "wma", "alac", "ape", "dsd", "dsf":
+	case ".mp3", ".m4a", ".flac", ".wav", ".ogg", ".opus", ".aac", ".wma", ".alac", ".ape", ".dsd", ".dsf":
 		return true
 	// Video formats
-	case "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg", "3gp", "ogv":
-		return true
-	// Image formats (album art, etc.)
-	case "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg":
+	case ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg", ".3gp", ".ogv":
 		return true
 	default:
 		return false
@@ -320,4 +436,89 @@ func NewFastHash() hash.Hash64 {
 // SumString returns the hex string of the hash
 func SumString(h hash.Hash64) string {
 	return fmt.Sprintf("%x", h.Sum64())
+}
+
+// IsTrickplayFile returns true if a file appears to be a trickplay, preview, or thumbnail file
+// This includes both extension-based and filename pattern-based detection
+func IsTrickplayFile(filePath string) bool {
+	// First check extension
+	if IsSkippedFile(filePath) {
+		return true
+	}
+	
+	// Check filename patterns commonly used by media servers
+	filename := strings.ToLower(filepath.Base(filePath))
+	trickplayPatterns := []string{
+		"trickplay", "preview", "thumbnail", "sprite", "chapter",
+		"keyframe", "timeline", "storyboard", "scene", "frame",
+		"bif", "-thumb", "_thumb", ".thumb", "poster", "fanart",
+		"banner", "logo", "clearart", "landscape", "disc",
+	}
+	
+	for _, pattern := range trickplayPatterns {
+		if strings.Contains(filename, pattern) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// IsTrickplayDirectory returns true if a directory appears to contain trickplay files
+func IsTrickplayDirectory(dirPath string) bool {
+	dirName := strings.ToLower(filepath.Base(dirPath))
+	trickplayDirPatterns := []string{
+		"trickplay", "previews", "thumbnails", "sprites", "chapters",
+		"keyframes", "timeline", "storyboard", "scenes", "frames",
+		"metadata", "cache", "temp", ".plex", ".emby", ".jellyfin",
+		"artwork", "fanart", "posters", "banners",
+	}
+	
+	for _, pattern := range trickplayDirPatterns {
+		if strings.Contains(dirName, pattern) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// GetTrickplayDetectionStats analyzes a directory path and returns statistics about trickplay files
+type TrickplayStats struct {
+	TrickplayFiles       int   `json:"trickplay_files"`
+	TrickplayDirectories int   `json:"trickplay_directories"`
+	TotalFilesScanned    int   `json:"total_files_scanned"`
+	TotalDirsScanned     int   `json:"total_dirs_scanned"`
+	SkippedBytes         int64 `json:"skipped_bytes"`
+}
+
+// AnalyzeTrickplayInDirectory scans a directory and returns statistics about trickplay content
+func AnalyzeTrickplayInDirectory(dirPath string) (*TrickplayStats, error) {
+	stats := &TrickplayStats{}
+	
+	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // Skip files we can't access
+		}
+		
+		if d.IsDir() {
+			stats.TotalDirsScanned++
+			if IsTrickplayDirectory(path) {
+				stats.TrickplayDirectories++
+			}
+			return nil
+		}
+		
+		stats.TotalFilesScanned++
+		if IsTrickplayFile(path) {
+			stats.TrickplayFiles++
+			if info, err := d.Info(); err == nil {
+				stats.SkippedBytes += info.Size()
+			}
+		}
+		
+		return nil
+	})
+	
+	return stats, err
 }

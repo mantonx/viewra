@@ -168,7 +168,12 @@ func Initialize() {
 	
 	// Auto-migrate the schema
 	err = DB.AutoMigrate(
-		&Media{}, &User{}, &MediaLibrary{}, &MediaFile{}, &MusicMetadata{}, &ScanJob{},
+		&User{}, &MediaLibrary{}, &ScanJob{},
+		// New comprehensive metadata models
+		&MediaFile{}, &MediaAsset{}, &People{}, &Roles{},
+		&Artist{}, &Album{}, &Track{},
+		&Movie{}, &TVShow{}, &Season{}, &Episode{},
+		&MediaExternalIDs{}, &MediaEnrichment{},
 		// Plugin system tables
 		&Plugin{}, &PluginPermission{}, &PluginEvent{}, &PluginHook{}, &PluginAdminPage{}, &PluginUIComponent{},
 		// Event system tables

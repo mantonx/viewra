@@ -533,9 +533,9 @@ func (fp *FileProcessor) scanAndSaveFile(filePath string, libraryID uint) error 
 	
 	// Create basic media file record
 	mediaFile := &database.MediaFile{
-		LibraryID: libraryID,
+		LibraryID: uint32(libraryID),
 		Path:      filePath,
-		Size:      fileInfo.Size(),
+		SizeBytes: fileInfo.Size(),
 		ScanJobID: nil, // Files discovered by monitoring don't belong to a specific scan job
 		LastSeen:  time.Now(),
 		CreatedAt: time.Now(),

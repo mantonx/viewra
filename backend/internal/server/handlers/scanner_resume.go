@@ -28,7 +28,7 @@ func ResumeLibraryScan(c *gin.Context) {
 	}
 	
 	// Use the new library-based resume method for better consistency
-	err = scannerManager.ResumeScanByLibrary(uint(libraryID))
+	err = scannerManager.ResumeScanByLibrary(uint32(libraryID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Failed to resume scan",
@@ -38,7 +38,7 @@ func ResumeLibraryScan(c *gin.Context) {
 	}
 	
 	// Get the updated scan job status
-	scanJob, statusErr := scannerManager.GetLibraryScanStatus(uint(libraryID))
+	scanJob, statusErr := scannerManager.GetLibraryScanStatus(uint32(libraryID))
 	if statusErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to get scan status after resume",

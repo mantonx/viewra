@@ -31,12 +31,13 @@ type Config struct {
 
 // TemplateData represents sample database model
 type TemplateData struct {
-	ID          uint      `gorm:"primaryKey"`
-	MediaFileID uint      `gorm:"not null;index"`
-	Title       string    `gorm:"size:255"`
-	Artist      string    `gorm:"size:255"`
-	ProcessedAt time.Time `gorm:"autoCreateTime"`
-	Metadata    string    `gorm:"type:text"`
+	ID          uint32    `gorm:"primaryKey"`
+	MediaFileID uint32    `gorm:"not null;index"`
+	Title       string    `gorm:"not null"`
+	Description string
+	ExtraData   string `gorm:"type:text"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Plugin lifecycle methods
@@ -213,14 +214,14 @@ func (t *TemplatePlugin) OnMediaFileScanned(mediaFileID uint32, filePath string,
 
 	// Example: Store processed data in database
 	if t.db != nil {
-		data := TemplateData{
-			MediaFileID: uint(mediaFileID),
+		enrichment := &TemplateData{
+			MediaFileID: uint32(mediaFileID),
 			Title:       metadata["title"],
-			Artist:      metadata["artist"], 
-			Metadata:    fmt.Sprintf("Processed %d fields", len(metadata)),
+			Description: metadata["description"],
+			ExtraData:   "Additional processing data here",
 		}
 
-		if err := t.db.Create(&data).Error; err != nil {
+		if err := t.db.Create(enrichment).Error; err != nil {
 			t.logger.Error("Failed to save template data", "error", err)
 			return err
 		}
