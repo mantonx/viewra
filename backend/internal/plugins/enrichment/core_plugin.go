@@ -85,25 +85,42 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx plugins.MetadataConte
 	}
 
 	// Extract metadata from file
-	metadata, err := p.extractMetadata(path)
+	trackInfo, err := p.extractMetadata(path)
 	if err != nil {
 		log.Printf("WARNING: Failed to extract metadata from %s: %v", path, err)
 		// Continue with empty metadata rather than failing completely
-		metadata = &database.MusicMetadata{
-			MediaFileID: ctx.MediaFile.ID,
-			Title:       filepath.Base(path),
-			Artist:      "Unknown Artist",
-			Album:       "Unknown Album",
+		trackInfo = &TrackInfo{
+			Title:  filepath.Base(path),
+			Artist: "Unknown Artist",
+			Album:  "Unknown Album",
 		}
 	}
 
-	// Save metadata to database
-	if err := p.saveMetadata(metadata, ctx.MediaFile.ID); err != nil {
-		return fmt.Errorf("failed to save metadata: %w", err)
+	// Create or get Artist
+	artist, err := p.createOrGetArtist(trackInfo.Artist)
+	if err != nil {
+		return fmt.Errorf("failed to create/get artist: %w", err)
+	}
+
+	// Create or get Album
+	album, err := p.createOrGetAlbum(trackInfo.Album, artist.ID, trackInfo.Year)
+	if err != nil {
+		return fmt.Errorf("failed to create/get album: %w", err)
+	}
+
+	// Create or update Track
+	track, err := p.createOrUpdateTrack(trackInfo, artist.ID, album.ID)
+	if err != nil {
+		return fmt.Errorf("failed to create/update track: %w", err)
+	}
+
+	// Update MediaFile to link to the track
+	if err := p.linkMediaFileToTrack(ctx.MediaFile.ID, track.ID); err != nil {
+		return fmt.Errorf("failed to link media file to track: %w", err)
 	}
 
 	// Extract and save artwork if present
-	if err := p.extractAndSaveArtwork(path, ctx.MediaFile.ID); err != nil {
+	if err := p.extractAndSaveArtwork(path, album.ID); err != nil {
 		log.Printf("WARNING: Failed to extract artwork from %s: %v", path, err)
 		// Not a fatal error - continue without artwork
 	}
@@ -117,9 +134,10 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx plugins.MetadataConte
 		)
 		event.Data = map[string]interface{}{
 			"mediaFileID": ctx.MediaFile.ID,
-			"title":       metadata.Title,
-			"artist":      metadata.Artist,
-			"album":       metadata.Album,
+			"trackID":     track.ID,
+			"title":       track.Title,
+			"artist":      artist.Name,
+			"album":       album.Title,
 		}
 		eventBus.PublishAsync(event)
 	}
@@ -128,8 +146,19 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx plugins.MetadataConte
 	return nil
 }
 
+// TrackInfo holds extracted track information
+type TrackInfo struct {
+	Title       string
+	Artist      string
+	Album       string
+	Genre       string
+	Year        int
+	TrackNumber int
+	Duration    int
+}
+
 // extractMetadata extracts metadata from a music file using tag library
-func (p *EnrichmentCorePlugin) extractMetadata(path string) (*database.MusicMetadata, error) {
+func (p *EnrichmentCorePlugin) extractMetadata(path string) (*TrackInfo, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
@@ -143,7 +172,7 @@ func (p *EnrichmentCorePlugin) extractMetadata(path string) (*database.MusicMeta
 	}
 
 	// Extract basic metadata
-	musicMeta := &database.MusicMetadata{
+	trackInfo := &TrackInfo{
 		Title:  metadata.Title(),
 		Artist: metadata.Artist(),
 		Album:  metadata.Album(),
@@ -151,62 +180,142 @@ func (p *EnrichmentCorePlugin) extractMetadata(path string) (*database.MusicMeta
 	}
 
 	// Handle missing title
-	if musicMeta.Title == "" {
+	if trackInfo.Title == "" {
 		// Use filename without extension as fallback
 		base := filepath.Base(path)
-		musicMeta.Title = strings.TrimSuffix(base, filepath.Ext(base))
+		trackInfo.Title = strings.TrimSuffix(base, filepath.Ext(base))
 	}
 
 	// Handle missing artist
-	if musicMeta.Artist == "" {
-		musicMeta.Artist = "Unknown Artist"
+	if trackInfo.Artist == "" {
+		trackInfo.Artist = "Unknown Artist"
 	}
 
 	// Handle missing album
-	if musicMeta.Album == "" {
-		musicMeta.Album = "Unknown Album"
+	if trackInfo.Album == "" {
+		trackInfo.Album = "Unknown Album"
 	}
 
 	// Parse year
 	if year := metadata.Year(); year != 0 {
-		musicMeta.Year = year
+		trackInfo.Year = year
 	}
 
 	// Parse track number
 	if trackNum, _ := metadata.Track(); trackNum != 0 {
-		musicMeta.TrackNumber = trackNum
+		trackInfo.TrackNumber = trackNum
 	}
 
 	// Get file info for additional metadata
 	if fileInfo, err := os.Stat(path); err == nil {
-		musicMeta.Duration = int(p.estimateDuration(fileInfo.Size(), path).Seconds())
+		trackInfo.Duration = int(p.estimateDuration(fileInfo.Size(), path).Seconds())
 	}
 
-	return musicMeta, nil
+	return trackInfo, nil
 }
 
-// saveMetadata saves music metadata to the database
-func (p *EnrichmentCorePlugin) saveMetadata(metadata *database.MusicMetadata, mediaFileID string) error {
-	// Set the media file ID
-	metadata.MediaFileID = mediaFileID
+// createOrGetArtist creates a new artist or returns existing one
+func (p *EnrichmentCorePlugin) createOrGetArtist(artistName string) (*database.Artist, error) {
+	var artist database.Artist
+	
+	// Check if artist already exists
+	result := p.db.Where("name = ?", artistName).First(&artist)
+	if result.Error == nil {
+		return &artist, nil
+	}
+	
+	// Create new artist
+	artist = database.Artist{
+		ID:   uuid.New().String(),
+		Name: artistName,
+	}
+	
+	if err := p.db.Create(&artist).Error; err != nil {
+		return nil, fmt.Errorf("failed to create artist: %w", err)
+	}
+	
+	return &artist, nil
+}
 
-	// Check if metadata already exists
-	var existing database.MusicMetadata
-	result := p.db.Where("media_file_id = ?", mediaFileID).First(&existing)
+// createOrGetAlbum creates a new album or returns existing one
+func (p *EnrichmentCorePlugin) createOrGetAlbum(albumTitle string, artistID string, year int) (*database.Album, error) {
+	var album database.Album
+	
+	// Check if album already exists for this artist
+	result := p.db.Where("title = ? AND artist_id = ?", albumTitle, artistID).First(&album)
+	if result.Error == nil {
+		return &album, nil
+	}
+	
+	// Create new album
+	album = database.Album{
+		ID:       uuid.New().String(),
+		Title:    albumTitle,
+		ArtistID: artistID,
+	}
+	
+	// Set release date if year is provided
+	if year > 0 {
+		releaseDate := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
+		album.ReleaseDate = &releaseDate
+	}
+	
+	if err := p.db.Create(&album).Error; err != nil {
+		return nil, fmt.Errorf("failed to create album: %w", err)
+	}
+	
+	return &album, nil
+}
+
+// createOrUpdateTrack creates a new track or updates existing one
+func (p *EnrichmentCorePlugin) createOrUpdateTrack(trackInfo *TrackInfo, artistID string, albumID string) (*database.Track, error) {
+	var track database.Track
+	
+	// Check if track already exists for this album
+	result := p.db.Where("title = ? AND album_id = ?", trackInfo.Title, albumID).First(&track)
 	
 	if result.Error == nil {
-		// Update existing metadata
-		metadata.ID = existing.ID
-		metadata.CreatedAt = existing.CreatedAt
-		return p.db.Save(metadata).Error
-	} else {
-		// Create new metadata
-		return p.db.Create(metadata).Error
+		// Update existing track
+		track.ArtistID = artistID
+		track.TrackNumber = trackInfo.TrackNumber
+		track.Duration = trackInfo.Duration
+		
+		if err := p.db.Save(&track).Error; err != nil {
+			return nil, fmt.Errorf("failed to update track: %w", err)
+		}
+		
+		return &track, nil
 	}
+	
+	// Create new track
+	track = database.Track{
+		ID:          uuid.New().String(),
+		Title:       trackInfo.Title,
+		AlbumID:     albumID,
+		ArtistID:    artistID,
+		TrackNumber: trackInfo.TrackNumber,
+		Duration:    trackInfo.Duration,
+	}
+	
+	if err := p.db.Create(&track).Error; err != nil {
+		return nil, fmt.Errorf("failed to create track: %w", err)
+	}
+	
+	return &track, nil
+}
+
+// linkMediaFileToTrack updates the MediaFile to reference the track
+func (p *EnrichmentCorePlugin) linkMediaFileToTrack(mediaFileID string, trackID string) error {
+	return p.db.Model(&database.MediaFile{}).
+		Where("id = ?", mediaFileID).
+		Updates(map[string]interface{}{
+			"media_id":   trackID,
+			"media_type": database.MediaTypeTrack,
+		}).Error
 }
 
 // extractAndSaveArtwork extracts and saves artwork from a music file
-func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, mediaFileID string) error {
+func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, albumID string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -256,7 +365,7 @@ func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, mediaFileID st
 		return fmt.Errorf("failed to save artwork: %w", err)
 	}
 
-	log.Printf("INFO: Saved artwork for media file %s", mediaFileID)
+	log.Printf("INFO: Saved artwork for media file %s", albumID)
 	return nil
 }
 

@@ -311,7 +311,7 @@ func (m *Module) streamFile(c *gin.Context) {
 	c.File(mediaFile.Path)
 }
 
-// getFileMetadata returns metadata for a media file
+// getFileMetadata retrieves metadata for a media file
 func (m *Module) getFileMetadata(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -321,17 +321,118 @@ func (m *Module) getFileMetadata(c *gin.Context) {
 		return
 	}
 	
-	// Get music metadata
-	var musicMetadata database.MusicMetadata
-	if err := m.db.Where("media_file_id = ?", idStr).First(&musicMetadata).Error; err != nil {
+	// Get the media file with proper relationships
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Metadata not found for this file",
+			"error": "Media file not found",
+		})
+		return
+	}
+	
+	// Based on media type, get the appropriate metadata
+	var metadata interface{}
+	
+	switch mediaFile.MediaType {
+	case database.MediaTypeTrack:
+		// Get track with artist and album information
+		var track database.Track
+		if err := m.db.Preload("Artist").Preload("Album").Preload("Album.Artist").
+			Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Track metadata not found",
+			})
+			return
+		}
+		metadata = map[string]interface{}{
+			"type":         "track",
+			"track_id":     track.ID,
+			"title":        track.Title,
+			"track_number": track.TrackNumber,
+			"duration":     track.Duration,
+			"lyrics":       track.Lyrics,
+			"artist": map[string]interface{}{
+				"id":          track.Artist.ID,
+				"name":        track.Artist.Name,
+				"description": track.Artist.Description,
+				"image":       track.Artist.Image,
+			},
+			"album": map[string]interface{}{
+				"id":           track.Album.ID,
+				"title":        track.Album.Title,
+				"release_date": track.Album.ReleaseDate,
+				"artwork":      track.Album.Artwork,
+			},
+		}
+	case database.MediaTypeMovie:
+		// Get movie information
+		var movie database.Movie
+		if err := m.db.Where("id = ?", mediaFile.MediaID).First(&movie).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Movie metadata not found",
+			})
+			return
+		}
+		metadata = map[string]interface{}{
+			"type":         "movie",
+			"movie_id":     movie.ID,
+			"title":        movie.Title,
+			"release_date": movie.ReleaseDate,
+			"plot":         movie.Plot,
+			"runtime":      movie.Runtime,
+			"rating":       movie.Rating,
+			"poster":       movie.Poster,
+			"backdrop":     movie.Backdrop,
+			"studio":       movie.Studio,
+			"tmdb_id":      movie.TmdbID,
+			"imdb_id":      movie.ImdbID,
+		}
+	case database.MediaTypeEpisode:
+		// Get episode information
+		var episode database.Episode
+		if err := m.db.Preload("Season").Preload("Season.TVShow").
+			Where("id = ?", mediaFile.MediaID).First(&episode).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Episode metadata not found",
+			})
+			return
+		}
+		metadata = map[string]interface{}{
+			"type":           "episode",
+			"episode_id":     episode.ID,
+			"title":          episode.Title,
+			"episode_number": episode.EpisodeNumber,
+			"air_date":       episode.AirDate,
+			"description":    episode.Description,
+			"duration":       episode.Duration,
+			"still_image":    episode.StillImage,
+			"season": map[string]interface{}{
+				"id":            episode.Season.ID,
+				"season_number": episode.Season.SeasonNumber,
+				"description":   episode.Season.Description,
+				"poster":        episode.Season.Poster,
+				"tv_show": map[string]interface{}{
+					"id":             episode.Season.TVShow.ID,
+					"title":          episode.Season.TVShow.Title,
+					"description":    episode.Season.TVShow.Description,
+					"first_air_date": episode.Season.TVShow.FirstAirDate,
+					"status":         episode.Season.TVShow.Status,
+					"poster":         episode.Season.TVShow.Poster,
+					"backdrop":       episode.Season.TVShow.Backdrop,
+					"tmdb_id":        episode.Season.TVShow.TmdbID,
+				},
+			},
+		}
+	default:
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "No metadata found for this media type",
 		})
 		return
 	}
 	
 	c.JSON(http.StatusOK, gin.H{
-		"metadata": musicMetadata,
+		"media_file_id": idStr,
+		"metadata":      metadata,
 	})
 }
 
@@ -479,43 +580,76 @@ func (m *Module) updateMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
-	var musicMetadata database.MusicMetadata
-	if err := c.ShouldBindJSON(&musicMetadata); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Invalid request: %v", err),
+
+	// Get the media file to determine its type
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
 		})
 		return
 	}
-	
-	// Ensure we update the correct record
-	musicMetadata.MediaFileID = idStr
-	
-	// Check if metadata exists
-	var existingMetadata database.MusicMetadata
-	if err := m.db.Where("media_file_id = ?", idStr).First(&existingMetadata).Error; err != nil {
-		// Create new metadata
-		if err := m.db.Create(&musicMetadata).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to create metadata: %v", err),
+
+	// Handle different media types
+	switch mediaFile.MediaType {
+	case database.MediaTypeTrack:
+		// Handle track metadata update
+		var trackUpdate struct {
+			Title       string `json:"title"`
+			TrackNumber int    `json:"track_number"`
+			Duration    int    `json:"duration"`
+			Lyrics      string `json:"lyrics"`
+			Artist      string `json:"artist"`
+			Album       string `json:"album"`
+		}
+		
+		if err := c.ShouldBindJSON(&trackUpdate); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Invalid request: %v", err),
 			})
 			return
 		}
-	} else {
-		// Update existing metadata
-		musicMetadata.ID = existingMetadata.ID
-		if err := m.db.Save(&musicMetadata).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to update metadata: %v", err),
+
+		// Get the track
+		var track database.Track
+		if err := m.db.Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Track not found",
 			})
 			return
 		}
+
+		// Update track fields
+		if trackUpdate.Title != "" {
+			track.Title = trackUpdate.Title
+		}
+		if trackUpdate.TrackNumber > 0 {
+			track.TrackNumber = trackUpdate.TrackNumber
+		}
+		if trackUpdate.Duration > 0 {
+			track.Duration = trackUpdate.Duration
+		}
+		track.Lyrics = trackUpdate.Lyrics
+
+		// Save the updated track
+		if err := m.db.Save(&track).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Failed to update track: %v", err),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Track metadata updated successfully",
+			"track_id": track.ID,
+		})
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Metadata updates not supported for this media type yet",
+		})
+		return
 	}
-	
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Metadata updated successfully",
-		"id":      idStr,
-	})
 }
 
 // processFile processes a media file

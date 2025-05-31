@@ -399,19 +399,3 @@ type PluginUIComponent struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
-
-// TEMPORARY: Legacy MusicMetadata stub for compilation compatibility
-// TODO: Remove this once all references are updated to use Artist/Album/Track
-type MusicMetadata struct {
-	ID           uint32 `gorm:"primaryKey" json:"id"`
-	MediaFileID  string `gorm:"type:varchar(36);not null;index" json:"media_file_id"` // FIXED: Use string to match MediaFile.ID
-	Title        string `json:"title"`
-	Artist       string `json:"artist"`
-	Album        string `json:"album"`
-	Genre        string `json:"genre"`
-	Year         int    `json:"year"`
-	TrackNumber  int    `json:"track_number"`
-	Duration     int    `json:"duration"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}

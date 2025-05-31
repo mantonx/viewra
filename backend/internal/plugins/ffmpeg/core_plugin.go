@@ -197,38 +197,44 @@ func (p *FFmpegCorePlugin) HandleFile(path string, ctx plugins.MetadataContext) 
 		return fmt.Errorf("unsupported file extension: %s", ext)
 	}
 
-	// Extract metadata using FFprobe if available
-	mediaMeta, err := p.extractMediaMetadata(path, ctx.MediaFile)
-	if err != nil {
-		return fmt.Errorf("failed to extract media metadata: %w", err)
-	}
-
-	// Save metadata to database
+	// Get database connection
 	db, ok := ctx.DB.(*gorm.DB)
 	if !ok {
 		return fmt.Errorf("invalid database context")
 	}
-	
-	if err := db.Create(mediaMeta).Error; err != nil {
-		return fmt.Errorf("failed to save media metadata: %w", err)
+
+	// For audio files, extract metadata and create Artist/Album/Track records
+	if p.isAudioFile(ext) {
+		trackInfo, err := p.extractAudioTrackInfo(path, ctx.MediaFile)
+		if err != nil {
+			return fmt.Errorf("failed to extract audio track info: %w", err)
+		}
+
+		// Create Artist/Album/Track records (similar to enrichment plugin)
+		if err := p.createMusicRecords(db, trackInfo, ctx.MediaFile.ID); err != nil {
+			return fmt.Errorf("failed to create music records: %w", err)
+		}
+	} else {
+		// For video files, just extract technical metadata
+		// Video metadata would go into Movie/TVShow tables in the future
+		fmt.Printf("DEBUG: Video metadata extraction not yet implemented for new schema\n")
 	}
 
-	fmt.Printf("DEBUG: FFmpeg plugin processed %s → metadata saved\n", path)
+	fmt.Printf("DEBUG: FFmpeg plugin processed %s\n", path)
 	return nil
 }
 
-// isExtensionSupported checks if the file extension is supported
-func (p *FFmpegCorePlugin) isExtensionSupported(ext string) bool {
-	for _, supportedExt := range p.supportedExts {
-		if ext == supportedExt {
-			return true
-		}
-	}
-	return false
+// AudioTrackInfo holds extracted audio track information
+type AudioTrackInfo struct {
+	Title       string
+	Artist      string
+	Album       string
+	Duration    int
+	MediaFileID string
 }
 
-// extractMediaMetadata extracts metadata using FFprobe and returns a MusicMetadata struct
-func (p *FFmpegCorePlugin) extractMediaMetadata(filePath string, mediaFile *database.MediaFile) (*database.MusicMetadata, error) {
+// extractAudioTrackInfo extracts audio metadata and creates a track info structure
+func (p *FFmpegCorePlugin) extractAudioTrackInfo(filePath string, mediaFile *database.MediaFile) (*AudioTrackInfo, error) {
 	if !p.isFFProbeAvailable() {
 		return nil, fmt.Errorf("FFprobe not available")
 	}
@@ -239,22 +245,166 @@ func (p *FFmpegCorePlugin) extractMediaMetadata(filePath string, mediaFile *data
 		return nil, fmt.Errorf("failed to extract audio info: %w", err)
 	}
 
-	// Create metadata record
-	mediaMeta := &database.MusicMetadata{
-		MediaFileID: mediaFile.ID,
+	// Create track info with basic metadata
+	trackInfo := &AudioTrackInfo{
 		Title:       p.getBaseName(filePath),
 		Artist:      "Unknown Artist",
 		Album:       "Unknown Album",
 		Duration:    int(audioInfo.Duration),
+		MediaFileID: mediaFile.ID,
 	}
 
-	// Try to extract additional metadata from FFprobe tags
-	if audioInfo.Format != "" {
-		// Format information is available but not stored in the simplified schema
-		debugLog("Audio format: %s, Codec: %s\n", audioInfo.Format, audioInfo.Codec)
+	return trackInfo, nil
+}
+
+// createMusicRecords creates Artist/Album/Track records for audio files
+func (p *FFmpegCorePlugin) createMusicRecords(db *gorm.DB, trackInfo *AudioTrackInfo, mediaFileID string) error {
+	// Create or get Artist
+	artist, err := p.createOrGetArtist(db, trackInfo.Artist)
+	if err != nil {
+		return fmt.Errorf("failed to create/get artist: %w", err)
 	}
 
-	return mediaMeta, nil
+	// Create or get Album
+	album, err := p.createOrGetAlbum(db, trackInfo.Album, artist.ID)
+	if err != nil {
+		return fmt.Errorf("failed to create/get album: %w", err)
+	}
+
+	// Create or update Track
+	track, err := p.createOrUpdateTrack(db, trackInfo, artist.ID, album.ID)
+	if err != nil {
+		return fmt.Errorf("failed to create/update track: %w", err)
+	}
+
+	// Update MediaFile to link to the track
+	err = db.Model(&database.MediaFile{}).
+		Where("id = ?", mediaFileID).
+		Updates(map[string]interface{}{
+			"media_id":   track.ID,
+			"media_type": database.MediaTypeTrack,
+		}).Error
+
+	return err
+}
+
+// createOrGetArtist creates a new artist or returns existing one
+func (p *FFmpegCorePlugin) createOrGetArtist(db *gorm.DB, artistName string) (*database.Artist, error) {
+	var artist database.Artist
+	
+	// Check if artist already exists
+	result := db.Where("name = ?", artistName).First(&artist)
+	if result.Error == nil {
+		return &artist, nil
+	}
+	
+	// Create new artist
+	artist = database.Artist{
+		ID:   fmt.Sprintf("artist-%s", strings.ReplaceAll(strings.ToLower(artistName), " ", "-")),
+		Name: artistName,
+	}
+	
+	// If ID already exists, generate a unique one
+	var existingArtist database.Artist
+	if db.Where("id = ?", artist.ID).First(&existingArtist).Error == nil {
+		artist.ID = fmt.Sprintf("artist-%s-%d", strings.ReplaceAll(strings.ToLower(artistName), " ", "-"), time.Now().Unix())
+	}
+	
+	if err := db.Create(&artist).Error; err != nil {
+		return nil, fmt.Errorf("failed to create artist: %w", err)
+	}
+	
+	return &artist, nil
+}
+
+// createOrGetAlbum creates a new album or returns existing one
+func (p *FFmpegCorePlugin) createOrGetAlbum(db *gorm.DB, albumTitle string, artistID string) (*database.Album, error) {
+	var album database.Album
+	
+	// Check if album already exists for this artist
+	result := db.Where("title = ? AND artist_id = ?", albumTitle, artistID).First(&album)
+	if result.Error == nil {
+		return &album, nil
+	}
+	
+	// Create new album
+	album = database.Album{
+		ID:       fmt.Sprintf("album-%s-%s", artistID, strings.ReplaceAll(strings.ToLower(albumTitle), " ", "-")),
+		Title:    albumTitle,
+		ArtistID: artistID,
+	}
+	
+	// If ID already exists, generate a unique one
+	var existingAlbum database.Album
+	if db.Where("id = ?", album.ID).First(&existingAlbum).Error == nil {
+		album.ID = fmt.Sprintf("album-%s-%s-%d", artistID, strings.ReplaceAll(strings.ToLower(albumTitle), " ", "-"), time.Now().Unix())
+	}
+	
+	if err := db.Create(&album).Error; err != nil {
+		return nil, fmt.Errorf("failed to create album: %w", err)
+	}
+	
+	return &album, nil
+}
+
+// createOrUpdateTrack creates a new track or updates existing one
+func (p *FFmpegCorePlugin) createOrUpdateTrack(db *gorm.DB, trackInfo *AudioTrackInfo, artistID string, albumID string) (*database.Track, error) {
+	var track database.Track
+	
+	// Check if track already exists for this album
+	result := db.Where("title = ? AND album_id = ?", trackInfo.Title, albumID).First(&track)
+	
+	if result.Error == nil {
+		// Update existing track
+		track.ArtistID = artistID
+		track.Duration = trackInfo.Duration
+		
+		if err := db.Save(&track).Error; err != nil {
+			return nil, fmt.Errorf("failed to update track: %w", err)
+		}
+		
+		return &track, nil
+	}
+	
+	// Create new track
+	track = database.Track{
+		ID:       fmt.Sprintf("track-%s-%s", albumID, strings.ReplaceAll(strings.ToLower(trackInfo.Title), " ", "-")),
+		Title:    trackInfo.Title,
+		AlbumID:  albumID,
+		ArtistID: artistID,
+		Duration: trackInfo.Duration,
+	}
+	
+	// If ID already exists, generate a unique one
+	var existingTrack database.Track
+	if db.Where("id = ?", track.ID).First(&existingTrack).Error == nil {
+		track.ID = fmt.Sprintf("track-%s-%s-%d", albumID, strings.ReplaceAll(strings.ToLower(trackInfo.Title), " ", "-"), time.Now().Unix())
+	}
+	
+	if err := db.Create(&track).Error; err != nil {
+		return nil, fmt.Errorf("failed to create track: %w", err)
+	}
+	
+	return &track, nil
+}
+
+// isAudioFile determines if a file is an audio file based on extension
+func (p *FFmpegCorePlugin) isAudioFile(ext string) bool {
+	audioExts := map[string]bool{
+		".mp3": true, ".flac": true, ".wav": true, ".m4a": true, ".aac": true,
+		".ogg": true, ".wma": true, ".opus": true, ".aiff": true, ".ape": true, ".wv": true,
+	}
+	return audioExts[ext]
+}
+
+// isExtensionSupported checks if the file extension is supported
+func (p *FFmpegCorePlugin) isExtensionSupported(ext string) bool {
+	for _, supportedExt := range p.supportedExts {
+		if ext == supportedExt {
+			return true
+		}
+	}
+	return false
 }
 
 // isFFProbeAvailable checks if ffprobe is available on the system (cached)
