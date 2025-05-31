@@ -43,9 +43,32 @@ func ValidateScanJob(db *gorm.DB, libraryID uint) error {
 		return fmt.Errorf("library not found: %w", err)
 	}
 
+	// Clean up old failed/paused scan jobs for this library (keep only the most recent paused job)
+	var oldJobs []database.ScanJob
+	err := db.Where("library_id = ? AND status IN ?", libraryID, []string{
+		string(StatusPaused), 
+		string(StatusFailed),
+	}).Order("updated_at DESC").Find(&oldJobs).Error
+	
+	if err == nil && len(oldJobs) > 1 {
+		// Keep the most recent paused/failed job, delete the rest
+		jobsToDelete := oldJobs[1:] // Skip the first (most recent) one
+		var idsToDelete []uint
+		for _, job := range jobsToDelete {
+			idsToDelete = append(idsToDelete, job.ID)
+		}
+		
+		if len(idsToDelete) > 0 {
+			result := db.Where("id IN ?", idsToDelete).Delete(&database.ScanJob{})
+			if result.Error == nil && result.RowsAffected > 0 {
+				fmt.Printf("Cleaned up %d old scan jobs for library %d\n", result.RowsAffected, libraryID)
+			}
+		}
+	}
+
 	// Check if there's already a running scan for this library ID
 	var existingJobForLibrary database.ScanJob
-	err := db.Where("library_id = ? AND status IN ?", libraryID, []string{
+	err = db.Where("library_id = ? AND status IN ?", libraryID, []string{
 		string(StatusPending), 
 		string(StatusRunning),
 	}).First(&existingJobForLibrary).Error

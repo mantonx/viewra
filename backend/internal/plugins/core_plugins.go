@@ -3,6 +3,7 @@ package plugins
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/mantonx/viewra/internal/database"
@@ -67,8 +68,18 @@ func (m *CorePluginManager) ListCorePluginInfo() []PluginInfo {
 	
 	var infos []PluginInfo
 	for _, plugin := range m.plugins {
+		var displayName string
+		switch plugin.GetPluginType() {
+		case "ffmpeg":
+			displayName = "FFmpeg Probe Core Plugin"
+		case "enrichment":
+			displayName = "Music Metadata Extractor Core Plugin"
+		default:
+			displayName = fmt.Sprintf("%s Core Plugin", strings.Title(plugin.GetPluginType()))
+		}
+		
 		info := PluginInfo{
-			Name:          fmt.Sprintf("Core %s Plugin", plugin.GetPluginType()),
+			Name:          displayName,
 			Type:          plugin.GetPluginType(),
 			SupportedExts: plugin.GetSupportedExtensions(),
 			Enabled:       plugin.IsEnabled(),
@@ -198,10 +209,20 @@ func (m *CorePluginManager) ensurePluginInDatabase(plugin CorePlugin) error {
 	err := m.db.Where("plugin_id = ?", plugin.GetName()).First(&existingPlugin).Error
 	
 	if err == gorm.ErrRecordNotFound {
-		// Create new plugin record
+		// Create new plugin record with human-readable name
+		var displayName string
+		switch plugin.GetPluginType() {
+		case "ffmpeg":
+			displayName = "FFmpeg Probe Core Plugin"
+		case "enrichment":
+			displayName = "Music Metadata Extractor Core Plugin"
+		default:
+			displayName = fmt.Sprintf("%s Core Plugin", strings.Title(plugin.GetPluginType()))
+		}
+		
 		dbPlugin := database.Plugin{
 			PluginID:    plugin.GetName(),
-			Name:        plugin.GetName(),
+			Name:        displayName,
 			Version:     "1.0.0",
 			Description: fmt.Sprintf("Built-in %s handler", plugin.GetPluginType()),
 			Type:        "core",

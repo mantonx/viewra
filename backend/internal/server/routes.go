@@ -114,6 +114,12 @@ func setupHealthRoutes(api *gin.RouterGroup) {
 
 	api.GET("/db-status", handlers.HandleDBStatus)
 	apiroutes.Register(api.BasePath()+"/db-status", "GET", "Database connection status.")
+	
+	api.GET("/db-health", handlers.HandleDatabaseHealth)
+	apiroutes.Register(api.BasePath()+"/db-health", "GET", "Comprehensive database health check with connection pool metrics.")
+	
+	api.GET("/connection-pool", handlers.HandleConnectionPoolStats)
+	apiroutes.Register(api.BasePath()+"/connection-pool", "GET", "Detailed database connection pool statistics and performance metrics.")
 }
 
 // =============================================================================
@@ -232,6 +238,18 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(scanner.BasePath()+"/jobs/:id", "DELETE", "Delete a scan job and all its discovered files/assets.")
 			scanner.GET("/progress/:id", handlers.GetScanProgress) // GET /api/admin/scanner/progress/:id
 			apiroutes.Register(scanner.BasePath()+"/progress/:id", "GET", "Get scan progress for a library.")
+			
+			// Throttling control endpoints
+			scanner.POST("/throttle/disable/:jobId", handlers.DisableThrottling)
+			apiroutes.Register(scanner.BasePath()+"/throttle/disable/:jobId", "POST", "Disable adaptive throttling for a scan job (maximum performance).")
+			scanner.POST("/throttle/enable/:jobId", handlers.EnableThrottling)
+			apiroutes.Register(scanner.BasePath()+"/throttle/enable/:jobId", "POST", "Re-enable adaptive throttling for a scan job.")
+			scanner.GET("/throttle/status", handlers.GetAdaptiveThrottleStatus)
+			apiroutes.Register(scanner.BasePath()+"/throttle/status", "GET", "Get adaptive throttling status for all active scans.")
+			scanner.POST("/throttle/config", handlers.UpdateThrottleConfig)
+			apiroutes.Register(scanner.BasePath()+"/throttle/config", "POST", "Update global throttling configuration.")
+			scanner.GET("/throttle/performance/:jobId", handlers.GetThrottlePerformanceHistory)
+			apiroutes.Register(scanner.BasePath()+"/throttle/performance/:jobId", "GET", "Get throttling performance history for a scan job.")
 		}
 
 		pluginsGR := admin.Group("/plugins")

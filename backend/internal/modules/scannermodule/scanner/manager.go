@@ -14,7 +14,34 @@ import (
 	"gorm.io/gorm"
 )
 
-// Manager manages scanning operations
+// Manager manages scanning operations with robust state management and crash recovery.
+//
+// ROBUSTNESS FEATURES:
+//
+// 1. STATE SYNCHRONIZATION:
+//    - Maintains consistency between in-memory scanner state and database
+//    - Background synchronizer detects and auto-fixes state mismatches
+//    - Periodic health checks prevent state drift
+//
+// 2. CRASH RECOVERY:
+//    - Automatically detects "orphaned" jobs from backend restarts
+//    - Intelligent auto-resume for jobs with significant progress
+//    - Cleanup of duplicate jobs for the same library
+//    - Validation that libraries still exist before recovery
+//
+// 3. API CONSISTENCY:
+//    - Library-based pause/resume methods eliminate job ID confusion
+//    - Consistent error handling and validation
+//    - Graceful fallback behaviors (auto-start if no paused scan)
+//
+// 4. FAULT TOLERANCE:
+//    - Graceful handling of scanner crashes or interruptions
+//    - Timeout-based cleanup for stuck operations
+//    - Resource cleanup on library deletion
+//    - Protection against concurrent operations on same library
+//
+// This design ensures the scanner remains robust across backend restarts,
+// network issues, system crashes, and other failure scenarios.
 type Manager struct {
 	db            *gorm.DB
 	eventBus      events.EventBus
@@ -60,28 +87,48 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Man
 // recoverOrphanedJobs handles scan jobs that were marked as "running" when the backend restarted
 // and automatically resumes paused jobs that have made progress
 func (m *Manager) recoverOrphanedJobs() error {
-	// Find all jobs marked as "running" but not actually running
+	logger.Info("Starting orphaned job recovery process...")
+	
+	// STEP 1: Find all jobs that were "running" but lost their in-memory state
 	var orphanedJobs []database.ScanJob
 	if err := m.db.Where("status = ?", "running").Preload("Library").Find(&orphanedJobs).Error; err != nil {
 		return fmt.Errorf("failed to query orphaned jobs: %w", err)
 	}
 
-	// Find paused jobs that could be auto-resumed
+	// STEP 2: Find paused jobs that could potentially be auto-resumed
 	var pausedJobs []database.ScanJob
 	if err := m.db.Where("status = ? AND files_processed > 0", "paused").Preload("Library").Find(&pausedJobs).Error; err != nil {
-		fmt.Printf("Warning: Failed to query paused jobs for auto-resume: %v\n", err)
+		logger.Warn("Failed to query paused jobs for auto-resume: %v", err)
+	}
+
+	// STEP 3: Detect and clean up duplicate jobs for the same library
+	if err := m.cleanupDuplicateJobs(); err != nil {
+		logger.Error("Failed to cleanup duplicate jobs: %v", err)
+		// Continue with recovery even if cleanup fails
 	}
 
 	if len(orphanedJobs) == 0 && len(pausedJobs) == 0 {
-		fmt.Println("No orphaned or resumable scan jobs found")
+		logger.Info("No orphaned or resumable scan jobs found")
 		return nil
 	}
 
-	// Handle orphaned running jobs - mark as paused for potential resume
+	// STEP 4: Handle orphaned running jobs - mark as paused for potential resume
 	if len(orphanedJobs) > 0 {
 		logger.Info("Found %d orphaned scan jobs from backend restart, initiating recovery...", len(orphanedJobs))
 
 		for _, job := range orphanedJobs {
+			// Validate that the library still exists
+			if job.Library.ID == 0 {
+				logger.Warn("Orphaned job %d references non-existent library, marking as failed", job.ID)
+				if err := m.db.Model(&database.ScanJob{}).Where("id = ?", job.ID).Updates(map[string]interface{}{
+					"status": string(utils.StatusFailed),
+					"error_message": "Library no longer exists",
+				}).Error; err != nil {
+					logger.Error("Failed to mark orphaned job as failed: %v", err)
+				}
+				continue
+			}
+
 			recoveryMsg := fmt.Sprintf("Resuming scan from backend restart (had processed %d/%d files)", 
 				job.FilesProcessed, job.FilesFound)
 			
@@ -104,12 +151,17 @@ func (m *Manager) recoverOrphanedJobs() error {
 		pausedJobs = append(pausedJobs, orphanedJobs...)
 	}
 
-	// Auto-resume paused jobs that have made significant progress
+	// STEP 5: Auto-resume paused jobs based on configurable criteria
 	if len(pausedJobs) > 0 {
 		logger.Info("Checking %d paused scan jobs for auto-resume eligibility...", len(pausedJobs))
 
 		autoResumedCount := 0
 		for _, job := range pausedJobs {
+			// Skip if library doesn't exist
+			if job.Library.ID == 0 {
+				continue
+			}
+
 			// Auto-resume jobs that have processed at least 10 files or 1% progress
 			shouldAutoResume := job.FilesProcessed >= 10 ||
 				(job.FilesFound > 0 && float64(job.FilesProcessed)/float64(job.FilesFound) >= 0.01)
@@ -118,7 +170,7 @@ func (m *Manager) recoverOrphanedJobs() error {
 				logger.Info("🔄 Auto-resuming scan job %d (processed %d/%d files, %.1f%% complete)",
 					job.ID, job.FilesProcessed, job.FilesFound, job.Progress)
 
-				// Resume the job
+				// Resume the job (this will properly sync in-memory state)
 				if err := m.ResumeScan(job.ID); err != nil {
 					logger.Error("Failed to auto-resume job %d: %v", job.ID, err)
 					continue
@@ -154,6 +206,124 @@ func (m *Manager) recoverOrphanedJobs() error {
 		} else {
 			logger.Info("No paused jobs met auto-resume criteria")
 		}
+	}
+
+	return nil
+}
+
+// cleanupDuplicateJobs removes duplicate scan jobs for the same library, keeping only the most recent/relevant one
+func (m *Manager) cleanupDuplicateJobs() error {
+	// Find all libraries that have multiple scan jobs
+	type libraryJobCount struct {
+		LibraryID uint `json:"library_id"`
+		JobCount  int  `json:"job_count"`
+	}
+	
+	var libraryCounts []libraryJobCount
+	if err := m.db.Model(&database.ScanJob{}).
+		Select("library_id, COUNT(*) as job_count").
+		Group("library_id").
+		Having("COUNT(*) > 1").
+		Scan(&libraryCounts).Error; err != nil {
+		return fmt.Errorf("failed to find duplicate jobs: %w", err)
+	}
+
+	if len(libraryCounts) == 0 {
+		return nil
+	}
+
+	logger.Info("Found %d libraries with multiple scan jobs, cleaning up duplicates...", len(libraryCounts))
+
+	for _, libCount := range libraryCounts {
+		// Get all jobs for this library, ordered by creation time
+		var jobs []database.ScanJob
+		if err := m.db.Where("library_id = ?", libCount.LibraryID).
+			Order("created_at DESC").
+			Find(&jobs).Error; err != nil {
+			logger.Error("Failed to get jobs for library %d: %v", libCount.LibraryID, err)
+			continue
+		}
+
+		if len(jobs) <= 1 {
+			continue
+		}
+
+		// Determine which job to keep based on priority:
+		// 1. Running jobs
+		// 2. Paused jobs with progress
+		// 3. Most recent job
+		var jobToKeep *database.ScanJob
+		var jobsToDelete []database.ScanJob
+
+		// First pass: find running jobs
+		for i := range jobs {
+			if jobs[i].Status == "running" {
+				if jobToKeep == nil {
+					jobToKeep = &jobs[i]
+				} else {
+					// Multiple running jobs - keep the most recent
+					if jobs[i].CreatedAt.After(jobToKeep.CreatedAt) {
+						jobsToDelete = append(jobsToDelete, *jobToKeep)
+						jobToKeep = &jobs[i]
+					} else {
+						jobsToDelete = append(jobsToDelete, jobs[i])
+					}
+				}
+			}
+		}
+
+		// If no running jobs, find paused jobs with progress
+		if jobToKeep == nil {
+			for i := range jobs {
+				if jobs[i].Status == "paused" && jobs[i].FilesProcessed > 0 {
+					if jobToKeep == nil {
+						jobToKeep = &jobs[i]
+					} else {
+						// Keep the one with more progress
+						if jobs[i].FilesProcessed > jobToKeep.FilesProcessed {
+							jobsToDelete = append(jobsToDelete, *jobToKeep)
+							jobToKeep = &jobs[i]
+						} else {
+							jobsToDelete = append(jobsToDelete, jobs[i])
+						}
+					}
+				}
+			}
+		}
+
+		// If still no keeper, keep the most recent job
+		if jobToKeep == nil {
+			jobToKeep = &jobs[0] // Already ordered by created_at DESC
+		}
+
+		// Mark all other jobs for deletion
+		for i := range jobs {
+			if jobs[i].ID != jobToKeep.ID {
+				found := false
+				for j := range jobsToDelete {
+					if jobsToDelete[j].ID == jobs[i].ID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					jobsToDelete = append(jobsToDelete, jobs[i])
+				}
+			}
+		}
+
+		// Delete duplicate jobs
+		for _, job := range jobsToDelete {
+			logger.Info("Removing duplicate scan job %d for library %d (keeping job %d)", 
+				job.ID, libCount.LibraryID, jobToKeep.ID)
+			
+			if err := m.db.Delete(&job).Error; err != nil {
+				logger.Error("Failed to delete duplicate job %d: %v", job.ID, err)
+			}
+		}
+
+		logger.Info("Cleaned up %d duplicate jobs for library %d, kept job %d", 
+			len(jobsToDelete), libCount.LibraryID, jobToKeep.ID)
 	}
 
 	return nil
@@ -788,80 +958,202 @@ func (m *Manager) GetScanProgress(jobID uint) (progress float64, eta string, fil
 	return 0, "", 0, fmt.Errorf("no progress available for job %d", jobID)
 }
 
-// GetDetailedScanProgress returns detailed scan progress including adaptive worker pool stats
+// GetDetailedScanProgress returns detailed metrics including adaptive throttling data
 func (m *Manager) GetDetailedScanProgress(jobID uint) (map[string]interface{}, error) {
-	// Safety check for nil manager
-	if m == nil {
-		return nil, fmt.Errorf("scanner manager is nil")
-	}
-	
-	// Safety check for nil mutex - this prevents the nil pointer dereference we've been seeing
-	if m.scanners == nil {
-		return nil, fmt.Errorf("scanner manager scanners map is nil")
-	}
-	
 	m.scannersMu.RLock()
 	scanner, exists := m.scanners[jobID]
 	m.scannersMu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("no active scanner for job %d", jobID)
+		return nil, fmt.Errorf("scan job %d not found or not running", jobID)
 	}
 
-	// Safety check for nil scanner
-	if scanner == nil {
-		return nil, fmt.Errorf("scanner for job %d is nil", jobID)
+	// Get detailed metrics from the adaptive throttler
+	throttleLimits := scanner.adaptiveThrottler.GetCurrentLimits()
+	systemMetrics := scanner.adaptiveThrottler.GetSystemMetrics()
+	networkStats := scanner.adaptiveThrottler.GetNetworkStats()
+	throttleConfig := scanner.adaptiveThrottler.GetThrottleConfig()
+
+	// Check if emergency brake is active
+	shouldThrottle, throttleDelay := scanner.adaptiveThrottler.ShouldThrottle()
+	emergencyBrakeActive := shouldThrottle && throttleDelay > 100*time.Millisecond
+
+	// Get container awareness info
+	containerAware := scanner.adaptiveThrottler.isContainerized
+	var containerLimits ContainerLimits
+	if containerAware {
+		containerLimits = scanner.adaptiveThrottler.containerLimits
 	}
 
-	// Safety check for nil progress estimator
-	if scanner.progressEstimator == nil {
-		return nil, fmt.Errorf("progress estimator for job %d is nil", jobID)
-	}
-
-	// Get basic progress stats
-	progress, etaTime, filesPerSec := scanner.progressEstimator.GetEstimate()
-	eta := etaTime.Format(time.RFC3339)
-
-	// Get worker pool stats
+	// Get worker and queue statistics
 	activeWorkers, minWorkers, maxWorkers, queueLen := scanner.GetWorkerStats()
 
-	// Get additional stats from progress estimator
-	progressStats := scanner.progressEstimator.GetStats()
-
-	// Merge all stats
-	result := map[string]interface{}{
-		"progress":       progress,
-		"eta":            eta,
-		"files_per_sec":  filesPerSec,
-		"active_workers": activeWorkers,
-		"min_workers":    minWorkers,
-		"max_workers":    maxWorkers,
-		"queue_depth":    queueLen,
+	// Get progress and ETA information from the progress estimator
+	var progress float64
+	var eta string
+	var estimatedTimeLeft int
+	var filesPerSec float64
+	if scanner.progressEstimator != nil {
+		progressVal, etaTime, filesPerSecVal := scanner.progressEstimator.GetEstimate()
+		progress = progressVal
+		filesPerSec = filesPerSecVal
+		
+		// Validate ETA before using it
+		if !etaTime.IsZero() {
+			// Check if ETA is reasonable (not more than 1 year in the future)
+			now := time.Now()
+			maxReasonableETA := now.Add(365 * 24 * time.Hour) // 1 year
+			
+			if etaTime.After(now) && etaTime.Before(maxReasonableETA) {
+				eta = etaTime.Format(time.RFC3339)
+				// Calculate seconds remaining from backend time (authoritative)
+				estimatedTimeLeft = int(time.Until(etaTime).Seconds())
+				if estimatedTimeLeft < 0 {
+					estimatedTimeLeft = 0 // Don't show negative time
+				}
+			}
+			// If ETA is unreasonable, leave eta and estimatedTimeLeft as empty/zero
+		}
 	}
 
-	// Add all progress estimator stats
-	for k, v := range progressStats {
-		result[k] = v
+	// Build comprehensive metrics map
+	detailedMetrics := map[string]interface{}{
+		// Basic scan metrics
+		"job_id":           jobID,
+		"files_processed":  scanner.filesProcessed.Load(),
+		"files_found":      scanner.filesFound.Load(),
+		"files_skipped":    scanner.filesSkipped.Load(),
+		"bytes_processed":  scanner.bytesProcessed.Load(),
+		"errors_count":     scanner.errorsCount.Load(),
+
+		// Progress and ETA information
+		"progress":         progress,
+		"eta":              eta,
+		"estimated_time_left": estimatedTimeLeft,
+		"files_per_second": filesPerSec,
+
+		// Worker statistics
+		"active_workers":   activeWorkers,
+		"min_workers":      minWorkers,
+		"max_workers":      maxWorkers,
+		"queue_length":     queueLen,
+
+		// System metrics from adaptive throttler
+		"cpu_percent":      systemMetrics.CPUPercent,
+		"memory_percent":   systemMetrics.MemoryPercent,
+		"memory_used_mb":   systemMetrics.MemoryUsedMB,
+		"io_wait_percent":  systemMetrics.IOWaitPercent,
+		"load_average":     systemMetrics.LoadAverage,
+		"network_mbps":     systemMetrics.NetworkUtilMBps,
+		"disk_read_mbps":   systemMetrics.DiskReadMBps,
+		"disk_write_mbps":  systemMetrics.DiskWriteMBps,
+		"metrics_timestamp": systemMetrics.TimestampUTC,
+
+		// Throttling configuration and limits
+		"throttle_enabled":           throttleLimits.Enabled,
+		"current_batch_size":         throttleLimits.BatchSize,
+		"processing_delay_ms":        throttleLimits.ProcessingDelay.Milliseconds(),
+		"network_bandwidth_limit":    throttleLimits.NetworkBandwidth,
+		"io_throttle_percent":        throttleLimits.IOThrottle,
+		"emergency_brake":            emergencyBrakeActive,
+
+		// Network health metrics (important for NFS performance)
+		"dns_latency_ms":      networkStats.DNSLatencyMs,
+		"network_latency_ms":  networkStats.NetworkLatencyMs,
+		"packet_loss_percent": networkStats.PacketLossPercent,
+		"connection_errors":   networkStats.ConnectionErrors,
+		"network_healthy":     networkStats.IsHealthy,
+		"last_health_check":   networkStats.LastHealthCheck,
+
+		// Throttling configuration
+		"target_cpu_percent":        throttleConfig.TargetCPUPercent,
+		"max_cpu_percent":           throttleConfig.MaxCPUPercent,
+		"target_memory_percent":     throttleConfig.TargetMemoryPercent,
+		"max_memory_percent":        throttleConfig.MaxMemoryPercent,
+		"target_network_mbps":       throttleConfig.TargetNetworkThroughput,
+		"max_network_mbps":          throttleConfig.MaxNetworkThroughput,
+		"emergency_brake_threshold": throttleConfig.EmergencyBrakeThreshold,
+
+		// Container awareness
+		"container_aware": containerAware,
 	}
 
-	return result, nil
+	// Add container-specific metrics if running in a container
+	if containerAware {
+		detailedMetrics["cgroup_version"] = scanner.adaptiveThrottler.cgroupVersion
+		detailedMetrics["container_memory_limited"] = containerLimits.MemoryLimitBytes > 0
+		detailedMetrics["container_cpu_limited"] = containerLimits.MaxCPUPercent > 0
+		detailedMetrics["container_io_throttled"] = containerLimits.BlkioThrottleRead > 0 || containerLimits.BlkioThrottleWrite > 0
+
+		if containerLimits.MemoryLimitBytes > 0 {
+			detailedMetrics["container_memory_limit_gb"] = float64(containerLimits.MemoryLimitBytes) / (1024 * 1024 * 1024)
+		}
+		if containerLimits.MaxCPUPercent > 0 {
+			detailedMetrics["container_cpu_limit_percent"] = containerLimits.MaxCPUPercent
+		}
+		if containerLimits.BlkioThrottleRead > 0 {
+			detailedMetrics["container_blkio_read_bps"] = containerLimits.BlkioThrottleRead
+		}
+		if containerLimits.BlkioThrottleWrite > 0 {
+			detailedMetrics["container_blkio_write_bps"] = containerLimits.BlkioThrottleWrite
+		}
+	}
+
+	return detailedMetrics, nil
 }
 
 // SetPluginManager updates the plugin manager for this scanner manager
 // and all currently running scanners
-func (m *Manager) SetPluginManager(pluginMgr plugins.Manager) {
-	m.scannersMu.Lock()
-	defer m.scannersMu.Unlock()
+func (m *Manager) SetPluginManager(pm plugins.Manager) {
+	m.pluginManager = pm
+	
+	// Update all active scanners
+	m.scannersMu.RLock()
+	for _, scanner := range m.scanners {
+		scanner.pluginManager = pm
+		if scanner.pluginRouter != nil {
+			scanner.pluginRouter = NewPluginRouter(pm)
+		}
+	}
+	m.scannersMu.RUnlock()
+}
 
-	m.pluginManager = pluginMgr
+// DisableThrottlingForJob disables adaptive throttling for a specific scan job
+func (m *Manager) DisableThrottlingForJob(jobID uint) error {
+	m.scannersMu.RLock()
+	scanner, exists := m.scanners[jobID]
+	m.scannersMu.RUnlock()
 
-	// Update plugin manager in all existing scanners
-	for jobID, scanner := range m.scanners {
-		scanner.pluginManager = pluginMgr
-		fmt.Printf("INFO: Updated plugin manager for scanner job %d\n", jobID)
+	if !exists {
+		return fmt.Errorf("scan job %d not found or not running", jobID)
 	}
 
-	fmt.Printf("INFO: Scanner manager plugin manager updated, affected %d active scanners\n", len(m.scanners))
+	if scanner.adaptiveThrottler != nil {
+		scanner.adaptiveThrottler.DisableThrottling()
+		logger.Info("Throttling disabled for scan job", "job_id", jobID)
+		return nil
+	}
+
+	return fmt.Errorf("no adaptive throttler available for job %d", jobID)
+}
+
+// EnableThrottlingForJob re-enables adaptive throttling for a specific scan job
+func (m *Manager) EnableThrottlingForJob(jobID uint) error {
+	m.scannersMu.RLock()
+	scanner, exists := m.scanners[jobID]
+	m.scannersMu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("scan job %d not found or not running", jobID)
+	}
+
+	if scanner.adaptiveThrottler != nil {
+		scanner.adaptiveThrottler.EnableThrottling()
+		logger.Info("Throttling re-enabled for scan job", "job_id", jobID)
+		return nil
+	}
+
+	return fmt.Errorf("no adaptive throttler available for job %d", jobID)
 }
 
 // SetParallelMode sets the parallel scanning mode (backward compatibility stub)
@@ -948,5 +1240,167 @@ func (m *Manager) CleanupScanJob(scanJobID uint) error {
 	}
 	
 	logger.Info("Scan job completely removed", "scan_job_id", scanJobID)
+	return nil
+}
+
+// PauseScanByLibrary pauses any running scan for the specified library
+// This method provides a consistent API that always uses library IDs
+func (m *Manager) PauseScanByLibrary(libraryID uint) error {
+	// Find the currently running job for this library
+	var runningJob database.ScanJob
+	if err := m.db.Where("library_id = ? AND status = ?", libraryID, "running").First(&runningJob).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("no running scan found for library %d", libraryID)
+		}
+		return fmt.Errorf("failed to find running scan for library %d: %w", libraryID, err)
+	}
+
+	// Use the existing StopScan method with the job ID
+	return m.StopScan(runningJob.ID)
+}
+
+// ResumeScanByLibrary resumes the most recent paused scan for the specified library
+// This method provides a consistent API that always uses library IDs
+func (m *Manager) ResumeScanByLibrary(libraryID uint) error {
+	// Find the most recent paused job for this library
+	var pausedJob database.ScanJob
+	if err := m.db.Where("library_id = ? AND status = ?", libraryID, "paused").
+		Order("updated_at DESC").
+		First(&pausedJob).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// No paused scan found, try to start a new one
+			_, err := m.StartScan(libraryID)
+			return err
+		}
+		return fmt.Errorf("failed to find paused scan for library %d: %w", libraryID, err)
+	}
+
+	// Use the existing ResumeScan method with the job ID
+	return m.ResumeScan(pausedJob.ID)
+}
+
+// GetLibraryScanStatus returns the status of the most relevant scan job for a library
+// This returns the currently running job, or the most recent paused/completed job
+func (m *Manager) GetLibraryScanStatus(libraryID uint) (*database.ScanJob, error) {
+	// First try to find a running job
+	var scanJob database.ScanJob
+	err := m.db.Where("library_id = ? AND status = ?", libraryID, "running").
+		Preload("Library").
+		First(&scanJob).Error
+	
+	if err == nil {
+		return &scanJob, nil
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		return nil, fmt.Errorf("failed to query running jobs for library %d: %w", libraryID, err)
+	}
+
+	// No running job, find the most recent job of any status
+	err = m.db.Where("library_id = ?", libraryID).
+		Preload("Library").
+		Order("updated_at DESC").
+		First(&scanJob).Error
+	
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("no scan jobs found for library %d", libraryID)
+		}
+		return nil, fmt.Errorf("failed to find scan jobs for library %d: %w", libraryID, err)
+	}
+
+	return &scanJob, nil
+}
+
+// GetActiveLibraries returns a list of library IDs that have active (running) scans
+func (m *Manager) GetActiveLibraries() ([]uint, error) {
+	var libraryIDs []uint
+	if err := m.db.Model(&database.ScanJob{}).
+		Where("status = ?", "running").
+		Distinct("library_id").
+		Pluck("library_id", &libraryIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to get active libraries: %w", err)
+	}
+	return libraryIDs, nil
+}
+
+// StartStateSynchronizer runs a background goroutine that periodically checks
+// for inconsistencies between database and in-memory scanner state
+func (m *Manager) StartStateSynchronizer() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-m.ctx.Done():
+				logger.Debug("State synchronizer stopping due to context cancellation")
+				return
+			case <-ticker.C:
+				if err := m.synchronizeState(); err != nil {
+					logger.Error("State synchronization failed: %v", err)
+				}
+			}
+		}
+	}()
+	
+	logger.Info("Started background state synchronizer")
+}
+
+// synchronizeState checks for inconsistencies between database and in-memory state
+func (m *Manager) synchronizeState() error {
+	m.scannersMu.RLock()
+	inMemoryJobs := make(map[uint]bool)
+	for jobID := range m.scanners {
+		inMemoryJobs[jobID] = true
+	}
+	m.scannersMu.RUnlock()
+
+	// Find database jobs marked as "running"
+	var runningJobs []database.ScanJob
+	if err := m.db.Where("status = ?", "running").Find(&runningJobs).Error; err != nil {
+		return fmt.Errorf("failed to query running jobs: %w", err)
+	}
+
+	// Check for inconsistencies
+	var inconsistencies []string
+	for _, job := range runningJobs {
+		if !inMemoryJobs[job.ID] {
+			inconsistencies = append(inconsistencies, fmt.Sprintf("Job %d marked as running in DB but not in memory", job.ID))
+			
+			// Auto-fix: mark as paused
+			if err := utils.UpdateJobStatus(m.db, job.ID, utils.StatusPaused, "State sync: scanner not found in memory"); err != nil {
+				logger.Error("Failed to auto-fix inconsistent job %d: %v", job.ID, err)
+			} else {
+				logger.Info("Auto-fixed inconsistent job %d: marked as paused", job.ID)
+			}
+		}
+	}
+
+	// Check for in-memory scanners without valid database jobs
+	for jobID := range inMemoryJobs {
+		var job database.ScanJob
+		if err := m.db.First(&job, jobID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				inconsistencies = append(inconsistencies, fmt.Sprintf("In-memory scanner for job %d but no database record", jobID))
+				
+				// Auto-fix: remove from memory
+				m.scannersMu.Lock()
+				delete(m.scanners, jobID)
+				m.scannersMu.Unlock()
+				logger.Info("Auto-fixed orphaned in-memory scanner for job %d", jobID)
+			}
+		} else if job.Status != "running" {
+			inconsistencies = append(inconsistencies, fmt.Sprintf("In-memory scanner for job %d but DB status is %s", jobID, job.Status))
+		}
+	}
+
+	if len(inconsistencies) > 0 {
+		logger.Warn("Found %d state inconsistencies, auto-fixing...", len(inconsistencies))
+		for _, issue := range inconsistencies {
+			logger.Debug("State inconsistency: %s", issue)
+		}
+	}
+
 	return nil
 }

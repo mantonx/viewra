@@ -31,10 +31,10 @@ func NewMediaHandler(eventBus events.EventBus) *MediaHandler {
 
 // GetMedia retrieves all media items with associated user information
 func (h *MediaHandler) GetMedia(c *gin.Context) {
-	var media []database.Media
+	var mediaFiles []database.MediaFile
 	db := database.GetDB()
 
-	result := db.Preload("User").Find(&media)
+	result := db.Preload("MusicMetadata").Find(&mediaFiles)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve media",
@@ -44,8 +44,8 @@ func (h *MediaHandler) GetMedia(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"media": media,
-		"count": len(media),
+		"media": mediaFiles,
+		"count": len(mediaFiles),
 	})
 }
 

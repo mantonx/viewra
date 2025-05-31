@@ -33,7 +33,7 @@ func NewEnrichmentCorePlugin() *EnrichmentCorePlugin {
 
 // GetName returns the plugin name
 func (p *EnrichmentCorePlugin) GetName() string {
-	return "enrichment_core_plugin"
+	return "music_metadata_extractor_plugin"
 }
 
 // GetSupportedExtensions returns supported file extensions

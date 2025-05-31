@@ -101,6 +101,81 @@ func CalculateFileHashFast(filePath string) (string, error) {
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
+// CalculateFileHashUltraFast calculates a hash optimized for very large files (10GB+)
+// Uses minimal sampling for maximum speed on large media files
+func CalculateFileHashUltraFast(filePath string, fileSize int64) (string, error) {
+	// OPTIMIZATION 13: NFS retry logic for network storage reliability
+	var file *os.File
+	var err error
+	
+	// Retry file opening for NFS resilience
+	for attempts := 0; attempts < 3; attempts++ {
+		file, err = os.Open(filePath)
+		if err == nil {
+			break
+		}
+		if attempts < 2 {
+			time.Sleep(time.Duration(attempts+1) * 50 * time.Millisecond)
+		}
+	}
+	
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+
+	// ULTRA-FAST SAMPLING for very large files:
+	// Use smaller samples (256KB vs 1MB) for files over 10GB
+	// This dramatically reduces I/O while maintaining reasonable uniqueness
+	sampleSize := int64(256 * 1024) // 256KB chunks for maximum speed
+
+	// Hash the file size and path for uniqueness
+	fmt.Fprintf(hasher, "size:%d:path:%s", fileSize, filepath.Base(filePath))
+
+	// OPTIMIZATION 14: Pre-allocate buffer for better performance
+	buffer := make([]byte, sampleSize)
+
+	// Read first chunk (beginning of file)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	hasher.Write(buffer[:n])
+
+	// For very large files, sample strategically placed chunks for speed
+	if fileSize > sampleSize*4 {
+		// Sample at 25% position for content variation
+		quarterOffset := fileSize / 4
+		_, err = file.Seek(quarterOffset, 0)
+		if err != nil {
+			return "", err
+		}
+		
+		n, err = file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+		hasher.Write(buffer[:n])
+
+		// Sample at 75% position for additional uniqueness
+		threeFourthOffset := (fileSize * 3) / 4
+		_, err = file.Seek(threeFourthOffset, 0)
+		if err != nil {
+			return "", err
+		}
+
+		n, err = file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+		hasher.Write(buffer[:n])
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
 // CalculateFileHashSampled calculates a hash by sampling parts of large files
 // This is much faster for large files while still providing good uniqueness
 func CalculateFileHashSampled(filePath string, fileSize int64) (string, error) {

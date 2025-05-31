@@ -102,7 +102,7 @@ type FFmpegCorePlugin struct {
 // NewFFmpegCorePlugin creates a new FFmpeg core plugin instance
 func NewFFmpegCorePlugin() plugins.CorePlugin {
 	return &FFmpegCorePlugin{
-		name:    "ffmpeg_core_plugin",
+		name:    "ffmpeg_probe_core_plugin",
 		enabled: true,
 		supportedExts: []string{
 			// Video formats

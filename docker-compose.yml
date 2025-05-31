@@ -18,6 +18,8 @@ services:
       - ./backend/data:/app/data
       - ./viewra-data:/app/viewra-data
       - /nfs/fictionalserver/music:/media/music:ro
+      - /nfs/fictionalserver/tv:/media/tv:ro
+      - /nfs/fictionalserver/movies:/media/movies:ro
     networks:
       - viewra-network
     restart: unless-stopped

@@ -113,6 +113,10 @@ func (m *Module) Start() error {
 		// Don't fail startup, just log the error
 	}
 	
+	// Start background state synchronizer to prevent future inconsistencies
+	logger.Info("Starting background state synchronizer...")
+	m.scannerManager.StartStateSynchronizer()
+	
 	// Start file monitoring service
 	logger.Info("Starting file monitoring service...")
 	if err := m.scannerManager.StartFileMonitoring(); err != nil {

@@ -126,34 +126,54 @@ func (pe *ProgressEstimator) GetEstimate() (progress float64, eta time.Time, fil
 		remainingFiles := pe.totalFiles - pe.processedFiles
 		if remainingFiles > 0 {
 			remainingSeconds := float64(remainingFiles) / pe.currentRate
-			eta = time.Now().Add(time.Duration(remainingSeconds) * time.Second)
+			
+			// Cap ETA at maximum 30 days to prevent absurd values
+			maxSeconds := float64(30 * 24 * 3600) // 30 days
+			if remainingSeconds <= maxSeconds {
+				eta = time.Now().Add(time.Duration(remainingSeconds) * time.Second)
+			}
 		}
 	} else if pe.processedFiles > 0 && pe.totalFiles > 0 && pe.processedFiles < pe.totalFiles {
 		// Fallback: simple linear estimation based on elapsed time
 		elapsed := time.Since(pe.startTime)
-		if elapsed.Seconds() > 0 {
+		if elapsed.Seconds() > 60 { // Only use after at least 1 minute
 			avgRate := float64(pe.processedFiles) / elapsed.Seconds()
-			if avgRate > 0 {
+			if avgRate > 0.001 { // At least 1 file per 1000 seconds
 				remainingFiles := pe.totalFiles - pe.processedFiles
 				remainingSeconds := float64(remainingFiles) / avgRate
-				eta = time.Now().Add(time.Duration(remainingSeconds) * time.Second)
+				
+				// Cap ETA at maximum 30 days
+				maxSeconds := float64(30 * 24 * 3600)
+				if remainingSeconds <= maxSeconds {
+					eta = time.Now().Add(time.Duration(remainingSeconds) * time.Second)
+				}
 			}
 		}
 	}
 
-	// If ETA is still zero and we have progress, use simple percentage-based estimation
-	if eta.IsZero() && progress > 0 && progress < 100 {
+	// If ETA is still zero and we have reasonable progress, use percentage-based estimation
+	if eta.IsZero() && progress > 5 && progress < 95 { // Only for reasonable progress ranges
 		elapsed := time.Since(pe.startTime)
-		if elapsed.Seconds() > 0 {
+		if elapsed.Seconds() > 300 { // Only after at least 5 minutes
 			totalDuration := elapsed.Seconds() * (100 / progress)
 			remainingDuration := totalDuration - elapsed.Seconds()
-			if remainingDuration > 0 {
+			
+			// Strict bounds checking for percentage-based calculation
+			maxDuration := float64(30 * 24 * 3600) // 30 days
+			if remainingDuration > 0 && remainingDuration <= maxDuration {
 				eta = time.Now().Add(time.Duration(remainingDuration) * time.Second)
 			}
 		}
 	}
 
 	return progress, eta, pe.currentRate
+}
+
+// GetTotal returns the current total files estimate
+func (pe *ProgressEstimator) GetTotal() int64 {
+	pe.mu.RLock()
+	defer pe.mu.RUnlock()
+	return pe.totalFiles
 }
 
 // GetStats returns detailed statistics

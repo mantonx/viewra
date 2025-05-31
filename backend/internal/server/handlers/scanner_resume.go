@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mantonx/viewra/internal/database"
 )
 
 // ResumeLibraryScan resumes a previously paused scan for a specific library
@@ -19,43 +18,17 @@ func ResumeLibraryScan(c *gin.Context) {
 		return
 	}
 	
-	if scannerManager == nil {
-		InitializeScannerCompat()
-	}
-	
-	// Find paused scan job for this library
-	scanJobs, err := scannerManager.GetAllScans()
+	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to get scan jobs",
+			"error": "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
 	
-	// Find the most recent paused scan job for this library
-	var mostRecentJob database.ScanJob
-	var jobID uint
-	found := false
-	
-	for _, job := range scanJobs {
-		if job.LibraryID == uint(libraryID) && job.Status == "paused" {
-			if !found || job.UpdatedAt.After(mostRecentJob.UpdatedAt) {
-				mostRecentJob = job
-				jobID = job.ID
-				found = true
-			}
-		}
-	}
-	
-	if !found {
-		// If there's no paused scan, start a new one
-		StartLibraryScan(c)
-		return
-	}
-	
-	// Resume the paused scan
-	err = scannerManager.ResumeScan(jobID)
+	// Use the new library-based resume method for better consistency
+	err = scannerManager.ResumeScanByLibrary(uint(libraryID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Failed to resume scan",
@@ -65,11 +38,11 @@ func ResumeLibraryScan(c *gin.Context) {
 	}
 	
 	// Get the updated scan job status
-	scanJob, err := scannerManager.GetScanStatus(jobID)
-	if err != nil {
+	scanJob, statusErr := scannerManager.GetLibraryScanStatus(uint(libraryID))
+	if statusErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to get scan status after resume",
-			"details": err.Error(),
+			"details": statusErr.Error(),
 		})
 		return
 	}
@@ -77,7 +50,7 @@ func ResumeLibraryScan(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":     "Scan resumed successfully",
 		"library_id":  libraryID,
-		"job_id":      jobID,
+		"job_id":      scanJob.ID,
 		"scan_job":    scanJob,
 	})
 }

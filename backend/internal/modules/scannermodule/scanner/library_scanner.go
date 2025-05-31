@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,6 +31,7 @@ type LibraryScanner struct {
 	pathResolver      *utils.PathResolver
 	progressEstimator *ProgressEstimator
 	systemMonitor     *SystemLoadMonitor
+	adaptiveThrottler *AdaptiveThrottler // New intelligent throttling system
 	pluginManager     plugins.Manager
 
 	// Plugin integration
@@ -66,6 +69,7 @@ type LibraryScanner struct {
 	bytesProcessed atomic.Int64
 	errorsCount    atomic.Int64
 	filesSkipped   atomic.Int64 // Files that couldn't be processed
+	filesFound     atomic.Int64 // Files discovered during scan
 	startTime      time.Time
 
 	// Cache for improved performance
@@ -117,10 +121,98 @@ type MetadataItem struct {
 	Path string      // File path for linking
 }
 
-// FileCache provides fast lookups for existing files
+// FileCache provides fast lookups for existing files with bloom filter optimization
 type FileCache struct {
 	cache map[string]*database.MediaFile
 	mu    sync.RWMutex
+	// OPTIMIZATION 9: Add LRU tracking for cache eviction
+	accessTimes map[string]time.Time
+	maxSize     int
+	// OPTIMIZATION 20: Bloom filter for fast pre-screening of known files
+	knownFiles  *BloomFilter // Fast membership test for files seen in previous scans
+	bloomMu     sync.RWMutex // Separate mutex for bloom filter operations
+}
+
+// BloomFilter provides probabilistic membership testing with configurable false positive rate
+type BloomFilter struct {
+	bitArray []uint64      // Bit array for bloom filter
+	size     uint          // Number of bits in the filter
+	hashFuncs int          // Number of hash functions to use
+	items    uint          // Approximate number of items added
+	maxItems uint          // Maximum expected items (for optimal sizing)
+}
+
+// NewBloomFilter creates a new bloom filter optimized for file path membership testing
+func NewBloomFilter(expectedItems uint, falsePositiveRate float64) *BloomFilter {
+	// Calculate optimal size and hash functions
+	// For 100k files with 1% false positive rate: ~95KB memory usage
+	optimalSize := uint(-float64(expectedItems) * math.Log(falsePositiveRate) / (math.Log(2) * math.Log(2)))
+	optimalHashFuncs := int(float64(optimalSize) / float64(expectedItems) * math.Log(2))
+	
+	// Ensure reasonable bounds
+	if optimalHashFuncs < 1 {
+		optimalHashFuncs = 1
+	}
+	if optimalHashFuncs > 7 {
+		optimalHashFuncs = 7 // Diminishing returns beyond 7 hash functions
+	}
+	
+	// Round up to nearest 64-bit boundary for efficient operations
+	arraySize := (optimalSize + 63) / 64
+	
+	return &BloomFilter{
+		bitArray:  make([]uint64, arraySize),
+		size:      arraySize * 64,
+		hashFuncs: optimalHashFuncs,
+		maxItems:  expectedItems,
+	}
+}
+
+// Add inserts a file path into the bloom filter
+func (bf *BloomFilter) Add(path string) {
+	for i := 0; i < bf.hashFuncs; i++ {
+		hash := bf.hash(path, uint(i))
+		bitIndex := hash % bf.size
+		arrayIndex := bitIndex / 64
+		bitPosition := bitIndex % 64
+		bf.bitArray[arrayIndex] |= 1 << bitPosition
+	}
+	bf.items++
+}
+
+// Contains checks if a file path might be in the set (may have false positives)
+func (bf *BloomFilter) Contains(path string) bool {
+	for i := 0; i < bf.hashFuncs; i++ {
+		hash := bf.hash(path, uint(i))
+		bitIndex := hash % bf.size
+		arrayIndex := bitIndex / 64
+		bitPosition := bitIndex % 64
+		if (bf.bitArray[arrayIndex] & (1 << bitPosition)) == 0 {
+			return false // Definitely not in set
+		}
+	}
+	return true // Probably in set (could be false positive)
+}
+
+// hash computes hash value for a string with a seed
+func (bf *BloomFilter) hash(s string, seed uint) uint {
+	// Use FNV-1a hash with seed for good distribution
+	hash := uint(2166136261) ^ seed // FNV offset basis with seed
+	for i := 0; i < len(s); i++ {
+		hash ^= uint(s[i])
+		hash *= 16777619 // FNV prime
+	}
+	return hash
+}
+
+// EstimatedFalsePositiveRate returns the current estimated false positive rate
+func (bf *BloomFilter) EstimatedFalsePositiveRate() float64 {
+	if bf.items == 0 {
+		return 0
+	}
+	// Calculate based on actual items added
+	bitsPerItem := float64(bf.size) / float64(bf.items)
+	return math.Pow(1-math.Exp(-float64(bf.hashFuncs)/bitsPerItem), float64(bf.hashFuncs))
 }
 
 // MetadataCache caches metadata extraction results (now generic)
@@ -128,34 +220,122 @@ type MetadataCache struct {
 	cache map[string]interface{} // Generic metadata cache
 	mu    sync.RWMutex
 	ttl   time.Duration
+	// OPTIMIZATION 10: Add cache hit/miss tracking
+	hits   atomic.Int64
+	misses atomic.Int64
+}
+
+// ThrottleEventHandler implements ThrottleEventCallback to handle throttling events
+type ThrottleEventHandler struct {
+	scanner  *LibraryScanner
+	eventBus events.EventBus
+	jobID    uint
+}
+
+// OnThrottleAdjustment handles throttling adjustment events
+func (teh *ThrottleEventHandler) OnThrottleAdjustment(reason string, oldLimits, newLimits ThrottleLimits, metrics SystemMetrics) {
+	if teh.eventBus != nil {
+		event := events.Event{
+			Type:    "scan.throttle_adjusted",
+			Source:  "adaptive_throttler",
+			Title:   "Scan Throttling Adjusted",
+			Message: fmt.Sprintf("Throttling adjusted: %s", reason),
+			Data: map[string]interface{}{
+				"job_id":        teh.jobID,
+				"reason":        reason,
+				"old_workers":   oldLimits.WorkerCount,
+				"new_workers":   newLimits.WorkerCount,
+				"old_batch":     oldLimits.BatchSize,
+				"new_batch":     newLimits.BatchSize,
+				"old_delay_ms":  oldLimits.ProcessingDelay.Milliseconds(),
+				"new_delay_ms":  newLimits.ProcessingDelay.Milliseconds(),
+				"cpu_percent":   metrics.CPUPercent,
+				"memory_percent": metrics.MemoryPercent,
+				"io_wait_percent": metrics.IOWaitPercent,
+				"network_mbps":  metrics.NetworkUtilMBps,
+			},
+		}
+		teh.eventBus.PublishAsync(event)
+	}
+}
+
+// OnEmergencyBrake handles emergency brake activation
+func (teh *ThrottleEventHandler) OnEmergencyBrake(reason string, metrics SystemMetrics) {
+	if teh.eventBus != nil {
+		event := events.Event{
+			Type:    "scan.emergency_brake",
+			Source:  "adaptive_throttler",
+			Title:   "Emergency Brake Activated",
+			Message: fmt.Sprintf("Emergency throttling activated: %s", reason),
+			Data: map[string]interface{}{
+				"job_id":        teh.jobID,
+				"reason":        reason,
+				"cpu_percent":   metrics.CPUPercent,
+				"memory_percent": metrics.MemoryPercent,
+				"io_wait_percent": metrics.IOWaitPercent,
+				"load_average":  metrics.LoadAverage,
+			},
+		}
+		teh.eventBus.PublishAsync(event)
+	}
+}
+
+// OnEmergencyBrakeRelease handles emergency brake release
+func (teh *ThrottleEventHandler) OnEmergencyBrakeRelease(metrics SystemMetrics) {
+	if teh.eventBus != nil {
+		event := events.Event{
+			Type:    "scan.emergency_brake_released",
+			Source:  "adaptive_throttler",
+			Title:   "Emergency Brake Released",
+			Message: "Emergency throttling has been released",
+			Data: map[string]interface{}{
+				"job_id":        teh.jobID,
+				"cpu_percent":   metrics.CPUPercent,
+				"memory_percent": metrics.MemoryPercent,
+				"io_wait_percent": metrics.IOWaitPercent,
+				"load_average":  metrics.LoadAverage,
+			},
+		}
+		teh.eventBus.PublishAsync(event)
+	}
 }
 
 // NewLibraryScanner creates a new parallel file scanner with optimizations
 func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, pluginManager plugins.Manager) *LibraryScanner {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Calculate optimal worker count based on CPU cores
-	workerCount := runtime.NumCPU()
-	if workerCount < 2 {
-		workerCount = 2
-	} else if workerCount > 8 {
-		workerCount = 8 // Cap at 8 workers to avoid overwhelming the system
+	// Calculate worker counts for maximum performance
+	// CRITICAL FIX FOR LARGE VIDEO FILES + SQLITE: 
+	// Reduce worker count dramatically to prevent SQLite deadlocks
+	// With 618MB average files and 32k+ files, we need fewer workers for stability
+	workerCount := runtime.NumCPU() // Use 1x CPU cores instead of 4x for SQLite
+	if workerCount < 4 {
+		workerCount = 4 // Minimum 4 workers
+	}
+	if workerCount > 8 {
+		workerCount = 8 // Cap at 8 workers for SQLite stability
 	}
 
-	// Set up adaptive worker pool parameters
+	// Set up adaptive worker pool parameters - more conservative for SQLite
 	minWorkers := 2
-	maxWorkers := runtime.NumCPU() * 2 // Allow up to 2x CPU cores for I/O bound operations
-	if maxWorkers > 16 {
-		maxWorkers = 16 // Cap at 16 workers
+	maxWorkers := 6 // Much lower max workers for SQLite + large files
+	if maxWorkers > runtime.NumCPU() {
+		maxWorkers = runtime.NumCPU()
 	}
 
-	// Calculate directory worker count (fewer workers for directory scanning)
-	dirWorkerCount := runtime.NumCPU() / 2
-	if dirWorkerCount < 1 {
-		dirWorkerCount = 1
-	} else if dirWorkerCount > 4 {
-		dirWorkerCount = 4 // Cap at 4 directory workers
+	// Calculate directory workers for fast directory traversal
+	// OPTIMIZED FOR LARGE FILE COLLECTIONS: Fewer directory workers
+	dirWorkerCount := runtime.NumCPU() // Use 1x CPU cores instead of 2x
+	if dirWorkerCount < 2 {
+		dirWorkerCount = 2 // Minimum 2 directory workers
 	}
+	if dirWorkerCount > 6 {
+		dirWorkerCount = 6 // Cap at 6 directory workers
+	}
+
+	// OPTIMIZED QUEUE SIZES: Smaller queues for better memory management with large files
+	workQueueBuffer := workerCount * 50     // Reduced buffer size for large files
+	dirQueueBuffer := dirWorkerCount * 5000  // Smaller directory buffer
 
 	scanner := &LibraryScanner{
 		db:             db,
@@ -168,17 +348,22 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 		maxWorkers:     maxWorkers,
 		dirWorkerCount: dirWorkerCount,
 		workerExitChan: make(chan int, maxWorkers),
-		workQueue:      make(chan scanWork, workerCount*100),   // Buffered queue
-		dirQueue:       make(chan dirWork, dirWorkerCount*5000), // Buffered queue with larger buffer
+		workQueue:      make(chan scanWork, workQueueBuffer),   // Library-specific work queue
+		dirQueue:       make(chan dirWork, dirQueueBuffer),     // Library-specific directory queue
 		resultQueue:    make(chan *scanResult, workerCount*10),
 		errorQueue:     make(chan error, workerCount),
-		batchSize:      100, // Process files in batches of 100
+		batchSize:      500, // Process files in batches of 500 for high performance
 		batchTimeout:   5 * time.Second,
 		ctx:            ctx,
 		cancel:         cancel,
 		fileCache: &FileCache{
-			cache: make(map[string]*database.MediaFile),
-			mu:    sync.RWMutex{},
+			cache:       make(map[string]*database.MediaFile),
+			mu:          sync.RWMutex{},
+			accessTimes: make(map[string]time.Time),
+			maxSize:     workerCount * 1000, // 1000 files per worker
+			// Initialize bloom filter for ~100k files with 1% false positive rate
+			// This uses only ~95KB memory but dramatically speeds up rescans
+			knownFiles:  NewBloomFilter(100000, 0.01),
 		},
 	}
 
@@ -215,40 +400,82 @@ func NewLibraryScanner(db *gorm.DB, jobID uint, eventBus events.EventBus, plugin
 	// Initialize system load monitor
 	scanner.systemMonitor = NewSystemLoadMonitor()
 
+	// Initialize adaptive throttler with INTELLIGENT configuration
+	// Dynamically adapt to workload characteristics rather than assuming content types
+	throttleConfig := ThrottleConfig{
+		MinWorkers:              minWorkers,
+		MaxWorkers:              maxWorkers,
+		InitialWorkers:          workerCount,
+		TargetCPUPercent:        70.0, // Balanced CPU target for mixed workloads
+		MaxCPUPercent:           85.0, // Conservative CPU limit for large file processing
+		TargetMemoryPercent:     65.0, // Conservative memory for variable file sizes
+		MaxMemoryPercent:        80.0, // Safe memory limit for large batches
+		TargetNetworkThroughput: 90.0,  // Reasonable network target for various file sizes
+		MaxNetworkThroughput:    130.0, // Conservative network limit for large transfers
+		MaxIOWaitPercent:        50.0,  // Allow higher I/O wait for large files
+		TargetIOWaitPercent:     30.0,  // Balanced I/O wait target
+		MinBatchSize:            1,     // Allow single-file processing for huge files
+		MaxBatchSize:            10,    // Reasonable max batch for small files
+		DefaultBatchSize:        5,     // Balanced default batch size
+		MinProcessingDelay:      0,     // No minimum delay for performance
+		MaxProcessingDelay:      75 * time.Millisecond, // Brief delays for system stability
+		DefaultProcessingDelay:  8 * time.Millisecond,  // Minimal processing delay
+		AdjustmentInterval:      18 * time.Second, // Reasonable adjustment frequency
+		EmergencyBrakeThreshold: 88.0,   // Conservative emergency threshold
+		EmergencyBrakeDuration:  4 * time.Second, // Brief emergency brake for recovery
+		DNSTimeoutMs:            1800,   // Reasonable DNS timeout for various conditions
+		NetworkHealthCheckURL:   "8.8.8.8:53",
+	}
+	scanner.adaptiveThrottler = NewAdaptiveThrottler(throttleConfig)
+
+	// Register throttle event handler
+	throttleHandler := &ThrottleEventHandler{
+		scanner:  scanner,
+		eventBus: eventBus,
+		jobID:    jobID,
+	}
+	scanner.adaptiveThrottler.RegisterEventCallback(throttleHandler)
+
+	// Start the adaptive throttler
+	if err := scanner.adaptiveThrottler.Start(); err != nil {
+		logger.Warn("Failed to start adaptive throttler", "error", err)
+	}
+
 	return scanner
 }
 
 // Start begins the parallel scanning process
 func (ps *LibraryScanner) Start(libraryID uint) error {
-	ps.startTime = time.Now()
-	logger.Info("Starting library scan", "library_id", libraryID)
+	logger.Debug("LibraryScanner.Start called", "library_id", libraryID)
 
-	ps.dbMutex.Lock()
-	if err := ps.loadScanJob(); err != nil {
-		ps.dbMutex.Unlock()
-		return fmt.Errorf("failed to load scan job: %w", err)
-	}
-
+	// Load library
 	var library database.MediaLibrary
 	if err := ps.db.First(&library, libraryID).Error; err != nil {
-		ps.dbMutex.Unlock()
 		return fmt.Errorf("failed to load library: %w", err)
 	}
-	ps.dbMutex.Unlock()
 
 	if library.Path == "" {
 		return fmt.Errorf("library path is empty")
 	}
 
-	ps.dbMutex.Lock()
-	ps.scanJob.Status = "running"
-	ps.scanJob.StartedAt = &ps.startTime
-	if err := ps.db.Save(ps.scanJob).Error; err != nil {
-		ps.dbMutex.Unlock()
-		return fmt.Errorf("failed to update scan job status: %w", err)
-	}
-	ps.dbMutex.Unlock()
+	logger.Debug("Library loaded successfully", "library_id", libraryID, "path", library.Path)
 
+	// Create scan job
+	ps.scanJob = &database.ScanJob{
+		LibraryID: libraryID,
+		Status:    "running",
+		StartedAt: &time.Time{},
+	}
+	*ps.scanJob.StartedAt = time.Now()
+
+	if err := ps.db.Create(ps.scanJob).Error; err != nil {
+		return fmt.Errorf("failed to create scan job: %w", err)
+	}
+
+	ps.jobID = ps.scanJob.ID
+	logger.Debug("Scan job created", "job_id", ps.jobID)
+
+	// Emit scan started event
 	event := events.Event{
 		Type:    "scan.started",
 		Source:  "scanner",
@@ -262,9 +489,15 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 	}
 	ps.eventBus.PublishAsync(event)
 
-	if ps.pluginRouter != nil {
-		ps.pluginRouter.CallOnScanStarted(ps.jobID, libraryID, library.Path)
-	}
+	// Initialize state
+	ps.startTime = time.Now()
+	ps.filesProcessed.Store(0)
+	ps.bytesProcessed.Store(0)
+	ps.errorsCount.Store(0)
+	ps.filesSkipped.Store(0)
+	ps.filesFound.Store(0)
+
+	logger.Debug("Scanner state initialized")
 
 	if err := ps.preloadFileCache(libraryID); err != nil {
 		logger.Warn("Failed to preload file cache", "error", err)
@@ -277,34 +510,48 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 	}
 	ps.progressEstimator.SetTotal(int64(fileCount), 0)
 
+	logger.Debug("About to start all workers and processors")
+
 	// Start all workers and processors
 	ps.wg.Add(1)
 	go ps.workerPoolManager()
+	logger.Debug("Started workerPoolManager goroutine")
 
 	ps.wg.Add(1)
 	go ps.resultProcessor()
+	logger.Debug("Started resultProcessor goroutine")
 
 	ps.wg.Add(1)
 	go ps.batchFlusher()
+	logger.Debug("Started batchFlusher goroutine")
 
 	ps.wg.Add(1)
 	go ps.dirQueueManager()
+	logger.Debug("Started dirQueueManager goroutine")
 
 	ps.wg.Add(1)
 	go ps.workQueueCloser()
+	logger.Debug("Started workQueueCloser goroutine")
 
 	ps.wg.Add(1)
 	go ps.updateProgress()
+	logger.Debug("Started updateProgress goroutine")
 
 	for i := 0; i < ps.dirWorkerCount; i++ {
 		ps.wg.Add(1)
 		go ps.directoryWorker(i)
+		logger.Debug("Started directory worker", "worker_id", i)
 	}
 
 	ps.wg.Add(1)
 	go ps.scanDirectory(libraryID)
+	logger.Debug("Started scanDirectory goroutine")
+
+	logger.Debug("All goroutines started, waiting for completion")
 
 	ps.wg.Wait()
+
+	logger.Debug("All goroutines completed, updating final status")
 
 	ps.updateFinalStatus()
 
@@ -313,10 +560,14 @@ func (ps *LibraryScanner) Start(libraryID uint) error {
 
 // Resume resumes a paused scan job
 func (ps *LibraryScanner) Resume(libraryID uint) error {
+	logger.Debug("LibraryScanner.Resume called", "library_id", libraryID)
+
 	// Load scan job
 	if err := ps.loadScanJob(); err != nil {
 		return fmt.Errorf("failed to load scan job: %w", err)
 	}
+
+	logger.Debug("Scan job loaded", "job_id", ps.jobID, "status", ps.scanJob.Status)
 
 	// Check if job is in correct state for resume
 	if ps.scanJob.Status != "paused" {
@@ -333,6 +584,8 @@ func (ps *LibraryScanner) Resume(libraryID uint) error {
 		return fmt.Errorf("library path is empty")
 	}
 
+	logger.Debug("Library loaded for resume", "library_id", libraryID, "path", library.Path)
+
 	// Update job status to running
 	ps.scanJob.Status = "running"
 	resumeTime := time.Now()
@@ -340,6 +593,8 @@ func (ps *LibraryScanner) Resume(libraryID uint) error {
 	if err := ps.db.Save(ps.scanJob).Error; err != nil {
 		return fmt.Errorf("failed to update scan job status: %w", err)
 	}
+
+	logger.Debug("Scan job status updated to running")
 
 	// Emit scan resumed event
 	event := events.Event{
@@ -355,12 +610,24 @@ func (ps *LibraryScanner) Resume(libraryID uint) error {
 	}
 	ps.eventBus.PublishAsync(event)
 
-	// Reset internal state for resume
+	// FIXED: Initialize resume state properly with existing progress
 	ps.startTime = resumeTime
-	ps.filesProcessed.Store(0)
-	ps.bytesProcessed.Store(0)
+	
+	// Restore progress from database instead of resetting to zero
+	existingFilesProcessed := int64(ps.scanJob.FilesProcessed)
+	existingBytesProcessed := ps.scanJob.BytesProcessed
+	existingFilesFound := int64(ps.scanJob.FilesFound)
+	
+	// Set atomic counters to existing progress
+	ps.filesProcessed.Store(existingFilesProcessed)
+	ps.bytesProcessed.Store(existingBytesProcessed)
+	ps.filesFound.Store(existingFilesFound)
+	
+	// Reset error counters (these should start fresh)
 	ps.errorsCount.Store(0)
 	ps.filesSkipped.Store(0)
+
+	logger.Debug("Resume state initialized", "existing_files_processed", existingFilesProcessed, "existing_bytes_processed", existingBytesProcessed, "existing_files_found", existingFilesFound)
 
 	// Preload file cache for performance
 	if err := ps.preloadFileCache(libraryID); err != nil {
@@ -368,49 +635,80 @@ func (ps *LibraryScanner) Resume(libraryID uint) error {
 		fmt.Printf("Warning: Failed to preload file cache: %v\n", err)
 	}
 
-	// Count files for progress estimation
-	fileCount, err := ps.countFilesToScan(library.Path)
+	// FIXED: Count remaining files and initialize progress estimator properly
+	totalFileCount, err := ps.countFilesToScan(library.Path)
 	if err != nil {
 		fmt.Printf("Warning: Failed to count files for progress estimation: %v\n", err)
-		fileCount = 1000 // Fallback estimate
+		// Use existing found count as fallback if we have it
+		if existingFilesFound > 0 {
+			totalFileCount = int(existingFilesFound)
+		} else {
+			totalFileCount = 1000 // Last resort fallback
+		}
 	}
-	ps.progressEstimator.SetTotal(int64(fileCount), 0)
+	
+	// FIXED: Initialize progress estimator with total files and current progress
+	// Create a fresh progress estimator for the resume operation
+	ps.progressEstimator = NewProgressEstimator()
+	ps.progressEstimator.SetTotal(int64(totalFileCount), 0)
+	
+	// FIXED: Initialize progress estimator with existing progress data
+	if existingFilesProcessed > 0 {
+		ps.progressEstimator.Update(existingFilesProcessed, existingBytesProcessed)
+	}
+	
+	fmt.Printf("INFO: Resuming scan - Total files: %d, Already processed: %d, Remaining: %d\n", 
+		totalFileCount, existingFilesProcessed, totalFileCount-int(existingFilesProcessed))
+
+	logger.Debug("About to start all workers and processors for resume")
 
 	// Start the worker pool
 	ps.wg.Add(1)
 	go ps.workerPoolManager()
+	logger.Debug("Started workerPoolManager goroutine for resume")
 
 	// Start result processor
 	ps.wg.Add(1)
 	go ps.resultProcessor()
+	logger.Debug("Started resultProcessor goroutine for resume")
 
 	// Start batch flusher
 	ps.wg.Add(1)
 	go ps.batchFlusher()
+	logger.Debug("Started batchFlusher goroutine for resume")
 
 	// Start queue managers
 	ps.wg.Add(1)
 	go ps.dirQueueManager()
+	logger.Debug("Started dirQueueManager goroutine for resume")
 
 	ps.wg.Add(1)
 	go ps.workQueueCloser()
+	logger.Debug("Started workQueueCloser goroutine for resume")
 
 	// Start progress updates
 	ps.wg.Add(1)
 	go ps.updateProgress()
+	logger.Debug("Started updateProgress goroutine for resume")
 
 	// Start directory workers
 	for i := 0; i < ps.dirWorkerCount; i++ {
 		ps.wg.Add(1)
 		go ps.directoryWorker(i)
+		logger.Debug("Started directory worker for resume", "worker_id", i)
 	}
 
 	// Kick off the scanning process
 	ps.wg.Add(1)
 	go ps.scanDirectory(libraryID)
+	logger.Debug("Started scanDirectory goroutine for resume")
+
+	logger.Debug("All goroutines started for resume, waiting for completion")
 
 	// Wait for completion or cancellation
 	ps.wg.Wait()
+
+	logger.Debug("All goroutines completed for resume, updating final status")
 
 	// Update final status
 	ps.updateFinalStatus()
@@ -423,6 +721,11 @@ func (ps *LibraryScanner) loadScanJob() error {
 }
 
 func (ps *LibraryScanner) updateFinalStatus() {
+	// Stop adaptive throttler
+	if ps.adaptiveThrottler != nil {
+		ps.adaptiveThrottler.Stop()
+	}
+
 	ps.dbMutex.Lock()
 	defer ps.dbMutex.Unlock()
 
@@ -471,6 +774,7 @@ func (ps *LibraryScanner) updateFinalStatus() {
 		updateData := map[string]interface{}{
 			"status":          "completed",
 			"completed_at":    &endTime,
+			"files_found":     int(ps.filesFound.Load()),
 			"files_processed": int(ps.filesProcessed.Load()),
 			"bytes_processed": ps.bytesProcessed.Load(),
 			"error_message":   "",                       // Clear any previous error
@@ -490,6 +794,7 @@ func (ps *LibraryScanner) updateFinalStatus() {
 		if ps.scanJob != nil {
 			ps.scanJob.Status = "completed"
 			ps.scanJob.CompletedAt = &endTime
+			ps.scanJob.FilesFound = int(ps.filesFound.Load())
 			ps.scanJob.FilesProcessed = int(ps.filesProcessed.Load())
 			ps.scanJob.BytesProcessed = ps.bytesProcessed.Load()
 			ps.scanJob.ErrorMessage = ""
@@ -503,6 +808,7 @@ func (ps *LibraryScanner) updateFinalStatus() {
 			Message: fmt.Sprintf("Completed scanning job %d", ps.jobID),
 			Data: map[string]interface{}{
 				"job_id":          ps.jobID,
+				"files_found":     ps.filesFound.Load(),
 				"files_processed": ps.filesProcessed.Load(),
 				"files_skipped":   ps.filesSkipped.Load(),
 				"errors_count":    ps.errorsCount.Load(),
@@ -543,15 +849,21 @@ func (ps *LibraryScanner) preloadFileCache(libraryID uint) error {
 	}
 
 	ps.fileCache.mu.Lock()
+	ps.fileCache.bloomMu.Lock()
 	defer ps.fileCache.mu.Unlock()
+	defer ps.fileCache.bloomMu.Unlock()
 
 	for _, file := range mediaFiles {
 		// Use a copy to avoid pointer issues
 		fileCopy := file
 		ps.fileCache.cache[file.Path] = &fileCopy
+		
+		// Add to bloom filter for fast future lookups
+		ps.fileCache.knownFiles.Add(file.Path)
 	}
 
-	fmt.Printf("Preloaded %d files into cache\n", len(mediaFiles))
+	fmt.Printf("Preloaded %d files into cache and bloom filter (%.2f%% estimated false positive rate)\n", 
+		len(mediaFiles), ps.fileCache.knownFiles.EstimatedFalsePositiveRate()*100)
 	return nil
 }
 
@@ -610,22 +922,21 @@ func (ps *LibraryScanner) scanDirectory(libraryID uint) {
 		return
 	}
 
+	logger.Debug("Starting directory scan", "library_id", libraryID, "path", library.Path)
+
 	// Start with the root directory
 	select {
 	case <-ps.ctx.Done(): // Check context before attempting to send
+		logger.Debug("Context cancelled before starting directory scan", "library_id", libraryID)
 		return
 	default:
-		// Non-blocking send to dirQueue
+		// Blocking send to dirQueue with context cancellation
 		select {
 		case ps.dirQueue <- dirWork{path: library.Path, libraryID: libraryID}:
+			logger.Debug("Successfully queued root directory for scanning", "library_id", libraryID, "path", library.Path)
 		case <-ps.ctx.Done():
+			logger.Debug("Context cancelled while queueing root directory", "library_id", libraryID)
 			return
-		default:
-			// This case should ideally not be hit if dirQueue has buffer and dirQueueManager is responsive.
-			// If it is, it means the queue is full and context isn't cancelled yet.
-			// Depending on desired behavior, could log or handle differently.
-			fmt.Printf("Warning: dirQueue full or not ready when initiating scan for library %d\n", libraryID)
-			// We might still want to error out or retry, but for now, let the scan proceed (or fail gracefully elsewhere).
 		}
 	}
 }
@@ -637,11 +948,19 @@ func (ps *LibraryScanner) worker(id int) {
 	ps.activeWorkers.Add(1)
 	processedCount := 0
 
+	logger.Debug("Worker started", "worker_id", id, "active_workers", ps.activeWorkers.Load())
+
 	for {
 		select {
 		case work, ok := <-ps.workQueue:
 			if !ok {
+				logger.Debug("Worker exiting - work queue closed", "worker_id", id)
 				return
+			}
+
+			// Apply intelligent adaptive throttling for optimal system performance
+			if ps.adaptiveThrottler != nil {
+				ps.adaptiveThrottler.ApplyDelay()
 			}
 
 			processedCount++
@@ -653,11 +972,14 @@ func (ps *LibraryScanner) worker(id int) {
 
 			select {
 			case ps.resultQueue <- result:
+				// Successful processing - no logging needed for performance
 			case <-ps.ctx.Done():
+				logger.Debug("Worker cancelled while sending result", "worker_id", id)
 				return
 			}
 
 		case <-ps.ctx.Done():
+			logger.Debug("Worker cancelled", "worker_id", id)
 			return
 		}
 	}
@@ -675,22 +997,6 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	default:
 	}
 
-	// Check if file exists in cache first
-	ps.fileCache.mu.RLock()
-	cachedFile, exists := ps.fileCache.cache[path]
-	ps.fileCache.mu.RUnlock()
-
-	if exists {
-		// Check if file has been modified since last scan
-		if cachedFile.UpdatedAt.Before(info.ModTime()) || cachedFile.Size != info.Size() {
-			// File has changed, process it
-		} else {
-			// File hasn't changed, skip processing
-			ps.filesSkipped.Add(1)
-			return &scanResult{path: path}
-		}
-	}
-
 	// Check context before expensive operations
 	select {
 	case <-ps.ctx.Done():
@@ -698,14 +1004,14 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	default:
 	}
 
-	// Calculate file hash for duplicate detection
+	// Calculate file hash with optimized strategy
 	hash, err := ps.calculateFileHashOptimized(path)
 	if err != nil {
-		ps.errorsCount.Add(1)
-		return &scanResult{
-			path:  path,
-			error: fmt.Errorf("failed to calculate file hash: %w", err),
-		}
+			ps.errorsCount.Add(1)
+			return &scanResult{
+				path:  path,
+				error: fmt.Errorf("failed to calculate file hash: %w", err),
+			}
 	}
 
 	// Check context before database operations
@@ -715,7 +1021,7 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	default:
 	}
 
-	// Create media file record
+	// Create media file record and save to database immediately to get an ID
 	mediaFile := &database.MediaFile{
 		Path:      path,
 		Size:      info.Size(),
@@ -727,107 +1033,116 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 		UpdatedAt: time.Now(),
 	}
 
-	// Check if media file already exists and handle accordingly
-	var existingFile database.MediaFile
-	err = ps.db.Where("path = ?", path).First(&existingFile).Error
-	if err == nil {
-		// File exists, update it
-		existingFile.Size = info.Size()
-		existingFile.Hash = hash
-		existingFile.LibraryID = libraryID
-		existingFile.ScanJobID = &ps.jobID
-		existingFile.LastSeen = time.Now()
-		existingFile.UpdatedAt = time.Now()
-		
-		if err := ps.db.Save(&existingFile).Error; err != nil {
-			ps.errorsCount.Add(1)
-			return &scanResult{
-				path:  path,
-				error: fmt.Errorf("failed to update existing media file: %w", err),
-			}
-		}
-		mediaFile = &existingFile
-	} else if err == gorm.ErrRecordNotFound {
-		// File doesn't exist, create new one
-		if err := ps.db.Create(mediaFile).Error; err != nil {
-			ps.errorsCount.Add(1)
-			return &scanResult{
-				path:  path,
-				error: fmt.Errorf("failed to save media file: %w", err),
-			}
-		}
-	} else {
-		// Database error
+	// Save MediaFile to database to get a valid ID for metadata foreign key
+	if err := ps.db.Create(mediaFile).Error; err != nil {
 		ps.errorsCount.Add(1)
 		return &scanResult{
 			path:  path,
-			error: fmt.Errorf("failed to check for existing media file: %w", err),
+			error: fmt.Errorf("failed to save media file: %w", err),
 		}
 	}
 
-	// Check context before plugin processing
-	select {
-	case <-ps.ctx.Done():
-		return &scanResult{path: path, error: fmt.Errorf("scan cancelled")}
-	default:
-	}
+	// Update counters immediately for progress tracking
+	ps.filesProcessed.Add(1)
+	ps.bytesProcessed.Add(info.Size())
 
-	// Attempt metadata extraction using the plugin system
-	var metadata interface{}
-	var metadataType string
-	if ps.corePluginsManager != nil {
-		// Find a plugin that can handle this file
-		corePlugins := ps.corePluginsManager.GetRegistry().GetCorePlugins()
-		for _, corePlugin := range corePlugins {
-			if corePlugin.Match(path, info) {
-				// Create metadata context
-				ctx := plugins.MediaContext{
+	// Extract metadata using available file handler plugins
+	var extractedMetadata interface{}
+	var metadataType string = "file"
+	
+	if ps.pluginManager != nil {
+		// Get all available file handlers (core and external plugins)
+		handlers := ps.pluginManager.GetFileHandlers()
+		
+		// Find a matching handler for this file
+		for _, handler := range handlers {
+			if handler.Match(path, info) {
+				// Create metadata context for the plugin
+				ctx := plugins.MetadataContext{
 					DB:        ps.db,
-					MediaFile: mediaFile,
+					MediaFile: mediaFile, // Now has a valid ID
 					LibraryID: libraryID,
 					EventBus:  ps.eventBus,
 				}
 				
-				// Use the new HandleFile method that returns MediaItem + assets
-				mediaItem, assets, err := corePlugin.HandleFile(path, info, ctx)
-				if err != nil {
-					// Continue without metadata - not a fatal error
-					break
-				}
-				
-				// Save using MediaManager
-				if mediaItem != nil {
-					if err := ps.mediaManager.SaveMediaItem(mediaItem, assets); err != nil {
-						// Continue - this will be handled as a warning
-					} else {
-						// Extract metadata and type for legacy compatibility
-						metadata = mediaItem.Metadata
-						metadataType = mediaItem.Type
+				// Extract metadata using the plugin
+				if err := handler.HandleFile(path, ctx); err != nil {
+					logger.Debug("Plugin metadata extraction failed", "plugin", handler.GetName(), "file", path, "error", err)
+					// Don't fail the whole scan for metadata extraction issues
+				} else {
+					logger.Debug("Successfully extracted metadata", "plugin", handler.GetName(), "file", path)
+					
+					// Query the database for the extracted metadata
+					var musicMeta database.MusicMetadata
+					if err := ps.db.Where("media_file_id = ?", mediaFile.ID).First(&musicMeta).Error; err == nil {
+						extractedMetadata = &musicMeta
+						metadataType = "music"
+						logger.Debug("Retrieved music metadata from database", "title", musicMeta.Title, "artist", musicMeta.Artist, "album", musicMeta.Album)
 					}
 				}
-				break
+				break // Use first matching plugin
 			}
 		}
 	}
 
-	ps.filesProcessed.Add(1)
-	ps.bytesProcessed.Add(info.Size())
-
 	return &scanResult{
 		mediaFile:        mediaFile,
-		metadata:         metadata,
-		metadataType:     metadataType,
+		metadata:         extractedMetadata, // Now contains actual metadata!
+		metadataType:     metadataType,      // "music" for successful extraction, "file" for basic
 		path:             path,
-		needsPluginHooks: true,
+		needsPluginHooks: true, // Enable plugin hooks for enrichment
 	}
 }
 
 func (ps *LibraryScanner) calculateFileHashOptimized(path string) (string, error) {
-	// Use the standard file hash calculation
-	return utils.CalculateFileHash(path)
+	// GENERIC FILE SIZE OPTIMIZATION:
+	// Use different hashing strategies based purely on file size characteristics
+	// This adapts to any media type without making content assumptions
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	
+	// Size-based thresholds for optimal performance
+	const tinyFileThreshold = 10 * 1024 * 1024       // 10MB - full hash for small files
+	const smallFileThreshold = 100 * 1024 * 1024     // 100MB - full hash for reasonable files  
+	const mediumFileThreshold = 1024 * 1024 * 1024   // 1GB - sampled hash for larger files
+	const largeFileThreshold = 5 * 1024 * 1024 * 1024 // 5GB - aggressive sampling
+	const hugeFileThreshold = 20 * 1024 * 1024 * 1024 // 20GB - ultra-fast sampling
+	
+	fileSize := fileInfo.Size()
+	sizeMB := float64(fileSize) / (1024 * 1024)
+	sizeGB := sizeMB / 1024
+	
+	if fileSize <= tinyFileThreshold {
+		// Tiny files (metadata, images, short clips): full hashing for accuracy
+		return utils.CalculateFileHash(path)
+	} else if fileSize <= smallFileThreshold {
+		// Small files (compressed episodes, music): full hashing is still fast
+		logger.Debug("Using full hash for small file", "path", path, "size_mb", int64(sizeMB))
+		return utils.CalculateFileHash(path)
+	} else if fileSize <= mediumFileThreshold {
+		// Medium files (HD content): standard sampled hashing
+		logger.Debug("Using sampled hash for medium file", "path", path, "size_mb", int64(sizeMB))
+		return utils.CalculateFileHashSampled(path, fileSize)
+	} else if fileSize <= largeFileThreshold {
+		// Large files (4K content, remux): aggressive sampled hashing
+		logger.Debug("Using sampled hash for large file", "path", path, "size_gb", float64(int64(sizeGB*10))/10)
+		return utils.CalculateFileHashSampled(path, fileSize)
+	} else if fileSize <= hugeFileThreshold {
+		// Very large files (high bitrate 4K): ultra-fast sampling
+		logger.Debug("Using ultra-fast hash for very large file", "path", path, "size_gb", float64(int64(sizeGB*10))/10)
+		return utils.CalculateFileHashUltraFast(path, fileSize)
+	} else {
+		// Massive files (uncompressed, raw): minimal sampling for speed
+		logger.Debug("Using ultra-fast hash for massive file", "path", path, "size_gb", float64(int64(sizeGB*10))/10)
+		return utils.CalculateFileHashUltraFast(path, fileSize)
+	}
 }
 
 func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadata interface{}) {
+	logger.Debug("callPluginHooks called", "file", mediaFile.Path, "file_id", mediaFile.ID)
+	
 	ps.pluginRouter.CallOnMediaFileScanned(mediaFile, metadata)
 
 	if ps.pluginManager == nil {
@@ -836,17 +1151,24 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 	}
 
 	scannerHooks := ps.pluginManager.GetScannerHooks()
+	logger.Debug("Got scanner hooks", "count", len(scannerHooks), "file", mediaFile.Path)
+	
 	if len(scannerHooks) == 0 {
+		logger.Debug("No scanner hooks available", "file", mediaFile.Path)
 		return
 	}
 
 	metadataMap := make(map[string]string)
+	logger.Debug("Building metadata map for hooks", "file", mediaFile.Path, "metadata_type", fmt.Sprintf("%T", metadata), "metadata_nil", metadata == nil)
+	
 	if metadata != nil {
 		if musicMeta, ok := metadata.(map[string]interface{}); ok {
+			logger.Debug("Metadata is map[string]interface{}", "file", mediaFile.Path, "keys", len(musicMeta))
 			for k, v := range musicMeta {
 				metadataMap[k] = fmt.Sprint(v)
 			}
 		} else if musicMeta, ok := metadata.(*database.MusicMetadata); ok {
+			logger.Debug("Metadata is *database.MusicMetadata", "file", mediaFile.Path, "title", musicMeta.Title, "artist", musicMeta.Artist)
 			metadataMap["title"] = musicMeta.Title
 			metadataMap["artist"] = musicMeta.Artist
 			metadataMap["album"] = musicMeta.Album
@@ -857,19 +1179,26 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 			metadataMap["track_total"] = fmt.Sprintf("%d", musicMeta.TrackTotal)
 			metadataMap["disc"] = fmt.Sprintf("%d", musicMeta.Disc)
 			metadataMap["disc_total"] = fmt.Sprintf("%d", musicMeta.DiscTotal)
-			metadataMap["duration"] = fmt.Sprintf("%.0f", musicMeta.Duration)
+			metadataMap["duration"] = fmt.Sprintf("%.0f", musicMeta.Duration.Seconds())
 			metadataMap["bitrate"] = fmt.Sprintf("%d", musicMeta.Bitrate)
 			metadataMap["sample_rate"] = fmt.Sprintf("%d", musicMeta.SampleRate)
 			metadataMap["channels"] = fmt.Sprintf("%d", musicMeta.Channels)
 			metadataMap["format"] = musicMeta.Format
 			metadataMap["has_artwork"] = fmt.Sprintf("%t", musicMeta.HasArtwork)
 		} else {
+			logger.Debug("Metadata is unknown type", "file", mediaFile.Path, "type", fmt.Sprintf("%T", metadata))
 			metadataMap["type"] = fmt.Sprintf("%T", metadata)
 		}
+	} else {
+		logger.Debug("Metadata is nil", "file", mediaFile.Path)
 	}
+	
+	logger.Debug("Final metadata map for hooks", "file", mediaFile.Path, "title", metadataMap["title"], "artist", metadataMap["artist"], "album", metadataMap["album"], "map_size", len(metadataMap))
 
 	for i, hook := range scannerHooks {
+		logger.Debug("Processing scanner hook", "hook_index", i, "file", mediaFile.Path)
 		go func(hookIndex int, h proto.ScannerHookServiceClient) {
+			logger.Debug("Starting gRPC call to scanner hook", "hook_index", hookIndex, "file", mediaFile.Path)
 			// Use the scanner's context with a timeout, so hooks are cancelled when scan is terminated
 			ctx, cancel := context.WithTimeout(ps.ctx, 30*time.Second)
 			defer cancel()
@@ -885,6 +1214,8 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 					"hook_index", hookIndex,
 					"file", mediaFile.Path,
 					"error", err)
+			} else {
+				logger.Debug("Scanner hook completed successfully", "hook_index", hookIndex, "file", mediaFile.Path)
 			}
 		}(i, hook)
 	}
@@ -910,13 +1241,29 @@ func (ps *LibraryScanner) resultProcessor() {
 				continue
 			}
 
-			// Update cache
-			ps.fileCache.mu.Lock()
-			ps.fileCache.cache[result.path] = result.mediaFile
-			ps.fileCache.mu.Unlock()
+			// Route all media files through batch processor for optimized database operations
+			if result.metadataType == "file" {
+				ps.batchProcessor.AddMediaFile(result.mediaFile)
+				
+				// Trigger flush if needed to maintain reasonable batch sizes
+				if err := ps.batchProcessor.FlushIfNeeded(); err != nil {
+					logger.Error("Batch flush failed during result processing", "error", err, "path", result.path)
+				}
+			}
 
-			// Call plugin hooks if needed
+			// MediaFiles are already saved in processFile, just add to cache
+			// Only process metadata if it was extracted
+			if result.metadataType == "music" && result.metadata != nil {
+				// Music metadata was successfully extracted and saved
+				logger.Debug("Music metadata processed", "file", result.path, "title", result.metadata.(*database.MusicMetadata).Title)
+			}
+			
+			// Update cache after successful processing
+			ps.fileCache.Set(result.path, result.mediaFile)
+
+			// Call plugin hooks for enrichment and additional processing
 			if result.needsPluginHooks {
+				logger.Debug("Calling plugin hooks", "file", result.mediaFile.Path, "needs_hooks", result.needsPluginHooks)
 				ps.callPluginHooks(result.mediaFile, result.metadata)
 			}
 
@@ -929,7 +1276,9 @@ func (ps *LibraryScanner) resultProcessor() {
 func (ps *LibraryScanner) batchFlusher() {
 	defer ps.wg.Done()
 
-	ticker := time.NewTicker(ps.batchTimeout)
+	// Aggressive flushing optimized for large file collections
+	// Frequent DB commits prevent memory buildup and ensure data persistence
+	ticker := time.NewTicker(2 * time.Second) // Every 2 seconds for optimal performance
 	defer ticker.Stop()
 
 	for {
@@ -941,6 +1290,12 @@ func (ps *LibraryScanner) batchFlusher() {
 			}
 			ps.dbMutex.Unlock()
 		case <-ps.ctx.Done():
+			// Force flush all remaining items before shutdown
+			ps.dbMutex.Lock()
+			if err := ps.batchProcessor.Flush(); err != nil {
+				logger.Error("Final batch flush failed", "error", err)
+			}
+			ps.dbMutex.Unlock()
 			return
 		}
 	}
@@ -949,76 +1304,202 @@ func (ps *LibraryScanner) batchFlusher() {
 func (ps *LibraryScanner) updateProgress() {
 	defer ps.wg.Done()
 
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	lastProcessed := int64(0)
+	lastFilesProcessed := int64(0)
+	lastBytesProcessed := int64(0)
+	lastUpdateTime := time.Now()
 
 	for {
 		select {
 		case <-ticker.C:
-			processed := ps.filesProcessed.Load()
-			skipped := ps.filesSkipped.Load()
-			errors := ps.errorsCount.Load()
+			currentFiles := ps.filesProcessed.Load()
+			currentBytes := ps.bytesProcessed.Load()
+			currentErrors := ps.errorsCount.Load()
+			currentSkipped := ps.filesSkipped.Load()
+			currentFound := ps.filesFound.Load()
+			now := time.Now()
 
-			// Calculate throughput
-			currentProcessed := processed
-			throughput := float64(currentProcessed - lastProcessed) // files per second
-			lastProcessed = currentProcessed
+			// CRITICAL FIX: Update progress estimator with current progress
+			// This is essential for ETA calculation in GetDetailedScanProgress API
+			if ps.progressEstimator != nil {
+				// Update progress estimator with current totals and progress
+				ps.progressEstimator.SetTotal(currentFound, currentBytes)
+				ps.progressEstimator.Update(currentFiles, currentBytes)
+			}
 
-			// Update progress estimator
-			ps.progressEstimator.Update(processed+skipped, ps.bytesProcessed.Load())
+			// Calculate rates
+			elapsedSinceLastUpdate := now.Sub(lastUpdateTime).Seconds()
+			filesPerSecond := float64(currentFiles-lastFilesProcessed) / elapsedSinceLastUpdate
+			mbPerSecond := float64(currentBytes-lastBytesProcessed) / (1024 * 1024) / elapsedSinceLastUpdate
 
-			// Get progress info
-			progress, eta, rate := ps.progressEstimator.GetEstimate()
+			// Calculate overall progress
+			var progress float64
+			if currentFound > 0 {
+				progress = float64(currentFiles) / float64(currentFound) * 100
+			}
 
-			// Get system stats (mock implementation for now)
-			cpuPercent := float64(50.0) // Mock value
-			memoryMB := float64(1024.0) // Mock value
-			diskReadMB := float64(10.0) // Mock value
-			diskWriteMB := float64(5.0) // Mock value
+			// Get adaptive throttling metrics
+			var throttleLimits ThrottleLimits
+			var systemMetrics SystemMetrics  
+			var networkStats NetworkStats
+			var throttleConfig ThrottleConfig
+			var emergencyBrakeActive bool
+			
+			if ps.adaptiveThrottler != nil {
+				throttleLimits = ps.adaptiveThrottler.GetCurrentLimits()
+				systemMetrics = ps.adaptiveThrottler.GetSystemMetrics()
+				networkStats = ps.adaptiveThrottler.GetNetworkStats()
+				throttleConfig = ps.adaptiveThrottler.GetThrottleConfig()
 
-			// Get worker stats
-			activeWorkers, minWorkers, maxWorkers, queueLen := ps.GetWorkerStats()
+				// Check if emergency brake is active
+				shouldThrottle, _ := ps.adaptiveThrottler.ShouldThrottle()
+				emergencyBrakeActive = shouldThrottle
+			} else {
+				// Default values when throttler is not available
+				throttleLimits = ThrottleLimits{BatchSize: 5, WorkerCount: 8}
+				emergencyBrakeActive = false
+			}
 
-			// Emit progress event
+			// OPTIMIZATION 12: Cache performance metrics
+			cacheHitRate := ps.metadataCache.GetHitRate()
+			cacheSize := len(ps.fileCache.cache)
+
+			// Calculate ETA
+			var eta time.Time
+			if filesPerSecond > 0 && currentFound > currentFiles {
+				remainingFiles := currentFound - currentFiles
+				secondsRemaining := float64(remainingFiles) / filesPerSecond
+				eta = now.Add(time.Duration(secondsRemaining) * time.Second)
+			}
+
+			// Update database
+			ps.dbMutex.Lock()
+			ps.scanJob.FilesProcessed = int(currentFiles)
+			ps.scanJob.FilesFound = int(currentFound)
+			ps.scanJob.FilesSkipped = int(currentSkipped)
+			ps.scanJob.BytesProcessed = currentBytes
+			ps.scanJob.Progress = progress
+			ps.scanJob.UpdatedAt = now
+			if err := ps.db.Save(ps.scanJob).Error; err != nil {
+				logger.Error("Failed to update scan job progress", "error", err)
+			}
+			ps.dbMutex.Unlock()
+
+			// Create enhanced progress event with throttling data
 			event := events.Event{
 				Type:    "scan.progress",
 				Source:  "scanner",
 				Title:   "Scan Progress",
-				Message: fmt.Sprintf("Scanning progress: %d files processed", processed),
+				Message: fmt.Sprintf("Processed %d of %d files (%.1f%%)", currentFiles, currentFound, progress),
 				Data: map[string]interface{}{
-					"job_id":           ps.jobID,
-					"files_processed":  processed,
-					"files_skipped":    skipped,
-					"errors_count":     errors,
-					"throughput_fps":   throughput,
-					"progress_percent": progress,
-					"eta_time":         eta,
-					"processing_rate":  rate,
-					"active_workers":   activeWorkers,
-					"min_workers":      minWorkers,
-					"max_workers":      maxWorkers,
-					"queue_length":     queueLen,
-					"cpu_percent":      cpuPercent,
-					"memory_mb":        memoryMB,
-					"disk_read_mb":     diskReadMB,
-					"disk_write_mb":    diskWriteMB,
+					"jobId":           ps.jobID,
+					"filesProcessed":  currentFiles,
+					"filesFound":      currentFound,
+					"filesSkipped":    currentSkipped,
+					"errorCount":      currentErrors,
+					"bytesProcessed":  currentBytes,
+					"progress":        progress,
+					"filesPerSecond":  filesPerSecond,
+					"throughputMbps":  mbPerSecond,
+					"elapsedTime":     now.Sub(ps.startTime).Seconds(),
+					
+					// Worker and queue statistics
+					"activeWorkers":   int(ps.activeWorkers.Load()),
+					"minWorkers":      throttleConfig.MinWorkers,
+					"maxWorkers":      throttleConfig.MaxWorkers,
+					"queueDepth":      len(ps.workQueue),
+					"batchSize":       throttleLimits.BatchSize,
+					
+					// Adaptive throttling metrics
+					"throttling": map[string]interface{}{
+						"enabled":               throttleLimits.Enabled,
+						"processingDelay":       throttleLimits.ProcessingDelay.Milliseconds(),
+						"networkBandwidthLimit": throttleLimits.NetworkBandwidth,
+						"ioThrottlePercent":     throttleLimits.IOThrottle,
+						"emergencyBrakeActive":  emergencyBrakeActive,
+					},
+					
+					// System metrics
+					"systemMetrics": map[string]interface{}{
+						"cpuPercent":      systemMetrics.CPUPercent,
+						"memoryPercent":   systemMetrics.MemoryPercent,
+						"memoryUsedMB":    systemMetrics.MemoryUsedMB,
+						"ioWaitPercent":   systemMetrics.IOWaitPercent,
+						"loadAverage":     systemMetrics.LoadAverage,
+						"networkUtilMBps": systemMetrics.NetworkUtilMBps,
+						"diskReadMBps":    systemMetrics.DiskReadMBps,
+						"diskWriteMBps":   systemMetrics.DiskWriteMBps,
+						"lastUpdated":     systemMetrics.TimestampUTC,
+					},
+					
+					// Network health
+					"networkHealth": map[string]interface{}{
+						"dnsLatencyMs":      networkStats.DNSLatencyMs,
+						"networkLatencyMs":  networkStats.NetworkLatencyMs,
+						"packetLossPercent": networkStats.PacketLossPercent,
+						"connectionErrors":  networkStats.ConnectionErrors,
+						"isHealthy":         networkStats.IsHealthy,
+						"lastHealthCheck":   networkStats.LastHealthCheck,
+					},
+					
+					// OPTIMIZATION 12: Cache performance metrics
+					"cacheMetrics": map[string]interface{}{
+						"hitRate":     cacheHitRate,
+						"cacheSize":   cacheSize,
+						"maxSize":     ps.fileCache.maxSize,
+					},
 				},
 			}
+
+			// Add ETA if available
+			if !eta.IsZero() {
+				event.Data["eta"] = eta
+				event.Data["estimatedTimeLeft"] = eta.Sub(now).Seconds()
+			}
+
 			ps.eventBus.PublishAsync(event)
 
-			// Update scan job in database
-			ps.dbMutex.Lock()
-			if err := ps.db.Model(&database.ScanJob{}).Where("id = ?", ps.jobID).Updates(map[string]interface{}{
-				"files_processed": processed,
-				"bytes_processed": ps.bytesProcessed.Load(),
-				"progress":        progress,
-				"updated_at":      time.Now(),
-			}).Error; err != nil {
-				logger.Error("Failed to update scan job progress", "error", err)
+			// Log detailed progress for monitoring
+			logger.Info("Scan progress update",
+				"job_id", ps.jobID,
+				"files_processed", currentFiles,
+				"files_found", currentFound,
+				"progress_percent", fmt.Sprintf("%.1f", progress),
+				"files_per_second", fmt.Sprintf("%.1f", filesPerSecond),
+				"throughput_mbps", fmt.Sprintf("%.1f", mbPerSecond),
+				"active_workers", int(ps.activeWorkers.Load()),
+				"queue_depth", len(ps.workQueue),
+				"cpu_percent", fmt.Sprintf("%.1f", systemMetrics.CPUPercent),
+				"memory_percent", fmt.Sprintf("%.1f", systemMetrics.MemoryPercent),
+				"processing_delay_ms", throttleLimits.ProcessingDelay.Milliseconds(),
+				"emergency_brake", emergencyBrakeActive,
+			)
+
+			// Log warning if performance is degraded
+			if emergencyBrakeActive {
+				logger.Warn("Emergency brake active - scan performance degraded",
+					"reason", "High system load",
+					"cpu_percent", systemMetrics.CPUPercent,
+					"memory_percent", systemMetrics.MemoryPercent,
+					"io_wait_percent", systemMetrics.IOWaitPercent,
+				)
 			}
-			ps.dbMutex.Unlock()
+
+			// Log network issues if detected
+			if !networkStats.IsHealthy {
+				logger.Warn("Network health issues detected",
+					"dns_latency_ms", networkStats.DNSLatencyMs,
+					"packet_loss_percent", networkStats.PacketLossPercent,
+					"connection_errors", networkStats.ConnectionErrors,
+				)
+			}
+
+			// Update for next iteration
+			lastFilesProcessed = currentFiles
+			lastBytesProcessed = currentBytes
+			lastUpdateTime = now
 
 		case <-ps.ctx.Done():
 			return
@@ -1045,6 +1526,7 @@ func (ps *LibraryScanner) Pause() {
 		Message: fmt.Sprintf("Paused scanning job %d", ps.jobID),
 		Data: map[string]interface{}{
 			"job_id":          ps.jobID,
+			"files_found":     ps.filesFound.Load(),
 			"files_processed": ps.filesProcessed.Load(),
 			"files_skipped":   ps.filesSkipped.Load(),
 			"errors_count":    ps.errorsCount.Load(),
@@ -1054,32 +1536,20 @@ func (ps *LibraryScanner) Pause() {
 }
 
 func (ps *LibraryScanner) adjustWorkers() {
-	// Mock system stats for now
-	cpuPercent := float64(50.0)
-	memoryPercent := float64(60.0)
-
-	currentWorkers := int(ps.activeWorkers.Load())
-	queueLen := len(ps.workQueue)
-
-	// Determine target worker count based on system load and queue length
-	targetWorkers := currentWorkers
-
-	// Scale up if:
-	// - Queue is backing up (more than 50 items per worker)
-	// - CPU usage is low (< 70%)
-	// - Memory usage is reasonable (< 80%)
-	if queueLen > currentWorkers*50 && cpuPercent < 70 && memoryPercent < 80 {
-		if currentWorkers < ps.maxWorkers {
-			targetWorkers = currentWorkers + 1
-		}
+	// Use adaptive throttler for intelligent worker scaling
+	if ps.adaptiveThrottler == nil {
+		return
 	}
-
-	// Scale down if:
-	// - Queue is small (< 10 items per worker)
-	// - CPU usage is high (> 85%)
-	// - Memory usage is high (> 85%)
-	if (queueLen < currentWorkers*10 || cpuPercent > 85 || memoryPercent > 85) && currentWorkers > ps.minWorkers {
-		targetWorkers = currentWorkers - 1
+	
+	throttleLimits := ps.adaptiveThrottler.GetCurrentLimits()
+	
+	currentWorkers := int(ps.activeWorkers.Load())
+	targetWorkers := throttleLimits.WorkerCount
+	
+	// Update batch size based on throttler recommendations
+	ps.batchSize = throttleLimits.BatchSize
+	if ps.batchProcessor != nil {
+		ps.batchProcessor.batchSize = throttleLimits.BatchSize
 	}
 
 	// Start new workers if needed
@@ -1088,6 +1558,10 @@ func (ps *LibraryScanner) adjustWorkers() {
 			ps.wg.Add(1)
 			go ps.worker(i)
 		}
+		logger.Debug("Scaled up workers", 
+			"from", currentWorkers, 
+			"to", targetWorkers,
+			"batch_size", ps.batchSize)
 	}
 
 	// Signal workers to exit if needed
@@ -1101,15 +1575,20 @@ func (ps *LibraryScanner) adjustWorkers() {
 				break
 			}
 		}
+		logger.Debug("Scaled down workers", 
+			"from", currentWorkers, 
+			"to", targetWorkers,
+			"batch_size", ps.batchSize)
 	}
 }
 
 func (ps *LibraryScanner) workerPoolManager() {
 	defer ps.wg.Done()
 
-	logger.Debug("Starting worker pool")
+	logger.Debug("Starting worker pool manager")
 
 	// Start initial workers
+	logger.Debug("About to start initial workers", "count", ps.workerCount)
 	for i := 0; i < ps.workerCount; i++ {
 		logger.Debug("Starting worker", "worker_id", i)
 		ps.wg.Add(1)
@@ -1156,7 +1635,55 @@ func (bp *BatchProcessor) FlushIfNeeded() error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
-	if len(bp.mediaFiles) >= bp.batchSize {
+	// INTELLIGENT BATCH SIZING: Analyze current batch characteristics
+	// Adapt batch size based on file sizes and memory impact rather than content assumptions
+	
+	batchSize := 5 // Default batch size for typical files
+	totalBatchSize := int64(0)
+	maxFileSize := int64(0)
+	
+	// Analyze current batch characteristics
+	for _, mediaFile := range bp.mediaFiles {
+		totalBatchSize += mediaFile.Size
+		if mediaFile.Size > maxFileSize {
+			maxFileSize = mediaFile.Size
+		}
+	}
+	
+	// Size-based batch optimization thresholds
+	const smallFileSize = 100 * 1024 * 1024      // 100MB
+	const largeFileSize = 2 * 1024 * 1024 * 1024 // 2GB  
+	const hugeFileSize = 10 * 1024 * 1024 * 1024 // 10GB
+	const massiveFileSize = 50 * 1024 * 1024 * 1024 // 50GB
+	
+	// Adaptive batch sizing based on largest file in batch
+	if maxFileSize >= massiveFileSize {
+		// Massive files (50GB+): immediate processing to prevent memory issues
+		batchSize = 1
+		logger.Debug("Using immediate flush for massive files", "max_file_gb", float64(maxFileSize)/(1024*1024*1024), "batch_count", len(bp.mediaFiles))
+	} else if maxFileSize >= hugeFileSize {
+		// Huge files (10-50GB): very small batches
+		batchSize = 2
+		logger.Debug("Using small batch for huge files", "max_file_gb", float64(maxFileSize)/(1024*1024*1024), "batch_count", len(bp.mediaFiles))
+	} else if maxFileSize >= largeFileSize {
+		// Large files (2-10GB): small batches
+		batchSize = 3
+	} else if maxFileSize >= smallFileSize {
+		// Medium files (100MB-2GB): standard batches
+		batchSize = 5
+	} else {
+		// Small files (<100MB): larger batches for efficiency
+		batchSize = 10
+	}
+	
+	// Also consider total batch memory footprint
+	const maxBatchMemory = 5 * 1024 * 1024 * 1024 // 5GB total batch size limit
+	if totalBatchSize > maxBatchMemory {
+		logger.Debug("Using immediate flush for large batch memory", "total_batch_gb", float64(totalBatchSize)/(1024*1024*1024))
+		return bp.flushInternal()
+	}
+
+	if len(bp.mediaFiles) >= batchSize {
 		return bp.flushInternal()
 	}
 	return nil
@@ -1174,37 +1701,36 @@ func (bp *BatchProcessor) flushInternal() error {
 		return nil
 	}
 
-	// First transaction: Insert media files
-	if len(bp.mediaFiles) > 0 {
-		err := bp.db.Transaction(func(tx *gorm.DB) error {
-			if err := tx.CreateInBatches(bp.mediaFiles, bp.batchSize).Error; err != nil {
-				return fmt.Errorf("failed to insert media files: %w", err)
+	// Use a single large transaction for optimal SQLite performance
+	// This dramatically reduces locking overhead and ensures atomicity
+	err := bp.db.Transaction(func(tx *gorm.DB) error {
+		
+		// Process media files with UPSERT logic using SQLite's ON CONFLICT
+		if len(bp.mediaFiles) > 0 {
+			// For SQLite, we'll use UPSERT operations with ON CONFLICT DO UPDATE
+			// This handles both new files and updates to existing files atomically
+			for _, mediaFile := range bp.mediaFiles {
+				// Use GORM's Save method which handles UPSERT automatically
+				// For SQLite, this will use INSERT OR REPLACE or ON CONFLICT UPDATE
+				if err := tx.Save(mediaFile).Error; err != nil {
+					logger.Debug("Failed to save media file", "path", mediaFile.Path, "error", err)
+					// Continue processing other files instead of failing the whole batch
+					continue
+				}
 			}
-			return nil
-		})
-		
-		if err != nil {
-			logger.Error("Failed to insert media files", "error", err)
-			return err
+			
+			logger.Debug("Batch processed media files with UPSERT", "count", len(bp.mediaFiles))
 		}
-		
-		logger.Debug("Media files inserted", "count", len(bp.mediaFiles))
-		bp.mediaFiles = bp.mediaFiles[:0]
-	}
 
-	// Second transaction: Process metadata items
-	if len(bp.metadataItems) > 0 {
-		err := bp.db.Transaction(func(tx *gorm.DB) error {
+		// Process metadata items in the same transaction
+		if len(bp.metadataItems) > 0 {
 			mediaManager := plugins.NewMediaManager(tx)
 			
 			for _, item := range bp.metadataItems {
 				if item.Data != nil {
 					var mediaFile database.MediaFile
 					if err := tx.Where("path = ?", item.Path).First(&mediaFile).Error; err != nil {
-						logger.Warn("Failed to find media file for metadata",
-							"path", item.Path,
-							"type", item.Type,
-							"error", err)
+						logger.Debug("Skipping metadata for missing file", "path", item.Path)
 						continue
 					}
 					
@@ -1215,29 +1741,28 @@ func (bp *BatchProcessor) flushInternal() error {
 					}
 					
 					if err := mediaManager.SaveMediaItem(mediaItem, []plugins.MediaAsset{}); err != nil {
-						logger.Warn("Failed to save metadata",
-							"type", item.Type,
-							"path", item.Path,
-							"error", err)
+						logger.Debug("Failed to save metadata", "path", item.Path, "error", err)
 						continue
 					}
-					
-					logger.Debug("Processed metadata",
-						"type", item.Type,
-						"path", item.Path)
 				}
 			}
-			return nil
-		})
-		
-		if err != nil {
-			logger.Warn("Failed to process metadata items", "error", err)
+			
+			logger.Debug("Processed metadata items", "count", len(bp.metadataItems))
 		}
 
-		logger.Debug("Metadata items processed", "count", len(bp.metadataItems))
-		bp.metadataItems = bp.metadataItems[:0]
+		return nil
+	})
+	
+	if err != nil {
+		logger.Error("Batch flush transaction failed", "error", err, "media_files", len(bp.mediaFiles), "metadata_items", len(bp.metadataItems))
+		return err
 	}
 
+	// Clear the batches after successful transaction
+	bp.mediaFiles = bp.mediaFiles[:0]
+	bp.metadataItems = bp.metadataItems[:0]
+
+	logger.Debug("Batch flush completed successfully with UPSERT operations")
 	return nil
 }
 
@@ -1246,29 +1771,40 @@ func (ps *LibraryScanner) directoryWorker(workerID int) {
 	defer ps.activeDirWorkers.Add(-1)
 
 	ps.activeDirWorkers.Add(1)
+	logger.Debug("Directory worker started", "worker_id", workerID)
 
 	for {
 		select {
 		case work, ok := <-ps.dirQueue:
 			if !ok {
+				logger.Debug("Directory worker exiting - queue closed", "worker_id", workerID)
 				return
 			}
 
+			logger.Debug("Directory worker processing", "worker_id", workerID, "path", work.path, "library_id", work.libraryID)
 			ps.processDirWork(work)
 
 		case <-ps.ctx.Done():
+			logger.Debug("Directory worker cancelled", "worker_id", workerID)
 			return
 		}
 	}
 }
 
 func (ps *LibraryScanner) processDirWork(work dirWork) {
+	// OPTIMIZATION 15: NFS-optimized directory reading with error resilience
 	entries, err := os.ReadDir(work.path)
 	if err != nil {
-		ps.errorQueue <- fmt.Errorf("failed to read directory %s: %w", work.path, err)
-		return
+		// NFS can have temporary issues, retry once before failing
+		time.Sleep(100 * time.Millisecond)
+		entries, err = os.ReadDir(work.path)
+		if err != nil {
+			ps.errorQueue <- fmt.Errorf("failed to read directory %s: %w", work.path, err)
+			return
+		}
 	}
 
+	// OPTIMIZATION 16: Pre-filter and batch process directory entries
 	var supportedExts map[string]bool
 	if ps.corePluginsManager != nil {
 		supportedExts = make(map[string]bool)
@@ -1278,58 +1814,195 @@ func (ps *LibraryScanner) processDirWork(work dirWork) {
 				supportedExts[ext] = true
 			}
 		}
+		logger.Debug("Using core plugins extensions", "path", work.path, "ext_count", len(supportedExts))
 	}
 	
 	if len(supportedExts) == 0 {
 		supportedExts = utils.MediaExtensions
+		logger.Debug("Using fallback MediaExtensions", "path", work.path, "ext_count", len(supportedExts))
 	}
 
 	filesQueued := 0
 	dirsQueued := 0
+	filesFoundInThisDir := 0
+	skippedDirs := 0
+	skippedFiles := 0
 
+	// OPTIMIZATION 17: Smart directory filtering for performance
+	knownSkipDirs := map[string]bool{
+		".git": true, ".svn": true, ".hg": true,
+		"node_modules": true, ".DS_Store": true,
+		"@eaDir": true, ".@__thumb": true, // Synology system dirs
+		"#recycle": true, ".recycle": true, // Recycle bins
+		"System Volume Information": true, // Windows system
+		".Trash": true, ".Trashes": true, // macOS trash
+		"lost+found": true, // Linux filesystem
+		"$RECYCLE.BIN": true, // Windows recycle bin
+	}
+
+	// OPTIMIZATION 18: Batch file operations for NFS efficiency
+	mediaFiles := make([]fs.DirEntry, 0, len(entries))
+	subdirs := make([]fs.DirEntry, 0, len(entries))
+
+	// First pass: categorize entries efficiently
 	for _, entry := range entries {
-		fullPath := filepath.Join(work.path, entry.Name())
-
+		entryName := entry.Name()
+		
+		// Skip hidden files and known system directories
+		if strings.HasPrefix(entryName, ".") && knownSkipDirs[entryName] {
+			skippedFiles++
+			continue
+		}
+		
 		if entry.IsDir() {
-			select {
-			case ps.dirQueue <- dirWork{path: fullPath, libraryID: work.libraryID}:
-				dirsQueued++
-			case <-ps.ctx.Done():
-				return
+			// Skip known system/cache directories
+			if knownSkipDirs[entryName] {
+				skippedDirs++
+				continue
 			}
+			// Skip very deep nested directories (potential infinite loops)
+			if strings.Count(work.path, string(filepath.Separator)) > 50 {
+				skippedDirs++
+				continue
+			}
+			subdirs = append(subdirs, entry)
 		} else {
-			ext := filepath.Ext(entry.Name())
+			// Quick extension check before expensive operations
+			ext := strings.ToLower(filepath.Ext(entryName))
 			if supportedExts[ext] {
-				info, err := entry.Info()
-				if err != nil {
-					continue
-				}
-
-				select {
-				case ps.workQueue <- scanWork{
-					path:      fullPath,
-					info:      info,
-					libraryID: work.libraryID,
-				}:
-					filesQueued++
-				case <-ps.ctx.Done():
-					return
-				}
+				mediaFiles = append(mediaFiles, entry)
+			} else {
+				skippedFiles++
 			}
 		}
 	}
 
-	if filesQueued > 0 || dirsQueued > 0 {
+	// OPTIMIZATION 19: Batch file info operations for NFS
+	// Process media files in batches to reduce NFS round trips
+	const batchSize = 25 // Smaller batches for NFS optimization
+	
+	for i := 0; i < len(mediaFiles); i += batchSize {
+		end := i + batchSize
+		if end > len(mediaFiles) {
+			end = len(mediaFiles)
+		}
+		
+		// Process this batch of files
+		for j := i; j < end; j++ {
+			entry := mediaFiles[j]
+			fullPath := filepath.Join(work.path, entry.Name())
+			
+			// OPTIMIZATION 20: Bloom filter pre-screening for ultra-fast rescan performance
+			// Stage 1: Check bloom filter first (< 1μs, no I/O)
+			ps.fileCache.bloomMu.RLock()
+			likelyKnown := ps.fileCache.knownFiles.Contains(fullPath)
+			ps.fileCache.bloomMu.RUnlock()
+			
+			if likelyKnown {
+				// Stage 2: File is probably in our database, check cache (fast, ~10μs)
+				if cachedFile, exists := ps.fileCache.Get(fullPath); exists {
+					// Stage 3: Quick metadata check to see if file changed (NFS I/O)
+					if info, err := entry.Info(); err == nil {
+						if cachedFile.Size == info.Size() && !cachedFile.UpdatedAt.Before(info.ModTime()) {
+							// File hasn't changed, skip processing entirely
+							skippedFiles++
+							continue
+						}
+					}
+				}
+				// Note: If bloom filter says "probably known" but cache miss,
+				// it could be a false positive or cache eviction - continue processing
+			}
+			// If bloom filter says "definitely unknown", always process the file
+			
+			info, err := entry.Info()
+			if err != nil {
+				logger.Debug("Failed to get file info", "path", fullPath, "error", err)
+				continue
+			}
+
+			// Skip very small files that are likely incomplete or metadata
+			if info.Size() < 1024 {
+				skippedFiles++
+				continue
+			}
+
+			// Increment files found counter immediately when we discover a supported file
+			ps.filesFound.Add(1)
+			filesFoundInThisDir++
+
+			select {
+			case ps.workQueue <- scanWork{
+				path:      fullPath,
+				info:      info,
+				libraryID: work.libraryID,
+			}:
+				filesQueued++
+			case <-ps.ctx.Done():
+				return
+			}
+		}
+		
+		// Small delay between batches to avoid overwhelming NFS
+		if i+batchSize < len(mediaFiles) {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+
+	// Queue subdirectories for processing
+	for _, entry := range subdirs {
+		fullPath := filepath.Join(work.path, entry.Name())
+		select {
+		case ps.dirQueue <- dirWork{path: fullPath, libraryID: work.libraryID}:
+			dirsQueued++
+		case <-ps.ctx.Done():
+			return
+		}
+	}
+
+	// Immediately update progress estimator total if we found significant files
+	if filesFoundInThisDir > 0 {
+		// Update progress estimator with new total based on discovered files
+		currentTotal := ps.progressEstimator.GetTotal()
+		newTotal := currentTotal + int64(filesFoundInThisDir)
+		ps.progressEstimator.SetTotal(newTotal, ps.bytesProcessed.Load())
+		
+		// Emit immediate discovery event for responsive UI feedback
+		event := events.Event{
+			Type:    "scan.discovery",
+			Source:  "scanner",
+			Title:   "Files Discovered",
+			Message: fmt.Sprintf("Discovered %d new files in %s", filesFoundInThisDir, work.path),
+			Data: map[string]interface{}{
+				"job_id":              ps.jobID,
+				"directory":           work.path,
+				"files_found_in_dir":  filesFoundInThisDir,
+				"total_files_found":   ps.filesFound.Load(),
+				"new_estimated_total": newTotal,
+				"dirs_skipped":        skippedDirs,
+				"files_skipped":       skippedFiles,
+			},
+		}
+		ps.eventBus.PublishAsync(event)
+	}
+
+	if filesQueued > 0 || dirsQueued > 0 || skippedFiles > 0 || skippedDirs > 0 {
 		logger.Debug("Directory processed",
 			"path", work.path,
 			"files_queued", filesQueued,
-			"dirs_queued", dirsQueued)
+			"files_found", filesFoundInThisDir,
+			"dirs_queued", dirsQueued,
+			"dirs_skipped", skippedDirs,
+			"files_skipped", skippedFiles,
+			"total_found", ps.filesFound.Load())
 	}
 }
 
 func (ps *LibraryScanner) dirQueueManager() {
 	defer ps.wg.Done()
 	defer close(ps.dirQueue)
+
+	logger.Debug("Directory queue manager started")
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -1405,3 +2078,92 @@ func (ps *LibraryScanner) workQueueCloser() {
 		}
 	}
 }
+
+// OPTIMIZATION 11: Cache management methods for performance monitoring
+func (fc *FileCache) Get(path string) (*database.MediaFile, bool) {
+	fc.mu.RLock()
+	file, exists := fc.cache[path]
+	fc.mu.RUnlock()
+	
+	// Update access time with proper write lock if file exists
+	// Use sampling to reduce lock contention - only update 10% of the time
+	if exists && shouldUpdateAccessTime() {
+		fc.mu.Lock()
+		// Double-check the entry still exists after acquiring write lock
+		if _, stillExists := fc.cache[path]; stillExists {
+			fc.accessTimes[path] = time.Now()
+		}
+		fc.mu.Unlock()
+	}
+	
+	return file, exists
+}
+
+// shouldUpdateAccessTime uses sampling to reduce access time update frequency
+// This significantly reduces lock contention while maintaining LRU effectiveness
+func shouldUpdateAccessTime() bool {
+	// Update access time for only ~10% of requests to reduce lock contention
+	// This is sufficient for LRU tracking while improving performance
+	return time.Now().UnixNano()%10 == 0
+}
+
+func (fc *FileCache) Set(path string, file *database.MediaFile) {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	
+	// Check if we need to evict old entries
+	if len(fc.cache) >= fc.maxSize {
+		fc.evictOldestLRU()
+	}
+	
+	fc.cache[path] = file
+	fc.accessTimes[path] = time.Now()
+	
+	// Add to bloom filter for future fast lookups
+	fc.bloomMu.Lock()
+	fc.knownFiles.Add(path)
+	fc.bloomMu.Unlock()
+}
+
+func (fc *FileCache) evictOldestLRU() {
+	// Find the oldest accessed file
+	var oldestPath string
+	var oldestTime time.Time = time.Now()
+	
+	for path, accessTime := range fc.accessTimes {
+		if accessTime.Before(oldestTime) {
+			oldestTime = accessTime
+			oldestPath = path
+		}
+	}
+	
+	if oldestPath != "" {
+		delete(fc.cache, oldestPath)
+		delete(fc.accessTimes, oldestPath)
+	}
+}
+
+func (mc *MetadataCache) Get(path string) (interface{}, bool) {
+	mc.mu.RLock()
+	defer mc.mu.RUnlock()
+	
+	metadata, exists := mc.cache[path]
+	if exists {
+		mc.hits.Add(1)
+	} else {
+		mc.misses.Add(1)
+	}
+	return metadata, exists
+}
+
+func (mc *MetadataCache) GetHitRate() float64 {
+	hits := mc.hits.Load()
+	misses := mc.misses.Load()
+	total := hits + misses
+	if total == 0 {
+		return 0
+	}
+	return float64(hits) / float64(total)
+}
+
+

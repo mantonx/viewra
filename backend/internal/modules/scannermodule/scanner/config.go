@@ -64,3 +64,16 @@ func AggressiveScanConfig() *ScanConfig {
 		MetadataWorkerCount:     4,
 	}
 }
+
+// UltraAggressiveScanConfig returns an ultra-aggressive configuration for very large directories
+func UltraAggressiveScanConfig() *ScanConfig {
+	return &ScanConfig{
+		ParallelScanningEnabled: true,
+		WorkerCount:             16,
+		BatchSize:               500,
+		ChannelBufferSize:       10000, // Much larger buffer for massive directories
+		SmartHashEnabled:        true,
+		AsyncMetadataEnabled:    true,
+		MetadataWorkerCount:     8,
+	}
+}

@@ -75,7 +75,7 @@ const MediaLibraryManager = () => {
         queueDepth: number;
         lastUpdate: Date;
         startTime?: Date;
-        estimatedTimeLeft?: number;
+        estimatedTimeLeft: number; // Now always provided by backend
         eta?: string;
         filesPerSecond?: number;
         throughputMbps?: number;
@@ -232,7 +232,7 @@ const MediaLibraryManager = () => {
               queueDepth: event.data.queueDepth || 0,
               lastUpdate: now,
               startTime: current?.startTime || now,
-              estimatedTimeLeft: current?.estimatedTimeLeft,
+              estimatedTimeLeft: current?.estimatedTimeLeft || 0,
               // Keep existing detailed data if available
               maxWorkers: current?.maxWorkers,
               minWorkers: current?.minWorkers,
@@ -283,6 +283,7 @@ const MediaLibraryManager = () => {
               queueDepth: 0,
               lastUpdate: new Date(),
               startTime: new Date(),
+              estimatedTimeLeft: 0,
             });
             return newMap;
           });
@@ -660,13 +661,6 @@ const MediaLibraryManager = () => {
       if (res.ok) {
         const now = new Date();
 
-        // Parse ETA if available
-        let estimatedTimeLeft: number | undefined;
-        if (result.eta) {
-          const etaTime = new Date(result.eta);
-          estimatedTimeLeft = Math.max(0, Math.floor((etaTime.getTime() - now.getTime()) / 1000));
-        }
-
         setScanProgress((prev) => {
           const current = prev.get(jobId);
           const newProgress = {
@@ -676,11 +670,11 @@ const MediaLibraryManager = () => {
             activeWorkers: result.active_workers || 0,
             maxWorkers: result.max_workers,
             minWorkers: result.min_workers,
-            queueDepth: result.queue_depth || 0,
+            queueDepth: result.queue_length || result.queue_depth || 0,
             lastUpdate: now,
             startTime: current?.startTime || now,
-            estimatedTimeLeft,
-            eta: result.eta,
+            estimatedTimeLeft: result.estimated_time_left || 0,
+            eta: result.eta || null,
             filesPerSecond: result.files_per_second || result.files_per_sec,
             throughputMbps: result.throughput_mbps,
             elapsedTime: result.elapsed_time,

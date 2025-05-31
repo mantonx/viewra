@@ -211,7 +211,36 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 		logger.Info("Cleaned up scan jobs", "library_id", libraryID, "jobs_deleted", jobsDeleted)
 	}
 	
-	// STEP 3: Delete all media files for this library (this will orphan the assets)
+	// STEP 3: Delete all music metadata for media files in this library first (to avoid foreign key constraint)
+	logger.Info("Deleting music metadata for library", "library_id", libraryID)
+	
+	// Get all media file IDs for this library
+	var mediaFileIDs []uint
+	if err := db.Model(&database.MediaFile{}).Where("library_id = ?", libraryID).Pluck("id", &mediaFileIDs).Error; err != nil {
+		logger.Error("Failed to get media file IDs", "library_id", libraryID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get media file IDs for cleanup",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	if len(mediaFileIDs) > 0 {
+		// Delete all music metadata for these media files
+		metadataResult := db.Where("media_file_id IN ?", mediaFileIDs).Delete(&database.MusicMetadata{})
+		if metadataResult.Error != nil {
+			logger.Error("Failed to delete music metadata", "library_id", libraryID, "error", metadataResult.Error)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to cleanup music metadata for library",
+				"details": metadataResult.Error.Error(),
+			})
+			return
+		} else if metadataResult.RowsAffected > 0 {
+			logger.Info("Deleted music metadata", "library_id", libraryID, "metadata_deleted", metadataResult.RowsAffected)
+		}
+	}
+
+	// STEP 4: Delete all media files for this library (now safe since metadata is gone)
 	logger.Info("Deleting media files", "library_id", libraryID)
 	mediaFilesResult := db.Where("library_id = ?", libraryID).Delete(&database.MediaFile{})
 	if mediaFilesResult.Error != nil {
@@ -225,7 +254,7 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 		logger.Info("Deleted media files", "library_id", libraryID, "files_deleted", mediaFilesResult.RowsAffected)
 	}
 	
-	// STEP 4: Clean up orphaned assets (now orphaned by deleting media files)
+	// STEP 5: Clean up orphaned assets (now orphaned by deleting media files)
 	logger.Info("Cleaning up orphaned assets", "library_id", libraryID)
 	assetsRemoved, filesRemoved, cleanupErr := scannerManager.CleanupOrphanedAssets()
 	if cleanupErr != nil {
@@ -234,7 +263,7 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 		logger.Info("Cleaned up orphaned assets", "assets_removed", assetsRemoved, "files_removed", filesRemoved)
 	}
 	
-	// STEP 5: Clean up any remaining orphaned files from filesystem
+	// STEP 6: Clean up any remaining orphaned files from filesystem
 	logger.Info("Cleaning up orphaned files", "library_id", libraryID)
 	orphanedFilesRemoved, cleanupErr := scannerManager.CleanupOrphanedFiles()
 	if cleanupErr != nil {
@@ -243,7 +272,7 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 		logger.Info("Cleaned up orphaned files", "files_removed", orphanedFilesRemoved)
 	}
 	
-	// STEP 6: Delete the library record
+	// STEP 7: Delete the library record
 	logger.Info("Deleting library record", "library_id", libraryID)
 	result = db.Delete(&library)
 	if result.Error != nil {

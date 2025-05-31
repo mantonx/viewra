@@ -901,8 +901,12 @@ func (m *manager) startHostServices() error {
 	// Create host asset service
 	m.hostAssetService = NewHostAssetService(m.logger)
 	
-	// Create gRPC server
-	m.hostGRPCServer = grpc.NewServer()
+	// Create gRPC server with increased message size limits for artwork uploads
+	maxMsgSize := 50 * 1024 * 1024 // 50MB for high-quality artwork
+	m.hostGRPCServer = grpc.NewServer(
+		grpc.MaxRecvMsgSize(maxMsgSize),
+		grpc.MaxSendMsgSize(maxMsgSize),
+	)
 	
 	// Register AssetService on the host server
 	proto.RegisterAssetServiceServer(m.hostGRPCServer, &AssetServer{Impl: m.hostAssetService})
