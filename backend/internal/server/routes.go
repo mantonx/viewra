@@ -102,6 +102,34 @@ func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr plugins.Manager) {
 
 		// Register module routes
 		modulemanager.RegisterRoutes(r) // Should this be api? Check usage
+		
+		// Configuration management routes
+		config := api.Group("/config")
+		{
+			config.GET("/", handlers.GetConfig)
+			apiroutes.Register(config.BasePath()+"/", "GET", "Get full configuration (sensitive data redacted).")
+			
+			config.GET("/:section", handlers.GetConfigSection)
+			apiroutes.Register(config.BasePath()+"/:section", "GET", "Get specific configuration section.")
+			
+			config.PUT("/:section", handlers.UpdateConfigSection)
+			apiroutes.Register(config.BasePath()+"/:section", "PUT", "Update configuration section.")
+			
+			config.POST("/reload", handlers.ReloadConfig)
+			apiroutes.Register(config.BasePath()+"/reload", "POST", "Reload configuration from file.")
+			
+			config.POST("/save", handlers.SaveConfig)
+			apiroutes.Register(config.BasePath()+"/save", "POST", "Save current configuration to file.")
+			
+			config.POST("/validate", handlers.ValidateConfig)
+			apiroutes.Register(config.BasePath()+"/validate", "POST", "Validate current configuration.")
+			
+			config.GET("/defaults", handlers.GetConfigDefaults)
+			apiroutes.Register(config.BasePath()+"/defaults", "GET", "Get default configuration values.")
+			
+			config.GET("/info", handlers.GetConfigInfo)
+			apiroutes.Register(config.BasePath()+"/info", "GET", "Get configuration system information.")
+		}
 	}
 
 	// Add the root /api discovery endpoint directly to the main router `r`

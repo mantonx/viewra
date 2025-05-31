@@ -6,12 +6,12 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/apiroutes"
+	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
@@ -361,29 +361,9 @@ func (l *eventLogger) Debug(msg string, args ...interface{}) { log.Printf("[EVEN
 
 // GetPluginDirectory returns the configured plugin directory
 func GetPluginDirectory() string {
-	// Check environment variable first
-	if pluginDir := os.Getenv("PLUGIN_DIR"); pluginDir != "" {
-		return pluginDir
-	}
-	
-	// TODO: Make this configurable via config file
-	defaultDir := filepath.Join(".", "backend", "data", "plugins") // Adjusted default
-	exePath, err := os.Executable()
-	if err == nil {
-		baseDir := filepath.Dir(exePath)
-		// If running from a typical Go bin layout, adjust path relative to project root
-		// This is a heuristic and might need refinement for different deployment scenarios
-		if filepath.Base(baseDir) == "bin" || filepath.Base(baseDir) == "cmd" {
-			projectRoot := filepath.Dir(filepath.Dir(baseDir)) // Go up two levels
-            if filepath.Base(projectRoot) == "backend" { // If exe is in backend/cmd/xxx/main or backend/bin/xxx
-                projectRoot = filepath.Dir(projectRoot) // Go up one more for viewra root
-            }
-			return filepath.Join(projectRoot, "backend", "data", "plugins")
-		}
-		// If not in a typical Go bin layout, assume running from project root or similar structure
-		return filepath.Join(baseDir, "backend", "data", "plugins") 
-	}
-	return defaultDir
+	// Use centralized configuration system
+	cfg := config.Get()
+	return cfg.Plugins.PluginDir
 }
 
 // initializeEventBus sets up the system-wide event bus

@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/server"
 
 	// Force module inclusion by importing directly in main
@@ -38,6 +38,26 @@ func main() {
 	fmt.Println("  Viewra Media Server - Module System  ")
 	fmt.Println("=======================================")
 	
+	// Initialize configuration system first
+	configPath := os.Getenv("VIEWRA_CONFIG_PATH")
+	if configPath == "" {
+		// Try default paths
+		if _, err := os.Stat("/app/viewra-data/viewra.yaml"); err == nil {
+			configPath = "/app/viewra-data/viewra.yaml"
+		} else if _, err := os.Stat("./viewra.yaml"); err == nil {
+			configPath = "./viewra.yaml"
+		}
+	}
+	
+	if err := config.Load(configPath); err != nil {
+		log.Printf("⚠️  Warning: Failed to load configuration from %s: %v", configPath, err)
+		log.Printf("Using default configuration")
+	} else if configPath != "" {
+		log.Printf("✅ Configuration loaded from: %s", configPath)
+	} else {
+		log.Printf("✅ Using default configuration")
+	}
+	
 	// Initialize database
 	database.Initialize()
 	db := database.GetDB()
@@ -52,11 +72,8 @@ func main() {
 	// Setup router with plugins and modules
 	r := server.SetupRouter()
 	
-	// Get port from environment or use default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	// Get configuration for server setup
+	cfg := config.Get()
 	
 	// Create a context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -64,8 +81,10 @@ func main() {
 	
 	// Create server with graceful shutdown capability
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: r,
+		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
+		Handler:      r,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 	
 	// Handle graceful shutdown
@@ -98,29 +117,13 @@ func main() {
 		cancel()
 	}()
 	
-	// Try to start the server on the requested port
-	log.Printf("🚀 Starting Viewra server on :%s", port)
+	// Start the server
+	log.Printf("🚀 Starting Viewra server on %s:%d", cfg.Server.Host, cfg.Server.Port)
 	err := srv.ListenAndServe()
 	
-	// If the port is in use, try a fallback port
+	// Handle server startup errors
 	if err != nil && err != http.ErrServerClosed {
-		log.Printf("Failed to start server on port %s: %v", port, err)
-		fallbackPort := "8081"
-		log.Printf("Trying fallback port %s", fallbackPort)
-		
-		// Create a new server with the fallback port
-		srv = &http.Server{
-			Addr:    ":" + fallbackPort,
-			Handler: r,
-		}
-		
-		// Log the new port
-		logger.Info("🚀 Starting Viewra server on fallback port :%s", fallbackPort)
-		
-		// Start the server on the fallback port
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server on fallback port %s: %v", fallbackPort, err)
-		}
+		log.Fatalf("Failed to start server: %v", err)
 	}
 	
 	<-ctx.Done()

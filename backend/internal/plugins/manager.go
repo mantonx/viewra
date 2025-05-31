@@ -655,8 +655,35 @@ func (m *manager) handleFileUpdate(filePath string) {
 }
 
 func (m *manager) getDatabaseURL() string {
-	// Use centralized database configuration
-	return config.GetDatabaseURL()
+	// Use centralized database configuration directly
+	cfg := config.Get().Database
+	
+	// Generate URL if not explicitly set
+	if cfg.URL != "" {
+		return cfg.URL
+	}
+	
+	switch cfg.Type {
+	case "sqlite":
+		return "sqlite://" + cfg.DatabasePath
+	case "postgres":
+		url := "postgres://"
+		if cfg.Username != "" {
+			url += cfg.Username
+			if cfg.Password != "" {
+				url += ":" + cfg.Password
+			}
+			url += "@"
+		}
+		url += cfg.Host
+		if cfg.Port != 5432 {
+			url += fmt.Sprintf(":%d", cfg.Port)
+		}
+		url += "/" + cfg.Database
+		return url
+	default:
+		return "sqlite://" + cfg.DatabasePath
+	}
 }
 
 func removeFromSlice(slice []string, item string) []string {

@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/mantonx/viewra/internal/config"
@@ -17,139 +15,49 @@ import (
 
 var DB *gorm.DB
 
-// ConnectionPoolConfig holds configuration for database connection pooling
-type ConnectionPoolConfig struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	ConnMaxIdleTime time.Duration
-}
-
-// GetOptimalPoolConfig returns optimized connection pool settings based on database type and environment
-func GetOptimalPoolConfig(dbType string) *ConnectionPoolConfig {
-	// Check for custom environment variables
-	maxOpenConns := getEnvInt("DB_MAX_OPEN_CONNS", 0)
-	maxIdleConns := getEnvInt("DB_MAX_IDLE_CONNS", 0)
-	connMaxLifetime := getEnvDuration("DB_CONN_MAX_LIFETIME", 0)
-	connMaxIdleTime := getEnvDuration("DB_CONN_MAX_IDLE_TIME", 0)
-	
-	// Set defaults based on database type and use case
-	switch dbType {
-	case "postgres":
-		// PostgreSQL can handle more concurrent connections efficiently
-		if maxOpenConns == 0 {
-			maxOpenConns = 100 // High for media scanner workloads
-		}
-		if maxIdleConns == 0 {
-			maxIdleConns = 20 // Keep more idle connections for PostgreSQL
-		}
-		if connMaxLifetime == 0 {
-			connMaxLifetime = 2 * time.Hour // Longer for PostgreSQL
-		}
-		if connMaxIdleTime == 0 {
-			connMaxIdleTime = 30 * time.Minute
-		}
-		
-	case "sqlite":
-		// SQLite has more limitations but we can still optimize
-		if maxOpenConns == 0 {
-			maxOpenConns = 25 // Conservative for SQLite but higher than default
-		}
-		if maxIdleConns == 0 {
-			maxIdleConns = 5 // Lower for SQLite
-		}
-		if connMaxLifetime == 0 {
-			connMaxLifetime = 1 * time.Hour
-		}
-		if connMaxIdleTime == 0 {
-			connMaxIdleTime = 15 * time.Minute
-		}
-		
-	default:
-		// Default conservative settings
-		if maxOpenConns == 0 {
-			maxOpenConns = 10
-		}
-		if maxIdleConns == 0 {
-			maxIdleConns = 2
-		}
-		if connMaxLifetime == 0 {
-			connMaxLifetime = 1 * time.Hour
-		}
-		if connMaxIdleTime == 0 {
-			connMaxIdleTime = 10 * time.Minute
-		}
-	}
-	
-	return &ConnectionPoolConfig{
-		MaxOpenConns:    maxOpenConns,
-		MaxIdleConns:    maxIdleConns,
-		ConnMaxLifetime: connMaxLifetime,
-		ConnMaxIdleTime: connMaxIdleTime,
-	}
-}
-
-// getEnvInt gets an integer environment variable with fallback
-func getEnvInt(key string, defaultVal int) int {
-	if str := os.Getenv(key); str != "" {
-		if val, err := strconv.Atoi(str); err == nil {
-			return val
-		}
-	}
-	return defaultVal
-}
-
-// getEnvDuration gets a duration environment variable with fallback
-func getEnvDuration(key string, defaultVal time.Duration) time.Duration {
-	if str := os.Getenv(key); str != "" {
-		if val, err := time.ParseDuration(str); err == nil {
-			return val
-		}
-	}
-	return defaultVal
-}
-
 // configureConnectionPool applies connection pool settings to a database connection
-func configureConnectionPool(db *gorm.DB, dbType string) error {
+func configureConnectionPool(db *gorm.DB, cfg config.DatabaseFullConfig) error {
 	sqlDB, err := db.DB()
 	if err != nil {
-		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		return fmt.Errorf("failed to get sql.DB: %w", err)
 	}
-	
-	config := GetOptimalPoolConfig(dbType)
-	
-	// Apply connection pool settings
-	sqlDB.SetMaxOpenConns(config.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(config.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(config.ConnMaxLifetime)
-	sqlDB.SetConnMaxIdleTime(config.ConnMaxIdleTime)
-	
-	// Log the applied configuration
-	log.Printf("✅ Connection pool configured for %s:", dbType)
-	log.Printf("   - Max Open Connections: %d", config.MaxOpenConns)
-	log.Printf("   - Max Idle Connections: %d", config.MaxIdleConns)
-	log.Printf("   - Connection Max Lifetime: %v", config.ConnMaxLifetime)
-	log.Printf("   - Connection Max Idle Time: %v", config.ConnMaxIdleTime)
-	
+
+	// Set connection pool parameters from configuration
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns) 
+	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+
+	log.Printf("📊 Database connection pool configured:")
+	log.Printf("   - Max Open Connections: %d", cfg.MaxOpenConns)
+	log.Printf("   - Max Idle Connections: %d", cfg.MaxIdleConns)
+	log.Printf("   - Connection Max Lifetime: %v", cfg.ConnMaxLifetime)
+	log.Printf("   - Connection Max Idle Time: %v", cfg.ConnMaxIdleTime)
+
 	return nil
 }
 
 // Initialize sets up the database connection based on the DATABASE_TYPE environment variable
 func Initialize() {
+	log.Printf("🔄 Initializing database...")
+	
+	// Get database configuration from centralized config
+	cfg := config.Get().Database
+	
 	var err error
+	var dbType string
 	
-	dbType := os.Getenv("DATABASE_TYPE")
-	if dbType == "" {
-		dbType = "sqlite" // default to SQLite
-	}
-	
-	switch dbType {
+	switch cfg.Type {
 	case "postgres":
-		DB, err = connectPostgres()
+		dbType = "PostgreSQL"
+		DB, err = connectPostgres(cfg)
 	case "sqlite":
-		DB, err = connectSQLite()
+		dbType = "SQLite"
+		DB, err = connectSQLite(cfg)
 	default:
-		log.Fatalf("Unsupported database type: %s", dbType)
+		log.Printf("⚠️  Unknown database type '%s', defaulting to SQLite", cfg.Type)
+		dbType = "SQLite"
+		DB, err = connectSQLite(cfg)
 	}
 
 	if err != nil {
@@ -157,7 +65,7 @@ func Initialize() {
 	}
 
 	// Configure connection pool for optimal performance
-	if err := configureConnectionPool(DB, dbType); err != nil {
+	if err := configureConnectionPool(DB, cfg); err != nil {
 		log.Printf("⚠️  Warning: Failed to configure connection pool: %v", err)
 	}
 
@@ -183,7 +91,7 @@ func Initialize() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
-	log.Printf("✅ Database initialized with %s at %s", dbType, config.GetDatabasePath())
+	log.Printf("✅ Database initialized with %s at %s", dbType, cfg.DatabasePath)
 }
 
 // testConnectionPool performs a quick test of the connection pool
@@ -208,21 +116,23 @@ func testConnectionPool(db *gorm.DB) error {
 	return nil
 }
 
-func connectPostgres() (*gorm.DB, error) {
-	host := os.Getenv("POSTGRES_HOST")
-	port := os.Getenv("POSTGRES_PORT")
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-	dbname := os.Getenv("POSTGRES_DB")
-	
+func connectPostgres(cfg config.DatabaseFullConfig) (*gorm.DB, error) {
+	// Use configuration values with fallbacks
+	host := cfg.Host
 	if host == "" {
 		host = "localhost"
 	}
-	if port == "" {
-		port = "5432"
+	
+	port := cfg.Port
+	if port == 0 {
+		port = 5432
 	}
 	
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+	user := cfg.Username
+	password := cfg.Password
+	dbname := cfg.Database
+	
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
 		host, user, password, dbname, port)
 	
 	// Configure GORM with optimized settings for high-throughput operations
@@ -247,8 +157,8 @@ func connectPostgres() (*gorm.DB, error) {
 	return gorm.Open(postgres.Open(dsn), gormConfig)
 }
 
-func connectSQLite() (*gorm.DB, error) {
-	dbPath := config.GetDatabasePath()
+func connectSQLite(cfg config.DatabaseFullConfig) (*gorm.DB, error) {
+	dbPath := cfg.DatabasePath
 	
 	// Add SQLite pragmas for better performance
 	dsn := dbPath + "?" +
