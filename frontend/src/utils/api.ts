@@ -15,39 +15,8 @@ export const buildImageUrl = (baseUrl: string, quality: number = 90): string => 
 };
 
 /**
- * Generates a deterministic album UUID based on media file ID
- * This matches the server-side logic for creating album placeholders
- * Uses UUID v5 with OID namespace to match Go's uuid.NewSHA1(uuid.NameSpaceOID, ...)
- * @param mediaFileId - The media file ID
- * @returns Album UUID string
- */
-export const generateAlbumUUID = (mediaFileId: number): string => {
-  // OID namespace UUID from RFC 4122: 6ba7b812-9dad-11d1-80b4-00c04fd430c8
-  const oidNamespace = '6ba7b8129dad11d180b400c04fd430c8';
-
-  // Create the same string that the server uses
-  const albumString = `album-placeholder-${mediaFileId}`;
-
-  // Simple SHA-1 based UUID v5 implementation
-  // This is a simplified version - in production you'd use a proper UUID library
-  let hash = 0;
-  for (let i = 0; i < albumString.length; i++) {
-    const char = albumString.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-
-  // Combine with namespace for better distribution
-  const combinedHash = hash + parseInt(oidNamespace.slice(0, 8), 16);
-  const hex = Math.abs(combinedHash).toString(16).padStart(12, '0');
-
-  // Format as UUID v5 (version 5 uses SHA-1)
-  return `${hex.slice(0, 8)}-${hex.slice(0, 4)}-5${hex.slice(1, 4)}-${(8 + (Math.abs(combinedHash) % 4)).toString(16)}${hex.slice(1, 4)}-${hex.slice(0, 12)}`;
-};
-
-/**
  * Builds an artwork URL for a media file using the new asset system
- * This uses a simpler approach with the backend's album-artwork endpoint
+ * This uses the backend's album-artwork endpoint which properly resolves the real Album.ID
  * @param mediaFileId - The media file ID
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
  * @returns Optimized artwork URL for the new asset system
@@ -55,31 +24,18 @@ export const generateAlbumUUID = (mediaFileId: number): string => {
 export const buildArtworkUrl = (mediaFileId: number | string, quality: number = 90): string => {
   const fileId = typeof mediaFileId === 'string' ? parseInt(mediaFileId) : mediaFileId;
 
-  // Use the backend's album-artwork endpoint which properly redirects to the asset system
+  // Use the backend's album-artwork endpoint which properly resolves to real Album.ID
   return buildImageUrl(`/api/media/files/${fileId}/album-artwork`, quality);
 };
 
 /**
  * Builds an artwork URL using the new entity-based asset system
- * @param albumUUID - The album UUID
+ * @param albumUUID - The album UUID (real Album.ID from database)
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
  * @returns Optimized artwork URL for the new asset system
  */
 export const buildAlbumArtworkUrl = (albumUUID: string, quality: number = 90): string => {
   return buildImageUrl(`/api/v1/assets/entity/album/${albumUUID}/preferred/cover/data`, quality);
-};
-
-/**
- * Builds an artwork URL for a media file by generating the album UUID
- * This is a bridge function for the new asset system
- * @param mediaFileId - The media file ID
- * @param quality - Quality percentage (1-100), defaults to 90% for frontend
- * @returns Optimized artwork URL for the new asset system
- */
-export const buildArtworkUrlNew = (mediaFileId: number | string, quality: number = 90): string => {
-  const fileId = typeof mediaFileId === 'string' ? parseInt(mediaFileId) : mediaFileId;
-  const albumUUID = generateAlbumUUID(fileId);
-  return buildAlbumArtworkUrl(albumUUID, quality);
 };
 
 /**
@@ -143,17 +99,42 @@ export const getEntityAssets = async (
 };
 
 /**
- * Gets the album ID for a media file from the backend
+ * Gets the real album ID for a media file from the backend
+ * This replaces the old placeholder UUID generation with proper database lookup
  * @param mediaFileId - The media file ID
- * @returns Promise with album information
+ * @returns Promise with album information including real Album.ID
  */
 export const getMediaFileAlbumId = async (
   mediaFileId: number | string
-): Promise<{ media_file_id: number; album_id: string; asset_url: string }> => {
-  const fileId = typeof mediaFileId === 'string' ? parseInt(mediaFileId) : mediaFileId;
+): Promise<{ media_file_id: string; album_id: string; asset_url: string }> => {
+  const fileId = typeof mediaFileId === 'string' ? mediaFileId : mediaFileId.toString();
   const response = await fetch(`/api/media/files/${fileId}/album-id`);
   if (!response.ok) {
     throw new Error(`Failed to get album ID: ${response.statusText}`);
   }
   return response.json();
+};
+
+/**
+ * Builds an artwork URL for a media file by fetching the real Album.ID from the backend
+ * This is an async alternative to buildArtworkUrl for when you need the actual Album.ID
+ * @param mediaFileId - The media file ID
+ * @param quality - Quality percentage (1-100), defaults to 90% for frontend
+ * @returns Promise with optimized artwork URL using real Album.ID
+ */
+export const buildArtworkUrlAsync = async (
+  mediaFileId: number | string,
+  quality: number = 90
+): Promise<string> => {
+  try {
+    const albumInfo = await getMediaFileAlbumId(mediaFileId);
+    return buildAlbumArtworkUrl(albumInfo.album_id, quality);
+  } catch (error) {
+    // Fallback to the direct endpoint if Album.ID lookup fails
+    console.warn(
+      `Failed to get album ID for media file ${mediaFileId}, falling back to direct artwork endpoint:`,
+      error
+    );
+    return buildArtworkUrl(mediaFileId, quality);
+  }
 };

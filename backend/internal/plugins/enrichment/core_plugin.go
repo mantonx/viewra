@@ -345,13 +345,16 @@ func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, albumID string
 		return fmt.Errorf("asset manager not available")
 	}
 
-	// Generate unique entity ID for the album (we'll use a placeholder for now)
-	entityID := uuid.New()
+	// Parse the albumID string to UUID
+	albumUUID, err := uuid.Parse(albumID)
+	if err != nil {
+		return fmt.Errorf("invalid album ID format: %w", err)
+	}
 
-	// Create asset request
+	// Create asset request using the real Album.ID
 	request := &assetmodule.AssetRequest{
 		EntityType: assetmodule.EntityTypeAlbum,
-		EntityID:   entityID,
+		EntityID:   albumUUID,
 		Type:       assetmodule.AssetTypeCover,
 		Source:     assetmodule.SourceEmbedded,
 		Data:       artwork.Data,
@@ -365,7 +368,7 @@ func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, albumID string
 		return fmt.Errorf("failed to save artwork: %w", err)
 	}
 
-	log.Printf("INFO: Saved artwork for media file %s", albumID)
+	log.Printf("INFO: Saved artwork for album %s", albumID)
 	return nil
 }
 

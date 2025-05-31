@@ -21,6 +21,7 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/internal/apiroutes"
 	"github.com/mantonx/viewra/internal/config"
+	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/modules/assetmodule"
 	"github.com/mantonx/viewra/internal/plugins/proto"
 	"google.golang.org/grpc"
@@ -747,6 +748,38 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 	// Convert old plugin asset format to new entity-based asset system
 	h.logger.Info("Converting plugin asset to new entity-based asset system", "media_file_id", mediaFileID)
 	
+	// Get database connection
+	db := database.GetDB()
+	if db == nil {
+		return 0, "", "", fmt.Errorf("database not available")
+	}
+	
+	// Get the MediaFile and follow the relationship to find the real Album.ID
+	mediaFileIDStr := fmt.Sprintf("%d", mediaFileID)
+	var mediaFile database.MediaFile
+	if err := db.Where("id = ?", mediaFileIDStr).First(&mediaFile).Error; err != nil {
+		return 0, "", "", fmt.Errorf("failed to find media file %d: %w", mediaFileID, err)
+	}
+	
+	// Only handle track media types for now
+	if mediaFile.MediaType != database.MediaTypeTrack {
+		return 0, "", "", fmt.Errorf("album artwork only supported for music tracks")
+	}
+	
+	// Get the track to find the album
+	var track database.Track
+	if err := db.Preload("Album").Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
+		return 0, "", "", fmt.Errorf("failed to find track for media file %d: %w", mediaFileID, err)
+	}
+	
+	// Parse Album.ID as UUID
+	albumUUID, err := uuid.Parse(track.Album.ID)
+	if err != nil {
+		return 0, "", "", fmt.Errorf("invalid album ID format for track %s: %w", track.ID, err)
+	}
+	
+	h.logger.Info("Saving plugin asset for real album", "media_file_id", mediaFileID, "album_id", track.Album.ID, "album_title", track.Album.Title)
+	
 	// Detect proper MIME type from data if the provided one is generic
 	if mimeType == "" || mimeType == "application/octet-stream" || mimeType == "binary/octet-stream" {
 		mimeType = h.detectImageMimeType(data)
@@ -777,7 +810,7 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 	// Also check sourceURL for additional hints
 	if sourceURL != "" {
 		switch {
-		case strings.Contains(sourceURL, "coverartarchive.org"):
+		case strings.Contains(sourceURL, "musicbrainz.org"):
 			source = assetmodule.SourceMusicBrainz
 		case strings.Contains(sourceURL, "theaudiodb.com"):
 			source = assetmodule.SourceAudioDB
@@ -791,11 +824,6 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 	}
 	
 	h.logger.Info("Determined asset source", "source", source, "media_file_id", mediaFileID, "source_url", sourceURL)
-	
-	// For music assets, associate with album entity
-	// Generate a deterministic UUID for the album based on mediaFileID
-	albumIDString := fmt.Sprintf("album-placeholder-%d", mediaFileID)
-	albumID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(albumIDString))
 	
 	// Map old plugin asset types to new system
 	var entityType assetmodule.EntityType
@@ -816,10 +844,10 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		assetTypeNew = assetmodule.AssetTypeCover
 	}
 	
-	// Create asset request for new system
+	// Create asset request for new system using real Album.ID
 	request := &assetmodule.AssetRequest{
 		EntityType: entityType,
-		EntityID:   albumID,
+		EntityID:   albumUUID,
 		Type:       assetTypeNew,
 		Source:     source, // Use the determined source instead of generic SourcePlugin
 		Data:       data,
@@ -834,7 +862,7 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		return 0, "", "", fmt.Errorf("failed to save asset with new system: %w", err)
 	}
 
-	h.logger.Info("Successfully saved asset with new system", "asset_id", response.ID, "path", response.Path, "source", source)
+	h.logger.Info("Successfully saved asset with new system", "asset_id", response.ID, "path", response.Path, "source", source, "album_title", track.Album.Title)
 	
 	// Return values compatible with old interface (using dummy values since new system uses UUIDs)
 	return 1, response.ID.String(), response.Path, nil

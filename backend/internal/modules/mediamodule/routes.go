@@ -446,14 +446,36 @@ func (m *Module) getFileAlbumId(c *gin.Context) {
 		return
 	}
 	
-	// Generate the deterministic album UUID using the file ID
-	albumIDString := fmt.Sprintf("album-placeholder-%s", idStr)
-	albumID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(albumIDString))
+	// Get the media file with Track and Album information
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+	
+	// Only handle track media types for now
+	if mediaFile.MediaType != database.MediaTypeTrack {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Album artwork only available for music tracks",
+		})
+		return
+	}
+	
+	// Get the track to find the album
+	var track database.Track
+	if err := m.db.Preload("Album").Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Track not found for media file",
+		})
+		return
+	}
 	
 	c.JSON(http.StatusOK, gin.H{
 		"media_file_id": idStr,
-		"album_id": albumID.String(),
-		"asset_url": fmt.Sprintf("/api/v1/assets/entity/album/%s/preferred/cover", albumID.String()),
+		"album_id": track.Album.ID,
+		"asset_url": fmt.Sprintf("/api/v1/assets/entity/album/%s/preferred/cover", track.Album.ID),
 	})
 }
 
@@ -467,9 +489,31 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 		return
 	}
 	
-	// Generate the deterministic album UUID using the file ID
-	albumIDString := fmt.Sprintf("album-placeholder-%s", idStr)
-	albumID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(albumIDString))
+	// Get the media file with Track and Album information
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+	
+	// Only handle track media types for now
+	if mediaFile.MediaType != database.MediaTypeTrack {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Album artwork only available for music tracks",
+		})
+		return
+	}
+	
+	// Get the track to find the album
+	var track database.Track
+	if err := m.db.Preload("Album").Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Track not found for media file",
+		})
+		return
+	}
 	
 	// Get quality parameter
 	qualityStr := c.Query("quality")
@@ -487,11 +531,11 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 		Format string    `json:"format"`
 	}
 	
-	// Query the database directly for the preferred cover asset
+	// Query the database directly for the preferred cover asset using the real Album.ID
 	err := m.db.Table("media_assets").
 		Select("id, path, format").
 		Where("entity_type = ? AND entity_id = ? AND type = ? AND preferred = ?", 
-			"album", albumID.String(), "cover", true).
+			"album", track.Album.ID, "cover", true).
 		First(&asset).Error
 	
 	if err != nil {
@@ -499,14 +543,14 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 		err = m.db.Table("media_assets").
 			Select("id, path, format").
 			Where("entity_type = ? AND entity_id = ? AND type = ?", 
-				"album", albumID.String(), "cover").
+				"album", track.Album.ID, "cover").
 			First(&asset).Error
 	}
 	
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "No album artwork found",
-			"album_id": albumID.String(),
+			"album_id": track.Album.ID,
 		})
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/modules/assetmodule"
 	"gorm.io/gorm"
 )
@@ -105,19 +106,37 @@ func (mm *MediaManager) saveMediaAsset(asset MediaAsset) error {
 func (mm *MediaManager) saveArtworkAsset(asset MediaAsset) error {
 	fmt.Printf("INFO: Converting plugin asset to new entity-based asset system\n")
 	
-	// For embedded music artwork, we'll associate it with the album entity
-	// Generate a deterministic UUID for the album based on mediaFileID
-	// In a real system, you'd lookup the actual album ID from metadata
-	albumIDString := fmt.Sprintf("album-placeholder-%d", asset.MediaFileID)
-	albumID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(albumIDString))
+	// Get the MediaFile and follow the relationship to find the real Album.ID
+	var mediaFile database.MediaFile
+	if err := mm.db.Where("id = ?", asset.MediaFileID).First(&mediaFile).Error; err != nil {
+		return fmt.Errorf("failed to find media file %s: %w", asset.MediaFileID, err)
+	}
 	
-	fmt.Printf("INFO: Saving plugin artwork for media file ID %d as album cover (album UUID: %s)\n", asset.MediaFileID, albumID)
+	// Only handle track media types for now
+	if mediaFile.MediaType != database.MediaTypeTrack {
+		return fmt.Errorf("album artwork only supported for music tracks")
+	}
+	
+	// Get the track to find the album
+	var track database.Track
+	if err := mm.db.Preload("Album").Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
+		return fmt.Errorf("failed to find track for media file %s: %w", asset.MediaFileID, err)
+	}
+	
+	// Parse Album.ID as UUID
+	albumUUID, err := uuid.Parse(track.Album.ID)
+	if err != nil {
+		return fmt.Errorf("invalid album ID format for track %s: %w", track.ID, err)
+	}
+	
+	fmt.Printf("INFO: Saving plugin artwork for media file ID %s as album cover (album ID: %s, album title: %s)\n", 
+		asset.MediaFileID, track.Album.ID, track.Album.Title)
 	
 	// Detect proper MIME type from data if the provided one is generic
 	mimeType := asset.MimeType
 	if mimeType == "" || mimeType == "application/octet-stream" || mimeType == "binary/octet-stream" {
 		mimeType = mm.detectImageMimeType(asset.Data)
-		fmt.Printf("INFO: Detected MIME type as %s for media file ID %d\n", mimeType, asset.MediaFileID)
+		fmt.Printf("INFO: Detected MIME type as %s for media file ID %s\n", mimeType, asset.MediaFileID)
 	}
 	
 	// Determine source based on metadata or context
@@ -135,15 +154,15 @@ func (mm *MediaManager) saveArtworkAsset(asset MediaAsset) error {
 		default:
 			source = assetmodule.SourcePlugin // Generic fallback
 		}
-		fmt.Printf("INFO: Determined asset source as %s from metadata for media file ID %d\n", source, asset.MediaFileID)
+		fmt.Printf("INFO: Determined asset source as %s from metadata for media file ID %s\n", source, asset.MediaFileID)
 	} else {
-		fmt.Printf("INFO: No source metadata found, using SourceEmbedded for media file ID %d\n", asset.MediaFileID)
+		fmt.Printf("INFO: No source metadata found, using SourceEmbedded for media file ID %s\n", asset.MediaFileID)
 	}
 	
-	// Create asset request for album cover using new system
+	// Create asset request for album cover using new system with real Album.ID
 	request := &assetmodule.AssetRequest{
 		EntityType: assetmodule.EntityTypeAlbum,
-		EntityID:   albumID,
+		EntityID:   albumUUID,
 		Type:       assetmodule.AssetTypeCover,
 		Source:     source, // Use the determined source
 		Data:       asset.Data,
@@ -152,12 +171,13 @@ func (mm *MediaManager) saveArtworkAsset(asset MediaAsset) error {
 	}
 
 	// Save using the new asset manager
-	_, err := assetmodule.SaveMediaAsset(request)
+	_, err = assetmodule.SaveMediaAsset(request)
 	if err != nil {
 		return fmt.Errorf("failed to save artwork with new asset system: %w", err)
 	}
 
-	fmt.Printf("INFO: Successfully saved plugin artwork for media file ID %d as album cover (source: %s)\n", asset.MediaFileID, source)
+	fmt.Printf("INFO: Successfully saved plugin artwork for media file ID %s as album cover (album: %s, source: %s)\n", 
+		asset.MediaFileID, track.Album.Title, source)
 	return nil
 }
 
