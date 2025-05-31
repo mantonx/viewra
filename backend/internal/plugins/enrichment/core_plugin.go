@@ -120,7 +120,6 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx plugins.MetadataConte
 			"title":       metadata.Title,
 			"artist":      metadata.Artist,
 			"album":       metadata.Album,
-			"hasArtwork":  metadata.HasArtwork,
 		}
 		eventBus.PublishAsync(event)
 	}
@@ -145,12 +144,10 @@ func (p *EnrichmentCorePlugin) extractMetadata(path string) (*database.MusicMeta
 
 	// Extract basic metadata
 	musicMeta := &database.MusicMetadata{
-		Title:       metadata.Title(),
-		Artist:      metadata.Artist(),
-		Album:       metadata.Album(),
-		AlbumArtist: metadata.AlbumArtist(),
-		Genre:       metadata.Genre(),
-		Format:      strings.ToUpper(filepath.Ext(path)[1:]), // Remove dot and uppercase
+		Title:  metadata.Title(),
+		Artist: metadata.Artist(),
+		Album:  metadata.Album(),
+		Genre:  metadata.Genre(),
 	}
 
 	// Handle missing title
@@ -176,63 +173,40 @@ func (p *EnrichmentCorePlugin) extractMetadata(path string) (*database.MusicMeta
 	}
 
 	// Parse track number
-	if trackNum, trackTotal := metadata.Track(); trackNum != 0 {
-		musicMeta.Track = trackNum
-		musicMeta.TrackTotal = trackTotal
-	}
-
-	// Parse disc number
-	if discNum, discTotal := metadata.Disc(); discNum != 0 {
-		musicMeta.Disc = discNum
-		musicMeta.DiscTotal = discTotal
+	if trackNum, _ := metadata.Track(); trackNum != 0 {
+		musicMeta.TrackNumber = trackNum
 	}
 
 	// Get file info for additional metadata
 	if fileInfo, err := os.Stat(path); err == nil {
-		musicMeta.Duration = p.estimateDuration(fileInfo.Size(), path)
+		musicMeta.Duration = int(p.estimateDuration(fileInfo.Size(), path).Seconds())
 	}
-
-	// Check if artwork is present
-	if artwork := metadata.Picture(); artwork != nil && len(artwork.Data) > 0 {
-		musicMeta.HasArtwork = true
-	}
-
-	// Detect audio format details if possible
-	p.detectAudioFormat(musicMeta, metadata)
 
 	return musicMeta, nil
 }
 
 // saveMetadata saves music metadata to the database
-func (p *EnrichmentCorePlugin) saveMetadata(metadata *database.MusicMetadata, mediaFileID uint) error {
+func (p *EnrichmentCorePlugin) saveMetadata(metadata *database.MusicMetadata, mediaFileID string) error {
+	// Set the media file ID
 	metadata.MediaFileID = mediaFileID
 
 	// Check if metadata already exists
-	var existingMeta database.MusicMetadata
-	err := p.db.Where("media_file_id = ?", mediaFileID).First(&existingMeta).Error
+	var existing database.MusicMetadata
+	result := p.db.Where("media_file_id = ?", mediaFileID).First(&existing)
 	
-	if err == gorm.ErrRecordNotFound {
-		// Create new metadata record
-		if err := p.db.Create(metadata).Error; err != nil {
-			return fmt.Errorf("failed to create metadata: %w", err)
-		}
-		log.Printf("INFO: Created new metadata record for media file %d", mediaFileID)
-	} else if err != nil {
-		return fmt.Errorf("failed to check existing metadata: %w", err)
+	if result.Error == nil {
+		// Update existing metadata
+		metadata.ID = existing.ID
+		metadata.CreatedAt = existing.CreatedAt
+		return p.db.Save(metadata).Error
 	} else {
-		// Update existing metadata record
-		metadata.ID = existingMeta.ID
-		if err := p.db.Save(metadata).Error; err != nil {
-			return fmt.Errorf("failed to update metadata: %w", err)
-		}
-		log.Printf("INFO: Updated existing metadata record for media file %d", mediaFileID)
+		// Create new metadata
+		return p.db.Create(metadata).Error
 	}
-
-	return nil
 }
 
-// extractAndSaveArtwork extracts embedded artwork and saves it using the asset system
-func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, mediaFileID uint) error {
+// extractAndSaveArtwork extracts and saves artwork from a music file
+func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, mediaFileID string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -245,130 +219,110 @@ func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, mediaFileID ui
 		return fmt.Errorf("failed to read tags: %w", err)
 	}
 
-	// Get artwork
 	artwork := metadata.Picture()
 	if artwork == nil || len(artwork.Data) == 0 {
-		return nil // No artwork present, not an error
+		return fmt.Errorf("no artwork found in file")
 	}
 
-	// Generate deterministic album UUID for asset system
-	albumIDString := fmt.Sprintf("album-placeholder-%d", mediaFileID)
-	albumID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(albumIDString))
-
-	// Determine MIME type from artwork
-	mimeType := artwork.MIMEType
+	// Detect MIME type
+	mimeType := p.detectImageMimeType(artwork.Data)
 	if mimeType == "" {
-		mimeType = p.detectImageMimeType(artwork.Data)
+		return fmt.Errorf("unsupported image format")
 	}
 
-	// Create asset request for the new asset system
+	// Save artwork using asset module
+	assetManager := assetmodule.GetAssetManager()
+	if assetManager == nil {
+		return fmt.Errorf("asset manager not available")
+	}
+
+	// Generate unique entity ID for the album (we'll use a placeholder for now)
+	entityID := uuid.New()
+
+	// Create asset request
 	request := &assetmodule.AssetRequest{
 		EntityType: assetmodule.EntityTypeAlbum,
-		EntityID:   albumID,
+		EntityID:   entityID,
 		Type:       assetmodule.AssetTypeCover,
-		Source:     assetmodule.SourceEmbedded, // Indicates it's extracted from file
+		Source:     assetmodule.SourceEmbedded,
 		Data:       artwork.Data,
 		Format:     mimeType,
-		Preferred:  true, // Embedded artwork is preferred
+		Preferred:  true,
 	}
 
-	// Save using the asset manager
-	response, err := assetmodule.SaveMediaAsset(request)
+	// Save the artwork
+	_, err = assetManager.SaveAsset(request)
 	if err != nil {
 		return fmt.Errorf("failed to save artwork: %w", err)
 	}
 
-	log.Printf("INFO: Successfully saved embedded artwork for media file %d: %s", 
-		mediaFileID, response.ID.String())
-
+	log.Printf("INFO: Saved artwork for media file %s", mediaFileID)
 	return nil
 }
 
-// detectImageMimeType detects MIME type from image data
+// detectImageMimeType detects the MIME type of image data
 func (p *EnrichmentCorePlugin) detectImageMimeType(data []byte) string {
-	if len(data) < 16 {
-		return "image/jpeg" // Default fallback
+	if len(data) < 12 {
+		return ""
 	}
 
-	// Check for common image signatures
-	switch {
-	case len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF: // JPEG
+	// Check for JPEG
+	if len(data) >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
 		return "image/jpeg"
-	case len(data) >= 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47: // PNG
-		return "image/png"
-	case len(data) >= 6 && data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46: // GIF
-		return "image/gif"
-	case len(data) >= 12 && data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46: // WebP
-		if len(data) >= 12 && data[8] == 0x57 && data[9] == 0x45 && data[10] == 0x42 && data[11] == 0x50 {
-			return "image/webp"
-		}
-		return "image/jpeg"
-	case len(data) >= 2 && data[0] == 0x42 && data[1] == 0x4D: // BMP
-		return "image/bmp"
-	default:
-		return "image/jpeg" // Default fallback
 	}
+
+	// Check for PNG
+	if len(data) >= 8 && string(data[:8]) == "\x89PNG\r\n\x1a\n" {
+		return "image/png"
+	}
+
+	// Check for WebP
+	if len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+		return "image/webp"
+	}
+
+	// Check for GIF
+	if len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a") {
+		return "image/gif"
+	}
+
+	return ""
 }
 
-// estimateDuration provides a rough duration estimate based on file size and format
+// estimateDuration estimates the duration of an audio file based on file size
 func (p *EnrichmentCorePlugin) estimateDuration(size int64, path string) time.Duration {
-	ext := strings.ToLower(filepath.Ext(path))
+	// Very rough estimation based on file size and format
+	// This is a fallback when proper duration extraction fails
 	
-	// Rough estimates based on typical bitrates
-	var estimatedBitrate float64
+	ext := strings.ToLower(filepath.Ext(path))
+	var avgBitrate int64 // bits per second
+	
 	switch ext {
 	case ".mp3":
-		estimatedBitrate = 192000 // 192 kbps
+		avgBitrate = 128000 // 128 kbps average
 	case ".flac":
-		estimatedBitrate = 1000000 // 1000 kbps (lossless)
-	case ".m4a", ".aac":
-		estimatedBitrate = 256000 // 256 kbps
-	case ".ogg":
-		estimatedBitrate = 192000 // 192 kbps
+		avgBitrate = 1000000 // ~1 Mbps average for lossless
 	case ".wav":
-		estimatedBitrate = 1411200 // 1411.2 kbps (CD quality)
+		avgBitrate = 1411200 // CD quality: 44.1kHz * 16bit * 2ch
+	case ".m4a", ".aac":
+		avgBitrate = 128000 // 128 kbps average
+	case ".ogg":
+		avgBitrate = 160000 // 160 kbps average
 	default:
-		estimatedBitrate = 256000 // Default
+		avgBitrate = 128000 // Default assumption
 	}
 	
-	// Calculate duration: (file_size_bits) / (bitrate) = seconds
-	durationSeconds := float64(size*8) / estimatedBitrate
+	// Calculate duration: (file_size_bytes * 8) / bitrate_bps
+	durationSeconds := (size * 8) / avgBitrate
 	
-	return time.Duration(durationSeconds * float64(time.Second))
-}
-
-// detectAudioFormat attempts to detect additional audio format details
-func (p *EnrichmentCorePlugin) detectAudioFormat(musicMeta *database.MusicMetadata, metadata tag.Metadata) {
-	// Try to extract additional format details from the metadata
-	// This is basic - could be enhanced with more sophisticated audio analysis
-	
-	// Set some reasonable defaults based on format
-	switch strings.ToUpper(musicMeta.Format) {
-	case "MP3":
-		musicMeta.Bitrate = 192 // Default assumption
-		musicMeta.SampleRate = 44100
-		musicMeta.Channels = 2
-	case "FLAC":
-		musicMeta.Bitrate = 1000 // Lossless estimate
-		musicMeta.SampleRate = 44100
-		musicMeta.Channels = 2
-	case "M4A", "AAC":
-		musicMeta.Bitrate = 256
-		musicMeta.SampleRate = 44100
-		musicMeta.Channels = 2
-	case "OGG":
-		musicMeta.Bitrate = 192
-		musicMeta.SampleRate = 44100
-		musicMeta.Channels = 2
-	case "WAV":
-		musicMeta.Bitrate = 1411 // CD quality
-		musicMeta.SampleRate = 44100
-		musicMeta.Channels = 2
-	default:
-		musicMeta.Bitrate = 192
-		musicMeta.SampleRate = 44100
-		musicMeta.Channels = 2
+	// Sanity check: limit to reasonable range (1 second to 2 hours)
+	if durationSeconds < 1 {
+		durationSeconds = 1
+	} else if durationSeconds > 7200 { // 2 hours
+		durationSeconds = 7200
 	}
+	
+	return time.Duration(durationSeconds) * time.Second
 }
 
 // IsEnabled returns whether the plugin is enabled

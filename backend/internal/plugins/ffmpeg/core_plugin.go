@@ -227,52 +227,31 @@ func (p *FFmpegCorePlugin) isExtensionSupported(ext string) bool {
 	return false
 }
 
-// extractMediaMetadata extracts metadata from a media file using FFprobe
+// extractMediaMetadata extracts metadata using FFprobe and returns a MusicMetadata struct
 func (p *FFmpegCorePlugin) extractMediaMetadata(filePath string, mediaFile *database.MediaFile) (*database.MusicMetadata, error) {
-	fmt.Printf("Extracting FFmpeg metadata from: %s\n", filePath)
-	
-	// Create MusicMetadata instance with fallback values (also used for video files)
-	mediaMeta := &database.MusicMetadata{
-		MediaFileID: mediaFile.ID,
-		Format:      strings.ToLower(filepath.Ext(filePath)[1:]), // Fallback to file extension
+	if !p.isFFProbeAvailable() {
+		return nil, fmt.Errorf("FFprobe not available")
 	}
 
-	// Use FFprobe if available for enhanced metadata
-	if p.isFFProbeAvailable() {
-		audioInfo, err := p.extractAudioTechnicalInfo(filePath)
-		if err != nil {
-			fmt.Printf("WARNING: FFprobe extraction failed for %s: %v\n", filePath, err)
-			// Continue with fallback approach
-		} else {
-			// Populate metadata from FFprobe
-			mediaMeta.Format = audioInfo.Format
-			mediaMeta.Bitrate = audioInfo.Bitrate
-			mediaMeta.SampleRate = audioInfo.SampleRate
-			mediaMeta.Channels = audioInfo.Channels
-			if audioInfo.Duration > 0 {
-				mediaMeta.Duration = time.Duration(audioInfo.Duration * float64(time.Second))
-			}
-			
-			// For video files, we might not have audio-specific metadata like artist/album
-			// but we can still store the technical information
-			mediaType := p.getMediaType(filePath)
-			if mediaType == "video" {
-				mediaMeta.Title = p.getBaseName(filePath)
-				mediaMeta.Genre = "Video"
-				fmt.Printf("✅ FFprobe video metadata extracted: %.2fs, %s, %d kbps\n", 
-					audioInfo.Duration, audioInfo.Format, audioInfo.Bitrate)
-			} else {
-				fmt.Printf("✅ FFprobe audio metadata extracted: %.2fs, %s, %d kbps, %d Hz\n", 
-					audioInfo.Duration, audioInfo.Format, audioInfo.Bitrate, audioInfo.SampleRate)
-			}
-		}
-	} else {
-		fmt.Printf("⚠️  FFprobe not available - using basic metadata only\n")
-		// Set basic metadata from filename
-		mediaMeta.Title = p.getBaseName(filePath)
-		if p.getMediaType(filePath) == "video" {
-			mediaMeta.Genre = "Video"
-		}
+	// Extract technical audio information
+	audioInfo, err := p.extractAudioTechnicalInfo(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract audio info: %w", err)
+	}
+
+	// Create metadata record
+	mediaMeta := &database.MusicMetadata{
+		MediaFileID: mediaFile.ID,
+		Title:       p.getBaseName(filePath),
+		Artist:      "Unknown Artist",
+		Album:       "Unknown Album",
+		Duration:    int(audioInfo.Duration),
+	}
+
+	// Try to extract additional metadata from FFprobe tags
+	if audioInfo.Format != "" {
+		// Format information is available but not stored in the simplified schema
+		debugLog("Audio format: %s, Codec: %s\n", audioInfo.Format, audioInfo.Codec)
 	}
 
 	return mediaMeta, nil
