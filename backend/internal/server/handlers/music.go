@@ -24,17 +24,54 @@ func NewMusicHandler(eventBus events.EventBus) *MusicHandler {
 	}
 }
 
-// GetMusicMetadata retrieves music metadata for a media file
+// GetMusicMetadata retrieves music metadata for a media file using new schema
 func (h *MusicHandler) GetMusicMetadata(c *gin.Context) {
-	// TODO: With new schema, music metadata would be retrieved through Artist/Album/Track relationships
-	// For now, return a placeholder response
-	c.JSON(http.StatusNotFound, gin.H{
-		"error": "Music metadata retrieval not yet implemented for new schema",
-		"note":  "Music metadata is now stored in Artist/Album/Track tables",
+	idParam := c.Param("id")
+	
+	db := database.GetDB()
+	
+	// Find the media file
+	var mediaFile database.MediaFile
+	if err := db.Where("id = ?", idParam).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+	
+	// Check if it's a music file and get associated track
+	if mediaFile.MediaType != database.MediaTypeTrack {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "File is not a music track",
+		})
+		return
+	}
+	
+	// Get the track with artist and album info
+	var track database.Track
+	if err := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
+		Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Track metadata not found",
+		})
+		return
+	}
+	
+	// Return metadata in new format
+	c.JSON(http.StatusOK, gin.H{
+		"id":           track.ID,
+		"title":        track.Title,
+		"artist":       track.Artist.Name,
+		"album":        track.Album.Title,
+		"album_artist": track.Album.Artist.Name,
+		"track_number": track.TrackNumber,
+		"duration":     track.Duration,
+		"lyrics":       track.Lyrics,
+		"media_file":   mediaFile,
 	})
 }
 
-// GetMusicFiles retrieves all music files with their metadata
+// GetMusicFiles retrieves all music files with their metadata using new schema
 func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 	// Parse query parameters for pagination
 	limitStr := c.DefaultQuery("limit", "50")
@@ -66,7 +103,7 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 	if len(musicLibraries) == 0 {
 		// No music libraries found
 		c.JSON(http.StatusOK, gin.H{
-			"music_files": []database.MediaFile{},
+			"music_files": []interface{}{},
 			"count":       0,
 			"total":       0,
 			"limit":       limit,
@@ -81,10 +118,9 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 		libraryIDs = append(libraryIDs, lib.ID)
 	}
 
-	// Query to fetch MediaFiles with their MusicMetadata preloaded from all music libraries
+	// Query to fetch MediaFiles that are music tracks
 	var mediaFiles []database.MediaFile
-	err = db.Preload("MusicMetadata").
-		Where("library_id IN ?", libraryIDs).
+	err = db.Where("library_id IN ? AND media_type = ?", libraryIDs, database.MediaTypeTrack).
 		Limit(limit).
 		Offset(offset).
 		Find(&mediaFiles).Error
@@ -99,19 +135,87 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 	
 	// Get total count for all music libraries
 	var total int64
-	db.Model(&database.MediaFile{}).Where("library_id IN ?", libraryIDs).Count(&total)
+	db.Model(&database.MediaFile{}).
+		Where("library_id IN ? AND media_type = ?", libraryIDs, database.MediaTypeTrack).
+		Count(&total)
 
-	// Use all media files - even if some don't have metadata yet
-	// This ensures the files appear in the UI while metadata is still being processed
-	var musicFiles []database.MediaFile = mediaFiles
+	// Build response with track metadata
+	var musicFilesWithMetadata []interface{}
+	for _, mediaFile := range mediaFiles {
+		// Get associated track info
+		var track database.Track
+		trackErr := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
+			Where("id = ?", mediaFile.MediaID).First(&track).Error
+		
+		fileData := map[string]interface{}{
+			"id":           mediaFile.ID,
+			"media_id":     mediaFile.MediaID,
+			"media_type":   mediaFile.MediaType,
+			"library_id":   mediaFile.LibraryID,
+			"scan_job_id":  mediaFile.ScanJobID,
+			"path":         mediaFile.Path,
+			"container":    mediaFile.Container,
+			"video_codec":  mediaFile.VideoCodec,
+			"audio_codec":  mediaFile.AudioCodec,
+			"channels":     mediaFile.Channels,
+			"sample_rate":  mediaFile.SampleRate,
+			"resolution":   mediaFile.Resolution,
+			"duration":     mediaFile.Duration,
+			"size_bytes":   mediaFile.SizeBytes,
+			"bitrate_kbps": mediaFile.BitrateKbps,
+			"language":     mediaFile.Language,
+			"hash":         mediaFile.Hash,
+			"version_name": mediaFile.VersionName,
+			"last_seen":    mediaFile.LastSeen,
+			"created_at":   mediaFile.CreatedAt,
+			"updated_at":   mediaFile.UpdatedAt,
+		}
+		
+		if trackErr == nil {
+			// Include track metadata
+			fileData["track"] = map[string]interface{}{
+				"id":           track.ID,
+				"title":        track.Title,
+				"artist":       track.Artist.Name,
+				"album":        track.Album.Title,
+				"album_artist": track.Album.Artist.Name,
+				"track_number": track.TrackNumber,
+				"duration":     track.Duration,
+				"lyrics":       track.Lyrics,
+			}
+		} else {
+			// File exists but no track metadata yet
+			fileData["track"] = nil
+		}
+		
+		musicFilesWithMetadata = append(musicFilesWithMetadata, fileData)
+	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"music_files": musicFiles,
-		"count":       len(musicFiles),
+	// Create response
+	response := gin.H{
+		"music_files": musicFilesWithMetadata,
+		"count":       len(musicFilesWithMetadata),
 		"total":       total,
 		"limit":       limit,
 		"offset":      offset,
-	})
+	}
+
+	// Emit event if there are music files
+	if len(musicFilesWithMetadata) > 0 && h.eventBus != nil {
+		event := events.NewSystemEvent(
+			"music.files.retrieved",
+			"Music Files Retrieved",
+			fmt.Sprintf("Retrieved %d music files", len(musicFilesWithMetadata)),
+		)
+		event.Data = map[string]interface{}{
+			"count":          len(musicFilesWithMetadata),
+			"total":          total,
+			"library_count":  len(musicLibraries),
+		}
+		h.eventBus.PublishAsync(event)
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // RecordPlaybackStarted records when playback of a track begins
@@ -269,13 +373,10 @@ func formatDuration(seconds float64) string {
 	return fmt.Sprintf("%02d:%02d", mins, secs)
 }
 
-// Keep original function-based handlers for backward compatibility
-// These will delegate to the struct-based handlers
-
 // GetMusicMetadata function-based handler for backward compatibility
 func GetMusicMetadata(c *gin.Context) {
-	// Create a temporary handler without event bus for backward compatibility
-	handler := &MusicHandler{}
+	// Create a handler instance and delegate to it
+	handler := NewMusicHandler(nil)
 	handler.GetMusicMetadata(c)
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/utils"
+	"gorm.io/gorm"
 )
 
 // MediaHandler handles media-related API endpoints
@@ -34,7 +35,7 @@ func (h *MediaHandler) GetMedia(c *gin.Context) {
 	var mediaFiles []database.MediaFile
 	db := database.GetDB()
 
-	result := db.Preload("MusicMetadata").Find(&mediaFiles)
+	result := db.Find(&mediaFiles)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to retrieve media",
@@ -52,8 +53,7 @@ func (h *MediaHandler) GetMedia(c *gin.Context) {
 // GetMediaByID retrieves a specific media file by ID
 func (h *MediaHandler) GetMediaByID(c *gin.Context) {
 	mediaIDStr := c.Param("id")
-	mediaID, err := strconv.ParseUint(mediaIDStr, 10, 32)
-	if err != nil {
+	if mediaIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid media ID",
 		})
@@ -63,7 +63,7 @@ func (h *MediaHandler) GetMediaByID(c *gin.Context) {
 	// Get the media file from database with music metadata
 	var mediaFile database.MediaFile
 	db := database.GetDB()
-	result := db.Preload("MusicMetadata").First(&mediaFile, mediaID)
+	result := db.Preload("MusicMetadata").Where("id = ?", mediaIDStr).First(&mediaFile)
 	if result.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Media file not found",
@@ -77,8 +77,7 @@ func (h *MediaHandler) GetMediaByID(c *gin.Context) {
 // StreamMedia serves the actual media file content for streaming
 func (h *MediaHandler) StreamMedia(c *gin.Context) {
 	mediaIDStr := c.Param("id")
-	mediaID, err := strconv.ParseUint(mediaIDStr, 10, 32)
-	if err != nil {
+	if mediaIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid media ID",
 		})
@@ -88,7 +87,7 @@ func (h *MediaHandler) StreamMedia(c *gin.Context) {
 	// Get the media file from database
 	var mediaFile database.MediaFile
 	db := database.GetDB()
-	result := db.First(&mediaFile, mediaID)
+	result := db.Where("id = ?", mediaIDStr).First(&mediaFile)
 	if result.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Media file not found",
@@ -157,7 +156,7 @@ func (h *MediaHandler) StreamMedia(c *gin.Context) {
 				fmt.Sprintf("Started streaming: %s", title),
 			)
 			playEvent.Data = map[string]interface{}{
-				"mediaId":   mediaID,
+				"mediaId":   mediaIDStr,
 				"userId":    userID,
 				"timestamp": time.Now().Unix(),
 				"title":     title,
@@ -233,4 +232,113 @@ func LoadTestMusicData(c *gin.Context) {
 		"message": "Test data loading is no longer supported",
 		"suggestion": "Use real media files and the scanner system instead",
 	})
+}
+
+// GetMediaFiles retrieves all media files across all libraries with pagination
+func GetMediaFiles(c *gin.Context) {
+	// Get limit and offset from query parameters
+	limitStr := c.DefaultQuery("limit", "50")
+	offsetStr := c.DefaultQuery("offset", "0")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 50
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	db := database.GetDB()
+
+	// Define a struct to hold MediaFile with additional metadata info
+	type MediaFileWithMetadata struct {
+		database.MediaFile
+		TrackInfo *database.Track `json:"track_info,omitempty"`
+	}
+
+	// Query media files with pagination
+	var mediaFiles []database.MediaFile
+	result := db.Limit(limit).Offset(offset).Find(&mediaFiles)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve media files",
+			"details": result.Error.Error(),
+		})
+		return
+	}
+
+	// Build response with additional metadata for music files
+	var filesWithMetadata []MediaFileWithMetadata
+	for _, mediaFile := range mediaFiles {
+		fileWithMeta := MediaFileWithMetadata{MediaFile: mediaFile}
+		
+		// If it's a music track, get track metadata
+		if mediaFile.MediaType == database.MediaTypeTrack && mediaFile.MediaID != "" {
+			var track database.Track
+			if err := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
+				Where("id = ?", mediaFile.MediaID).First(&track).Error; err == nil {
+				fileWithMeta.TrackInfo = &track
+			}
+		}
+		
+		filesWithMetadata = append(filesWithMetadata, fileWithMeta)
+	}
+
+	// Get total count
+	var total int64
+	db.Model(&database.MediaFile{}).Count(&total)
+
+	c.JSON(http.StatusOK, gin.H{
+		"media_files": filesWithMetadata,
+		"count":       len(filesWithMetadata),
+		"total":       total,
+		"limit":       limit,
+		"offset":      offset,
+	})
+}
+
+// GetMediaFile retrieves a specific media file by ID with metadata
+func GetMediaFile(c *gin.Context) {
+	idParam := c.Param("id")
+
+	if idParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid media file ID",
+		})
+		return
+	}
+
+	db := database.GetDB()
+	var mediaFile database.MediaFile
+	result := db.Where("id = ?", idParam).First(&mediaFile)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Media file not found",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to retrieve media file",
+				"details": result.Error.Error(),
+			})
+		}
+		return
+	}
+
+	// Build response with metadata if it's a music track
+	response := map[string]interface{}{
+		"media_file": mediaFile,
+	}
+
+	if mediaFile.MediaType == database.MediaTypeTrack && mediaFile.MediaID != "" {
+		var track database.Track
+		if err := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
+			Where("id = ?", mediaFile.MediaID).First(&track).Error; err == nil {
+			response["track_info"] = track
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }

@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
@@ -1060,6 +1061,7 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 
 	// Create media file record and save to database immediately to get an ID
 	mediaFile := &database.MediaFile{
+		ID:        uuid.New().String(), // Generate UUID for the ID field
 		Path:      path,
 		SizeBytes: info.Size(),
 		Hash:      hash,
@@ -1091,7 +1093,8 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 		// Get all available file handlers (core and external plugins)
 		handlers := ps.pluginManager.GetFileHandlers()
 		
-		// Find a matching handler for this file
+		// Allow multiple plugins to handle the same file (e.g., FFmpeg for technical data + enrichment for music metadata)
+		var pluginsProcessed []string
 		for _, handler := range handlers {
 			if handler.Match(path, info) {
 				// Create metadata context for the plugin
@@ -1108,14 +1111,14 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 					// Don't fail the whole scan for metadata extraction issues
 				} else {
 					logger.Debug("Successfully extracted metadata", "plugin", handler.GetName(), "file", path)
+					pluginsProcessed = append(pluginsProcessed, handler.GetName())
 					
-					// TODO: Query for metadata using new schema (Artist/Album/Track tables)
-					// For now, just mark as successfully processed
-					extractedMetadata = map[string]interface{}{"processed": true}
-					metadataType = "music"
-					logger.Debug("Metadata extraction completed", "file", path)
+					// Mark as successfully processed if any plugin succeeded
+					extractedMetadata = map[string]interface{}{"processed": true, "plugins": pluginsProcessed}
+					metadataType = "music" // This will be overridden to match the primary content type
+					logger.Debug("Metadata extraction completed", "plugin", handler.GetName(), "file", path)
 				}
-				break // Use first matching plugin
+				// Continue to allow other plugins to also process this file
 			}
 		}
 	}
@@ -1123,6 +1126,7 @@ func (ps *LibraryScanner) processFile(work scanWork) *scanResult {
 	return &scanResult{
 		mediaFile:        mediaFile,
 		metadata:         extractedMetadata, // Now contains actual metadata!
+		
 		metadataType:     metadataType,      // "music" for successful extraction, "file" for basic
 		path:             path,
 		needsPluginHooks: true, // Enable plugin hooks for enrichment
@@ -1197,8 +1201,8 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 	// Convert metadata to string map for plugins
 	metadataMap := make(map[string]string)
 	if metadata != nil {
-		// TODO: Convert metadata based on type once new schema is implemented
-		logger.Debug("Metadata conversion for plugins not yet implemented", "file", mediaFile.Path)
+		// Extract metadata from database for external plugins
+		metadataMap = ps.extractMetadataForPlugins(mediaFile)
 	}
 
 	for i, hook := range scannerHooks {
@@ -1225,6 +1229,140 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 			}
 		}(i, hook)
 	}
+}
+
+// extractMetadataForPlugins extracts metadata from the database for external plugins
+func (ps *LibraryScanner) extractMetadataForPlugins(mediaFile *database.MediaFile) map[string]string {
+	metadataMap := make(map[string]string)
+	
+	// If the media file has a media_id and media_type, extract metadata from the appropriate table
+	if mediaFile.MediaID != "" && mediaFile.MediaType != "" {
+		switch mediaFile.MediaType {
+		case "track":
+			// Extract track metadata
+			var track database.Track
+			if err := ps.db.Where("id = ?", mediaFile.MediaID).First(&track).Error; err == nil {
+				metadataMap["title"] = track.Title
+				metadataMap["track_number"] = fmt.Sprintf("%d", track.TrackNumber)
+				metadataMap["duration"] = fmt.Sprintf("%d", track.Duration)
+				
+				// Get artist information
+				var artist database.Artist
+				if err := ps.db.Where("id = ?", track.ArtistID).First(&artist).Error; err == nil {
+					metadataMap["artist"] = artist.Name
+				}
+				
+				// Get album information
+				var album database.Album
+				if err := ps.db.Where("id = ?", track.AlbumID).First(&album).Error; err == nil {
+					metadataMap["album"] = album.Title
+					if album.ReleaseDate != nil {
+						metadataMap["year"] = fmt.Sprintf("%d", album.ReleaseDate.Year())
+					}
+				}
+			}
+		case "album":
+			// Extract album metadata
+			var album database.Album
+			if err := ps.db.Where("id = ?", mediaFile.MediaID).First(&album).Error; err == nil {
+				metadataMap["album"] = album.Title
+				if album.ReleaseDate != nil {
+					metadataMap["year"] = fmt.Sprintf("%d", album.ReleaseDate.Year())
+				}
+				
+				// Get artist information
+				var artist database.Artist
+				if err := ps.db.Where("id = ?", album.ArtistID).First(&artist).Error; err == nil {
+					metadataMap["artist"] = artist.Name
+				}
+			}
+		case "artist":
+			// Extract artist metadata
+			var artist database.Artist
+			if err := ps.db.Where("id = ?", mediaFile.MediaID).First(&artist).Error; err == nil {
+				metadataMap["artist"] = artist.Name
+			}
+		}
+	}
+	
+	// If no metadata was found from database, try to extract from filename
+	if len(metadataMap) == 0 {
+		metadataMap = ps.extractMetadataFromFilename(mediaFile.Path)
+	}
+	
+	logger.Debug("Extracted metadata for external plugins", "file", mediaFile.Path, "metadata_count", len(metadataMap))
+	return metadataMap
+}
+
+// extractMetadataFromFilename extracts basic metadata from filename as fallback
+func (ps *LibraryScanner) extractMetadataFromFilename(filePath string) map[string]string {
+	metadataMap := make(map[string]string)
+	
+	// Extract filename without extension
+	filename := filepath.Base(filePath)
+	ext := filepath.Ext(filename)
+	if ext != "" {
+		filename = filename[:len(filename)-len(ext)]
+	}
+	
+	// Try to parse common patterns like "Artist - Album - Track - Title"
+	parts := strings.Split(filename, " - ")
+	if len(parts) >= 2 {
+		// Pattern: "Artist - Title" or "Artist - Album - Title"
+		metadataMap["artist"] = strings.TrimSpace(parts[0])
+		if len(parts) == 2 {
+			metadataMap["title"] = strings.TrimSpace(parts[1])
+		} else if len(parts) >= 3 {
+			metadataMap["album"] = strings.TrimSpace(parts[1])
+			metadataMap["title"] = strings.TrimSpace(parts[len(parts)-1])
+		}
+		
+		// Try to extract track number if present
+		for i, part := range parts {
+			part = strings.TrimSpace(part)
+			if len(part) <= 3 && isNumeric(part) {
+				metadataMap["track_number"] = part
+				// Remove track number from title if it was included
+				if i == len(parts)-2 && len(parts) > 2 {
+					metadataMap["title"] = strings.TrimSpace(parts[len(parts)-1])
+				}
+				break
+			}
+		}
+	} else {
+		// Fallback: use filename as title
+		metadataMap["title"] = filename
+	}
+	
+	// Extract directory-based metadata (artist/album from path)
+	pathParts := strings.Split(filepath.Dir(filePath), string(filepath.Separator))
+	if len(pathParts) >= 2 {
+		// Common pattern: /music/Artist/Album/Track.ext
+		if metadataMap["artist"] == "" && len(pathParts) >= 2 {
+			artistDir := pathParts[len(pathParts)-2]
+			if artistDir != "" && artistDir != "." {
+				metadataMap["artist"] = artistDir
+			}
+		}
+		if metadataMap["album"] == "" && len(pathParts) >= 1 {
+			albumDir := pathParts[len(pathParts)-1]
+			if albumDir != "" && albumDir != "." {
+				metadataMap["album"] = albumDir
+			}
+		}
+	}
+	
+	return metadataMap
+}
+
+// isNumeric checks if a string contains only digits
+func isNumeric(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
 }
 
 func (ps *LibraryScanner) resultProcessor() {
@@ -1270,7 +1408,14 @@ func (ps *LibraryScanner) resultProcessor() {
 			// Call plugin hooks for enrichment and additional processing
 			if result.needsPluginHooks {
 				logger.Debug("Calling plugin hooks", "file", result.mediaFile.Path, "needs_hooks", result.needsPluginHooks)
+				
+				// Call external plugin hooks (gRPC)
 				ps.callPluginHooks(result.mediaFile, result.metadata)
+				
+				// Call internal plugin hooks (direct Go interface)
+				if ps.pluginRouter != nil {
+					ps.pluginRouter.CallOnMediaFileScanned(result.mediaFile, result.metadata)
+				}
 			}
 
 		case <-ps.ctx.Done():

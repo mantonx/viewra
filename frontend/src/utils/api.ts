@@ -17,12 +17,13 @@ export const buildImageUrl = (baseUrl: string, quality: number = 90): string => 
 /**
  * Builds an artwork URL for a media file using the new asset system
  * This uses the backend's album-artwork endpoint which properly resolves the real Album.ID
- * @param mediaFileId - The media file ID
+ * @param mediaFileId - The media file ID (UUID string)
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
  * @returns Optimized artwork URL for the new asset system
  */
 export const buildArtworkUrl = (mediaFileId: number | string, quality: number = 90): string => {
-  const fileId = typeof mediaFileId === 'string' ? parseInt(mediaFileId) : mediaFileId;
+  // Handle both string UUIDs and legacy numeric IDs
+  const fileId = String(mediaFileId);
 
   // Use the backend's album-artwork endpoint which properly resolves to real Album.ID
   return buildImageUrl(`/api/media/files/${fileId}/album-artwork`, quality);
@@ -101,13 +102,13 @@ export const getEntityAssets = async (
 /**
  * Gets the real album ID for a media file from the backend
  * This replaces the old placeholder UUID generation with proper database lookup
- * @param mediaFileId - The media file ID
+ * @param mediaFileId - The media file ID (UUID string)
  * @returns Promise with album information including real Album.ID
  */
 export const getMediaFileAlbumId = async (
   mediaFileId: number | string
 ): Promise<{ media_file_id: string; album_id: string; asset_url: string }> => {
-  const fileId = typeof mediaFileId === 'string' ? mediaFileId : mediaFileId.toString();
+  const fileId = String(mediaFileId);
   const response = await fetch(`/api/media/files/${fileId}/album-id`);
   if (!response.ok) {
     throw new Error(`Failed to get album ID: ${response.statusText}`);
@@ -118,7 +119,7 @@ export const getMediaFileAlbumId = async (
 /**
  * Builds an artwork URL for a media file by fetching the real Album.ID from the backend
  * This is an async alternative to buildArtworkUrl for when you need the actual Album.ID
- * @param mediaFileId - The media file ID
+ * @param mediaFileId - The media file ID (UUID string)
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
  * @returns Promise with optimized artwork URL using real Album.ID
  */
@@ -137,4 +138,14 @@ export const buildArtworkUrlAsync = async (
     );
     return buildArtworkUrl(mediaFileId, quality);
   }
+};
+
+/**
+ * Builds a streaming URL for a media file
+ * @param mediaFileId - The media file ID (UUID string)
+ * @returns Streaming URL for the media file
+ */
+export const buildStreamUrl = (mediaFileId: number | string): string => {
+  const fileId = String(mediaFileId);
+  return `/api/media/files/${fileId}/stream`;
 };

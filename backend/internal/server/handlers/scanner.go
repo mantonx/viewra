@@ -213,8 +213,8 @@ func GetLibraryStats(c *gin.Context) {
 	})
 }
 
-// GetMediaFiles returns media files for a specific library
-func GetMediaFiles(c *gin.Context) {
+// GetLibraryMediaFiles returns media files for a specific library
+func GetLibraryMediaFiles(c *gin.Context) {
 	libraryIDStr := c.Param("id")
 	libraryID, err := strconv.ParseUint(libraryIDStr, 10, 32)
 	if err != nil {

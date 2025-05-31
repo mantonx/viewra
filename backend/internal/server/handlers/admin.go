@@ -215,7 +215,7 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 	logger.Info("Deleting music metadata for library", "library_id", libraryID)
 	
 	// Get all media file IDs for this library
-	var mediaFileIDs []uint
+	var mediaFileIDs []string
 	if err := db.Model(&database.MediaFile{}).Where("library_id = ?", libraryID).Pluck("id", &mediaFileIDs).Error; err != nil {
 		logger.Error("Failed to get media file IDs", "library_id", libraryID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

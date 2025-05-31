@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/utils"
@@ -160,6 +161,7 @@ func (uh *UploadHandler) ProcessUpload(file multipart.File, header *multipart.Fi
 	
 	// Create media file record
 	mediaFile := database.MediaFile{
+		ID:        uuid.New().String(),
 		Path:      filePath,
 		SizeBytes: header.Size,
 		Hash:      fileHash,

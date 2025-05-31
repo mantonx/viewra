@@ -49,15 +49,8 @@ export type AssetType =
 
 export type AssetSource =
   | 'local'
-  | 'fanart.tv'
-  | 'theaudiodb'
-  | 'tmdb'
-  | 'tvdb'
-  | 'musicbrainz'
-  | 'lastfm'
-  | 'spotify'
   | 'user'
-  | 'plugin'
+  | 'plugin' // Generic source for all external plugins
   | 'embedded';
 
 export interface MediaAsset {
@@ -192,13 +185,6 @@ export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
 // Human-readable labels for asset sources
 export const ASSET_SOURCE_LABELS: Record<AssetSource, string> = {
   local: 'Local',
-  'fanart.tv': 'Fanart.tv',
-  theaudiodb: 'TheAudioDB',
-  tmdb: 'TMDB',
-  tvdb: 'TVDB',
-  musicbrainz: 'MusicBrainz',
-  lastfm: 'Last.fm',
-  spotify: 'Spotify',
   user: 'User Upload',
   plugin: 'Plugin',
   embedded: 'Embedded',

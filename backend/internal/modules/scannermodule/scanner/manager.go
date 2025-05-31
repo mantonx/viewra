@@ -53,6 +53,7 @@ type Manager struct {
 	db            *gorm.DB
 	eventBus      events.EventBus
 	pluginManager plugins.Manager
+	enrichmentHook ScannerPluginHook // Add enrichment hook
 	safeguards    *SafeguardSystem
 	mu            sync.RWMutex
 	scanners      map[uint32]*LibraryScanner // jobID -> scanner mapping
@@ -407,6 +408,12 @@ func (m *Manager) StartScan(libraryID uint32) (*database.ScanJob, error) {
 	scanner := NewLibraryScanner(m.db, scanJob.ID, m.eventBus, m.pluginManager)
 	m.scanners[scanJob.ID] = scanner
 
+	// Register enrichment hook with the new scanner if available
+	if m.enrichmentHook != nil && scanner.pluginRouter != nil {
+		scanner.pluginRouter.RegisterHook(m.enrichmentHook)
+		logger.Debug("Registered enrichment hook with new scanner", "job_id", scanJob.ID)
+	}
+
 	// Start scanning in background
 	go m.runScanJob(scanner, scanJob.ID, libraryID, false)
 
@@ -637,6 +644,12 @@ func (m *Manager) ResumeScan(jobID uint32) error {
 	// Create and register new scanner
 	scanner := NewLibraryScanner(m.db, jobID, m.eventBus, m.pluginManager)
 	m.scanners[jobID] = scanner
+
+	// Register enrichment hook with the resumed scanner if available
+	if m.enrichmentHook != nil && scanner.pluginRouter != nil {
+		scanner.pluginRouter.RegisterHook(m.enrichmentHook)
+		logger.Debug("Registered enrichment hook with resumed scanner", "job_id", jobID)
+	}
 
 	// Publish scan resumed event
 	if m.eventBus != nil {
@@ -1159,6 +1172,23 @@ func (m *Manager) SetPluginManager(pm plugins.Manager) {
 		}
 	}
 	m.mu.RUnlock()
+}
+
+// RegisterEnrichmentHook registers an enrichment hook with the scanner manager
+func (m *Manager) RegisterEnrichmentHook(hook ScannerPluginHook) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	m.enrichmentHook = hook
+	
+	// Register with all active scanners
+	for _, scanner := range m.scanners {
+		if scanner.pluginRouter != nil {
+			scanner.pluginRouter.RegisterHook(hook)
+		}
+	}
+	
+	logger.Info("Enrichment hook registered with scanner manager")
 }
 
 // DisableThrottlingForJob disables adaptive throttling for a specific scan job

@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -552,20 +551,45 @@ func (m *manager) GetAdminPages() []proto.AdminPageServiceClient {
 
 func (m *manager) loadEnabledPlugins(ctx context.Context) error {
 	var enabledPlugins []struct {
-		PluginID string
-		Status   string
+		PluginID    string
+		Status      string
+		Type        string
+		InstallPath string
 	}
 	
 	if err := m.db.Table("plugins").
-		Select("plugin_id, status").
+		Select("plugin_id, status, type, install_path").
 		Where("status = ?", "enabled").
 		Find(&enabledPlugins).Error; err != nil {
 		return fmt.Errorf("failed to query enabled plugins: %w", err)
 	}
+
+	// Separate core and external plugins
+	var externalPlugins []string
+	var corePlugins []string
 	
 	for _, dbPlugin := range enabledPlugins {
-		if err := m.LoadPlugin(ctx, dbPlugin.PluginID); err != nil {
-			m.logger.Error("failed to load enabled plugin", "plugin", dbPlugin.PluginID, "error", err)
+		if dbPlugin.Type == "core" || dbPlugin.InstallPath == "core" {
+			corePlugins = append(corePlugins, dbPlugin.PluginID)
+		} else {
+			externalPlugins = append(externalPlugins, dbPlugin.PluginID)
+		}
+	}
+	
+	// Initialize core plugins via core plugin manager
+	if len(corePlugins) > 0 {
+		m.logger.Info("initializing enabled core plugins", "count", len(corePlugins), "plugins", corePlugins)
+		if m.corePluginManager != nil {
+			if err := m.corePluginManager.InitializeAllPlugins(); err != nil {
+				m.logger.Error("failed to initialize core plugins", "error", err)
+			}
+		}
+	}
+	
+	// Load external plugins normally
+	for _, pluginID := range externalPlugins {
+		if err := m.LoadPlugin(ctx, pluginID); err != nil {
+			m.logger.Error("failed to load enabled external plugin", "plugin", pluginID, "error", err)
 		}
 	}
 	
@@ -814,43 +838,26 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 	}
 	
 	// Determine the source based on metadata and sourceURL
-	var source assetmodule.AssetSource = assetmodule.SourcePlugin // Default fallback
+	var source assetmodule.AssetSource = assetmodule.SourcePlugin // Default for all plugin assets
 	
-	// Check metadata for source hints
+	// Use plugin-provided source metadata if available, otherwise default to SourcePlugin
 	if sourceHint, exists := metadata["source"]; exists {
+		// Validate that it's a recognized source, otherwise default to plugin
 		switch sourceHint {
-		case "musicbrainz_cover_art_archive", "musicbrainz":
-			source = assetmodule.SourceMusicBrainz
-		case "audiodb", "theaudiodb":
-			source = assetmodule.SourceAudioDB
-		case "fanart.tv":
-			source = assetmodule.SourceFanArtTV
-		case "lastfm", "last.fm":
-			source = assetmodule.SourceLastFM
-		case "tmdb":
-			source = assetmodule.SourceTMDB
+		case "local":
+			source = assetmodule.SourceLocal
+		case "user":
+			source = assetmodule.SourceUser
 		case "embedded":
 			source = assetmodule.SourceEmbedded
+		default:
+			// For all external plugin sources, use SourcePlugin
+			// Plugins can provide their own source identifier in metadata
+			source = assetmodule.SourcePlugin
 		}
 	}
 	
-	// Also check sourceURL for additional hints
-	if sourceURL != "" {
-		switch {
-		case strings.Contains(sourceURL, "musicbrainz.org"):
-			source = assetmodule.SourceMusicBrainz
-		case strings.Contains(sourceURL, "theaudiodb.com"):
-			source = assetmodule.SourceAudioDB
-		case strings.Contains(sourceURL, "fanart.tv"):
-			source = assetmodule.SourceFanArtTV
-		case strings.Contains(sourceURL, "last.fm"):
-			source = assetmodule.SourceLastFM
-		case strings.Contains(sourceURL, "themoviedb.org"):
-			source = assetmodule.SourceTMDB
-		}
-	}
-	
-	h.logger.Info("Determined asset source", "source", source, "media_file_id", mediaFileID, "source_url", sourceURL)
+	h.logger.Info("Determined asset source", "source", source, "media_file_id", mediaFileID, "source_url", sourceURL, "plugin_source", metadata["source"])
 	
 	// Map old plugin asset types to new system
 	var entityType assetmodule.EntityType

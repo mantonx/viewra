@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
@@ -533,6 +534,7 @@ func (fp *FileProcessor) scanAndSaveFile(filePath string, libraryID uint) error 
 	
 	// Create basic media file record
 	mediaFile := &database.MediaFile{
+		ID:        uuid.New().String(), // Generate UUID for the ID field
 		LibraryID: uint32(libraryID),
 		Path:      filePath,
 		SizeBytes: fileInfo.Size(),

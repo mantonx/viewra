@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Tooltip } from 'react-tooltip';
 import ImageModal from '@/components/ui/ImageModal';
-import { buildImageUrl } from '@/utils/api';
+import { Music } from '@/components/ui/icons';
 
 interface AlbumArtworkProps {
   artworkUrl?: string;
@@ -25,13 +25,15 @@ const AlbumArtwork: React.FC<AlbumArtworkProps> = ({
   isPlaying = false,
   isMinimized = false,
   onExpandPlayer,
-  className,
+  className = 'w-16 h-16',
   showExpandModal = true,
   trackTitle,
   artistName,
   albumName,
 }) => {
   const [showModal, setShowModal] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const handleClick = () => {
     if (showExpandModal && artworkUrl) {
@@ -41,25 +43,56 @@ const AlbumArtwork: React.FC<AlbumArtworkProps> = ({
     }
   };
 
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoaded(false);
+  };
+
+  const handleImageLoad = () => {
+    setImageError(false);
+    setImageLoaded(true);
+  };
+
+  // Show fallback if no artwork URL or image failed to load
+  const showFallback = !artworkUrl || imageError;
+
   const artworkElement = (
     <div className="relative w-full h-full group">
-      {/* Main artwork or fallback */}
-      {artworkUrl ? (
-        <img
-          src={buildImageUrl(artworkUrl)}
-          alt={altText}
-          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-        />
+      {showFallback ? (
+        // Fallback artwork with music icon
+        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-600 to-slate-700">
+          <Music size={isMinimized ? 16 : 24} className="text-slate-400" />
+        </div>
       ) : (
-        <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-          <span className={cn('transition-all', isMinimized ? 'text-xs' : 'text-sm sm:text-lg')}>
-            🎵
-          </span>
+        // Actual artwork image
+        <img
+          src={artworkUrl}
+          alt={altText}
+          className={cn(
+            'w-full h-full object-cover transition-opacity duration-300',
+            imageLoaded ? 'opacity-100' : 'opacity-0'
+          )}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
+          loading="lazy"
+        />
+      )}
+
+      {/* Loading state */}
+      {artworkUrl && !imageLoaded && !imageError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-700 animate-pulse">
+          <Music size={isMinimized ? 16 : 24} className="text-slate-500" />
         </div>
       )}
 
-      {/* Subtle reflection/shine overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10 pointer-events-none" />
+      {/* Playing indicator */}
+      {isPlaying && !isMinimized && (
+        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+          <div className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center">
+            <div className="w-0 h-0 border-l-[6px] border-l-slate-800 border-y-[4px] border-y-transparent ml-0.5" />
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -67,19 +100,13 @@ const AlbumArtwork: React.FC<AlbumArtworkProps> = ({
     <>
       <div
         className={cn(
-          'flex-shrink-0 transition-all duration-300 ease-in-out relative overflow-hidden shadow-lg',
-          // Base sizing - made smaller and more responsive
-          isMinimized ? 'w-8 h-8' : 'w-10 h-10 min-w-10 sm:w-12 sm:h-12 sm:min-w-12',
-          // Playing state with soft glow
-          isPlaying
-            ? 'ring-2 ring-purple-500/70 shadow-purple-500/20 animate-pulse-slow'
-            : 'ring-1 ring-white/10',
-          // Rounded corners with glassmorphism
-          'rounded-lg backdrop-blur-sm',
+          'relative overflow-hidden rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 shadow-lg flex-shrink-0',
+          className,
+          isPlaying && !isMinimized && 'ring-2 ring-purple-500/50 shadow-purple-500/25',
+          'transition-all duration-300 ease-in-out',
           // Hover effects if expandable
           ((showExpandModal && artworkUrl) || onExpandPlayer) &&
-            'hover:ring-2 hover:ring-purple-400/60 cursor-pointer hover:shadow-xl hover:scale-105',
-          className
+            'hover:ring-2 hover:ring-purple-400/60 cursor-pointer hover:shadow-xl hover:scale-105'
         )}
         onClick={handleClick}
         data-tooltip-id={

@@ -145,14 +145,15 @@ func (mm *MediaManager) saveArtworkAsset(asset MediaAsset) error {
 	var source assetmodule.AssetSource = assetmodule.SourceEmbedded
 	if sourceHint, exists := asset.Metadata["source"]; exists {
 		switch sourceHint {
-		case "musicbrainz_cover_art_archive", "musicbrainz":
-			source = assetmodule.SourceMusicBrainz
-		case "audiodb", "theaudiodb":
-			source = assetmodule.SourceAudioDB
 		case "embedded", "file":
 			source = assetmodule.SourceEmbedded
+		case "local":
+			source = assetmodule.SourceLocal
+		case "user":
+			source = assetmodule.SourceUser
 		default:
-			source = assetmodule.SourcePlugin // Generic fallback
+			// For all external plugin sources, use SourcePlugin
+			source = assetmodule.SourcePlugin
 		}
 		fmt.Printf("INFO: Determined asset source as %s from metadata for media file ID %s\n", source, asset.MediaFileID)
 	} else {

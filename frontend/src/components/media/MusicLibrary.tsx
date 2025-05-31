@@ -45,21 +45,44 @@ const MusicLibrary = () => {
         const searchTerm = filterText.toLowerCase();
         filteredFiles = files.filter(
           (file) =>
-            file.music_metadata?.title?.toLowerCase().includes(searchTerm) ||
-            file.music_metadata?.artist?.toLowerCase().includes(searchTerm) ||
-            file.music_metadata?.album?.toLowerCase().includes(searchTerm) ||
-            file.music_metadata?.genre?.toLowerCase().includes(searchTerm)
+            file.track?.title?.toLowerCase().includes(searchTerm) ||
+            file.track?.artist?.toLowerCase().includes(searchTerm) ||
+            file.track?.album?.toLowerCase().includes(searchTerm)
         );
       }
 
       if (filterGenre) {
-        filteredFiles = filteredFiles.filter((file) => file.music_metadata?.genre === filterGenre);
+        // Genre filtering not available in new structure yet
+        filteredFiles = filteredFiles.filter(() => false);
       }
 
       // Apply sorting to the list view
       const sortedFiles = [...filteredFiles].sort((a, b) => {
-        const fieldA = a.music_metadata?.[sortField] || '';
-        const fieldB = b.music_metadata?.[sortField] || '';
+        let fieldA: string | number = '';
+        let fieldB: string | number = '';
+
+        switch (sortField) {
+          case 'title':
+            fieldA = a.track?.title || '';
+            fieldB = b.track?.title || '';
+            break;
+          case 'artist':
+            fieldA = a.track?.artist || '';
+            fieldB = b.track?.artist || '';
+            break;
+          case 'album':
+            fieldA = a.track?.album || '';
+            fieldB = b.track?.album || '';
+            break;
+          case 'year':
+            fieldA = 0; // Year not available in new structure yet
+            fieldB = 0;
+            break;
+          case 'genre':
+            fieldA = ''; // Genre not available in new structure yet
+            fieldB = '';
+            break;
+        }
 
         if (typeof fieldA === 'string' && typeof fieldB === 'string') {
           return sortDirection === 'asc'
@@ -77,8 +100,8 @@ const MusicLibrary = () => {
       const artistMap = new Map<string, Map<string, MusicFile[]>>();
 
       sortedFiles.forEach((file) => {
-        const artist = file.music_metadata?.artist || 'Unknown Artist';
-        const album = file.music_metadata?.album || 'Unknown Album';
+        const artist = file.track?.artist || 'Unknown Artist';
+        const album = file.track?.album || 'Unknown Album';
 
         if (!artistMap.has(artist)) {
           artistMap.set(artist, new Map<string, MusicFile[]>());
@@ -102,37 +125,25 @@ const MusicLibrary = () => {
         };
 
         albumsMap.forEach((tracks, albumTitle) => {
-          // Sort tracks by disc number and track number
+          // Sort tracks by track number
           const sortedTracks = [...tracks].sort((a, b) => {
-            const discA = a.music_metadata?.disc || 0;
-            const discB = b.music_metadata?.disc || 0;
-
-            if (discA !== discB) return discA - discB;
-
-            const trackA = a.music_metadata?.track || 0;
-            const trackB = b.music_metadata?.track || 0;
+            const trackA = a.track?.track_number || 0;
+            const trackB = b.track?.track_number || 0;
             return trackA - trackB;
           });
 
-          // Find album artwork from the first track that has it
-          const trackWithArtwork = tracks.find((t) => t.music_metadata?.has_artwork);
-          const artworkUrl = trackWithArtwork ? buildArtworkUrl(trackWithArtwork.id) : undefined;
+          // Find album artwork from any track (we'll need to implement this properly later)
+          const artworkUrl = tracks.length > 0 ? buildArtworkUrl(tracks[0].id) : undefined;
 
           artistGroup.albums.push({
             title: albumTitle,
-            year: tracks[0].music_metadata?.year,
+            year: undefined, // Year not available in new structure yet
             artwork: artworkUrl,
             tracks: sortedTracks,
           });
         });
 
-        // Sort albums by year
-        artistGroup.albums.sort((a, b) => {
-          if (!a.year) return 1;
-          if (!b.year) return -1;
-          return a.year - b.year;
-        });
-
+        // Albums are not sortable by year in new structure yet
         grouped.push(artistGroup);
       });
 
@@ -151,15 +162,8 @@ const MusicLibrary = () => {
       setMusicFiles(data.music_files ?? []);
       setTotal(data.total ?? 0);
 
-      // Extract unique genres
-      const genres = Array.from(
-        new Set(
-          (data.music_files ?? [])
-            .filter((file) => file.music_metadata?.genre)
-            .map((file) => file.music_metadata.genre)
-        )
-      ).sort();
-
+      // Extract unique genres (not available in new structure yet)
+      const genres: string[] = [];
       setAvailableGenres(genres);
 
       // Group files by artist and album
@@ -563,10 +567,10 @@ const MusicLibrary = () => {
                     onClick={() => handlePlayPause(file)}
                   >
                     <div className="col-span-5 flex items-center gap-3">
-                      {file.music_metadata?.has_artwork ? (
+                      {file.track ? (
                         <img
                           src={buildArtworkUrl(file.id)}
-                          alt={file.music_metadata?.album || 'Album Artwork'}
+                          alt={file.track?.album || 'Album Artwork'}
                           className="w-8 h-8 object-cover rounded"
                         />
                       ) : (
@@ -575,29 +579,23 @@ const MusicLibrary = () => {
                         </div>
                       )}
                       <span className="text-white truncate">
-                        {file.music_metadata?.title ||
-                          file.path.split('/').pop() ||
-                          'Unknown Track'}
+                        {file.track?.title || file.path.split('/').pop() || 'Unknown Track'}
                         {currentTrack && currentTrack.id === file.id && (
                           <span className="ml-2 text-purple-400">{isPlaying ? '▶️' : '⏸'}</span>
                         )}
                       </span>
                     </div>
                     <div className="col-span-2 text-slate-400 truncate self-center">
-                      {file.music_metadata?.artist || 'Unknown Artist'}
+                      {file.track?.artist || 'Unknown Artist'}
                     </div>
                     <div className="col-span-2 text-slate-400 truncate self-center">
-                      {file.music_metadata?.album || 'Unknown Album'}
+                      {file.track?.album || 'Unknown Album'}
                     </div>
+                    <div className="col-span-1 text-slate-500 self-center">—</div>
                     <div className="col-span-1 text-slate-500 self-center">
-                      {file.music_metadata?.year || '—'}
+                      {file.track?.duration ? formatDuration(file.track.duration * 1000000) : '—'}
                     </div>
-                    <div className="col-span-1 text-slate-500 self-center">
-                      {formatDuration(file.music_metadata?.duration || 0)}
-                    </div>
-                    <div className="col-span-1 text-slate-500 truncate self-center">
-                      {file.music_metadata?.genre || '—'}
-                    </div>
+                    <div className="col-span-1 text-slate-500 truncate self-center">—</div>
                   </div>
                 ))}
               </div>

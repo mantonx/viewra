@@ -999,7 +999,8 @@ func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint32, recording *Musi
 	if len(recording.Releases) > 0 {
 		genre = recording.Releases[0].ReleaseGroup.PrimaryType
 	}
-	
+
+	// 1. Save to plugin-specific table (keep existing functionality)
 	enrichment := MusicBrainzEnrichment{
 		MediaFileID:            mediaFileID,
 		MusicBrainzRecordingID: recording.ID,
@@ -1024,13 +1025,143 @@ func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint32, recording *Musi
 	if result.Error != nil {
 		return fmt.Errorf("failed to save enrichment: %w", result.Error)
 	}
-	
+
+	// 2. ALSO save to centralized MediaEnrichment table (for core system integration)
+	if err := m.saveToCentralizedSystem(mediaFileID, recording, artistName, albumTitle, releaseYear, genre); err != nil {
+		m.logger.Warn("Failed to save to centralized enrichment system", "error", err, "media_file_id", mediaFileID)
+		// Don't fail the entire operation if centralized save fails
+	}
+
 	m.logger.Info("Saved MusicBrainz enrichment", 
 		"media_file_id", mediaFileID,
 		"recording_id", recording.ID,
 		"title", recording.Title,
 		"artist", artistName,
 		"score", recording.Score)
+	
+	return nil
+}
+
+// saveToCentralizedSystem saves enrichment data to the centralized MediaEnrichment table
+func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID uint32, recording *MusicBrainzRecording, artistName, albumTitle string, releaseYear int, genre string) error {
+	// Convert MediaFileID to string for centralized system
+	mediaFileIDStr := fmt.Sprintf("%d", mediaFileID)
+	
+	// Get current time
+	now := time.Now()
+	
+	// Define MediaEnrichment struct to match the existing table structure
+	type MediaEnrichment struct {
+		MediaID   string    `gorm:"primaryKey;column:media_id"`
+		MediaType string    `gorm:"primaryKey;column:media_type"`
+		Plugin    string    `gorm:"primaryKey;column:plugin"`
+		Payload   string    `gorm:"column:payload"`
+		UpdatedAt time.Time `gorm:"column:updated_at"`
+	}
+	
+	// Prepare enrichment payload as JSON
+	payload := map[string]interface{}{
+		"recording_id": recording.ID,
+		"title":        recording.Title,
+		"artist":       artistName,
+		"album":        albumTitle,
+		"genre":        genre,
+		"year":         releaseYear,
+		"match_score":  recording.Score,
+		"length":       recording.Length,
+	}
+	
+	// Add external IDs if available
+	if len(recording.ArtistCredit) > 0 {
+		payload["artist_id"] = recording.ArtistCredit[0].Artist.ID
+	}
+	if len(recording.Releases) > 0 {
+		payload["release_id"] = recording.Releases[0].ID
+		payload["release_date"] = recording.Releases[0].Date
+	}
+	
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+	
+	// Create enrichment record using the existing table structure
+	enrichment := MediaEnrichment{
+		MediaID:   mediaFileIDStr,
+		MediaType: "track", // Assume track type for music files
+		Plugin:    "musicbrainz",
+		Payload:   string(payloadJSON),
+		UpdatedAt: now,
+	}
+	
+	// Use raw SQL INSERT OR REPLACE since the table doesn't have proper primary key constraints
+	result := m.db.Exec(`
+		INSERT OR REPLACE INTO media_enrichments (media_id, media_type, plugin, payload, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, enrichment.MediaID, enrichment.MediaType, enrichment.Plugin, enrichment.Payload, enrichment.UpdatedAt)
+	
+	if result.Error != nil {
+		return fmt.Errorf("failed to save enrichment to centralized system: %w", result.Error)
+	}
+	
+	// Also save external IDs to MediaExternalIDs table if it exists
+	type MediaExternalIDs struct {
+		ID           uint32 `gorm:"primaryKey"`
+		MediaFileID  string `gorm:"not null;index"`
+		SourceName   string `gorm:"not null"`
+		ExternalID   string `gorm:"not null"`
+		ExternalType string `gorm:"not null"`
+		CreatedAt    time.Time
+		UpdatedAt    time.Time
+	}
+	
+	// Check if MediaExternalIDs table exists
+	if m.db.Migrator().HasTable("media_external_ids") {
+		externalIDs := []MediaExternalIDs{
+			{
+				MediaFileID:  mediaFileIDStr,
+				SourceName:   "musicbrainz",
+				ExternalID:   recording.ID,
+				ExternalType: "recording",
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			},
+		}
+		
+		if len(recording.ArtistCredit) > 0 {
+			externalIDs = append(externalIDs, MediaExternalIDs{
+				MediaFileID:  mediaFileIDStr,
+				SourceName:   "musicbrainz",
+				ExternalID:   recording.ArtistCredit[0].Artist.ID,
+				ExternalType: "artist",
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			})
+		}
+		
+		if len(recording.Releases) > 0 {
+			externalIDs = append(externalIDs, MediaExternalIDs{
+				MediaFileID:  mediaFileIDStr,
+				SourceName:   "musicbrainz",
+				ExternalID:   recording.Releases[0].ID,
+				ExternalType: "release",
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			})
+		}
+		
+		// Save external IDs (upsert based on unique constraints)
+		for _, extID := range externalIDs {
+			if err := m.db.Table("media_external_ids").Save(&extID).Error; err != nil {
+				m.logger.Warn("Failed to save external ID", "error", err, "external_type", extID.ExternalType)
+				// Continue with other IDs
+			}
+		}
+	}
+	
+	m.logger.Info("Successfully saved enrichment to centralized system", 
+		"media_file_id", mediaFileID,
+		"payload_size", len(payloadJSON))
 	
 	return nil
 }

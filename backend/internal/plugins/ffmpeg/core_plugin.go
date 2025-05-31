@@ -203,25 +203,24 @@ func (p *FFmpegCorePlugin) HandleFile(path string, ctx plugins.MetadataContext) 
 		return fmt.Errorf("invalid database context")
 	}
 
-	// For audio files, extract metadata and create Artist/Album/Track records
-	if p.isAudioFile(ext) {
-		trackInfo, err := p.extractAudioTrackInfo(path, ctx.MediaFile)
-		if err != nil {
-			return fmt.Errorf("failed to extract audio track info: %w", err)
+	// Extract technical metadata ONLY (for both audio and video files)
+	// DO NOT create Artist/Album/Track records - leave that to enrichment plugins
+	if p.isFFProbeAvailable() {
+		if err := p.updateMediaFileWithTechnicalInfo(path, ctx.MediaFile.ID, db); err != nil {
+			fmt.Printf("WARNING: Failed to extract technical metadata for %s: %v\n", path, err)
+			// Continue without technical metadata - not a fatal error
 		}
-
-		// Create Artist/Album/Track records (similar to enrichment plugin)
-		if err := p.createMusicRecords(db, trackInfo, ctx.MediaFile.ID); err != nil {
-			return fmt.Errorf("failed to create music records: %w", err)
-		}
-	} else {
-		// For video files, just extract technical metadata
-		// Video metadata would go into Movie/TVShow tables in the future
-		fmt.Printf("DEBUG: Video metadata extraction not yet implemented for new schema\n")
 	}
 
-	fmt.Printf("DEBUG: FFmpeg plugin processed %s\n", path)
+	// NOTE: Removed createMusicRecords() call - enrichment plugins will handle metadata creation
+	fmt.Printf("DEBUG: FFmpeg plugin processed %s (technical metadata only)\n", path)
 	return nil
+}
+
+// HandleMediaFile processes a media file (legacy compatibility)
+func (p *FFmpegCorePlugin) HandleMediaFile(path string, info fs.FileInfo) error {
+	// This is a legacy method - not implemented for core plugins - use HandleFile instead
+	return fmt.Errorf("HandleMediaFile not implemented for core plugins - use HandleFile instead")
 }
 
 // AudioTrackInfo holds extracted audio track information
@@ -641,4 +640,167 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// updateMediaFileWithTechnicalInfo extracts technical metadata and updates the MediaFile record
+func (p *FFmpegCorePlugin) updateMediaFileWithTechnicalInfo(filePath string, mediaFileID string, db *gorm.DB) error {
+	// Extract technical information using FFprobe
+	if p.isAudioFile(strings.ToLower(filepath.Ext(filePath))) {
+		// For audio files, extract detailed audio technical info
+		audioInfo, err := p.extractAudioTechnicalInfo(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to extract audio technical info: %w", err)
+		}
+
+		// Update MediaFile with technical metadata
+		updates := map[string]interface{}{
+			"container":     audioInfo.Format,
+			"audio_codec":   audioInfo.Codec,
+			"channels":      fmt.Sprintf("%d", audioInfo.Channels),
+			"sample_rate":   audioInfo.SampleRate,
+			"duration":      int(audioInfo.Duration),
+			"bitrate_kbps":  audioInfo.Bitrate / 1000, // Convert to kbps
+		}
+
+		err = db.Model(&database.MediaFile{}).
+			Where("id = ?", mediaFileID).
+			Updates(updates).Error
+		
+		if err != nil {
+			return fmt.Errorf("failed to update media file with audio technical info: %w", err)
+		}
+
+		fmt.Printf("DEBUG: Updated MediaFile %s with technical info - Format: %s, Codec: %s, Channels: %d, Duration: %ds, Bitrate: %d kbps\n", 
+			mediaFileID, audioInfo.Format, audioInfo.Codec, audioInfo.Channels, int(audioInfo.Duration), audioInfo.Bitrate/1000)
+
+	} else {
+		// For video files, extract basic technical info
+		videoInfo, err := p.extractBasicTechnicalInfo(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to extract video technical info: %w", err)
+		}
+
+		// Update MediaFile with video technical metadata  
+		updates := map[string]interface{}{
+			"container":    videoInfo.Container,
+			"video_codec":  videoInfo.VideoCodec,
+			"audio_codec":  videoInfo.AudioCodec,
+			"resolution":   videoInfo.Resolution,
+			"duration":     int(videoInfo.Duration),
+			"bitrate_kbps": videoInfo.Bitrate / 1000, // Convert to kbps
+		}
+
+		err = db.Model(&database.MediaFile{}).
+			Where("id = ?", mediaFileID).
+			Updates(updates).Error
+		
+		if err != nil {
+			return fmt.Errorf("failed to update media file with video technical info: %w", err)
+		}
+
+		fmt.Printf("DEBUG: Updated MediaFile %s with video technical info - Container: %s, Video: %s, Audio: %s, Resolution: %s, Duration: %ds\n", 
+			mediaFileID, videoInfo.Container, videoInfo.VideoCodec, videoInfo.AudioCodec, videoInfo.Resolution, int(videoInfo.Duration))
+	}
+
+	return nil
+}
+
+// VideoTechnicalInfo represents technical video information
+type VideoTechnicalInfo struct {
+	Container   string
+	VideoCodec  string
+	AudioCodec  string
+	Resolution  string
+	Duration    float64
+	Bitrate     int
+}
+
+// extractBasicTechnicalInfo extracts basic technical info for video files
+func (p *FFmpegCorePlugin) extractBasicTechnicalInfo(filePath string) (*VideoTechnicalInfo, error) {
+	// Run ffprobe command
+	cmd := exec.Command("ffprobe",
+		"-v", "quiet",
+		"-print_format", "json",
+		"-show_format",
+		"-show_streams",
+		filePath)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffprobe command failed: %w", err)
+	}
+
+	// Parse JSON output
+	var probeOutput FFProbeOutput
+	if err := json.Unmarshal(output, &probeOutput); err != nil {
+		return nil, fmt.Errorf("failed to parse ffprobe output: %w", err)
+	}
+
+	info := &VideoTechnicalInfo{}
+
+	// Extract container format
+	info.Container = p.determineContainerFormat(probeOutput.Format.FormatName, filePath)
+
+	// Extract duration
+	if probeOutput.Format.Duration != "" {
+		if duration, err := strconv.ParseFloat(probeOutput.Format.Duration, 64); err == nil {
+			info.Duration = duration
+		}
+	}
+
+	// Extract bitrate
+	if probeOutput.Format.BitRate != "" {
+		if bitrate, err := strconv.Atoi(probeOutput.Format.BitRate); err == nil {
+			info.Bitrate = bitrate
+		}
+	}
+
+	// Find video and audio streams
+	for _, stream := range probeOutput.Streams {
+		switch stream.CodecType {
+		case "video":
+			info.VideoCodec = stream.CodecName
+			// Extract resolution
+			if stream.Index == 0 { // Primary video stream
+				// Resolution would need to be extracted from width/height fields
+				// For now, just use a placeholder
+				info.Resolution = "unknown" 
+			}
+		case "audio":
+			if info.AudioCodec == "" { // Take first audio stream
+				info.AudioCodec = stream.CodecName
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// determineContainerFormat determines the container format from ffprobe output
+func (p *FFmpegCorePlugin) determineContainerFormat(formatName, filePath string) string {
+	// Map ffprobe format names to our standard container names
+	containerMap := map[string]string{
+		"matroska,webm": "mkv",
+		"mov,mp4,m4a,3gp,3g2,mj2": "mp4",
+		"avi": "avi",
+		"flv": "flv",
+		"asf": "wmv",
+		"ogg": "ogg",
+	}
+	
+	// Try exact and partial matches
+	lowerFormatName := strings.ToLower(formatName)
+	for key, value := range containerMap {
+		if formatName == key || strings.Contains(lowerFormatName, key) {
+			return value
+		}
+	}
+	
+	// Fallback to file extension
+	ext := strings.ToLower(filepath.Ext(filePath))
+	if len(ext) > 1 {
+		return ext[1:] // Remove the dot
+	}
+	
+	return "unknown"
 }

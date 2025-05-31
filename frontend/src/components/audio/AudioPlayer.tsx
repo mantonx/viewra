@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import IconButton from '@/components/ui/IconButton';
 import { Tooltip } from 'react-tooltip';
 import type { MusicFile } from '@/types/music.types';
-import { buildArtworkUrl } from '@/utils/api';
+import { buildArtworkUrl, buildStreamUrl } from '@/utils/api';
 
 interface AudioPlayerProps {
   currentTrack: MusicFile | null;
@@ -130,11 +130,37 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     };
   }, [showNerdInfo]);
 
+  // Check if artwork exists by testing the artwork URL
+  const [hasArtwork, setHasArtwork] = useState<boolean | null>(null);
+
+  // Test artwork URL on component mount and when track changes
+  useEffect(() => {
+    if (!currentTrack?.id) {
+      setHasArtwork(false);
+      return;
+    }
+
+    const artworkUrl = buildArtworkUrl(currentTrack.id);
+    const testArtwork = async () => {
+      try {
+        const response = await fetch(artworkUrl, { method: 'HEAD' });
+        setHasArtwork(response.ok && response.status === 200);
+      } catch {
+        setHasArtwork(false);
+      }
+    };
+
+    testArtwork();
+  }, [currentTrack?.id]);
+
   // Don't render anything if no track
   if (!currentTrack) return null;
 
-  const audioFormat = currentTrack.music_metadata.format || 'Unknown';
-  const audioBitrate = currentTrack.music_metadata.bitrate || 0;
+  // Extract technical metadata from the track data
+  const audioFormat = currentTrack.container || currentTrack.audio_codec || 'Audio';
+  const audioBitrate = currentTrack.bitrate_kbps ? currentTrack.bitrate_kbps * 1000 : 0; // Convert kbps to bps
+  const sampleRate = currentTrack.sample_rate || 0;
+  const channels = currentTrack.channels ? parseInt(currentTrack.channels) : 0;
 
   return (
     <div
@@ -162,27 +188,23 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {/* Track Artwork */}
             <AlbumArtwork
-              artworkUrl={
-                currentTrack?.music_metadata?.has_artwork
-                  ? buildArtworkUrl(currentTrack.id)
-                  : undefined
-              }
-              altText={currentTrack?.music_metadata?.album || 'Album Artwork'}
+              artworkUrl={currentTrack?.track ? buildArtworkUrl(currentTrack.id) : undefined}
+              altText={currentTrack?.track?.album || 'Album Artwork'}
               isPlaying={isPlaying}
               isMinimized={isMinimized}
               className={isMinimized ? 'w-10 h-10' : 'w-16 h-16'}
-              trackTitle={currentTrack?.music_metadata?.title}
-              artistName={currentTrack?.music_metadata?.artist}
-              albumName={currentTrack?.music_metadata?.album}
+              trackTitle={currentTrack?.track?.title}
+              artistName={currentTrack?.track?.artist}
+              albumName={currentTrack?.track?.album}
             />
 
             {/* Track Info */}
             <div className="flex-1 min-w-0">
               <h3 className="text-white font-medium truncate">
-                {currentTrack?.music_metadata?.title || currentTrack?.path.split('/').pop()}
+                {currentTrack?.track?.title || currentTrack?.path.split('/').pop()}
               </h3>
               <p className="text-slate-400 text-sm truncate">
-                {currentTrack?.music_metadata?.artist || 'Unknown Artist'}
+                {currentTrack?.track?.artist || 'Unknown Artist'}
               </p>
 
               {/* Progress Bar (hidden when minimized) */}
@@ -431,44 +453,32 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
               <div className="space-y-1 text-slate-300 font-mono">
                 <div className="flex justify-between">
                   <span>Format:</span>
-                  <span className="text-white">
-                    {currentTrack.music_metadata?.format || 'Unknown'}
-                  </span>
+                  <span className="text-white">{audioFormat || 'Unknown'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Bitrate:</span>
                   <span className="text-white">
-                    {currentTrack.music_metadata?.bitrate
-                      ? `${Math.round(currentTrack.music_metadata.bitrate / 1000)}kbps`
-                      : 'Unknown'}
+                    {audioBitrate > 0 ? `${Math.round(audioBitrate / 1000)}kbps` : 'Unknown'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Sample Rate:</span>
                   <span className="text-white">
-                    {currentTrack.music_metadata?.sample_rate
-                      ? `${(currentTrack.music_metadata.sample_rate / 1000).toFixed(1)}kHz`
-                      : 'Unknown'}
+                    {sampleRate > 0 ? `${sampleRate} Hz` : 'Unknown'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Channels:</span>
                   <span className="text-white">
-                    {currentTrack.music_metadata?.channels
-                      ? `${currentTrack.music_metadata.channels} (${
-                          currentTrack.music_metadata.channels === 1
-                            ? 'Mono'
-                            : currentTrack.music_metadata.channels === 2
-                              ? 'Stereo'
-                              : `${currentTrack.music_metadata.channels}ch`
-                        })`
-                      : 'Unknown'}
+                    {channels > 0 ? `${channels} channel${channels > 1 ? 's' : ''}` : 'Unknown'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Duration:</span>
                   <span className="text-white">
-                    {formatTime((currentTrack.music_metadata?.duration || 0) / 1000000000)}
+                    {currentTrack.track?.duration
+                      ? formatTime(currentTrack.track.duration / 1000)
+                      : formatTime(duration)}
                   </span>
                 </div>
               </div>
@@ -484,14 +494,12 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 <div className="flex justify-between">
                   <span>Size:</span>
                   <span className="text-white">
-                    {(currentTrack.size / (1024 * 1024)).toFixed(2)} MB
+                    {(currentTrack.size_bytes / (1024 * 1024)).toFixed(2)} MB
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Artwork:</span>
-                  <span className="text-white">
-                    {currentTrack.music_metadata?.has_artwork ? 'Yes' : 'No'}
-                  </span>
+                  <span className="text-white">{hasArtwork ? 'Yes' : 'No'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>File ID:</span>
@@ -516,28 +524,22 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 <div className="flex justify-between">
                   <span>Track:</span>
                   <span className="text-white">
-                    {currentTrack.music_metadata?.track || 'Unknown'} of{' '}
-                    {currentTrack.music_metadata?.track_total || '?'}
+                    {currentTrack.track?.track_number || 'Unknown'}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Disc:</span>
-                  <span className="text-white">
-                    {currentTrack.music_metadata?.disc || 'Unknown'} of{' '}
-                    {currentTrack.music_metadata?.disc_total || '?'}
-                  </span>
+                  <span>Album:</span>
+                  <span className="text-white">{currentTrack.track?.album || 'Unknown'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Year:</span>
+                  <span>Album Artist:</span>
                   <span className="text-white">
-                    {currentTrack.music_metadata?.year || 'Unknown'}
+                    {currentTrack.track?.album_artist || 'Unknown'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Genre:</span>
-                  <span className="text-white">
-                    {currentTrack.music_metadata?.genre || 'Unknown'}
-                  </span>
+                  <span className="text-white">Unknown</span>
                 </div>
               </div>
             </div>
@@ -574,7 +576,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       {/* Hidden audio element */}
       <audio
         ref={audioRef}
-        src={currentTrack ? `/api/media/${currentTrack.id}/stream` : undefined}
+        src={currentTrack ? buildStreamUrl(currentTrack.id) : undefined}
         onEnded={onNext}
         loop={isRepeatOn}
       />

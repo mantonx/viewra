@@ -74,17 +74,10 @@ const (
 type AssetSource string
 
 const (
-	SourceLocal       AssetSource = "local"
-	SourceFanArtTV    AssetSource = "fanart.tv"
-	SourceAudioDB     AssetSource = "theaudiodb"
-	SourceTMDB        AssetSource = "tmdb"
-	SourceTVDB        AssetSource = "tvdb"
-	SourceMusicBrainz AssetSource = "musicbrainz"
-	SourceLastFM      AssetSource = "lastfm"
-	SourceSpotify     AssetSource = "spotify"
-	SourceUser        AssetSource = "user"
-	SourcePlugin      AssetSource = "plugin"
-	SourceEmbedded    AssetSource = "embedded"
+	SourceLocal    AssetSource = "local"
+	SourceUser     AssetSource = "user"
+	SourcePlugin   AssetSource = "plugin"    // Generic source for all external plugins
+	SourceEmbedded AssetSource = "embedded"
 )
 
 // MediaAsset represents a media asset stored in the filesystem
@@ -222,13 +215,6 @@ func GetValidAssetTypes(entityType EntityType) []AssetType {
 func GetValidSources() []AssetSource {
 	return []AssetSource{
 		SourceLocal,
-		SourceFanArtTV,
-		SourceAudioDB,
-		SourceTMDB,
-		SourceTVDB,
-		SourceMusicBrainz,
-		SourceLastFM,
-		SourceSpotify,
 		SourceUser,
 		SourcePlugin,
 		SourceEmbedded,

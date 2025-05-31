@@ -15,6 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/enrichmentmodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/plugins"
@@ -25,6 +26,7 @@ import (
 	// Import all modules to trigger their registration
 	_ "github.com/mantonx/viewra/internal/modules/assetmodule"
 	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
+	_ "github.com/mantonx/viewra/internal/modules/enrichmentmodule"
 	_ "github.com/mantonx/viewra/internal/modules/eventsmodule"
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
@@ -32,6 +34,7 @@ import (
 
 var pluginManager plugins.Manager
 var systemEventBus events.EventBus
+var enrichmentPluginManager *enrichment.Manager
 var moduleInitialized bool
 var disabledModules = make(map[string]bool)
 
@@ -141,6 +144,47 @@ func initializeModules() error {
 // connectPluginManagerToModules connects the plugin manager to modules that need it
 func connectPluginManagerToModules() error {
 	modules := modulemanager.ListModules()
+	
+	// Initialize enrichment plugin manager first
+	db := database.GetDB()
+	var enrichmentModule *enrichmentmodule.Module
+	
+	for _, module := range modules {
+		// Get enrichment module reference and initialize it
+		if module.ID() == "system.enrichment" {
+			if em, ok := module.(*enrichmentmodule.Module); ok {
+				enrichmentModule = em
+				// Initialize the module first
+				if err := enrichmentModule.Init(); err != nil {
+					log.Printf("❌ Failed to initialize enrichment module: %v", err)
+					return err
+				}
+				// Then start it
+				if err := enrichmentModule.Start(); err != nil {
+					log.Printf("❌ Failed to start enrichment module: %v", err)
+					return err
+				}
+				log.Printf("✅ Started enrichment module")
+			}
+		}
+	}
+	
+	// Create enrichment plugin manager if we have the enrichment module
+	if enrichmentModule != nil {
+		enrichmentPluginManager = enrichment.NewManager(db, enrichmentModule)
+		
+		// Register internal MusicBrainz plugin
+		mbPlugin := enrichment.NewMusicBrainzInternalPlugin(enrichmentModule)
+		if err := enrichmentPluginManager.RegisterPlugin(mbPlugin); err != nil {
+			log.Printf("❌ Failed to register MusicBrainz plugin: %v", err)
+		} else {
+			log.Printf("✅ Registered internal MusicBrainz enrichment plugin")
+		}
+		
+		// Enable the enrichment plugin manager
+		log.Printf("✅ Enrichment plugin manager ready and enabled")
+	}
+	
 	for _, module := range modules {
 		// Connect to media module
 		if module.ID() == "system.media" {
@@ -155,6 +199,16 @@ func connectPluginManagerToModules() error {
 				if pluginManager != nil {
 					scannerModule.SetPluginManager(pluginManager)
 					log.Printf("✅ Connected plugin manager to scanner module")
+				}
+				
+				// Register enrichment plugin manager as scanner hook
+				if enrichmentPluginManager != nil {
+					// Get the scanner manager to register our enrichment hook
+					manager := scannerModule.GetScannerManager()
+					if manager != nil {
+						manager.RegisterEnrichmentHook(enrichmentPluginManager)
+						log.Printf("✅ Registered enrichment plugin manager as scanner hook")
+					}
 				}
 			}
 		}
@@ -263,15 +317,15 @@ func initializePluginManager() error {
 	// Create plugin manager
 	pluginManager = plugins.NewManager(pluginDir, db, appLogger)
 	
-	// Initialize plugin manager
+	// Register core plugins BEFORE initializing plugin manager
+	if err := registerCorePlugins(); err != nil {
+		log.Printf("WARNING: Failed to register core plugins: %v", err)
+	}
+	
+	// Initialize plugin manager (will now find the core plugins)
 	ctx := context.Background()
 	if err := pluginManager.Initialize(ctx); err != nil {
 		return err
-	}
-	
-	// Register core plugins
-	if err := registerCorePlugins(); err != nil {
-		log.Printf("WARNING: Failed to register core plugins: %v", err)
 	}
 	
 	// Register plugin manager with handlers
