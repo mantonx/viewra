@@ -1,0 +1,111 @@
+# Viewra Media Server Configuration
+# This file contains all configurable settings for the Viewra media server.
+# Copy this file to 'viewra.yaml' and customize as needed.
+# Environment variables will override file settings.
+
+# Server Configuration
+server:
+  host: "0.0.0.0"              # Server bind address (env: VIEWRA_HOST)
+  port: 8080                   # Server port (env: VIEWRA_PORT)
+  read_timeout: "30s"          # HTTP read timeout (env: VIEWRA_READ_TIMEOUT)
+  write_timeout: "30s"         # HTTP write timeout (env: VIEWRA_WRITE_TIMEOUT)
+  max_header_bytes: 1048576    # Max HTTP header size in bytes (env: VIEWRA_MAX_HEADER_BYTES)
+  enable_cors: true            # Enable CORS support (env: VIEWRA_ENABLE_CORS)
+  trusted_proxies: []          # Trusted proxy IPs for reverse proxy setups (env: VIEWRA_TRUSTED_PROXIES)
+
+# Database Configuration
+database:
+  type: "sqlite"               # Database type: sqlite, postgres (env: DATABASE_TYPE)
+  data_dir: "/app/viewra-data" # Data directory path (env: VIEWRA_DATA_DIR)
+  database_path: ""            # SQLite database file path (auto-generated if empty) (env: VIEWRA_DATABASE_PATH)
+  url: ""                      # Database connection URL (env: DATABASE_URL)
+  
+  # PostgreSQL settings (only used when type: postgres)
+  host: "localhost"            # PostgreSQL host (env: POSTGRES_HOST)
+  port: 5432                   # PostgreSQL port (env: POSTGRES_PORT)
+  username: "viewra"           # PostgreSQL username (env: POSTGRES_USER)
+  password: ""                 # PostgreSQL password (env: POSTGRES_PASSWORD)
+  database: "viewra"           # PostgreSQL database name (env: POSTGRES_DB)
+  
+  # Connection Pool Settings
+  max_open_conns: 100          # Maximum open connections (env: DB_MAX_OPEN_CONNS)
+  max_idle_conns: 20           # Maximum idle connections (env: DB_MAX_IDLE_CONNS)
+  conn_max_lifetime: "2h"      # Maximum connection lifetime (env: DB_CONN_MAX_LIFETIME)
+  conn_max_idle_time: "30m"    # Maximum connection idle time (env: DB_CONN_MAX_IDLE_TIME)
+  
+  # Monitoring
+  enable_metrics: true         # Enable database metrics (env: DB_ENABLE_METRICS)
+  log_queries: false           # Log all SQL queries (env: DB_LOG_QUERIES)
+
+# Asset Management Configuration
+assets:
+  data_dir: ""                 # Asset storage directory (auto-generated if empty) (env: VIEWRA_ASSETS_DIR)
+  max_file_size: 52428800      # Maximum asset file size in bytes (50MB) (env: VIEWRA_MAX_ASSET_SIZE)
+  default_quality: 95          # Default image quality (1-100) (env: VIEWRA_ASSET_QUALITY)
+  enable_webp: true            # Enable WebP format support (env: VIEWRA_ENABLE_WEBP)
+  enable_thumbnails: true      # Enable thumbnail generation (env: VIEWRA_ENABLE_THUMBNAILS)
+  thumbnail_sizes: [150, 300, 600]  # Thumbnail sizes to generate (env: VIEWRA_THUMBNAIL_SIZES)
+  cache_duration: "24h"        # Asset cache duration (env: VIEWRA_ASSET_CACHE_DURATION)
+  cleanup_interval: "6h"       # Asset cleanup interval (env: VIEWRA_ASSET_CLEANUP_INTERVAL)
+
+# Scanner Configuration
+scanner:
+  parallel_scanning: true      # Enable parallel file scanning (env: VIEWRA_PARALLEL_SCANNING)
+  worker_count: 0              # Number of scanner workers (0 = auto-detect) (env: VIEWRA_WORKER_COUNT)
+  batch_size: 50               # Database batch size for inserts (env: VIEWRA_BATCH_SIZE)
+  channel_buffer_size: 100     # Channel buffer size for async processing (env: VIEWRA_CHANNEL_BUFFER_SIZE)
+  smart_hash_enabled: true     # Enable smart hash calculation (env: VIEWRA_SMART_HASH)
+  async_metadata: true         # Enable async metadata extraction (env: VIEWRA_ASYNC_METADATA)
+  metadata_workers: 2          # Number of metadata extraction workers (env: VIEWRA_METADATA_WORKERS)
+  scan_interval: "1h"          # Automatic scan interval (env: VIEWRA_SCAN_INTERVAL)
+  auto_scan_enabled: false     # Enable automatic periodic scanning (env: VIEWRA_AUTO_SCAN)
+  ignore_patterns:             # File patterns to ignore during scanning (env: VIEWRA_IGNORE_PATTERNS)
+    - ".*"                     # Hidden files
+    - "Thumbs.db"              # Windows thumbnails
+    - ".DS_Store"              # macOS metadata
+  max_file_size: 10737418240   # Maximum file size to scan (10GB) (env: VIEWRA_MAX_SCAN_FILE_SIZE)
+
+# Plugin System Configuration
+plugins:
+  plugin_dir: "./data/plugins" # Plugin directory path (env: PLUGIN_DIR)
+  enable_hot_reload: true      # Enable plugin hot-reloading (env: VIEWRA_PLUGIN_HOT_RELOAD)
+  default_enabled: false       # Enable new plugins by default (env: VIEWRA_PLUGINS_DEFAULT_ENABLED)
+  max_execution_time: "30s"    # Maximum plugin execution time (env: VIEWRA_PLUGIN_MAX_EXEC_TIME)
+  enable_sandbox: true         # Enable plugin sandboxing (env: VIEWRA_PLUGIN_SANDBOX)
+  memory_limit: 536870912      # Plugin memory limit in bytes (512MB) (env: VIEWRA_PLUGIN_MEMORY_LIMIT)
+  allow_network_access: true   # Allow plugins to access network (env: VIEWRA_PLUGIN_NETWORK)
+  allow_filesystem_write: false # Allow plugins to write to filesystem (env: VIEWRA_PLUGIN_FS_WRITE)
+
+# Logging Configuration
+logging:
+  level: "info"                # Log level: debug, info, warn, error (env: VIEWRA_LOG_LEVEL)
+  format: "json"               # Log format: json, text (env: VIEWRA_LOG_FORMAT)
+  output: "stdout"             # Log output: stdout, stderr, file (env: VIEWRA_LOG_OUTPUT)
+  file_path: ""                # Log file path (when output: file) (env: VIEWRA_LOG_FILE)
+  max_file_size: 100           # Maximum log file size in MB (env: VIEWRA_LOG_MAX_SIZE)
+  max_backups: 3               # Maximum number of log backups (env: VIEWRA_LOG_MAX_BACKUPS)
+  max_age: 30                  # Maximum age of log files in days (env: VIEWRA_LOG_MAX_AGE)
+  enable_colors: true          # Enable colored output for text format (env: VIEWRA_LOG_COLORS)
+  enable_stack_trace: false    # Enable stack traces in error logs (env: VIEWRA_LOG_STACK_TRACE)
+
+# Security Configuration
+security:
+  enable_authentication: false # Enable user authentication (env: VIEWRA_ENABLE_AUTH)
+  jwt_secret: ""               # JWT signing secret (generate random string) (env: VIEWRA_JWT_SECRET)
+  jwt_expiration: "24h"        # JWT token expiration time (env: VIEWRA_JWT_EXPIRATION)
+  session_timeout: "30m"       # Session timeout for web interface (env: VIEWRA_SESSION_TIMEOUT)
+  rate_limit_enabled: true     # Enable API rate limiting (env: VIEWRA_RATE_LIMIT)
+  rate_limit_rpm: 1000         # Rate limit requests per minute (env: VIEWRA_RATE_LIMIT_RPM)
+  allowed_origins: ["*"]       # CORS allowed origins (env: VIEWRA_ALLOWED_ORIGINS)
+  secure_headers: true         # Enable security headers (env: VIEWRA_SECURE_HEADERS)
+
+# Performance Configuration  
+performance:
+  enable_pprof: false          # Enable pprof profiling endpoints (env: VIEWRA_ENABLE_PPROF)
+  enable_metrics: true         # Enable Prometheus metrics (env: VIEWRA_ENABLE_METRICS)
+  max_concurrent_scans: 2      # Maximum concurrent library scans (env: VIEWRA_MAX_CONCURRENT_SCANS)
+  gc_percent: 100              # Go garbage collection target percentage (env: GOGC)
+  max_procs: 0                 # Maximum OS threads (0 = auto-detect) (env: GOMAXPROCS)
+  memory_threshold: 85.0       # Memory usage threshold for throttling (env: VIEWRA_MEMORY_THRESHOLD)
+  cpu_threshold: 80.0          # CPU usage threshold for throttling (env: VIEWRA_CPU_THRESHOLD)
+  enable_adaptive_throttling: true # Enable adaptive performance throttling (env: VIEWRA_ADAPTIVE_THROTTLING) 
