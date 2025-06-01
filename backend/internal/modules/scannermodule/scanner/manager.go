@@ -1447,11 +1447,18 @@ func (m *Manager) synchronizeState() error {
 		if !inMemoryJobs[job.ID] {
 			inconsistencies = append(inconsistencies, fmt.Sprintf("Job %d marked as running in DB but not in memory", job.ID))
 			
-			// Auto-fix: mark as paused
-			if err := utils.UpdateJobStatus(m.db, job.ID, utils.StatusPaused, "State sync: scanner not found in memory"); err != nil {
-				logger.Error("Failed to auto-fix inconsistent job %d: %v", job.ID, err)
+			// Smart auto-fix: try to resume the job first, only pause if resume fails
+			logger.Info("Attempting to resume orphaned job %d", job.ID)
+			if err := m.ResumeScan(job.ID); err != nil {
+				logger.Warn("Failed to resume orphaned job %d, marking as paused: %v", job.ID, err)
+				// If resume fails, then mark as paused
+				if err := utils.UpdateJobStatus(m.db, job.ID, utils.StatusPaused, "State sync: failed to resume orphaned job"); err != nil {
+					logger.Error("Failed to auto-fix inconsistent job %d: %v", job.ID, err)
+				} else {
+					logger.Info("Auto-fixed inconsistent job %d: marked as paused", job.ID)
+				}
 			} else {
-				logger.Info("Auto-fixed inconsistent job %d: marked as paused", job.ID)
+				logger.Info("Successfully resumed orphaned job %d", job.ID)
 			}
 		}
 	}
@@ -1475,7 +1482,7 @@ func (m *Manager) synchronizeState() error {
 	}
 
 	if len(inconsistencies) > 0 {
-		logger.Warn("Found %d state inconsistencies, auto-fixing...", len(inconsistencies))
+		logger.Info("Found %d state inconsistencies, attempting auto-recovery...", len(inconsistencies))
 		for _, issue := range inconsistencies {
 			logger.Debug("State inconsistency: %s", issue)
 		}

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -793,11 +794,11 @@ func NewHostAssetService(logger hclog.Logger) *HostAssetService {
 }
 
 // SaveAsset implements the AssetService interface for the host
-func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) (uint32, string, string, error) {
-	h.logger.Debug("saving asset via plugin interface", "media_file_id", mediaFileID, "type", assetType, "category", category, "subtype", subtype, "mime_type", mimeType, "size", len(data))
+func (h *HostAssetService) SaveAsset(mediaFileID string, assetType, category, subtype string, data []byte, mimeType, sourceURL, pluginID string, metadata map[string]string) (uint32, string, string, error) {
+	h.logger.Debug("saving asset via plugin interface", "media_file_id", mediaFileID, "type", assetType, "category", category, "subtype", subtype, "mime_type", mimeType, "plugin_id", pluginID, "size", len(data))
 	
-	// Convert old plugin asset format to new entity-based asset system
-	h.logger.Info("Converting plugin asset to new entity-based asset system", "media_file_id", mediaFileID)
+	// Convert plugin asset format to new entity-based asset system
+	h.logger.Info("Converting plugin asset to new entity-based asset system", "media_file_id", mediaFileID, "plugin_id", pluginID)
 	
 	// Get database connection
 	db := database.GetDB()
@@ -805,11 +806,10 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		return 0, "", "", fmt.Errorf("database not available")
 	}
 	
-	// Get the MediaFile and follow the relationship to find the real Album.ID
-	mediaFileIDStr := fmt.Sprintf("%d", mediaFileID)
+	// Get the MediaFile using UUID string directly
 	var mediaFile database.MediaFile
-	if err := db.Where("id = ?", mediaFileIDStr).First(&mediaFile).Error; err != nil {
-		return 0, "", "", fmt.Errorf("failed to find media file %d: %w", mediaFileID, err)
+	if err := db.Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
+		return 0, "", "", fmt.Errorf("failed to find media file %s: %w", mediaFileID, err)
 	}
 	
 	// Only handle track media types for now
@@ -820,7 +820,7 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 	// Get the track to find the album
 	var track database.Track
 	if err := db.Preload("Album").Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
-		return 0, "", "", fmt.Errorf("failed to find track for media file %d: %w", mediaFileID, err)
+		return 0, "", "", fmt.Errorf("failed to find track for media file %s: %w", mediaFileID, err)
 	}
 	
 	// Parse Album.ID as UUID
@@ -829,7 +829,7 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		return 0, "", "", fmt.Errorf("invalid album ID format for track %s: %w", track.ID, err)
 	}
 	
-	h.logger.Info("Saving plugin asset for real album", "media_file_id", mediaFileID, "album_id", track.Album.ID, "album_title", track.Album.Title)
+	h.logger.Info("Saving plugin asset for real album", "media_file_id", mediaFileID, "album_id", track.Album.ID, "album_title", track.Album.Title, "plugin_id", pluginID)
 	
 	// Detect proper MIME type from data if the provided one is generic
 	if mimeType == "" || mimeType == "application/octet-stream" || mimeType == "binary/octet-stream" {
@@ -837,27 +837,22 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		h.logger.Info("Detected MIME type", "mime_type", mimeType, "media_file_id", mediaFileID)
 	}
 	
-	// Determine the source based on metadata and sourceURL
-	var source assetmodule.AssetSource = assetmodule.SourcePlugin // Default for all plugin assets
-	
-	// Use plugin-provided source metadata if available, otherwise default to SourcePlugin
-	if sourceHint, exists := metadata["source"]; exists {
-		// Validate that it's a recognized source, otherwise default to plugin
-		switch sourceHint {
-		case "local":
-			source = assetmodule.SourceLocal
-		case "user":
-			source = assetmodule.SourceUser
-		case "embedded":
-			source = assetmodule.SourceEmbedded
-		default:
-			// For all external plugin sources, use SourcePlugin
-			// Plugins can provide their own source identifier in metadata
+	// Determine the source based on plugin information
+	var source assetmodule.AssetSource
+	if pluginID == "" {
+		// If no plugin ID is provided, try to infer from metadata
+		source = assetmodule.SourcePlugin // Default for unknown plugins
+	} else {
+		// Determine if this is a core plugin or external plugin
+		// Core plugins typically have names like "core_ffmpeg", "core_enrichment"
+		if strings.HasPrefix(pluginID, "core_") {
+			source = assetmodule.SourceCore
+		} else {
 			source = assetmodule.SourcePlugin
 		}
 	}
 	
-	h.logger.Info("Determined asset source", "source", source, "media_file_id", mediaFileID, "source_url", sourceURL, "plugin_source", metadata["source"])
+	h.logger.Info("Determined asset source", "source", source, "plugin_id", pluginID, "media_file_id", mediaFileID, "source_url", sourceURL)
 	
 	// Map old plugin asset types to new system
 	var entityType assetmodule.EntityType
@@ -883,7 +878,8 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		EntityType: entityType,
 		EntityID:   albumUUID,
 		Type:       assetTypeNew,
-		Source:     source, // Use the determined source instead of generic SourcePlugin
+		Source:     source,
+		PluginID:   pluginID, // Set the plugin ID for tracking
 		Data:       data,
 		Format:     mimeType,
 		Preferred:  true, // Mark plugin assets as preferred
@@ -896,7 +892,7 @@ func (h *HostAssetService) SaveAsset(mediaFileID uint32, assetType, category, su
 		return 0, "", "", fmt.Errorf("failed to save asset with new system: %w", err)
 	}
 
-	h.logger.Info("Successfully saved asset with new system", "asset_id", response.ID, "path", response.Path, "source", source, "album_title", track.Album.Title)
+	h.logger.Info("Successfully saved asset with new system", "asset_id", response.ID, "path", response.Path, "source", source, "plugin_id", pluginID, "album_title", track.Album.Title)
 	
 	// Return values compatible with old interface (using dummy values since new system uses UUIDs)
 	return 1, response.ID.String(), response.Path, nil
@@ -926,7 +922,7 @@ func (h *HostAssetService) detectImageMimeType(data []byte) string {
 }
 
 // AssetExists implements the AssetService interface for the host
-func (h *HostAssetService) AssetExists(mediaFileID uint32, assetType, category, subtype, hash string) (bool, uint32, string, error) {
+func (h *HostAssetService) AssetExists(mediaFileID string, assetType, category, subtype, hash string) (bool, uint32, string, error) {
 	h.logger.Debug("checking asset existence via plugin interface", "media_file_id", mediaFileID, "type", assetType, "category", category, "hash", hash)
 	
 	// TODO: This is a compatibility stub for the old plugin asset system

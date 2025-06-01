@@ -288,36 +288,28 @@ type ScannerHookServer struct {
 }
 
 func (s *ScannerHookServer) OnMediaFileScanned(ctx context.Context, req *proto.OnMediaFileScannedRequest) (*proto.OnMediaFileScannedResponse, error) {
+	// Pass the UUID string directly to the plugin implementation
 	err := s.Impl.OnMediaFileScanned(req.MediaFileId, req.FilePath, req.Metadata)
 	if err != nil {
-		return &proto.OnMediaFileScannedResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
+		return &proto.OnMediaFileScannedResponse{}, err
 	}
-	return &proto.OnMediaFileScannedResponse{Success: true}, nil
+	return &proto.OnMediaFileScannedResponse{}, nil
 }
 
 func (s *ScannerHookServer) OnScanStarted(ctx context.Context, req *proto.OnScanStartedRequest) (*proto.OnScanStartedResponse, error) {
 	err := s.Impl.OnScanStarted(req.ScanJobId, req.LibraryId, req.LibraryPath)
 	if err != nil {
-		return &proto.OnScanStartedResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
+		return &proto.OnScanStartedResponse{}, err
 	}
-	return &proto.OnScanStartedResponse{Success: true}, nil
+	return &proto.OnScanStartedResponse{}, nil
 }
 
 func (s *ScannerHookServer) OnScanCompleted(ctx context.Context, req *proto.OnScanCompletedRequest) (*proto.OnScanCompletedResponse, error) {
 	err := s.Impl.OnScanCompleted(req.ScanJobId, req.LibraryId, req.Stats)
 	if err != nil {
-		return &proto.OnScanCompletedResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
+		return &proto.OnScanCompletedResponse{}, err
 	}
-	return &proto.OnScanCompletedResponse{Success: true}, nil
+	return &proto.OnScanCompletedResponse{}, nil
 }
 
 // DatabaseServer implements the database service
@@ -446,14 +438,16 @@ type AssetServer struct {
 }
 
 func (s *AssetServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest) (*proto.SaveAssetResponse, error) {
+	// Pass the UUID string directly to the plugin implementation including the pluginID
 	assetID, hash, relativePath, err := s.Impl.SaveAsset(
-		req.MediaFileId,
+		req.MediaFileId, // Pass string UUID directly
 		req.AssetType,
 		req.Category,
 		req.Subtype,
 		req.Data,
 		req.MimeType,
 		req.SourceUrl,
+		req.PluginId, // Pass the plugin ID
 		req.Metadata,
 	)
 	
@@ -473,8 +467,9 @@ func (s *AssetServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest
 }
 
 func (s *AssetServer) AssetExists(ctx context.Context, req *proto.AssetExistsRequest) (*proto.AssetExistsResponse, error) {
+	// Pass the UUID string directly to the plugin implementation
 	exists, assetID, relativePath, err := s.Impl.AssetExists(
-		req.MediaFileId,
+		req.MediaFileId, // Pass string UUID directly
 		req.AssetType,
 		req.Category,
 		req.Subtype,

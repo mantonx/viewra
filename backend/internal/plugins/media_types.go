@@ -22,6 +22,7 @@ type MediaAsset struct {
 	Data         []byte            `json:"data"`          // Asset data
 	Metadata     map[string]string `json:"metadata"`      // Additional metadata
 	MediaFileID  string            `json:"media_file_id"` // Associated media file ID
+	PluginID     string            `json:"plugin_id"`     // Plugin that created this asset
 }
 
 // MediaContext provides context for media processing operations

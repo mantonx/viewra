@@ -44,14 +44,14 @@ type MetadataScraperService interface {
 }
 
 type ScannerHookService interface {
-	OnMediaFileScanned(mediaFileID uint32, filePath string, metadata map[string]string) error
+	OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error
 	OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error
 	OnScanCompleted(scanJobID, libraryID uint32, stats map[string]string) error
 }
 
 type AssetService interface {
-	SaveAsset(mediaFileID uint32, assetType, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) (uint32, string, string, error)
-	AssetExists(mediaFileID uint32, assetType, category, subtype, hash string) (bool, uint32, string, error)
+	SaveAsset(mediaFileID string, assetType, category, subtype string, data []byte, mimeType, sourceURL, pluginID string, metadata map[string]string) (uint32, string, string, error)
+	AssetExists(mediaFileID string, assetType, category, subtype, hash string) (bool, uint32, string, error)
 	RemoveAsset(assetID uint32) error
 }
 
@@ -127,13 +127,14 @@ type SearchResult struct {
 
 // Asset service request/response types
 type SaveAssetRequest struct {
-	MediaFileID uint32            `json:"media_file_id"`
+	MediaFileID string            `json:"media_file_id"`
 	AssetType   string            `json:"asset_type"`
 	Category    string            `json:"category"`
 	Subtype     string            `json:"subtype"`
 	Data        []byte            `json:"data"`
 	MimeType    string            `json:"mime_type"`
 	SourceURL   string            `json:"source_url"`
+	PluginID    string            `json:"plugin_id,omitempty"` // Plugin identifier for asset tracking
 	Metadata    map[string]string `json:"metadata"`
 }
 
@@ -146,7 +147,7 @@ type SaveAssetResponse struct {
 }
 
 type AssetExistsRequest struct {
-	MediaFileID uint32 `json:"media_file_id"`
+	MediaFileID string `json:"media_file_id"`
 	AssetType   string `json:"asset_type"`
 	Category    string `json:"category"`
 	Subtype     string `json:"subtype"`
@@ -175,4 +176,4 @@ type Logger interface {
 	Warn(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
 	With(args ...interface{}) hclog.Logger
-} 
+}

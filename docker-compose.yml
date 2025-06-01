@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - '${BACKEND_PORT:-8080}:8080'
+      - '${GRPC_PORT:-50051}:50051'
     # user: '${UID:-1000}:${GID:-1000}'  # Temporarily disabled for permission fix
     environment:
       - GIN_MODE=${GIN_MODE:-debug}

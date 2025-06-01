@@ -130,6 +130,7 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*AssetResponse, error) {
 		EntityID:   request.EntityID,
 		Type:       request.Type,
 		Source:     request.Source,
+		PluginID:   request.PluginID,
 		Path:       relativePath,
 		Width:      request.Width,
 		Height:     request.Height,
@@ -324,6 +325,7 @@ func (m *Manager) updateExistingAsset(existing *MediaAsset, request *AssetReques
 		"format":    request.Format,
 		"preferred": request.Preferred,
 		"language":  request.Language,
+		"plugin_id": request.PluginID,
 		"updated_at": time.Now(),
 	}
 	
@@ -345,6 +347,7 @@ func (m *Manager) updateExistingAsset(existing *MediaAsset, request *AssetReques
 	existing.Format = request.Format
 	existing.Preferred = request.Preferred
 	existing.Language = request.Language
+	existing.PluginID = request.PluginID
 	existing.UpdatedAt = time.Now()
 	
 	m.publishAssetEvent(events.EventAssetUpdated, existing)
@@ -615,6 +618,7 @@ func (m *Manager) buildAssetResponse(asset *MediaAsset) *AssetResponse {
 		EntityID:   asset.EntityID,
 		Type:       asset.Type,
 		Source:     asset.Source,
+		PluginID:   asset.PluginID,
 		Path:       asset.Path,
 		Width:      asset.Width,
 		Height:     asset.Height,

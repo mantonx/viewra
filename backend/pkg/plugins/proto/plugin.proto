@@ -76,30 +76,31 @@ message GetRegisteredRoutesResponse {
 
 // Asset service messages
 message SaveAssetRequest {
-  uint32 media_file_id = 1;
-  string asset_type = 2;           // "music", "video", etc.
-  string category = 3;             // "album", "artist", etc.
-  string subtype = 4;              // "artwork", "poster", etc.
-  bytes data = 5;                  // The actual asset data
-  string mime_type = 6;            // MIME type of the asset
-  string source_url = 7;           // Original URL if downloaded
-  map<string, string> metadata = 8; // Additional metadata (width, height, etc.)
+  string media_file_id = 1;           // Changed from uint32 to string for UUID support
+  string asset_type = 2;              // "music", "video", etc.
+  string category = 3;                // "album", "artist", etc.
+  string subtype = 4;                 // "artwork", "poster", etc.
+  bytes data = 5;                     // The actual asset data
+  string mime_type = 6;               // MIME type of the asset
+  string source_url = 7;              // Original URL if downloaded
+  map<string, string> metadata = 8;   // Additional metadata (width, height, etc.)
+  string plugin_id = 9;               // Plugin identifier for asset tracking
 }
 
 message SaveAssetResponse {
   bool success = 1;
   string error = 2;
-  uint32 asset_id = 3;             // ID of the saved asset
-  string hash = 4;                 // Hash of the saved asset
-  string relative_path = 5;        // Path where asset was saved
+  uint32 asset_id = 3;                // ID of the saved asset
+  string hash = 4;                    // Hash of the saved asset
+  string relative_path = 5;           // Path where asset was saved
 }
 
 message AssetExistsRequest {
-  uint32 media_file_id = 1;
+  string media_file_id = 1;           // Changed from uint32 to string for UUID support
   string asset_type = 2;
   string category = 3;
   string subtype = 4;
-  string hash = 5;                 // Optional: check by hash
+  string hash = 5;                    // Optional: check by hash
 }
 
 message AssetExistsResponse {
@@ -225,15 +226,12 @@ message GetSupportedTypesResponse {
 
 // Scanner hook messages
 message OnMediaFileScannedRequest {
-  uint32 media_file_id = 1;
+  string media_file_id = 1;           // Changed from uint32 to string for UUID support
   string file_path = 2;
   map<string, string> metadata = 3;
 }
 
-message OnMediaFileScannedResponse {
-  bool success = 1;
-  string error = 2;
-}
+message OnMediaFileScannedResponse {}
 
 message OnScanStartedRequest {
   uint32 scan_job_id = 1;
@@ -241,10 +239,7 @@ message OnScanStartedRequest {
   string library_path = 3;
 }
 
-message OnScanStartedResponse {
-  bool success = 1;
-  string error = 2;
-}
+message OnScanStartedResponse {}
 
 message OnScanCompletedRequest {
   uint32 scan_job_id = 1;
@@ -252,10 +247,7 @@ message OnScanCompletedRequest {
   map<string, string> stats = 3;
 }
 
-message OnScanCompletedResponse {
-  bool success = 1;
-  string error = 2;
-}
+message OnScanCompletedResponse {}
 
 // Database messages
 message GetModelsRequest {

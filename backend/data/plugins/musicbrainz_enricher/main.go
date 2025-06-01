@@ -397,55 +397,77 @@ func (m *MusicBrainzEnricher) GetSupportedTypes() []string {
 }
 
 // ScannerHookService implementation
-func (m *MusicBrainzEnricher) OnMediaFileScanned(mediaFileID uint32, filePath string, metadata map[string]string) error {
-	if !m.config.AutoEnrich {
+func (m *MusicBrainzEnricher) OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error {
+	if !m.config.Enabled || !m.config.AutoEnrich {
 		return nil
 	}
 
+	m.logger.Debug("Processing scanned media file", "media_file_id", mediaFileID, "file_path", filePath)
+
+	// Extract metadata for search
 	title := metadata["title"]
 	artist := metadata["artist"]
 	album := metadata["album"]
 
 	if title == "" || artist == "" {
-		m.logger.Debug("Skipping enrichment - missing title or artist", "file", filePath)
+		m.logger.Debug("Insufficient metadata for enrichment", "media_file_id", mediaFileID, "title", title, "artist", artist)
 		return nil
 	}
 
-	m.logger.Info("Enriching media file", "id", mediaFileID, "title", title, "artist", artist)
-
-	// Search for recording
+	// Search for recording using MusicBrainz API
 	recording, err := m.searchRecording(title, artist, album)
 	if err != nil {
-		m.logger.Error("Failed to search MusicBrainz", "error", err)
-		return err
+		m.logger.Debug("MusicBrainz search failed", "error", err, "media_file_id", mediaFileID)
+		return nil // Don't fail the scan for enrichment failures
 	}
 
 	if recording == nil {
-		m.logger.Debug("No MusicBrainz match found", "title", title, "artist", artist)
+		m.logger.Debug("No MusicBrainz match found", "media_file_id", mediaFileID, "title", title, "artist", artist)
 		return nil
 	}
 
-	// Save enrichment
-	if err := m.saveEnrichment(mediaFileID, recording); err != nil {
-		m.logger.Error("Failed to save enrichment", "error", err)
-		return err
+	m.logger.Info("Found MusicBrainz match", 
+		"media_file_id", mediaFileID, 
+		"recording_id", recording.ID, 
+		"score", recording.Score, 
+		"title", recording.Title)
+
+	// Save enrichment to centralized system
+	var artistName, albumTitle string
+	var releaseYear int
+	var genre string
+
+	if len(recording.ArtistCredit) > 0 {
+		artistName = recording.ArtistCredit[0].Artist.Name
 	}
 
-	// Download artwork if enabled and release ID is available
+	if len(recording.Releases) > 0 {
+		albumTitle = recording.Releases[0].Title
+		if recording.Releases[0].Date != "" {
+			if year, err := strconv.Atoi(recording.Releases[0].Date[:4]); err == nil {
+				releaseYear = year
+			}
+		}
+	}
+
+	if len(recording.Genres) > 0 {
+		genre = recording.Genres[0].Name
+	} else if len(recording.Tags) > 0 {
+		genre = recording.Tags[0].Name
+	}
+
+	if err := m.saveToCentralizedSystem(fmt.Sprintf("%d", mediaFileID), recording, artistName, albumTitle, releaseYear, genre); err != nil {
+		m.logger.Error("Failed to save to centralized system", "error", err, "media_file_id", mediaFileID)
+		// Don't fail the scan for enrichment save failures
+	}
+
+	// Download artwork if enabled and we have a release
 	if m.config.EnableArtwork && len(recording.Releases) > 0 {
 		releaseID := recording.Releases[0].ID
-		m.logger.Info("Attempting to download cover art", "media_file_id", mediaFileID, "release_id", releaseID)
-		
 		if err := m.downloadAllArtwork(context.Background(), releaseID, mediaFileID); err != nil {
-			m.logger.Warn("Failed to download artwork", "error", err, "media_file_id", mediaFileID, "release_id", releaseID)
-			// Don't fail the enrichment if artwork download fails
-		} else {
-			m.logger.Info("Successfully downloaded artwork", "media_file_id", mediaFileID, "release_id", releaseID)
+			m.logger.Debug("Artwork download failed", "error", err, "release_id", releaseID, "media_file_id", mediaFileID)
+			// Don't fail for artwork download issues
 		}
-	} else if !m.config.EnableArtwork {
-		m.logger.Debug("Artwork downloading disabled", "media_file_id", mediaFileID)
-	} else {
-		m.logger.Debug("No release ID available for artwork download", "media_file_id", mediaFileID)
 	}
 
 	return nil
@@ -1027,7 +1049,7 @@ func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint32, recording *Musi
 	}
 
 	// 2. ALSO save to centralized MediaEnrichment table (for core system integration)
-	if err := m.saveToCentralizedSystem(mediaFileID, recording, artistName, albumTitle, releaseYear, genre); err != nil {
+	if err := m.saveToCentralizedSystem(fmt.Sprintf("%d", mediaFileID), recording, artistName, albumTitle, releaseYear, genre); err != nil {
 		m.logger.Warn("Failed to save to centralized enrichment system", "error", err, "media_file_id", mediaFileID)
 		// Don't fail the entire operation if centralized save fails
 	}
@@ -1043,10 +1065,7 @@ func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint32, recording *Musi
 }
 
 // saveToCentralizedSystem saves enrichment data to the centralized MediaEnrichment table
-func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID uint32, recording *MusicBrainzRecording, artistName, albumTitle string, releaseYear int, genre string) error {
-	// Convert MediaFileID to string for centralized system
-	mediaFileIDStr := fmt.Sprintf("%d", mediaFileID)
-	
+func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID string, recording *MusicBrainzRecording, artistName, albumTitle string, releaseYear int, genre string) error {
 	// Get current time
 	now := time.Now()
 	
@@ -1087,7 +1106,7 @@ func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID uint32, record
 	
 	// Create enrichment record using the existing table structure
 	enrichment := MediaEnrichment{
-		MediaID:   mediaFileIDStr,
+		MediaID:   mediaFileID, // Use UUID string directly
 		MediaType: "track", // Assume track type for music files
 		Plugin:    "musicbrainz",
 		Payload:   string(payloadJSON),
@@ -1106,55 +1125,67 @@ func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID uint32, record
 	
 	// Also save external IDs to MediaExternalIDs table if it exists
 	type MediaExternalIDs struct {
-		ID           uint32 `gorm:"primaryKey"`
-		MediaFileID  string `gorm:"not null;index"`
-		SourceName   string `gorm:"not null"`
-		ExternalID   string `gorm:"not null"`
-		ExternalType string `gorm:"not null"`
-		CreatedAt    time.Time
-		UpdatedAt    time.Time
+		MediaID      string    `gorm:"column:media_id"`
+		MediaType    string    `gorm:"column:media_type"`
+		Source       string    `gorm:"column:source"`
+		ExternalID   string    `gorm:"column:external_id"`
+		CreatedAt    time.Time `gorm:"column:created_at"`
+		UpdatedAt    time.Time `gorm:"column:updated_at"`
 	}
 	
 	// Check if MediaExternalIDs table exists
 	if m.db.Migrator().HasTable("media_external_ids") {
 		externalIDs := []MediaExternalIDs{
 			{
-				MediaFileID:  mediaFileIDStr,
-				SourceName:   "musicbrainz",
-				ExternalID:   recording.ID,
-				ExternalType: "recording",
-				CreatedAt:    now,
-				UpdatedAt:    now,
+				MediaID:    mediaFileID, // Use UUID string directly
+				MediaType:  "track", // Assume track type for music files
+				Source:     "musicbrainz",
+				ExternalID: recording.ID,
+				CreatedAt:  now,
+				UpdatedAt:  now,
 			},
 		}
 		
 		if len(recording.ArtistCredit) > 0 {
 			externalIDs = append(externalIDs, MediaExternalIDs{
-				MediaFileID:  mediaFileIDStr,
-				SourceName:   "musicbrainz",
-				ExternalID:   recording.ArtistCredit[0].Artist.ID,
-				ExternalType: "artist",
-				CreatedAt:    now,
-				UpdatedAt:    now,
+				MediaID:    mediaFileID, // Use UUID string directly
+				MediaType:  "artist",
+				Source:     "musicbrainz", 
+				ExternalID: recording.ArtistCredit[0].Artist.ID,
+				CreatedAt:  now,
+				UpdatedAt:  now,
 			})
 		}
 		
 		if len(recording.Releases) > 0 {
 			externalIDs = append(externalIDs, MediaExternalIDs{
-				MediaFileID:  mediaFileIDStr,
-				SourceName:   "musicbrainz",
-				ExternalID:   recording.Releases[0].ID,
-				ExternalType: "release",
-				CreatedAt:    now,
-				UpdatedAt:    now,
+				MediaID:    mediaFileID, // Use UUID string directly
+				MediaType:  "release",
+				Source:     "musicbrainz",
+				ExternalID: recording.Releases[0].ID,
+				CreatedAt:  now,
+				UpdatedAt:  now,
 			})
 		}
 		
-		// Save external IDs (upsert based on unique constraints)
+		// Save external IDs using proper GORM operations
 		for _, extID := range externalIDs {
-			if err := m.db.Table("media_external_ids").Save(&extID).Error; err != nil {
-				m.logger.Warn("Failed to save external ID", "error", err, "external_type", extID.ExternalType)
-				// Continue with other IDs
+			result := m.db.Table("media_external_ids").Create(&extID)
+			if result.Error != nil {
+				// Try update if insert fails (might be duplicate)
+				updateResult := m.db.Table("media_external_ids").
+					Where("media_id = ? AND media_type = ? AND source = ?", extID.MediaID, extID.MediaType, extID.Source).
+					Updates(map[string]interface{}{
+						"external_id": extID.ExternalID,
+						"updated_at":  extID.UpdatedAt,
+					})
+				if updateResult.Error != nil {
+					m.logger.Warn("Failed to save/update external ID", "error", updateResult.Error, "external_id", extID.ExternalID)
+				} else {
+					m.logger.Debug("Updated external ID", "external_id", extID.ExternalID, "media_type", extID.MediaType)
+				}
+			} else {
+				m.logger.Debug("Saved external ID", "external_id", extID.ExternalID, "media_type", extID.MediaType)
 			}
 		}
 	}
@@ -1167,7 +1198,7 @@ func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID uint32, record
 }
 
 // downloadAllArtwork downloads all enabled artwork types for a release
-func (m *MusicBrainzEnricher) downloadAllArtwork(ctx context.Context, releaseID string, mediaFileID uint32) error {
+func (m *MusicBrainzEnricher) downloadAllArtwork(ctx context.Context, releaseID string, mediaFileID string) error {
 	if releaseID == "" {
 		return fmt.Errorf("no release ID available for artwork download")
 	}
@@ -1207,7 +1238,7 @@ func (m *MusicBrainzEnricher) downloadAllArtwork(ctx context.Context, releaseID 
 }
 
 // downloadArtworkType downloads a specific type of artwork
-func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID string, mediaFileID uint32, artType CoverArtType) error {
+func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID string, mediaFileID string, artType CoverArtType) error {
 	// Check if asset already exists
 	if m.config.SkipExistingAssets {
 		// TODO: Check if asset already exists via AssetService
@@ -1302,7 +1333,7 @@ func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID
 }
 
 // saveArtworkAsset saves artwork using the host's asset service
-func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID uint32, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) error {
+func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID string, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) error {
 	if m.assetService == nil {
 		m.logger.Warn("Asset service not available - cannot save artwork", "media_file_id", mediaFileID, "subtype", subtype)
 		return fmt.Errorf("asset service not available")
@@ -1324,6 +1355,7 @@ func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID 
 		Data:        data,
 		MimeType:    mimeType,
 		SourceURL:   sourceURL,
+		PluginID:    "musicbrainz_enricher", // Set the plugin ID for asset tracking
 		Metadata:    metadata,
 	}
 
@@ -1345,6 +1377,7 @@ func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID 
 		"asset_id", response.AssetID,
 		"hash", response.Hash,
 		"path", response.RelativePath,
+		"plugin_id", "musicbrainz_enricher",
 		"size", len(data))
 
 	return nil

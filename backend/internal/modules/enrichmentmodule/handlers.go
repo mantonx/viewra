@@ -1,6 +1,7 @@
 package enrichmentmodule
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -15,6 +16,10 @@ import (
 
 // RegisterRoutes registers HTTP routes for enrichment management
 func (m *Module) RegisterRoutes(r *gin.Engine) {
+	if !m.enabled {
+		return
+	}
+	
 	api := r.Group("/api")
 	enrichment := api.Group("/enrichment")
 	{
@@ -25,6 +30,8 @@ func (m *Module) RegisterRoutes(r *gin.Engine) {
 		enrichment.GET("/jobs", m.GetEnrichmentJobsHandler)
 		enrichment.POST("/jobs/:mediaFileId", m.TriggerEnrichmentJobHandler)
 	}
+	
+	log.Printf("✅ Registered enrichment module HTTP routes")
 }
 
 // GetEnrichmentStatusHandler returns enrichment status for a media file

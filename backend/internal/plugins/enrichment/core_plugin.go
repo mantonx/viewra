@@ -357,6 +357,7 @@ func (p *EnrichmentCorePlugin) extractAndSaveArtwork(path string, albumID string
 		EntityID:   albumUUID,
 		Type:       assetmodule.AssetTypeCover,
 		Source:     assetmodule.SourceEmbedded,
+		PluginID:   "core_enrichment",
 		Data:       artwork.Data,
 		Format:     mimeType,
 		Preferred:  true,

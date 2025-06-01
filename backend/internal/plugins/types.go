@@ -176,14 +176,14 @@ type MetadataScraperService interface {
 }
 
 type ScannerHookService interface {
-	OnMediaFileScanned(mediaFileID uint32, filePath string, metadata map[string]string) error
+	OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error
 	OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error
 	OnScanCompleted(scanJobID, libraryID uint32, stats map[string]string) error
 }
 
 type AssetService interface {
-	SaveAsset(mediaFileID uint32, assetType, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) (uint32, string, string, error)
-	AssetExists(mediaFileID uint32, assetType, category, subtype, hash string) (bool, uint32, string, error)
+	SaveAsset(mediaFileID string, assetType, category, subtype string, data []byte, mimeType, sourceURL, pluginID string, metadata map[string]string) (uint32, string, string, error)
+	AssetExists(mediaFileID string, assetType, category, subtype, hash string) (bool, uint32, string, error)
 	RemoveAsset(assetID uint32) error
 }
 

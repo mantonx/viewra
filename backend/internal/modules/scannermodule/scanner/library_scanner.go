@@ -1214,7 +1214,7 @@ func (ps *LibraryScanner) callPluginHooks(mediaFile *database.MediaFile, metadat
 			defer cancel()
 
 			req := &proto.OnMediaFileScannedRequest{
-				MediaFileId: uuidToUint32(mediaFile.ID), // Convert UUID to uint32 for plugin compatibility
+				MediaFileId: mediaFile.ID, // Pass the original UUID string directly
 				FilePath:    mediaFile.Path,
 				Metadata:    metadataMap,
 			}
@@ -2499,6 +2499,13 @@ func (mc *MetadataCache) GetHitRate() float64 {
 		return 0
 	}
 	return float64(hits) / float64(total)
+}
+
+// convertSecsToTimeCode converts duration in seconds to MM:SS format
+func convertSecsToTimeCode(secs float64) string {
+	minutes := int(secs) / 60
+	seconds := int(secs) % 60
+	return fmt.Sprintf("%02d:%02d", minutes, seconds)
 }
 
 

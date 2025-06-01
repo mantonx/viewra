@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	enrichmentpb "github.com/mantonx/viewra/api/proto/enrichment"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
@@ -136,9 +137,9 @@ func (m *Module) Start() error {
 	}
 
 	// Start gRPC server (disabled until protobuf is generated)
-	// if err := m.startGRPCServer(); err != nil {
-	// 	return fmt.Errorf("failed to start gRPC server: %w", err)
-	// }
+	if err := m.startGRPCServer(); err != nil {
+		return fmt.Errorf("failed to start gRPC server: %w", err)
+	}
 
 	// Start background enrichment application worker
 	go m.startEnrichmentWorker()
@@ -157,9 +158,8 @@ func (m *Module) startGRPCServer() error {
 	m.grpcServer = grpc.NewServer()
 	
 	// Register the enrichment service
-	// TODO: Uncomment when protobuf code is generated
-	// grpcService := NewGRPCServer(m)
-	// enrichmentpb.RegisterEnrichmentServiceServer(m.grpcServer, grpcService)
+	grpcService := NewGRPCServer(m)
+	enrichmentpb.RegisterEnrichmentServiceServer(m.grpcServer, grpcService)
 
 	// Start server in background
 	go func() {
@@ -855,7 +855,7 @@ func (m *Module) IntegrateWithScanner() {
 
 // OnMediaFileScanned is called by the scanner when a media file is scanned
 // This integrates with the existing scanner plugin hook system
-func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata map[string]string) error {
+func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata interface{}) error {
 	if !m.enabled {
 		return nil
 	}
@@ -875,6 +875,30 @@ func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata map[
 		return nil // Don't fail scanning if enrichment job creation fails
 	}
 
+	return nil
+}
+
+// OnScanStarted is called when a scan starts (ScannerPluginHook interface)
+func (m *Module) OnScanStarted(jobID, libraryID uint, path string) error {
+	if !m.enabled {
+		return nil
+	}
+
+	log.Printf("INFO: Enrichment module notified - scan started (job: %d, library: %d, path: %s)", jobID, libraryID, path)
+	return nil
+}
+
+// OnScanCompleted is called when a scan completes (ScannerPluginHook interface)
+func (m *Module) OnScanCompleted(jobID, libraryID uint, stats map[string]interface{}) error {
+	if !m.enabled {
+		return nil
+	}
+
+	log.Printf("INFO: Enrichment module notified - scan completed (job: %d, library: %d)", jobID, libraryID)
+	
+	// Optionally: Trigger batch enrichment application for newly scanned files
+	// This could queue enrichment jobs for all files in the library
+	
 	return nil
 }
 

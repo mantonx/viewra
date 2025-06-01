@@ -76,7 +76,8 @@ type AssetSource string
 const (
 	SourceLocal    AssetSource = "local"
 	SourceUser     AssetSource = "user"
-	SourcePlugin   AssetSource = "plugin"    // Generic source for all external plugins
+	SourceCore     AssetSource = "core"      // For core system plugins
+	SourcePlugin   AssetSource = "plugin"    // For external plugins
 	SourceEmbedded AssetSource = "embedded"
 )
 
@@ -87,6 +88,7 @@ type MediaAsset struct {
 	EntityID   uuid.UUID   `gorm:"type:uuid;not null;index:idx_media_assets_entity" json:"entity_id"`
 	Type       AssetType   `gorm:"not null;index:idx_media_assets_type" json:"type"`
 	Source     AssetSource `gorm:"not null;index:idx_media_assets_source" json:"source"`
+	PluginID   string      `gorm:"index:idx_media_assets_plugin" json:"plugin_id,omitempty"` // Specific plugin identifier when source is plugin/core
 	Path       string      `gorm:"not null" json:"path"`
 	Width      int         `gorm:"default:0" json:"width"`
 	Height     int         `gorm:"default:0" json:"height"`
@@ -108,6 +110,7 @@ type AssetRequest struct {
 	EntityID   uuid.UUID   `json:"entity_id" binding:"required"`
 	Type       AssetType   `json:"type" binding:"required"`
 	Source     AssetSource `json:"source" binding:"required"`
+	PluginID   string      `json:"plugin_id,omitempty"` // Specific plugin identifier when source is plugin/core
 	Data       []byte      `json:"data" binding:"required"`
 	Width      int         `json:"width,omitempty"`
 	Height     int         `json:"height,omitempty"`
@@ -123,6 +126,7 @@ type AssetResponse struct {
 	EntityID   uuid.UUID   `json:"entity_id"`
 	Type       AssetType   `json:"type"`
 	Source     AssetSource `json:"source"`
+	PluginID   string      `json:"plugin_id,omitempty"`
 	Path       string      `json:"path"`
 	Width      int         `json:"width"`
 	Height     int         `json:"height"`
@@ -139,6 +143,7 @@ type AssetFilter struct {
 	EntityID   uuid.UUID   `json:"entity_id,omitempty"`
 	Type       AssetType   `json:"type,omitempty"`
 	Source     AssetSource `json:"source,omitempty"`
+	PluginID   string      `json:"plugin_id,omitempty"`
 	Preferred  *bool       `json:"preferred,omitempty"`
 	Language   string      `json:"language,omitempty"`
 	Limit      int         `json:"limit,omitempty"`
@@ -216,6 +221,7 @@ func GetValidSources() []AssetSource {
 	return []AssetSource{
 		SourceLocal,
 		SourceUser,
+		SourceCore,
 		SourcePlugin,
 		SourceEmbedded,
 	}

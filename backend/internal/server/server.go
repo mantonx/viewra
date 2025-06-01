@@ -21,6 +21,7 @@ import (
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/plugins/enrichment"
 	"github.com/mantonx/viewra/internal/plugins/ffmpeg"
+	"github.com/mantonx/viewra/internal/plugins/moviestructure"
 	"github.com/mantonx/viewra/internal/plugins/tvstructure"
 	"github.com/mantonx/viewra/internal/server/handlers"
 
@@ -395,7 +396,13 @@ func registerCorePlugins() error {
 		return fmt.Errorf("failed to register TV structure core plugin: %w", err)
 	}
 	
-	log.Printf("✅ Registered core plugins: FFmpeg, Enrichment, TV Structure")
+	// Register Movie structure core plugin (for movie structure parsing)
+	movieStructurePlugin := moviestructure.NewMovieStructureCorePlugin()
+	if err := pluginManager.RegisterCorePlugin(movieStructurePlugin); err != nil {
+		return fmt.Errorf("failed to register Movie structure core plugin: %w", err)
+	}
+	
+	log.Printf("✅ Registered core plugins: FFmpeg, Enrichment, TV Structure, Movie Structure")
 	return nil
 }
 

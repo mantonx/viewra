@@ -180,6 +180,7 @@ type ScannerHookServer struct {
 }
 
 func (s *ScannerHookServer) OnMediaFileScanned(ctx context.Context, req *proto.OnMediaFileScannedRequest) (*proto.OnMediaFileScannedResponse, error) {
+	// Pass the UUID string directly to the plugin implementation
 	err := s.Impl.OnMediaFileScanned(req.MediaFileId, req.FilePath, req.Metadata)
 	if err != nil {
 		return &proto.OnMediaFileScannedResponse{
@@ -339,14 +340,16 @@ type AssetServer struct {
 }
 
 func (s *AssetServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest) (*proto.SaveAssetResponse, error) {
+	// Pass the UUID string directly to the host service including the pluginID
 	assetID, hash, relativePath, err := s.Impl.SaveAsset(
-		req.MediaFileId,
+		req.MediaFileId, // Pass string UUID directly
 		req.AssetType,
 		req.Category,
 		req.Subtype,
 		req.Data,
 		req.MimeType,
 		req.SourceUrl,
+		req.PluginId, // Pass the plugin ID
 		req.Metadata,
 	)
 	
@@ -366,8 +369,9 @@ func (s *AssetServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest
 }
 
 func (s *AssetServer) AssetExists(ctx context.Context, req *proto.AssetExistsRequest) (*proto.AssetExistsResponse, error) {
+	// Pass the UUID string directly to the host service
 	exists, assetID, relativePath, err := s.Impl.AssetExists(
-		req.MediaFileId,
+		req.MediaFileId, // Pass string UUID directly
 		req.AssetType,
 		req.Category,
 		req.Subtype,

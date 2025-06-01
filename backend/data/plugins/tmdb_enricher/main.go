@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mantonx/viewra/pkg/plugins"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -331,17 +332,23 @@ func (t *TMDbEnricher) GetSupportedTypes() []string {
 // ScannerHookService implementation
 
 // OnMediaFileScanned implements the plugins.ScannerHookService interface
-func (t *TMDbEnricher) OnMediaFileScanned(mediaFileID uint32, filePath string, metadata map[string]string) error {
+func (t *TMDbEnricher) OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error {
 	if !t.config.Enabled || !t.config.AutoEnrich {
 		return nil
 	}
 	
 	t.logger.Debug("processing media file", "media_file_id", mediaFileID, "file_path", filePath)
 	
+	// Convert string to uint32 for compatibility with existing database structure
+	mediaFileIDUint, err := strconv.ParseUint(mediaFileID, 10, 32)
+	if err != nil {
+		return fmt.Errorf("invalid media file ID format: %w", err)
+	}
+	
 	// Check if already enriched
 	if !t.config.OverwriteExisting {
 		var existing TMDbEnrichment
-		if err := t.db.Where("media_file_id = ?", mediaFileID).First(&existing).Error; err == nil {
+		if err := t.db.Where("media_file_id = ?", uint32(mediaFileIDUint)).First(&existing).Error; err == nil {
 			t.logger.Debug("media file already enriched, skipping", "media_file_id", mediaFileID)
 			return nil
 		}
@@ -374,8 +381,8 @@ func (t *TMDbEnricher) OnMediaFileScanned(mediaFileID uint32, filePath string, m
 		return nil
 	}
 	
-	// Save enrichment
-	return t.saveEnrichment(uint32(mediaFileID), bestMatch)
+	// Save enrichment (pass uint32 to existing method)
+	return t.saveEnrichment(uint32(mediaFileIDUint), bestMatch)
 }
 
 // OnScanStarted implements the plugins.ScannerHookService interface
@@ -664,6 +671,25 @@ func (t *TMDbEnricher) saveEnrichment(mediaFileID uint32, result *Result) error 
 	if err := t.db.Save(enrichment).Error; err != nil {
 		return fmt.Errorf("failed to save enrichment: %w", err)
 	}
+
+	// ALSO save to centralized MediaEnrichment table (for core system integration)
+	if err := t.saveToCentralizedSystem(fmt.Sprintf("%d", mediaFileID), result, enrichment.MediaType); err != nil {
+		t.logger.Warn("Failed to save to centralized enrichment system", "error", err, "media_file_id", mediaFileID)
+		// Don't fail the entire operation if centralized save fails
+	}
+
+	// Create TV show/movie entities if this is a new match
+	if enrichment.MediaType == "tv" {
+		if err := t.createTVShowFromFile(mediaFileID, result); err != nil {
+			t.logger.Warn("Failed to create TV show entities", "error", err, "media_file_id", mediaFileID)
+			// Don't fail the enrichment if entity creation fails
+		}
+	} else if enrichment.MediaType == "movie" {
+		if err := t.createMovieFromFile(mediaFileID, result); err != nil {
+			t.logger.Warn("Failed to create movie entity", "error", err, "media_file_id", mediaFileID)
+			// Don't fail the enrichment if entity creation fails
+		}
+	}
 	
 	t.logger.Info("saved enrichment", 
 		"media_file_id", mediaFileID, 
@@ -671,6 +697,489 @@ func (t *TMDbEnricher) saveEnrichment(mediaFileID uint32, result *Result) error 
 		"title", enrichment.EnrichedTitle,
 		"type", enrichment.MediaType,
 		"score", enrichment.MatchScore)
+	
+	return nil
+}
+
+// createTVShowFromFile creates TV show, season, and episode records from a TV show file
+func (t *TMDbEnricher) createTVShowFromFile(mediaFileID uint32, result *Result) error {
+	// Get the media file to access its path
+	var mediaFile struct {
+		ID   string `gorm:"column:id"`
+		Path string `gorm:"column:path"`
+	}
+	
+	if err := t.db.Table("media_files").Select("id, path").Where("id = ?", fmt.Sprintf("%d", mediaFileID)).First(&mediaFile).Error; err != nil {
+		return fmt.Errorf("failed to get media file: %w", err)
+	}
+	
+	// Parse TV show information from file path
+	showInfo := t.parseTVShowFromPath(mediaFile.Path)
+	if showInfo == nil {
+		return fmt.Errorf("could not parse TV show info from path: %s", mediaFile.Path)
+	}
+	
+	// Create or get TV show
+	tvShowID, err := t.createOrGetTVShow(result, showInfo.ShowName)
+	if err != nil {
+		return fmt.Errorf("failed to create TV show: %w", err)
+	}
+	
+	// Create or get season
+	seasonID, err := t.createOrGetSeason(tvShowID, showInfo.SeasonNumber)
+	if err != nil {
+		return fmt.Errorf("failed to create season: %w", err)
+	}
+	
+	// Create or get episode
+	episodeID, err := t.createOrGetEpisode(seasonID, showInfo.EpisodeNumber, showInfo.EpisodeTitle)
+	if err != nil {
+		return fmt.Errorf("failed to create episode: %w", err)
+	}
+	
+	// Update media file to link to the episode
+	if err := t.db.Table("media_files").Where("id = ?", mediaFile.ID).Updates(map[string]interface{}{
+		"media_id":   episodeID,
+		"media_type": "episode",
+	}).Error; err != nil {
+		return fmt.Errorf("failed to link media file to episode: %w", err)
+	}
+	
+	t.logger.Info("Created TV show entities", 
+		"media_file_id", mediaFileID,
+		"tv_show_id", tvShowID,
+		"season_id", seasonID,
+		"episode_id", episodeID,
+		"show_name", showInfo.ShowName,
+		"season", showInfo.SeasonNumber,
+		"episode", showInfo.EpisodeNumber)
+	
+	return nil
+}
+
+// createMovieFromFile creates a movie record from a movie file
+func (t *TMDbEnricher) createMovieFromFile(mediaFileID uint32, result *Result) error {
+	// Get the media file to access its path
+	var mediaFile struct {
+		ID   string `gorm:"column:id"`
+		Path string `gorm:"column:path"`
+	}
+	
+	if err := t.db.Table("media_files").Select("id, path").Where("id = ?", fmt.Sprintf("%d", mediaFileID)).First(&mediaFile).Error; err != nil {
+		return fmt.Errorf("failed to get media file: %w", err)
+	}
+	
+	// Create or get movie
+	movieID, err := t.createOrGetMovie(result)
+	if err != nil {
+		return fmt.Errorf("failed to create movie: %w", err)
+	}
+	
+	// Update media file to link to the movie
+	if err := t.db.Table("media_files").Where("id = ?", mediaFile.ID).Updates(map[string]interface{}{
+		"media_id":   movieID,
+		"media_type": "movie",
+	}).Error; err != nil {
+		return fmt.Errorf("failed to link media file to movie: %w", err)
+	}
+	
+	t.logger.Info("Created movie entity", 
+		"media_file_id", mediaFileID,
+		"movie_id", movieID,
+		"title", result.Title)
+	
+	return nil
+}
+
+// TVShowInfo holds parsed TV show information
+type TVShowInfo struct {
+	ShowName      string
+	SeasonNumber  int
+	EpisodeNumber int
+	EpisodeTitle  string
+	Year          int
+}
+
+// parseTVShowFromPath extracts TV show information from file path
+func (t *TMDbEnricher) parseTVShowFromPath(filePath string) *TVShowInfo {
+	// Import required packages for regex
+	// This is a simplified parser - could be enhanced with more sophisticated regex
+	
+	// Extract filename from path
+	filename := filepath.Base(filePath)
+	
+	// Try to match common TV show patterns:
+	// "Show Name (2024) - S01E01 - Episode Title.mkv"
+	// "Show Name - S01E01 - Episode Title.mkv"
+	
+	// Remove file extension
+	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
+	
+	// Find season/episode match
+	var seasonNum, episodeNum int
+	var showName, episodeTitle string
+	
+	// Simple parsing - split by " - " and look for patterns
+	parts := strings.Split(nameWithoutExt, " - ")
+	
+	for i, part := range parts {
+		// Check if this part contains season/episode info
+		part = strings.TrimSpace(part)
+		if strings.Contains(strings.ToLower(part), "s") && strings.Contains(strings.ToLower(part), "e") {
+			// Try to extract season and episode numbers
+			lowerPart := strings.ToLower(part)
+			if sIndex := strings.Index(lowerPart, "s"); sIndex >= 0 {
+				if eIndex := strings.Index(lowerPart, "e"); eIndex > sIndex {
+					// Extract season number
+					seasonStr := lowerPart[sIndex+1 : eIndex]
+					if s, err := strconv.Atoi(seasonStr); err == nil {
+						seasonNum = s
+					}
+					
+					// Extract episode number (find next non-digit or end)
+					episodeStart := eIndex + 1
+					episodeEnd := episodeStart
+					for episodeEnd < len(lowerPart) && lowerPart[episodeEnd] >= '0' && lowerPart[episodeEnd] <= '9' {
+						episodeEnd++
+					}
+					if episodeEnd > episodeStart {
+						episodeStr := lowerPart[episodeStart:episodeEnd]
+						if e, err := strconv.Atoi(episodeStr); err == nil {
+							episodeNum = e
+						}
+					}
+				}
+			}
+			
+			// Show name is everything before this part
+			if i > 0 {
+				showName = strings.Join(parts[:i], " - ")
+			}
+			
+			// Episode title is everything after this part
+			if i < len(parts)-1 {
+				episodeTitle = strings.Join(parts[i+1:], " - ")
+			}
+			break
+		}
+	}
+	
+	// If we couldn't parse season/episode, assume it's the show name
+	if seasonNum == 0 && episodeNum == 0 {
+		showName = nameWithoutExt
+		seasonNum = 1
+		episodeNum = 1
+	}
+	
+	// Clean up show name - remove year if present
+	if showName != "" {
+		// Remove year pattern like "(2024)"
+		if idx := strings.LastIndex(showName, "("); idx > 0 {
+			if idx2 := strings.Index(showName[idx:], ")"); idx2 > 0 {
+				yearStr := showName[idx+1 : idx+idx2]
+				if _, err := strconv.Atoi(yearStr); err == nil && len(yearStr) == 4 {
+					showName = strings.TrimSpace(showName[:idx])
+				}
+			}
+		}
+	}
+	
+	if showName == "" || seasonNum == 0 || episodeNum == 0 {
+		return nil
+	}
+	
+	return &TVShowInfo{
+		ShowName:      showName,
+		SeasonNumber:  seasonNum,
+		EpisodeNumber: episodeNum,
+		EpisodeTitle:  episodeTitle,
+	}
+}
+
+// createOrGetTVShow creates or retrieves a TV show record
+func (t *TMDbEnricher) createOrGetTVShow(result *Result, showName string) (string, error) {
+	// Generate UUID for TV show
+	tvShowID := t.generateUUID()
+	
+	// Check if TV show already exists with this TMDb ID
+	var existingShow struct {
+		ID string `gorm:"column:id"`
+	}
+	
+	if err := t.db.Table("tv_shows").Select("id").Where("tmdb_id = ?", fmt.Sprintf("%d", result.ID)).First(&existingShow).Error; err == nil {
+		return existingShow.ID, nil
+	}
+	
+	// Parse first air date
+	var firstAirDate *time.Time
+	if result.FirstAirDate != "" {
+		if date, err := time.Parse("2006-01-02", result.FirstAirDate); err == nil {
+			firstAirDate = &date
+		}
+	}
+	
+	// Create TV show record
+	tvShow := map[string]interface{}{
+		"id":             tvShowID,
+		"title":          t.getResultTitle(*result),
+		"description":    result.Overview,
+		"first_air_date": firstAirDate,
+		"status":         "Unknown",
+		"tmdb_id":        fmt.Sprintf("%d", result.ID),
+		"created_at":     time.Now(),
+		"updated_at":     time.Now(),
+	}
+	
+	// Add poster/backdrop if available
+	if result.PosterPath != "" {
+		tvShow["poster"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.PosterSize, result.PosterPath)
+	}
+	if result.BackdropPath != "" {
+		tvShow["backdrop"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.BackdropSize, result.BackdropPath)
+	}
+	
+	if err := t.db.Table("tv_shows").Create(tvShow).Error; err != nil {
+		return "", fmt.Errorf("failed to create TV show: %w", err)
+	}
+	
+	return tvShowID, nil
+}
+
+// createOrGetSeason creates or retrieves a season record
+func (t *TMDbEnricher) createOrGetSeason(tvShowID string, seasonNumber int) (string, error) {
+	// Check if season already exists
+	var existingSeason struct {
+		ID string `gorm:"column:id"`
+	}
+	
+	if err := t.db.Table("seasons").Select("id").Where("tv_show_id = ? AND season_number = ?", tvShowID, seasonNumber).First(&existingSeason).Error; err == nil {
+		return existingSeason.ID, nil
+	}
+	
+	// Generate UUID for season
+	seasonID := t.generateUUID()
+	
+	// Create season record
+	season := map[string]interface{}{
+		"id":            seasonID,
+		"tv_show_id":    tvShowID,
+		"season_number": seasonNumber,
+		"description":   fmt.Sprintf("Season %d", seasonNumber),
+		"created_at":    time.Now(),
+		"updated_at":    time.Now(),
+	}
+	
+	if err := t.db.Table("seasons").Create(season).Error; err != nil {
+		return "", fmt.Errorf("failed to create season: %w", err)
+	}
+	
+	return seasonID, nil
+}
+
+// createOrGetEpisode creates or retrieves an episode record
+func (t *TMDbEnricher) createOrGetEpisode(seasonID string, episodeNumber int, episodeTitle string) (string, error) {
+	// Check if episode already exists
+	var existingEpisode struct {
+		ID string `gorm:"column:id"`
+	}
+	
+	if err := t.db.Table("episodes").Select("id").Where("season_id = ? AND episode_number = ?", seasonID, episodeNumber).First(&existingEpisode).Error; err == nil {
+		return existingEpisode.ID, nil
+	}
+	
+	// Generate UUID for episode
+	episodeID := t.generateUUID()
+	
+	// Use episode title if available, otherwise generate one
+	if episodeTitle == "" {
+		episodeTitle = fmt.Sprintf("Episode %d", episodeNumber)
+	}
+	
+	// Create episode record
+	episode := map[string]interface{}{
+		"id":             episodeID,
+		"season_id":      seasonID,
+		"title":          episodeTitle,
+		"episode_number": episodeNumber,
+		"created_at":     time.Now(),
+		"updated_at":     time.Now(),
+	}
+	
+	if err := t.db.Table("episodes").Create(episode).Error; err != nil {
+		return "", fmt.Errorf("failed to create episode: %w", err)
+	}
+	
+	return episodeID, nil
+}
+
+// createOrGetMovie creates or retrieves a movie record
+func (t *TMDbEnricher) createOrGetMovie(result *Result) (string, error) {
+	// Check if movie already exists with this TMDb ID
+	var existingMovie struct {
+		ID string `gorm:"column:id"`
+	}
+	
+	if err := t.db.Table("movies").Select("id").Where("tmdb_id = ?", fmt.Sprintf("%d", result.ID)).First(&existingMovie).Error; err == nil {
+		return existingMovie.ID, nil
+	}
+	
+	// Generate UUID for movie
+	movieID := t.generateUUID()
+	
+	// Parse release date
+	var releaseDate *time.Time
+	if result.ReleaseDate != "" {
+		if date, err := time.Parse("2006-01-02", result.ReleaseDate); err == nil {
+			releaseDate = &date
+		}
+	}
+	
+	// Create movie record
+	movie := map[string]interface{}{
+		"id":           movieID,
+		"title":        result.Title,
+		"plot":         result.Overview,
+		"release_date": releaseDate,
+		"rating":       result.VoteAverage,
+		"tmdb_id":      fmt.Sprintf("%d", result.ID),
+		"created_at":   time.Now(),
+		"updated_at":   time.Now(),
+	}
+	
+	// Add poster/backdrop if available
+	if result.PosterPath != "" {
+		movie["poster"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.PosterSize, result.PosterPath)
+	}
+	if result.BackdropPath != "" {
+		movie["backdrop"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.BackdropSize, result.BackdropPath)
+	}
+	
+	if err := t.db.Table("movies").Create(movie).Error; err != nil {
+		return "", fmt.Errorf("failed to create movie: %w", err)
+	}
+	
+	return movieID, nil
+}
+
+// generateUUID generates a robust UUID using Google's UUID library
+func (t *TMDbEnricher) generateUUID() string {
+	return uuid.New().String()
+}
+
+// saveToCentralizedSystem saves enrichment data to the centralized MediaEnrichment table
+func (t *TMDbEnricher) saveToCentralizedSystem(mediaFileID string, result *Result, mediaType string) error {
+	// Get current time
+	now := time.Now()
+	
+	// Define MediaEnrichment struct to match the existing table structure
+	type MediaEnrichment struct {
+		MediaID   string    `gorm:"primaryKey;column:media_id"`
+		MediaType string    `gorm:"primaryKey;column:media_type"`
+		Plugin    string    `gorm:"primaryKey;column:plugin"`
+		Payload   string    `gorm:"column:payload"`
+		UpdatedAt time.Time `gorm:"column:updated_at"`
+	}
+	
+	// Prepare enrichment payload as JSON
+	payload := map[string]interface{}{
+		"tmdb_id":     result.ID,
+		"title":       t.getResultTitle(*result),
+		"overview":    result.Overview,
+		"year":        t.getResultYear(*result),
+		"rating":      result.VoteAverage,
+		"popularity":  result.Popularity,
+		"media_type":  mediaType,
+		"match_score": t.calculateMatchScore(*result, t.getResultTitle(*result), t.getResultYear(*result)),
+	}
+	
+	// Add type-specific fields
+	if mediaType == "movie" {
+		payload["release_date"] = result.ReleaseDate
+		payload["original_title"] = result.OriginalTitle
+	} else if mediaType == "tv" {
+		payload["first_air_date"] = result.FirstAirDate
+		payload["original_name"] = result.OriginalName
+		payload["origin_country"] = result.OriginCountry
+	}
+	
+	// Add artwork URLs if available
+	if result.PosterPath != "" {
+		payload["poster_url"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.PosterSize, result.PosterPath)
+	}
+	if result.BackdropPath != "" {
+		payload["backdrop_url"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.BackdropSize, result.BackdropPath)
+	}
+	
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+	
+	// Create enrichment record using the existing table structure
+	enrichment := MediaEnrichment{
+		MediaID:   mediaFileID, // Use UUID string directly
+		MediaType: mediaType,   // "movie", "tv", or "episode"
+		Plugin:    "tmdb",
+		Payload:   string(payloadJSON),
+		UpdatedAt: now,
+	}
+	
+	// Use raw SQL INSERT OR REPLACE since the table doesn't have proper primary key constraints
+	result_db := t.db.Exec(`
+		INSERT OR REPLACE INTO media_enrichments (media_id, media_type, plugin, payload, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, enrichment.MediaID, enrichment.MediaType, enrichment.Plugin, enrichment.Payload, enrichment.UpdatedAt)
+	
+	if result_db.Error != nil {
+		return fmt.Errorf("failed to save enrichment to centralized system: %w", result_db.Error)
+	}
+	
+	// Also save external IDs to MediaExternalIDs table if it exists
+	type MediaExternalIDs struct {
+		MediaID      string    `gorm:"column:media_id"`
+		MediaType    string    `gorm:"column:media_type"`
+		Source       string    `gorm:"column:source"`
+		ExternalID   string    `gorm:"column:external_id"`
+		CreatedAt    time.Time `gorm:"column:created_at"`
+		UpdatedAt    time.Time `gorm:"column:updated_at"`
+	}
+	
+	// Check if MediaExternalIDs table exists
+	if t.db.Migrator().HasTable("media_external_ids") {
+		externalID := MediaExternalIDs{
+			MediaID:    mediaFileID, // Use UUID string directly
+			MediaType:  mediaType,   // "movie", "tv", or "episode"
+			Source:     "tmdb",
+			ExternalID: fmt.Sprintf("%d", result.ID),
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		
+		// Save external ID using proper GORM operations
+		result_ext := t.db.Table("media_external_ids").Create(&externalID)
+		if result_ext.Error != nil {
+			// Try update if insert fails (might be duplicate)
+			updateResult := t.db.Table("media_external_ids").
+				Where("media_id = ? AND media_type = ? AND source = ?", externalID.MediaID, externalID.MediaType, externalID.Source).
+				Updates(map[string]interface{}{
+					"external_id": externalID.ExternalID,
+					"updated_at":  externalID.UpdatedAt,
+				})
+			if updateResult.Error != nil {
+				t.logger.Warn("Failed to save/update external ID", "error", updateResult.Error, "external_id", externalID.ExternalID)
+			} else {
+				t.logger.Debug("Updated external ID", "external_id", externalID.ExternalID, "media_type", externalID.MediaType)
+			}
+		} else {
+			t.logger.Debug("Saved external ID", "external_id", externalID.ExternalID, "media_type", externalID.MediaType)
+		}
+	}
+	
+	t.logger.Info("Successfully saved enrichment to centralized system", 
+		"media_file_id", mediaFileID,
+		"tmdb_id", result.ID,
+		"media_type", mediaType,
+		"payload_size", len(payloadJSON))
 	
 	return nil
 }
@@ -731,4 +1240,4 @@ func abs(x int) int {
 func main() {
 	plugin := &TMDbEnricher{}
 	plugins.StartPlugin(plugin)
-} 
+}

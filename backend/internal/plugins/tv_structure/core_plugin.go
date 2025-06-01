@@ -11,7 +11,6 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/plugins"
-	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -32,8 +31,6 @@ type TVShowInfo struct {
 	Year          int
 	Resolution    string
 	Source        string
-	IsDateBased   bool
-	AirDate       *time.Time
 }
 
 // NewTVStructureCorePlugin creates a new TV structure parser core plugin instance
@@ -171,32 +168,34 @@ func (p *TVStructureCorePlugin) isExtensionSupported(ext string) bool {
 func (p *TVStructureCorePlugin) parseTVShowFromPath(filePath string) (*TVShowInfo, error) {
 	// Extract filename from path
 	filename := filepath.Base(filePath)
+	dir := filepath.Dir(filePath)
 	
 	// Remove file extension
 	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
 	
+	// Common TV show patterns to match:
+	// "Show Name S01E01 Episode Title.mkv"
+	// "Show Name - S01E01 - Episode Title.mkv"
+	// "Show Name (2024) S01E01 Episode Title.mkv"
+	// "Show.Name.S01E01.Episode.Title.mkv"
+	// "Show Name/Season 01/Episode 01 - Episode Title.mkv"
+	// "Show Name/Season 1/S01E01 - Episode Title.mkv"
+	
 	var showInfo *TVShowInfo
 	
-	// Pattern 1: Standard SxxExx format (highest priority)
-	if info := p.parseSxxExx(nameWithoutExt, filepath.Dir(filePath)); info != nil {
+	// Pattern 1: SxxExx format in filename
+	if info := p.parseSxxExx(nameWithoutExt, dir); info != nil {
 		showInfo = info
 	}
 	
-	// Pattern 2: Date-based episodes (e.g., "Show - 2013-02-08 - Episode Title")
-	if showInfo == nil {
-		if info := p.parseDateBasedEpisode(nameWithoutExt); info != nil {
-			showInfo = info
-		}
-	}
-	
-	// Pattern 3: Folder structure analysis
+	// Pattern 2: Season/Episode folder structure
 	if showInfo == nil {
 		if info := p.parseFromFolderStructure(filePath); info != nil {
 			showInfo = info
 		}
 	}
 	
-	// Pattern 4: Episode in numbered season folder
+	// Pattern 3: Episode number only (within season folder)
 	if showInfo == nil {
 		if info := p.parseEpisodeInSeasonFolder(filePath); info != nil {
 			showInfo = info
@@ -211,76 +210,13 @@ func (p *TVStructureCorePlugin) parseTVShowFromPath(filePath string) (*TVShowInf
 	return showInfo, nil
 }
 
-// parseDateBasedEpisode parses date-based episodes like "Show - 2013-02-08 - Episode Title"
-func (p *TVStructureCorePlugin) parseDateBasedEpisode(filename string) *TVShowInfo {
-	// Pattern: Show Name - YYYY-MM-DD - Episode Title
-	// Also handles: Show Name - YYYY-MM-DD without episode title
-	datePatterns := []string{
-		`(.+?)\s*-\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*-\s*(.+)`,     // With episode title
-		`(.+?)\s*-\s*(\d{4})-(\d{1,2})-(\d{1,2})`,                // Without episode title
-		`(.+?)\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*-\s*(.+)`,         // Alternative format
-		`(.+?)\s*(\d{4})\.(\d{1,2})\.(\d{1,2})\s*-\s*(.+)`,       // Dot-separated date
-	}
-	
-	for _, pattern := range datePatterns {
-		re := regexp.MustCompile(pattern)
-		matches := re.FindStringSubmatch(filename)
-		
-		if len(matches) >= 4 {
-			showName := strings.TrimSpace(matches[1])
-			year, _ := strconv.Atoi(matches[2])
-			month, _ := strconv.Atoi(matches[3])
-			day, _ := strconv.Atoi(matches[4])
-			
-			// Validate date ranges
-			if year < 1950 || year > 2030 || month < 1 || month > 12 || day < 1 || day > 31 {
-				continue
-			}
-			
-			episodeTitle := ""
-			if len(matches) > 5 && matches[5] != "" {
-				episodeTitle = strings.TrimSpace(matches[5])
-			}
-			
-			// Clean up names
-			showName = p.cleanShowName(showName)
-			episodeTitle = p.cleanEpisodeTitle(episodeTitle)
-			
-			// For date-based episodes, we'll use year as season and a calculated episode number
-			// This is a common pattern for talk shows, news shows, etc.
-			seasonNumber := year
-			
-			// Calculate episode number as day of year for consistency
-			date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
-			episodeNumber := date.YearDay()
-			
-			return &TVShowInfo{
-				ShowName:      showName,
-				SeasonNumber:  seasonNumber,
-				EpisodeNumber: episodeNumber,
-				EpisodeTitle:  episodeTitle,
-				Year:          year,
-				IsDateBased:   true,
-				AirDate:       &date,
-			}
-		}
-	}
-	
-	return nil
-}
-
 // parseSxxExx parses the SxxExx format from filename
 func (p *TVStructureCorePlugin) parseSxxExx(filename, dirPath string) *TVShowInfo {
-	// Enhanced regex patterns for SxxExx format
+	// Regex patterns for SxxExx format
 	patterns := []string{
-		// Standard patterns
-		`(?i)(.+?)\s*[.\-\s]*s(\d+)e(\d+)(?:[.\-\s]*(.+?))?(?:\s*\[.+)?`,     // Show Name S01E01 Episode Title [Quality]
-		`(?i)(.+?)\s*[.\-\s]*season\s*(\d+)\s*episode\s*(\d+)(?:[.\-\s]*(.+?))?(?:\s*\[.+)?`, // Show Name Season 1 Episode 1
-		`(?i)(.+?)\s*[.\-\s]*(\d+)x(\d+)(?:[.\-\s]*(.+?))?(?:\s*\[.+)?`,      // Show Name 1x01 Episode Title
-		
-		// Extended patterns for better matching
-		`(?i)(.+?)\s*\(\d{4}\)\s*[.\-\s]*s(\d+)e(\d+)(?:[.\-\s]*(.+?))?(?:\s*\[.+)?`, // Show Name (Year) S01E01
-		`(?i)(.+?)\s*[.\-\s]*s(\d+)\s*e(\d+)(?:[.\-\s]*(.+?))?(?:\s*\[.+)?`,  // Show Name S01 E01 (with space)
+		`(?i)(.+?)\s*[.\-\s]*s(\d+)e(\d+)(?:[.\-\s]*(.+))?`,     // Show Name S01E01 Episode Title
+		`(?i)(.+?)\s*[.\-\s]*season\s*(\d+)\s*episode\s*(\d+)(?:[.\-\s]*(.+))?`, // Show Name Season 1 Episode 1
+		`(?i)(.+?)\s*[.\-\s]*(\d+)x(\d+)(?:[.\-\s]*(.+))?`,      // Show Name 1x01 Episode Title
 	}
 	
 	for _, pattern := range patterns {
@@ -292,48 +228,25 @@ func (p *TVStructureCorePlugin) parseSxxExx(filename, dirPath string) *TVShowInf
 			seasonNum, _ := strconv.Atoi(matches[2])
 			episodeNum, _ := strconv.Atoi(matches[3])
 			
-			// Validate reasonable ranges
-			if seasonNum < 1 || seasonNum > 50 || episodeNum < 1 || episodeNum > 999 {
-				continue
-			}
-			
 			episodeTitle := ""
 			if len(matches) > 4 && matches[4] != "" {
 				episodeTitle = strings.TrimSpace(matches[4])
 			}
 			
-			// Clean up names
+			// Clean up show name
 			showName = p.cleanShowName(showName)
 			episodeTitle = p.cleanEpisodeTitle(episodeTitle)
-			
-			// Extract year from show name if present
-			year := p.extractYearFromName(showName)
 			
 			return &TVShowInfo{
 				ShowName:      showName,
 				SeasonNumber:  seasonNum,
 				EpisodeNumber: episodeNum,
 				EpisodeTitle:  episodeTitle,
-				Year:          year,
 			}
 		}
 	}
 	
 	return nil
-}
-
-// extractYearFromName extracts year from show name (e.g., "Show Name (2024)")
-func (p *TVStructureCorePlugin) extractYearFromName(name string) int {
-	yearRegex := regexp.MustCompile(`\((\d{4})\)`)
-	matches := yearRegex.FindStringSubmatch(name)
-	if len(matches) >= 2 {
-		if year, err := strconv.Atoi(matches[1]); err == nil {
-			if year >= 1950 && year <= 2030 {
-				return year
-			}
-		}
-	}
-	return 0
 }
 
 // parseFromFolderStructure parses TV show info from folder structure
@@ -548,10 +461,12 @@ func (p *TVStructureCorePlugin) createOrGetTVShow(db *gorm.DB, showInfo *TVShowI
 	
 	// Create new TV show
 	tvShow := &database.TVShow{
-		ID:        utils.GenerateUUID(),
-		Title:     showInfo.ShowName,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:          p.generateUUID(),
+		Title:       showInfo.ShowName,
+		Description: fmt.Sprintf("TV show: %s", showInfo.ShowName),
+		Status:      "Unknown",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 	
 	// Set first air date if year is available
@@ -577,9 +492,10 @@ func (p *TVStructureCorePlugin) createOrGetSeason(db *gorm.DB, tvShowID string, 
 	
 	// Create new season
 	season := &database.Season{
-		ID:           utils.GenerateUUID(),
+		ID:           p.generateUUID(),
 		TVShowID:     tvShowID,
 		SeasonNumber: seasonNumber,
+		Description:  fmt.Sprintf("Season %d", seasonNumber),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -612,7 +528,7 @@ func (p *TVStructureCorePlugin) createOrGetEpisode(db *gorm.DB, seasonID string,
 	
 	// Create new episode
 	episode := &database.Episode{
-		ID:            utils.GenerateUUID(),
+		ID:            p.generateUUID(),
 		SeasonID:      seasonID,
 		Title:         episodeTitle,
 		EpisodeNumber: episodeNumber,
@@ -627,7 +543,8 @@ func (p *TVStructureCorePlugin) createOrGetEpisode(db *gorm.DB, seasonID string,
 	return episode, nil
 }
 
-// generateUUID is deprecated - use utils.GenerateUUID() instead
+// generateUUID generates a simple UUID (basic implementation)
 func (p *TVStructureCorePlugin) generateUUID() string {
-	return utils.GenerateUUID()
+	// Simple UUID generation - in production, use proper UUID library
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), time.Now().Unix())
 } 

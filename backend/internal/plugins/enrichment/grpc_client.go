@@ -1,9 +1,7 @@
-//go:build ignore
-// +build ignore
+//go:build !ignore
 
-// This file contains placeholder gRPC client implementation.
-// Remove the build ignore tag above after generating protobuf code with:
-// ./scripts/generate-proto.sh
+// This file contains the gRPC client implementation for external enrichment plugins.
+// Protobuf code has been generated successfully.
 
 package enrichment
 
@@ -13,6 +11,7 @@ import (
 	"log"
 	"time"
 
+	enrichmentpb "github.com/mantonx/viewra/api/proto/enrichment"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -28,8 +27,7 @@ import (
 // EnrichmentClient provides a gRPC client for external enrichment plugins
 type EnrichmentClient struct {
 	conn   *grpc.ClientConn
-	// TODO: Uncomment when protobuf is generated
-	// client enrichmentpb.EnrichmentServiceClient
+	client enrichmentpb.EnrichmentServiceClient
 	addr   string
 }
 
@@ -58,8 +56,7 @@ func (c *EnrichmentClient) Connect() error {
 	}
 
 	c.conn = conn
-	// TODO: Uncomment when protobuf is generated
-	// c.client = enrichmentpb.NewEnrichmentServiceClient(conn)
+	c.client = enrichmentpb.NewEnrichmentServiceClient(conn)
 	
 	log.Printf("INFO: Connected to enrichment service at %s", c.addr)
 	return nil
@@ -79,8 +76,6 @@ func (c *EnrichmentClient) RegisterEnrichmentData(mediaFileID, sourceName string
 		return fmt.Errorf("client not connected")
 	}
 
-	// TODO: Uncomment when protobuf is generated
-	/*
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -101,12 +96,6 @@ func (c *EnrichmentClient) RegisterEnrichmentData(mediaFileID, sourceName string
 	}
 
 	log.Printf("INFO: Successfully registered enrichment for media file %s (job: %s)", mediaFileID, resp.JobId)
-	*/
-	
-	// Placeholder implementation for now
-	log.Printf("INFO: Would register enrichment for media file %s from source %s with confidence %.2f", 
-		mediaFileID, sourceName, confidence)
-	
 	return nil
 }
 
@@ -116,8 +105,6 @@ func (c *EnrichmentClient) GetEnrichmentStatus(mediaFileID string) (map[string]i
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	// TODO: Uncomment when protobuf is generated
-	/*
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -141,17 +128,6 @@ func (c *EnrichmentClient) GetEnrichmentStatus(mediaFileID string) (map[string]i
 	}
 
 	return status, nil
-	*/
-	
-	// Placeholder implementation
-	return map[string]interface{}{
-		"media_file_id":     mediaFileID,
-		"total_enrichments": 0,
-		"applied_count":     0,
-		"pending_count":     0,
-		"sources":           map[string]int32{},
-		"fields":            map[string]interface{}{},
-	}, nil
 }
 
 // TriggerEnrichmentJob manually triggers enrichment application
@@ -160,8 +136,6 @@ func (c *EnrichmentClient) TriggerEnrichmentJob(mediaFileID string) (string, err
 		return "", fmt.Errorf("client not connected")
 	}
 
-	// TODO: Uncomment when protobuf is generated
-	/*
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -179,11 +153,6 @@ func (c *EnrichmentClient) TriggerEnrichmentJob(mediaFileID string) (string, err
 	}
 
 	return resp.JobId, nil
-	*/
-	
-	// Placeholder implementation
-	log.Printf("INFO: Would trigger enrichment job for media file %s", mediaFileID)
-	return "placeholder-job-id", nil
 }
 
 // Example usage function for plugins
