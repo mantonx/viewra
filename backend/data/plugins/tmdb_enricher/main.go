@@ -8,12 +8,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/pkg/plugins"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -26,6 +29,9 @@ type TMDbEnricher struct {
 	config   *Config
 	db       *gorm.DB
 	basePath string
+	dbURL    string
+	hostServiceAddr string
+	assetService plugins.AssetServiceClient
 }
 
 // Config represents the plugin configuration
@@ -64,9 +70,14 @@ type TMDbCache struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// TableName specifies the table name for TMDbCache
+func (TMDbCache) TableName() string {
+	return "tm_db_caches"
+}
+
 type TMDbEnrichment struct {
 	ID                 uint32    `gorm:"primaryKey" json:"id"`
-	MediaFileID        uint32    `gorm:"uniqueIndex;not null" json:"media_file_id"`
+	MediaFileID        string    `gorm:"uniqueIndex;not null" json:"media_file_id"`
 	TMDbID             int       `gorm:"index" json:"tmdb_id,omitempty"`
 	MediaType          string    `gorm:"not null" json:"media_type"` // "movie", "tv", "episode"
 	SeasonNumber       int       `json:"season_number,omitempty"`
@@ -87,6 +98,11 @@ type TMDbEnrichment struct {
 	EnrichedAt         time.Time `gorm:"not null" json:"enriched_at"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+// TableName specifies the table name for TMDbEnrichment
+func (TMDbEnrichment) TableName() string {
+	return "tm_db_enrichments"
 }
 
 // TMDb API types
@@ -128,13 +144,57 @@ type Genre struct {
 
 // Initialize implements the plugins.Implementation interface
 func (t *TMDbEnricher) Initialize(ctx *plugins.PluginContext) error {
-	t.logger = ctx.Logger
-	t.basePath = ctx.BasePath
+	t.logger = hclog.New(&hclog.LoggerOptions{
+		Name:  "tmdb_enricher",
+		Level: hclog.Debug,
+	})
 	
+	t.logger.Info("TMDb enricher plugin initializing", "database_url", ctx.DatabaseURL, "base_path", ctx.BasePath)
+	
+	// Store context information
+	t.dbURL = ctx.DatabaseURL
+	t.basePath = ctx.BasePath
+	t.hostServiceAddr = ctx.HostServiceAddr
+	
+	// Load configuration
+	if err := t.loadConfig(); err != nil {
+		t.logger.Error("Failed to load configuration", "error", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	
+	t.logger.Info("Configuration loaded", "enabled", t.config.Enabled, "api_key_set", t.config.APIKey != "")
+	
+	// Initialize database connection
+	if err := t.initDatabase(); err != nil {
+		t.logger.Error("Failed to initialize database", "error", err)
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	
+	t.logger.Info("Database initialized successfully")
+	
+	// Initialize asset service client if host service address is provided
+	if t.hostServiceAddr != "" {
+		assetClient, err := plugins.NewAssetServiceClient(t.hostServiceAddr)
+		if err != nil {
+			t.logger.Error("Failed to connect to host asset service", "error", err, "addr", t.hostServiceAddr)
+			return fmt.Errorf("failed to connect to host asset service: %w", err)
+		}
+		t.assetService = assetClient
+		t.logger.Info("Connected to host asset service", "addr", t.hostServiceAddr)
+	} else {
+		t.logger.Warn("No host service address provided - asset saving will be disabled")
+	}
+
+	t.logger.Info("TMDb enricher plugin initialized successfully")
+	return nil
+}
+
+// loadConfig loads the plugin configuration
+func (t *TMDbEnricher) loadConfig() error {
 	// Initialize with default configuration
 	t.config = &Config{
 		Enabled:            true,
-		APIKey:             "",
+		APIKey:             "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1YTU2ODc0YjRmMzU4YjIzZDhkM2YzZmI5ZDc4NDNiOSIsIm5iZiI6MTc0ODYzOTc1Ny40MDEsInN1YiI6IjY4M2EyMDBkNzA5OGI4MzMzNThmZThmOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.OXT68T0EtU-WXhcP7nwyWjMePuEuCpfWtDlvdntWKw8", // Load from plugin.cue
 		APIRateLimit:       1.0,
 		UserAgent:          "Viewra/2.0",
 		Language:           "en-US",
@@ -156,15 +216,6 @@ func (t *TMDbEnricher) Initialize(ctx *plugins.PluginContext) error {
 		YearTolerance:      2,
 		CacheDurationHours: 168,
 	}
-	
-	// Initialize database if provided
-	if ctx.DatabaseURL != "" {
-		if err := t.initDatabase(ctx.DatabaseURL); err != nil {
-			return fmt.Errorf("failed to initialize database: %w", err)
-		}
-	}
-	
-	t.logger.Info("TMDb enricher initialized", "base_path", t.basePath)
 	return nil
 }
 
@@ -263,7 +314,7 @@ func (t *TMDbEnricher) APIRegistrationService() plugins.APIRegistrationService {
 }
 
 func (t *TMDbEnricher) AssetService() plugins.AssetService {
-	return nil
+	return nil // We don't implement AssetService in this plugin
 }
 
 func (t *TMDbEnricher) SearchService() plugins.SearchService {
@@ -333,22 +384,49 @@ func (t *TMDbEnricher) GetSupportedTypes() []string {
 
 // OnMediaFileScanned implements the plugins.ScannerHookService interface
 func (t *TMDbEnricher) OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error {
+	// Add safety checks to prevent crashes
+	if t == nil {
+		return fmt.Errorf("plugin not initialized")
+	}
+	
+	if t.config == nil {
+		return fmt.Errorf("plugin config not initialized")
+	}
+	
+	if t.logger == nil {
+		// Can't log without logger, but don't crash
+		return nil
+	}
+	
+	t.logger.Info("TMDb OnMediaFileScanned ENTRY", "media_file_id", mediaFileID, "file_path", filePath)
+	
+	t.logger.Debug("TMDb scanner hook called", "media_file_id", mediaFileID, "file_path", filePath)
+	
 	if !t.config.Enabled || !t.config.AutoEnrich {
+		t.logger.Debug("TMDb enrichment disabled", "enabled", t.config.Enabled, "auto_enrich", t.config.AutoEnrich)
+		return nil
+	}
+	
+	if t.config.APIKey == "" {
+		t.logger.Warn("TMDb API key not configured, skipping enrichment")
+		return nil
+	}
+	
+	// Add database check
+	if t.db == nil {
+		t.logger.Warn("Database not initialized, skipping enrichment")
 		return nil
 	}
 	
 	t.logger.Debug("processing media file", "media_file_id", mediaFileID, "file_path", filePath)
 	
-	// Convert string to uint32 for compatibility with existing database structure
-	mediaFileIDUint, err := strconv.ParseUint(mediaFileID, 10, 32)
-	if err != nil {
-		return fmt.Errorf("invalid media file ID format: %w", err)
-	}
+	// Debug: Log the metadata being passed
+	t.logger.Info("metadata received", "metadata", metadata, "media_file_id", mediaFileID)
 	
 	// Check if already enriched
 	if !t.config.OverwriteExisting {
 		var existing TMDbEnrichment
-		if err := t.db.Where("media_file_id = ?", uint32(mediaFileIDUint)).First(&existing).Error; err == nil {
+		if err := t.db.Where("media_file_id = ?", mediaFileID).First(&existing).Error; err == nil {
 			t.logger.Debug("media file already enriched, skipping", "media_file_id", mediaFileID)
 			return nil
 		}
@@ -363,10 +441,13 @@ func (t *TMDbEnricher) OnMediaFileScanned(mediaFileID string, filePath string, m
 		return nil
 	}
 	
+	t.logger.Debug("searching TMDb", "title", title, "year", year, "file_path", filePath)
+	
 	// Search TMDb for matches
 	results, err := t.searchContent(title, year)
 	if err != nil {
-		return fmt.Errorf("failed to search TMDb: %w", err)
+		t.logger.Warn("Failed to search TMDb", "error", err, "title", title)
+		return nil // Don't fail the scan for API errors
 	}
 	
 	if len(results) == 0 {
@@ -377,12 +458,20 @@ func (t *TMDbEnricher) OnMediaFileScanned(mediaFileID string, filePath string, m
 	// Find best match
 	bestMatch := t.findBestMatch(results, title, year)
 	if bestMatch == nil {
-		t.logger.Debug("no suitable match found", "media_file_id", mediaFileID)
+		t.logger.Debug("no suitable match found", "media_file_id", mediaFileID, "title", title)
 		return nil
 	}
 	
-	// Save enrichment (pass uint32 to existing method)
-	return t.saveEnrichment(uint32(mediaFileIDUint), bestMatch)
+	t.logger.Info("Found TMDb match", "media_file_id", mediaFileID, "title", title, "tmdb_id", bestMatch.ID, "match_title", t.getResultTitle(*bestMatch))
+	
+	// Save enrichment (pass string mediaFileID to existing method)
+	if err := t.saveEnrichment(mediaFileID, bestMatch); err != nil {
+		t.logger.Warn("Failed to save enrichment", "error", err, "media_file_id", mediaFileID)
+		return nil // Don't fail the scan for save errors
+	}
+	
+	t.logger.Info("Successfully enriched media file", "media_file_id", mediaFileID, "tmdb_id", bestMatch.ID)
+	return nil
 }
 
 // OnScanStarted implements the plugins.ScannerHookService interface
@@ -413,21 +502,50 @@ func (t *TMDbEnricher) GetModels() []string {
 
 // Migrate implements the plugins.DatabaseService interface
 func (t *TMDbEnricher) Migrate(connectionString string) error {
-	t.logger.Info("migrating TMDb enricher database models")
-	return t.db.AutoMigrate(&TMDbCache{}, &TMDbEnrichment{})
+	t.logger.Info("migrating TMDb enricher database models", "connection_string", connectionString)
+	
+	// Use the connection string provided by the core system instead of our own db
+	// This ensures tables are created in the main Viewra database
+	db, err := t.connectToDatabase(connectionString)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database for migration: %w", err)
+	}
+	
+	// Auto-migrate the TMDb tables to the main database
+	if err := db.AutoMigrate(&TMDbCache{}, &TMDbEnrichment{}); err != nil {
+		return fmt.Errorf("failed to migrate TMDb tables: %w", err)
+	}
+	
+	t.logger.Info("TMDb enricher database migration completed successfully")
+	return nil
 }
 
 // Rollback implements the plugins.DatabaseService interface
 func (t *TMDbEnricher) Rollback(connectionString string) error {
 	t.logger.Info("rolling back TMDb enricher database models")
-	return t.db.Migrator().DropTable(&TMDbCache{}, &TMDbEnrichment{})
+	
+	// Use the connection string provided by the core system
+	db, err := t.connectToDatabase(connectionString)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database for rollback: %w", err)
+	}
+	
+	return db.Migrator().DropTable(&TMDbCache{}, &TMDbEnrichment{})
 }
 
 // APIRegistrationService implementation
 
 // GetRegisteredRoutes implements the plugins.APIRegistrationService interface
 func (t *TMDbEnricher) GetRegisteredRoutes(ctx context.Context) ([]*plugins.APIRoute, error) {
-	t.logger.Info("APIRegistrationService: GetRegisteredRoutes called for tmdb_enricher")
+	// Add nil check to prevent panic during early plugin loading
+	if t == nil {
+		return []*plugins.APIRoute{}, nil
+	}
+	
+	// Only log if logger is available
+	if t.logger != nil {
+		t.logger.Info("APIRegistrationService: GetRegisteredRoutes called for tmdb_enricher")
+	}
 	
 	return []*plugins.APIRoute{
 		{
@@ -445,43 +563,326 @@ func (t *TMDbEnricher) GetRegisteredRoutes(ctx context.Context) ([]*plugins.APIR
 
 // Helper methods
 
-func (t *TMDbEnricher) initDatabase(connectionString string) error {
-	gormLogger := logger.Default.LogMode(logger.Silent)
+// connectToDatabase creates a database connection using the provided connection string
+func (t *TMDbEnricher) connectToDatabase(connectionString string) (*gorm.DB, error) {
+	var dialector gorm.Dialector
 	
-	db, err := gorm.Open(sqlite.Open(connectionString), &gorm.Config{
-		Logger: gormLogger,
+	if strings.HasPrefix(connectionString, "sqlite://") {
+		dbPath := strings.TrimPrefix(connectionString, "sqlite://")
+		// Ensure directory exists
+		if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create database directory: %w", err)
+		}
+		dialector = sqlite.Open(dbPath)
+	} else if connectionString != "" {
+		// Treat as direct path for SQLite
+		// Ensure directory exists
+		if err := os.MkdirAll(filepath.Dir(connectionString), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create database directory: %w", err)
+		}
+		dialector = sqlite.Open(connectionString)
+	} else {
+		return nil, fmt.Errorf("no database connection string provided")
+	}
+	
+	// Open database connection
+	db, err := gorm.Open(dialector, &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+	
+	return db, nil
+}
+
+func (t *TMDbEnricher) initDatabase() error {
+	t.logger.Info("initializing TMDb enricher database connection", "dbURL", t.dbURL)
+	
+	if t.dbURL == "" {
+		return fmt.Errorf("database URL not provided")
+	}
+	
+	// Connect to the shared database using the URL provided by the core system
+	db, err := t.connectToDatabase(t.dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to shared database: %w", err)
 	}
 	
 	t.db = db
+	t.logger.Info("TMDb enricher connected to shared database successfully", "url", t.dbURL)
 	
-	// Auto-migrate tables
-	if err := t.db.AutoMigrate(&TMDbCache{}, &TMDbEnrichment{}); err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// NOTE: We don't auto-migrate here anymore - migration is handled by the Migrate() method
+	// which is called by the core system after plugin initialization
 	
-	t.logger.Info("database initialized successfully")
 	return nil
 }
 
 func (t *TMDbEnricher) extractTitle(filePath string, metadata map[string]string) string {
-	// Try to get title from metadata first
+	// For TV shows, prioritize show/series name over episode title
+	if seriesName, exists := metadata["series_name"]; exists && seriesName != "" {
+		return t.cleanupTitle(seriesName)
+	}
+	if showName, exists := metadata["show_name"]; exists && showName != "" {
+		return t.cleanupTitle(showName)
+	}
+	// Check if "artist" field contains show name (common in TV metadata)
+	if artist, exists := metadata["artist"]; exists && artist != "" {
+		// Clean up the artist field which often contains the show name
+		cleaned := t.cleanupTitle(artist)
+		if cleaned != "" {
+			t.logger.Info("extracted show title from artist metadata", "artist", artist, "cleaned", cleaned)
+			return cleaned
+		}
+	}
+	
+	// Try to get title from metadata, but only if it looks like a show name, not episode title
 	if title, exists := metadata["title"]; exists && title != "" {
-		return title
+		// If title contains quality tags or episode patterns, it's likely an episode title - skip it
+		if t.looksLikeEpisodeTitle(title) {
+			t.logger.Debug("skipping episode-like title from metadata", "title", title)
+		} else {
+			// If metadata provides a clean title, use it
+			cleaned := t.cleanupTitle(title)
+			if cleaned != "" {
+				return cleaned
+			}
+		}
 	}
 	
 	// Extract from filename
 	filename := filepath.Base(filePath)
 	filename = strings.TrimSuffix(filename, filepath.Ext(filename))
 	
-	// Remove common patterns like year, quality, etc.
-	// This is a basic implementation - could be enhanced with regex
+	t.logger.Info("extracting title from filename", "original", filename)
+	
+	// Try multiple TV show patterns
+	if title := t.extractTVShowTitle(filename, filePath); title != "" {
+		t.logger.Debug("extracted TV show title", "title", title, "filename", filename)
+		return title
+	}
+	
+	// Try movie patterns
+	if title := t.extractMovieTitle(filename); title != "" {
+		t.logger.Debug("extracted movie title", "title", title, "filename", filename)
+		return title
+	}
+	
+	// Fallback: clean up the filename as best as possible
+	title := t.cleanupTitle(filename)
+	t.logger.Debug("fallback title extraction", "title", title, "filename", filename)
+	return title
+}
+
+// looksLikeEpisodeTitle checks if a title looks like an episode title rather than a show title
+func (t *TMDbEnricher) looksLikeEpisodeTitle(title string) bool {
+	// Check for quality tags
+	qualityPatterns := []string{
+		"[", "]", "720p", "1080p", "2160p", "4K", "WEBDL", "WEB-DL", "BluRay", "BDRip", 
+		"DVDRip", "HDTV", "x264", "x265", "h264", "h265", "HEVC", "AAC", "AC3", "DTS",
+		"5.1", "7.1", "2.0", "-", "Remux",
+	}
+	
+	titleLower := strings.ToLower(title)
+	qualityCount := 0
+	for _, pattern := range qualityPatterns {
+		if strings.Contains(titleLower, strings.ToLower(pattern)) {
+			qualityCount++
+		}
+	}
+	
+	// If it contains multiple quality indicators, it's likely an episode title
+	return qualityCount >= 2
+}
+
+// extractTVShowTitle handles various TV show filename patterns
+func (t *TMDbEnricher) extractTVShowTitle(filename, filePath string) string {
+	// Pattern 1: "Show Name (Year) - S##E## - Episode Title [Quality]" or "Show Name - S##E##"
+	// Handle both " - S" and "- S" patterns
+	seasonPatterns := []string{" - S", "- S", " -S", "-S"}
+	for _, pattern := range seasonPatterns {
+		if strings.Contains(filename, pattern) && strings.Contains(filename, "E") {
+			seasonPos := strings.Index(filename, pattern)
+			if seasonPos > 0 {
+				showPart := filename[:seasonPos]
+				cleaned := t.cleanupTitle(showPart)
+				if cleaned != "" {
+					t.logger.Debug("extracted show title via season pattern", "pattern", pattern, "show", cleaned, "filename", filename)
+					return cleaned
+				}
+			}
+		}
+	}
+	
+	// Pattern 2: "Show Name S##E## Episode Title" (no separating dashes)
+	seasonRegex := regexp.MustCompile(`^(.+?)\s+S\d+E\d+`)
+	if matches := seasonRegex.FindStringSubmatch(filename); len(matches) > 1 {
+		cleaned := t.cleanupTitle(matches[1])
+		if cleaned != "" {
+			t.logger.Debug("extracted show title via regex pattern", "show", cleaned, "filename", filename)
+			return cleaned
+		}
+	}
+	
+	// Pattern 3: "Show Name.S##E##.Episode.Title"
+	dotSeasonRegex := regexp.MustCompile(`^(.+?)\.S\d+E\d+`)
+	if matches := dotSeasonRegex.FindStringSubmatch(filename); len(matches) > 1 {
+		showName := strings.ReplaceAll(matches[1], ".", " ")
+		cleaned := t.cleanupTitle(showName)
+		if cleaned != "" {
+			t.logger.Debug("extracted show title via dot pattern", "show", cleaned, "filename", filename)
+			return cleaned
+		}
+	}
+	
+	// Pattern 4: "Show Name - Season ## - Episode Title"
+	if strings.Contains(filename, " - Season ") {
+		seasonPos := strings.Index(filename, " - Season ")
+		if seasonPos > 0 {
+			showPart := filename[:seasonPos]
+			cleaned := t.cleanupTitle(showPart)
+			if cleaned != "" {
+				t.logger.Debug("extracted show title via season word pattern", "show", cleaned, "filename", filename)
+				return cleaned
+			}
+		}
+	}
+	
+	// Pattern 5: "Show Name - ##x## - Episode Title" (season x episode format)
+	episodeRegex := regexp.MustCompile(`^(.+?)\s+-\s+\d+x\d+`)
+	if matches := episodeRegex.FindStringSubmatch(filename); len(matches) > 1 {
+		cleaned := t.cleanupTitle(matches[1])
+		if cleaned != "" {
+			t.logger.Debug("extracted show title via SxE pattern", "show", cleaned, "filename", filename)
+			return cleaned
+		}
+	}
+	
+	// Pattern 6: Directory-based detection (if the filename doesn't contain show info)
+	// Check if the parent directory might be the show name
+	parentDir := filepath.Base(filepath.Dir(filePath))
+	if parentDir != "" && parentDir != "." && !strings.Contains(parentDir, "Season") {
+		// Clean up potential show name from directory
+		if cleanDir := t.cleanupTitle(parentDir); cleanDir != "" {
+			// Verify this looks like a show name (not just a random directory)
+			if len(cleanDir) > 2 && !strings.Contains(strings.ToLower(cleanDir), "season") {
+				t.logger.Debug("extracted show title from directory", "show", cleanDir, "directory", parentDir)
+				return cleanDir
+			}
+		}
+	}
+	
+	t.logger.Debug("no TV show pattern matched", "filename", filename)
+	return ""
+}
+
+// extractMovieTitle handles various movie filename patterns
+func (t *TMDbEnricher) extractMovieTitle(filename string) string {
+	// Pattern 1: "Movie Title (Year) [Quality Tags]"
+	// Pattern 2: "Movie Title Year [Quality Tags]"
+	// Pattern 3: "Movie Title [Quality Tags]"
+	
 	title := filename
+	
+	// Remove common release group patterns at the end
+	releaseGroupRegex := regexp.MustCompile(`-[A-Z][A-Za-z0-9]*$`)
+	title = releaseGroupRegex.ReplaceAllString(title, "")
+	
+	// Remove quality tags in brackets and parentheses (but preserve year)
+	qualityRegex := regexp.MustCompile(`\[[^\]]*\]`)
+	title = qualityRegex.ReplaceAllString(title, "")
+	
+	// Remove other quality indicators
+	qualityPatterns := []string{
+		`\bBluRay\b`, `\bBDRip\b`, `\bBRRip\b`, `\bDVDRip\b`, `\bWEBRip\b`, `\bWEB-DL\b`,
+		`\bHDTV\b`, `\bSDTV\b`, `\b720p\b`, `\b1080p\b`, `\b4K\b`, `\bUHD\b`,
+		`\bx264\b`, `\bx265\b`, `\bH\.?264\b`, `\bH\.?265\b`, `\bHEVC\b`,
+		`\bAAC\b`, `\bAC3\b`, `\bDTS\b`, `\bFLAC\b`, `\bMP3\b`,
+		`\b2\.0\b`, `\b5\.1\b`, `\b7\.1\b`,
+	}
+	
+	for _, pattern := range qualityPatterns {
+		re := regexp.MustCompile(`(?i)` + pattern)
+		title = re.ReplaceAllString(title, "")
+	}
+	
+	// Clean up multiple spaces and trim
+	title = regexp.MustCompile(`\s+`).ReplaceAllString(title, " ")
 	title = strings.TrimSpace(title)
 	
-	return title
+	// Handle year extraction and removal for movies
+	// Look for year in parentheses at the end: "Movie Title (2023)"
+	yearRegex := regexp.MustCompile(`^(.+?)\s*\((\d{4})\)$`)
+	if matches := yearRegex.FindStringSubmatch(title); len(matches) > 2 {
+		movieTitle := strings.TrimSpace(matches[1])
+		if movieTitle != "" {
+			return movieTitle
+		}
+	}
+	
+	// Look for year without parentheses at the end: "Movie Title 2023"
+	yearEndRegex := regexp.MustCompile(`^(.+?)\s+(\d{4})$`)
+	if matches := yearEndRegex.FindStringSubmatch(title); len(matches) > 2 {
+		year, _ := strconv.Atoi(matches[2])
+		if year >= 1900 && year <= time.Now().Year()+5 {
+			movieTitle := strings.TrimSpace(matches[1])
+			if movieTitle != "" {
+				return movieTitle
+			}
+		}
+	}
+	
+	return t.cleanupTitle(title)
+}
+
+// cleanupTitle performs common cleanup operations on titles
+func (t *TMDbEnricher) cleanupTitle(title string) string {
+	if title == "" {
+		return ""
+	}
+	
+	// Remove file extensions that might have been missed
+	title = strings.TrimSuffix(title, ".mkv")
+	title = strings.TrimSuffix(title, ".mp4")
+	title = strings.TrimSuffix(title, ".avi")
+	title = strings.TrimSuffix(title, ".mov")
+	
+	// Remove quality tags in brackets
+	qualityRegex := regexp.MustCompile(`\[[^\]]*\]`)
+	title = qualityRegex.ReplaceAllString(title, "")
+	
+	// Remove common release group suffixes
+	suffixes := []string{"-Pahe", "-RARBG", "-YTS", "-EZTV", "-TGx", "-BORDURE", "-OFT", "-DUSKLiGHT", "-MaG"}
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(title, suffix) {
+			title = strings.TrimSuffix(title, suffix)
+			break
+		}
+	}
+	
+	// Remove year in parentheses if present
+	if strings.Contains(title, "(") && strings.Contains(title, ")") {
+		yearStart := strings.LastIndex(title, "(")
+		yearEnd := strings.LastIndex(title, ")")
+		if yearEnd > yearStart && yearEnd == len(title)-1 {
+			yearStr := title[yearStart+1 : yearEnd]
+			if len(yearStr) == 4 {
+				if year, err := strconv.Atoi(yearStr); err == nil && year >= 1900 && year <= 2030 {
+					title = strings.TrimSpace(title[:yearStart])
+				}
+			}
+		}
+	}
+	
+	// Replace dots and underscores with spaces (common in some naming conventions)
+	title = strings.ReplaceAll(title, ".", " ")
+	title = strings.ReplaceAll(title, "_", " ")
+	
+	// Clean up multiple spaces
+	title = regexp.MustCompile(`\s+`).ReplaceAllString(title, " ")
+	
+	// Trim and return
+	return strings.TrimSpace(title)
 }
 
 func (t *TMDbEnricher) extractYear(filePath string, metadata map[string]string) int {
@@ -578,7 +979,7 @@ func (t *TMDbEnricher) findBestMatch(results []Result, title string, year int) *
 		}
 	}
 	
-	if bestMatch != nil {
+	if bestMatch != nil && t.logger != nil {
 		t.logger.Debug("found best match", "title", t.getResultTitle(*bestMatch), "score", bestScore)
 	}
 	
@@ -638,7 +1039,7 @@ func (t *TMDbEnricher) getResultYear(result Result) int {
 	return 0
 }
 
-func (t *TMDbEnricher) saveEnrichment(mediaFileID uint32, result *Result) error {
+func (t *TMDbEnricher) saveEnrichment(mediaFileID string, result *Result) error {
 	enrichment := &TMDbEnrichment{
 		MediaFileID:      mediaFileID,
 		TMDbID:           result.ID,
@@ -673,7 +1074,7 @@ func (t *TMDbEnricher) saveEnrichment(mediaFileID uint32, result *Result) error 
 	}
 
 	// ALSO save to centralized MediaEnrichment table (for core system integration)
-	if err := t.saveToCentralizedSystem(fmt.Sprintf("%d", mediaFileID), result, enrichment.MediaType); err != nil {
+	if err := t.saveToCentralizedSystem(mediaFileID, result, enrichment.MediaType); err != nil {
 		t.logger.Warn("Failed to save to centralized enrichment system", "error", err, "media_file_id", mediaFileID)
 		// Don't fail the entire operation if centralized save fails
 	}
@@ -702,14 +1103,14 @@ func (t *TMDbEnricher) saveEnrichment(mediaFileID uint32, result *Result) error 
 }
 
 // createTVShowFromFile creates TV show, season, and episode records from a TV show file
-func (t *TMDbEnricher) createTVShowFromFile(mediaFileID uint32, result *Result) error {
+func (t *TMDbEnricher) createTVShowFromFile(mediaFileID string, result *Result) error {
 	// Get the media file to access its path
 	var mediaFile struct {
 		ID   string `gorm:"column:id"`
 		Path string `gorm:"column:path"`
 	}
 	
-	if err := t.db.Table("media_files").Select("id, path").Where("id = ?", fmt.Sprintf("%d", mediaFileID)).First(&mediaFile).Error; err != nil {
+	if err := t.db.Table("media_files").Select("id, path").Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
 		return fmt.Errorf("failed to get media file: %w", err)
 	}
 	
@@ -758,14 +1159,14 @@ func (t *TMDbEnricher) createTVShowFromFile(mediaFileID uint32, result *Result) 
 }
 
 // createMovieFromFile creates a movie record from a movie file
-func (t *TMDbEnricher) createMovieFromFile(mediaFileID uint32, result *Result) error {
+func (t *TMDbEnricher) createMovieFromFile(mediaFileID string, result *Result) error {
 	// Get the media file to access its path
 	var mediaFile struct {
 		ID   string `gorm:"column:id"`
 		Path string `gorm:"column:path"`
 	}
 	
-	if err := t.db.Table("media_files").Select("id, path").Where("id = ?", fmt.Sprintf("%d", mediaFileID)).First(&mediaFile).Error; err != nil {
+	if err := t.db.Table("media_files").Select("id, path").Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
 		return fmt.Errorf("failed to get media file: %w", err)
 	}
 	
