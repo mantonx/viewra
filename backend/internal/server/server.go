@@ -21,6 +21,7 @@ import (
 	"github.com/mantonx/viewra/internal/plugins"
 	"github.com/mantonx/viewra/internal/plugins/enrichment"
 	"github.com/mantonx/viewra/internal/plugins/ffmpeg"
+	"github.com/mantonx/viewra/internal/plugins/tvstructure"
 	"github.com/mantonx/viewra/internal/server/handlers"
 
 	// Import all modules to trigger their registration
@@ -212,6 +213,25 @@ func connectPluginManagerToModules() error {
 				}
 			}
 		}
+		
+		// Connect enrichment module to scanner
+		if module.ID() == "system.enrichment" {
+			if enrichmentModule, ok := module.(*enrichmentmodule.Module); ok {
+				// Find scanner module and register enrichment module as hook
+				for _, scannerMod := range modules {
+					if scannerMod.ID() == "system.scanner" {
+						if scannerModule, ok := scannerMod.(*scannermodule.Module); ok {
+							manager := scannerModule.GetScannerManager()
+							if manager != nil {
+								manager.RegisterEnrichmentHook(enrichmentModule)
+								log.Printf("✅ Registered enrichment module as scanner hook")
+							}
+						}
+						break
+					}
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -369,7 +389,13 @@ func registerCorePlugins() error {
 		return fmt.Errorf("failed to register enrichment core plugin: %w", err)
 	}
 	
-	log.Printf("✅ Registered core plugins: FFmpeg, Enrichment")
+	// Register TV structure core plugin (for TV structure parsing)
+	tvStructurePlugin := tvstructure.NewTVStructureCorePlugin()
+	if err := pluginManager.RegisterCorePlugin(tvStructurePlugin); err != nil {
+		return fmt.Errorf("failed to register TV structure core plugin: %w", err)
+	}
+	
+	log.Printf("✅ Registered core plugins: FFmpeg, Enrichment, TV Structure")
 	return nil
 }
 
