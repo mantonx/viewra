@@ -2,6 +2,7 @@ package enrichmentmodule
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -13,6 +14,9 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
+	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
+	pluginspb "github.com/mantonx/viewra/pkg/plugins/proto"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
@@ -36,24 +40,30 @@ const (
 
 // Module handles enrichment application and metadata merging
 type Module struct {
-	id         string
-	name       string
-	core       bool
-	db         *gorm.DB
-	eventBus   events.EventBus
-	enabled    bool
-	grpcServer *grpc.Server
-	grpcPort   int
+	id          string
+	name        string
+	core        bool
+	db          *gorm.DB
+	eventBus    events.EventBus
+	enabled     bool
+	grpcServer  *grpc.Server
+	grpcPort    int
 	initialized bool
+	
+	// External plugin integration
+	externalPluginManager interface{} // Will be *pluginmodule.ExternalPluginManager but kept as interface to avoid circular imports
+	
+	// Asset manager reference for asset operations
+	assetManager interface{} // Will be *assetmodule.Manager but kept as interface to avoid circular imports
 }
 
 // Register registers this module with the module system
 func Register() {
 	enrichmentModule := &Module{
-		id:      ModuleID,
-		name:    ModuleName,
-		core:    true, // Core module
-		enabled: true,
+		id:       ModuleID,
+		name:     ModuleName,
+		core:     true, // Core module
+		enabled:  true,
 		grpcPort: 50051,
 	}
 	modulemanager.Register(enrichmentModule)
@@ -77,7 +87,7 @@ func (m *Module) Core() bool {
 // Migrate handles database schema migrations for enrichment
 func (m *Module) Migrate(db *gorm.DB) error {
 	m.db = db
-	
+
 	// Auto-migrate enrichment tables (MediaEnrichment and MediaExternalIDs already exist)
 	if err := m.db.AutoMigrate(
 		&EnrichmentSource{},
@@ -85,7 +95,7 @@ func (m *Module) Migrate(db *gorm.DB) error {
 	); err != nil {
 		return fmt.Errorf("failed to migrate enrichment tables: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -94,7 +104,7 @@ func (m *Module) Init() error {
 	if m.initialized {
 		return nil
 	}
-	
+
 	// Get dependencies if not already set
 	if m.db == nil {
 		m.db = database.GetDB()
@@ -102,7 +112,7 @@ func (m *Module) Init() error {
 	if m.eventBus == nil {
 		m.eventBus = events.GetGlobalEventBus()
 	}
-	
+
 	m.initialized = true
 	return nil
 }
@@ -156,10 +166,14 @@ func (m *Module) startGRPCServer() error {
 	}
 
 	m.grpcServer = grpc.NewServer()
-	
+
 	// Register the enrichment service
 	grpcService := NewGRPCServer(m)
 	enrichmentpb.RegisterEnrichmentServiceServer(m.grpcServer, grpcService)
+	
+	// Register the asset service for external plugins
+	assetService := NewAssetGRPCServer(m)
+	pluginspb.RegisterAssetServiceServer(m.grpcServer, assetService)
 
 	// Start server in background
 	go func() {
@@ -176,11 +190,11 @@ func (m *Module) startGRPCServer() error {
 func (m *Module) Stop() error {
 	log.Println("INFO: Stopping enrichment application module")
 	m.enabled = false
-	
+
 	if m.grpcServer != nil {
 		m.grpcServer.GracefulStop()
 	}
-	
+
 	return nil
 }
 
@@ -191,23 +205,23 @@ func (m *Module) GetName() string {
 
 // EnrichmentSource represents a source of enriched metadata (minimal table for configuration)
 type EnrichmentSource struct {
-	ID          uint32    `gorm:"primaryKey" json:"id"`
-	Name        string    `gorm:"not null;index" json:"name"` // e.g., "musicbrainz", "tmdb"
-	Priority    int       `gorm:"not null" json:"priority"`   // Lower number = higher priority
-	MediaTypes  string    `gorm:"not null" json:"media_types"` // JSON array of supported media types
-	Enabled     bool      `gorm:"default:true" json:"enabled"`
-	LastSync    *time.Time `json:"last_sync,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID         uint32     `gorm:"primaryKey" json:"id"`
+	Name       string     `gorm:"not null;index" json:"name"`  // e.g., "musicbrainz", "tmdb"
+	Priority   int        `gorm:"not null" json:"priority"`    // Lower number = higher priority
+	MediaTypes string     `gorm:"not null" json:"media_types"` // JSON array of supported media types
+	Enabled    bool       `gorm:"default:true" json:"enabled"`
+	LastSync   *time.Time `json:"last_sync,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 // EnrichmentJob tracks batch enrichment application jobs
 type EnrichmentJob struct {
 	ID          uint32    `gorm:"primaryKey" json:"id"`
 	MediaFileID string    `gorm:"not null;index" json:"media_file_id"`
-	JobType     string    `gorm:"not null" json:"job_type"` // apply_enrichment, merge_conflicts
+	JobType     string    `gorm:"not null" json:"job_type"`                 // apply_enrichment, merge_conflicts
 	Status      string    `gorm:"not null;default:'pending'" json:"status"` // pending, processing, completed, failed
-	Results     string    `gorm:"type:text" json:"results"` // JSON results
+	Results     string    `gorm:"type:text" json:"results"`                 // JSON results
 	Error       string    `gorm:"type:text" json:"error,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -228,52 +242,52 @@ type MergeStrategy int
 
 const (
 	MergeStrategyReplace MergeStrategy = iota
-	MergeStrategyMerge   // Union for arrays/lists
-	MergeStrategySkip    // For user overrides
+	MergeStrategyMerge                 // Union for arrays/lists
+	MergeStrategySkip                  // For user overrides
 )
 
 // FieldRule defines enrichment rules for specific fields
 type FieldRule struct {
-	FieldName     string
-	MediaTypes    []string // track, movie, episode, season, etc.
+	FieldName      string
+	MediaTypes     []string // track, movie, episode, season, etc.
 	SourcePriority []string // Ordered list of preferred sources
-	MergeStrategy MergeStrategy
-	ValidateFunc  func(value string) bool
-	NormalizeFunc func(value string) string
+	MergeStrategy  MergeStrategy
+	ValidateFunc   func(value string) bool
+	NormalizeFunc  func(value string) string
 }
 
 // GetFieldRules returns the enrichment rules based on the priority table
 func (m *Module) GetFieldRules() map[string]FieldRule {
 	return map[string]FieldRule{
 		"title": {
-			FieldName:     "title",
-			MediaTypes:    []string{"track", "movie", "episode"},
+			FieldName:      "title",
+			MediaTypes:     []string{"track", "movie", "episode"},
 			SourcePriority: []string{"tmdb", "musicbrainz", "filename", "embedded"},
-			MergeStrategy: MergeStrategyReplace,
-			ValidateFunc:  func(value string) bool { return strings.TrimSpace(value) != "" },
-			NormalizeFunc: func(value string) string { return strings.TrimSpace(value) },
+			MergeStrategy:  MergeStrategyReplace,
+			ValidateFunc:   func(value string) bool { return strings.TrimSpace(value) != "" },
+			NormalizeFunc:  func(value string) string { return strings.TrimSpace(value) },
 		},
 		"artist_name": {
-			FieldName:     "artist_name",
-			MediaTypes:    []string{"track"},
+			FieldName:      "artist_name",
+			MediaTypes:     []string{"track"},
 			SourcePriority: []string{"musicbrainz", "embedded"},
-			MergeStrategy: MergeStrategyReplace,
-			ValidateFunc:  func(value string) bool { return strings.TrimSpace(value) != "" && value != "Unknown Artist" },
-			NormalizeFunc: func(value string) string { return strings.TrimSpace(value) },
+			MergeStrategy:  MergeStrategyReplace,
+			ValidateFunc:   func(value string) bool { return strings.TrimSpace(value) != "" && value != "Unknown Artist" },
+			NormalizeFunc:  func(value string) string { return strings.TrimSpace(value) },
 		},
 		"album_name": {
-			FieldName:     "album_name",
-			MediaTypes:    []string{"track"},
+			FieldName:      "album_name",
+			MediaTypes:     []string{"track"},
 			SourcePriority: []string{"musicbrainz", "embedded"},
-			MergeStrategy: MergeStrategyReplace,
-			ValidateFunc:  func(value string) bool { return strings.TrimSpace(value) != "" && value != "Unknown Album" },
-			NormalizeFunc: func(value string) string { return strings.TrimSpace(value) },
+			MergeStrategy:  MergeStrategyReplace,
+			ValidateFunc:   func(value string) bool { return strings.TrimSpace(value) != "" && value != "Unknown Album" },
+			NormalizeFunc:  func(value string) string { return strings.TrimSpace(value) },
 		},
 		"release_year": {
-			FieldName:     "release_year",
-			MediaTypes:    []string{"track", "movie", "episode"},
+			FieldName:      "release_year",
+			MediaTypes:     []string{"track", "movie", "episode"},
 			SourcePriority: []string{"tmdb", "musicbrainz", "filename"},
-			MergeStrategy: MergeStrategyReplace,
+			MergeStrategy:  MergeStrategyReplace,
 			ValidateFunc: func(value string) bool {
 				if year, err := strconv.Atoi(value); err == nil {
 					return year >= 1800 && year <= time.Now().Year()+5
@@ -283,18 +297,18 @@ func (m *Module) GetFieldRules() map[string]FieldRule {
 			NormalizeFunc: func(value string) string { return strings.TrimSpace(value) },
 		},
 		"genres": {
-			FieldName:     "genres",
-			MediaTypes:    []string{"track", "movie", "episode"},
+			FieldName:      "genres",
+			MediaTypes:     []string{"track", "movie", "episode"},
 			SourcePriority: []string{"tmdb", "musicbrainz", "embedded"},
-			MergeStrategy: MergeStrategyMerge,
-			ValidateFunc:  func(value string) bool { return strings.TrimSpace(value) != "" },
-			NormalizeFunc: func(value string) string { return strings.TrimSpace(value) },
+			MergeStrategy:  MergeStrategyMerge,
+			ValidateFunc:   func(value string) bool { return strings.TrimSpace(value) != "" },
+			NormalizeFunc:  func(value string) string { return strings.TrimSpace(value) },
 		},
 		"duration": {
-			FieldName:     "duration",
-			MediaTypes:    []string{"track", "movie", "episode"},
+			FieldName:      "duration",
+			MediaTypes:     []string{"track", "movie", "episode"},
 			SourcePriority: []string{"embedded", "tmdb", "musicbrainz"},
-			MergeStrategy: MergeStrategyReplace,
+			MergeStrategy:  MergeStrategyReplace,
 			ValidateFunc: func(value string) bool {
 				if duration, err := strconv.Atoi(value); err == nil {
 					return duration > 0 && duration < 86400 // Less than 24 hours
@@ -304,10 +318,10 @@ func (m *Module) GetFieldRules() map[string]FieldRule {
 			NormalizeFunc: func(value string) string { return strings.TrimSpace(value) },
 		},
 		"track_number": {
-			FieldName:     "track_number",
-			MediaTypes:    []string{"track"},
+			FieldName:      "track_number",
+			MediaTypes:     []string{"track"},
 			SourcePriority: []string{"embedded", "musicbrainz"},
-			MergeStrategy: MergeStrategyReplace,
+			MergeStrategy:  MergeStrategyReplace,
 			ValidateFunc: func(value string) bool {
 				if trackNum, err := strconv.Atoi(value); err == nil {
 					return trackNum > 0 && trackNum <= 999
@@ -378,11 +392,14 @@ func (m *Module) RegisterEnrichmentData(mediaFileID, sourceName string, enrichme
 		UpdatedAt: time.Now(),
 	}
 
-	// Upsert the enrichment data
-	if err := m.db.Where("media_id = ? AND media_type = ? AND plugin = ?", 
-		mediaFile.MediaID, mediaFile.MediaType, sourceName).
-		Save(&mediaEnrichment).Error; err != nil {
-		return fmt.Errorf("failed to save media enrichment: %w", err)
+	// Use raw SQL INSERT OR REPLACE since the table doesn't have proper primary key constraints
+	result := m.db.Exec(`
+		INSERT OR REPLACE INTO media_enrichments (media_id, media_type, plugin, payload, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, mediaEnrichment.MediaID, mediaEnrichment.MediaType, mediaEnrichment.Plugin, mediaEnrichment.Payload, mediaEnrichment.UpdatedAt)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to save media enrichment: %w", result.Error)
 	}
 
 	// Store external IDs separately if present
@@ -396,7 +413,7 @@ func (m *Module) RegisterEnrichmentData(mediaFileID, sourceName string, enrichme
 		}
 
 		// Upsert external ID
-		if err := m.db.Where("media_id = ? AND media_type = ? AND source = ?", 
+		if err := m.db.Where("media_id = ? AND media_type = ? AND source = ?",
 			mediaFile.MediaID, mediaFile.MediaType, idType).
 			Save(&externalID).Error; err != nil {
 			log.Printf("WARN: Failed to save external ID %s=%s: %v", idType, idValue, err)
@@ -426,7 +443,7 @@ func (m *Module) getDefaultPriority(sourceName string) int {
 		"embedded":    4,
 		"filename":    5,
 	}
-	
+
 	if priority, exists := priorities[sourceName]; exists {
 		return priority
 	}
@@ -461,7 +478,7 @@ func (m *Module) processEnrichmentJobs() {
 	for _, job := range jobs {
 		if err := m.processEnrichmentJob(&job); err != nil {
 			log.Printf("ERROR: Failed to process enrichment job %d: %v", job.ID, err)
-			
+
 			// Mark job as failed
 			job.Status = "failed"
 			job.Error = err.Error()
@@ -479,12 +496,49 @@ func (m *Module) processEnrichmentJob(job *EnrichmentJob) error {
 		return fmt.Errorf("failed to update job status: %w", err)
 	}
 
-	// Get media file info
+	// Get media file info - try to handle missing MediaFile gracefully
 	var mediaFile database.MediaFile
-	if err := m.db.Where("id = ?", job.MediaFileID).First(&mediaFile).Error; err != nil {
-		return fmt.Errorf("media file not found: %w", err)
+	err := m.db.Where("id = ?", job.MediaFileID).First(&mediaFile).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// MediaFile was likely deleted/recreated during scanning
+			// Try to find by looking up enrichments that reference this media_file_id
+			log.Printf("WARN: MediaFile ID %s not found, attempting recovery via enrichments", job.MediaFileID)
+			
+			// Look for any enrichments that were created for this media_file_id
+			var enrichments []database.MediaEnrichment
+			if err := m.db.Where("media_id IN (SELECT media_id FROM media_enrichments WHERE media_id != '' AND media_id IS NOT NULL)").
+				Find(&enrichments).Error; err == nil && len(enrichments) > 0 {
+				
+				// Try to find a MediaFile with the same media_id
+				for _, enrichment := range enrichments {
+					var alternativeFile database.MediaFile
+					if err := m.db.Where("media_id = ? AND media_type = ?", enrichment.MediaID, enrichment.MediaType).
+						First(&alternativeFile).Error; err == nil {
+						log.Printf("INFO: Found alternative MediaFile %s for media_id %s (original ID: %s)", 
+							alternativeFile.ID, enrichment.MediaID, job.MediaFileID)
+						mediaFile = alternativeFile
+						goto processEnrichments
+					}
+				}
+			}
+			
+			// Still couldn't find MediaFile - mark job as failed gracefully
+			job.Status = "failed"
+			job.Error = fmt.Sprintf("MediaFile %s not found (likely deleted/recreated during scan)", job.MediaFileID)
+			job.UpdatedAt = time.Now()
+			
+			if saveErr := m.db.Save(job).Error; saveErr != nil {
+				log.Printf("ERROR: Failed to save failed job status: %v", saveErr)
+			}
+			
+			log.Printf("INFO: Marked enrichment job as failed due to missing MediaFile: %s", job.MediaFileID)
+			return nil // Return nil to avoid crashing the worker
+		}
+		return fmt.Errorf("failed to fetch media file: %w", err)
 	}
 
+processEnrichments:
 	// Get all enrichments for this media file
 	var enrichments []database.MediaEnrichment
 	if err := m.db.Where("media_id = ? AND media_type = ?", mediaFile.MediaID, mediaFile.MediaType).
@@ -521,7 +575,7 @@ func (m *Module) processEnrichmentJob(job *EnrichmentJob) error {
 		}
 
 		valueStr := fmt.Sprintf("%v", value)
-		
+
 		// Validate the value
 		if rule.ValidateFunc != nil && !rule.ValidateFunc(valueStr) {
 			log.Printf("WARN: Invalid value for field %s: %s", fieldName, valueStr)
@@ -644,53 +698,53 @@ func (m *Module) applyTrackEnrichment(trackID, fieldName, value string, strategy
 	switch fieldName {
 	case "title":
 		return m.db.Model(&database.Track{}).Where("id = ?", trackID).Update("title", value).Error
-	
+
 	case "artist_name":
 		// Get track to find artist
 		var track database.Track
 		if err := m.db.Preload("Artist").Where("id = ?", trackID).First(&track).Error; err != nil {
 			return fmt.Errorf("track not found: %w", err)
 		}
-		
+
 		// Update artist name
 		return m.db.Model(&database.Artist{}).Where("id = ?", track.ArtistID).Update("name", value).Error
-	
+
 	case "album_name":
 		// Get track to find album
 		var track database.Track
 		if err := m.db.Preload("Album").Where("id = ?", trackID).First(&track).Error; err != nil {
 			return fmt.Errorf("track not found: %w", err)
 		}
-		
+
 		// Update album title
 		return m.db.Model(&database.Album{}).Where("id = ?", track.AlbumID).Update("title", value).Error
-	
+
 	case "release_year":
 		// Get track to find album
 		var track database.Track
 		if err := m.db.Preload("Album").Where("id = ?", trackID).First(&track).Error; err != nil {
 			return fmt.Errorf("track not found: %w", err)
 		}
-		
+
 		// Parse year and update album release date
 		if year, err := strconv.Atoi(value); err == nil {
 			releaseDate := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
 			return m.db.Model(&database.Album{}).Where("id = ?", track.AlbumID).Update("release_date", releaseDate).Error
 		}
 		return fmt.Errorf("invalid year format: %s", value)
-	
+
 	case "duration":
 		if duration, err := strconv.Atoi(value); err == nil {
 			return m.db.Model(&database.Track{}).Where("id = ?", trackID).Update("duration", duration).Error
 		}
 		return fmt.Errorf("invalid duration format: %s", value)
-	
+
 	case "track_number":
 		if trackNum, err := strconv.Atoi(value); err == nil {
 			return m.db.Model(&database.Track{}).Where("id = ?", trackID).Update("track_number", trackNum).Error
 		}
 		return fmt.Errorf("invalid track number format: %s", value)
-	
+
 	default:
 		log.Printf("WARN: Unknown track field: %s", fieldName)
 		return nil
@@ -714,7 +768,7 @@ func (m *Module) applyMovieEnrichment(movieID, fieldName, value string, strategy
 	}
 }
 
-// applyEpisodeEnrichment applies enrichment to episode entities  
+// applyEpisodeEnrichment applies enrichment to episode entities
 func (m *Module) applyEpisodeEnrichment(episodeID, fieldName, value string, strategy MergeStrategy) error {
 	// TODO: Implement when episode model is available
 	log.Printf("INFO: Episode enrichment not yet implemented for field: %s", fieldName)
@@ -750,7 +804,7 @@ func (m *Module) GetEnrichmentStatus(mediaFileID string) (map[string]interface{}
 
 	for _, enrichment := range enrichments {
 		sources[enrichment.Plugin]++
-		
+
 		// Parse enrichment data from payload
 		var enrichmentData EnrichmentData
 		if err := json.Unmarshal([]byte(enrichment.Payload), &enrichmentData); err != nil {
@@ -778,7 +832,7 @@ func (m *Module) GetEnrichmentStatus(mediaFileID string) (map[string]interface{}
 			}
 
 			fieldInfo["enrichments"] = append(fieldInfo["enrichments"].([]map[string]interface{}), enrichmentInfo)
-			
+
 			// Set best source to the one with highest priority (lowest number)
 			currentBestPriority, hasBest := fieldInfo["best_priority"]
 			if !hasBest || enrichmentData.SourcePriority < currentBestPriority.(int) {
@@ -813,7 +867,7 @@ func (m *Module) ForceApplyEnrichment(mediaFileID, fieldName, sourceName string)
 	}
 
 	var enrichment database.MediaEnrichment
-	if err := m.db.Where("media_id = ? AND media_type = ? AND plugin = ?", 
+	if err := m.db.Where("media_id = ? AND media_type = ? AND plugin = ?",
 		mediaFile.MediaID, mediaFile.MediaType, sourceName).First(&enrichment).Error; err != nil {
 		return fmt.Errorf("enrichment not found: %w", err)
 	}
@@ -848,9 +902,15 @@ func (m *Module) ForceApplyEnrichment(mediaFileID, fieldName, sourceName string)
 // IntegrateWithScanner integrates the enrichment module with the scanner system
 func (m *Module) IntegrateWithScanner() {
 	log.Println("INFO: Integrating enrichment module with scanner system")
-	
+
 	// This method should be called from the main application to set up
 	// the integration between scanning and enrichment
+}
+
+// SetExternalPluginManager sets the external plugin manager for scan notifications
+func (m *Module) SetExternalPluginManager(externalPluginManager interface{}) {
+	m.externalPluginManager = externalPluginManager
+	log.Printf("INFO: External plugin manager connected to enrichment module")
 }
 
 // OnMediaFileScanned is called by the scanner when a media file is scanned
@@ -861,7 +921,44 @@ func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata inte
 	}
 
 	log.Printf("INFO: Enrichment module processing scanned file: %s", mediaFile.Path)
-	
+
+	// Notify external plugins about the scanned file
+	if m.externalPluginManager != nil {
+		if extMgr, ok := m.externalPluginManager.(*pluginmodule.ExternalPluginManager); ok {
+			// Convert metadata to map[string]string for external plugins
+			var metadataMap map[string]string
+			if metadata != nil {
+				switch v := metadata.(type) {
+				case map[string]string:
+					metadataMap = v
+				case map[string]interface{}:
+					// Convert map[string]interface{} to map[string]string
+					metadataMap = make(map[string]string)
+					for key, value := range v {
+						if str, ok := value.(string); ok {
+							metadataMap[key] = str
+						} else {
+							metadataMap[key] = fmt.Sprintf("%v", value)
+						}
+					}
+				default:
+					// For other types, create empty map and log
+					metadataMap = make(map[string]string)
+					log.Printf("DEBUG: Unsupported metadata type %T for file %s", metadata, mediaFile.Path)
+				}
+			} else {
+				metadataMap = make(map[string]string)
+			}
+			
+			// DEBUG: Log the actual metadata being passed to external plugins
+			log.Printf("DEBUG: Metadata being passed to external plugins for file %s: %+v", mediaFile.Path, metadataMap)
+			
+			// Notify external plugins
+			log.Printf("DEBUG: Notifying external plugins about scanned file: %s", mediaFile.Path)
+			extMgr.NotifyMediaFileScanned(mediaFile.ID, mediaFile.Path, metadataMap)
+		}
+	}
+
 	// For now, just queue an enrichment job to apply any existing enrichments
 	// This ensures that if enrichment data was added by plugins, it gets applied
 	job := EnrichmentJob{
@@ -869,7 +966,7 @@ func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata inte
 		JobType:     "apply_enrichment",
 		Status:      "pending",
 	}
-	
+
 	if err := m.db.Create(&job).Error; err != nil {
 		log.Printf("WARN: Failed to create enrichment job for %s: %v", mediaFile.Path, err)
 		return nil // Don't fail scanning if enrichment job creation fails
@@ -889,16 +986,16 @@ func (m *Module) OnScanStarted(jobID, libraryID uint, path string) error {
 }
 
 // OnScanCompleted is called when a scan completes (ScannerPluginHook interface)
-func (m *Module) OnScanCompleted(jobID, libraryID uint, stats map[string]interface{}) error {
+func (m *Module) OnScanCompleted(libraryID uint, stats scanner.ScanStats) error {
 	if !m.enabled {
 		return nil
 	}
 
-	log.Printf("INFO: Enrichment module notified - scan completed (job: %d, library: %d)", jobID, libraryID)
-	
+	log.Printf("INFO: Enrichment module notified - scan completed (library: %d)", libraryID)
+
 	// Optionally: Trigger batch enrichment application for newly scanned files
 	// This could queue enrichment jobs for all files in the library
-	
+
 	return nil
 }
 
@@ -915,13 +1012,18 @@ func (m *Module) ListEnrichmentSources() ([]EnrichmentSource, error) {
 func (m *Module) GetEnrichmentJobs(status string) ([]EnrichmentJob, error) {
 	var jobs []EnrichmentJob
 	query := m.db.Order("created_at DESC")
-	
+
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
-	
+
 	if err := query.Limit(100).Find(&jobs).Error; err != nil {
 		return nil, fmt.Errorf("failed to fetch enrichment jobs: %w", err)
 	}
 	return jobs, nil
-} 
+}
+
+// OnFileScanned is an alias for OnMediaFileScanned to satisfy the ScannerPluginHook interface
+func (m *Module) OnFileScanned(mediaFile *database.MediaFile, metadata interface{}) error {
+	return m.OnMediaFileScanned(mediaFile, metadata)
+}
