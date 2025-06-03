@@ -19,22 +19,22 @@ type WorkDispatcher struct {
 	maxWorkers     int
 	activeWorkers  atomic.Int32
 	workerExitChan chan int
-	
+
 	// Directory workers
 	dirWorkerCount   int
 	activeDirWorkers atomic.Int32
-	
+
 	// Queues
 	workQueue   chan scanWork
 	dirQueue    chan dirWork
 	resultQueue chan *scanResult
 	errorQueue  chan error
-	
+
 	// State management
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
-	
+
 	// Configuration
 	config *ScanConfig
 }
@@ -42,7 +42,7 @@ type WorkDispatcher struct {
 // NewWorkDispatcher creates a new work dispatcher
 func NewWorkDispatcher(config *ScanConfig) *WorkDispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Calculate optimal worker count based on CPU cores
 	workerCount := config.WorkerCount
 	if workerCount == 0 {
@@ -53,14 +53,14 @@ func NewWorkDispatcher(config *ScanConfig) *WorkDispatcher {
 			workerCount = 8 // Cap at 8 workers to avoid overwhelming the system
 		}
 	}
-	
+
 	// Set up adaptive worker pool parameters
 	minWorkers := 2
 	maxWorkers := runtime.NumCPU() * 2 // Allow up to 2x CPU cores for I/O bound operations
 	if maxWorkers > 16 {
 		maxWorkers = 16 // Cap at 16 workers
 	}
-	
+
 	// Calculate directory worker count (fewer workers for directory scanning)
 	dirWorkerCount := runtime.NumCPU() / 2
 	if dirWorkerCount < 1 {
@@ -68,20 +68,20 @@ func NewWorkDispatcher(config *ScanConfig) *WorkDispatcher {
 	} else if dirWorkerCount > 4 {
 		dirWorkerCount = 4 // Cap at 4 directory workers
 	}
-	
+
 	return &WorkDispatcher{
-		workerCount:      workerCount,
-		minWorkers:       minWorkers,
-		maxWorkers:       maxWorkers,
-		dirWorkerCount:   dirWorkerCount,
-		workerExitChan:   make(chan int, maxWorkers),
-		workQueue:        make(chan scanWork, config.ChannelBufferSize),
-		dirQueue:         make(chan dirWork, config.ChannelBufferSize*5),
-		resultQueue:      make(chan *scanResult, config.ChannelBufferSize/10),
-		errorQueue:       make(chan error, workerCount),
-		ctx:              ctx,
-		cancel:           cancel,
-		config:           config,
+		workerCount:    workerCount,
+		minWorkers:     minWorkers,
+		maxWorkers:     maxWorkers,
+		dirWorkerCount: dirWorkerCount,
+		workerExitChan: make(chan int, maxWorkers),
+		workQueue:      make(chan scanWork, config.ChannelBufferSize),
+		dirQueue:       make(chan dirWork, config.ChannelBufferSize*5),
+		resultQueue:    make(chan *scanResult, config.ChannelBufferSize/10),
+		errorQueue:     make(chan error, workerCount),
+		ctx:            ctx,
+		cancel:         cancel,
+		config:         config,
 	}
 }
 
@@ -92,24 +92,24 @@ func (wd *WorkDispatcher) Start() error {
 		wd.wg.Add(1)
 		go wd.worker(i)
 	}
-	
+
 	// Start directory workers
 	for i := 0; i < wd.dirWorkerCount; i++ {
 		wd.wg.Add(1)
 		go wd.directoryWorker(i)
 	}
-	
+
 	// Start worker pool manager for dynamic scaling
 	wd.wg.Add(1)
 	go wd.workerPoolManager()
-	
+
 	// Start queue managers
 	wd.wg.Add(1)
 	go wd.dirQueueManager()
-	
+
 	wd.wg.Add(1)
 	go wd.workQueueCloser()
-	
+
 	return nil
 }
 
@@ -161,29 +161,29 @@ func (wd *WorkDispatcher) GetStats() WorkerPoolStats {
 func (wd *WorkDispatcher) worker(id int) {
 	defer wd.wg.Done()
 	defer wd.activeWorkers.Add(-1)
-	
+
 	wd.activeWorkers.Add(1)
-	
+
 	for {
 		select {
 		case work, ok := <-wd.workQueue:
 			if !ok {
 				return
 			}
-			
+
 			// Process the work (this would be handled by the scanner)
 			// For now, we just pass it to the result queue
 			result := &scanResult{
-				path: work.path,
+				Path: work.path,
 				// Processing would happen here
 			}
-			
+
 			select {
 			case wd.resultQueue <- result:
 			case <-wd.ctx.Done():
 				return
 			}
-			
+
 		case <-wd.ctx.Done():
 			return
 		}
@@ -194,18 +194,18 @@ func (wd *WorkDispatcher) worker(id int) {
 func (wd *WorkDispatcher) directoryWorker(workerID int) {
 	defer wd.wg.Done()
 	defer wd.activeDirWorkers.Add(-1)
-	
+
 	wd.activeDirWorkers.Add(1)
-	
+
 	for {
 		select {
 		case work, ok := <-wd.dirQueue:
 			if !ok {
 				return
 			}
-			
+
 			wd.processDirWork(work)
-			
+
 		case <-wd.ctx.Done():
 			return
 		}
@@ -223,7 +223,7 @@ func (wd *WorkDispatcher) processDirWork(work dirWork) {
 		}
 		return
 	}
-	
+
 	supportedExts := map[string]bool{
 		".mp3":  true,
 		".flac": true,
@@ -234,10 +234,10 @@ func (wd *WorkDispatcher) processDirWork(work dirWork) {
 		".wma":  true,
 		".opus": true,
 	}
-	
+
 	for _, entry := range entries {
 		fullPath := filepath.Join(work.path, entry.Name())
-		
+
 		if entry.IsDir() {
 			// Queue subdirectory for processing
 			select {
@@ -253,7 +253,7 @@ func (wd *WorkDispatcher) processDirWork(work dirWork) {
 				if err != nil {
 					continue // Skip files we can't stat
 				}
-				
+
 				// Queue file for scanning
 				select {
 				case wd.workQueue <- scanWork{
@@ -272,10 +272,10 @@ func (wd *WorkDispatcher) processDirWork(work dirWork) {
 // workerPoolManager monitors and adjusts worker count based on load
 func (wd *WorkDispatcher) workerPoolManager() {
 	defer wd.wg.Done()
-	
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -291,13 +291,13 @@ func (wd *WorkDispatcher) adjustWorkers() {
 	// Mock system stats for now
 	cpuPercent := float64(50.0)
 	memoryPercent := float64(60.0)
-	
+
 	currentWorkers := int(wd.activeWorkers.Load())
 	queueLen := len(wd.workQueue)
-	
+
 	// Determine target worker count based on system load and queue length
 	targetWorkers := currentWorkers
-	
+
 	// Scale up if:
 	// - Queue is backing up (more than 50 items per worker)
 	// - CPU usage is low (< 70%)
@@ -307,7 +307,7 @@ func (wd *WorkDispatcher) adjustWorkers() {
 			targetWorkers = currentWorkers + 1
 		}
 	}
-	
+
 	// Scale down if:
 	// - Queue is small (< 10 items per worker)
 	// - CPU usage is high (> 85%)
@@ -315,7 +315,7 @@ func (wd *WorkDispatcher) adjustWorkers() {
 	if (queueLen < currentWorkers*10 || cpuPercent > 85 || memoryPercent > 85) && currentWorkers > wd.minWorkers {
 		targetWorkers = currentWorkers - 1
 	}
-	
+
 	// Start new workers if needed
 	if targetWorkers > currentWorkers {
 		for i := currentWorkers; i < targetWorkers; i++ {
@@ -323,7 +323,7 @@ func (wd *WorkDispatcher) adjustWorkers() {
 			go wd.worker(i)
 		}
 	}
-	
+
 	// Signal workers to exit if needed
 	if targetWorkers < currentWorkers {
 		exitCount := currentWorkers - targetWorkers
@@ -342,7 +342,7 @@ func (wd *WorkDispatcher) adjustWorkers() {
 func (wd *WorkDispatcher) dirQueueManager() {
 	defer wd.wg.Done()
 	defer close(wd.dirQueue)
-	
+
 	// Wait for context cancellation
 	<-wd.ctx.Done()
 }
@@ -351,32 +351,32 @@ func (wd *WorkDispatcher) dirQueueManager() {
 func (wd *WorkDispatcher) workQueueCloser() {
 	defer wd.wg.Done()
 	defer close(wd.workQueue)
-	
+
 	// Monitor directory workers and queue
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
 			// Check if directory scanning is complete
 			activeDirWorkers := wd.activeDirWorkers.Load()
 			dirQueueLen := len(wd.dirQueue)
-			
+
 			// If no active directory workers and directory queue is empty,
 			// we're done adding new work
 			if activeDirWorkers == 0 && dirQueueLen == 0 {
 				// Wait a bit more to ensure all work is processed
 				time.Sleep(2 * time.Second)
-				
+
 				// Final check
 				if wd.activeDirWorkers.Load() == 0 && len(wd.dirQueue) == 0 {
 					return
 				}
 			}
-			
+
 		case <-wd.ctx.Done():
 			return
 		}
 	}
-} 
+}

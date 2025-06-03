@@ -32,7 +32,7 @@ func HandleDBStatus(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	if err := sqlDB.Ping(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
@@ -40,7 +40,7 @@ func HandleDBStatus(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "connected",
 		"database": "ready",
@@ -56,7 +56,7 @@ func HandleConnectionPoolStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Calculate utilization percentages
 	var openUtilization, idleUtilization float64
 	if stats.MaxOpenConnections > 0 {
@@ -65,18 +65,18 @@ func HandleConnectionPoolStats(c *gin.Context) {
 	if stats.OpenConnections > 0 {
 		idleUtilization = float64(stats.Idle) / float64(stats.OpenConnections) * 100
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"connection_pool": gin.H{
-			"open_connections":       stats.OpenConnections,
-			"max_open_connections":   stats.MaxOpenConnections,
-			"in_use":                stats.InUse,
-			"idle":                  stats.Idle,
-			"wait_count":            stats.WaitCount,
-			"wait_duration":         stats.WaitDuration.String(),
-			"max_idle_closed":       stats.MaxIdleClosed,
-			"max_idle_time_closed":  stats.MaxIdleTimeClosed,
-			"max_lifetime_closed":   stats.MaxLifetimeClosed,
+			"open_connections":     stats.OpenConnections,
+			"max_open_connections": stats.MaxOpenConnections,
+			"in_use":               stats.InUse,
+			"idle":                 stats.Idle,
+			"wait_count":           stats.WaitCount,
+			"wait_duration":        stats.WaitDuration.String(),
+			"max_idle_closed":      stats.MaxIdleClosed,
+			"max_idle_time_closed": stats.MaxIdleTimeClosed,
+			"max_lifetime_closed":  stats.MaxLifetimeClosed,
 		},
 		"utilization": gin.H{
 			"open_connection_percent": openUtilization,
@@ -84,10 +84,10 @@ func HandleConnectionPoolStats(c *gin.Context) {
 			"busy_connection_percent": 100 - idleUtilization,
 		},
 		"performance_indicators": gin.H{
-			"connection_waits":      stats.WaitCount > 0,
-			"high_utilization":      openUtilization > 80,
-			"connection_churning":   stats.MaxLifetimeClosed > int64(stats.OpenConnections*10),
-			"idle_timeout_issues":   stats.MaxIdleTimeClosed > int64(stats.OpenConnections*5),
+			"connection_waits":    stats.WaitCount > 0,
+			"high_utilization":    openUtilization > 80,
+			"connection_churning": stats.MaxLifetimeClosed > int64(stats.OpenConnections*10),
+			"idle_timeout_issues": stats.MaxIdleTimeClosed > int64(stats.OpenConnections*5),
 		},
 		"health_status": func() string {
 			if stats.WaitCount > 100 {
@@ -110,7 +110,7 @@ func HandleDatabaseHealth(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get additional health metrics
 	stats, err := database.GetConnectionStats()
 	if err != nil {
@@ -120,26 +120,26 @@ func HandleDatabaseHealth(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Determine health status based on multiple factors
 	healthStatus := "healthy"
 	healthIssues := []string{}
-	
+
 	if stats.WaitCount > 0 {
 		healthIssues = append(healthIssues, "connection_waits_detected")
 	}
-	
+
 	if stats.OpenConnections == 0 {
 		healthStatus = "critical"
 		healthIssues = append(healthIssues, "no_open_connections")
 	}
-	
+
 	utilization := float64(stats.OpenConnections) / float64(stats.MaxOpenConnections) * 100
 	if utilization > 90 {
 		healthStatus = "warning"
 		healthIssues = append(healthIssues, "high_connection_utilization")
 	}
-	
+
 	response := gin.H{
 		"status":              healthStatus,
 		"open_connections":    stats.OpenConnections,
@@ -147,11 +147,11 @@ func HandleDatabaseHealth(c *gin.Context) {
 		"utilization_percent": utilization,
 		"wait_count":          stats.WaitCount,
 	}
-	
+
 	if len(healthIssues) > 0 {
 		response["issues"] = healthIssues
 	}
-	
+
 	// Set appropriate HTTP status code
 	statusCode := http.StatusOK
 	if healthStatus == "warning" {
@@ -159,6 +159,6 @@ func HandleDatabaseHealth(c *gin.Context) {
 	} else if healthStatus == "critical" {
 		statusCode = http.StatusServiceUnavailable
 	}
-	
+
 	c.JSON(statusCode, response)
 }

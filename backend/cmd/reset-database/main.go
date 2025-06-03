@@ -70,14 +70,14 @@ func dropAllTables(db *gorm.DB) error {
 func createNewSchema(db *gorm.DB) error {
 	// Enable UUID extension for PostgreSQL
 	db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
-	
+
 	// Create all new tables in dependency order
 	models := []interface{}{
 		// Core system tables
 		&database.User{},
 		&database.MediaLibrary{},
 		&database.ScanJob{},
-		
+
 		// Media content tables
 		&database.Artist{},
 		&database.Album{},
@@ -86,7 +86,7 @@ func createNewSchema(db *gorm.DB) error {
 		&database.TVShow{},
 		&database.Season{},
 		&database.Episode{},
-		
+
 		// Shared tables
 		&database.MediaFile{},
 		&database.MediaAsset{},
@@ -94,7 +94,7 @@ func createNewSchema(db *gorm.DB) error {
 		&database.Roles{},
 		&database.MediaExternalIDs{},
 		&database.MediaEnrichment{},
-		
+
 		// Plugin system tables
 		&database.Plugin{},
 		&database.PluginPermission{},
@@ -130,19 +130,19 @@ func createIndexes(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_media_files_library_id ON media_files(library_id)",
 		"CREATE INDEX IF NOT EXISTS idx_media_files_path ON media_files(path)",
 		"CREATE INDEX IF NOT EXISTS idx_media_files_hash ON media_files(hash)",
-		
+
 		// MediaAsset indexes
 		"CREATE INDEX IF NOT EXISTS idx_media_assets_media_id ON media_assets(media_id)",
 		"CREATE INDEX IF NOT EXISTS idx_media_assets_media_type ON media_assets(media_type)",
 		"CREATE INDEX IF NOT EXISTS idx_media_assets_asset_type ON media_assets(asset_type)",
-		
+
 		// People and Roles indexes
 		"CREATE INDEX IF NOT EXISTS idx_people_name ON people(name)",
 		"CREATE INDEX IF NOT EXISTS idx_roles_person_id ON roles(person_id)",
 		"CREATE INDEX IF NOT EXISTS idx_roles_media_id ON roles(media_id)",
 		"CREATE INDEX IF NOT EXISTS idx_roles_media_type ON roles(media_type)",
 		"CREATE INDEX IF NOT EXISTS idx_roles_role ON roles(role)",
-		
+
 		// Music indexes
 		"CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name)",
 		"CREATE INDEX IF NOT EXISTS idx_albums_title ON albums(title)",
@@ -150,12 +150,12 @@ func createIndexes(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title)",
 		"CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id)",
 		"CREATE INDEX IF NOT EXISTS idx_tracks_artist_id ON tracks(artist_id)",
-		
+
 		// Movie indexes
 		"CREATE INDEX IF NOT EXISTS idx_movies_title ON movies(title)",
 		"CREATE INDEX IF NOT EXISTS idx_movies_tmdb_id ON movies(tmdb_id)",
 		"CREATE INDEX IF NOT EXISTS idx_movies_imdb_id ON movies(imdb_id)",
-		
+
 		// TV indexes
 		"CREATE INDEX IF NOT EXISTS idx_tv_shows_title ON tv_shows(title)",
 		"CREATE INDEX IF NOT EXISTS idx_tv_shows_tmdb_id ON tv_shows(tmdb_id)",
@@ -163,7 +163,7 @@ func createIndexes(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_seasons_season_number ON seasons(season_number)",
 		"CREATE INDEX IF NOT EXISTS idx_episodes_season_id ON episodes(season_id)",
 		"CREATE INDEX IF NOT EXISTS idx_episodes_episode_number ON episodes(episode_number)",
-		
+
 		// External IDs and enrichment indexes
 		"CREATE INDEX IF NOT EXISTS idx_media_external_ids_media_id ON media_external_ids(media_id)",
 		"CREATE INDEX IF NOT EXISTS idx_media_external_ids_source ON media_external_ids(source)",
@@ -178,4 +178,4 @@ func createIndexes(db *gorm.DB) error {
 	}
 
 	return nil
-} 
+}

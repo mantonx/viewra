@@ -8,14 +8,14 @@ import (
 
 // basicEventMetrics implements EventMetrics interface
 type basicEventMetrics struct {
-	mu             sync.RWMutex
-	totalEvents    int64
-	eventsByType   map[string]int64
-	eventsBySource map[string]int64
+	mu               sync.RWMutex
+	totalEvents      int64
+	eventsByType     map[string]int64
+	eventsBySource   map[string]int64
 	eventsByPriority map[string]int64
-	subscriptions  int64
-	recentEvents   []Event
-	maxRecentEvents int
+	subscriptions    int64
+	recentEvents     []Event
+	maxRecentEvents  int
 }
 
 // NewBasicEventMetrics creates a new basic event metrics instance
@@ -33,19 +33,19 @@ func NewBasicEventMetrics() EventMetrics {
 func (m *basicEventMetrics) RecordEvent(event Event) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.totalEvents++
-	
+
 	// Record by type
 	m.eventsByType[string(event.Type)]++
-	
+
 	// Record by source
 	m.eventsBySource[event.Source]++
-	
+
 	// Record by priority
 	priorityKey := getPriorityKey(event.Priority)
 	m.eventsByPriority[priorityKey]++
-	
+
 	// Add to recent events
 	m.recentEvents = append(m.recentEvents, event)
 	if len(m.recentEvents) > m.maxRecentEvents {
@@ -57,7 +57,7 @@ func (m *basicEventMetrics) RecordEvent(event Event) {
 func (m *basicEventMetrics) RecordSubscription(subscription *Subscription) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.subscriptions++
 }
 
@@ -65,7 +65,7 @@ func (m *basicEventMetrics) RecordSubscription(subscription *Subscription) {
 func (m *basicEventMetrics) RecordUnsubscription(subscriptionID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if m.subscriptions > 0 {
 		m.subscriptions--
 	}
@@ -75,27 +75,27 @@ func (m *basicEventMetrics) RecordUnsubscription(subscriptionID string) {
 func (m *basicEventMetrics) GetMetrics() EventStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Deep copy maps to avoid race conditions
 	eventsByType := make(map[string]int64)
 	for k, v := range m.eventsByType {
 		eventsByType[k] = v
 	}
-	
+
 	eventsBySource := make(map[string]int64)
 	for k, v := range m.eventsBySource {
 		eventsBySource[k] = v
 	}
-	
+
 	eventsByPriority := make(map[string]int64)
 	for k, v := range m.eventsByPriority {
 		eventsByPriority[k] = v
 	}
-	
+
 	// Copy recent events
 	recentEvents := make([]Event, len(m.recentEvents))
 	copy(recentEvents, m.recentEvents)
-	
+
 	return EventStats{
 		TotalEvents:         m.totalEvents,
 		EventsByType:        eventsByType,
@@ -125,11 +125,11 @@ func getPriorityKey(priority EventPriority) string {
 // advancedEventMetrics provides more detailed metrics with time-based aggregation
 type advancedEventMetrics struct {
 	basicEventMetrics
-	
+
 	// Time-based metrics
-	hourlyStats   map[string]*HourlyStats
-	dailyStats    map[string]*DailyStats
-	startTime     time.Time
+	hourlyStats map[string]*HourlyStats
+	dailyStats  map[string]*DailyStats
+	startTime   time.Time
 }
 
 // HourlyStats represents metrics for an hour
@@ -168,10 +168,10 @@ func NewAdvancedEventMetrics() EventMetrics {
 func (m *advancedEventMetrics) RecordEvent(event Event) {
 	// Call basic recording
 	m.basicEventMetrics.RecordEvent(event)
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	// Record hourly stats
 	hourKey := event.Timestamp.Truncate(time.Hour).Format("2006-01-02T15")
 	if m.hourlyStats[hourKey] == nil {
@@ -182,7 +182,7 @@ func (m *advancedEventMetrics) RecordEvent(event Event) {
 	}
 	m.hourlyStats[hourKey].EventCount++
 	m.hourlyStats[hourKey].EventsByType[string(event.Type)]++
-	
+
 	// Record daily stats
 	dayKey := event.Timestamp.Truncate(24 * time.Hour).Format("2006-01-02")
 	if m.dailyStats[dayKey] == nil {
@@ -193,13 +193,13 @@ func (m *advancedEventMetrics) RecordEvent(event Event) {
 	}
 	m.dailyStats[dayKey].EventCount++
 	m.dailyStats[dayKey].EventsByType[string(event.Type)]++
-	
+
 	// Update peak hour for the day
 	if m.hourlyStats[hourKey].EventCount > m.dailyStats[dayKey].PeakCount {
 		m.dailyStats[dayKey].PeakHour = event.Timestamp.Truncate(time.Hour)
 		m.dailyStats[dayKey].PeakCount = m.hourlyStats[hourKey].EventCount
 	}
-	
+
 	// Cleanup old stats (keep only last 30 days)
 	m.cleanupOldStats()
 }
@@ -207,14 +207,14 @@ func (m *advancedEventMetrics) RecordEvent(event Event) {
 // cleanupOldStats removes stats older than 30 days
 func (m *advancedEventMetrics) cleanupOldStats() {
 	cutoff := time.Now().AddDate(0, 0, -30)
-	
+
 	// Cleanup hourly stats
 	for key, stats := range m.hourlyStats {
 		if stats.Hour.Before(cutoff) {
 			delete(m.hourlyStats, key)
 		}
 	}
-	
+
 	// Cleanup daily stats
 	for key, stats := range m.dailyStats {
 		if stats.Day.Before(cutoff) {
@@ -227,14 +227,14 @@ func (m *advancedEventMetrics) cleanupOldStats() {
 func (m *advancedEventMetrics) GetHourlyStats(hours int) []*HourlyStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var stats []*HourlyStats
 	now := time.Now()
-	
+
 	for i := 0; i < hours; i++ {
 		hour := now.Add(-time.Duration(i) * time.Hour).Truncate(time.Hour)
 		hourKey := hour.Format("2006-01-02T15")
-		
+
 		if stat, exists := m.hourlyStats[hourKey]; exists {
 			stats = append(stats, stat)
 		} else {
@@ -246,7 +246,7 @@ func (m *advancedEventMetrics) GetHourlyStats(hours int) []*HourlyStats {
 			})
 		}
 	}
-	
+
 	return stats
 }
 
@@ -254,14 +254,14 @@ func (m *advancedEventMetrics) GetHourlyStats(hours int) []*HourlyStats {
 func (m *advancedEventMetrics) GetDailyStats(days int) []*DailyStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var stats []*DailyStats
 	now := time.Now()
-	
+
 	for i := 0; i < days; i++ {
 		day := now.AddDate(0, 0, -i).Truncate(24 * time.Hour)
 		dayKey := day.Format("2006-01-02")
-		
+
 		if stat, exists := m.dailyStats[dayKey]; exists {
 			stats = append(stats, stat)
 		} else {
@@ -273,7 +273,7 @@ func (m *advancedEventMetrics) GetDailyStats(days int) []*DailyStats {
 			})
 		}
 	}
-	
+
 	return stats
 }
 
@@ -285,9 +285,9 @@ func NewNoopEventMetrics() EventMetrics {
 	return &noopEventMetrics{}
 }
 
-func (m *noopEventMetrics) RecordEvent(event Event)                    {}
+func (m *noopEventMetrics) RecordEvent(event Event)                       {}
 func (m *noopEventMetrics) RecordSubscription(subscription *Subscription) {}
-func (m *noopEventMetrics) RecordUnsubscription(subscriptionID string) {}
+func (m *noopEventMetrics) RecordUnsubscription(subscriptionID string)    {}
 
 func (m *noopEventMetrics) GetMetrics() EventStats {
 	return EventStats{

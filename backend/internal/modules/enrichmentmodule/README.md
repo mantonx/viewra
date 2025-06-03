@@ -220,3 +220,28 @@ The old plugin system stored enrichment data in separate tables. The new system:
 4. **Supports both internal and external** plugins
 
 See `backend/docs/enrichment-architecture.md` for detailed migration guide.
+
+### Usage Example
+
+```go
+// The MusicBrainz functionality is now handled entirely by the external plugin
+// located in data/plugins/musicbrainz_enricher/
+//
+// No internal plugin setup needed - the external plugin system handles
+// all MusicBrainz enrichment through gRPC communication
+
+// Example of manual enrichment (if needed):
+enrichmentModule := enrichmentmodule.New(db)
+enrichmentModule.Start()
+
+// Register enrichment data from any source
+mediaFileID := uint32(123)
+pluginName := "external_plugin_example"
+enrichments := map[string]interface{}{
+    "title": "Enriched Title",
+    "artist": "Enriched Artist",
+}
+confidence := 0.9
+
+err := enrichmentModule.RegisterEnrichmentData(mediaFileID, pluginName, enrichments, confidence)
+```

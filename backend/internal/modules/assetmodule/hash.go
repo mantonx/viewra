@@ -45,7 +45,7 @@ func (hc *HashCalculator) ValidateHash(hash string) bool {
 	if len(hash) != 64 {
 		return false
 	}
-	
+
 	// Check if it contains only hexadecimal characters
 	matched, _ := regexp.MatchString("^[a-f0-9]{64}$", hash)
 	return matched
@@ -90,4 +90,4 @@ func ValidateHash(hash string) bool {
 // GetSubfolder returns the subfolder name based on hash using the default calculator
 func GetSubfolder(hash string) string {
 	return GetDefaultHashCalculator().GetSubfolder(hash)
-} 
+}

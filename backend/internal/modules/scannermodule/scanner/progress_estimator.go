@@ -52,7 +52,7 @@ func (pe *ProgressEstimator) SetTotal(files, bytes int64) {
 	if !pe.discoveryComplete {
 		pe.totalFiles = files
 		pe.totalBytes = bytes
-		
+
 		// If this is the first meaningful count, save it as initial
 		if pe.initialFileCount == 0 && files > 100 {
 			pe.initialFileCount = files
@@ -206,14 +206,14 @@ func (pe *ProgressEstimator) GetStats() map[string]interface{} {
 	rate := pe.calculateSimpleRate()
 
 	stats := map[string]interface{}{
-		"processed_files":      pe.processedFiles,
-		"total_files":          pe.totalFiles,
-		"processed_bytes":      pe.processedBytes,
-		"total_bytes":          pe.totalBytes,
-		"elapsed_time":         elapsed.String(),
-		"files_per_second":     rate,
-		"discovery_complete":   pe.discoveryComplete,
-		"initial_file_count":   pe.initialFileCount,
+		"processed_files":    pe.processedFiles,
+		"total_files":        pe.totalFiles,
+		"processed_bytes":    pe.processedBytes,
+		"total_bytes":        pe.totalBytes,
+		"elapsed_time":       elapsed.String(),
+		"files_per_second":   rate,
+		"discovery_complete": pe.discoveryComplete,
+		"initial_file_count": pe.initialFileCount,
 	}
 
 	// Calculate average file size safely

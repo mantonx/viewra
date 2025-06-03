@@ -11,152 +11,126 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
-	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"gorm.io/gorm"
 )
 
-// MetadataManager handles extraction and enrichment of media metadata
+// MetadataManager handles metadata extraction, validation, and enrichment
 type MetadataManager struct {
-	db            *gorm.DB
-	eventBus      events.EventBus
-	pluginManager plugins.Manager
-	initialized   bool
-	mutex         sync.RWMutex
-	
-	// Metadata providers
-	providers     []MetadataProvider
-	providerStats map[string]*ProviderStats
+	db           *gorm.DB
+	eventBus     events.EventBus
+	pluginModule *pluginmodule.PluginModule // Updated to use new plugin module
+	initialized  bool
+	mutex        sync.RWMutex
+
+	// Enrichment providers (external APIs, databases, etc.)
+	providers map[string]MetadataProvider
 }
 
-// MetadataProvider defines the interface for metadata providers
+// MetadataProvider defines the interface for metadata enrichment providers
 type MetadataProvider interface {
-	ID() string
-	Name() string
-	SupportedTypes() []string
-	FetchMetadata(ctx context.Context, mediaFile *database.MediaFile) (map[string]interface{}, error)
+	GetProviderName() string
+	CanEnrich(mediaFile *database.MediaFile) bool
+	EnrichMetadata(ctx context.Context, mediaFile *database.MediaFile) (*EnrichmentResult, error)
 }
 
-// ProviderStats tracks metadata provider statistics
-type ProviderStats struct {
-	ProviderID    string    `json:"provider_id"`
-	ProviderName  string    `json:"provider_name"`
-	TotalRequests int       `json:"total_requests"`
-	SuccessCount  int       `json:"success_count"`
-	FailureCount  int       `json:"failure_count"`
-	LastSuccess   time.Time `json:"last_success,omitempty"`
-	LastFailure   time.Time `json:"last_failure,omitempty"`
-	AvgLatency    int64     `json:"avg_latency_ms"`
+// EnrichmentResult represents the result of metadata enrichment
+type EnrichmentResult struct {
+	Source         string                 `json:"source"`
+	Success        bool                   `json:"success"`
+	Title          string                 `json:"title,omitempty"`
+	Artist         string                 `json:"artist,omitempty"`
+	Album          string                 `json:"album,omitempty"`
+	ReleaseDate    string                 `json:"release_date,omitempty"`
+	Genre          string                 `json:"genre,omitempty"`
+	Duration       int                    `json:"duration,omitempty"`
+	TrackNumber    int                    `json:"track_number,omitempty"`
+	AdditionalData map[string]interface{} `json:"additional_data,omitempty"`
+	Error          string                 `json:"error,omitempty"`
 }
 
-// MetadataStats represents overall metadata statistics
+// MetadataStats represents metadata manager statistics
 type MetadataStats struct {
-	TotalFiles         int                 `json:"total_files"`
-	FilesWithMetadata  int                 `json:"files_with_metadata"`
-	MusicFiles         int                 `json:"music_files"`
-	VideoFiles         int                 `json:"video_files"`
-	ImageFiles         int                 `json:"image_files"`
-	ProviderStatistics []*ProviderStats    `json:"provider_statistics"`
+	TotalFiles     int64     `json:"total_files"`
+	ProcessedFiles int64     `json:"processed_files"`
+	EnrichedFiles  int64     `json:"enriched_files"`
+	ErrorCount     int64     `json:"error_count"`
+	LastProcessed  time.Time `json:"last_processed"`
 }
 
 // NewMetadataManager creates a new metadata manager
-func NewMetadataManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager) *MetadataManager {
+func NewMetadataManager(db *gorm.DB, eventBus events.EventBus, pluginModule *pluginmodule.PluginModule) *MetadataManager {
 	return &MetadataManager{
-		db:            db,
-		eventBus:      eventBus,
-		pluginManager: pluginManager,
-		providerStats: make(map[string]*ProviderStats),
+		db:           db,
+		eventBus:     eventBus,
+		pluginModule: pluginModule, // Updated to use plugin module
+		providers:    make(map[string]MetadataProvider),
 	}
 }
 
 // Initialize initializes the metadata manager
 func (mm *MetadataManager) Initialize() error {
 	log.Println("INFO: Initializing metadata manager")
-	
-	// Register metadata providers
-	mm.registerProviders()
-	
+
 	mm.initialized = true
 	log.Println("INFO: Metadata manager initialized successfully")
 	return nil
 }
 
-// registerProviders registers all metadata providers
-func (mm *MetadataManager) registerProviders() {
-	// Initialize provider stats for each registered provider
-	for _, provider := range mm.providers {
-		providerID := provider.ID()
-		mm.providerStats[providerID] = &ProviderStats{
-			ProviderID:   providerID,
-			ProviderName: provider.Name(),
-		}
-		
-		log.Printf("INFO: Registered metadata provider: %s", provider.Name())
-	}
-}
-
-// ExtractMetadata extracts metadata from a media file using appropriate plugins
+// ExtractMetadata extracts metadata from a media file using available plugins
 func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error {
 	log.Printf("INFO: Extracting metadata for file: %s", mediaFile.Path)
-	
+
 	// Check if file exists
 	if _, err := os.Stat(mediaFile.Path); os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist: %s", mediaFile.Path)
 	}
-	
-	// Check if plugin manager is available
-	if mm.pluginManager == nil {
-		log.Printf("WARNING: No plugin manager available for file: %s - skipping metadata extraction", mediaFile.Path)
+
+	// Check if plugin module is available
+	if mm.pluginModule == nil {
+		log.Printf("WARNING: No plugin module available for file: %s - skipping metadata extraction", mediaFile.Path)
 		return nil // Not an error, just no plugins available
 	}
-	
+
 	// Get file info for plugin matching
 	fileInfo, err := os.Stat(mediaFile.Path)
 	if err != nil {
 		return fmt.Errorf("failed to get file info: %w", err)
 	}
-	
-	// Get all available file handlers from plugin manager
-	handlers := mm.pluginManager.GetFileHandlers()
-	
+
+	// Get all available file handlers from plugin module
+	handlers := mm.pluginModule.GetEnabledFileHandlers()
+
 	// Find a matching handler
-	var matchingHandler plugins.FileHandlerPlugin
+	var matchingHandler pluginmodule.FileHandlerPlugin
 	for _, handler := range handlers {
 		if handler.Match(mediaFile.Path, fileInfo) {
 			matchingHandler = handler
 			break
 		}
 	}
-	
+
 	if matchingHandler == nil {
 		log.Printf("WARNING: No plugin handler found for file: %s", mediaFile.Path)
 		return nil // Not an error, just no handler available
 	}
-	
+
 	log.Printf("INFO: Processing file %s with handler: %s", mediaFile.Path, matchingHandler.GetName())
-	
+
 	// Create metadata context for plugin
-	ctx := plugins.MetadataContext{
+	ctx := &pluginmodule.MetadataContext{
 		DB:        mm.db,
 		MediaFile: mediaFile,
 		LibraryID: uint(mediaFile.LibraryID),
 		EventBus:  mm.eventBus,
+		PluginID:  matchingHandler.GetName(),
 	}
-	
-	// TODO: With new schema, metadata deletion would be through Artist/Album/Track relationships
-	// For now, just skip the old MusicMetadata deletion
-	// if err := mm.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
-	//	 return fmt.Errorf("failed to delete existing metadata: %w", err)
-	// }
-	
-	// TODO: With new schema, music file counting would be done differently
-	// For now, just return 0
-	// mm.db.Model(&database.MusicMetadata{}).Count(&musicFiles)
-	
+
 	// Process file with the matching handler
 	if err := matchingHandler.HandleFile(mediaFile.Path, ctx); err != nil {
 		return fmt.Errorf("plugin handler failed: %w", err)
 	}
-	
+
 	// Publish event
 	if mm.eventBus != nil {
 		event := events.NewSystemEvent(
@@ -166,7 +140,7 @@ func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error 
 		)
 		mm.eventBus.PublishAsync(event)
 	}
-	
+
 	log.Printf("INFO: Successfully extracted metadata for file: %s", mediaFile.Path)
 	return nil
 }
@@ -176,126 +150,101 @@ func (mm *MetadataManager) EnrichMetadata(mediaFileID string) error {
 	if !mm.initialized {
 		return fmt.Errorf("metadata manager not initialized")
 	}
-	
+
 	// Get file from database with its metadata
 	var mediaFile database.MediaFile
 	if err := mm.db.Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
 		return fmt.Errorf("failed to find media file: %w", err)
 	}
-	
+
 	// Create timeout context for enrichment operations
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	// Try each provider and collect results
 	var enrichmentError error
 	for _, provider := range mm.providers {
-		stats := mm.providerStats[provider.ID()]
-		
-		startTime := time.Now()
-		stats.TotalRequests++
-		
-		// Attempt to fetch metadata from this provider
-		metadataMap, err := provider.FetchMetadata(ctx, &mediaFile)
-		
-		if err != nil {
-			stats.FailureCount++
-			stats.LastFailure = time.Now()
-			enrichmentError = fmt.Errorf("provider %s failed: %w", provider.Name(), err)
-			log.Printf("WARNING: Failed to enrich metadata with provider %s: %v", provider.Name(), err)
+		// Check if provider can enrich this file
+		if !provider.CanEnrich(&mediaFile) {
 			continue
 		}
-		
-		// Update provider stats
-		stats.SuccessCount++
-		stats.LastSuccess = time.Now()
-		latency := time.Since(startTime).Milliseconds()
-		if stats.AvgLatency == 0 {
-			stats.AvgLatency = latency
-		} else {
-			stats.AvgLatency = (stats.AvgLatency + latency) / 2
+
+		// Attempt to enrich metadata from this provider
+		enrichmentResult, err := provider.EnrichMetadata(ctx, &mediaFile)
+
+		if err != nil {
+			enrichmentError = fmt.Errorf("provider %s failed: %w", provider.GetProviderName(), err)
+			log.Printf("WARNING: Failed to enrich metadata with provider %s: %v", provider.GetProviderName(), err)
+			continue
 		}
-		
+
 		// Process enriched metadata
-		if err := mm.updateMediaWithEnrichedData(mediaFileID, provider.ID(), metadataMap); err != nil {
+		if err := mm.updateMediaWithEnrichedData(mediaFileID, provider.GetProviderName(), enrichmentResult); err != nil {
 			log.Printf("WARNING: Failed to update media with enriched data: %v", err)
 			continue
 		}
-		
-		// Publish metadata enriched event
+
+		// Success - publish event
 		if mm.eventBus != nil {
 			event := events.NewSystemEvent(
 				"media.metadata.enriched",
 				"Media Metadata Enriched",
-				fmt.Sprintf("Enriched metadata for media file %s using provider %s", mediaFileID, provider.Name()),
+				fmt.Sprintf("Enriched metadata for media file %s using provider %s", mediaFileID, provider.GetProviderName()),
 			)
 			event.Data = map[string]interface{}{
 				"mediaFileID":  mediaFileID,
-				"providerID":   provider.ID(),
-				"providerName": provider.Name(),
-				"enrichedKeys": getMapKeys(metadataMap),
+				"providerName": provider.GetProviderName(),
 			}
 			mm.eventBus.PublishAsync(event)
 		}
-		
-		// If we got here, we successfully enriched the metadata
-		return nil
+
+		log.Printf("INFO: Successfully enriched metadata for file %s using provider %s", mediaFileID, provider.GetProviderName())
+		break // Successfully enriched, no need to try other providers
 	}
-	
-	// If we got here, all providers failed
+
 	return enrichmentError
 }
 
 // updateMediaWithEnrichedData updates the media record with enriched metadata
-func (mm *MetadataManager) updateMediaWithEnrichedData(mediaFileID string, providerID string, data map[string]interface{}) error {
+func (mm *MetadataManager) updateMediaWithEnrichedData(mediaFileID string, providerName string, data *EnrichmentResult) error {
 	// Implementation depends on what type of metadata we're enriching
 	// For now, just log the enrichment
-	log.Printf("INFO: Enriched media file %s with provider %s: %v", mediaFileID, providerID, getMapKeys(data))
+	log.Printf("INFO: Enriched media file %s with provider %s", mediaFileID, providerName)
 	return nil
 }
 
-// GetStats returns statistics about metadata in the system
+// GetStats returns metadata manager statistics
 func (mm *MetadataManager) GetStats() *MetadataStats {
 	stats := &MetadataStats{}
-	
+
 	// Count total files
 	var totalFiles int64
 	mm.db.Model(&database.MediaFile{}).Count(&totalFiles)
-	stats.TotalFiles = int(totalFiles)
-	
-	// TODO: With new schema, music file counting would be done differently
-	// For now, just return 0
-	// mm.db.Model(&database.MusicMetadata{}).Count(&musicFiles)
-	musicFiles := int64(0)
-	stats.MusicFiles = int(musicFiles)
-	
-	// Files with metadata is the sum of all specific types
-	stats.FilesWithMetadata = stats.MusicFiles + stats.VideoFiles + stats.ImageFiles
-	
-	// Add provider statistics
-	for _, providerStat := range mm.providerStats {
-		stats.ProviderStatistics = append(stats.ProviderStatistics, providerStat)
-	}
-	
+	stats.TotalFiles = totalFiles
+
+	// For now, use simplified statistics
+	stats.ProcessedFiles = totalFiles // Assume all files have been processed
+	stats.EnrichedFiles = 0           // No enrichment providers yet
+	stats.ErrorCount = 0              // No error tracking yet
+	stats.LastProcessed = time.Now()
+
 	return stats
+}
+
+// RegisterProvider registers a metadata enrichment provider
+func (mm *MetadataManager) RegisterProvider(provider MetadataProvider) {
+	mm.mutex.Lock()
+	defer mm.mutex.Unlock()
+
+	mm.providers[provider.GetProviderName()] = provider
+	log.Printf("INFO: Registered metadata provider: %s", provider.GetProviderName())
 }
 
 // Shutdown gracefully shuts down the metadata manager
 func (mm *MetadataManager) Shutdown(ctx context.Context) error {
 	log.Println("INFO: Shutting down metadata manager")
-	
-	// Nothing specific to do for shutdown yet
-	
+
 	mm.initialized = false
 	log.Println("INFO: Metadata manager shutdown complete")
 	return nil
-}
-
-// Helper function to get keys from a map
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }

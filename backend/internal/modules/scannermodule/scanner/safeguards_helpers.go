@@ -61,7 +61,7 @@ func NewLockManager() *LockManager {
 	}
 }
 
-// AcquireJobLock acquires a lock for the specified job  
+// AcquireJobLock acquires a lock for the specified job
 func (lm *LockManager) AcquireJobLock(jobID uint32) error {
 	lm.mu.Lock()
 	if lm.jobLocks[jobID] == nil {
@@ -69,14 +69,14 @@ func (lm *LockManager) AcquireJobLock(jobID uint32) error {
 	}
 	lock := lm.jobLocks[jobID]
 	lm.mu.Unlock()
-	
+
 	// Try to acquire the lock with timeout
 	done := make(chan struct{})
 	go func() {
 		lock.Lock()
 		close(done)
 	}()
-	
+
 	select {
 	case <-done:
 		return nil
@@ -108,16 +108,16 @@ func (tm *TransactionManager) BeginTransaction() (*gorm.DB, string, error) {
 	if tx.Error != nil {
 		return nil, "", fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
-	
+
 	// Generate unique transaction ID
 	bytes := make([]byte, 8)
 	rand.Read(bytes)
 	txID := hex.EncodeToString(bytes)
-	
+
 	tm.mu.Lock()
 	tm.activeTransactions[txID] = tx
 	tm.mu.Unlock()
-	
+
 	return tx, txID, nil
 }
 
@@ -129,15 +129,15 @@ func (tm *TransactionManager) CommitTransaction(txID string) error {
 		delete(tm.activeTransactions, txID)
 	}
 	tm.mu.Unlock()
-	
+
 	if !exists {
 		return fmt.Errorf("transaction %s not found", txID)
 	}
-	
+
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -149,15 +149,15 @@ func (tm *TransactionManager) RollbackTransaction(txID string) error {
 		delete(tm.activeTransactions, txID)
 	}
 	tm.mu.Unlock()
-	
+
 	if !exists {
 		return fmt.Errorf("transaction %s not found", txID)
 	}
-	
+
 	if err := tx.Rollback().Error; err != nil {
 		return fmt.Errorf("failed to rollback transaction: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -174,11 +174,11 @@ func NewHealthChecker(db *gorm.DB, manager *Manager) *HealthChecker {
 func (hc *HealthChecker) Start() error {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	if hc.running {
 		return fmt.Errorf("health checker already running")
 	}
-	
+
 	hc.running = true
 	go hc.run()
 	return nil
@@ -188,11 +188,11 @@ func (hc *HealthChecker) Start() error {
 func (hc *HealthChecker) Stop() error {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
+
 	if !hc.running {
 		return nil
 	}
-	
+
 	hc.running = false
 	close(hc.stopCh)
 	return nil
@@ -201,7 +201,7 @@ func (hc *HealthChecker) Stop() error {
 func (hc *HealthChecker) run() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -219,26 +219,26 @@ func (hc *HealthChecker) performHealthCheck() {
 		logger.Error("Health check: database connection error", "error", err)
 		return
 	}
-	
+
 	if err := sqlDB.Ping(); err != nil {
 		logger.Error("Health check: database ping failed", "error", err)
 		return
 	}
-	
-	// Check for stuck scan jobs  
+
+	// Check for stuck scan jobs
 	var stuckJobs []database.ScanJob
 	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
-	
+
 	err = hc.db.Where("status = ? AND updated_at < ?", "running", fiveMinutesAgo).Find(&stuckJobs).Error
 	if err != nil {
 		logger.Error("Health check: failed to query stuck jobs", "error", err)
 		return
 	}
-	
+
 	if len(stuckJobs) > 0 {
 		logger.Warn("Health check: found stuck scan jobs", "count", len(stuckJobs))
 		for _, job := range stuckJobs {
 			logger.Warn("Stuck scan job detected", "job_id", job.ID, "library_id", job.LibraryID, "last_update", job.UpdatedAt)
 		}
 	}
-} 
+}

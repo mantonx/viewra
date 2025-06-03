@@ -10,7 +10,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 )
@@ -20,62 +20,62 @@ import (
 // ROBUSTNESS FEATURES:
 //
 // 1. STATE SYNCHRONIZATION:
-//    - Maintains consistency between in-memory scanner state and database
-//    - Background synchronizer detects and auto-fixes state mismatches
-//    - Periodic health checks prevent state drift
+//   - Maintains consistency between in-memory scanner state and database
+//   - Background synchronizer detects and auto-fixes state mismatches
+//   - Periodic health checks prevent state drift
 //
 // 2. CRASH RECOVERY:
-//    - Automatically detects "orphaned" jobs from backend restarts
-//    - Intelligent auto-resume for jobs with significant progress
-//    - Cleanup of duplicate jobs for the same library
-//    - Validation that libraries still exist before recovery
+//   - Automatically detects "orphaned" jobs from backend restarts
+//   - Intelligent auto-resume for jobs with significant progress
+//   - Cleanup of duplicate jobs for the same library
+//   - Validation that libraries still exist before recovery
 //
 // 3. API CONSISTENCY:
-//    - Library-based pause/resume methods eliminate job ID confusion
-//    - Consistent error handling and validation
-//    - Graceful fallback behaviors (auto-start if no paused scan)
+//   - Library-based pause/resume methods eliminate job ID confusion
+//   - Consistent error handling and validation
+//   - Graceful fallback behaviors (auto-start if no paused scan)
 //
 // 4. FAULT TOLERANCE:
-//    - Graceful handling of scanner crashes or interruptions
-//    - Timeout-based cleanup for stuck operations
-//    - Resource cleanup on library deletion
-//    - Protection against concurrent operations on same library
+//   - Graceful handling of scanner crashes or interruptions
+//   - Timeout-based cleanup for stuck operations
+//   - Resource cleanup on library deletion
+//   - Protection against concurrent operations on same library
 //
 // 5. ENHANCED SAFEGUARDS:
-//    - Transactional operations with rollback capabilities
-//    - Distributed locking to prevent race conditions
-//    - Comprehensive validation and verification
-//    - Automated monitoring and self-healing
+//   - Transactional operations with rollback capabilities
+//   - Distributed locking to prevent race conditions
+//   - Comprehensive validation and verification
+//   - Automated monitoring and self-healing
 //
 // This design ensures the scanner remains robust across backend restarts,
 // network issues, system crashes, and other failure scenarios.
 type Manager struct {
-	db            *gorm.DB
-	eventBus      events.EventBus
-	pluginManager plugins.Manager
+	db             *gorm.DB
+	eventBus       events.EventBus
+	pluginModule   *pluginmodule.PluginModule
 	enrichmentHook ScannerPluginHook // Add enrichment hook
-	safeguards    *SafeguardSystem
-	mu            sync.RWMutex
-	scanners      map[uint32]*LibraryScanner // jobID -> scanner mapping
-	stopChannels  map[uint32]chan struct{}   // jobID -> stop channel mapping
-	workers       int
-	done          chan struct{}
-	cleanupTicker *time.Ticker
-	monitorTicker *time.Ticker
+	safeguards     *SafeguardSystem
+	mu             sync.RWMutex
+	scanners       map[uint32]*LibraryScanner // jobID -> scanner mapping
+	stopChannels   map[uint32]chan struct{}   // jobID -> stop channel mapping
+	workers        int
+	done           chan struct{}
+	cleanupTicker  *time.Ticker
+	monitorTicker  *time.Ticker
 	// performance tracking
-	workerPool   *utils.WorkerPool
-	rateLimiter  *utils.RateLimiter
-	lastCleanup  time.Time
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
-	
+	workerPool  *utils.WorkerPool
+	rateLimiter *utils.RateLimiter
+	lastCleanup time.Time
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+
 	// File monitoring
-	fileMonitor   *FileMonitor
+	fileMonitor *FileMonitor
 }
 
 // NewManager creates a new scanner manager
-func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Manager, opts *ManagerOptions) *Manager {
+func NewManager(db *gorm.DB, eventBus events.EventBus, pluginModule *pluginmodule.PluginModule, opts *ManagerOptions) *Manager {
 	// Default options
 	if opts == nil {
 		opts = &ManagerOptions{
@@ -85,33 +85,33 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Man
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Create file monitor
-	fileMonitor, err := NewFileMonitor(db, eventBus, pluginManager)
+	fileMonitor, err := NewFileMonitor(db, eventBus, pluginModule)
 	if err != nil {
 		logger.Error("Failed to create file monitor", "error", err)
 		// Continue without file monitoring
 		fileMonitor = nil
 	}
-	
+
 	manager := &Manager{
-		db:            db,
-		eventBus:      eventBus,
-		pluginManager: pluginManager,
-		scanners:      make(map[uint32]*LibraryScanner),
-		stopChannels:  make(map[uint32]chan struct{}),
-		workers:       opts.Workers,
-		done:          make(chan struct{}),
-		workerPool:    utils.NewWorkerPool(opts.Workers),
-		rateLimiter:   utils.NewRateLimiter(10, time.Second), // 10 operations per second
-		ctx:           ctx,
-		cancel:        cancel,
-		fileMonitor:   fileMonitor,
+		db:           db,
+		eventBus:     eventBus,
+		pluginModule: pluginModule,
+		scanners:     make(map[uint32]*LibraryScanner),
+		stopChannels: make(map[uint32]chan struct{}),
+		workers:      opts.Workers,
+		done:         make(chan struct{}),
+		workerPool:   utils.NewWorkerPool(opts.Workers),
+		rateLimiter:  utils.NewRateLimiter(10, time.Second), // 10 operations per second
+		ctx:          ctx,
+		cancel:       cancel,
+		fileMonitor:  fileMonitor,
 	}
-	
+
 	// Initialize safeguards system
 	manager.safeguards = NewSafeguardSystem(db, eventBus, manager)
-	
+
 	return manager
 }
 
@@ -119,7 +119,7 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager plugins.Man
 // and automatically resumes paused jobs that have made progress
 func (m *Manager) recoverOrphanedJobs() error {
 	logger.Info("Starting orphaned job recovery process...")
-	
+
 	// STEP 1: Find all jobs that were "running" but lost their in-memory state
 	var orphanedJobs []database.ScanJob
 	if err := m.db.Where("status = ?", "running").Preload("Library").Find(&orphanedJobs).Error; err != nil {
@@ -152,7 +152,7 @@ func (m *Manager) recoverOrphanedJobs() error {
 			if job.Library.ID == 0 {
 				logger.Warn("Orphaned job %d references non-existent library, marking as failed", job.ID)
 				if err := m.db.Model(&database.ScanJob{}).Where("id = ?", job.ID).Updates(map[string]interface{}{
-					"status": string(utils.StatusFailed),
+					"status":        string(utils.StatusFailed),
 					"error_message": "Library no longer exists",
 				}).Error; err != nil {
 					logger.Error("Failed to mark orphaned job as failed: %v", err)
@@ -160,16 +160,16 @@ func (m *Manager) recoverOrphanedJobs() error {
 				continue
 			}
 
-			recoveryMsg := fmt.Sprintf("Resuming scan from backend restart (had processed %d/%d files)", 
+			recoveryMsg := fmt.Sprintf("Resuming scan from backend restart (had processed %d/%d files)",
 				job.FilesProcessed, job.FilesFound)
-			
+
 			// Use status_message for informational recovery message, not error_message
 			updates := map[string]interface{}{
-				"status": string(utils.StatusPaused),
+				"status":         string(utils.StatusPaused),
 				"status_message": recoveryMsg,
-				"error_message": "", // Clear any previous error message
+				"error_message":  "", // Clear any previous error message
 			}
-			
+
 			if err := m.db.Model(&database.ScanJob{}).Where("id = ?", job.ID).Updates(updates).Error; err != nil {
 				logger.Error("Failed to recover orphaned job %d: %v", job.ID, err)
 				continue
@@ -231,7 +231,7 @@ func (m *Manager) recoverOrphanedJobs() error {
 					job.ID, job.FilesProcessed, job.Progress)
 			}
 		}
-		
+
 		if autoResumedCount > 0 {
 			logger.Info("🎉 Auto-resumed %d scan jobs after backend restart", autoResumedCount)
 		} else {
@@ -249,7 +249,7 @@ func (m *Manager) cleanupDuplicateJobs() error {
 		LibraryID uint `json:"library_id"`
 		JobCount  int  `json:"job_count"`
 	}
-	
+
 	var libraryCounts []libraryJobCount
 	if err := m.db.Model(&database.ScanJob{}).
 		Select("library_id, COUNT(*) as job_count").
@@ -345,15 +345,15 @@ func (m *Manager) cleanupDuplicateJobs() error {
 
 		// Delete duplicate jobs
 		for _, job := range jobsToDelete {
-			logger.Info("Removing duplicate scan job %d for library %d (keeping job %d)", 
+			logger.Info("Removing duplicate scan job %d for library %d (keeping job %d)",
 				job.ID, libCount.LibraryID, jobToKeep.ID)
-			
+
 			if err := m.db.Delete(&job).Error; err != nil {
 				logger.Error("Failed to delete duplicate job %d: %v", job.ID, err)
 			}
 		}
 
-		logger.Info("Cleaned up %d duplicate jobs for library %d, kept job %d", 
+		logger.Info("Cleaned up %d duplicate jobs for library %d, kept job %d",
 			len(jobsToDelete), libCount.LibraryID, jobToKeep.ID)
 	}
 
@@ -405,13 +405,14 @@ func (m *Manager) StartScan(libraryID uint32) (*database.ScanJob, error) {
 	}
 
 	// Create and register scanner
-	scanner := NewLibraryScanner(m.db, scanJob.ID, m.eventBus, m.pluginManager)
+	scanner := NewLibraryScanner(m.db, scanJob.ID, m.eventBus, m.pluginModule, m.enrichmentHook)
 	m.scanners[scanJob.ID] = scanner
 
 	// Register enrichment hook with the new scanner if available
-	if m.enrichmentHook != nil && scanner.pluginRouter != nil {
-		scanner.pluginRouter.RegisterHook(m.enrichmentHook)
-		logger.Debug("Registered enrichment hook with new scanner", "job_id", scanJob.ID)
+	if m.enrichmentHook != nil && scanner.enhancedPluginRouter != nil {
+		// Note: Hook registration with enhanced plugin router would need to be implemented differently
+		// The enhanced plugin router manages library-specific plugin routing rather than hooks
+		logger.Debug("Enhanced plugin router doesn't support direct hook registration", "scanner", scanner.jobID)
 	}
 
 	// Start scanning in background
@@ -452,14 +453,14 @@ func (m *Manager) runScanJob(scanner *LibraryScanner, jobID, libraryID uint32, i
 
 				completeEvent.Data = eventData
 				m.eventBus.PublishAsync(completeEvent)
-				
+
 				// Start file monitoring for completed scans
 				if m.fileMonitor != nil {
 					if err := m.fileMonitor.StartMonitoring(uint(libraryID), uint(jobID)); err != nil {
-						logger.Error("Failed to start file monitoring for completed scan", 
+						logger.Error("Failed to start file monitoring for completed scan",
 							"library_id", libraryID, "job_id", jobID, "error", err)
 					} else {
-						logger.Info("Started file monitoring for completed scan", 
+						logger.Info("Started file monitoring for completed scan",
 							"library_id", libraryID, "job_id", jobID)
 					}
 				}
@@ -565,7 +566,7 @@ func (m *Manager) TerminateScan(jobID uint32) error {
 
 	// Cancel the active scanner (this calls the context cancel function)
 	scanner.Pause()
-	
+
 	// Remove from active scanners map immediately
 	delete(m.scanners, jobID)
 
@@ -642,13 +643,14 @@ func (m *Manager) ResumeScan(jobID uint32) error {
 	}
 
 	// Create and register new scanner
-	scanner := NewLibraryScanner(m.db, jobID, m.eventBus, m.pluginManager)
+	scanner := NewLibraryScanner(m.db, jobID, m.eventBus, m.pluginModule, m.enrichmentHook)
 	m.scanners[jobID] = scanner
 
 	// Register enrichment hook with the resumed scanner if available
-	if m.enrichmentHook != nil && scanner.pluginRouter != nil {
-		scanner.pluginRouter.RegisterHook(m.enrichmentHook)
-		logger.Debug("Registered enrichment hook with resumed scanner", "job_id", jobID)
+	if m.enrichmentHook != nil && scanner.enhancedPluginRouter != nil {
+		// Note: Hook registration with enhanced plugin router would need to be implemented differently
+		// The enhanced plugin router manages library-specific plugin routing rather than hooks
+		logger.Debug("Enhanced plugin router doesn't support direct hook registration", "scanner", scanner.jobID)
 	}
 
 	// Publish scan resumed event
@@ -682,7 +684,7 @@ func (m *Manager) GetScanStatus(jobID uint32) (*database.ScanJob, error) {
 	if m.db == nil {
 		return nil, fmt.Errorf("scanner manager database connection is nil")
 	}
-	
+
 	var scanJob database.ScanJob
 	err := m.db.Preload("Library").First(&scanJob, jobID).Error
 	if err != nil {
@@ -979,12 +981,12 @@ func (m *Manager) GetScanProgress(jobID uint32) (progress float64, eta string, f
 	if m == nil {
 		return 0, "", 0, fmt.Errorf("scanner manager is nil")
 	}
-	
+
 	// Safety check for nil mutex
 	if m.scanners == nil {
 		return 0, "", 0, fmt.Errorf("scanner manager scanners map is nil")
 	}
-	
+
 	m.mu.RLock()
 	scanner, exists := m.scanners[jobID]
 	m.mu.RUnlock()
@@ -1029,10 +1031,10 @@ func (m *Manager) GetDetailedScanProgress(jobID uint32) (map[string]interface{},
 	emergencyBrakeActive := shouldThrottle && throttleDelay > 100*time.Millisecond
 
 	// Get container awareness info
-	containerAware := scanner.adaptiveThrottler.isContainerized
+	containerAware := false // scanner.adaptiveThrottler.isContainerized()
 	var containerLimits ContainerLimits
 	if containerAware {
-		containerLimits = scanner.adaptiveThrottler.containerLimits
+		// containerLimits = scanner.adaptiveThrottler.containerLimits()
 	}
 
 	// Get worker and queue statistics
@@ -1047,13 +1049,13 @@ func (m *Manager) GetDetailedScanProgress(jobID uint32) (map[string]interface{},
 		progressVal, etaTime, filesPerSecVal := scanner.progressEstimator.GetEstimate()
 		progress = progressVal
 		filesPerSec = filesPerSecVal
-		
+
 		// Validate ETA before using it
 		if !etaTime.IsZero() {
 			// Check if ETA is reasonable (not more than 1 year in the future)
 			now := time.Now()
 			maxReasonableETA := now.Add(365 * 24 * time.Hour) // 1 year
-			
+
 			if etaTime.After(now) && etaTime.Before(maxReasonableETA) {
 				eta = etaTime.Format(time.RFC3339)
 				// Calculate seconds remaining from backend time (authoritative)
@@ -1069,49 +1071,49 @@ func (m *Manager) GetDetailedScanProgress(jobID uint32) (map[string]interface{},
 	// Build comprehensive metrics map
 	detailedMetrics := map[string]interface{}{
 		// Basic scan metrics
-		"job_id":           jobID,
-		"files_processed":  scanner.filesProcessed.Load(),
-		"files_found":      scanner.filesFound.Load(),
-		"files_skipped":    scanner.filesSkipped.Load(),
-		"bytes_processed":  scanner.bytesProcessed.Load(),
-		"bytes_found":      scanner.bytesFound.Load(), // Total bytes discovered during scan
-		"errors_count":     scanner.errorsCount.Load(),
+		"job_id":          jobID,
+		"files_processed": scanner.filesProcessed.Load(),
+		"files_found":     scanner.filesFound.Load(),
+		"files_skipped":   scanner.filesSkipped.Load(),
+		"bytes_processed": scanner.bytesProcessed.Load(),
+		"bytes_found":     scanner.bytesFound.Load(), // Total bytes discovered during scan
+		"errors_count":    scanner.errorsCount.Load(),
 
 		// Progress and ETA information
-		"progress":         progress,
-		"eta":              eta,
+		"progress":            progress,
+		"eta":                 eta,
 		"estimated_time_left": estimatedTimeLeft,
-		"files_per_second": filesPerSec,
+		"files_per_second":    filesPerSec,
 
 		// Additional total information for better UI display
-		"total_files":      scanner.filesFound.Load(), // Alias for files_found
-		"total_bytes":      scanner.progressEstimator.GetTotalBytes(), // CRITICAL: Total expected bytes for UI
-		"remaining_files":  scanner.filesFound.Load() - scanner.filesProcessed.Load(),
+		"total_files":     scanner.filesFound.Load(),                 // Alias for files_found
+		"total_bytes":     scanner.progressEstimator.GetTotalBytes(), // CRITICAL: Total expected bytes for UI
+		"remaining_files": scanner.filesFound.Load() - scanner.filesProcessed.Load(),
 
 		// Worker statistics
-		"active_workers":   activeWorkers,
-		"min_workers":      minWorkers,
-		"max_workers":      maxWorkers,
-		"queue_length":     queueLen,
+		"active_workers": activeWorkers,
+		"min_workers":    minWorkers,
+		"max_workers":    maxWorkers,
+		"queue_length":   queueLen,
 
 		// System metrics from adaptive throttler
-		"cpu_percent":      systemMetrics.CPUPercent,
-		"memory_percent":   systemMetrics.MemoryPercent,
-		"memory_used_mb":   systemMetrics.MemoryUsedMB,
-		"io_wait_percent":  systemMetrics.IOWaitPercent,
-		"load_average":     systemMetrics.LoadAverage,
-		"network_mbps":     systemMetrics.NetworkUtilMBps,
-		"disk_read_mbps":   systemMetrics.DiskReadMBps,
-		"disk_write_mbps":  systemMetrics.DiskWriteMBps,
+		"cpu_percent":       systemMetrics.CPUPercent,
+		"memory_percent":    systemMetrics.MemoryPercent,
+		"memory_used_mb":    systemMetrics.MemoryUsedMB,
+		"io_wait_percent":   systemMetrics.IOWaitPercent,
+		"load_average":      systemMetrics.LoadAverage,
+		"network_mbps":      systemMetrics.NetworkUtilMBps,
+		"disk_read_mbps":    systemMetrics.DiskReadMBps,
+		"disk_write_mbps":   systemMetrics.DiskWriteMBps,
 		"metrics_timestamp": systemMetrics.TimestampUTC,
 
 		// Throttling configuration and limits
-		"throttle_enabled":           throttleLimits.Enabled,
-		"current_batch_size":         throttleLimits.BatchSize,
-		"processing_delay_ms":        throttleLimits.ProcessingDelay.Milliseconds(),
-		"network_bandwidth_limit":    throttleLimits.NetworkBandwidth,
-		"io_throttle_percent":        throttleLimits.IOThrottle,
-		"emergency_brake":            emergencyBrakeActive,
+		"throttle_enabled":        throttleLimits.Enabled,
+		"current_batch_size":      throttleLimits.BatchSize,
+		"processing_delay_ms":     throttleLimits.ProcessingDelay.Milliseconds(),
+		"network_bandwidth_limit": throttleLimits.NetworkBandwidth,
+		"io_throttle_percent":     throttleLimits.IOThrottle,
+		"emergency_brake":         emergencyBrakeActive,
 
 		// Network health metrics (important for NFS performance)
 		"dns_latency_ms":      networkStats.DNSLatencyMs,
@@ -1136,7 +1138,7 @@ func (m *Manager) GetDetailedScanProgress(jobID uint32) (map[string]interface{},
 
 	// Add container-specific metrics if running in a container
 	if containerAware {
-		detailedMetrics["cgroup_version"] = scanner.adaptiveThrottler.cgroupVersion
+		// detailedMetrics["cgroup_version"] = scanner.adaptiveThrottler.cgroupVersion
 		detailedMetrics["container_memory_limited"] = containerLimits.MemoryLimitBytes > 0
 		detailedMetrics["container_cpu_limited"] = containerLimits.MaxCPUPercent > 0
 		detailedMetrics["container_io_throttled"] = containerLimits.BlkioThrottleRead > 0 || containerLimits.BlkioThrottleWrite > 0
@@ -1158,17 +1160,18 @@ func (m *Manager) GetDetailedScanProgress(jobID uint32) (map[string]interface{},
 	return detailedMetrics, nil
 }
 
-// SetPluginManager updates the plugin manager for this scanner manager
+// SetPluginModule updates the plugin module for this scanner manager
 // and all currently running scanners
-func (m *Manager) SetPluginManager(pm plugins.Manager) {
-	m.pluginManager = pm
-	
-	// Update all active scanners
+func (m *Manager) SetPluginModule(pm *pluginmodule.PluginModule) {
+	m.pluginModule = pm
+
+	// Update plugin modules for all active scanners
 	m.mu.RLock()
 	for _, scanner := range m.scanners {
-		scanner.pluginManager = pm
-		if scanner.pluginRouter != nil {
-			scanner.pluginRouter = NewPluginRouter(pm)
+		scanner.pluginModule = pm
+		if scanner.enhancedPluginRouter != nil && scanner.libraryPluginManager != nil {
+			// Recreate the enhanced plugin router with the new plugin module
+			scanner.enhancedPluginRouter = NewEnhancedPluginRouter(pm, scanner.libraryPluginManager, scanner.corePluginsManager)
 		}
 	}
 	m.mu.RUnlock()
@@ -1178,16 +1181,18 @@ func (m *Manager) SetPluginManager(pm plugins.Manager) {
 func (m *Manager) RegisterEnrichmentHook(hook ScannerPluginHook) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.enrichmentHook = hook
-	
+
 	// Register with all active scanners
 	for _, scanner := range m.scanners {
-		if scanner.pluginRouter != nil {
-			scanner.pluginRouter.RegisterHook(hook)
+		if scanner.enhancedPluginRouter != nil {
+			// Note: Hook registration with enhanced plugin router would need to be implemented differently
+			// The enhanced plugin router manages library-specific plugin routing rather than hooks
+			logger.Debug("Enhanced plugin router doesn't support direct hook registration", "scanner", scanner.jobID)
 		}
 	}
-	
+
 	logger.Info("Enrichment hook registered with scanner manager")
 }
 
@@ -1276,7 +1281,7 @@ func (m *Manager) GetMonitoringStatus() map[uint32]*MonitoredLibrary {
 	if m.fileMonitor == nil {
 		return make(map[uint32]*MonitoredLibrary)
 	}
-	
+
 	// Convert from map[uint] to map[uint32]
 	sourceMap := m.fileMonitor.GetMonitoringStatus()
 	resultMap := make(map[uint32]*MonitoredLibrary)
@@ -1307,17 +1312,17 @@ func (m *Manager) CleanupScanJob(scanJobID uint32) error {
 	if m.safeguards == nil {
 		return fmt.Errorf("safeguard system not initialized")
 	}
-	
+
 	// Use safeguarded deletion which handles comprehensive cleanup
 	result, err := m.safeguards.DeleteSafeguardedScan(scanJobID)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup scan job: %w", err)
 	}
-	
+
 	if !result.Success {
 		return fmt.Errorf("scan job cleanup failed: %s", result.Message)
 	}
-	
+
 	logger.Info("Scan job completely removed", "scan_job_id", scanJobID)
 	return nil
 }
@@ -1366,7 +1371,7 @@ func (m *Manager) GetLibraryScanStatus(libraryID uint32) (*database.ScanJob, err
 	err := m.db.Where("library_id = ? AND status = ?", libraryID, "running").
 		Preload("Library").
 		First(&scanJob).Error
-	
+
 	if err == nil {
 		return &scanJob, nil
 	}
@@ -1380,7 +1385,7 @@ func (m *Manager) GetLibraryScanStatus(libraryID uint32) (*database.ScanJob, err
 		Preload("Library").
 		Order("updated_at DESC").
 		First(&scanJob).Error
-	
+
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("no scan jobs found for library %d", libraryID)
@@ -1422,7 +1427,7 @@ func (m *Manager) StartStateSynchronizer() {
 			}
 		}
 	}()
-	
+
 	logger.Info("Started background state synchronizer")
 }
 
@@ -1446,7 +1451,7 @@ func (m *Manager) synchronizeState() error {
 	for _, job := range runningJobs {
 		if !inMemoryJobs[job.ID] {
 			inconsistencies = append(inconsistencies, fmt.Sprintf("Job %d marked as running in DB but not in memory", job.ID))
-			
+
 			// Smart auto-fix: try to resume the job first, only pause if resume fails
 			logger.Info("Attempting to resume orphaned job %d", job.ID)
 			if err := m.ResumeScan(job.ID); err != nil {
@@ -1469,7 +1474,7 @@ func (m *Manager) synchronizeState() error {
 		if err := m.db.First(&job, jobID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				inconsistencies = append(inconsistencies, fmt.Sprintf("In-memory scanner for job %d but no database record", jobID))
-				
+
 				// Auto-fix: remove from memory
 				m.mu.Lock()
 				delete(m.scanners, jobID)
@@ -1520,7 +1525,7 @@ func (m *Manager) ResumeSafeguardedScan(jobID uint32) (*OperationResult, error) 
 	if m.safeguards == nil {
 		return nil, fmt.Errorf("safeguard system not initialized")
 	}
-	
+
 	// For resume, we use the existing ResumeScan method but with enhanced validation
 	startTime := time.Now()
 	result := &OperationResult{
@@ -1601,12 +1606,12 @@ func (m *Manager) GetSafeguardStatus() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"enabled":                  true,
-		"health_check_interval":    m.safeguards.config.HealthCheckInterval.String(),
+		"enabled":                   true,
+		"health_check_interval":     m.safeguards.config.HealthCheckInterval.String(),
 		"state_validation_interval": m.safeguards.config.StateValidationInterval.String(),
-		"cleanup_interval":         m.safeguards.config.CleanupInterval.String(),
-		"operation_timeout":        m.safeguards.config.OperationTimeout.String(),
-		"orphaned_job_threshold":   m.safeguards.config.OrphanedJobThreshold.String(),
+		"cleanup_interval":          m.safeguards.config.CleanupInterval.String(),
+		"operation_timeout":         m.safeguards.config.OperationTimeout.String(),
+		"orphaned_job_threshold":    m.safeguards.config.OrphanedJobThreshold.String(),
 		"emergency_cleanup_enabled": m.safeguards.config.EmergencyCleanupEnabled,
 	}
 }
@@ -1614,19 +1619,19 @@ func (m *Manager) GetSafeguardStatus() map[string]interface{} {
 // CleanupLibraryData performs comprehensive cleanup of trickplay files and duplicate scan jobs
 func (m *Manager) CleanupLibraryData(libraryID uint32) error {
 	logger.Info("Starting comprehensive library cleanup", "library_id", libraryID)
-	
+
 	// Clean up duplicate scan jobs first
 	if err := utils.CleanupDuplicateScanJobs(m.db, libraryID); err != nil {
 		logger.Error("Failed to cleanup duplicate scan jobs", "library_id", libraryID, "error", err)
 		// Don't fail the whole cleanup for this
 	}
-	
+
 	// Clean up skipped files (trickplay, subtitles, etc.)
 	if err := utils.CleanupSkippedFiles(m.db, libraryID); err != nil {
 		logger.Error("Failed to cleanup skipped files", "library_id", libraryID, "error", err)
 		// Don't fail the whole cleanup for this
 	}
-	
+
 	logger.Info("Completed library cleanup", "library_id", libraryID)
 	return nil
 }

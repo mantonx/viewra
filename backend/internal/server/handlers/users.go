@@ -25,7 +25,7 @@ func NewUsersHandler(eventBus events.EventBus) *UsersHandler {
 func (h *UsersHandler) GetUsers(c *gin.Context) {
 	var users []database.User
 	db := database.GetDB()
-	
+
 	result := db.Find(&users)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -34,7 +34,7 @@ func (h *UsersHandler) GetUsers(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"users": users,
 		"count": len(users),
@@ -44,7 +44,7 @@ func (h *UsersHandler) GetUsers(c *gin.Context) {
 // CreateUser creates a new user account
 func (h *UsersHandler) CreateUser(c *gin.Context) {
 	var user database.User
-	
+
 	// Bind and validate JSON input
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -53,7 +53,7 @@ func (h *UsersHandler) CreateUser(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Create user in database
 	db := database.GetDB()
 	result := db.Create(&user)
@@ -64,7 +64,7 @@ func (h *UsersHandler) CreateUser(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Publish user created event
 	if h.eventBus != nil {
 		userEvent := events.NewSystemEvent(
@@ -78,7 +78,7 @@ func (h *UsersHandler) CreateUser(c *gin.Context) {
 		}
 		h.eventBus.PublishAsync(userEvent)
 	}
-	
+
 	c.JSON(http.StatusCreated, gin.H{
 		"user":    user,
 		"message": "User created successfully",
@@ -88,13 +88,13 @@ func (h *UsersHandler) CreateUser(c *gin.Context) {
 // LoginUser handles user login and session creation
 func (h *UsersHandler) LoginUser(c *gin.Context) {
 	// User login logic would go here
-	
+
 	// Example for handling login event
 	var loginRequest struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&loginRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid login format",
@@ -105,10 +105,10 @@ func (h *UsersHandler) LoginUser(c *gin.Context) {
 
 	// Authentication logic would go here
 	// ...
-	
+
 	// For example purposes, user with ID 1
 	userID := uint(1)
-	
+
 	// Publish login event
 	if h.eventBus != nil {
 		loginEvent := events.NewSystemEvent(
@@ -117,14 +117,14 @@ func (h *UsersHandler) LoginUser(c *gin.Context) {
 			"User logged in successfully",
 		)
 		loginEvent.Data = map[string]interface{}{
-			"userId":   userID,
-			"username": loginRequest.Username,
+			"userId":    userID,
+			"username":  loginRequest.Username,
 			"ipAddress": c.ClientIP(),
 			"userAgent": c.GetHeader("User-Agent"),
 		}
 		h.eventBus.PublishAsync(loginEvent)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login successful",
 		"token":   "sample-token-would-go-here",
@@ -134,11 +134,11 @@ func (h *UsersHandler) LoginUser(c *gin.Context) {
 // LogoutUser handles user logout
 func (h *UsersHandler) LogoutUser(c *gin.Context) {
 	// User logout logic would go here
-	
+
 	// For example purposes
 	userID := uint(1)
 	username := "example_user"
-	
+
 	// Publish logout event
 	if h.eventBus != nil {
 		logoutEvent := events.NewSystemEvent(
@@ -152,7 +152,7 @@ func (h *UsersHandler) LogoutUser(c *gin.Context) {
 		}
 		h.eventBus.PublishAsync(logoutEvent)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Logout successful",
 	})

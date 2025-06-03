@@ -16,7 +16,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/pkg/plugins"
-	"google.golang.org/grpc"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -29,18 +28,18 @@ type MusicBrainzEnricher struct {
 	db          *gorm.DB
 	dbURL       string
 	basePath    string
+	pluginID    string  // Add pluginID field to store the plugin ID from context
 	lastAPICall *time.Time
 	
-	// Host service connection
-	hostConn        *grpc.ClientConn
-	assetService    plugins.AssetServiceClient
-	hostServiceAddr string
+	// Host service connections (using unified SDK client)
+	unifiedClient       *plugins.UnifiedServiceClient
+	hostServiceAddr     string
 }
 
 // Config represents the plugin configuration
 type Config struct {
 	Enabled             bool    `json:"enabled" default:"true"`
-	APIRateLimit        float64 `json:"api_rate_limit" default:"0.8"`
+	APIRateLimit        float64 `json:"api_rate_limit" default:"0.5"`
 	UserAgent           string  `json:"user_agent" default:"Viewra/2.0"`
 	EnableArtwork       bool    `json:"enable_artwork" default:"true"`
 	ArtworkMaxSize      int     `json:"artwork_max_size" default:"1200"`
@@ -48,21 +47,30 @@ type Config struct {
 	
 	// Cover Art Archive settings
 	DownloadFrontCover  bool    `json:"download_front_cover" default:"true"`
-	DownloadBackCover   bool    `json:"download_back_cover" default:"true"`
-	DownloadBooklet     bool    `json:"download_booklet" default:"true"`
-	DownloadMedium      bool    `json:"download_medium" default:"true"`
-	DownloadTray        bool    `json:"download_tray" default:"true"`
+	DownloadBackCover   bool    `json:"download_back_cover" default:"false"`
+	DownloadBooklet     bool    `json:"download_booklet" default:"false"`
+	DownloadMedium      bool    `json:"download_medium" default:"false"`
+	DownloadTray        bool    `json:"download_tray" default:"false"`
 	DownloadObi         bool    `json:"download_obi" default:"false"`
-	DownloadSpine       bool    `json:"download_spine" default:"true"`
-	DownloadLiner       bool    `json:"download_liner" default:"true"`
+	DownloadSpine       bool    `json:"download_spine" default:"false"`
+	DownloadLiner       bool    `json:"download_liner" default:"false"`
 	DownloadSticker     bool    `json:"download_sticker" default:"false"`
 	DownloadPoster      bool    `json:"download_poster" default:"false"`
 	
 	MaxAssetSize        int64   `json:"max_asset_size" default:"10485760"` // 10MB
-	AssetTimeout        int     `json:"asset_timeout_sec" default:"30"`
+	AssetTimeout        int     `json:"asset_timeout_sec" default:"60"`
 	SkipExistingAssets  bool    `json:"skip_existing_assets" default:"true"`
 	RetryFailedDownloads bool   `json:"retry_failed_downloads" default:"true"`
-	MaxRetries          int     `json:"max_retries" default:"3"`
+	MaxRetries          int     `json:"max_retries" default:"5"`
+	
+	// New retry configuration
+	InitialRetryDelay   int     `json:"initial_retry_delay_sec" default:"2"`   // Initial delay before first retry
+	MaxRetryDelay       int     `json:"max_retry_delay_sec" default:"30"`      // Maximum delay between retries
+	BackoffMultiplier   float64 `json:"backoff_multiplier" default:"2.0"`     // Exponential backoff multiplier
+	
+	// New rate limiting settings
+	APIRequestDelay     int     `json:"api_request_delay_ms" default:"1250"`   // 1.25 seconds between requests
+	BurstLimit          int     `json:"burst_limit" default:"1"`              // Allow 1 burst request
 	
 	MatchThreshold      float64 `json:"match_threshold" default:"0.85"`
 	AutoEnrich          bool    `json:"auto_enrich" default:"true"`
@@ -71,22 +79,6 @@ type Config struct {
 }
 
 // Database models for plugin data
-type MusicBrainzEnrichment struct {
-	ID                     uint32    `gorm:"primaryKey"`
-	MediaFileID            uint32    `gorm:"not null;index"`
-	MusicBrainzRecordingID string    `gorm:"size:36"`
-	MusicBrainzArtistID    string    `gorm:"size:36"`
-	MusicBrainzReleaseID   string    `gorm:"size:36"`
-	EnrichedTitle          string    `gorm:"size:512"`
-	EnrichedArtist         string    `gorm:"size:512"`
-	EnrichedAlbum          string    `gorm:"size:512"`
-	EnrichedGenre          string    `gorm:"size:255"`
-	EnrichedYear           int
-	MatchScore             float64
-	EnrichedAt             time.Time `gorm:"autoCreateTime"`
-	UpdatedAt              time.Time `gorm:"autoUpdateTime"`
-}
-
 type MusicBrainzCache struct {
 	ID        uint32    `gorm:"primaryKey"`
 	CacheKey  string    `gorm:"uniqueIndex;not null"`
@@ -177,21 +169,70 @@ var coverArtTypes = []CoverArtType{
 	{"poster", "album_poster", func(c *Config) bool { return c.DownloadPoster }},
 }
 
+// validateConfig validates and adjusts configuration settings
+func (m *MusicBrainzEnricher) validateConfig() error {
+	// Validate MaxAssetSize
+	const minAssetSize = int64(100 * 1024)      // 100KB minimum
+	const maxAssetSize = int64(50 * 1024 * 1024) // 50MB maximum
+	
+	if m.config.MaxAssetSize < minAssetSize {
+		m.logger.Warn("MaxAssetSize too small, adjusting to minimum", 
+			"configured", m.config.MaxAssetSize, 
+			"minimum", minAssetSize)
+		m.config.MaxAssetSize = minAssetSize
+	}
+	
+	if m.config.MaxAssetSize > maxAssetSize {
+		m.logger.Warn("MaxAssetSize too large, adjusting to maximum", 
+			"configured", m.config.MaxAssetSize, 
+			"maximum", maxAssetSize)
+		m.config.MaxAssetSize = maxAssetSize
+	}
+	
+	// Validate rate limiting
+	if m.config.APIRequestDelay < 500 {
+		m.logger.Warn("APIRequestDelay too short, adjusting to minimum", 
+			"configured", m.config.APIRequestDelay, 
+			"minimum", 500)
+		m.config.APIRequestDelay = 500
+	}
+	
+	// Validate timeouts
+	if m.config.AssetTimeout < 10 {
+		m.config.AssetTimeout = 10
+	}
+	if m.config.AssetTimeout > 300 {
+		m.config.AssetTimeout = 300
+	}
+	
+	// Log effective settings
+	effectiveMaxSize := m.calculateMaxAssetSize()
+	m.logger.Info("Configuration validated", 
+		"max_asset_size_config", m.config.MaxAssetSize,
+		"max_asset_size_effective", effectiveMaxSize,
+		"api_request_delay_ms", m.config.APIRequestDelay,
+		"asset_timeout_sec", m.config.AssetTimeout,
+		"enable_artwork", m.config.EnableArtwork)
+	
+	return nil
+}
+
 // Core plugin interface implementation
 func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 	m.logger = hclog.New(&hclog.LoggerOptions{
-		Name:  "musicbrainz-enricher",
+		Name:  ctx.PluginID, // Use dynamic plugin ID instead of hard-coded name
 		Level: hclog.LevelFromString(ctx.LogLevel),
 	})
 
 	m.basePath = ctx.BasePath
 	m.dbURL = ctx.DatabaseURL
 	m.hostServiceAddr = ctx.HostServiceAddr
+	m.pluginID = ctx.PluginID  // Store pluginID from context
 
 	// Initialize configuration with defaults
 	m.config = &Config{
 		Enabled:             true,
-		APIRateLimit:        0.8,
+		APIRateLimit:        0.5,
 		UserAgent:           "Viewra/2.0",
 		EnableArtwork:       true,
 		ArtworkMaxSize:      1200,
@@ -199,21 +240,30 @@ func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 		
 		// Cover Art Archive settings
 		DownloadFrontCover:  true,
-		DownloadBackCover:   true,
-		DownloadBooklet:     true,
-		DownloadMedium:      true,
-		DownloadTray:        true,
+		DownloadBackCover:   false,
+		DownloadBooklet:     false,
+		DownloadMedium:      false,
+		DownloadTray:        false,
 		DownloadObi:         false,
-		DownloadSpine:       true,
-		DownloadLiner:       true,
+		DownloadSpine:       false,
+		DownloadLiner:       false,
 		DownloadSticker:     false,
 		DownloadPoster:      false,
 		
 		MaxAssetSize:        10485760, // 10MB
-		AssetTimeout:        30,
+		AssetTimeout:        60,
 		SkipExistingAssets:  true,
 		RetryFailedDownloads: true,
-		MaxRetries:          3,
+		MaxRetries:          5,
+		
+		// New retry configuration
+		InitialRetryDelay:   2,
+		MaxRetryDelay:       30,
+		BackoffMultiplier:   2.0,
+		
+		// New rate limiting settings
+		APIRequestDelay:     1250,
+		BurstLimit:          1,
 		
 		MatchThreshold:      0.85,
 		AutoEnrich:          true,
@@ -228,6 +278,12 @@ func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 		"api_rate_limit", m.config.APIRateLimit,
 		"match_threshold", m.config.MatchThreshold)
 
+	// Validate and adjust configuration
+	if err := m.validateConfig(); err != nil {
+		m.logger.Error("Configuration validation failed", "error", err)
+		return fmt.Errorf("configuration validation failed: %w", err)
+	}
+
 	// Initialize database connection
 	if err := m.initDatabase(); err != nil {
 		m.logger.Error("Failed to initialize database", "error", err)
@@ -236,15 +292,17 @@ func (m *MusicBrainzEnricher) Initialize(ctx *plugins.PluginContext) error {
 
 	// Initialize host asset service connection if address provided
 	if m.hostServiceAddr != "" {
-		assetClient, err := plugins.NewAssetServiceClient(m.hostServiceAddr)
+		// Initialize Unified Service client
+		unifiedClient, err := plugins.NewUnifiedServiceClient(m.hostServiceAddr)
 		if err != nil {
-			m.logger.Error("Failed to connect to host asset service", "error", err, "addr", m.hostServiceAddr)
-			return fmt.Errorf("failed to connect to host asset service: %w", err)
+			m.logger.Error("Failed to connect to host service", "error", err, "addr", m.hostServiceAddr)
+			return fmt.Errorf("failed to connect to host service: %w", err)
 		}
-		m.assetService = assetClient
-		m.logger.Info("Connected to host asset service", "addr", m.hostServiceAddr)
+		m.unifiedClient = unifiedClient
+		
+		m.logger.Info("Connected to host services", "addr", m.hostServiceAddr, "services", "unified")
 	} else {
-		m.logger.Warn("No host service address provided - asset saving will be disabled")
+		m.logger.Warn("No host service address provided - asset saving and enrichment will be disabled")
 	}
 
 	m.logger.Info("MusicBrainz enricher plugin initialized successfully")
@@ -259,12 +317,12 @@ func (m *MusicBrainzEnricher) Start() error {
 func (m *MusicBrainzEnricher) Stop() error {
 	m.logger.Info("MusicBrainz enricher stopped")
 	
-	// Close asset service connection
-	if m.assetService != nil {
-		if closer, ok := m.assetService.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				m.logger.Warn("Failed to close asset service connection", "error", err)
-			}
+	// Close unified service connection
+	if m.unifiedClient != nil {
+		if err := m.unifiedClient.Close(); err != nil {
+			m.logger.Warn("Failed to close unified service connection", "error", err)
+		} else {
+			m.logger.Debug("Closed unified service connection")
 		}
 	}
 	
@@ -279,7 +337,7 @@ func (m *MusicBrainzEnricher) Stop() error {
 
 func (m *MusicBrainzEnricher) Info() (*plugins.PluginInfo, error) {
 	return &plugins.PluginInfo{
-		ID:          "musicbrainz_enricher",
+		ID:          m.pluginID,
 		Name:        "MusicBrainz Metadata Enricher",
 		Version:     "1.0.0",
 		Description: "Enriches music metadata using the MusicBrainz database",
@@ -377,7 +435,7 @@ func (m *MusicBrainzEnricher) ExtractMetadata(filePath string) (map[string]strin
 	
 	// This plugin enriches existing metadata rather than extracting raw metadata
 	return map[string]string{
-		"plugin":     "musicbrainz_enricher",
+		"plugin":     m.pluginID,
 		"file_path":  filePath,
 		"supported":  "true",
 		"enrichment": "available",
@@ -399,30 +457,49 @@ func (m *MusicBrainzEnricher) GetSupportedTypes() []string {
 // ScannerHookService implementation
 func (m *MusicBrainzEnricher) OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error {
 	if !m.config.Enabled || !m.config.AutoEnrich {
+		m.logger.Debug("MusicBrainz enrichment disabled", "enabled", m.config.Enabled, "auto_enrich", m.config.AutoEnrich)
 		return nil
 	}
 
-	m.logger.Debug("Processing scanned media file", "media_file_id", mediaFileID, "file_path", filePath)
+	m.logger.Info("MusicBrainz OnMediaFileScanned ENTRY", "media_file_id", mediaFileID, "file_path", filePath)
+	m.logger.Info("MusicBrainz received metadata", "metadata", metadata, "metadata_count", len(metadata))
+
+	// Log each metadata field for debugging
+	for key, value := range metadata {
+		m.logger.Debug("MusicBrainz metadata field", "key", key, "value", value)
+	}
 
 	// Extract metadata for search
 	title := metadata["title"]
 	artist := metadata["artist"]
 	album := metadata["album"]
 
+	m.logger.Info("MusicBrainz extracted fields", "title", title, "artist", artist, "album", album)
+
 	if title == "" || artist == "" {
-		m.logger.Debug("Insufficient metadata for enrichment", "media_file_id", mediaFileID, "title", title, "artist", artist)
+		m.logger.Warn("MusicBrainz: Insufficient metadata for enrichment", 
+			"media_file_id", mediaFileID, 
+			"title", title, 
+			"artist", artist,
+			"available_fields", getMapKeys(metadata))
 		return nil
 	}
+
+	m.logger.Info("MusicBrainz: Starting API search", "title", title, "artist", artist, "album", album)
 
 	// Search for recording using MusicBrainz API
 	recording, err := m.searchRecording(title, artist, album)
 	if err != nil {
-		m.logger.Debug("MusicBrainz search failed", "error", err, "media_file_id", mediaFileID)
+		m.logger.Error("MusicBrainz API search failed", "error", err, "media_file_id", mediaFileID, "title", title, "artist", artist)
 		return nil // Don't fail the scan for enrichment failures
 	}
 
 	if recording == nil {
-		m.logger.Debug("No MusicBrainz match found", "media_file_id", mediaFileID, "title", title, "artist", artist)
+		m.logger.Warn("No MusicBrainz match found", 
+			"media_file_id", mediaFileID, 
+			"title", title, 
+			"artist", artist,
+			"album", album)
 		return nil
 	}
 
@@ -456,21 +533,43 @@ func (m *MusicBrainzEnricher) OnMediaFileScanned(mediaFileID string, filePath st
 		genre = recording.Tags[0].Name
 	}
 
-	if err := m.saveToCentralizedSystem(fmt.Sprintf("%d", mediaFileID), recording, artistName, albumTitle, releaseYear, genre); err != nil {
+	m.logger.Info("MusicBrainz: Saving enrichment data", 
+		"media_file_id", mediaFileID,
+		"artist_name", artistName,
+		"album_title", albumTitle,
+		"release_year", releaseYear,
+		"genre", genre)
+
+	// Save to centralized system (modern UUID-based format)
+	if err := m.saveToCentralizedSystem(mediaFileID, recording, artistName, albumTitle, releaseYear, genre); err != nil {
 		m.logger.Error("Failed to save to centralized system", "error", err, "media_file_id", mediaFileID)
 		// Don't fail the scan for enrichment save failures
+	} else {
+		m.logger.Info("Successfully saved MusicBrainz enrichment", "media_file_id", mediaFileID)
 	}
 
 	// Download artwork if enabled and we have a release
 	if m.config.EnableArtwork && len(recording.Releases) > 0 {
 		releaseID := recording.Releases[0].ID
+		m.logger.Info("MusicBrainz: Starting artwork download", "release_id", releaseID, "media_file_id", mediaFileID)
 		if err := m.downloadAllArtwork(context.Background(), releaseID, mediaFileID); err != nil {
-			m.logger.Debug("Artwork download failed", "error", err, "release_id", releaseID, "media_file_id", mediaFileID)
+			m.logger.Warn("Artwork download failed", "error", err, "release_id", releaseID, "media_file_id", mediaFileID)
 			// Don't fail for artwork download issues
+		} else {
+			m.logger.Info("Successfully downloaded MusicBrainz artwork", "release_id", releaseID, "media_file_id", mediaFileID)
 		}
 	}
 
 	return nil
+}
+
+// Helper function to get map keys for debugging
+func getMapKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func (m *MusicBrainzEnricher) OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error {
@@ -524,7 +623,7 @@ func (m *MusicBrainzEnricher) Search(ctx context.Context, query map[string]strin
 		// Build comprehensive metadata
 		metadata := map[string]string{
 			"source":          "musicbrainz",
-			"plugin":          "musicbrainz_enricher",
+			"plugin":          m.pluginID,
 			"recording_id":    recording.ID,
 			"length":          fmt.Sprintf("%d", recording.Length),
 			"disambiguation":  recording.Disambiguation,
@@ -603,16 +702,15 @@ func (m *MusicBrainzEnricher) GetSearchCapabilities(ctx context.Context) ([]stri
 func (m *MusicBrainzEnricher) GetModels() []string {
 	return []string{
 		"MusicBrainzCache",
-		"MusicBrainzEnrichment",
 	}
 }
 
 func (m *MusicBrainzEnricher) Migrate(connectionString string) error {
-	return m.db.AutoMigrate(&MusicBrainzCache{}, &MusicBrainzEnrichment{})
+	return m.db.AutoMigrate(&MusicBrainzCache{})
 }
 
 func (m *MusicBrainzEnricher) Rollback(connectionString string) error {
-	return m.db.Migrator().DropTable(&MusicBrainzCache{}, &MusicBrainzEnrichment{})
+	return m.db.Migrator().DropTable(&MusicBrainzCache{})
 }
 
 // APIRegistrationService implementation
@@ -667,7 +765,7 @@ func (m *MusicBrainzEnricher) initDatabase() error {
 	m.db = db
 
 	// Auto-migrate tables
-	if err := m.db.AutoMigrate(&MusicBrainzCache{}, &MusicBrainzEnrichment{}); err != nil {
+	if err := m.db.AutoMigrate(&MusicBrainzCache{}); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
@@ -686,9 +784,12 @@ func (m *MusicBrainzEnricher) searchRecording(title, artist, album string) (*Mus
 	// Rate limiting
 	if m.lastAPICall != nil {
 		elapsed := time.Since(*m.lastAPICall)
-		minInterval := time.Duration(float64(time.Second) / m.config.APIRateLimit)
+		// Use the new APIRequestDelay configuration for more conservative rate limiting
+		minInterval := time.Duration(m.config.APIRequestDelay) * time.Millisecond
 		if elapsed < minInterval {
-			time.Sleep(minInterval - elapsed)
+			waitTime := minInterval - elapsed
+			m.logger.Debug("Rate limiting: waiting before API request", "wait_time", waitTime)
+			time.Sleep(waitTime)
 		}
 	}
 	now := time.Now()
@@ -765,9 +866,12 @@ func (m *MusicBrainzEnricher) searchRecordings(title, artist, album string, limi
 	// Rate limiting
 	if m.lastAPICall != nil {
 		elapsed := time.Since(*m.lastAPICall)
-		minInterval := time.Duration(float64(time.Second) / m.config.APIRateLimit)
+		// Use the new APIRequestDelay configuration for more conservative rate limiting
+		minInterval := time.Duration(m.config.APIRequestDelay) * time.Millisecond
 		if elapsed < minInterval {
-			time.Sleep(minInterval - elapsed)
+			waitTime := minInterval - elapsed
+			m.logger.Debug("Rate limiting: waiting before API request", "wait_time", waitTime)
+			time.Sleep(waitTime)
 		}
 	}
 	now := time.Now()
@@ -993,208 +1097,113 @@ func (m *MusicBrainzEnricher) cacheResults(cacheKey string, recordings []MusicBr
 	m.db.Save(&cache)
 }
 
-func (m *MusicBrainzEnricher) saveEnrichment(mediaFileID uint32, recording *MusicBrainzRecording) error {
-	if m.db == nil {
-		return fmt.Errorf("database not available")
+func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID string, recording *MusicBrainzRecording, artistName, albumTitle string, releaseYear int, genre string) error {
+	if m.unifiedClient == nil {
+		m.logger.Warn("Unified service not available - cannot save enrichment data", "media_file_id", mediaFileID)
+		return fmt.Errorf("unified service not available")
 	}
+
+	// Create enrichment fields map
+	enrichments := make(map[string]string)
 	
-	// Get primary artist name
-	artistName := ""
+	// Core fields
+	enrichments["recording_id"] = recording.ID
+	enrichments["title"] = recording.Title
+	if artistName != "" {
+		enrichments["artist"] = artistName
+	}
+	if albumTitle != "" {
+		enrichments["album"] = albumTitle
+	}
+	if genre != "" {
+		enrichments["genre"] = genre
+	}
+	if releaseYear > 0 {
+		enrichments["year"] = fmt.Sprintf("%d", releaseYear)
+	}
+	if recording.Length > 0 {
+		enrichments["length"] = fmt.Sprintf("%d", recording.Length)
+	}
+
+	// Additional metadata
+	matchMetadata := make(map[string]string)
+	matchMetadata["source"] = "musicbrainz"
+	matchMetadata["match_score"] = fmt.Sprintf("%.3f", recording.Score)
+	
+	// Add external IDs to metadata
 	if len(recording.ArtistCredit) > 0 {
-		artistName = recording.ArtistCredit[0].Name
+		matchMetadata["artist_id"] = recording.ArtistCredit[0].Artist.ID
+		matchMetadata["artist_sort_name"] = recording.ArtistCredit[0].Artist.SortName
 	}
-	
-	// Get primary release info
-	albumTitle := ""
-	releaseYear := 0
 	if len(recording.Releases) > 0 {
-		albumTitle = recording.Releases[0].Title
-		if recording.Releases[0].Date != "" {
-			if year, err := strconv.Atoi(recording.Releases[0].Date[:4]); err == nil {
-				releaseYear = year
-			}
+		matchMetadata["release_id"] = recording.Releases[0].ID
+		matchMetadata["release_date"] = recording.Releases[0].Date
+		matchMetadata["release_status"] = recording.Releases[0].Status
+		matchMetadata["release_country"] = recording.Releases[0].Country
+	}
+
+	// Add tags/genres to metadata
+	if len(recording.Tags) > 0 {
+		var tags []string
+		for _, tag := range recording.Tags {
+			tags = append(tags, tag.Name)
 		}
+		matchMetadata["tags"] = strings.Join(tags, ", ")
 	}
-	
-	// Get genre from release group
-	genre := ""
-	if len(recording.Releases) > 0 {
-		genre = recording.Releases[0].ReleaseGroup.PrimaryType
-	}
-
-	// 1. Save to plugin-specific table (keep existing functionality)
-	enrichment := MusicBrainzEnrichment{
-		MediaFileID:            mediaFileID,
-		MusicBrainzRecordingID: recording.ID,
-		EnrichedTitle:          recording.Title,
-		EnrichedArtist:         artistName,
-		EnrichedAlbum:          albumTitle,
-		EnrichedGenre:          genre,
-		EnrichedYear:           releaseYear,
-		MatchScore:             recording.Score,
-	}
-	
-	// Add artist and release IDs if available
-	if len(recording.ArtistCredit) > 0 {
-		enrichment.MusicBrainzArtistID = recording.ArtistCredit[0].Artist.ID
-	}
-	if len(recording.Releases) > 0 {
-		enrichment.MusicBrainzReleaseID = recording.Releases[0].ID
-	}
-	
-	// Save or update enrichment
-	result := m.db.Where("media_file_id = ?", mediaFileID).Save(&enrichment)
-	if result.Error != nil {
-		return fmt.Errorf("failed to save enrichment: %w", result.Error)
+	if len(recording.Genres) > 0 {
+		var genres []string
+		for _, genre := range recording.Genres {
+			genres = append(genres, genre.Name)
+		}
+		matchMetadata["genres"] = strings.Join(genres, ", ")
 	}
 
-	// 2. ALSO save to centralized MediaEnrichment table (for core system integration)
-	if err := m.saveToCentralizedSystem(fmt.Sprintf("%d", mediaFileID), recording, artistName, albumTitle, releaseYear, genre); err != nil {
-		m.logger.Warn("Failed to save to centralized enrichment system", "error", err, "media_file_id", mediaFileID)
-		// Don't fail the entire operation if centralized save fails
+	// Create RegisterEnrichment request
+	request := &plugins.RegisterEnrichmentRequest{
+		MediaFileID:     mediaFileID,
+		SourceName:      "musicbrainz",
+		Enrichments:     enrichments,
+		ConfidenceScore: recording.Score / 100.0, // Convert from 0-100 to 0-1
+		MatchMetadata:   matchMetadata,
 	}
 
-	m.logger.Info("Saved MusicBrainz enrichment", 
+	m.logger.Info("Sending enrichment to centralized system via unified service", 
 		"media_file_id", mediaFileID,
-		"recording_id", recording.ID,
-		"title", recording.Title,
-		"artist", artistName,
-		"score", recording.Score)
-	
+		"enrichments_count", len(enrichments),
+		"confidence_score", request.ConfidenceScore,
+		"metadata_count", len(matchMetadata))
+
+	// Call the UnifiedService via unified SDK
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	response, err := m.unifiedClient.EnrichmentService().RegisterEnrichment(ctx, request)
+	if err != nil {
+		m.logger.Error("Failed to register enrichment via unified service", "error", err, "media_file_id", mediaFileID)
+		return fmt.Errorf("failed to register enrichment: %w", err)
+	}
+
+	if !response.Success {
+		m.logger.Error("Enrichment registration failed", "error", response.Message, "media_file_id", mediaFileID)
+		return fmt.Errorf("enrichment registration failed: %s", response.Message)
+	}
+
+	m.logger.Info("Successfully registered enrichment via unified service", 
+		"media_file_id", mediaFileID,
+		"job_id", response.JobID,
+		"source", "musicbrainz")
+
 	return nil
 }
 
-// saveToCentralizedSystem saves enrichment data to the centralized MediaEnrichment table
-func (m *MusicBrainzEnricher) saveToCentralizedSystem(mediaFileID string, recording *MusicBrainzRecording, artistName, albumTitle string, releaseYear int, genre string) error {
-	// Get current time
-	now := time.Now()
-	
-	// Define MediaEnrichment struct to match the existing table structure
-	type MediaEnrichment struct {
-		MediaID   string    `gorm:"primaryKey;column:media_id"`
-		MediaType string    `gorm:"primaryKey;column:media_type"`
-		Plugin    string    `gorm:"primaryKey;column:plugin"`
-		Payload   string    `gorm:"column:payload"`
-		UpdatedAt time.Time `gorm:"column:updated_at"`
+// calculateMaxAssetSize returns the effective maximum asset size considering both config and gRPC limits
+func (m *MusicBrainzEnricher) calculateMaxAssetSize() int64 {
+	maxSize := m.config.MaxAssetSize
+	grpcLimit := int64(15 * 1024 * 1024) // 15MB gRPC safe limit
+	if maxSize > grpcLimit {
+		maxSize = grpcLimit
 	}
-	
-	// Prepare enrichment payload as JSON
-	payload := map[string]interface{}{
-		"recording_id": recording.ID,
-		"title":        recording.Title,
-		"artist":       artistName,
-		"album":        albumTitle,
-		"genre":        genre,
-		"year":         releaseYear,
-		"match_score":  recording.Score,
-		"length":       recording.Length,
-	}
-	
-	// Add external IDs if available
-	if len(recording.ArtistCredit) > 0 {
-		payload["artist_id"] = recording.ArtistCredit[0].Artist.ID
-	}
-	if len(recording.Releases) > 0 {
-		payload["release_id"] = recording.Releases[0].ID
-		payload["release_date"] = recording.Releases[0].Date
-	}
-	
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload: %w", err)
-	}
-	
-	// Create enrichment record using the existing table structure
-	enrichment := MediaEnrichment{
-		MediaID:   mediaFileID, // Use UUID string directly
-		MediaType: "track", // Assume track type for music files
-		Plugin:    "musicbrainz",
-		Payload:   string(payloadJSON),
-		UpdatedAt: now,
-	}
-	
-	// Use raw SQL INSERT OR REPLACE since the table doesn't have proper primary key constraints
-	result := m.db.Exec(`
-		INSERT OR REPLACE INTO media_enrichments (media_id, media_type, plugin, payload, updated_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, enrichment.MediaID, enrichment.MediaType, enrichment.Plugin, enrichment.Payload, enrichment.UpdatedAt)
-	
-	if result.Error != nil {
-		return fmt.Errorf("failed to save enrichment to centralized system: %w", result.Error)
-	}
-	
-	// Also save external IDs to MediaExternalIDs table if it exists
-	type MediaExternalIDs struct {
-		MediaID      string    `gorm:"column:media_id"`
-		MediaType    string    `gorm:"column:media_type"`
-		Source       string    `gorm:"column:source"`
-		ExternalID   string    `gorm:"column:external_id"`
-		CreatedAt    time.Time `gorm:"column:created_at"`
-		UpdatedAt    time.Time `gorm:"column:updated_at"`
-	}
-	
-	// Check if MediaExternalIDs table exists
-	if m.db.Migrator().HasTable("media_external_ids") {
-		externalIDs := []MediaExternalIDs{
-			{
-				MediaID:    mediaFileID, // Use UUID string directly
-				MediaType:  "track", // Assume track type for music files
-				Source:     "musicbrainz",
-				ExternalID: recording.ID,
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			},
-		}
-		
-		if len(recording.ArtistCredit) > 0 {
-			externalIDs = append(externalIDs, MediaExternalIDs{
-				MediaID:    mediaFileID, // Use UUID string directly
-				MediaType:  "artist",
-				Source:     "musicbrainz", 
-				ExternalID: recording.ArtistCredit[0].Artist.ID,
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			})
-		}
-		
-		if len(recording.Releases) > 0 {
-			externalIDs = append(externalIDs, MediaExternalIDs{
-				MediaID:    mediaFileID, // Use UUID string directly
-				MediaType:  "release",
-				Source:     "musicbrainz",
-				ExternalID: recording.Releases[0].ID,
-				CreatedAt:  now,
-				UpdatedAt:  now,
-			})
-		}
-		
-		// Save external IDs using proper GORM operations
-		for _, extID := range externalIDs {
-			result := m.db.Table("media_external_ids").Create(&extID)
-			if result.Error != nil {
-				// Try update if insert fails (might be duplicate)
-				updateResult := m.db.Table("media_external_ids").
-					Where("media_id = ? AND media_type = ? AND source = ?", extID.MediaID, extID.MediaType, extID.Source).
-					Updates(map[string]interface{}{
-						"external_id": extID.ExternalID,
-						"updated_at":  extID.UpdatedAt,
-					})
-				if updateResult.Error != nil {
-					m.logger.Warn("Failed to save/update external ID", "error", updateResult.Error, "external_id", extID.ExternalID)
-				} else {
-					m.logger.Debug("Updated external ID", "external_id", extID.ExternalID, "media_type", extID.MediaType)
-				}
-			} else {
-				m.logger.Debug("Saved external ID", "external_id", extID.ExternalID, "media_type", extID.MediaType)
-			}
-		}
-	}
-	
-	m.logger.Info("Successfully saved enrichment to centralized system", 
-		"media_file_id", mediaFileID,
-		"payload_size", len(payloadJSON))
-	
-	return nil
+	return maxSize
 }
 
 // downloadAllArtwork downloads all enabled artwork types for a release
@@ -1205,21 +1214,47 @@ func (m *MusicBrainzEnricher) downloadAllArtwork(ctx context.Context, releaseID 
 
 	var downloadErrors []string
 	successCount := 0
+	skippedCount := 0
+	enabledTypes := 0
 
+	// Count enabled types for better progress reporting
 	for _, artType := range coverArtTypes {
+		if artType.Enabled(m.config) {
+			enabledTypes++
+		}
+	}
+
+	m.logger.Info("Starting artwork download", 
+		"release_id", releaseID, 
+		"media_file_id", mediaFileID, 
+		"enabled_types", enabledTypes)
+
+	for i, artType := range coverArtTypes {
 		if !artType.Enabled(m.config) {
 			m.logger.Debug("Skipping artwork type (disabled)", "type", artType.Name)
+			skippedCount++
 			continue
 		}
 
+		m.logger.Debug("Downloading artwork type", 
+			"type", artType.Name, 
+			"progress", fmt.Sprintf("%d/%d", i+1-skippedCount, enabledTypes))
+
 		if err := m.downloadArtworkType(ctx, releaseID, mediaFileID, artType); err != nil {
-			if err.Error() != "no artwork available" {
+			if err.Error() == "no artwork available" {
+				m.logger.Debug("No artwork available for type", "type", artType.Name)
+			} else {
 				downloadErrors = append(downloadErrors, fmt.Sprintf("%s: %v", artType.Name, err))
+				m.logger.Warn("Failed to download artwork type", "type", artType.Name, "error", err)
 			}
-			m.logger.Debug("Failed to download artwork type", "type", artType.Name, "error", err)
 		} else {
 			successCount++
-			m.logger.Debug("Successfully downloaded artwork", "type", artType.Name, "media_file_id", mediaFileID)
+			m.logger.Info("Successfully downloaded artwork", "type", artType.Name, "media_file_id", mediaFileID)
+		}
+
+		// Add small delay between artwork downloads to be respectful
+		if i < len(coverArtTypes)-1 && artType.Enabled(m.config) {
+			time.Sleep(500 * time.Millisecond)
 		}
 	}
 
@@ -1227,10 +1262,11 @@ func (m *MusicBrainzEnricher) downloadAllArtwork(ctx context.Context, releaseID 
 		"release_id", releaseID, 
 		"media_file_id", mediaFileID, 
 		"success_count", successCount, 
-		"error_count", len(downloadErrors))
+		"error_count", len(downloadErrors),
+		"enabled_types", enabledTypes)
 
-	// Return error only if all downloads failed
-	if len(downloadErrors) > 0 && successCount == 0 {
+	// Return error only if all downloads failed and we had enabled types
+	if len(downloadErrors) > 0 && successCount == 0 && enabledTypes > 0 {
 		return fmt.Errorf("all artwork downloads failed: %s", strings.Join(downloadErrors, "; "))
 	}
 
@@ -1246,9 +1282,9 @@ func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID
 	}
 
 	// Construct Cover Art Archive URL
-	coverArtURL := fmt.Sprintf("https://coverartarchive.org/release/%s/%s", releaseID, artType.Name)
+	downloadURL := fmt.Sprintf("https://coverartarchive.org/release/%s/%s", releaseID, artType.Name)
 	
-	m.logger.Debug("Downloading artwork", "type", artType.Name, "release_id", releaseID, "url", coverArtURL)
+	m.logger.Debug("Downloading artwork", "type", artType.Name, "release_id", releaseID, "url", downloadURL)
 	
 	// Create HTTP client with timeout
 	client := &http.Client{
@@ -1262,18 +1298,92 @@ func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID
 
 	for attempt := 0; attempt <= m.config.MaxRetries; attempt++ {
 		if attempt > 0 {
-			m.logger.Debug("Retrying artwork download", "type", artType.Name, "attempt", attempt)
-			time.Sleep(time.Duration(attempt) * time.Second) // Progressive backoff
+			// Exponential backoff with jitter
+			baseDelay := time.Duration(m.config.InitialRetryDelay) * time.Second
+			backoffDelay := time.Duration(float64(baseDelay) * float64(attempt) * m.config.BackoffMultiplier)
+			maxDelay := time.Duration(m.config.MaxRetryDelay) * time.Second
+			
+			if backoffDelay > maxDelay {
+				backoffDelay = maxDelay
+			}
+			
+			m.logger.Debug("Retrying artwork download", 
+				"type", artType.Name, 
+				"attempt", attempt, 
+				"delay", backoffDelay,
+				"previous_error", downloadErr)
+			time.Sleep(backoffDelay)
 		}
 
-		resp, err := client.Get(coverArtURL)
+		// Check artwork size before downloading to avoid gRPC message size limits
+		resp, err := http.Head(downloadURL)
 		if err != nil {
-			downloadErr = err
+			downloadErr = fmt.Errorf("failed to check artwork size: %w", err)
+			continue
+		}
+		resp.Body.Close()
+
+		// Check content length (if provided by server)
+		contentLength := resp.Header.Get("Content-Length")
+		if contentLength != "" {
+			if size, err := strconv.ParseInt(contentLength, 10, 64); err == nil {
+				// Use configurable MaxAssetSize instead of hard-coded 10MB
+				// Also ensure we don't exceed gRPC message size limits (keep under 15MB)
+				maxSize := m.calculateMaxAssetSize()
+				
+				if size > maxSize {
+					downloadErr = fmt.Errorf("artwork too large: %d bytes (max %d bytes)", size, maxSize)
+					m.logger.Debug("Skipping large artwork", 
+						"type", artType.Name, 
+						"size_bytes", size, 
+						"max_bytes", maxSize,
+						"config_max", m.config.MaxAssetSize,
+						"grpc_limit", maxSize,
+						"url", downloadURL)
+					
+					// If all enabled art types are too large, this is not a retry-able error
+					if attempt == m.config.MaxRetries {
+						return fmt.Errorf("artwork consistently too large: %d bytes (max %d bytes)", size, maxSize)
+					}
+					continue
+				}
+				
+				m.logger.Debug("Pre-download size check passed", 
+					"type", artType.Name, 
+					"size_bytes", size, 
+					"max_bytes", maxSize)
+			} else {
+				m.logger.Debug("Could not parse Content-Length header", 
+					"type", artType.Name, 
+					"content_length", contentLength)
+			}
+		} else {
+			m.logger.Debug("No Content-Length header provided by server, will check during download", 
+				"type", artType.Name)
+		}
+
+		// Download artwork
+		resp, err = client.Get(downloadURL)
+		if err != nil {
+			downloadErr = fmt.Errorf("network error: %w", err)
 			continue
 		}
 
 		if resp.StatusCode == 404 {
 			resp.Body.Close()
+			m.logger.Debug("No artwork available for type", "type", artType.Name, "status", resp.StatusCode)
+			return fmt.Errorf("no artwork available")
+		}
+
+		if resp.StatusCode == 503 {
+			resp.Body.Close()
+			downloadErr = fmt.Errorf("rate limited (503) - will retry")
+			continue
+		}
+
+		if resp.StatusCode == 400 {
+			resp.Body.Close()
+			m.logger.Debug("Bad request for artwork type", "type", artType.Name, "status", resp.StatusCode)
 			return fmt.Errorf("no artwork available")
 		}
 
@@ -1283,10 +1393,12 @@ func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID
 			continue
 		}
 
-		// Check content length
-		if resp.ContentLength > m.config.MaxAssetSize {
+		// Check content length using consistent size limits
+		maxSize := m.calculateMaxAssetSize()
+		
+		if resp.ContentLength > 0 && resp.ContentLength > maxSize {
 			resp.Body.Close()
-			return fmt.Errorf("artwork too large: %d bytes (max: %d)", resp.ContentLength, m.config.MaxAssetSize)
+			return fmt.Errorf("artwork too large: %d bytes (max: %d)", resp.ContentLength, maxSize)
 		}
 
 		// Read the image data
@@ -1294,14 +1406,19 @@ func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID
 		resp.Body.Close()
 
 		if err != nil {
-			downloadErr = err
+			downloadErr = fmt.Errorf("failed to read response body: %w", err)
 			continue
 		}
 
-		// Check actual size
-		if int64(len(data)) > m.config.MaxAssetSize {
-			return fmt.Errorf("artwork too large: %d bytes (max: %d)", len(data), m.config.MaxAssetSize)
+		// Check actual downloaded size with consistent limits
+		if int64(len(data)) > maxSize {
+			return fmt.Errorf("artwork too large after download: %d bytes (max: %d)", len(data), maxSize)
 		}
+		
+		m.logger.Debug("Post-download size check passed", 
+			"type", artType.Name, 
+			"actual_size", len(data), 
+			"max_size", maxSize)
 
 		// Get MIME type
 		mimeType = resp.Header.Get("Content-Type")
@@ -1311,6 +1428,7 @@ func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID
 
 		imageData = data
 		downloadErr = nil
+		m.logger.Debug("Successfully downloaded artwork", "type", artType.Name, "size", len(imageData), "attempt", attempt+1)
 		break
 	}
 
@@ -1329,22 +1447,22 @@ func (m *MusicBrainzEnricher) downloadArtworkType(ctx context.Context, releaseID
 
 	// Use the plugin context to save the asset
 	// This will be handled by the host's AssetService
-	return m.saveArtworkAsset(ctx, mediaFileID, artType.Subtype, imageData, mimeType, coverArtURL, metadata)
+	return m.saveArtworkAsset(ctx, mediaFileID, artType.Subtype, imageData, mimeType, downloadURL, metadata)
 }
 
 // saveArtworkAsset saves artwork using the host's asset service
-func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID string, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) error {
-	if m.assetService == nil {
-		m.logger.Warn("Asset service not available - cannot save artwork", "media_file_id", mediaFileID, "subtype", subtype)
-		return fmt.Errorf("asset service not available")
+func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID string, subtype string, data []byte, mimeType, downloadURL string, metadata map[string]string) error {
+	if m.unifiedClient == nil {
+		m.logger.Warn("Unified service not available - cannot save artwork", "media_file_id", mediaFileID, "subtype", subtype)
+		return fmt.Errorf("unified service not available")
 	}
 
-	m.logger.Debug("Saving artwork asset via host service", 
+	m.logger.Debug("Saving artwork asset via unified service", 
 		"media_file_id", mediaFileID, 
 		"subtype", subtype, 
 		"size", len(data), 
 		"mime_type", mimeType,
-		"source_url", sourceURL)
+		"source_url", downloadURL)
 
 	// Create save asset request
 	request := &plugins.SaveAssetRequest{
@@ -1354,20 +1472,20 @@ func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID 
 		Subtype:     subtype,
 		Data:        data,
 		MimeType:    mimeType,
-		SourceURL:   sourceURL,
-		PluginID:    "musicbrainz_enricher", // Set the plugin ID for asset tracking
+		SourceURL:   downloadURL,
+		PluginID:    m.pluginID, // Set the plugin ID for asset tracking
 		Metadata:    metadata,
 	}
 
-	// Call host asset service
-	response, err := m.assetService.SaveAsset(ctx, request)
+	// Call unified service
+	response, err := m.unifiedClient.AssetService().SaveAsset(ctx, request)
 	if err != nil {
-		m.logger.Error("Failed to save asset via host service", "error", err, "media_file_id", mediaFileID, "subtype", subtype)
+		m.logger.Error("Failed to save asset via unified service", "error", err, "media_file_id", mediaFileID, "subtype", subtype)
 		return fmt.Errorf("failed to save asset: %w", err)
 	}
 
 	if !response.Success {
-		m.logger.Error("Host service reported save failure", "error", response.Error, "media_file_id", mediaFileID, "subtype", subtype)
+		m.logger.Error("Unified service reported save failure", "error", response.Error, "media_file_id", mediaFileID, "subtype", subtype)
 		return fmt.Errorf("asset save failed: %s", response.Error)
 	}
 
@@ -1377,7 +1495,7 @@ func (m *MusicBrainzEnricher) saveArtworkAsset(ctx context.Context, mediaFileID 
 		"asset_id", response.AssetID,
 		"hash", response.Hash,
 		"path", response.RelativePath,
-		"plugin_id", "musicbrainz_enricher",
+		"plugin_id", m.pluginID,
 		"size", len(data))
 
 	return nil

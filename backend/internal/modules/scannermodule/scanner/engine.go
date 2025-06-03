@@ -5,7 +5,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
-	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"gorm.io/gorm"
 )
 
@@ -15,11 +15,11 @@ type ScanEngine interface {
 	Start(libraryID uint) error
 	Resume(libraryID uint) error
 	Pause()
-	
+
 	// Status and monitoring
 	GetWorkerStats() (active, min, max, queueLen int)
 	GetProgress() (progress float64, eta time.Time, rate float64)
-	
+
 	// Configuration
 	SetConfig(config *ScanConfig)
 	GetConfig() *ScanConfig
@@ -27,12 +27,12 @@ type ScanEngine interface {
 
 // ScanContext provides context and dependencies for a scan operation
 type ScanContext struct {
-	DB            *gorm.DB
-	EventBus      events.EventBus
-	PluginManager plugins.Manager
-	JobID         uint
-	LibraryID     uint
-	Config        *ScanConfig
+	DB           *gorm.DB
+	EventBus     events.EventBus
+	PluginModule *pluginmodule.PluginModule
+	JobID        uint
+	LibraryID    uint
+	Config       *ScanConfig
 }
 
 // ScanResult represents the outcome of scanning a single file
@@ -49,14 +49,14 @@ type ScanResult struct {
 
 // ScanStatistics holds metrics about a scan operation
 type ScanStatistics struct {
-	FilesProcessed   int64
-	FilesSkipped     int64
-	BytesProcessed   int64
-	ErrorsCount      int64
-	StartTime        time.Time
-	LastUpdateTime   time.Time
-	ThroughputFPS    float64
-	ThroughputMBPS   float64
+	FilesProcessed int64
+	FilesSkipped   int64
+	BytesProcessed int64
+	ErrorsCount    int64
+	StartTime      time.Time
+	LastUpdateTime time.Time
+	ThroughputFPS  float64
+	ThroughputMBPS float64
 }
 
 // WorkerPool defines the interface for managing scan workers
@@ -107,4 +107,11 @@ type PluginHook interface {
 	OnScanStarted(jobID, libraryID uint, path string) error
 	OnScanCompleted(jobID, libraryID uint, stats map[string]interface{}) error
 	OnMediaFileScanned(mediaFile *database.MediaFile, metadata interface{}) error
-} 
+}
+
+// ScanEngineImpl provides the core scanning engine functionality
+type ScanEngineImpl struct {
+	DB           *gorm.DB
+	PluginModule *pluginmodule.PluginModule
+	Options      *ManagerOptions // Defined in safeguards.go
+}

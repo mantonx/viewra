@@ -403,6 +403,12 @@ func (ls *LibraryScanner) processFile(filePath string, libraryID uint) error {
 		return nil
 	}
 	
+	// Get library information to determine media type
+	var library database.MediaLibrary
+	if err := ls.db.First(&library, libraryID).Error; err != nil {
+		return fmt.Errorf("failed to get library: %w", err)
+	}
+	
 	// Create new media file record
 	mediaFile := &database.MediaFile{
 		ID:        uuid.New().String(),
@@ -418,6 +424,9 @@ func (ls *LibraryScanner) processFile(filePath string, libraryID uint) error {
 	// Detect file type from extension
 	ext := strings.ToLower(filepath.Ext(filePath))
 	mediaFile.Container = ls.getContainerFromExtension(ext)
+	
+	// IMPORTANT: Set media_type based on library type and file extension
+	mediaFile.MediaType = ls.determineMediaType(library.Type, ext)
 	
 	// Save to database FIRST before calling plugins
 	if err := ls.db.Create(mediaFile).Error; err != nil {
@@ -435,11 +444,27 @@ func (ls *LibraryScanner) processFile(filePath string, libraryID uint) error {
 		// to ensure we have the updated media_id and media_type that was set by
 		// the enrichment plugins (linkMediaFileToTrack)
 		var updatedMediaFile database.MediaFile
+		
+		// DEBUG: Log before reload
+		logger.Debug("Before reload", "media_file_id", mediaFile.ID, "original_media_id", mediaFile.MediaID, "original_media_type", mediaFile.MediaType)
+		
 		if err := ls.db.Where("id = ?", mediaFile.ID).First(&updatedMediaFile).Error; err == nil {
 			mediaFile = &updatedMediaFile
 			logger.Debug("Reloaded media file after metadata extraction", "media_file_id", mediaFile.ID, "media_id", mediaFile.MediaID, "media_type", mediaFile.MediaType)
 		} else {
 			logger.Warn("Failed to reload media file after extraction", "media_file_id", mediaFile.ID, "error", err)
+		}
+		
+		// DEBUG: Also try a direct SQL query to see what's in the database
+		var dbCheckResult struct {
+			ID        string                `gorm:"column:id"`
+			MediaID   string                `gorm:"column:media_id"`
+			MediaType database.MediaType    `gorm:"column:media_type"`
+		}
+		if err := ls.db.Table("media_files").Select("id, media_id, media_type").Where("id = ?", mediaFile.ID).First(&dbCheckResult).Error; err == nil {
+			logger.Debug("Direct DB check", "id", dbCheckResult.ID, "media_id", dbCheckResult.MediaID, "media_type", dbCheckResult.MediaType)
+		} else {
+			logger.Debug("Direct DB check failed", "error", err)
 		}
 	}
 	
@@ -916,4 +941,60 @@ func getTagValue(tags map[string]string, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func (ls *LibraryScanner) determineMediaType(libraryType string, ext string) database.MediaType {
+	// Audio file extensions
+	audioExts := map[string]bool{
+		".mp3": true, ".flac": true, ".wav": true, ".m4a": true, ".aac": true,
+		".ogg": true, ".wma": true, ".opus": true, ".aiff": true, ".ape": true, ".wv": true,
+	}
+	
+	// Video file extensions  
+	videoExts := map[string]bool{
+		".mp4": true, ".mkv": true, ".avi": true, ".mov": true, ".wmv": true,
+		".flv": true, ".webm": true, ".m4v": true, ".3gp": true, ".ts": true,
+		".mpg": true, ".mpeg": true, ".rm": true, ".rmvb": true, ".asf": true, ".divx": true,
+	}
+	
+	// Determine media_type based on library type and file extension
+	switch libraryType {
+	case "music":
+		// For music libraries, all files should be tracks (audio files)
+		if audioExts[ext] {
+			return database.MediaTypeTrack
+		}
+		// Log warning if non-audio file found in music library
+		logger.Warn("Non-audio file found in music library", "ext", ext, "library_type", libraryType)
+		return database.MediaTypeTrack // Default to track for music libraries
+		
+	case "movie":
+		// For movie libraries, files should be movies (video files)
+		if videoExts[ext] {
+			return database.MediaTypeMovie
+		}
+		// Log warning if non-video file found in movie library
+		logger.Warn("Non-video file found in movie library", "ext", ext, "library_type", libraryType)
+		return database.MediaTypeMovie // Default to movie for movie libraries
+		
+	case "tv":
+		// For TV libraries, files should be episodes (video files)
+		if videoExts[ext] {
+			return database.MediaTypeEpisode
+		}
+		// Log warning if non-video file found in TV library
+		logger.Warn("Non-video file found in TV library", "ext", ext, "library_type", libraryType)
+		return database.MediaTypeEpisode // Default to episode for TV libraries
+		
+	default:
+		// Unknown library type - try to guess based on file extension
+		logger.Warn("Unknown library type, guessing media_type from extension", "library_type", libraryType, "ext", ext)
+		if audioExts[ext] {
+			return database.MediaTypeTrack
+		} else if videoExts[ext] {
+			return database.MediaTypeMovie // Default video to movie
+		}
+		// If we can't determine, default to track (safest fallback)
+		return database.MediaTypeTrack
+	}
 }

@@ -10,28 +10,28 @@ import (
 // RegisterRoutes registers the database module routes
 func (m *Module) RegisterRoutes(router *gin.Engine) {
 	logger.Info("Registering database module routes")
-	
+
 	api := router.Group("/api/database")
 	{
 		// Health and status endpoints
 		api.GET("/health", m.getHealth)
 		api.GET("/status", m.getStatus)
 		api.GET("/stats", m.getStats)
-		
+
 		// Connection pool endpoints
 		api.GET("/connections", m.getConnectionStats)
 		api.GET("/connections/health", m.getConnectionHealth)
-		
+
 		// Migration endpoints
 		api.GET("/migrations", m.getMigrations)
 		api.POST("/migrations/execute", m.executePendingMigrations)
 		api.POST("/migrations/:id/rollback", m.rollbackMigration)
-		
+
 		// Model registry endpoints
 		api.GET("/models", m.getRegisteredModels)
 		api.GET("/models/stats", m.getModelStats)
 		api.POST("/models/migrate", m.autoMigrateModels)
-		
+
 		// Transaction endpoints (mainly for monitoring)
 		api.GET("/transactions/stats", m.getTransactionStats)
 	}
@@ -46,7 +46,7 @@ func (m *Module) getHealth(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "healthy",
 		"module": m.Name(),
@@ -57,14 +57,14 @@ func (m *Module) getHealth(c *gin.Context) {
 func (m *Module) getStatus(c *gin.Context) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	status := gin.H{
-		"module_id":     m.ID(),
-		"module_name":   m.Name(),
-		"initialized":   m.initialized,
-		"core_module":   m.Core(),
+		"module_id":   m.ID(),
+		"module_name": m.Name(),
+		"initialized": m.initialized,
+		"core_module": m.Core(),
 	}
-	
+
 	// Add component status
 	if m.connectionPool != nil {
 		status["connection_pool"] = "initialized"
@@ -79,7 +79,7 @@ func (m *Module) getStatus(c *gin.Context) {
 		status["model_registry"] = "initialized"
 		status["registered_models"] = m.modelRegistry.GetModelCount()
 	}
-	
+
 	c.JSON(http.StatusOK, status)
 }
 
@@ -87,21 +87,21 @@ func (m *Module) getStatus(c *gin.Context) {
 func (m *Module) getStats(c *gin.Context) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	stats := gin.H{
 		"module": gin.H{
-			"id":           m.ID(),
-			"name":         m.Name(),
-			"initialized":  m.initialized,
-			"core":         m.Core(),
+			"id":          m.ID(),
+			"name":        m.Name(),
+			"initialized": m.initialized,
+			"core":        m.Core(),
 		},
 	}
-	
+
 	// Add connection pool stats
 	if m.connectionPool != nil {
 		stats["connection_pool"] = m.connectionPool.GetStats()
 	}
-	
+
 	// Add migration stats
 	if m.migrationManager != nil {
 		migrationStats, err := m.migrationManager.GetMigrationStatus()
@@ -112,17 +112,17 @@ func (m *Module) getStats(c *gin.Context) {
 			stats["migrations"] = migrationStats
 		}
 	}
-	
+
 	// Add transaction stats
 	if m.transactionMgr != nil {
 		stats["transactions"] = m.transactionMgr.GetStats()
 	}
-	
+
 	// Add model registry stats
 	if m.modelRegistry != nil {
 		stats["models"] = m.modelRegistry.GetStats()
 	}
-	
+
 	c.JSON(http.StatusOK, stats)
 }
 
@@ -134,7 +134,7 @@ func (m *Module) getConnectionStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	stats := m.connectionPool.GetStats()
 	c.JSON(http.StatusOK, gin.H{
 		"connection_stats": stats,
@@ -149,7 +149,7 @@ func (m *Module) getConnectionHealth(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	if err := m.connectionPool.Health(); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"status": "unhealthy",
@@ -157,9 +157,9 @@ func (m *Module) getConnectionHealth(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"status": "healthy",
+		"status":      "healthy",
 		"connections": "all connections are healthy",
 	})
 }
@@ -172,7 +172,7 @@ func (m *Module) getMigrations(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	status, err := m.migrationManager.GetMigrationStatus()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -180,7 +180,7 @@ func (m *Module) getMigrations(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, status)
 }
 
@@ -192,14 +192,14 @@ func (m *Module) executePendingMigrations(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	if err := m.migrationManager.ExecutePendingMigrations(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Pending migrations executed successfully",
 	})
@@ -214,23 +214,23 @@ func (m *Module) rollbackMigration(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	if m.migrationManager == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Migration manager not initialized",
 		})
 		return
 	}
-	
+
 	if err := m.migrationManager.RollbackMigration(migrationID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Migration rolled back successfully",
+		"message":      "Migration rolled back successfully",
 		"migration_id": migrationID,
 	})
 }
@@ -243,7 +243,7 @@ func (m *Module) getRegisteredModels(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	models := m.modelRegistry.GetModelInfo()
 	c.JSON(http.StatusOK, gin.H{
 		"models": models,
@@ -259,7 +259,7 @@ func (m *Module) getModelStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	stats := m.modelRegistry.GetStats()
 	c.JSON(http.StatusOK, stats)
 }
@@ -272,16 +272,16 @@ func (m *Module) autoMigrateModels(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	if err := m.modelRegistry.AutoMigrateAll(m.db); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Auto-migration completed successfully",
+		"message":         "Auto-migration completed successfully",
 		"models_migrated": m.modelRegistry.GetModelCount(),
 	})
 }
@@ -294,7 +294,7 @@ func (m *Module) getTransactionStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	stats := m.transactionMgr.GetStats()
 	c.JSON(http.StatusOK, stats)
 }

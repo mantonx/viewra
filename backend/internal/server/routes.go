@@ -7,30 +7,30 @@ import (
 	"github.com/mantonx/viewra/internal/apiroutes"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/server/handlers"
 )
 
 // setupRoutesWithEventHandlers configures routes with event handlers
-func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr plugins.Manager) {
+func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr *pluginmodule.PluginModule) {
 	// Static plugin assets - Using consistent path from GetPluginDirectory
 	pluginsPath := GetPluginDirectory()
 	r.Static("/plugins", pluginsPath)
-	
+
 	// API v1 routes group
 	api := r.Group("/api")
 	{
 		setupHealthRoutes(api)
-		
+
 		api.POST("/dev/load-test-music", handlers.LoadTestMusicData)
 		apiroutes.Register(api.BasePath()+"/dev/load-test-music", "POST", "Load test music data (development only).")
-		
+
 		// Plugin routes - handle all /api/plugins/* requests
 		plugins := api.Group("/plugins")
 		{
 			plugins.Any("/*path", handlers.HandlePluginRoute)
 		}
-		
+
 		// Core plugin management routes
 		corePlugins := api.Group("/core-plugins")
 		{
@@ -38,18 +38,18 @@ func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr plugins.Manager) {
 				corePluginHandler := handlers.NewCorePluginsHandler(pluginMgr)
 				corePlugins.GET("/", corePluginHandler.ListCorePlugins)
 				apiroutes.Register(corePlugins.BasePath()+"/", "GET", "List all core plugins.")
-				
+
 				corePlugins.GET("/:name", corePluginHandler.GetCorePluginInfo)
 				apiroutes.Register(corePlugins.BasePath()+"/:name", "GET", "Get information about a specific core plugin.")
-				
+
 				corePlugins.POST("/:name/enable", corePluginHandler.EnableCorePlugin)
 				apiroutes.Register(corePlugins.BasePath()+"/:name/enable", "POST", "Enable a core plugin.")
-				
+
 				corePlugins.POST("/:name/disable", corePluginHandler.DisableCorePlugin)
 				apiroutes.Register(corePlugins.BasePath()+"/:name/disable", "POST", "Disable a core plugin.")
 			}
 		}
-		
+
 		// Event system routes
 		// Ensure systemEventBus is checked before using, or handlers are robust to nil
 		if systemEventBus != nil {
@@ -84,17 +84,17 @@ func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr plugins.Manager) {
 				apiroutes.Register(eventsGroup.BasePath()+"/", "DELETE", "Clear all recorded events.")
 			}
 		}
-			
+
 		// Setup all routes with event-enabled handlers (now the standard)
 		// Pass systemEventBus, handlers should be robust if it's nil or this block guarded by systemEventBus != nil
 		setupMediaRoutesWithEvents(api, systemEventBus)
 		setupUserRoutesWithEvents(api, systemEventBus)
 		setupAdminRoutesWithEvents(api, systemEventBus)
-		
+
 		// Call setup functions
 		setupEventRoutes(api)
 		setupScanRoutes(api)
-		
+
 		// Scan management routes - only keep non-conflicting routes here
 		api.POST("/scan/library/:id", handlers.StartLibraryScan)
 		api.GET("/library/:id/trickplay-analysis", handlers.AnalyzeTrickplayContent)
@@ -102,31 +102,31 @@ func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr plugins.Manager) {
 
 		// Register module routes
 		modulemanager.RegisterRoutes(r) // Should this be api? Check usage
-		
+
 		// Configuration management routes
 		config := api.Group("/config")
 		{
 			config.GET("/", handlers.GetConfig)
 			apiroutes.Register(config.BasePath()+"/", "GET", "Get full configuration (sensitive data redacted).")
-			
+
 			config.GET("/:section", handlers.GetConfigSection)
 			apiroutes.Register(config.BasePath()+"/:section", "GET", "Get specific configuration section.")
-			
+
 			config.PUT("/:section", handlers.UpdateConfigSection)
 			apiroutes.Register(config.BasePath()+"/:section", "PUT", "Update configuration section.")
-			
+
 			config.POST("/reload", handlers.ReloadConfig)
 			apiroutes.Register(config.BasePath()+"/reload", "POST", "Reload configuration from file.")
-			
+
 			config.POST("/save", handlers.SaveConfig)
 			apiroutes.Register(config.BasePath()+"/save", "POST", "Save current configuration to file.")
-			
+
 			config.POST("/validate", handlers.ValidateConfig)
 			apiroutes.Register(config.BasePath()+"/validate", "POST", "Validate current configuration.")
-			
+
 			config.GET("/defaults", handlers.GetConfigDefaults)
 			apiroutes.Register(config.BasePath()+"/defaults", "GET", "Get default configuration values.")
-			
+
 			config.GET("/info", handlers.GetConfigInfo)
 			apiroutes.Register(config.BasePath()+"/info", "GET", "Get configuration system information.")
 		}
@@ -147,10 +147,10 @@ func setupHealthRoutes(api *gin.RouterGroup) {
 
 	api.GET("/db-status", handlers.HandleDBStatus)
 	apiroutes.Register(api.BasePath()+"/db-status", "GET", "Database connection status.")
-	
+
 	api.GET("/db-health", handlers.HandleDatabaseHealth)
 	apiroutes.Register(api.BasePath()+"/db-health", "GET", "Comprehensive database health check with connection pool metrics.")
-	
+
 	api.GET("/connection-pool", handlers.HandleConnectionPoolStats)
 	apiroutes.Register(api.BasePath()+"/connection-pool", "GET", "Detailed database connection pool statistics and performance metrics.")
 }
@@ -174,7 +174,7 @@ func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 		media.GET("/:id/stream", mediaHandler.StreamMedia)
 		apiroutes.Register(media.BasePath()+"/:id/stream", "GET", "Stream a specific media file.")
 
-		media.GET("/:id/artwork", handlers.GetArtwork) 
+		media.GET("/:id/artwork", handlers.GetArtwork)
 		apiroutes.Register(media.BasePath()+"/:id/artwork", "GET", "Get artwork for a media item.")
 
 		media.GET("/:id/metadata", musicHandler.GetMusicMetadata)
@@ -227,7 +227,7 @@ func setupUserRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) {
 // setupAdminRoutesWithEvents configures administrative endpoints with event support
 func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) {
 	adminHandler := handlers.NewAdminHandler(eventBus) // Assumes eventBus can be nil if handlers support it
-	admin := api.Group("/admin") // All admin routes are under /api/admin
+	admin := api.Group("/admin")                       // All admin routes are under /api/admin
 	{
 		libraries := admin.Group("/media-libraries")
 		{
@@ -271,7 +271,7 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(scanner.BasePath()+"/jobs/:id", "DELETE", "Delete a scan job and all its discovered files and assets.")
 			scanner.GET("/monitoring-status", handlers.GetMonitoringStatus)
 			apiroutes.Register(scanner.BasePath()+"/monitoring-status", "GET", "Get file monitoring status for all libraries.")
-			
+
 			// Enhanced safeguarded endpoints
 			scanner.POST("/safe/start/:id", handlers.StartSafeguardedLibraryScan)
 			apiroutes.Register(scanner.BasePath()+"/safe/start/:id", "POST", "Start scanning a library using enhanced safeguards.")
@@ -285,11 +285,11 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(scanner.BasePath()+"/safeguards/status", "GET", "Get safeguard system status and configuration.")
 			scanner.POST("/emergency/cleanup", handlers.ForceEmergencyCleanup)
 			apiroutes.Register(scanner.BasePath()+"/emergency/cleanup", "POST", "Perform emergency cleanup of all orphaned data.")
-			
+
 			// Administrative endpoints
 			scanner.POST("/force-complete/:id", handlers.ForceCompleteScan)
 			apiroutes.Register(scanner.BasePath()+"/force-complete/:id", "POST", "Manually mark a scan job as completed (admin function).")
-			
+
 			// Throttling control endpoints
 			scanner.POST("/throttle/disable/:jobId", handlers.DisableThrottling)
 			apiroutes.Register(scanner.BasePath()+"/throttle/disable/:jobId", "POST", "Disable adaptive throttling for a scan job (maximum performance).")
@@ -301,7 +301,7 @@ func setupAdminRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 			apiroutes.Register(scanner.BasePath()+"/throttle/config", "POST", "Update global throttling configuration.")
 			scanner.GET("/throttle/performance/:jobId", handlers.GetThrottlePerformanceHistory)
 			apiroutes.Register(scanner.BasePath()+"/throttle/performance/:jobId", "GET", "Get throttling performance history for a scan job.")
-			
+
 			// Health monitoring endpoints
 			scanner.GET("/health/:id", handlers.GetScanHealth)
 			apiroutes.Register(scanner.BasePath()+"/health/:id", "GET", "Monitor scan health and detect potential issues.")
@@ -381,7 +381,7 @@ func setupScanRoutes(api *gin.RouterGroup) {
 
 		scan.GET("/:id/results", handlers.GetScanResults)
 		apiroutes.Register(scan.BasePath()+"/:id/results", "GET", "Get results of a completed scan job.")
-		
+
 		// Additional scan management routes
 		scan.DELETE("/:id", handlers.DeleteScan)
 		apiroutes.Register(scan.BasePath()+"/:id", "DELETE", "Delete a scan job.")

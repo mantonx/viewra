@@ -101,7 +101,7 @@ func TestAdaptiveThrottler_EmergencyBrake(t *testing.T) {
 	// Verify emergency brake is released (but default delay may still apply)
 	shouldThrottle, delay = throttler.ShouldThrottle()
 	assert.NotEqual(t, 1*time.Second, delay, "Should not use emergency brake duration")
-	
+
 	// Check that we're back to normal default processing delay
 	expectedDelay := config.DefaultProcessingDelay
 	expectedThrottle := expectedDelay > 0
@@ -122,9 +122,9 @@ func TestAdaptiveThrottler_ContainerDetection(t *testing.T) {
 		t.Logf("Container detected: cgroup v%d", throttler.cgroupVersion)
 		assert.True(t, throttler.cgroupVersion == 1 || throttler.cgroupVersion == 2)
 		assert.NotEmpty(t, throttler.cgroupBasePath)
-		
+
 		if throttler.containerLimits.MemoryLimitBytes > 0 {
-			t.Logf("Memory limit: %.2f GB", 
+			t.Logf("Memory limit: %.2f GB",
 				float64(throttler.containerLimits.MemoryLimitBytes)/(1024*1024*1024))
 		}
 		if throttler.containerLimits.MaxCPUPercent > 0 {
@@ -142,7 +142,7 @@ func TestAdaptiveThrottler_MetricsGathering(t *testing.T) {
 
 	// Test direct metrics gathering (bypassing async loop)
 	metrics := throttler.gatherSystemMetrics()
-	
+
 	// Validate basic metrics structure
 	assert.GreaterOrEqual(t, metrics.CPUPercent, 0.0)
 	assert.LessOrEqual(t, metrics.CPUPercent, 100.0)
@@ -151,7 +151,7 @@ func TestAdaptiveThrottler_MetricsGathering(t *testing.T) {
 	assert.GreaterOrEqual(t, metrics.LoadAverage, 0.0)
 	assert.False(t, metrics.TimestampUTC.IsZero(), "Timestamp should be set")
 
-	t.Logf("Direct metrics: CPU=%.1f%%, Memory=%.1f%%, Load=%.2f", 
+	t.Logf("Direct metrics: CPU=%.1f%%, Memory=%.1f%%, Load=%.2f",
 		metrics.CPUPercent, metrics.MemoryPercent, metrics.LoadAverage)
 
 	// Verify timestamp is recent
@@ -176,22 +176,22 @@ func TestAdaptiveThrottler_WorkerCountCalculation(t *testing.T) {
 
 	// Test scale-up scenario (low resource usage)
 	lowUsageMetrics := SystemMetrics{
-		CPUPercent:      30.0,  // Well below target
-		MemoryPercent:   40.0,  // Well below target
+		CPUPercent:      30.0, // Well below target
+		MemoryPercent:   40.0, // Well below target
 		IOWaitPercent:   5.0,
-		NetworkUtilMBps: 20.0,  // Well below target
+		NetworkUtilMBps: 20.0, // Well below target
 	}
-	
+
 	optimalWorkers := throttler.calculateOptimalWorkerCount(lowUsageMetrics)
 	assert.Greater(t, optimalWorkers, 4, "Should scale up with low resource usage")
 	assert.LessOrEqual(t, optimalWorkers, 8, "Should not exceed max workers")
 
 	// Test scale-down scenario (high resource usage)
 	highUsageMetrics := SystemMetrics{
-		CPUPercent:      90.0,  // Above max threshold
-		MemoryPercent:   95.0,  // Above max threshold
-		IOWaitPercent:   35.0,  // High I/O wait
-		NetworkUtilMBps: 95.0,  // Near max network
+		CPUPercent:      90.0, // Above max threshold
+		MemoryPercent:   95.0, // Above max threshold
+		IOWaitPercent:   35.0, // High I/O wait
+		NetworkUtilMBps: 95.0, // Near max network
 	}
 
 	optimalWorkers = throttler.calculateOptimalWorkerCount(highUsageMetrics)
@@ -201,7 +201,7 @@ func TestAdaptiveThrottler_WorkerCountCalculation(t *testing.T) {
 
 func TestAdaptiveThrottler_NFSOptimization(t *testing.T) {
 	throttler := NewAdaptiveThrottler(ThrottleConfig{
-		TargetNetworkThroughput: 80.0,  // 80 MB/s for 1Gbps NFS
+		TargetNetworkThroughput: 80.0, // 80 MB/s for 1Gbps NFS
 		MaxNetworkThroughput:    100.0,
 		TargetIOWaitPercent:     20.0,
 		MaxIOWaitPercent:        30.0,
@@ -210,10 +210,10 @@ func TestAdaptiveThrottler_NFSOptimization(t *testing.T) {
 
 	// Test network-heavy scenario (typical for NFS)
 	nfsMetrics := SystemMetrics{
-		CPUPercent:      40.0,  // Moderate CPU
-		MemoryPercent:   50.0,  // Moderate memory
-		IOWaitPercent:   25.0,  // High I/O wait (typical for network storage)
-		NetworkUtilMBps: 85.0,  // High network usage
+		CPUPercent:      40.0, // Moderate CPU
+		MemoryPercent:   50.0, // Moderate memory
+		IOWaitPercent:   25.0, // High I/O wait (typical for network storage)
+		NetworkUtilMBps: 85.0, // High network usage
 	}
 
 	delay := throttler.calculateOptimalDelay(nfsMetrics)
@@ -274,4 +274,4 @@ func BenchmarkAdaptiveThrottler_ShouldThrottle(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		throttler.ShouldThrottle()
 	}
-} 
+}

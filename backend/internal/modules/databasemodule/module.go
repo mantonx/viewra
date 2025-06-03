@@ -20,7 +20,7 @@ func init() {
 const (
 	// ModuleID is the unique identifier for the database module
 	ModuleID = "system.database"
-	
+
 	// ModuleName is the display name for the database module
 	ModuleName = "Database Manager"
 )
@@ -37,8 +37,6 @@ type Module struct {
 	initialized      bool
 }
 
-
-
 // NewModule creates a new database module
 func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
 	// Initialize migration manager
@@ -47,7 +45,7 @@ func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
 		logger.Error("Failed to create migration manager: %v", err)
 		// Use a nil migration manager and handle gracefully
 	}
-	
+
 	return &Module{
 		db:               db,
 		eventBus:         eventBus,
@@ -76,27 +74,27 @@ func (m *Module) Core() bool {
 // Migrate performs any necessary database migrations
 func (m *Module) Migrate(db *gorm.DB) error {
 	logger.Info("Migrating database module schema")
-	
+
 	// The database module itself doesn't need migrations as it manages the core database
 	// But we ensure the system event table exists for database events
 	if err := db.AutoMigrate(&database.SystemEvent{}); err != nil {
 		return fmt.Errorf("failed to migrate system events table: %w", err)
 	}
-	
+
 	return nil
 }
 
 // Init initializes the database module
 func (m *Module) Init() error {
 	logger.Info("Initializing database module")
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if m.initialized {
 		return nil
 	}
-	
+
 	// Initialize the module components if they're not already set
 	if m.db == nil {
 		m.db = database.GetDB()
@@ -104,16 +102,16 @@ func (m *Module) Init() error {
 			return fmt.Errorf("database connection is not available")
 		}
 	}
-	
+
 	if m.eventBus == nil {
 		m.eventBus = events.GetGlobalEventBus()
 	}
-	
+
 	// Initialize all sub-components now that we have a database connection
 	if m.connectionPool == nil {
 		m.connectionPool = NewConnectionPool(m.db)
 	}
-	
+
 	if m.migrationManager == nil {
 		var err error
 		m.migrationManager, err = NewMigrationManager(m.db)
@@ -121,32 +119,32 @@ func (m *Module) Init() error {
 			return fmt.Errorf("failed to create migration manager: %w", err)
 		}
 	}
-	
+
 	if m.transactionMgr == nil {
 		m.transactionMgr = NewTransactionManager(m.db)
 	}
-	
+
 	if m.modelRegistry == nil {
 		m.modelRegistry = NewModelRegistry()
 	}
-	
+
 	// Initialize sub-components
 	if err := m.connectionPool.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize connection pool: %w", err)
 	}
-	
+
 	if err := m.migrationManager.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize migration manager: %w", err)
 	}
-	
+
 	if err := m.transactionMgr.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize transaction manager: %w", err)
 	}
-	
+
 	if err := m.modelRegistry.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize model registry: %w", err)
 	}
-	
+
 	// Publish database module initialization event
 	if m.eventBus != nil {
 		initEvent := events.NewSystemEvent(
@@ -156,10 +154,10 @@ func (m *Module) Init() error {
 		)
 		m.eventBus.PublishAsync(initEvent)
 	}
-	
+
 	m.initialized = true
 	logger.Info("Database module initialized successfully")
-	
+
 	return nil
 }
 
@@ -205,26 +203,26 @@ func (m *Module) BeginTransaction(ctx context.Context) (*TransactionContext, err
 func (m *Module) Health() error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	if !m.initialized {
 		return fmt.Errorf("database module not initialized")
 	}
-	
+
 	// Test database connection
 	sqlDB, err := m.db.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get sql.DB: %w", err)
 	}
-	
+
 	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
-	
+
 	// Check connection pool health
 	if err := m.connectionPool.Health(); err != nil {
 		return fmt.Errorf("connection pool health check failed: %w", err)
 	}
-	
+
 	return nil
 }
 

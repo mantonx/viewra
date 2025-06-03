@@ -77,7 +77,7 @@ type Config struct {
 // AudioDBEnrichment represents enriched metadata
 type AudioDBEnrichment struct {
 	ID              uint32    `gorm:"primaryKey"`
-	MediaFileID     uint32    `gorm:"not null;index"`
+	MediaFileID     string    `gorm:"not null;index"`
 	AudioDBTrackID  string    `gorm:"size:36"`
 	AudioDBArtistID string    `gorm:"size:36"`
 	AudioDBAlbumID  string    `gorm:"size:36"`
@@ -501,7 +501,7 @@ func (a *AudioDBEnricher) GetSupportedTypes() []string {
 }
 
 // ScannerHookService implementation
-func (a *AudioDBEnricher) OnMediaFileScanned(mediaFileID uint32, filePath string, metadata map[string]string) error {
+func (a *AudioDBEnricher) OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error {
 	if !a.config.Enabled || !a.config.AutoEnrich {
 		return nil
 	}
@@ -638,7 +638,7 @@ func (a *AudioDBEnricher) initDatabase() error {
 }
 
 // Core enrichment logic
-func (a *AudioDBEnricher) enrichTrack(mediaFileID uint32, title, artist, album string) error {
+func (a *AudioDBEnricher) enrichTrack(mediaFileID string, title, artist, album string) error {
 	// Check if already enriched and not overwriting
 	if !a.config.OverwriteExisting {
 		var existing AudioDBEnrichment
@@ -943,7 +943,7 @@ func min(a, b, c int) int {
 }
 
 // downloadAllArtwork downloads all enabled artwork types for a track
-func (a *AudioDBEnricher) downloadAllArtwork(ctx context.Context, mediaFileID uint32, track *AudioDBTrack) error {
+func (a *AudioDBEnricher) downloadAllArtwork(ctx context.Context, mediaFileID string, track *AudioDBTrack) error {
 	var album *AudioDBAlbum
 	var artist *AudioDBArtist
 
@@ -999,7 +999,7 @@ func (a *AudioDBEnricher) downloadAllArtwork(ctx context.Context, mediaFileID ui
 }
 
 // downloadArtworkFromURL downloads artwork from a specific URL
-func (a *AudioDBEnricher) downloadArtworkFromURL(ctx context.Context, mediaFileID uint32, artType AudioDBArtworkType, artworkURL string) error {
+func (a *AudioDBEnricher) downloadArtworkFromURL(ctx context.Context, mediaFileID string, artType AudioDBArtworkType, artworkURL string) error {
 	if artworkURL == "" {
 		return fmt.Errorf("no artwork URL available")
 	}
@@ -1119,7 +1119,7 @@ func (a *AudioDBEnricher) getArtistInfo(artistID string) (*AudioDBArtistResponse
 }
 
 // saveArtworkAsset saves artwork using the host's asset service
-func (a *AudioDBEnricher) saveArtworkAsset(ctx context.Context, mediaFileID uint32, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) error {
+func (a *AudioDBEnricher) saveArtworkAsset(ctx context.Context, mediaFileID string, category, subtype string, data []byte, mimeType, sourceURL string, metadata map[string]string) error {
 	if a.assetService == nil {
 		a.logger.Warn("Asset service not available - cannot save artwork", "media_file_id", mediaFileID, "category", category, "subtype", subtype)
 		return fmt.Errorf("asset service not available")

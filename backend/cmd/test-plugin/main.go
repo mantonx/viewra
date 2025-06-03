@@ -6,16 +6,15 @@ import (
 	"log"
 	"os"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 )
 
 func main() {
 	// Test plugin discovery and basic functionality
 	fmt.Println("=== Plugin System Test ===")
-	
+
 	// Initialize configuration
 	if err := config.Load(""); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
@@ -23,12 +22,6 @@ func main() {
 
 	// Initialize database
 	database.Initialize()
-
-	// Create logger
-	appLogger := hclog.New(&hclog.LoggerOptions{
-		Name:  "plugin-test",
-		Level: hclog.Debug,
-	})
 
 	// Get plugin directory
 	cfg := config.Get()
@@ -44,39 +37,39 @@ func main() {
 
 	fmt.Printf("Using plugin directory: %s\n", pluginDir)
 
-	// Create plugin manager
+	// Create plugin module
 	db := database.GetDB()
-	manager := plugins.NewManager(pluginDir, db, appLogger)
+	pluginConfig := &pluginmodule.PluginModuleConfig{
+		PluginDir:       pluginDir,
+		EnabledCore:     []string{"ffmpeg", "enrichment", "tv_structure", "movie_structure"},
+		EnabledExternal: []string{},
+		LibraryConfigs:  make(map[string]pluginmodule.LibraryPluginSettings),
+	}
 
-	// Initialize plugin manager
+	pluginModule := pluginmodule.NewPluginModule(db, pluginConfig)
+
+	// Initialize plugin module
 	ctx := context.Background()
-	if err := manager.Initialize(ctx); err != nil {
-		log.Fatalf("Failed to initialize plugin manager: %v", err)
+	if err := pluginModule.Initialize(ctx); err != nil {
+		log.Fatalf("Failed to initialize plugin module: %v", err)
 	}
-	defer manager.Shutdown(ctx)
+	defer pluginModule.Shutdown(ctx)
 
-	fmt.Println("✅ Plugin manager initialized successfully")
-
-	// Test plugin discovery
-	fmt.Println("\nDiscovering plugins...")
-	if err := manager.DiscoverPlugins(); err != nil {
-		log.Fatalf("Failed to discover plugins: %v", err)
-	}
+	fmt.Println("✅ Plugin module initialized successfully")
 
 	// List discovered plugins
-	allPlugins := manager.ListPlugins()
+	allPlugins := pluginModule.ListAllPlugins()
 	fmt.Printf("📋 Discovered %d plugins:\n", len(allPlugins))
-	
+
 	if len(allPlugins) == 0 {
-		fmt.Println("⚠️  No plugins found. Make sure plugin files exist in the plugins directory.")
-		fmt.Printf("Expected directory structure: %s/{plugin-name}/plugin.cue\n", pluginDir)
+		fmt.Println("⚠️  No plugins found.")
 		return
 	}
 
 	// Display all discovered plugins
 	for i, pluginInfo := range allPlugins {
 		fmt.Printf("  %d. %s (v%s) [%s]\n", i+1, pluginInfo.Name, pluginInfo.Version, pluginInfo.ID)
-		fmt.Printf("     Type: %s | Core: %v | Enabled: %v\n", 
+		fmt.Printf("     Type: %s | Core: %v | Enabled: %v\n",
 			pluginInfo.Type, pluginInfo.IsCore, pluginInfo.Enabled)
 	}
 
@@ -92,37 +85,38 @@ func main() {
 	if testPluginID == "" {
 		fmt.Println("⚠️  No external plugins found to test.")
 		fmt.Println("✅ Core plugin system verification completed successfully.")
+
+		// Test core plugins
+		fmt.Println("\nTesting core plugins...")
+		corePlugins := pluginModule.GetCoreManager().ListCorePluginInfo()
+		fmt.Printf("📋 Found %d core plugins:\n", len(corePlugins))
+
+		for _, corePlugin := range corePlugins {
+			fmt.Printf("  - %s (v%s) [%s] - Enabled: %v\n",
+				corePlugin.Name, corePlugin.Version, corePlugin.Type, corePlugin.Enabled)
+		}
+
+		fmt.Println("\n=== Plugin System Test Completed Successfully ===")
 		return
 	}
 
 	fmt.Printf("\nAttempting to load external plugin: %s\n", testPluginID)
-	
+
 	// Test plugin loading
-	if err := manager.LoadPlugin(ctx, testPluginID); err != nil {
+	if err := pluginModule.LoadExternalPlugin(ctx, testPluginID); err != nil {
 		fmt.Printf("❌ Failed to load plugin '%s': %v\n", testPluginID, err)
 		fmt.Println("This may be expected if the plugin binary is not available.")
 	} else {
 		fmt.Printf("✅ Plugin '%s' loaded successfully\n", testPluginID)
-		
+
 		// Get loaded plugin details
-		if loadedPlugin, exists := manager.GetPlugin(testPluginID); exists {
+		if loadedPlugin, exists := pluginModule.GetExternalPlugin(testPluginID); exists {
 			fmt.Printf("✅ Plugin is running: %v\n", loadedPlugin.Running)
-			
-			// Test plugin services
-			if loadedPlugin.PluginService != nil {
-				fmt.Println("✅ Plugin exposes PluginService")
-			}
-			if loadedPlugin.MetadataScraperService != nil {
-				fmt.Println("✅ Plugin exposes MetadataScraperService")
-			}
-			if loadedPlugin.SearchService != nil {
-				fmt.Println("✅ Plugin exposes SearchService")
-			}
 		}
-		
+
 		// Test unloading
 		fmt.Printf("Unloading plugin '%s'...\n", testPluginID)
-		if err := manager.UnloadPlugin(ctx, testPluginID); err != nil {
+		if err := pluginModule.UnloadExternalPlugin(ctx, testPluginID); err != nil {
 			fmt.Printf("❌ Failed to unload plugin: %v\n", err)
 		} else {
 			fmt.Printf("✅ Plugin '%s' unloaded successfully\n", testPluginID)
@@ -131,13 +125,13 @@ func main() {
 
 	// Test core plugins
 	fmt.Println("\nTesting core plugins...")
-	corePlugins := manager.ListCorePlugins()
+	corePlugins := pluginModule.GetCoreManager().ListCorePluginInfo()
 	fmt.Printf("📋 Found %d core plugins:\n", len(corePlugins))
-	
+
 	for _, corePlugin := range corePlugins {
-		fmt.Printf("  - %s (v%s) [%s] - Enabled: %v\n", 
+		fmt.Printf("  - %s (v%s) [%s] - Enabled: %v\n",
 			corePlugin.Name, corePlugin.Version, corePlugin.Type, corePlugin.Enabled)
 	}
 
 	fmt.Println("\n=== Plugin System Test Completed Successfully ===")
-} 
+}

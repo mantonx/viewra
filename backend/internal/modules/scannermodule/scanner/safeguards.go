@@ -36,15 +36,15 @@ type SafeguardSystem struct {
 type SafeguardConfig struct {
 	HealthCheckInterval      time.Duration
 	StateValidationInterval  time.Duration
-	CleanupInterval         time.Duration
-	OperationTimeout        time.Duration
-	ShutdownTimeout         time.Duration
-	MaxRetries              int
-	RetryInterval           time.Duration
-	OrphanedJobThreshold    time.Duration
+	CleanupInterval          time.Duration
+	OperationTimeout         time.Duration
+	ShutdownTimeout          time.Duration
+	MaxRetries               int
+	RetryInterval            time.Duration
+	OrphanedJobThreshold     time.Duration
 	OldCompletedJobRetention time.Duration
 	EmergencyCleanupEnabled  bool
-	ForceKillTimeout        time.Duration
+	ForceKillTimeout         time.Duration
 }
 
 // Operation types for safeguarded operations
@@ -85,15 +85,15 @@ func NewSafeguardSystem(db *gorm.DB, eventBus events.EventBus, manager *Manager)
 		config: &SafeguardConfig{
 			HealthCheckInterval:      30 * time.Second,
 			StateValidationInterval:  60 * time.Second,
-			CleanupInterval:         5 * time.Minute,
-			OperationTimeout:        30 * time.Second,
-			ShutdownTimeout:         60 * time.Second,
-			MaxRetries:              3,
-			RetryInterval:           5 * time.Second,
-			OrphanedJobThreshold:    5 * time.Minute,
+			CleanupInterval:          5 * time.Minute,
+			OperationTimeout:         30 * time.Second,
+			ShutdownTimeout:          60 * time.Second,
+			MaxRetries:               3,
+			RetryInterval:            5 * time.Second,
+			OrphanedJobThreshold:     5 * time.Minute,
 			OldCompletedJobRetention: 30 * 24 * time.Hour,
 			EmergencyCleanupEnabled:  true,
-			ForceKillTimeout:        10 * time.Second,
+			ForceKillTimeout:         10 * time.Second,
 		},
 	}
 }
@@ -119,7 +119,7 @@ func (s *SafeguardSystem) StartSafeguardedScan(libraryID uint32) (*OperationResu
 		Success:   false,
 		Timestamp: time.Now(),
 	}
-	
+
 	// For now, delegate to the regular scan method
 	if s.manager != nil {
 		scanJob, err := s.manager.StartScan(libraryID)
@@ -128,12 +128,12 @@ func (s *SafeguardSystem) StartSafeguardedScan(libraryID uint32) (*OperationResu
 			result.Message = "Failed to start scan"
 			return result, err
 		}
-		
+
 		result.Success = true
 		result.JobID = scanJob.ID
 		result.Message = "Scan started successfully"
 	}
-	
+
 	return result, nil
 }
 
@@ -144,7 +144,7 @@ func (s *SafeguardSystem) PauseSafeguardedScan(jobID uint32) (*OperationResult, 
 		Success:   false,
 		Timestamp: time.Now(),
 	}
-	
+
 	// For now, delegate to the regular pause method
 	if s.manager != nil {
 		err := s.manager.StopScan(jobID)
@@ -153,11 +153,11 @@ func (s *SafeguardSystem) PauseSafeguardedScan(jobID uint32) (*OperationResult, 
 			result.Message = "Failed to pause scan"
 			return result, err
 		}
-		
+
 		result.Success = true
 		result.Message = "Scan paused successfully"
 	}
-	
+
 	return result, nil
 }
 
@@ -168,7 +168,7 @@ func (s *SafeguardSystem) DeleteSafeguardedScan(jobID uint32) (*OperationResult,
 		Success:   false,
 		Timestamp: time.Now(),
 	}
-	
+
 	// For now, delegate to the regular termination method
 	if s.manager != nil {
 		err := s.manager.TerminateScan(jobID)
@@ -177,11 +177,11 @@ func (s *SafeguardSystem) DeleteSafeguardedScan(jobID uint32) (*OperationResult,
 			result.Message = "Failed to delete scan"
 			return result, err
 		}
-		
+
 		result.Success = true
 		result.Message = "Scan deleted successfully"
 	}
-	
+
 	return result, nil
 }
 
@@ -203,7 +203,7 @@ func (s *SafeguardSystem) validateScanStartSuccess(jobID uint32) error {
 }
 
 func (s *SafeguardSystem) validatePauseSuccess(jobID uint32) error {
-	// Add validation logic here  
+	// Add validation logic here
 	return nil
 }
 
@@ -225,11 +225,11 @@ func (s *SafeguardSystem) cleanupScanJobData(tx *gorm.DB, scanJobID uint32) erro
 func (lm *LockManager) AcquireLibraryLock(libraryID uint32) error {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
-	
+
 	if _, exists := lm.libraryLocks[libraryID]; !exists {
 		lm.libraryLocks[libraryID] = &sync.Mutex{}
 	}
-	
+
 	lm.libraryLocks[libraryID].Lock()
 	return nil
 }
@@ -237,8 +237,8 @@ func (lm *LockManager) AcquireLibraryLock(libraryID uint32) error {
 func (lm *LockManager) ReleaseLibraryLock(libraryID uint32) {
 	lm.mu.RLock()
 	defer lm.mu.RUnlock()
-	
+
 	if lock, exists := lm.libraryLocks[libraryID]; exists {
 		lock.Unlock()
 	}
-} 
+}

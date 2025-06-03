@@ -11,11 +11,11 @@ import (
 
 // Module defines the interface that all modules must implement
 type Module interface {
-	ID() string        // Unique identifier for the module
-	Name() string      // Display name for the module
-	Core() bool        // Whether this is a core module (cannot be disabled)
+	ID() string                // Unique identifier for the module
+	Name() string              // Display name for the module
+	Core() bool                // Whether this is a core module (cannot be disabled)
 	Migrate(db *gorm.DB) error // Run database migrations
-	Init() error       // Initialize the module
+	Init() error               // Initialize the module
 }
 
 // RouteRegistrar is an optional interface for modules that need to register routes
@@ -25,15 +25,15 @@ type RouteRegistrar interface {
 
 // ModuleRegistry manages module registration and initialization
 type ModuleRegistry struct {
-	modules        map[string]Module
+	modules         map[string]Module
 	disabledModules map[string]bool
-	mu             sync.RWMutex
-	initialized    bool
+	mu              sync.RWMutex
+	initialized     bool
 }
 
 // Registry is the global module registry
 var Registry = &ModuleRegistry{
-	modules:        make(map[string]Module),
+	modules:         make(map[string]Module),
 	disabledModules: make(map[string]bool),
 }
 
@@ -77,7 +77,7 @@ func (r *ModuleRegistry) LoadAll(db *gorm.DB) error {
 		logger.Warn("Failed to load module config, using defaults: %v", err)
 		config = &ModuleConfig{}
 	}
-	
+
 	// Apply configuration - disable modules listed in config
 	for _, moduleID := range config.Modules.Disabled {
 		r.disabledModules[moduleID] = true
@@ -85,7 +85,7 @@ func (r *ModuleRegistry) LoadAll(db *gorm.DB) error {
 	}
 
 	logger.Info("🔄 Loading %d modules...", len(r.modules))
-	
+
 	for id, module := range r.modules {
 		// Skip disabled modules
 		if r.isDisabled(id) {
@@ -97,20 +97,20 @@ func (r *ModuleRegistry) LoadAll(db *gorm.DB) error {
 		}
 
 		logger.Info("📋 Initializing module: %s", module.Name())
-		
+
 		// Migrate module database schemas
 		if err := module.Migrate(db); err != nil {
 			return fmt.Errorf("failed to migrate %s: %w", module.Name(), err)
 		}
-		
+
 		// Initialize the module
 		if err := module.Init(); err != nil {
 			return fmt.Errorf("failed to initialize %s: %w", module.Name(), err)
 		}
-		
+
 		logger.Info("✅ Module loaded: %s", module.Name())
 	}
-	
+
 	r.initialized = true
 	return nil
 }
@@ -197,13 +197,13 @@ func (r *ModuleRegistry) ListCoreModules() []Module {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var coreModules []Module
-	
+
 	for _, module := range r.modules {
 		if module.Core() {
 			coreModules = append(coreModules, module)
 		}
 	}
-	
+
 	return coreModules
 }
 
@@ -216,7 +216,7 @@ func RegisterRoutes(router *gin.Engine) {
 func (r *ModuleRegistry) RegisterRoutes(router *gin.Engine) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	for _, module := range r.modules {
 		if routeRegistrar, ok := module.(RouteRegistrar); ok {
 			logger.Info("Registering routes for module: " + module.Name())

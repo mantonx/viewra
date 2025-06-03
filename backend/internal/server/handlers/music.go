@@ -27,9 +27,9 @@ func NewMusicHandler(eventBus events.EventBus) *MusicHandler {
 // GetMusicMetadata retrieves music metadata for a media file using new schema
 func (h *MusicHandler) GetMusicMetadata(c *gin.Context) {
 	idParam := c.Param("id")
-	
+
 	db := database.GetDB()
-	
+
 	// Find the media file
 	var mediaFile database.MediaFile
 	if err := db.Where("id = ?", idParam).First(&mediaFile).Error; err != nil {
@@ -38,7 +38,7 @@ func (h *MusicHandler) GetMusicMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Check if it's a music file and get associated track
 	if mediaFile.MediaType != database.MediaTypeTrack {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -46,7 +46,7 @@ func (h *MusicHandler) GetMusicMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the track with artist and album info
 	var track database.Track
 	if err := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
@@ -56,7 +56,7 @@ func (h *MusicHandler) GetMusicMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Return metadata in new format
 	c.JSON(http.StatusOK, gin.H{
 		"id":           track.ID,
@@ -132,7 +132,7 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get total count for all music libraries
 	var total int64
 	db.Model(&database.MediaFile{}).
@@ -146,7 +146,7 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 		var track database.Track
 		trackErr := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
 			Where("id = ?", mediaFile.MediaID).First(&track).Error
-		
+
 		fileData := map[string]interface{}{
 			"id":           mediaFile.ID,
 			"media_id":     mediaFile.MediaID,
@@ -170,7 +170,7 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 			"created_at":   mediaFile.CreatedAt,
 			"updated_at":   mediaFile.UpdatedAt,
 		}
-		
+
 		if trackErr == nil {
 			// Include track metadata
 			fileData["track"] = map[string]interface{}{
@@ -187,7 +187,7 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 			// File exists but no track metadata yet
 			fileData["track"] = nil
 		}
-		
+
 		musicFilesWithMetadata = append(musicFilesWithMetadata, fileData)
 	}
 
@@ -208,9 +208,9 @@ func (h *MusicHandler) GetMusicFiles(c *gin.Context) {
 			fmt.Sprintf("Retrieved %d music files", len(musicFilesWithMetadata)),
 		)
 		event.Data = map[string]interface{}{
-			"count":          len(musicFilesWithMetadata),
-			"total":          total,
-			"library_count":  len(musicLibraries),
+			"count":         len(musicFilesWithMetadata),
+			"total":         total,
+			"library_count": len(musicLibraries),
 		}
 		h.eventBus.PublishAsync(event)
 	}
@@ -227,15 +227,15 @@ func (h *MusicHandler) RecordPlaybackStarted(c *gin.Context) {
 		Artist  string `json:"artist,omitempty"`
 		Album   string `json:"album,omitempty"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
+			"error":   "Invalid request format",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Publish playback started event
 	if h.eventBus != nil {
 		playEvent := events.NewSystemEvent(
@@ -253,7 +253,7 @@ func (h *MusicHandler) RecordPlaybackStarted(c *gin.Context) {
 		}
 		h.eventBus.PublishAsync(playEvent)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Playback started recorded",
 	})
@@ -262,29 +262,29 @@ func (h *MusicHandler) RecordPlaybackStarted(c *gin.Context) {
 // RecordPlaybackFinished records when playback of a track ends
 func (h *MusicHandler) RecordPlaybackFinished(c *gin.Context) {
 	var req struct {
-		MediaID     uint    `json:"mediaId" binding:"required"`
-		UserID      uint    `json:"userId,omitempty"`
-		Title       string  `json:"title,omitempty"`
-		Artist      string  `json:"artist,omitempty"`
-		Duration    float64 `json:"duration,omitempty"`    // Total track duration in seconds
-		Listened    float64 `json:"listened,omitempty"`    // How much was actually listened to
-		Completed   bool    `json:"completed,omitempty"`   // Whether the track was played to completion
+		MediaID   uint    `json:"mediaId" binding:"required"`
+		UserID    uint    `json:"userId,omitempty"`
+		Title     string  `json:"title,omitempty"`
+		Artist    string  `json:"artist,omitempty"`
+		Duration  float64 `json:"duration,omitempty"`  // Total track duration in seconds
+		Listened  float64 `json:"listened,omitempty"`  // How much was actually listened to
+		Completed bool    `json:"completed,omitempty"` // Whether the track was played to completion
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
+			"error":   "Invalid request format",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Publish playback finished event
 	if h.eventBus != nil {
 		playEvent := events.NewSystemEvent(
 			events.EventInfo,
 			"Music Playback Finished",
-			fmt.Sprintf("Finished: %s by %s (%.1f%% played)", 
+			fmt.Sprintf("Finished: %s by %s (%.1f%% played)",
 				req.Title, req.Artist, (req.Listened/req.Duration)*100),
 		)
 		playEvent.Data = map[string]interface{}{
@@ -299,7 +299,7 @@ func (h *MusicHandler) RecordPlaybackFinished(c *gin.Context) {
 		}
 		h.eventBus.PublishAsync(playEvent)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Playback finished recorded",
 	})
@@ -308,44 +308,44 @@ func (h *MusicHandler) RecordPlaybackFinished(c *gin.Context) {
 // RecordPlaybackProgress records playback progress updates
 func (h *MusicHandler) RecordPlaybackProgress(c *gin.Context) {
 	var req struct {
-		MediaID     uint    `json:"mediaId" binding:"required"`
-		UserID      uint    `json:"userId,omitempty"`
-		Title       string  `json:"title,omitempty"`
-		Position    float64 `json:"position"`     // Current position in seconds
-		Duration    float64 `json:"duration"`     // Total duration in seconds
-		Percentage  float64 `json:"percentage"`   // Percentage played (0-100)
+		MediaID    uint    `json:"mediaId" binding:"required"`
+		UserID     uint    `json:"userId,omitempty"`
+		Title      string  `json:"title,omitempty"`
+		Position   float64 `json:"position"`   // Current position in seconds
+		Duration   float64 `json:"duration"`   // Total duration in seconds
+		Percentage float64 `json:"percentage"` // Percentage played (0-100)
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
+			"error":   "Invalid request format",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Only publish progress events at certain intervals to avoid spam
 	// (e.g., every 25%, or for significant milestones)
 	shouldPublish := false
 	milestone := ""
-	
+
 	switch {
 	case req.Percentage >= 25 && req.Percentage < 30:
 		shouldPublish = true
 		milestone = "25% played"
 	case req.Percentage >= 50 && req.Percentage < 55:
 		shouldPublish = true
-		milestone = "50% played"  
+		milestone = "50% played"
 	case req.Percentage >= 75 && req.Percentage < 80:
 		shouldPublish = true
 		milestone = "75% played"
 	}
-	
+
 	if shouldPublish && h.eventBus != nil {
 		progressEvent := events.NewSystemEvent(
 			events.EventInfo,
 			"Music Playback Progress",
-			fmt.Sprintf("%s: %s (%s)", req.Title, milestone, 
+			fmt.Sprintf("%s: %s (%s)", req.Title, milestone,
 				formatDuration(req.Position)+"/"+formatDuration(req.Duration)),
 		)
 		progressEvent.Data = map[string]interface{}{
@@ -360,7 +360,7 @@ func (h *MusicHandler) RecordPlaybackProgress(c *gin.Context) {
 		}
 		h.eventBus.PublishAsync(progressEvent)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Progress recorded",
 	})

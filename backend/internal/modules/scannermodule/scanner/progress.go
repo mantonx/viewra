@@ -9,34 +9,34 @@ import (
 type ScanProgressTracker struct {
 	*ProgressEstimator
 	mu sync.RWMutex
-	
+
 	// Scan-specific metrics
 	scanStartTime    time.Time
 	lastProgressTime time.Time
 	filesSkipped     int64
 	errorsCount      int64
-	
+
 	// Performance tracking
-	peakRate         float64
-	avgRate          float64
+	peakRate           float64
+	avgRate            float64
 	performanceSamples []performanceSample
 	maxPerfSamples     int
-	
+
 	// Progress callbacks
 	callbacks []ProgressCallback
-	
+
 	// Thresholds for notifications
-	progressThresholds []float64
+	progressThresholds   []float64
 	lastNotifiedProgress float64
 }
 
 // performanceSample tracks performance metrics over time
 type performanceSample struct {
-	timestamp    time.Time
-	filesPerSec  float64
-	bytesPerSec  float64
-	cpuPercent   float64
-	memoryMB     float64
+	timestamp   time.Time
+	filesPerSec float64
+	bytesPerSec float64
+	cpuPercent  float64
+	memoryMB    float64
 }
 
 // ProgressCallback defines the interface for progress notifications
@@ -77,7 +77,7 @@ func (spt *ScanProgressTracker) AddProgressCallback(callback ProgressCallback) {
 func (spt *ScanProgressTracker) RemoveProgressCallback(callback ProgressCallback) {
 	spt.mu.Lock()
 	defer spt.mu.Unlock()
-	
+
 	for i, cb := range spt.callbacks {
 		if cb == callback {
 			spt.callbacks = append(spt.callbacks[:i], spt.callbacks[i+1:]...)
@@ -90,24 +90,24 @@ func (spt *ScanProgressTracker) RemoveProgressCallback(callback ProgressCallback
 func (spt *ScanProgressTracker) UpdateProgress(processedFiles, processedBytes, skippedFiles, errorCount int64) {
 	spt.mu.Lock()
 	defer spt.mu.Unlock()
-	
+
 	// Update base progress estimator
 	spt.ProgressEstimator.Update(processedFiles, processedBytes)
-	
+
 	// Update scan-specific metrics
 	spt.filesSkipped = skippedFiles
 	spt.errorsCount = errorCount
 	spt.lastProgressTime = time.Now()
-	
+
 	// Get current estimates
 	progress, eta, rate := spt.ProgressEstimator.GetEstimate()
-	
+
 	// Update performance tracking
 	spt.updatePerformanceMetrics(rate)
-	
+
 	// Check for milestones
 	spt.checkMilestones(progress)
-	
+
 	// Notify callbacks
 	spt.notifyCallbacks(progress, eta, rate)
 }
@@ -115,29 +115,29 @@ func (spt *ScanProgressTracker) UpdateProgress(processedFiles, processedBytes, s
 // updatePerformanceMetrics tracks performance over time
 func (spt *ScanProgressTracker) updatePerformanceMetrics(currentRate float64) {
 	now := time.Now()
-	
+
 	// Update peak rate
 	if currentRate > spt.peakRate {
 		spt.peakRate = currentRate
 	}
-	
+
 	// Calculate average rate
 	elapsed := now.Sub(spt.scanStartTime).Seconds()
 	if elapsed > 0 {
 		spt.avgRate = float64(spt.ProgressEstimator.processedFiles) / elapsed
 	}
-	
+
 	// Add performance sample (with mock system metrics for now)
 	sample := performanceSample{
 		timestamp:   now,
 		filesPerSec: currentRate,
-		bytesPerSec: 0, // Would be calculated from bytes processed
-		cpuPercent:  50.0, // Mock value
+		bytesPerSec: 0,      // Would be calculated from bytes processed
+		cpuPercent:  50.0,   // Mock value
 		memoryMB:    1024.0, // Mock value
 	}
-	
+
 	spt.performanceSamples = append(spt.performanceSamples, sample)
-	
+
 	// Keep only recent samples
 	if len(spt.performanceSamples) > spt.maxPerfSamples {
 		startIndex := len(spt.performanceSamples) - spt.maxPerfSamples
@@ -172,10 +172,10 @@ func (spt *ScanProgressTracker) notifyCallbacks(progress float64, eta time.Time,
 func (spt *ScanProgressTracker) GetDetailedStats() map[string]interface{} {
 	spt.mu.RLock()
 	defer spt.mu.RUnlock()
-	
+
 	// Get base stats
 	stats := spt.ProgressEstimator.GetStats()
-	
+
 	// Add scan-specific stats
 	elapsed := time.Since(spt.scanStartTime)
 	stats["scan_elapsed_time"] = elapsed.String()
@@ -183,14 +183,14 @@ func (spt *ScanProgressTracker) GetDetailedStats() map[string]interface{} {
 	stats["errors_count"] = spt.errorsCount
 	stats["peak_rate"] = spt.peakRate
 	stats["average_rate"] = spt.avgRate
-	
+
 	// Calculate performance metrics
 	if len(spt.performanceSamples) > 0 {
 		latest := spt.performanceSamples[len(spt.performanceSamples)-1]
 		stats["current_cpu_percent"] = latest.cpuPercent
 		stats["current_memory_mb"] = latest.memoryMB
 	}
-	
+
 	// Calculate efficiency metrics
 	totalProcessed := spt.ProgressEstimator.processedFiles + spt.filesSkipped
 	if totalProcessed > 0 {
@@ -198,7 +198,7 @@ func (spt *ScanProgressTracker) GetDetailedStats() map[string]interface{} {
 		stats["skip_rate"] = float64(spt.filesSkipped) / float64(totalProcessed) * 100
 		stats["error_rate"] = float64(spt.errorsCount) / float64(totalProcessed) * 100
 	}
-	
+
 	return stats
 }
 
@@ -206,7 +206,7 @@ func (spt *ScanProgressTracker) GetDetailedStats() map[string]interface{} {
 func (spt *ScanProgressTracker) GetPerformanceHistory() []performanceSample {
 	spt.mu.RLock()
 	defer spt.mu.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	result := make([]performanceSample, len(spt.performanceSamples))
 	copy(result, spt.performanceSamples)
@@ -217,22 +217,22 @@ func (spt *ScanProgressTracker) GetPerformanceHistory() []performanceSample {
 func (spt *ScanProgressTracker) GetCurrentTrend() (trend string, confidence float64) {
 	spt.mu.RLock()
 	defer spt.mu.RUnlock()
-	
+
 	if len(spt.performanceSamples) < 3 {
 		return "unknown", 0.0
 	}
-	
+
 	// Analyze recent samples to determine trend
 	recent := spt.performanceSamples[len(spt.performanceSamples)-3:]
-	
+
 	// Calculate rate changes
 	rate1 := recent[0].filesPerSec
 	rate2 := recent[1].filesPerSec
 	rate3 := recent[2].filesPerSec
-	
+
 	change1 := rate2 - rate1
 	change2 := rate3 - rate2
-	
+
 	// Determine trend
 	if change1 > 0 && change2 > 0 {
 		trend = "improving"
@@ -247,7 +247,7 @@ func (spt *ScanProgressTracker) GetCurrentTrend() (trend string, confidence floa
 		trend = "fluctuating"
 		confidence = 0.6
 	}
-	
+
 	return trend, confidence
 }
 
@@ -255,15 +255,15 @@ func (spt *ScanProgressTracker) GetCurrentTrend() (trend string, confidence floa
 func (spt *ScanProgressTracker) EstimateCompletion() map[string]interface{} {
 	spt.mu.RLock()
 	defer spt.mu.RUnlock()
-	
+
 	progress, eta, currentRate := spt.ProgressEstimator.GetEstimate()
-	
+
 	estimates := map[string]interface{}{
 		"current_progress": progress,
 		"eta_current_rate": eta,
 		"current_rate":     currentRate,
 	}
-	
+
 	// Estimate based on average rate
 	if spt.avgRate > 0 && spt.ProgressEstimator.totalFiles > 0 {
 		remaining := spt.ProgressEstimator.totalFiles - spt.ProgressEstimator.processedFiles
@@ -272,7 +272,7 @@ func (spt *ScanProgressTracker) EstimateCompletion() map[string]interface{} {
 			estimates["eta_average_rate"] = etaAvg
 		}
 	}
-	
+
 	// Estimate based on peak rate (optimistic)
 	if spt.peakRate > 0 && spt.ProgressEstimator.totalFiles > 0 {
 		remaining := spt.ProgressEstimator.totalFiles - spt.ProgressEstimator.processedFiles
@@ -281,7 +281,7 @@ func (spt *ScanProgressTracker) EstimateCompletion() map[string]interface{} {
 			estimates["eta_peak_rate"] = etaPeak
 		}
 	}
-	
+
 	// Add confidence level
 	if len(spt.performanceSamples) >= 5 {
 		estimates["confidence"] = "high"
@@ -290,7 +290,7 @@ func (spt *ScanProgressTracker) EstimateCompletion() map[string]interface{} {
 	} else {
 		estimates["confidence"] = "low"
 	}
-	
+
 	return estimates
 }
 
@@ -298,7 +298,7 @@ func (spt *ScanProgressTracker) EstimateCompletion() map[string]interface{} {
 func (spt *ScanProgressTracker) Reset() {
 	spt.mu.Lock()
 	defer spt.mu.Unlock()
-	
+
 	spt.ProgressEstimator = NewProgressEstimator()
 	spt.scanStartTime = time.Now()
 	spt.lastProgressTime = time.Now()
@@ -308,4 +308,4 @@ func (spt *ScanProgressTracker) Reset() {
 	spt.avgRate = 0
 	spt.performanceSamples = spt.performanceSamples[:0]
 	spt.lastNotifiedProgress = 0
-} 
+}

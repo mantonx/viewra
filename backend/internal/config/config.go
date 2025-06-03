@@ -20,38 +20,38 @@ import (
 type Config struct {
 	// Server configuration
 	Server ServerConfig `yaml:"server" json:"server"`
-	
+
 	// Database configuration
 	Database DatabaseFullConfig `yaml:"database" json:"database"`
-	
+
 	// Asset management configuration
 	Assets AssetConfig `yaml:"assets" json:"assets"`
-	
+
 	// Scanner configuration
 	Scanner ScannerConfig `yaml:"scanner" json:"scanner"`
-	
+
 	// Plugin configuration
 	Plugins PluginConfig `yaml:"plugins" json:"plugins"`
-	
+
 	// Logging configuration
 	Logging LoggingConfig `yaml:"logging" json:"logging"`
-	
+
 	// Security configuration
 	Security SecurityConfig `yaml:"security" json:"security"`
-	
+
 	// Performance configuration
 	Performance PerformanceConfig `yaml:"performance" json:"performance"`
 }
 
 // ServerConfig holds server-related configuration
 type ServerConfig struct {
-	Host            string        `yaml:"host" json:"host" env:"VIEWRA_HOST" default:"0.0.0.0"`
-	Port            int           `yaml:"port" json:"port" env:"VIEWRA_PORT" default:"8080"`
-	ReadTimeout     time.Duration `yaml:"read_timeout" json:"read_timeout" env:"VIEWRA_READ_TIMEOUT" default:"30s"`
-	WriteTimeout    time.Duration `yaml:"write_timeout" json:"write_timeout" env:"VIEWRA_WRITE_TIMEOUT" default:"30s"`
-	MaxHeaderBytes  int           `yaml:"max_header_bytes" json:"max_header_bytes" env:"VIEWRA_MAX_HEADER_BYTES" default:"1048576"`
-	EnableCORS      bool          `yaml:"enable_cors" json:"enable_cors" env:"VIEWRA_ENABLE_CORS" default:"true"`
-	TrustedProxies  []string      `yaml:"trusted_proxies" json:"trusted_proxies" env:"VIEWRA_TRUSTED_PROXIES"`
+	Host           string        `yaml:"host" json:"host" env:"VIEWRA_HOST" default:"0.0.0.0"`
+	Port           int           `yaml:"port" json:"port" env:"VIEWRA_PORT" default:"8080"`
+	ReadTimeout    time.Duration `yaml:"read_timeout" json:"read_timeout" env:"VIEWRA_READ_TIMEOUT" default:"30s"`
+	WriteTimeout   time.Duration `yaml:"write_timeout" json:"write_timeout" env:"VIEWRA_WRITE_TIMEOUT" default:"30s"`
+	MaxHeaderBytes int           `yaml:"max_header_bytes" json:"max_header_bytes" env:"VIEWRA_MAX_HEADER_BYTES" default:"1048576"`
+	EnableCORS     bool          `yaml:"enable_cors" json:"enable_cors" env:"VIEWRA_ENABLE_CORS" default:"true"`
+	TrustedProxies []string      `yaml:"trusted_proxies" json:"trusted_proxies" env:"VIEWRA_TRUSTED_PROXIES"`
 }
 
 // DatabaseFullConfig extends the basic database config with more options
@@ -75,29 +75,29 @@ type DatabaseFullConfig struct {
 
 // AssetConfig holds asset management configuration
 type AssetConfig struct {
-	DataDir           string        `yaml:"data_dir" json:"data_dir" env:"VIEWRA_ASSETS_DIR"`
-	MaxFileSize       int64         `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_MAX_ASSET_SIZE" default:"52428800"`
-	DefaultQuality    int           `yaml:"default_quality" json:"default_quality" env:"VIEWRA_ASSET_QUALITY" default:"95"`
-	EnableWebP        bool          `yaml:"enable_webp" json:"enable_webp" env:"VIEWRA_ENABLE_WEBP" default:"true"`
-	EnableThumbnails  bool          `yaml:"enable_thumbnails" json:"enable_thumbnails" env:"VIEWRA_ENABLE_THUMBNAILS" default:"true"`
-	ThumbnailSizes    []int         `yaml:"thumbnail_sizes" json:"thumbnail_sizes" env:"VIEWRA_THUMBNAIL_SIZES"`
-	CacheDuration     time.Duration `yaml:"cache_duration" json:"cache_duration" env:"VIEWRA_ASSET_CACHE_DURATION" default:"24h"`
-	CleanupInterval   time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_ASSET_CLEANUP_INTERVAL" default:"6h"`
+	DataDir          string        `yaml:"data_dir" json:"data_dir" env:"VIEWRA_ASSETS_DIR"`
+	MaxFileSize      int64         `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_MAX_ASSET_SIZE" default:"52428800"`
+	DefaultQuality   int           `yaml:"default_quality" json:"default_quality" env:"VIEWRA_ASSET_QUALITY" default:"95"`
+	EnableWebP       bool          `yaml:"enable_webp" json:"enable_webp" env:"VIEWRA_ENABLE_WEBP" default:"true"`
+	EnableThumbnails bool          `yaml:"enable_thumbnails" json:"enable_thumbnails" env:"VIEWRA_ENABLE_THUMBNAILS" default:"true"`
+	ThumbnailSizes   []int         `yaml:"thumbnail_sizes" json:"thumbnail_sizes" env:"VIEWRA_THUMBNAIL_SIZES"`
+	CacheDuration    time.Duration `yaml:"cache_duration" json:"cache_duration" env:"VIEWRA_ASSET_CACHE_DURATION" default:"24h"`
+	CleanupInterval  time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_ASSET_CLEANUP_INTERVAL" default:"6h"`
 }
 
 // ScannerConfig holds scanner configuration
 type ScannerConfig struct {
-	ParallelScanning    bool          `yaml:"parallel_scanning" json:"parallel_scanning" env:"VIEWRA_PARALLEL_SCANNING" default:"true"`
-	WorkerCount         int           `yaml:"worker_count" json:"worker_count" env:"VIEWRA_WORKER_COUNT" default:"0"`
-	BatchSize           int           `yaml:"batch_size" json:"batch_size" env:"VIEWRA_BATCH_SIZE" default:"50"`
-	ChannelBufferSize   int           `yaml:"channel_buffer_size" json:"channel_buffer_size" env:"VIEWRA_CHANNEL_BUFFER_SIZE" default:"100"`
-	SmartHashEnabled    bool          `yaml:"smart_hash_enabled" json:"smart_hash_enabled" env:"VIEWRA_SMART_HASH" default:"true"`
-	AsyncMetadata       bool          `yaml:"async_metadata" json:"async_metadata" env:"VIEWRA_ASYNC_METADATA" default:"true"`
-	MetadataWorkers     int           `yaml:"metadata_workers" json:"metadata_workers" env:"VIEWRA_METADATA_WORKERS" default:"2"`
-	ScanInterval        time.Duration `yaml:"scan_interval" json:"scan_interval" env:"VIEWRA_SCAN_INTERVAL" default:"1h"`
-	AutoScanEnabled     bool          `yaml:"auto_scan_enabled" json:"auto_scan_enabled" env:"VIEWRA_AUTO_SCAN" default:"false"`
-	IgnorePatterns      []string      `yaml:"ignore_patterns" json:"ignore_patterns" env:"VIEWRA_IGNORE_PATTERNS"`
-	MaxFileSize         int64         `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_MAX_SCAN_FILE_SIZE" default:"10737418240"`
+	ParallelScanning  bool          `yaml:"parallel_scanning" json:"parallel_scanning" env:"VIEWRA_PARALLEL_SCANNING" default:"true"`
+	WorkerCount       int           `yaml:"worker_count" json:"worker_count" env:"VIEWRA_WORKER_COUNT" default:"0"`
+	BatchSize         int           `yaml:"batch_size" json:"batch_size" env:"VIEWRA_BATCH_SIZE" default:"50"`
+	ChannelBufferSize int           `yaml:"channel_buffer_size" json:"channel_buffer_size" env:"VIEWRA_CHANNEL_BUFFER_SIZE" default:"100"`
+	SmartHashEnabled  bool          `yaml:"smart_hash_enabled" json:"smart_hash_enabled" env:"VIEWRA_SMART_HASH" default:"true"`
+	AsyncMetadata     bool          `yaml:"async_metadata" json:"async_metadata" env:"VIEWRA_ASYNC_METADATA" default:"true"`
+	MetadataWorkers   int           `yaml:"metadata_workers" json:"metadata_workers" env:"VIEWRA_METADATA_WORKERS" default:"2"`
+	ScanInterval      time.Duration `yaml:"scan_interval" json:"scan_interval" env:"VIEWRA_SCAN_INTERVAL" default:"1h"`
+	AutoScanEnabled   bool          `yaml:"auto_scan_enabled" json:"auto_scan_enabled" env:"VIEWRA_AUTO_SCAN" default:"false"`
+	IgnorePatterns    []string      `yaml:"ignore_patterns" json:"ignore_patterns" env:"VIEWRA_IGNORE_PATTERNS"`
+	MaxFileSize       int64         `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_MAX_SCAN_FILE_SIZE" default:"10737418240"`
 }
 
 // PluginConfig holds plugin system configuration
@@ -114,39 +114,39 @@ type PluginConfig struct {
 
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
-	Level            string        `yaml:"level" json:"level" env:"VIEWRA_LOG_LEVEL" default:"info"`
-	Format           string        `yaml:"format" json:"format" env:"VIEWRA_LOG_FORMAT" default:"json"`
-	Output           string        `yaml:"output" json:"output" env:"VIEWRA_LOG_OUTPUT" default:"stdout"`
-	FilePath         string        `yaml:"file_path" json:"file_path" env:"VIEWRA_LOG_FILE"`
-	MaxFileSize      int           `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_LOG_MAX_SIZE" default:"100"`
-	MaxBackups       int           `yaml:"max_backups" json:"max_backups" env:"VIEWRA_LOG_MAX_BACKUPS" default:"3"`
-	MaxAge           int           `yaml:"max_age" json:"max_age" env:"VIEWRA_LOG_MAX_AGE" default:"30"`
-	EnableColors     bool          `yaml:"enable_colors" json:"enable_colors" env:"VIEWRA_LOG_COLORS" default:"true"`
-	EnableStackTrace bool          `yaml:"enable_stack_trace" json:"enable_stack_trace" env:"VIEWRA_LOG_STACK_TRACE" default:"false"`
+	Level            string `yaml:"level" json:"level" env:"VIEWRA_LOG_LEVEL" default:"info"`
+	Format           string `yaml:"format" json:"format" env:"VIEWRA_LOG_FORMAT" default:"json"`
+	Output           string `yaml:"output" json:"output" env:"VIEWRA_LOG_OUTPUT" default:"stdout"`
+	FilePath         string `yaml:"file_path" json:"file_path" env:"VIEWRA_LOG_FILE"`
+	MaxFileSize      int    `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_LOG_MAX_SIZE" default:"100"`
+	MaxBackups       int    `yaml:"max_backups" json:"max_backups" env:"VIEWRA_LOG_MAX_BACKUPS" default:"3"`
+	MaxAge           int    `yaml:"max_age" json:"max_age" env:"VIEWRA_LOG_MAX_AGE" default:"30"`
+	EnableColors     bool   `yaml:"enable_colors" json:"enable_colors" env:"VIEWRA_LOG_COLORS" default:"true"`
+	EnableStackTrace bool   `yaml:"enable_stack_trace" json:"enable_stack_trace" env:"VIEWRA_LOG_STACK_TRACE" default:"false"`
 }
 
 // SecurityConfig holds security-related configuration
 type SecurityConfig struct {
 	EnableAuthentication bool          `yaml:"enable_authentication" json:"enable_authentication" env:"VIEWRA_ENABLE_AUTH" default:"false"`
-	JWTSecret           string        `yaml:"jwt_secret" json:"-" env:"VIEWRA_JWT_SECRET"`
-	JWTExpiration       time.Duration `yaml:"jwt_expiration" json:"jwt_expiration" env:"VIEWRA_JWT_EXPIRATION" default:"24h"`
-	SessionTimeout      time.Duration `yaml:"session_timeout" json:"session_timeout" env:"VIEWRA_SESSION_TIMEOUT" default:"30m"`
-	RateLimitEnabled    bool          `yaml:"rate_limit_enabled" json:"rate_limit_enabled" env:"VIEWRA_RATE_LIMIT" default:"true"`
-	RateLimitRPM        int           `yaml:"rate_limit_rpm" json:"rate_limit_rpm" env:"VIEWRA_RATE_LIMIT_RPM" default:"1000"`
-	AllowedOrigins      []string      `yaml:"allowed_origins" json:"allowed_origins" env:"VIEWRA_ALLOWED_ORIGINS"`
-	SecureHeaders       bool          `yaml:"secure_headers" json:"secure_headers" env:"VIEWRA_SECURE_HEADERS" default:"true"`
+	JWTSecret            string        `yaml:"jwt_secret" json:"-" env:"VIEWRA_JWT_SECRET"`
+	JWTExpiration        time.Duration `yaml:"jwt_expiration" json:"jwt_expiration" env:"VIEWRA_JWT_EXPIRATION" default:"24h"`
+	SessionTimeout       time.Duration `yaml:"session_timeout" json:"session_timeout" env:"VIEWRA_SESSION_TIMEOUT" default:"30m"`
+	RateLimitEnabled     bool          `yaml:"rate_limit_enabled" json:"rate_limit_enabled" env:"VIEWRA_RATE_LIMIT" default:"true"`
+	RateLimitRPM         int           `yaml:"rate_limit_rpm" json:"rate_limit_rpm" env:"VIEWRA_RATE_LIMIT_RPM" default:"1000"`
+	AllowedOrigins       []string      `yaml:"allowed_origins" json:"allowed_origins" env:"VIEWRA_ALLOWED_ORIGINS"`
+	SecureHeaders        bool          `yaml:"secure_headers" json:"secure_headers" env:"VIEWRA_SECURE_HEADERS" default:"true"`
 }
 
 // PerformanceConfig holds performance-related configuration
 type PerformanceConfig struct {
-	EnablePprof          bool          `yaml:"enable_pprof" json:"enable_pprof" env:"VIEWRA_ENABLE_PPROF" default:"false"`
-	EnableMetrics        bool          `yaml:"enable_metrics" json:"enable_metrics" env:"VIEWRA_ENABLE_METRICS" default:"true"`
-	MaxConcurrentScans   int           `yaml:"max_concurrent_scans" json:"max_concurrent_scans" env:"VIEWRA_MAX_CONCURRENT_SCANS" default:"2"`
-	GCPercent            int           `yaml:"gc_percent" json:"gc_percent" env:"GOGC" default:"100"`
-	MaxProcs             int           `yaml:"max_procs" json:"max_procs" env:"GOMAXPROCS" default:"0"`
-	MemoryThreshold      float64       `yaml:"memory_threshold" json:"memory_threshold" env:"VIEWRA_MEMORY_THRESHOLD" default:"85.0"`
-	CPUThreshold         float64       `yaml:"cpu_threshold" json:"cpu_threshold" env:"VIEWRA_CPU_THRESHOLD" default:"80.0"`
-	EnableAdaptiveThrottling bool      `yaml:"enable_adaptive_throttling" json:"enable_adaptive_throttling" env:"VIEWRA_ADAPTIVE_THROTTLING" default:"true"`
+	EnablePprof              bool    `yaml:"enable_pprof" json:"enable_pprof" env:"VIEWRA_ENABLE_PPROF" default:"false"`
+	EnableMetrics            bool    `yaml:"enable_metrics" json:"enable_metrics" env:"VIEWRA_ENABLE_METRICS" default:"true"`
+	MaxConcurrentScans       int     `yaml:"max_concurrent_scans" json:"max_concurrent_scans" env:"VIEWRA_MAX_CONCURRENT_SCANS" default:"2"`
+	GCPercent                int     `yaml:"gc_percent" json:"gc_percent" env:"GOGC" default:"100"`
+	MaxProcs                 int     `yaml:"max_procs" json:"max_procs" env:"GOMAXPROCS" default:"0"`
+	MemoryThreshold          float64 `yaml:"memory_threshold" json:"memory_threshold" env:"VIEWRA_MEMORY_THRESHOLD" default:"85.0"`
+	CPUThreshold             float64 `yaml:"cpu_threshold" json:"cpu_threshold" env:"VIEWRA_CPU_THRESHOLD" default:"80.0"`
+	EnableAdaptiveThrottling bool    `yaml:"enable_adaptive_throttling" json:"enable_adaptive_throttling" env:"VIEWRA_ADAPTIVE_THROTTLING" default:"true"`
 }
 
 // ConfigManager manages application configuration with hot-reload support
@@ -204,13 +204,13 @@ func DefaultConfig() *Config {
 			LogQueries:      false,
 		},
 		Assets: AssetConfig{
-			MaxFileSize:       50 * 1024 * 1024, // 50MB
-			DefaultQuality:    95,
-			EnableWebP:        true,
-			EnableThumbnails:  true,
-			ThumbnailSizes:    []int{150, 300, 600},
-			CacheDuration:     24 * time.Hour,
-			CleanupInterval:   6 * time.Hour,
+			MaxFileSize:      50 * 1024 * 1024, // 50MB
+			DefaultQuality:   95,
+			EnableWebP:       true,
+			EnableThumbnails: true,
+			ThumbnailSizes:   []int{150, 300, 600},
+			CacheDuration:    24 * time.Hour,
+			CleanupInterval:  6 * time.Hour,
 		},
 		Scanner: ScannerConfig{
 			ParallelScanning:  true,
@@ -247,22 +247,22 @@ func DefaultConfig() *Config {
 		},
 		Security: SecurityConfig{
 			EnableAuthentication: false,
-			JWTExpiration:       24 * time.Hour,
-			SessionTimeout:      30 * time.Minute,
-			RateLimitEnabled:    true,
-			RateLimitRPM:        1000,
-			AllowedOrigins:      []string{"*"},
-			SecureHeaders:       true,
+			JWTExpiration:        24 * time.Hour,
+			SessionTimeout:       30 * time.Minute,
+			RateLimitEnabled:     true,
+			RateLimitRPM:         1000,
+			AllowedOrigins:       []string{"*"},
+			SecureHeaders:        true,
 		},
 		Performance: PerformanceConfig{
-			EnablePprof:               false,
-			EnableMetrics:             true,
-			MaxConcurrentScans:        2,
-			GCPercent:                 100,
-			MaxProcs:                  0, // Auto-detect
-			MemoryThreshold:           85.0,
-			CPUThreshold:              80.0,
-			EnableAdaptiveThrottling:  true,
+			EnablePprof:              false,
+			EnableMetrics:            true,
+			MaxConcurrentScans:       2,
+			GCPercent:                100,
+			MaxProcs:                 0, // Auto-detect
+			MemoryThreshold:          85.0,
+			CPUThreshold:             80.0,
+			EnableAdaptiveThrottling: true,
 		},
 	}
 }
@@ -314,7 +314,7 @@ func (cm *ConfigManager) LoadConfig(configPath string) error {
 func (cm *ConfigManager) GetConfig() *Config {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	
+
 	// Return a copy to prevent external modifications
 	configCopy := *cm.config
 	return &configCopy
@@ -573,4 +573,4 @@ func AddWatcher(watcher ConfigWatcher) {
 // Save saves the current configuration
 func Save() error {
 	return GetConfigManager().SaveConfig()
-} 
+}

@@ -319,12 +319,12 @@ func (m *Module) getPreferredAssetData(c *gin.Context) {
 	// Set appropriate headers for image serving
 	c.Header("Content-Type", format)
 	c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
-	
+
 	// Add quality info to headers if quality was adjusted
 	if quality > 0 {
 		c.Header("X-Quality", qualityStr)
 	}
-	
+
 	// Serve the image data
 	c.Data(200, format, data)
 }
@@ -407,12 +407,12 @@ func (m *Module) getAssetData(c *gin.Context) {
 
 	c.Header("Content-Type", format)
 	c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
-	
+
 	// Add quality info to headers if quality was adjusted
 	if quality > 0 {
 		c.Header("X-Quality", qualityStr)
 	}
-	
+
 	c.Data(200, format, data)
 }
 
@@ -535,4 +535,4 @@ func RemoveMediaAssetsByEntity(entityType EntityType, entityID uuid.UUID) error 
 		return fmt.Errorf("asset manager not available")
 	}
 	return manager.RemoveAssetsByEntity(entityType, entityID)
-} 
+}

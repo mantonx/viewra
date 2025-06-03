@@ -25,7 +25,7 @@ func (m *Module) getScanProgress(c *gin.Context) {
 		c.JSON(http.StatusOK, detailedStats)
 		return
 	}
-	
+
 	// If no detailed stats available, fall back to basic progress
 	progress, eta, filesPerSec, err := m.scannerManager.GetScanProgress(uint32(jobID))
 	if err != nil {
@@ -37,7 +37,7 @@ func (m *Module) getScanProgress(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		// Return database progress for inactive jobs
 		c.JSON(http.StatusOK, gin.H{
 			"progress":        scanJob.Progress,
@@ -48,7 +48,7 @@ func (m *Module) getScanProgress(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Return basic real-time progress for active jobs
 	c.JSON(http.StatusOK, gin.H{
 		"progress":      progress,

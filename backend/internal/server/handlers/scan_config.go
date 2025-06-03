@@ -11,17 +11,17 @@ import (
 // ScanConfigResponse represents the scanning configuration response
 type ScanConfigResponse struct {
 	ParallelScanningEnabled bool `json:"parallel_scanning_enabled"`
-	WorkerCount            int  `json:"worker_count"`
-	BatchSize              int  `json:"batch_size"`
-	ChannelBufferSize      int  `json:"channel_buffer_size"`
-	SmartHashEnabled       bool `json:"smart_hash_enabled"`
-	AsyncMetadataEnabled   bool `json:"async_metadata_enabled"`
-	MetadataWorkerCount    int  `json:"metadata_worker_count"`
+	WorkerCount             int  `json:"worker_count"`
+	BatchSize               int  `json:"batch_size"`
+	ChannelBufferSize       int  `json:"channel_buffer_size"`
+	SmartHashEnabled        bool `json:"smart_hash_enabled"`
+	AsyncMetadataEnabled    bool `json:"async_metadata_enabled"`
+	MetadataWorkerCount     int  `json:"metadata_worker_count"`
 }
 
 // ScanConfigRequest represents the scanning configuration request
 type ScanConfigRequest struct {
-	Profile             string `json:"profile,omitempty"`              // "default", "conservative", "aggressive"
+	Profile             string `json:"profile,omitempty"` // "default", "conservative", "aggressive"
 	ParallelScanning    *bool  `json:"parallel_scanning,omitempty"`
 	WorkerCount         *int   `json:"worker_count,omitempty"`
 	BatchSize           *int   `json:"batch_size,omitempty"`
@@ -35,7 +35,7 @@ func GetScanConfig(c *gin.Context) {
 	_, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -46,12 +46,12 @@ func GetScanConfig(c *gin.Context) {
 
 	response := ScanConfigResponse{
 		ParallelScanningEnabled: config.ParallelScanningEnabled,
-		WorkerCount:            config.WorkerCount,
-		BatchSize:              config.BatchSize,
-		ChannelBufferSize:      config.ChannelBufferSize,
-		SmartHashEnabled:       config.SmartHashEnabled,
-		AsyncMetadataEnabled:   config.AsyncMetadataEnabled,
-		MetadataWorkerCount:    config.MetadataWorkerCount,
+		WorkerCount:             config.WorkerCount,
+		BatchSize:               config.BatchSize,
+		ChannelBufferSize:       config.ChannelBufferSize,
+		SmartHashEnabled:        config.SmartHashEnabled,
+		AsyncMetadataEnabled:    config.AsyncMetadataEnabled,
+		MetadataWorkerCount:     config.MetadataWorkerCount,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -64,7 +64,7 @@ func UpdateScanConfig(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -115,12 +115,12 @@ func UpdateScanConfig(c *gin.Context) {
 
 	response := ScanConfigResponse{
 		ParallelScanningEnabled: config.ParallelScanningEnabled,
-		WorkerCount:            config.WorkerCount,
-		BatchSize:              config.BatchSize,
-		ChannelBufferSize:      config.ChannelBufferSize,
-		SmartHashEnabled:       config.SmartHashEnabled,
-		AsyncMetadataEnabled:   config.AsyncMetadataEnabled,
-		MetadataWorkerCount:    config.MetadataWorkerCount,
+		WorkerCount:             config.WorkerCount,
+		BatchSize:               config.BatchSize,
+		ChannelBufferSize:       config.ChannelBufferSize,
+		SmartHashEnabled:        config.SmartHashEnabled,
+		AsyncMetadataEnabled:    config.AsyncMetadataEnabled,
+		MetadataWorkerCount:     config.MetadataWorkerCount,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -134,7 +134,7 @@ func GetScanPerformanceStats(c *gin.Context) {
 	_, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -142,21 +142,21 @@ func GetScanPerformanceStats(c *gin.Context) {
 
 	// Get recent scan jobs with timing information
 	var scanJobs []struct {
-		ID              uint   `json:"id"`
-		LibraryID       uint   `json:"library_id"`
-		Status          string `json:"status"`
-		FilesFound      int    `json:"files_found"`
-		FilesProcessed  int    `json:"files_processed"`
-		BytesProcessed  int64  `json:"bytes_processed"`
-		StartedAt       string `json:"started_at,omitempty"`
-		CompletedAt     string `json:"completed_at,omitempty"`
-		DurationSeconds int    `json:"duration_seconds,omitempty"`
+		ID              uint    `json:"id"`
+		LibraryID       uint    `json:"library_id"`
+		Status          string  `json:"status"`
+		FilesFound      int     `json:"files_found"`
+		FilesProcessed  int     `json:"files_processed"`
+		BytesProcessed  int64   `json:"bytes_processed"`
+		StartedAt       string  `json:"started_at,omitempty"`
+		CompletedAt     string  `json:"completed_at,omitempty"`
+		DurationSeconds int     `json:"duration_seconds,omitempty"`
 		FilesPerSecond  float64 `json:"files_per_second,omitempty"`
 		MBPerSecond     float64 `json:"mb_per_second,omitempty"`
 	}
 
 	db := database.GetDB()
-	
+
 	// Query recent completed scan jobs
 	rows, err := db.Raw(`
 		SELECT 
@@ -210,24 +210,24 @@ func GetScanPerformanceStats(c *gin.Context) {
 		}
 
 		if err := rows.Scan(
-			&job.ID, &job.LibraryID, &job.Status, &job.FilesFound, 
-			&job.FilesProcessed, &job.BytesProcessed, &job.StartedAt, 
-			&job.CompletedAt, &job.DurationSeconds, &job.FilesPerSecond, 
+			&job.ID, &job.LibraryID, &job.Status, &job.FilesFound,
+			&job.FilesProcessed, &job.BytesProcessed, &job.StartedAt,
+			&job.CompletedAt, &job.DurationSeconds, &job.FilesPerSecond,
 			&job.MBPerSecond,
 		); err != nil {
 			continue
 		}
 
 		scanJobs = append(scanJobs, struct {
-			ID              uint   `json:"id"`
-			LibraryID       uint   `json:"library_id"`
-			Status          string `json:"status"`
-			FilesFound      int    `json:"files_found"`
-			FilesProcessed  int    `json:"files_processed"`
-			BytesProcessed  int64  `json:"bytes_processed"`
-			StartedAt       string `json:"started_at,omitempty"`
-			CompletedAt     string `json:"completed_at,omitempty"`
-			DurationSeconds int    `json:"duration_seconds,omitempty"`
+			ID              uint    `json:"id"`
+			LibraryID       uint    `json:"library_id"`
+			Status          string  `json:"status"`
+			FilesFound      int     `json:"files_found"`
+			FilesProcessed  int     `json:"files_processed"`
+			BytesProcessed  int64   `json:"bytes_processed"`
+			StartedAt       string  `json:"started_at,omitempty"`
+			CompletedAt     string  `json:"completed_at,omitempty"`
+			DurationSeconds int     `json:"duration_seconds,omitempty"`
 			FilesPerSecond  float64 `json:"files_per_second,omitempty"`
 			MBPerSecond     float64 `json:"mb_per_second,omitempty"`
 		}{

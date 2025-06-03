@@ -13,12 +13,12 @@ func GetAllLibraryStats(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Get all libraries
 	var libraries []database.MediaLibrary
 	db := database.GetDB()
@@ -29,43 +29,43 @@ func GetAllLibraryStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get stats for each library
-	libraryStats := make(map[uint32]map[string]interface{}) 
+	libraryStats := make(map[uint32]map[string]interface{})
 	for _, lib := range libraries {
 		stats, err := scannerManager.GetLibraryStats(uint32(lib.ID))
 		if err != nil {
 			// For libraries where GetLibraryStats fails, get basic counts directly from MediaFile table
 			var totalFiles int64
 			var totalSize int64
-			
+
 			if err := db.Model(&database.MediaFile{}).Where("library_id = ?", lib.ID).Count(&totalFiles).Error; err == nil {
 				// Successfully got file count
 				db.Model(&database.MediaFile{}).Where("library_id = ?", lib.ID).Select("COALESCE(SUM(size), 0)").Scan(&totalSize)
-				
+
 				libraryStats[lib.ID] = map[string]interface{}{
-					"total_files":      totalFiles,
-					"total_size":       totalSize,
-					"extension_stats":  map[string]interface{}{},
+					"total_files":     totalFiles,
+					"total_size":      totalSize,
+					"extension_stats": map[string]interface{}{},
 				}
 			} else {
 				// Complete failure - provide minimal structure
 				libraryStats[lib.ID] = map[string]interface{}{
-					"total_files":      0,
-					"total_size":       0,
-					"extension_stats":  map[string]interface{}{},
-					"stats_error":      "Failed to retrieve library stats",
+					"total_files":     0,
+					"total_size":      0,
+					"extension_stats": map[string]interface{}{},
+					"stats_error":     "Failed to retrieve library stats",
 				}
 			}
-			continue 
+			continue
 		}
 		libraryStats[lib.ID] = map[string]interface{}{
-			"total_files":      stats.TotalFiles,
-			"total_size":       stats.TotalSize,
-			"extension_stats":  stats.ExtensionStats,
+			"total_files":     stats.TotalFiles,
+			"total_size":      stats.TotalSize,
+			"extension_stats": stats.ExtensionStats,
 		}
 	}
-	
+
 	// Enhance with active scans and their details
 	scanJobs, err := scannerManager.GetAllScans()
 	if err == nil {
@@ -77,14 +77,14 @@ func GetAllLibraryStats(c *gin.Context) {
 					entry["files_found"] = job.FilesFound
 					entry["files_processed"] = job.FilesProcessed
 					entry["bytes_processed"] = job.BytesProcessed
-					
+
 					// Don't override accurate MediaFile counts with scan job data
 					// The MediaFile count is more reliable than scan job's files_found
 				}
 			}
 		}
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"library_stats": libraryStats,
 	})
@@ -95,7 +95,7 @@ func GetLibraryMetrics(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return

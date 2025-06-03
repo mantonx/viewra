@@ -29,9 +29,9 @@ type Module struct {
 	db          *gorm.DB
 	eventBus    events.EventBus
 	initialized bool
-	
+
 	// Event handler for API routes
-	eventsHandler   *handlers.EventsHandler
+	eventsHandler *handlers.EventsHandler
 }
 
 // Register registers this module with the module system
@@ -72,16 +72,16 @@ func (m *Module) Init() error {
 	if m.initialized {
 		return nil
 	}
-	
+
 	// Get dependencies
 	m.eventBus = events.GetGlobalEventBus()
 	if m.eventBus == nil {
 		return fmt.Errorf("global event bus not initialized")
 	}
-	
+
 	// Initialize event handler
 	m.eventsHandler = handlers.NewEventsHandler(m.eventBus)
-	
+
 	m.initialized = true
 	return nil
 }
@@ -91,21 +91,21 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 	if !m.initialized {
 		return
 	}
-	
+
 	api := router.Group("/api/v1/events")
 	{
 		// Event querying
 		api.GET("/", m.eventsHandler.GetEvents)
 		api.GET("/range", m.eventsHandler.GetEventsByTimeRange)
 		api.GET("/types", m.eventsHandler.GetEventTypes)
-		
+
 		// Event publishing (admin)
 		api.POST("/", m.eventsHandler.PublishEvent)
-		
-		// Event management  
+
+		// Event management
 		api.DELETE("/:id", m.eventsHandler.DeleteEvent)
 		api.POST("/clear", m.eventsHandler.ClearEvents)
-		
+
 		// Health check
 		api.GET("/health", m.getEventHealth)
 	}
@@ -119,4 +119,4 @@ func (m *Module) getEventHealth(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"healthy": true})
-} 
+}

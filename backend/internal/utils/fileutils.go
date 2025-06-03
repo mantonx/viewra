@@ -45,100 +45,100 @@ var MediaExtensions = map[string]bool{
 // These are typically system files, previews, thumbnails, or other non-media files
 var SkippedExtensions = map[string]bool{
 	// Trickplay and preview files (Plex, Jellyfin, Emby, etc.)
-	".bif":         true, // Roku/Plex trickplay files
-	".vtt":         true, // WebVTT subtitle files (often trickplay metadata)
-	".storyboard":  true, // Storyboard preview files
-	".chapter":     true, // Chapter thumbnail files
-	".thumbnail":   true, // Thumbnail files
-	".preview":     true, // Preview image files
-	".sprite":      true, // Sprite sheet files for trickplay
-	".keyframe":    true, // Keyframe extraction files
-	".scene":       true, // Scene detection files
-	".timeline":    true, // Timeline preview files
-	
+	".bif":        true, // Roku/Plex trickplay files
+	".vtt":        true, // WebVTT subtitle files (often trickplay metadata)
+	".storyboard": true, // Storyboard preview files
+	".chapter":    true, // Chapter thumbnail files
+	".thumbnail":  true, // Thumbnail files
+	".preview":    true, // Preview image files
+	".sprite":     true, // Sprite sheet files for trickplay
+	".keyframe":   true, // Keyframe extraction files
+	".scene":      true, // Scene detection files
+	".timeline":   true, // Timeline preview files
+
 	// Media server metadata and cache files
-	".nfo":         true, // Media info files (Kodi, Plex, etc.)
-	".xml":         true, // Metadata files
-	".plist":       true, // Property list files (macOS media metadata)
-	".meta":        true, // Generic metadata files
-	".info":        true, // Info files
-	".dat":         true, // Data files (often cache)
-	".cache":       true, // Cache files
-	".index":       true, // Index files
-	".temp":        true, // Temporary files
-	".tmp":         true, // Temporary files
-	".part":        true, // Partial download files
-	".crdownload":  true, // Chrome partial downloads
-	".download":    true, // Generic partial downloads
-	
+	".nfo":        true, // Media info files (Kodi, Plex, etc.)
+	".xml":        true, // Metadata files
+	".plist":      true, // Property list files (macOS media metadata)
+	".meta":       true, // Generic metadata files
+	".info":       true, // Info files
+	".dat":        true, // Data files (often cache)
+	".cache":      true, // Cache files
+	".index":      true, // Index files
+	".temp":       true, // Temporary files
+	".tmp":        true, // Temporary files
+	".part":       true, // Partial download files
+	".crdownload": true, // Chrome partial downloads
+	".download":   true, // Generic partial downloads
+
 	// Subtitle files (not media content)
-	".srt":         true, // SubRip subtitle files
-	".sub":         true, // MicroDVD subtitle files
-	".idx":         true, // VobSub subtitle index files
-	".ass":         true, // Advanced SubStation Alpha subtitle files
-	".ssa":         true, // SubStation Alpha subtitle files
-	".sup":         true, // Blu-ray PGS subtitle files
-	".usf":         true, // Universal Subtitle Format
-	".smi":         true, // SAMI subtitle files
-	".rt":          true, // RealText subtitle files
-	".sbv":         true, // SubViewer subtitle files
-	
+	".srt": true, // SubRip subtitle files
+	".sub": true, // MicroDVD subtitle files
+	".idx": true, // VobSub subtitle index files
+	".ass": true, // Advanced SubStation Alpha subtitle files
+	".ssa": true, // SubStation Alpha subtitle files
+	".sup": true, // Blu-ray PGS subtitle files
+	".usf": true, // Universal Subtitle Format
+	".smi": true, // SAMI subtitle files
+	".rt":  true, // RealText subtitle files
+	".sbv": true, // SubViewer subtitle files
+
 	// Thumbnail and preview files
-	".jpg":         true, // Often thumbnails or cover art
-	".jpeg":        true, // Often thumbnails or cover art
-	".png":         true, // Often thumbnails or cover art
-	".gif":         true, // Often thumbnails or animated previews
-	".bmp":         true, // Bitmap images
-	".webp":        true, // Web images
-	".tiff":        true, // Image files
-	".tif":         true, // Image files
-	".svg":         true, // Vector graphics
-	".ico":         true, // Icon files
-	".psd":         true, // Photoshop files
-	".ai":          true, // Adobe Illustrator files
-	".eps":         true, // Encapsulated PostScript files
-	
+	".jpg":  true, // Often thumbnails or cover art
+	".jpeg": true, // Often thumbnails or cover art
+	".png":  true, // Often thumbnails or cover art
+	".gif":  true, // Often thumbnails or animated previews
+	".bmp":  true, // Bitmap images
+	".webp": true, // Web images
+	".tiff": true, // Image files
+	".tif":  true, // Image files
+	".svg":  true, // Vector graphics
+	".ico":  true, // Icon files
+	".psd":  true, // Photoshop files
+	".ai":   true, // Adobe Illustrator files
+	".eps":  true, // Encapsulated PostScript files
+
 	// System and metadata files
-	".txt":         true, // Text files, often logs or metadata
-	".log":         true, // Log files
-	".db":          true, // Database files
-	".db-journal":  true, // SQLite journal files
-	".db-wal":      true, // SQLite WAL files
-	".db-shm":      true, // SQLite shared memory files
-	".json":        true, // JSON metadata files
-	".yml":         true, // YAML configuration files
-	".yaml":        true, // YAML configuration files
-	".ini":         true, // Configuration files
-	".cfg":         true, // Configuration files
-	".conf":        true, // Configuration files
-	".config":      true, // Configuration files
-	".properties":  true, // Properties files
-	
+	".txt":        true, // Text files, often logs or metadata
+	".log":        true, // Log files
+	".db":         true, // Database files
+	".db-journal": true, // SQLite journal files
+	".db-wal":     true, // SQLite WAL files
+	".db-shm":     true, // SQLite shared memory files
+	".json":       true, // JSON metadata files
+	".yml":        true, // YAML configuration files
+	".yaml":       true, // YAML configuration files
+	".ini":        true, // Configuration files
+	".cfg":        true, // Configuration files
+	".conf":       true, // Configuration files
+	".config":     true, // Configuration files
+	".properties": true, // Properties files
+
 	// Lock and temporary files
-	".lock":        true, // Lock files
-	".lck":         true, // Lock files
-	".backup":      true, // Backup files
-	".bak":         true, // Backup files
-	".old":         true, // Old backup files
-	".orig":        true, // Original backup files
-	".swp":         true, // Vim swap files
-	".swo":         true, // Vim swap files
-	".~":           true, // Temporary files
-	
+	".lock":   true, // Lock files
+	".lck":    true, // Lock files
+	".backup": true, // Backup files
+	".bak":    true, // Backup files
+	".old":    true, // Old backup files
+	".orig":   true, // Original backup files
+	".swp":    true, // Vim swap files
+	".swo":    true, // Vim swap files
+	".~":      true, // Temporary files
+
 	// Archive files (not media)
-	".zip":         true, // Archive files
-	".rar":         true, // Archive files
-	".7z":          true, // Archive files
-	".tar":         true, // Archive files
-	".gz":          true, // Compressed files
-	".bz2":         true, // Compressed files
-	".xz":          true, // Compressed files
-	".z":           true, // Compressed files
-	".lz":          true, // Compressed files
-	".lzma":        true, // Compressed files
-	".cab":         true, // Cabinet files
-	".dmg":         true, // macOS disk images
-	".iso":         true, // Disk images (unless specifically for media)
+	".zip":  true, // Archive files
+	".rar":  true, // Archive files
+	".7z":   true, // Archive files
+	".tar":  true, // Archive files
+	".gz":   true, // Compressed files
+	".bz2":  true, // Compressed files
+	".xz":   true, // Compressed files
+	".z":    true, // Compressed files
+	".lz":   true, // Compressed files
+	".lzma": true, // Compressed files
+	".cab":  true, // Cabinet files
+	".dmg":  true, // macOS disk images
+	".iso":  true, // Disk images (unless specifically for media)
 }
 
 // CalculateFileHash calculates SHA1 hash of a file
@@ -208,7 +208,7 @@ func CalculateFileHashUltraFast(filePath string, fileSize int64) (string, error)
 	// OPTIMIZATION 13: NFS retry logic for network storage reliability
 	var file *os.File
 	var err error
-	
+
 	// Retry file opening for NFS resilience
 	for attempts := 0; attempts < 3; attempts++ {
 		file, err = os.Open(filePath)
@@ -219,7 +219,7 @@ func CalculateFileHashUltraFast(filePath string, fileSize int64) (string, error)
 			time.Sleep(time.Duration(attempts+1) * 50 * time.Millisecond)
 		}
 	}
-	
+
 	if err != nil {
 		return "", err
 	}
@@ -253,7 +253,7 @@ func CalculateFileHashUltraFast(filePath string, fileSize int64) (string, error)
 		if err != nil {
 			return "", err
 		}
-		
+
 		n, err = file.Read(buffer)
 		if err != nil && err != io.EOF {
 			return "", err
@@ -445,7 +445,7 @@ func IsTrickplayFile(filePath string) bool {
 	if IsSkippedFile(filePath) {
 		return true
 	}
-	
+
 	// Check filename patterns commonly used by media servers
 	filename := strings.ToLower(filepath.Base(filePath))
 	trickplayPatterns := []string{
@@ -454,13 +454,13 @@ func IsTrickplayFile(filePath string) bool {
 		"bif", "-thumb", "_thumb", ".thumb", "poster", "fanart",
 		"banner", "logo", "clearart", "landscape", "disc",
 	}
-	
+
 	for _, pattern := range trickplayPatterns {
 		if strings.Contains(filename, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -473,13 +473,13 @@ func IsTrickplayDirectory(dirPath string) bool {
 		"metadata", "cache", "temp", ".plex", ".emby", ".jellyfin",
 		"artwork", "fanart", "posters", "banners",
 	}
-	
+
 	for _, pattern := range trickplayDirPatterns {
 		if strings.Contains(dirName, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -495,12 +495,12 @@ type TrickplayStats struct {
 // AnalyzeTrickplayInDirectory scans a directory and returns statistics about trickplay content
 func AnalyzeTrickplayInDirectory(dirPath string) (*TrickplayStats, error) {
 	stats := &TrickplayStats{}
-	
+
 	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // Skip files we can't access
 		}
-		
+
 		if d.IsDir() {
 			stats.TotalDirsScanned++
 			if IsTrickplayDirectory(path) {
@@ -508,7 +508,7 @@ func AnalyzeTrickplayInDirectory(dirPath string) (*TrickplayStats, error) {
 			}
 			return nil
 		}
-		
+
 		stats.TotalFilesScanned++
 		if IsTrickplayFile(path) {
 			stats.TrickplayFiles++
@@ -516,9 +516,9 @@ func AnalyzeTrickplayInDirectory(dirPath string) (*TrickplayStats, error) {
 				stats.SkippedBytes += info.Size()
 			}
 		}
-		
+
 		return nil
 	})
-	
+
 	return stats, err
 }

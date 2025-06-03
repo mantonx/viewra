@@ -24,7 +24,7 @@ func configureConnectionPool(db *gorm.DB, cfg config.DatabaseFullConfig) error {
 
 	// Set connection pool parameters from configuration
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns) 
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	sqlDB.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 
@@ -40,13 +40,18 @@ func configureConnectionPool(db *gorm.DB, cfg config.DatabaseFullConfig) error {
 // Initialize sets up the database connection based on the DATABASE_TYPE environment variable
 func Initialize() {
 	log.Printf("🔄 Initializing database...")
-	
+
 	// Get database configuration from centralized config
 	cfg := config.Get().Database
-	
+
+	// Validate database configuration before proceeding
+	if err := ValidateDatabaseConfig(cfg.DatabasePath); err != nil {
+		log.Fatalf("Database configuration validation failed: %v", err)
+	}
+
 	var err error
 	var dbType string
-	
+
 	switch cfg.Type {
 	case "postgres":
 		dbType = "PostgreSQL"
@@ -73,7 +78,7 @@ func Initialize() {
 	if err := testConnectionPool(DB); err != nil {
 		log.Printf("⚠️  Warning: Connection pool test failed: %v", err)
 	}
-	
+
 	// Auto-migrate the schema
 	err = DB.AutoMigrate(
 		&User{}, &MediaLibrary{}, &ScanJob{},
@@ -100,19 +105,19 @@ func testConnectionPool(db *gorm.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to get sql.DB: %w", err)
 	}
-	
+
 	// Test basic connectivity
 	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("connection ping failed: %w", err)
 	}
-	
+
 	// Get connection statistics
 	stats := sqlDB.Stats()
 	log.Printf("📊 Initial connection pool stats:")
 	log.Printf("   - Open Connections: %d", stats.OpenConnections)
 	log.Printf("   - In Use: %d", stats.InUse)
 	log.Printf("   - Idle: %d", stats.Idle)
-	
+
 	return nil
 }
 
@@ -122,77 +127,77 @@ func connectPostgres(cfg config.DatabaseFullConfig) (*gorm.DB, error) {
 	if host == "" {
 		host = "localhost"
 	}
-	
+
 	port := cfg.Port
 	if port == 0 {
 		port = 5432
 	}
-	
+
 	user := cfg.Username
 	password := cfg.Password
 	dbname := cfg.Database
-	
+
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
 		host, user, password, dbname, port)
-	
+
 	// Configure GORM with optimized settings for high-throughput operations
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
-		
+
 		// Optimize for batch operations (scanner writes many records)
 		CreateBatchSize: 1000, // Insert up to 1000 records at once
-		
+
 		// Disable automatic time updates for better performance if not needed
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		
+
 		// Skip default transaction for better performance
 		SkipDefaultTransaction: true,
-		
+
 		// Prepare statements for better performance with repeated queries
 		PrepareStmt: true,
 	}
-	
+
 	return gorm.Open(postgres.Open(dsn), gormConfig)
 }
 
 func connectSQLite(cfg config.DatabaseFullConfig) (*gorm.DB, error) {
 	dbPath := cfg.DatabasePath
-	
+
 	// Add SQLite pragmas for better performance
 	dsn := dbPath + "?" +
-		"cache=shared&" +          // Enable shared cache
-		"mode=rwc&" +              // Read-write-create mode
-		"_journal_mode=WAL&" +     // Write-Ahead Logging for better concurrency
-		"_synchronous=NORMAL&" +   // Balance between safety and performance
-		"_busy_timeout=30000&" +   // 30 second busy timeout
-		"_cache_size=-64000&" +    // 64MB cache size (negative = KB)
-		"_temp_store=MEMORY&" +    // Store temporary tables in memory
-		"_foreign_keys=ON&" +      // Enable foreign key constraints
+		"cache=shared&" + // Enable shared cache
+		"mode=rwc&" + // Read-write-create mode
+		"_journal_mode=WAL&" + // Write-Ahead Logging for better concurrency
+		"_synchronous=NORMAL&" + // Balance between safety and performance
+		"_busy_timeout=30000&" + // 30 second busy timeout
+		"_cache_size=-64000&" + // 64MB cache size (negative = KB)
+		"_temp_store=MEMORY&" + // Store temporary tables in memory
+		"_foreign_keys=ON&" + // Enable foreign key constraints
 		"_wal_autocheckpoint=1000&" + // Checkpoint WAL every 1000 pages for performance
 		"_journal_size_limit=67108864&" + // 64MB WAL size limit
-		"_mmap_size=268435456&" +  // 256MB memory-mapped I/O for better performance
-		"_page_size=4096"          // 4KB page size (optimal for most systems)
-	
+		"_mmap_size=268435456&" + // 256MB memory-mapped I/O for better performance
+		"_page_size=4096" // 4KB page size (optimal for most systems)
+
 	// Configure GORM with optimized settings for SQLite
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
-		
+
 		// Optimize for batch operations
 		CreateBatchSize: 500, // Smaller batches for SQLite
-		
+
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		
+
 		// SQLite benefits from skipping default transactions in many cases
 		SkipDefaultTransaction: true,
-		
+
 		// Prepare statements for better performance
 		PrepareStmt: true,
 	}
-	
+
 	return gorm.Open(sqlite.Open(dsn), gormConfig)
 }
 
@@ -206,12 +211,12 @@ func GetConnectionStats() (*sql.DBStats, error) {
 	if DB == nil {
 		return nil, fmt.Errorf("database not initialized")
 	}
-	
+
 	sqlDB, err := DB.DB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
 	}
-	
+
 	stats := sqlDB.Stats()
 	return &stats, nil
 }
@@ -223,7 +228,7 @@ func LogConnectionStats() {
 		log.Printf("❌ Failed to get connection stats: %v", err)
 		return
 	}
-	
+
 	log.Printf("📊 Connection Pool Stats:")
 	log.Printf("   - Open Connections: %d", stats.OpenConnections)
 	log.Printf("   - In Use: %d", stats.InUse)
@@ -240,22 +245,22 @@ func HealthCheck() error {
 	if DB == nil {
 		return fmt.Errorf("database not initialized")
 	}
-	
+
 	sqlDB, err := DB.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get sql.DB: %w", err)
 	}
-	
+
 	// Test basic connectivity
 	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
-	
+
 	// Check connection pool health
 	stats := sqlDB.Stats()
 	if stats.OpenConnections == 0 {
 		return fmt.Errorf("no open database connections")
 	}
-	
+
 	return nil
 }

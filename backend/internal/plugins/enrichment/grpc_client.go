@@ -36,7 +36,7 @@ func NewEnrichmentClient(serverAddr string) *EnrichmentClient {
 	if serverAddr == "" {
 		serverAddr = "localhost:50051" // Default enrichment server address
 	}
-	
+
 	return &EnrichmentClient{
 		addr: serverAddr,
 	}
@@ -47,7 +47,7 @@ func (c *EnrichmentClient) Connect() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, c.addr, 
+	conn, err := grpc.DialContext(ctx, c.addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
 	)
@@ -57,7 +57,7 @@ func (c *EnrichmentClient) Connect() error {
 
 	c.conn = conn
 	c.client = enrichmentpb.NewEnrichmentServiceClient(conn)
-	
+
 	log.Printf("INFO: Connected to enrichment service at %s", c.addr)
 	return nil
 }
@@ -159,41 +159,41 @@ func (c *EnrichmentClient) TriggerEnrichmentJob(mediaFileID string) (string, err
 func ExampleUsage() {
 	// Create client
 	client := NewEnrichmentClient("localhost:50051")
-	
+
 	// Connect to service
 	if err := client.Connect(); err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 	defer client.Close()
-	
+
 	// Register enrichment data (example from MusicBrainz plugin)
 	enrichments := map[string]string{
-		"artist_name": "The Beatles",
-		"album_name":  "Abbey Road",
+		"artist_name":  "The Beatles",
+		"album_name":   "Abbey Road",
 		"release_year": "1969",
 		"track_number": "1",
 	}
-	
+
 	if err := client.RegisterEnrichmentData("media-file-123", "musicbrainz", enrichments, 0.95); err != nil {
 		log.Printf("Failed to register enrichment: %v", err)
 		return
 	}
-	
+
 	// Check status
 	status, err := client.GetEnrichmentStatus("media-file-123")
 	if err != nil {
 		log.Printf("Failed to get status: %v", err)
 		return
 	}
-	
+
 	log.Printf("Enrichment status: %+v", status)
-	
+
 	// Trigger application
 	jobID, err := client.TriggerEnrichmentJob("media-file-123")
 	if err != nil {
 		log.Printf("Failed to trigger job: %v", err)
 		return
 	}
-	
+
 	log.Printf("Triggered enrichment job: %s", jobID)
-} 
+}

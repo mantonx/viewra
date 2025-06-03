@@ -19,7 +19,7 @@ func (m *Module) RegisterRoutes(r *gin.Engine) {
 	if !m.enabled {
 		return
 	}
-	
+
 	api := r.Group("/api")
 	enrichment := api.Group("/enrichment")
 	{
@@ -30,7 +30,7 @@ func (m *Module) RegisterRoutes(r *gin.Engine) {
 		enrichment.GET("/jobs", m.GetEnrichmentJobsHandler)
 		enrichment.POST("/jobs/:mediaFileId", m.TriggerEnrichmentJobHandler)
 	}
-	
+
 	log.Printf("✅ Registered enrichment module HTTP routes")
 }
 
@@ -80,10 +80,10 @@ func (m *Module) ForceApplyEnrichmentHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Enrichment applied successfully",
+		"message":       "Enrichment applied successfully",
 		"media_file_id": mediaFileID,
-		"field_name": fieldName,
-		"source_name": sourceName,
+		"field_name":    fieldName,
+		"source_name":   sourceName,
 	})
 }
 
@@ -228,4 +228,4 @@ func (m *Module) TriggerEnrichmentJobHandler(c *gin.Context) {
 		"message": "Enrichment job created successfully",
 		"job":     job,
 	})
-} 
+}

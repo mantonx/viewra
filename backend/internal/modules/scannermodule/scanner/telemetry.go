@@ -117,7 +117,7 @@ func (st *ScanTelemetry) EmitScanCompleted(filesProcessed, filesSkipped, errorsC
 func (st *ScanTelemetry) EmitScanProgress(data map[string]interface{}) {
 	// Ensure job_id is included
 	data["job_id"] = st.jobID
-	
+
 	event := events.Event{
 		Type:    "scan.progress",
 		Source:  "scanner",
@@ -156,7 +156,7 @@ func (st *ScanTelemetry) LogDebug(message string, fields map[string]interface{})
 func (st *ScanTelemetry) addLogEntry(level, message string, fields map[string]interface{}, errorMsg string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	
+
 	entry := LogEntry{
 		Timestamp: time.Now(),
 		Level:     level,
@@ -164,9 +164,9 @@ func (st *ScanTelemetry) addLogEntry(level, message string, fields map[string]in
 		Fields:    fields,
 		Error:     errorMsg,
 	}
-	
+
 	st.logs = append(st.logs, entry)
-	
+
 	// Trim logs if we exceed the maximum
 	if len(st.logs) > st.maxLogs {
 		// Keep the last maxLogs entries - ensure we don't get negative indices
@@ -176,7 +176,7 @@ func (st *ScanTelemetry) addLogEntry(level, message string, fields map[string]in
 		}
 		st.logs = st.logs[startIndex:]
 	}
-	
+
 	// Also log to console for debugging
 	fieldsStr := ""
 	if fields != nil {
@@ -193,13 +193,13 @@ func (st *ScanTelemetry) addLogEntry(level, message string, fields map[string]in
 func (st *ScanTelemetry) RecordMetric(name string, value float64, tags map[string]string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	
+
 	metricData := map[string]interface{}{
 		"value":     value,
 		"tags":      tags,
 		"timestamp": time.Now(),
 	}
-	
+
 	st.metrics[name] = metricData
 }
 
@@ -207,7 +207,7 @@ func (st *ScanTelemetry) RecordMetric(name string, value float64, tags map[strin
 func (st *ScanTelemetry) RecordCounter(name string, tags map[string]string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	
+
 	// Get existing counter value or start at 0
 	counter := float64(0)
 	if existing, ok := st.metrics[name]; ok {
@@ -217,15 +217,15 @@ func (st *ScanTelemetry) RecordCounter(name string, tags map[string]string) {
 			}
 		}
 	}
-	
+
 	counter++
-	
+
 	metricData := map[string]interface{}{
 		"value":     counter,
 		"tags":      tags,
 		"timestamp": time.Now(),
 	}
-	
+
 	st.metrics[name] = metricData
 }
 
@@ -238,7 +238,7 @@ func (st *ScanTelemetry) RecordTiming(name string, duration time.Duration, tags 
 func (st *ScanTelemetry) GetMetrics() map[string]interface{} {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	
+
 	// Create a copy to avoid race conditions
 	result := make(map[string]interface{})
 	for k, v := range st.metrics {
@@ -251,7 +251,7 @@ func (st *ScanTelemetry) GetMetrics() map[string]interface{} {
 func (st *ScanTelemetry) GetLogs() []LogEntry {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	
+
 	// Create a copy to avoid race conditions
 	result := make([]LogEntry, len(st.logs))
 	copy(result, st.logs)
@@ -262,7 +262,7 @@ func (st *ScanTelemetry) GetLogs() []LogEntry {
 func (st *ScanTelemetry) GetLogsSince(since time.Time) []LogEntry {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	
+
 	var result []LogEntry
 	for _, entry := range st.logs {
 		if entry.Timestamp.After(since) {
@@ -276,7 +276,7 @@ func (st *ScanTelemetry) GetLogsSince(since time.Time) []LogEntry {
 func (st *ScanTelemetry) GetLogsWithLevel(level string) []LogEntry {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	
+
 	var result []LogEntry
 	for _, entry := range st.logs {
 		if entry.Level == level {
@@ -304,12 +304,12 @@ func (st *ScanTelemetry) ClearMetrics() {
 func (st *ScanTelemetry) GetSummary() map[string]interface{} {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	
+
 	errorCount := 0
 	warningCount := 0
 	infoCount := 0
 	debugCount := 0
-	
+
 	for _, entry := range st.logs {
 		switch entry.Level {
 		case "error":
@@ -322,7 +322,7 @@ func (st *ScanTelemetry) GetSummary() map[string]interface{} {
 			debugCount++
 		}
 	}
-	
+
 	return map[string]interface{}{
 		"job_id":        st.jobID,
 		"total_logs":    len(st.logs),
@@ -333,4 +333,4 @@ func (st *ScanTelemetry) GetSummary() map[string]interface{} {
 		"metrics_count": len(st.metrics),
 		"last_updated":  time.Now(),
 	}
-} 
+}

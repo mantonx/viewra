@@ -12,11 +12,17 @@ import (
 	"github.com/dhowden/tag"
 	"github.com/google/uuid"
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/assetmodule"
-	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"gorm.io/gorm"
 )
+
+// Register Enrichment core plugin with the correct pluginmodule registry
+func init() {
+	pluginmodule.RegisterCorePluginFactory("enrichment", func() pluginmodule.CorePlugin {
+		return NewEnrichmentCorePlugin()
+	})
+}
 
 // EnrichmentCorePlugin handles extraction of metadata and artwork from music files
 type EnrichmentCorePlugin struct {
@@ -36,6 +42,11 @@ func (p *EnrichmentCorePlugin) GetName() string {
 	return "music_metadata_extractor_plugin"
 }
 
+// GetType returns the plugin type (implements BasePlugin)
+func (p *EnrichmentCorePlugin) GetType() string {
+	return "music"
+}
+
 // GetSupportedExtensions returns supported file extensions
 func (p *EnrichmentCorePlugin) GetSupportedExtensions() []string {
 	return []string{".mp3", ".flac", ".m4a", ".aac", ".ogg", ".wav"}
@@ -46,12 +57,17 @@ func (p *EnrichmentCorePlugin) GetPluginType() string {
 	return "enrichment"
 }
 
+// GetDisplayName returns a human-readable display name for the plugin
+func (p *EnrichmentCorePlugin) GetDisplayName() string {
+	return "Music Metadata Extractor Core Plugin"
+}
+
 // Match determines if this plugin can handle the given file
 func (p *EnrichmentCorePlugin) Match(path string, info fs.FileInfo) bool {
 	if !p.enabled {
 		return false
 	}
-	
+
 	ext := strings.ToLower(filepath.Ext(path))
 	for _, supportedExt := range p.GetSupportedExtensions() {
 		if ext == supportedExt {
@@ -62,26 +78,32 @@ func (p *EnrichmentCorePlugin) Match(path string, info fs.FileInfo) bool {
 }
 
 // HandleFile processes a music file and extracts metadata and artwork
-func (p *EnrichmentCorePlugin) HandleFile(path string, ctx plugins.MetadataContext) error {
+func (p *EnrichmentCorePlugin) HandleFile(path string, ctx *pluginmodule.MetadataContext) error {
 	if !p.enabled {
 		return fmt.Errorf("enrichment core plugin is disabled")
 	}
 
 	log.Printf("INFO: Enrichment core plugin processing file: %s", path)
 
-	// Get database connection
-	db, ok := ctx.DB.(*gorm.DB)
-	if !ok {
-		return fmt.Errorf("invalid database connection")
-	}
+	// Get database connection from context
+	db := ctx.DB
 	p.db = db
 
-	// Get event bus
-	var eventBus events.EventBus
-	if ctx.EventBus != nil {
-		if eb, ok := ctx.EventBus.(events.EventBus); ok {
-			eventBus = eb
+	// IMPORTANT: Only process files from music libraries, not other library types
+	// Check if the media file belongs to a music library
+	if ctx.MediaFile != nil && ctx.MediaFile.LibraryID != 0 {
+		var library database.MediaLibrary
+		if err := db.First(&library, ctx.MediaFile.LibraryID).Error; err != nil {
+			return fmt.Errorf("failed to get library info: %w", err)
 		}
+
+		// Only process if this is a music library
+		if library.Type != "music" {
+			log.Printf("DEBUG: Skipping file %s - not from music library (library type: %s)", path, library.Type)
+			return nil
+		}
+
+		log.Printf("DEBUG: Processing music file from music library: %s", path)
 	}
 
 	// Extract metadata from file
@@ -119,27 +141,35 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx plugins.MetadataConte
 		return fmt.Errorf("failed to link media file to track: %w", err)
 	}
 
+	// DEBUG: Verify the database update was successful
+	var verifyMediaFile database.MediaFile
+	if err := p.db.Where("id = ?", ctx.MediaFile.ID).First(&verifyMediaFile).Error; err == nil {
+		log.Printf("DEBUG: Verified MediaFile update - ID: %s, MediaID: %s, MediaType: %s", 
+			verifyMediaFile.ID, verifyMediaFile.MediaID, verifyMediaFile.MediaType)
+	} else {
+		log.Printf("ERROR: Failed to verify MediaFile update: %v", err)
+	}
+
+	// Create MediaEnrichment record to track that this plugin processed the media
+	enrichment := database.MediaEnrichment{
+		MediaID:   track.ID,
+		MediaType: database.MediaTypeTrack,
+		Plugin:    ctx.PluginID,
+		Payload: fmt.Sprintf("{\"title\":\"%s\",\"artist\":\"%s\",\"album\":\"%s\",\"source\":\"file_tags\"}",
+			trackInfo.Title, trackInfo.Artist, trackInfo.Album),
+		UpdatedAt: time.Now(),
+	}
+
+	// Use UPSERT to handle existing records
+	if err := db.Save(&enrichment).Error; err != nil {
+		log.Printf("WARNING: Failed to create enrichment record: %v", err)
+		// Not a fatal error - continue without enrichment tracking
+	}
+
 	// Extract and save artwork if present
 	if err := p.extractAndSaveArtwork(path, album.ID); err != nil {
 		log.Printf("WARNING: Failed to extract artwork from %s: %v", path, err)
 		// Not a fatal error - continue without artwork
-	}
-
-	// Publish metadata extracted event
-	if eventBus != nil {
-		event := events.NewSystemEvent(
-			"enrichment.metadata.extracted",
-			"Metadata Extracted",
-			fmt.Sprintf("Metadata extracted from %s", filepath.Base(path)),
-		)
-		event.Data = map[string]interface{}{
-			"mediaFileID": ctx.MediaFile.ID,
-			"trackID":     track.ID,
-			"title":       track.Title,
-			"artist":      artist.Name,
-			"album":       album.Title,
-		}
-		eventBus.PublishAsync(event)
 	}
 
 	log.Printf("INFO: Successfully processed file with enrichment core plugin: %s", path)
@@ -217,76 +247,76 @@ func (p *EnrichmentCorePlugin) extractMetadata(path string) (*TrackInfo, error) 
 // createOrGetArtist creates a new artist or returns existing one
 func (p *EnrichmentCorePlugin) createOrGetArtist(artistName string) (*database.Artist, error) {
 	var artist database.Artist
-	
+
 	// Check if artist already exists
 	result := p.db.Where("name = ?", artistName).First(&artist)
 	if result.Error == nil {
 		return &artist, nil
 	}
-	
+
 	// Create new artist
 	artist = database.Artist{
 		ID:   uuid.New().String(),
 		Name: artistName,
 	}
-	
+
 	if err := p.db.Create(&artist).Error; err != nil {
 		return nil, fmt.Errorf("failed to create artist: %w", err)
 	}
-	
+
 	return &artist, nil
 }
 
 // createOrGetAlbum creates a new album or returns existing one
 func (p *EnrichmentCorePlugin) createOrGetAlbum(albumTitle string, artistID string, year int) (*database.Album, error) {
 	var album database.Album
-	
+
 	// Check if album already exists for this artist
 	result := p.db.Where("title = ? AND artist_id = ?", albumTitle, artistID).First(&album)
 	if result.Error == nil {
 		return &album, nil
 	}
-	
+
 	// Create new album
 	album = database.Album{
 		ID:       uuid.New().String(),
 		Title:    albumTitle,
 		ArtistID: artistID,
 	}
-	
+
 	// Set release date if year is provided
 	if year > 0 {
 		releaseDate := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
 		album.ReleaseDate = &releaseDate
 	}
-	
+
 	if err := p.db.Create(&album).Error; err != nil {
 		return nil, fmt.Errorf("failed to create album: %w", err)
 	}
-	
+
 	return &album, nil
 }
 
 // createOrUpdateTrack creates a new track or updates existing one
 func (p *EnrichmentCorePlugin) createOrUpdateTrack(trackInfo *TrackInfo, artistID string, albumID string) (*database.Track, error) {
 	var track database.Track
-	
+
 	// Check if track already exists for this album
 	result := p.db.Where("title = ? AND album_id = ?", trackInfo.Title, albumID).First(&track)
-	
+
 	if result.Error == nil {
 		// Update existing track
 		track.ArtistID = artistID
 		track.TrackNumber = trackInfo.TrackNumber
 		track.Duration = trackInfo.Duration
-		
+
 		if err := p.db.Save(&track).Error; err != nil {
 			return nil, fmt.Errorf("failed to update track: %w", err)
 		}
-		
+
 		return &track, nil
 	}
-	
+
 	// Create new track
 	track = database.Track{
 		ID:          uuid.New().String(),
@@ -296,11 +326,11 @@ func (p *EnrichmentCorePlugin) createOrUpdateTrack(trackInfo *TrackInfo, artistI
 		TrackNumber: trackInfo.TrackNumber,
 		Duration:    trackInfo.Duration,
 	}
-	
+
 	if err := p.db.Create(&track).Error; err != nil {
 		return nil, fmt.Errorf("failed to create track: %w", err)
 	}
-	
+
 	return &track, nil
 }
 
@@ -406,10 +436,10 @@ func (p *EnrichmentCorePlugin) detectImageMimeType(data []byte) string {
 func (p *EnrichmentCorePlugin) estimateDuration(size int64, path string) time.Duration {
 	// Very rough estimation based on file size and format
 	// This is a fallback when proper duration extraction fails
-	
+
 	ext := strings.ToLower(filepath.Ext(path))
 	var avgBitrate int64 // bits per second
-	
+
 	switch ext {
 	case ".mp3":
 		avgBitrate = 128000 // 128 kbps average
@@ -424,35 +454,45 @@ func (p *EnrichmentCorePlugin) estimateDuration(size int64, path string) time.Du
 	default:
 		avgBitrate = 128000 // Default assumption
 	}
-	
+
 	// Calculate duration: (file_size_bytes * 8) / bitrate_bps
 	durationSeconds := (size * 8) / avgBitrate
-	
+
 	// Sanity check: limit to reasonable range (1 second to 2 hours)
 	if durationSeconds < 1 {
 		durationSeconds = 1
 	} else if durationSeconds > 7200 { // 2 hours
 		durationSeconds = 7200
 	}
-	
+
 	return time.Duration(durationSeconds) * time.Second
 }
 
-// IsEnabled returns whether the plugin is enabled
+// IsEnabled returns whether the plugin is enabled (implements CorePlugin)
 func (p *EnrichmentCorePlugin) IsEnabled() bool {
 	return p.enabled
 }
 
-// Initialize initializes the plugin
-func (p *EnrichmentCorePlugin) Initialize() error {
-	log.Printf("INFO: Initializing enrichment core plugin")
+// Enable enables the plugin (implements CorePlugin)
+func (p *EnrichmentCorePlugin) Enable() error {
 	p.enabled = true
+	return p.Initialize()
+}
+
+// Disable disables the plugin (implements CorePlugin)
+func (p *EnrichmentCorePlugin) Disable() error {
+	p.enabled = false
+	return p.Shutdown()
+}
+
+// Initialize performs any setup needed for the plugin (implements CorePlugin)
+func (p *EnrichmentCorePlugin) Initialize() error {
+	log.Printf("✅ Music Metadata Extractor initialized - music metadata extraction available")
 	return nil
 }
 
-// Shutdown shuts down the plugin
+// Shutdown performs any cleanup needed when the plugin is disabled (implements CorePlugin)
 func (p *EnrichmentCorePlugin) Shutdown() error {
-	log.Printf("INFO: Shutting down enrichment core plugin")
-	p.enabled = false
+	log.Printf("DEBUG: Shutting down Music Metadata Extractor Core Plugin")
 	return nil
-} 
+}

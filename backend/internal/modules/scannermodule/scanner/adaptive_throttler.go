@@ -23,25 +23,25 @@ import (
 
 // ContainerLimits represents container resource limits from cgroups
 type ContainerLimits struct {
-	MemoryLimitBytes   int64   `json:"memory_limit_bytes"`
-	CPUQuota          int64   `json:"cpu_quota_us"`      // CPU quota in microseconds
-	CPUPeriod         int64   `json:"cpu_period_us"`     // CPU period in microseconds
-	CPUShares         int64   `json:"cpu_shares"`        // CPU shares (relative weight)
-	MaxCPUPercent     float64 `json:"max_cpu_percent"`   // Calculated max CPU percentage
-	BlkioThrottleRead int64   `json:"blkio_throttle_read_bps"` // Block I/O read throttle
-	BlkioThrottleWrite int64  `json:"blkio_throttle_write_bps"` // Block I/O write throttle
-	DetectedAt        time.Time `json:"detected_at"`
+	MemoryLimitBytes   int64     `json:"memory_limit_bytes"`
+	CPUQuota           int64     `json:"cpu_quota_us"`             // CPU quota in microseconds
+	CPUPeriod          int64     `json:"cpu_period_us"`            // CPU period in microseconds
+	CPUShares          int64     `json:"cpu_shares"`               // CPU shares (relative weight)
+	MaxCPUPercent      float64   `json:"max_cpu_percent"`          // Calculated max CPU percentage
+	BlkioThrottleRead  int64     `json:"blkio_throttle_read_bps"`  // Block I/O read throttle
+	BlkioThrottleWrite int64     `json:"blkio_throttle_write_bps"` // Block I/O write throttle
+	DetectedAt         time.Time `json:"detected_at"`
 }
 
 // ContainerMetrics represents current container resource usage from cgroups
 type ContainerMetrics struct {
-	MemoryUsageBytes  int64   `json:"memory_usage_bytes"`
-	MemoryPercent     float64 `json:"memory_percent"`
-	CPUUsagePercent   float64 `json:"cpu_usage_percent"`
-	BlkioReadBytes    int64   `json:"blkio_read_bytes"`
-	BlkioWriteBytes   int64   `json:"blkio_write_bytes"`
-	ThrottledTime     int64   `json:"throttled_time_ns"`  // Time spent throttled
-	LastUpdated       time.Time `json:"last_updated"`
+	MemoryUsageBytes int64     `json:"memory_usage_bytes"`
+	MemoryPercent    float64   `json:"memory_percent"`
+	CPUUsagePercent  float64   `json:"cpu_usage_percent"`
+	BlkioReadBytes   int64     `json:"blkio_read_bytes"`
+	BlkioWriteBytes  int64     `json:"blkio_write_bytes"`
+	ThrottledTime    int64     `json:"throttled_time_ns"` // Time spent throttled
+	LastUpdated      time.Time `json:"last_updated"`
 }
 
 // AdaptiveThrottler provides intelligent throttling for the scanner based on system conditions
@@ -73,10 +73,10 @@ type AdaptiveThrottler struct {
 	metricsHistoryMutex sync.RWMutex
 
 	// Container awareness
-	isContainerized  bool
-	cgroupVersion    int // 1 or 2
-	cgroupBasePath   string
-	containerLimits  ContainerLimits
+	isContainerized bool
+	cgroupVersion   int // 1 or 2
+	cgroupBasePath  string
+	containerLimits ContainerLimits
 
 	// Context for shutdown
 	ctx    context.Context
@@ -96,46 +96,46 @@ type AdaptiveThrottler struct {
 // ThrottleConfig holds configuration for the adaptive throttling system
 type ThrottleConfig struct {
 	// Worker limits
-	MinWorkers              int           `json:"min_workers" default:"1"`
-	MaxWorkers              int           `json:"max_workers" default:"16"`
-	InitialWorkers          int           `json:"initial_workers" default:"4"`
+	MinWorkers     int `json:"min_workers" default:"1"`
+	MaxWorkers     int `json:"max_workers" default:"16"`
+	InitialWorkers int `json:"initial_workers" default:"4"`
 
 	// Performance thresholds
-	TargetCPUPercent        float64       `json:"target_cpu_percent" default:"70.0"`
-	MaxCPUPercent           float64       `json:"max_cpu_percent" default:"85.0"`
-	TargetMemoryPercent     float64       `json:"target_memory_percent" default:"80.0"`
-	MaxMemoryPercent        float64       `json:"max_memory_percent" default:"90.0"`
+	TargetCPUPercent    float64 `json:"target_cpu_percent" default:"70.0"`
+	MaxCPUPercent       float64 `json:"max_cpu_percent" default:"85.0"`
+	TargetMemoryPercent float64 `json:"target_memory_percent" default:"80.0"`
+	MaxMemoryPercent    float64 `json:"max_memory_percent" default:"90.0"`
 
 	// Network thresholds (MB/s)
-	TargetNetworkThroughput float64       `json:"target_network_mbps" default:"80.0"`  // 80 MB/s for 1Gbps
-	MaxNetworkThroughput    float64       `json:"max_network_mbps" default:"100.0"`   // Leave headroom
+	TargetNetworkThroughput float64 `json:"target_network_mbps" default:"80.0"` // 80 MB/s for 1Gbps
+	MaxNetworkThroughput    float64 `json:"max_network_mbps" default:"100.0"`   // Leave headroom
 
 	// I/O thresholds
-	MaxIOWaitPercent        float64       `json:"max_io_wait_percent" default:"30.0"`
-	TargetIOWaitPercent     float64       `json:"target_io_wait_percent" default:"20.0"`
+	MaxIOWaitPercent    float64 `json:"max_io_wait_percent" default:"30.0"`
+	TargetIOWaitPercent float64 `json:"target_io_wait_percent" default:"20.0"`
 
 	// Batch processing limits
-	MinBatchSize            int           `json:"min_batch_size" default:"10"`
-	MaxBatchSize            int           `json:"max_batch_size" default:"200"`
-	DefaultBatchSize        int           `json:"default_batch_size" default:"50"`
+	MinBatchSize     int `json:"min_batch_size" default:"10"`
+	MaxBatchSize     int `json:"max_batch_size" default:"200"`
+	DefaultBatchSize int `json:"default_batch_size" default:"50"`
 
 	// Processing delays
-	MinProcessingDelay      time.Duration `json:"min_processing_delay" default:"0ms"`
-	MaxProcessingDelay      time.Duration `json:"max_processing_delay" default:"500ms"`
-	DefaultProcessingDelay  time.Duration `json:"default_processing_delay" default:"10ms"`
+	MinProcessingDelay     time.Duration `json:"min_processing_delay" default:"0ms"`
+	MaxProcessingDelay     time.Duration `json:"max_processing_delay" default:"500ms"`
+	DefaultProcessingDelay time.Duration `json:"default_processing_delay" default:"10ms"`
 
 	// Adjustment parameters
-	AdjustmentInterval      time.Duration `json:"adjustment_interval" default:"5s"`
-	SampleWindow            time.Duration `json:"sample_window" default:"30s"`
-	MinAdjustmentThreshold  float64       `json:"min_adjustment_threshold" default:"5.0"` // percent
+	AdjustmentInterval     time.Duration `json:"adjustment_interval" default:"5s"`
+	SampleWindow           time.Duration `json:"sample_window" default:"30s"`
+	MinAdjustmentThreshold float64       `json:"min_adjustment_threshold" default:"5.0"` // percent
 
 	// Emergency brake settings
 	EmergencyBrakeThreshold float64       `json:"emergency_brake_threshold" default:"95.0"`
 	EmergencyBrakeDuration  time.Duration `json:"emergency_brake_duration" default:"10s"`
 
 	// DNS/Network health
-	DNSTimeoutMs            int           `json:"dns_timeout_ms" default:"1000"`
-	NetworkHealthCheckURL   string        `json:"network_health_check_url" default:"8.8.8.8:53"`
+	DNSTimeoutMs          int    `json:"dns_timeout_ms" default:"1000"`
+	NetworkHealthCheckURL string `json:"network_health_check_url" default:"8.8.8.8:53"`
 }
 
 // SystemMetrics represents current system performance metrics
@@ -153,22 +153,22 @@ type SystemMetrics struct {
 
 // ThrottleLimits represents current throttling limits
 type ThrottleLimits struct {
-	WorkerCount       int           `json:"worker_count"`
-	BatchSize         int           `json:"batch_size"`
-	ProcessingDelay   time.Duration `json:"processing_delay"`
-	NetworkBandwidth  float64       `json:"network_bandwidth_mbps"`
-	IOThrottle        float64       `json:"io_throttle_percent"`
-	Enabled           bool          `json:"enabled"`
+	WorkerCount      int           `json:"worker_count"`
+	BatchSize        int           `json:"batch_size"`
+	ProcessingDelay  time.Duration `json:"processing_delay"`
+	NetworkBandwidth float64       `json:"network_bandwidth_mbps"`
+	IOThrottle       float64       `json:"io_throttle_percent"`
+	Enabled          bool          `json:"enabled"`
 }
 
 // PerformanceSnapshot captures performance metrics at a point in time
 type PerformanceSnapshot struct {
-	Timestamp         time.Time     `json:"timestamp"`
-	Metrics           SystemMetrics `json:"metrics"`
-	Limits            ThrottleLimits `json:"limits"`
-	ThroughputMBps    float64       `json:"throughput_mbps"`
-	FilesPerSecond    float64       `json:"files_per_second"`
-	AdjustmentReason  string        `json:"adjustment_reason"`
+	Timestamp        time.Time      `json:"timestamp"`
+	Metrics          SystemMetrics  `json:"metrics"`
+	Limits           ThrottleLimits `json:"limits"`
+	ThroughputMBps   float64        `json:"throughput_mbps"`
+	FilesPerSecond   float64        `json:"files_per_second"`
+	AdjustmentReason string         `json:"adjustment_reason"`
 }
 
 // NetworkStats tracks network-specific metrics for NFS/network storage
@@ -191,7 +191,7 @@ type ThrottleEventCallback interface {
 // NewAdaptiveThrottler creates a new adaptive throttling system
 func NewAdaptiveThrottler(config ThrottleConfig) *AdaptiveThrottler {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Apply defaults if not set
 	if config.MinWorkers == 0 {
 		config.MinWorkers = 1
@@ -240,10 +240,10 @@ func NewAdaptiveThrottler(config ThrottleConfig) *AdaptiveThrottler {
 	}
 
 	throttler := &AdaptiveThrottler{
-		config:          config,
-		ctx:             ctx,
-		cancel:          cancel,
-		maxHistorySize:  100,
+		config:         config,
+		ctx:            ctx,
+		cancel:         cancel,
+		maxHistorySize: 100,
 		currentLimits: ThrottleLimits{
 			WorkerCount:     config.InitialWorkers,
 			BatchSize:       config.DefaultBatchSize,
@@ -255,16 +255,16 @@ func NewAdaptiveThrottler(config ThrottleConfig) *AdaptiveThrottler {
 	}
 
 	throttler.autoAdjustEnabled.Store(true)
-	
+
 	// Detect container environment
 	throttler.detectContainerEnvironment()
-	
+
 	return throttler
 }
 
 // Start begins the adaptive throttling monitoring
 func (at *AdaptiveThrottler) Start() error {
-	logger.Info("Starting adaptive throttling system", 
+	logger.Info("Starting adaptive throttling system",
 		"min_workers", at.config.MinWorkers,
 		"max_workers", at.config.MaxWorkers,
 		"target_cpu", at.config.TargetCPUPercent)
@@ -281,9 +281,9 @@ func (at *AdaptiveThrottler) Start() error {
 // Stop stops the adaptive throttling system
 func (at *AdaptiveThrottler) Stop() {
 	logger.Info("Stopping adaptive throttling system")
-	
+
 	at.cancel()
-	
+
 	if at.monitoringTicker != nil {
 		at.monitoringTicker.Stop()
 	}
@@ -311,7 +311,7 @@ func (at *AdaptiveThrottler) ShouldThrottle() (bool, time.Duration) {
 
 	at.mu.RLock()
 	defer at.mu.RUnlock()
-	
+
 	return at.currentLimits.ProcessingDelay > 0, at.currentLimits.ProcessingDelay
 }
 
@@ -363,7 +363,7 @@ func (at *AdaptiveThrottler) monitoringLoop() {
 func (at *AdaptiveThrottler) updateMetricsAndAdjust() {
 	// Update system metrics
 	metrics := at.gatherSystemMetrics()
-	
+
 	at.mu.Lock()
 	at.metrics = metrics
 	at.mu.Unlock()
@@ -386,7 +386,7 @@ func (at *AdaptiveThrottler) updateMetricsAndAdjust() {
 
 	// Calculate optimal throttling limits
 	newLimits := at.calculateOptimalLimits(metrics)
-	
+
 	// Apply adjustments if significant change is needed
 	if at.shouldAdjustLimits(newLimits) {
 		at.adjustLimits(newLimits, metrics)
@@ -399,12 +399,12 @@ func (at *AdaptiveThrottler) updateMetricsAndAdjust() {
 // gatherSystemMetrics collects current system performance metrics using container-aware monitoring
 func (at *AdaptiveThrottler) gatherSystemMetrics() SystemMetrics {
 	ctx := context.Background()
-	
+
 	// If running in a container, prioritize container metrics
 	if at.isContainerized {
 		return at.gatherContainerAwareMetrics(ctx)
 	}
-	
+
 	// Non-containerized environment - use gopsutil for host metrics
 	return at.gatherHostMetrics(ctx)
 }
@@ -417,14 +417,14 @@ func (at *AdaptiveThrottler) gatherContainerAwareMetrics(ctx context.Context) Sy
 		logger.Debug("Failed to get container metrics, falling back to host metrics", "error", err)
 		return at.gatherHostMetrics(ctx)
 	}
-	
+
 	// Start with container memory metrics
 	var memoryPercent, memoryUsedMB float64
 	if at.containerLimits.MemoryLimitBytes > 0 {
 		memoryPercent = containerMetrics.MemoryPercent
 		memoryUsedMB = float64(containerMetrics.MemoryUsageBytes) / (1024 * 1024)
-		logger.Debug("Using container memory metrics", 
-			"usage_percent", memoryPercent, 
+		logger.Debug("Using container memory metrics",
+			"usage_percent", memoryPercent,
 			"limit_gb", float64(at.containerLimits.MemoryLimitBytes)/(1024*1024*1024))
 	} else {
 		// No container memory limit, use host metrics
@@ -434,7 +434,7 @@ func (at *AdaptiveThrottler) gatherContainerAwareMetrics(ctx context.Context) Sy
 			memoryUsedMB = float64(memStats.Used) / (1024 * 1024)
 		}
 	}
-	
+
 	// CPU metrics - try container-aware approach first
 	var cpuPercent float64
 	if at.containerLimits.MaxCPUPercent > 0 && at.containerLimits.MaxCPUPercent < float64(runtime.NumCPU()*100) {
@@ -451,8 +451,8 @@ func (at *AdaptiveThrottler) gatherContainerAwareMetrics(ctx context.Context) Sy
 				cpuPercent = math.Min(cpuPercent, 100.0) // Cap at 100%
 			}
 		}
-		logger.Debug("Using container-aware CPU metrics", 
-			"cpu_percent", cpuPercent, 
+		logger.Debug("Using container-aware CPU metrics",
+			"cpu_percent", cpuPercent,
 			"max_cpu_percent", at.containerLimits.MaxCPUPercent)
 	} else {
 		// No CPU limits or unlimited, use host CPU
@@ -461,7 +461,7 @@ func (at *AdaptiveThrottler) gatherContainerAwareMetrics(ctx context.Context) Sy
 			cpuPercent = cpuPercents[0]
 		}
 	}
-	
+
 	// Load average - use host metrics as container doesn't typically limit this
 	loadStats, err := load.AvgWithContext(ctx)
 	var loadAverage float64
@@ -470,7 +470,7 @@ func (at *AdaptiveThrottler) gatherContainerAwareMetrics(ctx context.Context) Sy
 	} else {
 		loadAverage = float64(runtime.NumGoroutine()) / float64(runtime.NumCPU())
 	}
-	
+
 	// I/O wait - use host metrics but consider container I/O throttling
 	var ioWaitPercent float64
 	cpuTimes, err := cpu.TimesWithContext(ctx, false)
@@ -482,19 +482,19 @@ func (at *AdaptiveThrottler) gatherContainerAwareMetrics(ctx context.Context) Sy
 	} else {
 		ioWaitPercent = at.estimateIOWaitFallback()
 	}
-	
+
 	// Check if container has I/O throttling enabled
 	if at.containerLimits.BlkioThrottleRead > 0 || at.containerLimits.BlkioThrottleWrite > 0 {
 		// Container has I/O throttling, be more conservative
 		ioWaitPercent = math.Max(ioWaitPercent, 10.0) // Assume at least 10% I/O wait with throttling
-		logger.Debug("Container I/O throttling detected", 
+		logger.Debug("Container I/O throttling detected",
 			"read_throttle_bps", at.containerLimits.BlkioThrottleRead,
 			"write_throttle_bps", at.containerLimits.BlkioThrottleWrite)
 	}
-	
+
 	// Network and disk I/O - use host methods but consider container limits
 	networkUtilMBps, diskReadMBps, diskWriteMBps := at.getNetworkAndDiskMetrics(ctx)
-	
+
 	// Apply container I/O throttling if configured
 	if at.containerLimits.BlkioThrottleRead > 0 {
 		maxDiskReadMBps := float64(at.containerLimits.BlkioThrottleRead) / (1024 * 1024)
@@ -596,11 +596,11 @@ func (at *AdaptiveThrottler) estimateIOWaitFallback() float64 {
 	// This is a very basic estimate based on goroutine count as a proxy for system load
 	numGoroutines := runtime.NumGoroutine()
 	numCPU := runtime.NumCPU()
-	
+
 	// Rough estimate: more goroutines relative to CPU cores suggests potential I/O blocking
 	loadRatio := float64(numGoroutines) / float64(numCPU)
 	estimatedIOWait := math.Min(loadRatio*5.0, 40.0) // Cap at 40%
-	
+
 	return estimatedIOWait
 }
 
@@ -638,9 +638,9 @@ func (at *AdaptiveThrottler) shouldReleaseEmergencyBrake(metrics SystemMetrics) 
 	safeThreshold := at.config.EmergencyBrakeThreshold * 0.8 // 20% below trigger
 
 	return metrics.CPUPercent < safeThreshold &&
-		   metrics.MemoryPercent < safeThreshold &&
-		   metrics.IOWaitPercent < at.config.MaxIOWaitPercent &&
-		   metrics.LoadAverage < float64(runtime.NumCPU())*2.0  // Release when load < 2x CPU count
+		metrics.MemoryPercent < safeThreshold &&
+		metrics.IOWaitPercent < at.config.MaxIOWaitPercent &&
+		metrics.LoadAverage < float64(runtime.NumCPU())*2.0 // Release when load < 2x CPU count
 }
 
 // triggerEmergencyBrake activates emergency throttling
@@ -649,7 +649,7 @@ func (at *AdaptiveThrottler) triggerEmergencyBrake(reason string, metrics System
 		return // Already activated
 	}
 
-	logger.Warn("Emergency brake triggered", "reason", reason, 
+	logger.Warn("Emergency brake triggered", "reason", reason,
 		"cpu_percent", metrics.CPUPercent,
 		"memory_percent", metrics.MemoryPercent,
 		"io_wait_percent", metrics.IOWaitPercent)
@@ -681,7 +681,7 @@ func (at *AdaptiveThrottler) releaseEmergencyBrake(metrics SystemMetrics) {
 		return
 	}
 
-	logger.Info("Emergency brake released", 
+	logger.Info("Emergency brake released",
 		"cpu_percent", metrics.CPUPercent,
 		"memory_percent", metrics.MemoryPercent)
 
@@ -709,16 +709,16 @@ func (at *AdaptiveThrottler) calculateOptimalLimits(metrics SystemMetrics) Throt
 
 	// Calculate optimal worker count based on resource utilization
 	limits.WorkerCount = at.calculateOptimalWorkerCount(metrics)
-	
+
 	// Calculate optimal batch size
 	limits.BatchSize = at.calculateOptimalBatchSize(metrics)
-	
+
 	// Calculate processing delay
 	limits.ProcessingDelay = at.calculateOptimalDelay(metrics)
-	
+
 	// Calculate network bandwidth limit
 	limits.NetworkBandwidth = at.calculateOptimalNetworkBandwidth(metrics)
-	
+
 	// Calculate I/O throttle
 	limits.IOThrottle = at.calculateOptimalIOThrottle(metrics)
 
@@ -728,7 +728,7 @@ func (at *AdaptiveThrottler) calculateOptimalLimits(metrics SystemMetrics) Throt
 // calculateOptimalWorkerCount determines the optimal number of workers
 func (at *AdaptiveThrottler) calculateOptimalWorkerCount(metrics SystemMetrics) int {
 	currentWorkers := at.currentLimits.WorkerCount
-	
+
 	// Start with current count
 	optimalWorkers := currentWorkers
 
@@ -755,7 +755,7 @@ func (at *AdaptiveThrottler) calculateOptimalWorkerCount(metrics SystemMetrics) 
 // calculateOptimalBatchSize determines the optimal batch size
 func (at *AdaptiveThrottler) calculateOptimalBatchSize(metrics SystemMetrics) int {
 	currentBatch := at.currentLimits.BatchSize
-	
+
 	// Adjust batch size based on memory and I/O conditions
 	if metrics.MemoryPercent > at.config.TargetMemoryPercent {
 		// High memory usage, reduce batch size
@@ -813,10 +813,10 @@ func (at *AdaptiveThrottler) calculateOptimalDelay(metrics SystemMetrics) time.D
 func (at *AdaptiveThrottler) calculateOptimalNetworkBandwidth(metrics SystemMetrics) float64 {
 	if metrics.NetworkUtilMBps > at.config.MaxNetworkThroughput {
 		return at.config.TargetNetworkThroughput * 0.8 // Reduce to 80% of target
-	} else if metrics.NetworkUtilMBps < at.config.TargetNetworkThroughput * 0.5 {
+	} else if metrics.NetworkUtilMBps < at.config.TargetNetworkThroughput*0.5 {
 		return at.config.MaxNetworkThroughput // Allow full utilization
 	}
-	
+
 	return at.config.TargetNetworkThroughput
 }
 
@@ -827,7 +827,7 @@ func (at *AdaptiveThrottler) calculateOptimalIOThrottle(metrics SystemMetrics) f
 	} else if metrics.IOWaitPercent > at.config.TargetIOWaitPercent {
 		return 80.0 // Moderate throttling
 	}
-	
+
 	return 100.0 // No throttling
 }
 
@@ -845,7 +845,7 @@ func (at *AdaptiveThrottler) shouldAdjustLimits(newLimits ThrottleLimits) bool {
 	// Check for significant changes
 	workerChange := abs(newLimits.WorkerCount - current.WorkerCount)
 	batchChange := abs(newLimits.BatchSize - current.BatchSize)
-	
+
 	// Use time.Duration directly for delay comparison
 	delayDiff := newLimits.ProcessingDelay - current.ProcessingDelay
 	if delayDiff < 0 {
@@ -867,7 +867,7 @@ func (at *AdaptiveThrottler) adjustLimits(newLimits ThrottleLimits, metrics Syst
 
 	reason := at.determineAdjustmentReason(oldLimits, newLimits, metrics)
 
-	logger.Info("Throttling adjusted", 
+	logger.Info("Throttling adjusted",
 		"reason", reason,
 		"workers", fmt.Sprintf("%d→%d", oldLimits.WorkerCount, newLimits.WorkerCount),
 		"batch_size", fmt.Sprintf("%d→%d", oldLimits.BatchSize, newLimits.BatchSize),
@@ -903,7 +903,7 @@ func (at *AdaptiveThrottler) determineAdjustmentReason(old, new ThrottleLimits, 
 	} else if new.BatchSize != old.BatchSize {
 		return "adjusting_batch_size"
 	}
-	
+
 	return "minor_adjustment"
 }
 
@@ -918,7 +918,7 @@ func (at *AdaptiveThrottler) recordPerformanceSnapshot(metrics SystemMetrics, li
 
 	at.mu.Lock()
 	at.performanceHistory = append(at.performanceHistory, snapshot)
-	
+
 	// Keep only recent history
 	if len(at.performanceHistory) > at.maxHistorySize {
 		at.performanceHistory = at.performanceHistory[1:]
@@ -944,19 +944,19 @@ func (at *AdaptiveThrottler) networkHealthLoop() {
 // checkNetworkHealth performs network health checks
 func (at *AdaptiveThrottler) checkNetworkHealth() {
 	start := time.Now()
-	
+
 	// DNS health check
 	dnsLatency := at.checkDNSHealth()
-	
+
 	// Network connectivity check
 	networkLatency := at.checkNetworkConnectivity()
-	
+
 	at.mu.Lock()
 	at.networkStats = NetworkStats{
-		DNSLatencyMs:      dnsLatency,
-		NetworkLatencyMs:  networkLatency,
-		LastHealthCheck:   start,
-		IsHealthy:         dnsLatency < float64(at.config.DNSTimeoutMs) && networkLatency < 100.0,
+		DNSLatencyMs:     dnsLatency,
+		NetworkLatencyMs: networkLatency,
+		LastHealthCheck:  start,
+		IsHealthy:        dnsLatency < float64(at.config.DNSTimeoutMs) && networkLatency < 100.0,
 	}
 	at.mu.Unlock()
 }
@@ -964,28 +964,28 @@ func (at *AdaptiveThrottler) checkNetworkHealth() {
 // checkDNSHealth checks DNS resolution performance
 func (at *AdaptiveThrottler) checkDNSHealth() float64 {
 	start := time.Now()
-	
+
 	_, err := net.LookupHost("google.com")
 	if err != nil {
 		logger.Warn("DNS health check failed", "error", err)
 		return float64(at.config.DNSTimeoutMs) // Return timeout value on failure
 	}
-	
+
 	return float64(time.Since(start).Milliseconds())
 }
 
 // checkNetworkConnectivity checks basic network connectivity
 func (at *AdaptiveThrottler) checkNetworkConnectivity() float64 {
 	start := time.Now()
-	
-	conn, err := net.DialTimeout("tcp", at.config.NetworkHealthCheckURL, 
+
+	conn, err := net.DialTimeout("tcp", at.config.NetworkHealthCheckURL,
 		time.Duration(at.config.DNSTimeoutMs)*time.Millisecond)
 	if err != nil {
 		logger.Warn("Network connectivity check failed", "error", err)
 		return 1000.0 // Return high latency on failure
 	}
 	defer conn.Close()
-	
+
 	return float64(time.Since(start).Milliseconds())
 }
 
@@ -993,7 +993,7 @@ func (at *AdaptiveThrottler) checkNetworkConnectivity() float64 {
 func (at *AdaptiveThrottler) GetPerformanceHistory() []PerformanceSnapshot {
 	at.mu.RLock()
 	defer at.mu.RUnlock()
-	
+
 	history := make([]PerformanceSnapshot, len(at.performanceHistory))
 	copy(history, at.performanceHistory)
 	return history
@@ -1045,7 +1045,7 @@ func abs(a int) int {
 // getNetworkAndDiskMetrics collects network and disk I/O metrics using gopsutil with delta tracking
 func (at *AdaptiveThrottler) getNetworkAndDiskMetrics(ctx context.Context) (networkMBps, diskReadMBps, diskWriteMBps float64) {
 	currentTime := time.Now()
-	
+
 	// Network metrics
 	netStats, err := psnet.IOCountersWithContext(ctx, false)
 	if err != nil {
@@ -1070,7 +1070,7 @@ func (at *AdaptiveThrottler) getNetworkAndDiskMetrics(ctx context.Context) (netw
 	if at.lastNetworkStats != nil && at.lastDiskStats != nil && !at.lastMetricsTime.IsZero() {
 		timeDelta := currentTime.Sub(at.lastMetricsTime).Seconds()
 		if timeDelta > 0 && timeDelta < 300 { // Only use deltas if reasonable time window (< 5 minutes)
-			
+
 			// Calculate network throughput from deltas
 			var deltaBytesRecv, deltaBytesSent uint64
 			for i, stat := range netStats {
@@ -1098,7 +1098,7 @@ func (at *AdaptiveThrottler) getNetworkAndDiskMetrics(ctx context.Context) (netw
 			}
 			diskReadMBps = float64(deltaReadBytes) / (1024 * 1024) / timeDelta
 			diskWriteMBps = float64(deltaWriteBytes) / (1024 * 1024) / timeDelta
-			diskReadMBps = math.Min(diskReadMBps, 1000.0)  // Cap at reasonable values
+			diskReadMBps = math.Min(diskReadMBps, 1000.0) // Cap at reasonable values
 			diskWriteMBps = math.Min(diskWriteMBps, 1000.0)
 		} else {
 			// Time delta too large or small, use fallback
@@ -1112,7 +1112,7 @@ func (at *AdaptiveThrottler) getNetworkAndDiskMetrics(ctx context.Context) (netw
 	// Store current metrics for next delta calculation
 	at.lastNetworkStats = make([]psnet.IOCountersStat, len(netStats))
 	copy(at.lastNetworkStats, netStats)
-	
+
 	at.lastDiskStats = make(map[string]disk.IOCountersStat)
 	for device, stat := range diskStats {
 		at.lastDiskStats[device] = stat
@@ -1127,13 +1127,13 @@ func (at *AdaptiveThrottler) estimateNetworkAndIOMetricsFallback() (networkMBps,
 	// Basic estimation based on runtime metrics - not accurate but prevents crashes
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	// Very rough estimates based on memory allocation patterns
 	allocRate := float64(memStats.Alloc) / (1024 * 1024) // MB
-	networkMBps = math.Min(allocRate/100, 50.0)  // Estimate based on allocation rate
-	diskReadMBps = math.Min(allocRate/200, 25.0) // Conservative disk read estimate
-	diskWriteMBps = math.Min(allocRate/400, 10.0) // Conservative disk write estimate
-	
+	networkMBps = math.Min(allocRate/100, 50.0)          // Estimate based on allocation rate
+	diskReadMBps = math.Min(allocRate/200, 25.0)         // Conservative disk read estimate
+	diskWriteMBps = math.Min(allocRate/400, 10.0)        // Conservative disk write estimate
+
 	return networkMBps, diskReadMBps, diskWriteMBps
 }
 
@@ -1141,13 +1141,13 @@ func (at *AdaptiveThrottler) estimateNetworkAndIOMetricsFallback() (networkMBps,
 func (at *AdaptiveThrottler) detectContainerEnvironment() {
 	at.mu.Lock()
 	defer at.mu.Unlock()
-	
+
 	// Check for common container indicators
 	containerIndicators := []string{
-		"/.dockerenv",           // Docker
-		"/run/.containerenv",    // Podman
+		"/.dockerenv",        // Docker
+		"/run/.containerenv", // Podman
 	}
-	
+
 	for _, indicator := range containerIndicators {
 		if _, err := os.Stat(indicator); err == nil {
 			at.isContainerized = true
@@ -1155,20 +1155,20 @@ func (at *AdaptiveThrottler) detectContainerEnvironment() {
 			break
 		}
 	}
-	
+
 	// Check for cgroup mount and determine version
 	if !at.isContainerized {
 		// Check for container via cgroup
 		if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
 			content := string(data)
-			if strings.Contains(content, "docker") || strings.Contains(content, "containerd") || 
-			   strings.Contains(content, "kubepods") || strings.Contains(content, "libpod") {
+			if strings.Contains(content, "docker") || strings.Contains(content, "containerd") ||
+				strings.Contains(content, "kubepods") || strings.Contains(content, "libpod") {
 				at.isContainerized = true
 				logger.Info("Container environment detected via cgroup")
 			}
 		}
 	}
-	
+
 	if at.isContainerized {
 		// Determine cgroup version
 		if _, err := os.Stat("/sys/fs/cgroup/cgroup.controllers"); err == nil {
@@ -1183,7 +1183,7 @@ func (at *AdaptiveThrottler) detectContainerEnvironment() {
 			logger.Warn("Container detected but cgroup filesystem not found")
 			at.isContainerized = false
 		}
-		
+
 		if at.isContainerized {
 			at.detectContainerLimits()
 		}
@@ -1195,7 +1195,7 @@ func (at *AdaptiveThrottler) detectContainerEnvironment() {
 // detectContainerLimits reads container resource limits from cgroups
 func (at *AdaptiveThrottler) detectContainerLimits() {
 	limits := ContainerLimits{DetectedAt: time.Now()}
-	
+
 	if at.cgroupVersion == 2 {
 		// cgroup v2
 		limits.MemoryLimitBytes = at.readCgroupInt64("/sys/fs/cgroup/memory.max")
@@ -1214,12 +1214,12 @@ func (at *AdaptiveThrottler) detectContainerLimits() {
 		limits.CPUQuota = at.readCgroupInt64("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
 		limits.CPUPeriod = at.readCgroupInt64("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
 		limits.CPUShares = at.readCgroupInt64("/sys/fs/cgroup/cpu/cpu.shares")
-		
+
 		// Read block I/O throttle settings
 		limits.BlkioThrottleRead = at.readBlkioThrottle("/sys/fs/cgroup/blkio/blkio.throttle.read_bps_device")
 		limits.BlkioThrottleWrite = at.readBlkioThrottle("/sys/fs/cgroup/blkio/blkio.throttle.write_bps_device")
 	}
-	
+
 	// Calculate maximum CPU percentage
 	if limits.CPUQuota > 0 && limits.CPUPeriod > 0 {
 		limits.MaxCPUPercent = float64(limits.CPUQuota) / float64(limits.CPUPeriod) * 100
@@ -1227,15 +1227,15 @@ func (at *AdaptiveThrottler) detectContainerLimits() {
 	} else {
 		limits.MaxCPUPercent = float64(runtime.NumCPU()) * 100 // No limit, use host CPU count
 	}
-	
+
 	// Check for unrealistic memory limits (often indicates no limit set)
-	if limits.MemoryLimitBytes > (1<<62) { // Very large number indicates no limit
+	if limits.MemoryLimitBytes > (1 << 62) { // Very large number indicates no limit
 		limits.MemoryLimitBytes = 0
 		logger.Info("No container memory limit detected")
 	} else if limits.MemoryLimitBytes > 0 {
 		logger.Info("Container memory limit detected", "limit_gb", float64(limits.MemoryLimitBytes)/(1024*1024*1024))
 	}
-	
+
 	at.containerLimits = limits
 }
 
@@ -1245,12 +1245,12 @@ func (at *AdaptiveThrottler) readCgroupInt64(path string) int64 {
 	if err != nil {
 		return 0
 	}
-	
+
 	value, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
 	if err != nil {
 		return 0
 	}
-	
+
 	return value
 }
 
@@ -1260,7 +1260,7 @@ func (at *AdaptiveThrottler) readCgroupString(path string) string {
 	if err != nil {
 		return ""
 	}
-	
+
 	return strings.TrimSpace(string(data))
 }
 
@@ -1270,7 +1270,7 @@ func (at *AdaptiveThrottler) readBlkioThrottle(path string) int64 {
 	if err != nil {
 		return 0
 	}
-	
+
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
 		if strings.TrimSpace(line) != "" {
@@ -1281,7 +1281,7 @@ func (at *AdaptiveThrottler) readBlkioThrottle(path string) int64 {
 			}
 		}
 	}
-	
+
 	return 0
 }
 
@@ -1290,16 +1290,16 @@ func (at *AdaptiveThrottler) getContainerMetrics() (*ContainerMetrics, error) {
 	if !at.isContainerized {
 		return nil, fmt.Errorf("not running in container")
 	}
-	
+
 	metrics := &ContainerMetrics{LastUpdated: time.Now()}
-	
+
 	if at.cgroupVersion == 2 {
 		// cgroup v2
 		metrics.MemoryUsageBytes = at.readCgroupInt64("/sys/fs/cgroup/memory.current")
-		
+
 		// For CPU usage in cgroup v2, we rely on gopsutil fallback in the calling function
 		// as it provides more reliable cross-platform CPU percentage calculations
-		
+
 		// Read I/O stats
 		ioStat := at.readCgroupString("/sys/fs/cgroup/io.stat")
 		if ioStat != "" {
@@ -1321,9 +1321,9 @@ func (at *AdaptiveThrottler) getContainerMetrics() (*ContainerMetrics, error) {
 	} else {
 		// cgroup v1
 		metrics.MemoryUsageBytes = at.readCgroupInt64("/sys/fs/cgroup/memory/memory.usage_in_bytes")
-		
+
 		// For CPU usage in cgroup v1, we also rely on gopsutil fallback for consistency
-		
+
 		// Block I/O
 		blkioStat := at.readCgroupString("/sys/fs/cgroup/blkio/blkio.io_service_bytes_recursive")
 		if blkioStat != "" {
@@ -1341,12 +1341,12 @@ func (at *AdaptiveThrottler) getContainerMetrics() (*ContainerMetrics, error) {
 			}
 		}
 	}
-	
+
 	// Calculate memory percentage
 	if at.containerLimits.MemoryLimitBytes > 0 {
 		metrics.MemoryPercent = float64(metrics.MemoryUsageBytes) / float64(at.containerLimits.MemoryLimitBytes) * 100
 	}
-	
+
 	return metrics, nil
 }
 
@@ -1354,20 +1354,20 @@ func (at *AdaptiveThrottler) getContainerMetrics() (*ContainerMetrics, error) {
 func (at *AdaptiveThrottler) DisableThrottling() {
 	at.mu.Lock()
 	defer at.mu.Unlock()
-	
+
 	// Set to maximum performance settings
 	at.currentLimits = ThrottleLimits{
-		WorkerCount:     at.config.MaxWorkers,
-		BatchSize:       at.config.MaxBatchSize,
-		ProcessingDelay: 0, // No delay
+		WorkerCount:      at.config.MaxWorkers,
+		BatchSize:        at.config.MaxBatchSize,
+		ProcessingDelay:  0, // No delay
 		NetworkBandwidth: at.config.MaxNetworkThroughput,
-		IOThrottle:      100.0, // No I/O throttling
-		Enabled:         false, // Disable throttling entirely
+		IOThrottle:       100.0, // No I/O throttling
+		Enabled:          false, // Disable throttling entirely
 	}
-	
+
 	// Disable auto-adjustment
 	at.autoAdjustEnabled.Store(false)
-	
+
 	logger.Info("Throttling completely disabled for maximum performance",
 		"workers", at.config.MaxWorkers,
 		"batch_size", at.config.MaxBatchSize)
@@ -1377,19 +1377,19 @@ func (at *AdaptiveThrottler) DisableThrottling() {
 func (at *AdaptiveThrottler) EnableThrottling() {
 	at.mu.Lock()
 	defer at.mu.Unlock()
-	
+
 	// Restore default settings
 	at.currentLimits = ThrottleLimits{
-		WorkerCount:     at.config.InitialWorkers,
-		BatchSize:       at.config.DefaultBatchSize,
-		ProcessingDelay: at.config.DefaultProcessingDelay,
+		WorkerCount:      at.config.InitialWorkers,
+		BatchSize:        at.config.DefaultBatchSize,
+		ProcessingDelay:  at.config.DefaultProcessingDelay,
 		NetworkBandwidth: at.config.TargetNetworkThroughput,
-		IOThrottle:      100.0,
-		Enabled:         true,
+		IOThrottle:       100.0,
+		Enabled:          true,
 	}
-	
+
 	// Re-enable auto-adjustment
 	at.autoAdjustEnabled.Store(true)
-	
+
 	logger.Info("Throttling re-enabled with default settings")
-} 
+}

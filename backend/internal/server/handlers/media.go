@@ -149,7 +149,7 @@ func (h *MediaHandler) StreamMedia(c *gin.Context) {
 			// TODO: With new schema, metadata would be retrieved through Artist/Album/Track relationships
 			// For now, use basic file info
 			title := filepath.Base(mediaFile.Path)
-			
+
 			playEvent := events.NewSystemEvent(
 				events.EventPlaybackStarted,
 				"Playback Started",
@@ -204,9 +204,9 @@ func StreamMedia(c *gin.Context) {
 // GetArtwork serves album artwork for a media file - deprecated, use entity-based asset system instead
 func GetArtwork(c *gin.Context) {
 	c.JSON(http.StatusGone, gin.H{
-		"error":       "This endpoint is deprecated",
-		"message":     "Artwork is now managed through the entity-based asset system",
-		"suggestion":  "Use /api/v1/assets/entity/{type}/{id}/preferred/cover for album artwork",
+		"error":         "This endpoint is deprecated",
+		"message":       "Artwork is now managed through the entity-based asset system",
+		"suggestion":    "Use /api/v1/assets/entity/{type}/{id}/preferred/cover for album artwork",
 		"documentation": "See /api/v1/assets/ endpoints for the new asset management system",
 	})
 }
@@ -228,8 +228,8 @@ func isMusicFile(extension string) bool {
 // LoadTestMusicData loads test music data for development - deprecated
 func LoadTestMusicData(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Load test music data functionality is deprecated",
-		"message": "Test data loading is no longer supported",
+		"error":      "Load test music data functionality is deprecated",
+		"message":    "Test data loading is no longer supported",
 		"suggestion": "Use real media files and the scanner system instead",
 	})
 }
@@ -273,7 +273,7 @@ func GetMediaFiles(c *gin.Context) {
 	var filesWithMetadata []MediaFileWithMetadata
 	for _, mediaFile := range mediaFiles {
 		fileWithMeta := MediaFileWithMetadata{MediaFile: mediaFile}
-		
+
 		// If it's a music track, get track metadata
 		if mediaFile.MediaType == database.MediaTypeTrack && mediaFile.MediaID != "" {
 			var track database.Track
@@ -282,7 +282,7 @@ func GetMediaFiles(c *gin.Context) {
 				fileWithMeta.TrackInfo = &track
 			}
 		}
-		
+
 		filesWithMetadata = append(filesWithMetadata, fileWithMeta)
 	}
 

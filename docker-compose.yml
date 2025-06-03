@@ -18,9 +18,10 @@ services:
       - ./backend:/app
       - ./backend/data:/app/data
       - ./viewra-data:/app/viewra-data
-      - /nfs/fictionalserver/music:/media/music:ro
-      - /nfs/fictionalserver/tv:/media/tv:ro
-      - /nfs/fictionalserver/movies:/media/movies:ro
+      # Re-enabled NFS mounts after fixing permission issues
+      - /cifs/fictionalserver/music:/media/music:ro
+      - /cifs/fictionalserver/tv:/media/tv:ro
+      - /cifs/fictionalserver/movies:/media/movies:ro
     networks:
       - viewra-network
     restart: unless-stopped
@@ -37,6 +38,7 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
+      # Re-enabled NFS mounts after fixing permission issues
       - /nfs/fictionalserver/music:/media/music:ro
     depends_on:
       - backend

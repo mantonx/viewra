@@ -48,22 +48,22 @@ func (h *EventsHandler) GetEvents(c *gin.Context) {
 
 	// Build filter
 	filter := events.EventFilter{}
-	
+
 	if eventType != "" {
 		filter.Types = []events.EventType{events.EventType(eventType)}
 	}
-	
+
 	if source != "" {
 		filter.Sources = []string{source}
 	}
-	
+
 	if priority != "" {
 		if p, err := strconv.Atoi(priority); err == nil {
 			prio := events.EventPriority(p)
 			filter.Priority = &prio
 		}
 	}
-	
+
 	if len(tags) > 0 {
 		filter.Tags = tags
 	}
@@ -200,7 +200,7 @@ func (h *EventsHandler) PublishEvent(c *gin.Context) {
 		Message  string                 `json:"message"`
 		Data     map[string]interface{} `json:"data"`
 		Priority int                    `json:"priority"`
-		Tags     []string              `json:"tags"`
+		Tags     []string               `json:"tags"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -249,7 +249,7 @@ func (h *EventsHandler) PublishEvent(c *gin.Context) {
 // GetSubscriptions returns active event subscriptions
 func (h *EventsHandler) GetSubscriptions(c *gin.Context) {
 	subscriptions := h.eventBus.GetSubscriptions()
-	
+
 	// Convert to response format (without the handler function)
 	var response []gin.H
 	for _, sub := range subscriptions {
@@ -280,7 +280,7 @@ func (h *EventsHandler) StreamEvents(c *gin.Context) {
 
 	// Create a channel to receive events
 	eventChan := make(chan events.Event, 100)
-	
+
 	// Subscribe to all events
 	filter := events.EventFilter{} // Empty filter subscribes to all events
 	subscription, err := h.eventBus.Subscribe(c.Request.Context(), filter, func(event events.Event) error {
@@ -291,7 +291,7 @@ func (h *EventsHandler) StreamEvents(c *gin.Context) {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to subscribe to events",
@@ -299,13 +299,13 @@ func (h *EventsHandler) StreamEvents(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	defer h.eventBus.Unsubscribe(subscription.ID)
-	
+
 	// Send initial connection message
 	c.Writer.Write([]byte("data: {\"type\":\"connected\",\"message\":\"Event stream connected\"}\n\n"))
 	c.Writer.Flush()
-	
+
 	// Stream events
 	for {
 		select {
@@ -327,13 +327,13 @@ func (h *EventsHandler) StreamEvents(c *gin.Context) {
 					"ttl":       event.TTL,
 				},
 			}
-			
+
 			// Send the event data
 			if err := writeSSEEvent(c.Writer, "event", eventData); err != nil {
 				return
 			}
 			c.Writer.Flush()
-			
+
 		case <-c.Request.Context().Done():
 			// Client disconnected
 			return
@@ -348,17 +348,17 @@ func writeSSEEvent(w http.ResponseWriter, eventType string, data interface{}) er
 			return err
 		}
 	}
-	
+
 	// Convert data to JSON string
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	
+
 	if _, err := w.Write([]byte("data: " + string(jsonData) + "\n\n")); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -397,7 +397,7 @@ func (h *EventsHandler) ClearEvents(c *gin.Context) {
 	// Create a background context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	// Clear all events
 	if err := h.eventBus.ClearEvents(ctx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -406,7 +406,7 @@ func (h *EventsHandler) ClearEvents(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Log that events were cleared (as a special event)
 	clearEvent := events.NewSystemEvent(
 		events.EventInfo,
@@ -421,7 +421,7 @@ func (h *EventsHandler) ClearEvents(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "All events cleared successfully",
 		"success": true,

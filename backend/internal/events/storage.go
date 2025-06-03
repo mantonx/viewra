@@ -23,7 +23,7 @@ type SystemEvent struct {
 	Data      string    `gorm:"type:text" json:"data"` // JSON-encoded event data
 	Priority  int       `gorm:"not null;index" json:"priority"`
 	Tags      string    `gorm:"type:text" json:"tags"` // JSON-encoded tags
-	TTL       *int64    `json:"ttl"` // TTL in seconds
+	TTL       *int64    `json:"ttl"`                   // TTL in seconds
 	CreatedAt time.Time `gorm:"index" json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -45,7 +45,7 @@ func (se *SystemEvent) ToEvent() (Event, error) {
 		Priority:  EventPriority(se.Priority),
 		Timestamp: se.CreatedAt,
 	}
-	
+
 	// Parse data
 	if se.Data != "" {
 		var data map[string]interface{}
@@ -56,7 +56,7 @@ func (se *SystemEvent) ToEvent() (Event, error) {
 	} else {
 		event.Data = make(map[string]interface{})
 	}
-	
+
 	// Parse tags
 	if se.Tags != "" {
 		var tags []string
@@ -67,13 +67,13 @@ func (se *SystemEvent) ToEvent() (Event, error) {
 	} else {
 		event.Tags = []string{}
 	}
-	
+
 	// Parse TTL
 	if se.TTL != nil {
 		ttl := time.Duration(*se.TTL) * time.Second
 		event.TTL = &ttl
 	}
-	
+
 	return event, nil
 }
 
@@ -88,7 +88,7 @@ func (se *SystemEvent) FromEvent(event Event) error {
 	se.Priority = int(event.Priority)
 	se.CreatedAt = event.Timestamp
 	se.UpdatedAt = time.Now()
-	
+
 	// Serialize data
 	if event.Data != nil {
 		dataBytes, err := json.Marshal(event.Data)
@@ -97,7 +97,7 @@ func (se *SystemEvent) FromEvent(event Event) error {
 		}
 		se.Data = string(dataBytes)
 	}
-	
+
 	// Serialize tags
 	if event.Tags != nil {
 		tagsBytes, err := json.Marshal(event.Tags)
@@ -106,13 +106,13 @@ func (se *SystemEvent) FromEvent(event Event) error {
 		}
 		se.Tags = string(tagsBytes)
 	}
-	
+
 	// Serialize TTL
 	if event.TTL != nil {
 		ttlSeconds := int64(event.TTL.Seconds())
 		se.TTL = &ttlSeconds
 	}
-	
+
 	return nil
 }
 
@@ -132,18 +132,18 @@ func (s *databaseEventStorage) Store(ctx context.Context, event Event) error {
 	if err := systemEvent.FromEvent(event); err != nil {
 		return fmt.Errorf("failed to convert event: %w", err)
 	}
-	
+
 	if err := s.db.WithContext(ctx).Create(&systemEvent).Error; err != nil {
 		return fmt.Errorf("failed to store event: %w", err)
 	}
-	
+
 	return nil
 }
 
 // Get retrieves events based on filter
 func (s *databaseEventStorage) Get(ctx context.Context, filter EventFilter, limit, offset int) ([]Event, int64, error) {
 	query := s.db.WithContext(ctx).Model(&SystemEvent{})
-	
+
 	// Apply filters
 	if len(filter.Types) > 0 {
 		types := make([]string, len(filter.Types))
@@ -152,30 +152,30 @@ func (s *databaseEventStorage) Get(ctx context.Context, filter EventFilter, limi
 		}
 		query = query.Where("type IN ?", types)
 	}
-	
+
 	if len(filter.Sources) > 0 {
 		query = query.Where("source IN ?", filter.Sources)
 	}
-	
+
 	if filter.Priority != nil {
 		query = query.Where("priority >= ?", int(*filter.Priority))
 	}
-	
+
 	// Tag filtering is more complex and might require a different approach
 	// For now, we'll skip tag filtering in the database query
-	
+
 	// Get total count
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count events: %w", err)
 	}
-	
+
 	// Get events with pagination
 	var systemEvents []SystemEvent
 	if err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&systemEvents).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to retrieve events: %w", err)
 	}
-	
+
 	// Convert to events
 	events := make([]Event, 0, len(systemEvents))
 	for _, se := range systemEvents {
@@ -183,17 +183,17 @@ func (s *databaseEventStorage) Get(ctx context.Context, filter EventFilter, limi
 		if err != nil {
 			continue // Skip invalid events
 		}
-		
+
 		// Apply tag filter if needed
 		if len(filter.Tags) > 0 {
 			if !MatchesFilter(event, filter) {
 				continue
 			}
 		}
-		
+
 		events = append(events, event)
 	}
-	
+
 	return events, total, nil
 }
 
@@ -201,19 +201,19 @@ func (s *databaseEventStorage) Get(ctx context.Context, filter EventFilter, limi
 func (s *databaseEventStorage) GetByTimeRange(ctx context.Context, start, end time.Time, limit, offset int) ([]Event, int64, error) {
 	query := s.db.WithContext(ctx).Model(&SystemEvent{}).
 		Where("created_at >= ? AND created_at <= ?", start, end)
-	
+
 	// Get total count
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count events: %w", err)
 	}
-	
+
 	// Get events with pagination
 	var systemEvents []SystemEvent
 	if err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&systemEvents).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to retrieve events: %w", err)
 	}
-	
+
 	// Convert to events
 	events := make([]Event, 0, len(systemEvents))
 	for _, se := range systemEvents {
@@ -223,19 +223,19 @@ func (s *databaseEventStorage) GetByTimeRange(ctx context.Context, start, end ti
 		}
 		events = append(events, event)
 	}
-	
+
 	return events, total, nil
 }
 
 // Delete removes events older than the specified duration
 func (s *databaseEventStorage) Delete(ctx context.Context, olderThan time.Duration) error {
 	cutoff := time.Now().Add(-olderThan)
-	
+
 	result := s.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&SystemEvent{})
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete old events: %w", result.Error)
 	}
-	
+
 	return nil
 }
 
@@ -245,11 +245,11 @@ func (s *databaseEventStorage) DeleteByID(ctx context.Context, eventID string) e
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete event %s: %w", eventID, result.Error)
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("event not found: %s", eventID)
 	}
-	
+
 	return nil
 }
 
@@ -268,7 +268,7 @@ func (s *databaseEventStorage) DeleteAllEvents(ctx context.Context) error {
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete all events: %w", result.Error)
 	}
-	
+
 	return nil
 }
 
@@ -294,7 +294,7 @@ func NewMemoryEventStorage() EventStorage {
 func (s *memoryEventStorage) Store(ctx context.Context, event Event) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	s.events = append(s.events, event)
 	return nil
 }
@@ -303,10 +303,10 @@ func (s *memoryEventStorage) Store(ctx context.Context, event Event) error {
 func (s *memoryEventStorage) Get(ctx context.Context, filter EventFilter, limit, offset int) ([]Event, int64, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	filtered := FilterEvents(s.events, filter)
 	total := int64(len(filtered))
-	
+
 	// Sort by timestamp descending
 	for i := 0; i < len(filtered)-1; i++ {
 		for j := i + 1; j < len(filtered); j++ {
@@ -315,19 +315,19 @@ func (s *memoryEventStorage) Get(ctx context.Context, filter EventFilter, limit,
 			}
 		}
 	}
-	
+
 	// Apply pagination
 	start := offset
 	end := offset + limit
-	
+
 	if start >= len(filtered) {
 		return []Event{}, total, nil
 	}
-	
+
 	if end > len(filtered) {
 		end = len(filtered)
 	}
-	
+
 	return filtered[start:end], total, nil
 }
 
@@ -335,16 +335,16 @@ func (s *memoryEventStorage) Get(ctx context.Context, filter EventFilter, limit,
 func (s *memoryEventStorage) GetByTimeRange(ctx context.Context, start, end time.Time, limit, offset int) ([]Event, int64, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	var filtered []Event
 	for _, event := range s.events {
 		if !event.Timestamp.Before(start) && !event.Timestamp.After(end) {
 			filtered = append(filtered, event)
 		}
 	}
-	
+
 	total := int64(len(filtered))
-	
+
 	// Sort by timestamp descending
 	for i := 0; i < len(filtered)-1; i++ {
 		for j := i + 1; j < len(filtered); j++ {
@@ -353,19 +353,19 @@ func (s *memoryEventStorage) GetByTimeRange(ctx context.Context, start, end time
 			}
 		}
 	}
-	
+
 	// Apply pagination
 	startIdx := offset
 	endIdx := offset + limit
-	
+
 	if startIdx >= len(filtered) {
 		return []Event{}, total, nil
 	}
-	
+
 	if endIdx > len(filtered) {
 		endIdx = len(filtered)
 	}
-	
+
 	return filtered[startIdx:endIdx], total, nil
 }
 
@@ -373,16 +373,16 @@ func (s *memoryEventStorage) GetByTimeRange(ctx context.Context, start, end time
 func (s *memoryEventStorage) Delete(ctx context.Context, olderThan time.Duration) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	cutoff := time.Now().Add(-olderThan)
-	
+
 	var filtered []Event
 	for _, event := range s.events {
 		if event.Timestamp.After(cutoff) {
 			filtered = append(filtered, event)
 		}
 	}
-	
+
 	s.events = filtered
 	return nil
 }
@@ -391,7 +391,7 @@ func (s *memoryEventStorage) Delete(ctx context.Context, olderThan time.Duration
 func (s *memoryEventStorage) DeleteByID(ctx context.Context, eventID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	for i, event := range s.events {
 		if event.ID == eventID {
 			// Remove the event from the slice
@@ -399,7 +399,7 @@ func (s *memoryEventStorage) DeleteByID(ctx context.Context, eventID string) err
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("event not found: %s", eventID)
 }
 
@@ -407,7 +407,7 @@ func (s *memoryEventStorage) DeleteByID(ctx context.Context, eventID string) err
 func (s *memoryEventStorage) Count(ctx context.Context) (int64, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	return int64(len(s.events)), nil
 }
 
@@ -415,7 +415,7 @@ func (s *memoryEventStorage) Count(ctx context.Context) (int64, error) {
 func (s *memoryEventStorage) DeleteAllEvents(ctx context.Context) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	s.events = make([]Event, 0)
 	return nil
 }

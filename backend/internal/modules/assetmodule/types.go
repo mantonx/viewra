@@ -36,38 +36,38 @@ const (
 	AssetTypeBanner     AssetType = "banner"
 	AssetTypeThumb      AssetType = "thumb"
 	AssetTypeFanart     AssetType = "fanart"
-	
+
 	// Artist specific
-	AssetTypeClearart   AssetType = "clearart"
-	
+	AssetTypeClearart AssetType = "clearart"
+
 	// Album/Collection specific
-	AssetTypeCover      AssetType = "cover"
-	AssetTypeDisc       AssetType = "disc"
-	AssetTypeBooklet    AssetType = "booklet"
-	
+	AssetTypeCover   AssetType = "cover"
+	AssetTypeDisc    AssetType = "disc"
+	AssetTypeBooklet AssetType = "booklet"
+
 	// Track specific
 	AssetTypeWaveform    AssetType = "waveform"
 	AssetTypeSpectrogram AssetType = "spectrogram"
-	
+
 	// Movie/TV specific
-	AssetTypePoster     AssetType = "poster"
-	
+	AssetTypePoster AssetType = "poster"
+
 	// TV Show specific
 	AssetTypeNetworkLogo AssetType = "network_logo"
-	
+
 	// Episode specific
 	AssetTypeScreenshot AssetType = "screenshot"
-	
+
 	// Actor/Director specific
-	AssetTypeHeadshot   AssetType = "headshot"
-	AssetTypePortrait   AssetType = "portrait"
-	AssetTypeSignature  AssetType = "signature"
-	
+	AssetTypeHeadshot  AssetType = "headshot"
+	AssetTypePortrait  AssetType = "portrait"
+	AssetTypeSignature AssetType = "signature"
+
 	// Studio/Label specific
-	AssetTypeHQPhoto    AssetType = "hq_photo"
-	
+	AssetTypeHQPhoto AssetType = "hq_photo"
+
 	// Genre specific
-	AssetTypeIcon       AssetType = "icon"
+	AssetTypeIcon AssetType = "icon"
 )
 
 // AssetSource represents where the asset originated from
@@ -76,14 +76,21 @@ type AssetSource string
 const (
 	SourceLocal    AssetSource = "local"
 	SourceUser     AssetSource = "user"
-	SourceCore     AssetSource = "core"      // For core system plugins
-	SourcePlugin   AssetSource = "plugin"    // For external plugins
+	SourceCore     AssetSource = "core"   // For core system plugins
+	SourcePlugin   AssetSource = "plugin" // For external plugins
 	SourceEmbedded AssetSource = "embedded"
 )
 
 // MediaAsset represents a media asset stored in the filesystem
 type MediaAsset struct {
-	ID         uuid.UUID   `gorm:"type:uuid;primary_key;default:(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))" json:"id"`
+	ID uuid.UUID `gorm:"type:uuid;primary_key;default:(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))" json:"id"`
+
+	// Legacy fields for backward compatibility (required by database schema)
+	MediaID   string `gorm:"type:varchar(36);not null;index" json:"media_id,omitempty"`
+	MediaType string `gorm:"type:text;not null;index" json:"media_type,omitempty"`
+	AssetType string `gorm:"not null;index" json:"asset_type,omitempty"`
+
+	// New entity-based fields
 	EntityType EntityType  `gorm:"not null;index:idx_media_assets_entity" json:"entity_type"`
 	EntityID   uuid.UUID   `gorm:"type:uuid;not null;index:idx_media_assets_entity" json:"entity_id"`
 	Type       AssetType   `gorm:"not null;index:idx_media_assets_type" json:"type"`
@@ -95,8 +102,14 @@ type MediaAsset struct {
 	Format     string      `gorm:"not null" json:"format"` // MIME type
 	Preferred  bool        `gorm:"default:false" json:"preferred"`
 	Language   string      `gorm:"default:''" json:"language,omitempty"`
-	CreatedAt  time.Time   `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt  time.Time   `gorm:"autoUpdateTime" json:"updated_at"`
+
+	// Compatibility fields from legacy schema
+	SizeBytes  int64  `gorm:"default:0" json:"size_bytes"`
+	IsDefault  bool   `gorm:"default:false" json:"is_default"`
+	Resolution string `json:"resolution,omitempty"`
+
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // TableName returns the table name for MediaAsset
@@ -152,15 +165,15 @@ type AssetFilter struct {
 
 // AssetStats represents statistics about stored assets
 type AssetStats struct {
-	TotalAssets       int64                    `json:"total_assets"`
-	TotalSize         int64                    `json:"total_size"`
-	AssetsByEntity    map[EntityType]int64     `json:"assets_by_entity"`
-	AssetsByType      map[AssetType]int64      `json:"assets_by_type"`
-	AssetsBySource    map[AssetSource]int64    `json:"assets_by_source"`
-	AverageSize       float64                  `json:"average_size"`
-	LargestAssetSize  int64                    `json:"largest_asset_size"`
-	PreferredAssets   int64                    `json:"preferred_assets"`
-	SupportedFormats  []string                 `json:"supported_formats"`
+	TotalAssets      int64                 `json:"total_assets"`
+	TotalSize        int64                 `json:"total_size"`
+	AssetsByEntity   map[EntityType]int64  `json:"assets_by_entity"`
+	AssetsByType     map[AssetType]int64   `json:"assets_by_type"`
+	AssetsBySource   map[AssetSource]int64 `json:"assets_by_source"`
+	AverageSize      float64               `json:"average_size"`
+	LargestAssetSize int64                 `json:"largest_asset_size"`
+	PreferredAssets  int64                 `json:"preferred_assets"`
+	SupportedFormats []string              `json:"supported_formats"`
 }
 
 // GetValidEntityTypes returns all valid entity types
@@ -231,7 +244,7 @@ func GetValidSources() []AssetSource {
 func IsSupportedImageFormat(mimeType string) bool {
 	supportedFormats := []string{
 		"image/jpeg",
-		"image/jpg", 
+		"image/jpg",
 		"image/png",
 		"image/webp",
 		"image/gif",
@@ -239,7 +252,7 @@ func IsSupportedImageFormat(mimeType string) bool {
 		"image/tiff",
 		"image/svg+xml",
 	}
-	
+
 	for _, format := range supportedFormats {
 		if format == mimeType {
 			return true
@@ -268,4 +281,4 @@ func GetFileExtensionForMimeType(mimeType string) string {
 	default:
 		return ".jpg" // Default fallback
 	}
-} 
+}

@@ -325,7 +325,7 @@ type MigrationStats struct {
 func (mm *MigrationManager) Initialize() error {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
-	
+
 	// Migration manager is already initialized when created
 	// This method is kept for consistency with other components
 	return nil

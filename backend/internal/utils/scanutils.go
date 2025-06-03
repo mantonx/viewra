@@ -24,9 +24,9 @@ const ScanJobCleanupDays = 30
 
 // LibraryStats represents statistics for a scanned library
 type LibraryStats struct {
-	TotalFiles     int64             `json:"total_files"`
-	TotalSize      int64             `json:"total_size"`
-	ExtensionStats []ExtensionStat   `json:"extension_stats"`
+	TotalFiles     int64           `json:"total_files"`
+	TotalSize      int64           `json:"total_size"`
+	ExtensionStats []ExtensionStat `json:"extension_stats"`
 }
 
 // ExtensionStat represents file count by extension
@@ -46,10 +46,10 @@ func ValidateScanJob(db *gorm.DB, libraryID uint32) error {
 	// Clean up old failed/paused scan jobs for this library (keep only the most recent paused job)
 	var oldJobs []database.ScanJob
 	err := db.Where("library_id = ? AND status IN ?", libraryID, []string{
-		string(StatusPaused), 
+		string(StatusPaused),
 		string(StatusFailed),
 	}).Order("updated_at DESC").Find(&oldJobs).Error
-	
+
 	if err == nil && len(oldJobs) > 1 {
 		// Keep the most recent paused/failed job, delete the rest
 		jobsToDelete := oldJobs[1:] // Skip the first (most recent) one
@@ -57,7 +57,7 @@ func ValidateScanJob(db *gorm.DB, libraryID uint32) error {
 		for _, job := range jobsToDelete {
 			idsToDelete = append(idsToDelete, job.ID)
 		}
-		
+
 		if len(idsToDelete) > 0 {
 			result := db.Where("id IN ?", idsToDelete).Delete(&database.ScanJob{})
 			if result.Error == nil && result.RowsAffected > 0 {
@@ -69,10 +69,10 @@ func ValidateScanJob(db *gorm.DB, libraryID uint32) error {
 	// Check if there's already a running scan for this library ID
 	var existingJobForLibrary database.ScanJob
 	err = db.Where("library_id = ? AND status IN ?", libraryID, []string{
-		string(StatusPending), 
+		string(StatusPending),
 		string(StatusRunning),
 	}).First(&existingJobForLibrary).Error
-	
+
 	if err == nil {
 		return fmt.Errorf("scan already running for library %d (job ID: %d)", libraryID, existingJobForLibrary.ID)
 	} else if err != gorm.ErrRecordNotFound {
@@ -89,7 +89,7 @@ func ValidateScanJob(db *gorm.DB, libraryID uint32) error {
 		First(&existingJobForPath).Error
 
 	if err == nil {
-		return fmt.Errorf("scan already running for path '%s' (job ID: %d, library ID: %d)", 
+		return fmt.Errorf("scan already running for path '%s' (job ID: %d, library ID: %d)",
 			library.Path, existingJobForPath.ID, existingJobForPath.LibraryID)
 	} else if err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("database error while checking for existing path scans: %w", err)
@@ -217,14 +217,14 @@ func CleanupSkippedFiles(db *gorm.DB, libraryID uint32) error {
 			if end > len(filesToDelete) {
 				end = len(filesToDelete)
 			}
-			
+
 			batch := filesToDelete[i:end]
 			if err := db.Where("id IN ?", batch).Delete(&database.MediaFile{}).Error; err != nil {
 				return fmt.Errorf("failed to delete skipped files batch: %w", err)
 			}
 		}
-		
-		fmt.Printf("Cleaned up %d skipped files (trickplay, subtitles, etc.) from library %d\n", 
+
+		fmt.Printf("Cleaned up %d skipped files (trickplay, subtitles, etc.) from library %d\n",
 			skippedCount, libraryID)
 	}
 
@@ -255,8 +255,8 @@ func CleanupDuplicateScanJobs(db *gorm.DB, libraryID uint32) error {
 		if result.Error != nil {
 			return fmt.Errorf("failed to delete duplicate scan jobs: %w", result.Error)
 		}
-		
-		fmt.Printf("Cleaned up %d duplicate scan jobs for library %d, kept job %d\n", 
+
+		fmt.Printf("Cleaned up %d duplicate scan jobs for library %d, kept job %d\n",
 			result.RowsAffected, libraryID, scanJobs[0].ID)
 	}
 

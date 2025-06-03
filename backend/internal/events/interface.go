@@ -10,40 +10,40 @@ import (
 type EventBus interface {
 	// Publish publishes an event to the event bus
 	Publish(ctx context.Context, event Event) error
-	
+
 	// PublishAsync publishes an event asynchronously (non-blocking)
 	PublishAsync(event Event) error
-	
+
 	// Subscribe subscribes to events matching the filter
 	Subscribe(ctx context.Context, filter EventFilter, handler EventHandler) (*Subscription, error)
-	
+
 	// Unsubscribe removes a subscription
 	Unsubscribe(subscriptionID string) error
-	
+
 	// GetSubscriptions returns all active subscriptions
 	GetSubscriptions() []*Subscription
-	
+
 	// GetEvents returns stored events based on filter and pagination
 	GetEvents(filter EventFilter, limit, offset int) ([]Event, int64, error)
-	
+
 	// GetEventsByTimeRange returns events within a time range
 	GetEventsByTimeRange(start, end time.Time, limit, offset int) ([]Event, int64, error)
-	
+
 	// GetStats returns event bus statistics
 	GetStats() EventStats
-	
+
 	// DeleteEvent removes a specific event by its ID
 	DeleteEvent(ctx context.Context, eventID string) error
-	
+
 	// ClearEvents removes all events from storage
 	ClearEvents(ctx context.Context) error
-	
+
 	// Start starts the event bus
 	Start(ctx context.Context) error
-	
+
 	// Stop stops the event bus gracefully
 	Stop(ctx context.Context) error
-	
+
 	// Health returns the health status of the event bus
 	Health() error
 }
@@ -60,25 +60,25 @@ type EventLogger interface {
 type EventStorage interface {
 	// Store stores an event
 	Store(ctx context.Context, event Event) error
-	
+
 	// Get retrieves events based on filter
 	Get(ctx context.Context, filter EventFilter, limit, offset int) ([]Event, int64, error)
-	
+
 	// GetByTimeRange retrieves events within a time range
 	GetByTimeRange(ctx context.Context, start, end time.Time, limit, offset int) ([]Event, int64, error)
-	
+
 	// Delete removes events older than the specified duration
 	Delete(ctx context.Context, olderThan time.Duration) error
-	
+
 	// DeleteByID removes a specific event by its ID
 	DeleteByID(ctx context.Context, eventID string) error
-	
+
 	// DeleteAllEvents removes all events from storage
 	DeleteAllEvents(ctx context.Context) error
-	
+
 	// Count returns the total number of stored events
 	Count(ctx context.Context) (int64, error)
-	
+
 	// Close closes the storage
 	Close() error
 }
@@ -87,13 +87,13 @@ type EventStorage interface {
 type EventMetrics interface {
 	// RecordEvent records an event for metrics
 	RecordEvent(event Event)
-	
+
 	// RecordSubscription records a subscription event
 	RecordSubscription(subscription *Subscription)
-	
+
 	// RecordUnsubscription records an unsubscription event
 	RecordUnsubscription(subscriptionID string)
-	
+
 	// GetMetrics returns current metrics
 	GetMetrics() EventStats
 }
@@ -107,11 +107,11 @@ type EventBusFactory interface {
 // SystemEventBus represents the system-wide event bus
 // This will be implemented in bus.go
 type SystemEventBus struct {
-	config      EventBusConfig
-	logger      EventLogger
-	storage     EventStorage
-	metrics     EventMetrics
-	
+	config  EventBusConfig
+	logger  EventLogger
+	storage EventStorage
+	metrics EventMetrics
+
 	// Internal state (will be defined in implementation)
 }
 
@@ -260,7 +260,7 @@ func MatchesFilter(event Event, filter EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check sources
 	if len(filter.Sources) > 0 {
 		found := false
@@ -274,7 +274,7 @@ func MatchesFilter(event Event, filter EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check tags
 	if len(filter.Tags) > 0 {
 		found := false
@@ -293,12 +293,12 @@ func MatchesFilter(event Event, filter EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check priority
 	if filter.Priority != nil && event.Priority < *filter.Priority {
 		return false
 	}
-	
+
 	return true
 }
 

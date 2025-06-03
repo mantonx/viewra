@@ -17,16 +17,16 @@ func ResumeLibraryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Use the new library-based resume method for better consistency
 	err = scannerManager.ResumeScanByLibrary(uint32(libraryID))
 	if err != nil {
@@ -36,7 +36,7 @@ func ResumeLibraryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the updated scan job status
 	scanJob, statusErr := scannerManager.GetLibraryScanStatus(uint32(libraryID))
 	if statusErr != nil {
@@ -46,11 +46,11 @@ func ResumeLibraryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message":     "Scan resumed successfully",
-		"library_id":  libraryID,
-		"job_id":      scanJob.ID,
-		"scan_job":    scanJob,
+		"message":    "Scan resumed successfully",
+		"library_id": libraryID,
+		"job_id":     scanJob.ID,
+		"scan_job":   scanJob,
 	})
 }

@@ -20,32 +20,32 @@ type ScanConfig struct {
 func (m *Module) getGeneralStatus(c *gin.Context) {
 	if m.scannerManager == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner manager not initialized",
+			"error":  "Scanner manager not initialized",
 			"status": "error",
 		})
 		return
 	}
-	
+
 	// Get active scan count from jobs table
 	var activeJobs []database.ScanJob
 	err := m.db.Where("status = ?", "running").Find(&activeJobs).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error":  err.Error(),
 			"status": "error",
 		})
 		return
 	}
-	
+
 	status := "idle"
 	if len(activeJobs) > 0 {
 		status = "scanning"
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"status": status,
-		"active_jobs": len(activeJobs),
-		"scanner_id": m.ID(),
+		"status":       status,
+		"active_jobs":  len(activeJobs),
+		"scanner_id":   m.ID(),
 		"scanner_name": m.Name(),
 	})
 }
@@ -59,12 +59,12 @@ func (m *Module) startGeneralScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the database connection if needed
 	if m.db == nil {
 		m.db = database.GetDB()
 	}
-	
+
 	// Get all libraries
 	var libraries []database.MediaLibrary
 	if err := m.db.Find(&libraries).Error; err != nil {
@@ -73,7 +73,7 @@ func (m *Module) startGeneralScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Check if libraries exist
 	if len(libraries) == 0 {
 		// Create a test library if none exists
@@ -81,16 +81,16 @@ func (m *Module) startGeneralScan(c *gin.Context) {
 			Path: "/app/data/test-music",
 			Type: "music",
 		}
-		
+
 		if err := m.db.Create(&testLibrary).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "No libraries found and could not create test library: " + err.Error(),
 			})
 			return
 		}
-		
+
 		logger.Info("Created test library with ID: %d", testLibrary.ID)
-		
+
 		// Start the scan with the new library
 		scanJob, err := m.scannerManager.StartScan(testLibrary.ID)
 		if err != nil {
@@ -99,17 +99,17 @@ func (m *Module) startGeneralScan(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		c.JSON(http.StatusOK, gin.H{
 			"scan_job": scanJob,
-			"message": "General scan started successfully",
+			"message":  "General scan started successfully",
 		})
 		return
 	}
-	
+
 	// Use the first available library for scanning
 	libraryID := libraries[0].ID
-	
+
 	// Start the scan
 	scanJob, err := m.scannerManager.StartScan(libraryID)
 	if err != nil {
@@ -118,10 +118,10 @@ func (m *Module) startGeneralScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"scan_job": scanJob,
-		"message": "General scan started successfully",
+		"message":  "General scan started successfully",
 	})
 }
 
@@ -134,28 +134,28 @@ func (m *Module) getConfig(c *gin.Context) {
 		ForceRescan: false,
 		Types:       []string{"audio", "video"},
 	}
-	
+
 	c.JSON(http.StatusOK, config)
 }
 
 // setConfig updates the scanner configuration
 func (m *Module) setConfig(c *gin.Context) {
 	var config ScanConfig
-	
+
 	if err := c.ShouldBindJSON(&config); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid configuration: " + err.Error(),
 		})
 		return
 	}
-	
+
 	// For now, just log the config, but in a real implementation
 	// we'd save it to the database or configuration store
 	logger.Info("Scanner config updated: %v", config)
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Configuration updated successfully",
-		"config": config,
+		"config":  config,
 	})
 }
 
@@ -164,7 +164,7 @@ func (m *Module) GetActiveScans() ([]database.ScanJob, error) {
 	if m.db == nil {
 		m.db = database.GetDB()
 	}
-	
+
 	var activeJobs []database.ScanJob
 	err := m.db.Where("status = ?", "running").Find(&activeJobs).Error
 	return activeJobs, err

@@ -69,7 +69,7 @@ func (m *Manager) UnregisterPlugin(name string) error {
 	}
 
 	delete(m.plugins, name)
-	
+
 	// Remove from order slice
 	for i, pluginName := range m.pluginOrder {
 		if pluginName == name {
@@ -141,13 +141,13 @@ func (m *Manager) OnMediaFileScanned(mediaFile *database.MediaFile, metadata int
 	// Process with each plugin that can handle this media file
 	for _, pluginName := range m.pluginOrder {
 		plugin := m.plugins[pluginName]
-		
+
 		if !plugin.CanEnrich(mediaFile) {
 			continue
 		}
 
 		log.Printf("DEBUG: Processing media file %s with plugin %s", mediaFile.ID, pluginName)
-		
+
 		if err := plugin.OnMediaFileScanned(mediaFile, metadataMap); err != nil {
 			log.Printf("WARN: Plugin %s failed to process media file %s: %v", pluginName, mediaFile.ID, err)
 			errors = append(errors, fmt.Errorf("plugin %s: %w", pluginName, err))
@@ -180,10 +180,10 @@ func (m *Manager) OnScanCompleted(jobID, libraryID uint, stats map[string]interf
 	}
 
 	log.Printf("INFO: Enrichment manager notified - scan completed (job: %d, library: %d)", jobID, libraryID)
-	
+
 	// Optionally: Trigger batch enrichment application for newly scanned files
 	// This could queue enrichment jobs for all files in the library
-	
+
 	return nil
 }
 
@@ -201,13 +201,13 @@ func (m *Manager) EnrichMediaFile(mediaFile *database.MediaFile, metadata map[st
 	// Process with each plugin that can handle this media file
 	for _, pluginName := range m.pluginOrder {
 		plugin := m.plugins[pluginName]
-		
+
 		if !plugin.CanEnrich(mediaFile) {
 			continue
 		}
 
 		log.Printf("DEBUG: Enriching media file %s with plugin %s", mediaFile.ID, pluginName)
-		
+
 		if err := plugin.EnrichMediaFile(mediaFile, metadata); err != nil {
 			log.Printf("WARN: Plugin %s failed to enrich media file %s: %v", pluginName, mediaFile.ID, err)
 			errors = append(errors, fmt.Errorf("plugin %s: %w", pluginName, err))
@@ -227,7 +227,7 @@ func (m *Manager) EnrichMediaFile(mediaFile *database.MediaFile, metadata map[st
 func (m *Manager) GetPluginCount() int {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	return len(m.plugins)
 }
 
@@ -239,7 +239,7 @@ func (m *Manager) IsEnabled() bool {
 // SetEnabled enables or disables the manager
 func (m *Manager) SetEnabled(enabled bool) {
 	m.enabled = enabled
-	
+
 	if enabled {
 		log.Printf("INFO: Internal enrichment plugin manager enabled")
 	} else {
@@ -270,4 +270,4 @@ func (m *Manager) ClearAllCaches() error {
 	}
 
 	return nil
-} 
+}

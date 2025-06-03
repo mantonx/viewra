@@ -15,8 +15,10 @@ ENV CGO_ENABLED=1
 RUN mkdir -p /go/cache && chmod -R 777 /go/cache
 ENV GOCACHE=/go/cache
 
-# Copy go mod files
+# Copy go mod files and required directories (needed for replace directives)
 COPY go.mod go.sum ./
+COPY api/ ./api/
+COPY pkg/ ./pkg/
 RUN go mod download
 
 # Copy source code

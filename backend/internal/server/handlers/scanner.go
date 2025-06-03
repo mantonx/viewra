@@ -21,12 +21,12 @@ func getScannerModule() (*scannermodule.Module, error) {
 	if !exists {
 		return nil, fmt.Errorf("scanner module not found")
 	}
-	
+
 	scannerMod, ok := module.(*scannermodule.Module)
 	if !ok {
 		return nil, fmt.Errorf("invalid scanner module type")
 	}
-	
+
 	return scannerMod, nil
 }
 
@@ -36,16 +36,16 @@ func getScannerManager() (*scanner.Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get scanner module: %w", err)
 	}
-	
+
 	if scannerMod == nil {
 		return nil, fmt.Errorf("scanner module is nil")
 	}
-	
+
 	manager := scannerMod.GetScannerManager()
 	if manager == nil {
 		return nil, fmt.Errorf("scanner manager is nil from module")
 	}
-	
+
 	return manager, nil
 }
 
@@ -59,16 +59,16 @@ func StartLibraryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	scanJob, err := scannerManager.StartScan(uint32(libraryID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -77,7 +77,7 @@ func StartLibraryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message":  "Scan started successfully",
 		"scan_job": scanJob,
@@ -94,16 +94,16 @@ func StopScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	err = scannerManager.StopScan(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -112,7 +112,7 @@ func StopScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Scan stopped successfully",
 	})
@@ -128,16 +128,16 @@ func GetScanStatus(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	scanJob, err := scannerManager.GetScanStatus(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -146,7 +146,7 @@ func GetScanStatus(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"scan_job": scanJob,
 	})
@@ -157,12 +157,12 @@ func GetAllScans(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	scanJobs, err := scannerManager.GetAllScans()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -171,7 +171,7 @@ func GetAllScans(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"scan_jobs": scanJobs,
 		"count":     len(scanJobs),
@@ -188,16 +188,16 @@ func GetLibraryStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	stats, err := scannerManager.GetLibraryStats(uint32(libraryID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -206,7 +206,7 @@ func GetLibraryStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"library_id": libraryID,
 		"stats":      stats,
@@ -223,36 +223,36 @@ func GetLibraryMediaFiles(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Parse query parameters for pagination
 	limitStr := c.DefaultQuery("limit", "50")
 	offsetStr := c.DefaultQuery("offset", "0")
-	
+
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 || limit > 1000 {
 		limit = 50
 	}
-	
+
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < 0 {
 		offset = 0
 	}
-	
+
 	var mediaFiles []database.MediaFile
 	var total int64
-	
+
 	db := database.GetDB()
-	
+
 	// Get total count
 	db.Model(&database.MediaFile{}).Where("library_id = ?", libraryID).Count(&total)
-	
+
 	// Get paginated results
 	result := db.Where("library_id = ?", libraryID).
 		Limit(limit).
 		Offset(offset).
 		Order("path").
 		Find(&mediaFiles)
-	
+
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to get media files",
@@ -260,7 +260,7 @@ func GetLibraryMediaFiles(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"media_files": mediaFiles,
 		"total":       total,
@@ -275,12 +275,12 @@ func GetCurrentJobs(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Get all scan jobs
 	scanJobs, err := scannerManager.GetAllScans()
 	if err != nil {
@@ -290,13 +290,13 @@ func GetCurrentJobs(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Group jobs by library and find the most relevant one for each
 	currentJobs := make(map[uint32]interface{})
-	
+
 	for _, job := range scanJobs {
 		existing, exists := currentJobs[job.LibraryID]
-		
+
 		var shouldReplace bool
 		if !exists {
 			shouldReplace = true
@@ -305,13 +305,13 @@ func GetCurrentJobs(c *gin.Context) {
 			existingJob := existing.(map[string]interface{})["job"].(database.ScanJob)
 			shouldReplace = shouldReplaceJob(existingJob, job)
 		}
-		
+
 		if shouldReplace {
 			// Create enhanced job data with ETA information
 			enhancedJob := map[string]interface{}{
 				"job": job,
 			}
-			
+
 			// Add ETA and performance metrics for running jobs
 			if job.Status == "running" {
 				if detailedStats, err := scannerManager.GetDetailedScanProgress(job.ID); err == nil {
@@ -319,22 +319,22 @@ func GetCurrentJobs(c *gin.Context) {
 					if etaStr, ok := detailedStats["eta"].(string); ok && etaStr != "" {
 						enhancedJob["eta"] = etaStr
 					}
-					
+
 					// Add performance metrics
 					if filesPerSec, ok := detailedStats["files_per_second"].(float64); ok {
 						enhancedJob["files_per_second"] = filesPerSec
 					}
-					
+
 					// Add real-time progress
 					if processedFiles, ok := detailedStats["processed_files"].(int64); ok {
 						enhancedJob["real_time_files_processed"] = processedFiles
 					}
-					
+
 					if processedBytes, ok := detailedStats["processed_bytes"].(int64); ok {
 						enhancedJob["real_time_bytes_processed"] = processedBytes
 					}
 				}
-				
+
 				// Calculate ETA using basic progress estimation if detailed stats failed
 				if enhancedJob["eta"] == nil && job.FilesFound > 0 && job.FilesProcessed > 0 {
 					if job.StartedAt != nil {
@@ -367,16 +367,16 @@ func GetCurrentJobs(c *gin.Context) {
 					}
 				}
 			}
-			
+
 			// Add time-based information
 			if job.StartedAt != nil {
 				enhancedJob["elapsed_time"] = time.Since(*job.StartedAt).String()
 			}
-			
+
 			currentJobs[job.LibraryID] = enhancedJob
 		}
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"current_jobs": currentJobs,
 		"count":        len(currentJobs),
@@ -389,7 +389,7 @@ func shouldReplaceJob(existingJob, newJob database.ScanJob) bool {
 	// 1. running > paused > completed > failed > pending
 	// 2. If same status, prefer more recent
 	// 3. Special case: prefer paused jobs with progress over running jobs with no progress
-	
+
 	statusPriority := map[string]int{
 		"running":   5,
 		"paused":    4,
@@ -397,10 +397,10 @@ func shouldReplaceJob(existingJob, newJob database.ScanJob) bool {
 		"failed":    1,
 		"pending":   2,
 	}
-	
+
 	existingPriority := statusPriority[existingJob.Status]
 	newPriority := statusPriority[newJob.Status]
-	
+
 	// Special case: if new job is running but has no progress, and existing is paused with progress,
 	// prefer the paused job with progress (it's likely stalled or just starting)
 	if newJob.Status == "running" && existingJob.Status == "paused" {
@@ -408,7 +408,7 @@ func shouldReplaceJob(existingJob, newJob database.ScanJob) bool {
 			return false // Keep the paused job with actual progress
 		}
 	}
-	
+
 	// Special case: if existing job is running but has no progress, and new is paused with progress,
 	// replace with the paused job that has actual progress
 	if existingJob.Status == "running" && newJob.Status == "paused" {
@@ -416,7 +416,7 @@ func shouldReplaceJob(existingJob, newJob database.ScanJob) bool {
 			return true // Replace with paused job that has progress
 		}
 	}
-	
+
 	// Higher priority status always wins (after special cases)
 	if newPriority > existingPriority {
 		return true
@@ -424,7 +424,7 @@ func shouldReplaceJob(existingJob, newJob database.ScanJob) bool {
 	if newPriority < existingPriority {
 		return false
 	}
-	
+
 	// Same priority: prefer more recent job
 	// For paused jobs, prefer ones with more progress
 	if existingJob.Status == "paused" && newJob.Status == "paused" {
@@ -436,7 +436,7 @@ func shouldReplaceJob(existingJob, newJob database.ScanJob) bool {
 			return false
 		}
 	}
-	
+
 	// Default: prefer more recent
 	return newJob.UpdatedAt.After(existingJob.UpdatedAt)
 }
@@ -445,17 +445,17 @@ func GetScannerStats(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	db := database.GetDB()
-	var totalFilesInLibraries int64    // Total files in all libraries  
-	var totalBytesInLibraries int64    // Total bytes in all libraries
-	var totalFilesProcessed int64      // Files that have been discovered and are in the database
-	var totalBytesProcessed int64      // Bytes of files that have been discovered and are in the database
+	var totalFilesInLibraries int64 // Total files in all libraries
+	var totalBytesInLibraries int64 // Total bytes in all libraries
+	var totalFilesProcessed int64   // Files that have been discovered and are in the database
+	var totalBytesProcessed int64   // Bytes of files that have been discovered and are in the database
 	activeScans := 0
 
 	// Get all libraries
@@ -486,13 +486,16 @@ func GetScannerStats(c *gin.Context) {
 
 	// Get total size of ALL libraries and ALL discovered files
 	for _, lib := range allLibraries {
-		var libFileStats struct { Files int64; Bytes int64 }
+		var libFileStats struct {
+			Files int64
+			Bytes int64
+		}
 		db.Model(&database.MediaFile{}).Where("library_id = ?", lib.ID).Select("COALESCE(COUNT(*), 0) as files, COALESCE(SUM(size), 0) as bytes").Scan(&libFileStats)
-		
+
 		// Total in libraries is the sum of all discovered files
 		totalBytesInLibraries += libFileStats.Bytes
 		totalFilesInLibraries += libFileStats.Files
-		
+
 		// "Processed" means files that have been discovered and added to database
 		// This is the same as the library totals since all files in the database have been "processed"
 		totalBytesProcessed += libFileStats.Bytes
@@ -500,14 +503,14 @@ func GetScannerStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"active_scans":              activeScans,
-		"total_files_scanned":       totalFilesProcessed,          // Files discovered and in database
-		"total_bytes_scanned":       totalBytesProcessed,          // Bytes discovered and in database
-		"total_files_in_libraries":  totalFilesInLibraries,        // Same as above (all files are discovered)
-		"total_bytes_in_libraries":  totalBytesInLibraries,        // Same as above (all bytes are discovered)
-		"processing_progress":       map[string]interface{}{
-			"files_progress": 100.0,    // 100% since all files in DB have been processed
-			"bytes_progress": 100.0,    // 100% since all bytes in DB have been processed
+		"active_scans":             activeScans,
+		"total_files_scanned":      totalFilesProcessed,   // Files discovered and in database
+		"total_bytes_scanned":      totalBytesProcessed,   // Bytes discovered and in database
+		"total_files_in_libraries": totalFilesInLibraries, // Same as above (all files are discovered)
+		"total_bytes_in_libraries": totalBytesInLibraries, // Same as above (all bytes are discovered)
+		"processing_progress": map[string]interface{}{
+			"files_progress": 100.0, // 100% since all files in DB have been processed
+			"bytes_progress": 100.0, // 100% since all bytes in DB have been processed
 		},
 	})
 }
@@ -517,12 +520,12 @@ func GetScannerStatus(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	scanJobs, err := scannerManager.GetAllScans()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -531,9 +534,9 @@ func GetScannerStatus(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"jobs": scanJobs,
+		"jobs":  scanJobs,
 		"count": len(scanJobs),
 	})
 }
@@ -553,16 +556,16 @@ func StopLibraryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Use the new library-based pause method for better consistency
 	err = scannerManager.PauseScanByLibrary(uint32(libraryID))
 	if err != nil {
@@ -572,18 +575,18 @@ func StopLibraryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the updated scan status
 	scanJob, statusErr := scannerManager.GetLibraryScanStatus(uint32(libraryID))
 	var jobID uint32
 	if statusErr == nil && scanJob != nil {
 		jobID = scanJob.ID
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Scan paused successfully",
+		"message":    "Scan paused successfully",
 		"library_id": libraryID,
-		"job_id": jobID,
+		"job_id":     jobID,
 	})
 }
 
@@ -604,12 +607,12 @@ func GetScanProgress(c *gin.Context) {
 	if err != nil {
 		logger.Error("Scanner manager not available for progress request", "job_id", id, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner manager not available",
+			"error":   "Scanner manager not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	if scannerManager == nil {
 		logger.Error("Scanner manager is nil for progress request", "job_id", id)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -630,7 +633,7 @@ func GetScanProgress(c *gin.Context) {
 		stats, detailedErr := scannerManager.GetDetailedScanProgress(uint32(id))
 		return stats, detailedErr
 	}()
-	
+
 	if err == nil && detailedStats != nil {
 		// Get additional info from database to enrich the detailed stats
 		if scanJob, scanErr := func() (*database.ScanJob, error) {
@@ -648,13 +651,13 @@ func GetScanProgress(c *gin.Context) {
 			detailedStats["files_found"] = scanJob.FilesFound
 			detailedStats["status"] = scanJob.Status
 		}
-		
+
 		logger.Debug("Returning detailed progress stats", "job_id", id)
 		// Return detailed stats for active jobs
 		c.JSON(http.StatusOK, detailedStats)
 		return
 	}
-	
+
 	// If detailed stats are not available, fall back to basic progress
 	progress, eta, filesPerSec, progressErr := func() (float64, string, float64, error) {
 		var progErr error
@@ -667,7 +670,7 @@ func GetScanProgress(c *gin.Context) {
 		prog, etaStr, fps, progErr := scannerManager.GetScanProgress(uint32(id))
 		return prog, etaStr, fps, progErr
 	}()
-	
+
 	if progressErr == nil {
 		// Get additional info from database
 		if scanJob, scanErr := func() (*database.ScanJob, error) {
@@ -693,7 +696,7 @@ func GetScanProgress(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		logger.Debug("Returning basic progress without database info", "job_id", id)
 		// Return basic progress without database info if DB access fails
 		c.JSON(http.StatusOK, gin.H{
@@ -703,7 +706,7 @@ func GetScanProgress(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// If no active scanner, try to get progress from database only
 	if scanJob, dbErr := func() (*database.ScanJob, error) {
 		var dbError error
@@ -729,13 +732,13 @@ func GetScanProgress(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// All methods failed - this is likely during cleanup/deletion
 	logger.Info("Scan job not found in progress request", "job_id", id, "detailed_error", err, "progress_error", progressErr)
 	c.JSON(http.StatusNotFound, gin.H{
-		"error": "Scan job not found or scanner manager unavailable",
+		"error":   "Scan job not found or scanner manager unavailable",
 		"details": fmt.Sprintf("Job %d may have been deleted or cleaned up", id),
-		"job_id": id,
+		"job_id":  id,
 	})
 }
 
@@ -748,31 +751,31 @@ func StartDirectoryScan(c *gin.Context) {
 	var request struct {
 		Directory string `json:"directory" binding:"required"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request body",
+			"error":   "Invalid request body",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// For now, we'll use library ID 1 as default or create a temporary library
 	// In a full implementation, you might want to create a temporary library entry
 	// or modify the scanner to work with direct paths
-	
+
 	// First, let's try to get or create a library for this directory
 	db := database.GetDB()
-	
+
 	// Check if a library exists for this path
 	var library database.MediaLibrary
 	err = db.Where("path = ?", request.Directory).First(&library).Error
@@ -784,13 +787,13 @@ func StartDirectoryScan(c *gin.Context) {
 		}
 		if err := db.Create(&library).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to create temporary library",
+				"error":   "Failed to create temporary library",
 				"details": err.Error(),
 			})
 			return
 		}
 	}
-	
+
 	scanJob, err := scannerManager.StartScan(library.ID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -799,7 +802,7 @@ func StartDirectoryScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message":  "Scan started successfully",
 		"scanId":   fmt.Sprintf("%d", scanJob.ID),
@@ -817,16 +820,16 @@ func ResumeScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	err = scannerManager.ResumeScan(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -835,7 +838,7 @@ func ResumeScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Scan resumed successfully",
 		"scan_id": jobID,
@@ -852,16 +855,16 @@ func GetScanResults(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	scanJob, err := scannerManager.GetScanStatus(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -869,29 +872,29 @@ func GetScanResults(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get additional results from database
 	db := database.GetDB()
-	
+
 	var mediaFiles []database.MediaFile
 	var mediaCount int64
-	
+
 	if scanJob.LibraryID > 0 {
 		db.Where("library_id = ?", scanJob.LibraryID).Find(&mediaFiles)
 		db.Model(&database.MediaFile{}).Where("library_id = ?", scanJob.LibraryID).Count(&mediaCount)
 	}
-	
+
 	// Calculate percentage
 	var percentage float64
 	if scanJob.FilesFound > 0 {
 		percentage = float64(scanJob.FilesProcessed) / float64(scanJob.FilesFound) * 100
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"scan_job":     scanJob,
-		"media_files":  mediaFiles,
-		"media_count":  mediaCount,
-		"percentage":   percentage,
+		"scan_job":    scanJob,
+		"media_files": mediaFiles,
+		"media_count": mediaCount,
+		"percentage":  percentage,
 	})
 }
 
@@ -900,12 +903,12 @@ func CleanupOrphanedJobs(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	jobsDeleted, err := scannerManager.CleanupOrphanedJobs()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -914,7 +917,7 @@ func CleanupOrphanedJobs(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "Orphaned scan jobs cleaned up successfully",
 		"jobs_deleted": jobsDeleted,
@@ -926,14 +929,14 @@ func GetMonitoringStatus(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	monitoringStatus := scannerManager.GetMonitoringStatus()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"monitoring_status": monitoringStatus,
 		"monitoring_count":  len(monitoringStatus),
@@ -945,12 +948,12 @@ func CleanupOrphanedAssets(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	assetsRemoved, filesRemoved, err := scannerManager.CleanupOrphanedAssets()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -959,7 +962,7 @@ func CleanupOrphanedAssets(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":        "Orphaned assets cleaned up successfully",
 		"assets_removed": assetsRemoved,
@@ -972,12 +975,12 @@ func CleanupOrphanedFiles(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	filesRemoved, err := scannerManager.CleanupOrphanedFiles()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -986,7 +989,7 @@ func CleanupOrphanedFiles(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Orphaned files cleaned up successfully",
 		"files_removed": filesRemoved,
@@ -1003,50 +1006,50 @@ func DeleteScanJob(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Check if the scan job exists first
 	scanJob, err := scannerManager.GetScanStatus(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Scan job not found",
+			"error":   "Scan job not found",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// If the scan is running, we need to stop it first and wait for it to actually stop
 	if scanJob.Status == "running" {
 		logger.Info("Stopping running scan before deletion", "job_id", jobID)
-		
+
 		if err := scannerManager.StopScan(uint32(jobID)); err != nil {
 			logger.Error("Failed to stop scan job", "job_id", jobID, "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to stop running scan job",
+				"error":   "Failed to stop running scan job",
 				"details": err.Error(),
 			})
 			return
 		}
-		
+
 		// Wait for the scan to actually stop (with timeout)
 		timeout := time.After(30 * time.Second)
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-timeout:
 				logger.Error("Timeout waiting for scan to stop", "job_id", jobID)
 				c.JSON(http.StatusRequestTimeout, gin.H{
-					"error": "Timeout waiting for scan to stop",
+					"error":   "Timeout waiting for scan to stop",
 					"details": "The scan job did not stop within 30 seconds",
 				})
 				return
@@ -1063,12 +1066,12 @@ func DeleteScanJob(c *gin.Context) {
 				}
 			}
 		}
-		
-		scanStopped:
+
+	scanStopped:
 		// Give it a moment to fully clean up
 		time.Sleep(1 * time.Second)
 	}
-	
+
 	// Clean up the scan job and all its data
 	logger.Info("Starting cleanup for scan job", "job_id", jobID)
 	if err := scannerManager.CleanupScanJob(uint32(jobID)); err != nil {
@@ -1079,7 +1082,7 @@ func DeleteScanJob(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	logger.Info("Scan job successfully deleted", "job_id", jobID)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Scan job and all its data removed successfully",
@@ -1092,7 +1095,7 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -1102,7 +1105,7 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 	scanJobs, err := scannerManager.GetAllScans()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get scan jobs",
+			"error":   "Failed to get scan jobs",
 			"details": err.Error(),
 		})
 		return
@@ -1111,20 +1114,20 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 	throttlingData := make(map[string]interface{})
 	activeThrottlers := 0
 	globalMetrics := map[string]interface{}{
-		"total_cpu_percent": 0.0,
+		"total_cpu_percent":    0.0,
 		"total_memory_percent": 0.0,
-		"total_network_mbps": 0.0,
-		"avg_worker_count": 0.0,
+		"total_network_mbps":   0.0,
+		"avg_worker_count":     0.0,
 	}
 
 	// Container environment information (would need access to throttler instances for real data)
 	containerInfo := map[string]interface{}{
 		"is_containerized": false,
-		"cgroup_version": 0,
+		"cgroup_version":   0,
 		"detection_method": "unknown",
 		"container_limits": map[string]interface{}{
-			"memory_limit_gb": 0,
-			"cpu_limit_percent": 0,
+			"memory_limit_gb":       0,
+			"cpu_limit_percent":     0,
 			"io_throttling_enabled": false,
 		},
 	}
@@ -1135,25 +1138,25 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 			// Try to get detailed progress which includes throttling metrics
 			if detailedStats, statErr := scannerManager.GetDetailedScanProgress(job.ID); statErr == nil {
 				jobThrottleData := map[string]interface{}{
-					"job_id": job.ID,
-					"library_id": job.LibraryID,
+					"job_id":            job.ID,
+					"library_id":        job.LibraryID,
 					"throttling_active": true,
-					"last_updated": time.Now(),
+					"last_updated":      time.Now(),
 					"system_metrics": map[string]interface{}{
-						"cpu_percent": detailedStats["cpu_percent"],
-						"memory_percent": detailedStats["memory_percent"],
+						"cpu_percent":     detailedStats["cpu_percent"],
+						"memory_percent":  detailedStats["memory_percent"],
 						"io_wait_percent": detailedStats["io_wait_percent"],
-						"network_mbps": detailedStats["network_mbps"],
-						"load_average": detailedStats["load_average"],
+						"network_mbps":    detailedStats["network_mbps"],
+						"load_average":    detailedStats["load_average"],
 					},
 					"throttle_limits": map[string]interface{}{
-						"worker_count": detailedStats["active_workers"],
-						"batch_size": detailedStats["current_batch_size"],
-						"processing_delay_ms": detailedStats["processing_delay_ms"],
+						"worker_count":            detailedStats["active_workers"],
+						"batch_size":              detailedStats["current_batch_size"],
+						"processing_delay_ms":     detailedStats["processing_delay_ms"],
 						"network_bandwidth_limit": detailedStats["network_bandwidth_limit"],
 					},
 					"network_health": map[string]interface{}{
-						"dns_latency_ms": detailedStats["dns_latency_ms"],
+						"dns_latency_ms":  detailedStats["dns_latency_ms"],
 						"network_healthy": detailedStats["network_healthy"],
 					},
 					"emergency_brake": detailedStats["emergency_brake"],
@@ -1163,11 +1166,11 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 				if containerAware, ok := detailedStats["container_aware"].(bool); ok && containerAware {
 					jobThrottleData["container_info"] = map[string]interface{}{
 						"using_container_metrics": true,
-						"memory_limited": detailedStats["container_memory_limited"],
-						"cpu_limited": detailedStats["container_cpu_limited"],
-						"io_throttled": detailedStats["container_io_throttled"],
+						"memory_limited":          detailedStats["container_memory_limited"],
+						"cpu_limited":             detailedStats["container_cpu_limited"],
+						"io_throttled":            detailedStats["container_io_throttled"],
 					}
-					
+
 					// Update global container info
 					containerInfo["is_containerized"] = true
 					if cgroupVer, ok := detailedStats["cgroup_version"].(int); ok {
@@ -1182,7 +1185,7 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 				}
 
 				throttlingData[fmt.Sprintf("job_%d", job.ID)] = jobThrottleData
-				
+
 				// Aggregate metrics for global overview
 				if cpu, ok := detailedStats["cpu_percent"].(float64); ok {
 					globalMetrics["total_cpu_percent"] = globalMetrics["total_cpu_percent"].(float64) + cpu
@@ -1196,17 +1199,17 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 				if workers, ok := detailedStats["active_workers"].(int); ok {
 					globalMetrics["avg_worker_count"] = globalMetrics["avg_worker_count"].(float64) + float64(workers)
 				}
-				
+
 				activeThrottlers++
 			} else {
 				// Fallback for jobs without detailed stats
 				throttlingData[fmt.Sprintf("job_%d", job.ID)] = map[string]interface{}{
-					"job_id": job.ID,
-					"library_id": job.LibraryID,
+					"job_id":            job.ID,
+					"library_id":        job.LibraryID,
 					"throttling_active": true,
-					"last_updated": time.Now(),
-					"status": "monitoring_unavailable",
-					"message": "Detailed throttling metrics not available",
+					"last_updated":      time.Now(),
+					"status":            "monitoring_unavailable",
+					"message":           "Detailed throttling metrics not available",
 				}
 			}
 		}
@@ -1223,12 +1226,12 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 	// Enhanced global settings with container awareness
 	globalSettings := map[string]interface{}{
 		"adaptive_throttling_enabled": true,
-		"emergency_brake_threshold": 95.0,
-		"target_cpu_percent": 70.0,
-		"target_memory_percent": 80.0,
-		"target_network_mbps": 80.0,
-		"nfs_optimized": true,
-		"container_aware": containerInfo["is_containerized"],
+		"emergency_brake_threshold":   95.0,
+		"target_cpu_percent":          70.0,
+		"target_memory_percent":       80.0,
+		"target_network_mbps":         80.0,
+		"nfs_optimized":               true,
+		"container_aware":             containerInfo["is_containerized"],
 		"monitoring_mode": func() string {
 			if containerInfo["is_containerized"].(bool) {
 				return "container_aware"
@@ -1239,17 +1242,17 @@ func GetAdaptiveThrottleStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"active_throttlers": activeThrottlers,
-		"total_scans": len(scanJobs),
-		"throttling_data": throttlingData,
-		"global_metrics": globalMetrics,
-		"global_settings": globalSettings,
-		"container_info": containerInfo,
+		"total_scans":       len(scanJobs),
+		"throttling_data":   throttlingData,
+		"global_metrics":    globalMetrics,
+		"global_settings":   globalSettings,
+		"container_info":    containerInfo,
 		"monitoring_capabilities": map[string]interface{}{
-			"gopsutil_available": true,
-			"cgroup_monitoring": containerInfo["is_containerized"],
+			"gopsutil_available":     true,
+			"cgroup_monitoring":      containerInfo["is_containerized"],
 			"network_delta_tracking": true,
-			"disk_delta_tracking": true,
-			"emergency_brake": true,
+			"disk_delta_tracking":    true,
+			"emergency_brake":        true,
 		},
 	})
 }
@@ -1259,7 +1262,7 @@ func UpdateThrottleConfig(c *gin.Context) {
 	var configUpdate map[string]interface{}
 	if err := c.ShouldBindJSON(&configUpdate); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid configuration data",
+			"error":   "Invalid configuration data",
 			"details": err.Error(),
 		})
 		return
@@ -1267,11 +1270,11 @@ func UpdateThrottleConfig(c *gin.Context) {
 
 	// In a real implementation, you'd update the configuration
 	// and apply it to active throttlers
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Throttle configuration updated",
+		"message":          "Throttle configuration updated",
 		"updated_settings": configUpdate,
-		"timestamp": time.Now(),
+		"timestamp":        time.Now(),
 	})
 }
 
@@ -1287,37 +1290,37 @@ func GetThrottlePerformanceHistory(c *gin.Context) {
 
 	// In a real implementation, you'd get the performance history
 	// from the specific scanner's adaptive throttler
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"job_id": jobIDStr,
 		"performance_history": []map[string]interface{}{
 			{
-				"timestamp": time.Now().Add(-5 * time.Minute),
-				"cpu_percent": 65.0,
-				"memory_percent": 75.0,
-				"worker_count": 4,
+				"timestamp":           time.Now().Add(-5 * time.Minute),
+				"cpu_percent":         65.0,
+				"memory_percent":      75.0,
+				"worker_count":        4,
 				"throttle_adjustment": "scaling_up_workers",
 			},
 			{
-				"timestamp": time.Now().Add(-3 * time.Minute),
-				"cpu_percent": 82.0,
-				"memory_percent": 85.0,
-				"worker_count": 3,
+				"timestamp":           time.Now().Add(-3 * time.Minute),
+				"cpu_percent":         82.0,
+				"memory_percent":      85.0,
+				"worker_count":        3,
 				"throttle_adjustment": "reducing_workers_cpu",
 			},
 			{
-				"timestamp": time.Now(),
-				"cpu_percent": 70.0,
-				"memory_percent": 78.0,
-				"worker_count": 3,
+				"timestamp":           time.Now(),
+				"cpu_percent":         70.0,
+				"memory_percent":      78.0,
+				"worker_count":        3,
 				"throttle_adjustment": "stable",
 			},
 		},
 		"summary": map[string]interface{}{
-			"avg_cpu_percent": 72.3,
-			"avg_worker_count": 3.3,
+			"avg_cpu_percent":   72.3,
+			"avg_worker_count":  3.3,
 			"total_adjustments": 15,
-			"emergency_brakes": 0,
+			"emergency_brakes":  0,
 		},
 	})
 }
@@ -1327,7 +1330,7 @@ func DisableThrottling(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -1345,7 +1348,7 @@ func DisableThrottling(c *gin.Context) {
 	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid job ID",
+			"error":   "Invalid job ID",
 			"details": err.Error(),
 		})
 		return
@@ -1354,18 +1357,18 @@ func DisableThrottling(c *gin.Context) {
 	// Disable throttling for the specific job
 	if err := scannerManager.DisableThrottlingForJob(uint32(jobID)); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Failed to disable throttling",
+			"error":   "Failed to disable throttling",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Adaptive throttling disabled for maximum performance",
-		"job_id": jobID,
-		"warning": "This may cause high system resource usage",
+		"message":   "Adaptive throttling disabled for maximum performance",
+		"job_id":    jobID,
+		"warning":   "This may cause high system resource usage",
 		"timestamp": time.Now(),
-		"status": "disabled",
+		"status":    "disabled",
 	})
 }
 
@@ -1374,7 +1377,7 @@ func EnableThrottling(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -1392,7 +1395,7 @@ func EnableThrottling(c *gin.Context) {
 	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid job ID",
+			"error":   "Invalid job ID",
 			"details": err.Error(),
 		})
 		return
@@ -1401,17 +1404,17 @@ func EnableThrottling(c *gin.Context) {
 	// Enable throttling for the specific job
 	if err := scannerManager.EnableThrottlingForJob(uint32(jobID)); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Failed to enable throttling",
+			"error":   "Failed to enable throttling",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Adaptive throttling re-enabled with default settings",
-		"job_id": jobID,
+		"message":   "Adaptive throttling re-enabled with default settings",
+		"job_id":    jobID,
 		"timestamp": time.Now(),
-		"status": "enabled",
+		"status":    "enabled",
 	})
 }
 
@@ -1425,16 +1428,16 @@ func CleanupLibraryData(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	// Perform cleanup
 	err = scannerManager.CleanupLibraryData(uint32(libraryID))
 	if err != nil {
@@ -1444,11 +1447,11 @@ func CleanupLibraryData(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Library cleanup completed successfully",
+		"message":    "Library cleanup completed successfully",
 		"library_id": libraryID,
-		"note": "Removed trickplay files, subtitles, and duplicate scan jobs",
+		"note":       "Removed trickplay files, subtitles, and duplicate scan jobs",
 	})
 }
 
@@ -1471,7 +1474,7 @@ func PauseScan(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -1481,7 +1484,7 @@ func PauseScan(c *gin.Context) {
 	scanJob, err := scannerManager.GetScanStatus(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Scan job not found",
+			"error":   "Scan job not found",
 			"details": err.Error(),
 		})
 		return
@@ -1505,7 +1508,7 @@ func PauseScan(c *gin.Context) {
 	// Stop the scan (which effectively pauses it)
 	if err := scannerManager.StopScan(uint32(jobID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to pause scan",
+			"error":   "Failed to pause scan",
 			"details": err.Error(),
 		})
 		return
@@ -1513,7 +1516,7 @@ func PauseScan(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Scan paused successfully",
-		"job_id": jobID,
+		"job_id":  jobID,
 	})
 }
 
@@ -1547,7 +1550,7 @@ func AnalyzeTrickplayContent(c *gin.Context) {
 	stats, err := utils.AnalyzeTrickplayInDirectory(library.Path)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to analyze trickplay content",
+			"error":   "Failed to analyze trickplay content",
 			"details": err.Error(),
 		})
 		return
@@ -1568,8 +1571,8 @@ func AnalyzeTrickplayContent(c *gin.Context) {
 	skippedGB := skippedMB / 1024
 
 	c.JSON(http.StatusOK, gin.H{
-		"library_id": libraryID,
-		"library_path": library.Path,
+		"library_id":         libraryID,
+		"library_path":       library.Path,
 		"trickplay_analysis": stats,
 		"percentages": gin.H{
 			"trickplay_files_percent": trickplayFilePercent,
@@ -1597,7 +1600,7 @@ func ForceCompleteScan(c *gin.Context) {
 	}
 
 	db := database.GetDB()
-	
+
 	// Get the scan job
 	var scanJob database.ScanJob
 	if err := db.First(&scanJob, jobID).Error; err != nil {
@@ -1654,7 +1657,7 @@ func GetScanHealth(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -1664,7 +1667,7 @@ func GetScanHealth(c *gin.Context) {
 	scanJob, err := scannerManager.GetScanStatus(uint32(jobID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Scan job not found",
+			"error":   "Scan job not found",
 			"details": err.Error(),
 		})
 		return
@@ -1688,7 +1691,7 @@ func GetScanHealth(c *gin.Context) {
 		if processedRatio < 0.1 && scanJob.StartedAt != nil {
 			elapsed := time.Since(*scanJob.StartedAt)
 			if elapsed > 5*time.Minute {
-				healthStatus = "warning" 
+				healthStatus = "warning"
 				issues = append(issues, "slow_processing")
 				recommendations = append(recommendations, "Processing is slower than expected - consider checking system resources")
 			}
@@ -1714,18 +1717,18 @@ func GetScanHealth(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"job_id": jobID,
-		"health_status": healthStatus,
-		"scan_status": scanJob.Status,
-		"issues": issues,
+		"job_id":          jobID,
+		"health_status":   healthStatus,
+		"scan_status":     scanJob.Status,
+		"issues":          issues,
 		"recommendations": recommendations,
 		"scan_metrics": gin.H{
-			"files_found": scanJob.FilesFound,
+			"files_found":     scanJob.FilesFound,
 			"files_processed": scanJob.FilesProcessed,
-			"progress": scanJob.Progress,
+			"progress":        scanJob.Progress,
 			"bytes_processed": scanJob.BytesProcessed,
 		},
 		"detailed_stats": detailedStats,
-		"timestamp": time.Now(),
+		"timestamp":      time.Now(),
 	})
 }

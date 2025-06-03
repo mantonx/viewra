@@ -3,6 +3,7 @@ package plugins
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mantonx/viewra/pkg/plugins/proto"
 	"google.golang.org/grpc"
@@ -21,8 +22,20 @@ func NewAssetServiceClient(hostServiceAddr string) (AssetServiceClient, error) {
 		return nil, fmt.Errorf("host service address is required")
 	}
 
-	// Connect to host gRPC service
-	conn, err := grpc.Dial(hostServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Create connection context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Connect to host gRPC service with appropriate message size limits
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(16*1024*1024), // 16MB to match server
+			grpc.MaxCallSendMsgSize(16*1024*1024), // 16MB to match server
+		),
+	}
+	
+	conn, err := grpc.DialContext(ctx, hostServiceAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to host service: %w", err)
 	}
@@ -45,6 +58,7 @@ func (c *GRPCAssetServiceClient) SaveAsset(ctx context.Context, req *SaveAssetRe
 		Data:        req.Data,
 		MimeType:    req.MimeType,
 		SourceUrl:   req.SourceURL,
+		PluginId:    req.PluginID,
 		Metadata:    req.Metadata,
 	}
 

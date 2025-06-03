@@ -4,12 +4,13 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"time"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/mediamodule"
 )
 
 // AdminHandler handles administrative API endpoints
@@ -28,7 +29,7 @@ func NewAdminHandler(eventBus events.EventBus) *AdminHandler {
 func (h *AdminHandler) GetMediaLibraries(c *gin.Context) {
 	var libraries []database.MediaLibrary
 	db := database.GetDB()
-	
+
 	result := db.Find(&libraries)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -37,7 +38,7 @@ func (h *AdminHandler) GetMediaLibraries(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"libraries": libraries,
 		"count":     len(libraries),
@@ -47,7 +48,7 @@ func (h *AdminHandler) GetMediaLibraries(c *gin.Context) {
 // CreateMediaLibrary creates a new media library configuration
 func (h *AdminHandler) CreateMediaLibrary(c *gin.Context) {
 	var req database.MediaLibraryRequest
-	
+
 	// Bind and validate JSON input
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -56,13 +57,13 @@ func (h *AdminHandler) CreateMediaLibrary(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Create media library record
 	library := database.MediaLibrary{
 		Path: req.Path,
 		Type: req.Type,
 	}
-	
+
 	db := database.GetDB()
 	result := db.Create(&library)
 	if result.Error != nil {
@@ -72,7 +73,7 @@ func (h *AdminHandler) CreateMediaLibrary(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Publish event for library creation
 	if h.eventBus != nil {
 		createEvent := events.NewSystemEvent(
@@ -82,12 +83,12 @@ func (h *AdminHandler) CreateMediaLibrary(c *gin.Context) {
 		)
 		createEvent.Data = map[string]interface{}{
 			"libraryId": library.ID,
-			"path":      library.Path, 
+			"path":      library.Path,
 			"type":      library.Type,
 		}
 		h.eventBus.PublishAsync(createEvent)
 	}
-	
+
 	c.JSON(http.StatusCreated, gin.H{
 		"library": library,
 		"message": "Media library created successfully",
@@ -104,484 +105,57 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 		})
 		return
 	}
-	
-	db := database.GetDB()
-	
-	// Check if library exists
-	var library database.MediaLibrary
-	result := db.First(&library, id)
-	if result.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Media library not found",
+
+	// Parse library ID
+	libraryID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid library ID",
 		})
 		return
 	}
+
+	logger.Info("Admin deleting library", "library_id", libraryID)
+
+	// Import the deletion service from mediamodule
+	db := database.GetDB()
 	
-	// Save library details for event before deletion
-	libraryID := library.ID
-	libraryPath := library.Path
-	libraryType := library.Type
-	
-	logger.Info("Starting library deletion", "library_id", libraryID, "path", libraryPath)
+	// Use the comprehensive deletion service
+	deletionService := mediamodule.NewLibraryDeletionService(db, h.eventBus)
 	
 	// Get scanner manager for proper cleanup
 	scannerManager, err := getScannerManager()
-	if err != nil {
-		logger.Error("Scanner manager not available for cleanup", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to access scanner manager for cleanup",
-			"details": err.Error(),
-		})
+	if err == nil && scannerManager != nil {
+		deletionService.SetScannerManager(scannerManager)
+	} else {
+		logger.Warn("Scanner manager not available for cleanup", "error", err)
+	}
+
+	// Perform comprehensive deletion
+	result := deletionService.DeleteLibrary(uint32(libraryID))
+
+	if !result.Success {
+		logger.Error("Admin library deletion failed", "library_id", libraryID, "error", result.Error)
+		if result.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": result.Message,
+				"details": result.Error.Error(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": result.Message,
+			})
+		}
 		return
 	}
-	
-	// STEP 1: Force stop any active scans for this library
-	logger.Info("Checking for active scans", "library_id", libraryID)
-	allJobs, jobsErr := scannerManager.GetAllScans()
-	if jobsErr != nil {
-		logger.Error("Failed to get scan jobs", "error", jobsErr)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to check active scans",
-			"details": jobsErr.Error(),
-		})
-		return
-	}
-	
-	var activeJobsForLibrary []database.ScanJob
-	for _, job := range allJobs {
-		if job.LibraryID == libraryID && (job.Status == "running" || job.Status == "paused") {
-			activeJobsForLibrary = append(activeJobsForLibrary, job)
-		}
-	}
-	
-	if len(activeJobsForLibrary) > 0 {
-		logger.Info("Found active scans to stop", "library_id", libraryID, "job_count", len(activeJobsForLibrary))
-		
-		// Force stop all active jobs for this library
-		for _, job := range activeJobsForLibrary {
-			logger.Info("Terminating scan job", "job_id", job.ID, "status", job.Status)
-			if stopErr := scannerManager.TerminateScan(job.ID); stopErr != nil {
-				logger.Warn("Failed to terminate scan job", "job_id", job.ID, "error", stopErr)
-			}
-		}
-		
-		// Wait longer and verify scans have actually stopped
-		logger.Info("Waiting for scans to stop completely", "library_id", libraryID)
-		maxWaitTime := 10 * time.Second
-		checkInterval := 500 * time.Millisecond
-		waited := time.Duration(0)
-		
-		for waited < maxWaitTime {
-			time.Sleep(checkInterval)
-			waited += checkInterval
-			
-			// Check if scans are still active
-			stillActive := false
-			currentJobs, checkErr := scannerManager.GetAllScans()
-			if checkErr == nil {
-				for _, job := range currentJobs {
-					if job.LibraryID == libraryID && job.Status == "running" {
-						stillActive = true
-						break
-					}
-				}
-			}
-			
-			if !stillActive {
-				logger.Info("All scans stopped successfully", "library_id", libraryID, "waited", waited)
-				break
-			}
-		}
-		
-		if waited >= maxWaitTime {
-			logger.Warn("Timeout waiting for scans to stop, proceeding with forced cleanup", "library_id", libraryID)
-		}
-	}
-	
-	// STEP 2: Clean up scan jobs
-	jobsDeleted, cleanupErr := scannerManager.CleanupJobsByLibrary(libraryID)
-	if cleanupErr != nil {
-		logger.Error("Failed to cleanup scan jobs", "library_id", libraryID, "error", cleanupErr)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to cleanup scan jobs for library",
-			"details": cleanupErr.Error(),
-		})
-		return
-	} else if jobsDeleted > 0 {
-		logger.Info("Cleaned up scan jobs", "library_id", libraryID, "jobs_deleted", jobsDeleted)
-	}
-	
-	// STEP 3: Delete all media metadata and entities for this library (comprehensive cleanup)
-	logger.Info("Performing comprehensive media cleanup for library", "library_id", libraryID)
-	
-	// Get all media file IDs for this library first
-	var mediaFileIDs []string
-	if err := db.Model(&database.MediaFile{}).Where("library_id = ?", libraryID).Pluck("id", &mediaFileIDs).Error; err != nil {
-		logger.Error("Failed to get media file IDs", "library_id", libraryID, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get media file IDs for cleanup",
-			"details": err.Error(),
-		})
-		return
-	}
-	
-	logger.Info("Found media files to clean up", "library_id", libraryID, "file_count", len(mediaFileIDs))
-	
-	if len(mediaFileIDs) > 0 {
-		// Get all media IDs for different media types from the files we're about to delete
-		var episodeIDs []string
-		var trackIDs []string
-		var movieIDs []string
-		
-		// Get episode IDs
-		if err := db.Model(&database.MediaFile{}).Where("library_id = ? AND media_type = ?", libraryID, "episode").Pluck("media_id", &episodeIDs).Error; err != nil {
-			logger.Warn("Failed to get episode IDs", "error", err)
-		}
-		
-		// Get track IDs
-		if err := db.Model(&database.MediaFile{}).Where("library_id = ? AND media_type = ?", libraryID, "track").Pluck("media_id", &trackIDs).Error; err != nil {
-			logger.Warn("Failed to get track IDs", "error", err)
-		}
-		
-		// Get movie IDs
-		if err := db.Model(&database.MediaFile{}).Where("library_id = ? AND media_type = ?", libraryID, "movie").Pluck("media_id", &movieIDs).Error; err != nil {
-			logger.Warn("Failed to get movie IDs", "error", err)
-		}
-		
-		logger.Info("Found media entities", "episodes", len(episodeIDs), "tracks", len(trackIDs), "movies", len(movieIDs))
-		
-		// STEP 3.1: Delete media enrichments
-		logger.Info("Deleting media enrichments")
-		if enrichResult := db.Where("media_id IN ?", mediaFileIDs).Delete(&database.MediaEnrichment{}); enrichResult.Error != nil {
-			logger.Warn("Failed to delete media enrichments", "error", enrichResult.Error)
-		} else if enrichResult.RowsAffected > 0 {
-			logger.Info("Deleted media enrichments", "count", enrichResult.RowsAffected)
-		}
-		
-		// STEP 3.2: Delete external IDs
-		logger.Info("Deleting external media IDs")
-		allMediaIDs := append(append(episodeIDs, trackIDs...), movieIDs...)
-		if len(allMediaIDs) > 0 {
-			if extIDResult := db.Where("media_id IN ?", allMediaIDs).Delete(&database.MediaExternalIDs{}); extIDResult.Error != nil {
-				logger.Warn("Failed to delete external IDs", "error", extIDResult.Error)
-			} else if extIDResult.RowsAffected > 0 {
-				logger.Info("Deleted external IDs", "count", extIDResult.RowsAffected)
-			}
-		}
-		
-		// STEP 3.3: Delete media assets
-		logger.Info("Deleting media assets")
-		if len(allMediaIDs) > 0 {
-			if assetResult := db.Where("media_id IN ?", allMediaIDs).Delete(&database.MediaAsset{}); assetResult.Error != nil {
-				logger.Warn("Failed to delete media assets", "error", assetResult.Error)
-			} else if assetResult.RowsAffected > 0 {
-				logger.Info("Deleted media assets", "count", assetResult.RowsAffected)
-			}
-		}
-		
-		// STEP 3.4: Delete people roles
-		logger.Info("Deleting people roles")
-		if len(allMediaIDs) > 0 {
-			if roleResult := db.Where("media_id IN ?", allMediaIDs).Delete(&database.Roles{}); roleResult.Error != nil {
-				logger.Warn("Failed to delete roles", "error", roleResult.Error)
-			} else if roleResult.RowsAffected > 0 {
-				logger.Info("Deleted roles", "count", roleResult.RowsAffected)
-			}
-		}
-		
-		// STEP 3.5: Delete TV show hierarchy (episodes -> seasons -> shows)
-		if len(episodeIDs) > 0 {
-			logger.Info("Cleaning up TV show hierarchy", "episode_count", len(episodeIDs))
-			
-			// Get season IDs from episodes
-			var seasonIDs []string
-			if err := db.Model(&database.Episode{}).Where("id IN ?", episodeIDs).Pluck("season_id", &seasonIDs).Error; err != nil {
-				logger.Warn("Failed to get season IDs", "error", err)
-			} else {
-				// Delete episodes first
-				if episodeResult := db.Where("id IN ?", episodeIDs).Delete(&database.Episode{}); episodeResult.Error != nil {
-					logger.Warn("Failed to delete episodes", "error", episodeResult.Error)
-				} else if episodeResult.RowsAffected > 0 {
-					logger.Info("Deleted episodes", "count", episodeResult.RowsAffected)
-				}
-				
-				if len(seasonIDs) > 0 {
-					// Get TV show IDs from seasons
-					var tvShowIDs []string
-					if err := db.Model(&database.Season{}).Where("id IN ?", seasonIDs).Pluck("tv_show_id", &tvShowIDs).Error; err != nil {
-						logger.Warn("Failed to get TV show IDs", "error", err)
-					}
-					
-					// Check if any other episodes exist for these seasons
-					var remainingEpisodeCounts []struct {
-						SeasonID string
-						Count    int64
-					}
-					if err := db.Model(&database.Episode{}).Select("season_id, COUNT(*) as count").Where("season_id IN ?", seasonIDs).Group("season_id").Find(&remainingEpisodeCounts).Error; err != nil {
-						logger.Warn("Failed to check remaining episodes", "error", err)
-					}
-					
-					// Delete seasons that have no remaining episodes
-					seasonsToDelete := make([]string, 0)
-					for _, seasonID := range seasonIDs {
-						hasRemainingEpisodes := false
-						for _, count := range remainingEpisodeCounts {
-							if count.SeasonID == seasonID && count.Count > 0 {
-								hasRemainingEpisodes = true
-								break
-							}
-						}
-						if !hasRemainingEpisodes {
-							seasonsToDelete = append(seasonsToDelete, seasonID)
-						}
-					}
-					
-					if len(seasonsToDelete) > 0 {
-						if seasonResult := db.Where("id IN ?", seasonsToDelete).Delete(&database.Season{}); seasonResult.Error != nil {
-							logger.Warn("Failed to delete seasons", "error", seasonResult.Error)
-						} else if seasonResult.RowsAffected > 0 {
-							logger.Info("Deleted orphaned seasons", "count", seasonResult.RowsAffected)
-						}
-					}
-					
-					// Check if any TV shows should be deleted (no remaining seasons)
-					if len(tvShowIDs) > 0 {
-						var remainingSeasonCounts []struct {
-							TVShowID string
-							Count    int64
-						}
-						if err := db.Model(&database.Season{}).Select("tv_show_id, COUNT(*) as count").Where("tv_show_id IN ?", tvShowIDs).Group("tv_show_id").Find(&remainingSeasonCounts).Error; err != nil {
-							logger.Warn("Failed to check remaining seasons", "error", err)
-						}
-						
-						// Delete TV shows that have no remaining seasons
-						tvShowsToDelete := make([]string, 0)
-						for _, tvShowID := range tvShowIDs {
-							hasRemainingSeasons := false
-							for _, count := range remainingSeasonCounts {
-								if count.TVShowID == tvShowID && count.Count > 0 {
-									hasRemainingSeasons = true
-									break
-								}
-							}
-							if !hasRemainingSeasons {
-								tvShowsToDelete = append(tvShowsToDelete, tvShowID)
-							}
-						}
-						
-						if len(tvShowsToDelete) > 0 {
-							if showResult := db.Where("id IN ?", tvShowsToDelete).Delete(&database.TVShow{}); showResult.Error != nil {
-								logger.Warn("Failed to delete TV shows", "error", showResult.Error)
-							} else if showResult.RowsAffected > 0 {
-								logger.Info("Deleted orphaned TV shows", "count", showResult.RowsAffected)
-							}
-						}
-					}
-				}
-			}
-		}
-		
-		// STEP 3.6: Delete music hierarchy (tracks -> albums -> artists)  
-		if len(trackIDs) > 0 {
-			logger.Info("Cleaning up music hierarchy", "track_count", len(trackIDs))
-			
-			// Get album and artist IDs from tracks
-			var albumIDs []string
-			var artistIDs []string
-			if err := db.Model(&database.Track{}).Where("id IN ?", trackIDs).Pluck("album_id", &albumIDs).Error; err != nil {
-				logger.Warn("Failed to get album IDs", "error", err)
-			}
-			if err := db.Model(&database.Track{}).Where("id IN ?", trackIDs).Pluck("artist_id", &artistIDs).Error; err != nil {
-				logger.Warn("Failed to get artist IDs", "error", err)
-			}
-			
-			// Delete tracks first
-			if trackResult := db.Where("id IN ?", trackIDs).Delete(&database.Track{}); trackResult.Error != nil {
-				logger.Warn("Failed to delete tracks", "error", trackResult.Error)
-			} else if trackResult.RowsAffected > 0 {
-				logger.Info("Deleted tracks", "count", trackResult.RowsAffected)
-			}
-			
-			// Check and delete orphaned albums
-			if len(albumIDs) > 0 {
-				var remainingTrackCounts []struct {
-					AlbumID string
-					Count   int64
-				}
-				if err := db.Model(&database.Track{}).Select("album_id, COUNT(*) as count").Where("album_id IN ?", albumIDs).Group("album_id").Find(&remainingTrackCounts).Error; err != nil {
-					logger.Warn("Failed to check remaining tracks for albums", "error", err)
-				}
-				
-				albumsToDelete := make([]string, 0)
-				for _, albumID := range albumIDs {
-					hasRemainingTracks := false
-					for _, count := range remainingTrackCounts {
-						if count.AlbumID == albumID && count.Count > 0 {
-							hasRemainingTracks = true
-							break
-						}
-					}
-					if !hasRemainingTracks {
-						albumsToDelete = append(albumsToDelete, albumID)
-					}
-				}
-				
-				if len(albumsToDelete) > 0 {
-					if albumResult := db.Where("id IN ?", albumsToDelete).Delete(&database.Album{}); albumResult.Error != nil {
-						logger.Warn("Failed to delete albums", "error", albumResult.Error)
-					} else if albumResult.RowsAffected > 0 {
-						logger.Info("Deleted orphaned albums", "count", albumResult.RowsAffected)
-					}
-				}
-			}
-			
-			// Check and delete orphaned artists
-			if len(artistIDs) > 0 {
-				var remainingTrackCounts []struct {
-					ArtistID string
-					Count    int64
-				}
-				if err := db.Model(&database.Track{}).Select("artist_id, COUNT(*) as count").Where("artist_id IN ?", artistIDs).Group("artist_id").Find(&remainingTrackCounts).Error; err != nil {
-					logger.Warn("Failed to check remaining tracks for artists", "error", err)
-				}
-				
-				var remainingAlbumCounts []struct {
-					ArtistID string
-					Count    int64
-				}
-				if err := db.Model(&database.Album{}).Select("artist_id, COUNT(*) as count").Where("artist_id IN ?", artistIDs).Group("artist_id").Find(&remainingAlbumCounts).Error; err != nil {
-					logger.Warn("Failed to check remaining albums for artists", "error", err)
-				}
-				
-				artistsToDelete := make([]string, 0)
-				for _, artistID := range artistIDs {
-					hasRemainingContent := false
-					
-					// Check tracks
-					for _, count := range remainingTrackCounts {
-						if count.ArtistID == artistID && count.Count > 0 {
-							hasRemainingContent = true
-							break
-						}
-					}
-					
-					// Check albums
-					if !hasRemainingContent {
-						for _, count := range remainingAlbumCounts {
-							if count.ArtistID == artistID && count.Count > 0 {
-								hasRemainingContent = true
-								break
-							}
-						}
-					}
-					
-					if !hasRemainingContent {
-						artistsToDelete = append(artistsToDelete, artistID)
-					}
-				}
-				
-				if len(artistsToDelete) > 0 {
-					if artistResult := db.Where("id IN ?", artistsToDelete).Delete(&database.Artist{}); artistResult.Error != nil {
-						logger.Warn("Failed to delete artists", "error", artistResult.Error)
-					} else if artistResult.RowsAffected > 0 {
-						logger.Info("Deleted orphaned artists", "count", artistResult.RowsAffected)
-					}
-				}
-			}
-		}
-		
-		// STEP 3.7: Delete movies
-		if len(movieIDs) > 0 {
-			logger.Info("Deleting movies", "movie_count", len(movieIDs))
-			if movieResult := db.Where("id IN ?", movieIDs).Delete(&database.Movie{}); movieResult.Error != nil {
-				logger.Warn("Failed to delete movies", "error", movieResult.Error)
-			} else if movieResult.RowsAffected > 0 {
-				logger.Info("Deleted movies", "count", movieResult.RowsAffected)
-			}
-		}
-		
-		// STEP 3.8: Clean up orphaned people (actors, directors, etc.) with no remaining roles
-		logger.Info("Cleaning up orphaned people")
-		var orphanedPeople []string
-		if err := db.Raw(`
-			SELECT p.id FROM people p 
-			LEFT JOIN roles r ON p.id = r.person_id 
-			WHERE r.person_id IS NULL
-		`).Pluck("id", &orphanedPeople).Error; err != nil {
-			logger.Warn("Failed to find orphaned people", "error", err)
-		} else if len(orphanedPeople) > 0 {
-			if peopleResult := db.Where("id IN ?", orphanedPeople).Delete(&database.People{}); peopleResult.Error != nil {
-				logger.Warn("Failed to delete orphaned people", "error", peopleResult.Error)
-			} else if peopleResult.RowsAffected > 0 {
-				logger.Info("Deleted orphaned people", "count", peopleResult.RowsAffected)
-			}
-		}
-	}
-	
-	// STEP 4: Delete all media files for this library (now safe since metadata is gone)
-	logger.Info("Deleting media files", "library_id", libraryID)
-	mediaFilesResult := db.Where("library_id = ?", libraryID).Delete(&database.MediaFile{})
-	if mediaFilesResult.Error != nil {
-		logger.Error("Failed to delete media files", "library_id", libraryID, "error", mediaFilesResult.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to cleanup media files for library",
-			"details": mediaFilesResult.Error.Error(),
-		})
-		return
-	} else if mediaFilesResult.RowsAffected > 0 {
-		logger.Info("Deleted media files", "library_id", libraryID, "files_deleted", mediaFilesResult.RowsAffected)
-	}
-	
-	// STEP 5: Clean up orphaned assets (now orphaned by deleting media files)
-	logger.Info("Cleaning up orphaned assets", "library_id", libraryID)
-	assetsRemoved, filesRemoved, cleanupErr := scannerManager.CleanupOrphanedAssets()
-	if cleanupErr != nil {
-		logger.Warn("Failed to cleanup orphaned assets", "error", cleanupErr)
-	} else if assetsRemoved > 0 || filesRemoved > 0 {
-		logger.Info("Cleaned up orphaned assets", "assets_removed", assetsRemoved, "files_removed", filesRemoved)
-	}
-	
-	// STEP 6: Clean up any remaining orphaned files from filesystem
-	logger.Info("Cleaning up orphaned files", "library_id", libraryID)
-	orphanedFilesRemoved, cleanupErr := scannerManager.CleanupOrphanedFiles()
-	if cleanupErr != nil {
-		logger.Warn("Failed to cleanup orphaned files", "error", cleanupErr)
-	} else if orphanedFilesRemoved > 0 {
-		logger.Info("Cleaned up orphaned files", "files_removed", orphanedFilesRemoved)
-	}
-	
-	// STEP 7: Delete the library record
-	logger.Info("Deleting library record", "library_id", libraryID)
-	result = db.Delete(&library)
-	if result.Error != nil {
-		logger.Error("Failed to delete library record", "library_id", libraryID, "error", result.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to delete media library",
-			"details": result.Error.Error(),
-		})
-		return
-	}
-	
-	logger.Info("Library deletion completed successfully", "library_id", libraryID, "path", libraryPath)
-	
-	// Publish event for library deletion
-	if h.eventBus != nil {
-		deleteEvent := events.NewSystemEvent(
-			events.EventInfo,
-			"Media Library Deleted",
-			fmt.Sprintf("%s media library at path %s has been removed", libraryType, libraryPath),
-		)
-		deleteEvent.Data = map[string]interface{}{
-			"libraryId": libraryID,
-			"path":      libraryPath,
-			"type":      libraryType,
-		}
-		h.eventBus.PublishAsync(deleteEvent)
-	}
-	
+
+	logger.Info("Admin library deletion completed successfully", "library_id", libraryID, "duration", result.Duration)
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Media library deleted successfully",
-		"id":      id,
+		"message": result.Message,
+		"library_id": result.LibraryID,
+		"cleanup_stats": result.CleanupStats,
+		"duration": result.Duration.String(),
 	})
 }
 

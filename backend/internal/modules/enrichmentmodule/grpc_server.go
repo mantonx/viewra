@@ -5,21 +5,38 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/hashicorp/go-hclog"
 	enrichmentpb "github.com/mantonx/viewra/api/proto/enrichment"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"gorm.io/gorm"
 )
+
+// =============================================================================
+// ENRICHMENT GRPC SERVICE
+// =============================================================================
+// This service handles enrichment data registration and management via gRPC.
+// It runs on the same gRPC server (port 50051) as the AssetService, providing
+// a consolidated interface for external plugins to:
+// 1. Register enrichment metadata (this service)
+// 2. Save/manage assets like artwork (AssetService in asset_grpc_server.go)
+//
+// Both services are registered in module.go Start() method.
 
 // GRPCServer implements the enrichment gRPC service
 type GRPCServer struct {
 	enrichmentpb.UnimplementedEnrichmentServiceServer
 	module *Module
+	db     *gorm.DB
+	logger hclog.Logger
 }
 
 // NewGRPCServer creates a new gRPC server for the enrichment module
-func NewGRPCServer(module *Module) *GRPCServer {
+func NewGRPCServer(module *Module, db *gorm.DB, logger hclog.Logger) *GRPCServer {
 	return &GRPCServer{
 		module: module,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -116,4 +133,4 @@ func (s *GRPCServer) TriggerEnrichmentJob(ctx context.Context, req *enrichmentpb
 		Message: fmt.Sprintf("Enrichment job triggered for media file %s", req.MediaFileId),
 		JobId:   fmt.Sprintf("%d", mediaFileIDUint),
 	}, nil
-} 
+}

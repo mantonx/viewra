@@ -15,20 +15,20 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		api.GET("/status", m.getGeneralStatus)
 		api.GET("/config", m.getConfig)
 		api.POST("/config", m.setConfig)
-		
+
 		// Scan job management
 		api.POST("/scan", m.startGeneralScan)
 		api.GET("/jobs", m.listScanJobs)
 		api.POST("/cancel-all", m.cancelAllScans)
-		
+
 		// Individual scan job operations
 		api.GET("/jobs/:id", m.getScanStatus)
 		api.DELETE("/jobs/:id", m.cancelScan)
 		api.POST("/resume/:id", m.resumeScan)
-		
+
 		// Real-time scan progress endpoint
 		api.GET("/progress/:id", m.getScanProgress)
-		
+
 		// File monitoring endpoints
 		api.GET("/monitoring", m.getMonitoringStatus)
 	}
@@ -87,9 +87,9 @@ func (m *Module) getMonitoringStatus(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	monitoringStatus := m.scannerManager.GetMonitoringStatus()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"monitoring_status": monitoringStatus,
 		"monitoring_count":  len(monitoringStatus),

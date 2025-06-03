@@ -82,8 +82,13 @@ type AssetServiceClient interface {
 	RemoveAsset(ctx context.Context, req *RemoveAssetRequest) (*RemoveAssetResponse, error)
 }
 
+type EnrichmentServiceClient interface {
+	RegisterEnrichment(ctx context.Context, req *RegisterEnrichmentRequest) (*RegisterEnrichmentResponse, error)
+}
+
 // Data structures
 type PluginContext struct {
+	PluginID         string            `json:"plugin_id"`         // Plugin identifier passed from manager
 	DatabaseURL      string            `json:"database_url"`
 	HostServiceAddr  string            `json:"host_service_addr"`
 	PluginBasePath   string            `json:"plugin_base_path"`
@@ -169,6 +174,21 @@ type RemoveAssetResponse struct {
 	Error   string `json:"error"`
 }
 
+// Enrichment service request/response types
+type RegisterEnrichmentRequest struct {
+	MediaFileID     string            `json:"media_file_id"`
+	SourceName      string            `json:"source_name"`
+	Enrichments     map[string]string `json:"enrichments"`
+	ConfidenceScore float64           `json:"confidence_score"`
+	MatchMetadata   map[string]string `json:"match_metadata"`
+}
+
+type RegisterEnrichmentResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	JobID   string `json:"job_id"`
+}
+
 // Logger interface for plugin logging
 type Logger interface {
 	Debug(msg string, args ...interface{})
@@ -176,4 +196,8 @@ type Logger interface {
 	Warn(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
 	With(args ...interface{}) hclog.Logger
+}
+
+type EnrichmentService interface {
+	RegisterEnrichment(mediaFileID, sourceName string, enrichments map[string]string, confidenceScore float64, metadata map[string]string) (string, error)
 }

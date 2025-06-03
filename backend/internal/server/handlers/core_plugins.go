@@ -4,24 +4,32 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mantonx/viewra/internal/plugins"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 )
 
 // CorePluginsHandler handles core plugin management
 type CorePluginsHandler struct {
-	pluginManager plugins.Manager
+	pluginModule *pluginmodule.PluginModule
 }
 
 // NewCorePluginsHandler creates a new core plugins handler
-func NewCorePluginsHandler(pluginManager plugins.Manager) *CorePluginsHandler {
+func NewCorePluginsHandler(pluginModule *pluginmodule.PluginModule) *CorePluginsHandler {
 	return &CorePluginsHandler{
-		pluginManager: pluginManager,
+		pluginModule: pluginModule,
 	}
 }
 
 // ListCorePlugins returns all core plugins
 func (h *CorePluginsHandler) ListCorePlugins(c *gin.Context) {
-	plugins := h.pluginManager.ListCorePlugins()
+	if h.pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Plugin module not available",
+		})
+		return
+	}
+
+	plugins := h.pluginModule.GetCoreManager().ListCorePluginInfo()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    plugins,
@@ -40,7 +48,15 @@ func (h *CorePluginsHandler) EnableCorePlugin(c *gin.Context) {
 		return
 	}
 
-	if err := h.pluginManager.EnableCorePlugin(pluginName); err != nil {
+	if h.pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Plugin module not available",
+		})
+		return
+	}
+
+	if err := h.pluginModule.EnableCorePlugin(pluginName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
@@ -66,7 +82,15 @@ func (h *CorePluginsHandler) DisableCorePlugin(c *gin.Context) {
 		return
 	}
 
-	if err := h.pluginManager.DisableCorePlugin(pluginName); err != nil {
+	if h.pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Plugin module not available",
+		})
+		return
+	}
+
+	if err := h.pluginModule.DisableCorePlugin(pluginName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
@@ -92,7 +116,15 @@ func (h *CorePluginsHandler) GetCorePluginInfo(c *gin.Context) {
 		return
 	}
 
-	allPlugins := h.pluginManager.ListCorePlugins()
+	if h.pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "Plugin module not available",
+		})
+		return
+	}
+
+	allPlugins := h.pluginModule.GetCoreManager().ListCorePluginInfo()
 	for _, plugin := range allPlugins {
 		if plugin.Name == pluginName {
 			c.JSON(http.StatusOK, gin.H{
@@ -107,4 +139,4 @@ func (h *CorePluginsHandler) GetCorePluginInfo(c *gin.Context) {
 		"success": false,
 		"error":   "Plugin not found",
 	})
-} 
+}

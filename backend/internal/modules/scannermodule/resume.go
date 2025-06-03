@@ -23,7 +23,7 @@ func (m *Module) resumeScan(c *gin.Context) {
 
 	// Use the ID directly as a job ID
 	jobID := uint32(id)
-	
+
 	// Check if the job exists and is in a paused or pending state
 	scanJob, jobErr := m.scannerManager.GetScanStatus(jobID)
 	if jobErr != nil {
@@ -32,7 +32,7 @@ func (m *Module) resumeScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Make sure the job is in a state that can be resumed (allow failed jobs from system restarts)
 	if scanJob.Status != "paused" && scanJob.Status != "pending" && scanJob.Status != "failed" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -40,13 +40,13 @@ func (m *Module) resumeScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the library ID from the scan job
 	libraryID := scanJob.LibraryID
-	
+
 	// Resume the scan job
 	logger.Info("Resuming scan job %d for library %d", jobID, libraryID)
-	
+
 	err = m.scannerManager.ResumeScan(jobID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -54,7 +54,7 @@ func (m *Module) resumeScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get updated job status
 	updatedScanJob, err := m.scannerManager.GetScanStatus(jobID)
 	if err != nil {
@@ -63,7 +63,7 @@ func (m *Module) resumeScan(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Scan resumed successfully",
 		"library_id": libraryID,

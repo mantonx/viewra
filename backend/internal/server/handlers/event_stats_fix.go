@@ -12,7 +12,7 @@ import (
 // This replaces the previous GetEventStats method to ensure consistency
 func (h *EventsHandler) GetAccurateEventStats(c *gin.Context) {
 	// Create an empty filter (correctly typed)
-	emptyFilter := events.EventFilter{} // Empty filter to get all events
+	emptyFilter := events.EventFilter{}                      // Empty filter to get all events
 	_, total, err := h.eventBus.GetEvents(emptyFilter, 0, 0) // 0 limit means we only care about the total count
 
 	if err != nil {
@@ -22,13 +22,13 @@ func (h *EventsHandler) GetAccurateEventStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get other stats from the event bus
 	baseStats := h.eventBus.GetStats()
-	
+
 	// Update the total to the accurate count
 	baseStats.TotalEvents = total
-	
+
 	// Return the updated stats
 	c.JSON(http.StatusOK, baseStats)
 }

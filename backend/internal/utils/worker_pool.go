@@ -28,13 +28,13 @@ func NewWorkerPool(workers int) *WorkerPool {
 func (wp *WorkerPool) Start() {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
-	
+
 	if wp.running {
 		return
 	}
-	
+
 	wp.running = true
-	
+
 	// Start worker goroutines
 	for i := 0; i < wp.workers; i++ {
 		wp.wg.Add(1)
@@ -46,11 +46,11 @@ func (wp *WorkerPool) Start() {
 func (wp *WorkerPool) Stop() {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
-	
+
 	if !wp.running {
 		return
 	}
-	
+
 	wp.running = false
 	close(wp.stopCh)
 	wp.wg.Wait()
@@ -60,11 +60,11 @@ func (wp *WorkerPool) Stop() {
 func (wp *WorkerPool) Submit(work func()) bool {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
-	
+
 	if !wp.running {
 		return false
 	}
-	
+
 	select {
 	case wp.workQueue <- work:
 		return true
@@ -76,7 +76,7 @@ func (wp *WorkerPool) Submit(work func()) bool {
 // worker processes work items from the queue
 func (wp *WorkerPool) worker() {
 	defer wp.wg.Done()
-	
+
 	for {
 		select {
 		case work := <-wp.workQueue:
@@ -107,12 +107,12 @@ func NewRateLimiter(rate int, interval time.Duration) *RateLimiter {
 		tokens:   make(chan struct{}, rate),
 		stopCh:   make(chan struct{}),
 	}
-	
+
 	// Fill initial tokens
 	for i := 0; i < rate; i++ {
 		rl.tokens <- struct{}{}
 	}
-	
+
 	return rl
 }
 
@@ -120,11 +120,11 @@ func NewRateLimiter(rate int, interval time.Duration) *RateLimiter {
 func (rl *RateLimiter) Start() {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	if rl.running {
 		return
 	}
-	
+
 	rl.running = true
 	go rl.refillTokens()
 }
@@ -133,11 +133,11 @@ func (rl *RateLimiter) Start() {
 func (rl *RateLimiter) Stop() {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	if !rl.running {
 		return
 	}
-	
+
 	rl.running = false
 	close(rl.stopCh)
 }
@@ -161,7 +161,7 @@ func (rl *RateLimiter) TryWait() bool {
 func (rl *RateLimiter) refillTokens() {
 	ticker := time.NewTicker(rl.interval / time.Duration(rl.rate))
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -175,4 +175,4 @@ func (rl *RateLimiter) refillTokens() {
 			return
 		}
 	}
-} 
+}

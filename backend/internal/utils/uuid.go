@@ -48,7 +48,7 @@ func GenerateNamespaceUUID(namespace uuid.UUID, name string) string {
 var (
 	// NamespaceMovies is the namespace UUID for movie entities
 	NamespaceMovies = uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-	// NamespaceTVShows is the namespace UUID for TV show entities  
+	// NamespaceTVShows is the namespace UUID for TV show entities
 	NamespaceTVShows = uuid.MustParse("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 	// NamespaceSeasons is the namespace UUID for season entities
 	NamespaceSeasons = uuid.MustParse("6ba7b812-9dad-11d1-80b4-00c04fd430c8")
@@ -56,4 +56,4 @@ var (
 	NamespaceEpisodes = uuid.MustParse("6ba7b813-9dad-11d1-80b4-00c04fd430c8")
 	// NamespaceMediaFiles is the namespace UUID for media file entities
 	NamespaceMediaFiles = uuid.MustParse("6ba7b814-9dad-11d1-80b4-00c04fd430c8")
-) 
+)

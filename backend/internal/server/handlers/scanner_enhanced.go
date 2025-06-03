@@ -23,7 +23,7 @@ func StartSafeguardedLibraryScan(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -33,7 +33,7 @@ func StartSafeguardedLibraryScan(c *gin.Context) {
 	result, err := scannerManager.StartSafeguardedScan(uint32(libraryID))
 	if err != nil {
 		logger.Error("Safeguarded scan start failed", "library_id", libraryID, "error", err)
-		
+
 		// Check if operation was rolled back
 		if result != nil && result.WasRolledBack {
 			c.JSON(http.StatusConflict, gin.H{
@@ -51,17 +51,17 @@ func StartSafeguardedLibraryScan(c *gin.Context) {
 		return
 	}
 
-	logger.Info("Safeguarded scan started successfully", 
-		"library_id", libraryID, 
+	logger.Info("Safeguarded scan started successfully",
+		"library_id", libraryID,
 		"job_id", result.JobID,
 		"duration", result.Duration.Milliseconds())
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    result.Message,
-		"job_id":     result.JobID,
-		"library_id": libraryID,
-		"operation":  string(result.Operation),
-		"duration":   result.Duration.Milliseconds(),
+		"message":     result.Message,
+		"job_id":      result.JobID,
+		"library_id":  libraryID,
+		"operation":   string(result.Operation),
+		"duration":    result.Duration.Milliseconds(),
 		"safeguarded": true,
 	})
 }
@@ -80,7 +80,7 @@ func PauseSafeguardedLibraryScan(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -90,25 +90,25 @@ func PauseSafeguardedLibraryScan(c *gin.Context) {
 	result, err := scannerManager.PauseSafeguardedScan(uint32(jobID))
 	if err != nil {
 		logger.Error("Safeguarded scan pause failed", "job_id", jobID, "error", err)
-		
+
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     "Failed to pause scan",
-			"details":   err.Error(),
-			"job_id":    jobID,
-			"duration":  result.Duration.Milliseconds(),
+			"error":    "Failed to pause scan",
+			"details":  err.Error(),
+			"job_id":   jobID,
+			"duration": result.Duration.Milliseconds(),
 		})
 		return
 	}
 
-	logger.Info("Safeguarded scan paused successfully", 
+	logger.Info("Safeguarded scan paused successfully",
 		"job_id", jobID,
 		"duration", result.Duration.Milliseconds())
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    result.Message,
-		"job_id":     result.JobID,
-		"operation":  string(result.Operation),
-		"duration":   result.Duration.Milliseconds(),
+		"message":     result.Message,
+		"job_id":      result.JobID,
+		"operation":   string(result.Operation),
+		"duration":    result.Duration.Milliseconds(),
 		"safeguarded": true,
 	})
 }
@@ -127,7 +127,7 @@ func ResumeSafeguardedLibraryScan(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -137,25 +137,25 @@ func ResumeSafeguardedLibraryScan(c *gin.Context) {
 	result, err := scannerManager.ResumeSafeguardedScan(uint32(jobID))
 	if err != nil {
 		logger.Error("Safeguarded scan resume failed", "job_id", jobID, "error", err)
-		
+
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     "Failed to resume scan",
-			"details":   err.Error(),
-			"job_id":    jobID,
-			"duration":  result.Duration.Milliseconds(),
+			"error":    "Failed to resume scan",
+			"details":  err.Error(),
+			"job_id":   jobID,
+			"duration": result.Duration.Milliseconds(),
 		})
 		return
 	}
 
-	logger.Info("Safeguarded scan resumed successfully", 
+	logger.Info("Safeguarded scan resumed successfully",
 		"job_id", jobID,
 		"duration", result.Duration.Milliseconds())
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    result.Message,
-		"job_id":     result.JobID,
-		"operation":  string(result.Operation),
-		"duration":   result.Duration.Milliseconds(),
+		"message":     result.Message,
+		"job_id":      result.JobID,
+		"operation":   string(result.Operation),
+		"duration":    result.Duration.Milliseconds(),
 		"safeguarded": true,
 	})
 }
@@ -174,7 +174,7 @@ func DeleteSafeguardedLibraryScan(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
@@ -184,7 +184,7 @@ func DeleteSafeguardedLibraryScan(c *gin.Context) {
 	result, err := scannerManager.DeleteSafeguardedScan(uint32(jobID))
 	if err != nil {
 		logger.Error("Safeguarded scan deletion failed", "job_id", jobID, "error", err)
-		
+
 		// Check if operation was rolled back
 		if result != nil && result.WasRolledBack {
 			c.JSON(http.StatusConflict, gin.H{
@@ -202,15 +202,15 @@ func DeleteSafeguardedLibraryScan(c *gin.Context) {
 		return
 	}
 
-	logger.Info("Safeguarded scan deleted successfully", 
+	logger.Info("Safeguarded scan deleted successfully",
 		"job_id", jobID,
 		"duration", result.Duration.Milliseconds())
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    result.Message,
-		"job_id":     result.JobID,
-		"operation":  string(result.Operation),
-		"duration":   result.Duration.Milliseconds(),
+		"message":     result.Message,
+		"job_id":      result.JobID,
+		"operation":   string(result.Operation),
+		"duration":    result.Duration.Milliseconds(),
 		"safeguarded": true,
 	})
 }
@@ -220,14 +220,14 @@ func GetSafeguardStatus(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	status := scannerManager.GetSafeguardStatus()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"safeguard_status": status,
 	})
@@ -238,17 +238,17 @@ func ForceEmergencyCleanup(c *gin.Context) {
 	scannerManager, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Scanner module not available",
+			"error":   "Scanner module not available",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	logger.Info("Emergency cleanup initiated by user request")
-	
+
 	// Perform comprehensive cleanup
 	var results []map[string]interface{}
-	
+
 	// 1. Cleanup orphaned jobs
 	orphanedJobs, err := scannerManager.CleanupOrphanedJobs()
 	if err != nil {
@@ -259,7 +259,7 @@ func ForceEmergencyCleanup(c *gin.Context) {
 		"removed": orphanedJobs,
 		"error":   err,
 	})
-	
+
 	// 2. Cleanup old completed jobs
 	oldJobs, err := scannerManager.CleanupOldJobs()
 	if err != nil {
@@ -270,7 +270,7 @@ func ForceEmergencyCleanup(c *gin.Context) {
 		"removed": oldJobs,
 		"error":   err,
 	})
-	
+
 	// 3. Cleanup orphaned assets
 	assetsRemoved, filesRemoved, err := scannerManager.CleanupOrphanedAssets()
 	if err != nil {
@@ -282,7 +282,7 @@ func ForceEmergencyCleanup(c *gin.Context) {
 		"files_removed":  filesRemoved,
 		"error":          err,
 	})
-	
+
 	// 4. Cancel all active scans
 	cancelledScans, err := scannerManager.CancelAllScans()
 	if err != nil {
@@ -297,8 +297,8 @@ func ForceEmergencyCleanup(c *gin.Context) {
 	logger.Info("Emergency cleanup completed", "total_operations", len(results))
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Emergency cleanup completed",
-		"results": results,
+		"message":   "Emergency cleanup completed",
+		"results":   results,
 		"timestamp": time.Now(),
 	})
-} 
+}

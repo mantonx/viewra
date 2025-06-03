@@ -34,26 +34,26 @@ func NewConnectionPool(primary *gorm.DB) *ConnectionPool {
 func (cp *ConnectionPool) Initialize() error {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	
+
 	logger.Info("Initializing database connection pool")
-	
+
 	// Configure connection pool settings
 	if err := cp.configureConnectionPool(); err != nil {
 		return fmt.Errorf("failed to configure connection pool: %w", err)
 	}
-	
+
 	// Setup read-only connection if configured
 	if err := cp.setupReadOnlyConnection(); err != nil {
 		logger.Warn("Failed to setup read-only connection: %v", err)
 		// Not fatal, continue with primary connection
 	}
-	
+
 	// Setup analytics connection if configured
 	if err := cp.setupAnalyticsConnection(); err != nil {
 		logger.Warn("Failed to setup analytics connection: %v", err)
 		// Not fatal, continue with primary connection
 	}
-	
+
 	logger.Info("Connection pool initialized successfully")
 	return nil
 }
@@ -64,13 +64,13 @@ func (cp *ConnectionPool) configureConnectionPool() error {
 	if err != nil {
 		return fmt.Errorf("failed to get sql.DB: %w", err)
 	}
-	
+
 	// Set connection pool settings
 	sqlDB.SetMaxOpenConns(cp.maxConns)
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 	sqlDB.SetConnMaxIdleTime(time.Minute * 30)
-	
+
 	return nil
 }
 
@@ -82,15 +82,15 @@ func (cp *ConnectionPool) setupReadOnlyConnection() error {
 		cp.readOnly = cp.primary
 		return nil
 	}
-	
+
 	dbType := os.Getenv("DATABASE_TYPE")
 	if dbType == "" {
 		dbType = "sqlite"
 	}
-	
+
 	var db *gorm.DB
 	var err error
-	
+
 	switch dbType {
 	case "postgres":
 		db, err = gorm.Open(postgres.Open(readOnlyDSN), &gorm.Config{
@@ -103,11 +103,11 @@ func (cp *ConnectionPool) setupReadOnlyConnection() error {
 	default:
 		return fmt.Errorf("unsupported database type for read-only connection: %s", dbType)
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to create read-only connection: %w", err)
 	}
-	
+
 	cp.readOnly = db
 	logger.Info("Read-only database connection established")
 	return nil
@@ -121,7 +121,7 @@ func (cp *ConnectionPool) setupAnalyticsConnection() error {
 		cp.analytics = cp.primary
 		return nil
 	}
-	
+
 	dbType := os.Getenv("ANALYTICS_DATABASE_TYPE")
 	if dbType == "" {
 		dbType = os.Getenv("DATABASE_TYPE")
@@ -129,10 +129,10 @@ func (cp *ConnectionPool) setupAnalyticsConnection() error {
 			dbType = "sqlite"
 		}
 	}
-	
+
 	var db *gorm.DB
 	var err error
-	
+
 	switch dbType {
 	case "postgres":
 		db, err = gorm.Open(postgres.Open(analyticsDSN), &gorm.Config{
@@ -145,11 +145,11 @@ func (cp *ConnectionPool) setupAnalyticsConnection() error {
 	default:
 		return fmt.Errorf("unsupported database type for analytics connection: %s", dbType)
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to create analytics connection: %w", err)
 	}
-	
+
 	cp.analytics = db
 	logger.Info("Analytics database connection established")
 	return nil
@@ -186,12 +186,12 @@ func (cp *ConnectionPool) GetAnalytics() *gorm.DB {
 func (cp *ConnectionPool) Health() error {
 	cp.mu.RLock()
 	defer cp.mu.RUnlock()
-	
+
 	// Check primary connection
 	if err := cp.checkConnection(cp.primary, "primary"); err != nil {
 		return err
 	}
-	
+
 	// Check read-only connection if different from primary
 	if cp.readOnly != nil && cp.readOnly != cp.primary {
 		if err := cp.checkConnection(cp.readOnly, "read-only"); err != nil {
@@ -199,7 +199,7 @@ func (cp *ConnectionPool) Health() error {
 			// Not fatal, continue
 		}
 	}
-	
+
 	// Check analytics connection if different from primary
 	if cp.analytics != nil && cp.analytics != cp.primary {
 		if err := cp.checkConnection(cp.analytics, "analytics"); err != nil {
@@ -207,7 +207,7 @@ func (cp *ConnectionPool) Health() error {
 			// Not fatal, continue
 		}
 	}
-	
+
 	return nil
 }
 
@@ -216,16 +216,16 @@ func (cp *ConnectionPool) checkConnection(db *gorm.DB, name string) error {
 	if db == nil {
 		return fmt.Errorf("%s connection is nil", name)
 	}
-	
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get %s sql.DB: %w", name, err)
 	}
-	
+
 	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("%s connection ping failed: %w", name, err)
 	}
-	
+
 	return nil
 }
 
@@ -233,48 +233,48 @@ func (cp *ConnectionPool) checkConnection(db *gorm.DB, name string) error {
 func (cp *ConnectionPool) GetStats() map[string]interface{} {
 	cp.mu.RLock()
 	defer cp.mu.RUnlock()
-	
+
 	stats := make(map[string]interface{})
-	
+
 	// Get primary connection stats
 	if sqlDB, err := cp.primary.DB(); err == nil {
 		dbStats := sqlDB.Stats()
 		stats["primary"] = map[string]interface{}{
 			"open_connections":     dbStats.OpenConnections,
-			"in_use":              dbStats.InUse,
-			"idle":                dbStats.Idle,
-			"wait_count":          dbStats.WaitCount,
-			"wait_duration":       dbStats.WaitDuration.String(),
-			"max_idle_closed":     dbStats.MaxIdleClosed,
+			"in_use":               dbStats.InUse,
+			"idle":                 dbStats.Idle,
+			"wait_count":           dbStats.WaitCount,
+			"wait_duration":        dbStats.WaitDuration.String(),
+			"max_idle_closed":      dbStats.MaxIdleClosed,
 			"max_idle_time_closed": dbStats.MaxIdleTimeClosed,
-			"max_lifetime_closed": dbStats.MaxLifetimeClosed,
+			"max_lifetime_closed":  dbStats.MaxLifetimeClosed,
 		}
 	}
-	
+
 	// Add read-only stats if available
 	if cp.readOnly != nil && cp.readOnly != cp.primary {
 		if sqlDB, err := cp.readOnly.DB(); err == nil {
 			dbStats := sqlDB.Stats()
 			stats["read_only"] = map[string]interface{}{
 				"open_connections": dbStats.OpenConnections,
-				"in_use":          dbStats.InUse,
-				"idle":            dbStats.Idle,
+				"in_use":           dbStats.InUse,
+				"idle":             dbStats.Idle,
 			}
 		}
 	}
-	
+
 	// Add analytics stats if available
 	if cp.analytics != nil && cp.analytics != cp.primary {
 		if sqlDB, err := cp.analytics.DB(); err == nil {
 			dbStats := sqlDB.Stats()
 			stats["analytics"] = map[string]interface{}{
 				"open_connections": dbStats.OpenConnections,
-				"in_use":          dbStats.InUse,
-				"idle":            dbStats.Idle,
+				"in_use":           dbStats.InUse,
+				"idle":             dbStats.Idle,
 			}
 		}
 	}
-	
+
 	return stats
 }
 
@@ -282,9 +282,9 @@ func (cp *ConnectionPool) GetStats() map[string]interface{} {
 func (cp *ConnectionPool) Close() error {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	
+
 	var errors []error
-	
+
 	// Close primary connection
 	if cp.primary != nil {
 		if sqlDB, err := cp.primary.DB(); err == nil {
@@ -293,7 +293,7 @@ func (cp *ConnectionPool) Close() error {
 			}
 		}
 	}
-	
+
 	// Close read-only connection if different from primary
 	if cp.readOnly != nil && cp.readOnly != cp.primary {
 		if sqlDB, err := cp.readOnly.DB(); err == nil {
@@ -302,7 +302,7 @@ func (cp *ConnectionPool) Close() error {
 			}
 		}
 	}
-	
+
 	// Close analytics connection if different from primary
 	if cp.analytics != nil && cp.analytics != cp.primary {
 		if sqlDB, err := cp.analytics.DB(); err == nil {
@@ -311,11 +311,11 @@ func (cp *ConnectionPool) Close() error {
 			}
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf("connection pool close errors: %v", errors)
 	}
-	
+
 	logger.Info("Connection pool closed successfully")
 	return nil
 }

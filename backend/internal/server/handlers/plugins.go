@@ -11,15 +11,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/plugins"
-	"github.com/mantonx/viewra/internal/plugins/proto"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 )
 
-var pluginManager plugins.Manager
+var pluginModule *pluginmodule.PluginModule
 
-// InitializePluginManager initializes the global plugin manager
-func InitializePluginManager(manager plugins.Manager) {
-	pluginManager = manager
+// InitializePluginManager initializes the global plugin module
+func InitializePluginManager(module *pluginmodule.PluginModule) {
+	pluginModule = module
 }
 
 // =============================================================================
@@ -28,92 +27,83 @@ func InitializePluginManager(manager plugins.Manager) {
 
 // GetPlugins returns all available plugins
 func GetPlugins(c *gin.Context) {
-	if pluginManager == nil {
+	if pluginModule == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Plugin manager not initialized",
+			"error": "Plugin module not initialized",
 		})
 		return
 	}
 
 	// Get all plugins and enhance with database information
-	allPlugins := pluginManager.ListPlugins()
+	allPlugins := pluginModule.ListAllPlugins()
 	enhancedPlugins := make([]map[string]interface{}, 0, len(allPlugins))
-	
+
 	// Get database connection to fetch status information
 	db := database.GetDB()
-	
+
 	for _, pluginInfo := range allPlugins {
-		// Use ID for external plugins, Name for core plugins as identifier
+		// Use Name for core plugins, ID for external plugins as identifier
 		var pluginIdentifier string
 		if pluginInfo.IsCore {
 			pluginIdentifier = pluginInfo.Name
 		} else {
 			pluginIdentifier = pluginInfo.ID
 		}
-		
-		// Get the full plugin object for additional details
-		plugin, exists := pluginManager.GetPlugin(pluginIdentifier)
-		if !exists {
-			// If plugin doesn't exist in manager, use info from PluginInfo
-			pluginData := map[string]interface{}{
-				"id":          pluginIdentifier,
-				"name":        pluginInfo.Name,
-				"version":     pluginInfo.Version,
-				"type":        pluginInfo.Type,
-				"description": pluginInfo.Description,
-				"author":      "",
-				"binary_path": "",
-				"config_path": "",
-				"base_path":   "",
-				"running":     pluginInfo.Enabled,
-				"enabled":     pluginInfo.Enabled,
-				"status":      "unknown",
-				"is_core":     pluginInfo.IsCore,
-				"category":    pluginInfo.Category,
-			}
-			enhancedPlugins = append(enhancedPlugins, pluginData)
-			continue
-		}
 
-		// Check database status
-		var dbPlugin database.Plugin
-		err := db.Where("plugin_id = ?", pluginIdentifier).First(&dbPlugin).Error
-		
 		// Create enhanced plugin info
 		pluginData := map[string]interface{}{
-			"id":          plugin.ID,
-			"name":        plugin.Name,
-			"version":     plugin.Version,
-			"type":        plugin.Type,
-			"description": plugin.Description,
-			"author":      plugin.Author,
-			"binary_path": plugin.BinaryPath,
-			"config_path": plugin.ConfigPath,
-			"base_path":   plugin.BasePath,
-			"running":     plugin.Running,
+			"id":          pluginIdentifier,
+			"name":        pluginInfo.Name,
+			"version":     pluginInfo.Version,
+			"type":        pluginInfo.Type,
+			"description": pluginInfo.Description,
+			"author":      "", // External plugins may have author info
+			"binary_path": "", // External plugins may have binary path
+			"config_path": "", // External plugins may have config path
+			"base_path":   "", // External plugins may have base path
+			"running":     pluginInfo.Enabled,
+			"enabled":     pluginInfo.Enabled,
+			"status":      "unknown",
 			"is_core":     pluginInfo.IsCore,
 			"category":    pluginInfo.Category,
 		}
-		
-		if err == nil {
-			// Plugin found in database, use database status
-			pluginData["enabled"] = dbPlugin.Status == "enabled"
-			pluginData["status"] = dbPlugin.Status
-			pluginData["installed_at"] = dbPlugin.InstalledAt
-			pluginData["enabled_at"] = dbPlugin.EnabledAt
-			pluginData["error_message"] = dbPlugin.ErrorMessage
+
+		// Check database status for core plugins
+		if pluginInfo.IsCore {
+			var dbPlugin database.Plugin
+			err := db.Where("plugin_id = ? AND type = ?", pluginIdentifier, "core").First(&dbPlugin).Error
+
+			if err == nil {
+				// Plugin found in database, use database status
+				pluginData["enabled"] = dbPlugin.Status == "enabled"
+				pluginData["status"] = dbPlugin.Status
+				pluginData["installed_at"] = dbPlugin.InstalledAt
+				pluginData["enabled_at"] = dbPlugin.EnabledAt
+				pluginData["error_message"] = dbPlugin.ErrorMessage
+			} else {
+				// Plugin not in database, show as discovered but not registered
+				pluginData["enabled"] = true // Core plugins default to enabled
+				pluginData["status"] = "enabled"
+				pluginData["installed_at"] = nil
+				pluginData["enabled_at"] = nil
+				pluginData["error_message"] = ""
+			}
 		} else {
-			// Plugin not in database, show as discovered but not registered
-			pluginData["enabled"] = false
-			pluginData["status"] = "discovered"
-			pluginData["installed_at"] = nil
-			pluginData["enabled_at"] = nil
-			pluginData["error_message"] = ""
+			// External plugin - get details from external manager
+			if externalPlugin, exists := pluginModule.GetExternalPlugin(pluginIdentifier); exists {
+				pluginData["binary_path"] = externalPlugin.Path
+				pluginData["running"] = externalPlugin.Running
+				pluginData["enabled"] = externalPlugin.Running
+				pluginData["status"] = "discovered"
+				if externalPlugin.Running {
+					pluginData["status"] = "running"
+				}
+			}
 		}
-		
+
 		enhancedPlugins = append(enhancedPlugins, pluginData)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"plugins": enhancedPlugins,
 		"count":   len(enhancedPlugins),
@@ -124,23 +114,40 @@ func GetPlugins(c *gin.Context) {
 func GetPlugin(c *gin.Context) {
 	pluginID := c.Param("id")
 
-	if pluginManager == nil {
+	if pluginModule == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Plugin manager not initialized",
+			"error": "Plugin module not initialized",
 		})
 		return
 	}
 
-	pluginInfo, exists := pluginManager.GetPlugin(pluginID)
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Plugin not found",
+	// Try to find as core plugin first
+	if corePlugin, exists := pluginModule.GetCorePlugin(pluginID); exists {
+		pluginInfo := map[string]interface{}{
+			"id":         corePlugin.GetName(),
+			"name":       corePlugin.GetName(),
+			"type":       corePlugin.GetPluginType(),
+			"enabled":    corePlugin.IsEnabled(),
+			"is_core":    true,
+			"extensions": corePlugin.GetSupportedExtensions(),
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"plugin": pluginInfo,
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"plugin": pluginInfo,
+	// Try to find as external plugin
+	if externalPlugin, exists := pluginModule.GetExternalPlugin(pluginID); exists {
+		c.JSON(http.StatusOK, gin.H{
+			"plugin": externalPlugin,
+		})
+		return
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{
+		"error": "Plugin not found",
 	})
 }
 
@@ -148,43 +155,42 @@ func GetPlugin(c *gin.Context) {
 func GetPluginHealth(c *gin.Context) {
 	pluginID := c.Param("id")
 
-	if pluginManager == nil {
+	if pluginModule == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Plugin manager not initialized",
+			"error": "Plugin module not initialized",
 		})
 		return
 	}
 
-	pluginInstance, exists := pluginManager.GetPlugin(pluginID)
-	if !exists || !pluginInstance.Running {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Plugin not found or not running",
-		})
+	// For core plugins, check if they're enabled and initialized
+	if corePlugin, exists := pluginModule.GetCorePlugin(pluginID); exists {
+		status := gin.H{
+			"plugin_id":  pluginID,
+			"running":    corePlugin.IsEnabled(),
+			"healthy":    corePlugin.IsEnabled(),
+			"checked_at": time.Now(),
+			"is_core":    true,
+		}
+		c.JSON(http.StatusOK, status)
 		return
 	}
 
-	healthy := false
-	var healthErr error
-
-	if pluginInstance.PluginService != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_, healthErr = pluginInstance.PluginService.Health(ctx, &proto.HealthRequest{})
-		healthy = healthErr == nil
-	} else {
-		healthErr = fmt.Errorf("plugin does not expose a core PluginService for health checks")
+	// For external plugins, check if they're running
+	if externalPlugin, exists := pluginModule.GetExternalPlugin(pluginID); exists {
+		status := gin.H{
+			"plugin_id":  pluginID,
+			"running":    externalPlugin.Running,
+			"healthy":    externalPlugin.Running, // Simple check for now
+			"checked_at": time.Now(),
+			"is_core":    false,
+		}
+		c.JSON(http.StatusOK, status)
+		return
 	}
 
-	status := gin.H{
-		"plugin_id":  pluginID,
-		"running":    pluginInstance.Running,
-		"healthy":    healthy,
-		"checked_at": time.Now(),
-	}
-	if healthErr != nil {
-		status["error"] = healthErr.Error()
-	}
-	c.JSON(http.StatusOK, status)
+	c.JSON(http.StatusNotFound, gin.H{
+		"error": "Plugin not found or not running",
+	})
 }
 
 // =============================================================================
@@ -195,488 +201,288 @@ func GetPluginHealth(c *gin.Context) {
 func EnablePlugin(c *gin.Context) {
 	pluginID := c.Param("id")
 
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
+	if pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin module not initialized"})
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Get database connection
-	db := database.GetDB()
-
-	// Check if plugin exists in manager
-	plugin, exists := pluginManager.GetPlugin(pluginID)
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Plugin not found",
+	// Try enabling as core plugin first
+	if err := pluginModule.EnableCorePlugin(pluginID); err == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success":   true,
+			"message":   "Core plugin enabled successfully",
+			"plugin_id": pluginID,
 		})
 		return
 	}
 
-	// Register plugin in database if not already registered
-	var dbPlugin database.Plugin
-	err := db.Where("plugin_id = ?", pluginID).First(&dbPlugin).Error
-	if err != nil {
-		// Plugin not in database, create it
-		dbPlugin = database.Plugin{
-			PluginID:    pluginID,
-			Name:        plugin.Name,
-			Version:     plugin.Version,
-			Description: plugin.Description,
-			Author:      plugin.Author,
-			Type:        plugin.Type,
-			Status:      "enabled",
-			InstallPath: plugin.BasePath,
-			InstalledAt: time.Now(),
-			EnabledAt:   &[]time.Time{time.Now()}[0],
-		}
-		if err := db.Create(&dbPlugin).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "Failed to register plugin in database",
-				"details": err.Error(),
-			})
-			return
-		}
-	} else {
-		// Plugin exists, update status to enabled
-		now := time.Now()
-		dbPlugin.Status = "enabled"
-		dbPlugin.EnabledAt = &now
-		if err := db.Save(&dbPlugin).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "Failed to update plugin status",
-				"details": err.Error(),
-			})
-			return
-		}
-	}
+	// Try loading as external plugin
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	// Load the plugin if not already running
-	if !plugin.Running {
-		if err := pluginManager.LoadPlugin(ctx, pluginID); err != nil {
-			// Update database status to error
-			dbPlugin.Status = "error"
-			dbPlugin.ErrorMessage = err.Error()
-			db.Save(&dbPlugin)
-			
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "Failed to load plugin",
-				"details": err.Error(),
-			})
-			return
-		}
+	if err := pluginModule.LoadExternalPlugin(ctx, pluginID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to enable plugin: %v", err),
+		})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Plugin enabled successfully",
-		"plugin":  pluginID,
-		"status":  "enabled",
+		"success":   true,
+		"message":   "External plugin loaded successfully",
+		"plugin_id": pluginID,
 	})
 }
 
-// DisablePlugin disables a plugin and unloads it
+// DisablePlugin disables a plugin
 func DisablePlugin(c *gin.Context) {
 	pluginID := c.Param("id")
 
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
+	if pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin module not initialized"})
 		return
 	}
 
+	// Try disabling as core plugin first
+	if err := pluginModule.DisableCorePlugin(pluginID); err == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success":   true,
+			"message":   "Core plugin disabled successfully",
+			"plugin_id": pluginID,
+		})
+		return
+	}
+
+	// Try unloading as external plugin
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Get database connection
-	db := database.GetDB()
-
-	// Update database status to disabled
-	var dbPlugin database.Plugin
-	err := db.Where("plugin_id = ?", pluginID).First(&dbPlugin).Error
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Plugin not found in database",
-		})
-		return
-	}
-
-	dbPlugin.Status = "disabled"
-	dbPlugin.EnabledAt = nil
-	if err := db.Save(&dbPlugin).Error; err != nil {
+	if err := pluginModule.UnloadExternalPlugin(ctx, pluginID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to update plugin status",
-			"details": err.Error(),
+			"error": fmt.Sprintf("Failed to disable plugin: %v", err),
 		})
 		return
-	}
-
-	// Unload the plugin if it's running
-	plugin, exists := pluginManager.GetPlugin(pluginID)
-	if exists && plugin.Running {
-		if err := pluginManager.UnloadPlugin(ctx, pluginID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "Failed to unload plugin",
-				"details": err.Error(),
-			})
-			return
-		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Plugin disabled successfully",
-		"plugin":  pluginID,
-		"status":  "disabled",
+		"success":   true,
+		"message":   "External plugin unloaded successfully",
+		"plugin_id": pluginID,
 	})
 }
 
-// =============================================================================
-// PLUGIN INSTALLATION ENDPOINTS
-// =============================================================================
-
-// InstallPlugin loads and starts a plugin (renamed from install for clarity)
+// InstallPlugin installs a new plugin
 func InstallPlugin(c *gin.Context) {
-	pluginID := c.Param("id")
-
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Attempt to load the plugin
-	if err := pluginManager.LoadPlugin(ctx, pluginID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to load plugin",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Plugin loaded successfully",
-		"plugin":  pluginID,
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": "Plugin installation not yet implemented",
 	})
 }
 
-// UninstallPlugin disables and removes a plugin
+// UninstallPlugin uninstalls a plugin
 func UninstallPlugin(c *gin.Context) {
-	pluginID := c.Param("id")
-
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// 1. Unload the plugin if it's running
-	if err := pluginManager.UnloadPlugin(ctx, pluginID); err != nil {
-		// Log error but attempt to continue if it's just "not running"
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to unload plugin",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	/* TODO: This was from the old system, actual removal of files needs careful consideration.
-	// 2. Disable the plugin (remove from auto-load)
-	if err := pluginManager.DisablePlugin(ctx, pluginID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to disable plugin",
-			"details": err.Error(),
-		})
-		return
-	}
-	*/
-
-	// 3. TODO: Actual removal of plugin files from disk - this is a destructive operation
-	//    And needs to be handled carefully. For now, we only unload/disable.
-	// pluginPath := filepath.Join(pluginManager.PluginDir(), pluginID) // Assuming PluginDir() method exists
-	// if err := os.RemoveAll(pluginPath); err != nil { ... }
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Plugin unloaded. Manual deletion of files may be required.",
-		"plugin":  pluginID,
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error": "Plugin uninstallation not yet implemented",
 	})
 }
 
 // =============================================================================
-// PLUGIN EVENTS AND LOGS ENDPOINTS
+// PLUGIN EVENT ENDPOINTS
 // =============================================================================
 
 // GetPluginEvents returns events for a specific plugin
 func GetPluginEvents(c *gin.Context) {
 	pluginID := c.Param("id")
-	limitStr := c.DefaultQuery("limit", "50")
-	offsetStr := c.DefaultQuery("offset", "0")
-	
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
+
+	// Get query parameters for pagination
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
 		limit = 50
 	}
-	if limit > 1000 {
-		limit = 1000
-	}
-	
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		offset = 0
-	}
-	
+
+	offset := (page - 1) * limit
+
 	db := database.GetDB()
-	
-	// Get plugin database ID
-	var dbPlugin database.Plugin
-	if err := db.Where("plugin_id = ?", pluginID).First(&dbPlugin).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Plugin not found",
-		})
-		return
-	}
-	
-	// Get events
+
 	var events []database.PluginEvent
-	if err := db.Where("plugin_id = ?", dbPlugin.ID).
+	var total int64
+
+	// Count total events for this plugin
+	db.Model(&database.PluginEvent{}).Where("plugin_id = ?", pluginID).Count(&total)
+
+	// Get paginated events
+	err := db.Where("plugin_id = ?", pluginID).
 		Order("created_at DESC").
-		Limit(limit).
 		Offset(offset).
-		Find(&events).Error; err != nil {
+		Limit(limit).
+		Find(&events).Error
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve plugin events",
-			"details": err.Error(),
+			"error": "Failed to retrieve plugin events",
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"plugin_id": pluginID,
-		"events":    events,
-		"count":     len(events),
-		"limit":     limit,
-		"offset":    offset,
+		"events": events,
+		"pagination": gin.H{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+			"pages": (total + int64(limit) - 1) / int64(limit),
+		},
 	})
 }
 
 // GetAllPluginEvents returns events for all plugins
 func GetAllPluginEvents(c *gin.Context) {
-	limitStr := c.DefaultQuery("limit", "100")
-	offsetStr := c.DefaultQuery("offset", "0")
-	
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
-		limit = 100
+	// Get query parameters for pagination
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	eventType := c.Query("event_type")
+
+	if page < 1 {
+		page = 1
 	}
-	if limit > 1000 {
-		limit = 1000
+	if limit < 1 || limit > 100 {
+		limit = 50
 	}
-	
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		offset = 0
-	}
-	
+
+	offset := (page - 1) * limit
+
 	db := database.GetDB()
-	
+
 	var events []database.PluginEvent
-	if err := db.Preload("Plugin").
-		Order("created_at DESC").
-		Limit(limit).
+	var total int64
+
+	// Build query
+	query := db.Model(&database.PluginEvent{})
+	if eventType != "" {
+		query = query.Where("event_type = ?", eventType)
+	}
+
+	// Count total events
+	query.Count(&total)
+
+	// Get paginated events
+	err := query.Order("created_at DESC").
 		Offset(offset).
-		Find(&events).Error; err != nil {
+		Limit(limit).
+		Find(&events).Error
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve plugin events",
-			"details": err.Error(),
+			"error": "Failed to retrieve plugin events",
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"events": events,
-		"count":  len(events),
-		"limit":  limit,
-		"offset": offset,
+		"pagination": gin.H{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+			"pages": (total + int64(limit) - 1) / int64(limit),
+		},
 	})
 }
 
-// =============================================================================
-// PLUGIN DISCOVERY AND REGISTRY ENDPOINTS
-// =============================================================================
-
-// RefreshPlugins re-discovers plugins from the plugin directory
+// RefreshPlugins refreshes the plugin list
 func RefreshPlugins(c *gin.Context) {
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
-		return
-	}
-
-	if err := pluginManager.DiscoverPlugins(); err != nil { // Removed context argument
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to refresh plugins",
-			"details": err.Error(),
+	if pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Plugin module not initialized",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Plugins refreshed successfully"})
+	// Refresh external plugins
+	if err := pluginModule.RefreshExternalPlugins(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to refresh external plugins: %v", err),
+		})
+		return
+	}
+
+	// Core plugins are auto-loaded on startup, but we could add refresh logic here if needed
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Plugin list refreshed successfully",
+	})
 }
 
-// GetPluginManifest returns the manifest for a specific plugin
+// GetPluginManifest returns the manifest for a plugin
 func GetPluginManifest(c *gin.Context) {
 	pluginID := c.Param("id")
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Plugin manager not initialized"})
+
+	if pluginModule == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Plugin module not initialized",
+		})
 		return
 	}
 
-	plugin, exists := pluginManager.GetPlugin(pluginID) // Changed to GetPlugin
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Plugin not found"})
+	// Check if it's a core plugin
+	if corePlugin, exists := pluginModule.GetCorePlugin(pluginID); exists {
+		manifest := gin.H{
+			"id":          corePlugin.GetName(),
+			"name":        corePlugin.GetName(),
+			"version":     "1.0.0",
+			"type":        corePlugin.GetPluginType(),
+			"description": "Built-in core plugin",
+			"is_core":     true,
+			"extensions":  corePlugin.GetSupportedExtensions(),
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"manifest": manifest,
+		})
 		return
 	}
 
-	// The concept of a separate "Manifest" object is gone.
-	// Core plugin details are on the Plugin struct itself (plugin.ID, plugin.Name, etc.)
-	// Configuration is in plugin.cue (plugin.ConfigPath points to it).
-	// How to best expose this via API needs consideration. For now, return basic info.
-	c.JSON(http.StatusOK, gin.H{
-		"id":          plugin.ID,
-		"name":        plugin.Name,
-		"version":     plugin.Version,
-		"type":        plugin.Type,
-		"description": plugin.Description,
-		"config_path": plugin.ConfigPath,
-		// "schema": plugin.ConfigSchema, // ConfigSchema does not exist anymore
+	c.JSON(http.StatusNotFound, gin.H{
+		"error": "Plugin manifest not found",
 	})
 }
 
-// GetPluginAdminPages returns admin page configurations for a plugin
+// GetPluginAdminPages returns admin pages provided by plugins
 func GetPluginAdminPages(c *gin.Context) {
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Plugin manager not initialized",
-		})
-		return
-	}
-	
-	db := database.GetDB()
-	
-	var adminPages []database.PluginAdminPage
-	if err := db.Preload("Plugin").
-		Where("enabled = ?", true).
-		Order("category, sort_order, title").
-		Find(&adminPages).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve admin pages",
-			"details": err.Error(),
-		})
-		return
-	}
-	
 	c.JSON(http.StatusOK, gin.H{
-		"admin_pages": adminPages,
-		"count":      len(adminPages),
+		"admin_pages": []interface{}{},
+		"message":     "No admin pages available",
 	})
 }
 
 // GetPluginUIComponents returns UI components provided by plugins
 func GetPluginUIComponents(c *gin.Context) {
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Plugin manager not initialized",
-		})
-		return
-	}
-	
-	db := database.GetDB()
-	
-	var components []database.PluginUIComponent
-	if err := db.Preload("Plugin").
-		Where("enabled = ?", true).
-		Find(&components).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve UI components",
-			"details": err.Error(),
-		})
-		return
-	}
-	
 	c.JSON(http.StatusOK, gin.H{
-		"ui_components": components,
-		"count":         len(components),
+		"ui_components": []interface{}{},
+		"message":       "No UI components available",
 	})
 }
 
 // =============================================================================
-// PLUGIN ROUTE DISPATCHING
+// PLUGIN ROUTE PROXY
 // =============================================================================
 
-// HandlePluginRoute handles dynamic routing to plugin endpoints
-// URL format: /api/plugins/{plugin_id}/{plugin_route}
+// HandlePluginRoute handles dynamic plugin routes
 func HandlePluginRoute(c *gin.Context) {
-	if pluginManager == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Plugin manager not initialized",
-		})
-		return
-	}
+	// Extract plugin path from the URL
+	pluginPath := c.Param("path")
 
-	// Parse the path: /plugin_id/route/path...
-	path := strings.TrimPrefix(c.Param("path"), "/")
-	pathParts := strings.SplitN(path, "/", 2)
-	
-	if len(pathParts) < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid plugin route format. Expected: /api/plugins/{plugin_id}/{route}",
-		})
-		return
-	}
-	
-	pluginID := pathParts[0]
-	pluginRoute := "/"
-	if len(pathParts) > 1 {
-		pluginRoute = "/" + pathParts[1]
-	}
-	
-	// Get the plugin
-	plugin, exists := pluginManager.GetPlugin(pluginID)
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": fmt.Sprintf("Plugin '%s' not found", pluginID),
-		})
-		return
-	}
-	
-	if !plugin.Running {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": fmt.Sprintf("Plugin '%s' is not running", pluginID),
-		})
-		return
-	}
-	
-	// Generic plugin route handling - delegate to the plugin's HTTP service
-	if plugin.PluginService == nil {
-		c.JSON(http.StatusNotImplemented, gin.H{
-			"error": fmt.Sprintf("Plugin '%s' does not expose HTTP endpoints", pluginID),
-			"plugin_id": pluginID,
-			"route": pluginRoute,
-		})
-		return
-	}
-	
-	// TODO: Implement generic HTTP forwarding to plugin's HTTP service
-	// This would involve converting the Gin request to a proto HTTP request
-	// and forwarding it to the plugin's HTTP handler, then converting the response back
-	
+	// Remove leading slash if present
+	pluginPath = strings.TrimPrefix(pluginPath, "/")
+
 	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Generic plugin HTTP forwarding not yet implemented",
-		"message": "Plugin-specific routes should be handled by the plugin's own HTTP service",
-		"plugin_id": pluginID,
-		"route": pluginRoute,
-		"suggestion": "Use the plugin's dedicated service endpoints or implement HTTP forwarding",
+		"error":       "Plugin routes not yet implemented",
+		"plugin_path": pluginPath,
+		"method":      c.Request.Method,
 	})
 }

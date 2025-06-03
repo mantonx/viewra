@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	enrichmentpb "github.com/mantonx/viewra/api/proto/enrichment"
+	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
@@ -146,43 +148,48 @@ func (m *Module) Start() error {
 		m.eventBus = events.GetGlobalEventBus()
 	}
 
-	// Start gRPC server (disabled until protobuf is generated)
-	if err := m.startGRPCServer(); err != nil {
-		return fmt.Errorf("failed to start gRPC server: %w", err)
+	// Start gRPC server for external plugins
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", m.grpcPort))
+	if err != nil {
+		return fmt.Errorf("failed to listen on port %d: %w", m.grpcPort, err)
 	}
+
+	// Create gRPC server with larger message limits for artwork
+	opts := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(16 * 1024 * 1024), // 16MB, increased from default 4MB for artwork
+		grpc.MaxSendMsgSize(16 * 1024 * 1024), // 16MB
+	}
+	m.grpcServer = grpc.NewServer(opts...)
+	
+	// Create logger for gRPC services
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "enrichment-grpc",
+		Level: hclog.Debug,
+	})
+	
+	// Get current config
+	cfg := config.Get()
+	
+	// Register both services on the same gRPC server
+	assetServer := NewAssetGRPCServer(logger, cfg, m.db)
+	pluginspb.RegisterAssetServiceServer(m.grpcServer, assetServer)
+	
+	// Create enrichment gRPC server
+	enrichmentServer := NewGRPCServer(m, m.db, logger.Named("enrichment-grpc"))
+	enrichmentpb.RegisterEnrichmentServiceServer(m.grpcServer, enrichmentServer)
+
+	// Start server in background
+	go func() {
+		log.Printf("INFO: Enrichment gRPC server listening on port %d (AssetService + EnrichmentService)", m.grpcPort)
+		if err := m.grpcServer.Serve(listener); err != nil {
+			log.Printf("ERROR: gRPC server failed: %v", err)
+		}
+	}()
 
 	// Start background enrichment application worker
 	go m.startEnrichmentWorker()
 
 	log.Println("INFO: Enrichment application module started")
-	return nil
-}
-
-// startGRPCServer starts the gRPC server for external plugins
-func (m *Module) startGRPCServer() error {
-	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", m.grpcPort))
-	if err != nil {
-		return fmt.Errorf("failed to listen on port %d: %w", m.grpcPort, err)
-	}
-
-	m.grpcServer = grpc.NewServer()
-
-	// Register the enrichment service
-	grpcService := NewGRPCServer(m)
-	enrichmentpb.RegisterEnrichmentServiceServer(m.grpcServer, grpcService)
-	
-	// Register the asset service for external plugins
-	assetService := NewAssetGRPCServer(m)
-	pluginspb.RegisterAssetServiceServer(m.grpcServer, assetService)
-
-	// Start server in background
-	go func() {
-		log.Printf("INFO: Enrichment gRPC server listening on port %d", m.grpcPort)
-		if err := m.grpcServer.Serve(listen); err != nil {
-			log.Printf("ERROR: gRPC server failed: %v", err)
-		}
-	}()
-
 	return nil
 }
 

@@ -13,16 +13,16 @@ import "github.com/mantonx/viewra/internal/database"
 type InternalEnrichmentPlugin interface {
 	// GetName returns the unique name of the plugin
 	GetName() string
-	
+
 	// Initialize sets up the plugin (database migrations, etc.)
 	Initialize() error
-	
+
 	// CanEnrich determines if this plugin can enrich the given media file
 	CanEnrich(mediaFile *database.MediaFile) bool
-	
+
 	// EnrichMediaFile enriches a media file with metadata from this plugin's source
 	EnrichMediaFile(mediaFile *database.MediaFile, existingMetadata map[string]string) error
-	
+
 	// OnMediaFileScanned is called when a media file is scanned (plugin hook)
 	OnMediaFileScanned(mediaFile *database.MediaFile, metadata map[string]string) error
 }
@@ -31,10 +31,10 @@ type InternalEnrichmentPlugin interface {
 type PluginConfig interface {
 	// IsEnabled returns whether the plugin is enabled
 	IsEnabled() bool
-	
+
 	// GetSource returns the source name for enrichment registration
 	GetSource() string
-	
+
 	// GetPriority returns the plugin priority (lower = higher priority)
 	GetPriority() int
 }
@@ -42,10 +42,10 @@ type PluginConfig interface {
 // CacheablePlugin defines an interface for plugins that support caching
 type CacheablePlugin interface {
 	InternalEnrichmentPlugin
-	
+
 	// ClearCache clears the plugin's cache
 	ClearCache() error
-	
+
 	// GetCacheStats returns cache statistics
 	GetCacheStats() map[string]interface{}
 }
@@ -53,10 +53,10 @@ type CacheablePlugin interface {
 // ConfigurablePlugin defines an interface for plugins with runtime configuration
 type ConfigurablePlugin interface {
 	InternalEnrichmentPlugin
-	
+
 	// UpdateConfig updates the plugin configuration
 	UpdateConfig(config map[string]interface{}) error
-	
+
 	// GetConfig returns the current plugin configuration
 	GetConfig() map[string]interface{}
-} 
+}

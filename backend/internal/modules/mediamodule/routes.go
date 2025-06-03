@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/logger"
 )
 
 // getLibraries returns all media libraries
@@ -22,7 +23,7 @@ func (m *Module) getLibraries(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"libraries": libraries,
 		"count":     len(libraries),
@@ -36,20 +37,20 @@ func (m *Module) createLibrary(c *gin.Context) {
 		Type string `json:"type" binding:"required"`
 		Name string `json:"name"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("Invalid request: %v", err),
 		})
 		return
 	}
-	
+
 	// Use provided name or path as name if not provided
 	name := req.Name
 	if name == "" {
 		name = req.Path
 	}
-	
+
 	library, err := m.libraryManager.CreateLibrary(name, req.Path, req.Type)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -57,14 +58,14 @@ func (m *Module) createLibrary(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Library created successfully",
 		"library": library,
 	})
 }
 
-// deleteLibrary deletes a media library
+// deleteLibrary deletes a media library comprehensively
 func (m *Module) deleteLibrary(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -74,17 +75,42 @@ func (m *Module) deleteLibrary(c *gin.Context) {
 		})
 		return
 	}
+
+	logger.Info("Deleting library via API", "library_id", id)
+
+	// Use the comprehensive deletion service
+	deletionService := NewLibraryDeletionService(m.db, m.eventBus)
 	
-	if err := m.libraryManager.DeleteLibrary(uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to delete library: %v", err),
-		})
+	// TODO: Set scanner manager if available when integration is complete
+	// if m.scannerManager != nil {
+	//     deletionService.SetScannerManager(m.scannerManager)
+	// }
+
+	// Perform comprehensive deletion
+	result := deletionService.DeleteLibrary(uint32(id))
+
+	if !result.Success {
+		logger.Error("Library deletion failed", "library_id", id, "error", result.Error)
+		if result.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": result.Message,
+				"details": result.Error.Error(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": result.Message,
+			})
+		}
 		return
 	}
-	
+
+	logger.Info("Library deletion completed successfully", "library_id", id, "duration", result.Duration)
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Library deleted successfully",
-		"id":      id,
+		"message": result.Message,
+		"library_id": result.LibraryID,
+		"cleanup_stats": result.CleanupStats,
+		"duration": result.Duration.String(),
 	})
 }
 
@@ -98,7 +124,7 @@ func (m *Module) getLibraryStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	stats, err := m.libraryManager.GetLibraryStats(uint(id))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -106,7 +132,7 @@ func (m *Module) getLibraryStats(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"stats": stats,
 	})
@@ -122,41 +148,41 @@ func (m *Module) getLibraryFiles(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Parse query parameters for pagination
 	limitStr := c.DefaultQuery("limit", "50")
 	offsetStr := c.DefaultQuery("offset", "0")
-	
+
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 || limit > 1000 {
 		limit = 50
 	}
-	
+
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < 0 {
 		offset = 0
 	}
-	
+
 	var mediaFiles []database.MediaFile
 	var total int64
-	
+
 	// Get total count
 	m.db.Model(&database.MediaFile{}).Where("library_id = ?", id).Count(&total)
-	
+
 	// Get paginated results
 	result := m.db.Where("library_id = ?", id).
 		Limit(limit).
 		Offset(offset).
 		Order("path").
 		Find(&mediaFiles)
-	
+
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get media files: %v", result.Error),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"media_files": mediaFiles,
 		"total":       total,
@@ -171,36 +197,36 @@ func (m *Module) getFiles(c *gin.Context) {
 	// Parse query parameters for pagination
 	limitStr := c.DefaultQuery("limit", "50")
 	offsetStr := c.DefaultQuery("offset", "0")
-	
+
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 || limit > 1000 {
 		limit = 50
 	}
-	
+
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < 0 {
 		offset = 0
 	}
-	
+
 	var mediaFiles []database.MediaFile
 	var total int64
-	
+
 	// Get total count
 	m.db.Model(&database.MediaFile{}).Count(&total)
-	
+
 	// Get paginated results
 	result := m.db.Limit(limit).
 		Offset(offset).
 		Order("id DESC").
 		Find(&mediaFiles)
-	
+
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get media files: %v", result.Error),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"media_files": mediaFiles,
 		"total":       total,
@@ -219,7 +245,7 @@ func (m *Module) getFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	var mediaFile database.MediaFile
 	if err := m.db.Preload("MusicMetadata").Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -227,7 +253,7 @@ func (m *Module) getFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"media_file": mediaFile,
 	})
@@ -242,7 +268,7 @@ func (m *Module) deleteFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	var mediaFile database.MediaFile
 	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -250,7 +276,7 @@ func (m *Module) deleteFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Then delete the file record
 	if err := m.db.Delete(&mediaFile).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -280,7 +306,7 @@ func (m *Module) streamFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	var mediaFile database.MediaFile
 	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -288,7 +314,7 @@ func (m *Module) streamFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Check if file exists
 	if _, err := os.Stat(mediaFile.Path); os.IsNotExist(err) {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -296,17 +322,17 @@ func (m *Module) streamFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Determine content type
 	contentType := getContentTypeFromPath(mediaFile.Path)
-	
+
 	// Set appropriate headers
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Type", contentType)
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", filepath.Base(mediaFile.Path)))
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Accept-Ranges", "bytes")
-	
+
 	// Serve the file
 	c.File(mediaFile.Path)
 }
@@ -320,7 +346,7 @@ func (m *Module) getFileMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the media file with proper relationships
 	var mediaFile database.MediaFile
 	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
@@ -329,10 +355,10 @@ func (m *Module) getFileMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Based on media type, get the appropriate metadata
 	var metadata interface{}
-	
+
 	switch mediaFile.MediaType {
 	case database.MediaTypeTrack:
 		// Get track with artist and album information
@@ -374,18 +400,38 @@ func (m *Module) getFileMetadata(c *gin.Context) {
 			return
 		}
 		metadata = map[string]interface{}{
-			"type":         "movie",
-			"movie_id":     movie.ID,
-			"title":        movie.Title,
-			"release_date": movie.ReleaseDate,
-			"plot":         movie.Plot,
-			"runtime":      movie.Runtime,
-			"rating":       movie.Rating,
-			"poster":       movie.Poster,
-			"backdrop":     movie.Backdrop,
-			"studio":       movie.Studio,
-			"tmdb_id":      movie.TmdbID,
-			"imdb_id":      movie.ImdbID,
+			"type":                 "movie",
+			"movie_id":             movie.ID,
+			"title":                movie.Title,
+			"original_title":       movie.OriginalTitle,
+			"release_date":         movie.ReleaseDate,
+			"overview":             movie.Overview,
+			"tagline":              movie.Tagline,
+			"runtime":              movie.Runtime,
+			"rating":               movie.Rating,
+			"tmdb_rating":          movie.TmdbRating,
+			"vote_count":           movie.VoteCount,
+			"popularity":           movie.Popularity,
+			"status":               movie.Status,
+			"budget":               movie.Budget,
+			"revenue":              movie.Revenue,
+			"poster":               movie.Poster,
+			"backdrop":             movie.Backdrop,
+			"tmdb_id":              movie.TmdbID,
+			"imdb_id":              movie.ImdbID,
+			"adult":                movie.Adult,
+			"video":                movie.Video,
+			"original_language":    movie.OriginalLanguage,
+			"genres":               movie.Genres,
+			"production_companies": movie.ProductionCompanies,
+			"production_countries": movie.ProductionCountries,
+			"spoken_languages":     movie.SpokenLanguages,
+			"keywords":             movie.Keywords,
+			"main_cast":            movie.MainCast,
+			"main_crew":            movie.MainCrew,
+			"external_ids":         movie.ExternalIDs,
+			"collection":           movie.Collection,
+			"awards":               movie.Awards,
 		}
 	case database.MediaTypeEpisode:
 		// Get episode information
@@ -429,7 +475,7 @@ func (m *Module) getFileMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"media_file_id": idStr,
 		"metadata":      metadata,
@@ -445,7 +491,7 @@ func (m *Module) getFileAlbumId(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the media file with Track and Album information
 	var mediaFile database.MediaFile
 	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
@@ -454,7 +500,7 @@ func (m *Module) getFileAlbumId(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Only handle track media types for now
 	if mediaFile.MediaType != database.MediaTypeTrack {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -462,7 +508,7 @@ func (m *Module) getFileAlbumId(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the track to find the album
 	var track database.Track
 	if err := m.db.Preload("Album").Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
@@ -471,11 +517,11 @@ func (m *Module) getFileAlbumId(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"media_file_id": idStr,
-		"album_id": track.Album.ID,
-		"asset_url": fmt.Sprintf("/api/v1/assets/entity/album/%s/preferred/cover", track.Album.ID),
+		"album_id":      track.Album.ID,
+		"asset_url":     fmt.Sprintf("/api/v1/assets/entity/album/%s/preferred/cover", track.Album.ID),
 	})
 }
 
@@ -488,7 +534,7 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the media file with Track and Album information
 	var mediaFile database.MediaFile
 	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
@@ -497,7 +543,7 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Only handle track media types for now
 	if mediaFile.MediaType != database.MediaTypeTrack {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -505,7 +551,7 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the track to find the album
 	var track database.Track
 	if err := m.db.Preload("Album").Where("id = ?", mediaFile.MediaID).First(&track).Error; err != nil {
@@ -514,7 +560,7 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get quality parameter
 	qualityStr := c.Query("quality")
 	quality := 0 // Default to original quality
@@ -523,58 +569,58 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 			quality = q
 		}
 	}
-	
+
 	// Try to get assets directly using a simple database query
 	var asset struct {
 		ID     uuid.UUID `json:"id"`
 		Path   string    `json:"path"`
 		Format string    `json:"format"`
 	}
-	
+
 	// Query the database directly for the preferred cover asset using the real Album.ID
 	err := m.db.Table("media_assets").
 		Select("id, path, format").
-		Where("entity_type = ? AND entity_id = ? AND type = ? AND preferred = ?", 
+		Where("entity_type = ? AND entity_id = ? AND type = ? AND preferred = ?",
 			"album", track.Album.ID, "cover", true).
 		First(&asset).Error
-	
+
 	if err != nil {
 		// Try any cover asset for this album
 		err = m.db.Table("media_assets").
 			Select("id, path, format").
-			Where("entity_type = ? AND entity_id = ? AND type = ?", 
+			Where("entity_type = ? AND entity_id = ? AND type = ?",
 				"album", track.Album.ID, "cover").
 			First(&asset).Error
 	}
-	
+
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "No album artwork found",
+			"error":    "No album artwork found",
 			"album_id": track.Album.ID,
 		})
 		return
 	}
-	
+
 	// Serve the file directly
 	fullPath := filepath.Join("/app/viewra-data/assets", asset.Path)
-	
+
 	// Check if file exists
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Artwork file not found on disk",
-			"path": fullPath,
+			"path":  fullPath,
 		})
 		return
 	}
-	
+
 	// Set appropriate headers
 	c.Header("Content-Type", asset.Format)
 	c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
-	
+
 	if quality > 0 {
 		c.Header("X-Quality", qualityStr)
 	}
-	
+
 	// Serve the file
 	c.File(fullPath)
 }
@@ -592,7 +638,7 @@ func (m *Module) extractMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get the media file from database
 	var mediaFile database.MediaFile
 	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
@@ -601,14 +647,14 @@ func (m *Module) extractMetadata(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	if err := m.metadataManager.ExtractMetadata(&mediaFile); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to extract metadata: %v", err),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Metadata extracted successfully",
 		"id":      idStr,
@@ -646,7 +692,7 @@ func (m *Module) updateMetadata(c *gin.Context) {
 			Artist      string `json:"artist"`
 			Album       string `json:"album"`
 		}
-		
+
 		if err := c.ShouldBindJSON(&trackUpdate); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Invalid request: %v", err),
@@ -684,7 +730,7 @@ func (m *Module) updateMetadata(c *gin.Context) {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"message": "Track metadata updated successfully",
+			"message":  "Track metadata updated successfully",
 			"track_id": track.ID,
 		})
 
@@ -705,7 +751,7 @@ func (m *Module) processFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	jobID, err := m.fileProcessor.ProcessFile(idStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -713,7 +759,7 @@ func (m *Module) processFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "File processing started",
 		"job_id":  jobID,
@@ -724,7 +770,7 @@ func (m *Module) processFile(c *gin.Context) {
 // getProcessingStatus returns the status of processing jobs
 func (m *Module) getProcessingStatus(c *gin.Context) {
 	stats := m.fileProcessor.GetStats()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"stats": stats,
 	})
@@ -741,10 +787,10 @@ func (m *Module) getHealth(c *gin.Context) {
 // getStatus returns the status of the media module
 func (m *Module) getStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"id":         m.id,
-		"name":       m.name,
-		"version":    m.version,
-		"core":       m.core,
+		"id":          m.id,
+		"name":        m.name,
+		"version":     m.version,
+		"core":        m.core,
 		"initialized": m.initialized,
 	})
 }
@@ -754,7 +800,7 @@ func (m *Module) getStats(c *gin.Context) {
 	// Collect stats from components
 	processorStats := m.fileProcessor.GetStats()
 	metadataStats := m.metadataManager.GetStats()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"processor_stats": processorStats,
 		"metadata_stats":  metadataStats,
@@ -791,4 +837,3 @@ func getContentTypeFromPath(path string) string {
 		return "application/octet-stream"
 	}
 }
-

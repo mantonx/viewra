@@ -46,4 +46,4 @@ func ClearForTesting() {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 	routeRegistry = make([]APIRoute, 0)
-} 
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 
 	"gorm.io/gorm"
 )
@@ -22,7 +23,8 @@ type Module struct {
 	initialized  bool
 	db           *gorm.DB
 	eventBus     events.EventBus
-	
+	pluginModule *pluginmodule.PluginModule
+
 	// Media management components
 	libraryManager  *LibraryManager
 	fileProcessor   *FileProcessor
@@ -56,7 +58,7 @@ func (m *Module) Name() string {
 	return m.name
 }
 
-// GetVersion returns the module version 
+// GetVersion returns the module version
 func (m *Module) GetVersion() string {
 	return m.version
 }
@@ -74,7 +76,7 @@ func (m *Module) IsInitialized() bool {
 // Initialize sets up the media module
 func (m *Module) Initialize() error {
 	log.Println("INFO: Migrating media module schema")
-	
+
 	// Auto-migrate media-related models
 	err := m.db.AutoMigrate(
 		&database.MediaLibrary{},
@@ -95,14 +97,14 @@ func (m *Module) Initialize() error {
 	if err != nil {
 		return fmt.Errorf("failed to migrate media schema: %w", err)
 	}
-	
+
 	return nil
 }
 
 // Migrate performs any pending migrations
 func (m *Module) Migrate(db *gorm.DB) error {
 	log.Println("INFO: Migrating media module schema")
-	
+
 	// Auto-migrate media-related models
 	err := db.AutoMigrate(
 		&database.MediaLibrary{},
@@ -123,25 +125,25 @@ func (m *Module) Migrate(db *gorm.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to migrate media schema: %w", err)
 	}
-	
+
 	return nil
 }
 
 // Init initializes the media module components
 func (m *Module) Init() error {
 	log.Println("INFO: Initializing media module")
-	
+
 	// Get the database connection and event bus from the global system
 	m.db = database.GetDB()
 	m.eventBus = events.GetGlobalEventBus()
-	
+
 	// Initialize media management components
 	if err := m.initializeComponents(); err != nil {
 		return fmt.Errorf("failed to initialize media components: %w", err)
 	}
-	
+
 	m.initialized = true
-	
+
 	// Publish initialization event
 	if m.eventBus != nil {
 		initEvent := events.NewSystemEvent(
@@ -151,7 +153,7 @@ func (m *Module) Init() error {
 		)
 		m.eventBus.PublishAsync(initEvent)
 	}
-	
+
 	log.Println("INFO: Media module initialized successfully")
 	return nil
 }
@@ -164,33 +166,36 @@ func (m *Module) initializeComponents() error {
 		return fmt.Errorf("failed to initialize library manager: %w", err)
 	}
 	log.Println("INFO: Library manager initialized successfully")
-	
+
 	log.Println("INFO: Initializing media file processor")
-	// TODO: Plugin manager integration needs to be added to the module system
-	// For now, create processor without plugin manager - metadata extraction will be limited
-	m.fileProcessor = NewFileProcessor(m.db, m.eventBus, nil)
+	m.fileProcessor = NewFileProcessor(m.db, m.eventBus, m.pluginModule)
 	if err := m.fileProcessor.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize file processor: %w", err)
 	}
-	log.Println("INFO: File processor initialized successfully")
-	
+	if m.pluginModule != nil {
+		log.Println("INFO: File processor initialized with plugin module support")
+	} else {
+		log.Println("INFO: File processor initialized without plugin module (limited functionality)")
+	}
+
 	log.Println("INFO: Initializing metadata manager")
-	// TODO: Plugin manager integration needs to be added to the module system
-	m.metadataManager = NewMetadataManager(m.db, m.eventBus, nil)
+	m.metadataManager = NewMetadataManager(m.db, m.eventBus, m.pluginModule)
 	if err := m.metadataManager.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize metadata manager: %w", err)
 	}
-	log.Println("INFO: Metadata manager initialized successfully")
-	
-	// Upload handler has been removed as the app will not support media uploads
-	
+	if m.pluginModule != nil {
+		log.Println("INFO: Metadata manager initialized with plugin module support")
+	} else {
+		log.Println("INFO: Metadata manager initialized without plugin module (limited functionality)")
+	}
+
 	return nil
 }
 
 // RegisterRoutes registers the media module API routes
 func (m *Module) RegisterRoutes(router *gin.Engine) {
 	log.Println("INFO: Registering media module routes")
-	
+
 	mediaGroup := router.Group("/api/media")
 	{
 		// Library management endpoints
@@ -199,7 +204,7 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.DELETE("/libraries/:id", m.deleteLibrary)
 		mediaGroup.GET("/libraries/:id/stats", m.getLibraryStats)
 		mediaGroup.GET("/libraries/:id/files", m.getLibraryFiles)
-		
+
 		// File management endpoints
 		mediaGroup.GET("/files", m.getFiles)
 		mediaGroup.GET("/files/:id", m.getFile)
@@ -208,17 +213,17 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
 		mediaGroup.GET("/files/:id/album-id", m.getFileAlbumId)
 		mediaGroup.GET("/files/:id/album-artwork", m.getFileAlbumArtwork)
-		
+
 		// Upload endpoints removed as app doesn't support uploads
-		
+
 		// Metadata endpoints
 		mediaGroup.POST("/files/:id/metadata/extract", m.extractMetadata)
 		mediaGroup.PUT("/files/:id/metadata", m.updateMetadata)
-		
+
 		// Processing endpoints
 		mediaGroup.POST("/files/:id/process", m.processFile)
 		mediaGroup.GET("/processing/status", m.getProcessingStatus)
-		
+
 		// Module status endpoints
 		mediaGroup.GET("/health", m.getHealth)
 		mediaGroup.GET("/status", m.getStatus)
@@ -229,28 +234,28 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 // Shutdown gracefully shuts down the media module
 func (m *Module) Shutdown(ctx context.Context) error {
 	log.Println("INFO: Shutting down media module")
-	
+
 	// Shutdown components in reverse order
 	// Upload handler shutdown code removed
-	
+
 	if m.metadataManager != nil {
 		if err := m.metadataManager.Shutdown(ctx); err != nil {
 			log.Printf("ERROR: Failed to shutdown metadata manager: %v", err)
 		}
 	}
-	
+
 	if m.fileProcessor != nil {
 		if err := m.fileProcessor.Shutdown(ctx); err != nil {
 			log.Printf("ERROR: Failed to shutdown file processor: %v", err)
 		}
 	}
-	
+
 	if m.libraryManager != nil {
 		if err := m.libraryManager.Shutdown(ctx); err != nil {
 			log.Printf("ERROR: Failed to shutdown library manager: %v", err)
 		}
 	}
-	
+
 	m.initialized = false
 	log.Println("INFO: Media module shutdown complete")
 	return nil
@@ -272,3 +277,27 @@ func (m *Module) GetMetadataManager() *MetadataManager {
 }
 
 // Upload handler functionality has been removed
+
+// SetPluginModule sets the plugin module for media operations
+func (m *Module) SetPluginModule(pluginModule *pluginmodule.PluginModule) {
+	m.pluginModule = pluginModule
+
+	// Re-initialize components if module is already initialized
+	if m.initialized && pluginModule != nil {
+		log.Printf("INFO: Updating media module components with plugin module")
+
+		// Update file processor
+		if m.fileProcessor != nil {
+			m.fileProcessor = NewFileProcessor(m.db, m.eventBus, pluginModule)
+			m.fileProcessor.Initialize()
+		}
+
+		// Update metadata manager
+		if m.metadataManager != nil {
+			m.metadataManager = NewMetadataManager(m.db, m.eventBus, pluginModule)
+			m.metadataManager.Initialize()
+		}
+
+		log.Printf("✅ Media module components updated with plugin module")
+	}
+}

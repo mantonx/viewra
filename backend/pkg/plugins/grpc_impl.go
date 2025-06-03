@@ -32,6 +32,7 @@ func convertPluginContextFromProto(protoCtx *proto.PluginContext) *PluginContext
 		return nil
 	}
 	return &PluginContext{
+		PluginID:        protoCtx.PluginId,
 		DatabaseURL:     protoCtx.DatabaseUrl,
 		HostServiceAddr: protoCtx.HostServiceAddr,
 		LogLevel:        protoCtx.LogLevel,

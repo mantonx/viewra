@@ -7,12 +7,12 @@ import (
 // GetDatabaseURL returns the database URL for plugins and other components
 func GetDatabaseURL() string {
 	cfg := Get().Database
-	
+
 	// Generate URL if not explicitly set
 	if cfg.URL != "" {
 		return cfg.URL
 	}
-	
+
 	switch cfg.Type {
 	case "sqlite":
 		return "sqlite://" + cfg.DatabasePath
@@ -37,7 +37,7 @@ func buildPostgresURL(cfg DatabaseFullConfig) string {
 	if cfg.Database == "" {
 		cfg.Database = "viewra"
 	}
-	
+
 	url := "postgres://"
 	if cfg.Username != "" {
 		url += cfg.Username
@@ -51,6 +51,6 @@ func buildPostgresURL(cfg DatabaseFullConfig) string {
 		url += fmt.Sprintf(":%d", cfg.Port)
 	}
 	url += "/" + cfg.Database
-	
+
 	return url
-} 
+}
