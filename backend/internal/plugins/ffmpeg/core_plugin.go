@@ -65,16 +65,38 @@ type FFProbeStream struct {
 	CodecName        string            `json:"codec_name"`
 	CodecLongName    string            `json:"codec_long_name"`
 	Profile          string            `json:"profile"`
+	Level            int               `json:"level"`
 	CodecType        string            `json:"codec_type"`
 	CodecTagString   string            `json:"codec_tag_string"`
 	CodecTag         string            `json:"codec_tag"`
+	
+	// Video-specific fields
 	Width            int               `json:"width"`
 	Height           int               `json:"height"`
+	SampleAspectRatio string           `json:"sample_aspect_ratio"`
+	DisplayAspectRatio string          `json:"display_aspect_ratio"`
+	PixFmt           string            `json:"pix_fmt"`
+	FieldOrder       string            `json:"field_order"`
+	ChromaLocation   string            `json:"chroma_location"`
+	Refs             int               `json:"refs"`
+	IsAvc            string            `json:"is_avc"`
+	NalLengthSize    string            `json:"nal_length_size"`
+	
+	// Color and HDR information
+	ColorRange       string            `json:"color_range"`
+	ColorSpace       string            `json:"color_space"`
+	ColorTransfer    string            `json:"color_transfer"`
+	ColorPrimaries   string            `json:"color_primaries"`
+	BitsPerRawSample string            `json:"bits_per_raw_sample"`
+	
+	// Audio-specific fields
 	SampleFmt        string            `json:"sample_fmt"`
 	SampleRate       string            `json:"sample_rate"`
 	Channels         int               `json:"channels"`
 	ChannelLayout    string            `json:"channel_layout"`
 	BitsPerSample    int               `json:"bits_per_sample"`
+	
+	// Frame rate and timing
 	RFrameRate       string            `json:"r_frame_rate"`
 	AvgFrameRate     string            `json:"avg_frame_rate"`
 	TimeBase         string            `json:"time_base"`
@@ -82,11 +104,15 @@ type FFProbeStream struct {
 	StartTime        string            `json:"start_time"`
 	DurationTs       int64             `json:"duration_ts"`
 	Duration         string            `json:"duration"`
+	
+	// Bitrate information
 	BitRate          string            `json:"bit_rate"`
 	MaxBitRate       string            `json:"max_bit_rate"`
-	BitsPerRawSample string            `json:"bits_per_raw_sample"`
 	NbFrames         string            `json:"nb_frames"`
+	
+	// Stream metadata and tags
 	Tags             map[string]string `json:"tags"`
+	Disposition      map[string]int    `json:"disposition"`
 }
 
 // AudioTechnicalInfo represents technical audio information extracted from ffprobe
@@ -682,6 +708,11 @@ func (p *FFmpegCorePlugin) updateMediaFileWithTechnicalInfo(filePath string, med
 			"sample_rate":  audioInfo.SampleRate,
 			"duration":     int(audioInfo.Duration),
 			"bitrate_kbps": audioInfo.Bitrate / 1000, // Convert to kbps
+			
+			// Enhanced audio fields
+			"audio_channels":    audioInfo.Channels,
+			"audio_sample_rate": audioInfo.SampleRate,
+			"audio_language":    "und", // undetermined, could be enhanced later
 		}
 
 		err = db.Model(&database.MediaFile{}).
@@ -696,13 +727,34 @@ func (p *FFmpegCorePlugin) updateMediaFileWithTechnicalInfo(filePath string, med
 			mediaFileID, audioInfo.Format, audioInfo.Codec, audioInfo.Channels, int(audioInfo.Duration), audioInfo.Bitrate/1000)
 
 	} else {
-		// For video files, extract basic technical info
-		videoInfo, err := p.extractBasicTechnicalInfo(filePath)
+		// For video files, extract comprehensive video technical info
+		videoInfo, err := p.extractComprehensiveTechnicalInfo(filePath)
 		if err != nil {
-			return fmt.Errorf("failed to extract video technical info: %w", err)
+			return fmt.Errorf("failed to extract comprehensive video technical info: %w", err)
 		}
 
-		// Update MediaFile with video technical metadata
+		// Serialize the comprehensive technical info to JSON
+		technicalInfoJSON, err := json.Marshal(videoInfo)
+		if err != nil {
+			return fmt.Errorf("failed to serialize technical info: %w", err)
+		}
+
+		videoStreamsJSON, err := json.Marshal(videoInfo.VideoStreams)
+		if err != nil {
+			return fmt.Errorf("failed to serialize video streams: %w", err)
+		}
+
+		audioStreamsJSON, err := json.Marshal(videoInfo.AudioStreams)
+		if err != nil {
+			return fmt.Errorf("failed to serialize audio streams: %w", err)
+		}
+
+		subtitleStreamsJSON, err := json.Marshal(videoInfo.SubtitleStreams)
+		if err != nil {
+			return fmt.Errorf("failed to serialize subtitle streams: %w", err)
+		}
+
+		// Prepare comprehensive updates map
 		updates := map[string]interface{}{
 			"container":    videoInfo.Container,
 			"video_codec":  videoInfo.VideoCodec,
@@ -710,6 +762,47 @@ func (p *FFmpegCorePlugin) updateMediaFileWithTechnicalInfo(filePath string, med
 			"resolution":   videoInfo.Resolution,
 			"duration":     int(videoInfo.Duration),
 			"bitrate_kbps": videoInfo.Bitrate / 1000, // Convert to kbps
+			
+			// Store comprehensive JSON data
+			"technical_info":   string(technicalInfoJSON),
+			"video_streams":    string(videoStreamsJSON),
+			"audio_streams":    string(audioStreamsJSON),
+			"subtitle_streams": string(subtitleStreamsJSON),
+			
+			// Enhanced boolean flags
+			"has_video":      videoInfo.HasVideo,
+			"has_audio":      videoInfo.HasAudio,
+			"has_subtitles":  videoInfo.HasSubtitles,
+		}
+
+		// Add enhanced fields from first video stream if available
+		if len(videoInfo.VideoStreams) > 0 {
+			firstVideo := videoInfo.VideoStreams[0]
+			updates["video_width"] = firstVideo.Width
+			updates["video_height"] = firstVideo.Height
+			updates["video_framerate"] = firstVideo.Framerate
+			updates["video_profile"] = firstVideo.Profile
+			updates["video_level"] = firstVideo.Level
+			updates["video_bit_depth"] = firstVideo.BitDepth
+			updates["aspect_ratio"] = firstVideo.AspectRatio
+			updates["pixel_format"] = firstVideo.PixelFormat
+			updates["color_space"] = firstVideo.ColorSpace
+			updates["color_primaries"] = firstVideo.ColorPrimaries
+			updates["color_transfer"] = firstVideo.ColorTransfer
+			updates["hdr_format"] = firstVideo.HDRFormat
+			updates["interlaced"] = firstVideo.Interlaced
+			updates["reference_frames"] = firstVideo.ReferenceFrames
+		}
+
+		// Add enhanced fields from first audio stream if available
+		if len(videoInfo.AudioStreams) > 0 {
+			firstAudio := videoInfo.AudioStreams[0]
+			updates["audio_channels"] = firstAudio.Channels
+			updates["audio_layout"] = firstAudio.Layout
+			updates["audio_sample_rate"] = firstAudio.SampleRate
+			updates["audio_bit_depth"] = firstAudio.BitDepth
+			updates["audio_language"] = firstAudio.Language
+			updates["audio_profile"] = firstAudio.Profile
 		}
 
 		err = db.Model(&database.MediaFile{}).
@@ -717,46 +810,187 @@ func (p *FFmpegCorePlugin) updateMediaFileWithTechnicalInfo(filePath string, med
 			Updates(updates).Error
 
 		if err != nil {
-			return fmt.Errorf("failed to update media file with video technical info: %w", err)
+			return fmt.Errorf("failed to update media file with comprehensive video technical info: %w", err)
 		}
 
-		fmt.Printf("DEBUG: Updated MediaFile %s with video technical info - Container: %s, Video: %s, Audio: %s, Resolution: %s, Duration: %ds\n",
-			mediaFileID, videoInfo.Container, videoInfo.VideoCodec, videoInfo.AudioCodec, videoInfo.Resolution, int(videoInfo.Duration))
+		fmt.Printf("DEBUG: Updated MediaFile %s with comprehensive technical info - Container: %s, Video: %s, Audio: %s, Resolution: %s, Duration: %ds, Video streams: %d, Audio streams: %d, Subtitle streams: %d\n",
+			mediaFileID, videoInfo.Container, videoInfo.VideoCodec, videoInfo.AudioCodec, videoInfo.Resolution, int(videoInfo.Duration), 
+			len(videoInfo.VideoStreams), len(videoInfo.AudioStreams), len(videoInfo.SubtitleStreams))
+
+		// Log detailed stream information for debugging
+		for i, stream := range videoInfo.VideoStreams {
+			fmt.Printf("DEBUG: Video Stream %d - Codec: %s, Profile: %s, Resolution: %dx%d, Framerate: %s, Bitrate: %s, HDR: %s, Color: %s/%s/%s\n",
+				i, stream.Codec, stream.Profile, stream.Width, stream.Height, stream.Framerate, stream.Bitrate, stream.HDRFormat, stream.ColorSpace, stream.ColorPrimaries, stream.ColorTransfer)
+		}
+
+		for i, stream := range videoInfo.AudioStreams {
+			fmt.Printf("DEBUG: Audio Stream %d - Codec: %s, Layout: %s, Channels: %d, Sample Rate: %d, Bitrate: %s, Language: %s\n",
+				i, stream.Codec, stream.Layout, stream.Channels, stream.SampleRate, stream.Bitrate, stream.Language)
+		}
+
+		for i, stream := range videoInfo.SubtitleStreams {
+			fmt.Printf("DEBUG: Subtitle Stream %d - Codec: %s, Language: %s, Title: %s\n",
+				i, stream.Codec, stream.Language, stream.Title)
+		}
 	}
 
 	return nil
 }
 
-// VideoTechnicalInfo represents technical video information
+// VideoTechnicalInfo represents comprehensive technical video information
 type VideoTechnicalInfo struct {
-	Container  string
-	VideoCodec string
-	AudioCodec string
-	Resolution string
-	Duration   float64
-	Bitrate    int
+	// Container information
+	Container        string  `json:"container"`
+	Duration         float64 `json:"duration"`
+	Bitrate          int     `json:"bitrate"`
+	Size             int64   `json:"size"`
+	
+	// Video stream details
+	VideoStreams     []VideoStreamInfo `json:"video_streams"`
+	AudioStreams     []AudioStreamInfo `json:"audio_streams"`
+	SubtitleStreams  []SubtitleStreamInfo `json:"subtitle_streams"`
+	
+	// Overall media information
+	HasVideo         bool    `json:"has_video"`
+	HasAudio         bool    `json:"has_audio"`
+	HasSubtitles     bool    `json:"has_subtitles"`
+	
+	// Legacy fields for backward compatibility
+	VideoCodec       string  `json:"video_codec"`
+	AudioCodec       string  `json:"audio_codec"`
+	Resolution       string  `json:"resolution"`
 }
 
-// extractBasicTechnicalInfo extracts basic technical info for video files
-func (p *FFmpegCorePlugin) extractBasicTechnicalInfo(filePath string) (*VideoTechnicalInfo, error) {
-	// Run ffprobe command
+// Detailed video stream information
+type VideoStreamInfo struct {
+	Index            int     `json:"index"`
+	Title            string  `json:"title"`
+	
+	// Codec information
+	Codec            string  `json:"codec"`
+	CodecLongName    string  `json:"codec_long_name"`
+	Profile          string  `json:"profile"`
+	Level            string  `json:"level"`
+	
+	// Resolution and aspect ratio
+	Width            int     `json:"width"`
+	Height           int     `json:"height"`
+	Resolution       string  `json:"resolution"`
+	AspectRatio      string  `json:"aspect_ratio"`
+	
+	// Frame rate and interlacing
+	Framerate        string  `json:"framerate"`
+	AvgFramerate     string  `json:"avg_framerate"`
+	Interlaced       string  `json:"interlaced"`
+	FieldOrder       string  `json:"field_order"`
+	
+	// Bitrate and quality
+	Bitrate          string  `json:"bitrate"`
+	MaxBitrate       string  `json:"max_bitrate"`
+	
+	// Color information
+	ColorPrimaries   string  `json:"color_primaries"`
+	ColorSpace       string  `json:"color_space"`
+	ColorTransfer    string  `json:"color_transfer"`
+	ColorRange       string  `json:"color_range"`
+	BitDepth         string  `json:"bit_depth"`
+	PixelFormat      string  `json:"pixel_format"`
+	ChromaLocation   string  `json:"chroma_location"`
+	
+	// HDR metadata
+	HDRFormat        string  `json:"hdr_format"`
+	MaxLuminance     string  `json:"max_luminance"`
+	MinLuminance     string  `json:"min_luminance"`
+	MaxCLL           string  `json:"max_cll"`
+	MaxFALL          string  `json:"max_fall"`
+	
+	// Advanced codec information
+	ReferenceFrames  int     `json:"reference_frames"`
+	IsAVC            bool    `json:"is_avc"`
+	NALLengthSize    string  `json:"nal_length_size"`
+	
+	// Stream metadata
+	Language         string  `json:"language"`
+	Default          bool    `json:"default"`
+	Forced           bool    `json:"forced"`
+	Duration         float64 `json:"duration"`
+}
+
+// Detailed audio stream information
+type AudioStreamInfo struct {
+	Index            int     `json:"index"`
+	Title            string  `json:"title"`
+	EmbeddedTitle    string  `json:"embedded_title"`
+	
+	// Codec information
+	Codec            string  `json:"codec"`
+	CodecLongName    string  `json:"codec_long_name"`
+	Profile          string  `json:"profile"`
+	
+	// Channel information
+	Channels         int     `json:"channels"`
+	ChannelLayout    string  `json:"channel_layout"`
+	Layout           string  `json:"layout"`
+	
+	// Quality information
+	SampleRate       int     `json:"sample_rate"`
+	BitDepth         int     `json:"bit_depth"`
+	Bitrate          string  `json:"bitrate"`
+	SampleFormat     string  `json:"sample_format"`
+	
+	// Stream metadata
+	Language         string  `json:"language"`
+	Default          bool    `json:"default"`
+	Forced           bool    `json:"forced"`
+	Duration         float64 `json:"duration"`
+}
+
+// Subtitle stream information
+type SubtitleStreamInfo struct {
+	Index            int     `json:"index"`
+	Title            string  `json:"title"`
+	Codec            string  `json:"codec"`
+	CodecLongName    string  `json:"codec_long_name"`
+	Language         string  `json:"language"`
+	Default          bool    `json:"default"`
+	Forced           bool    `json:"forced"`
+}
+
+// extractComprehensiveTechnicalInfo extracts comprehensive technical info for video files
+func (p *FFmpegCorePlugin) extractComprehensiveTechnicalInfo(filePath string) (*VideoTechnicalInfo, error) {
+	// Run ffprobe command with comprehensive output
 	cmd := exec.Command("ffprobe",
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
 		"-show_streams",
+		"-show_entries", "stream=index,codec_name,codec_long_name,profile,level,codec_type,width,height,sample_aspect_ratio,display_aspect_ratio,pix_fmt,field_order,color_range,color_space,color_transfer,color_primaries,chroma_location,refs,is_avc,nal_length_size,r_frame_rate,avg_frame_rate,bit_rate,max_bit_rate,bits_per_raw_sample,sample_rate,channels,channel_layout,bits_per_sample,duration,tags,disposition",
+		"-show_entries", "format=filename,nb_streams,format_name,format_long_name,duration,size,bit_rate",
 		filePath)
+
+	debugLog("DEBUG: Running comprehensive ffprobe on: %s\n", filePath)
 
 	output, err := cmd.Output()
 	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			stderr := string(exitError.Stderr)
+			fmt.Printf("ERROR: ffprobe failed for %s - Exit code: %d, Stderr: %s\n", filePath, exitError.ExitCode(), stderr)
+			return nil, fmt.Errorf("ffprobe command failed with exit code %d: %s - stderr: %s", exitError.ExitCode(), err, stderr)
+		}
 		return nil, fmt.Errorf("ffprobe command failed: %w", err)
 	}
+
+	debugLog("DEBUG: ffprobe output length: %d bytes\n", len(output))
 
 	// Parse JSON output
 	var probeOutput FFProbeOutput
 	if err := json.Unmarshal(output, &probeOutput); err != nil {
+		fmt.Printf("ERROR: Failed to parse ffprobe JSON output for %s: %v\n", filePath, err)
+		debugLog("DEBUG: Raw ffprobe output: %s\n", string(output)[:min(500, len(output))])
 		return nil, fmt.Errorf("failed to parse ffprobe output: %w", err)
 	}
+
+	debugLog("DEBUG: Parsed ffprobe output - Format: %s, Streams: %d\n", probeOutput.Format.FormatName, len(probeOutput.Streams))
 
 	info := &VideoTechnicalInfo{}
 
@@ -770,45 +1004,401 @@ func (p *FFmpegCorePlugin) extractBasicTechnicalInfo(filePath string) (*VideoTec
 		}
 	}
 
-	// Extract bitrate
+	// Extract overall bitrate
 	if probeOutput.Format.BitRate != "" {
 		if bitrate, err := strconv.Atoi(probeOutput.Format.BitRate); err == nil {
 			info.Bitrate = bitrate
 		}
 	}
 
-	// Find video and audio streams
-	for _, stream := range probeOutput.Streams {
-		switch stream.CodecType {
-		case "video":
-			info.VideoCodec = stream.CodecName
-			// Extract resolution from width and height
-			if stream.Width > 0 && stream.Height > 0 {
-				// Format resolution as "widthxheight" or common format names
-				if stream.Height == 2160 {
-					info.Resolution = "4K"
-				} else if stream.Height == 1440 {
-					info.Resolution = "1440p"
-				} else if stream.Height == 1080 {
-					info.Resolution = "1080p"
-				} else if stream.Height == 720 {
-					info.Resolution = "720p"
-				} else if stream.Height == 480 {
-					info.Resolution = "480p"
-				} else {
-					info.Resolution = fmt.Sprintf("%dx%d", stream.Width, stream.Height)
-				}
-			} else {
-				info.Resolution = "unknown"
-			}
-		case "audio":
-			if info.AudioCodec == "" { // Take first audio stream
-				info.AudioCodec = stream.CodecName
-			}
+	// Extract file size
+	if probeOutput.Format.Size != "" {
+		if size, err := strconv.ParseInt(probeOutput.Format.Size, 10, 64); err == nil {
+			info.Size = size
 		}
 	}
 
+	// Initialize stream slices
+	info.VideoStreams = []VideoStreamInfo{}
+	info.AudioStreams = []AudioStreamInfo{}
+	info.SubtitleStreams = []SubtitleStreamInfo{}
+
+	// Process each stream
+	for _, stream := range probeOutput.Streams {
+		switch stream.CodecType {
+		case "video":
+			videoStream := p.extractVideoStreamInfo(stream)
+			info.VideoStreams = append(info.VideoStreams, videoStream)
+			info.HasVideo = true
+			
+			// Set legacy fields for backward compatibility (use first video stream)
+			if info.VideoCodec == "" {
+				info.VideoCodec = videoStream.Codec
+				info.Resolution = videoStream.Resolution
+			}
+
+		case "audio":
+			audioStream := p.extractAudioStreamInfo(stream)
+			info.AudioStreams = append(info.AudioStreams, audioStream)
+			info.HasAudio = true
+			
+			// Set legacy field for backward compatibility (use first audio stream)
+			if info.AudioCodec == "" {
+				info.AudioCodec = audioStream.Codec
+			}
+
+		case "subtitle":
+			subtitleStream := p.extractSubtitleStreamInfo(stream)
+			info.SubtitleStreams = append(info.SubtitleStreams, subtitleStream)
+			info.HasSubtitles = true
+		}
+	}
+
+	debugLog("SUCCESS: Comprehensive metadata extraction complete for %s - Video streams: %d, Audio streams: %d, Subtitle streams: %d\n",
+		filePath, len(info.VideoStreams), len(info.AudioStreams), len(info.SubtitleStreams))
+
 	return info, nil
+}
+
+// extractVideoStreamInfo extracts detailed information from a video stream
+func (p *FFmpegCorePlugin) extractVideoStreamInfo(stream FFProbeStream) VideoStreamInfo {
+	info := VideoStreamInfo{
+		Index:         stream.Index,
+		Codec:         stream.CodecName,
+		CodecLongName: stream.CodecLongName,
+		Profile:       stream.Profile,
+		Width:         stream.Width,
+		Height:        stream.Height,
+		PixelFormat:   stream.PixFmt,
+		FieldOrder:    stream.FieldOrder,
+		ChromaLocation: stream.ChromaLocation,
+	}
+
+	// Extract title from tags
+	if stream.Tags != nil {
+		if title, exists := stream.Tags["title"]; exists {
+			info.Title = title
+		}
+		if language, exists := stream.Tags["language"]; exists {
+			info.Language = language
+		}
+	}
+
+	// Extract level information
+	if stream.Level > 0 {
+		info.Level = fmt.Sprintf("%.1f", float64(stream.Level)/10.0) // FFmpeg reports level as integer (e.g., 150 = 15.0)
+	}
+
+	// Determine resolution string
+	if stream.Width > 0 && stream.Height > 0 {
+		if stream.Height == 2160 {
+			if stream.Width >= 3840 {
+				info.Resolution = "4K"
+			} else {
+				info.Resolution = "2160p"
+			}
+		} else if stream.Height == 1440 {
+			info.Resolution = "1440p"
+		} else if stream.Height == 1080 {
+			info.Resolution = "1080p"
+		} else if stream.Height == 720 {
+			info.Resolution = "720p"
+		} else if stream.Height == 480 {
+			info.Resolution = "480p"
+		} else {
+			info.Resolution = fmt.Sprintf("%dx%d", stream.Width, stream.Height)
+		}
+	}
+
+	// Extract aspect ratio
+	if stream.DisplayAspectRatio != "" {
+		info.AspectRatio = stream.DisplayAspectRatio
+	} else if stream.SampleAspectRatio != "" && stream.Width > 0 && stream.Height > 0 {
+		// Calculate display aspect ratio from sample aspect ratio
+		info.AspectRatio = p.calculateDisplayAspectRatio(stream.Width, stream.Height, stream.SampleAspectRatio)
+	} else if stream.Width > 0 && stream.Height > 0 {
+		// Calculate from dimensions
+		ratio := float64(stream.Width) / float64(stream.Height)
+		if ratio > 1.7 && ratio < 1.8 {
+			info.AspectRatio = "16:9"
+		} else if ratio > 1.3 && ratio < 1.4 {
+			info.AspectRatio = "4:3"
+		} else {
+			info.AspectRatio = fmt.Sprintf("%.2f:1", ratio)
+		}
+	}
+
+	// Extract framerate
+	if stream.RFrameRate != "" {
+		info.Framerate = p.formatFramerate(stream.RFrameRate)
+	}
+	if stream.AvgFrameRate != "" {
+		info.AvgFramerate = p.formatFramerate(stream.AvgFrameRate)
+	}
+
+	// Determine interlacing
+	if stream.FieldOrder != "" && stream.FieldOrder != "progressive" {
+		info.Interlaced = "Yes"
+	} else {
+		info.Interlaced = "No"
+	}
+
+	// Extract bitrate information
+	info.Bitrate = stream.BitRate
+	info.MaxBitrate = stream.MaxBitRate
+
+	// Extract color information
+	info.ColorPrimaries = stream.ColorPrimaries
+	info.ColorSpace = stream.ColorSpace
+	info.ColorTransfer = stream.ColorTransfer
+	info.ColorRange = stream.ColorRange
+
+	// Extract bit depth
+	if stream.BitsPerRawSample != "" {
+		info.BitDepth = stream.BitsPerRawSample + " bit"
+	}
+
+	// Extract codec-specific information
+	if stream.Refs > 0 {
+		info.ReferenceFrames = stream.Refs
+	}
+	if stream.IsAvc == "true" {
+		info.IsAVC = true
+	}
+	info.NALLengthSize = stream.NalLengthSize
+
+	// Extract HDR information (basic detection)
+	info.HDRFormat = p.detectHDRFormat(stream)
+
+	// Extract stream disposition
+	if stream.Disposition != nil {
+		if defaultVal, exists := stream.Disposition["default"]; exists && defaultVal == 1 {
+			info.Default = true
+		}
+		if forcedVal, exists := stream.Disposition["forced"]; exists && forcedVal == 1 {
+			info.Forced = true
+		}
+	}
+
+	// Extract duration
+	if stream.Duration != "" {
+		if duration, err := strconv.ParseFloat(stream.Duration, 64); err == nil {
+			info.Duration = duration
+		}
+	}
+
+	return info
+}
+
+// extractAudioStreamInfo extracts detailed information from an audio stream
+func (p *FFmpegCorePlugin) extractAudioStreamInfo(stream FFProbeStream) AudioStreamInfo {
+	info := AudioStreamInfo{
+		Index:         stream.Index,
+		Codec:         stream.CodecName,
+		CodecLongName: stream.CodecLongName,
+		Profile:       stream.Profile,
+		Channels:      stream.Channels,
+		ChannelLayout: stream.ChannelLayout,
+		SampleFormat:  stream.SampleFmt,
+		Bitrate:       stream.BitRate,
+	}
+
+	// Extract title and language from tags
+	if stream.Tags != nil {
+		if title, exists := stream.Tags["title"]; exists {
+			info.Title = title
+			info.EmbeddedTitle = title
+		}
+		if language, exists := stream.Tags["language"]; exists {
+			info.Language = language
+		}
+	}
+
+	// Extract sample rate
+	if stream.SampleRate != "" {
+		if sampleRate, err := strconv.Atoi(stream.SampleRate); err == nil {
+			info.SampleRate = sampleRate
+		}
+	}
+
+	// Extract bit depth
+	if stream.BitsPerSample > 0 {
+		info.BitDepth = stream.BitsPerSample
+	}
+
+	// Format channel layout as human-readable
+	info.Layout = p.formatChannelLayout(stream.ChannelLayout, stream.Channels)
+
+	// Extract stream disposition
+	if stream.Disposition != nil {
+		if defaultVal, exists := stream.Disposition["default"]; exists && defaultVal == 1 {
+			info.Default = true
+		}
+		if forcedVal, exists := stream.Disposition["forced"]; exists && forcedVal == 1 {
+			info.Forced = true
+		}
+	}
+
+	// Extract duration
+	if stream.Duration != "" {
+		if duration, err := strconv.ParseFloat(stream.Duration, 64); err == nil {
+			info.Duration = duration
+		}
+	}
+
+	return info
+}
+
+// extractSubtitleStreamInfo extracts information from a subtitle stream
+func (p *FFmpegCorePlugin) extractSubtitleStreamInfo(stream FFProbeStream) SubtitleStreamInfo {
+	info := SubtitleStreamInfo{
+		Index:         stream.Index,
+		Codec:         stream.CodecName,
+		CodecLongName: stream.CodecLongName,
+	}
+
+	// Extract title and language from tags
+	if stream.Tags != nil {
+		if title, exists := stream.Tags["title"]; exists {
+			info.Title = title
+		}
+		if language, exists := stream.Tags["language"]; exists {
+			info.Language = language
+		}
+	}
+
+	// Extract stream disposition
+	if stream.Disposition != nil {
+		if defaultVal, exists := stream.Disposition["default"]; exists && defaultVal == 1 {
+			info.Default = true
+		}
+		if forcedVal, exists := stream.Disposition["forced"]; exists && forcedVal == 1 {
+			info.Forced = true
+		}
+	}
+
+	return info
+}
+
+// Helper functions for formatting and processing
+
+// calculateDisplayAspectRatio calculates display aspect ratio from sample aspect ratio
+func (p *FFmpegCorePlugin) calculateDisplayAspectRatio(width, height int, sar string) string {
+	// Parse sample aspect ratio (e.g., "1:1" or "40:33")
+	parts := strings.Split(sar, ":")
+	if len(parts) != 2 {
+		return ""
+	}
+	
+	sarNum, err1 := strconv.ParseFloat(parts[0], 64)
+	sarDen, err2 := strconv.ParseFloat(parts[1], 64)
+	if err1 != nil || err2 != nil || sarDen == 0 {
+		return ""
+	}
+	
+	darRatio := (float64(width) * sarNum / sarDen) / float64(height)
+	
+	// Common aspect ratios
+	if darRatio > 1.7 && darRatio < 1.8 {
+		return "16:9"
+	} else if darRatio > 1.3 && darRatio < 1.4 {
+		return "4:3"
+	} else if darRatio > 2.3 && darRatio < 2.4 {
+		return "2.35:1"
+	} else {
+		return fmt.Sprintf("%.2f:1", darRatio)
+	}
+}
+
+// formatFramerate converts ffprobe framerate to readable format
+func (p *FFmpegCorePlugin) formatFramerate(frameRate string) string {
+	parts := strings.Split(frameRate, "/")
+	if len(parts) != 2 {
+		return frameRate
+	}
+	
+	num, err1 := strconv.ParseFloat(parts[0], 64)
+	den, err2 := strconv.ParseFloat(parts[1], 64)
+	if err1 != nil || err2 != nil || den == 0 {
+		return frameRate
+	}
+	
+	fps := num / den
+	
+	// Format common frame rates nicely
+	if fps > 23.9 && fps < 24.1 {
+		return "23.976"
+	} else if fps > 24.9 && fps < 25.1 {
+		return "25"
+	} else if fps > 29.9 && fps < 30.1 {
+		return "29.97"
+	} else if fps > 49.9 && fps < 50.1 {
+		return "50"
+	} else if fps > 59.9 && fps < 60.1 {
+		return "59.94"
+	} else {
+		return fmt.Sprintf("%.3f", fps)
+	}
+}
+
+// formatChannelLayout converts channel layout to human-readable format
+func (p *FFmpegCorePlugin) formatChannelLayout(layout string, channels int) string {
+	if layout == "" {
+		return fmt.Sprintf("%d ch", channels)
+	}
+	
+	// Common layout mappings
+	layoutMap := map[string]string{
+		"mono":              "1.0",
+		"stereo":            "2.0",
+		"2.1":               "2.1",
+		"3.0":               "3.0",
+		"3.0(back)":         "3.0",
+		"4.0":               "4.0",
+		"quad":              "4.0",
+		"quad(side)":        "4.0",
+		"3.1":               "3.1",
+		"5.0":               "5.0",
+		"5.0(side)":         "5.0",
+		"4.1":               "4.1",
+		"5.1":               "5.1",
+		"5.1(side)":         "5.1",
+		"6.0":               "6.0",
+		"6.0(front)":        "6.0",
+		"hexagonal":         "6.0",
+		"6.1":               "6.1",
+		"6.1(back)":         "6.1",
+		"6.1(front)":        "6.1",
+		"7.0":               "7.0",
+		"7.0(front)":        "7.0",
+		"7.1":               "7.1",
+		"7.1(wide)":         "7.1",
+		"7.1(wide-side)":    "7.1",
+		"octagonal":         "8.0",
+		"downmix":           "2.0",
+	}
+	
+	if mapped, exists := layoutMap[layout]; exists {
+		return mapped
+	}
+	
+	return layout
+}
+
+// detectHDRFormat detects HDR format from stream metadata
+func (p *FFmpegCorePlugin) detectHDRFormat(stream FFProbeStream) string {
+	// Basic HDR detection based on color characteristics
+	if stream.ColorTransfer == "smpte2084" {
+		return "HDR10"
+	} else if stream.ColorTransfer == "arib-std-b67" {
+		return "HLG"
+	} else if stream.ColorTransfer == "bt709" && stream.ColorPrimaries == "bt2020" {
+		return "HDR10"
+	} else if stream.ColorSpace == "bt2020nc" || stream.ColorSpace == "bt2020c" {
+		return "HDR"
+	}
+	
+	return ""
 }
 
 // determineContainerFormat determines the container format from ffprobe output

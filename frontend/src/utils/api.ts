@@ -25,8 +25,12 @@ export const buildArtworkUrl = (mediaFileId: number | string, quality: number = 
   // Handle both string UUIDs and legacy numeric IDs
   const fileId = String(mediaFileId);
 
-  // Use the backend's album-artwork endpoint which properly resolves to real Album.ID
-  return buildImageUrl(`/api/media/files/${fileId}/album-artwork`, quality);
+  // For now, use the legacy endpoint that gets the real album ID and handles the asset lookup
+  // This endpoint will redirect to the proper asset URL internally
+  const artworkUrl = buildImageUrl(`/api/media/files/${fileId}/album-artwork`, quality);
+
+  // Return the URL - the frontend will handle fallback to placeholder in the img tag's onError
+  return artworkUrl;
 };
 
 /**

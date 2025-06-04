@@ -4,7 +4,15 @@
 export { Header } from './layout';
 
 // Media Components
-export { MediaLibraryManager, MusicLibrary, MediaCard, ViewControls } from './media';
+export {
+  MediaLibraryManager,
+  MusicLibrary,
+  MediaCard,
+  ViewControls,
+  ScanProgressCard,
+  ScanActivityFeed,
+  EnhancedScannerDashboard,
+} from './media';
 
 // Audio Components
 export { AudioPlayer, AudioBadge, AlbumArtwork } from './audio';

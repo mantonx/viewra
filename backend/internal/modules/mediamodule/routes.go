@@ -602,7 +602,12 @@ func (m *Module) getFileAlbumArtwork(c *gin.Context) {
 	}
 
 	// Serve the file directly
-	fullPath := filepath.Join("/app/viewra-data/assets", asset.Path)
+	// Get the configured data directory instead of hardcoding Docker path
+	dataDir := os.Getenv("VIEWRA_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./viewra-data"
+	}
+	fullPath := filepath.Join(dataDir, "assets", asset.Path)
 
 	// Check if file exists
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {

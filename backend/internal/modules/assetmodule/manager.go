@@ -127,12 +127,7 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*AssetResponse, error) {
 	asset := &MediaAsset{
 		ID: uuid.New(),
 
-		// Legacy fields for database compatibility
-		MediaID:   request.EntityID.String(), // Use entity ID as media ID for compatibility
-		MediaType: m.mapEntityTypeToLegacyMediaType(request.EntityType),
-		AssetType: string(request.Type), // Convert AssetType to string
-
-		// New entity-based fields
+		// Entity-based fields (clean schema)
 		EntityType: request.EntityType,
 		EntityID:   request.EntityID,
 		Type:       request.Type,
@@ -145,9 +140,8 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*AssetResponse, error) {
 		Preferred:  request.Preferred,
 		Language:   request.Language,
 
-		// Calculate file size for legacy compatibility
+		// Optional compatibility fields
 		SizeBytes:  int64(len(request.Data)),
-		IsDefault:  request.Preferred,
 		Resolution: m.formatResolution(request.Width, request.Height),
 
 		CreatedAt: time.Now(),
@@ -725,26 +719,6 @@ func (m *Manager) CleanupOrphanedFiles() error {
 
 	log.Printf("Cleanup completed. Removed %d orphaned files", removedCount)
 	return nil
-}
-
-// mapEntityTypeToLegacyMediaType maps new entity types to legacy media types
-func (m *Manager) mapEntityTypeToLegacyMediaType(entityType EntityType) string {
-	switch entityType {
-	case EntityTypeTrack:
-		return "track"
-	case EntityTypeAlbum:
-		return "album"
-	case EntityTypeArtist:
-		return "artist"
-	case EntityTypeMovie:
-		return "movie"
-	case EntityTypeEpisode:
-		return "episode"
-	case EntityTypeTVShow:
-		return "tv_show"
-	default:
-		return string(entityType) // Fallback to entity type string
-	}
 }
 
 // formatResolution creates a resolution string from width and height

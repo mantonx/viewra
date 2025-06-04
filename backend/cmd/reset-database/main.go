@@ -131,10 +131,14 @@ func createIndexes(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_media_files_path ON media_files(path)",
 		"CREATE INDEX IF NOT EXISTS idx_media_files_hash ON media_files(hash)",
 
-		// MediaAsset indexes
-		"CREATE INDEX IF NOT EXISTS idx_media_assets_media_id ON media_assets(media_id)",
-		"CREATE INDEX IF NOT EXISTS idx_media_assets_media_type ON media_assets(media_type)",
-		"CREATE INDEX IF NOT EXISTS idx_media_assets_asset_type ON media_assets(asset_type)",
+		// MediaAsset indexes (updated for clean schema)
+		"CREATE INDEX IF NOT EXISTS idx_media_assets_entity_type ON media_assets(entity_type)",
+		"CREATE INDEX IF NOT EXISTS idx_media_assets_entity_id ON media_assets(entity_id)",
+		"CREATE INDEX IF NOT EXISTS idx_media_assets_type ON media_assets(type)",
+		"CREATE INDEX IF NOT EXISTS idx_media_assets_source ON media_assets(source)",
+		"CREATE INDEX IF NOT EXISTS idx_media_assets_plugin ON media_assets(plugin_id)",
+		"CREATE INDEX IF NOT EXISTS idx_media_assets_preferred ON media_assets(preferred)",
+		"CREATE INDEX IF NOT EXISTS idx_media_assets_entity_composite ON media_assets(entity_type, entity_id, type)",
 
 		// People and Roles indexes
 		"CREATE INDEX IF NOT EXISTS idx_people_name ON people(name)",

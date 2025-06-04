@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/modules/enrichmentmodule"
 	"gorm.io/gorm"
@@ -24,16 +25,18 @@ type Manager struct {
 	pluginOrder      []string
 	mutex            sync.RWMutex
 	enabled          bool
+	config           *config.Config
 }
 
 // NewManager creates a new internal enrichment plugin manager
-func NewManager(db *gorm.DB, enrichmentModule *enrichmentmodule.Module) *Manager {
+func NewManager(db *gorm.DB, enrichmentModule *enrichmentmodule.Module, config *config.Config) *Manager {
 	return &Manager{
 		db:               db,
 		enrichmentModule: enrichmentModule,
 		plugins:          make(map[string]InternalEnrichmentPlugin),
 		pluginOrder:      make([]string, 0),
 		enabled:          true,
+		config:           config,
 	}
 }
 
@@ -111,6 +114,22 @@ func (m *Manager) OnMediaFileScanned(mediaFile *database.MediaFile, metadata int
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
+	// Get library information to check restrictions
+	var library database.MediaLibrary
+	if err := m.db.First(&library, mediaFile.LibraryID).Error; err != nil {
+		log.Printf("WARN: Failed to get library info for enrichment filtering: %v", err)
+		return nil // Don't fail scanning if we can't get library info
+	}
+
+	// Get library-specific plugin restrictions from config
+	librarySettings, hasRestrictions := m.config.LibraryPluginRestrictions[library.Type]
+	if !hasRestrictions {
+		log.Printf("DEBUG: No plugin restrictions configured for library type: %s", library.Type)
+		// If no restrictions configured, use all plugins (backwards compatibility)
+	} else {
+		log.Printf("DEBUG: Applying plugin restrictions for library type: %s", library.Type)
+	}
+
 	// Convert metadata to map[string]string for internal plugins
 	var metadataMap map[string]string
 	if metadata != nil {
@@ -146,6 +165,12 @@ func (m *Manager) OnMediaFileScanned(mediaFile *database.MediaFile, metadata int
 			continue
 		}
 
+		// Check if plugin is allowed for this library type
+		if hasRestrictions && !m.isPluginAllowedForLibrary(pluginName, librarySettings) {
+			log.Printf("DEBUG: Plugin %s not allowed for library type %s, skipping", pluginName, library.Type)
+			continue
+		}
+
 		log.Printf("DEBUG: Processing media file %s with plugin %s", mediaFile.ID, pluginName)
 
 		if err := plugin.OnMediaFileScanned(mediaFile, metadataMap); err != nil {
@@ -161,6 +186,37 @@ func (m *Manager) OnMediaFileScanned(mediaFile *database.MediaFile, metadata int
 	}
 
 	return nil
+}
+
+// isPluginAllowedForLibrary checks if a plugin is allowed for the given library type
+func (m *Manager) isPluginAllowedForLibrary(pluginName string, settings config.LibraryPluginSettings) bool {
+	// Check if plugin is explicitly disallowed
+	for _, disallowed := range settings.EnrichmentPlugins.DisallowedPlugins {
+		if pluginName == disallowed {
+			return false
+		}
+	}
+
+	// If there are allowed plugins specified, check if this plugin is in the list
+	if len(settings.EnrichmentPlugins.AllowedPlugins) > 0 {
+		for _, allowed := range settings.EnrichmentPlugins.AllowedPlugins {
+			if pluginName == allowed {
+				return true
+			}
+		}
+		// Plugin not in allowed list
+		return false
+	}
+
+	// Check if it's a shared plugin that can run across library types
+	for _, sharedPlugin := range settings.SharedPlugins.SharedPluginNames {
+		if pluginName == sharedPlugin {
+			return true
+		}
+	}
+
+	// If no specific allowed plugins and not disallowed, allow by default
+	return true
 }
 
 // OnScanStarted is called when a scan starts (ScannerPluginHook interface)

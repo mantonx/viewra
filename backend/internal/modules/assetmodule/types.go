@@ -85,12 +85,7 @@ const (
 type MediaAsset struct {
 	ID uuid.UUID `gorm:"type:uuid;primary_key;default:(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))" json:"id"`
 
-	// Legacy fields for backward compatibility (required by database schema)
-	MediaID   string `gorm:"type:varchar(36);not null;index" json:"media_id,omitempty"`
-	MediaType string `gorm:"type:text;not null;index" json:"media_type,omitempty"`
-	AssetType string `gorm:"not null;index" json:"asset_type,omitempty"`
-
-	// New entity-based fields
+	// Entity-based fields (clean schema)
 	EntityType EntityType  `gorm:"not null;index:idx_media_assets_entity" json:"entity_type"`
 	EntityID   uuid.UUID   `gorm:"type:uuid;not null;index:idx_media_assets_entity" json:"entity_id"`
 	Type       AssetType   `gorm:"not null;index:idx_media_assets_type" json:"type"`
@@ -103,9 +98,8 @@ type MediaAsset struct {
 	Preferred  bool        `gorm:"default:false" json:"preferred"`
 	Language   string      `gorm:"default:''" json:"language,omitempty"`
 
-	// Compatibility fields from legacy schema
+	// Optional fields for compatibility and metadata
 	SizeBytes  int64  `gorm:"default:0" json:"size_bytes"`
-	IsDefault  bool   `gorm:"default:false" json:"is_default"`
 	Resolution string `json:"resolution,omitempty"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`

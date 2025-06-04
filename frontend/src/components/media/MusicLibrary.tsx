@@ -572,8 +572,17 @@ const MusicLibrary = () => {
                           src={buildArtworkUrl(file.id)}
                           alt={file.track?.album || 'Album Artwork'}
                           className="w-8 h-8 object-cover rounded"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            target.nextElementSibling?.classList.remove('hidden');
+                          }}
                         />
-                      ) : (
+                      ) : null}
+                      <div className="w-8 h-8 bg-slate-700 flex items-center justify-center rounded hidden">
+                        <span className="text-sm">🎵</span>
+                      </div>
+                      {!file.track && (
                         <div className="w-8 h-8 bg-slate-700 flex items-center justify-center rounded">
                           <span className="text-sm">🎵</span>
                         </div>

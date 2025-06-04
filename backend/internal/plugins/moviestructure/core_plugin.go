@@ -223,6 +223,8 @@ func (p *MovieStructureCorePlugin) parseMovieFromPath(filePath string) (*MovieIn
 	// Remove file extension
 	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
 
+	fmt.Printf("DEBUG: Attempting to parse movie from filename: %s\n", nameWithoutExt)
+
 	// Common movie patterns to match:
 	// "Movie Title (Year) [imdbid-ttXXXXXX] - [Quality][Audio][Video]-Group"
 	// "Movie Title (Year) - [Quality][Audio][Video]-Group"
@@ -233,12 +235,14 @@ func (p *MovieStructureCorePlugin) parseMovieFromPath(filePath string) (*MovieIn
 
 	// Pattern 1: Standard format with IMDb ID
 	if info := p.parseStandardFormat(nameWithoutExt); info != nil {
+		fmt.Printf("DEBUG: Successfully parsed movie with standard format: %s (%d)\n", info.Title, info.Year)
 		movieInfo = info
 	}
 
 	// Pattern 2: Simple format (Title (Year))
 	if movieInfo == nil {
 		if info := p.parseSimpleFormat(nameWithoutExt); info != nil {
+			fmt.Printf("DEBUG: Successfully parsed movie with simple format: %s (%d)\n", info.Title, info.Year)
 			movieInfo = info
 		}
 	}
@@ -246,6 +250,7 @@ func (p *MovieStructureCorePlugin) parseMovieFromPath(filePath string) (*MovieIn
 	// Pattern 3: Dot-separated format
 	if movieInfo == nil {
 		if info := p.parseDotFormat(nameWithoutExt); info != nil {
+			fmt.Printf("DEBUG: Successfully parsed movie with dot format: %s (%d)\n", info.Title, info.Year)
 			movieInfo = info
 		}
 	}
@@ -256,6 +261,11 @@ func (p *MovieStructureCorePlugin) parseMovieFromPath(filePath string) (*MovieIn
 
 		// Clean up title
 		movieInfo.Title = p.cleanMovieTitle(movieInfo.Title)
+		
+		fmt.Printf("DEBUG: Final movie info: title='%s', year=%d, quality='%s', source='%s'\n",
+			movieInfo.Title, movieInfo.Year, movieInfo.Quality, movieInfo.Source)
+	} else {
+		fmt.Printf("DEBUG: Failed to parse movie info from: %s\n", nameWithoutExt)
 	}
 
 	return movieInfo, nil

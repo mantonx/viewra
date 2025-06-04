@@ -105,6 +105,19 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx *pluginmodule.Metadat
 
 		log.Printf("DEBUG: Processing music file from music library: %s", path)
 	}
+	
+	// IMPORTANT: Skip image files - they should not be processed as tracks
+	// Image files are now properly classified as MediaTypeImage by the scanner
+	if ctx.MediaFile != nil && ctx.MediaFile.MediaType == database.MediaTypeImage {
+		log.Printf("DEBUG: Skipping image file %s - not an audio track (media_type: %s)", path, ctx.MediaFile.MediaType)
+		return nil
+	}
+	
+	// IMPORTANT: Only process track files - skip movies, episodes, etc.
+	if ctx.MediaFile != nil && ctx.MediaFile.MediaType != database.MediaTypeTrack {
+		log.Printf("DEBUG: Skipping file %s - not a track (media_type: %s)", path, ctx.MediaFile.MediaType)
+		return nil
+	}
 
 	// Extract metadata from file
 	trackInfo, err := p.extractMetadata(path)

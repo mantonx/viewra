@@ -39,7 +39,7 @@ database:
 
 # Asset Management Configuration
 assets:
-  data_dir: ""                 # Asset storage directory (auto-generated if empty) (env: VIEWRA_ASSETS_DIR)
+  data_dir: "/app/viewra-data/assets"
   max_file_size: 52428800      # Maximum asset file size in bytes (50MB) (env: VIEWRA_MAX_ASSET_SIZE)
   default_quality: 95          # Default image quality (1-100) (env: VIEWRA_ASSET_QUALITY)
   enable_webp: true            # Enable WebP format support (env: VIEWRA_ENABLE_WEBP)
@@ -59,22 +59,153 @@ scanner:
   metadata_workers: 2          # Number of metadata extraction workers (env: VIEWRA_METADATA_WORKERS)
   scan_interval: "1h"          # Automatic scan interval (env: VIEWRA_SCAN_INTERVAL)
   auto_scan_enabled: false     # Enable automatic periodic scanning (env: VIEWRA_AUTO_SCAN)
-  ignore_patterns:             # File patterns to ignore during scanning (env: VIEWRA_IGNORE_PATTERNS)
-    - ".*"                     # Hidden files
-    - "Thumbs.db"              # Windows thumbnails
-    - ".DS_Store"              # macOS metadata
   max_file_size: 10737418240   # Maximum file size to scan (10GB) (env: VIEWRA_MAX_SCAN_FILE_SIZE)
+  
+  # INTELLIGENT FILE FILTERING - Prevent image processing as media
+  ignore_patterns:
+    # System files
+    - ".*"
+    - "Thumbs.db"
+    - ".DS_Store"
+    - "*.tmp"
+    - "*.temp"
+    - "*~"
+    
+    # Image files that should be treated as assets, not media
+    - "*-poster.*"
+    - "*poster.*"
+    - "*-banner.*"
+    - "*banner.*"
+    - "*-thumb.*"
+    - "*thumb.*"
+    - "*-thumbnail.*" 
+    - "*thumbnail.*"
+    - "*-cover.*"
+    - "*cover.*"
+    - "*-artwork.*"
+    - "*artwork.*"
+    - "*-fanart.*"
+    - "*fanart.*"
+    - "*-background.*"
+    - "*background.*"
+    - "*-backdrop.*"
+    - "*backdrop.*"
+    - "*-clearlogo.*"
+    - "*clearlogo.*"
+    - "*-clearart.*"
+    - "*clearart.*"
+    - "*-landscape.*"
+    - "*landscape.*"
+    - "*disc.*"
+    - "*disc.*"
+    - "*folder.*"
+    - "*albumart.*"
+    - "*albumartsmall.*"
+    - "*season*-poster.*"
+    - "*season*-banner.*"
+    - "*specials-poster.*"
+    - "*specials-banner.*"
+    
+    # Metadata and subtitle files
+    - "*.nfo"
+    - "*.xml"
+    - "*.srt"
+    - "*.vtt"
+    - "*.ass"
+    - "*.ssa"
+    - "*.sub"
+    - "*.idx"
+    
+    # Log and temporary files
+    - "*.log"
+    - "*.bak"
+    - "*.backup"
+    - "*.old"
+    - "*.orig"
+    - "*.~*"
+    
+  # Media type classification rules
+  media_type_rules:
+    # Force image classification for artwork files
+    force_image_type:
+      - "*poster*"
+      - "*banner*"
+      - "*artwork*"
+      - "*fanart*"
+      - "*thumb*"
+      - "*cover*"
+      - "*folder*"
+      - "*backdrop*"
+      - "*background*"
+      - "*clearlogo*"
+      - "*clearart*"
+      - "*landscape*"
+      - "*disc*"
+    
+    # Audio file extensions that should be tracks
+    audio_extensions:
+      - ".mp3"
+      - ".flac"
+      - ".wav"
+      - ".m4a"
+      - ".aac"
+      - ".ogg"
+      - ".wma"
+      - ".opus"
+      - ".aiff"
+      - ".ape"
+      - ".wv"
+    
+    # Video file extensions
+    video_extensions:
+      - ".mp4"
+      - ".mkv"
+      - ".avi"
+      - ".mov"
+      - ".wmv"
+      - ".flv"
+      - ".webm"
+      - ".m4v"
+      - ".3gp"
+      - ".ts"
+      - ".mts"
+      - ".m2ts"
+      - ".mpg"
+      - ".mpeg"
+      - ".rm"
+      - ".rmvb"
+      - ".asf"
+      - ".divx"
+    
+    # Image file extensions (should be treated as assets)
+    image_extensions:
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".gif"
+      - ".bmp"
+      - ".tiff"
+      - ".tif"
+      - ".webp"
+      - ".svg"
+      - ".raw"
+      - ".cr2"
+      - ".nef"
+      - ".arw"
+      - ".dng"
 
 # Plugin System Configuration
 plugins:
-  plugin_dir: "./data/plugins" # Plugin directory path (env: PLUGIN_DIR)
-  enable_hot_reload: true      # Enable plugin hot-reloading (env: VIEWRA_PLUGIN_HOT_RELOAD)
-  default_enabled: false       # Enable new plugins by default (env: VIEWRA_PLUGINS_DEFAULT_ENABLED)
-  max_execution_time: "30s"    # Maximum plugin execution time (env: VIEWRA_PLUGIN_MAX_EXEC_TIME)
-  enable_sandbox: true         # Enable plugin sandboxing (env: VIEWRA_PLUGIN_SANDBOX)
-  memory_limit: 536870912      # Plugin memory limit in bytes (512MB) (env: VIEWRA_PLUGIN_MEMORY_LIMIT)
-  allow_network_access: true   # Allow plugins to access network (env: VIEWRA_PLUGIN_NETWORK)
-  allow_filesystem_write: false # Allow plugins to write to filesystem (env: VIEWRA_PLUGIN_FS_WRITE)
+  plugin_dir: "./data/plugins"
+  enable_hot_reload: true
+  default_enabled: false
+  enrichment_enabled: true           # Automatically enable enrichment plugins (TMDb, MusicBrainz, etc.)
+  respect_default_config: true       # Respect enabled_by_default setting from plugin manifests
+  max_execution_time: "30s"
+  enable_sandbox: true
+  memory_limit: 536870912            # 512MB
+  allow_network_access: true
+  allow_filesystem_write: false
 
 # Logging Configuration
 logging:
@@ -108,4 +239,198 @@ performance:
   max_procs: 0                 # Maximum OS threads (0 = auto-detect) (env: GOMAXPROCS)
   memory_threshold: 85.0       # Memory usage threshold for throttling (env: VIEWRA_MEMORY_THRESHOLD)
   cpu_threshold: 80.0          # CPU usage threshold for throttling (env: VIEWRA_CPU_THRESHOLD)
-  enable_adaptive_throttling: true # Enable adaptive performance throttling (env: VIEWRA_ADAPTIVE_THROTTLING) 
+  enable_adaptive_throttling: true # Enable adaptive performance throttling (env: VIEWRA_ADAPTIVE_THROTTLING)
+
+# File processing rules for different library types
+library_processing_rules:
+  music:
+    # In music libraries, process audio files as tracks
+    process_audio_as: "track"
+    process_video_as: "movie"  # Music videos
+    process_image_as: "asset"  # Album artwork
+    
+    # Skip these patterns in music libraries
+    skip_patterns:
+      - "*poster*"
+      - "*banner*"
+      - "*fanart*"
+      - "*backdrop*"
+      - "*landscape*"
+      - "*clearlogo*"
+      - "*clearart*"
+      
+  tv:
+    # In TV libraries, process video files as episodes
+    process_video_as: "episode"
+    process_audio_as: "track"  # Soundtracks/theme songs
+    process_image_as: "asset"  # Show artwork
+    
+    # Skip these patterns in TV libraries (they should be assets)
+    skip_patterns:
+      - "*poster*"
+      - "*banner*"
+      - "*fanart*"
+      - "*backdrop*"
+      - "*landscape*"
+      - "*clearlogo*"
+      - "*clearart*"
+      - "*thumb*"
+      - "*season*-poster*"
+      - "*season*-banner*"
+      - "*specials-*"
+      
+  movie:
+    # In movie libraries, process video files as movies
+    process_video_as: "movie"
+    process_audio_as: "track"  # Soundtracks
+    process_image_as: "asset"  # Movie artwork
+    
+    # Skip these patterns in movie libraries
+    skip_patterns:
+      - "*poster*"
+      - "*banner*"
+      - "*fanart*"
+      - "*backdrop*"
+      - "*landscape*"
+      - "*clearlogo*"
+      - "*clearart*"
+      - "*thumb*" 
+
+# Library-specific Plugin Configuration
+# Restricts which plugins can run on which library types for better performance and accuracy
+library_plugin_restrictions:
+  music:
+    # Core plugins for music processing
+    core_plugins:
+      metadata_extractors:
+        - "music_metadata_extractor_plugin"
+      structure_parsers: []
+      technical_analyzers:
+        - "ffmpeg_probe_core_plugin"
+    
+    # External enrichment plugins
+    enrichment_plugins:
+      enabled: true
+      auto_enrich: true
+      allowed_plugins:
+        - "musicbrainz_enricher"
+        - "audiodb_enricher"
+      disallowed_plugins:
+        - "tmdb_enricher"
+    
+    # File type restrictions
+    file_type_restrictions:
+      allowed_extensions:
+        - ".mp3"
+        - ".flac"
+        - ".m4a"
+        - ".aac"
+        - ".ogg"
+        - ".wav"
+        - ".wma"
+      disallowed_extensions:
+        - ".mp4"
+        - ".mkv"
+        - ".avi"
+        - ".mov"
+      mime_type_filters:
+        - "audio/*"
+    
+    # Shared plugins that can run across library types
+    shared_plugins:
+      allow_technical_metadata: true
+      allow_asset_extraction: true
+      shared_plugin_names:
+        - "ffmpeg_probe_core_plugin"
+
+  tv:
+    # Core plugins for TV processing
+    core_plugins:
+      metadata_extractors:
+        - "ffmpeg_probe_core_plugin"
+      structure_parsers:
+        - "tv_structure_parser_core_plugin"
+      technical_analyzers:
+        - "ffmpeg_probe_core_plugin"
+    
+    # External enrichment plugins
+    enrichment_plugins:
+      enabled: true
+      auto_enrich: true
+      allowed_plugins:
+        - "tmdb_enricher"
+      disallowed_plugins:
+        - "musicbrainz_enricher"
+        - "audiodb_enricher"
+    
+    # File type restrictions
+    file_type_restrictions:
+      allowed_extensions:
+        - ".mp4"
+        - ".mkv"
+        - ".avi"
+        - ".mov"
+        - ".wmv"
+        - ".flv"
+        - ".webm"
+        - ".m4v"
+      disallowed_extensions:
+        - ".mp3"
+        - ".flac"
+        - ".m4a"
+        - ".aac"
+      mime_type_filters:
+        - "video/*"
+    
+    # Shared plugins
+    shared_plugins:
+      allow_technical_metadata: true
+      allow_asset_extraction: true
+      shared_plugin_names:
+        - "ffmpeg_probe_core_plugin"
+
+  movie:
+    # Core plugins for movie processing
+    core_plugins:
+      metadata_extractors:
+        - "ffmpeg_probe_core_plugin"
+      structure_parsers:
+        - "movie_structure_parser_core_plugin"
+      technical_analyzers:
+        - "ffmpeg_probe_core_plugin"
+    
+    # External enrichment plugins
+    enrichment_plugins:
+      enabled: true
+      auto_enrich: true
+      allowed_plugins:
+        - "tmdb_enricher"
+      disallowed_plugins:
+        - "musicbrainz_enricher"
+        - "audiodb_enricher"
+    
+    # File type restrictions
+    file_type_restrictions:
+      allowed_extensions:
+        - ".mp4"
+        - ".mkv"
+        - ".avi"
+        - ".mov"
+        - ".wmv"
+        - ".flv"
+        - ".webm"
+        - ".m4v"
+      disallowed_extensions:
+        - ".mp3"
+        - ".flac"
+        - ".m4a"
+        - ".aac"
+      mime_type_filters:
+        - "video/*"
+    
+    # Shared plugins
+    shared_plugins:
+      allow_technical_metadata: true
+      allow_asset_extraction: true
+      shared_plugin_names:
+        - "ffmpeg_probe_core_plugin" 

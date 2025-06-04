@@ -101,48 +101,59 @@ func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error 
 	// Get all available file handlers from plugin module
 	handlers := mm.pluginModule.GetEnabledFileHandlers()
 
-	// Find a matching handler
-	var matchingHandler pluginmodule.FileHandlerPlugin
+	var processedBy []string
+	var lastError error
+
+	// Run ALL matching handlers, not just the first one
 	for _, handler := range handlers {
 		if handler.Match(mediaFile.Path, fileInfo) {
-			matchingHandler = handler
-			break
+			log.Printf("INFO: Processing file %s with handler: %s", mediaFile.Path, handler.GetName())
+
+			// Create metadata context for plugin
+			ctx := &pluginmodule.MetadataContext{
+				DB:        mm.db,
+				MediaFile: mediaFile,
+				LibraryID: uint(mediaFile.LibraryID),
+				EventBus:  mm.eventBus,
+				PluginID:  handler.GetName(),
+			}
+
+			// Process file with the matching handler
+			if err := handler.HandleFile(mediaFile.Path, ctx); err != nil {
+				log.Printf("WARNING: Plugin handler %s failed for file %s: %v", handler.GetName(), mediaFile.Path, err)
+				lastError = err
+				continue // Try next handler
+			}
+
+			log.Printf("INFO: Successfully processed file %s with handler: %s", mediaFile.Path, handler.GetName())
+			processedBy = append(processedBy, handler.GetName())
 		}
 	}
 
-	if matchingHandler == nil {
-		log.Printf("WARNING: No plugin handler found for file: %s", mediaFile.Path)
-		return nil // Not an error, just no handler available
+	if len(processedBy) > 0 {
+		log.Printf("INFO: File processed by %d handlers: %s -> %v", len(processedBy), mediaFile.Path, processedBy)
+		
+		// Publish event
+		if mm.eventBus != nil {
+			event := events.NewSystemEvent(
+				"media.metadata.extracted",
+				"Metadata Extracted",
+				fmt.Sprintf("Metadata extracted for %s using %d handlers: %v", filepath.Base(mediaFile.Path), len(processedBy), processedBy),
+			)
+			mm.eventBus.PublishAsync(event)
+		}
+		
+		return nil // Success if at least one handler succeeded
 	}
 
-	log.Printf("INFO: Processing file %s with handler: %s", mediaFile.Path, matchingHandler.GetName())
-
-	// Create metadata context for plugin
-	ctx := &pluginmodule.MetadataContext{
-		DB:        mm.db,
-		MediaFile: mediaFile,
-		LibraryID: uint(mediaFile.LibraryID),
-		EventBus:  mm.eventBus,
-		PluginID:  matchingHandler.GetName(),
+	// If no handlers processed the file and we had errors, return the last error
+	if lastError != nil {
+		return fmt.Errorf("all plugin handlers failed: %w", lastError)
 	}
 
-	// Process file with the matching handler
-	if err := matchingHandler.HandleFile(mediaFile.Path, ctx); err != nil {
-		return fmt.Errorf("plugin handler failed: %w", err)
-	}
-
-	// Publish event
-	if mm.eventBus != nil {
-		event := events.NewSystemEvent(
-			"media.metadata.extracted",
-			"Metadata Extracted",
-			fmt.Sprintf("Metadata extracted for %s using %s", filepath.Base(mediaFile.Path), matchingHandler.GetName()),
-		)
-		mm.eventBus.PublishAsync(event)
-	}
-
-	log.Printf("INFO: Successfully extracted metadata for file: %s", mediaFile.Path)
-	return nil
+	// No handlers matched this file
+	log.Printf("WARNING: No plugin handler found for file: %s", mediaFile.Path)
+	return nil // Not an error, just no handler available
 }
 
 // EnrichMetadata enriches media metadata using registered providers

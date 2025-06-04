@@ -3,6 +3,7 @@ module github.com/mantonx/viewra
 go 1.24
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/chai2010/webp v1.4.0
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/fsnotify/fsnotify v1.7.0
@@ -20,6 +21,7 @@ require (
 
 require (
 	github.com/mitchellh/go-testing-interface v0.0.0-20171004221916-a61a99592b77 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 

@@ -316,47 +316,51 @@ func (fp *FileProcessor) processWithPlugins(job *ProcessJob, mediaFile *database
 	// Get all available file handlers from plugin module
 	handlers := fp.pluginModule.GetEnabledFileHandlers()
 
-	// Find a matching handler
-	var matchingHandler pluginmodule.FileHandlerPlugin
-	for _, handler := range handlers {
-		if handler.Match(job.FilePath, fileInfo) {
-			matchingHandler = handler
-			break
-		}
-	}
-
-	if matchingHandler == nil {
-		log.Printf("WARNING: No plugin handler found for file: %s", job.FilePath)
-		return nil // Not an error, just no handler available
-	}
-
-	log.Printf("INFO: Processing file %s with handler: %s", job.FilePath, matchingHandler.GetName())
+	var processedBy []string
+	var lastError error
 
 	// Update progress
 	fp.updateJobProgress(job.ID, 50)
 
-	// Create metadata context for plugin
-	ctx := &pluginmodule.MetadataContext{
-		DB:        fp.db,
-		MediaFile: mediaFile,
-		LibraryID: uint(mediaFile.LibraryID),
-		EventBus:  fp.eventBus,
-		PluginID:  matchingHandler.GetName(), // Add plugin ID for tracking
+	// Run ALL matching handlers, not just the first one
+	for _, handler := range handlers {
+		if handler.Match(job.FilePath, fileInfo) {
+			log.Printf("INFO: Processing file %s with handler: %s", job.FilePath, handler.GetName())
+
+			// Create metadata context for plugin
+			ctx := &pluginmodule.MetadataContext{
+				DB:        fp.db,
+				MediaFile: mediaFile,
+				LibraryID: uint(mediaFile.LibraryID),
+				EventBus:  fp.eventBus,
+				PluginID:  handler.GetName(), // Add plugin ID for tracking
+			}
+
+			// Process file with the matching handler
+			if err := handler.HandleFile(job.FilePath, ctx); err != nil {
+				log.Printf("WARNING: Plugin handler %s failed for file %s: %v", handler.GetName(), job.FilePath, err)
+				lastError = err
+				continue // Try next handler
+			}
+
+			log.Printf("INFO: Successfully processed file %s with handler: %s", job.FilePath, handler.GetName())
+			processedBy = append(processedBy, handler.GetName())
+		}
 	}
 
-	// TODO: With new schema, metadata deletion would be through Artist/Album/Track relationships
-	// For now, just skip the old MusicMetadata deletion
-	// if err := fp.db.Where("media_file_id = ?", mediaFile.ID).Delete(&database.MusicMetadata{}).Error; err != nil {
-	//	 return fmt.Errorf("failed to delete music metadata: %w", err)
-	// }
-
-	// Process file with the matching handler
-	if err := matchingHandler.HandleFile(job.FilePath, ctx); err != nil {
-		return fmt.Errorf("plugin handler failed: %w", err)
+	if len(processedBy) > 0 {
+		log.Printf("INFO: File processed by %d handlers: %s -> %v", len(processedBy), job.FilePath, processedBy)
+		return nil // Success if at least one handler succeeded
 	}
 
-	log.Printf("INFO: Successfully processed file with plugin: %s", job.FilePath)
-	return nil
+	// If no handlers processed the file and we had errors, return the last error
+	if lastError != nil {
+		return fmt.Errorf("all plugin handlers failed: %w", lastError)
+	}
+
+	// No handlers matched this file
+	log.Printf("WARNING: No plugin handlers found for file: %s", job.FilePath)
+	return nil // Not an error, just no handler available
 }
 
 // updateJobProgress updates the progress of a job

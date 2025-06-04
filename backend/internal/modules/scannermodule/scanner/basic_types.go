@@ -23,6 +23,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// execCommand is a variable to allow mocking of exec.Command in tests.
+var execCommand = exec.Command
+
+// filepathWalkDir is a variable to allow mocking of filepath.WalkDir in tests.
+var filepathWalkDir = filepath.WalkDir
+
 // Basic types needed by the scanner components
 
 type scanWork struct {
@@ -311,7 +317,7 @@ func (ls *LibraryScanner) scanDirectory(dirPath string, libraryID uint) error {
 	logger.Info("Scanning directory", "path", dirPath, "job_id", ls.jobID)
 	
 	// Walk the directory tree
-	return filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+	return filepathWalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
 		// Check for cancellation
 		select {
 		case <-ls.ctx.Done():
@@ -335,7 +341,59 @@ func (ls *LibraryScanner) scanDirectory(dirPath string, libraryID uint) error {
 			return nil
 		}
 		
-		// Check if it's a media file
+		// CRITICAL: Skip artwork and metadata files that should NOT be processed as media
+		fileName := strings.ToLower(filepath.Base(path))
+		
+		// Skip poster and banner files (these should be assets, not media files)
+		artworkPatterns := []string{
+			"poster.", "banner.", "thumb.", "thumbnail.", "cover.", "artwork.", 
+			"fanart.", "background.", "backdrop.", "clearlogo.", "clearart.", 
+			"landscape.", "disc.", "folder.", "albumart.", "-poster.", "-banner.", 
+			"-thumb.", "-thumbnail.", "-cover.", "-artwork.", "-fanart.", 
+			"-background.", "-backdrop.", "-clearlogo.", "-clearart.", 
+			"-landscape.", "-disc.", "season01-poster.", "season01-banner.", 
+			"season02-poster.", "season02-banner.", "season03-poster.", 
+			"season03-banner.", "season04-poster.", "season04-banner.", 
+			"season05-poster.", "season05-banner.", "specials-poster.", 
+			"specials-banner.", "season-specials-poster.", "season-specials-banner.",
+		}
+		
+		shouldSkip := false
+		for _, pattern := range artworkPatterns {
+			if strings.Contains(fileName, pattern) {
+				shouldSkip = true
+				logger.Debug("Skipping artwork file", "path", path, "pattern", pattern)
+				break
+			}
+		}
+		
+		// Skip subtitle and metadata files
+		metadataExtensions := []string{".nfo", ".xml", ".srt", ".vtt", ".ass", ".ssa", ".sub", ".idx"}
+		ext := strings.ToLower(filepath.Ext(path))
+		for _, metaExt := range metadataExtensions {
+			if ext == metaExt {
+				shouldSkip = true
+				logger.Debug("Skipping metadata file", "path", path, "extension", ext)
+				break
+			}
+		}
+		
+		// Skip system and temporary files
+		systemPatterns := []string{".ds_store", "thumbs.db", ".tmp", ".temp", ".bak", ".backup", ".old", ".orig"}
+		for _, sysPattern := range systemPatterns {
+			if strings.Contains(fileName, sysPattern) {
+				shouldSkip = true
+				logger.Debug("Skipping system file", "path", path, "pattern", sysPattern)
+				break
+			}
+		}
+		
+		if shouldSkip {
+			ls.filesSkipped.Add(1)
+			return nil
+		}
+		
+		// Check if it's a media file (after filtering out artwork/metadata)
 		if ls.isMediaFile(path) {
 			ls.filesFound.Add(1)
 			
@@ -428,6 +486,12 @@ func (ls *LibraryScanner) processFile(filePath string, libraryID uint) error {
 	// IMPORTANT: Set media_type based on library type and file extension
 	mediaFile.MediaType = ls.determineMediaType(library.Type, ext)
 	
+	// Extract technical metadata using FFprobe BEFORE saving to database
+	if err := ls.extractTechnicalMetadata(mediaFile); err != nil {
+		logger.Warn("Failed to extract technical metadata", "path", filePath, "error", err)
+		// Continue even if technical metadata extraction fails
+	}
+	
 	// Save to database FIRST before calling plugins
 	if err := ls.db.Create(mediaFile).Error; err != nil {
 		return fmt.Errorf("failed to save media file: %w", err)
@@ -501,6 +565,10 @@ func (ls *LibraryScanner) extractMetadata(mediaFile *database.MediaFile) error {
 		return fmt.Errorf("failed to get file info: %w", err)
 	}
 	
+	var processedBy []string
+	var lastError error
+	
+	// Run ALL matching handlers, not just the first one
 	for _, handler := range handlers {
 		// Check if this handler supports the file
 		if handler.Match(mediaFile.Path, fileInfo) {
@@ -513,14 +581,27 @@ func (ls *LibraryScanner) extractMetadata(mediaFile *database.MediaFile) error {
 			
 			if err := handler.HandleFile(mediaFile.Path, ctx); err != nil {
 				logger.Warn("Handler failed", "handler", handler.GetName(), "file", mediaFile.Path, "error", err)
+				lastError = err
 				continue // Try next handler
 			}
 			
 			logger.Debug("Successfully processed with handler", "handler", handler.GetName(), "file", mediaFile.Path)
-			break // Successfully processed, no need to try other handlers
+			processedBy = append(processedBy, handler.GetName())
 		}
 	}
 	
+	if len(processedBy) > 0 {
+		logger.Debug("File processed by multiple handlers", "file", mediaFile.Path, "handlers", processedBy)
+		return nil // Success if at least one handler succeeded
+	}
+	
+	// If no handlers processed the file and we had errors, return the last error
+	if lastError != nil {
+		return lastError
+	}
+	
+	// No handlers matched this file - not an error
+	logger.Debug("No handlers matched file", "file", mediaFile.Path)
 	return nil
 }
 
@@ -660,10 +741,12 @@ func (ls *LibraryScanner) isMediaFile(path string) bool {
 		".webm": true, ".m4v": true, ".3gp": true, ".ts": true, ".mpg": true,
 		".mpeg": true, ".rm": true, ".rmvb": true, ".asf": true, ".divx": true,
 		
-		// Images
-		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true,
-		".tiff": true, ".tif": true, ".webp": true, ".svg": true, ".raw": true,
-		".cr2": true, ".nef": true, ".arw": true, ".dng": true,
+		// IMPORTANT: Images are NOT media files - they should be treated as assets
+		// Removing image extensions from media file detection to prevent
+		// banner/poster files from being processed as TV episodes or movies
+		// ".jpg": false, ".jpeg": false, ".png": false, ".gif": false, ".bmp": false,
+		// ".tiff": false, ".tif": false, ".webp": false, ".svg": false, ".raw": false,
+		// ".cr2": false, ".nef": false, ".arw": false, ".dng": false,
 	}
 	
 	return mediaExts[ext]
@@ -806,11 +889,28 @@ func (ls *LibraryScanner) getMetadataForEnrichment(mediaFile *database.MediaFile
 		logger.Debug("Skipping metadata lookup", "media_type", mediaFile.MediaType, "media_id", mediaFile.MediaID, "reason", "not a track or empty media_id")
 	}
 	
-	// IMPORTANT: If no metadata was found from database records, try to extract ID3 tags directly
+	// IMPORTANT: If no metadata was found from database records, try to extract metadata directly from the file
 	// This handles the case where enrichment plugins need metadata but database records don't exist yet
-	if metadata["title"] == nil || metadata["artist"] == nil || metadata["album"] == nil {
+	shouldExtractDirect := false
+	
+	// For audio files (tracks), check if we're missing essential audio metadata
+	if mediaFile.MediaType == "track" && (metadata["title"] == nil || metadata["artist"] == nil || metadata["album"] == nil) {
+		shouldExtractDirect = true
+	}
+	
+	// For video files (movies, episodes), check if we're missing essential video metadata  
+	if (mediaFile.MediaType == "movie" || mediaFile.MediaType == "episode") && metadata["title"] == nil {
+		shouldExtractDirect = true
+	}
+	
+	// For any other media type, extract metadata if we don't have a title
+	if mediaFile.MediaType != "track" && mediaFile.MediaType != "movie" && mediaFile.MediaType != "episode" && metadata["title"] == nil {
+		shouldExtractDirect = true
+	}
+	
+	if shouldExtractDirect {
 		if directMetadata := ls.extractDirectMetadata(mediaFile.Path); directMetadata != nil {
-			logger.Debug("Extracted direct metadata from file", "media_file_id", mediaFile.ID, "title", directMetadata["title"], "artist", directMetadata["artist"], "album", directMetadata["album"])
+			logger.Debug("Extracted direct metadata from file", "media_file_id", mediaFile.ID, "media_type", mediaFile.MediaType, "title", directMetadata["title"], "extracted_fields", getMapKeys(directMetadata))
 			
 			// Add direct metadata, but don't overwrite existing database metadata
 			for key, value := range directMetadata {
@@ -818,7 +918,11 @@ func (ls *LibraryScanner) getMetadataForEnrichment(mediaFile *database.MediaFile
 					metadata[key] = value
 				}
 			}
+		} else {
+			logger.Debug("No direct metadata extracted", "media_file_id", mediaFile.ID, "media_type", mediaFile.MediaType, "path", mediaFile.Path)
 		}
+	} else {
+		logger.Debug("Skipping direct metadata extraction", "media_file_id", mediaFile.ID, "media_type", mediaFile.MediaType, "has_title", metadata["title"] != nil, "has_artist", metadata["artist"] != nil, "has_album", metadata["album"] != nil)
 	}
 	
 	// Add basic file information
@@ -838,24 +942,37 @@ func (ls *LibraryScanner) getMetadataForEnrichment(mediaFile *database.MediaFile
 	return metadata
 }
 
-// extractDirectMetadata extracts ID3 tags directly from audio files using FFprobe
+// extractDirectMetadata extracts metadata directly from media files using FFprobe
 func (ls *LibraryScanner) extractDirectMetadata(filePath string) map[string]interface{} {
-	// Check if this is an audio file
+	// Check if this is a supported media file (audio or video)
 	ext := strings.ToLower(filepath.Ext(filePath))
+	
+	// Audio file extensions
 	audioExts := map[string]bool{
 		".mp3": true, ".flac": true, ".wav": true, ".m4a": true, ".aac": true,
 		".ogg": true, ".wma": true, ".opus": true, ".aiff": true, ".ape": true, ".wv": true,
 	}
 	
-	if !audioExts[ext] {
-		return nil // Not an audio file
+	// Video file extensions  
+	videoExts := map[string]bool{
+		".mp4": true, ".mkv": true, ".avi": true, ".mov": true, ".wmv": true,
+		".flv": true, ".webm": true, ".m4v": true, ".3gp": true, ".ts": true,
+		".mpg": true, ".mpeg": true, ".rm": true, ".rmvb": true, ".asf": true, ".divx": true,
 	}
 	
-	// Use FFprobe to extract metadata tags
-	cmd := exec.Command("ffprobe",
+	isAudioFile := audioExts[ext]
+	isVideoFile := videoExts[ext]
+	
+	if !isAudioFile && !isVideoFile {
+		return nil // Not a supported media file
+	}
+	
+	// Use FFprobe to extract metadata
+	cmd := execCommand("ffprobe",
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
+		"-show_streams",
 		filePath)
 	
 	output, err := cmd.Output()
@@ -867,8 +984,14 @@ func (ls *LibraryScanner) extractDirectMetadata(filePath string) map[string]inte
 	// Parse JSON output
 	var probeOutput struct {
 		Format struct {
-			Tags map[string]string `json:"tags"`
+			Tags     map[string]string `json:"tags"`
+			Duration string            `json:"duration"`
+			Bitrate  string            `json:"bit_rate"`
 		} `json:"format"`
+		Streams []struct {
+			CodecType string            `json:"codec_type"`
+			Tags      map[string]string `json:"tags"`
+		} `json:"streams"`
 	}
 	
 	if err := json.Unmarshal(output, &probeOutput); err != nil {
@@ -876,50 +999,114 @@ func (ls *LibraryScanner) extractDirectMetadata(filePath string) map[string]inte
 		return nil
 	}
 	
-	if probeOutput.Format.Tags == nil {
-		return nil
-	}
-	
-	tags := probeOutput.Format.Tags
 	metadata := make(map[string]interface{})
 	
-	// Extract common ID3 tags with fallbacks
-	if title := getTagValue(tags, "TITLE", "Title", "title"); title != "" {
-		metadata["title"] = title
-	}
-	
-	if artist := getTagValue(tags, "ARTIST", "Artist", "artist"); artist != "" {
-		metadata["artist"] = artist
-	}
-	
-	if album := getTagValue(tags, "ALBUM", "Album", "album"); album != "" {
-		metadata["album"] = album
-	}
-	
-	if albumArtist := getTagValue(tags, "ALBUMARTIST", "AlbumArtist", "album_artist"); albumArtist != "" {
-		metadata["album_artist"] = albumArtist
-	}
-	
-	if genre := getTagValue(tags, "GENRE", "Genre", "genre"); genre != "" {
-		metadata["genre"] = genre
-	}
-	
-	if year := getTagValue(tags, "DATE", "YEAR", "Year", "year"); year != "" {
-		// Extract just the year part from dates like "1997-01-01"
-		if len(year) >= 4 {
-			if yearInt, err := strconv.Atoi(year[:4]); err == nil {
-				metadata["year"] = yearInt
+	// Extract metadata from format tags
+	formatTags := probeOutput.Format.Tags
+	if formatTags != nil {
+		// Common metadata fields for both audio and video
+		if title := getTagValue(formatTags, "TITLE", "Title", "title"); title != "" {
+			metadata["title"] = title
+		}
+		
+		if description := getTagValue(formatTags, "DESCRIPTION", "Description", "description", "COMMENT", "Comment", "comment"); description != "" {
+			metadata["description"] = description
+		}
+		
+		if date := getTagValue(formatTags, "DATE", "YEAR", "Year", "year", "CREATION_TIME", "creation_time"); date != "" {
+			// Extract just the year part from dates like "1997-01-01" or "2023-01-01T12:00:00.000000Z"
+			if len(date) >= 4 {
+				if yearInt, err := strconv.Atoi(date[:4]); err == nil {
+					metadata["year"] = yearInt
+				}
+			}
+		}
+		
+		if genre := getTagValue(formatTags, "GENRE", "Genre", "genre"); genre != "" {
+			metadata["genre"] = genre
+		}
+		
+		// Audio-specific metadata
+		if isAudioFile {
+			if artist := getTagValue(formatTags, "ARTIST", "Artist", "artist"); artist != "" {
+				metadata["artist"] = artist
+			}
+			
+			if album := getTagValue(formatTags, "ALBUM", "Album", "album"); album != "" {
+				metadata["album"] = album
+			}
+			
+			if albumArtist := getTagValue(formatTags, "ALBUMARTIST", "AlbumArtist", "album_artist"); albumArtist != "" {
+				metadata["album_artist"] = albumArtist
+			}
+			
+			if track := getTagValue(formatTags, "TRACK", "track", "TRACKNUMBER"); track != "" {
+				if trackNum, err := strconv.Atoi(strings.Split(track, "/")[0]); err == nil {
+					metadata["track_number"] = trackNum
+				}
+			}
+		}
+		
+		// Video-specific metadata
+		if isVideoFile {
+			// For movies and TV shows, we might have director, studio, etc.
+			if director := getTagValue(formatTags, "DIRECTOR", "Director", "director"); director != "" {
+				metadata["director"] = director
+			}
+			
+			if studio := getTagValue(formatTags, "STUDIO", "Studio", "studio", "PUBLISHER", "Publisher"); studio != "" {
+				metadata["studio"] = studio
+			}
+			
+			if show := getTagValue(formatTags, "SHOW", "Show", "show", "SERIES", "Series", "series"); show != "" {
+				metadata["show"] = show
+			}
+			
+			if season := getTagValue(formatTags, "SEASON", "Season", "season"); season != "" {
+				if seasonNum, err := strconv.Atoi(season); err == nil {
+					metadata["season_number"] = seasonNum
+				}
+			}
+			
+			if episode := getTagValue(formatTags, "EPISODE", "Episode", "episode"); episode != "" {
+				if episodeNum, err := strconv.Atoi(episode); err == nil {
+					metadata["episode_number"] = episodeNum
+				}
 			}
 		}
 	}
 	
-	if track := getTagValue(tags, "TRACK", "track", "TRACKNUMBER"); track != "" {
-		if trackNum, err := strconv.Atoi(strings.Split(track, "/")[0]); err == nil {
-			metadata["track_number"] = trackNum
+	// Also check stream tags for additional metadata
+	for _, stream := range probeOutput.Streams {
+		if stream.Tags != nil {
+			// If we didn't get title from format, try from streams
+			if metadata["title"] == nil {
+				if title := getTagValue(stream.Tags, "TITLE", "Title", "title"); title != "" {
+					metadata["title"] = title
+				}
+			}
+			
+			// Language information
+			if language := getTagValue(stream.Tags, "LANGUAGE", "Language", "language"); language != "" {
+				metadata["language"] = language
+			}
 		}
 	}
 	
-	logger.Debug("Extracted direct metadata", "file", filePath, "extracted_fields", getMapKeys(metadata))
+	// Extract duration and bitrate from format
+	if probeOutput.Format.Duration != "" {
+		if durationFloat, err := strconv.ParseFloat(probeOutput.Format.Duration, 64); err == nil {
+			metadata["duration"] = int(durationFloat)
+		}
+	}
+	
+	if probeOutput.Format.Bitrate != "" {
+		if bitrateInt, err := strconv.Atoi(probeOutput.Format.Bitrate); err == nil {
+			metadata["bitrate"] = bitrateInt / 1000 // Convert to kbps
+		}
+	}
+	
+	logger.Debug("Extracted direct metadata", "file", filePath, "extracted_fields", getMapKeys(metadata), "is_audio", isAudioFile, "is_video", isVideoFile)
 	
 	return metadata
 }
@@ -957,24 +1144,47 @@ func (ls *LibraryScanner) determineMediaType(libraryType string, ext string) dat
 		".mpg": true, ".mpeg": true, ".rm": true, ".rmvb": true, ".asf": true, ".divx": true,
 	}
 	
+	// Image file extensions
+	imageExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true,
+		".tiff": true, ".tif": true, ".webp": true, ".svg": true, ".raw": true,
+		".cr2": true, ".nef": true, ".arw": true, ".dng": true,
+	}
+	
+	// IMPORTANT: First check for specific media types regardless of library type
+	// Images should always be images, even in music libraries (album art, folder art, etc.)
+	if imageExts[ext] {
+		return database.MediaTypeImage
+	}
+	
 	// Determine media_type based on library type and file extension
 	switch libraryType {
 	case "music":
-		// For music libraries, all files should be tracks (audio files)
+		// For music libraries, audio files should be tracks
 		if audioExts[ext] {
 			return database.MediaTypeTrack
 		}
-		// Log warning if non-audio file found in music library
-		logger.Warn("Non-audio file found in music library", "ext", ext, "library_type", libraryType)
-		return database.MediaTypeTrack // Default to track for music libraries
+		// Video files in music libraries (music videos) should be movies
+		if videoExts[ext] {
+			logger.Info("Video file found in music library - treating as movie", "ext", ext, "library_type", libraryType)
+			return database.MediaTypeMovie
+		}
+		// Other files in music libraries - log and skip processing
+		logger.Warn("Unsupported file type in music library", "ext", ext, "library_type", libraryType)
+		return database.MediaTypeTrack // Fallback for backwards compatibility
 		
 	case "movie":
 		// For movie libraries, files should be movies (video files)
 		if videoExts[ext] {
 			return database.MediaTypeMovie
 		}
-		// Log warning if non-video file found in movie library
-		logger.Warn("Non-video file found in movie library", "ext", ext, "library_type", libraryType)
+		// Audio files in movie libraries (soundtracks) should be tracks
+		if audioExts[ext] {
+			logger.Info("Audio file found in movie library - treating as track", "ext", ext, "library_type", libraryType)
+			return database.MediaTypeTrack
+		}
+		// Other files - log and use movie as fallback
+		logger.Warn("Unsupported file type in movie library", "ext", ext, "library_type", libraryType)
 		return database.MediaTypeMovie // Default to movie for movie libraries
 		
 	case "tv":
@@ -982,8 +1192,13 @@ func (ls *LibraryScanner) determineMediaType(libraryType string, ext string) dat
 		if videoExts[ext] {
 			return database.MediaTypeEpisode
 		}
-		// Log warning if non-video file found in TV library
-		logger.Warn("Non-video file found in TV library", "ext", ext, "library_type", libraryType)
+		// Audio files in TV libraries should be tracks
+		if audioExts[ext] {
+			logger.Info("Audio file found in TV library - treating as track", "ext", ext, "library_type", libraryType)
+			return database.MediaTypeTrack
+		}
+		// Other files - log and use episode as fallback
+		logger.Warn("Unsupported file type in TV library", "ext", ext, "library_type", libraryType)
 		return database.MediaTypeEpisode // Default to episode for TV libraries
 		
 	default:
@@ -998,3 +1213,120 @@ func (ls *LibraryScanner) determineMediaType(libraryType string, ext string) dat
 		return database.MediaTypeTrack
 	}
 }
+
+// extractTechnicalMetadata extracts technical metadata directly from media files using FFprobe
+func (ls *LibraryScanner) extractTechnicalMetadata(mediaFile *database.MediaFile) error {
+	// Use FFprobe to extract technical metadata
+	cmd := execCommand("ffprobe",
+		"-v", "quiet",
+		"-print_format", "json",
+		"-show_format",
+		"-show_streams",
+		mediaFile.Path)
+	
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debug("Failed to run ffprobe for technical metadata", "file", mediaFile.Path, "error", err)
+		return nil
+	}
+	
+	// Parse JSON output
+	var probeOutput struct {
+		Format struct {
+			Tags     map[string]string `json:"tags"`
+			Duration string            `json:"duration"`
+			Bitrate  string            `json:"bit_rate"`
+		} `json:"format"`
+		Streams []struct {
+			Index     int               `json:"index"`
+			CodecType string            `json:"codec_type"`
+			CodecName string            `json:"codec_name"`
+			Width     int               `json:"width,omitempty"`
+			Height    int               `json:"height,omitempty"`
+			SampleRate string           `json:"sample_rate,omitempty"`
+			Channels   int               `json:"channels,omitempty"`
+			FrameRate  string            `json:"avg_frame_rate,omitempty"`
+			BitRate    string            `json:"bit_rate,omitempty"`
+			Profile    string            `json:"profile,omitempty"`
+			Level      int               `json:"level,omitempty"`
+			ChannelLayout string         `json:"channel_layout,omitempty"`
+			Tags       map[string]string `json:"tags"`
+		} `json:"streams"`
+	}
+	
+	if err := json.Unmarshal(output, &probeOutput); err != nil {
+		logger.Debug("Failed to parse ffprobe output for technical metadata", "file", mediaFile.Path, "error", err)
+		return nil
+	}
+	
+	// Extract duration and bitrate from format
+	if probeOutput.Format.Duration != "" {
+		if durationFloat, err := strconv.ParseFloat(probeOutput.Format.Duration, 64); err == nil {
+			mediaFile.Duration = int(durationFloat)
+		}
+	}
+	
+	if probeOutput.Format.Bitrate != "" {
+		if bitrateInt, err := strconv.Atoi(probeOutput.Format.Bitrate); err == nil {
+			mediaFile.BitrateKbps = bitrateInt / 1000 // Convert to kbps
+		}
+	}
+	
+	// Extract technical information from streams
+	var videoStreamFound, audioStreamFound bool
+	extractedFields := []string{}
+	
+	for _, stream := range probeOutput.Streams {
+		if stream.CodecType == "video" && !videoStreamFound {
+			// Video stream information
+			mediaFile.VideoCodec = stream.CodecName
+			if stream.Width > 0 && stream.Height > 0 {
+				mediaFile.VideoWidth = stream.Width
+				mediaFile.VideoHeight = stream.Height
+				mediaFile.Resolution = fmt.Sprintf("%dx%d", stream.Width, stream.Height)
+			}
+			if stream.FrameRate != "" && stream.FrameRate != "0/0" {
+				mediaFile.VideoFramerate = stream.FrameRate
+			}
+			if stream.Profile != "" {
+				mediaFile.VideoProfile = stream.Profile
+			}
+			if stream.Level > 0 {
+				mediaFile.VideoLevel = stream.Level
+			}
+			videoStreamFound = true
+			extractedFields = append(extractedFields, "video_codec", "resolution", "video_width", "video_height")
+			
+		} else if stream.CodecType == "audio" && !audioStreamFound {
+			// Audio stream information
+			mediaFile.AudioCodec = stream.CodecName
+			if stream.SampleRate != "" {
+				if sampleRateInt, err := strconv.Atoi(stream.SampleRate); err == nil {
+					mediaFile.SampleRate = sampleRateInt
+					mediaFile.AudioSampleRate = sampleRateInt
+				}
+			}
+			if stream.Channels > 0 {
+				mediaFile.Channels = fmt.Sprintf("%d", stream.Channels)
+				mediaFile.AudioChannels = stream.Channels
+			}
+			if stream.ChannelLayout != "" {
+				mediaFile.AudioLayout = stream.ChannelLayout
+			}
+			if stream.Profile != "" {
+				mediaFile.AudioProfile = stream.Profile
+			}
+			audioStreamFound = true
+			extractedFields = append(extractedFields, "audio_codec", "sample_rate", "channels", "audio_channels")
+		}
+	}
+	
+	logger.Debug("Extracted technical metadata", "file", mediaFile.Path, "duration", mediaFile.Duration, "video_codec", mediaFile.VideoCodec, "audio_codec", mediaFile.AudioCodec, "resolution", mediaFile.Resolution, "sample_rate", mediaFile.SampleRate, "extracted_fields", extractedFields)
+	
+	return nil
+}
+
+
+
+
+

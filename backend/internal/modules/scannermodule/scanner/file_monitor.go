@@ -459,9 +459,11 @@ func (fm *FileMonitor) isMediaFile(path string) bool {
 		".mp4": true, ".mkv": true, ".avi": true, ".mov": true, ".wmv": true,
 		".flv": true, ".webm": true, ".m4v": true, ".3gp": true, ".ts": true,
 
-		// Image
-		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true,
-		".tiff": true, ".webp": true, ".svg": true, ".raw": true,
+		// IMPORTANT: Images are NOT media files - they should be treated as assets
+		// Removing image extensions from media file detection to prevent
+		// banner/poster files from being processed as TV episodes or movies
+		// ".jpg": false, ".jpeg": false, ".png": false, ".gif": false, ".bmp": false,
+		// ".tiff": false, ".webp": false, ".svg": false, ".raw": false,
 	}
 
 	return mediaExts[ext]
