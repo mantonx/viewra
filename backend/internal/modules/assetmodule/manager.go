@@ -117,6 +117,20 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*AssetResponse, error) {
 		return nil, fmt.Errorf("failed to check existing asset: %w", err)
 	}
 
+	// **FIX**: Handle preferred asset logic BEFORE creating the new asset
+	if request.Preferred {
+		// Unset all other preferred assets of the same type for this entity
+		err := m.db.Model(&MediaAsset{}).
+			Where("entity_type = ? AND entity_id = ? AND type = ?",
+				request.EntityType, request.EntityID, request.Type).
+			Update("preferred", false).Error
+		if err != nil {
+			return nil, fmt.Errorf("failed to unset other preferred assets: %w", err)
+		}
+		log.Printf("INFO: Unset existing preferred assets for entity %s/%s type %s", 
+			request.EntityType, request.EntityID, request.Type)
+	}
+
 	// Save asset to filesystem
 	fullPath := filepath.Join(m.assetsPath, relativePath)
 	if err := m.saveAssetFile(fullPath, request.Data); err != nil {
@@ -153,6 +167,9 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*AssetResponse, error) {
 		os.Remove(fullPath)
 		return nil, fmt.Errorf("failed to save asset to database: %w", err)
 	}
+
+	log.Printf("INFO: Saved new asset: entity=%s/%s type=%s source=%s preferred=%v path=%s",
+		request.EntityType, request.EntityID, request.Type, request.Source, request.Preferred, relativePath)
 
 	// Publish event
 	m.publishAssetEvent(events.EventAssetCreated, asset)
@@ -319,6 +336,20 @@ func (m *Manager) updateExistingAsset(existing *MediaAsset, request *AssetReques
 	oldPath := filepath.Join(m.assetsPath, existing.Path)
 	newFullPath := filepath.Join(m.assetsPath, newPath)
 
+	// **FIX**: Handle preferred asset logic BEFORE updating the asset
+	if request.Preferred && !existing.Preferred {
+		// Unset all other preferred assets of the same type for this entity
+		err := m.db.Model(&MediaAsset{}).
+			Where("entity_type = ? AND entity_id = ? AND type = ? AND id != ?",
+				existing.EntityType, existing.EntityID, existing.Type, existing.ID).
+			Update("preferred", false).Error
+		if err != nil {
+			return nil, fmt.Errorf("failed to unset other preferred assets: %w", err)
+		}
+		log.Printf("INFO: Unset existing preferred assets for entity %s/%s type %s", 
+			existing.EntityType, existing.EntityID, existing.Type)
+	}
+
 	// Save new file
 	if err := m.saveAssetFile(newFullPath, request.Data); err != nil {
 		return nil, fmt.Errorf("failed to save updated asset file: %w", err)
@@ -360,6 +391,9 @@ func (m *Manager) updateExistingAsset(existing *MediaAsset, request *AssetReques
 	existing.Language = request.Language
 	existing.PluginID = request.PluginID
 	existing.UpdatedAt = time.Now()
+
+	log.Printf("INFO: Updated existing asset: entity=%s/%s type=%s source=%s preferred=%v path=%s",
+		existing.EntityType, existing.EntityID, existing.Type, existing.Source, request.Preferred, newPath)
 
 	m.publishAssetEvent(events.EventAssetUpdated, existing)
 
