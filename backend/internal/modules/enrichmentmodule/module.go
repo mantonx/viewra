@@ -476,22 +476,41 @@ func (m *Module) startEnrichmentWorker() {
 
 // processEnrichmentJobs processes pending enrichment application jobs
 func (m *Module) processEnrichmentJobs() {
+	log.Printf("DEBUG: Starting enrichment job processing cycle")
+	
 	var jobs []EnrichmentJob
 	if err := m.db.Where("status = ?", "pending").Limit(10).Find(&jobs).Error; err != nil {
 		log.Printf("ERROR: Failed to fetch enrichment jobs: %v", err)
 		return
 	}
 
-	for _, job := range jobs {
+	log.Printf("DEBUG: Found %d pending enrichment jobs to process", len(jobs))
+
+	if len(jobs) == 0 {
+		log.Printf("DEBUG: No pending enrichment jobs found")
+		return
+	}
+
+	for i, job := range jobs {
+		log.Printf("DEBUG: Processing enrichment job %d/%d - ID: %d, MediaFileID: %s", i+1, len(jobs), job.ID, job.MediaFileID)
+		
 		if err := m.processEnrichmentJob(&job); err != nil {
 			log.Printf("ERROR: Failed to process enrichment job %d: %v", job.ID, err)
 
 			// Mark job as failed
 			job.Status = "failed"
 			job.Error = err.Error()
-			m.db.Save(&job)
+			if saveErr := m.db.Save(&job).Error; saveErr != nil {
+				log.Printf("ERROR: Failed to save failed job status: %v", saveErr)
+			} else {
+				log.Printf("DEBUG: Marked job %d as failed", job.ID)
+			}
+		} else {
+			log.Printf("DEBUG: Successfully processed enrichment job %d", job.ID)
 		}
 	}
+	
+	log.Printf("DEBUG: Completed enrichment job processing cycle")
 }
 
 // processEnrichmentJob processes a single enrichment application job
@@ -924,14 +943,21 @@ func (m *Module) SetExternalPluginManager(externalPluginManager interface{}) {
 // This integrates with the existing scanner plugin hook system
 func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata interface{}) error {
 	if !m.enabled {
+		log.Printf("DEBUG: Enrichment module is disabled, skipping file: %s", mediaFile.Path)
 		return nil
 	}
 
 	log.Printf("INFO: Enrichment module processing scanned file: %s", mediaFile.Path)
 
+	// DEBUG: Enhanced external plugin manager diagnostics
+	log.Printf("DEBUG: External plugin manager status - exists: %v", m.externalPluginManager != nil)
+	
 	// Notify external plugins about the scanned file
 	if m.externalPluginManager != nil {
+		log.Printf("DEBUG: External plugin manager found, attempting type assertion")
 		if extMgr, ok := m.externalPluginManager.(*pluginmodule.ExternalPluginManager); ok {
+			log.Printf("DEBUG: Type assertion successful, external plugin manager ready")
+			
 			// Convert metadata to map[string]string for external plugins
 			var metadataMap map[string]string
 			if metadata != nil {
@@ -963,7 +989,12 @@ func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata inte
 			// Notify external plugins
 			log.Printf("DEBUG: Notifying external plugins about scanned file: %s", mediaFile.Path)
 			extMgr.NotifyMediaFileScanned(mediaFile.ID, mediaFile.Path, metadataMap)
+			log.Printf("DEBUG: External plugin notification completed for file: %s", mediaFile.Path)
+		} else {
+			log.Printf("ERROR: External plugin manager type assertion failed - wrong type: %T", m.externalPluginManager)
 		}
+	} else {
+		log.Printf("WARN: External plugin manager is nil - external plugins will not be notified for file: %s", mediaFile.Path)
 	}
 
 	// For now, just queue an enrichment job to apply any existing enrichments
@@ -979,6 +1010,7 @@ func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata inte
 		return nil // Don't fail scanning if enrichment job creation fails
 	}
 
+	log.Printf("DEBUG: Created enrichment job for file: %s (job_id will be assigned by DB)", mediaFile.Path)
 	return nil
 }
 

@@ -69,18 +69,31 @@
 		artwork: {
 			enabled:              bool | *true
 			download_posters:     bool | *true
-			download_backdrops:   bool | *true
-			download_logos:       bool | *true
-			download_stills:      bool | *false
+			download_backdrops:   bool | *false  // Disabled by default to reduce load
+			download_logos:       bool | *false  // Disabled by default to reduce load
+			download_stills:      bool | *false  // Movie scene stills
+			
+			// Season and episode specific artwork
+			download_season_posters: bool | *true   // Season-specific posters
+			download_episode_stills: bool | *true   // Episode still images
+			
+			// Artwork size preferences
 			poster_size:          "w92" | "w154" | "w185" | "w342" | "w500" | "w780" | "original" | *"w500"
-			backdrop_size:        "w300" | "w780" | "w1280" | "original" | *"w1280"
-			logo_size:            "w45" | "w92" | "w154" | "w185" | "w300" | "w500" | "original" | *"w500"
-			still_size:           "w92" | "w185" | "w300" | "original" | *"w300"
+			backdrop_size:        "w300" | "w780" | "w1280" | "original" | *"w780"  // Smaller default size
+			logo_size:            "w45" | "w92" | "w154" | "w185" | "w300" | "w500" | "original" | *"w300"  // Smaller default size
+			still_size:           "w92" | "w185" | "w300" | "original" | *"w300"  // Episode and scene stills
+			
+			// Download control settings
 			max_asset_size:       int & >=1048576 & <=52428800 | *10485760 // 1MB to 50MB
-			timeout_sec:          int & >=10 & <=120 | *30
+			timeout_sec:          int & >=30 & <=180 | *60      // Increased timeout
 			skip_existing:        bool | *true
 			retry_failed:         bool | *true
-			max_retries:          int & >=1 & <=5 | *3
+			max_retries:          int & >=3 & <=8 | *5          // Increased from 3 to 5
+			
+			// New retry configuration for exponential backoff
+			initial_retry_delay_sec: int & >=1 & <=10 | *2      // Initial delay before first retry
+			max_retry_delay_sec:     int & >=10 & <=60 | *30    // Maximum delay between retries
+			backoff_multiplier:      float & >=1.5 & <=3.0 | *2.0  // Exponential backoff multiplier
 		}
 
 		// Matching configuration

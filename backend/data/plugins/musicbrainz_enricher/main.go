@@ -468,6 +468,31 @@ func (m *MusicBrainzEnricher) OnMediaFileScanned(mediaFileID string, filePath st
 	for key, value := range metadata {
 		m.logger.Debug("MusicBrainz metadata field", "key", key, "value", value)
 	}
+	
+	// IMPORTANT: Check if this is an audio track before processing
+	// Skip image files and other non-audio files
+	mediaType := metadata["media_type"]
+	if mediaType != "track" {
+		m.logger.Debug("MusicBrainz: Skipping non-track file", 
+			"media_file_id", mediaFileID, 
+			"file_path", filePath,
+			"media_type", mediaType)
+		return nil
+	}
+	
+	// Additional check: Skip image files based on file extension
+	ext := strings.ToLower(filepath.Ext(filePath))
+	imageExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true,
+		".tiff": true, ".tif": true, ".webp": true, ".svg": true,
+	}
+	if imageExts[ext] {
+		m.logger.Debug("MusicBrainz: Skipping image file", 
+			"media_file_id", mediaFileID, 
+			"file_path", filePath,
+			"extension", ext)
+		return nil
+	}
 
 	// Extract metadata for search
 	title := metadata["title"]

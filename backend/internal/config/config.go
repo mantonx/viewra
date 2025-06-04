@@ -33,6 +33,9 @@ type Config struct {
 	// Plugin configuration
 	Plugins PluginConfig `yaml:"plugins" json:"plugins"`
 
+	// Library-specific Plugin Configuration
+	LibraryPluginRestrictions map[string]LibraryPluginSettings `yaml:"library_plugin_restrictions" json:"library_plugin_restrictions"`
+
 	// Logging configuration
 	Logging LoggingConfig `yaml:"logging" json:"logging"`
 
@@ -105,11 +108,50 @@ type PluginConfig struct {
 	PluginDir            string        `yaml:"plugin_dir" json:"plugin_dir" env:"PLUGIN_DIR" default:"./data/plugins"`
 	EnableHotReload      bool          `yaml:"enable_hot_reload" json:"enable_hot_reload" env:"VIEWRA_PLUGIN_HOT_RELOAD" default:"true"`
 	DefaultEnabled       bool          `yaml:"default_enabled" json:"default_enabled" env:"VIEWRA_PLUGINS_DEFAULT_ENABLED" default:"false"`
+	EnrichmentEnabled    bool          `yaml:"enrichment_enabled" json:"enrichment_enabled" env:"VIEWRA_ENRICHMENT_ENABLED" default:"true"`
+	RespectDefaultConfig bool          `yaml:"respect_default_config" json:"respect_default_config" env:"VIEWRA_PLUGIN_RESPECT_DEFAULT" default:"true"`
 	MaxExecutionTime     time.Duration `yaml:"max_execution_time" json:"max_execution_time" env:"VIEWRA_PLUGIN_MAX_EXEC_TIME" default:"30s"`
 	EnableSandbox        bool          `yaml:"enable_sandbox" json:"enable_sandbox" env:"VIEWRA_PLUGIN_SANDBOX" default:"true"`
 	MemoryLimit          int64         `yaml:"memory_limit" json:"memory_limit" env:"VIEWRA_PLUGIN_MEMORY_LIMIT" default:"536870912"`
 	AllowNetworkAccess   bool          `yaml:"allow_network_access" json:"allow_network_access" env:"VIEWRA_PLUGIN_NETWORK" default:"true"`
 	AllowFileSystemWrite bool          `yaml:"allow_filesystem_write" json:"allow_filesystem_write" env:"VIEWRA_PLUGIN_FS_WRITE" default:"false"`
+}
+
+// LibraryPluginSettings defines plugin settings for a specific library type
+type LibraryPluginSettings struct {
+	CorePlugins          CorePluginSettings       `yaml:"core_plugins" json:"core_plugins"`
+	EnrichmentPlugins    EnrichmentPluginSettings `yaml:"enrichment_plugins" json:"enrichment_plugins"`
+	FileTypeRestrictions FileTypeRestrictions     `yaml:"file_type_restrictions" json:"file_type_restrictions"`
+	SharedPlugins        SharedPluginSettings     `yaml:"shared_plugins" json:"shared_plugins"`
+}
+
+// CorePluginSettings defines core plugin configuration
+type CorePluginSettings struct {
+	MetadataExtractors []string `yaml:"metadata_extractors" json:"metadata_extractors"`
+	StructureParsers   []string `yaml:"structure_parsers" json:"structure_parsers"`
+	TechnicalAnalyzers []string `yaml:"technical_analyzers" json:"technical_analyzers"`
+}
+
+// EnrichmentPluginSettings defines enrichment plugin configuration
+type EnrichmentPluginSettings struct {
+	Enabled           bool     `yaml:"enabled" json:"enabled"`
+	AutoEnrich        bool     `yaml:"auto_enrich" json:"auto_enrich"`
+	AllowedPlugins    []string `yaml:"allowed_plugins" json:"allowed_plugins"`
+	DisallowedPlugins []string `yaml:"disallowed_plugins" json:"disallowed_plugins"`
+}
+
+// FileTypeRestrictions defines file type restrictions for plugins
+type FileTypeRestrictions struct {
+	AllowedExtensions    []string `yaml:"allowed_extensions" json:"allowed_extensions"`
+	DisallowedExtensions []string `yaml:"disallowed_extensions" json:"disallowed_extensions"`
+	MimeTypeFilters      []string `yaml:"mime_type_filters" json:"mime_type_filters"`
+}
+
+// SharedPluginSettings defines settings for plugins that can run across library types
+type SharedPluginSettings struct {
+	AllowTechnicalMetadata bool     `yaml:"allow_technical_metadata" json:"allow_technical_metadata"`
+	AllowAssetExtraction   bool     `yaml:"allow_asset_extraction" json:"allow_asset_extraction"`
+	SharedPluginNames      []string `yaml:"shared_plugin_names" json:"shared_plugin_names"`
 }
 
 // LoggingConfig holds logging configuration
@@ -229,11 +271,84 @@ func DefaultConfig() *Config {
 			PluginDir:            "./data/plugins",
 			EnableHotReload:      true,
 			DefaultEnabled:       false,
+			EnrichmentEnabled:    true,
+			RespectDefaultConfig: true,
 			MaxExecutionTime:     30 * time.Second,
 			EnableSandbox:        true,
 			MemoryLimit:          512 * 1024 * 1024, // 512MB
 			AllowNetworkAccess:   true,
 			AllowFileSystemWrite: false,
+		},
+		LibraryPluginRestrictions: map[string]LibraryPluginSettings{
+			"music": {
+				CorePlugins: CorePluginSettings{
+					MetadataExtractors: []string{"music_metadata_extractor_plugin"},
+					StructureParsers:   []string{},
+					TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
+				},
+				EnrichmentPlugins: EnrichmentPluginSettings{
+					Enabled:           true,
+					AutoEnrich:        true,
+					AllowedPlugins:    []string{"musicbrainz_enricher", "audiodb_enricher"},
+					DisallowedPlugins: []string{"tmdb_enricher"},
+				},
+				FileTypeRestrictions: FileTypeRestrictions{
+					AllowedExtensions:    []string{".mp3", ".flac", ".m4a", ".aac", ".ogg", ".wav", ".wma"},
+					DisallowedExtensions: []string{".mp4", ".mkv", ".avi", ".mov"},
+					MimeTypeFilters:      []string{"audio/*"},
+				},
+				SharedPlugins: SharedPluginSettings{
+					AllowTechnicalMetadata: true,
+					AllowAssetExtraction:   true,
+					SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
+				},
+			},
+			"tv": {
+				CorePlugins: CorePluginSettings{
+					MetadataExtractors: []string{"ffmpeg_probe_core_plugin"},
+					StructureParsers:   []string{"tv_structure_parser_core_plugin"},
+					TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
+				},
+				EnrichmentPlugins: EnrichmentPluginSettings{
+					Enabled:           true,
+					AutoEnrich:        true,
+					AllowedPlugins:    []string{"tmdb_enricher"},
+					DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
+				},
+				FileTypeRestrictions: FileTypeRestrictions{
+					AllowedExtensions:    []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"},
+					DisallowedExtensions: []string{".mp3", ".flac", ".m4a", ".aac"},
+					MimeTypeFilters:      []string{"video/*"},
+				},
+				SharedPlugins: SharedPluginSettings{
+					AllowTechnicalMetadata: true,
+					AllowAssetExtraction:   true,
+					SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
+				},
+			},
+			"movie": {
+				CorePlugins: CorePluginSettings{
+					MetadataExtractors: []string{"ffmpeg_probe_core_plugin"},
+					StructureParsers:   []string{"movie_structure_parser_core_plugin"},
+					TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
+				},
+				EnrichmentPlugins: EnrichmentPluginSettings{
+					Enabled:           true,
+					AutoEnrich:        true,
+					AllowedPlugins:    []string{"tmdb_enricher"},
+					DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
+				},
+				FileTypeRestrictions: FileTypeRestrictions{
+					AllowedExtensions:    []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"},
+					DisallowedExtensions: []string{".mp3", ".flac", ".m4a", ".aac"},
+					MimeTypeFilters:      []string{"video/*"},
+				},
+				SharedPlugins: SharedPluginSettings{
+					AllowTechnicalMetadata: true,
+					AllowAssetExtraction:   true,
+					SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
+				},
+			},
 		},
 		Logging: LoggingConfig{
 			Level:            "info",

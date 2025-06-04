@@ -140,6 +140,74 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *pluginspb.SaveAsse
 		entityType = assetmodule.EntityTypeArtist
 	case "track":
 		entityType = assetmodule.EntityTypeTrack
+	case "movie":
+		entityType = assetmodule.EntityTypeMovie
+	case "tv":
+		entityType = assetmodule.EntityTypeTVShow
+		// For TV assets, we need to get the TV show ID
+		if mediaFile.MediaType == "episode" {
+			// Episode assets should be linked to the TV show, not the episode
+			// Get the TV show ID from episode -> season -> tv_show
+			var episode struct {
+				SeasonID string `gorm:"column:season_id"`
+			}
+			err := s.db.Table("episodes").
+				Select("season_id").
+				Where("id = ?", mediaFile.MediaID).
+				First(&episode).Error
+			
+			if err != nil {
+				s.logger.Error("Failed to find episode for asset check", "episode_id", mediaFile.MediaID, "error", err)
+				return &pluginspb.SaveAssetResponse{
+					Success: false,
+					Error:   fmt.Sprintf("failed to find episode: %v", err),
+				}, nil
+			}
+			
+			var season struct {
+				TVShowID string `gorm:"column:tv_show_id"`
+			}
+			err = s.db.Table("seasons").
+				Select("tv_show_id").
+				Where("id = ?", episode.SeasonID).
+				First(&season).Error
+			
+			if err != nil {
+				s.logger.Error("Failed to find season for asset check", "season_id", episode.SeasonID, "error", err)
+				return &pluginspb.SaveAssetResponse{
+					Success: false,
+					Error:   fmt.Sprintf("failed to find season: %v", err),
+				}, nil
+			}
+			
+			if parsedID, err := uuid.Parse(season.TVShowID); err == nil {
+				entityID = parsedID
+				s.logger.Debug("Mapped episode to TV show for asset", 
+					"episode_id", mediaFile.MediaID,
+					"season_id", episode.SeasonID,
+					"tv_show_id", season.TVShowID,
+					"media_file_id", req.MediaFileId)
+			} else {
+				s.logger.Error("Invalid TV show ID format for asset check", "tv_show_id", season.TVShowID, "error", err)
+				return &pluginspb.SaveAssetResponse{
+					Success: false,
+					Error:   fmt.Sprintf("invalid TV show ID format: %v", err),
+				}, nil
+			}
+		} else {
+			// For non-episode TV content, use the media_id directly
+			if parsedID, err := uuid.Parse(mediaFile.MediaID); err == nil {
+				entityID = parsedID
+			} else {
+				s.logger.Error("Invalid media ID format for asset check", "media_id", mediaFile.MediaID, "error", err)
+				return &pluginspb.SaveAssetResponse{
+					Success: false,
+					Error:   fmt.Sprintf("invalid media ID format: %v", err),
+				}, nil
+			}
+		}
+	case "episode":
+		entityType = assetmodule.EntityTypeEpisode
 	default:
 		// Default to album for music content
 		if req.AssetType == "music" {
@@ -159,7 +227,21 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *pluginspb.SaveAsse
 				}
 			}
 		} else {
-			entityType = assetmodule.EntityType(req.Category)
+			// For unknown categories, try to infer from media type
+			switch mediaFile.MediaType {
+			case "episode":
+				entityType = assetmodule.EntityTypeTVShow // Episodes typically get show-level assets
+			case "movie":
+				entityType = assetmodule.EntityTypeMovie
+			case "track":
+				entityType = assetmodule.EntityTypeAlbum
+			default:
+				s.logger.Warn("Unknown asset category and media type", 
+					"category", req.Category, 
+					"media_type", mediaFile.MediaType,
+					"media_file_id", req.MediaFileId)
+				entityType = assetmodule.EntityType(req.Category) // Fallback to original behavior
+			}
 		}
 	}
 
@@ -167,6 +249,14 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *pluginspb.SaveAsse
 	switch strings.ToLower(req.Subtype) {
 	case "album_front", "front", "cover", "artwork":
 		assetType = assetmodule.AssetTypeCover
+	case "poster":
+		// For TV/movie content, poster maps to AssetTypePoster
+		// For music content, poster maps to AssetTypeCover
+		if entityType == assetmodule.EntityTypeTVShow || entityType == assetmodule.EntityTypeMovie || entityType == assetmodule.EntityTypeEpisode {
+			assetType = assetmodule.AssetTypePoster
+		} else {
+			assetType = assetmodule.AssetTypeCover
+		}
 	case "album_back", "back":
 		assetType = assetmodule.AssetTypeCover // Could be a different type if we add back cover support
 	case "album_booklet", "booklet":
@@ -175,7 +265,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *pluginspb.SaveAsse
 		assetType = assetmodule.AssetTypeDisc
 	case "artist_photo", "photo":
 		assetType = assetmodule.AssetTypePhoto
-	case "fanart":
+	case "fanart", "backdrop":
 		assetType = assetmodule.AssetTypeFanart
 	case "banner":
 		assetType = assetmodule.AssetTypeBanner
@@ -324,14 +414,105 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *pluginspb.AssetE
 		entityType = assetmodule.EntityTypeArtist
 	case "track":
 		entityType = assetmodule.EntityTypeTrack
+	case "movie":
+		entityType = assetmodule.EntityTypeMovie
+	case "tv":
+		entityType = assetmodule.EntityTypeTVShow
+		// For TV assets, we need to get the TV show ID
+		if mediaFile.MediaType == "episode" {
+			// Episode assets should be linked to the TV show, not the episode
+			// Get the TV show ID from episode -> season -> tv_show
+			var episode struct {
+				SeasonID string `gorm:"column:season_id"`
+			}
+			err := s.db.Table("episodes").
+				Select("season_id").
+				Where("id = ?", mediaFile.MediaID).
+				First(&episode).Error
+			
+			if err != nil {
+				s.logger.Error("Failed to find episode for asset check", "episode_id", mediaFile.MediaID, "error", err)
+				return &pluginspb.AssetExistsResponse{
+					Exists:       false,
+					AssetId:      0,
+					RelativePath: "",
+				}, nil
+			}
+			
+			var season struct {
+				TVShowID string `gorm:"column:tv_show_id"`
+			}
+			err = s.db.Table("seasons").
+				Select("tv_show_id").
+				Where("id = ?", episode.SeasonID).
+				First(&season).Error
+			
+			if err != nil {
+				s.logger.Error("Failed to find season for asset check", "season_id", episode.SeasonID, "error", err)
+				return &pluginspb.AssetExistsResponse{
+					Exists:       false,
+					AssetId:      0,
+					RelativePath: "",
+				}, nil
+			}
+			
+			if parsedID, err := uuid.Parse(season.TVShowID); err == nil {
+				entityID = parsedID
+			} else {
+				s.logger.Error("Invalid TV show ID format for asset check", "tv_show_id", season.TVShowID, "error", err)
+				return &pluginspb.AssetExistsResponse{
+					Exists:       false,
+					AssetId:      0,
+					RelativePath: "",
+				}, nil
+			}
+		} else {
+			// For non-episode TV content, use the media_id directly
+			if parsedID, err := uuid.Parse(mediaFile.MediaID); err == nil {
+				entityID = parsedID
+			} else {
+				s.logger.Error("Invalid media ID format for asset check", "media_id", mediaFile.MediaID, "error", err)
+				return &pluginspb.AssetExistsResponse{
+					Exists:       false,
+					AssetId:      0,
+					RelativePath: "",
+				}, nil
+			}
+		}
+	case "episode":
+		entityType = assetmodule.EntityTypeEpisode
 	default:
 		entityType = assetmodule.EntityTypeAlbum
 	}
 
 	// Map subtype to asset type
-	switch strings.ToLower(req.Category) {
-	case "front", "cover", "artwork":
+	switch strings.ToLower(req.Subtype) {
+	case "album_front", "front", "cover", "artwork":
 		assetType = assetmodule.AssetTypeCover
+	case "poster":
+		// For TV/movie content, poster maps to AssetTypePoster
+		// For music content, poster maps to AssetTypeCover
+		if entityType == assetmodule.EntityTypeTVShow || entityType == assetmodule.EntityTypeMovie || entityType == assetmodule.EntityTypeEpisode {
+			assetType = assetmodule.AssetTypePoster
+		} else {
+			assetType = assetmodule.AssetTypeCover
+		}
+	case "album_back", "back":
+		assetType = assetmodule.AssetTypeCover
+	case "album_booklet", "booklet":
+		assetType = assetmodule.AssetTypeBooklet
+	case "album_disc", "disc", "cd":
+		assetType = assetmodule.AssetTypeDisc
+	case "artist_photo", "photo":
+		assetType = assetmodule.AssetTypePhoto
+	case "fanart", "backdrop":
+		assetType = assetmodule.AssetTypeFanart
+	case "banner":
+		assetType = assetmodule.AssetTypeBanner
+	case "logo":
+		assetType = assetmodule.AssetTypeLogo
+	case "thumb", "thumbnail":
+		assetType = assetmodule.AssetTypeThumb
 	default:
 		assetType = assetmodule.AssetTypeCover
 	}

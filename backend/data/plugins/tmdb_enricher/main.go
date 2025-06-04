@@ -31,6 +31,7 @@ type TMDbEnricher struct {
 	basePath string
 	dbURL    string
 	pluginID string  // Add pluginID field to store the plugin ID from context
+	lastAPICall *time.Time // Rate limiting tracking
 	
 	// Host service connections (using unified SDK client)
 	hostServiceAddr     string
@@ -41,20 +42,44 @@ type TMDbEnricher struct {
 type Config struct {
 	Enabled            bool    `json:"enabled" default:"true"`
 	APIKey             string  `json:"api_key"`
-	APIRateLimit       float64 `json:"api_rate_limit" default:"1.0"`
+	APIRateLimit       float64 `json:"api_rate_limit" default:"0.6"`        // More conservative: 0.6 req/sec
 	UserAgent          string  `json:"user_agent" default:"Viewra/2.0"`
 	Language           string  `json:"language" default:"en-US"`
 	Region             string  `json:"region" default:"US"`
+	RequestTimeout     int     `json:"request_timeout_sec" default:"60"`    // Increased timeout
+	APIRequestDelay    int     `json:"api_request_delay_ms" default:"1200"` // 1.2 seconds between requests
+	
 	EnableMovies       bool    `json:"enable_movies" default:"true"`
 	EnableTVShows      bool    `json:"enable_tv_shows" default:"true"`
 	EnableEpisodes     bool    `json:"enable_episodes" default:"true"`
 	EnableArtwork      bool    `json:"enable_artwork" default:"true"`
 	DownloadPosters    bool    `json:"download_posters" default:"true"`
-	DownloadBackdrops  bool    `json:"download_backdrops" default:"true"`
-	DownloadLogos      bool    `json:"download_logos" default:"true"`
+	DownloadBackdrops  bool    `json:"download_backdrops" default:"false"`  // More conservative default
+	DownloadLogos      bool    `json:"download_logos" default:"false"`      // More conservative default
+	DownloadStills     bool    `json:"download_stills" default:"false"`     // Episode stills/scene stills
+	
+	// Season and episode specific artwork
+	DownloadSeasonPosters bool `json:"download_season_posters" default:"true"`
+	DownloadEpisodeStills bool `json:"download_episode_stills" default:"true"`
+	
+	// Artwork sizes
 	PosterSize         string  `json:"poster_size" default:"w500"`
-	BackdropSize       string  `json:"backdrop_size" default:"w1280"`
-	LogoSize           string  `json:"logo_size" default:"w500"`
+	BackdropSize       string  `json:"backdrop_size" default:"w780"`        // Smaller default size
+	LogoSize           string  `json:"logo_size" default:"w300"`            // Smaller default size
+	StillSize          string  `json:"still_size" default:"w300"`           // Scene stills and episode stills
+	
+	// Asset download settings with better retry configuration
+	MaxAssetSize       int64   `json:"max_asset_size" default:"10485760"`   // 10MB
+	AssetTimeout       int     `json:"asset_timeout_sec" default:"60"`      // Increased timeout
+	SkipExistingAssets bool    `json:"skip_existing_assets" default:"true"`
+	RetryFailedDownloads bool  `json:"retry_failed_downloads" default:"true"`
+	MaxRetries         int     `json:"max_retries" default:"5"`             // Increased from 3 to 5
+	
+	// New retry configuration for exponential backoff
+	InitialRetryDelay  int     `json:"initial_retry_delay_sec" default:"2"` // Initial delay before first retry
+	MaxRetryDelay      int     `json:"max_retry_delay_sec" default:"30"`    // Maximum delay between retries
+	BackoffMultiplier  float64 `json:"backoff_multiplier" default:"2.0"`    // Exponential backoff multiplier
+	
 	MatchThreshold     float64 `json:"match_threshold" default:"0.85"`
 	AutoEnrich         bool    `json:"auto_enrich" default:"true"`
 	OverwriteExisting  bool    `json:"overwrite_existing" default:"false"`
@@ -231,15 +256,15 @@ type TVSeriesDetails struct {
 type Network struct {
 	ID            int    `json:"id"`
 	Name          string `json:"name"`
-	LogoPath      string `json:"logo_path"`
-	OriginCountry string `json:"origin_country"`
+	LogoPath      string `gorm:"column:logo_path"`
+	OriginCountry string `gorm:"column:origin_country"`
 }
 
 type ProductionCompany struct {
 	ID            int    `json:"id"`
-	Name          string `json:"name"`
-	LogoPath      string `json:"logo_path"`
-	OriginCountry string `json:"origin_country"`
+	Name          string `gorm:"column:name"`
+	LogoPath      string `gorm:"column:logo_path"`
+	OriginCountry string `gorm:"column:origin_country"`
 }
 
 type ProductionCountry struct {
@@ -468,6 +493,50 @@ type MoviesResponse struct {
 	TotalResults int      `json:"total_results"`
 }
 
+// TMDb Images API response types
+type ImagesResponse struct {
+	ID        int          `json:"id"`
+	Backdrops []ImageInfo  `json:"backdrops"`
+	Logos     []ImageInfo  `json:"logos"`
+	Posters   []ImageInfo  `json:"posters"`
+	Stills    []ImageInfo  `json:"stills,omitempty"` // For episodes
+}
+
+type ImageInfo struct {
+	AspectRatio float64 `json:"aspect_ratio"`
+	Height      int     `json:"height"`
+	FilePath    string  `json:"file_path"`
+	VoteAverage float64 `json:"vote_average"`
+	VoteCount   int     `json:"vote_count"`
+	Width       int     `json:"width"`
+	ISO639_1    string  `json:"iso_639_1,omitempty"` // Language code
+}
+
+// TV Season details response
+type TVSeasonDetails struct {
+	ID           int                 `json:"id"`
+	Name         string              `json:"name"`
+	Overview     string              `json:"overview"`
+	PosterPath   string              `json:"poster_path"`
+	SeasonNumber int                 `json:"season_number"`
+	AirDate      string              `json:"air_date"`
+	Episodes     []TVEpisodeDetails  `json:"episodes"`
+	Images       *ImagesResponse     `json:"images,omitempty"`
+}
+
+// TV Episode details response  
+type TVEpisodeDetails struct {
+	ID            int             `json:"id"`
+	Name          string          `json:"name"`
+	Overview      string          `json:"overview"`
+	AirDate       string          `json:"air_date"`
+	EpisodeNumber int             `json:"episode_number"`
+	SeasonNumber  int             `json:"season_number"`
+	StillPath     string          `json:"still_path"`
+	VoteAverage   float64         `json:"vote_average"`
+	VoteCount     int             `json:"vote_count"`
+}
+
 // Plugin lifecycle methods
 
 // Initialize implements the plugins.Implementation interface
@@ -503,6 +572,8 @@ func (t *TMDbEnricher) Initialize(ctx *plugins.PluginContext) error {
 	
 	// Initialize asset service client if host service address is provided
 	if t.hostServiceAddr != "" {
+		t.logger.Info("Attempting to connect to host service", "addr", t.hostServiceAddr)
+		
 		// Initialize Unified Service client
 		unifiedClient, err := plugins.NewUnifiedServiceClient(t.hostServiceAddr)
 		if err != nil {
@@ -511,9 +582,11 @@ func (t *TMDbEnricher) Initialize(ctx *plugins.PluginContext) error {
 		}
 		t.unifiedClient = unifiedClient
 		
-		t.logger.Info("Connected to host services", "addr", t.hostServiceAddr, "services", "unified")
+		t.logger.Info("Successfully connected to host services", "addr", t.hostServiceAddr, "services", "unified")
 	} else {
-		t.logger.Warn("No host service address provided - asset saving and enrichment will be disabled")
+		t.logger.Warn("No host service address provided - asset saving and enrichment will be disabled", 
+			"host_service_addr", t.hostServiceAddr,
+			"context_provided", t.hostServiceAddr != "")
 	}
 
 	t.logger.Info("TMDb enricher plugin initialized successfully")
@@ -525,21 +598,35 @@ func (t *TMDbEnricher) loadConfig() error {
 	// Initialize with default configuration
 	t.config = &Config{
 		Enabled:            true,
-		APIKey:             "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1YTU2ODc0YjRmMzU4YjIzZDhkM2YzZmI5ZDc4NDNiOSIsIm5iZiI6MTc0ODYzOTc1Ny40MDEsInN1YiI6IjY4M2EyMDBkNzA5OGI4MzMzNThmZThmOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.OXT68T0EtU-WXhcP7nwyWjMePuEuCpfWtDlvdntWKw8", // Load from plugin.cue
-		APIRateLimit:       1.0,
+		APIKey:             "",
+		APIRateLimit:       0.6,
 		UserAgent:          "Viewra/2.0",
 		Language:           "en-US",
 		Region:             "US",
+		RequestTimeout:     60,
+		APIRequestDelay:    1200,
 		EnableMovies:       true,
 		EnableTVShows:      true,
 		EnableEpisodes:     true,
 		EnableArtwork:      true,
 		DownloadPosters:    true,
-		DownloadBackdrops:  true,
-		DownloadLogos:      true,
+		DownloadBackdrops:  false,
+		DownloadLogos:      false,
+		DownloadStills:     false,
+		DownloadSeasonPosters: true,
+		DownloadEpisodeStills: true,
 		PosterSize:         "w500",
-		BackdropSize:       "w1280",
-		LogoSize:           "w500",
+		BackdropSize:       "w780",
+		LogoSize:           "w300",
+		StillSize:          "w300",
+		MaxAssetSize:       10485760,
+		AssetTimeout:       60,
+		SkipExistingAssets: true,
+		RetryFailedDownloads: true,
+		MaxRetries:         5,
+		InitialRetryDelay:  2,
+		MaxRetryDelay:      30,
+		BackoffMultiplier:  2.0,
 		MatchThreshold:     0.85,
 		AutoEnrich:         true,
 		OverwriteExisting:  false,
@@ -547,6 +634,33 @@ func (t *TMDbEnricher) loadConfig() error {
 		YearTolerance:      2,
 		CacheDurationHours: 168,
 	}
+
+	// Load configuration from config.json file
+	configPath := filepath.Join(t.basePath, "config.json")
+	if _, err := os.Stat(configPath); err == nil {
+		configData, err := os.ReadFile(configPath)
+		if err != nil {
+			t.logger.Warn("Failed to read config file", "path", configPath, "error", err)
+			return nil // Use defaults if config file can't be read
+		}
+
+		if err := json.Unmarshal(configData, t.config); err != nil {
+			t.logger.Warn("Failed to parse config file", "path", configPath, "error", err)
+			return nil // Use defaults if config file can't be parsed
+		}
+
+		t.logger.Info("Configuration loaded from file", "path", configPath, 
+			"enable_artwork", t.config.EnableArtwork,
+			"download_posters", t.config.DownloadPosters,
+			"download_backdrops", t.config.DownloadBackdrops,
+			"download_logos", t.config.DownloadLogos,
+			"download_stills", t.config.DownloadStills,
+			"download_season_posters", t.config.DownloadSeasonPosters,
+			"download_episode_stills", t.config.DownloadEpisodeStills)
+	} else {
+		t.logger.Info("No config file found, using defaults", "path", configPath)
+	}
+
 	return nil
 }
 
@@ -1291,6 +1405,9 @@ func (t *TMDbEnricher) searchContent(title string, year int) ([]Result, error) {
 	// Check cache first
 	queryHash := t.generateQueryHash(fmt.Sprintf("search:%s:%d", title, year))
 	if cached, err := t.getCachedResponse("search", queryHash); err == nil {
+		if t.logger != nil {
+			t.logger.Debug("using cached search results", "title", title, "year", year, "results", len(cached))
+		}
 		return cached, nil
 	}
 	
@@ -1307,40 +1424,204 @@ func (t *TMDbEnricher) searchContent(title string, year int) ([]Result, error) {
 	
 	searchURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 	
-	// Make API request
-	client := &http.Client{Timeout: 30 * time.Second}
-	req, err := http.NewRequest("GET", searchURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	if t.logger != nil {
+		t.logger.Debug("searching TMDb", "title", title, "year", year, "url", searchURL)
 	}
 	
-	req.Header.Set("Authorization", "Bearer "+t.config.APIKey)
-	req.Header.Set("User-Agent", t.config.UserAgent)
-	
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-	
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-	
+	// Make API request with retries
 	var searchResp SearchResponse
-	if err := json.Unmarshal(body, &searchResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+	err := t.makeAPIRequestWithRetries(searchURL, &searchResp, fmt.Sprintf("search for '%s'", title))
+	if err != nil {
+		return nil, err
 	}
 	
 	// Cache the results
 	t.cacheResults("search", queryHash, searchResp.Results)
 	
+	if t.logger != nil {
+		t.logger.Debug("search completed", "title", title, "results", len(searchResp.Results))
+	}
+	
 	return searchResp.Results, nil
+}
+
+// makeAPIRequestWithRetries handles TMDb API requests with exponential backoff retry logic
+func (t *TMDbEnricher) makeAPIRequestWithRetries(url string, result interface{}, operation string) error {
+	var lastErr error
+	
+	for attempt := 0; attempt <= t.config.MaxRetries; attempt++ {
+		// Rate limiting - ensure proper delay between requests
+		if err := t.ensureRateLimit(); err != nil {
+			if t.logger != nil {
+				t.logger.Warn("rate limit delay error", "error", err, "operation", operation)
+			}
+		}
+		
+		if attempt > 0 {
+			delay := t.calculateRetryDelay(attempt)
+			if t.logger != nil {
+				t.logger.Debug("retrying TMDb request", "attempt", attempt, "delay_sec", delay, "operation", operation, "previous_error", lastErr)
+			}
+			time.Sleep(time.Duration(delay) * time.Second)
+		}
+		
+		// Make the actual request
+		err := t.makeAPIRequest(url, result)
+		if err == nil {
+			if attempt > 0 && t.logger != nil {
+				t.logger.Info("TMDb request succeeded after retries", "attempt", attempt, "operation", operation)
+			}
+			return nil
+		}
+		
+		lastErr = err
+		
+		// Check if we should retry based on error type
+		if !t.shouldRetryError(err) {
+			if t.logger != nil {
+				t.logger.Debug("not retrying TMDb request", "error", err, "operation", operation)
+			}
+			break
+		}
+		
+		if t.logger != nil {
+			t.logger.Debug("TMDb request failed, will retry", "attempt", attempt, "error", err, "operation", operation)
+		}
+	}
+	
+	if t.logger != nil {
+		t.logger.Warn("TMDb request failed after all retries", "operation", operation, "final_error", lastErr)
+	}
+	return fmt.Errorf("failed after %d retries: %w", t.config.MaxRetries, lastErr)
+}
+
+// makeAPIRequest performs a single API request
+func (t *TMDbEnricher) makeAPIRequest(url string, result interface{}) error {
+	client := &http.Client{
+		Timeout: time.Duration(t.config.RequestTimeout) * time.Second,
+	}
+	
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	req.Header.Set("Authorization", "Bearer "+t.config.APIKey)
+	req.Header.Set("User-Agent", t.config.UserAgent)
+	req.Header.Set("Accept", "application/json")
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	// Handle specific HTTP status codes
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// Success - continue processing
+	case http.StatusTooManyRequests:
+		return fmt.Errorf("rate limited by TMDb API (429)")
+	case http.StatusBadRequest:
+		return fmt.Errorf("bad request to TMDb API (400)")
+	case http.StatusUnauthorized:
+		return fmt.Errorf("unauthorized TMDb API request (401) - check API key")
+	case http.StatusForbidden:
+		return fmt.Errorf("forbidden TMDb API request (403)")
+	case http.StatusNotFound:
+		return fmt.Errorf("TMDb API endpoint not found (404)")
+	case http.StatusInternalServerError:
+		return fmt.Errorf("TMDb API server error (500)")
+	case http.StatusBadGateway:
+		return fmt.Errorf("TMDb API bad gateway (502)")
+	case http.StatusServiceUnavailable:
+		return fmt.Errorf("TMDb API service unavailable (503)")
+	case http.StatusGatewayTimeout:
+		return fmt.Errorf("TMDb API gateway timeout (504)")
+	default:
+		return fmt.Errorf("TMDb API returned status %d", resp.StatusCode)
+	}
+	
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+	
+	if err := json.Unmarshal(body, result); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+	
+	return nil
+}
+
+// ensureRateLimit ensures proper rate limiting between API calls
+func (t *TMDbEnricher) ensureRateLimit() error {
+	if t.lastAPICall != nil {
+		elapsed := time.Since(*t.lastAPICall)
+		minInterval := time.Duration(1.0/t.config.APIRateLimit) * time.Second
+		
+		if elapsed < minInterval {
+			sleepTime := minInterval - elapsed
+			if t.logger != nil {
+				t.logger.Debug("rate limiting TMDb requests", "sleep_ms", sleepTime.Milliseconds(), "rate_limit", t.config.APIRateLimit)
+			}
+			time.Sleep(sleepTime)
+		}
+	}
+	
+	// Add configured API request delay
+	if t.config.APIRequestDelay > 0 {
+		time.Sleep(time.Duration(t.config.APIRequestDelay) * time.Millisecond)
+	}
+	
+	now := time.Now()
+	t.lastAPICall = &now
+	return nil
+}
+
+// calculateRetryDelay calculates delay for exponential backoff
+func (t *TMDbEnricher) calculateRetryDelay(attempt int) int {
+	if attempt <= 0 {
+		return 0
+	}
+	
+	// Exponential backoff: initial_delay * (multiplier ^ (attempt - 1))
+	delay := float64(t.config.InitialRetryDelay)
+	for i := 1; i < attempt; i++ {
+		delay *= t.config.BackoffMultiplier
+	}
+	
+	// Cap at maximum delay
+	if int(delay) > t.config.MaxRetryDelay {
+		delay = float64(t.config.MaxRetryDelay)
+	}
+	
+	return int(delay)
+}
+
+// shouldRetryError determines if an error should trigger a retry
+func (t *TMDbEnricher) shouldRetryError(err error) bool {
+	errStr := err.Error()
+	
+	// Retry on network/timeout errors
+	if strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "no route to host") {
+		return true
+	}
+	
+	// Retry on specific HTTP errors
+	if strings.Contains(errStr, "rate limited") ||
+		strings.Contains(errStr, "server error (500)") ||
+		strings.Contains(errStr, "bad gateway (502)") ||
+		strings.Contains(errStr, "service unavailable (503)") ||
+		strings.Contains(errStr, "gateway timeout (504)") {
+		return true
+	}
+	
+	// Don't retry on client errors (400, 401, 403, 404) or parse errors
+	return false
 }
 
 func (t *TMDbEnricher) findBestMatch(results []Result, title string, year int) *Result {
@@ -1481,6 +1762,31 @@ func (t *TMDbEnricher) saveEnrichment(mediaFileID string, result *Result) error 
 		EnrichedAt:       time.Now(),
 	}
 	
+	// Get the media file to access its path for season/episode extraction
+	var mediaFile struct {
+		ID   string `gorm:"column:id"`
+		Path string `gorm:"column:path"`
+	}
+	
+	if err := t.db.Table("media_files").Select("id, path").Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
+		t.logger.Warn("Failed to get media file for season/episode extraction", "error", err, "media_file_id", mediaFileID)
+	} else {
+		// Extract season/episode info from file path
+		if showInfo := t.parseTVShowFromPath(mediaFile.Path); showInfo != nil {
+			enrichment.SeasonNumber = showInfo.SeasonNumber
+			enrichment.EpisodeNumber = showInfo.EpisodeNumber
+			enrichment.EpisodeTitle = showInfo.EpisodeTitle
+			t.logger.Debug("extracted season/episode info from path", 
+				"media_file_id", mediaFileID,
+				"path", mediaFile.Path,
+				"season", showInfo.SeasonNumber,
+				"episode", showInfo.EpisodeNumber,
+				"title", showInfo.EpisodeTitle)
+		} else {
+			t.logger.Debug("no season/episode info extracted from path", "media_file_id", mediaFileID, "path", mediaFile.Path)
+		}
+	}
+	
 	// Determine media type - fix classification logic
 	// First check if MediaType is explicitly set in search results
 	if result.MediaType == "tv" {
@@ -1545,10 +1851,33 @@ func (t *TMDbEnricher) saveEnrichment(mediaFileID string, result *Result) error 
 
 	// Download artwork assets if enabled and URLs are available
 	if t.config.EnableArtwork && t.unifiedClient != nil {
+		t.logger.Info("Starting TMDb asset downloads", 
+			"media_file_id", mediaFileID,
+			"enable_artwork", t.config.EnableArtwork,
+			"download_posters", t.config.DownloadPosters,
+			"download_backdrops", t.config.DownloadBackdrops,
+			"unified_client_available", t.unifiedClient != nil,
+			"poster_url", enrichment.PosterURL,
+			"backdrop_url", enrichment.BackdropURL)
+			
 		if err := t.downloadAssets(mediaFileID, enrichment); err != nil {
 			t.logger.Warn("Failed to download TMDB assets", "error", err, "media_file_id", mediaFileID)
 			// Don't fail the enrichment if asset downloads fail
 		}
+	} else {
+		t.logger.Warn("TMDb asset downloads skipped", 
+			"media_file_id", mediaFileID,
+			"enable_artwork", t.config.EnableArtwork,
+			"unified_client_available", t.unifiedClient != nil,
+			"reason", func() string {
+				if !t.config.EnableArtwork {
+					return "artwork disabled in config"
+				}
+				if t.unifiedClient == nil {
+					return "unified client not available"
+				}
+				return "unknown"
+			}())
 	}
 
 	// ALSO save to centralized MediaEnrichment table (for core system integration)
@@ -1624,32 +1953,47 @@ func (t *TMDbEnricher) saveEnrichment(mediaFileID string, result *Result) error 
 	return nil
 }
 
-// downloadAssets downloads poster and backdrop assets for TMDB content
+// downloadAssets downloads comprehensive artwork for TMDB content including logos, stills, season posters, and episode stills
 func (t *TMDbEnricher) downloadAssets(mediaFileID string, enrichment *TMDbEnrichment) error {
-	t.logger.Debug("Starting TMDB asset downloads", "media_file_id", mediaFileID, "media_type", enrichment.MediaType)
+	t.logger.Debug("Starting comprehensive TMDB asset downloads", "media_file_id", mediaFileID, "media_type", enrichment.MediaType, "tmdb_id", enrichment.TMDbID)
 	
 	var downloadErrors []string
 	successCount := 0
 
-	// Download poster if available and enabled
-	if t.config.DownloadPosters && enrichment.PosterURL != "" {
-		if err := t.downloadAsset(mediaFileID, enrichment.MediaType, "poster", enrichment.PosterURL); err != nil {
-			downloadErrors = append(downloadErrors, fmt.Sprintf("poster: %v", err))
-			t.logger.Debug("Failed to download poster", "error", err, "media_file_id", mediaFileID)
-		} else {
-			successCount++
-			t.logger.Debug("Successfully downloaded poster", "media_file_id", mediaFileID)
-		}
+	// Download basic artwork (poster, backdrop) from enrichment data
+	if err := t.downloadBasicArtwork(mediaFileID, enrichment, &successCount, &downloadErrors); err != nil {
+		t.logger.Warn("Failed to download basic artwork", "error", err, "media_file_id", mediaFileID)
 	}
 
-	// Download backdrop if available and enabled
-	if t.config.DownloadBackdrops && enrichment.BackdropURL != "" {
-		if err := t.downloadAsset(mediaFileID, enrichment.MediaType, "backdrop", enrichment.BackdropURL); err != nil {
-			downloadErrors = append(downloadErrors, fmt.Sprintf("backdrop: %v", err))
-			t.logger.Debug("Failed to download backdrop", "error", err, "media_file_id", mediaFileID)
-		} else {
-			successCount++
-			t.logger.Debug("Successfully downloaded backdrop", "media_file_id", mediaFileID)
+	// Download comprehensive artwork using TMDb Images API
+	if enrichment.TMDbID > 0 {
+		switch enrichment.MediaType {
+		case "movie":
+			if err := t.downloadMovieArtwork(mediaFileID, enrichment.TMDbID, &successCount, &downloadErrors); err != nil {
+				t.logger.Warn("Failed to download movie artwork", "error", err, "media_file_id", mediaFileID)
+			}
+		case "tv":
+			if err := t.downloadTVShowArtwork(mediaFileID, enrichment.TMDbID, &successCount, &downloadErrors); err != nil {
+				t.logger.Warn("Failed to download TV show artwork", "error", err, "media_file_id", mediaFileID)
+			}
+			
+			// Download season-specific artwork if available
+			if enrichment.SeasonNumber > 0 {
+				if err := t.downloadSeasonArtwork(mediaFileID, enrichment.TMDbID, enrichment.SeasonNumber, &successCount, &downloadErrors); err != nil {
+					t.logger.Warn("Failed to download season artwork", "error", err, "media_file_id", mediaFileID, "season", enrichment.SeasonNumber)
+				}
+			}
+		case "episode":
+			// For episodes, download both show and episode-specific artwork
+			if err := t.downloadTVShowArtwork(mediaFileID, enrichment.TMDbID, &successCount, &downloadErrors); err != nil {
+				t.logger.Warn("Failed to download TV show artwork for episode", "error", err, "media_file_id", mediaFileID)
+			}
+			
+			if enrichment.SeasonNumber > 0 && enrichment.EpisodeNumber > 0 {
+				if err := t.downloadEpisodeArtwork(mediaFileID, enrichment.TMDbID, enrichment.SeasonNumber, enrichment.EpisodeNumber, &successCount, &downloadErrors); err != nil {
+					t.logger.Warn("Failed to download episode artwork", "error", err, "media_file_id", mediaFileID, "season", enrichment.SeasonNumber, "episode", enrichment.EpisodeNumber)
+				}
+			}
 		}
 	}
 
@@ -1660,16 +2004,162 @@ func (t *TMDbEnricher) downloadAssets(mediaFileID string, enrichment *TMDbEnrich
 		"error_count", len(downloadErrors))
 
 	// Return error only if all downloads failed and we had URLs to download
-	totalAttempts := 0
-	if t.config.DownloadPosters && enrichment.PosterURL != "" {
-		totalAttempts++
-	}
-	if t.config.DownloadBackdrops && enrichment.BackdropURL != "" {
-		totalAttempts++
-	}
-	
-	if len(downloadErrors) > 0 && successCount == 0 && totalAttempts > 0 {
+	if len(downloadErrors) > 0 && successCount == 0 {
 		return fmt.Errorf("all TMDB asset downloads failed: %s", strings.Join(downloadErrors, "; "))
+	}
+
+	return nil
+}
+
+// downloadBasicArtwork downloads poster and backdrop from enrichment data
+func (t *TMDbEnricher) downloadBasicArtwork(mediaFileID string, enrichment *TMDbEnrichment, successCount *int, downloadErrors *[]string) error {
+	// Download poster if available and enabled
+	if t.config.DownloadPosters && enrichment.PosterURL != "" {
+		if err := t.downloadAsset(mediaFileID, enrichment.MediaType, "poster", enrichment.PosterURL); err != nil {
+			*downloadErrors = append(*downloadErrors, fmt.Sprintf("poster: %v", err))
+			t.logger.Debug("Failed to download poster", "error", err, "media_file_id", mediaFileID)
+		} else {
+			*successCount++
+			t.logger.Debug("Successfully downloaded poster", "media_file_id", mediaFileID)
+		}
+	}
+
+	// Download backdrop if available and enabled
+	if t.config.DownloadBackdrops && enrichment.BackdropURL != "" {
+		if err := t.downloadAsset(mediaFileID, enrichment.MediaType, "backdrop", enrichment.BackdropURL); err != nil {
+			*downloadErrors = append(*downloadErrors, fmt.Sprintf("backdrop: %v", err))
+			t.logger.Debug("Failed to download backdrop", "error", err, "media_file_id", mediaFileID)
+		} else {
+			*successCount++
+			t.logger.Debug("Successfully downloaded backdrop", "media_file_id", mediaFileID)
+		}
+	}
+
+	return nil
+}
+
+// downloadMovieArtwork downloads comprehensive artwork for movies
+func (t *TMDbEnricher) downloadMovieArtwork(mediaFileID string, tmdbID int, successCount *int, downloadErrors *[]string) error {
+	if !t.config.DownloadLogos && !t.config.DownloadStills {
+		return nil // No additional artwork to download
+	}
+
+	// Fetch movie images using TMDb Images API
+	images, err := t.fetchMovieImages(tmdbID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch movie images: %w", err)
+	}
+
+	// Download logos if enabled
+	if t.config.DownloadLogos && len(images.Logos) > 0 {
+		// Download the best logo (highest vote average)
+		bestLogo := t.selectBestImage(images.Logos)
+		if bestLogo != nil {
+			logoURL := fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.LogoSize, bestLogo.FilePath)
+			if err := t.downloadAsset(mediaFileID, "movie", "logo", logoURL); err != nil {
+				*downloadErrors = append(*downloadErrors, fmt.Sprintf("movie logo: %v", err))
+			} else {
+				*successCount++
+				t.logger.Debug("Successfully downloaded movie logo", "media_file_id", mediaFileID)
+			}
+		}
+	}
+
+	// Download stills/scene images if enabled
+	if t.config.DownloadStills && len(images.Stills) > 0 {
+		// Download the best still (highest vote average)
+		bestStill := t.selectBestImage(images.Stills)
+		if bestStill != nil {
+			stillURL := fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.StillSize, bestStill.FilePath)
+			if err := t.downloadAsset(mediaFileID, "movie", "still", stillURL); err != nil {
+				*downloadErrors = append(*downloadErrors, fmt.Sprintf("movie still: %v", err))
+			} else {
+				*successCount++
+				t.logger.Debug("Successfully downloaded movie still", "media_file_id", mediaFileID)
+			}
+		}
+	}
+
+	return nil
+}
+
+// downloadTVShowArtwork downloads comprehensive artwork for TV shows
+func (t *TMDbEnricher) downloadTVShowArtwork(mediaFileID string, tmdbID int, successCount *int, downloadErrors *[]string) error {
+	if !t.config.DownloadLogos {
+		return nil // No additional artwork to download
+	}
+
+	// Fetch TV show images using TMDb Images API
+	images, err := t.fetchTVImages(tmdbID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch TV images: %w", err)
+	}
+
+	// Download logos if enabled
+	if t.config.DownloadLogos && len(images.Logos) > 0 {
+		// Download the best logo (highest vote average)
+		bestLogo := t.selectBestImage(images.Logos)
+		if bestLogo != nil {
+			logoURL := fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.LogoSize, bestLogo.FilePath)
+			if err := t.downloadAsset(mediaFileID, "tv", "logo", logoURL); err != nil {
+				*downloadErrors = append(*downloadErrors, fmt.Sprintf("TV logo: %v", err))
+			} else {
+				*successCount++
+				t.logger.Debug("Successfully downloaded TV show logo", "media_file_id", mediaFileID)
+			}
+		}
+	}
+
+	return nil
+}
+
+// downloadSeasonArtwork downloads season-specific artwork
+func (t *TMDbEnricher) downloadSeasonArtwork(mediaFileID string, tmdbID, seasonNumber int, successCount *int, downloadErrors *[]string) error {
+	if !t.config.DownloadSeasonPosters {
+		return nil
+	}
+
+	// Fetch season details including poster
+	seasonDetails, err := t.fetchSeasonDetails(tmdbID, seasonNumber)
+	if err != nil {
+		return fmt.Errorf("failed to fetch season details: %w", err)
+	}
+
+	// Download season poster if available
+	if seasonDetails.PosterPath != "" {
+		seasonPosterURL := fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.PosterSize, seasonDetails.PosterPath)
+		if err := t.downloadAsset(mediaFileID, "tv", "season_poster", seasonPosterURL); err != nil {
+			*downloadErrors = append(*downloadErrors, fmt.Sprintf("season poster: %v", err))
+		} else {
+			*successCount++
+			t.logger.Debug("Successfully downloaded season poster", "media_file_id", mediaFileID, "season", seasonNumber)
+		}
+	}
+
+	return nil
+}
+
+// downloadEpisodeArtwork downloads episode-specific artwork
+func (t *TMDbEnricher) downloadEpisodeArtwork(mediaFileID string, tmdbID, seasonNumber, episodeNumber int, successCount *int, downloadErrors *[]string) error {
+	if !t.config.DownloadEpisodeStills {
+		return nil
+	}
+
+	// Fetch episode details including still image
+	episodeDetails, err := t.fetchEpisodeDetails(tmdbID, seasonNumber, episodeNumber)
+	if err != nil {
+		return fmt.Errorf("failed to fetch episode details: %w", err)
+	}
+
+	// Download episode still if available
+	if episodeDetails.StillPath != "" {
+		episodeStillURL := fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.StillSize, episodeDetails.StillPath)
+		if err := t.downloadAsset(mediaFileID, "episode", "still", episodeStillURL); err != nil {
+			*downloadErrors = append(*downloadErrors, fmt.Sprintf("episode still: %v", err))
+		} else {
+			*successCount++
+			t.logger.Debug("Successfully downloaded episode still", "media_file_id", mediaFileID, "season", seasonNumber, "episode", episodeNumber)
+		}
 	}
 
 	return nil
@@ -2225,98 +2715,196 @@ type TVShowInfo struct {
 
 // parseTVShowFromPath extracts TV show information from file path
 func (t *TMDbEnricher) parseTVShowFromPath(filePath string) *TVShowInfo {
-	// Import required packages for regex
-	// This is a simplified parser - could be enhanced with more sophisticated regex
+	t.logger.Debug("parsing TV show info from path", "path", filePath)
 	
 	// Extract filename from path
 	filename := filepath.Base(filePath)
 	
-	// Try to match common TV show patterns:
-	// "Show Name (2024) - S01E01 - Episode Title.mkv"
-	// "Show Name - S01E01 - Episode Title.mkv"
-	
 	// Remove file extension
 	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
 	
-	// Find season/episode match
-	var seasonNum, episodeNum int
-	var showName, episodeTitle string
+	t.logger.Debug("extracted filename without extension", "filename", nameWithoutExt)
 	
-	// Simple parsing - split by " - " and look for patterns
-	parts := strings.Split(nameWithoutExt, " - ")
+	// Enhanced regex patterns for SxxExx format - same as TV structure parser
+	patterns := []string{
+		// Pattern 1: Most common S##E## format with optional show name and episode title
+		`(?i)^(.+?)\s*[.\-\s]*s(\d{1,2})e(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
+		
+		// Pattern 2: Season/episode with words
+		`(?i)^(.+?)\s*[.\-\s]*season\s*(\d{1,2})\s*episode\s*(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
+		
+		// Pattern 3: XxYY format (e.g., 1x01)
+		`(?i)^(.+?)\s*[.\-\s]*(\d{1,2})x(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
+		
+		// Pattern 4: With year in parentheses
+		`(?i)^(.+?)\s*\(\d{4}\)\s*[.\-\s]*s(\d{1,2})e(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
+		
+		// Pattern 5: Spaced S## E## format  
+		`(?i)^(.+?)\s*[.\-\s]*s(\d{1,2})\s*e(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
+		
+		// Pattern 6: Dotted format (Show.Name.S##E##.Episode.Title)
+		`(?i)^(.+?)\.s(\d{1,2})e(\d{1,2})(?:\.(.+?))?(?:\.[^.]*$|\s*$)`,
+	}
+
+	for patternIndex, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		matches := re.FindStringSubmatch(nameWithoutExt)
+
+		t.logger.Debug("testing pattern", "pattern_index", patternIndex+1, "pattern", pattern)
+		if len(matches) >= 4 {
+			showName := strings.TrimSpace(matches[1])
+			seasonStr := matches[2]
+			episodeStr := matches[3]
+			
+			t.logger.Debug("pattern matched", 
+				"pattern_index", patternIndex+1,
+				"show_raw", showName,
+				"season_raw", seasonStr,
+				"episode_raw", episodeStr)
+				
+			seasonNum, err1 := strconv.Atoi(seasonStr)
+			episodeNum, err2 := strconv.Atoi(episodeStr)
+
+			// Validate extraction was successful and numbers are reasonable
+			if err1 != nil || err2 != nil {
+				t.logger.Debug("int conversion failed", 
+					"pattern_index", patternIndex+1,
+					"season_error", err1,
+					"episode_error", err2)
+				continue
+			}
+			
+			if seasonNum < 1 || seasonNum > 50 || episodeNum < 1 || episodeNum > 999 {
+				t.logger.Debug("range validation failed", 
+					"pattern_index", patternIndex+1,
+					"season", seasonNum,
+					"episode", episodeNum)
+				continue
+			}
+
+			episodeTitle := ""
+			if len(matches) > 4 && matches[4] != "" {
+				episodeTitle = strings.TrimSpace(matches[4])
+			}
+
+			// Clean up names using the same logic as TV structure parser
+			showName = t.cleanShowName(showName)
+			episodeTitle = t.cleanEpisodeTitle(episodeTitle)
+
+			t.logger.Info("successfully parsed TV show info",
+				"show", showName,
+				"season", seasonNum,
+				"episode", episodeNum,
+				"episode_title", episodeTitle,
+				"pattern_used", patternIndex+1)
+
+			return &TVShowInfo{
+				ShowName:      showName,
+				SeasonNumber:  seasonNum,
+				EpisodeNumber: episodeNum,
+				EpisodeTitle:  episodeTitle,
+			}
+		} else {
+			t.logger.Debug("pattern didn't match", "pattern_index", patternIndex+1, "matches_count", len(matches))
+		}
+	}
+
+	// If no pattern matched, try a more aggressive fallback approach
+	t.logger.Debug("no regex patterns matched, trying fallback approach", "filename", nameWithoutExt)
 	
-	for i, part := range parts {
-		// Check if this part contains season/episode info
-		part = strings.TrimSpace(part)
-		if strings.Contains(strings.ToLower(part), "s") && strings.Contains(strings.ToLower(part), "e") {
-			// Try to extract season and episode numbers
-			lowerPart := strings.ToLower(part)
-			if sIndex := strings.Index(lowerPart, "s"); sIndex >= 0 {
-				if eIndex := strings.Index(lowerPart, "e"); eIndex > sIndex {
-					// Extract season number
-					seasonStr := lowerPart[sIndex+1 : eIndex]
-					if s, err := strconv.Atoi(seasonStr); err == nil {
-						seasonNum = s
-					}
+	// Look for any S##E## pattern anywhere in the filename
+	fallbackRegex := regexp.MustCompile(`(?i)s(\d{1,2})e(\d{1,2})`)
+	if matches := fallbackRegex.FindStringSubmatch(nameWithoutExt); len(matches) >= 3 {
+		seasonNum, err1 := strconv.Atoi(matches[1])
+		episodeNum, err2 := strconv.Atoi(matches[2])
+		
+		t.logger.Debug("fallback regex found season/episode", 
+			"season", seasonNum,
+			"episode", episodeNum,
+			"season_error", err1,
+			"episode_error", err2)
+		
+		if err1 == nil && err2 == nil && seasonNum >= 1 && seasonNum <= 50 && episodeNum >= 1 && episodeNum <= 999 {
+			// Extract show name as everything before the S##E## pattern
+			seIndex := strings.Index(strings.ToLower(nameWithoutExt), strings.ToLower(matches[0]))
+			if seIndex > 0 {
+				showPart := nameWithoutExt[:seIndex]
+				showName := t.cleanShowName(strings.TrimSpace(showPart))
+				if showName != "" {
+					t.logger.Info("fallback extraction successful",
+						"show", showName,
+						"season", seasonNum,
+						"episode", episodeNum)
 					
-					// Extract episode number (find next non-digit or end)
-					episodeStart := eIndex + 1
-					episodeEnd := episodeStart
-					for episodeEnd < len(lowerPart) && lowerPart[episodeEnd] >= '0' && lowerPart[episodeEnd] <= '9' {
-						episodeEnd++
+					return &TVShowInfo{
+						ShowName:      showName,
+						SeasonNumber:  seasonNum,
+						EpisodeNumber: episodeNum,
+						EpisodeTitle:  "",
 					}
-					if episodeEnd > episodeStart {
-						episodeStr := lowerPart[episodeStart:episodeEnd]
-						if e, err := strconv.Atoi(episodeStr); err == nil {
-							episodeNum = e
-						}
-					}
-				}
-			}
-			
-			// Show name is everything before this part
-			if i > 0 {
-				showName = strings.Join(parts[:i], " - ")
-			}
-			
-			// Episode title is everything after this part
-			if i < len(parts)-1 {
-				episodeTitle = strings.Join(parts[i+1:], " - ")
-			}
-			break
-		}
-	}
-	
-	// If we couldn't parse season/episode, assume it's the show name
-	if seasonNum == 0 && episodeNum == 0 {
-		showName = nameWithoutExt
-		seasonNum = 1
-		episodeNum = 1
-	}
-	
-	// Clean up show name - remove year if present
-	if showName != "" {
-		// Remove year pattern like "(2024)"
-		if idx := strings.LastIndex(showName, "("); idx > 0 {
-			if idx2 := strings.Index(showName[idx:], ")"); idx2 > 0 {
-				yearStr := showName[idx+1 : idx+idx2]
-				if _, err := strconv.Atoi(yearStr); err == nil && len(yearStr) == 4 {
-					showName = strings.TrimSpace(showName[:idx])
 				}
 			}
 		}
 	}
-	
-	if showName == "" || seasonNum == 0 || episodeNum == 0 {
-		return nil
+
+	t.logger.Debug("all parsing attempts failed", "filename", nameWithoutExt)
+	return nil
+}
+
+// cleanShowName cleans up the show name - consistent with TV structure parser
+func (t *TMDbEnricher) cleanShowName(name string) string {
+	// Remove year pattern like "(2024)"
+	yearRegex := regexp.MustCompile(`\s*\(\d{4}\)\s*`)
+	name = yearRegex.ReplaceAllString(name, "")
+
+	// Replace dots and underscores with spaces
+	name = strings.ReplaceAll(name, ".", " ")
+	name = strings.ReplaceAll(name, "_", " ")
+
+	// Remove common quality markers
+	qualityRegex := regexp.MustCompile(`(?i)\s*(720p|1080p|4k|2160p|x264|x265|hevc|bluray|webrip|hdtv|dvdrip)\s*`)
+	name = qualityRegex.ReplaceAllString(name, "")
+
+	// Clean up extra whitespace
+	name = regexp.MustCompile(`\s+`).ReplaceAllString(name, " ")
+	name = strings.TrimSpace(name)
+
+	return name
+}
+
+// cleanEpisodeTitle cleans up the episode title - consistent with TV structure parser
+func (t *TMDbEnricher) cleanEpisodeTitle(title string) string {
+	if title == "" {
+		return ""
 	}
-	
-	return &TVShowInfo{
-		ShowName:      showName,
-		SeasonNumber:  seasonNum,
-		EpisodeNumber: episodeNum,
-		EpisodeTitle:  episodeTitle,
+
+	// First, remove everything from the first bracket onwards (quality markers)
+	if idx := strings.Index(title, "["); idx > 0 {
+		title = title[:idx]
 	}
+
+	// Remove everything from the first hyphen at the end (release groups)
+	if idx := strings.LastIndex(title, " - "); idx > 0 {
+		// Only remove if it looks like a release group (short, at the end)
+		potential := strings.TrimSpace(title[idx+3:])
+		if len(potential) <= 20 && !strings.Contains(potential, " ") {
+			title = title[:idx]
+		}
+	}
+
+	// Replace dots and underscores with spaces
+	title = strings.ReplaceAll(title, ".", " ")
+	title = strings.ReplaceAll(title, "_", " ")
+
+	// Remove specific quality markers that might be inline
+	qualityRegex := regexp.MustCompile(`(?i)\s*(720p|1080p|4k|2160p|x264|x265|hevc|h264|h265|bluray|webrip|hdtv|dvdrip|webdl|web-dl)\s*`)
+	title = qualityRegex.ReplaceAllString(title, " ")
+
+	// Clean up extra whitespace
+	title = regexp.MustCompile(`\s+`).ReplaceAllString(title, " ")
+	title = strings.TrimSpace(title)
+
+	return title
 }
 
 // createOrGetTVShow creates or retrieves a TV show record
@@ -2324,14 +2912,70 @@ func (t *TMDbEnricher) createOrGetTVShow(result *Result, showName string) (strin
 	// Generate UUID for TV show
 	tvShowID := t.generateUUID()
 	
-	// Check if TV show already exists with this TMDb ID
+	// ENHANCED DUPLICATE PREVENTION: Check for existing TV show by multiple criteria
 	var existingShow struct {
-		ID string `gorm:"column:id"`
+		ID     string `gorm:"column:id"`
+		TMDbID string `gorm:"column:tmdb_id"`
+		Title  string `gorm:"column:title"`
 	}
 	
-	if err := t.db.Table("tv_shows").Select("id").Where("tmdb_id = ?", fmt.Sprintf("%d", result.ID)).First(&existingShow).Error; err == nil {
+	// First priority: Check if TV show already exists with this TMDb ID
+	if err := t.db.Table("tv_shows").Select("id, tmdb_id, title").Where("tmdb_id = ?", fmt.Sprintf("%d", result.ID)).First(&existingShow).Error; err == nil {
+		t.logger.Debug("found existing TV show by TMDb ID", "id", existingShow.ID, "tmdb_id", existingShow.TMDbID, "title", existingShow.Title)
 		return existingShow.ID, nil
 	}
+	
+	// Second priority: Check for existing TV show by title (coordination with TV Structure plugin)
+	titleToCheck := t.getResultTitle(*result)
+	if titleToCheck == "" {
+		titleToCheck = showName // Fallback to provided show name
+	}
+	
+	if err := t.db.Table("tv_shows").Select("id, tmdb_id, title").Where("LOWER(title) = LOWER(?)", titleToCheck).First(&existingShow).Error; err == nil {
+		// Found existing show by title - update it with TMDb information if it doesn't have it
+		if existingShow.TMDbID == "" || existingShow.TMDbID == "0" {
+			t.logger.Info("updating existing TV show with TMDb information", "id", existingShow.ID, "title", existingShow.Title, "new_tmdb_id", result.ID)
+			
+			// Update the existing show with TMDb data
+			updates := map[string]interface{}{
+				"tmdb_id":    fmt.Sprintf("%d", result.ID),
+				"updated_at": time.Now(),
+			}
+			
+			// Update description if we have better TMDb data
+			if result.Overview != "" {
+				updates["description"] = result.Overview
+			}
+			
+			// Update poster/backdrop if available
+			if result.PosterPath != "" {
+				updates["poster"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.PosterSize, result.PosterPath)
+			}
+			if result.BackdropPath != "" {
+				updates["backdrop"] = fmt.Sprintf("https://image.tmdb.org/t/p/%s%s", t.config.BackdropSize, result.BackdropPath)
+			}
+			
+			// Update first air date if we have it and existing record doesn't
+			if result.FirstAirDate != "" {
+				if date, err := time.Parse("2006-01-02", result.FirstAirDate); err == nil {
+					updates["first_air_date"] = date
+				}
+			}
+			
+			if err := t.db.Table("tv_shows").Where("id = ?", existingShow.ID).Updates(updates).Error; err != nil {
+				t.logger.Warn("failed to update existing TV show with TMDb data", "error", err, "id", existingShow.ID)
+			} else {
+				t.logger.Info("successfully updated existing TV show with TMDb data", "id", existingShow.ID, "title", existingShow.Title, "tmdb_id", result.ID)
+			}
+		} else {
+			t.logger.Debug("found existing TV show by title with existing TMDb ID", "id", existingShow.ID, "title", existingShow.Title, "existing_tmdb_id", existingShow.TMDbID)
+		}
+		
+		return existingShow.ID, nil
+	}
+	
+	// No existing show found - create new one
+	t.logger.Debug("creating new TV show", "title", titleToCheck, "tmdb_id", result.ID)
 	
 	// Parse first air date
 	var firstAirDate *time.Time
@@ -2344,7 +2988,7 @@ func (t *TMDbEnricher) createOrGetTVShow(result *Result, showName string) (strin
 	// Create TV show record
 	tvShow := map[string]interface{}{
 		"id":             tvShowID,
-		"title":          t.getResultTitle(*result),
+		"title":          titleToCheck,
 		"description":    result.Overview,
 		"first_air_date": firstAirDate,
 		"status":         "Unknown",
@@ -2365,6 +3009,7 @@ func (t *TMDbEnricher) createOrGetTVShow(result *Result, showName string) (strin
 		return "", fmt.Errorf("failed to create TV show: %w", err)
 	}
 	
+	t.logger.Info("created new TV show", "id", tvShowID, "title", titleToCheck, "tmdb_id", result.ID)
 	return tvShowID, nil
 }
 
@@ -2830,6 +3475,9 @@ func (t *TMDbEnricher) fetchTVSeriesDetails(tmdbID int) (*TVSeriesDetails, error
 	// Check cache first
 	queryHash := t.generateQueryHash(fmt.Sprintf("tv_details:%d", tmdbID))
 	if cached, err := t.getCachedTVDetails("tv_details", queryHash); err == nil {
+		if t.logger != nil {
+			t.logger.Debug("using cached TV details", "tmdb_id", tmdbID)
+		}
 		return cached, nil
 	}
 	
@@ -2842,40 +3490,23 @@ func (t *TMDbEnricher) fetchTVSeriesDetails(tmdbID int) (*TVSeriesDetails, error
 	
 	detailsURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 	
-	// Make API request
-	client := &http.Client{Timeout: 30 * time.Second}
-	req, err := http.NewRequest("GET", detailsURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	if t.logger != nil {
+		t.logger.Debug("fetching TV details from TMDb", "tmdb_id", tmdbID, "url", detailsURL)
 	}
 	
-	req.Header.Set("Authorization", "Bearer "+t.config.APIKey)
-	req.Header.Set("User-Agent", t.config.UserAgent)
-	
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-	
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-	
+	// Make API request with retries
 	var tvDetails TVSeriesDetails
-	if err := json.Unmarshal(body, &tvDetails); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+	err := t.makeAPIRequestWithRetries(detailsURL, &tvDetails, fmt.Sprintf("TV details for ID %d", tmdbID))
+	if err != nil {
+		return nil, err
 	}
 	
 	// Cache the results
 	t.cacheTVDetails("tv_details", queryHash, &tvDetails)
 	
-	t.logger.Info("fetched comprehensive TV details", "tmdb_id", tmdbID, "title", tvDetails.Name, "seasons", tvDetails.NumberOfSeasons, "episodes", tvDetails.NumberOfEpisodes)
+	if t.logger != nil {
+		t.logger.Debug("TV details fetched successfully", "tmdb_id", tmdbID, "title", tvDetails.Name)
+	}
 	
 	return &tvDetails, nil
 }
@@ -2944,75 +3575,42 @@ func (t *TMDbEnricher) getMovieIDByTMDbID(tmdbID int) (string, error) {
 
 // fetchMovieDetails fetches comprehensive movie details from TMDb API
 func (t *TMDbEnricher) fetchMovieDetails(tmdbID int) (*MovieDetails, error) {
-	queryHash := t.generateQueryHash(fmt.Sprintf("movie_details_%d", tmdbID))
-	queryType := "movie_details"
-	
 	// Check cache first
+	queryType := "movie_details"
+	queryHash := t.generateQueryHash(fmt.Sprintf("movie:%d", tmdbID))
 	if cached, err := t.getCachedMovieDetails(queryType, queryHash); err == nil {
+		if t.logger != nil {
+			t.logger.Debug("using cached movie details", "tmdb_id", tmdbID)
+		}
 		return cached, nil
 	}
 	
-	// Build comprehensive API URL with append_to_response for all metadata
+	// Build URL with comprehensive append_to_response
 	baseURL := fmt.Sprintf("https://api.themoviedb.org/3/movie/%d", tmdbID)
 	params := url.Values{}
 	params.Set("language", t.config.Language)
-	// Get comprehensive movie data in one request
+	// Request comprehensive data in a single API call
 	params.Set("append_to_response", "credits,external_ids,keywords,releases,videos,translations,reviews,similar,recommendations")
 	
 	apiURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 	
-	t.logger.Debug("fetching comprehensive movie details", "tmdb_id", tmdbID, "url", apiURL)
-	
-	// Rate limiting
-	time.Sleep(time.Duration(1000/t.config.APIRateLimit) * time.Millisecond)
-	
-	// Make API request
-	client := &http.Client{Timeout: 30 * time.Second}
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	if t.logger != nil {
+		t.logger.Debug("fetching movie details from TMDb", "tmdb_id", tmdbID, "url", apiURL)
 	}
 	
-	req.Header.Set("Authorization", "Bearer "+t.config.APIKey)
-	req.Header.Set("User-Agent", t.config.UserAgent)
-	
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("TMDb API error: %d - %s", resp.StatusCode, string(body))
-	}
-	
+	// Make API request with retries
 	var movieDetails MovieDetails
-	if err := json.NewDecoder(resp.Body).Decode(&movieDetails); err != nil {
-		return nil, fmt.Errorf("failed to decode movie details: %w", err)
+	err := t.makeAPIRequestWithRetries(apiURL, &movieDetails, fmt.Sprintf("movie details for ID %d", tmdbID))
+	if err != nil {
+		return nil, err
 	}
 	
 	// Cache the result
 	t.cacheMovieDetails(queryType, queryHash, &movieDetails)
 	
-	t.logger.Debug("fetched comprehensive movie details", 
-		"tmdb_id", tmdbID,
-		"title", movieDetails.Title,
-		"runtime", movieDetails.Runtime,
-		"budget", movieDetails.Budget,
-		"revenue", movieDetails.Revenue,
-		"cast_count", func() int {
-			if movieDetails.Credits != nil {
-				return len(movieDetails.Credits.Cast)
-			}
-			return 0
-		}(),
-		"crew_count", func() int {
-			if movieDetails.Credits != nil {
-				return len(movieDetails.Credits.Crew)
-			}
-			return 0
-		}())
+	if t.logger != nil {
+		t.logger.Debug("movie details fetched successfully", "tmdb_id", tmdbID, "title", movieDetails.Title, "runtime", movieDetails.Runtime)
+	}
 	
 	return &movieDetails, nil
 }
@@ -3177,6 +3775,125 @@ func (t *TMDbEnricher) populateMovieEnrichment(enrichment *TMDbEnrichment, movie
 		"budget", movieDetails.Budget,
 		"revenue", movieDetails.Revenue,
 		"runtime", movieDetails.Runtime)
+}
+
+// fetchMovieImages fetches comprehensive images for a movie using TMDb Images API
+func (t *TMDbEnricher) fetchMovieImages(tmdbID int) (*ImagesResponse, error) {
+	baseURL := fmt.Sprintf("https://api.themoviedb.org/3/movie/%d/images", tmdbID)
+	
+	t.logger.Debug("fetching movie images from TMDb", "tmdb_id", tmdbID, "url", baseURL)
+	
+	var images ImagesResponse
+	err := t.makeAPIRequestWithRetries(baseURL, &images, fmt.Sprintf("movie images for ID %d", tmdbID))
+	if err != nil {
+		return nil, err
+	}
+	
+	t.logger.Debug("movie images fetched successfully", "tmdb_id", tmdbID, 
+		"logos", len(images.Logos), 
+		"posters", len(images.Posters), 
+		"backdrops", len(images.Backdrops),
+		"stills", len(images.Stills))
+	
+	return &images, nil
+}
+
+// fetchTVImages fetches comprehensive images for a TV show using TMDb Images API
+func (t *TMDbEnricher) fetchTVImages(tmdbID int) (*ImagesResponse, error) {
+	baseURL := fmt.Sprintf("https://api.themoviedb.org/3/tv/%d/images", tmdbID)
+	
+	t.logger.Debug("fetching TV images from TMDb", "tmdb_id", tmdbID, "url", baseURL)
+	
+	var images ImagesResponse
+	err := t.makeAPIRequestWithRetries(baseURL, &images, fmt.Sprintf("TV images for ID %d", tmdbID))
+	if err != nil {
+		return nil, err
+	}
+	
+	t.logger.Debug("TV images fetched successfully", "tmdb_id", tmdbID, 
+		"logos", len(images.Logos), 
+		"posters", len(images.Posters), 
+		"backdrops", len(images.Backdrops))
+	
+	return &images, nil
+}
+
+// fetchSeasonDetails fetches season details including poster
+func (t *TMDbEnricher) fetchSeasonDetails(tmdbID, seasonNumber int) (*TVSeasonDetails, error) {
+	baseURL := fmt.Sprintf("https://api.themoviedb.org/3/tv/%d/season/%d", tmdbID, seasonNumber)
+	params := url.Values{}
+	params.Set("language", t.config.Language)
+	
+	apiURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
+	
+	t.logger.Debug("fetching season details from TMDb", "tmdb_id", tmdbID, "season", seasonNumber, "url", apiURL)
+	
+	var seasonDetails TVSeasonDetails
+	err := t.makeAPIRequestWithRetries(apiURL, &seasonDetails, fmt.Sprintf("season %d details for TV ID %d", seasonNumber, tmdbID))
+	if err != nil {
+		return nil, err
+	}
+	
+	t.logger.Debug("season details fetched successfully", "tmdb_id", tmdbID, "season", seasonNumber, "name", seasonDetails.Name)
+	
+	return &seasonDetails, nil
+}
+
+// fetchEpisodeDetails fetches episode details including still image
+func (t *TMDbEnricher) fetchEpisodeDetails(tmdbID, seasonNumber, episodeNumber int) (*TVEpisodeDetails, error) {
+	baseURL := fmt.Sprintf("https://api.themoviedb.org/3/tv/%d/season/%d/episode/%d", tmdbID, seasonNumber, episodeNumber)
+	params := url.Values{}
+	params.Set("language", t.config.Language)
+	
+	apiURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
+	
+	t.logger.Debug("fetching episode details from TMDb", "tmdb_id", tmdbID, "season", seasonNumber, "episode", episodeNumber, "url", apiURL)
+	
+	var episodeDetails TVEpisodeDetails
+	err := t.makeAPIRequestWithRetries(apiURL, &episodeDetails, fmt.Sprintf("season %d episode %d details for TV ID %d", seasonNumber, episodeNumber, tmdbID))
+	if err != nil {
+		return nil, err
+	}
+	
+	t.logger.Debug("episode details fetched successfully", "tmdb_id", tmdbID, "season", seasonNumber, "episode", episodeNumber, "name", episodeDetails.Name)
+	
+	return &episodeDetails, nil
+}
+
+// selectBestImage selects the best image from a list based on vote average and English language preference
+func (t *TMDbEnricher) selectBestImage(images []ImageInfo) *ImageInfo {
+	if len(images) == 0 {
+		return nil
+	}
+	
+	var bestImage *ImageInfo
+	bestScore := -1.0
+	
+	for i := range images {
+		image := &images[i]
+		score := image.VoteAverage
+		
+		// Prefer English language images if available
+		if image.ISO639_1 == "en" || image.ISO639_1 == "" {
+			score += 1.0 // Boost English images
+		}
+		
+		// Prefer images with votes (indicates quality)
+		if image.VoteCount > 0 {
+			score += 0.5
+		}
+		
+		if score > bestScore {
+			bestScore = score
+			bestImage = image
+		}
+	}
+	
+	if bestImage != nil {
+		t.logger.Debug("selected best image", "file_path", bestImage.FilePath, "vote_average", bestImage.VoteAverage, "vote_count", bestImage.VoteCount, "language", bestImage.ISO639_1)
+	}
+	
+	return bestImage
 }
 
 func main() {

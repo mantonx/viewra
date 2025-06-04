@@ -1,0 +1,177 @@
+# Viewra Configuration File
+# This file controls the core behavior of the Viewra media management system
+
+# Database Configuration
+database:
+  type: 'sqlite'
+  path: '/app/viewra-data/viewra.db'
+  auto_migrate: true
+
+# Plugin System Configuration
+plugins:
+  plugin_dir: './data/plugins'
+  enable_hot_reload: true
+  default_enabled: false
+  enrichment_enabled: true # Automatically enable enrichment plugins (TMDb, MusicBrainz, etc.)
+  respect_default_config: true # Respect enabled_by_default setting from plugin manifests
+  max_execution_time: '30s'
+  enable_sandbox: true
+  memory_limit: 536870912 # 512MB
+  allow_network_access: true
+  allow_filesystem_write: false
+
+# Library-specific plugin restrictions
+library_plugin_restrictions:
+  music:
+    # Core plugins for music processing
+    core_plugins:
+      metadata_extractors:
+        - 'music_metadata_extractor_plugin'
+      structure_parsers: []
+      technical_analyzers:
+        - 'ffmpeg_probe_core_plugin'
+
+    # External enrichment plugins
+    enrichment_plugins:
+      enabled: true
+      auto_enrich: true
+      allowed_plugins:
+        - 'musicbrainz_enricher'
+        - 'audiodb_enricher'
+      disallowed_plugins:
+        - 'tmdb_enricher'
+
+    # File type restrictions
+    file_type_restrictions:
+      allowed_extensions:
+        - '.mp3'
+        - '.flac'
+        - '.m4a'
+        - '.aac'
+        - '.ogg'
+        - '.wav'
+        - '.wma'
+      disallowed_extensions:
+        - '.mp4'
+        - '.mkv'
+        - '.avi'
+        - '.mov'
+      mime_type_filters:
+        - 'audio/*'
+
+    # Shared plugins that can run across library types
+    shared_plugins:
+      allow_technical_metadata: true
+      allow_asset_extraction: true
+      shared_plugin_names:
+        - 'ffmpeg_probe_core_plugin'
+
+  tv:
+    # Core plugins for TV processing
+    core_plugins:
+      metadata_extractors:
+        - 'ffmpeg_probe_core_plugin'
+      structure_parsers:
+        - 'tv_structure_parser_core_plugin'
+      technical_analyzers:
+        - 'ffmpeg_probe_core_plugin'
+
+    # External enrichment plugins
+    enrichment_plugins:
+      enabled: true
+      auto_enrich: true
+      allowed_plugins:
+        - 'tmdb_enricher'
+      disallowed_plugins:
+        - 'musicbrainz_enricher'
+        - 'audiodb_enricher'
+
+    # File type restrictions
+    file_type_restrictions:
+      allowed_extensions:
+        - '.mp4'
+        - '.mkv'
+        - '.avi'
+        - '.mov'
+        - '.wmv'
+        - '.flv'
+        - '.webm'
+        - '.m4v'
+      disallowed_extensions:
+        - '.mp3'
+        - '.flac'
+        - '.m4a'
+        - '.aac'
+      mime_type_filters:
+        - 'video/*'
+
+    # Shared plugins
+    shared_plugins:
+      allow_technical_metadata: true
+      allow_asset_extraction: true
+      shared_plugin_names:
+        - 'ffmpeg_probe_core_plugin'
+
+  movie:
+    # Core plugins for movie processing
+    core_plugins:
+      metadata_extractors:
+        - 'ffmpeg_probe_core_plugin'
+      structure_parsers:
+        - 'movie_structure_parser_core_plugin'
+      technical_analyzers:
+        - 'ffmpeg_probe_core_plugin'
+
+    # External enrichment plugins
+    enrichment_plugins:
+      enabled: true
+      auto_enrich: true
+      allowed_plugins:
+        - 'tmdb_enricher'
+      disallowed_plugins:
+        - 'musicbrainz_enricher'
+        - 'audiodb_enricher'
+
+    # File type restrictions
+    file_type_restrictions:
+      allowed_extensions:
+        - '.mp4'
+        - '.mkv'
+        - '.avi'
+        - '.mov'
+        - '.wmv'
+        - '.flv'
+        - '.webm'
+        - '.m4v'
+      disallowed_extensions:
+        - '.mp3'
+        - '.flac'
+        - '.m4a'
+        - '.aac'
+      mime_type_filters:
+        - 'video/*'
+
+    # Shared plugins
+    shared_plugins:
+      allow_technical_metadata: true
+      allow_asset_extraction: true
+      shared_plugin_names:
+        - 'ffmpeg_probe_core_plugin'
+
+# Enrichment Configuration
+enrichment:
+  enabled: true
+  auto_apply: true
+  worker:
+    enabled: true
+    interval: '10s'
+    batch_size: 50
+  grpc:
+    enabled: true
+    port: 50051
+
+# Logging Configuration
+logging:
+  level: 'info'
+  format: 'text'
+  output: 'stdout'
