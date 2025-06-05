@@ -1,45 +1,39 @@
 // Re-export all components from organized subdirectories
 
 // Layout Components
-export { Header } from './layout';
+export { default as Header } from './layout/Header';
 
 // Media Components
-export {
-  MediaLibraryManager,
-  MusicLibrary,
-  MediaCard,
-  ViewControls,
-  ScanProgressCard,
-  ScanActivityFeed,
-  EnhancedScannerDashboard,
-} from './media';
+export { default as MediaCard } from './media/MediaCard';
+export { default as MediaLibraryManager } from './media/MediaLibraryManager';
+export { default as MusicLibrary } from './media/MusicLibrary';
+export { default as TVShowLibrary } from './tv/TVShowLibrary';
+export { default as EnhancedScannerDashboard } from './media/EnhancedScannerDashboard';
+export { default as ScanActivityFeed } from './media/ScanActivityFeed';
+export { default as ScanProgressCard } from './media/ScanProgressCard';
 
 // Audio Components
-export { AudioPlayer, AudioBadge, AlbumArtwork } from './audio';
+export { default as AudioPlayer } from './audio/AudioPlayer';
+export { default as AlbumArtwork } from './audio/AlbumArtwork';
 
 // System Components
-export { SystemInfo, SystemEvents, ApiTester } from './system';
+export { default as ApiTester } from './system/ApiTester';
+export { default as SystemInfo } from './system/SystemInfo';
+export { default as SystemEvents } from './system/SystemEvents';
 
 // Plugin Components
-export {
-  PluginManager,
-  PluginAdminPageCards,
-  PluginAdminPages,
-  PluginConfigEditor,
-  PluginDependencies,
-  PluginEvents,
-  PluginInstaller,
-  PluginPermissions,
-  PluginUIComponents,
-} from './plugins';
+export { default as PluginManager } from './plugins/PluginManager';
+export { default as PluginInstaller } from './plugins/PluginInstaller';
+export { default as PluginConfigEditor } from './plugins/PluginConfigEditor';
+export { default as PluginAdminPageCards } from './plugins/PluginAdminPageCards';
 
 // Admin Components
 export { AdminDashboard } from './admin';
 
 // UI Components
 export { default as IconButton } from './ui/IconButton';
-export { default as ImageModal } from './ui/ImageModal';
 export { default as Modal } from './ui/Modal';
+export { default as ImageModal } from './ui/ImageModal';
 export { default as AnimatedPlayPause } from './ui/AnimatedPlayPause';
 
 // Icons (re-export from ui)

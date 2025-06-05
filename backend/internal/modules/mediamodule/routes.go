@@ -812,6 +812,80 @@ func (m *Module) getStats(c *gin.Context) {
 	})
 }
 
+// getTVShows returns all TV shows with pagination and sorting
+func (m *Module) getTVShows(c *gin.Context) {
+	// Parse query parameters for pagination
+	limitStr := c.DefaultQuery("limit", "24")
+	offsetStr := c.DefaultQuery("offset", "0")
+	sortField := c.DefaultQuery("sort", "title")
+	sortOrder := c.DefaultQuery("order", "asc")
+	search := c.Query("search")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 24
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	// Validate sort parameters
+	validSortFields := map[string]bool{
+		"title":          true,
+		"first_air_date": true,
+		"status":         true,
+		"created_at":     true,
+	}
+	if !validSortFields[sortField] {
+		sortField = "title"
+	}
+
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "asc"
+	}
+
+	var tvShows []database.TVShow
+	var total int64
+
+	// Build query
+	query := m.db.Model(&database.TVShow{})
+
+	// Filter out invalid entries (likely people imported as TV shows)
+	// Only include entries that have either a description OR an air date
+	query = query.Where("(description IS NOT NULL AND description != '') OR (first_air_date IS NOT NULL AND first_air_date != '')")
+
+	// Add search filter if provided
+	if search != "" {
+		query = query.Where("LOWER(title) LIKE ?", "%"+strings.ToLower(search)+"%")
+	}
+
+	// Get total count
+	query.Count(&total)
+
+	// Get paginated results with sorting
+	result := query.Order(fmt.Sprintf("%s %s", sortField, sortOrder)).
+		Limit(limit).
+		Offset(offset).
+		Find(&tvShows)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get TV shows: %v", result.Error),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tv_shows": tvShows,
+		"total":    total,
+		"count":    len(tvShows),
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
 // Helper function to get content type based on file extension
 func getContentTypeFromPath(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))

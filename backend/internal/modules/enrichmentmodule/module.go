@@ -40,7 +40,7 @@ const (
 // merging and automatic application to database entities using existing
 // MediaEnrichment and MediaExternalIDs tables.
 
-// Module handles enrichment application and metadata merging
+// Module represents the enrichment module
 type Module struct {
 	id          string
 	name        string
@@ -57,6 +57,10 @@ type Module struct {
 	
 	// Asset manager reference for asset operations
 	assetManager interface{} // Will be *assetmodule.Manager but kept as interface to avoid circular imports
+	
+	// Validation and deduplication systems
+	tvShowValidator    *TVShowValidator
+	duplicationManager *DuplicationManager
 }
 
 // Register registers this module with the module system
@@ -115,20 +119,34 @@ func (m *Module) Init() error {
 		m.eventBus = events.GetGlobalEventBus()
 	}
 
+	// Initialize validation and deduplication systems if not already done
+	if m.tvShowValidator == nil {
+		m.tvShowValidator = NewTVShowValidator(m.db)
+	}
+	if m.duplicationManager == nil {
+		m.duplicationManager = NewDuplicationManager(m.db)
+	}
+
 	m.initialized = true
+	
+	log.Printf("INFO: Enrichment module initialized with validation and deduplication systems")
 	return nil
 }
 
-// NewModule creates a new enrichment module
+// NewModule creates a new enrichment module instance
 func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
 	return &Module{
-		id:       ModuleID,
-		name:     ModuleName,
+		id:       "enrichment",
+		name:     "Enrichment Module",
 		core:     true,
 		db:       db,
 		eventBus: eventBus,
 		enabled:  true,
-		grpcPort: 50051, // Default gRPC port
+		grpcPort: 50052, // Default gRPC port for enrichment
+		
+		// Initialize validation and deduplication systems
+		tvShowValidator:    NewTVShowValidator(db),
+		duplicationManager: NewDuplicationManager(db),
 	}
 }
 
@@ -352,6 +370,23 @@ func (m *Module) RegisterEnrichmentData(mediaFileID, sourceName string, enrichme
 		return fmt.Errorf("media file not found: %w", err)
 	}
 
+	// **NEW: Validate TV show metadata before storing**
+	if mediaFile.MediaType == "episode" || strings.Contains(strings.ToLower(mediaFile.Path), "tv") {
+		if err := m.validateTVShowEnrichmentData(enrichments, sourceName); err != nil {
+			log.Printf("WARN: TV show enrichment validation failed for %s from %s: %v", mediaFileID, sourceName, err)
+			// Don't fail completely, but reduce confidence
+			confidence *= 0.5
+			
+			// Add validation warning to enrichments
+			if enrichments["validation_warnings"] == nil {
+				enrichments["validation_warnings"] = []string{}
+			}
+			warnings := enrichments["validation_warnings"].([]string)
+			warnings = append(warnings, fmt.Sprintf("Validation failed: %v", err))
+			enrichments["validation_warnings"] = warnings
+		}
+	}
+
 	// Get or create source priority
 	var source EnrichmentSource
 	if err := m.db.Where("name = ?", sourceName).First(&source).Error; err != nil {
@@ -437,7 +472,7 @@ func (m *Module) RegisterEnrichmentData(mediaFileID, sourceName string, enrichme
 		return fmt.Errorf("failed to create enrichment job: %w", err)
 	}
 
-	log.Printf("INFO: Registered enrichment data for media file %s from source %s", mediaFileID, sourceName)
+	log.Printf("INFO: Registered enrichment data for media file %s from source %s (confidence: %.2f)", mediaFileID, sourceName, confidence)
 	return nil
 }
 
@@ -1065,4 +1100,227 @@ func (m *Module) GetEnrichmentJobs(status string) ([]EnrichmentJob, error) {
 // OnFileScanned is an alias for OnMediaFileScanned to satisfy the ScannerPluginHook interface
 func (m *Module) OnFileScanned(mediaFile *database.MediaFile, metadata interface{}) error {
 	return m.OnMediaFileScanned(mediaFile, metadata)
+}
+
+// validateTVShowEnrichmentData validates TV show enrichment data before storing
+func (m *Module) validateTVShowEnrichmentData(enrichments map[string]interface{}, sourceName string) error {
+	// Extract key TV show fields
+	title := ""
+	tmdbID := ""
+	description := ""
+	firstAirDate := ""
+
+	if titleVal, ok := enrichments["title"]; ok {
+		if titleStr, ok := titleVal.(string); ok {
+			title = titleStr
+		}
+	}
+
+	if tmdbVal, ok := enrichments["tmdb_id"]; ok {
+		if tmdbStr, ok := tmdbVal.(string); ok {
+			tmdbID = tmdbStr
+		}
+	}
+
+	if descVal, ok := enrichments["description"]; ok {
+		if descStr, ok := descVal.(string); ok {
+			description = descStr
+		}
+	}
+
+	if airDateVal, ok := enrichments["first_air_date"]; ok {
+		if airDateStr, ok := airDateVal.(string); ok {
+			firstAirDate = airDateStr
+		}
+	}
+
+	// Run validation
+	validationResult := m.tvShowValidator.ValidateTVShowMetadata(title, tmdbID, description, firstAirDate)
+
+	// Log validation details
+	if len(validationResult.Warnings) > 0 {
+		log.Printf("WARN: TV show validation warnings for source %s: %v", sourceName, validationResult.Warnings)
+	}
+
+	if len(validationResult.Errors) > 0 {
+		log.Printf("ERROR: TV show validation errors for source %s: %v", sourceName, validationResult.Errors)
+		return fmt.Errorf("validation failed: %v", validationResult.Errors)
+	}
+
+	// Check confidence threshold
+	if validationResult.Score < 0.3 {
+		return fmt.Errorf("confidence score too low: %.2f", validationResult.Score)
+	}
+
+	return nil
+}
+
+// ProcessEnrichmentJob processes a single enrichment application job (now public for external access)
+func (m *Module) ProcessEnrichmentJob(job *EnrichmentJob) error {
+	return m.processEnrichmentJob(job)
+}
+
+// GetTVShowValidator returns the TV show validator for external use
+func (m *Module) GetTVShowValidator() *TVShowValidator {
+	return m.tvShowValidator
+}
+
+// GetDuplicationManager returns the duplication manager for external use
+func (m *Module) GetDuplicationManager() *DuplicationManager {
+	return m.duplicationManager
+}
+
+// ValidateTVShowMetadata validates TV show metadata (public wrapper)
+func (m *Module) ValidateTVShowMetadata(title, tmdbID, description, firstAirDate string) *ValidationResult {
+	if m.tvShowValidator == nil {
+		m.tvShowValidator = NewTVShowValidator(m.db)
+	}
+	return m.tvShowValidator.ValidateTVShowMetadata(title, tmdbID, description, firstAirDate)
+}
+
+// DetectTVShowDuplicates detects potential duplicate TV show entries
+func (m *Module) DetectTVShowDuplicates() ([]DuplicateGroup, error) {
+	if m.duplicationManager == nil {
+		m.duplicationManager = NewDuplicationManager(m.db)
+	}
+	return m.duplicationManager.DetectDuplicates()
+}
+
+// GetTVShowMergeCandidates gets merge candidates with the specified confidence threshold
+func (m *Module) GetTVShowMergeCandidates(threshold float64) ([]MergeCandidate, error) {
+	if m.duplicationManager == nil {
+		m.duplicationManager = NewDuplicationManager(m.db)
+	}
+	return m.duplicationManager.GetMergeCandidates(threshold)
+}
+
+// MergeTVShows merges duplicate TV shows
+func (m *Module) MergeTVShows(primaryID, duplicateID string, dryRun bool) (*MergeResult, error) {
+	if m.duplicationManager == nil {
+		m.duplicationManager = NewDuplicationManager(m.db)
+	}
+	return m.duplicationManager.MergeShows(primaryID, duplicateID, dryRun)
+}
+
+// AutoMergeSafeTVShows automatically merges TV shows with high confidence
+func (m *Module) AutoMergeSafeTVShows(confidenceThreshold float64) ([]MergeResult, error) {
+	if m.duplicationManager == nil {
+		m.duplicationManager = NewDuplicationManager(m.db)
+	}
+	return m.duplicationManager.AutoMergeSafeCandidates(confidenceThreshold)
+}
+
+// RunDataQualityCheck runs a comprehensive data quality check for TV shows
+func (m *Module) RunDataQualityCheck() (*DataQualityReport, error) {
+	report := &DataQualityReport{
+		Timestamp:      time.Now(),
+		TotalShows:     0,
+		ValidShows:     0,
+		InvalidShows:   0,
+		DuplicateGroups: 0,
+		Issues:         []DataQualityIssue{},
+		Recommendations: []string{},
+	}
+
+	// Get all TV shows
+	var allShows []database.TVShow
+	if err := m.db.Find(&allShows).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch TV shows: %w", err)
+	}
+
+	report.TotalShows = len(allShows)
+
+	// Validate each show
+	for _, show := range allShows {
+		validation := m.ValidateTVShowMetadata(show.Title, show.TmdbID, show.Description, "")
+		
+		if validation.Valid && validation.Score > 0.5 {
+			report.ValidShows++
+		} else {
+			report.InvalidShows++
+			
+			issue := DataQualityIssue{
+				ShowID:      show.ID,
+				ShowTitle:   show.Title,
+				IssueType:   "validation_failed",
+				Severity:    "warning",
+				Description: fmt.Sprintf("Validation score: %.2f", validation.Score),
+				Warnings:    validation.Warnings,
+				Errors:      validation.Errors,
+			}
+			
+			if len(validation.Errors) > 0 {
+				issue.Severity = "error"
+			}
+			
+			report.Issues = append(report.Issues, issue)
+		}
+	}
+
+	// Check for duplicates
+	duplicates, err := m.DetectTVShowDuplicates()
+	if err != nil {
+		log.Printf("WARN: Failed to detect duplicates: %v", err)
+	} else {
+		report.DuplicateGroups = len(duplicates)
+		
+		for _, group := range duplicates {
+			for i, show := range group.Shows {
+				if i == 0 {
+					continue // Skip first (primary) show
+				}
+				
+				issue := DataQualityIssue{
+					ShowID:      show.ID,
+					ShowTitle:   show.Title,
+					IssueType:   "potential_duplicate",
+					Severity:    "warning",
+					Description: fmt.Sprintf("Potentially duplicate of: %s (similarity: %.2f)", group.Shows[0].Title, group.SimilarityScore),
+					Recommendations: group.Recommendations,
+				}
+				report.Issues = append(report.Issues, issue)
+			}
+		}
+	}
+
+	// Generate recommendations
+	if report.InvalidShows > 0 {
+		report.Recommendations = append(report.Recommendations, 
+			fmt.Sprintf("Found %d invalid TV shows that need attention", report.InvalidShows))
+	}
+	
+	if report.DuplicateGroups > 0 {
+		report.Recommendations = append(report.Recommendations, 
+			fmt.Sprintf("Found %d potential duplicate groups that could be merged", report.DuplicateGroups))
+	}
+
+	if float64(report.ValidShows)/float64(report.TotalShows) < 0.8 {
+		report.Recommendations = append(report.Recommendations, 
+			"Data quality is below 80% - consider running a cleanup scan")
+	}
+
+	return report, nil
+}
+
+// DataQualityReport represents a comprehensive data quality report
+type DataQualityReport struct {
+	Timestamp       time.Time           `json:"timestamp"`
+	TotalShows      int                 `json:"total_shows"`
+	ValidShows      int                 `json:"valid_shows"`
+	InvalidShows    int                 `json:"invalid_shows"`
+	DuplicateGroups int                 `json:"duplicate_groups"`
+	Issues          []DataQualityIssue  `json:"issues"`
+	Recommendations []string            `json:"recommendations"`
+}
+
+// DataQualityIssue represents a specific data quality issue
+type DataQualityIssue struct {
+	ShowID          string   `json:"show_id"`
+	ShowTitle       string   `json:"show_title"`
+	IssueType       string   `json:"issue_type"`       // validation_failed, potential_duplicate, etc.
+	Severity        string   `json:"severity"`         // error, warning, info
+	Description     string   `json:"description"`
+	Warnings        []string `json:"warnings,omitempty"`
+	Errors          []string `json:"errors,omitempty"`
+	Recommendations []string `json:"recommendations,omitempty"`
 }

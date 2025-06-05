@@ -214,6 +214,9 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.GET("/files/:id/album-id", m.getFileAlbumId)
 		mediaGroup.GET("/files/:id/album-artwork", m.getFileAlbumArtwork)
 
+		// TV Shows endpoints
+		mediaGroup.GET("/tv-shows", m.getTVShows)
+
 		// Upload endpoints removed as app doesn't support uploads
 
 		// Metadata endpoints

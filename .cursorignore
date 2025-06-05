@@ -1,1 +1,104 @@
 # Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+
+# Dependencies and package management
+node_modules/
+frontend/node_modules/
+backend/vendor/
+
+# Build artifacts and binaries
+frontend/dist/
+backend/bin/
+*.exe
+main
+migrate
+server
+viewra
+viewra-backend
+test-*
+
+# Generated files and coverage
+*.log
+startup.log
+coverage.out
+go.sum
+
+# Data and runtime directories
+viewra-data/
+backend/viewra-data/
+data/
+backend/data/
+docker-data/
+volumes/
+
+# Large database files and test data
+*.db
+*.sqlite
+*.sqlite3
+viewra-test
+
+# Media files (typically large and not useful for code assistance)
+*.mp3
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.wav
+*.flac
+*.m4a
+*.aac
+*.ogg
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+*.tiff
+
+# Temporary and cache directories
+tmp/
+temp/
+backend/tmp/
+.cache/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment and config files with secrets
+.env
+.env.local
+.env.production
+
+# Backup files
+*.bak
+*.backup
+
+# Documentation build outputs
+docs/_build/
+docs/build/
+
+# Lock files (useful to have in git but not for code assistance)
+package-lock.json
+yarn.lock
+
+# Large SQL dump files
+*.sql
+!**/migrations/*.sql
+!**/schema/*.sql

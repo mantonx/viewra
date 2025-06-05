@@ -377,8 +377,6 @@ const MusicLibrary = () => {
 
   return (
     <div className="bg-slate-900 rounded-lg p-6 shadow-xl">
-      <h2 className="text-xl font-semibold text-white mb-4">🎵 Music Library</h2>
-
       {loading && (
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500 mx-auto"></div>

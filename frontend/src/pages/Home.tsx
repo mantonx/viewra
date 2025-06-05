@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAtom } from 'jotai';
 import { apiStatusAtom } from '../store/atoms';
-import {
-  ApiTester,
-  SystemInfo,
-  MediaLibraryManager,
-  MusicLibrary,
-  PluginAdminPageCards,
-} from '../components';
+import { ApiTester, SystemInfo, MediaLibraryManager, PluginAdminPageCards } from '../components';
 import type { User } from '../types/system.types';
 
 const Home = () => {
@@ -79,7 +73,6 @@ const Home = () => {
       <ApiTester />
       {/* MediaUpload component removed as app won't support uploads */}
       <MediaLibraryManager />
-      <MusicLibrary />
       <PluginAdminPageCards />
     </div>
   );

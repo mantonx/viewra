@@ -3,6 +3,8 @@ import { Provider } from 'jotai';
 import { Header } from './components';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
+import Music from './pages/Music';
+import TVShows from './pages/TVShows';
 
 const App = () => {
   return (
@@ -13,6 +15,8 @@ const App = () => {
           {/* Docker Compose Development Environment */}
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/music" element={<Music />} />
+            <Route path="/tv-shows" element={<TVShows />} />
             <Route path="/admin" element={<Admin />} />
             {/* Future routes for media manager:
                 <Route path="/library" element={<Library />} />
