@@ -366,7 +366,6 @@ func (m *Manager) updateExistingAsset(existing *MediaAsset, request *AssetReques
 		"plugin_id": request.PluginID,
 		// Update legacy fields for compatibility
 		"size_bytes": int64(len(request.Data)),
-		"is_default": request.Preferred,
 		"resolution": m.formatResolution(request.Width, request.Height),
 		"updated_at": time.Now(),
 	}

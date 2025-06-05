@@ -185,6 +185,13 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx *pluginmodule.Metadat
 		// Not a fatal error - continue without artwork
 	}
 
+	// NEW: Scan for external artwork files in the album directory
+	albumDir := filepath.Dir(path)
+	if err := p.scanExternalArtwork(albumDir, album.ID); err != nil {
+		log.Printf("WARNING: Failed to scan external artwork in %s: %v", albumDir, err)
+		// Not a fatal error - continue without external artwork
+	}
+
 	log.Printf("INFO: Successfully processed file with enrichment core plugin: %s", path)
 	return nil
 }
@@ -259,55 +266,147 @@ func (p *EnrichmentCorePlugin) extractMetadata(path string) (*TrackInfo, error) 
 
 // createOrGetArtist creates a new artist or returns existing one
 func (p *EnrichmentCorePlugin) createOrGetArtist(artistName string) (*database.Artist, error) {
+	// First, try to get existing artist (handles most cases efficiently)
 	var artist database.Artist
-
-	// Check if artist already exists
 	result := p.db.Where("name = ?", artistName).First(&artist)
 	if result.Error == nil {
 		return &artist, nil
 	}
 
-	// Create new artist
-	artist = database.Artist{
-		ID:   uuid.New().String(),
-		Name: artistName,
+	// If not found, use transaction with retry to handle race conditions
+	for attempt := 0; attempt < 3; attempt++ {
+		// Start transaction
+		tx := p.db.Begin()
+		if tx.Error != nil {
+			return nil, fmt.Errorf("failed to start transaction: %w", tx.Error)
+		}
+
+		// Try to get existing artist again within transaction
+		var existingArtist database.Artist
+		err := tx.Where("name = ?", artistName).First(&existingArtist).Error
+		if err == nil {
+			// Found existing artist, rollback and return it
+			tx.Rollback()
+			return &existingArtist, nil
+		}
+
+		// Create new artist with unique constraint handling
+		newArtist := database.Artist{
+			ID:   uuid.New().String(),
+			Name: artistName,
+		}
+
+		err = tx.Create(&newArtist).Error
+		if err != nil {
+			tx.Rollback()
+			
+			// Check if it's a unique constraint violation (duplicate name)
+			if strings.Contains(strings.ToLower(err.Error()), "unique") || 
+			   strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				
+				log.Printf("DEBUG: Detected concurrent artist creation for '%s', retrying (attempt %d)", artistName, attempt+1)
+				
+				// Another thread created the artist, try to get it
+				var concurrentArtist database.Artist
+				if retryErr := p.db.Where("name = ?", artistName).First(&concurrentArtist).Error; retryErr == nil {
+					return &concurrentArtist, nil
+				}
+				
+				// If still not found, retry the whole process
+				if attempt < 2 {
+					continue
+				}
+			}
+			
+			return nil, fmt.Errorf("failed to create artist after %d attempts: %w", attempt+1, err)
+		}
+
+		// Commit transaction
+		if err := tx.Commit().Error; err != nil {
+			return nil, fmt.Errorf("failed to commit artist creation: %w", err)
+		}
+
+		log.Printf("INFO: Created new artist: %s (ID: %s)", artistName, newArtist.ID)
+		return &newArtist, nil
 	}
 
-	if err := p.db.Create(&artist).Error; err != nil {
-		return nil, fmt.Errorf("failed to create artist: %w", err)
-	}
-
-	return &artist, nil
+	return nil, fmt.Errorf("failed to create or get artist '%s' after 3 attempts", artistName)
 }
 
 // createOrGetAlbum creates a new album or returns existing one
 func (p *EnrichmentCorePlugin) createOrGetAlbum(albumTitle string, artistID string, year int) (*database.Album, error) {
+	// First, try to get existing album (handles most cases efficiently)
 	var album database.Album
-
-	// Check if album already exists for this artist
 	result := p.db.Where("title = ? AND artist_id = ?", albumTitle, artistID).First(&album)
 	if result.Error == nil {
 		return &album, nil
 	}
 
-	// Create new album
-	album = database.Album{
-		ID:       uuid.New().String(),
-		Title:    albumTitle,
-		ArtistID: artistID,
+	// If not found, use transaction with retry to handle race conditions
+	for attempt := 0; attempt < 3; attempt++ {
+		// Start transaction
+		tx := p.db.Begin()
+		if tx.Error != nil {
+			return nil, fmt.Errorf("failed to start transaction: %w", tx.Error)
+		}
+
+		// Try to get existing album again within transaction
+		var existingAlbum database.Album
+		err := tx.Where("title = ? AND artist_id = ?", albumTitle, artistID).First(&existingAlbum).Error
+		if err == nil {
+			// Found existing album, rollback and return it
+			tx.Rollback()
+			return &existingAlbum, nil
+		}
+
+		// Create new album with unique constraint handling
+		newAlbum := database.Album{
+			ID:       uuid.New().String(),
+			Title:    albumTitle,
+			ArtistID: artistID,
+		}
+
+		// Set release date if year is provided
+		if year > 0 {
+			releaseDate := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
+			newAlbum.ReleaseDate = &releaseDate
+		}
+
+		err = tx.Create(&newAlbum).Error
+		if err != nil {
+			tx.Rollback()
+			
+			// Check if it's a unique constraint violation (duplicate title+artist)
+			if strings.Contains(strings.ToLower(err.Error()), "unique") || 
+			   strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				
+				log.Printf("DEBUG: Detected concurrent album creation for '%s' by artist %s, retrying (attempt %d)", albumTitle, artistID, attempt+1)
+				
+				// Another thread created the album, try to get it
+				var concurrentAlbum database.Album
+				if retryErr := p.db.Where("title = ? AND artist_id = ?", albumTitle, artistID).First(&concurrentAlbum).Error; retryErr == nil {
+					return &concurrentAlbum, nil
+				}
+				
+				// If still not found, retry the whole process
+				if attempt < 2 {
+					continue
+				}
+			}
+			
+			return nil, fmt.Errorf("failed to create album after %d attempts: %w", attempt+1, err)
+		}
+
+		// Commit transaction
+		if err := tx.Commit().Error; err != nil {
+			return nil, fmt.Errorf("failed to commit album creation: %w", err)
+		}
+
+		log.Printf("INFO: Created new album: '%s' for artist %s (ID: %s)", albumTitle, artistID, newAlbum.ID)
+		return &newAlbum, nil
 	}
 
-	// Set release date if year is provided
-	if year > 0 {
-		releaseDate := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
-		album.ReleaseDate = &releaseDate
-	}
-
-	if err := p.db.Create(&album).Error; err != nil {
-		return nil, fmt.Errorf("failed to create album: %w", err)
-	}
-
-	return &album, nil
+	return nil, fmt.Errorf("failed to create or get album '%s' for artist %s after 3 attempts", albumTitle, artistID)
 }
 
 // createOrUpdateTrack creates a new track or updates existing one
@@ -507,5 +606,192 @@ func (p *EnrichmentCorePlugin) Initialize() error {
 // Shutdown performs any cleanup needed when the plugin is disabled (implements CorePlugin)
 func (p *EnrichmentCorePlugin) Shutdown() error {
 	log.Printf("DEBUG: Shutting down Music Metadata Extractor Core Plugin")
+	return nil
+}
+
+// scanExternalArtwork scans for external artwork files in the album directory
+func (p *EnrichmentCorePlugin) scanExternalArtwork(albumDir string, albumID string) error {
+	log.Printf("DEBUG: Scanning for external artwork in directory: %s", albumDir)
+
+	// Define artwork filenames to look for (in order of preference)
+	artworkFilenames := []string{
+		"folder.jpg", "folder.png", "folder.webp",
+		"cover.jpg", "cover.png", "cover.webp", 
+		"front.jpg", "front.png", "front.webp",
+		"artwork.jpg", "artwork.png", "artwork.webp",
+		"album.jpg", "album.png", "album.webp",
+		"albumart.jpg", "albumart.png", "albumart.webp",
+	}
+
+	// Supported image extensions
+	supportedExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".webp": true, 
+		".bmp": true, ".tiff": true, ".gif": true,
+	}
+
+	// Find artwork files in the directory
+	artworkFiles, err := p.findExternalArtworkFiles(albumDir, artworkFilenames, supportedExts)
+	if err != nil {
+		return fmt.Errorf("failed to find external artwork files: %w", err)
+	}
+
+	if len(artworkFiles) == 0 {
+		log.Printf("DEBUG: No external artwork files found in %s", albumDir)
+		return nil
+	}
+
+	log.Printf("INFO: Found %d external artwork file(s) in %s: %v", len(artworkFiles), albumDir, artworkFiles)
+
+	// Process each artwork file (first one will be marked as preferred)
+	for i, artworkPath := range artworkFiles {
+		preferred := i == 0 // First file is preferred
+		
+		if err := p.processExternalArtworkFile(artworkPath, albumID, preferred); err != nil {
+			log.Printf("WARNING: Failed to process external artwork file %s: %v", artworkPath, err)
+			continue
+		}
+		
+		log.Printf("INFO: Successfully processed external artwork: %s (preferred: %t)", artworkPath, preferred)
+	}
+
+	return nil
+}
+
+// findExternalArtworkFiles finds external artwork files in the given directory
+func (p *EnrichmentCorePlugin) findExternalArtworkFiles(albumDir string, artworkFilenames []string, supportedExts map[string]bool) ([]string, error) {
+	var artworkFiles []string
+
+	entries, err := os.ReadDir(albumDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	// Create a map for quick lookup of artwork filenames
+	artworkMap := make(map[string]bool)
+	for _, filename := range artworkFilenames {
+		artworkMap[strings.ToLower(filename)] = true
+	}
+
+	// Scan directory entries
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := strings.ToLower(entry.Name())
+		ext := strings.ToLower(filepath.Ext(filename))
+
+		// Check if it's a supported image extension
+		if !supportedExts[ext] {
+			continue
+		}
+
+		// Check if it matches our artwork filename patterns
+		if artworkMap[filename] {
+			fullPath := filepath.Join(albumDir, entry.Name())
+			artworkFiles = append(artworkFiles, fullPath)
+		}
+	}
+
+	// Sort files by preference order (based on the order in artworkFilenames)
+	return p.sortArtworkFilesByPreference(artworkFiles, artworkFilenames), nil
+}
+
+// sortArtworkFilesByPreference sorts artwork files by preference order
+func (p *EnrichmentCorePlugin) sortArtworkFilesByPreference(files []string, preferenceOrder []string) []string {
+	if len(files) <= 1 {
+		return files
+	}
+
+	// Create preference map
+	preferenceMap := make(map[string]int)
+	for i, preferred := range preferenceOrder {
+		preferenceMap[strings.ToLower(preferred)] = i
+	}
+
+	// Sort files by preference
+	sortedFiles := make([]string, len(files))
+	copy(sortedFiles, files)
+
+	// Simple bubble sort by preference
+	for i := 0; i < len(sortedFiles); i++ {
+		for j := i + 1; j < len(sortedFiles); j++ {
+			file1 := strings.ToLower(filepath.Base(sortedFiles[i]))
+			file2 := strings.ToLower(filepath.Base(sortedFiles[j]))
+			
+			pref1, exists1 := preferenceMap[file1]
+			pref2, exists2 := preferenceMap[file2]
+			
+			// If both exist in preference map, sort by preference
+			if exists1 && exists2 {
+				if pref1 > pref2 {
+					sortedFiles[i], sortedFiles[j] = sortedFiles[j], sortedFiles[i]
+				}
+			} else if exists2 && !exists1 {
+				// If only file2 is in preference map, it should come first
+				sortedFiles[i], sortedFiles[j] = sortedFiles[j], sortedFiles[i]
+			}
+		}
+	}
+
+	return sortedFiles
+}
+
+// processExternalArtworkFile processes a single external artwork file
+func (p *EnrichmentCorePlugin) processExternalArtworkFile(artworkPath string, albumID string, preferred bool) error {
+	// Check file size (limit to 10MB)
+	const maxFileSize = 10 * 1024 * 1024
+	fileInfo, err := os.Stat(artworkPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat file: %w", err)
+	}
+
+	if fileInfo.Size() > maxFileSize {
+		return fmt.Errorf("file too large: %d bytes (max: %d)", fileInfo.Size(), maxFileSize)
+	}
+
+	// Read the artwork file
+	artworkData, err := os.ReadFile(artworkPath)
+	if err != nil {
+		return fmt.Errorf("failed to read artwork file: %w", err)
+	}
+
+	// Detect MIME type
+	mimeType := p.detectImageMimeType(artworkData)
+	if mimeType == "" {
+		return fmt.Errorf("unsupported image format")
+	}
+
+	// Save artwork using asset module
+	assetManager := assetmodule.GetAssetManager()
+	if assetManager == nil {
+		return fmt.Errorf("asset manager not available")
+	}
+
+	// Parse the albumID string to UUID
+	albumUUID, err := uuid.Parse(albumID)
+	if err != nil {
+		return fmt.Errorf("invalid album ID format: %w", err)
+	}
+
+	// Create asset request for external artwork
+	request := &assetmodule.AssetRequest{
+		EntityType: assetmodule.EntityTypeAlbum,
+		EntityID:   albumUUID,
+		Type:       assetmodule.AssetTypeCover,
+		Source:     assetmodule.SourceLocal, // Use SourceLocal for external files
+		PluginID:   "core_enrichment",
+		Data:       artworkData,
+		Format:     mimeType,
+		Preferred:  preferred, // First file found is preferred
+	}
+
+	// Save the artwork
+	_, err = assetManager.SaveAsset(request)
+	if err != nil {
+		return fmt.Errorf("failed to save external artwork: %w", err)
+	}
+
+	log.Printf("INFO: Saved external artwork for album %s from %s (preferred: %t)", albumID, artworkPath, preferred)
 	return nil
 }
