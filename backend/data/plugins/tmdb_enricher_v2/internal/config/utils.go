@@ -26,22 +26,28 @@ func ValidateAPIKey(apiKey string) error {
 		return fmt.Errorf("API key cannot be empty")
 	}
 
-	// TMDb API keys are typically 32 character hexadecimal strings
-	if len(apiKey) != 32 {
-		return fmt.Errorf("API key must be 32 characters long")
+	// Check for JWT token format (new TMDb API Read Access Token)
+	if strings.HasPrefix(apiKey, "eyJ") && strings.Count(apiKey, ".") == 2 {
+		// JWT format: header.payload.signature
+		parts := strings.Split(apiKey, ".")
+		if len(parts) == 3 && len(parts[0]) > 10 && len(parts[1]) > 10 && len(parts[2]) > 10 {
+			return nil // Valid JWT format
+		}
+		return fmt.Errorf("invalid JWT token format")
 	}
 
-	// Check if it's hexadecimal
-	matched, err := regexp.MatchString("^[a-f0-9]{32}$", apiKey)
-	if err != nil {
-		return fmt.Errorf("invalid API key format: %w", err)
+	// Legacy format: 32 character hexadecimal strings
+	if len(apiKey) == 32 {
+		matched, err := regexp.MatchString("^[a-f0-9]{32}$", apiKey)
+		if err != nil {
+			return fmt.Errorf("invalid API key format: %w", err)
+		}
+		if matched {
+			return nil // Valid legacy format
+		}
 	}
 
-	if !matched {
-		return fmt.Errorf("API key must contain only lowercase hexadecimal characters")
-	}
-
-	return nil
+	return fmt.Errorf("API key must be either a 32-character hexadecimal string or a JWT token")
 }
 
 // ValidateLanguageCode validates an ISO 639-1 language code
