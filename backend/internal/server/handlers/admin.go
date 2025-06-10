@@ -119,10 +119,10 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 
 	// Import the deletion service from mediamodule
 	db := database.GetDB()
-	
+
 	// Use the comprehensive deletion service
 	deletionService := mediamodule.NewLibraryDeletionService(db, h.eventBus)
-	
+
 	// Get scanner manager for proper cleanup
 	scannerManager, err := getScannerManager()
 	if err == nil && scannerManager != nil {
@@ -138,7 +138,7 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 		logger.Error("Admin library deletion failed", "library_id", libraryID, "error", result.Error)
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": result.Message,
+				"error":   result.Message,
 				"details": result.Error.Error(),
 			})
 		} else {
@@ -152,10 +152,10 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 	logger.Info("Admin library deletion completed successfully", "library_id", libraryID, "duration", result.Duration)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": result.Message,
-		"library_id": result.LibraryID,
+		"message":       result.Message,
+		"library_id":    result.LibraryID,
 		"cleanup_stats": result.CleanupStats,
-		"duration": result.Duration.String(),
+		"duration":      result.Duration.String(),
 	})
 }
 

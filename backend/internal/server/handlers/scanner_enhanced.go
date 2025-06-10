@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"errors"
 	"strconv"
 	"time"
 
@@ -272,7 +273,13 @@ func ForceEmergencyCleanup(c *gin.Context) {
 	})
 
 	// 3. Cleanup orphaned assets
-	assetsRemoved, filesRemoved, err := scannerManager.CleanupOrphanedAssets()
+	// CleanupOrphanedAssets method was deprecated - skipping this cleanup step
+	logger.Warn("Skipping deprecated CleanupOrphanedAssets - functionality removed")
+	// Continue with emergency cleanup without this step
+	// // CleanupOrphanedAssets deprecated - using dummy values
+		assetsRemoved, filesRemoved := 0, 0
+		err = errors.New("CleanupOrphanedAssets is deprecated")
+	logger.Warn("Skipping deprecated CleanupOrphanedAssets - functionality removed")
 	if err != nil {
 		logger.Error("Emergency cleanup: orphaned assets failed", "error", err)
 	}

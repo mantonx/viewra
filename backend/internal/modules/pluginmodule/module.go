@@ -4,51 +4,72 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-hclog"
+	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"gorm.io/gorm"
 )
+
+// Auto-register the module when imported
+func init() {
+	Register()
+}
+
+const (
+	ModuleID   = "system.plugins"
+	ModuleName = "Plugin Manager"
+)
+
+// Register registers this module with the module system
+func Register() {
+	// Create a temporary plugin module for registration - it will be properly initialized later
+	config := &PluginModuleConfig{
+		PluginDir: DefaultPluginDir, // Default plugin directory
+	}
+	pluginModule := NewPluginModule(nil, config) // DB will be set during initialization
+	modulemanager.Register(pluginModule)
+}
 
 // PluginModule coordinates all plugin management functionality
 // It serves as the main entry point for plugin operations and coordinates
 // between core plugins, external plugins, library configurations, and media handling
 type PluginModule struct {
-	db *gorm.DB
+	// Core dependencies
+	db     *gorm.DB
+	logger hclog.Logger
+	config *PluginModuleConfig
 
-	// Sub-managers
+	// Plugin sub-managers
 	coreManager     *CorePluginManager
 	externalManager *ExternalPluginManager
 	libraryManager  *LibraryPluginManager
 	mediaManager    *MediaPluginManager
-
-	// Configuration
-	config *PluginModuleConfig
-	logger hclog.Logger
 }
 
-// NewPluginModule creates a new plugin module instance
-func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
-	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "plugin-module",
-		Level: hclog.Debug,
-	})
+// Module interface implementation
+func (pm *PluginModule) ID() string {
+	return ModuleID
+}
 
-	logger.Info("Creating new plugin module")
-	logger.Info("Creating external plugin manager")
-	externalManager := NewExternalPluginManager(db, logger)
-	logger.Info("External plugin manager created", "manager", externalManager != nil)
+func (pm *PluginModule) Name() string {
+	return ModuleName
+}
 
-	pm := &PluginModule{
-		db:              db,
-		config:          config,
-		logger:          logger,
-		coreManager:     NewCorePluginManager(db),
-		externalManager: externalManager,
-		libraryManager:  NewLibraryPluginManager(db),
-		mediaManager:    NewMediaPluginManager(db),
-	}
-	
-	logger.Info("Plugin module created", "external_manager_stored", pm.externalManager != nil)
-	return pm
+func (pm *PluginModule) Core() bool {
+	return true // Plugin module is a core module
+}
+
+func (pm *PluginModule) Migrate(db *gorm.DB) error {
+	pm.logger.Info("running plugin module database migrations")
+	// Database migrations for plugin-related tables would go here
+	// For now, plugin tables are defined elsewhere
+	return nil
+}
+
+func (pm *PluginModule) Init() error {
+	pm.logger.Info("initializing plugin module")
+	// The actual initialization happens in Initialize() method
+	return nil
 }
 
 // Initialize initializes the plugin module and all sub-managers
@@ -214,4 +235,218 @@ func (pm *PluginModule) GetLibraryManager() *LibraryPluginManager {
 // GetMediaManager returns the media plugin manager
 func (pm *PluginModule) GetMediaManager() *MediaPluginManager {
 	return pm.mediaManager
+}
+
+// RegisterRoutes registers HTTP routes for the plugin module
+func (pm *PluginModule) RegisterRoutes(router *gin.Engine) {
+	pm.logger.Info("registering plugin module HTTP routes")
+
+	// Register plugin management routes
+	api := router.Group("/api/plugins")
+	{
+		// Plugin listing and management
+		api.GET("", pm.listAllPluginsHandler)
+		api.GET("/core", pm.listCorePluginsHandler)
+		api.GET("/external", pm.listExternalPluginsHandler)
+		api.GET("/external/:plugin_id", pm.getExternalPluginHandler)
+
+		// Plugin operations
+		api.POST("/external/:plugin_id/enable", pm.enableExternalPluginHandler)
+		api.POST("/external/:plugin_id/disable", pm.disableExternalPluginHandler)
+		api.POST("/external/:plugin_id/load", pm.loadExternalPluginHandler)
+		api.POST("/external/:plugin_id/unload", pm.unloadExternalPluginHandler)
+		api.POST("/external/refresh", pm.refreshExternalPluginsHandler)
+
+		// Core plugin operations
+		api.POST("/core/:plugin_name/enable", pm.enableCorePluginHandler)
+		api.POST("/core/:plugin_name/disable", pm.disableCorePluginHandler)
+	}
+
+	// Register health monitoring routes through external manager
+	if pm.externalManager != nil {
+		pm.externalManager.RegisterHealthRoutes(router)
+		pm.logger.Info("registered external plugin health monitoring routes")
+	}
+
+	pm.logger.Info("plugin module HTTP routes registered successfully")
+}
+
+// HTTP Handlers
+
+// listAllPluginsHandler returns all plugins (core and external)
+func (pm *PluginModule) listAllPluginsHandler(c *gin.Context) {
+	plugins := pm.ListAllPlugins()
+	c.JSON(StatusOK, gin.H{
+		"plugins": plugins,
+		"count":   len(plugins),
+	})
+}
+
+// listCorePluginsHandler returns all core plugins
+func (pm *PluginModule) listCorePluginsHandler(c *gin.Context) {
+	plugins := pm.coreManager.ListCorePluginInfo()
+	c.JSON(StatusOK, gin.H{
+		"plugins": plugins,
+		"count":   len(plugins),
+	})
+}
+
+// listExternalPluginsHandler returns all external plugins
+func (pm *PluginModule) listExternalPluginsHandler(c *gin.Context) {
+	plugins := pm.externalManager.ListPlugins()
+	c.JSON(StatusOK, gin.H{
+		"plugins": plugins,
+		"count":   len(plugins),
+	})
+}
+
+// getExternalPluginHandler returns a specific external plugin
+func (pm *PluginModule) getExternalPluginHandler(c *gin.Context) {
+	pluginID := c.Param("plugin_id")
+	if pluginID == "" {
+		c.JSON(StatusBadRequest, gin.H{"error": ErrPluginIDRequired})
+		return
+	}
+
+	plugin, exists := pm.externalManager.GetPlugin(pluginID)
+	if !exists {
+		c.JSON(StatusNotFound, gin.H{"error": ErrPluginNotFound})
+		return
+	}
+
+	c.JSON(StatusOK, gin.H{"plugin": plugin})
+}
+
+// enableExternalPluginHandler enables an external plugin
+func (pm *PluginModule) enableExternalPluginHandler(c *gin.Context) {
+	pluginID := c.Param("plugin_id")
+	if pluginID == "" {
+		c.JSON(StatusBadRequest, gin.H{"error": ErrPluginIDRequired})
+		return
+	}
+
+	if err := pm.EnableExternalPlugin(pluginID); err != nil {
+		c.JSON(StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(StatusOK, gin.H{"message": "Plugin enabled successfully", "plugin_id": pluginID})
+}
+
+// disableExternalPluginHandler disables an external plugin
+func (pm *PluginModule) disableExternalPluginHandler(c *gin.Context) {
+	pluginID := c.Param("plugin_id")
+	if pluginID == "" {
+		c.JSON(400, gin.H{"error": "Plugin ID is required"})
+		return
+	}
+
+	if err := pm.DisableExternalPlugin(pluginID); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Plugin disabled successfully", "plugin_id": pluginID})
+}
+
+// loadExternalPluginHandler loads an external plugin
+func (pm *PluginModule) loadExternalPluginHandler(c *gin.Context) {
+	pluginID := c.Param("plugin_id")
+	if pluginID == "" {
+		c.JSON(400, gin.H{"error": "Plugin ID is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	if err := pm.LoadExternalPlugin(ctx, pluginID); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Plugin loaded successfully", "plugin_id": pluginID})
+}
+
+// unloadExternalPluginHandler unloads an external plugin
+func (pm *PluginModule) unloadExternalPluginHandler(c *gin.Context) {
+	pluginID := c.Param("plugin_id")
+	if pluginID == "" {
+		c.JSON(400, gin.H{"error": "Plugin ID is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	if err := pm.UnloadExternalPlugin(ctx, pluginID); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Plugin unloaded successfully", "plugin_id": pluginID})
+}
+
+// refreshExternalPluginsHandler re-discovers external plugins
+func (pm *PluginModule) refreshExternalPluginsHandler(c *gin.Context) {
+	if err := pm.RefreshExternalPlugins(); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "External plugins refreshed successfully"})
+}
+
+// enableCorePluginHandler enables a core plugin
+func (pm *PluginModule) enableCorePluginHandler(c *gin.Context) {
+	pluginName := c.Param("plugin_name")
+	if pluginName == "" {
+		c.JSON(400, gin.H{"error": "Plugin name is required"})
+		return
+	}
+
+	if err := pm.EnableCorePlugin(pluginName); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Core plugin enabled successfully", "plugin_name": pluginName})
+}
+
+// disableCorePluginHandler disables a core plugin
+func (pm *PluginModule) disableCorePluginHandler(c *gin.Context) {
+	pluginName := c.Param("plugin_name")
+	if pluginName == "" {
+		c.JSON(400, gin.H{"error": "Plugin name is required"})
+		return
+	}
+
+	if err := pm.DisableCorePlugin(pluginName); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Core plugin disabled successfully", "plugin_name": pluginName})
+}
+
+// NewPluginModule creates a new plugin module instance
+func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "plugin-module",
+		Level: hclog.Debug,
+	})
+
+	logger.Info("Creating new plugin module")
+	logger.Info("Creating external plugin manager")
+	externalManager := NewExternalPluginManager(db, logger)
+	logger.Info("External plugin manager created", "manager", externalManager != nil)
+
+	pm := &PluginModule{
+		db:              db,
+		config:          config,
+		logger:          logger,
+		coreManager:     NewCorePluginManager(db),
+		externalManager: externalManager,
+		libraryManager:  NewLibraryPluginManager(db, logger),
+		mediaManager:    NewMediaPluginManager(db, logger),
+	}
+
+	logger.Info("Plugin module created", "external_manager_stored", pm.externalManager != nil)
+	return pm
 }

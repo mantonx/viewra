@@ -945,7 +945,7 @@ func GetMonitoringStatus(c *gin.Context) {
 
 // CleanupOrphanedAssets removes assets that reference non-existent media files
 func CleanupOrphanedAssets(c *gin.Context) {
-	scannerManager, err := getScannerManager()
+	_, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Scanner module not available",
@@ -954,7 +954,8 @@ func CleanupOrphanedAssets(c *gin.Context) {
 		return
 	}
 
-	assetsRemoved, filesRemoved, err := scannerManager.CleanupOrphanedAssets()
+	assetsRemoved, filesRemoved := 0, 0
+	err = fmt.Errorf("CleanupOrphanedAssets method is deprecated")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to cleanup orphaned assets",
@@ -972,7 +973,7 @@ func CleanupOrphanedAssets(c *gin.Context) {
 
 // CleanupOrphanedFiles removes asset files from disk that have no corresponding database records
 func CleanupOrphanedFiles(c *gin.Context) {
-	scannerManager, err := getScannerManager()
+	_, err := getScannerManager()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Scanner module not available",
@@ -981,7 +982,8 @@ func CleanupOrphanedFiles(c *gin.Context) {
 		return
 	}
 
-	filesRemoved, err := scannerManager.CleanupOrphanedFiles()
+	filesRemoved := 0
+	err = fmt.Errorf("CleanupOrphanedFiles method is deprecated")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to cleanup orphaned files",

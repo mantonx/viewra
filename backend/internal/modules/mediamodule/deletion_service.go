@@ -55,8 +55,6 @@ type ScannerManagerInterface interface {
 	GetAllScans() ([]database.ScanJob, error)
 	TerminateScan(jobID uint32) error
 	CleanupJobsByLibrary(libraryID uint32) (int64, error)
-	CleanupOrphanedAssets() (int, int, error)
-	CleanupOrphanedFiles() (int, error)
 }
 
 // NewLibraryDeletionService creates a new library deletion service
@@ -541,28 +539,7 @@ func (lds *LibraryDeletionService) cleanupOrphanedData(stats *CleanupStats) erro
 
 	logger.Info("Cleaning up orphaned assets and files")
 
-	// Cleanup orphaned assets
-	assetsRemoved, filesRemoved, err := lds.scannerManager.CleanupOrphanedAssets()
-	if err != nil {
-		logger.Warn("Failed to cleanup orphaned assets", "error", err)
-	} else {
-		stats.AssetFilesRemoved = int64(filesRemoved)
-		if assetsRemoved > 0 || filesRemoved > 0 {
-			logger.Info("Cleaned up orphaned assets", "assets_removed", assetsRemoved, "files_removed", filesRemoved)
-		}
-	}
-
-	// Cleanup orphaned files
-	orphanedFilesRemoved, err := lds.scannerManager.CleanupOrphanedFiles()
-	if err != nil {
-		logger.Warn("Failed to cleanup orphaned files", "error", err)
-	} else {
-		stats.OrphanedFilesRemoved = int64(orphanedFilesRemoved)
-		if orphanedFilesRemoved > 0 {
-			logger.Info("Cleaned up orphaned files", "files_removed", orphanedFilesRemoved)
-		}
-	}
-
+	logger.Info("Orphaned data cleanup skipped - deprecated cleanup methods were removed")
 	return nil
 }
 

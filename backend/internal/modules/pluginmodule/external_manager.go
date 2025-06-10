@@ -2,6 +2,7 @@ package pluginmodule
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -37,11 +38,11 @@ type ExternalPluginInterface interface {
 	Stop() error
 	Info() (*ExternalPluginInfo, error)
 	Health() error
-	
+
 	// Database service for creating plugin tables
 	GetModels() []string
 	Migrate(connectionString string) error
-	
+
 	// Scanner hook service for enrichment during scanning
 	OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error
 	OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error
@@ -95,7 +96,7 @@ type ExternalPluginGRPCClient struct {
 // Core plugin service implementations
 func (c *ExternalPluginGRPCClient) Initialize(ctx *ExternalPluginContext) error {
 	client := proto.NewPluginServiceClient(c.conn)
-	
+
 	// Convert ExternalPluginContext to proto.PluginContext
 	protoCtx := &proto.PluginContext{
 		PluginId:        ctx.PluginID,
@@ -105,65 +106,65 @@ func (c *ExternalPluginGRPCClient) Initialize(ctx *ExternalPluginContext) error 
 		BasePath:        ctx.BasePath,
 		Config:          make(map[string]string), // Empty config for now
 	}
-	
+
 	req := &proto.InitializeRequest{Context: protoCtx}
 	resp, err := client.Initialize(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin Initialize failed: %w", err)
 	}
-	
+
 	if !resp.Success {
 		return fmt.Errorf("plugin Initialize returned error: %s", resp.Error)
 	}
-	
+
 	return nil
 }
 
 func (c *ExternalPluginGRPCClient) Start() error {
 	client := proto.NewPluginServiceClient(c.conn)
-	
+
 	req := &proto.StartRequest{}
 	resp, err := client.Start(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin Start failed: %w", err)
 	}
-	
+
 	if !resp.Success {
 		return fmt.Errorf("plugin Start returned error: %s", resp.Error)
 	}
-	
+
 	return nil
 }
 
 func (c *ExternalPluginGRPCClient) Stop() error {
 	client := proto.NewPluginServiceClient(c.conn)
-	
+
 	req := &proto.StopRequest{}
 	resp, err := client.Stop(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin Stop failed: %w", err)
 	}
-	
+
 	if !resp.Success {
 		return fmt.Errorf("plugin Stop returned error: %s", resp.Error)
 	}
-	
+
 	return nil
 }
 
 func (c *ExternalPluginGRPCClient) Info() (*ExternalPluginInfo, error) {
 	client := proto.NewPluginServiceClient(c.conn)
-	
+
 	req := &proto.InfoRequest{}
 	resp, err := client.Info(context.Background(), req)
 	if err != nil {
 		return nil, fmt.Errorf("plugin Info failed: %w", err)
 	}
-	
+
 	if resp.Info == nil {
 		return nil, fmt.Errorf("plugin Info returned nil info")
 	}
-	
+
 	return &ExternalPluginInfo{
 		ID:          resp.Info.Id,
 		Name:        resp.Info.Name,
@@ -176,112 +177,103 @@ func (c *ExternalPluginGRPCClient) Info() (*ExternalPluginInfo, error) {
 
 func (c *ExternalPluginGRPCClient) Health() error {
 	client := proto.NewPluginServiceClient(c.conn)
-	
+
 	req := &proto.HealthRequest{}
 	resp, err := client.Health(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin Health failed: %w", err)
 	}
-	
+
 	if !resp.Healthy {
 		return fmt.Errorf("plugin Health check failed: %s", resp.Error)
 	}
-	
+
 	return nil
 }
 
 // Database service implementations
 func (c *ExternalPluginGRPCClient) GetModels() []string {
-	fmt.Printf("DEBUG: GetModels() called - creating DatabaseService client\n")
 	client := proto.NewDatabaseServiceClient(c.conn)
-	
-	fmt.Printf("DEBUG: GetModels() - making gRPC call\n")
+
 	req := &proto.GetModelsRequest{}
 	resp, err := client.GetModels(context.Background(), req)
 	if err != nil {
-		// Log the actual error so we can debug issues
-		// Note: Using fmt.Printf since we don't have access to logger in this struct
-		fmt.Printf("ERROR: GetModels() gRPC call failed: %v\n", err)
 		// Return empty array - plugin might not implement database service or might not be ready
 		return []string{}
 	}
-	
+
 	if resp == nil {
-		fmt.Printf("ERROR: GetModels() returned nil response\n")
 		return []string{}
 	}
-	
-	// Log successful call with model count for debugging
-	fmt.Printf("DEBUG: GetModels() returned %d models: %v\n", len(resp.ModelNames), resp.ModelNames)
-	
+
 	return resp.ModelNames
 }
 
 func (c *ExternalPluginGRPCClient) Migrate(connectionString string) error {
 	client := proto.NewDatabaseServiceClient(c.conn)
-	
+
 	req := &proto.MigrateRequest{ConnectionString: connectionString}
 	resp, err := client.Migrate(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin Migrate failed: %w", err)
 	}
-	
+
 	if !resp.Success {
 		return fmt.Errorf("plugin Migrate returned error: %s", resp.Error)
 	}
-	
+
 	return nil
 }
 
 // Scanner hook service implementations
 func (c *ExternalPluginGRPCClient) OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error {
 	client := proto.NewScannerHookServiceClient(c.conn)
-	
+
 	req := &proto.OnMediaFileScannedRequest{
 		MediaFileId: mediaFileID,
 		FilePath:    filePath,
 		Metadata:    metadata,
 	}
-	
+
 	_, err := client.OnMediaFileScanned(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin OnMediaFileScanned failed: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (c *ExternalPluginGRPCClient) OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error {
 	client := proto.NewScannerHookServiceClient(c.conn)
-	
+
 	req := &proto.OnScanStartedRequest{
 		ScanJobId:   scanJobID,
 		LibraryId:   libraryID,
 		LibraryPath: libraryPath,
 	}
-	
+
 	_, err := client.OnScanStarted(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin OnScanStarted failed: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (c *ExternalPluginGRPCClient) OnScanCompleted(scanJobID, libraryID uint32, stats map[string]string) error {
 	client := proto.NewScannerHookServiceClient(c.conn)
-	
+
 	req := &proto.OnScanCompletedRequest{
 		ScanJobId: scanJobID,
 		LibraryId: libraryID,
 		Stats:     stats,
 	}
-	
+
 	_, err := client.OnScanCompleted(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("plugin OnScanCompleted failed: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -304,9 +296,14 @@ type ExternalPluginManager struct {
 	// Configuration
 	pluginDir string
 
-	// Plugin clients and processes
+	// Plugin clients and interfaces
 	pluginClients    map[string]*goplugin.Client
 	pluginInterfaces map[string]ExternalPluginInterface
+
+	// NEW: Reliability features
+	healthMonitor     *PluginHealthMonitor
+	fallbackManager   *FallbackManager
+	reliabilityConfig *config.PluginReliabilityConfig
 }
 
 // ExternalPluginManifest represents the parsed CUE configuration
@@ -325,33 +322,46 @@ type ExternalPluginManifest struct {
 
 // NewExternalPluginManager creates a new external plugin manager
 func NewExternalPluginManager(db *gorm.DB, logger hclog.Logger) *ExternalPluginManager {
+	// Initialize reliability configuration
+	reliabilityConfig := config.DefaultPluginReliabilityConfig()
+
 	return &ExternalPluginManager{
 		db:               db,
-		logger:           logger.Named("external-plugin-manager"),
+		logger:           logger,
 		plugins:          make(map[string]*ExternalPlugin),
 		pluginClients:    make(map[string]*goplugin.Client),
 		pluginInterfaces: make(map[string]ExternalPluginInterface),
+
+		// NEW: Initialize reliability components
+		healthMonitor:     NewPluginHealthMonitor(logger, db),
+		fallbackManager:   NewFallbackManager(logger, db, nil), // Use default config
+		reliabilityConfig: reliabilityConfig,
 	}
 }
 
 // Initialize initializes the external plugin manager
 func (m *ExternalPluginManager) Initialize(ctx context.Context, pluginDir string, hostServices *HostServices) error {
-	m.logger.Info("initializing external plugin manager")
+	m.logger.Info("initializing external plugin manager", "plugin_dir", pluginDir)
 
 	m.ctx, m.cancel = context.WithCancel(ctx)
-	m.hostServices = hostServices
 	m.pluginDir = pluginDir
+	m.hostServices = hostServices
 
-	// Discover and register external plugins
+	// NEW: Start health monitoring
+	go m.healthMonitor.Start()
+	go m.fallbackManager.StartCleanupRoutine(m.ctx)
+
+	m.logger.Info("starting reliability monitoring systems")
+
+	// Discover and register plugins from the plugin directory
 	if err := m.discoverAndRegisterPlugins(); err != nil {
-		m.logger.Error("failed to discover external plugins", "error", err)
-		return fmt.Errorf("failed to discover external plugins: %w", err)
+		return fmt.Errorf("failed to discover plugins: %w", err)
 	}
 
-	// Auto-load plugins that were previously running or are enabled
+	// Auto-load enabled plugins
 	if err := m.autoLoadEnabledPlugins(ctx); err != nil {
-		m.logger.Warn("failed to auto-load some enabled plugins", "error", err)
-		// Don't fail initialization for this - just log the warning
+		m.logger.Error("failed to auto-load enabled plugins", "error", err)
+		// Don't fail initialization if auto-load fails
 	}
 
 	m.logger.Info("external plugin manager initialized successfully")
@@ -557,18 +567,18 @@ func (m *ExternalPluginManager) ensurePluginInDatabase(manifest *ExternalPluginM
 
 			// Determine initial status based on configuration and enabled_by_default
 			status := "discovered"
-			
+
 			// Get plugin configuration
 			cfg := config.Get().Plugins
-			
+
 			// Check if enrichment plugins should be enabled by default
-			isEnrichmentPlugin := manifest.Type == "metadata_scraper" || 
-				                  strings.Contains(manifest.ID, "enricher") ||
-				                  strings.Contains(strings.ToLower(manifest.Name), "enricher")
-			
+			isEnrichmentPlugin := manifest.Type == "metadata_scraper" ||
+				strings.Contains(manifest.ID, "enricher") ||
+				strings.Contains(strings.ToLower(manifest.Name), "enricher")
+
 			// Enable plugin if:
 			// 1. It's marked as enabled_by_default AND respect_default_config is true
-			// 2. It's an enrichment plugin AND enrichment_enabled is true  
+			// 2. It's an enrichment plugin AND enrichment_enabled is true
 			// 3. Binary exists for both cases
 			shouldEnable := false
 			if cfg.RespectDefaultConfig && manifest.EnabledDefault {
@@ -578,7 +588,7 @@ func (m *ExternalPluginManager) ensurePluginInDatabase(manifest *ExternalPluginM
 				shouldEnable = true
 				m.logger.Info("enabling enrichment plugin due to global config", "plugin", manifest.ID)
 			}
-			
+
 			if shouldEnable {
 				if _, err := os.Stat(binaryPath); err == nil {
 					status = "enabled"
@@ -650,6 +660,11 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// NEW: Check circuit breaker before attempting to load
+	if !m.healthMonitor.ShouldAllowRequest(pluginID) {
+		return fmt.Errorf("plugin %s is circuit broken, refusing to load", pluginID)
+	}
+
 	plugin, exists := m.plugins[pluginID]
 	if !exists {
 		return fmt.Errorf("plugin not found: %s", pluginID)
@@ -661,6 +676,9 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 		return nil
 	}
 
+	// NEW: Get plugin-specific configuration
+	pluginConfig := m.reliabilityConfig.GetPluginConfig(pluginID)
+
 	// Update database status
 	if err := m.updatePluginStatus(pluginID, "loading"); err != nil {
 		m.logger.Error("failed to update plugin status", "plugin", pluginID, "error", err)
@@ -668,25 +686,31 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 
 	// Check if binary exists
 	if _, err := os.Stat(plugin.Path); os.IsNotExist(err) {
-		errorMsg := fmt.Sprintf("plugin binary not found: %s", plugin.Path)
 		m.updatePluginStatus(pluginID, "error")
-		return fmt.Errorf(errorMsg)
+
+		// NEW: Record failure in health monitor
+		m.healthMonitor.RecordRequest(pluginID, false, 0, err)
+
+		return fmt.Errorf("plugin binary not found: %s", plugin.Path)
 	}
 
 	m.logger.Info("starting external plugin via gRPC", "plugin", pluginID, "binary", plugin.Path)
+
+	// NEW: Track start time for performance monitoring
+	startTime := time.Now()
 
 	// Create command with environment variables
 	cmd := exec.Command(plugin.Path)
 	cmd.Dir = filepath.Dir(plugin.Path)
 	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("VIEWRA_PLUGIN_ID=%s", pluginID),
-		fmt.Sprintf("VIEWRA_DATABASE_URL=%s", m.getDatabaseURL()),
-		fmt.Sprintf("VIEWRA_HOST_SERVICE_ADDR=localhost:50051"),
-		fmt.Sprintf("VIEWRA_LOG_LEVEL=debug"),
-		fmt.Sprintf("VIEWRA_BASE_PATH=%s", filepath.Dir(plugin.Path)),
+		"VIEWRA_PLUGIN_ID="+pluginID,
+		"VIEWRA_DATABASE_URL="+m.getDatabaseURL(),
+		"VIEWRA_HOST_SERVICE_ADDR=localhost:50051",
+		"VIEWRA_LOG_LEVEL=debug",
+		"VIEWRA_BASE_PATH="+filepath.Dir(plugin.Path),
 	)
 
-	// Create plugin client using hashicorp/go-plugin
+	// Create plugin client using hashicorp/go-plugin with timeout from config
 	client := goplugin.NewClient(&goplugin.ClientConfig{
 		HandshakeConfig: ExternalPluginHandshake,
 		Plugins: map[string]goplugin.Plugin{
@@ -695,33 +719,47 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 		Cmd:              cmd,
 		Logger:           m.logger.Named(pluginID),
 		AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC},
+		StartTimeout:     pluginConfig.RequestTimeout, // NEW: Use configured timeout
 	})
 
 	// Connect to the plugin
 	rpcClient, err := client.Client()
 	if err != nil {
 		client.Kill()
-		errorMsg := fmt.Sprintf("failed to connect to plugin: %v", err)
 		m.updatePluginStatus(pluginID, "error")
-		return fmt.Errorf(errorMsg)
+
+		// NEW: Record failure in health monitor
+		responseTime := time.Since(startTime)
+		m.healthMonitor.RecordRequest(pluginID, false, responseTime, err)
+
+		return fmt.Errorf("failed to connect to plugin: %w", err)
 	}
 
 	// Request the plugin interface
 	raw, err := rpcClient.Dispense("plugin")
 	if err != nil {
 		client.Kill()
-		errorMsg := fmt.Sprintf("failed to dispense plugin: %v", err)
 		m.updatePluginStatus(pluginID, "error")
-		return fmt.Errorf(errorMsg)
+
+		// NEW: Record failure in health monitor
+		responseTime := time.Since(startTime)
+		m.healthMonitor.RecordRequest(pluginID, false, responseTime, err)
+
+		return fmt.Errorf("failed to dispense plugin: %w", err)
 	}
 
 	// Convert to our plugin interface
 	pluginInterface, ok := raw.(ExternalPluginInterface)
 	if !ok {
 		client.Kill()
-		errorMsg := "plugin does not implement required interface"
 		m.updatePluginStatus(pluginID, "error")
-		return fmt.Errorf(errorMsg)
+
+		// NEW: Record failure in health monitor
+		responseTime := time.Since(startTime)
+		interfaceErr := errors.New(ErrPluginInterface)
+		m.healthMonitor.RecordRequest(pluginID, false, responseTime, interfaceErr)
+
+		return errors.New(ErrPluginInterface)
 	}
 
 	// Initialize the plugin
@@ -735,17 +773,25 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 
 	if err := pluginInterface.Initialize(pluginCtx); err != nil {
 		client.Kill()
-		errorMsg := fmt.Sprintf("failed to initialize plugin: %v", err)
 		m.updatePluginStatus(pluginID, "error")
-		return fmt.Errorf(errorMsg)
+
+		// NEW: Record failure in health monitor
+		responseTime := time.Since(startTime)
+		m.healthMonitor.RecordRequest(pluginID, false, responseTime, err)
+
+		return fmt.Errorf("failed to initialize plugin: %w", err)
 	}
 
 	// Start the plugin
 	if err := pluginInterface.Start(); err != nil {
 		client.Kill()
-		errorMsg := fmt.Sprintf("failed to start plugin: %v", err)
 		m.updatePluginStatus(pluginID, "error")
-		return fmt.Errorf(errorMsg)
+
+		// NEW: Record failure in health monitor
+		responseTime := time.Since(startTime)
+		m.healthMonitor.RecordRequest(pluginID, false, responseTime, err)
+
+		return fmt.Errorf("failed to start plugin: %w", err)
 	}
 
 	// Set up database tables for the plugin
@@ -762,6 +808,11 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 	plugin.Running = true
 	plugin.LastStarted = time.Now()
 
+	// NEW: Register plugin with health monitor and record successful start
+	m.registerPluginHealth(pluginID, pluginInterface)
+	responseTime := time.Since(startTime)
+	m.healthMonitor.RecordRequest(pluginID, true, responseTime, nil)
+
 	// Monitor the plugin process in a goroutine
 	go m.monitorPluginProcess(pluginID, client)
 
@@ -770,7 +821,7 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 		m.logger.Error("failed to update plugin status", "plugin", pluginID, "error", err)
 	}
 
-	m.logger.Info("successfully loaded external plugin", "plugin", pluginID)
+	m.logger.Info("successfully loaded external plugin", "plugin", pluginID, "load_time", responseTime)
 	return nil
 }
 
@@ -779,21 +830,21 @@ func (m *ExternalPluginManager) setupPluginDatabase(pluginID string, pluginInter
 	// Retry getting models in case plugin is still initializing
 	maxRetries := 3
 	retryDelay := 1 * time.Second
-	
+
 	var models []string
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		models = pluginInterface.GetModels()
 		if len(models) > 0 {
 			break
 		}
-		
+
 		if attempt < maxRetries {
 			m.logger.Debug("plugin returned no models, retrying", "plugin", pluginID, "attempt", attempt, "max_retries", maxRetries)
 			time.Sleep(retryDelay)
 			retryDelay *= 2 // Exponential backoff
 		}
 	}
-	
+
 	if len(models) == 0 {
 		m.logger.Debug("plugin has no database models after retries", "plugin", pluginID)
 		return nil
@@ -824,10 +875,10 @@ func (m *ExternalPluginManager) monitorPluginProcess(pluginID string, client *go
 				if !client.Exited() {
 					continue
 				}
-				
+
 				// Plugin has exited, clean up
 				m.mu.Lock()
-				
+
 				// Update plugin status
 				if plugin, exists := m.plugins[pluginID]; exists {
 					plugin.Running = false
@@ -985,7 +1036,7 @@ func (m *ExternalPluginManager) unloadPlugin(pluginID string) error {
 func (m *ExternalPluginManager) getDatabaseURL() string {
 	// Get the actual database configuration
 	cfg := config.Get().Database
-	
+
 	// For SQLite, return the correct path based on configuration
 	if cfg.Type == "sqlite" {
 		// Use the configured database path, or construct from data dir
@@ -993,7 +1044,7 @@ func (m *ExternalPluginManager) getDatabaseURL() string {
 		if dbPath == "" {
 			dbPath = filepath.Join(cfg.DataDir, "viewra.db")
 		}
-		
+
 		// Convert to absolute path if it's not already
 		if !filepath.IsAbs(dbPath) {
 			// Make relative to current working directory
@@ -1001,16 +1052,16 @@ func (m *ExternalPluginManager) getDatabaseURL() string {
 				dbPath = absPath
 			}
 		}
-		
+
 		return fmt.Sprintf("sqlite://%s", dbPath)
 	}
-	
+
 	// For PostgreSQL, construct URL from components
 	if cfg.URL != "" {
 		return cfg.URL
 	}
-	
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", 
+
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
 		cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
 }
 
@@ -1025,7 +1076,7 @@ func (m *ExternalPluginManager) GetEnabledFileHandlers() []FileHandlerPlugin {
 func (m *ExternalPluginManager) GetRunningPluginInterface(pluginID string) (ExternalPluginInterface, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	pluginInterface, exists := m.pluginInterfaces[pluginID]
 	return pluginInterface, exists
 }
@@ -1039,13 +1090,58 @@ func (m *ExternalPluginManager) NotifyMediaFileScanned(mediaFileID string, fileP
 	}
 	m.mu.RUnlock()
 
-	// Notify all running plugins in parallel
 	for pluginID, pluginInterface := range runningPlugins {
 		go func(id string, iface ExternalPluginInterface) {
-			if err := iface.OnMediaFileScanned(mediaFileID, filePath, metadata); err != nil {
-				m.logger.Error("plugin scan notification failed", "plugin", id, "error", err)
+			// NEW: Check circuit breaker before making request
+			if !m.healthMonitor.ShouldAllowRequest(id) {
+				m.logger.Warn("skipping plugin notification due to circuit breaker", "plugin_id", id)
+				return
+			}
+
+			// NEW: Track request time
+			startTime := time.Now()
+
+			// NEW: Prepare fallback request for both success and failure scenarios
+			fallbackRequest := &FallbackRequest{
+				PluginID:    id,
+				Operation:   "OnMediaFileScanned",
+				MediaFileID: mediaFileID,
+				RequestTime: startTime,
+				Parameters: map[string]interface{}{
+					"file_path": filePath,
+					"metadata":  metadata,
+				},
+			}
+
+			err := iface.OnMediaFileScanned(mediaFileID, filePath, metadata)
+
+			// NEW: Record request result in health monitor
+			responseTime := time.Since(startTime)
+			success := err == nil
+			m.healthMonitor.RecordRequest(id, success, responseTime, err)
+
+			if err != nil {
+				m.logger.Error("plugin media file notification failed", "plugin", id, "error", err)
+
+				// NEW: Try fallback if available
+				fallbackRequest.OriginalError = err
+
+				if fallbackResponse, fallbackErr := m.fallbackManager.HandleFailure(context.Background(), fallbackRequest); fallbackErr == nil {
+					m.logger.Info("fallback handled plugin failure",
+						"plugin_id", id,
+						"strategy", fallbackResponse.Strategy,
+						"from_cache", fallbackResponse.FromCache)
+				}
 			} else {
-				m.logger.Debug("notified plugin of scanned file", "plugin", id, "file", filePath)
+				// NEW: Cache successful operation for future fallback
+				cacheKey := fmt.Sprintf("%s:%s:%s", id, "OnMediaFileScanned", mediaFileID)
+				cacheData := map[string]interface{}{
+					"media_file_id": mediaFileID,
+					"file_path":     filePath,
+					"metadata":      metadata,
+					"success":       true,
+				}
+				m.fallbackManager.StoreCacheEntry(cacheKey, cacheData, id, 1.0)
 			}
 		}(pluginID, pluginInterface)
 	}
@@ -1203,11 +1299,11 @@ func (m *ExternalPluginManager) autoLoadEnabledPlugins(ctx context.Context) erro
 		cmd := exec.Command(plugin.Path)
 		cmd.Dir = filepath.Dir(plugin.Path)
 		cmd.Env = append(os.Environ(),
-			fmt.Sprintf("VIEWRA_PLUGIN_ID=%s", pluginID),
-			fmt.Sprintf("VIEWRA_DATABASE_URL=%s", m.getDatabaseURL()),
-			fmt.Sprintf("VIEWRA_HOST_SERVICE_ADDR=localhost:50051"),
-			fmt.Sprintf("VIEWRA_LOG_LEVEL=debug"),
-			fmt.Sprintf("VIEWRA_BASE_PATH=%s", filepath.Dir(plugin.Path)),
+			"VIEWRA_PLUGIN_ID="+pluginID,
+			"VIEWRA_DATABASE_URL="+m.getDatabaseURL(),
+			"VIEWRA_HOST_SERVICE_ADDR=localhost:50051",
+			"VIEWRA_LOG_LEVEL=debug",
+			"VIEWRA_BASE_PATH="+filepath.Dir(plugin.Path),
 		)
 
 		// Create plugin client using hashicorp/go-plugin
@@ -1310,11 +1406,115 @@ func (m *ExternalPluginManager) autoLoadEnabledPlugins(ctx context.Context) erro
 	}
 
 	m.logger.Info("auto-loading completed", "loaded", loadedCount, "failed", failedCount, "total", len(enabledPlugins))
-	
+
 	// Return error if all plugins failed to load
 	if len(enabledPlugins) > 0 && loadedCount == 0 {
 		return fmt.Errorf("failed to load any enabled plugins (%d failed)", failedCount)
 	}
-	
+
 	return nil
+}
+
+// NEW: Health monitoring and reliability methods
+
+// GetPluginHealth returns health metrics for a specific plugin
+func (m *ExternalPluginManager) GetPluginHealth(pluginID string) (*PluginHealthState, error) {
+	return m.healthMonitor.GetPluginHealth(pluginID)
+}
+
+// GetAllPluginHealth returns health metrics for all monitored plugins
+func (m *ExternalPluginManager) GetAllPluginHealth() map[string]*PluginHealthState {
+	return m.healthMonitor.GetAllPluginHealth()
+}
+
+// IsPluginHealthy checks if a plugin is in healthy state
+func (m *ExternalPluginManager) IsPluginHealthy(pluginID string) bool {
+	if health, err := m.healthMonitor.GetPluginHealth(pluginID); err == nil {
+		return health.Status == "healthy"
+	}
+	return false
+}
+
+// GetPluginReliabilityStatus returns overall reliability status
+func (m *ExternalPluginManager) GetPluginReliabilityStatus(pluginID string) map[string]interface{} {
+	health, err := m.healthMonitor.GetPluginHealth(pluginID)
+	if err != nil {
+		return map[string]interface{}{
+			"plugin_id": pluginID,
+			"status":    "unknown",
+			"message":   "Plugin not found or not monitored",
+		}
+	}
+
+	// Check if circuit breaker is open
+	circuitBreakerOpen := !m.healthMonitor.ShouldAllowRequest(pluginID)
+
+	return map[string]interface{}{
+		"plugin_id":             pluginID,
+		"status":                health.Status,
+		"consecutive_failures":  health.ConsecutiveFailures,
+		"total_requests":        health.GetTotalRequests(),
+		"successful_requests":   health.GetSuccessfulRequests(),
+		"failed_requests":       health.GetFailedRequests(),
+		"success_rate":          health.GetSuccessRate(),
+		"error_rate":            health.GetErrorRate(),
+		"average_response_time": health.GetAverageResponseTime().String(),
+		"last_check_time":       health.GetLastCheckTime(),
+		"circuit_breaker_open":  circuitBreakerOpen,
+		"uptime":                health.GetUptime().String(),
+		"last_error":            health.LastError,
+	}
+}
+
+// CheckAllPluginsHealth checks the health of all registered plugins and returns a summary
+func (m *ExternalPluginManager) CheckAllPluginsHealth() map[string]interface{} {
+	m.mu.RLock()
+	pluginCount := len(m.plugins)
+	m.mu.RUnlock()
+
+	allHealth := m.healthMonitor.GetAllPluginHealth()
+
+	summary := map[string]interface{}{
+		"total_plugins":     pluginCount,
+		"monitored_plugins": len(allHealth),
+		"healthy_count":     0,
+		"degraded_count":    0,
+		"unhealthy_count":   0,
+		"unknown_count":     pluginCount - len(allHealth),
+		"plugins":           make(map[string]interface{}),
+	}
+
+	healthyCount := 0
+	degradedCount := 0
+	unhealthyCount := 0
+
+	for pluginID, health := range allHealth {
+		switch health.Status {
+		case "healthy":
+			healthyCount++
+		case "degraded":
+			degradedCount++
+		case "unhealthy":
+			unhealthyCount++
+		}
+
+		// Check if circuit breaker is open
+		circuitBreakerOpen := !m.healthMonitor.ShouldAllowRequest(pluginID)
+
+		summary["plugins"].(map[string]interface{})[pluginID] = map[string]interface{}{
+			"status":                health.Status,
+			"consecutive_failures":  health.ConsecutiveFailures,
+			"success_rate":          health.GetSuccessRate(),
+			"error_rate":            health.GetErrorRate(),
+			"average_response_time": health.GetAverageResponseTime().String(),
+			"last_check_time":       health.GetLastCheckTime(),
+			"circuit_breaker_open":  circuitBreakerOpen,
+		}
+	}
+
+	summary["healthy_count"] = healthyCount
+	summary["degraded_count"] = degradedCount
+	summary["unhealthy_count"] = unhealthyCount
+
+	return summary
 }
