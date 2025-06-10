@@ -14,6 +14,7 @@ services:
       - VIEWRA_DATABASE_PATH=${VIEWRA_DATABASE_PATH:-/app/viewra-data/viewra.db}
       - PORT=8080
       - PLUGIN_DIR=/app/data/plugins
+      - TMDB_API_KEY=${TMDB_API_KEY:-}
     volumes:
       - ./backend:/app
       - ./backend/data:/app/data
