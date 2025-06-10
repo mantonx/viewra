@@ -10,7 +10,7 @@ import (
 // RegisterHealthRoutes registers HTTP routes for plugin health monitoring
 func (m *ExternalPluginManager) RegisterHealthRoutes(r *gin.Engine) {
 	api := r.Group("/api")
-	pluginHealth := api.Group("/plugins/health")
+	pluginHealth := api.Group("/plugin-health")
 	{
 		pluginHealth.GET("", m.GetAllPluginHealthHandler)
 		pluginHealth.GET("/:plugin_id", m.GetPluginHealthHandler)

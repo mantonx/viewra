@@ -242,7 +242,7 @@ func (pm *PluginModule) RegisterRoutes(router *gin.Engine) {
 	pm.logger.Info("registering plugin module HTTP routes")
 
 	// Register plugin management routes
-	api := router.Group("/api/plugins")
+	api := router.Group("/api/plugin-manager")
 	{
 		// Plugin listing and management
 		api.GET("", pm.listAllPluginsHandler)
