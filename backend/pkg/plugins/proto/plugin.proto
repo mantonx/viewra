@@ -302,6 +302,7 @@ message PluginContext {
   string database_url = 4;
   string base_path = 5;
   string host_service_addr = 6;  // Address of host's gRPC server for bidirectional communication
+  string plugin_base_path = 7;   // Plugin-specific base path for plugin files and data
 }
 
 message PluginInfo {

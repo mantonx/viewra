@@ -1291,22 +1291,6 @@ func (m *Manager) GetMonitoringStatus() map[uint32]*MonitoredLibrary {
 	return resultMap
 }
 
-// CleanupOrphanedAssets removes assets that reference non-existent media files
-// Note: This is now deprecated as asset cleanup is handled by the entity-based asset system
-func (m *Manager) CleanupOrphanedAssets() (int, int, error) {
-	logger.Info("Orphaned asset cleanup is now handled by the entity-based asset system")
-	logger.Info("Use the /api/v1/assets/cleanup endpoint for asset cleanup")
-	return 0, 0, nil
-}
-
-// CleanupOrphanedFiles removes asset files from disk that have no corresponding database records
-// Note: This is now deprecated as asset cleanup is handled by the entity-based asset system
-func (m *Manager) CleanupOrphanedFiles() (int, error) {
-	logger.Info("Orphaned file cleanup is now handled by the entity-based asset system")
-	logger.Info("Use the /api/v1/assets/cleanup endpoint for asset cleanup")
-	return 0, nil
-}
-
 // CleanupScanJob removes a scan job and all its discovered files and assets
 func (m *Manager) CleanupScanJob(scanJobID uint32) error {
 	if m.safeguards == nil {

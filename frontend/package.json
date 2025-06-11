@@ -19,6 +19,7 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.0",
     "react-tooltip": "^5.28.1",
+    "shaka-player": "^4.15.2",
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {

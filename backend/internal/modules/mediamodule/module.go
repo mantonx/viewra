@@ -194,7 +194,7 @@ func (m *Module) initializeComponents() error {
 
 // RegisterRoutes registers the media module API routes
 func (m *Module) RegisterRoutes(router *gin.Engine) {
-	log.Println("INFO: Registering media module routes")
+	log.Printf("INFO: Registering media module routes (initialized: %v, db: %v)", m.initialized, m.db != nil)
 
 	mediaGroup := router.Group("/api/media")
 	{
@@ -210,6 +210,9 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.GET("/files/:id", m.getFile)
 		mediaGroup.DELETE("/files/:id", m.deleteFile)
 		mediaGroup.GET("/files/:id/stream", m.streamFile)
+		mediaGroup.HEAD("/files/:id/stream", m.streamFile) // Add explicit HEAD support
+		mediaGroup.GET("/files/:id/manifest.m3u8", m.generateHLSManifest)
+		mediaGroup.GET("/files/:id/transcode.mp4", m.transcodeToMP4) // Transcode MKV to MP4 for Shaka Player
 		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
 		mediaGroup.GET("/files/:id/album-id", m.getFileAlbumId)
 		mediaGroup.GET("/files/:id/album-artwork", m.getFileAlbumArtwork)

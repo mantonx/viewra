@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import TVShowCard from './TVShowCard';
+import { useState, useEffect, useCallback } from 'react';
+import { TVShowCard } from '@/components';
 import type { TVShow, SortField, SortDirection } from '@/types/tv.types';
 import type { ApiResponse } from '@/types/api.types';
 
@@ -58,7 +58,7 @@ const TVShowLibrary = () => {
     }
   };
 
-  const formatYear = (dateString: string | null) => {
+  const formatYear = (dateString: string | undefined) => {
     if (!dateString) return '';
     return new Date(dateString).getFullYear().toString();
   };

@@ -5,6 +5,7 @@ package plugins
 
 import (
 	"context"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 )
@@ -25,7 +26,7 @@ type Implementation interface {
 	Stop() error
 	Info() (*PluginInfo, error)
 	Health() error
-	
+
 	// Optional service implementations (return nil if not supported)
 	MetadataScraperService() MetadataScraperService
 	ScannerHookService() ScannerHookService
@@ -34,6 +35,11 @@ type Implementation interface {
 	AdminPageService() AdminPageService
 	APIRegistrationService() APIRegistrationService
 	SearchService() SearchService
+
+	// New enhanced service interfaces (return nil if not supported)
+	HealthMonitorService() HealthMonitorService
+	ConfigurationService() ConfigurationService
+	PerformanceMonitorService() PerformanceMonitorService
 }
 
 // Service interfaces
@@ -88,13 +94,13 @@ type EnrichmentServiceClient interface {
 
 // Data structures
 type PluginContext struct {
-	PluginID         string            `json:"plugin_id"`         // Plugin identifier passed from manager
-	DatabaseURL      string            `json:"database_url"`
-	HostServiceAddr  string            `json:"host_service_addr"`
-	PluginBasePath   string            `json:"plugin_base_path"`
-	LogLevel         string            `json:"log_level"`
-	BasePath         string            `json:"base_path"`
-	Logger           Logger            `json:"-"`
+	PluginID        string `json:"plugin_id"` // Plugin identifier passed from manager
+	DatabaseURL     string `json:"database_url"`
+	HostServiceAddr string `json:"host_service_addr"`
+	PluginBasePath  string `json:"plugin_base_path"`
+	LogLevel        string `json:"log_level"`
+	BasePath        string `json:"base_path"`
+	Logger          Logger `json:"-"`
 }
 
 type PluginInfo struct {
@@ -201,3 +207,109 @@ type Logger interface {
 type EnrichmentService interface {
 	RegisterEnrichment(mediaFileID, sourceName string, enrichments map[string]string, confidenceScore float64, metadata map[string]string) (string, error)
 }
+
+// Health monitoring interface for plugins
+type HealthMonitorService interface {
+	// GetHealthStatus returns the current health status of the plugin
+	GetHealthStatus(ctx context.Context) (*HealthStatus, error)
+
+	// GetMetrics returns performance metrics for the plugin
+	GetMetrics(ctx context.Context) (*PluginMetrics, error)
+
+	// SetHealthThresholds configures health check thresholds
+	SetHealthThresholds(thresholds *HealthThresholds) error
+}
+
+// Plugin metrics and monitoring types
+type HealthStatus struct {
+	Status       string            `json:"status"` // "healthy", "degraded", "unhealthy"
+	Message      string            `json:"message"`
+	LastCheck    time.Time         `json:"last_check"`
+	Uptime       time.Duration     `json:"uptime"`
+	MemoryUsage  int64             `json:"memory_usage"`  // bytes
+	CPUUsage     float64           `json:"cpu_usage"`     // percentage
+	ErrorRate    float64           `json:"error_rate"`    // percentage
+	ResponseTime time.Duration     `json:"response_time"` // average response time
+	Details      map[string]string `json:"details"`
+}
+
+type PluginMetrics struct {
+	ExecutionCount  int64                  `json:"execution_count"`
+	SuccessCount    int64                  `json:"success_count"`
+	ErrorCount      int64                  `json:"error_count"`
+	AverageExecTime time.Duration          `json:"average_exec_time"`
+	LastExecution   time.Time              `json:"last_execution"`
+	BytesProcessed  int64                  `json:"bytes_processed"`
+	ItemsProcessed  int64                  `json:"items_processed"`
+	CacheHitRate    float64                `json:"cache_hit_rate"`
+	CustomMetrics   map[string]interface{} `json:"custom_metrics"`
+}
+
+type HealthThresholds struct {
+	MaxMemoryUsage      int64         `json:"max_memory_usage"` // bytes
+	MaxCPUUsage         float64       `json:"max_cpu_usage"`    // percentage
+	MaxErrorRate        float64       `json:"max_error_rate"`   // percentage
+	MaxResponseTime     time.Duration `json:"max_response_time"`
+	HealthCheckInterval time.Duration `json:"health_check_interval"`
+}
+
+// Performance monitoring interface for plugins
+type PerformanceMonitorService interface {
+	// GetPerformanceSnapshot returns current performance metrics
+	GetPerformanceSnapshot(ctx context.Context) (*PerformanceSnapshot, error)
+
+	// RecordOperation records an operation execution
+	RecordOperation(operationName string, duration time.Duration, success bool, context string)
+
+	// RecordError records an error event
+	RecordError(errorType, message, context, operation string)
+
+	// GetUptimeString returns human-readable uptime
+	GetUptimeString() string
+
+	// Reset resets all performance metrics
+	Reset()
+}
+
+// Advanced configuration management interface
+type ConfigurationService interface {
+	// GetConfiguration returns the current plugin configuration
+	GetConfiguration(ctx context.Context) (*PluginConfiguration, error)
+
+	// UpdateConfiguration updates plugin configuration at runtime
+	UpdateConfiguration(ctx context.Context, config *PluginConfiguration) error
+
+	// ReloadConfiguration reloads configuration from source
+	ReloadConfiguration(ctx context.Context) error
+
+	// ValidateConfiguration validates a configuration before applying
+	ValidateConfiguration(config *PluginConfiguration) (*ValidationResult, error)
+
+	// GetConfigurationSchema returns the JSON schema for this plugin's configuration
+	GetConfigurationSchema() (*ConfigurationSchema, error)
+}
+
+// Plugin configuration types
+type PluginConfiguration struct {
+	Version      string                 `json:"version"`
+	Enabled      bool                   `json:"enabled"`
+	Settings     map[string]interface{} `json:"settings"`
+	Features     map[string]bool        `json:"features"`
+	Thresholds   *HealthThresholds      `json:"thresholds,omitempty"`
+	LastModified time.Time              `json:"last_modified"`
+	ModifiedBy   string                 `json:"modified_by"`
+}
+
+type ValidationResult struct {
+	Valid    bool     `json:"valid"`
+	Errors   []string `json:"errors"`
+	Warnings []string `json:"warnings"`
+}
+
+type ConfigurationSchema struct {
+	Schema   map[string]interface{} `json:"schema"`   // JSON Schema
+	Examples map[string]interface{} `json:"examples"` // Example configurations
+	Defaults map[string]interface{} `json:"defaults"` // Default values
+}
+
+// Note: PerformanceSnapshot is defined in performance.go to avoid duplication

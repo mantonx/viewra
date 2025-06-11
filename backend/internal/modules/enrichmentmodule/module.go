@@ -61,6 +61,7 @@ type Module struct {
 	// Validation and deduplication systems
 	tvShowValidator    *TVShowValidator
 	duplicationManager *DuplicationManager
+	progressManager    *EnrichmentProgressManager
 }
 
 // Register registers this module with the module system
@@ -119,12 +120,15 @@ func (m *Module) Init() error {
 		m.eventBus = events.GetGlobalEventBus()
 	}
 
-	// Initialize validation and deduplication systems if not already done
+	// Initialize data quality components
 	if m.tvShowValidator == nil {
 		m.tvShowValidator = NewTVShowValidator(m.db)
 	}
 	if m.duplicationManager == nil {
 		m.duplicationManager = NewDuplicationManager(m.db)
+	}
+	if m.progressManager == nil {
+		m.progressManager = NewEnrichmentProgressManager(m.db)
 	}
 
 	m.initialized = true

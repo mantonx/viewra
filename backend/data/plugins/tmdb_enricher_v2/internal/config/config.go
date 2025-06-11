@@ -185,9 +185,9 @@ func (c *ReliabilityConfig) GetMaxRetryDelay() time.Duration {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	// Validate API configuration
-	if c.API.Key == "" {
-		return fmt.Errorf("TMDb API key is required")
+	// Validate API configuration - use proper API key validation
+	if err := ValidateAPIKey(c.API.Key); err != nil {
+		return fmt.Errorf("TMDb API key validation failed: %w", err)
 	}
 
 	if c.API.RateLimit <= 0 {

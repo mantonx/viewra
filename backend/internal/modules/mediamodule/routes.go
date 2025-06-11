@@ -1,12 +1,16 @@
 package mediamodule
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -247,7 +251,7 @@ func (m *Module) getFile(c *gin.Context) {
 	}
 
 	var mediaFile database.MediaFile
-	if err := m.db.Preload("MusicMetadata").Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Media file not found",
 		})
@@ -315,8 +319,9 @@ func (m *Module) streamFile(c *gin.Context) {
 		return
 	}
 
-	// Check if file exists
-	if _, err := os.Stat(mediaFile.Path); os.IsNotExist(err) {
+	// Check if file exists and get file info
+	fileInfo, err := os.Stat(mediaFile.Path)
+	if os.IsNotExist(err) {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Media file not found on disk",
 		})
@@ -327,14 +332,67 @@ func (m *Module) streamFile(c *gin.Context) {
 	contentType := getContentTypeFromPath(mediaFile.Path)
 
 	// Set appropriate headers
-	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Type", contentType)
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", filepath.Base(mediaFile.Path)))
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Accept-Ranges", "bytes")
+	c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 
-	// Serve the file
+	// For HEAD requests, just return headers without body
+	if c.Request.Method == "HEAD" {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	// Serve the file for GET requests
 	c.File(mediaFile.Path)
+}
+
+// generateHLSManifest generates an HLS manifest for direct video file playback
+func (m *Module) generateHLSManifest(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid file ID",
+		})
+		return
+	}
+
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(mediaFile.Path); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found on disk",
+		})
+		return
+	}
+
+	// For now, create a simple HLS manifest that points to the direct stream
+	// This is a basic single-bitrate manifest for direct file playback
+	
+	// Use relative URL for the stream so it works with any proxy setup
+	// This allows the browser to resolve the URL relative to the current origin
+	streamURL := fmt.Sprintf("/api/media/files/%s/stream", idStr)
+	
+	manifest := fmt.Sprintf(`#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:10
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXTINF:999999.0,
+%s
+#EXT-X-ENDLIST
+`, streamURL)
+
+	c.Header("Content-Type", "application/vnd.apple.mpegurl")
+	c.Header("Cache-Control", "no-cache")
+	c.String(http.StatusOK, manifest)
 }
 
 // getFileMetadata retrieves metadata for a media file
@@ -906,6 +964,16 @@ func getContentTypeFromPath(path string) string {
 		return "video/quicktime"
 	case ".mkv":
 		return "video/x-matroska"
+	case ".avi":
+		return "video/x-msvideo"
+	case ".wmv":
+		return "video/x-ms-wmv"
+	case ".webm":
+		return "video/webm"
+	case ".m4v":
+		return "video/x-m4v"
+	case ".3gp":
+		return "video/3gpp"
 	case ".jpg", ".jpeg":
 		return "image/jpeg"
 	case ".png":
@@ -914,5 +982,273 @@ func getContentTypeFromPath(path string) string {
 		return "image/gif"
 	default:
 		return "application/octet-stream"
+	}
+}
+
+// transcodeToMP4 transcodes a video file to MP4 format on-the-fly for Shaka Player compatibility
+func (m *Module) transcodeToMP4(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid file ID",
+		})
+		return
+	}
+
+	// Parse query parameters
+	quality := c.DefaultQuery("quality", "720p")   // Default quality
+	
+	// Get client IP for tracking
+	clientIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
+	// Get the media file
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(mediaFile.Path); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found on disk",
+		})
+		return
+	}
+
+	// Check if the file is already MP4 with H.264 - if so, stream directly
+	if strings.ToLower(mediaFile.Container) == "mp4" && 
+	   strings.ToLower(mediaFile.VideoCodec) == "h264" {
+		// File is already compatible, stream directly
+		logger.Info("File already compatible, redirecting to direct stream", 
+			"file_id", idStr,
+			"container", mediaFile.Container,
+			"codec", mediaFile.VideoCodec,
+			"client_ip", clientIP)
+		m.streamFile(c)
+		return
+	}
+
+	logger.Info("Starting transcoding session", 
+		"file_id", idStr, 
+		"source_container", mediaFile.Container,
+		"source_codec", mediaFile.VideoCodec,
+		"target_quality", quality,
+		"client_ip", clientIP,
+		"user_agent", userAgent,
+		"file_size", mediaFile.SizeBytes,
+		"file_path", mediaFile.Path)
+
+	// Add headers to help prevent client timeouts
+	c.Header("Content-Type", "video/mp4")
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
+	c.Header("Connection", "keep-alive")
+	c.Header("Transfer-Encoding", "chunked")
+	// Add custom headers for debugging
+	c.Header("X-Transcode-Session", idStr)
+	c.Header("X-Transcode-Quality", quality)
+
+	// Build FFmpeg command for transcoding
+	ffmpegArgs := []string{
+		"-i", mediaFile.Path,           // Input file
+		"-c:v", "libx264",              // Video codec: H.264
+		"-preset", "veryfast",          // Fast encoding preset
+		"-crf", "23",                   // Constant Rate Factor (quality)
+		"-c:a", "aac",                  // Audio codec: AAC
+		"-ac", "2",                     // Audio channels: stereo
+		"-ar", "48000",                 // Audio sample rate
+		"-movflags", "frag_keyframe+empty_moov", // Enable streaming
+		"-f", "mp4",                    // Output format
+		"-avoid_negative_ts", "make_zero", // Fix timestamp issues
+		"-fflags", "+genpts",           // Generate presentation timestamps
+		"-",                            // Output to stdout
+	}
+
+	// Adjust quality settings
+	switch quality {
+	case "480p":
+		ffmpegArgs = append(ffmpegArgs[:4], append([]string{"-vf", "scale=-2:480"}, ffmpegArgs[4:]...)...)
+	case "720p":
+		ffmpegArgs = append(ffmpegArgs[:4], append([]string{"-vf", "scale=-2:720"}, ffmpegArgs[4:]...)...)
+	case "1080p":
+		ffmpegArgs = append(ffmpegArgs[:4], append([]string{"-vf", "scale=-2:1080"}, ffmpegArgs[4:]...)...)
+	}
+
+	logger.Info("FFmpeg command prepared", 
+		"file_id", idStr,
+		"args", strings.Join(ffmpegArgs, " "))
+
+	// Start FFmpeg process
+	cmd := exec.Command("ffmpeg", ffmpegArgs...)
+	
+	// Get stdout pipe for streaming
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		logger.Error("Failed to create stdout pipe", "file_id", idStr, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to start transcoding",
+		})
+		return
+	}
+
+	// Get stderr pipe for logging
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		logger.Error("Failed to create stderr pipe", "file_id", idStr, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to start transcoding",
+		})
+		return
+	}
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		logger.Error("Failed to start FFmpeg", "file_id", idStr, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to start transcoding",
+		})
+		return
+	}
+
+	processStartTime := time.Now()
+	logger.Info("FFmpeg process started", 
+		"file_id", idStr, 
+		"pid", cmd.Process.Pid,
+		"start_time", processStartTime)
+
+	// Handle stderr logging in a goroutine
+	stderrDone := make(chan struct{})
+	go func() {
+		defer close(stderrDone)
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, "error") || strings.Contains(line, "Error") || 
+			   strings.Contains(line, "warning") || strings.Contains(line, "Warning") {
+				logger.Warn("FFmpeg stderr", "file_id", idStr, "message", line)
+			} else if strings.Contains(line, "frame=") || strings.Contains(line, "time=") {
+				// Progress information (log periodically)
+				logger.Debug("FFmpeg progress", "file_id", idStr, "message", line)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			logger.Error("Error reading FFmpeg stderr", "file_id", idStr, "error", err)
+		}
+	}()
+
+	// Enhanced client disconnect detection
+	disconnected := make(chan struct{})
+	if cn, ok := c.Writer.(http.CloseNotifier); ok {
+		go func() {
+			select {
+			case <-cn.CloseNotify():
+				logger.Warn("Client connection closed (CloseNotifier)", 
+					"file_id", idStr, 
+					"client_ip", clientIP,
+					"duration", time.Since(processStartTime))
+				close(disconnected)
+			case <-stderrDone:
+				// Process completed normally
+			}
+		}()
+	} else {
+		logger.Warn("CloseNotifier not available, cannot detect client disconnect", "file_id", idStr)
+	}
+
+	// Handle termination
+	go func() {
+		<-disconnected
+		logger.Info("Terminating transcoding due to client disconnect", 
+			"file_id", idStr,
+			"duration", time.Since(processStartTime))
+		if cmd.Process != nil {
+			if err := cmd.Process.Kill(); err != nil {
+				logger.Error("Failed to kill FFmpeg process", "file_id", idStr, "error", err)
+			}
+		}
+	}()
+
+	// Copy transcoded data to response with better monitoring
+	buffer := make([]byte, 128*1024) // Increased to 128KB buffer
+	totalBytes := int64(0)
+	lastLogTime := time.Now()
+	chunkCount := 0
+
+	for {
+		// Check if client disconnected
+		select {
+		case <-disconnected:
+			logger.Info("Stopping stream due to client disconnect", "file_id", idStr)
+			return
+		default:
+		}
+
+		n, err := stdout.Read(buffer)
+		if n > 0 {
+			written, writeErr := c.Writer.Write(buffer[:n])
+			if writeErr != nil {
+				logger.Error("Failed to write to response", 
+					"file_id", idStr, 
+					"error", writeErr,
+					"bytes_written_so_far", totalBytes)
+				break
+			}
+			totalBytes += int64(written)
+			chunkCount++
+			
+			// Flush immediately for streaming
+			if flusher, ok := c.Writer.(http.Flusher); ok {
+				flusher.Flush()
+			}
+
+			// Log progress every 10MB or 30 seconds
+			if totalBytes > 0 && (totalBytes % (10*1024*1024) == 0 || time.Since(lastLogTime) > 30*time.Second) {
+				lastLogTime = time.Now()
+				logger.Info("Transcoding progress", 
+					"file_id", idStr,
+					"bytes_streamed", totalBytes,
+					"chunks_sent", chunkCount,
+					"duration", time.Since(processStartTime),
+					"avg_speed_mbps", float64(totalBytes)/1024/1024/time.Since(processStartTime).Seconds())
+			}
+		}
+		
+		if err == io.EOF {
+			logger.Info("FFmpeg output completed (EOF)", "file_id", idStr)
+			break
+		}
+		if err != nil {
+			logger.Error("Error reading from FFmpeg stdout", "file_id", idStr, "error", err)
+			break
+		}
+	}
+
+	// Wait for the command to finish
+	cmdErr := cmd.Wait()
+	duration := time.Since(processStartTime)
+	
+	// Wait for stderr logging to complete
+	<-stderrDone
+
+	if cmdErr != nil {
+		logger.Error("FFmpeg process failed", 
+			"file_id", idStr,
+			"error", cmdErr,
+			"duration", duration,
+			"bytes_streamed", totalBytes)
+	} else {
+		logger.Info("Transcoding session completed successfully", 
+			"file_id", idStr,
+			"bytes_streamed", totalBytes,
+			"chunks_sent", chunkCount,
+			"duration", duration,
+			"avg_speed_mbps", float64(totalBytes)/1024/1024/duration.Seconds(),
+			"client_ip", clientIP)
 	}
 }

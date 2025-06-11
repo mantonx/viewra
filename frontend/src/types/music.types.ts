@@ -37,10 +37,15 @@ export interface MusicFile {
 }
 
 export interface Album {
+  id: string;
   title: string;
-  year?: number;
-  artwork?: string;
-  tracks: MusicFile[];
+  release_date: string;
+  total_tracks: number;
+  total_discs: number;
+  created_at: string;
+  updated_at: string;
+  artist_id: string;
+  tracks: Track[];
 }
 
 export interface GroupedMusicFile {
@@ -51,20 +56,43 @@ export interface GroupedMusicFile {
 export type SortField = 'title' | 'artist' | 'album' | 'year' | 'genre';
 export type SortDirection = 'asc' | 'desc';
 
-// Legacy interface for backward compatibility
-export interface MusicMetadata {
-  id: number;
-  media_file_id: number;
+// Modern music types for the new entity-based system
+export interface Track {
+  id: string;
   title: string;
-  album: string;
-  artist: string;
-  album_artist: string;
-  genre: string;
-  year: number;
-  track: number;
-  track_total: number;
-  disc: number;
-  disc_total: number;
+  duration: number;
+  track_number: number;
+  disc_number: number;
+  created_at: string;
+  updated_at: string;
+  album_id: string;
+  artist_id: string;
+  media_files: MediaFile[];
+}
+
+export interface Artist {
+  id: string;
+  name: string;
+  biography: string;
+  formed_date: string;
+  disbanded_date: string;
+  country: string;
+  created_at: string;
+  updated_at: string;
+  albums: Album[];
+  tracks: Track[];
+}
+
+export interface MediaFile {
+  id: string;
+  file_path: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  created_at: string;
+  updated_at: string;
+  library_id: number;
+  // Technical metadata
   duration: number;
   bitrate: number;
   sample_rate: number;

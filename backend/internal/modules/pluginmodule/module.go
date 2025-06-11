@@ -3,9 +3,11 @@ package pluginmodule
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-hclog"
+	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"gorm.io/gorm"
 )
@@ -23,10 +25,22 @@ const (
 // Register registers this module with the module system
 func Register() {
 	// Create a temporary plugin module for registration - it will be properly initialized later
-	config := &PluginModuleConfig{
-		PluginDir: DefaultPluginDir, // Default plugin directory
+	// Use the configuration system to get the correct plugin directory
+	cfg := config.Get()
+	pluginDir := cfg.Plugins.PluginDir
+
+	// Manual fallback: check environment variable if config is empty or default
+	if pluginDir == "" || pluginDir == "./data/plugins" {
+		if envPluginDir := os.Getenv("PLUGIN_DIR"); envPluginDir != "" {
+			pluginDir = envPluginDir
+			fmt.Printf("Using PLUGIN_DIR environment variable: %s\n", pluginDir)
+		}
 	}
-	pluginModule := NewPluginModule(nil, config) // DB will be set during initialization
+
+	pluginConfig := &PluginModuleConfig{
+		PluginDir: pluginDir, // Use resolved plugin directory
+	}
+	pluginModule := NewPluginModule(nil, pluginConfig) // DB will be set during initialization
 	modulemanager.Register(pluginModule)
 }
 
@@ -443,7 +457,7 @@ func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
 		logger:          logger,
 		coreManager:     NewCorePluginManager(db),
 		externalManager: externalManager,
-		libraryManager:  NewLibraryPluginManager(db, logger),
+		libraryManager:  NewLibraryPluginManager(db),
 		mediaManager:    NewMediaPluginManager(db, logger),
 	}
 

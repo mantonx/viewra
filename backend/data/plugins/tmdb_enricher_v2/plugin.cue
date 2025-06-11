@@ -53,13 +53,10 @@
 	settings: {
 		// Core API settings
 		api: {
-			key:          string | *"" @tag(sensitive)     // TMDb API key
-			rate_limit:   float64 | *0.6                  // Requests per second (conservative)
-			user_agent:   string | *"Viewra/2.0"          // User agent for API requests
-			language:     string | *"en-US"               // Preferred language
-			region:       string | *"US"                  // Preferred region
-			timeout_sec:  int | *60                       // Request timeout in seconds
-			delay_ms:     int | *1200                     // Delay between requests in milliseconds
+			key: "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1YTU2ODc0YjRmMzU4YjIzZDhkM2YzZmI5ZDc4NDNiOSIsIm5iZiI6MTc0ODYzOTc1Ny40MDEsInN1YiI6IjY4M2EyMDBkNzA5OGI4MzMzNThmZThmOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.OXT68T0EtU-WXhcP7nwyWjMePuEuCpfWtDlvdntWKw8"
+			rate_limit: 40
+			timeout: 30
+			base_url: "https://api.themoviedb.org/3"
 		}
 
 		// Feature toggles
@@ -70,6 +67,9 @@
 			enable_artwork:     bool | *true   // Enable artwork downloads
 			auto_enrich:        bool | *true   // Automatically enrich during scanning
 			overwrite_existing: bool | *false  // Overwrite existing metadata
+			cache_enabled:      bool | *true   // Enable caching
+			artwork_download:   bool | *true   // Enable artwork downloads
+			detailed_metadata:  bool | *true   // Enable detailed metadata
 		}
 
 		// Artwork download settings
@@ -91,6 +91,14 @@
 			max_asset_size_mb:    int | *10    // Maximum asset size in MB
 			asset_timeout_sec:    int | *60    // Asset download timeout
 			skip_existing_assets: bool | *true // Skip downloading existing assets
+			download_enabled:     bool | *true   // Enable artwork downloads
+			max_size_mb:          int | *10    // Maximum asset size in MB
+			formats:              string[] | *["jpg", "png", "webp"]
+			sizes: {
+				poster: string[] | *["w500", "w780", "original"]
+				backdrop: string[] | *["w1280", "w1920", "original"]
+				profile: string[] | *["w185", "w632", "original"]
+			}
 		}
 
 		// Matching and quality settings
@@ -104,6 +112,9 @@
 		cache: {
 			duration_hours:   int | *168 // Cache duration (1 week)
 			cleanup_interval: int | *24  // Cleanup interval in hours
+			ttl_hours:         int | *168 // Cache duration (7 days)
+			max_entries:       int | *10000
+			cleanup_interval_hours: int | *24 // Cleanup interval in hours
 		}
 
 		// Retry and reliability settings

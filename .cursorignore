@@ -16,8 +16,8 @@ viewra
 viewra-backend
 test-*
 
-# Generated files and coverage
-*.log
+# Generated files and coverage (allowing some log files for debugging)
+# *.log (commented out to allow log inspection)
 startup.log
 coverage.out
 go.sum
@@ -25,8 +25,9 @@ go.sum
 # Data and runtime directories
 viewra-data/
 backend/viewra-data/
-data/
-backend/data/
+# Removed plugin directory exclusions to allow access
+data/*.db
+data/*.sqlite
 docker-data/
 volumes/
 
@@ -65,8 +66,7 @@ temp/
 backend/tmp/
 .cache/
 
-# IDE and editor files
-.vscode/
+# IDE and editor files (keeping .vscode accessible for Cursor)
 .idea/
 *.swp
 *.swo
@@ -98,7 +98,15 @@ docs/build/
 package-lock.json
 yarn.lock
 
-# Large SQL dump files
-*.sql
+# Large SQL dump files (allowing important SQL files)
+# *.sql
 !**/migrations/*.sql
 !**/schema/*.sql
+
+# Allow plugin development files
+!**/plugins/**/*.go
+!**/plugins/**/*.cue
+!**/plugins/**/*.mod
+!**/plugins/**/*.sum
+!**/plugins/**/go.mod
+!**/plugins/**/plugin.cue

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/mantonx/viewra/pkg/plugins"
@@ -138,11 +139,18 @@ func (c *TMDbConfigurationService) Initialize() error {
 	// Convert plugin config to TMDb config
 	c.config = c.pluginToTMDbConfig(pluginConfig)
 
+	// If API key is missing, try to load from environment variable
+	if c.config.API.Key == "" {
+		if envKey := os.Getenv("TMDB_API_KEY"); envKey != "" {
+			c.config.API.Key = envKey
+		}
+	}
+
 	// Validate TMDb configuration
 	if err := c.config.Validate(); err != nil {
-		// If validation fails, reset to default and save
-		c.config = DefaultConfig()
-		return c.UpdateTMDbConfig(c.config)
+		// If validation still fails after environment fallback, don't create infinite loop
+		// Just return the error - this means the plugin needs proper configuration
+		return fmt.Errorf("TMDb plugin configuration is invalid: %w", err)
 	}
 
 	return nil

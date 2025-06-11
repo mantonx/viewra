@@ -81,10 +81,10 @@ const MediaCard: React.FC<MediaCardProps> = ({
         <div className="flex flex-col items-center">
           {/* Track Artwork */}
           <div className="relative w-full aspect-square mb-3">
-            {track.music_metadata?.has_artwork ? (
+            {track.track ? (
               <img
                 src={buildArtworkUrl(track.id)}
-                alt={track.music_metadata?.album || 'Album Artwork'}
+                alt={track.track?.album || 'Album Artwork'}
                 className="w-full h-full object-cover rounded-md"
               />
             ) : (
@@ -103,13 +103,13 @@ const MediaCard: React.FC<MediaCardProps> = ({
 
           {/* Track Info */}
           <h3 className="text-white font-medium text-center truncate w-full">
-            {track.music_metadata?.title || track.path.split('/').pop()}
+            {track.track?.title || track.path.split('/').pop()}
           </h3>
           <p className="text-slate-400 text-sm text-center truncate w-full">
-            {track.music_metadata?.artist || 'Unknown Artist'}
+            {track.track?.artist || 'Unknown Artist'}
           </p>
           <p className="text-slate-500 text-xs text-center mt-1 truncate w-full">
-            {track.music_metadata?.album || 'Unknown Album'}
+            {track.track?.album || 'Unknown Album'}
           </p>
         </div>
       </div>

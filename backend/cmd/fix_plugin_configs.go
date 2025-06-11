@@ -23,31 +23,23 @@ type LibraryPluginConfig struct {
 	Enabled      bool   `gorm:"default:true"`
 }
 
-type PluginSettings struct {
-	CorePlugins struct {
-		MetadataExtractors []string `json:"metadata_extractors"`
-		StructureParsers   []string `json:"structure_parsers"`
-		TechnicalAnalyzers []string `json:"technical_analyzers"`
-	} `json:"core_plugins"`
+// Modern simplified plugin configuration
+type ModernPluginConfig struct {
+	// Core plugins (required for basic functionality)
+	CorePlugins []string `json:"core_plugins"`
 
+	// External enrichment plugins
 	EnrichmentPlugins struct {
-		Enabled           bool     `json:"enabled"`
-		AutoEnrich        bool     `json:"auto_enrich"`
-		AllowedPlugins    []string `json:"allowed_plugins"`
-		DisallowedPlugins []string `json:"disallowed_plugins"`
+		Enabled        bool     `json:"enabled"`
+		AutoEnrich     bool     `json:"auto_enrich"`
+		AllowedPlugins []string `json:"allowed_plugins"`
 	} `json:"enrichment_plugins"`
 
-	FileTypeRestrictions struct {
-		AllowedExtensions    []string `json:"allowed_extensions"`
-		DisallowedExtensions []string `json:"disallowed_extensions"`
-		MimeTypeFilters      []string `json:"mime_type_filters"`
-	} `json:"file_type_restrictions"`
-
-	SharedPlugins struct {
-		AllowTechnicalMetadata bool     `json:"allow_technical_metadata"`
-		AllowAssetExtraction   bool     `json:"allow_asset_extraction"`
-		SharedPluginNames      []string `json:"shared_plugin_names"`
-	} `json:"shared_plugins"`
+	// File filtering
+	FileFilters struct {
+		AllowedExtensions []string `json:"allowed_extensions"`
+		MaxFileSize       int64    `json:"max_file_size"`
+	} `json:"file_filters"`
 }
 
 func main() {
@@ -87,7 +79,7 @@ func main() {
 
 		if err == gorm.ErrRecordNotFound {
 			// Create default configuration
-			config := createDefaultConfig(library.Type)
+			config := getModernConfigForLibraryType(library.Type)
 
 			configJSON, err := json.Marshal(config)
 			if err != nil {
@@ -125,7 +117,7 @@ func main() {
 	}
 
 	for _, config := range allConfigs {
-		var settings PluginSettings
+		var settings ModernPluginConfig
 		if err := json.Unmarshal([]byte(config.PluginConfig), &settings); err != nil {
 			log.Printf("❌ Invalid config for library %d: %v", config.LibraryID, err)
 			continue
@@ -134,184 +126,40 @@ func main() {
 		fmt.Printf("✅ Library %d (%s): %d core plugins, %d enrichment plugins\n",
 			config.LibraryID,
 			config.LibraryType,
-			len(settings.CorePlugins.MetadataExtractors)+
-				len(settings.CorePlugins.StructureParsers)+
-				len(settings.CorePlugins.TechnicalAnalyzers),
+			len(settings.CorePlugins),
 			len(settings.EnrichmentPlugins.AllowedPlugins))
 	}
 
 	fmt.Println("\n=== Fix Complete ===")
 }
 
-func createDefaultConfig(libraryType string) *PluginSettings {
+func getModernConfigForLibraryType(libraryType string) ModernPluginConfig {
+	config := ModernPluginConfig{}
+
+	// Set core plugins based on library type
 	switch libraryType {
 	case "music":
-		return &PluginSettings{
-			CorePlugins: struct {
-				MetadataExtractors []string `json:"metadata_extractors"`
-				StructureParsers   []string `json:"structure_parsers"`
-				TechnicalAnalyzers []string `json:"technical_analyzers"`
-			}{
-				MetadataExtractors: []string{"music_metadata_extractor_plugin"},
-				StructureParsers:   []string{},
-				TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
-			},
-			EnrichmentPlugins: struct {
-				Enabled           bool     `json:"enabled"`
-				AutoEnrich        bool     `json:"auto_enrich"`
-				AllowedPlugins    []string `json:"allowed_plugins"`
-				DisallowedPlugins []string `json:"disallowed_plugins"`
-			}{
-				Enabled:           true,
-				AutoEnrich:        true,
-				AllowedPlugins:    []string{"musicbrainz_enricher", "audiodb_enricher"},
-				DisallowedPlugins: []string{"tmdb_enricher"},
-			},
-			FileTypeRestrictions: struct {
-				AllowedExtensions    []string `json:"allowed_extensions"`
-				DisallowedExtensions []string `json:"disallowed_extensions"`
-				MimeTypeFilters      []string `json:"mime_type_filters"`
-			}{
-				AllowedExtensions:    []string{".mp3", ".flac", ".m4a", ".aac", ".ogg", ".wav", ".wma"},
-				DisallowedExtensions: []string{".mp4", ".mkv", ".avi", ".mov"},
-				MimeTypeFilters:      []string{"audio/*"},
-			},
-			SharedPlugins: struct {
-				AllowTechnicalMetadata bool     `json:"allow_technical_metadata"`
-				AllowAssetExtraction   bool     `json:"allow_asset_extraction"`
-				SharedPluginNames      []string `json:"shared_plugin_names"`
-			}{
-				AllowTechnicalMetadata: true,
-				AllowAssetExtraction:   true,
-				SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
-			},
+		config.CorePlugins = []string{
+			"music_metadata_extractor_plugin",
+			"ffmpeg_probe_core_plugin",
 		}
-
-	case "movie":
-		return &PluginSettings{
-			CorePlugins: struct {
-				MetadataExtractors []string `json:"metadata_extractors"`
-				StructureParsers   []string `json:"structure_parsers"`
-				TechnicalAnalyzers []string `json:"technical_analyzers"`
-			}{
-				MetadataExtractors: []string{"ffmpeg_probe_core_plugin"},
-				StructureParsers:   []string{"movie_structure_parser_core_plugin"},
-				TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
-			},
-			EnrichmentPlugins: struct {
-				Enabled           bool     `json:"enabled"`
-				AutoEnrich        bool     `json:"auto_enrich"`
-				AllowedPlugins    []string `json:"allowed_plugins"`
-				DisallowedPlugins []string `json:"disallowed_plugins"`
-			}{
-				Enabled:           true,
-				AutoEnrich:        true,
-				AllowedPlugins:    []string{"tmdb_enricher"},
-				DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
-			},
-			FileTypeRestrictions: struct {
-				AllowedExtensions    []string `json:"allowed_extensions"`
-				DisallowedExtensions []string `json:"disallowed_extensions"`
-				MimeTypeFilters      []string `json:"mime_type_filters"`
-			}{
-				AllowedExtensions:    []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"},
-				DisallowedExtensions: []string{".mp3", ".flac", ".m4a", ".aac"},
-				MimeTypeFilters:      []string{"video/*"},
-			},
-			SharedPlugins: struct {
-				AllowTechnicalMetadata bool     `json:"allow_technical_metadata"`
-				AllowAssetExtraction   bool     `json:"allow_asset_extraction"`
-				SharedPluginNames      []string `json:"shared_plugin_names"`
-			}{
-				AllowTechnicalMetadata: true,
-				AllowAssetExtraction:   true,
-				SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
-			},
+		config.EnrichmentPlugins.AllowedPlugins = []string{"musicbrainz_enricher"}
+	case "tv", "movie":
+		config.CorePlugins = []string{
+			"ffmpeg_probe_core_plugin",
 		}
-
-	case "tv":
-		return &PluginSettings{
-			CorePlugins: struct {
-				MetadataExtractors []string `json:"metadata_extractors"`
-				StructureParsers   []string `json:"structure_parsers"`
-				TechnicalAnalyzers []string `json:"technical_analyzers"`
-			}{
-				MetadataExtractors: []string{"ffmpeg_probe_core_plugin"},
-				StructureParsers:   []string{"tv_structure_parser_core_plugin"},
-				TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
-			},
-			EnrichmentPlugins: struct {
-				Enabled           bool     `json:"enabled"`
-				AutoEnrich        bool     `json:"auto_enrich"`
-				AllowedPlugins    []string `json:"allowed_plugins"`
-				DisallowedPlugins []string `json:"disallowed_plugins"`
-			}{
-				Enabled:           true,
-				AutoEnrich:        true,
-				AllowedPlugins:    []string{"tmdb_enricher"},
-				DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
-			},
-			FileTypeRestrictions: struct {
-				AllowedExtensions    []string `json:"allowed_extensions"`
-				DisallowedExtensions []string `json:"disallowed_extensions"`
-				MimeTypeFilters      []string `json:"mime_type_filters"`
-			}{
-				AllowedExtensions:    []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"},
-				DisallowedExtensions: []string{".mp3", ".flac", ".m4a", ".aac"},
-				MimeTypeFilters:      []string{"video/*"},
-			},
-			SharedPlugins: struct {
-				AllowTechnicalMetadata bool     `json:"allow_technical_metadata"`
-				AllowAssetExtraction   bool     `json:"allow_asset_extraction"`
-				SharedPluginNames      []string `json:"shared_plugin_names"`
-			}{
-				AllowTechnicalMetadata: true,
-				AllowAssetExtraction:   true,
-				SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
-			},
+		if libraryType == "tv" {
+			config.CorePlugins = append(config.CorePlugins, "tv_structure_parser_core_plugin")
+		} else {
+			config.CorePlugins = append(config.CorePlugins, "movie_structure_parser_core_plugin")
 		}
-
-	default:
-		// Generic configuration for unknown library types
-		return &PluginSettings{
-			CorePlugins: struct {
-				MetadataExtractors []string `json:"metadata_extractors"`
-				StructureParsers   []string `json:"structure_parsers"`
-				TechnicalAnalyzers []string `json:"technical_analyzers"`
-			}{
-				MetadataExtractors: []string{"ffmpeg_probe_core_plugin"},
-				StructureParsers:   []string{},
-				TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
-			},
-			EnrichmentPlugins: struct {
-				Enabled           bool     `json:"enabled"`
-				AutoEnrich        bool     `json:"auto_enrich"`
-				AllowedPlugins    []string `json:"allowed_plugins"`
-				DisallowedPlugins []string `json:"disallowed_plugins"`
-			}{
-				Enabled:           true,
-				AutoEnrich:        false,
-				AllowedPlugins:    []string{},
-				DisallowedPlugins: []string{},
-			},
-			FileTypeRestrictions: struct {
-				AllowedExtensions    []string `json:"allowed_extensions"`
-				DisallowedExtensions []string `json:"disallowed_extensions"`
-				MimeTypeFilters      []string `json:"mime_type_filters"`
-			}{
-				AllowedExtensions:    []string{},
-				DisallowedExtensions: []string{},
-				MimeTypeFilters:      []string{},
-			},
-			SharedPlugins: struct {
-				AllowTechnicalMetadata bool     `json:"allow_technical_metadata"`
-				AllowAssetExtraction   bool     `json:"allow_asset_extraction"`
-				SharedPluginNames      []string `json:"shared_plugin_names"`
-			}{
-				AllowTechnicalMetadata: true,
-				AllowAssetExtraction:   true,
-				SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
-			},
-		}
+		config.EnrichmentPlugins.AllowedPlugins = []string{"tmdb_enricher_v2"}
 	}
+
+	// Common settings
+	config.EnrichmentPlugins.Enabled = true
+	config.EnrichmentPlugins.AutoEnrich = true
+	config.FileFilters.MaxFileSize = 10 * 1024 * 1024 * 1024 // 10GB
+
+	return config
 }

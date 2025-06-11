@@ -1,0 +1,32 @@
+# Cursor IDE Optimization Rules for Go Project
+
+## Performance Optimizations
+
+- Limit file indexing to essential directories
+- Exclude large binary files and build artifacts
+- Optimize Go language server settings
+
+## File Exclusions
+
+- Exclude vendor/ directories from indexing
+- Exclude .git/ directory from deep scanning
+- Exclude build artifacts and temporary files
+- Exclude node_modules if any exist
+
+## Go-specific Settings
+
+- Enable Go modules support
+- Use minimal language server features to reduce CPU usage
+- Disable unnecessary Go diagnostics for better performance
+
+## Memory Management
+
+- Limit number of concurrent file operations
+- Reduce syntax highlighting complexity for large files
+- Optimize intellisense caching
+
+## Indexing Preferences
+
+- Focus on .go files primarily
+- Limit deep directory traversal
+- Exclude test files from heavy analysis when not needed

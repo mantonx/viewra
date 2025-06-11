@@ -29,4 +29,4 @@ fi
 
 # Run the development server
 echo "🚀 Starting development server..."
-npm run dev -- --host 0.0.0.0
+npm run dev -- --host 0.0.0.0 --config vite.config.docker.ts

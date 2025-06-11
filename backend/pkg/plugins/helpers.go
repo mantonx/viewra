@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
 )
@@ -13,22 +12,22 @@ func LoadPluginConfig(ctx *PluginContext, config interface{}) error {
 	if ctx == nil {
 		return fmt.Errorf("plugin context is required")
 	}
-	
+
 	if config == nil {
 		return fmt.Errorf("config struct is required")
 	}
-	
+
 	// Create config loader
-	pluginDir := filepath.Dir(ctx.BasePath)
+	pluginDir := ctx.PluginBasePath
 	logger := &stdLogger{prefix: fmt.Sprintf("[%s] ", ctx.PluginID)}
 	configLoader := NewConfigLoader(pluginDir, ctx.PluginID, logger)
-	
+
 	// Extract runtime config from context if available
 	var runtimeConfig map[string]string
 	// TODO: When PluginContext gets Config field, extract it here
 	// For now, create empty map
 	runtimeConfig = make(map[string]string)
-	
+
 	// Load configuration with proper priority
 	return configLoader.LoadConfig(config, runtimeConfig)
 }
@@ -61,4 +60,4 @@ func (l *stdLogger) With(keysAndValues ...interface{}) hclog.Logger {
 		Name:  l.prefix,
 		Level: hclog.Debug,
 	})
-} 
+}

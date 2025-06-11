@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +30,10 @@ func (m *Module) RegisterRoutes(r *gin.Engine) {
 		enrichment.PUT("/sources/:sourceName", m.UpdateEnrichmentSourceHandler)
 		enrichment.GET("/jobs", m.GetEnrichmentJobsHandler)
 		enrichment.POST("/jobs/:mediaFileId", m.TriggerEnrichmentJobHandler)
+		enrichment.GET("/progress", m.GetOverallProgressHandler)
+		enrichment.GET("/progress/tv-shows", m.GetTVShowProgressHandler)
+		enrichment.GET("/progress/movies", m.GetMovieProgressHandler)
+		enrichment.GET("/progress/music", m.GetMusicProgressHandler)
 	}
 
 	log.Printf("✅ Registered enrichment module HTTP routes")
@@ -227,5 +232,105 @@ func (m *Module) TriggerEnrichmentJobHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Enrichment job created successfully",
 		"job":     job,
+	})
+}
+
+// =============================================================================
+// ENRICHMENT PROGRESS HANDLERS
+// =============================================================================
+
+// GetOverallProgressHandler returns overall enrichment progress across all media types
+func (m *Module) GetOverallProgressHandler(c *gin.Context) {
+	if !m.enabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Enrichment module is not enabled",
+		})
+		return
+	}
+
+	progress, err := m.progressManager.GetOverallProgress()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get enrichment progress",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"progress": progress,
+	})
+}
+
+// GetTVShowProgressHandler returns enrichment progress specifically for TV shows
+func (m *Module) GetTVShowProgressHandler(c *gin.Context) {
+	if !m.enabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Enrichment module is not enabled",
+		})
+		return
+	}
+
+	progress, err := m.progressManager.GetTVShowProgress()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get TV show enrichment progress",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"progress": progress,
+	})
+}
+
+// GetMovieProgressHandler returns enrichment progress specifically for movies
+func (m *Module) GetMovieProgressHandler(c *gin.Context) {
+	if !m.enabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Enrichment module is not enabled",
+		})
+		return
+	}
+
+	// For now, return basic progress structure
+	progress := map[string]interface{}{
+		"media_type":          "movies",
+		"total_items":         0,
+		"enriched_items":      0,
+		"pending_items":       0,
+		"failed_items":        0,
+		"progress_percentage": 0.0,
+		"last_update":         time.Now(),
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"progress": progress,
+	})
+}
+
+// GetMusicProgressHandler returns enrichment progress specifically for music
+func (m *Module) GetMusicProgressHandler(c *gin.Context) {
+	if !m.enabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Enrichment module is not enabled",
+		})
+		return
+	}
+
+	// For now, return basic progress structure
+	progress := map[string]interface{}{
+		"media_type":          "music",
+		"total_items":         0,
+		"enriched_items":      0,
+		"pending_items":       0,
+		"failed_items":        0,
+		"progress_percentage": 0.0,
+		"last_update":         time.Now(),
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"progress": progress,
 	})
 }

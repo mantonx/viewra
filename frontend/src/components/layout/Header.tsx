@@ -23,6 +23,8 @@ const Header = () => {
     { to: '/', label: 'Home' },
     { to: '/music', label: 'Music' },
     { to: '/tv-shows', label: 'TV Shows' },
+    { to: '/video-test', label: 'Video Test' },
+    { to: '/enrichment-dashboard', label: 'Enrichment' },
     { to: '/admin', label: 'Admin' },
   ];
 

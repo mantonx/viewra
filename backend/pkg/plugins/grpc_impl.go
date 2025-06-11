@@ -3,10 +3,36 @@ package plugins
 import (
 	"context"
 
+	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/pkg/plugins/proto"
 	"google.golang.org/grpc"
 )
+
+// HCLogAdapter adapts hclog.Logger to our Logger interface
+type HCLogAdapter struct {
+	logger hclog.Logger
+}
+
+func (h *HCLogAdapter) Debug(msg string, args ...interface{}) {
+	h.logger.Debug(msg, args...)
+}
+
+func (h *HCLogAdapter) Info(msg string, args ...interface{}) {
+	h.logger.Info(msg, args...)
+}
+
+func (h *HCLogAdapter) Warn(msg string, args ...interface{}) {
+	h.logger.Warn(msg, args...)
+}
+
+func (h *HCLogAdapter) Error(msg string, args ...interface{}) {
+	h.logger.Error(msg, args...)
+}
+
+func (h *HCLogAdapter) With(args ...interface{}) hclog.Logger {
+	return h.logger.With(args...)
+}
 
 // Handshake configuration for plugin communication
 var Handshake = goplugin.HandshakeConfig{
@@ -37,6 +63,7 @@ func convertPluginContextFromProto(protoCtx *proto.PluginContext) *PluginContext
 		HostServiceAddr: protoCtx.HostServiceAddr,
 		LogLevel:        protoCtx.LogLevel,
 		BasePath:        protoCtx.BasePath,
+		PluginBasePath:  protoCtx.BasePath, // Use BasePath as PluginBasePath until protobuf is updated
 		// Note: Logger will need to be set separately as it's not in protobuf
 	}
 }
@@ -65,8 +92,8 @@ func convertAdminPageConfigToProto(configs []*AdminPageConfig) []*proto.AdminPag
 			result[i] = &proto.AdminPageConfig{
 				Id:    config.ID,
 				Title: config.Title,
-				Path:  config.URL,  // Using URL field from plugin SDK
-				Icon:  "",          // Not available in plugin SDK
+				Path:  config.URL, // Using URL field from plugin SDK
+				Icon:  "",         // Not available in plugin SDK
 			}
 		}
 	}
@@ -109,7 +136,7 @@ func convertSearchResultToProto(results []*SearchResult) []*proto.SearchResult {
 					album = al
 				}
 			}
-			
+
 			result[i] = &proto.SearchResult{
 				Id:       searchResult.ID,
 				Title:    searchResult.Title,
@@ -133,39 +160,39 @@ type GRPCPlugin struct {
 func (p *GRPCPlugin) GRPCServer(broker *goplugin.GRPCBroker, s *grpc.Server) error {
 	// Register core plugin service
 	proto.RegisterPluginServiceServer(s, &PluginServer{Impl: p.Impl})
-	
+
 	// Register optional services based on plugin capabilities
 	if metadataService := p.Impl.MetadataScraperService(); metadataService != nil {
 		proto.RegisterMetadataScraperServiceServer(s, &MetadataScraperServer{Impl: metadataService})
 	}
-	
+
 	if scannerService := p.Impl.ScannerHookService(); scannerService != nil {
 		proto.RegisterScannerHookServiceServer(s, &ScannerHookServer{Impl: scannerService})
 	}
-	
+
 	if dbService := p.Impl.DatabaseService(); dbService != nil {
 		proto.RegisterDatabaseServiceServer(s, &DatabaseServer{Impl: dbService})
 	}
-	
+
 	if adminService := p.Impl.AdminPageService(); adminService != nil {
 		proto.RegisterAdminPageServiceServer(s, &AdminPageServer{Impl: adminService})
 	}
-	
+
 	// Register APIRegistrationService if implemented
 	if apiRegService := p.Impl.APIRegistrationService(); apiRegService != nil {
 		proto.RegisterAPIRegistrationServiceServer(s, &APIRegistrationServer{Impl: apiRegService})
 	}
-	
+
 	// Register SearchService if implemented
 	if searchService := p.Impl.SearchService(); searchService != nil {
 		proto.RegisterSearchServiceServer(s, &SearchServer{Impl: searchService})
 	}
-	
+
 	// Register AssetService if implemented
 	if assetService := p.Impl.AssetService(); assetService != nil {
 		proto.RegisterAssetServiceServer(s, &AssetServer{Impl: assetService})
 	}
-	
+
 	return nil
 }
 
@@ -205,6 +232,16 @@ type PluginServer struct {
 
 func (s *PluginServer) Initialize(ctx context.Context, req *proto.InitializeRequest) (*proto.InitializeResponse, error) {
 	pluginCtx := convertPluginContextFromProto(req.Context)
+
+	// Create a logger for the plugin using hclog
+	if pluginCtx != nil && pluginCtx.Logger == nil {
+		logger := hclog.New(&hclog.LoggerOptions{
+			Name:  pluginCtx.PluginID,
+			Level: hclog.LevelFromString(pluginCtx.LogLevel),
+		})
+		pluginCtx.Logger = &HCLogAdapter{logger: logger}
+	}
+
 	err := s.Impl.Initialize(pluginCtx)
 	if err != nil {
 		return &proto.InitializeResponse{
@@ -410,7 +447,7 @@ func (s *SearchServer) Search(ctx context.Context, req *proto.SearchRequest) (*p
 			Error:   err.Error(),
 		}, nil
 	}
-	
+
 	return &proto.SearchResponse{
 		Success:    true,
 		Results:    convertSearchResultToProto(results),
@@ -424,7 +461,7 @@ func (s *SearchServer) GetSearchCapabilities(ctx context.Context, req *proto.Get
 	if err != nil {
 		return &proto.GetSearchCapabilitiesResponse{}, err
 	}
-	
+
 	return &proto.GetSearchCapabilitiesResponse{
 		SupportedFields:    supportedFields,
 		SupportsPagination: supportsPagination,
@@ -451,14 +488,14 @@ func (s *AssetServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest
 		req.PluginId, // Pass the plugin ID
 		req.Metadata,
 	)
-	
+
 	if err != nil {
 		return &proto.SaveAssetResponse{
 			Success: false,
 			Error:   err.Error(),
 		}, nil
 	}
-	
+
 	return &proto.SaveAssetResponse{
 		Success:      true,
 		AssetId:      assetID,
@@ -476,11 +513,11 @@ func (s *AssetServer) AssetExists(ctx context.Context, req *proto.AssetExistsReq
 		req.Subtype,
 		req.Hash,
 	)
-	
+
 	if err != nil {
 		return &proto.AssetExistsResponse{}, err
 	}
-	
+
 	return &proto.AssetExistsResponse{
 		Exists:       exists,
 		AssetId:      assetID,
@@ -496,6 +533,6 @@ func (s *AssetServer) RemoveAsset(ctx context.Context, req *proto.RemoveAssetReq
 			Error:   err.Error(),
 		}, nil
 	}
-	
+
 	return &proto.RemoveAssetResponse{Success: true}, nil
-} 
+}

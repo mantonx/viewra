@@ -2,26 +2,28 @@ package pluginmodule
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/hashicorp/go-hclog"
 	"gorm.io/gorm"
 )
 
 // MediaPluginManager manages plugin-related media processing and asset handling
 type MediaPluginManager struct {
-	db *gorm.DB
+	db     *gorm.DB
+	logger hclog.Logger
 }
 
 // NewMediaPluginManager creates a new media plugin manager
-func NewMediaPluginManager(db *gorm.DB) *MediaPluginManager {
+func NewMediaPluginManager(db *gorm.DB, logger hclog.Logger) *MediaPluginManager {
 	return &MediaPluginManager{
-		db: db,
+		db:     db,
+		logger: logger.Named("media-plugin-manager"),
 	}
 }
 
 // Initialize initializes the media plugin manager
 func (m *MediaPluginManager) Initialize() error {
-	log.Printf("🎬 Media plugin manager initialized")
+	m.logger.Info("media plugin manager initialized")
 	return nil
 }
 
@@ -33,8 +35,10 @@ func (m *MediaPluginManager) ProcessMediaAsset(asset *MediaAsset) error {
 
 	// Asset processing logic will be implemented when needed
 	// This handles artwork, subtitles, thumbnails, etc. extracted by plugins
-	log.Printf("📦 Processing media asset: type=%s, plugin=%s, file=%s",
-		asset.Type, asset.PluginID, asset.MediaFileID)
+	m.logger.Info("processing media asset",
+		"asset_type", asset.Type,
+		"plugin_id", asset.PluginID,
+		"media_file_id", asset.MediaFileID)
 
 	return nil
 }

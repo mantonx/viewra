@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { TVShow } from '@/types/tv.types';
 
 interface TVShowCardProps {
@@ -7,9 +8,14 @@ interface TVShowCardProps {
 }
 
 const TVShowCard: React.FC<TVShowCardProps> = ({ show, onClick }) => {
+  const navigate = useNavigate();
+
   const handleClick = () => {
     if (onClick) {
       onClick(show);
+    } else {
+      // Default behavior: navigate to show detail page
+      navigate(`/tv-shows/${show.id}`);
     }
   };
 
@@ -33,9 +39,7 @@ const TVShowCard: React.FC<TVShowCardProps> = ({ show, onClick }) => {
 
   return (
     <div
-      className={`bg-slate-800 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 ${
-        onClick ? 'cursor-pointer' : ''
-      }`}
+      className="bg-slate-800 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 cursor-pointer"
       onClick={handleClick}
     >
       {/* Poster */}
@@ -80,19 +84,15 @@ const TVShowCard: React.FC<TVShowCardProps> = ({ show, onClick }) => {
 
       {/* Content */}
       <div className="p-4">
-        <h3 className="text-white font-semibold text-sm mb-2 line-clamp-2 leading-tight">
-          {show.title}
-        </h3>
+        <h3 className="text-white font-semibold text-lg mb-2 line-clamp-2">{show.title}</h3>
 
-        <div className="flex items-center justify-between text-xs text-slate-400">
+        <div className="flex items-center justify-between text-slate-400 text-sm">
           <span>{formatYear(show.first_air_date)}</span>
-          {show.tmdb_id && <span className="text-xs text-slate-500">TMDB</span>}
+          {show.tmdb_id && <span className="text-xs">TMDB</span>}
         </div>
 
         {show.description && (
-          <p className="text-slate-400 text-xs mt-2 line-clamp-3 leading-relaxed">
-            {show.description}
-          </p>
+          <p className="text-slate-500 text-sm mt-2 line-clamp-3">{show.description}</p>
         )}
       </div>
     </div>

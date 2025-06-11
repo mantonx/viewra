@@ -8,9 +8,13 @@ export { default as MediaCard } from './media/MediaCard';
 export { default as MediaLibraryManager } from './media/MediaLibraryManager';
 export { default as MusicLibrary } from './media/MusicLibrary';
 export { default as TVShowLibrary } from './tv/TVShowLibrary';
+export { default as TVShowCard } from './tv/TVShowCard';
+export { default as TVShowDetail } from './tv/TVShowDetail';
+export { default as VideoPlayer } from './tv/VideoPlayer';
 export { default as EnhancedScannerDashboard } from './media/EnhancedScannerDashboard';
 export { default as ScanActivityFeed } from './media/ScanActivityFeed';
 export { default as ScanProgressCard } from './media/ScanProgressCard';
+export { default as EnrichmentProgressCard } from './media/EnrichmentProgressCard';
 
 // Audio Components
 export { default as AudioPlayer } from './audio/AudioPlayer';
