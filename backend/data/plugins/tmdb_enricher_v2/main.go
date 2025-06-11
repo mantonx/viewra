@@ -7,14 +7,31 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mantonx/viewra/pkg/plugins"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
 	"github.com/mantonx/viewra/data/plugins/tmdb_enricher_v2/internal/cache"
 	"github.com/mantonx/viewra/data/plugins/tmdb_enricher_v2/internal/config"
 	"github.com/mantonx/viewra/data/plugins/tmdb_enricher_v2/internal/models"
 	"github.com/mantonx/viewra/data/plugins/tmdb_enricher_v2/internal/services"
-	"github.com/mantonx/viewra/pkg/plugins"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
+
+// Version information
+type VersionInfo struct {
+	Version   string
+	BuildTime string
+	GitCommit string
+}
+
+// GetVersion returns version information for the plugin
+func GetVersion() VersionInfo {
+	return VersionInfo{
+		Version:   "2.0.0",
+		BuildTime: time.Now().Format("2006-01-02 15:04:05"),
+		GitCommit: "dev", // This would be set during build in production
+	}
+}
 
 // TMDbEnricherV2 represents the main plugin implementation
 type TMDbEnricherV2 struct {
@@ -22,6 +39,7 @@ type TMDbEnricherV2 struct {
 	db       *gorm.DB
 	logger   plugins.Logger
 	basePath string
+	context  *plugins.PluginContext
 
 	// Plugin services
 	enricher     *services.EnrichmentService
@@ -40,38 +58,66 @@ type TMDbEnricherV2 struct {
 
 // Plugin lifecycle methods
 func (t *TMDbEnricherV2) Initialize(ctx *plugins.PluginContext) error {
+	// Basic nil checks to prevent segmentation fault
+	if ctx == nil {
+		return fmt.Errorf("plugin context is nil")
+	}
+
+	if ctx.Logger == nil {
+		return fmt.Errorf("logger in plugin context is nil")
+	}
+
 	t.logger = ctx.Logger
 	t.basePath = ctx.BasePath
+	t.context = ctx
 
-	t.logger.Info("TMDb Enricher v2 initializing", "base_path", t.basePath)
+	t.logger.Info("TMDb Enricher v2 initializing", "base_path", t.basePath, "plugin_base_path", ctx.PluginBasePath)
 
 	// Initialize database connection
+	if ctx.PluginBasePath == "" {
+		t.logger.Error("PluginBasePath is empty")
+		return fmt.Errorf("PluginBasePath is empty")
+	}
+
 	dbPath := filepath.Join(ctx.PluginBasePath, "tmdb_enricher.db")
+	t.logger.Info("Opening database", "db_path", dbPath)
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
+		t.logger.Error("Failed to open database", "error", err, "db_path", dbPath)
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	t.db = db
+	t.logger.Info("Database opened successfully")
 
 	// Auto-migrate the database
+	t.logger.Info("Starting database migration")
 	if err := t.db.AutoMigrate(&models.TMDbCache{}, &models.TMDbEnrichment{}, &models.TMDbArtwork{}); err != nil {
+		t.logger.Error("Database migration failed", "error", err)
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
+	t.logger.Info("Database migration completed")
 
 	// Initialize unified client for host services
 	if ctx.HostServiceAddr != "" {
+		t.logger.Info("Connecting to host services", "addr", ctx.HostServiceAddr)
 		client, err := plugins.NewUnifiedServiceClient(ctx.HostServiceAddr)
 		if err != nil {
 			t.logger.Warn("failed to connect to host services", "error", err)
 		} else {
 			t.unifiedClient = client
+			t.logger.Info("Connected to host services successfully")
 		}
+	} else {
+		t.logger.Info("No host service address provided")
 	}
 
 	// Initialize services with dependency injection
+	t.logger.Info("Initializing plugin services")
 	if err := t.initializeServices(); err != nil {
+		t.logger.Error("Failed to initialize services", "error", err)
 		return fmt.Errorf("failed to initialize services: %w", err)
 	}
+	t.logger.Info("Plugin services initialized successfully")
 
 	t.logger.Info("TMDb Enricher v2 initialized successfully")
 	return nil
@@ -399,15 +445,20 @@ func (t *TMDbEnricherV2) GetPerformanceMonitor() *plugins.BasePerformanceMonitor
 
 // initializeServices initializes all plugin services
 func (t *TMDbEnricherV2) initializeServices() error {
+	t.logger.Info("Starting service initialization")
+
 	// Initialize SDK services first
+	t.logger.Info("Initializing health service")
 	t.healthService = plugins.NewHealthServiceBuilder("TMDb Enricher").
 		WithCustomCounter("tmdb_api_calls", 0).
 		WithCustomCounter("cache_hits", 0).
 		WithCustomCounter("cache_misses", 0).
 		WithCustomGauge("cache_hit_rate", 0.0).
 		Build()
+	t.logger.Info("Health service initialized")
 
 	// Initialize performance monitor
+	t.logger.Info("Initializing performance monitor")
 	t.performanceMonitor = plugins.NewPerformanceMonitorBuilder("TMDb Enricher").
 		WithCustomCounter("api_calls", 0).
 		WithCustomCounter("cache_operations", 0).
@@ -417,36 +468,78 @@ func (t *TMDbEnricherV2) initializeServices() error {
 		WithCustomGauge("api_rate_limit_remaining", 0.0).
 		WithMaxErrorHistory(100).
 		Build()
+	t.logger.Info("Performance monitor initialized")
 
-	// Initialize TMDb-specific configuration service
-	configPath := filepath.Join(t.basePath, "tmdb_config.json")
-	t.configService = config.NewTMDbConfigurationService(configPath)
-	if err := t.configService.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize TMDb configuration service: %w", err)
+	// Load configuration from CUE file using the plugin SDK
+	t.logger.Info("Loading configuration from plugin.cue")
+	tmdbConfig := config.DefaultConfig()
+
+	// Add debug logging for paths
+	t.logger.Info("Plugin paths",
+		"base_path", t.basePath,
+		"plugin_base_path", t.context.PluginBasePath,
+		"dir_of_base_path", filepath.Dir(t.basePath))
+
+	// Add debug logging
+	t.logger.Info("Default config before loading", "api_key", tmdbConfig.API.Key, "rate_limit", tmdbConfig.API.RateLimit)
+
+	if err := plugins.LoadPluginConfig(t.context, tmdbConfig); err != nil {
+		t.logger.Error("Failed to load configuration from CUE file", "error", err)
+		return fmt.Errorf("failed to load TMDb configuration: %w", err)
 	}
 
-	// Get the current TMDb configuration
-	tmdbConfig := t.configService.GetTMDbConfig()
+	// Debug the loaded config
+	t.logger.Info("Configuration loaded successfully",
+		"api_key_set", tmdbConfig.API.Key != "",
+		"api_key_length", len(tmdbConfig.API.Key),
+		"api_key_starts_with_eyJ", strings.HasPrefix(tmdbConfig.API.Key, "eyJ"),
+		"api_key_dot_count", strings.Count(tmdbConfig.API.Key, "."),
+		"auto_enrich", tmdbConfig.Features.AutoEnrich,
+		"rate_limit", tmdbConfig.API.RateLimit)
+
+	// Create TMDb configuration service for validation and management
+	configPath := filepath.Join(t.basePath, "tmdb_config.json")
+	t.logger.Info("Initializing configuration service", "config_path", configPath)
+	t.configService = config.NewTMDbConfigurationService(configPath)
+
+	// Set the loaded configuration instead of initializing from file
+	if err := t.configService.UpdateTMDbConfig(tmdbConfig); err != nil {
+		t.logger.Error("Configuration service validation failed", "error", err)
+		return fmt.Errorf("failed to validate TMDb configuration: %w", err)
+	}
+	t.logger.Info("Configuration service initialized successfully")
 
 	// Initialize cache manager with config and performance monitor
+	t.logger.Info("Initializing cache manager")
 	t.cacheManager = cache.NewCacheManager(t.db, tmdbConfig, t.logger)
+	t.logger.Info("Cache manager initialized")
 
 	// Initialize matching service with config
+	t.logger.Info("Initializing matching service")
 	t.matcher = services.NewMatchingService(tmdbConfig, t.logger)
+	t.logger.Info("Matching service initialized")
 
 	// Initialize enrichment service with config and performance monitor
+	t.logger.Info("Initializing enrichment service")
 	var err error
 	t.enricher, err = services.NewEnrichmentService(t.db, tmdbConfig, t.unifiedClient, t.logger)
 	if err != nil {
+		t.logger.Error("Enrichment service initialization failed", "error", err)
 		return fmt.Errorf("failed to initialize enrichment service: %w", err)
 	}
+	t.logger.Info("Enrichment service initialized")
 
 	// Initialize artwork service with config and performance monitor
+	t.logger.Info("Initializing artwork service")
 	t.artwork = services.NewArtworkService(t.db, tmdbConfig, t.unifiedClient, t.logger)
+	t.logger.Info("Artwork service initialized")
 
 	// Add configuration change callback to update services when config changes
+	t.logger.Info("Adding configuration callback")
 	t.configService.AddConfigurationCallback(t.onConfigurationChanged)
+	t.logger.Info("Configuration callback added")
 
+	t.logger.Info("All services initialized successfully")
 	return nil
 }
 

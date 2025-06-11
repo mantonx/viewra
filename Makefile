@@ -9,9 +9,10 @@ DOCKER_COMPOSE = docker-compose
 # Colors for output
 GREEN = \033[0;32m
 YELLOW = \033[1;33m
+RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs
+.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds
 
 help: ## Show this help message
 	@echo "Viewra Development Commands:"
@@ -19,44 +20,66 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Plugin Build Examples:"
-	@echo "  make build-plugin p=audiodb_enricher              # Auto-build (detects CGO)"
-	@echo "  make build-plugin p=audiodb_enricher mode=container  # Force container build"
-	@echo "  make build-plugin p=musicbrainz_enricher mode=host   # Force host build"
+	@echo "  make build-plugin p=audiodb_enricher              # Docker build (enforced)"
+	@echo "  make build-plugin p=musicbrainz_enricher          # Docker build (enforced)"
+	@echo "  make build-plugin p=tmdb_enricher_v2              # Docker build (enforced)"
 	@echo ""
+	@echo "$(RED)⚠️  All plugin builds now use Docker containers for consistency$(NC)"
 	@echo "📖 For comprehensive documentation see: DEVELOPMENT.md"
 	@echo ""
 
-build-plugin: ## Build a specific plugin (usage: make build-plugin p=PLUGIN_NAME [mode=auto|host|container] [arch=amd64|arm64])
+# Enforce Docker builds for all plugins - no more host builds
+enforce-docker-builds: ## Check that Docker is available for plugin builds
+	@echo "$(GREEN)Checking Docker environment for plugin builds...$(NC)"
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "$(RED)❌ Docker not found. Plugin builds require Docker for consistency.$(NC)"; \
+		echo "$(YELLOW)Please install Docker to build plugins.$(NC)"; \
+		exit 1; \
+	fi
+	@if ! docker ps >/dev/null 2>&1; then \
+		echo "$(RED)❌ Docker daemon not running. Please start Docker.$(NC)"; \
+		exit 1; \
+	fi
+	@container_id=$$(docker ps --filter "expose=8080" --format "{{.ID}}" | head -1); \
+	if [ -z "$$container_id" ]; then \
+		echo "$(RED)❌ Backend container not running. Starting services...$(NC)"; \
+		$(DOCKER_COMPOSE) up -d backend; \
+		sleep 5; \
+		container_id=$$(docker ps --filter "expose=8080" --format "{{.ID}}" | head -1); \
+		if [ -z "$$container_id" ]; then \
+			echo "$(RED)❌ Failed to start backend container$(NC)"; \
+			exit 1; \
+		fi; \
+	fi
+	@echo "$(GREEN)✅ Docker environment ready for plugin builds$(NC)"
+
+build-plugin: enforce-docker-builds ## Build a specific plugin using Docker (usage: make build-plugin p=PLUGIN_NAME)
 	@if [ -z "$(p)" ]; then \
 		echo "$(YELLOW)Error: Plugin name required. Usage: make build-plugin p=PLUGIN_NAME$(NC)"; \
 		echo "Available plugins:"; \
 		find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "  %f\n" 2>/dev/null | sort; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Building plugin: $(p)$(NC)"
+	@echo "$(GREEN)Building plugin: $(p) (Docker-only mode)$(NC)"
 	@chmod +x $(BUILD_SCRIPT)
-	@$(BUILD_SCRIPT) $(p) $(or $(mode),auto) $(arch)
+	@$(BUILD_SCRIPT) $(p) container
 
-build-plugins: ## Build all plugins using auto-detection
-	@echo "$(GREEN)Building all plugins...$(NC)"
+build-plugins: enforce-docker-builds ## Build all plugins using Docker containers
+	@echo "$(GREEN)Building all plugins using Docker containers...$(NC)"
 	@for plugin in $$(find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "%f\n" 2>/dev/null); do \
-		echo "$(GREEN)Building $$plugin...$(NC)"; \
-		$(MAKE) build-plugin p=$$plugin mode=auto || echo "$(YELLOW)Failed to build $$plugin$(NC)"; \
+		echo "$(GREEN)Building $$plugin in Docker container...$(NC)"; \
+		$(MAKE) build-plugin p=$$plugin || echo "$(YELLOW)Failed to build $$plugin$(NC)"; \
 	done
 
-build-plugins-container: ## Build all plugins using container builds for maximum compatibility
-	@echo "$(GREEN)Building all plugins in container for maximum compatibility...$(NC)"
-	@for plugin in $$(find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "%f\n" 2>/dev/null); do \
-		echo "$(GREEN)Building $$plugin in container...$(NC)"; \
-		$(MAKE) build-plugin p=$$plugin mode=container || echo "$(YELLOW)Failed to build $$plugin$(NC)"; \
-	done
+# Remove the old host/container mode options - everything is Docker now
+build-plugins-container: build-plugins ## Alias for build-plugins (all builds are now containerized)
 
-build-plugins-host: ## Build all plugins on host (fastest, may have compatibility issues)
-	@echo "$(GREEN)Building all plugins on host...$(NC)"
-	@for plugin in $$(find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "%f\n" 2>/dev/null); do \
-		echo "$(GREEN)Building $$plugin on host...$(NC)"; \
-		$(MAKE) build-plugin p=$$plugin mode=host || echo "$(YELLOW)Failed to build $$plugin$(NC)"; \
-	done
+# Remove host build option entirely
+build-plugins-host: ## DEPRECATED: Host builds are no longer supported
+	@echo "$(RED)❌ Host builds are no longer supported for consistency and reliability.$(NC)"
+	@echo "$(YELLOW)All plugin builds now use Docker containers.$(NC)"
+	@echo "$(GREEN)Use 'make build-plugins' instead.$(NC)"
+	@exit 1
 
 clean-binaries: ## Remove all plugin binaries
 	@echo "$(GREEN)Cleaning plugin binaries...$(NC)"

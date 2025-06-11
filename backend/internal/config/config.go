@@ -312,7 +312,7 @@ func DefaultConfig() *Config {
 				EnrichmentPlugins: EnrichmentPluginSettings{
 					Enabled:           true,
 					AutoEnrich:        true,
-					AllowedPlugins:    []string{"tmdb_enricher"},
+					AllowedPlugins:    []string{"tmdb_enricher_v2"},
 					DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
 				},
 				FileTypeRestrictions: FileTypeRestrictions{
@@ -335,7 +335,7 @@ func DefaultConfig() *Config {
 				EnrichmentPlugins: EnrichmentPluginSettings{
 					Enabled:           true,
 					AutoEnrich:        true,
-					AllowedPlugins:    []string{"tmdb_enricher"},
+					AllowedPlugins:    []string{"tmdb_enricher_v2"},
 					DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
 				},
 				FileTypeRestrictions: FileTypeRestrictions{

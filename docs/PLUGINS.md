@@ -312,24 +312,36 @@ Enriches music metadata using The AudioDB API:
 
 ### Building Plugins
 
+**All plugin builds now use Docker containers for maximum consistency and reliability.**
+
 ```bash
-# Build single plugin
+# Build single plugin (Docker only)
 make build-plugin p=plugin_name
 
-# Build all plugins
+# Build all plugins (Docker only)
 make build-plugins
 
-# Specify build mode
-make build-plugin p=plugin_name mode=container  # Force container build
-make build-plugin p=plugin_name mode=host       # Force host build
-make build-plugin p=plugin_name mode=auto       # Auto-detect (default)
+# Check Docker environment
+make enforce-docker-builds
 ```
 
-### Build Modes
+### Build Requirements
 
-- **Auto**: Automatically detects CGO dependencies and chooses optimal build strategy
-- **Host**: Builds directly on host system (faster, requires native dependencies)
-- **Container**: Builds in Docker container (slower, maximum compatibility)
+- **Docker**: Required for all plugin builds
+- **Backend Container**: Must be running (`docker-compose up -d backend`)
+- **Architecture**: Automatically detects and builds for container architecture
+
+### Build Process
+
+1. **Environment Check**: Verifies Docker is available and backend container is running
+2. **Container Build**: Compiles plugin inside Docker container with proper dependencies
+3. **Binary Verification**: Validates the compiled binary is executable in the container
+4. **Deployment**: Ensures binary is available to the running backend
+
+### Deprecated Features
+
+- **Host Builds**: No longer supported for consistency and reliability
+- **Build Mode Selection**: All builds now use containers automatically
 
 ### CGO Detection
 
@@ -339,7 +351,57 @@ The build system automatically detects CGO requirements by analyzing:
 - Dependencies in `go.mod`
 - Transitive dependencies in `go.sum`
 
-CGO-dependent plugins (like those using SQLite) automatically use container builds for maximum compatibility.
+All plugins (CGO and non-CGO) now use container builds for maximum compatibility.
+
+## Plugin Configuration (CUE)
+
+### Improved CUE Parsing
+
+The plugin system now includes enhanced CUE parsing with:
+
+- **Multiline String Support**: Properly handles JWT tokens and long configuration values
+- **Whitespace Normalization**: Automatically cleans up extra whitespace from parsed values
+- **Better Error Reporting**: Detailed error messages with line numbers and context
+- **Nested Structure Support**: Handles complex configuration hierarchies
+
+### Configuration Loading Priority
+
+1. **Runtime Overrides**: Configuration passed from host application
+2. **CUE File Settings**: Values from `plugin.cue` files
+3. **Default Values**: Struct tag defaults
+
+### Example CUE Configuration
+
+```cue
+#Plugin: {
+    // Plugin metadata
+    id: "example_plugin"
+    name: "Example Plugin"
+    enabled_by_default: true
+    
+    // Configuration settings
+    settings: {
+        api: {
+            // JWT tokens are now properly parsed
+            key: "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1YTU2ODc0YjRmMzU4YjIzZDhkM2YzZmI5ZDc4NDNiOSIsIm5iZiI6MTc0ODYzOTc1Ny40MDEsInN1YiI6IjY4M2EyMDBkNzA5OGI4MzMzNThmZThmOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.OXT68T0EtU-WXhcP7nwyWjMePuEuCpfWtDlvdntWKw8"
+            rate_limit: 40
+            timeout: 30
+        }
+        
+        features: {
+            auto_enrich: bool | *true
+            enable_artwork: bool | *true
+        }
+    }
+}
+```
+
+### Configuration Validation
+
+- **API Key Validation**: Supports both legacy 32-character hex keys and JWT tokens
+- **Type Validation**: Ensures configuration values match expected types
+- **Range Validation**: Validates numeric values are within acceptable ranges
+- **Required Fields**: Validates all required configuration is present
 
 ## Plugin Discovery
 

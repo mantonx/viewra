@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -26,28 +27,65 @@ func ValidateAPIKey(apiKey string) error {
 		return fmt.Errorf("API key cannot be empty")
 	}
 
+	// Trim any whitespace that might have been added during parsing
+	originalLength := len(apiKey)
+	apiKey = strings.TrimSpace(apiKey)
+	trimmedLength := len(apiKey)
+
+	// Log if whitespace was trimmed for debugging
+	if originalLength != trimmedLength {
+		fmt.Printf("DEBUG: API key had %d characters of whitespace trimmed (original: %d, trimmed: %d)\n",
+			originalLength-trimmedLength, originalLength, trimmedLength)
+	}
+
 	// Check for JWT token format (new TMDb API Read Access Token)
-	if strings.HasPrefix(apiKey, "eyJ") && strings.Count(apiKey, ".") == 2 {
-		// JWT format: header.payload.signature
-		parts := strings.Split(apiKey, ".")
-		if len(parts) == 3 && len(parts[0]) > 10 && len(parts[1]) > 10 && len(parts[2]) > 10 {
-			return nil // Valid JWT format
+	if strings.HasPrefix(apiKey, "eyJ") {
+		dotCount := strings.Count(apiKey, ".")
+		if dotCount == 2 {
+			// JWT format: header.payload.signature
+			parts := strings.Split(apiKey, ".")
+			if len(parts) == 3 && len(parts[0]) > 10 && len(parts[1]) > 10 && len(parts[2]) > 10 {
+				fmt.Printf("DEBUG: Valid JWT token detected (length: %d)\n", len(apiKey))
+				return nil // Valid JWT format
+			}
+			return fmt.Errorf("invalid JWT token format: parts too short (header: %d, payload: %d, signature: %d)",
+				len(parts[0]), len(parts[1]), len(parts[2]))
 		}
-		return fmt.Errorf("invalid JWT token format")
+		return fmt.Errorf("invalid JWT token format: expected 2 dots, found %d", dotCount)
 	}
 
 	// Legacy format: 32 character hexadecimal strings
 	if len(apiKey) == 32 {
-		matched, err := regexp.MatchString("^[a-f0-9]{32}$", apiKey)
-		if err != nil {
-			return fmt.Errorf("invalid API key format: %w", err)
+		// Check if it's a valid hexadecimal string
+		if _, err := hex.DecodeString(apiKey); err != nil {
+			return fmt.Errorf("invalid hexadecimal API key format: %w", err)
 		}
-		if matched {
-			return nil // Valid legacy format
-		}
+		fmt.Printf("DEBUG: Valid legacy API key detected (32 characters)\n")
+		return nil // Valid legacy format
 	}
 
-	return fmt.Errorf("API key must be either a 32-character hexadecimal string or a JWT token")
+	// Provide detailed error message
+	if strings.HasPrefix(apiKey, "eyJ") {
+		return fmt.Errorf("API key appears to be a JWT token but has invalid format (length: %d, dots: %d)",
+			len(apiKey), strings.Count(apiKey, "."))
+	}
+
+	return fmt.Errorf("API key must be either a 32-character hexadecimal string or a JWT token (current length: %d)", len(apiKey))
+}
+
+// Helper functions for debug logging
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // ValidateLanguageCode validates an ISO 639-1 language code

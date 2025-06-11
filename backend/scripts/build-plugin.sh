@@ -392,7 +392,7 @@ deploy_to_container() {
     fi
 }
 
-# Function to determine optimal build strategy
+# Function to determine optimal build strategy (DOCKER ONLY)
 determine_build_strategy() {
     local plugin_dir="$1"
     local cgo_requirement="$2"
@@ -400,20 +400,20 @@ determine_build_strategy() {
     
     case "$build_mode" in
         host)
-            echo "host"
+            print_error "Host builds are no longer supported for consistency and reliability"
+            print_error "All plugin builds now use Docker containers"
+            return 1
             ;;
         container)
             echo "container"
             ;;
         auto)
-            if [[ "$cgo_requirement" == "cgo" ]]; then
-                echo "container"
-            else
-                echo "host"
-            fi
+            # Always use container builds for consistency
+            print_info "Auto mode: using container build for maximum consistency"
+            echo "container"
             ;;
         *)
-            print_error "Invalid build mode: $build_mode"
+            print_error "Invalid build mode: $build_mode (valid: container, auto)"
             return 1
             ;;
     esac
@@ -425,9 +425,9 @@ main() {
         echo "Usage: $0 <plugin_name> [build_mode] [target_arch]"
         echo ""
         echo "Build modes:"
-        echo "  auto      - Automatically choose best build method (default)"
-        echo "  host      - Build on host system (faster, may have compatibility issues)"
-        echo "  container - Build inside container (slower, maximum compatibility)"
+        echo "  auto      - Use Docker container build (default, recommended)"
+        echo "  container - Build inside Docker container (maximum compatibility)"
+        echo "  host      - DEPRECATED: No longer supported"
         echo ""
         echo "Target architectures:"
         echo "  auto      - Auto-detect target architecture (default)"
