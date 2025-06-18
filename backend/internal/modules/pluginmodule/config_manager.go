@@ -390,6 +390,10 @@ func (pcm *PluginConfigManager) saveConfigurationToDB(config *PluginConfiguratio
 	settingsJSON, _ := json.Marshal(config.Settings)
 	rulesJSON, _ := json.Marshal(config.ValidationRules)
 
+	// Check if configuration already exists
+	var existingConfig database.PluginConfiguration
+	err := pcm.db.Where("plugin_id = ?", config.PluginID).First(&existingConfig).Error
+
 	dbConfig := database.PluginConfiguration{
 		PluginID:     config.PluginID,
 		Version:      config.Version,
@@ -400,8 +404,17 @@ func (pcm *PluginConfigManager) saveConfigurationToDB(config *PluginConfiguratio
 		IsActive:     true,
 	}
 
-	// Use upsert (create or update)
-	return pcm.db.Save(&dbConfig).Error
+	if err == nil {
+		// Update existing record
+		dbConfig.ID = existingConfig.ID
+		return pcm.db.Save(&dbConfig).Error
+	} else if err == gorm.ErrRecordNotFound {
+		// Create new record
+		return pcm.db.Create(&dbConfig).Error
+	} else {
+		// Other error
+		return err
+	}
 }
 
 func (pcm *PluginConfigManager) validateConfigurationUpdates(config *PluginConfiguration, updates map[string]interface{}) error {
