@@ -97,13 +97,9 @@ const VideoPlayer: React.FC = () => {
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [isSeekingAhead, setIsSeekingAhead] = useState(false); // Track seek-ahead state
   
-  // Enhanced loading states
-  const [loadingStage, setLoadingStage] = useState<'initial' | 'fetching-metadata' | 'starting-session' | 'waiting-manifest' | 'player-init' | 'ready'>('initial');
-  const [isTranscoding, setIsTranscoding] = useState(false);
-  const [transcodingProgress, setTranscodingProgress] = useState(0);
+  // Simple loading states
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [canPlay, setCanPlay] = useState(false);
-  const [hasAttemptedAutoplay, setHasAttemptedAutoplay] = useState(false);
 
   // URL params
   const startTime = parseInt(searchParams.get('t') || '0', 10);
@@ -210,10 +206,7 @@ const VideoPlayer: React.FC = () => {
         },
       });
 
-      setLoadingStage('player-init');
-      if (playbackDecision.should_transcode) {
-        setTranscodingProgress(60);
-      }
+      // Player initialization starting
 
       // Get manifest URL (prefer manifest_url for DASH/HLS, fallback to stream_url)
       const manifestUrl = playbackDecision.manifest_url || playbackDecision.stream_url;
@@ -253,14 +246,9 @@ const VideoPlayer: React.FC = () => {
             if (DEBUG) console.warn('❌ Invalid duration detected:', video.duration);
           }
           
-          // Set loading stage to indicate player is ready
-          setLoadingStage('ready');
+          // Video metadata is ready
+          setIsVideoLoading(false);
           setIsBuffering(false);
-          if (playbackDecision?.should_transcode) {
-            setTranscodingProgress(100);
-            // Stop transcoding state after metadata is loaded
-            setTimeout(() => setIsTranscoding(false), 2000);
-          }
           
           // Determine start position: URL param > saved position > beginning
           let targetStartTime = 0;
@@ -353,18 +341,16 @@ const VideoPlayer: React.FC = () => {
           }
           
           // Video data is loaded and ready to play
-          setCanPlay(true);
+          setIsVideoLoading(false);
           setIsBuffering(false);
           
-          // Attempt autoplay if enabled and not yet attempted
-          if (shouldAutoplay && !hasAttemptedAutoplay) {
-            setHasAttemptedAutoplay(true);
+          // Attempt autoplay if enabled
+          if (shouldAutoplay) {
             console.log('🎬 Attempting autoplay...');
             video.play().then(() => {
               console.log('✅ Autoplay successful');
             }).catch((error) => {
               console.warn('⚠️ Autoplay failed:', error.message);
-              // Show a play button overlay or notification that user needs to click play
             });
           }
         };
@@ -372,7 +358,7 @@ const VideoPlayer: React.FC = () => {
         // Additional handlers for better state tracking
         const handleCanPlay = () => {
           console.log('📺 Can play event fired');
-          setCanPlay(true);
+          setIsVideoLoading(false);
           setIsBuffering(false);
         };
 
@@ -383,6 +369,7 @@ const VideoPlayer: React.FC = () => {
 
         const handlePlaying = () => {
           console.log('▶️ Video playing');
+          setIsVideoLoading(false);
           setIsBuffering(false);
         };
 
@@ -435,7 +422,6 @@ const VideoPlayer: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      setLoadingStage('fetching-metadata');
 
       // Get media files
       const filesResponse = await fetch(`/api/media/files?limit=1000`);
@@ -487,10 +473,6 @@ const VideoPlayer: React.FC = () => {
 
       // Start transcoding session if needed
       if (decision.should_transcode) {
-        setLoadingStage('starting-session');
-        setIsTranscoding(true);
-        setTranscodingProgress(10);
-        
         const sessionResponse = await fetch('/api/playback/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -508,9 +490,6 @@ const VideoPlayer: React.FC = () => {
 
         const sessionData = await sessionResponse.json();
         console.log('✅ Transcoding session started:', sessionData.id);
-
-        setLoadingStage('waiting-manifest');
-        setTranscodingProgress(30);
 
         // Store session info for player initialization
         setPlaybackDecision(prev => ({
@@ -852,60 +831,12 @@ const VideoPlayer: React.FC = () => {
     };
   }, [cleanupPlayer]);
 
-  if (loading || loadingStage !== 'ready') {
-    const getLoadingMessage = () => {
-      switch (loadingStage) {
-        case 'initial':
-          return 'Initializing player...';
-        case 'fetching-metadata':
-          return 'Loading video metadata...';
-        case 'starting-session':
-          return 'Starting transcoding session...';
-        case 'waiting-manifest':
-          return 'Generating video manifest...';
-        case 'player-init':
-          return 'Initializing video player...';
-        default:
-          return 'Loading video player...';
-      }
-    };
-
-    const getSubMessage = () => {
-      if (isTranscoding) {
-        return 'Preparing DASH adaptive stream for optimal playback';
-      }
-      if (playbackDecision && playbackDecision.should_transcode) {
-        return 'Setting up transcoding for your device';
-      }
-      if (playbackDecision && !playbackDecision.should_transcode) {
-        return 'Preparing direct stream';
-      }
-      return 'Please wait...';
-    };
-
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white">
-        <div className="text-center max-w-md">
+        <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-lg mb-2">{getLoadingMessage()}</p>
-          <p className="text-sm text-gray-400 mb-4">{getSubMessage()}</p>
-          
-          {/* Loading progress for transcoding */}
-          {isTranscoding && (
-            <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
-              <div 
-                className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${Math.max(20, transcodingProgress)}%` }}
-              ></div>
-            </div>
-          )}
-          
-          {/* Additional helpful text for transcoding */}
-          {isTranscoding && (
-            <p className="text-xs text-gray-500">
-              First-time viewing may take a moment to prepare optimal quality
-            </p>
-          )}
+          <p>Loading video...</p>
         </div>
       </div>
     );
@@ -963,21 +894,10 @@ const VideoPlayer: React.FC = () => {
           </div>
         )}
 
-        {/* Play button overlay (for autoplay failures) */}
-        {canPlay && !isPlaying && !isBuffering && shouldAutoplay && hasAttemptedAutoplay && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-40">
-            <button
-              onClick={() => videoRef.current?.play()}
-              className="bg-black/80 hover:bg-black/90 rounded-full p-6 text-white hover:scale-110 transition-all duration-200"
-            >
-              <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-            </button>
-            <div className="absolute bottom-20 text-white text-center">
-              <p className="text-sm">Autoplay was blocked</p>
-              <p className="text-xs text-gray-400">Click to start playback</p>
-            </div>
+        {/* Loading spinner overlay - shows until video starts playing */}
+        {isVideoLoading && !isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-40">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
           </div>
         )}
 
