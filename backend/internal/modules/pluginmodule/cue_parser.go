@@ -4,12 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 )
+
+// UIMetadata holds UI-specific metadata extracted from CUE @ui attributes
+type UIMetadata struct {
+	importance  int
+	level       string
+	category    string
+	description string
+	min         interface{}
+	max         interface{}
+	enum        []string
+}
 
 // CUEParser handles parsing CUE configuration files and converting them to JSON schemas
 type CUEParser struct {
@@ -85,67 +97,113 @@ func (p *CUEParser) extractConfigurationSchema(value cue.Value) (map[string]inte
 
 // convertCueValueToProperty converts a CUE value to a JSON schema property
 func (p *CUEParser) convertCueValueToProperty(value cue.Value, fieldName string) (map[string]interface{}, error) {
-	category := p.categorizeField(fieldName)
-	importance := p.calculateImportance(fieldName, category)
+	// Extract UI metadata from @ui attribute
+	uiMeta := p.extractUIMetadata(value)
+
+	// Use extracted metadata or fall back to inferred values
+	category := uiMeta.category
+	if category == "" {
+		category = p.categorizeField(fieldName)
+	}
+
+	importance := uiMeta.importance
+	if importance == 0 {
+		importance = p.calculateImportance(fieldName, category)
+	}
+
+	// Determine if setting is basic based on field name and section
+	isBasic := p.isEssentialSetting(fieldName, category)
+	if uiMeta.level == "basic" {
+		isBasic = true
+	} else if uiMeta.level == "advanced" {
+		isBasic = false
+	}
 
 	property := map[string]interface{}{
 		"title":         p.generateHumanReadableName(fieldName),
-		"description":   p.extractDescription(value),
+		"description":   uiMeta.description,
 		"category":      category,
 		"importance":    importance,
-		"is_basic":      p.isBasicSetting(fieldName, category),
-		"user_friendly": p.isUserFriendly(fieldName),
+		"is_basic":      isBasic,
+		"user_friendly": uiMeta.level != "advanced",
 	}
 
-	// Handle different CUE value types
-	kind := value.IncompleteKind()
+	// Add UI constraints if present
+	if uiMeta.min != nil {
+		property["minimum"] = uiMeta.min
+	}
+	if uiMeta.max != nil {
+		property["maximum"] = uiMeta.max
+	}
+	if len(uiMeta.enum) > 0 {
+		property["enum"] = uiMeta.enum
+	}
 
-	switch {
-	case kind&cue.BoolKind != 0:
-		property["type"] = "boolean"
-		if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
-			property["default"] = defaultVal
+	// Check if this value has explicit type/default structure
+	if typeVal := value.LookupPath(cue.ParsePath("type")); typeVal.Exists() {
+		// Handle explicit type definition
+		if typeStr, err := typeVal.String(); err == nil {
+			property["type"] = typeStr
 		}
 
-	case kind&cue.IntKind != 0:
-		property["type"] = "integer"
-		if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
-			property["default"] = defaultVal
+		// Handle explicit default
+		if defaultVal := value.LookupPath(cue.ParsePath("default")); defaultVal.Exists() {
+			if defaultInterface := p.cueValueToInterface(defaultVal); defaultInterface != nil {
+				property["default"] = defaultInterface
+			}
 		}
+		return property, nil
+	} else {
+		// Handle different CUE value types (traditional approach)
+		kind := value.IncompleteKind()
 
-	case kind&cue.FloatKind != 0 || kind&cue.NumberKind != 0:
-		property["type"] = "number"
-		if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
-			property["default"] = defaultVal
-		}
+		switch {
+		case kind&cue.BoolKind != 0:
+			property["type"] = "boolean"
+			if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
+				property["default"] = defaultVal
+			}
 
-	case kind&cue.StringKind != 0:
-		property["type"] = "string"
-		if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
-			property["default"] = defaultVal
-		}
+		case kind&cue.IntKind != 0:
+			property["type"] = "integer"
+			if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
+				property["default"] = defaultVal
+			}
 
-	case kind&cue.ListKind != 0:
-		property["type"] = "array"
-		if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
-			property["default"] = defaultVal
-		}
+		case kind&cue.FloatKind != 0 || kind&cue.NumberKind != 0:
+			property["type"] = "number"
+			if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
+				property["default"] = defaultVal
+			}
 
-	case kind&cue.StructKind != 0:
-		// For nested structures, recursively process
-		if nestedSchema, err := p.extractConfigurationSchema(value); err == nil && len(nestedSchema) > 0 {
-			property["type"] = "object"
-			property["properties"] = nestedSchema
-		} else {
-			property["type"] = "object"
-			property["description"] = property["description"].(string) + " (Object configuration)"
-		}
+		case kind&cue.StringKind != 0:
+			property["type"] = "string"
+			if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
+				property["default"] = defaultVal
+			}
 
-	default:
-		// Default to string for unknown types
-		property["type"] = "string"
-		if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
-			property["default"] = defaultVal
+		case kind&cue.ListKind != 0:
+			property["type"] = "array"
+			if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
+				property["default"] = defaultVal
+			}
+
+		case kind&cue.StructKind != 0:
+			// For nested structures, recursively process
+			if nestedSchema, err := p.extractConfigurationSchema(value); err == nil && len(nestedSchema) > 0 {
+				property["type"] = "object"
+				property["properties"] = nestedSchema
+			} else {
+				property["type"] = "object"
+				property["description"] = property["description"].(string) + " (Object configuration)"
+			}
+
+		default:
+			// Default to string for unknown types
+			property["type"] = "string"
+			if defaultVal := p.extractDefaultValue(value); defaultVal != nil {
+				property["default"] = defaultVal
+			}
 		}
 	}
 
@@ -341,19 +399,74 @@ func (p *CUEParser) calculateImportance(fieldName, category string) int {
 	}
 }
 
-// isBasicSetting determines if a setting should be shown in basic mode
-func (p *CUEParser) isBasicSetting(fieldName, category string) bool {
-	importance := p.calculateImportance(fieldName, category)
+// isEssentialSetting determines if a setting is essential for basic users
+func (p *CUEParser) isEssentialSetting(fieldName, category string) bool {
+	lowerField := strings.ToLower(fieldName)
 
-	// Show settings with importance >= 6 in basic mode
-	if importance >= 6 {
+	// Essential individual settings that should always be in basic mode
+	essentialFields := map[string]bool{
+		"enabled":               true,
+		"preset":                true,
+		"crf_h264":              true,
+		"quality_speed_balance": true,
+		"max_concurrent_jobs":   true,
+		"timeout_seconds":       true,
+		"type":                  true, // hardware type
+		"fallback_to_software":  true,
+		"priority":              true,
+		"path":                  true, // ffmpeg path
+	}
+
+	// Check exact field name matches
+	if essentialFields[lowerField] {
 		return true
 	}
 
-	// Also include some commonly needed settings regardless of importance
-	lowerField := strings.ToLower(fieldName)
-	basicKeywords := []string{"enabled", "preset", "quality", "bitrate", "priority", "path"}
+	// Essential top-level sections that contain basic settings
+	essentialSections := map[string]bool{
+		"general":     true, // contains enabled, priority
+		"ffmpeg":      true, // contains path, preset
+		"quality":     true, // contains crf settings
+		"performance": true, // contains max_concurrent_jobs, timeout
+		"hardware":    true, // contains hardware acceleration settings
+	}
 
+	// If this is a top-level section, check if it's essential
+	if essentialSections[lowerField] {
+		return true
+	}
+
+	// For properties within essential categories, check specific ones
+	switch category {
+	case "General":
+		// All general settings are basic (enabled, priority)
+		return true
+	case "Hardware":
+		// Hardware acceleration settings are important for users
+		if strings.Contains(lowerField, "enabled") ||
+			strings.Contains(lowerField, "type") ||
+			strings.Contains(lowerField, "fallback") {
+			return true
+		}
+	case "Performance":
+		// Key performance settings
+		if strings.Contains(lowerField, "concurrent") ||
+			strings.Contains(lowerField, "timeout") ||
+			strings.Contains(lowerField, "max_") {
+			return true
+		}
+	case "Quality":
+		// Essential quality settings
+		if strings.Contains(lowerField, "crf") ||
+			strings.Contains(lowerField, "preset") ||
+			strings.Contains(lowerField, "quality_speed") ||
+			strings.Contains(lowerField, "balance") {
+			return true
+		}
+	}
+
+	// Also check for commonly needed settings by keyword
+	basicKeywords := []string{"enabled", "preset", "quality", "bitrate", "priority", "path"}
 	for _, keyword := range basicKeywords {
 		if strings.Contains(lowerField, keyword) {
 			return true
@@ -381,4 +494,77 @@ func (p *CUEParser) isUserFriendly(fieldName string) bool {
 	}
 
 	return true
+}
+
+// extractUIMetadata extracts UI metadata from CUE @ui attributes
+func (p *CUEParser) extractUIMetadata(value cue.Value) UIMetadata {
+	meta := UIMetadata{}
+
+	// Look for @ui attribute in the value
+	attrs := value.Attributes(cue.ValueAttr)
+	for _, attr := range attrs {
+		if attr.Name() == "ui" {
+			// Parse the attribute content which is in format: importance=8,level="basic",category="Quality"
+			content := attr.Contents()
+			p.parseUIAttributeContent(content, &meta)
+			break
+		}
+	}
+
+	// Extract description from comments
+	meta.description = p.extractDescription(value)
+
+	return meta
+}
+
+// parseUIAttributeContent parses the content of a @ui attribute
+func (p *CUEParser) parseUIAttributeContent(content string, meta *UIMetadata) {
+	// Remove parentheses if present
+	content = strings.Trim(content, "()")
+
+	// Split by comma and parse each key=value pair
+	pairs := strings.Split(content, ",")
+	for _, pair := range pairs {
+		// Split by = and handle quoted values
+		parts := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// Remove quotes if present
+		value = strings.Trim(value, `"'`)
+
+		switch key {
+		case "importance":
+			if importance, err := strconv.Atoi(value); err == nil {
+				meta.importance = importance
+			}
+		case "level":
+			meta.level = value
+		case "category":
+			meta.category = value
+		case "description":
+			meta.description = value
+		case "min":
+			if min, err := strconv.ParseFloat(value, 64); err == nil {
+				meta.min = min
+			}
+		case "max":
+			if max, err := strconv.ParseFloat(value, 64); err == nil {
+				meta.max = max
+			}
+		case "enum":
+			// Handle enum as comma-separated values in brackets
+			if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+				enumContent := strings.Trim(value, "[]")
+				enumValues := strings.Split(enumContent, ",")
+				for _, enumValue := range enumValues {
+					meta.enum = append(meta.enum, strings.Trim(strings.TrimSpace(enumValue), `"'`))
+				}
+			}
+		}
+	}
 }

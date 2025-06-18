@@ -17,118 +17,99 @@ package ffmpeg_transcoder
 		// General settings
 		general: {
 			// Enable the plugin
-			enabled: bool | *true
+			enabled: bool | *true @ui(importance=10,level="basic",category="General")
 			
 			// Plugin priority (higher = preferred)
-			priority: int | *50
-		}
+			priority: int | *50 @ui(importance=7,level="basic",category="General")
 		
 		// FFmpeg executable configuration
 		ffmpeg: {
 			// Path to FFmpeg executable
-			path: string | *"ffmpeg"
+			path: string | *"ffmpeg" @ui(importance=6,level="basic",category="General")
 			
 			// Encoding preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
-			preset: string | *"fast"
+			preset: string | *"fast" @ui(importance=8,level="basic",category="Quality")
 			
 			// Number of threads (0 = auto)
-			threads: int | *0
+			threads: int | *0 @ui(importance=4,level="advanced",category="Performance")
 		}
 		
 		// Quality settings
 		quality: {
 			// CRF values for different codecs (lower = higher quality)
-			crf_h264: number | *23.0
-			crf_hevc: number | *28.0
-			crf_av1: number | *32.0
-			
-			// Bitrate multipliers for adaptive streaming
-			max_bitrate_multiplier: number | *1.5
-			buffer_size_multiplier: number | *2.0
+			crf_h264: number | *23.0 @ui(importance=8,level="basic",category="Quality")
 			
 			// Quality vs speed balance (0-3, higher = slower but better quality)
-			quality_speed_balance: int | *1
+			quality_speed_balance: int | *1 @ui(importance=6,level="basic",category="Quality")
 		}
 		
 		// Audio settings
 		audio: {
 			// Default audio codec
-			codec: string | *"aac"
+			codec: string | *"aac" @ui(importance=5,level="advanced",category="Audio")
 			
 			// Default audio bitrate (kbps)
-			bitrate: int | *128
+			bitrate: int | *128 @ui(importance=6,level="basic",category="Audio")
 			
 			// Audio sample rate (Hz)
-			sample_rate: int | *48000
+			sample_rate: int | *48000 @ui(importance=3,level="advanced",category="Audio")
 			
 			// Number of audio channels
-			channels: int | *2
+			channels: int | *2 @ui(importance=4,level="advanced",category="Audio")
 			
 			// Audio passthrough for compatible devices
-			passthrough_codecs: [...string] | *["ac3", "eac3", "dts"]
+			passthrough_codecs: [...string] | *["ac3", "eac3", "dts"] @ui(importance=3,level="advanced",category="Audio")
 			
 			// Normalize audio levels
-			normalize: bool | *true
+			normalize: bool | *true @ui(importance=4,level="advanced",category="Audio")
 		}
 		
 		// Subtitle settings
 		subtitles: {
 			// Codec for burning subtitles into video
-			burn_in_codec: string | *"subtitles"
+			burn_in_codec: string | *"subtitles" @ui(importance=3,level="advanced",category="Subtitles")
 			
 			// Codec for soft subtitles
-			soft_codec: string | *"mov_text"
+			soft_codec: string | *"mov_text" @ui(importance=3,level="advanced",category="Subtitles")
 			
 			// Auto-detect and extract embedded subtitles
-			extract_embedded: bool | *true
+			extract_embedded: bool | *true @ui(importance=5,level="basic",category="Subtitles")
 			
 			// Languages to prioritize for subtitle extraction
-			preferred_languages: [...string] | *["en", "eng"]
+			preferred_languages: [...string] | *["en", "eng"] @ui(importance=4,level="advanced",category="Subtitles")
 		}
 		
 		// Performance settings
 		performance: {
 			// Maximum number of concurrent transcoding jobs
-			max_concurrent_jobs: int | *25
+			max_concurrent_jobs: int | *25 @ui(importance=8,level="basic",category="Performance")
 			
 			// Timeout for transcoding jobs (seconds)
-			timeout_seconds: int | *7200
-			
-			// Clean up temporary files on exit
-			cleanup_on_exit: bool | *true
-			
-			// Segment duration for DASH/HLS (seconds)
-			segment_duration: int | *6
-			
-			// Look-ahead segments for adaptive streaming
-			lookahead_segments: int | *3
+			timeout_seconds: int | *7200 @ui(importance=6,level="basic",category="Performance")
 		}
 		
 		// Logging configuration
 		logging: {
 			// Log level (debug, info, warn, error)
-			level: string | *"info"
+			level: string | *"info" @ui(importance=4,level="advanced",category="Logging")
 			
 			// Include FFmpeg output in logs
-			ffmpeg_output: bool | *false
+			ffmpeg_output: bool | *false @ui(importance=3,level="advanced",category="Logging")
 			
 			// Log transcoding statistics
-			log_stats: bool | *true
+			log_stats: bool | *true @ui(importance=3,level="advanced",category="Logging")
 		}
 		
 		// Hardware acceleration settings
 		hardware: {
 			// Enable hardware acceleration
-			enabled: bool | *false
+			enabled: bool | *false @ui(importance=7,level="basic",category="Hardware")
 			
 			// Hardware acceleration type (nvenc, vaapi, qsv, videotoolbox)
-			type: string | *"auto"
-			
-			// Hardware device index
-			device: int | *0
+			type: string | *"auto" @ui(importance=6,level="basic",category="Hardware")
 			
 			// Fallback to software encoding if hardware fails
-			fallback_to_software: bool | *true
+			fallback_to_software: bool | *true @ui(importance=5,level="basic",category="Hardware")
 		}
 		
 		// Codec-specific settings
@@ -511,4 +492,4 @@ package ffmpeg_transcoder
 			}
 		}
 	}
-} 
+} }

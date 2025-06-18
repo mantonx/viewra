@@ -3,6 +3,7 @@ package pluginmodule
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -62,6 +63,7 @@ type ConfigurationProperty struct {
 	Dependencies []string                         `json:"dependencies,omitempty"` // Other properties this depends on
 	Sensitive    bool                             `json:"sensitive,omitempty"`    // Hide value in UI
 	Advanced     bool                             `json:"advanced,omitempty"`     // Show in advanced section
+	IsBasic      bool                             `json:"is_basic"`               // Show in basic section (frontend needs this)
 	ReadOnly     bool                             `json:"readOnly,omitempty"`     // Cannot be modified
 	Category     string                           `json:"category,omitempty"`     // Group in UI
 	Order        int                              `json:"order,omitempty"`        // Display order
@@ -537,13 +539,40 @@ func (pcm *PluginConfigManager) validateSettings(schema *ConfigurationSchema, se
 
 // loadConfigurationFromCUE loads configuration from a plugin's CUE file
 func (pcm *PluginConfigManager) loadConfigurationFromCUE(pluginID string) (*PluginConfiguration, error) {
-	// Determine plugin directory path
-	pluginDir := fmt.Sprintf("/app/data/plugins/%s", pluginID)
+	// Try different plugin directory paths based on environment
+	possiblePaths := []string{
+		fmt.Sprintf("./backend/data/plugins/%s", pluginID), // Development environment
+		fmt.Sprintf("/app/data/plugins/%s", pluginID),      // Docker container
+		fmt.Sprintf("./data/plugins/%s", pluginID),         // Alternative Docker path
+	}
+
+	var pluginDir string
+	var rawSchema map[string]interface{}
+	var err error
+
+	// Find the first valid plugin directory
+	for _, path := range possiblePaths {
+		if _, statErr := os.Stat(path); statErr == nil {
+			pluginDir = path
+			break
+		}
+	}
+
+	if pluginDir == "" {
+		pcm.logger.Debug("Plugin directory not found in any expected location", "plugin", pluginID, "paths", possiblePaths)
+		// Return basic configuration if directory not found
+		return &PluginConfiguration{
+			PluginID:     pluginID,
+			Settings:     make(map[string]ConfigurationValue),
+			Version:      "1.0.0",
+			LastModified: time.Now(),
+		}, nil
+	}
 
 	// Try to parse CUE configuration
-	rawSchema, err := pcm.cueParser.ParsePluginConfiguration(pluginDir)
+	rawSchema, err = pcm.cueParser.ParsePluginConfiguration(pluginDir)
 	if err != nil {
-		pcm.logger.Debug("Failed to parse CUE configuration", "plugin", pluginID, "error", err)
+		pcm.logger.Debug("Failed to parse CUE configuration", "plugin", pluginID, "path", pluginDir, "error", err)
 		// Return basic configuration if CUE parsing fails
 		return &PluginConfiguration{
 			PluginID:     pluginID,
@@ -552,6 +581,8 @@ func (pcm *PluginConfigManager) loadConfigurationFromCUE(pluginID string) (*Plug
 			LastModified: time.Now(),
 		}, nil
 	}
+
+	pcm.logger.Debug("Successfully parsed CUE configuration", "plugin", pluginID, "path", pluginDir, "properties", len(rawSchema))
 
 	// Convert raw schema to ConfigurationSchema
 	schema := pcm.convertRawSchemaToConfigurationSchema(rawSchema, pluginID)
@@ -611,6 +642,22 @@ func (pcm *PluginConfigManager) convertMapToConfigurationProperty(propMap map[st
 	}
 	if defaultVal, ok := propMap["default"]; ok {
 		prop.Default = defaultVal
+	}
+
+	// Copy UI metadata fields for basic/advanced classification
+	if isBasic, ok := propMap["is_basic"].(bool); ok {
+		prop.Advanced = !isBasic // Advanced is the inverse of is_basic
+		prop.IsBasic = isBasic   // Set the IsBasic field for frontend
+	} else {
+		// Default to advanced for all fields for testing
+		prop.Advanced = true
+		prop.IsBasic = false
+	}
+	if importance, ok := propMap["importance"].(int); ok {
+		prop.Order = importance
+	}
+	if userFriendly, ok := propMap["user_friendly"].(bool); ok && !userFriendly {
+		prop.Advanced = true
 	}
 
 	// Handle nested properties for object types
