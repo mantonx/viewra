@@ -46,11 +46,20 @@ export interface Album {
   updated_at: string;
   artist_id: string;
   tracks: Track[];
+  artwork?: string;
+  year?: number;
+}
+
+export interface SimpleAlbum {
+  title: string;
+  artwork?: string;
+  year?: number;
+  tracks: MusicFile[];
 }
 
 export interface GroupedMusicFile {
   artist: string;
-  albums: Album[];
+  albums: SimpleAlbum[];
 }
 
 export type SortField = 'title' | 'artist' | 'album' | 'year' | 'genre';

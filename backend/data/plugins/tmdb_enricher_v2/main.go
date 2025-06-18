@@ -17,22 +17,6 @@ import (
 	"github.com/mantonx/viewra/data/plugins/tmdb_enricher_v2/internal/services"
 )
 
-// Version information
-type VersionInfo struct {
-	Version   string
-	BuildTime string
-	GitCommit string
-}
-
-// GetVersion returns version information for the plugin
-func GetVersion() VersionInfo {
-	return VersionInfo{
-		Version:   "2.0.0",
-		BuildTime: time.Now().Format("2006-01-02 15:04:05"),
-		GitCommit: "dev", // This would be set during build in production
-	}
-}
-
 // TMDbEnricherV2 represents the main plugin implementation
 type TMDbEnricherV2 struct {
 	// Core services
@@ -381,7 +365,10 @@ func (t *TMDbEnricherV2) AssetService() plugins.AssetService {
 }
 
 func (t *TMDbEnricherV2) AdminPageService() plugins.AdminPageService {
-	return nil // Not implemented yet
+	return &TMDbAdminPageService{
+		plugin: t,
+		logger: t.logger,
+	}
 }
 
 func (t *TMDbEnricherV2) APIRegistrationService() plugins.APIRegistrationService {
@@ -401,6 +388,11 @@ func (t *TMDbEnricherV2) ConfigurationService() plugins.ConfigurationService {
 // PerformanceMonitorService returns the performance monitoring service
 func (t *TMDbEnricherV2) PerformanceMonitorService() plugins.PerformanceMonitorService {
 	return &performanceServiceAdapter{monitor: t.performanceMonitor}
+}
+
+// TranscodingService returns nil since this is not a transcoding plugin
+func (t *TMDbEnricherV2) TranscodingService() plugins.TranscodingService {
+	return nil
 }
 
 // performanceServiceAdapter adapts BasePerformanceMonitor to PerformanceMonitorService interface
@@ -625,6 +617,69 @@ func boolToFloat(b bool) float64 {
 		return 1.0
 	}
 	return 0.0
+}
+
+// TMDbAdminPageService implements the AdminPageService for TMDb enricher
+type TMDbAdminPageService struct {
+	plugin *TMDbEnricherV2
+	logger plugins.Logger
+}
+
+// GetAdminPages returns the admin pages provided by this plugin
+func (a *TMDbAdminPageService) GetAdminPages() []*plugins.AdminPageConfig {
+	return []*plugins.AdminPageConfig{
+		{
+			ID:       "tmdb_config",
+			Title:    "TMDb Configuration",
+			URL:      "/admin/plugins/tmdb_enricher_v2/config",
+			Icon:     "database",
+			Category: "enrichment",
+			Type:     "configuration",
+		},
+		{
+			ID:       "tmdb_api_status",
+			Title:    "API Status & Limits",
+			URL:      "/admin/plugins/tmdb_enricher_v2/api",
+			Icon:     "server",
+			Category: "enrichment",
+			Type:     "status",
+		},
+		{
+			ID:       "tmdb_cache",
+			Title:    "Cache Management",
+			URL:      "/admin/plugins/tmdb_enricher_v2/cache",
+			Icon:     "hard-drive",
+			Category: "enrichment",
+			Type:     "dashboard",
+		},
+		{
+			ID:       "tmdb_matching",
+			Title:    "Matching Rules",
+			URL:      "/admin/plugins/tmdb_enricher_v2/matching",
+			Icon:     "search",
+			Category: "enrichment",
+			Type:     "configuration",
+		},
+		{
+			ID:       "tmdb_artwork",
+			Title:    "Artwork Settings",
+			URL:      "/admin/plugins/tmdb_enricher_v2/artwork",
+			Icon:     "image",
+			Category: "enrichment",
+			Type:     "configuration",
+		},
+	}
+}
+
+// RegisterRoutes registers the admin page routes for this plugin
+func (a *TMDbAdminPageService) RegisterRoutes(basePath string) error {
+	a.logger.Info("Registering TMDb enricher admin routes", "base_path", basePath)
+
+	// Here we would register HTTP routes for the admin pages
+	// The actual route registration would be handled by the host application
+	// We just need to define what routes this plugin provides
+
+	return nil
 }
 
 func main() {

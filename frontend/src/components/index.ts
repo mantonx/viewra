@@ -26,10 +26,7 @@ export { default as SystemInfo } from './system/SystemInfo';
 export { default as SystemEvents } from './system/SystemEvents';
 
 // Plugin Components
-export { default as PluginManager } from './plugins/PluginManager';
-export { default as PluginInstaller } from './plugins/PluginInstaller';
-export { default as PluginConfigEditor } from './plugins/PluginConfigEditor';
-export { default as PluginAdminPageCards } from './plugins/PluginAdminPageCards';
+export { ConfigEditor, PluginAdminPageRenderer } from './plugins';
 
 // Admin Components
 export { AdminDashboard } from './admin';

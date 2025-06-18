@@ -364,7 +364,10 @@ func (f *FFmpegTranscoderPlugin) AssetService() plugins.AssetService {
 }
 
 func (f *FFmpegTranscoderPlugin) AdminPageService() plugins.AdminPageService {
-	return nil // Could be implemented for transcoding management UI
+	return &FFmpegAdminPageService{
+		plugin: f,
+		logger: f.logger,
+	}
 }
 
 func (f *FFmpegTranscoderPlugin) APIRegistrationService() plugins.APIRegistrationService {
@@ -428,6 +431,61 @@ func (p *performanceServiceAdapter) GetUptimeString() string {
 
 func (p *performanceServiceAdapter) Reset() {
 	p.monitor.Reset()
+}
+
+// FFmpegAdminPageService implements the AdminPageService for FFmpeg transcoder
+type FFmpegAdminPageService struct {
+	plugin *FFmpegTranscoderPlugin
+	logger plugins.Logger
+}
+
+// GetAdminPages returns the admin pages provided by this plugin
+func (a *FFmpegAdminPageService) GetAdminPages() []*plugins.AdminPageConfig {
+	return []*plugins.AdminPageConfig{
+		{
+			ID:       "ffmpeg_config",
+			Title:    "FFmpeg Configuration",
+			URL:      "/admin/plugins/ffmpeg_transcoder/config",
+			Icon:     "settings",
+			Category: "transcoding",
+			Type:     "configuration",
+		},
+		{
+			ID:       "ffmpeg_monitoring",
+			Title:    "Transcoding Monitor",
+			URL:      "/admin/plugins/ffmpeg_transcoder/monitor",
+			Icon:     "activity",
+			Category: "transcoding",
+			Type:     "dashboard",
+		},
+		{
+			ID:       "ffmpeg_sessions",
+			Title:    "Active Sessions",
+			URL:      "/admin/plugins/ffmpeg_transcoder/sessions",
+			Icon:     "play",
+			Category: "transcoding",
+			Type:     "status",
+		},
+		{
+			ID:       "ffmpeg_health",
+			Title:    "Health & Performance",
+			URL:      "/admin/plugins/ffmpeg_transcoder/health",
+			Icon:     "heart",
+			Category: "transcoding",
+			Type:     "status",
+		},
+	}
+}
+
+// RegisterRoutes registers the admin page routes for this plugin
+func (a *FFmpegAdminPageService) RegisterRoutes(basePath string) error {
+	a.logger.Info("Registering FFmpeg transcoder admin routes", "base_path", basePath)
+
+	// Here we would register HTTP routes for the admin pages
+	// The actual route registration would be handled by the host application
+	// We just need to define what routes this plugin provides
+
+	return nil
 }
 
 // Service initialization

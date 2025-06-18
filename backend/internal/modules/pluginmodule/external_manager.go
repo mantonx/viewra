@@ -692,20 +692,29 @@ func (c *ExternalPluginGRPCClient) OnScanStarted(scanJobID, libraryID uint32, li
 }
 
 func (c *ExternalPluginGRPCClient) OnScanCompleted(scanJobID, libraryID uint32, stats map[string]string) error {
+	// Create proto client
 	client := proto.NewScannerHookServiceClient(c.conn)
 
-	req := &proto.OnScanCompletedRequest{
+	_, err := client.OnScanCompleted(context.Background(), &proto.OnScanCompletedRequest{
 		ScanJobId: scanJobID,
 		LibraryId: libraryID,
 		Stats:     stats,
-	}
+	})
 
-	_, err := client.OnScanCompleted(context.Background(), req)
+	return err
+}
+
+// GetAdminPages gets admin pages from the plugin via GRPC
+func (c *ExternalPluginGRPCClient) GetAdminPages() ([]*proto.AdminPageConfig, error) {
+	// Create proto client
+	client := proto.NewAdminPageServiceClient(c.conn)
+
+	resp, err := client.GetAdminPages(context.Background(), &proto.GetAdminPagesRequest{})
 	if err != nil {
-		return fmt.Errorf("plugin OnScanCompleted failed: %w", err)
+		return nil, err
 	}
 
-	return nil
+	return resp.Pages, nil
 }
 
 // ExternalPluginManager manages external plugins
@@ -878,7 +887,6 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 	}
 
 	lines := strings.Split(string(content), "\n")
-	inPluginBlock := false
 	inSettingsBlock := false
 	blockDepth := 0
 
@@ -897,13 +905,11 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 		// Handle block endings first
 		blockDepth -= closeBraces
 		if blockDepth <= 0 {
-			inPluginBlock = false
 			inSettingsBlock = false
 		}
 
-		// Check for plugin block start
-		if strings.Contains(line, "plugin:") && strings.Contains(line, "{") {
-			inPluginBlock = true
+		// Check for plugin block start - for CUE compatibility we don't need to track this
+		if (strings.Contains(line, "plugin:") || strings.Contains(line, "#Plugin:")) && strings.Contains(line, "{") {
 			blockDepth = 1
 			continue
 		}
@@ -918,8 +924,9 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 		// Add opening braces to depth
 		blockDepth += openBraces
 
-		// Parse lines inside plugin block or at root level
-		if !inPluginBlock && !inSettingsBlock {
+		// Parse lines inside plugin block or at root level (allow all lines for CUE compatibility)
+		// Skip only settings block parsing since that's not needed for basic manifest info
+		if inSettingsBlock {
 			continue
 		}
 
@@ -1284,6 +1291,12 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 	// Update database status to running
 	if err := m.updatePluginStatus(pluginID, "running"); err != nil {
 		m.logger.Error("failed to update plugin status", "plugin", pluginID, "error", err)
+	}
+
+	// Discover and register admin pages from the plugin
+	if err := m.discoverAndRegisterAdminPages(pluginID, pluginInterface); err != nil {
+		m.logger.Warn("failed to discover admin pages", "plugin", pluginID, "error", err)
+		// Continue anyway - plugin might not provide admin pages
 	}
 
 	m.logger.Info("successfully loaded external plugin", "plugin", pluginID, "load_time", responseTime)
@@ -2011,4 +2024,86 @@ func (m *ExternalPluginManager) CheckAllPluginsHealth() map[string]interface{} {
 	summary["unhealthy_count"] = unhealthyCount
 
 	return summary
+}
+
+// Discover and register admin pages from the plugin
+func (m *ExternalPluginManager) discoverAndRegisterAdminPages(pluginID string, pluginInterface ExternalPluginInterface) error {
+	m.logger.Info("discovering admin pages for plugin", "plugin", pluginID)
+
+	// Get the GRPC client from the stored interfaces
+	if _, exists := m.pluginInterfaces[pluginID]; exists {
+		// We need to access the GRPC client directly since ExternalPluginInterface doesn't have admin page methods
+		m.logger.Debug("plugin interface found, attempting to discover admin pages", "plugin", pluginID)
+
+		// For now, we'll try to call via the GRPC connection directly
+		// Get the raw GRPC client
+		if grpcClient, ok := m.pluginClients[pluginID]; ok {
+			return m.discoverAdminPagesViaGRPC(pluginID, grpcClient)
+		}
+	}
+
+	m.logger.Debug("no admin page support found for plugin", "plugin", pluginID)
+	return nil
+}
+
+// discoverAdminPagesViaGRPC discovers admin pages using direct GRPC communication
+func (m *ExternalPluginManager) discoverAdminPagesViaGRPC(pluginID string, client *goplugin.Client) error {
+	// Get the raw GRPC client
+	rpcClient, err := client.Client()
+	if err != nil {
+		return fmt.Errorf("failed to get RPC client: %w", err)
+	}
+
+	// Get the plugin interface
+	raw, err := rpcClient.Dispense("plugin")
+	if err != nil {
+		return fmt.Errorf("failed to dispense plugin: %w", err)
+	}
+
+	// Cast to ExternalPluginGRPCClient (our external plugin client)
+	grpcClient, ok := raw.(*ExternalPluginGRPCClient)
+	if !ok {
+		return fmt.Errorf("plugin does not support external GRPC interface")
+	}
+
+	// Try to get admin pages using our external client's method
+	pages, err := grpcClient.GetAdminPages()
+	if err != nil {
+		// Plugin might not implement admin pages, which is fine
+		m.logger.Debug("plugin does not provide admin pages", "plugin", pluginID, "error", err)
+		return nil
+	}
+
+	if len(pages) == 0 {
+		m.logger.Debug("plugin has no admin pages", "plugin", pluginID)
+		return nil
+	}
+
+	m.logger.Info("discovered admin pages", "plugin", pluginID, "count", len(pages))
+
+	// Store admin pages in database
+	for _, page := range pages {
+		adminPage := &database.PluginAdminPage{
+			PluginID: pluginID,
+			PageID:   page.Id,
+			Title:    page.Title,
+			Path:     page.Path,
+			Icon:     page.Icon,
+			Category: page.Category,
+			URL:      page.Url,
+			Type:     page.Type,
+			Enabled:  true,
+		}
+
+		// Upsert the admin page
+		result := m.db.Where("plugin_id = ? AND page_id = ?", pluginID, page.Id).FirstOrCreate(adminPage)
+		if result.Error != nil {
+			m.logger.Error("failed to save admin page", "plugin", pluginID, "page", page.Id, "error", result.Error)
+			continue
+		}
+
+		m.logger.Debug("registered admin page", "plugin", pluginID, "page", page.Id, "title", page.Title)
+	}
+
+	return nil
 }

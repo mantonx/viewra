@@ -1,10 +1,10 @@
 import React from 'react';
-import type { MusicFile, Album } from '@/types/music.types';
+import type { MusicFile, Album, SimpleAlbum } from '@/types/music.types';
 import { buildArtworkUrl } from '@/utils/api';
 
 interface MediaCardProps {
   variant: 'album' | 'track';
-  item: MusicFile | Album;
+  item: MusicFile | Album | SimpleAlbum;
   isCurrentTrack?: boolean;
   isPlaying?: boolean;
   onPlay: (track: MusicFile) => void;
@@ -17,12 +17,20 @@ const MediaCard: React.FC<MediaCardProps> = ({
   isPlaying = false,
   onPlay,
 }) => {
-  // Type guard to check if item is an Album
-  const isAlbum = (item: MusicFile | Album): item is Album => {
-    return 'tracks' in item;
+  // Type guard to check if item is an Album or SimpleAlbum
+  const isAlbum = (item: MusicFile | Album | SimpleAlbum): item is Album => {
+    return 'tracks' in item && 'id' in item;
   };
 
-  if (variant === 'album' && isAlbum(item)) {
+  const isSimpleAlbum = (item: MusicFile | Album | SimpleAlbum): item is SimpleAlbum => {
+    return 'tracks' in item && !('id' in item);
+  };
+
+  const isMusicFile = (item: MusicFile | Album | SimpleAlbum): item is MusicFile => {
+    return 'path' in item;
+  };
+
+  if (variant === 'album' && (isAlbum(item) || isSimpleAlbum(item))) {
     const album = item;
     return (
       <div className="bg-slate-800 rounded-lg overflow-hidden hover:bg-slate-750 transition-colors group">
@@ -49,7 +57,33 @@ const MediaCard: React.FC<MediaCardProps> = ({
             <button
               onClick={() => {
                 if (album.tracks.length > 0) {
-                  onPlay(album.tracks[0]);
+                  if (isSimpleAlbum(album)) {
+                    // SimpleAlbum has MusicFile tracks, use directly
+                    onPlay(album.tracks[0]);
+                  } else {
+                    // Album has Track objects, convert to MusicFile
+                    const track = album.tracks[0];
+                    const musicFile: MusicFile = {
+                      id: track.id,
+                      path: `${track.title}.mp3`, // Fallback path
+                      size_bytes: 0,
+                      hash: '',
+                      library_id: 0,
+                      last_seen: track.updated_at,
+                      created_at: track.created_at,
+                      updated_at: track.updated_at,
+                      track: {
+                        id: track.id,
+                        title: track.title,
+                        album: album.title,
+                        artist: '', // Would need artist data
+                        album_artist: '',
+                        track_number: track.track_number,
+                        duration: track.duration,
+                      }
+                    };
+                    onPlay(musicFile);
+                  }
                 }
               }}
               className="bg-purple-600 hover:bg-purple-700 rounded-full p-4 text-white"
@@ -71,7 +105,7 @@ const MediaCard: React.FC<MediaCardProps> = ({
   }
 
   // Track variant
-  if (variant === 'track' && !isAlbum(item)) {
+  if (variant === 'track' && isMusicFile(item)) {
     const track = item;
     return (
       <div

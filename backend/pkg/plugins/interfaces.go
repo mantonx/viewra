@@ -119,6 +119,7 @@ type AdminPageConfig struct {
 	URL      string `json:"url"`
 	Icon     string `json:"icon"`
 	Category string `json:"category"`
+	Type     string `json:"type"` // Type of admin page: configuration, dashboard, status, external
 }
 
 type APIRoute struct {

@@ -1,17 +1,17 @@
-import React from 'react';
-import { AdminDashboard } from '../components';
+import React, { useState } from 'react';
+import { AdminDashboard } from '@/components/admin';
 
 const Admin: React.FC = () => {
-  return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-4">Admin Dashboard</h1>
-        <p className="text-slate-300">
-          Manage your Viewra system settings, plugins, and configuration.
-        </p>
-      </div>
+  const [activeTab, setActiveTab] = useState<'overview' | 'plugins' | 'pages'>('overview');
 
-      <AdminDashboard />
+  return (
+    <div className="min-h-screen bg-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        <AdminDashboard
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(tab as 'overview' | 'plugins' | 'pages')}
+        />
+      </div>
     </div>
   );
 };

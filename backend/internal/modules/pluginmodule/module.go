@@ -3,6 +3,7 @@ package pluginmodule
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -62,6 +63,12 @@ type PluginModule struct {
 
 	// Hot reload manager
 	hotReloadManager *HotReloadManager
+
+	// Configuration management
+	configManager *PluginConfigManager
+
+	// API handlers
+	apiHandlers *PluginAPIHandlers
 }
 
 // Module interface implementation
@@ -217,6 +224,14 @@ func (pm *PluginModule) Initialize(ctx context.Context, db *gorm.DB) error {
 		return fmt.Errorf("failed to initialize media plugin manager: %w", err)
 	}
 
+	// Initialize configuration manager
+	pm.configManager = NewPluginConfigManager(pm.db, pm.logger)
+	pm.logger.Info("plugin configuration manager initialized")
+
+	// Initialize API handlers
+	pm.apiHandlers = NewPluginAPIHandlers(pm, pm.db, pm.logger)
+	pm.logger.Info("plugin API handlers initialized")
+
 	pm.logger.Info("plugin module initialized successfully")
 	return nil
 }
@@ -366,6 +381,16 @@ func (pm *PluginModule) GetHotReloadManager() *HotReloadManager {
 	return pm.hotReloadManager
 }
 
+// GetConfigManager returns the plugin configuration manager
+func (pm *PluginModule) GetConfigManager() *PluginConfigManager {
+	return pm.configManager
+}
+
+// GetAPIHandlers returns the plugin API handlers
+func (pm *PluginModule) GetAPIHandlers() *PluginAPIHandlers {
+	return pm.apiHandlers
+}
+
 // TriggerPluginReload manually triggers a hot reload for a specific plugin
 func (pm *PluginModule) TriggerPluginReload(pluginID string) error {
 	if pm.hotReloadManager == nil {
@@ -397,7 +422,13 @@ func (pm *PluginModule) SetHotReloadEnabled(enabled bool) error {
 func (pm *PluginModule) RegisterRoutes(router *gin.Engine) {
 	pm.logger.Info("registering plugin module HTTP routes")
 
-	// Register plugin management routes
+	// Register comprehensive API handlers (new unified system)
+	if pm.apiHandlers != nil {
+		pm.apiHandlers.RegisterRoutes(router)
+		pm.logger.Info("registered comprehensive plugin API routes under /api/v1/plugins")
+	}
+
+	// Register legacy plugin management routes for backward compatibility
 	api := router.Group("/api/plugin-manager")
 	{
 		// Plugin listing and management
@@ -438,7 +469,7 @@ func (pm *PluginModule) RegisterRoutes(router *gin.Engine) {
 // listAllPluginsHandler returns all plugins (core and external)
 func (pm *PluginModule) listAllPluginsHandler(c *gin.Context) {
 	plugins := pm.ListAllPlugins()
-	c.JSON(StatusOK, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"plugins": plugins,
 		"count":   len(plugins),
 	})
@@ -447,7 +478,7 @@ func (pm *PluginModule) listAllPluginsHandler(c *gin.Context) {
 // listCorePluginsHandler returns all core plugins
 func (pm *PluginModule) listCorePluginsHandler(c *gin.Context) {
 	plugins := pm.coreManager.ListCorePluginInfo()
-	c.JSON(StatusOK, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"plugins": plugins,
 		"count":   len(plugins),
 	})
@@ -456,7 +487,7 @@ func (pm *PluginModule) listCorePluginsHandler(c *gin.Context) {
 // listExternalPluginsHandler returns all external plugins
 func (pm *PluginModule) listExternalPluginsHandler(c *gin.Context) {
 	plugins := pm.externalManager.ListPlugins()
-	c.JSON(StatusOK, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"plugins": plugins,
 		"count":   len(plugins),
 	})
@@ -466,125 +497,125 @@ func (pm *PluginModule) listExternalPluginsHandler(c *gin.Context) {
 func (pm *PluginModule) getExternalPluginHandler(c *gin.Context) {
 	pluginID := c.Param("plugin_id")
 	if pluginID == "" {
-		c.JSON(StatusBadRequest, gin.H{"error": ErrPluginIDRequired})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plugin ID is required"})
 		return
 	}
 
 	plugin, exists := pm.externalManager.GetPlugin(pluginID)
 	if !exists {
-		c.JSON(StatusNotFound, gin.H{"error": ErrPluginNotFound})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Plugin not found"})
 		return
 	}
 
-	c.JSON(StatusOK, gin.H{"plugin": plugin})
+	c.JSON(http.StatusOK, gin.H{"plugin": plugin})
 }
 
 // enableExternalPluginHandler enables an external plugin
 func (pm *PluginModule) enableExternalPluginHandler(c *gin.Context) {
 	pluginID := c.Param("plugin_id")
 	if pluginID == "" {
-		c.JSON(StatusBadRequest, gin.H{"error": ErrPluginIDRequired})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plugin ID is required"})
 		return
 	}
 
 	if err := pm.EnableExternalPlugin(pluginID); err != nil {
-		c.JSON(StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(StatusOK, gin.H{"message": "Plugin enabled successfully", "plugin_id": pluginID})
+	c.JSON(http.StatusOK, gin.H{"message": "Plugin enabled successfully", "plugin_id": pluginID})
 }
 
 // disableExternalPluginHandler disables an external plugin
 func (pm *PluginModule) disableExternalPluginHandler(c *gin.Context) {
 	pluginID := c.Param("plugin_id")
 	if pluginID == "" {
-		c.JSON(400, gin.H{"error": "Plugin ID is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plugin ID is required"})
 		return
 	}
 
 	if err := pm.DisableExternalPlugin(pluginID); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "Plugin disabled successfully", "plugin_id": pluginID})
+	c.JSON(http.StatusOK, gin.H{"message": "Plugin disabled successfully", "plugin_id": pluginID})
 }
 
 // loadExternalPluginHandler loads an external plugin
 func (pm *PluginModule) loadExternalPluginHandler(c *gin.Context) {
 	pluginID := c.Param("plugin_id")
 	if pluginID == "" {
-		c.JSON(400, gin.H{"error": "Plugin ID is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plugin ID is required"})
 		return
 	}
 
 	ctx := c.Request.Context()
 	if err := pm.LoadExternalPlugin(ctx, pluginID); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "Plugin loaded successfully", "plugin_id": pluginID})
+	c.JSON(http.StatusOK, gin.H{"message": "Plugin loaded successfully", "plugin_id": pluginID})
 }
 
 // unloadExternalPluginHandler unloads an external plugin
 func (pm *PluginModule) unloadExternalPluginHandler(c *gin.Context) {
 	pluginID := c.Param("plugin_id")
 	if pluginID == "" {
-		c.JSON(400, gin.H{"error": "Plugin ID is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plugin ID is required"})
 		return
 	}
 
 	ctx := c.Request.Context()
 	if err := pm.UnloadExternalPlugin(ctx, pluginID); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "Plugin unloaded successfully", "plugin_id": pluginID})
+	c.JSON(http.StatusOK, gin.H{"message": "Plugin unloaded successfully", "plugin_id": pluginID})
 }
 
 // refreshExternalPluginsHandler re-discovers external plugins
 func (pm *PluginModule) refreshExternalPluginsHandler(c *gin.Context) {
 	if err := pm.RefreshExternalPlugins(); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "External plugins refreshed successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "External plugins refreshed successfully"})
 }
 
 // enableCorePluginHandler enables a core plugin
 func (pm *PluginModule) enableCorePluginHandler(c *gin.Context) {
 	pluginName := c.Param("plugin_name")
 	if pluginName == "" {
-		c.JSON(400, gin.H{"error": "Plugin name is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plugin name is required"})
 		return
 	}
 
 	if err := pm.EnableCorePlugin(pluginName); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "Core plugin enabled successfully", "plugin_name": pluginName})
+	c.JSON(http.StatusOK, gin.H{"message": "Core plugin enabled successfully", "plugin_name": pluginName})
 }
 
 // disableCorePluginHandler disables a core plugin
 func (pm *PluginModule) disableCorePluginHandler(c *gin.Context) {
 	pluginName := c.Param("plugin_name")
 	if pluginName == "" {
-		c.JSON(400, gin.H{"error": "Plugin name is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plugin name is required"})
 		return
 	}
 
 	if err := pm.DisableCorePlugin(pluginName); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "Core plugin disabled successfully", "plugin_name": pluginName})
+	c.JSON(http.StatusOK, gin.H{"message": "Core plugin disabled successfully", "plugin_name": pluginName})
 }
 
 // Hot Reload Handlers
@@ -592,7 +623,7 @@ func (pm *PluginModule) disableCorePluginHandler(c *gin.Context) {
 // getHotReloadStatusHandler returns the current hot reload status
 func (pm *PluginModule) getHotReloadStatusHandler(c *gin.Context) {
 	status := pm.GetHotReloadStatus()
-	c.JSON(200, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"status":     "success",
 		"hot_reload": status,
 	})
@@ -601,14 +632,14 @@ func (pm *PluginModule) getHotReloadStatusHandler(c *gin.Context) {
 // enableHotReloadHandler enables hot reload functionality
 func (pm *PluginModule) enableHotReloadHandler(c *gin.Context) {
 	if err := pm.SetHotReloadEnabled(true); err != nil {
-		c.JSON(500, gin.H{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	c.JSON(200, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Hot reload enabled successfully",
 	})
@@ -617,14 +648,14 @@ func (pm *PluginModule) enableHotReloadHandler(c *gin.Context) {
 // disableHotReloadHandler disables hot reload functionality
 func (pm *PluginModule) disableHotReloadHandler(c *gin.Context) {
 	if err := pm.SetHotReloadEnabled(false); err != nil {
-		c.JSON(500, gin.H{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	c.JSON(200, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Hot reload disabled successfully",
 	})
@@ -634,7 +665,7 @@ func (pm *PluginModule) disableHotReloadHandler(c *gin.Context) {
 func (pm *PluginModule) triggerHotReloadHandler(c *gin.Context) {
 	pluginID := c.Param("plugin_id")
 	if pluginID == "" {
-		c.JSON(400, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"status": "error",
 			"error":  "plugin_id parameter is required",
 		})
@@ -642,14 +673,14 @@ func (pm *PluginModule) triggerHotReloadHandler(c *gin.Context) {
 	}
 
 	if err := pm.TriggerPluginReload(pluginID); err != nil {
-		c.JSON(500, gin.H{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
 			"error":  err.Error(),
 		})
 		return
 	}
 
-	c.JSON(200, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"status":    "success",
 		"message":   fmt.Sprintf("Hot reload triggered for plugin: %s", pluginID),
 		"plugin_id": pluginID,
@@ -685,6 +716,9 @@ func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
 	externalManager := NewExternalPluginManager(db, logger)
 	logger.Info("External plugin manager created", "manager", externalManager != nil)
 
+	// Initialize config manager
+	configManager := NewPluginConfigManager(db, logger)
+
 	pm := &PluginModule{
 		db:              db,
 		config:          config,
@@ -693,8 +727,12 @@ func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
 		externalManager: externalManager,
 		libraryManager:  NewLibraryPluginManager(db),
 		mediaManager:    NewMediaPluginManager(db, logger),
+		configManager:   configManager,
 	}
 
-	logger.Info("Plugin module created", "external_manager_stored", pm.externalManager != nil)
+	// Initialize API handlers with all dependencies
+	pm.apiHandlers = NewPluginAPIHandlers(pm, db, logger)
+
+	logger.Info("Plugin module created", "external_manager_stored", pm.externalManager != nil, "api_handlers_initialized", pm.apiHandlers != nil)
 	return pm
 }

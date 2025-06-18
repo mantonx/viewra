@@ -85,40 +85,40 @@ type MediaFile struct {
 	Language    string    `json:"language"`                                        // Default language (e.g. en)
 	Hash        string    `gorm:"index" json:"hash"`                               // SHA256 or similar, for deduplication
 	VersionName string    `json:"version_name"`                                    // Optional (e.g., "Director's Cut", "Remastered")
-	
+
 	// Comprehensive technical metadata as JSON (from FFmpeg probe)
-	TechnicalInfo   string `gorm:"type:text" json:"technical_info"`      // Complete VideoTechnicalInfo as JSON
-	VideoStreams    string `gorm:"type:text" json:"video_streams"`       // VideoStreamInfo array as JSON
-	AudioStreams    string `gorm:"type:text" json:"audio_streams"`       // AudioStreamInfo array as JSON
-	SubtitleStreams string `gorm:"type:text" json:"subtitle_streams"`    // SubtitleStreamInfo array as JSON
-	
+	TechnicalInfo   string `gorm:"type:text" json:"technical_info"`   // Complete VideoTechnicalInfo as JSON
+	VideoStreams    string `gorm:"type:text" json:"video_streams"`    // VideoStreamInfo array as JSON
+	AudioStreams    string `gorm:"type:text" json:"audio_streams"`    // AudioStreamInfo array as JSON
+	SubtitleStreams string `gorm:"type:text" json:"subtitle_streams"` // SubtitleStreamInfo array as JSON
+
 	// Enhanced technical fields for easier querying
-	VideoWidth       int    `json:"video_width"`                    // Video width in pixels
-	VideoHeight      int    `json:"video_height"`                   // Video height in pixels
-	VideoFramerate   string `json:"video_framerate"`               // Video framerate (e.g., "23.976")
-	VideoProfile     string `json:"video_profile"`                 // Video codec profile (e.g., "Main 10")
-	VideoLevel       int    `json:"video_level"`                   // Video codec level
-	VideoBitDepth    string `json:"video_bit_depth"`               // Video bit depth
-	AspectRatio      string `json:"aspect_ratio"`                  // Display aspect ratio
-	PixelFormat      string `json:"pixel_format"`                  // Pixel format (e.g., "yuv420p10le")
-	ColorSpace       string `json:"color_space"`                   // Color space (e.g., "bt709")
-	ColorPrimaries   string `json:"color_primaries"`              // Color primaries
-	ColorTransfer    string `json:"color_transfer"`               // Color transfer
-	HDRFormat        string `json:"hdr_format"`                    // HDR format (HDR10, DV, etc.)
-	Interlaced       string `json:"interlaced"`                    // Interlaced status
-	ReferenceFrames  int    `json:"reference_frames"`              // Number of reference frames
-	
+	VideoWidth      int    `json:"video_width"`      // Video width in pixels
+	VideoHeight     int    `json:"video_height"`     // Video height in pixels
+	VideoFramerate  string `json:"video_framerate"`  // Video framerate (e.g., "23.976")
+	VideoProfile    string `json:"video_profile"`    // Video codec profile (e.g., "Main 10")
+	VideoLevel      int    `json:"video_level"`      // Video codec level
+	VideoBitDepth   string `json:"video_bit_depth"`  // Video bit depth
+	AspectRatio     string `json:"aspect_ratio"`     // Display aspect ratio
+	PixelFormat     string `json:"pixel_format"`     // Pixel format (e.g., "yuv420p10le")
+	ColorSpace      string `json:"color_space"`      // Color space (e.g., "bt709")
+	ColorPrimaries  string `json:"color_primaries"`  // Color primaries
+	ColorTransfer   string `json:"color_transfer"`   // Color transfer
+	HDRFormat       string `json:"hdr_format"`       // HDR format (HDR10, DV, etc.)
+	Interlaced      string `json:"interlaced"`       // Interlaced status
+	ReferenceFrames int    `json:"reference_frames"` // Number of reference frames
+
 	// Enhanced audio fields
-	AudioChannels    int    `json:"audio_channels"`                // Number of audio channels
-	AudioLayout      string `json:"audio_layout"`                  // Audio channel layout
-	AudioSampleRate  int    `json:"audio_sample_rate"`            // Audio sample rate
-	AudioBitDepth    int    `json:"audio_bit_depth"`              // Audio bit depth
-	AudioLanguage    string `json:"audio_language"`               // Primary audio language
-	AudioProfile     string `json:"audio_profile"`                // Audio codec profile
-	
-	LastSeen    time.Time `gorm:"not null" json:"last_seen"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	AudioChannels   int    `json:"audio_channels"`    // Number of audio channels
+	AudioLayout     string `json:"audio_layout"`      // Audio channel layout
+	AudioSampleRate int    `json:"audio_sample_rate"` // Audio sample rate
+	AudioBitDepth   int    `json:"audio_bit_depth"`   // Audio bit depth
+	AudioLanguage   string `json:"audio_language"`    // Primary audio language
+	AudioProfile    string `json:"audio_profile"`     // Audio codec profile
+
+	LastSeen  time.Time `gorm:"not null" json:"last_seen"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // =============================================================================
@@ -128,29 +128,29 @@ type MediaFile struct {
 // MediaAsset handles associated assets (artwork, subtitles, thumbnails)
 // Using the new clean entity-based schema
 type MediaAsset struct {
-	ID         string    `gorm:"type:varchar(36);primaryKey" json:"id"`
-	
+	ID string `gorm:"type:varchar(36);primaryKey" json:"id"`
+
 	// Entity-based fields (clean schema)
-	EntityType string    `gorm:"type:text;not null;index" json:"entity_type"`     // movie, tv_show, album, etc.
-	EntityID   string    `gorm:"type:varchar(36);not null;index" json:"entity_id"` // FK to movie, episode, track, etc.
-	Type       string    `gorm:"not null;index" json:"type"`                      // poster, backdrop, logo, cover, etc.
-	Source     string    `gorm:"not null;index" json:"source"`                    // plugin, local, user, etc.
-	PluginID   string    `gorm:"index" json:"plugin_id,omitempty"`               // Specific plugin identifier
-	
+	EntityType string `gorm:"type:text;not null;index" json:"entity_type"`      // movie, tv_show, album, etc.
+	EntityID   string `gorm:"type:varchar(36);not null;index" json:"entity_id"` // FK to movie, episode, track, etc.
+	Type       string `gorm:"not null;index" json:"type"`                       // poster, backdrop, logo, cover, etc.
+	Source     string `gorm:"not null;index" json:"source"`                     // plugin, local, user, etc.
+	PluginID   string `gorm:"index" json:"plugin_id,omitempty"`                 // Specific plugin identifier
+
 	// Asset details
-	Path       string    `gorm:"not null" json:"path"`                            // File path or URL
-	Language   string    `json:"language,omitempty"`                              // For subtitles, audio tracks
-	Format     string    `json:"format"`                                          // File format/codec
-	Width      int       `gorm:"default:0" json:"width"`                          // Image width
-	Height     int       `gorm:"default:0" json:"height"`                         // Image height
-	Preferred  bool      `gorm:"default:false" json:"preferred"`                  // Preferred asset flag
-	
+	Path      string `gorm:"not null" json:"path"`           // File path or URL
+	Language  string `json:"language,omitempty"`             // For subtitles, audio tracks
+	Format    string `json:"format"`                         // File format/codec
+	Width     int    `gorm:"default:0" json:"width"`         // Image width
+	Height    int    `gorm:"default:0" json:"height"`        // Image height
+	Preferred bool   `gorm:"default:false" json:"preferred"` // Preferred asset flag
+
 	// Optional compatibility fields
-	Resolution string    `json:"resolution,omitempty"`                            // Calculated from width x height
-	SizeBytes  int64     `gorm:"default:0" json:"size_bytes"`                     // File size
-	
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Resolution string `json:"resolution,omitempty"`        // Calculated from width x height
+	SizeBytes  int64  `gorm:"default:0" json:"size_bytes"` // File size
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // =============================================================================
@@ -479,4 +479,19 @@ type PluginUIComponent struct {
 	Enabled     bool      `gorm:"default:true" json:"enabled"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// PluginConfiguration represents stored configuration for a plugin
+type PluginConfiguration struct {
+	ID           uint32    `gorm:"primaryKey" json:"id"`
+	PluginID     string    `gorm:"uniqueIndex;not null" json:"plugin_id"` // FK to Plugin.PluginID (string)
+	SchemaData   string    `gorm:"type:text" json:"schema_data"`          // JSON-encoded configuration schema
+	SettingsData string    `gorm:"type:text" json:"settings_data"`        // JSON-encoded configuration values
+	Version      string    `gorm:"not null" json:"version"`
+	ModifiedBy   string    `json:"modified_by,omitempty"`
+	Dependencies string    `gorm:"type:text" json:"dependencies"` // JSON array of dependency plugin IDs
+	Permissions  string    `gorm:"type:text" json:"permissions"`  // JSON array of required permissions
+	IsActive     bool      `gorm:"default:true" json:"is_active"` // Whether this configuration is active
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
