@@ -95,6 +95,7 @@ const VideoPlayer: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [seekAheadOffset, setSeekAheadOffset] = useState(0); // Offset for seek-ahead content
 
   // URL params
   const startTime = parseInt(searchParams.get('t') || '0', 10);
@@ -259,7 +260,9 @@ const VideoPlayer: React.FC = () => {
         };
 
         const handleTimeUpdate = () => {
-          setCurrentTime(video.currentTime);
+          // Add seek-ahead offset to current time for accurate timeline display
+          const adjustedCurrentTime = video.currentTime + seekAheadOffset;
+          setCurrentTime(adjustedCurrentTime);
           
           // Update duration if it becomes available (important for DASH streams)
                       if (!duration || duration <= 0) {
@@ -288,9 +291,9 @@ const VideoPlayer: React.FC = () => {
              }
            }
           
-          // Save position every 5 seconds
-          if (Math.floor(video.currentTime) % 5 === 0) {
-            localStorage.setItem(`video-position-${episodeId}`, video.currentTime.toString());
+          // Save position every 5 seconds (use adjusted time for seek-ahead content)
+          if (Math.floor(adjustedCurrentTime) % 5 === 0) {
+            localStorage.setItem(`video-position-${episodeId}`, adjustedCurrentTime.toString());
           }
         };
         const handlePlay = () => setIsPlaying(true);
@@ -445,6 +448,9 @@ const VideoPlayer: React.FC = () => {
           session_id: sessionData.id,
           manifest_url: `/api/playback/stream/${sessionData.id}/manifest.mpd`
         }));
+        
+        // Reset seek-ahead offset for new regular sessions
+        setSeekAheadOffset(0);
       }
 
       // Get episode metadata
@@ -554,12 +560,15 @@ const VideoPlayer: React.FC = () => {
       // Load the new manifest in the player
       await playerRef.current.load(newManifestUrl);
       
-      // Set the current time to the seek position
+      // Update the timeline offset for seek-ahead content
+      setSeekAheadOffset(seekTime);
+      
+      // The seek-ahead content starts at time 0 in the new manifest
       if (videoRef.current) {
         videoRef.current.currentTime = 0; // Start from beginning of seek-ahead content
       }
 
-      console.log('✅ Video updated for seek-ahead successfully');
+      console.log('✅ Video updated for seek-ahead successfully - offset set to:', seekTime);
       
     } catch (error) {
       console.error('❌ Failed to update video for seek-ahead:', error);
@@ -591,7 +600,9 @@ const VideoPlayer: React.FC = () => {
     }
 
     // Always seek immediately for instant user feedback
-    videoRef.current.currentTime = seekTime;
+    // Adjust for seek-ahead offset if we're playing seek-ahead content
+    const adjustedSeekTime = Math.max(0, seekTime - seekAheadOffset);
+    videoRef.current.currentTime = adjustedSeekTime;
 
     // For DASH/HLS streams, check if we need seek-ahead
     if (playbackDecision.transcode_params?.target_container === 'dash' || playbackDecision.transcode_params?.target_container === 'hls') {
