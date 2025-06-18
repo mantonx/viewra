@@ -96,6 +96,14 @@ const VideoPlayer: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [isSeekingAhead, setIsSeekingAhead] = useState(false); // Track seek-ahead state
+  
+  // Enhanced loading states
+  const [loadingStage, setLoadingStage] = useState<'initial' | 'fetching-metadata' | 'starting-session' | 'waiting-manifest' | 'player-init' | 'ready'>('initial');
+  const [isTranscoding, setIsTranscoding] = useState(false);
+  const [transcodingProgress, setTranscodingProgress] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [canPlay, setCanPlay] = useState(false);
+  const [hasAttemptedAutoplay, setHasAttemptedAutoplay] = useState(false);
 
   // URL params
   const startTime = parseInt(searchParams.get('t') || '0', 10);
@@ -202,6 +210,11 @@ const VideoPlayer: React.FC = () => {
         },
       });
 
+      setLoadingStage('player-init');
+      if (playbackDecision.should_transcode) {
+        setTranscodingProgress(60);
+      }
+
       // Get manifest URL (prefer manifest_url for DASH/HLS, fallback to stream_url)
       const manifestUrl = playbackDecision.manifest_url || playbackDecision.stream_url;
       if (DEBUG) console.log('🎬 Loading manifest/stream:', manifestUrl);
@@ -240,6 +253,15 @@ const VideoPlayer: React.FC = () => {
             if (DEBUG) console.warn('❌ Invalid duration detected:', video.duration);
           }
           
+          // Set loading stage to indicate player is ready
+          setLoadingStage('ready');
+          setIsBuffering(false);
+          if (playbackDecision?.should_transcode) {
+            setTranscodingProgress(100);
+            // Stop transcoding state after metadata is loaded
+            setTimeout(() => setIsTranscoding(false), 2000);
+          }
+          
           // Determine start position: URL param > saved position > beginning
           let targetStartTime = 0;
           if (startTime > 0) {
@@ -253,10 +275,6 @@ const VideoPlayer: React.FC = () => {
           }
           
           video.currentTime = targetStartTime;
-          
-          if (shouldAutoplay) {
-            video.play().catch(console.warn);
-          }
         };
 
         const handleTimeUpdate = () => {
@@ -324,15 +342,53 @@ const VideoPlayer: React.FC = () => {
             detectedDuration = video.seekable.end(video.seekable.length - 1);
           }
           
-                     if (detectedDuration > 0) {
-             if (DEBUG) console.log('✅ Seekable duration from loadeddata:', detectedDuration);
-             setSeekableDuration(detectedDuration);
-             
-             // Only update display duration if we don't have original duration or if seekable >= original
-             if (!originalDuration || detectedDuration >= originalDuration) {
-               setDuration(detectedDuration);
-             }
-           }
+          if (detectedDuration > 0) {
+            if (DEBUG) console.log('✅ Seekable duration from loadeddata:', detectedDuration);
+            setSeekableDuration(detectedDuration);
+            
+            // Only update display duration if we don't have original duration or if seekable >= original
+            if (!originalDuration || detectedDuration >= originalDuration) {
+              setDuration(detectedDuration);
+            }
+          }
+          
+          // Video data is loaded and ready to play
+          setCanPlay(true);
+          setIsBuffering(false);
+          
+          // Attempt autoplay if enabled and not yet attempted
+          if (shouldAutoplay && !hasAttemptedAutoplay) {
+            setHasAttemptedAutoplay(true);
+            console.log('🎬 Attempting autoplay...');
+            video.play().then(() => {
+              console.log('✅ Autoplay successful');
+            }).catch((error) => {
+              console.warn('⚠️ Autoplay failed:', error.message);
+              // Show a play button overlay or notification that user needs to click play
+            });
+          }
+        };
+
+        // Additional handlers for better state tracking
+        const handleCanPlay = () => {
+          console.log('📺 Can play event fired');
+          setCanPlay(true);
+          setIsBuffering(false);
+        };
+
+        const handleWaiting = () => {
+          console.log('⏳ Video waiting/buffering...');
+          setIsBuffering(true);
+        };
+
+        const handlePlaying = () => {
+          console.log('▶️ Video playing');
+          setIsBuffering(false);
+        };
+
+        const handleStalled = () => {
+          console.log('🔄 Video stalled, buffering...');
+          setIsBuffering(true);
         };
 
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -342,6 +398,10 @@ const VideoPlayer: React.FC = () => {
         video.addEventListener('play', handlePlay);
         video.addEventListener('pause', handlePause);
         video.addEventListener('volumechange', handleVolumeChange);
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('waiting', handleWaiting);
+        video.addEventListener('playing', handlePlaying);
+        video.addEventListener('stalled', handleStalled);
 
         // Store cleanup function
         (video as HTMLVideoElement & { cleanupVideoEvents?: () => void }).cleanupVideoEvents = () => {
@@ -352,6 +412,10 @@ const VideoPlayer: React.FC = () => {
           video.removeEventListener('play', handlePlay);
           video.removeEventListener('pause', handlePause);
           video.removeEventListener('volumechange', handleVolumeChange);
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('waiting', handleWaiting);
+          video.removeEventListener('playing', handlePlaying);
+          video.removeEventListener('stalled', handleStalled);
         };
       }
 
@@ -371,6 +435,7 @@ const VideoPlayer: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      setLoadingStage('fetching-metadata');
 
       // Get media files
       const filesResponse = await fetch(`/api/media/files?limit=1000`);
@@ -422,6 +487,10 @@ const VideoPlayer: React.FC = () => {
 
       // Start transcoding session if needed
       if (decision.should_transcode) {
+        setLoadingStage('starting-session');
+        setIsTranscoding(true);
+        setTranscodingProgress(10);
+        
         const sessionResponse = await fetch('/api/playback/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -439,6 +508,9 @@ const VideoPlayer: React.FC = () => {
 
         const sessionData = await sessionResponse.json();
         console.log('✅ Transcoding session started:', sessionData.id);
+
+        setLoadingStage('waiting-manifest');
+        setTranscodingProgress(30);
 
         // Store session info for player initialization
         setPlaybackDecision(prev => ({
@@ -780,15 +852,58 @@ const VideoPlayer: React.FC = () => {
     };
   }, [cleanupPlayer]);
 
-  if (loading) {
+  if (loading || loadingStage !== 'ready') {
+    const getLoadingMessage = () => {
+      switch (loadingStage) {
+        case 'initial':
+          return 'Initializing player...';
+        case 'fetching-metadata':
+          return 'Loading video metadata...';
+        case 'starting-session':
+          return 'Starting transcoding session...';
+        case 'waiting-manifest':
+          return 'Generating video manifest...';
+        case 'player-init':
+          return 'Initializing video player...';
+        default:
+          return 'Loading video player...';
+      }
+    };
+
+    const getSubMessage = () => {
+      if (isTranscoding) {
+        return 'Preparing DASH adaptive stream for optimal playback';
+      }
+      if (playbackDecision && playbackDecision.should_transcode) {
+        return 'Setting up transcoding for your device';
+      }
+      if (playbackDecision && !playbackDecision.should_transcode) {
+        return 'Preparing direct stream';
+      }
+      return 'Please wait...';
+    };
+
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading video player...</p>
-          {playbackDecision && (
-            <p className="text-sm text-gray-400 mt-2">
-              {playbackDecision.should_transcode ? 'Preparing DASH stream...' : 'Preparing direct stream...'}
+          <p className="text-lg mb-2">{getLoadingMessage()}</p>
+          <p className="text-sm text-gray-400 mb-4">{getSubMessage()}</p>
+          
+          {/* Loading progress for transcoding */}
+          {isTranscoding && (
+            <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
+              <div 
+                className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(20, transcodingProgress)}%` }}
+              ></div>
+            </div>
+          )}
+          
+          {/* Additional helpful text for transcoding */}
+          {isTranscoding && (
+            <p className="text-xs text-gray-500">
+              First-time viewing may take a moment to prepare optimal quality
             </p>
           )}
         </div>
@@ -837,6 +952,34 @@ const VideoPlayer: React.FC = () => {
           onDoubleClick={restartFromBeginning}
           title="Double-click to restart from beginning"
         />
+
+        {/* Buffering indicator */}
+        {isBuffering && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-40">
+            <div className="bg-black/80 rounded-lg p-4 flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+              <span className="text-white">Buffering...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Play button overlay (for autoplay failures) */}
+        {canPlay && !isPlaying && !isBuffering && shouldAutoplay && hasAttemptedAutoplay && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-40">
+            <button
+              onClick={() => videoRef.current?.play()}
+              className="bg-black/80 hover:bg-black/90 rounded-full p-6 text-white hover:scale-110 transition-all duration-200"
+            >
+              <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
+            <div className="absolute bottom-20 text-white text-center">
+              <p className="text-sm">Autoplay was blocked</p>
+              <p className="text-xs text-gray-400">Click to start playback</p>
+            </div>
+          </div>
+        )}
 
         {/* Streaming info */}
         {playbackDecision && (
