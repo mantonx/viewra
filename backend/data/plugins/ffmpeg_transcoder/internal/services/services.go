@@ -107,6 +107,7 @@ func (s *TranscodingService) StartTranscode(ctx context.Context, req *plugins.Tr
 		AudioBitrate:    req.AudioBitrate,
 		Quality:         req.Quality,
 		Preset:          req.Preset,
+		StartTimeOffset: req.StartTime, // Store seek-ahead start time offset
 	}
 
 	// Add client information if available
@@ -322,23 +323,34 @@ func (sm *SessionManager) CreateSession(session *models.TranscodeSession) error 
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	// Check for existing active sessions with FOR UPDATE lock to prevent race conditions
+	// For seek-ahead functionality, check if this session has a start time offset
+	// Only reuse sessions if they have the same start time (or both have no start time)
 	var existingSession models.TranscodeSession
-	err := tx.
-		Where("plugin_id = ? AND input_path = ? AND status IN ?",
-			sm.pluginID, session.InputPath, []string{"pending", "starting", "running"}).
-		First(&existingSession).Error
+	query := tx.Where("plugin_id = ? AND input_path = ? AND status IN ?",
+		sm.pluginID, session.InputPath, []string{"pending", "starting", "running"})
+
+	// Add start time condition for precise session matching
+	if session.StartTimeOffset > 0 {
+		// For seek-ahead sessions, only match if start times are identical
+		query = query.Where("start_time_offset = ?", session.StartTimeOffset)
+	} else {
+		// For regular sessions, only match sessions without start time offset
+		query = query.Where("start_time_offset = 0 OR start_time_offset IS NULL")
+	}
+
+	err := query.First(&existingSession).Error
 
 	if err != nil && err != gorm.ErrRecordNotFound {
 		tx.Rollback()
 		return fmt.Errorf("failed to check for existing sessions: %w", err)
 	}
 
-	// If an active session exists, return the existing session ID instead of creating a duplicate
+	// If an identical session exists (same input path and start time), reuse it
 	if err != gorm.ErrRecordNotFound {
 		tx.Rollback()
-		sm.logger.Warn("found existing active session for input path",
+		sm.logger.Info("found existing active session with matching parameters",
 			"input_path", session.InputPath,
+			"start_time_offset", session.StartTimeOffset,
 			"existing_session_id", existingSession.ID,
 			"existing_status", existingSession.Status,
 			"plugin_id", sm.pluginID)

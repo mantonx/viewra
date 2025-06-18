@@ -29,6 +29,9 @@ type TranscodeSession struct {
 	Quality         int    `json:"quality,omitempty"`          // Quality setting (0-51 for x264/x265)
 	Preset          string `json:"preset,omitempty"`           // Encoding preset (fast, medium, slow, etc.)
 
+	// Seek-ahead functionality
+	StartTimeOffset int `gorm:"default:0;index" json:"start_time_offset"` // Start time offset in seconds for seek-ahead
+
 	// Hardware acceleration settings
 	HWAccel       string `json:"hw_accel,omitempty"`        // vaapi, qsv, nvenc, etc.
 	HWAccelDevice string `json:"hw_accel_device,omitempty"` // GPU device path/ID
