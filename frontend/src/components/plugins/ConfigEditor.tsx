@@ -72,10 +72,32 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   };
 
   const handleFieldChange = (fieldId: string, value: unknown) => {
-    setFormData(prev => ({
-      ...prev,
-      [fieldId]: value,
-    }));
+    setFormData(prev => {
+      // Handle nested field paths (e.g., "adaptive.enabled")
+      if (fieldId.includes('.')) {
+        const [parentKey, ...subKeys] = fieldId.split('.');
+        const subPath = subKeys.join('.');
+        
+        const parentValue = prev[parentKey];
+        const parentObject = (parentValue && typeof parentValue === 'object' && !Array.isArray(parentValue)) 
+          ? parentValue as Record<string, unknown>
+          : {};
+        
+        return {
+          ...prev,
+          [parentKey]: {
+            ...parentObject,
+            [subPath]: value,
+          },
+        };
+      }
+      
+      // Handle top-level fields
+      return {
+        ...prev,
+        [fieldId]: value,
+      };
+    });
     setHasChanges(true);
     setSuccess(null);
   };
@@ -136,7 +158,23 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   };
 
   const renderField = (field: ConfigurationProperty, fieldId: string) => {
-    const value = formData[fieldId] ?? field.default;
+    // Handle nested field paths (e.g., "adaptive.enabled")
+    let value;
+    if (fieldId.includes('.')) {
+      const [parentKey, ...subKeys] = fieldId.split('.');
+      const subPath = subKeys.join('.');
+      const parentValue = formData[parentKey];
+      if (parentValue && typeof parentValue === 'object' && !Array.isArray(parentValue)) {
+        value = (parentValue as Record<string, unknown>)[subPath];
+      }
+    } else {
+      value = formData[fieldId];
+    }
+    
+    // Use default if value is undefined
+    if (value === undefined) {
+      value = field.default;
+    }
 
     switch (field.type) {
       case 'text':
@@ -233,13 +271,70 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         );
       }
 
-      case 'object':
+      case 'object': {
+        const objectValue = (value && typeof value === 'object' && !Array.isArray(value)) ? value as Record<string, unknown> : {};
+        
+        // If the field has properties defined, render them as sub-fields
+        if (field.properties && Object.keys(field.properties).length > 0) {
+          return (
+            <div className="bg-slate-800 border border-slate-600 rounded-lg p-4 space-y-4">
+              <div className="text-sm font-medium text-slate-300 border-b border-slate-600 pb-2">
+                {field.title} Configuration
+              </div>
+              {Object.entries(field.properties).map(([subFieldId, subField]) => {
+                const subFieldPath = `${fieldId}.${subFieldId}`;
+                
+                return (
+                  <div key={subFieldId} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-white">
+                        {subField.title}
+                        {subField.required && (
+                          <span className="text-red-400 ml-1">*</span>
+                        )}
+                      </label>
+                      {subField.default !== undefined && (
+                        <span className="text-xs text-slate-500">
+                          Default: {String(subField.default)}
+                        </span>
+                      )}
+                    </div>
+                    {subField.description && (
+                      <p className="text-slate-400 text-xs">{subField.description}</p>
+                    )}
+                    <div className="pl-4">
+                      {renderField(subField, subFieldPath)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+        
+        // Fallback: render as JSON editor for objects without defined properties
         return (
-          <div className="bg-slate-800 border border-slate-600 rounded-md p-4">
-            <div className="text-slate-400 text-sm">Object configuration</div>
-            <div className="text-xs text-slate-500 mt-1">Advanced configuration - edit carefully</div>
+          <div className="space-y-2">
+            <textarea
+              value={JSON.stringify(objectValue, null, 2)}
+              onChange={(e) => {
+                try {
+                  const parsed = JSON.parse(e.target.value);
+                  handleFieldChange(fieldId, parsed);
+                } catch {
+                  // Invalid JSON, don't update
+                }
+              }}
+              placeholder="{}"
+              rows={6}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            <div className="text-xs text-slate-400">
+              Enter valid JSON configuration. Changes are applied when JSON is valid.
+            </div>
           </div>
         );
+      }
 
       default:
         // Handle enum/select cases
