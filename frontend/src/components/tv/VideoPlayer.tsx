@@ -73,13 +73,15 @@ const VideoPlayer: React.FC = () => {
   
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const uiRef = useRef<any>(null);
   const initializationRef = useRef(false); // Prevent multiple initializations
 
   // State
   const [, setEpisode] = useState<Episode | null>(null);
-  const [, setMediaFile] = useState<MediaFile | null>(null);
+  const [mediaFile, setMediaFile] = useState<MediaFile | null>(null);
   const [playbackDecision, setPlaybackDecision] = useState<PlaybackDecision | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -509,6 +511,61 @@ const VideoPlayer: React.FC = () => {
     }
   }, []);
 
+  // Update video player to use seek-ahead manifest
+  const updateVideoForSeekAhead = useCallback(async (seekTime: number) => {
+    if (!playerRef.current || !playbackDecision || !mediaFile) {
+      console.warn('⚠️ Cannot update for seek-ahead: missing player, playback decision, or media file');
+      return;
+    }
+
+    try {
+      console.log('🔄 Updating video for seek-ahead to time:', seekTime);
+      
+      // Start a new transcoding session with seek time using the original file path
+      const startResponse = await fetch('/api/playback/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input_path: mediaFile.path, // Use the actual file path
+          target_codec: playbackDecision.transcode_params?.target_codec || 'h264',
+          target_container: playbackDecision.transcode_params?.target_container || 'dash',
+          resolution: playbackDecision.transcode_params?.resolution || '1080p',
+          start_time: seekTime
+        })
+      });
+
+      if (!startResponse.ok) {
+        throw new Error(`Failed to start seek-ahead session: ${startResponse.status}`);
+      }
+
+      const sessionData = await startResponse.json();
+      console.log('✅ Seek-ahead session created:', sessionData);
+
+      // Build the new manifest URL for the seek-ahead session
+      const container = playbackDecision.transcode_params?.target_container || 'dash';
+      const manifestExt = container === 'hls' ? 'm3u8' : 'mpd';
+      const newManifestUrl = `/api/playback/stream/${sessionData.id}/manifest.${manifestExt}`;
+      
+      console.log('🎬 Loading seek-ahead manifest:', newManifestUrl);
+
+      // Wait for the manifest to be available
+      await waitForManifest(newManifestUrl);
+
+      // Load the new manifest in the player
+      await playerRef.current.load(newManifestUrl);
+      
+      // Set the current time to the seek position
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0; // Start from beginning of seek-ahead content
+      }
+
+      console.log('✅ Video updated for seek-ahead successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to update video for seek-ahead:', error);
+    }
+  }, [playbackDecision, mediaFile, waitForManifest]);
+
   // Enhanced seek function with seek-ahead support
   const handleSeek = useCallback(async (progress: number) => {
     if (!videoRef.current || !playbackDecision) return;
@@ -554,23 +611,27 @@ const VideoPlayer: React.FC = () => {
 
         if (sessionId) {
           try {
-            // Call seek-ahead API in background (don't await)
-            fetch('/api/playback/seek-ahead', {
+            // Call seek-ahead API and wait for response
+            const response = await fetch('/api/playback/seek-ahead', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 session_id: sessionId,
                 seek_time: Math.floor(seekTime)
               })
-            }).then(response => {
-              if (response.ok) {
-                console.log('✅ Seek-ahead transcoding started in background');
-              } else {
-                console.warn('⚠️ Seek-ahead request failed:', response.status);
-              }
-            }).catch(error => {
-              console.warn('⚠️ Seek-ahead request error:', error);
             });
+
+            if (response.ok) {
+              const seekResponse = await response.json();
+              console.log('✅ Seek-ahead transcoding started:', seekResponse);
+              
+              // Wait for a moment to let transcoding start, then update video with seek-ahead manifest
+              setTimeout(async () => {
+                await updateVideoForSeekAhead(Math.floor(seekTime));
+              }, 2000);
+            } else {
+              console.warn('⚠️ Seek-ahead request failed:', response.status);
+            }
           } catch (error) {
             console.warn('⚠️ Seek-ahead error:', error);
           }
