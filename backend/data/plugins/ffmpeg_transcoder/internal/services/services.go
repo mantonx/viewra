@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -539,6 +541,9 @@ func (sm *SessionManager) cleanupExpiredSessions() {
 		// Also cleanup associated stats
 		sm.db.Where("plugin_id = ? AND recorded_at < ?", sm.pluginID, cutoff).Delete(&models.TranscodeStats{})
 	}
+
+	// File system cleanup with retention policy
+	sm.cleanupTranscodingFiles()
 }
 
 // cleanupFailedSessions removes sessions that have failed or crashed
@@ -607,4 +612,182 @@ func (sm *SessionManager) StopAllSessions() {
 	sm.sessionsMutex.Lock()
 	sm.sessions = make(map[string]*models.TranscodeSession)
 	sm.sessionsMutex.Unlock()
+}
+
+// cleanupTranscodingFiles removes old transcoding files and directories with intelligent retention
+func (sm *SessionManager) cleanupTranscodingFiles() {
+	// Get transcoding directory from environment or config
+	transcodingDir := "/viewra-data/transcoding"
+	if dir := os.Getenv("TRANSCODING_DATA_DIR"); dir != "" {
+		transcodingDir = dir
+	}
+
+	// Get cleanup configuration (use defaults if config not available)
+	fileRetentionHours := 2     // Default: Keep files for 2 hours (active streaming window)
+	extendedRetentionHours := 8 // Default: Keep smaller files for 8 hours
+	maxSizeLimitGB := 10        // Default: Emergency cleanup above 10GB
+	largeFileSizeMB := 500      // Default: Files larger than 500MB are considered large
+
+	// Multi-tier retention policy (configurable):
+	// - Keep files for N hours (active streaming window)
+	// - Keep files for extended hours if they're reasonably sized (< XMB total per session)
+	// - Remove everything older than 24 hours (absolute safety limit)
+	// - Emergency cleanup if total size > XGB
+
+	now := time.Now()
+	activeWindow := now.Add(-time.Duration(fileRetentionHours) * time.Hour)
+	extendedWindow := now.Add(-time.Duration(extendedRetentionHours) * time.Hour)
+	maxRetention := now.Add(-24 * time.Hour) // Absolute maximum retention (hardcoded safety)
+
+	sm.logger.Debug("starting file system cleanup", "dir", transcodingDir)
+
+	// First pass: Remove anything older than 24 hours (absolute limit)
+	absoluteExpiredCount := sm.cleanupDirectoriesByAge(transcodingDir, maxRetention, "absolute_expired")
+	if absoluteExpiredCount > 0 {
+		sm.logger.Info("removed absolutely expired directories", "count", absoluteExpiredCount)
+	}
+
+	// Second pass: Check total disk usage and apply size-based cleanup if needed
+	totalSize, dirCount := sm.calculateDirectorySize(transcodingDir)
+	sm.logger.Info("transcoding directory stats", "total_size_gb", float64(totalSize)/(1024*1024*1024), "directory_count", dirCount)
+
+	// Emergency cleanup if over configured limit
+	sizeLimitBytes := int64(maxSizeLimitGB) * 1024 * 1024 * 1024
+	if totalSize > sizeLimitBytes {
+		sm.logger.Warn("transcoding directory too large, performing emergency cleanup", "size_gb", float64(totalSize)/(1024*1024*1024))
+		emergencyCleanedCount := sm.cleanupDirectoriesByAge(transcodingDir, extendedWindow, "emergency_size")
+		sm.logger.Info("emergency cleanup completed", "directories_removed", emergencyCleanedCount)
+	} else {
+		// Normal cleanup: remove files older than active window, but keep smaller ones longer
+		normalCleanedCount := sm.cleanupDirectoriesIntelligent(transcodingDir, activeWindow, extendedWindow, largeFileSizeMB)
+		sm.logger.Debug("intelligent cleanup completed", "directories_removed", normalCleanedCount)
+	}
+}
+
+// cleanupDirectoriesByAge removes directories older than the specified time
+func (sm *SessionManager) cleanupDirectoriesByAge(baseDir string, cutoffTime time.Time, reason string) int {
+	cleanedCount := 0
+
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		sm.logger.Warn("failed to read transcoding directory", "dir", baseDir, "error", err)
+		return 0
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "dash_") {
+			continue
+		}
+
+		dirPath := filepath.Join(baseDir, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		if info.ModTime().Before(cutoffTime) {
+			sm.logger.Debug("removing old transcoding directory", "path", dirPath, "age", time.Since(info.ModTime()), "reason", reason)
+			if err := os.RemoveAll(dirPath); err != nil {
+				sm.logger.Warn("failed to remove old directory", "path", dirPath, "error", err)
+			} else {
+				cleanedCount++
+			}
+		}
+	}
+
+	return cleanedCount
+}
+
+// cleanupDirectoriesIntelligent applies intelligent cleanup based on size and age
+func (sm *SessionManager) cleanupDirectoriesIntelligent(baseDir string, activeWindow, extendedWindow time.Time, largeFileSizeMB int) int {
+	cleanedCount := 0
+
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		sm.logger.Warn("failed to read transcoding directory", "dir", baseDir, "error", err)
+		return 0
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "dash_") {
+			continue
+		}
+
+		dirPath := filepath.Join(baseDir, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		// Always remove if older than extended window
+		if info.ModTime().Before(extendedWindow) {
+			sm.logger.Debug("removing extended-old directory", "path", dirPath, "age", time.Since(info.ModTime()))
+			if err := os.RemoveAll(dirPath); err != nil {
+				sm.logger.Warn("failed to remove extended-old directory", "path", dirPath, "error", err)
+			} else {
+				cleanedCount++
+			}
+			continue
+		}
+
+		// For directories between active and extended window, check size
+		if info.ModTime().Before(activeWindow) {
+			dirSize := sm.calculateSingleDirectorySize(dirPath)
+
+			// Remove if larger than configured limit
+			largeSizeBytes := int64(largeFileSizeMB) * 1024 * 1024
+			if dirSize > largeSizeBytes {
+				sm.logger.Debug("removing large inactive directory", "path", dirPath, "size_mb", dirSize/(1024*1024), "age", time.Since(info.ModTime()))
+				if err := os.RemoveAll(dirPath); err != nil {
+					sm.logger.Warn("failed to remove large directory", "path", dirPath, "error", err)
+				} else {
+					cleanedCount++
+				}
+			}
+		}
+	}
+
+	return cleanedCount
+}
+
+// calculateDirectorySize calculates total size of all transcoding directories
+func (sm *SessionManager) calculateDirectorySize(baseDir string) (int64, int) {
+	var totalSize int64
+	dirCount := 0
+
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return 0, 0
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "dash_") {
+			dirPath := filepath.Join(baseDir, entry.Name())
+			size := sm.calculateSingleDirectorySize(dirPath)
+			totalSize += size
+			dirCount++
+		}
+	}
+
+	return totalSize, dirCount
+}
+
+// calculateSingleDirectorySize calculates size of a single directory
+func (sm *SessionManager) calculateSingleDirectorySize(dirPath string) int64 {
+	var size int64
+
+	filepath.WalkDir(dirPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // Continue walking even if there's an error
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err == nil {
+				size += info.Size()
+			}
+		}
+		return nil
+	})
+
+	return size
 }

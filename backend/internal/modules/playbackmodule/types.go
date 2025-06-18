@@ -102,6 +102,9 @@ type TranscodeManager interface {
 
 	// Cleanup performs cleanup of expired sessions
 	Cleanup()
+
+	// GetCleanupStats returns cleanup-related statistics
+	GetCleanupStats() (*CleanupStats, error)
 }
 
 // TranscodingStats represents overall transcoding statistics
@@ -126,6 +129,19 @@ type BackendStats struct {
 	AverageSpeed   float64                          `json:"average_speed"`
 	Capabilities   *plugins.TranscodingCapabilities `json:"capabilities"`
 	LastUsed       *time.Time                       `json:"last_used,omitempty"`
+}
+
+// CleanupStats represents statistics about file cleanup operations
+type CleanupStats struct {
+	TotalDirectories       int       `json:"total_directories"`
+	TotalSizeGB            float64   `json:"total_size_gb"`
+	DirectoriesRemoved     int       `json:"directories_removed"`
+	SizeFreedGB            float64   `json:"size_freed_gb"`
+	LastCleanupTime        time.Time `json:"last_cleanup_time"`
+	NextCleanupTime        time.Time `json:"next_cleanup_time"`
+	RetentionHours         int       `json:"retention_hours"`
+	ExtendedRetentionHours int       `json:"extended_retention_hours"`
+	MaxSizeLimitGB         int       `json:"max_size_limit_gb"`
 }
 
 // Codec represents a video/audio codec

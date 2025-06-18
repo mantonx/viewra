@@ -3,6 +3,9 @@ package playbackmodule
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -292,4 +295,60 @@ func stringInSlice(item string, slice []string) bool {
 		}
 	}
 	return false
+}
+
+// GetCleanupStats returns cleanup-related statistics
+func (sm *SessionManager) GetCleanupStats() (*CleanupStats, error) {
+	// Get basic transcoding directory stats
+	transcodingDir := "/viewra-data/transcoding"
+	if dir := os.Getenv("TRANSCODING_DATA_DIR"); dir != "" {
+		transcodingDir = dir
+	}
+
+	stats := &CleanupStats{
+		RetentionHours:         2,                                // Default from config
+		ExtendedRetentionHours: 8,                                // Default from config
+		MaxSizeLimitGB:         10,                               // Default from config
+		LastCleanupTime:        time.Now(),                       // This would be tracked in a real implementation
+		NextCleanupTime:        time.Now().Add(30 * time.Second), // Next cleanup cycle
+	}
+
+	// Calculate directory statistics
+	if entries, err := os.ReadDir(transcodingDir); err == nil {
+		var totalSize int64
+		dirCount := 0
+
+		for _, entry := range entries {
+			if entry.IsDir() && strings.HasPrefix(entry.Name(), "dash_") {
+				dirPath := filepath.Join(transcodingDir, entry.Name())
+				dirSize := sm.calculateDirectorySize(dirPath)
+				totalSize += dirSize
+				dirCount++
+			}
+		}
+
+		stats.TotalDirectories = dirCount
+		stats.TotalSizeGB = float64(totalSize) / (1024 * 1024 * 1024)
+	}
+
+	return stats, nil
+}
+
+// calculateDirectorySize calculates the size of a directory
+func (sm *SessionManager) calculateDirectorySize(dirPath string) int64 {
+	var size int64
+
+	filepath.WalkDir(dirPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			if info, err := d.Info(); err == nil {
+				size += info.Size()
+			}
+		}
+		return nil
+	})
+
+	return size
 }

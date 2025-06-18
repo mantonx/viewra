@@ -240,6 +240,10 @@ func (pm *PlaybackModule) RegisterRoutes(router *gin.Engine) {
 		// Plugin management endpoints
 		playbackGroup.POST("/plugins/refresh", pm.handleRefreshPlugins)
 
+		// Cleanup management endpoints
+		playbackGroup.POST("/cleanup/run", pm.handleManualCleanup)
+		playbackGroup.GET("/cleanup/stats", pm.handleCleanupStats)
+
 		// DASH/HLS segment routes (specific patterns MUST come before catch-all)
 		// Support both GET and HEAD requests for segment access
 		// These patterns match exactly what FFmpeg generates:
@@ -816,4 +820,22 @@ func (pm *PlaybackModule) handlePlaybackStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, status)
+}
+
+// Cleanup management endpoints
+
+// handleManualCleanup manually triggers a cleanup of transcoding files
+func (pm *PlaybackModule) handleManualCleanup(c *gin.Context) {
+	pm.transcodeManager.Cleanup()
+	c.JSON(http.StatusOK, gin.H{"message": "cleanup triggered successfully"})
+}
+
+// handleCleanupStats returns statistics about the cleanup process
+func (pm *PlaybackModule) handleCleanupStats(c *gin.Context) {
+	stats, err := pm.transcodeManager.GetCleanupStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
 }

@@ -119,6 +119,113 @@ const VideoPlayer: React.FC = () => {
     });
   }
 
+  // Session management state
+  const [activeSessionIds, setActiveSessionIds] = useState<Set<string>>(new Set());
+  const [isStoppingSession, setIsStoppingSession] = useState(false);
+
+  // Helper function to stop transcoding sessions
+  const stopTranscodingSession = useCallback(async (sessionId: string) => {
+    if (!sessionId || isStoppingSession) return;
+    
+    setIsStoppingSession(true);
+    console.log('🛑 Stopping transcoding session:', sessionId);
+    
+    try {
+      const response = await fetch(`/api/playback/session/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        console.log('✅ Successfully stopped transcoding session:', sessionId);
+        setActiveSessionIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(sessionId);
+          return newSet;
+        });
+      } else {
+        console.warn('⚠️ Failed to stop transcoding session:', sessionId, response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error stopping transcoding session:', sessionId, error);
+    } finally {
+      setIsStoppingSession(false);
+    }
+  }, [isStoppingSession]);
+
+  // Function to stop all active sessions
+  const stopAllSessions = useCallback(async () => {
+    const sessions = Array.from(activeSessionIds);
+    if (sessions.length === 0) return;
+    
+    console.log('🛑 Stopping all active sessions:', sessions);
+    await Promise.all(sessions.map(sessionId => stopTranscodingSession(sessionId)));
+  }, [activeSessionIds, stopTranscodingSession]);
+
+  // Enhanced video event handlers with session management
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+    // Optionally stop sessions when paused to save resources
+    // This is aggressive but prevents resource waste
+    if (playbackDecision?.session_id) {
+      console.log('🔄 Video paused, stopping transcoding session to save resources');
+      stopTranscodingSession(playbackDecision.session_id);
+    }
+  }, [playbackDecision?.session_id, stopTranscodingSession]);
+
+  const handlePlay = useCallback(() => {
+    setIsPlaying(true);
+    // When resuming, we might need to restart transcoding
+    // This will be handled by seeking or restarting the session
+  }, []);
+
+  // Enhanced navigation handler with cleanup
+  const handleNavigation = useCallback(async () => {
+    console.log('🚪 Navigating away, cleaning up sessions...');
+    await stopAllSessions();
+    navigate(-1);
+  }, [navigate, stopAllSessions]);
+
+  // Track session IDs when they're created
+  useEffect(() => {
+    if (playbackDecision?.session_id) {
+      console.log('📝 Tracking new session:', playbackDecision.session_id);
+      setActiveSessionIds(prev => new Set(prev).add(playbackDecision.session_id!));
+    }
+  }, [playbackDecision?.session_id]);
+
+  // Cleanup on unmount or episode change
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Component unmounting, cleaning up sessions...');
+      // Use current value directly since this is cleanup
+      const currentSessions = Array.from(activeSessionIds);
+      currentSessions.forEach(sessionId => {
+        fetch(`/api/playback/session/${sessionId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        }).catch(error => console.error('Cleanup error for session:', sessionId, error));
+      });
+    };
+  }, [episodeId]); // Clean up when episode changes
+
+  // Enhanced beforeunload to clean up sessions when page is closed/refreshed
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Send synchronous cleanup requests
+      const currentSessions = Array.from(activeSessionIds);
+      currentSessions.forEach(sessionId => {
+        navigator.sendBeacon(`/api/playback/session/${sessionId}`, 
+          JSON.stringify({ method: 'DELETE' }));
+      });
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [activeSessionIds]);
+
   // Clean up player
   const cleanupPlayer = useCallback(() => {
     if (uiRef.current && typeof uiRef.current.destroy === 'function') {
@@ -313,8 +420,9 @@ const VideoPlayer: React.FC = () => {
             localStorage.setItem(`video-position-${episodeId}`, video.currentTime.toString());
           }
         };
-        const handlePlay = () => setIsPlaying(true);
-        const handlePause = () => setIsPlaying(false);
+        // Use our enhanced handlers with session management
+        const handlePlayEvent = handlePlay;
+        const handlePauseEvent = handlePause;
         const handleVolumeChange = () => {
           setVolume(video.volume);
           setIsMuted(video.muted);
@@ -395,8 +503,8 @@ const VideoPlayer: React.FC = () => {
         video.addEventListener('loadeddata', handleLoadedData);
         video.addEventListener('durationchange', handleDurationChange);
         video.addEventListener('timeupdate', handleTimeUpdate);
-        video.addEventListener('play', handlePlay);
-        video.addEventListener('pause', handlePause);
+        video.addEventListener('play', handlePlayEvent);
+        video.addEventListener('pause', handlePauseEvent);
         video.addEventListener('volumechange', handleVolumeChange);
         video.addEventListener('canplay', handleCanPlay);
         video.addEventListener('waiting', handleWaiting);
@@ -559,16 +667,21 @@ const VideoPlayer: React.FC = () => {
     }
   }, [episodeId]);
 
-  const restartFromBeginning = useCallback(() => {
+  const restartFromBeginning = useCallback(async () => {
     if (videoRef.current) {
+      console.log('🔄 Restarting video from beginning, cleaning up sessions...');
+      
+      // Stop all current sessions since we're restarting
+      await stopAllSessions();
+      
       videoRef.current.currentTime = 0;
       setCurrentTime(0);
       // Clear saved position and start playing
       localStorage.removeItem(`video-position-${episodeId}`);
       videoRef.current.play();
-      console.log('🔄 Video restarted from beginning');
+      console.log('✅ Video restarted from beginning, sessions cleaned up');
     }
-  }, [episodeId]);
+  }, [episodeId, stopAllSessions]);
 
   const toggleMute = useCallback(() => {
     if (videoRef.current) {
@@ -584,7 +697,7 @@ const VideoPlayer: React.FC = () => {
     }
   }, []);
 
-  // Simple seek-ahead: directly seek within current content or start background transcoding for beyond-available content
+  // Enhanced seek-ahead with session cleanup
   const requestSeekAhead = useCallback(async (seekTime: number) => {
     if (!playbackDecision || !mediaFile) {
       console.warn('⚠️ Cannot request seek-ahead: missing playback decision or media file');
@@ -606,6 +719,13 @@ const VideoPlayer: React.FC = () => {
       if (!sessionId) {
         console.warn('⚠️ No session ID available for seek-ahead');
         return;
+      }
+
+      // Stop any other sessions before starting seek-ahead transcoding
+      const otherSessions = Array.from(activeSessionIds).filter(id => id !== sessionId);
+      if (otherSessions.length > 0) {
+        console.log('🧹 Cleaning up other sessions before seek-ahead:', otherSessions);
+        await Promise.all(otherSessions.map(id => stopTranscodingSession(id)));
       }
 
       // Call seek-ahead API to start background transcoding
@@ -638,7 +758,7 @@ const VideoPlayer: React.FC = () => {
     } catch (error) {
       console.error('❌ Failed to request seek-ahead:', error);
     }
-  }, [playbackDecision, mediaFile]);
+  }, [playbackDecision, mediaFile, activeSessionIds, stopTranscodingSession]);
 
   // Simple, robust seek function
   const handleSeek = useCallback(async (progress: number) => {
@@ -882,7 +1002,7 @@ const VideoPlayer: React.FC = () => {
       {/* Back button */}
       <button
         data-tooltip-id="back-button"
-        onClick={() => navigate(-1)}
+        onClick={handleNavigation}
         className="absolute top-4 left-4 z-50 bg-black/50 hover:bg-black/80 hover:scale-110 text-white p-2 rounded-full transition-all duration-200 shadow-lg"
       >
         <ArrowLeft className="w-6 h-6" />
@@ -931,6 +1051,16 @@ const VideoPlayer: React.FC = () => {
             {isSeekingAhead && (
               <div className="text-xs text-blue-300 mt-1 animate-pulse">
                 ⚡ Transcoding ahead...
+              </div>
+            )}
+            {isStoppingSession && (
+              <div className="text-xs text-orange-300 mt-1 animate-pulse">
+                🛑 Cleaning up sessions...
+              </div>
+            )}
+            {activeSessionIds.size > 1 && (
+              <div className="text-xs text-yellow-300 mt-1">
+                📊 {activeSessionIds.size} active sessions
               </div>
             )}
           </div>

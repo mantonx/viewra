@@ -39,6 +39,12 @@ type FFmpegConfig struct {
 	TimeoutSeconds    int  `json:"timeout_seconds" cue:"performance.timeout_seconds"`
 	CleanupOnExit     bool `json:"cleanup_on_exit" cue:"performance.cleanup_on_exit"`
 
+	// File cleanup settings
+	FileRetentionHours     int `json:"file_retention_hours" cue:"cleanup.file_retention_hours"`
+	ExtendedRetentionHours int `json:"extended_retention_hours" cue:"cleanup.extended_retention_hours"`
+	MaxSizeLimitGB         int `json:"max_size_limit_gb" cue:"cleanup.max_size_limit_gb"`
+	LargeFileSizeMB        int `json:"large_file_size_mb" cue:"cleanup.large_file_size_mb"`
+
 	// Logging
 	LogLevel     string `json:"log_level" cue:"logging.level"`
 	FFmpegOutput bool   `json:"ffmpeg_output" cue:"logging.ffmpeg_output"`
@@ -47,26 +53,30 @@ type FFmpegConfig struct {
 // DefaultFFmpegConfig returns the default configuration
 func DefaultFFmpegConfig() *FFmpegConfig {
 	return &FFmpegConfig{
-		Enabled:              true,
-		FFmpegPath:           "ffmpeg",
-		Preset:               "fast",
-		Threads:              0, // Auto
-		Priority:             50,
-		CRFH264:              23,
-		CRFHEVC:              28,
-		MaxBitrateMultiplier: 1.5,
-		BufferSizeMultiplier: 2.0,
-		AudioCodec:           "aac",
-		AudioBitrate:         128,
-		AudioSampleRate:      44100,
-		AudioChannels:        2,
-		BurnInCodec:          "subtitles",
-		SoftCodec:            "mov_text",
-		MaxConcurrentJobs:    25,
-		TimeoutSeconds:       3600, // 1 hour
-		CleanupOnExit:        true,
-		LogLevel:             "info",
-		FFmpegOutput:         false,
+		Enabled:                true,
+		FFmpegPath:             "ffmpeg",
+		Preset:                 "fast",
+		Threads:                0, // Auto
+		Priority:               50,
+		CRFH264:                23,
+		CRFHEVC:                28,
+		MaxBitrateMultiplier:   1.5,
+		BufferSizeMultiplier:   2.0,
+		AudioCodec:             "aac",
+		AudioBitrate:           128,
+		AudioSampleRate:        44100,
+		AudioChannels:          2,
+		BurnInCodec:            "subtitles",
+		SoftCodec:              "mov_text",
+		MaxConcurrentJobs:      25,
+		TimeoutSeconds:         3600, // 1 hour
+		CleanupOnExit:          true,
+		FileRetentionHours:     2,   // Keep files for 2 hours (active window)
+		ExtendedRetentionHours: 8,   // Keep smaller files for 8 hours
+		MaxSizeLimitGB:         10,  // Emergency cleanup above 10GB
+		LargeFileSizeMB:        500, // Files larger than 500MB are considered large
+		LogLevel:               "info",
+		FFmpegOutput:           false,
 	}
 }
 

@@ -177,6 +177,12 @@ func (tm *TranscodeManagerImpl) Cleanup() {
 	tm.logger.Debug("cleanup called - session manager handles cleanup automatically")
 }
 
+// GetCleanupStats returns cleanup-related statistics
+func (tm *TranscodeManagerImpl) GetCleanupStats() (*CleanupStats, error) {
+	// Get cleanup stats from session manager
+	return tm.sessionManager.GetCleanupStats()
+}
+
 // GetAvailablePlugins returns a list of available transcoding plugins
 func (tm *TranscodeManagerImpl) GetAvailablePlugins() []string {
 	tm.mu.RLock()
