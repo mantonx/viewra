@@ -220,13 +220,21 @@ func (p *CUEParser) extractDefaultValue(value cue.Value) interface{} {
 	// Handle disjunctions with defaults (e.g., bool | *true)
 	// Look for the marked default in disjunctions
 	if op, args := value.Expr(); op == cue.OrOp {
+		// First pass: look for explicit defaults marked with *
 		for _, arg := range args {
-			// Check if this argument has a default marker
 			if p.isDefaultInDisjunction(arg) {
-				return p.cueValueToInterface(arg)
+				if concrete, ok := arg.Default(); ok && concrete.IsConcrete() {
+					return p.cueValueToInterface(concrete)
+				}
 			}
 		}
-		// If no explicit default found, try the first concrete value
+
+		// Second pass: try to get default from the value itself
+		if def, ok := value.Default(); ok && def.IsConcrete() {
+			return p.cueValueToInterface(def)
+		}
+
+		// Third pass: if no explicit default found, try the first concrete value
 		for _, arg := range args {
 			if arg.IsConcrete() {
 				return p.cueValueToInterface(arg)
@@ -234,17 +242,24 @@ func (p *CUEParser) extractDefaultValue(value cue.Value) interface{} {
 		}
 	}
 
+	// Try to get default from value directly (for non-disjunctions)
+	if def, ok := value.Default(); ok && def.IsConcrete() {
+		return p.cueValueToInterface(def)
+	}
+
 	return nil
 }
 
 // isDefaultInDisjunction checks if a value is marked as default in a disjunction
 func (p *CUEParser) isDefaultInDisjunction(value cue.Value) bool {
-	// In CUE, the default is often marked with *
-	// This is a simplified check - CUE's actual default detection is more complex
-	if value.IsConcrete() {
-		return true // Assume concrete values in disjunctions are defaults
+	// Check if this value has a default marker
+	if def, ok := value.Default(); ok {
+		return def.IsConcrete()
 	}
-	return false
+
+	// Alternative approach: check the kind and see if it's a default
+	// In CUE disjunctions, defaults are often the concrete values
+	return value.IsConcrete()
 }
 
 // cueValueToInterface converts a CUE value to a Go interface{}

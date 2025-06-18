@@ -301,7 +301,28 @@ func (pm *PluginModule) GetExternalPlugin(pluginID string) (*ExternalPlugin, boo
 
 // EnableExternalPlugin enables an external plugin
 func (pm *PluginModule) EnableExternalPlugin(pluginID string) error {
-	return pm.externalManager.EnablePlugin(pluginID)
+	pm.logger.Info("enabling external plugin", "plugin_id", pluginID)
+
+	// Enable the plugin in the external manager
+	if err := pm.externalManager.EnablePlugin(pluginID); err != nil {
+		return fmt.Errorf("failed to enable plugin: %w", err)
+	}
+
+	// Ensure the plugin has default configuration
+	if pm.configManager != nil {
+		pm.logger.Info("ensuring configuration exists for enabled plugin", "plugin_id", pluginID)
+		_, err := pm.configManager.EnsureConfigurationExists(pluginID)
+		if err != nil {
+			pm.logger.Warn("failed to create default configuration for plugin",
+				"plugin_id", pluginID,
+				"error", err)
+			// Don't fail the enable operation, just log the warning
+		} else {
+			pm.logger.Info("configuration ensured for plugin", "plugin_id", pluginID)
+		}
+	}
+
+	return nil
 }
 
 // DisableExternalPlugin disables an external plugin

@@ -321,8 +321,33 @@ func (pcm *PluginConfigManager) loadConfigurationFromDB(pluginID string) (*Plugi
 	err := pcm.db.Where("plugin_id = ?", pluginID).First(&dbConfig).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// Try to load configuration from CUE file for new plugins
-			return pcm.loadConfigurationFromCUE(pluginID)
+			// No database record found, load from CUE file and save defaults
+			pcm.logger.Info("no database configuration found, loading from CUE and saving defaults", "plugin_id", pluginID)
+
+			config, err := pcm.loadConfigurationFromCUE(pluginID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load configuration from CUE: %w", err)
+			}
+
+			// Set metadata for auto-saved configuration
+			config.ModifiedBy = "system_auto_save"
+			config.LastModified = time.Now()
+
+			// Save the defaults to database
+			if err := pcm.saveConfigurationToDB(config); err != nil {
+				pcm.logger.Warn("failed to save CUE defaults to database", "plugin_id", pluginID, "error", err)
+				// Return the configuration anyway, even if save failed
+				return config, nil
+			}
+
+			// Cache the configuration
+			pcm.cache[pluginID] = config
+
+			pcm.logger.Info("successfully loaded CUE configuration and saved defaults to database",
+				"plugin_id", pluginID,
+				"settings_count", len(config.Settings))
+
+			return config, nil
 		}
 		return nil, err
 	}
@@ -976,4 +1001,47 @@ func (api *AdminPanelIntegration) isPropertyRequired(propertyName string, requir
 		}
 	}
 	return false
+}
+
+// CreateDefaultConfiguration creates a new configuration record with defaults from CUE file
+func (pcm *PluginConfigManager) CreateDefaultConfiguration(pluginID string) (*PluginConfiguration, error) {
+	pcm.logger.Info("creating default configuration for plugin", "plugin_id", pluginID)
+
+	// Load configuration from CUE file to get defaults and schema
+	config, err := pcm.loadConfigurationFromCUE(pluginID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load defaults from CUE file: %w", err)
+	}
+
+	// Set metadata for the new configuration
+	config.ModifiedBy = "system_auto_populate"
+	config.LastModified = time.Now()
+
+	// Save to database immediately
+	if err := pcm.saveConfigurationToDB(config); err != nil {
+		return nil, fmt.Errorf("failed to save default configuration: %w", err)
+	}
+
+	// Cache the configuration
+	pcm.cache[pluginID] = config
+
+	pcm.logger.Info("successfully created default configuration",
+		"plugin_id", pluginID,
+		"settings_count", len(config.Settings),
+		"schema_properties", len(config.Schema.Properties))
+
+	return config, nil
+}
+
+// EnsureConfigurationExists ensures a plugin has a configuration record, creating defaults if needed
+func (pcm *PluginConfigManager) EnsureConfigurationExists(pluginID string) (*PluginConfiguration, error) {
+	// Try to load existing configuration
+	config, err := pcm.GetPluginConfiguration(pluginID)
+	if err == nil {
+		return config, nil
+	}
+
+	// If not found, create default configuration
+	pcm.logger.Info("no configuration found for plugin, creating defaults", "plugin_id", pluginID)
+	return pcm.CreateDefaultConfiguration(pluginID)
 }
