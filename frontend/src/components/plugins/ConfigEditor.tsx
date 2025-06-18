@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Save, 
   RotateCcw, 
@@ -8,7 +8,11 @@ import {
   ChevronDown, 
   ChevronRight, 
   Eye, 
-  EyeOff
+  EyeOff,
+  Settings,
+  Zap,
+  Shield,
+  Search
 } from 'lucide-react';
 import type {
   Plugin,
@@ -37,6 +41,8 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'basic' | 'advanced' | 'all'>('basic');
 
   useEffect(() => {
     loadConfigurationData();
@@ -171,9 +177,10 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
 
 
 
+  // Legacy renderField function - keeping for potential compatibility
   const renderField = (field: ConfigurationProperty, fieldId: string) => {
     // Handle nested field paths (e.g., "adaptive.enabled")
-    let value;
+    let value: any;
     if (fieldId.includes('.')) {
       const [parentKey, ...subKeys] = fieldId.split('.');
       const subPath = subKeys.join('.');
@@ -406,28 +413,246 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     return renderControl();
   };
 
-  const getPropertiesByCategory = (categoryId: string) => {
-    if (!schema?.properties) return [];
+  // Simplified field renderer for the new clean UI
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderSettingField = (fieldId: string, field: any) => {
+    const value: any = config[fieldId];
+    const isRequired = schema.required?.includes(fieldId);
     
-    return Object.entries(schema.properties).filter(([, property]) => 
-      property.category === categoryId
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-white">
+            {field.title}
+            {isRequired && <span className="text-red-400 ml-1">*</span>}
+            {field.importance && field.importance >= 8 && (
+              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-yellow-600/20 text-yellow-400">
+                Essential
+              </span>
+            )}
+          </label>
+          {field.default !== undefined && (
+            <span className="text-xs text-slate-500">
+              Default: {String(field.default)}
+            </span>
+          )}
+        </div>
+        
+        {field.description && (
+          <p className="text-slate-400 text-xs leading-relaxed">{field.description}</p>
+        )}
+        
+        <div className="mt-2">
+          {renderFieldControl(field, fieldId, value)}
+        </div>
+      </div>
     );
   };
 
-  const getUncategorizedProperties = () => {
-    if (!schema?.properties) return [];
-    
-    const categorizedProps = new Set();
-    schema.categories?.forEach(category => {
-      getPropertiesByCategory(category.id).forEach(([key]) => {
-        categorizedProps.add(key);
-      });
-    });
+  // Field control renderer
+  const renderFieldControl = (field: any, fieldId: string, value: any) => {
+    switch (field.type) {
+      case 'boolean':
+        return (
+          <div className="flex items-center">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={value || false}
+                onChange={(e) => handleFieldChange(fieldId, e.target.checked)}
+              />
+              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+            </label>
+            <span className="ml-3 text-sm text-slate-300">
+              {value ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+        );
 
-    return Object.entries(schema.properties).filter(([key]) => 
-      !categorizedProps.has(key)
-    );
+      case 'number':
+      case 'integer':
+        return (
+          <input
+            type="number"
+            value={value || field.default || ''}
+            onChange={(e) => handleFieldChange(fieldId, field.type === 'integer' ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0)}
+            min={field.minimum}
+            max={field.maximum}
+            step={field.type === 'integer' ? 1 : 0.1}
+            className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        );
+
+      case 'string': {
+        const isPassword = fieldId.toLowerCase().includes('password') || fieldId.toLowerCase().includes('key') || fieldId.toLowerCase().includes('secret') || fieldId.toLowerCase().includes('token');
+        
+        if (isPassword) {
+          return (
+            <div className="relative">
+              <input
+                type={showSensitive[fieldId] ? 'text' : 'password'}
+                value={value || field.default || ''}
+                onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+                placeholder={field.default ? `Default: ${field.default}` : ''}
+                className="w-full px-3 py-2 pr-10 bg-slate-600 border border-slate-500 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSensitive(prev => ({ ...prev, [fieldId]: !prev[fieldId] }))}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white"
+              >
+                {showSensitive[fieldId] ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          );
+        }
+        
+        if (field.enum) {
+          return (
+            <select
+              value={value || field.default || ''}
+              onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+              className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Select an option</option>
+              {field.enum.map((option: string) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          );
+        }
+
+        return (
+          <input
+            type="text"
+            value={value || field.default || ''}
+            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+            placeholder={field.default ? `Default: ${field.default}` : ''}
+            className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        );
+      }
+
+      case 'array': {
+        const arrayValue = Array.isArray(value) ? value : (field.default || []);
+        
+        return (
+          <div className="space-y-2">
+            {arrayValue.map((item: any, index: number) => (
+              <div key={index} className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={item}
+                  onChange={(e) => {
+                    const newArray = [...arrayValue];
+                    newArray[index] = e.target.value;
+                    handleFieldChange(fieldId, newArray);
+                  }}
+                  className="flex-1 px-3 py-2 bg-slate-600 border border-slate-500 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <button
+                  onClick={() => {
+                    const newArray = arrayValue.filter((_: any, i: number) => i !== index);
+                    handleFieldChange(fieldId, newArray);
+                  }}
+                  className="px-2 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            
+            <button
+              onClick={() => {
+                const newArray = [...arrayValue, ''];
+                handleFieldChange(fieldId, newArray);
+              }}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
+            >
+              + Add Item
+            </button>
+          </div>
+        );
+      }
+
+      case 'object':
+        return (
+          <textarea
+            value={typeof value === 'object' ? JSON.stringify(value, null, 2) : value || '{}'}
+            onChange={(e) => {
+              try {
+                const parsed = JSON.parse(e.target.value);
+                handleFieldChange(fieldId, parsed);
+              } catch {
+                handleFieldChange(fieldId, e.target.value);
+              }
+            }}
+            rows={4}
+            className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+          />
+        );
+
+      default:
+        return (
+          <input
+            type="text"
+            value={value || field.default || ''}
+            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+            placeholder={field.default ? `Default: ${field.default}` : ''}
+            className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        );
+    }
   };
+
+  // Filter properties based on search term and view mode
+  const filteredProperties = useMemo(() => {
+    if (!schema?.properties) return {};
+    
+    return Object.fromEntries(
+      Object.entries(schema.properties).filter(([key, property]) => {
+        // Search filter
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          const matchesSearch = 
+            key.toLowerCase().includes(searchLower) ||
+            property.title.toLowerCase().includes(searchLower) ||
+            property.description?.toLowerCase().includes(searchLower);
+          if (!matchesSearch) return false;
+        }
+        
+        // View mode filter
+        switch (viewMode) {
+          case 'basic':
+            return property.is_basic === true;
+          case 'advanced':
+            return property.is_basic === false;
+          case 'all':
+          default:
+            return true;
+        }
+      })
+    );
+  }, [schema?.properties, searchTerm, viewMode]);
+
+  // Get priority settings (most important for users)
+  const prioritySettings = useMemo(() => {
+    return Object.entries(filteredProperties)
+      .filter(([, property]) => (property.importance || 0) >= 8)
+      .sort(([, a], [, b]) => (b.importance || 0) - (a.importance || 0));
+  }, [filteredProperties]);
+
+  // Get quick settings (user-friendly, high importance)
+  const quickSettings = useMemo(() => {
+    return Object.entries(filteredProperties)
+      .filter(([, property]) => 
+        property.user_friendly === true && 
+        (property.importance || 0) >= 6 && 
+        (property.importance || 0) < 8
+      )
+      .sort(([, a], [, b]) => (b.importance || 0) - (a.importance || 0));
+  }, [filteredProperties]);
 
   if (loading) {
     return (
@@ -465,39 +690,85 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   }
 
   return (
-    <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+    <div className="h-full flex flex-col bg-slate-900">
       {/* Header */}
-      <div className="flex items-center justify-between sticky top-0 bg-slate-800 p-4 border-b border-slate-700">
-        <div>
-          <h3 className="text-lg font-medium text-white">{schema.title || plugin.name}</h3>
-          {schema.description && (
-            <p className="text-sm text-slate-400 mt-1">{schema.description}</p>
-          )}
-          <div className="text-xs text-slate-500 mt-1">
-            {Object.keys(schema.properties).length} configuration options
+      <div className="flex-shrink-0 bg-slate-800 border-b border-slate-700 p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3">
+              <h3 className="text-xl font-bold text-white">{plugin.name} Configuration</h3>
+              <span className="px-2 py-1 bg-purple-600/20 text-purple-400 border border-purple-600 rounded text-xs">
+                {Object.keys(filteredProperties).length} settings
+              </span>
+            </div>
+            {schema.description && (
+              <p className="text-slate-400 mt-2 max-w-2xl">{schema.description}</p>
+            )}
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleReset}
+              disabled={saving}
+              className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm transition-colors"
+            >
+              <RotateCcw size={16} className="mr-2" />
+              Reset
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !hasChanges}
+              className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm font-medium transition-colors"
+            >
+              {saving ? (
+                <RefreshCw size={16} className="mr-2 animate-spin" />
+              ) : (
+                <Save size={16} className="mr-2" />
+              )}
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={handleReset}
-            disabled={saving}
-            className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm transition-colors"
-          >
-            <RotateCcw size={16} className="mr-2" />
-            Reset
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !hasChanges}
-            className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm transition-colors"
-          >
-            {saving ? (
-              <RefreshCw size={16} className="mr-2 animate-spin" />
-            ) : (
-              <Save size={16} className="mr-2" />
-            )}
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+
+        {/* Controls */}
+        <div className="mt-6 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            {/* Search */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search settings..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm w-64"
+              />
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-slate-700 rounded-lg p-1">
+              {(['basic', 'advanced', 'all'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors capitalize ${
+                    viewMode === mode
+                      ? 'bg-purple-600 text-white'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-600'
+                  }`}
+                >
+                  {mode === 'basic' && <Zap size={14} className="mr-1 inline" />}
+                  {mode === 'advanced' && <Settings size={14} className="mr-1 inline" />}
+                  {mode === 'all' && <Shield size={14} className="mr-1 inline" />}
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Settings Count */}
+          <div className="text-sm text-slate-400">
+            Showing {Object.keys(filteredProperties).length} of {Object.keys(schema.properties).length} settings
+          </div>
         </div>
       </div>
 
@@ -520,126 +791,103 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         </div>
       )}
 
-      {/* Configuration Form */}
-      <div className="space-y-4 px-4 pb-4">
-        {schema.categories && schema.categories.length > 0 ? (
-          // Render by categories
-          <>
-            {schema.categories
-              .sort((a, b) => (a.order || 0) - (b.order || 0))
-              .map((category) => {
-                const categoryProperties = getPropertiesByCategory(category.id);
-                if (categoryProperties.length === 0) return null;
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 space-y-6">
+          {/* Priority Settings */}
+          {prioritySettings.length > 0 && viewMode !== 'advanced' && (
+            <div className="bg-gradient-to-r from-purple-600/10 to-blue-600/10 border border-purple-600/30 rounded-lg p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Zap className="text-purple-400" size={20} />
+                <h4 className="text-lg font-semibold text-white">Essential Settings</h4>
+                <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-1 rounded">
+                  Most Important
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {prioritySettings.map(([fieldId, field]) => (
+                  <div key={fieldId} className="bg-slate-800/50 rounded-lg p-4">
+                    {renderSettingField(fieldId, field)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                const isExpanded = expandedCategories[category.id];
+          {/* Quick Settings */}
+          {quickSettings.length > 0 && viewMode !== 'advanced' && (
+            <div className="bg-slate-800 rounded-lg border border-slate-700">
+              <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
+                <Settings className="text-blue-400" size={18} />
+                <h4 className="text-lg font-medium text-white">Quick Settings</h4>
+                <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-1 rounded">
+                  Commonly Used
+                </span>
+              </div>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {quickSettings.map(([fieldId, field]) => (
+                  <div key={fieldId}>
+                    {renderSettingField(fieldId, field)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                return (
-                  <div key={category.id} className="bg-slate-700 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => toggleCategory(category.id)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-slate-600 transition-colors"
-                    >
+          {/* Categorized Settings */}
+          {viewMode === 'all' || viewMode === 'advanced' ? (
+            <div className="space-y-4">
+              {Object.entries(
+                Object.entries(filteredProperties).reduce((acc, [key, field]) => {
+                  const category = field.category || 'Other';
+                  if (!acc[category]) acc[category] = [];
+                  acc[category].push([key, field]);
+                  return acc;
+                }, {} as Record<string, Array<[string, any]>>)
+              ).map(([categoryName, categoryFields]) => (
+                <div key={categoryName} className="bg-slate-800 rounded-lg border border-slate-700">
+                  <button
+                    onClick={() => toggleCategory(categoryName)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
                       <div className="text-left">
-                        <h4 className="text-white font-medium">{category.title}</h4>
-                        {category.description && (
-                          <p className="text-slate-400 text-sm mt-1">{category.description}</p>
-                        )}
-                        <p className="text-slate-500 text-xs mt-1">
-                          {categoryProperties.length} setting{categoryProperties.length !== 1 ? 's' : ''}
+                        <h4 className="text-white font-medium">{categoryName}</h4>
+                        <p className="text-slate-400 text-sm">
+                          {categoryFields.length} setting{categoryFields.length !== 1 ? 's' : ''}
                         </p>
                       </div>
-                      <div className="text-slate-400">
-                        {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                      </div>
-                    </button>
-                    
-                    {isExpanded && (
-                      <div className="p-4 border-t border-slate-600 space-y-4">
-                        {categoryProperties.map(([fieldId, field]) => (
-                          <div key={fieldId} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <label className="block text-sm font-medium text-white">
-                                {field.title}
-                                {schema.required?.includes(fieldId) && (
-                                  <span className="text-red-400 ml-1">*</span>
-                                )}
-                              </label>
-                              {field.default !== undefined && (
-                                <span className="text-xs text-slate-500">
-                                  Default: {String(field.default)}
-                                </span>
-                              )}
-                            </div>
-                            {field.description && (
-                              <p className="text-slate-400 text-xs">{field.description}</p>
-                            )}
-                            {renderField(field, fieldId)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-            {/* Uncategorized properties */}
-            {getUncategorizedProperties().length > 0 && (
-              <div className="bg-slate-700 rounded-lg p-4">
-                <h4 className="text-white font-medium mb-4">Other Settings</h4>
-                <div className="space-y-4">
-                  {getUncategorizedProperties().map(([fieldId, field]) => (
-                    <div key={fieldId} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-sm font-medium text-white">
-                          {field.title}
-                          {schema.required?.includes(fieldId) && (
-                            <span className="text-red-400 ml-1">*</span>
-                          )}
-                        </label>
-                        {field.default !== undefined && (
-                          <span className="text-xs text-slate-500">
-                            Default: {String(field.default)}
-                          </span>
-                        )}
-                      </div>
-                      {field.description && (
-                        <p className="text-slate-400 text-xs">{field.description}</p>
-                      )}
-                      {renderField(field, fieldId)}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          // Render properties directly if no categories
-          <div className="bg-slate-700 rounded-lg p-4">
-            <div className="space-y-4">
-              {Object.entries(schema.properties).map(([fieldId, field]) => (
-                <div key={fieldId} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-white">
-                      {field.title}
-                      {schema.required?.includes(fieldId) && (
-                        <span className="text-red-400 ml-1">*</span>
-                      )}
-                    </label>
-                    {field.default !== undefined && (
-                      <span className="text-xs text-slate-500">
-                        Default: {String(field.default)}
-                      </span>
-                    )}
-                  </div>
-                  {field.description && (
-                    <p className="text-slate-400 text-xs">{field.description}</p>
+                    <div className="text-slate-400">
+                      {expandedCategories[categoryName] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                    </div>
+                  </button>
+                  
+                  {expandedCategories[categoryName] && (
+                    <div className="border-t border-slate-700 p-4 space-y-4">
+                      {categoryFields.map(([fieldId, field]) => (
+                        <div key={fieldId}>
+                          {renderSettingField(fieldId, field)}
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  {renderField(field, fieldId)}
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : null}
+
+          {/* No Results */}
+          {Object.keys(filteredProperties).length === 0 && (
+            <div className="text-center py-12">
+              <Search size={48} className="text-slate-600 mx-auto mb-4" />
+              <div className="text-slate-400 mb-2">No settings found</div>
+              <p className="text-sm text-slate-500">
+                {searchTerm ? 'Try adjusting your search term' : 'No settings match the current filter'}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Configuration Info */}

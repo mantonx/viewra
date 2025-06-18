@@ -85,10 +85,16 @@ func (p *CUEParser) extractConfigurationSchema(value cue.Value) (map[string]inte
 
 // convertCueValueToProperty converts a CUE value to a JSON schema property
 func (p *CUEParser) convertCueValueToProperty(value cue.Value, fieldName string) (map[string]interface{}, error) {
+	category := p.categorizeField(fieldName)
+	importance := p.calculateImportance(fieldName, category)
+
 	property := map[string]interface{}{
-		"title":       p.generateHumanReadableName(fieldName),
-		"description": p.extractDescription(value),
-		"category":    p.categorizeField(fieldName),
+		"title":         p.generateHumanReadableName(fieldName),
+		"description":   p.extractDescription(value),
+		"category":      category,
+		"importance":    importance,
+		"is_basic":      p.isBasicSetting(fieldName, category),
+		"user_friendly": p.isUserFriendly(fieldName),
 	}
 
 	// Handle different CUE value types
@@ -300,4 +306,79 @@ func (p *CUEParser) categorizeField(fieldName string) string {
 	default:
 		return "Advanced"
 	}
+}
+
+// calculateImportance assigns an importance score (1-10) to fields for UI prioritization
+func (p *CUEParser) calculateImportance(fieldName, category string) int {
+	lowerField := strings.ToLower(fieldName)
+
+	// Critical settings that users need most
+	switch {
+	case strings.Contains(lowerField, "enabled"):
+		return 10
+	case strings.Contains(lowerField, "quality") && !strings.Contains(lowerField, "profile"):
+		return 9
+	case strings.Contains(lowerField, "preset") || strings.Contains(lowerField, "crf"):
+		return 8
+	case category == "General":
+		return 8
+	case strings.Contains(lowerField, "bitrate") || strings.Contains(lowerField, "resolution"):
+		return 7
+	case category == "Performance" && (strings.Contains(lowerField, "concurrent") || strings.Contains(lowerField, "timeout")):
+		return 7
+	case category == "API" && (strings.Contains(lowerField, "key") || strings.Contains(lowerField, "token")):
+		return 6
+	case category == "Quality" || category == "Performance":
+		return 5
+	case category == "Features":
+		return 4
+	case category == "Hardware":
+		return 3
+	case category == "Logging" || category == "Monitoring":
+		return 2
+	default:
+		return 1
+	}
+}
+
+// isBasicSetting determines if a setting should be shown in basic mode
+func (p *CUEParser) isBasicSetting(fieldName, category string) bool {
+	importance := p.calculateImportance(fieldName, category)
+
+	// Show settings with importance >= 6 in basic mode
+	if importance >= 6 {
+		return true
+	}
+
+	// Also include some commonly needed settings regardless of importance
+	lowerField := strings.ToLower(fieldName)
+	basicKeywords := []string{"enabled", "preset", "quality", "bitrate", "priority", "path"}
+
+	for _, keyword := range basicKeywords {
+		if strings.Contains(lowerField, keyword) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isUserFriendly determines if a setting is user-friendly (vs technical)
+func (p *CUEParser) isUserFriendly(fieldName string) bool {
+	lowerField := strings.ToLower(fieldName)
+
+	// Technical/expert settings that are less user-friendly
+	technicalKeywords := []string{
+		"codec", "profile", "level", "tune", "refs", "bframes", "ctu_size",
+		"tile_", "cpu_used", "row_mt", "threads", "buffer_size", "ladder",
+		"multiplier", "keywords", "detection", "passthrough", "fallback",
+	}
+
+	for _, keyword := range technicalKeywords {
+		if strings.Contains(lowerField, keyword) {
+			return false
+		}
+	}
+
+	return true
 }
