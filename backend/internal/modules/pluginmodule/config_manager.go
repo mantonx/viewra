@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -117,7 +119,7 @@ func NewPluginConfigManager(db *gorm.DB, logger hclog.Logger) *PluginConfigManag
 		db:        db,
 		logger:    logger.Named("config-manager"),
 		cache:     make(map[string]*PluginConfiguration),
-		cueParser: NewCUEParser(logger),
+		cueParser: NewCUEParser(),
 	}
 }
 
@@ -526,7 +528,7 @@ func (pcm *PluginConfigManager) loadConfigurationFromCUE(pluginID string) (*Plug
 	pluginDir := fmt.Sprintf("/app/data/plugins/%s", pluginID)
 
 	// Try to parse CUE configuration
-	schema, err := pcm.cueParser.ParsePluginConfiguration(pluginDir)
+	rawSchema, err := pcm.cueParser.ParsePluginConfiguration(pluginDir)
 	if err != nil {
 		pcm.logger.Debug("Failed to parse CUE configuration", "plugin", pluginID, "error", err)
 		// Return basic configuration if CUE parsing fails
@@ -538,34 +540,163 @@ func (pcm *PluginConfigManager) loadConfigurationFromCUE(pluginID string) (*Plug
 		}, nil
 	}
 
-	// Load default values from CUE
-	defaults, err := pcm.cueParser.GetPluginConfigurationDefaults(pluginDir)
-	if err != nil {
-		pcm.logger.Warn("Failed to extract defaults from CUE", "plugin", pluginID, "error", err)
-		defaults = make(map[string]interface{})
-	}
+	// Convert raw schema to ConfigurationSchema
+	schema := pcm.convertRawSchemaToConfigurationSchema(rawSchema, pluginID)
 
-	// Convert defaults to ConfigurationValue format
+	// Extract default values and create settings
 	settings := make(map[string]ConfigurationValue)
-	for key, value := range defaults {
-		settings[key] = ConfigurationValue{
-			Value:       value,
-			Type:        pcm.inferValueType(value, schema, key),
-			Source:      "cue_default",
-			Overridden:  false,
-			LastChanged: time.Now(),
-			ChangedBy:   "system",
-		}
-	}
+	pcm.extractDefaultsFromRawSchema(rawSchema, settings, "")
 
 	return &PluginConfiguration{
 		PluginID:     pluginID,
 		Schema:       schema,
 		Settings:     settings,
-		Version:      schema.Version,
+		Version:      "1.0.0",
 		LastModified: time.Now(),
 		ModifiedBy:   "system",
 	}, nil
+}
+
+// convertRawSchemaToConfigurationSchema converts the raw map from CUE parser to ConfigurationSchema
+func (pcm *PluginConfigManager) convertRawSchemaToConfigurationSchema(rawSchema map[string]interface{}, pluginID string) *ConfigurationSchema {
+	schema := &ConfigurationSchema{
+		Version:     "1.0.0",
+		Title:       pluginID + " Configuration",
+		Description: "Configuration schema for " + pluginID + " plugin",
+		Properties:  make(map[string]ConfigurationProperty),
+		Categories:  []ConfigurationCategory{},
+	}
+
+	// Convert each property
+	for key, value := range rawSchema {
+		if propMap, ok := value.(map[string]interface{}); ok {
+			property := pcm.convertMapToConfigurationProperty(propMap)
+			schema.Properties[key] = property
+		}
+	}
+
+	// Create categories based on properties
+	pcm.organizePropertiesIntoCategories(schema)
+	return schema
+}
+
+// convertMapToConfigurationProperty converts a map to ConfigurationProperty
+func (pcm *PluginConfigManager) convertMapToConfigurationProperty(propMap map[string]interface{}) ConfigurationProperty {
+	prop := ConfigurationProperty{}
+
+	if title, ok := propMap["title"].(string); ok {
+		prop.Title = title
+	}
+	if description, ok := propMap["description"].(string); ok {
+		prop.Description = description
+	}
+	if propType, ok := propMap["type"].(string); ok {
+		prop.Type = propType
+	}
+	if category, ok := propMap["category"].(string); ok {
+		prop.Category = category
+	}
+	if defaultVal, ok := propMap["default"]; ok {
+		prop.Default = defaultVal
+	}
+
+	// Handle nested properties for object types
+	if properties, ok := propMap["properties"].(map[string]interface{}); ok {
+		prop.Properties = make(map[string]ConfigurationProperty)
+		for nestedKey, nestedValue := range properties {
+			if nestedPropMap, ok := nestedValue.(map[string]interface{}); ok {
+				prop.Properties[nestedKey] = pcm.convertMapToConfigurationProperty(nestedPropMap)
+			}
+		}
+	}
+
+	return prop
+}
+
+// extractDefaultsFromRawSchema recursively extracts default values from the raw schema
+func (pcm *PluginConfigManager) extractDefaultsFromRawSchema(rawSchema map[string]interface{}, settings map[string]ConfigurationValue, prefix string) {
+	for key, value := range rawSchema {
+		fullKey := key
+		if prefix != "" {
+			fullKey = prefix + "." + key
+		}
+
+		if propMap, ok := value.(map[string]interface{}); ok {
+			// Extract default value if present
+			if defaultVal, hasDefault := propMap["default"]; hasDefault {
+				propType := "string"
+				if t, ok := propMap["type"].(string); ok {
+					propType = t
+				}
+
+				settings[fullKey] = ConfigurationValue{
+					Value:       defaultVal,
+					Type:        propType,
+					Source:      "cue_default",
+					Overridden:  false,
+					LastChanged: time.Now(),
+					ChangedBy:   "system",
+				}
+			}
+
+			// Recursively process nested properties
+			if nestedProps, ok := propMap["properties"].(map[string]interface{}); ok {
+				pcm.extractDefaultsFromRawSchema(nestedProps, settings, fullKey)
+			}
+		}
+	}
+}
+
+// organizePropertiesIntoCategories creates logical categories for the configuration properties
+func (pcm *PluginConfigManager) organizePropertiesIntoCategories(schema *ConfigurationSchema) {
+	categoryMap := make(map[string]*ConfigurationCategory)
+	categoryOrder := map[string]int{
+		"General":     1,
+		"API":         2,
+		"Performance": 3,
+		"Quality":     4,
+		"Features":    5,
+		"Hardware":    6,
+		"Filters":     7,
+		"Storage":     8,
+		"Monitoring":  9,
+		"Logging":     10,
+		"Advanced":    11,
+	}
+
+	// Create categories based on properties
+	for _, property := range schema.Properties {
+		categoryName := property.Category
+		if categoryName == "" {
+			categoryName = "Advanced"
+		}
+
+		if _, exists := categoryMap[categoryName]; !exists {
+			order := categoryOrder[categoryName]
+			if order == 0 {
+				order = 99
+			}
+
+			categoryMap[categoryName] = &ConfigurationCategory{
+				ID:          strings.ToLower(categoryName),
+				Title:       categoryName,
+				Description: categoryName + " configuration options",
+				Order:       order,
+				Collapsible: categoryName == "Advanced",
+				Collapsed:   categoryName == "Advanced",
+			}
+		}
+	}
+
+	// Convert map to slice
+	for _, category := range categoryMap {
+		schema.Categories = append(schema.Categories, *category)
+	}
+
+	// Sort categories by order
+	sort.Slice(schema.Categories, func(i, j int) bool {
+		return schema.Categories[i].Order < schema.Categories[j].Order
+	})
 }
 
 // mergeDefaultSettings merges default settings from CUE into existing configuration
