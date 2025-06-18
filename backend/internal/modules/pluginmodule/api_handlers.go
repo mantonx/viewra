@@ -886,8 +886,56 @@ func (h *PluginAPIHandlers) handleGetSystemStatus(c *gin.Context) {
 }
 
 func (h *PluginAPIHandlers) handleGetSystemStats(c *gin.Context) {
-	h.errorResponse(c, http.StatusNotImplemented,
-		fmt.Errorf("not implemented"), "System stats endpoint coming soon")
+	if h.pluginModule == nil {
+		h.errorResponse(c, http.StatusServiceUnavailable,
+			fmt.Errorf("plugin module not initialized"), "Plugin module unavailable")
+		return
+	}
+
+	// Get all plugins
+	allPlugins := h.pluginModule.ListAllPlugins()
+
+	totalPlugins := len(allPlugins)
+	enabledPlugins := 0
+	disabledPlugins := 0
+	healthyPlugins := 0
+	unhealthyPlugins := 0
+
+	for _, plugin := range allPlugins {
+		if plugin.Enabled {
+			enabledPlugins++
+			healthyPlugins++ // Assume enabled plugins are healthy for now
+		} else {
+			disabledPlugins++
+			unhealthyPlugins++
+		}
+	}
+
+	// Count admin pages
+	var adminPageCount int64
+	h.db.Model(&database.PluginAdminPage{}).Where("enabled = ?", true).Count(&adminPageCount)
+
+	// Get hot reload status
+	hotReloadStatus := h.pluginModule.GetHotReloadStatus()
+	hotReloadEnabled := false
+	if enabled, ok := hotReloadStatus["enabled"].(bool); ok {
+		hotReloadEnabled = enabled
+	}
+
+	stats := map[string]interface{}{
+		"total_plugins":      totalPlugins,
+		"enabled_plugins":    enabledPlugins,
+		"disabled_plugins":   disabledPlugins,
+		"healthy_plugins":    healthyPlugins,
+		"unhealthy_plugins":  unhealthyPlugins,
+		"total_admin_pages":  adminPageCount,
+		"hot_reload_enabled": hotReloadEnabled,
+		"memory_usage":       0.0, // TODO: Implement memory monitoring
+		"cpu_usage":          0.0, // TODO: Implement CPU monitoring
+		"uptime":             0,   // TODO: Implement uptime tracking
+	}
+
+	h.successResponse(c, stats, "System stats retrieved successfully")
 }
 
 func (h *PluginAPIHandlers) handleRefreshAllPlugins(c *gin.Context) {

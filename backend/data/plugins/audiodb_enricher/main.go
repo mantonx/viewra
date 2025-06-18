@@ -26,7 +26,7 @@ type AudioDBEnricher struct {
 	dbURL       string
 	basePath    string
 	lastAPICall *time.Time
-	
+
 	// Host service connection
 	assetService    plugins.AssetServiceClient
 	hostServiceAddr string
@@ -34,33 +34,33 @@ type AudioDBEnricher struct {
 
 // Config holds the plugin configuration
 type Config struct {
-	Enabled              bool    `json:"enabled" default:"true"`
-	APIKey               string  `json:"api_key"`                        // AudioDB API key (optional)
-	UserAgent            string  `json:"user_agent" default:"Viewra/2.0"`
-	EnableArtwork        bool    `json:"enable_artwork" default:"true"`
-	ArtworkMaxSize       int     `json:"artwork_max_size" default:"1200"`
-	ArtworkQuality       string  `json:"artwork_quality" default:"front"`
-	
+	Enabled        bool   `json:"enabled" default:"true"`
+	APIKey         string `json:"api_key"` // AudioDB API key (optional)
+	UserAgent      string `json:"user_agent" default:"Viewra/2.0"`
+	EnableArtwork  bool   `json:"enable_artwork" default:"true"`
+	ArtworkMaxSize int    `json:"artwork_max_size" default:"1200"`
+	ArtworkQuality string `json:"artwork_quality" default:"front"`
+
 	// Album artwork settings
-	DownloadAlbumArt     bool    `json:"download_album_art" default:"true"`
-	DownloadAlbumThumb   bool    `json:"download_album_thumb" default:"true"`
-	DownloadAlbumThumbHQ bool    `json:"download_album_thumb_hq" default:"true"`
-	DownloadAlbumBack    bool    `json:"download_album_back" default:"true"`
-	DownloadAlbumCDart   bool    `json:"download_album_cdart" default:"true"`
-	
+	DownloadAlbumArt     bool `json:"download_album_art" default:"true"`
+	DownloadAlbumThumb   bool `json:"download_album_thumb" default:"true"`
+	DownloadAlbumThumbHQ bool `json:"download_album_thumb_hq" default:"true"`
+	DownloadAlbumBack    bool `json:"download_album_back" default:"true"`
+	DownloadAlbumCDart   bool `json:"download_album_cdart" default:"true"`
+
 	// Artist artwork settings
-	DownloadArtistImages bool    `json:"download_artist_images" default:"true"`
-	DownloadArtistThumb  bool    `json:"download_artist_thumb" default:"true"`
-	DownloadArtistLogo   bool    `json:"download_artist_logo" default:"true"`
-	DownloadArtistClearart bool  `json:"download_artist_clearart" default:"true"`
-	DownloadArtistFanart bool    `json:"download_artist_fanart" default:"true"`
-	DownloadArtistFanart2 bool   `json:"download_artist_fanart2" default:"false"`
-	DownloadArtistFanart3 bool   `json:"download_artist_fanart3" default:"false"`
-	DownloadArtistBanner bool    `json:"download_artist_banner" default:"true"`
-	
+	DownloadArtistImages   bool `json:"download_artist_images" default:"true"`
+	DownloadArtistThumb    bool `json:"download_artist_thumb" default:"true"`
+	DownloadArtistLogo     bool `json:"download_artist_logo" default:"true"`
+	DownloadArtistClearart bool `json:"download_artist_clearart" default:"true"`
+	DownloadArtistFanart   bool `json:"download_artist_fanart" default:"true"`
+	DownloadArtistFanart2  bool `json:"download_artist_fanart2" default:"false"`
+	DownloadArtistFanart3  bool `json:"download_artist_fanart3" default:"false"`
+	DownloadArtistBanner   bool `json:"download_artist_banner" default:"true"`
+
 	// Track artwork settings
-	DownloadTrackThumb   bool    `json:"download_track_thumb" default:"false"`
-	
+	DownloadTrackThumb bool `json:"download_track_thumb" default:"false"`
+
 	PreferHighQuality    bool    `json:"prefer_high_quality" default:"true"`
 	MaxAssetSize         int64   `json:"max_asset_size" default:"10485760"` // 10MB
 	AssetTimeout         int     `json:"asset_timeout_sec" default:"30"`
@@ -76,16 +76,16 @@ type Config struct {
 
 // AudioDBEnrichment represents enriched metadata
 type AudioDBEnrichment struct {
-	ID              uint32    `gorm:"primaryKey"`
-	MediaFileID     string    `gorm:"not null;index"`
-	AudioDBTrackID  string    `gorm:"size:36"`
-	AudioDBArtistID string    `gorm:"size:36"`
-	AudioDBAlbumID  string    `gorm:"size:36"`
-	EnrichedTitle   string    `gorm:"size:512"`
-	EnrichedArtist  string    `gorm:"size:512"`
-	EnrichedAlbum   string    `gorm:"size:512"`
+	ID              uint32 `gorm:"primaryKey"`
+	MediaFileID     string `gorm:"not null;index"`
+	AudioDBTrackID  string `gorm:"size:36"`
+	AudioDBArtistID string `gorm:"size:36"`
+	AudioDBAlbumID  string `gorm:"size:36"`
+	EnrichedTitle   string `gorm:"size:512"`
+	EnrichedArtist  string `gorm:"size:512"`
+	EnrichedAlbum   string `gorm:"size:512"`
 	EnrichedYear    int
-	EnrichedGenre   string    `gorm:"size:255"`
+	EnrichedGenre   string `gorm:"size:255"`
 	MatchScore      float64
 	ArtworkURL      string    `gorm:"size:1024"`
 	ArtworkPath     string    `gorm:"size:1024"`
@@ -96,11 +96,11 @@ type AudioDBEnrichment struct {
 
 // AudioDBCache represents cached API responses
 type AudioDBCache struct {
-	ID          uint32    `gorm:"primaryKey"`
-	CacheKey    string    `gorm:"uniqueIndex;not null"`
-	Data        string    `gorm:"type:text"`
-	ExpiresAt   time.Time `gorm:"index"`
-	CreatedAt   time.Time `gorm:"autoCreateTime"`
+	ID        uint32    `gorm:"primaryKey"`
+	CacheKey  string    `gorm:"uniqueIndex;not null"`
+	Data      string    `gorm:"type:text"`
+	ExpiresAt time.Time `gorm:"index"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
 
 // AudioDB API response structures
@@ -134,22 +134,22 @@ type AudioDBAlbumResponse struct {
 }
 
 type AudioDBAlbum struct {
-	IDAlbum            string `json:"idAlbum"`
-	IDArtist           string `json:"idArtist"`
-	StrAlbum           string `json:"strAlbum"`
-	StrArtist          string `json:"strArtist"`
-	IntYearReleased    string `json:"intYearReleased"`
-	StrGenre           string `json:"strGenre"`
-	StrStyle           string `json:"strStyle"`
-	StrLabel           string `json:"strLabel"`
-	StrAlbumThumb      string `json:"strAlbumThumb"`
-	StrAlbumThumbHQ    string `json:"strAlbumThumbHQ"`
-	StrAlbumThumbBack  string `json:"strAlbumThumbBack"`
-	StrAlbumCDart      string `json:"strAlbumCDart"`
-	StrDescriptionEN   string `json:"strDescriptionEN"`
-	StrMood            string `json:"strMood"`
-	StrTheme           string `json:"strTheme"`
-	StrMusicBrainzID   string `json:"strMusicBrainzID"`
+	IDAlbum                string `json:"idAlbum"`
+	IDArtist               string `json:"idArtist"`
+	StrAlbum               string `json:"strAlbum"`
+	StrArtist              string `json:"strArtist"`
+	IntYearReleased        string `json:"intYearReleased"`
+	StrGenre               string `json:"strGenre"`
+	StrStyle               string `json:"strStyle"`
+	StrLabel               string `json:"strLabel"`
+	StrAlbumThumb          string `json:"strAlbumThumb"`
+	StrAlbumThumbHQ        string `json:"strAlbumThumbHQ"`
+	StrAlbumThumbBack      string `json:"strAlbumThumbBack"`
+	StrAlbumCDart          string `json:"strAlbumCDart"`
+	StrDescriptionEN       string `json:"strDescriptionEN"`
+	StrMood                string `json:"strMood"`
+	StrTheme               string `json:"strTheme"`
+	StrMusicBrainzID       string `json:"strMusicBrainzID"`
 	StrMusicBrainzArtistID string `json:"strMusicBrainzArtistID"`
 }
 
@@ -158,22 +158,22 @@ type AudioDBTrackResponse struct {
 }
 
 type AudioDBTrack struct {
-	IDTrack            string `json:"idTrack"`
-	IDArtist           string `json:"idArtist"`
-	IDAlbum            string `json:"idAlbum"`
-	StrTrack           string `json:"strTrack"`
-	StrAlbum           string `json:"strAlbum"`
-	StrArtist          string `json:"strArtist"`
-	StrGenre           string `json:"strGenre"`
-	StrMood            string `json:"strMood"`
-	StrStyle           string `json:"strStyle"`
-	StrTheme           string `json:"strTheme"`
-	StrDescriptionEN   string `json:"strDescriptionEN"`
-	StrTrackLyrics     string `json:"strTrackLyrics"`
-	StrTrackThumb      string `json:"strTrackThumb"`
-	IntDuration        string `json:"intDuration"`
-	StrMusicBrainzID   string `json:"strMusicBrainzID"`
-	StrMusicBrainzAlbumID string `json:"strMusicBrainzAlbumID"`
+	IDTrack                string `json:"idTrack"`
+	IDArtist               string `json:"idArtist"`
+	IDAlbum                string `json:"idAlbum"`
+	StrTrack               string `json:"strTrack"`
+	StrAlbum               string `json:"strAlbum"`
+	StrArtist              string `json:"strArtist"`
+	StrGenre               string `json:"strGenre"`
+	StrMood                string `json:"strMood"`
+	StrStyle               string `json:"strStyle"`
+	StrTheme               string `json:"strTheme"`
+	StrDescriptionEN       string `json:"strDescriptionEN"`
+	StrTrackLyrics         string `json:"strTrackLyrics"`
+	StrTrackThumb          string `json:"strTrackThumb"`
+	IntDuration            string `json:"intDuration"`
+	StrMusicBrainzID       string `json:"strMusicBrainzID"`
+	StrMusicBrainzAlbumID  string `json:"strMusicBrainzAlbumID"`
 	StrMusicBrainzArtistID string `json:"strMusicBrainzArtistID"`
 }
 
@@ -189,89 +189,113 @@ type AudioDBArtworkType struct {
 var audiodbArtworkTypes = []AudioDBArtworkType{
 	// Track artwork
 	{
-		Name:     "track_thumb",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return track.StrTrackThumb },
+		Name: "track_thumb",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return track.StrTrackThumb
+		},
 		Category: "track",
 		Subtype:  "track_thumb",
 		Enabled:  func(c *Config) bool { return c.DownloadTrackThumb },
 	},
-	
+
 	// Album artwork
 	{
-		Name:     "album_thumb",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumThumb },
+		Name: "album_thumb",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return album.StrAlbumThumb
+		},
 		Category: "album",
 		Subtype:  "album_thumb",
 		Enabled:  func(c *Config) bool { return c.DownloadAlbumThumb },
 	},
 	{
-		Name:     "album_thumb_hq",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumThumbHQ },
+		Name: "album_thumb_hq",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return album.StrAlbumThumbHQ
+		},
 		Category: "album",
 		Subtype:  "album_thumb_hq",
 		Enabled:  func(c *Config) bool { return c.DownloadAlbumThumbHQ },
 	},
 	{
-		Name:     "album_back",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumThumbBack },
+		Name: "album_back",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return album.StrAlbumThumbBack
+		},
 		Category: "album",
 		Subtype:  "album_thumb_back",
 		Enabled:  func(c *Config) bool { return c.DownloadAlbumBack },
 	},
 	{
-		Name:     "album_cdart",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return album.StrAlbumCDart },
+		Name: "album_cdart",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return album.StrAlbumCDart
+		},
 		Category: "album",
 		Subtype:  "album_cdart",
 		Enabled:  func(c *Config) bool { return c.DownloadAlbumCDart },
 	},
-	
+
 	// Artist artwork
 	{
-		Name:     "artist_thumb",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistThumb },
+		Name: "artist_thumb",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return artist.StrArtistThumb
+		},
 		Category: "artist",
 		Subtype:  "artist_thumb",
 		Enabled:  func(c *Config) bool { return c.DownloadArtistThumb },
 	},
 	{
-		Name:     "artist_logo",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistLogo },
+		Name: "artist_logo",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return artist.StrArtistLogo
+		},
 		Category: "artist",
 		Subtype:  "artist_logo",
 		Enabled:  func(c *Config) bool { return c.DownloadArtistLogo },
 	},
 	{
-		Name:     "artist_clearart",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistClearart },
+		Name: "artist_clearart",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return artist.StrArtistClearart
+		},
 		Category: "artist",
 		Subtype:  "artist_clearart",
 		Enabled:  func(c *Config) bool { return c.DownloadArtistClearart },
 	},
 	{
-		Name:     "artist_fanart",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistFanart },
+		Name: "artist_fanart",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return artist.StrArtistFanart
+		},
 		Category: "artist",
 		Subtype:  "artist_fanart",
 		Enabled:  func(c *Config) bool { return c.DownloadArtistFanart },
 	},
 	{
-		Name:     "artist_fanart2",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistFanart2 },
+		Name: "artist_fanart2",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return artist.StrArtistFanart2
+		},
 		Category: "artist",
 		Subtype:  "artist_fanart2",
 		Enabled:  func(c *Config) bool { return c.DownloadArtistFanart2 },
 	},
 	{
-		Name:     "artist_fanart3",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistFanart3 },
+		Name: "artist_fanart3",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return artist.StrArtistFanart3
+		},
 		Category: "artist",
 		Subtype:  "artist_fanart3",
 		Enabled:  func(c *Config) bool { return c.DownloadArtistFanart3 },
 	},
 	{
-		Name:     "artist_banner",
-		URL:      func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string { return artist.StrArtistBanner },
+		Name: "artist_banner",
+		URL: func(track *AudioDBTrack, album *AudioDBAlbum, artist *AudioDBArtist) string {
+			return artist.StrArtistBanner
+		},
 		Category: "artist",
 		Subtype:  "artist_banner",
 		Enabled:  func(c *Config) bool { return c.DownloadArtistBanner },
@@ -291,32 +315,32 @@ func (a *AudioDBEnricher) Initialize(ctx *plugins.PluginContext) error {
 
 	// Set default configuration
 	a.config = &Config{
-		Enabled:              true,
-		UserAgent:            "Viewra/2.0",
-		EnableArtwork:        true,
-		ArtworkMaxSize:       1200,
-		ArtworkQuality:       "front",
-		
+		Enabled:        true,
+		UserAgent:      "Viewra/2.0",
+		EnableArtwork:  true,
+		ArtworkMaxSize: 1200,
+		ArtworkQuality: "front",
+
 		// Album artwork settings
 		DownloadAlbumArt:     true,
 		DownloadAlbumThumb:   true,
 		DownloadAlbumThumbHQ: true,
 		DownloadAlbumBack:    true,
 		DownloadAlbumCDart:   true,
-		
+
 		// Artist artwork settings
-		DownloadArtistImages: true,
-		DownloadArtistThumb:  true,
-		DownloadArtistLogo:   true,
+		DownloadArtistImages:   true,
+		DownloadArtistThumb:    true,
+		DownloadArtistLogo:     true,
 		DownloadArtistClearart: true,
-		DownloadArtistFanart: true,
-		DownloadArtistFanart2: false,
-		DownloadArtistFanart3: false,
-		DownloadArtistBanner: true,
-		
+		DownloadArtistFanart:   true,
+		DownloadArtistFanart2:  false,
+		DownloadArtistFanart3:  false,
+		DownloadArtistBanner:   true,
+
 		// Track artwork settings
-		DownloadTrackThumb:   false,
-		
+		DownloadTrackThumb: false,
+
 		PreferHighQuality:    true,
 		MaxAssetSize:         10485760, // 10MB
 		AssetTimeout:         30,
@@ -330,7 +354,7 @@ func (a *AudioDBEnricher) Initialize(ctx *plugins.PluginContext) error {
 		RequestDelay:         100,
 	}
 
-	a.logger.Info("Initializing AudioDB enricher plugin", 
+	a.logger.Info("Initializing AudioDB enricher plugin",
 		"base_path", a.basePath,
 		"database_url", a.dbURL,
 		"host_service_addr", a.hostServiceAddr,
@@ -367,7 +391,7 @@ func (a *AudioDBEnricher) Start() error {
 
 func (a *AudioDBEnricher) Stop() error {
 	a.logger.Info("AudioDB Enricher plugin stopped")
-	
+
 	// Close asset service connection
 	if a.assetService != nil {
 		if closer, ok := a.assetService.(interface{ Close() error }); ok {
@@ -376,14 +400,14 @@ func (a *AudioDBEnricher) Stop() error {
 			}
 		}
 	}
-	
+
 	// Close database connection
 	if a.db != nil {
 		if sqlDB, err := a.db.DB(); err == nil {
 			sqlDB.Close()
 		}
 	}
-	
+
 	return nil
 }
 
@@ -446,6 +470,22 @@ func (a *AudioDBEnricher) SearchService() plugins.SearchService {
 	return a
 }
 
+func (a *AudioDBEnricher) ConfigurationService() plugins.ConfigurationService {
+	return nil
+}
+
+func (a *AudioDBEnricher) HealthMonitorService() plugins.HealthMonitorService {
+	return nil
+}
+
+func (a *AudioDBEnricher) PerformanceMonitorService() plugins.PerformanceMonitorService {
+	return nil
+}
+
+func (a *AudioDBEnricher) TranscodingService() plugins.TranscodingService {
+	return nil
+}
+
 // MetadataScraperService implementation
 func (a *AudioDBEnricher) CanHandle(filePath, mimeType string) bool {
 	if !a.config.Enabled {
@@ -490,7 +530,7 @@ func (a *AudioDBEnricher) ExtractMetadata(filePath string) (map[string]string, e
 func (a *AudioDBEnricher) GetSupportedTypes() []string {
 	return []string{
 		"audio/mpeg",
-		"audio/mp4", 
+		"audio/mp4",
 		"audio/m4a",
 		"audio/flac",
 		"audio/ogg",
@@ -559,13 +599,13 @@ func (a *AudioDBEnricher) Search(ctx context.Context, query map[string]string, l
 			Title: track.StrTrack,
 			Type:  "track",
 			Metadata: map[string]string{
-				"artist":    track.StrArtist,
-				"album":     track.StrAlbum,
-				"genre":     track.StrGenre,
-				"mood":      track.StrMood,
-				"style":     track.StrStyle,
-				"duration":  track.IntDuration,
-				"thumb":     track.StrTrackThumb,
+				"artist":     track.StrArtist,
+				"album":      track.StrAlbum,
+				"genre":      track.StrGenre,
+				"mood":       track.StrMood,
+				"style":      track.StrStyle,
+				"duration":   track.IntDuration,
+				"thumb":      track.StrTrackThumb,
 				"audiodb_id": track.IDTrack,
 			},
 		})
@@ -700,9 +740,9 @@ func (a *AudioDBEnricher) enrichTrack(mediaFileID string, title, artist, album s
 		return fmt.Errorf("failed to save enrichment: %w", err)
 	}
 
-	a.logger.Info("Track enriched successfully", 
-		"mediaFileID", mediaFileID, 
-		"title", bestTrack.StrTrack, 
+	a.logger.Info("Track enriched successfully",
+		"mediaFileID", mediaFileID,
+		"title", bestTrack.StrTrack,
 		"artist", bestTrack.StrArtist,
 		"score", bestScore)
 
@@ -985,9 +1025,9 @@ func (a *AudioDBEnricher) downloadAllArtwork(ctx context.Context, mediaFileID st
 		}
 	}
 
-	a.logger.Info("AudioDB artwork download completed", 
-		"media_file_id", mediaFileID, 
-		"success_count", successCount, 
+	a.logger.Info("AudioDB artwork download completed",
+		"media_file_id", mediaFileID,
+		"success_count", successCount,
 		"error_count", len(downloadErrors))
 
 	// Return error only if all downloads failed
@@ -1085,9 +1125,9 @@ func (a *AudioDBEnricher) downloadArtworkFromURL(ctx context.Context, mediaFileI
 
 	// Save the artwork using the host's AssetService
 	metadata := map[string]string{
-		"source":    "audiodb",
-		"art_type":  artType.Name,
-		"category":  artType.Category,
+		"source":   "audiodb",
+		"art_type": artType.Name,
+		"category": artType.Category,
 	}
 
 	return a.saveArtworkAsset(ctx, mediaFileID, artType.Category, artType.Subtype, imageData, mimeType, artworkURL, metadata)
@@ -1125,11 +1165,11 @@ func (a *AudioDBEnricher) saveArtworkAsset(ctx context.Context, mediaFileID stri
 		return fmt.Errorf("asset service not available")
 	}
 
-	a.logger.Debug("Saving AudioDB artwork asset via host service", 
-		"media_file_id", mediaFileID, 
+	a.logger.Debug("Saving AudioDB artwork asset via host service",
+		"media_file_id", mediaFileID,
 		"category", category,
-		"subtype", subtype, 
-		"size", len(data), 
+		"subtype", subtype,
+		"size", len(data),
 		"mime_type", mimeType,
 		"source_url", sourceURL)
 
@@ -1157,10 +1197,10 @@ func (a *AudioDBEnricher) saveArtworkAsset(ctx context.Context, mediaFileID stri
 		return fmt.Errorf("asset save failed: %s", response.Error)
 	}
 
-	a.logger.Info("Successfully saved AudioDB artwork asset", 
-		"media_file_id", mediaFileID, 
+	a.logger.Info("Successfully saved AudioDB artwork asset",
+		"media_file_id", mediaFileID,
 		"category", category,
-		"subtype", subtype, 
+		"subtype", subtype,
 		"asset_id", response.AssetID,
 		"hash", response.Hash,
 		"path", response.RelativePath,
@@ -1172,4 +1212,4 @@ func (a *AudioDBEnricher) saveArtworkAsset(ctx context.Context, mediaFileID stri
 func main() {
 	plugin := &AudioDBEnricher{}
 	plugins.StartPlugin(plugin)
-} 
+}
