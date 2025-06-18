@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Save, 
   RotateCcw, 
@@ -8,16 +8,7 @@ import {
   ChevronDown, 
   ChevronRight, 
   Eye, 
-  EyeOff, 
-  Info,
-  Search,
-  Filter,
-  Copy,
-  Download,
-  Upload,
-  Trash2,
-  Plus,
-  GripVertical
+  EyeOff
 } from 'lucide-react';
 import type {
   Plugin,
@@ -46,11 +37,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [fieldWarnings, setFieldWarnings] = useState<Record<string, string>>({});
-  const [validatedFields, setValidatedFields] = useState<Record<string, boolean>>({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     loadConfigurationData();
@@ -181,184 +167,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     }));
   };
 
-  // Validation function
-  const validateField = (field: ConfigurationProperty, value: unknown): { isValid: boolean; error?: string; warning?: string } => {
-    if (value === null || value === undefined || value === '') {
-      if (field.required) {
-        return { isValid: false, error: `${field.title} is required` };
-      }
-      return { isValid: true };
-    }
 
-    // Type-specific validation
-    switch (field.type) {
-      case 'string':
-      case 'text':
-        const strValue = String(value);
-        if (field.minLength && strValue.length < field.minLength) {
-          return { isValid: false, error: `Minimum length is ${field.minLength}` };
-        }
-        if (field.maxLength && strValue.length > field.maxLength) {
-          return { isValid: false, error: `Maximum length is ${field.maxLength}` };
-        }
-        if (field.pattern && !new RegExp(field.pattern).test(strValue)) {
-          return { isValid: false, error: 'Invalid format' };
-        }
-        break;
 
-      case 'number':
-        const numValue = Number(value);
-        if (isNaN(numValue)) {
-          return { isValid: false, error: 'Must be a valid number' };
-        }
-        if (field.minimum !== undefined && numValue < field.minimum) {
-          return { isValid: false, error: `Minimum value is ${field.minimum}` };
-        }
-        if (field.maximum !== undefined && numValue > field.maximum) {
-          return { isValid: false, error: `Maximum value is ${field.maximum}` };
-        }
-        // Add warning for values near limits
-        if (field.minimum !== undefined && field.maximum !== undefined) {
-          const range = field.maximum - field.minimum;
-          if (numValue < field.minimum + range * 0.1) {
-            return { isValid: true, warning: 'Value is near minimum limit' };
-          }
-          if (numValue > field.maximum - range * 0.1) {
-            return { isValid: true, warning: 'Value is near maximum limit' };
-          }
-        }
-        break;
 
-      case 'array':
-        if (!Array.isArray(value)) {
-          return { isValid: false, error: 'Must be an array' };
-        }
-        break;
-    }
-
-    return { isValid: true };
-  };
-
-  // Real-time validation effect
-  const validateAndUpdateField = (fieldId: string, value: unknown, field: ConfigurationProperty) => {
-    const validation = validateField(field, value);
-    
-    setFieldErrors(prev => {
-      const newErrors = { ...prev };
-      if (validation.error) {
-        newErrors[fieldId] = validation.error;
-      } else {
-        delete newErrors[fieldId];
-      }
-      return newErrors;
-    });
-
-    setFieldWarnings(prev => {
-      const newWarnings = { ...prev };
-      if (validation.warning) {
-        newWarnings[fieldId] = validation.warning;
-      } else {
-        delete newWarnings[fieldId];
-      }
-      return newWarnings;
-    });
-
-    setValidatedFields(prev => ({
-      ...prev,
-      [fieldId]: validation.isValid
-    }));
-  };
-
-  // Enhanced field change handler with validation
-  const handleFieldChangeWithValidation = (fieldId: string, value: unknown, field: ConfigurationProperty) => {
-    handleFieldChange(fieldId, value);
-    validateAndUpdateField(fieldId, value, field);
-  };
-
-  // Filter properties by search term
-  const filteredProperties = useMemo(() => {
-    if (!schema?.properties || !searchTerm) return schema?.properties || {};
-    
-    const filtered: Record<string, ConfigurationProperty> = {};
-    Object.entries(schema.properties).forEach(([key, property]) => {
-      if (
-        key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        property.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        property.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      ) {
-        filtered[key] = property;
-      }
-    });
-    return filtered;
-  }, [schema?.properties, searchTerm]);
-
-  // Enhanced field wrapper with validation feedback
-  const renderFieldWrapper = (field: ConfigurationProperty, fieldId: string, children: React.ReactNode) => {
-    const hasError = fieldErrors[fieldId];
-    const hasWarning = fieldWarnings[fieldId];
-    const isValid = validatedFields[fieldId] && !hasError;
-
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="flex items-center text-sm font-medium text-white">
-            {field.title}
-            {field.required && (
-              <span className="text-red-400 ml-1">*</span>
-            )}
-            {field.description && (
-              <div className="relative ml-2">
-                <Info 
-                  size={14} 
-                  className="text-slate-400 hover:text-white cursor-help"
-                  title={field.description}
-                />
-              </div>
-            )}
-          </label>
-          <div className="flex items-center space-x-2">
-            {field.default !== undefined && (
-              <span className="text-xs text-slate-500">
-                Default: {String(field.default)}
-              </span>
-            )}
-            {isValid && (
-              <CheckCircle size={14} className="text-green-400" />
-            )}
-            {hasWarning && (
-              <AlertTriangle size={14} className="text-yellow-400" />
-            )}
-            {hasError && (
-              <AlertTriangle size={14} className="text-red-400" />
-            )}
-          </div>
-        </div>
-        
-        {/* Input container with validation styling */}
-        <div className={`relative ${
-          hasError ? 'ring-2 ring-red-500/50 rounded-md' : 
-          hasWarning ? 'ring-2 ring-yellow-500/50 rounded-md' : 
-          isValid ? 'ring-2 ring-green-500/50 rounded-md' : ''
-        }`}>
-          {children}
-        </div>
-        
-        {/* Error/Warning messages */}
-        {hasError && (
-          <div className="flex items-center text-xs text-red-400">
-            <AlertTriangle size={12} className="mr-1" />
-            {hasError}
-          </div>
-        )}
-        {hasWarning && !hasError && (
-          <div className="flex items-center text-xs text-yellow-400">
-            <AlertTriangle size={12} className="mr-1" />
-            {hasWarning}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const renderField = (field: ConfigurationProperty, fieldId: string) => {
     // Handle nested field paths (e.g., "adaptive.enabled")
@@ -388,7 +199,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               <input
                 type={field.sensitive && !showSensitive[fieldId] ? 'password' : 'text'}
                 value={String(value || '')}
-                onChange={(e) => handleFieldChangeWithValidation(fieldId, e.target.value, field)}
+                onChange={(e) => handleFieldChange(fieldId, e.target.value)}
                 placeholder={`Enter ${field.title.toLowerCase()}`}
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
                 {...(field.pattern && { pattern: field.pattern })}
@@ -414,7 +225,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
                 <input
                   type="number"
                   value={String(value || '')}
-                  onChange={(e) => handleFieldChangeWithValidation(fieldId, Number(e.target.value), field)}
+                  onChange={(e) => handleFieldChange(fieldId, Number(e.target.value))}
                   min={field.minimum}
                   max={field.maximum}
                   step={0.1}
@@ -424,7 +235,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
                   <input
                     type="range"
                     value={Number(value) || field.minimum}
-                    onChange={(e) => handleFieldChangeWithValidation(fieldId, Number(e.target.value), field)}
+                    onChange={(e) => handleFieldChange(fieldId, Number(e.target.value))}
                     min={field.minimum}
                     max={field.maximum}
                     step={0.1}
@@ -590,6 +401,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           />
         );
     }
+    };
+    
+    return renderControl();
   };
 
   const getPropertiesByCategory = (categoryId: string) => {
