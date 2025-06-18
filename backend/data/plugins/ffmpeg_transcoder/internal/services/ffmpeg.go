@@ -28,6 +28,9 @@ type FFmpegService struct {
 	activeJobs     map[string]*FFmpegJob
 	jobsMutex      sync.RWMutex
 	statusCallback SessionStatusCallback
+
+	// Content analyzer for intelligent transcoding
+	contentAnalyzer *ContentAnalyzer
 }
 
 // FileBufferedStreamReader buffers data from an input stream to a disk file to prevent blocking
@@ -480,10 +483,11 @@ func getTranscodingDir() string {
 // NewFFmpegService creates a new FFmpeg service
 func NewFFmpegService(logger plugins.Logger, configService *config.FFmpegConfigurationService, statusCallback SessionStatusCallback) (*FFmpegService, error) {
 	service := &FFmpegService{
-		logger:         logger,
-		configService:  configService,
-		activeJobs:     make(map[string]*FFmpegJob),
-		statusCallback: statusCallback,
+		logger:          logger,
+		configService:   configService,
+		activeJobs:      make(map[string]*FFmpegJob),
+		statusCallback:  statusCallback,
+		contentAnalyzer: NewContentAnalyzer(logger, configService),
 	}
 
 	// Ensure transcoding directory exists
@@ -500,7 +504,58 @@ func NewFFmpegService(logger plugins.Logger, configService *config.FFmpegConfigu
 	// Start background cleanup routine
 	go service.backgroundCleanup()
 
+	logger.Info("FFmpeg service initialized with content analyzer")
 	return service, nil
+}
+
+// EnhanceTranscodeRequest analyzes content and enhances the transcode request with optimal settings
+func (s *FFmpegService) EnhanceTranscodeRequest(req *plugins.TranscodeRequest, targetDevice string, targetBandwidth int) (*plugins.TranscodeRequest, error) {
+	// Analyze the source content
+	characteristics, err := s.contentAnalyzer.AnalyzeContent(req.InputPath)
+	if err != nil {
+		s.logger.Warn("failed to analyze content, using default settings", "error", err, "input", req.InputPath)
+		return req, nil // Return original request if analysis fails
+	}
+
+	// Select optimal profile based on content and target
+	profile, err := s.contentAnalyzer.SelectOptimalProfile(characteristics, targetDevice, targetBandwidth)
+	if err != nil {
+		s.logger.Warn("failed to select optimal profile, using default settings", "error", err)
+		return req, nil
+	}
+
+	// Create enhanced request
+	enhanced := &plugins.TranscodeRequest{
+		InputPath:       req.InputPath,
+		StartTime:       req.StartTime,
+		TargetCodec:     profile.VideoCodec,
+		TargetContainer: req.TargetContainer,
+		Resolution:      profile.TargetResolution,
+		Bitrate:         profile.TargetBitrate,
+		Quality:         int(profile.CRF),
+		AudioCodec:      profile.AudioCodec,
+		AudioBitrate:    profile.AudioBitrate,
+		Subtitles:       req.Subtitles, // Keep original subtitle settings
+	}
+
+	// Log the optimization
+	s.logger.Info("enhanced transcode request with content analysis",
+		"original_codec", req.TargetCodec,
+		"optimized_codec", enhanced.TargetCodec,
+		"original_resolution", req.Resolution,
+		"optimized_resolution", enhanced.Resolution,
+		"original_bitrate", req.Bitrate,
+		"optimized_bitrate", enhanced.Bitrate,
+		"content_type", characteristics.ContentType,
+		"content_quality", characteristics.ContentQuality,
+		"is_hdr", characteristics.IsHDR,
+		"target_device", targetDevice,
+		"crf", profile.CRF,
+		"preset", profile.Preset,
+		"hdr_handling", profile.HDRHandling,
+	)
+
+	return enhanced, nil
 }
 
 // CheckAvailability verifies that FFmpeg is available and functional
@@ -945,12 +1000,15 @@ func (s *FFmpegService) buildVideoCodecArgs(req *plugins.TranscodeRequest, cfg *
 	switch req.TargetCodec {
 	case "h264":
 		args = append(args, "-c:v", "libx264")
+
+		// Use preset from request or config
+		preset := cfg.Preset
+		if req.Preset != "" {
+			preset = req.Preset
+		}
 		// Use more conservative preset for HEVC input stability
-		preset := "medium"
 		if cfg.Preset == "ultrafast" || cfg.Preset == "superfast" || cfg.Preset == "veryfast" {
 			preset = "fast" // Safer for HEVC input
-		} else if cfg.Preset != "" {
-			preset = cfg.Preset
 		}
 		args = append(args, "-preset", preset)
 
@@ -958,6 +1016,9 @@ func (s *FFmpegService) buildVideoCodecArgs(req *plugins.TranscodeRequest, cfg *
 		args = append(args, "-profile:v", "high")
 		args = append(args, "-level", "4.1")
 		args = append(args, "-pix_fmt", "yuv420p") // Force standard pixel format
+
+		// Add tune parameter for content optimization
+		args = append(args, "-tune", "film")
 
 		if req.Quality > 0 {
 			args = append(args, "-crf", strconv.Itoa(req.Quality))
@@ -967,7 +1028,20 @@ func (s *FFmpegService) buildVideoCodecArgs(req *plugins.TranscodeRequest, cfg *
 
 	case "hevc":
 		args = append(args, "-c:v", "libx265")
-		args = append(args, "-preset", cfg.Preset)
+
+		// Use preset from request or config
+		preset := cfg.Preset
+		if req.Preset != "" {
+			preset = req.Preset
+		}
+		args = append(args, "-preset", preset)
+
+		// Add tune parameter for content optimization
+		args = append(args, "-tune", "grain")
+
+		// HEVC specific optimizations
+		args = append(args, "-x265-params", "me=star:subme=5:merange=25:b-adapt=2:rc-lookahead=50:bframes=4:ref=4")
+
 		if req.Quality > 0 {
 			args = append(args, "-crf", strconv.Itoa(req.Quality))
 		} else {
