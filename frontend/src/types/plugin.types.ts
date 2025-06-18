@@ -103,6 +103,9 @@ export interface ConfigurationProperty {
   dependencies?: string[];
   sensitive?: boolean;
   advanced?: boolean;
+  is_basic?: boolean;
+  importance?: number;
+  user_friendly?: boolean;
   readOnly?: boolean;
   required?: boolean;
   category?: string;
@@ -154,8 +157,6 @@ export interface ValidationResult {
   errors?: string[];
   warnings?: string[];
 }
-
-
 
 export interface ValidationRule {
   id: string;

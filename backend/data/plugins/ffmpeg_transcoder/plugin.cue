@@ -14,482 +14,121 @@ package ffmpeg_transcoder
 	}
 	
 	settings: {
-		// General settings
-		general: {
-			// Enable the plugin
-			enabled: bool | *true @ui(importance=10,level="basic",category="General")
-			
-			// Plugin priority (higher = preferred)
-			priority: int | *50 @ui(importance=7,level="basic",category="General")
+		// Plugin enabled/disabled
+		enabled: bool | *true @ui(importance=10,level="basic",category="General")
 		
-		// FFmpeg executable configuration
-		ffmpeg: {
-			// Path to FFmpeg executable
-			path: string | *"ffmpeg" @ui(importance=6,level="basic",category="General")
-			
-			// Encoding preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
-			preset: string | *"fast" @ui(importance=8,level="basic",category="Quality")
-			
-			// Number of threads (0 = auto)
-			threads: int | *0 @ui(importance=4,level="advanced",category="Performance")
-		}
+		// Plugin priority (higher = preferred)
+		priority: int | *50 @ui(importance=7,level="basic",category="General")
 		
-		// Quality settings
-		quality: {
-			// CRF values for different codecs (lower = higher quality)
-			crf_h264: number | *23.0 @ui(importance=8,level="basic",category="Quality")
-			
-			// Quality vs speed balance (0-3, higher = slower but better quality)
-			quality_speed_balance: int | *1 @ui(importance=6,level="basic",category="Quality")
-		}
+		// FFmpeg executable path
+		ffmpeg_path: string | *"ffmpeg" @ui(importance=6,level="basic",category="General")
 		
-		// Audio settings
-		audio: {
-			// Default audio codec
-			codec: string | *"aac" @ui(importance=5,level="advanced",category="Audio")
-			
-			// Default audio bitrate (kbps)
-			bitrate: int | *128 @ui(importance=6,level="basic",category="Audio")
-			
-			// Audio sample rate (Hz)
-			sample_rate: int | *48000 @ui(importance=3,level="advanced",category="Audio")
-			
-			// Number of audio channels
-			channels: int | *2 @ui(importance=4,level="advanced",category="Audio")
-			
-			// Audio passthrough for compatible devices
-			passthrough_codecs: [...string] | *["ac3", "eac3", "dts"] @ui(importance=3,level="advanced",category="Audio")
-			
-			// Normalize audio levels
-			normalize: bool | *true @ui(importance=4,level="advanced",category="Audio")
-		}
+		// Encoding preset for speed vs quality balance
+		preset: string | *"fast" @ui(importance=9,level="basic",category="Quality")
 		
-		// Subtitle settings
-		subtitles: {
-			// Codec for burning subtitles into video
-			burn_in_codec: string | *"subtitles" @ui(importance=3,level="advanced",category="Subtitles")
-			
-			// Codec for soft subtitles
-			soft_codec: string | *"mov_text" @ui(importance=3,level="advanced",category="Subtitles")
-			
-			// Auto-detect and extract embedded subtitles
-			extract_embedded: bool | *true @ui(importance=5,level="basic",category="Subtitles")
-			
-			// Languages to prioritize for subtitle extraction
-			preferred_languages: [...string] | *["en", "eng"] @ui(importance=4,level="advanced",category="Subtitles")
-		}
+		// H.264 CRF value (lower = higher quality, 18-28 recommended)
+		crf_h264: number | *23.0 @ui(importance=8,level="basic",category="Quality")
 		
-		// Performance settings
-		performance: {
-			// Maximum number of concurrent transcoding jobs
-			max_concurrent_jobs: int | *25 @ui(importance=8,level="basic",category="Performance")
-			
-			// Timeout for transcoding jobs (seconds)
-			timeout_seconds: int | *7200 @ui(importance=6,level="basic",category="Performance")
-		}
+		// Quality vs speed balance (0-3, higher = slower but better quality)
+		quality_speed_balance: int | *1 @ui(importance=6,level="basic",category="Quality")
 		
-		// Logging configuration
-		logging: {
-			// Log level (debug, info, warn, error)
-			level: string | *"info" @ui(importance=4,level="advanced",category="Logging")
-			
-			// Include FFmpeg output in logs
-			ffmpeg_output: bool | *false @ui(importance=3,level="advanced",category="Logging")
-			
-			// Log transcoding statistics
-			log_stats: bool | *true @ui(importance=3,level="advanced",category="Logging")
-		}
+		// Maximum concurrent transcoding jobs
+		max_concurrent_jobs: int | *25 @ui(importance=8,level="basic",category="Performance")
 		
-		// Hardware acceleration settings
-		hardware: {
-			// Enable hardware acceleration
-			enabled: bool | *false @ui(importance=7,level="basic",category="Hardware")
-			
-			// Hardware acceleration type (nvenc, vaapi, qsv, videotoolbox)
-			type: string | *"auto" @ui(importance=6,level="basic",category="Hardware")
-			
-			// Fallback to software encoding if hardware fails
-			fallback_to_software: bool | *true @ui(importance=5,level="basic",category="Hardware")
-		}
+		// Job timeout in seconds
+		timeout_seconds: int | *7200 @ui(importance=6,level="basic",category="Performance")
 		
-		// Codec-specific settings
-		codecs: {
-			h264: {
-				// H.264 specific options
-				profile: string | *"high"
-				level: string | *"4.1"
-				tune: string | *"film"
-				
-				// Two-pass encoding for better quality
-				two_pass: bool | *false
-				
-				// B-frame settings
-				bframes: int | *3
-				
-				// Reference frames
-				refs: int | *3
-			}
-			
-			hevc: {
-				// HEVC specific options
-				profile: string | *"main"
-				tier: string | *"main"
-				tune: string | *"grain"
-				
-				// Two-pass encoding
-				two_pass: bool | *false
-				
-				// CTU size (16, 32, 64)
-				ctu_size: int | *32
-				
-				// Range extension for 10-bit content
-				range_extension: bool | *true
-			}
-			
-			av1: {
-				// AV1 specific options
-				cpu_used: int | *4
-				tile_columns: int | *1
-				tile_rows: int | *0
-				
-				// Two-pass encoding (recommended for AV1)
-				two_pass: bool | *true
-				
-				// Film grain synthesis
-				film_grain: bool | *true
-			}
-			
-			vp9: {
-				// VP9 specific options
-				quality: string | *"good"
-				cpu_used: int | *1
-				
-				// Two-pass encoding
-				two_pass: bool | *true
-				
-				// Row-based multithreading
-				row_mt: bool | *true
-			}
-		}
+		// Enable hardware acceleration
+		hardware_acceleration: bool | *false @ui(importance=7,level="basic",category="Hardware")
 		
-		// Resolution and bitrate presets
-		resolutions: {
-			"480p": {
-				width: 854
-				height: 480
-				bitrate: 1500
-				min_bitrate: 750
-				max_bitrate: 2250
-			}
-			
-			"720p": {
-				width: 1280
-				height: 720
-				bitrate: 3000
-				min_bitrate: 1500
-				max_bitrate: 4500
-			}
-			
-			"1080p": {
-				width: 1920
-				height: 1080
-				bitrate: 6000
-				min_bitrate: 3000
-				max_bitrate: 9000
-			}
-			
-			"1440p": {
-				width: 2560
-				height: 1440
-				bitrate: 12000
-				min_bitrate: 6000
-				max_bitrate: 18000
-			}
-			
-			"2160p": {
-				width: 3840
-				height: 2160
-				bitrate: 25000
-				min_bitrate: 12500
-				max_bitrate: 37500
-			}
-		}
+		// Hardware acceleration type (auto, nvenc, vaapi, qsv, videotoolbox)
+		hardware_type: string | *"auto" @ui(importance=6,level="basic",category="Hardware")
 		
-		// Content-aware quality profiles
-		quality_profiles: {
-			// Profile for 4K HDR content (movies, premium TV shows)
-			"4k_hdr": {
-				target_resolution: "2160p"
-				crf_h264: 22.0
-				crf_hevc: 26.0
-				max_bitrate: 35000
-				buffer_size: 70000
-				preset: "slow"
-				tune: "film"
-				hdr_handling: "preserve"
-				audio_bitrate: 256
-				audio_codec: "eac3"
-			}
-			
-			// Profile for 4K SDR content
-			"4k_sdr": {
-				target_resolution: "2160p"
-				crf_h264: 23.0
-				crf_hevc: 27.0
-				max_bitrate: 25000
-				buffer_size: 50000
-				preset: "medium"
-				tune: "film"
-				hdr_handling: "none"
-				audio_bitrate: 192
-				audio_codec: "aac"
-			}
-			
-			// Profile for 1080p content (standard TV shows, movies)
-			"1080p": {
-				target_resolution: "1080p"
-				crf_h264: 23.0
-				crf_hevc: 28.0
-				max_bitrate: 8000
-				buffer_size: 16000
-				preset: "fast"
-				tune: "film"
-				hdr_handling: "tonemap"
-				audio_bitrate: 128
-				audio_codec: "aac"
-			}
-			
-			// Profile for 720p (mobile, limited bandwidth)
-			"720p": {
-				target_resolution: "720p"
-				crf_h264: 24.0
-				crf_hevc: 29.0
-				max_bitrate: 4000
-				buffer_size: 8000
-				preset: "fast"
-				tune: "film"
-				hdr_handling: "tonemap"
-				audio_bitrate: 96
-				audio_codec: "aac"
-			}
-			
-			// Profile for 480p (very limited bandwidth, older devices)
-			"480p": {
-				target_resolution: "480p"
-				crf_h264: 25.0
-				crf_hevc: 30.0
-				max_bitrate: 2000
-				buffer_size: 4000
-				preset: "fast"
-				tune: "film"
-				hdr_handling: "tonemap"
-				audio_bitrate: 64
-				audio_codec: "aac"
-			}
-		}
+		// Fallback to software if hardware fails
+		hardware_fallback: bool | *true @ui(importance=5,level="basic",category="Hardware")
 		
-		// Device-specific optimization profiles
-		device_profiles: {
-			// Web browsers - modern codec support
-			"web_modern": {
-				preferred_codecs: ["av1", "hevc", "h264"]
-				containers: ["dash", "hls"]
-				hdr_support: true
-				max_resolution: "2160p"
-				adaptive_bitrate: true
-			}
-			
-			// Web browsers - legacy support
-			"web_legacy": {
-				preferred_codecs: ["h264"]
-				containers: ["dash", "hls"]
-				hdr_support: false
-				max_resolution: "1080p"
-				adaptive_bitrate: true
-			}
-			
-			// Roku devices
-			"roku": {
-				preferred_codecs: ["hevc", "h264"]
-				containers: ["hls", "mp4"]
-				hdr_support: true
-				max_resolution: "2160p"
-				adaptive_bitrate: true
-				audio_passthrough: ["ac3", "eac3", "dts"]
-			}
-			
-			// NVIDIA Shield
-			"nvidia_shield": {
-				preferred_codecs: ["av1", "hevc", "h264"]
-				containers: ["mkv", "mp4", "dash", "hls"]
-				hdr_support: true
-				max_resolution: "2160p"
-				adaptive_bitrate: true
-				audio_passthrough: ["truehd", "dts", "ac3", "eac3"]
-				hardware_decode: true
-			}
-			
-			// Apple TV
-			"apple_tv": {
-				preferred_codecs: ["hevc", "h264"]
-				containers: ["hls", "mp4"]
-				hdr_support: true
-				max_resolution: "2160p"
-				adaptive_bitrate: true
-				audio_passthrough: ["ac3", "eac3"]
-			}
-			
-			// Android TV / Google TV
-			"android_tv": {
-				preferred_codecs: ["av1", "hevc", "h264"]
-				containers: ["dash", "hls", "mp4"]
-				hdr_support: true
-				max_resolution: "2160p"
-				adaptive_bitrate: true
-				audio_passthrough: ["ac3", "eac3", "dts"]
-			}
-		}
+		// Default audio bitrate (kbps)
+		audio_bitrate: int | *128 @ui(importance=6,level="basic",category="Audio")
 		
-		// Content detection rules
-		content_detection: {
-			// HDR detection keywords in filename
-			hdr_keywords: [...string] | *["HDR10", "HDR", "DV", "Dolby Vision", "Dolby.Vision"]
-			
-			// High quality content indicators
-			remux_keywords: [...string] | *["Remux", "REMUX", "BluRay", "Blu-ray", "UHD"]
-			
-			// Web content indicators  
-			web_keywords: [...string] | *["WEBDL", "WEB-DL", "WEBRip", "WEB", "Netflix", "Amazon", "Hulu", "Disney"]
-			
-			// TV show vs movie detection
-			tv_indicators: [...string] | *["S01E", "S02E", "Season", "Episode"]
-		}
+		// Extract embedded subtitles
+		extract_subtitles: bool | *true @ui(importance=5,level="basic",category="Subtitles")
 		
-		// Adaptive streaming settings
-		adaptive: {
-			// Enable adaptive bitrate streaming
-			enabled: bool | *true
-			
-			// Bitrate ladder (kbps)
-			bitrate_ladder: [...int] | *[500, 1000, 2000, 4000, 8000, 16000, 25000]
-			
-			// Resolution ladder for each bitrate
-			resolution_ladder: {
-				"500": "480p"
-				"1000": "720p"
-				"2000": "720p"
-				"4000": "1080p"
-				"8000": "1080p"
-				"16000": "1440p"
-				"25000": "2160p"
-			}
-			
-			// Segment duration (seconds)
-			segment_duration: int | *6
-			
-			// Playlist update frequency (seconds)
-			playlist_update_interval: int | *30
-		}
+		// Advanced: Number of threads (0 = auto)
+		threads: int | *0 @ui(importance=4,level="advanced",category="Performance")
 		
-		// File cleanup configuration
-		cleanup: {
-			// File retention hours (active window)
-			file_retention_hours: int | *3
-			
-			// Extended retention for smaller files (hours)
-			extended_retention_hours: int | *12
-			
-			// Maximum total size before emergency cleanup (GB)
-			max_size_limit_gb: int | *15
-			
-			// File size threshold for "large" files (MB)
-			large_file_size_mb: int | *1000
-			
-			// Cleanup interval (minutes)
-			cleanup_interval_minutes: int | *30
-			
-			// Keep segments for active sessions longer
-			active_session_retention_hours: int | *6
-		}
+		// Advanced: Audio codec
+		audio_codec: string | *"aac" @ui(importance=5,level="advanced",category="Audio")
 		
-		// Health monitoring thresholds
-		health: {
-			// Maximum memory usage (bytes)
-			max_memory_usage: int | *2147483648 // 2GB
-			
-			// Maximum CPU usage (percentage)
-			max_cpu_usage: number | *90.0
-			
-			// Maximum error rate (percentage)
-			max_error_rate: number | *10.0
-			
-			// Maximum response time (milliseconds)
-			max_response_time: int | *45000
-			
-			// Health check interval (seconds)
-			check_interval: int | *60
-			
-			// Maximum concurrent sessions before throttling
-			max_concurrent_sessions: int | *25
-		}
+		// Advanced: Audio sample rate
+		audio_sample_rate: int | *48000 @ui(importance=3,level="advanced",category="Audio")
 		
-		// Feature flags
-		features: {
-			// Enable subtitle burn-in
-			subtitle_burn_in: bool | *true
-			
-			// Enable subtitle passthrough
-			subtitle_passthrough: bool | *true
-			
-			// Enable multi-audio track support
-			multi_audio_tracks: bool | *true
-			
-			// Enable HDR tone mapping
-			hdr_tone_mapping: bool | *true
-			
-			// Enable Dolby Vision processing
-			dolby_vision_support: bool | *false
-			
-			// Enable content-aware encoding
-			content_aware_encoding: bool | *true
-			
-			// Enable two-pass encoding for high quality
-			two_pass_encoding: bool | *false
-			
-			// Enable advanced audio processing
-			advanced_audio_processing: bool | *true
-			
-			// Enable smart bitrate ladder selection
-			smart_bitrate_ladder: bool | *true
-		}
+		// Advanced: Audio channels
+		audio_channels: int | *2 @ui(importance=4,level="advanced",category="Audio")
 		
-		// Advanced filter settings
-		filters: {
-			// Noise reduction for lower quality sources
-			denoise: {
-				enabled: bool | *false
-				strength: number | *0.5
-			}
-			
-			// Sharpening for upscaled content
-			sharpen: {
-				enabled: bool | *false
-				strength: number | *0.3
-			}
-			
-			// Deinterlacing for interlaced sources
-			deinterlace: {
-				enabled: bool | *true
-				method: string | *"yadif"
-			}
-			
-			// Color correction
-			color_correction: {
-				enabled: bool | *false
-				saturation: number | *1.0
-				contrast: number | *1.0
-				brightness: number | *0.0
-			}
-		}
+		// Advanced: Normalize audio levels
+		normalize_audio: bool | *true @ui(importance=4,level="advanced",category="Audio")
+		
+		// Advanced: H.264 profile
+		h264_profile: string | *"high" @ui(importance=3,level="advanced",category="Codecs")
+		
+		// Advanced: H.264 level
+		h264_level: string | *"4.1" @ui(importance=3,level="advanced",category="Codecs")
+		
+		// Advanced: H.264 tune
+		h264_tune: string | *"film" @ui(importance=3,level="advanced",category="Codecs")
+		
+		// Advanced: Two-pass encoding for better quality
+		two_pass_encoding: bool | *false @ui(importance=4,level="advanced",category="Quality")
+		
+		// Advanced: B-frames for H.264
+		h264_bframes: int | *3 @ui(importance=3,level="advanced",category="Codecs")
+		
+		// Advanced: Reference frames for H.264
+		h264_refs: int | *3 @ui(importance=3,level="advanced",category="Codecs")
+		
+		// Advanced: Subtitle burn-in codec
+		subtitle_burn_codec: string | *"subtitles" @ui(importance=3,level="advanced",category="Subtitles")
+		
+		// Advanced: Soft subtitle codec
+		subtitle_soft_codec: string | *"mov_text" @ui(importance=3,level="advanced",category="Subtitles")
+		
+		// Advanced: Preferred subtitle languages
+		subtitle_languages: [...string] | *["en", "eng"] @ui(importance=4,level="advanced",category="Subtitles")
+		
+		// Advanced: Log level
+		log_level: string | *"info" @ui(importance=4,level="advanced",category="Logging")
+		
+		// Advanced: Include FFmpeg output in logs
+		log_ffmpeg_output: bool | *false @ui(importance=3,level="advanced",category="Logging")
+		
+		// Advanced: Log transcoding statistics
+		log_stats: bool | *true @ui(importance=3,level="advanced",category="Logging")
+		
+		// Advanced: File retention hours
+		file_retention_hours: int | *3 @ui(importance=5,level="advanced",category="Cleanup")
+		
+		// Advanced: Maximum storage size (GB)
+		max_storage_gb: int | *15 @ui(importance=6,level="advanced",category="Cleanup")
+		
+		// Advanced: Cleanup interval (minutes)
+		cleanup_interval_minutes: int | *30 @ui(importance=4,level="advanced",category="Cleanup")
+		
+		// Advanced: Enable deinterlacing
+		enable_deinterlace: bool | *true @ui(importance=4,level="advanced",category="Filters")
+		
+		// Advanced: Deinterlacing method
+		deinterlace_method: string | *"yadif" @ui(importance=3,level="advanced",category="Filters")
+		
+		// Advanced: Enable noise reduction
+		enable_denoise: bool | *false @ui(importance=3,level="advanced",category="Filters")
+		
+		// Advanced: Noise reduction strength
+		denoise_strength: number | *0.5 @ui(importance=3,level="advanced",category="Filters")
+		
+		// Advanced: Enable sharpening
+		enable_sharpen: bool | *false @ui(importance=3,level="advanced",category="Filters")
+		
+		// Advanced: Sharpening strength
+		sharpen_strength: number | *0.3 @ui(importance=3,level="advanced",category="Filters")
 	}
-} }
+}

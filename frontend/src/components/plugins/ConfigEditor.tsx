@@ -42,7 +42,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'basic' | 'advanced' | 'all'>('basic');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     loadConfigurationData();
@@ -172,10 +172,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       [fieldId]: !prev[fieldId]
     }));
   };
-
-
-
-
 
   // Legacy renderField function - keeping for potential compatibility
   const renderField = (field: ConfigurationProperty, fieldId: string) => {
@@ -606,7 +602,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     }
   };
 
-  // Filter properties based on search term and view mode
+  // Filter properties based on search term and show advanced toggle
   const filteredProperties = useMemo(() => {
     if (!schema?.properties) return {};
     
@@ -622,19 +618,18 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           if (!matchesSearch) return false;
         }
         
-        // View mode filter
-        switch (viewMode) {
-          case 'basic':
-            return property.is_basic === true;
-          case 'advanced':
-            return property.is_basic === false;
-          case 'all':
-          default:
-            return true;
+        // Show basic settings always, advanced settings only if toggle is on
+        if (property.is_basic === true) {
+          return true;
+        } else if (property.is_basic === false) {
+          return showAdvanced;
         }
+        
+        // Default: show if toggle is on (for properties without is_basic defined)
+        return showAdvanced;
       })
     );
-  }, [schema?.properties, searchTerm, viewMode]);
+  }, [schema?.properties, searchTerm, showAdvanced]);
 
   // Get priority settings (most important for users)
   const prioritySettings = useMemo(() => {
@@ -744,24 +739,19 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               />
             </div>
 
-            {/* View Mode Toggle */}
+            {/* Show Advanced Toggle */}
             <div className="flex items-center bg-slate-700 rounded-lg p-1">
-              {(['basic', 'advanced', 'all'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors capitalize ${
-                    viewMode === mode
-                      ? 'bg-purple-600 text-white'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-600'
-                  }`}
-                >
-                  {mode === 'basic' && <Zap size={14} className="mr-1 inline" />}
-                  {mode === 'advanced' && <Settings size={14} className="mr-1 inline" />}
-                  {mode === 'all' && <Shield size={14} className="mr-1 inline" />}
-                  {mode}
-                </button>
-              ))}
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors capitalize ${
+                  showAdvanced
+                    ? 'bg-purple-600 text-white'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-600'
+                }`}
+              >
+                <Settings size={14} className="mr-1 inline" />
+                {showAdvanced ? 'Hide Advanced' : 'Show Advanced'}
+              </button>
             </div>
           </div>
 
@@ -795,7 +785,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 space-y-6">
           {/* Priority Settings */}
-          {prioritySettings.length > 0 && viewMode !== 'advanced' && (
+          {prioritySettings.length > 0 && (
             <div className="bg-gradient-to-r from-purple-600/10 to-blue-600/10 border border-purple-600/30 rounded-lg p-6">
               <div className="flex items-center space-x-2 mb-4">
                 <Zap className="text-purple-400" size={20} />
@@ -815,7 +805,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           )}
 
           {/* Quick Settings */}
-          {quickSettings.length > 0 && viewMode !== 'advanced' && (
+          {quickSettings.length > 0 && (
             <div className="bg-slate-800 rounded-lg border border-slate-700">
               <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
                 <Settings className="text-blue-400" size={18} />
@@ -835,47 +825,43 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           )}
 
           {/* Categorized Settings */}
-          {viewMode === 'all' || viewMode === 'advanced' ? (
-            <div className="space-y-4">
-              {Object.entries(
-                Object.entries(filteredProperties).reduce((acc, [key, field]) => {
-                  const category = field.category || 'Other';
-                  if (!acc[category]) acc[category] = [];
-                  acc[category].push([key, field]);
-                  return acc;
-                }, {} as Record<string, Array<[string, any]>>)
-              ).map(([categoryName, categoryFields]) => (
-                <div key={categoryName} className="bg-slate-800 rounded-lg border border-slate-700">
-                  <button
-                    onClick={() => toggleCategory(categoryName)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="text-left">
-                        <h4 className="text-white font-medium">{categoryName}</h4>
-                        <p className="text-slate-400 text-sm">
-                          {categoryFields.length} setting{categoryFields.length !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-slate-400">
-                      {expandedCategories[categoryName] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                    </div>
-                  </button>
-                  
-                  {expandedCategories[categoryName] && (
-                    <div className="border-t border-slate-700 p-4 space-y-4">
-                      {categoryFields.map(([fieldId, field]) => (
-                        <div key={fieldId}>
-                          {renderSettingField(fieldId, field)}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+          {Object.entries(
+            Object.entries(filteredProperties).reduce((acc, [key, field]) => {
+              const category = field.category || 'Other';
+              if (!acc[category]) acc[category] = [];
+              acc[category].push([key, field]);
+              return acc;
+            }, {} as Record<string, Array<[string, any]>>)
+          ).map(([categoryName, categoryFields]) => (
+            <div key={categoryName} className="bg-slate-800 rounded-lg border border-slate-700">
+              <button
+                onClick={() => toggleCategory(categoryName)}
+                className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="text-left">
+                    <h4 className="text-white font-medium">{categoryName}</h4>
+                    <p className="text-slate-400 text-sm">
+                      {categoryFields.length} setting{categoryFields.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
                 </div>
-              ))}
+                <div className="text-slate-400">
+                  {expandedCategories[categoryName] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </div>
+              </button>
+              
+              {expandedCategories[categoryName] && (
+                <div className="border-t border-slate-700 p-4 space-y-4">
+                  {categoryFields.map(([fieldId, field]) => (
+                    <div key={fieldId}>
+                      {renderSettingField(fieldId, field)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ) : null}
+          ))}
 
           {/* No Results */}
           {Object.keys(filteredProperties).length === 0 && (
