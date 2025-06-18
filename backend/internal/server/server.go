@@ -248,6 +248,16 @@ func connectPluginManagerToModules() error {
 			EnabledCore:     []string{"ffmpeg", "enrichment", "tv_structure", "movie_structure"},
 			EnabledExternal: []string{},
 			LibraryConfigs:  make(map[string]pluginmodule.LibraryPluginSettings),
+			EnableHotReload: true, // Enable hot reload by default for development
+			HotReload: pluginmodule.PluginHotReloadConfig{
+				Enabled:         true,
+				DebounceDelayMs: 500,
+				WatchPatterns:   []string{"*_transcoder", "*_enricher", "*_scanner"},
+				ExcludePatterns: []string{"*.tmp", "*.log", "*.pid", ".git*", "*.swp", "*.swo", "go.mod", "go.sum", "*.go", "plugin.cue", "*.json"},
+				PreserveState:   true,
+				MaxRetries:      3,
+				RetryDelayMs:    1000,
+			},
 		}
 
 		// Create and initialize plugin module
@@ -257,7 +267,7 @@ func connectPluginManagerToModules() error {
 
 		ctx := context.Background()
 		log.Printf("🔍 DEBUG: About to initialize plugin module...")
-		if err := pluginModule.Initialize(ctx); err != nil {
+		if err := pluginModule.Initialize(ctx, db); err != nil {
 			log.Printf("WARNING: Failed to initialize plugin module: %v", err)
 		} else {
 			log.Printf("✅ Plugin module initialized successfully")

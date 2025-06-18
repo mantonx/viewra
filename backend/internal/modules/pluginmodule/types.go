@@ -112,6 +112,19 @@ type PluginModuleConfig struct {
 	EnabledExternal []string                         `json:"enabled_external"`
 	LibraryConfigs  map[string]LibraryPluginSettings `json:"library_configs"`
 	HostPort        string                           `json:"host_port"` // Port for external plugin communication
+	EnableHotReload bool                             `json:"enable_hot_reload"`
+	HotReload       PluginHotReloadConfig            `json:"hot_reload"`
+}
+
+// PluginHotReloadConfig configures hot reload behavior for the plugin module
+type PluginHotReloadConfig struct {
+	Enabled         bool     `json:"enabled"`
+	DebounceDelayMs int      `json:"debounce_delay_ms"`
+	WatchPatterns   []string `json:"watch_patterns"`
+	ExcludePatterns []string `json:"exclude_patterns"`
+	PreserveState   bool     `json:"preserve_state"`
+	MaxRetries      int      `json:"max_retries"`
+	RetryDelayMs    int      `json:"retry_delay_ms"`
 }
 
 // LibraryPluginSettings defines plugin settings for a specific library type

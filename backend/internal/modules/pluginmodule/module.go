@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-hclog"
@@ -58,6 +59,9 @@ type PluginModule struct {
 	externalManager *ExternalPluginManager
 	libraryManager  *LibraryPluginManager
 	mediaManager    *MediaPluginManager
+
+	// Hot reload manager
+	hotReloadManager *HotReloadManager
 }
 
 // Module interface implementation
@@ -92,7 +96,7 @@ func (pm *PluginModule) Init() error {
 
 	// Call the full initialization method with a background context
 	ctx := context.Background()
-	if err := pm.Initialize(ctx); err != nil {
+	if err := pm.Initialize(ctx, pm.db); err != nil {
 		return fmt.Errorf("failed to initialize plugin module: %w", err)
 	}
 
@@ -100,7 +104,9 @@ func (pm *PluginModule) Init() error {
 }
 
 // Initialize initializes the plugin module and all sub-managers
-func (pm *PluginModule) Initialize(ctx context.Context) error {
+func (pm *PluginModule) Initialize(ctx context.Context, db *gorm.DB) error {
+	pm.db = db
+
 	pm.logger.Info("initializing plugin module")
 
 	// Ensure database connection is set for sub-managers
@@ -157,6 +163,50 @@ func (pm *PluginModule) Initialize(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize external plugin manager: %w", err)
 	}
 
+	// Initialize hot reload manager if enabled in configuration
+	if pm.config.EnableHotReload {
+		// Convert module config to hot reload config
+		hotReloadConfig := &HotReloadConfig{
+			Enabled:         pm.config.HotReload.Enabled,
+			DebounceDelay:   time.Duration(pm.config.HotReload.DebounceDelayMs) * time.Millisecond,
+			WatchPatterns:   pm.config.HotReload.WatchPatterns,
+			ExcludePatterns: pm.config.HotReload.ExcludePatterns,
+			PreserveState:   pm.config.HotReload.PreserveState,
+			MaxRetries:      pm.config.HotReload.MaxRetries,
+			RetryDelay:      time.Duration(pm.config.HotReload.RetryDelayMs) * time.Millisecond,
+		}
+		var err error
+		pm.hotReloadManager, err = NewHotReloadManager(pm.db, pm.logger, pm.externalManager, pm.config.PluginDir, hotReloadConfig)
+		if err != nil {
+			pm.logger.Error("failed to create hot reload manager", "error", err)
+		} else {
+			// Set up reload callbacks for logging and notifications
+			pm.hotReloadManager.SetReloadCallbacks(
+				func(pluginID string) {
+					pm.logger.Info("🔄 Hot reload started", "plugin_id", pluginID)
+				},
+				func(pluginID string, oldVersion, newVersion string) {
+					pm.logger.Info("✅ Hot reload completed successfully",
+						"plugin_id", pluginID,
+						"old_version", oldVersion,
+						"new_version", newVersion)
+				},
+				func(pluginID string, err error) {
+					pm.logger.Error("❌ Hot reload failed", "plugin_id", pluginID, "error", err)
+				},
+			)
+
+			// Start hot reload monitoring
+			if err := pm.hotReloadManager.Start(); err != nil {
+				pm.logger.Error("failed to start hot reload manager", "error", err)
+			} else {
+				pm.logger.Info("✅ Hot reload system initialized and watching for plugin changes")
+			}
+		}
+	} else {
+		pm.logger.Info("Hot reload is disabled in configuration")
+	}
+
 	// Initialize library manager
 	if err := pm.libraryManager.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize library plugin manager: %w", err)
@@ -174,6 +224,13 @@ func (pm *PluginModule) Initialize(ctx context.Context) error {
 // Shutdown gracefully shuts down the plugin module
 func (pm *PluginModule) Shutdown(ctx context.Context) error {
 	pm.logger.Info("shutting down plugin module")
+
+	// Shutdown hot reload manager first
+	if pm.hotReloadManager != nil {
+		if err := pm.hotReloadManager.Stop(); err != nil {
+			pm.logger.Error("failed to shutdown hot reload manager", "error", err)
+		}
+	}
 
 	// Shutdown in reverse order
 	if err := pm.externalManager.Shutdown(ctx); err != nil {
@@ -302,6 +359,40 @@ func (pm *PluginModule) GetMediaManager() *MediaPluginManager {
 	return pm.mediaManager
 }
 
+// Hot Reload Management
+
+// GetHotReloadManager returns the hot reload manager
+func (pm *PluginModule) GetHotReloadManager() *HotReloadManager {
+	return pm.hotReloadManager
+}
+
+// TriggerPluginReload manually triggers a hot reload for a specific plugin
+func (pm *PluginModule) TriggerPluginReload(pluginID string) error {
+	if pm.hotReloadManager == nil {
+		return fmt.Errorf("hot reload manager not available")
+	}
+	return pm.hotReloadManager.TriggerManualReload(pluginID)
+}
+
+// GetHotReloadStatus returns the current hot reload status
+func (pm *PluginModule) GetHotReloadStatus() map[string]interface{} {
+	if pm.hotReloadManager == nil {
+		return map[string]interface{}{
+			"enabled": false,
+			"error":   "hot reload manager not available",
+		}
+	}
+	return pm.hotReloadManager.GetReloadStatus()
+}
+
+// SetHotReloadEnabled enables or disables hot reload
+func (pm *PluginModule) SetHotReloadEnabled(enabled bool) error {
+	if pm.hotReloadManager == nil {
+		return fmt.Errorf("hot reload manager not available")
+	}
+	return pm.hotReloadManager.SetEnabled(enabled)
+}
+
 // RegisterRoutes registers HTTP routes for the plugin module
 func (pm *PluginModule) RegisterRoutes(router *gin.Engine) {
 	pm.logger.Info("registering plugin module HTTP routes")
@@ -325,6 +416,12 @@ func (pm *PluginModule) RegisterRoutes(router *gin.Engine) {
 		// Core plugin operations
 		api.POST("/core/:plugin_name/enable", pm.enableCorePluginHandler)
 		api.POST("/core/:plugin_name/disable", pm.disableCorePluginHandler)
+
+		// Hot reload routes
+		api.GET("/hot-reload/status", pm.getHotReloadStatusHandler)
+		api.POST("/hot-reload/enable", pm.enableHotReloadHandler)
+		api.POST("/hot-reload/disable", pm.disableHotReloadHandler)
+		api.POST("/hot-reload/trigger/:plugin_id", pm.triggerHotReloadHandler)
 	}
 
 	// Register health monitoring routes through external manager
@@ -490,12 +587,98 @@ func (pm *PluginModule) disableCorePluginHandler(c *gin.Context) {
 	c.JSON(200, gin.H{"message": "Core plugin disabled successfully", "plugin_name": pluginName})
 }
 
+// Hot Reload Handlers
+
+// getHotReloadStatusHandler returns the current hot reload status
+func (pm *PluginModule) getHotReloadStatusHandler(c *gin.Context) {
+	status := pm.GetHotReloadStatus()
+	c.JSON(200, gin.H{
+		"status":     "success",
+		"hot_reload": status,
+	})
+}
+
+// enableHotReloadHandler enables hot reload functionality
+func (pm *PluginModule) enableHotReloadHandler(c *gin.Context) {
+	if err := pm.SetHotReloadEnabled(true); err != nil {
+		c.JSON(500, gin.H{
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"status":  "success",
+		"message": "Hot reload enabled successfully",
+	})
+}
+
+// disableHotReloadHandler disables hot reload functionality
+func (pm *PluginModule) disableHotReloadHandler(c *gin.Context) {
+	if err := pm.SetHotReloadEnabled(false); err != nil {
+		c.JSON(500, gin.H{
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"status":  "success",
+		"message": "Hot reload disabled successfully",
+	})
+}
+
+// triggerHotReloadHandler manually triggers a hot reload for a specific plugin
+func (pm *PluginModule) triggerHotReloadHandler(c *gin.Context) {
+	pluginID := c.Param("plugin_id")
+	if pluginID == "" {
+		c.JSON(400, gin.H{
+			"status": "error",
+			"error":  "plugin_id parameter is required",
+		})
+		return
+	}
+
+	if err := pm.TriggerPluginReload(pluginID); err != nil {
+		c.JSON(500, gin.H{
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"status":    "success",
+		"message":   fmt.Sprintf("Hot reload triggered for plugin: %s", pluginID),
+		"plugin_id": pluginID,
+	})
+}
+
 // NewPluginModule creates a new plugin module instance
 func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "plugin-module",
 		Level: hclog.Debug,
 	})
+
+	// Set default hot reload configuration if not provided
+	if config.HotReload.DebounceDelayMs == 0 {
+		config.HotReload.DebounceDelayMs = 500
+	}
+	if len(config.HotReload.WatchPatterns) == 0 {
+		config.HotReload.WatchPatterns = []string{"*_transcoder", "*_enricher", "*_scanner"}
+	}
+	if len(config.HotReload.ExcludePatterns) == 0 {
+		config.HotReload.ExcludePatterns = []string{"*.tmp", "*.log", "*.pid", ".git*", "*.swp", "*.swo", "go.mod", "go.sum", "*.go", "plugin.cue", "*.json"}
+	}
+	if config.HotReload.MaxRetries == 0 {
+		config.HotReload.MaxRetries = 3
+	}
+	if config.HotReload.RetryDelayMs == 0 {
+		config.HotReload.RetryDelayMs = 1000
+	}
 
 	logger.Info("Creating new plugin module")
 	logger.Info("Creating external plugin manager")

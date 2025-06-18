@@ -117,16 +117,28 @@ type ScannerConfig struct {
 
 // PluginConfig holds plugin system configuration
 type PluginConfig struct {
-	PluginDir            string        `yaml:"plugin_dir" json:"plugin_dir" env:"VIEWRA_PLUGIN_DIR" default:"./data/plugins"`
-	EnableHotReload      bool          `yaml:"enable_hot_reload" json:"enable_hot_reload" env:"VIEWRA_PLUGIN_HOT_RELOAD" default:"true"`
-	DefaultEnabled       bool          `yaml:"default_enabled" json:"default_enabled" env:"VIEWRA_PLUGINS_DEFAULT_ENABLED" default:"false"`
-	EnrichmentEnabled    bool          `yaml:"enrichment_enabled" json:"enrichment_enabled" env:"VIEWRA_ENRICHMENT_ENABLED" default:"true"`
-	RespectDefaultConfig bool          `yaml:"respect_default_config" json:"respect_default_config" env:"VIEWRA_PLUGIN_RESPECT_DEFAULT" default:"true"`
-	MaxExecutionTime     time.Duration `yaml:"max_execution_time" json:"max_execution_time" env:"VIEWRA_PLUGIN_MAX_EXEC_TIME" default:"30s"`
-	EnableSandbox        bool          `yaml:"enable_sandbox" json:"enable_sandbox" env:"VIEWRA_PLUGIN_SANDBOX" default:"true"`
-	MemoryLimit          int64         `yaml:"memory_limit" json:"memory_limit" env:"VIEWRA_PLUGIN_MEMORY_LIMIT" default:"536870912"`
-	AllowNetworkAccess   bool          `yaml:"allow_network_access" json:"allow_network_access" env:"VIEWRA_PLUGIN_NETWORK" default:"true"`
-	AllowFileSystemWrite bool          `yaml:"allow_filesystem_write" json:"allow_filesystem_write" env:"VIEWRA_PLUGIN_FS_WRITE" default:"false"`
+	PluginDir            string                `yaml:"plugin_dir" json:"plugin_dir" env:"VIEWRA_PLUGIN_DIR" default:"./data/plugins"`
+	EnableHotReload      bool                  `yaml:"enable_hot_reload" json:"enable_hot_reload" env:"VIEWRA_PLUGIN_HOT_RELOAD" default:"true"`
+	DefaultEnabled       bool                  `yaml:"default_enabled" json:"default_enabled" env:"VIEWRA_PLUGINS_DEFAULT_ENABLED" default:"false"`
+	EnrichmentEnabled    bool                  `yaml:"enrichment_enabled" json:"enrichment_enabled" env:"VIEWRA_ENRICHMENT_ENABLED" default:"true"`
+	RespectDefaultConfig bool                  `yaml:"respect_default_config" json:"respect_default_config" env:"VIEWRA_PLUGIN_RESPECT_DEFAULT" default:"true"`
+	MaxExecutionTime     time.Duration         `yaml:"max_execution_time" json:"max_execution_time" env:"VIEWRA_PLUGIN_MAX_EXEC_TIME" default:"30s"`
+	EnableSandbox        bool                  `yaml:"enable_sandbox" json:"enable_sandbox" env:"VIEWRA_PLUGIN_SANDBOX" default:"true"`
+	MemoryLimit          int64                 `yaml:"memory_limit" json:"memory_limit" env:"VIEWRA_PLUGIN_MEMORY_LIMIT" default:"536870912"`
+	AllowNetworkAccess   bool                  `yaml:"allow_network_access" json:"allow_network_access" env:"VIEWRA_PLUGIN_NETWORK" default:"true"`
+	AllowFileSystemWrite bool                  `yaml:"allow_filesystem_write" json:"allow_filesystem_write" env:"VIEWRA_PLUGIN_FS_WRITE" default:"false"`
+	HotReload            PluginHotReloadConfig `yaml:"hot_reload" json:"hot_reload"`
+}
+
+// PluginHotReloadConfig configures hot reload behavior
+type PluginHotReloadConfig struct {
+	Enabled         bool     `json:"enabled" yaml:"enabled" env:"VIEWRA_HOT_RELOAD_ENABLED" default:"true"`
+	DebounceDelayMs int      `json:"debounce_delay_ms" yaml:"debounce_delay_ms" env:"VIEWRA_HOT_RELOAD_DEBOUNCE_MS" default:"500"`
+	WatchPatterns   []string `json:"watch_patterns" yaml:"watch_patterns"`
+	ExcludePatterns []string `json:"exclude_patterns" yaml:"exclude_patterns"`
+	PreserveState   bool     `json:"preserve_state" yaml:"preserve_state" default:"true"`
+	MaxRetries      int      `json:"max_retries" yaml:"max_retries" default:"3"`
+	RetryDelayMs    int      `json:"retry_delay_ms" yaml:"retry_delay_ms" default:"1000"`
 }
 
 // LibraryPluginSettings defines plugin settings for a specific library type
@@ -290,6 +302,15 @@ func DefaultConfig() *Config {
 			MemoryLimit:          512 * 1024 * 1024, // 512MB
 			AllowNetworkAccess:   true,
 			AllowFileSystemWrite: false,
+			HotReload: PluginHotReloadConfig{
+				Enabled:         true,
+				DebounceDelayMs: 500,
+				WatchPatterns:   []string{"*_transcoder", "*_enricher", "*_scanner"},
+				ExcludePatterns: []string{"*.tmp", "*.log", "*.pid", ".git*", "*.swp", "*.swo", "go.mod", "go.sum", "*.go", "plugin.cue", "*.json"},
+				PreserveState:   true,
+				MaxRetries:      3,
+				RetryDelayMs:    1000,
+			},
 		},
 		LibraryPluginRestrictions: map[string]LibraryPluginSettings{
 			"music": {
