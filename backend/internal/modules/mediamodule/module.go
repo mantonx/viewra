@@ -9,8 +9,10 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 
+	"github.com/hashicorp/go-hclog"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +31,9 @@ type Module struct {
 	libraryManager  *LibraryManager
 	fileProcessor   *FileProcessor
 	metadataManager *MetadataManager
+
+	// Playback integration for intelligent streaming
+	playbackIntegration *PlaybackIntegration
 }
 
 // Auto-register the module when imported
@@ -189,6 +194,25 @@ func (m *Module) initializeComponents() error {
 		log.Println("INFO: Metadata manager initialized without plugin module (limited functionality)")
 	}
 
+	// Initialize playback integration for intelligent streaming (DASH/HLS)
+	log.Println("INFO: Initializing playback integration for intelligent streaming")
+	// Note: The plugin-aware playback module integration is complex and needs architecture work
+	// For now, use the simple playback module which provides intelligent streaming but without plugin transcoding
+	nullLogger := hclog.NewNullLogger()
+	playbackModule := playbackmodule.NewSimplePlaybackModule(nullLogger, m.db)
+	if err := playbackModule.Initialize(); err != nil {
+		log.Printf("WARN: Failed to initialize simple playback module: %v", err)
+		log.Println("INFO: Media module will use basic streaming without DASH/HLS support")
+	} else {
+		m.playbackIntegration = NewPlaybackIntegration(m.db, playbackModule)
+		log.Println("INFO: Playback integration initialized - intelligent streaming available")
+		if m.pluginModule != nil {
+			log.Println("INFO: Plugin module available but transcoding integration needs architecture work")
+		} else {
+			log.Println("WARN: Plugin module not available - transcoding features limited")
+		}
+	}
+
 	return nil
 }
 
@@ -209,18 +233,26 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.GET("/files", m.getFiles)
 		mediaGroup.GET("/files/:id", m.getFile)
 		mediaGroup.DELETE("/files/:id", m.deleteFile)
-		mediaGroup.GET("/files/:id/stream", m.streamFile)
-		mediaGroup.HEAD("/files/:id/stream", m.streamFile) // Add explicit HEAD support
-		mediaGroup.GET("/files/:id/manifest.m3u8", m.generateHLSManifest)
-		mediaGroup.GET("/files/:id/transcode.mp4", m.transcodeToMP4) // Transcode MKV to MP4 for Shaka Player
+
+		// Modern DASH/HLS streaming - use PlaybackModule workflow exclusively
+		if m.playbackIntegration != nil {
+			mediaGroup.GET("/files/:id/stream", m.playbackIntegration.HandleIntelligentStream)
+			mediaGroup.HEAD("/files/:id/stream", m.playbackIntegration.HandleIntelligentStreamHead)
+			log.Println("INFO: ✅ Registered DASH/HLS intelligent streaming routes")
+		} else {
+			// If no playback integration, redirect to use PlaybackModule directly
+			mediaGroup.GET("/files/:id/stream", m.redirectToPlaybackModule)
+			mediaGroup.HEAD("/files/:id/stream", m.redirectToPlaybackModule)
+			log.Println("WARN: ⚠️ Playback integration unavailable - requests will redirect to PlaybackModule")
+		}
+
+		// File metadata and management
 		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
 		mediaGroup.GET("/files/:id/album-id", m.getFileAlbumId)
 		mediaGroup.GET("/files/:id/album-artwork", m.getFileAlbumArtwork)
 
 		// TV Shows endpoints
 		mediaGroup.GET("/tv-shows", m.getTVShows)
-
-		// Upload endpoints removed as app doesn't support uploads
 
 		// Metadata endpoints
 		mediaGroup.POST("/files/:id/metadata/extract", m.extractMetadata)
@@ -235,6 +267,8 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.GET("/status", m.getStatus)
 		mediaGroup.GET("/stats", m.getStats)
 	}
+
+	log.Println("INFO: 🎬 Media module configured for DASH/HLS-first streaming workflow")
 }
 
 // Shutdown gracefully shuts down the media module

@@ -201,7 +201,7 @@ build_plugin_host() {
         -ldflags="-s -w"  # Strip debug info and symbol table
         -trimpath         # Remove build paths from binary
         -o "$plugin_name"
-        main.go
+        .
     )
     
     print_status "Build command: CGO_ENABLED=$CGO_ENABLED GOOS=$GOOS GOARCH=$GOARCH go build ${build_flags[*]}"
@@ -227,7 +227,7 @@ build_plugin_container() {
     print_status "Building plugin in container: $plugin_name for architecture: $target_arch (CGO: $cgo_enabled)"
     
     # Build command to run in container
-    local build_cmd="cd /app/data/plugins/$plugin_name && CGO_ENABLED=$cgo_enabled GOOS=linux GOARCH=$target_arch GOCACHE=/tmp go build -ldflags='-s -w' -trimpath -o $plugin_name main.go"
+    local build_cmd="cd /app/data/plugins/$plugin_name && CGO_ENABLED=$cgo_enabled GOOS=linux GOARCH=$target_arch GOCACHE=/tmp go build -ldflags='-s -w' -trimpath -o $plugin_name ."
     
     print_status "Container build command: $build_cmd"
     

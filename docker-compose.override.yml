@@ -13,5 +13,8 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
-      # Temporarily comment out NFS mounts
+      # Temporarily comment out NFS mounts to allow frontend startup
       # - /nfs/fictionalserver/music:/media/music:ro
+    # Override the main docker-compose.yml to remove the NFS mount
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}

@@ -210,16 +210,7 @@ sources := enrichmentModule.ListEnrichmentSources()
 jobs := enrichmentModule.GetEnrichmentJobs(EnrichmentJobStatusPending)
 ```
 
-## Migration from Old System
 
-The old plugin system stored enrichment data in separate tables. The new system:
-
-1. **Centralizes** all enrichment data in the core module
-2. **Applies priority rules** automatically
-3. **Provides unified APIs** for management
-4. **Supports both internal and external** plugins
-
-See `backend/docs/enrichment-architecture.md` for detailed migration guide.
 
 ### Usage Example
 

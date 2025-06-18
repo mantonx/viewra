@@ -84,7 +84,7 @@ func (m *Module) deleteLibrary(c *gin.Context) {
 
 	// Use the comprehensive deletion service
 	deletionService := NewLibraryDeletionService(m.db, m.eventBus)
-	
+
 	// TODO: Set scanner manager if available when integration is complete
 	// if m.scannerManager != nil {
 	//     deletionService.SetScannerManager(m.scannerManager)
@@ -97,7 +97,7 @@ func (m *Module) deleteLibrary(c *gin.Context) {
 		logger.Error("Library deletion failed", "library_id", id, "error", result.Error)
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": result.Message,
+				"error":   result.Message,
 				"details": result.Error.Error(),
 			})
 		} else {
@@ -111,10 +111,10 @@ func (m *Module) deleteLibrary(c *gin.Context) {
 	logger.Info("Library deletion completed successfully", "library_id", id, "duration", result.Duration)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": result.Message,
-		"library_id": result.LibraryID,
+		"message":       result.Message,
+		"library_id":    result.LibraryID,
 		"cleanup_stats": result.CleanupStats,
-		"duration": result.Duration.String(),
+		"duration":      result.Duration.String(),
 	})
 }
 
@@ -375,11 +375,11 @@ func (m *Module) generateHLSManifest(c *gin.Context) {
 
 	// For now, create a simple HLS manifest that points to the direct stream
 	// This is a basic single-bitrate manifest for direct file playback
-	
+
 	// Use relative URL for the stream so it works with any proxy setup
 	// This allows the browser to resolve the URL relative to the current origin
 	streamURL := fmt.Sprintf("/api/media/files/%s/stream", idStr)
-	
+
 	manifest := fmt.Sprintf(`#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
@@ -996,8 +996,8 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 	}
 
 	// Parse query parameters
-	quality := c.DefaultQuery("quality", "720p")   // Default quality
-	
+	quality := c.DefaultQuery("quality", "720p") // Default quality
+
 	// Get client IP for tracking
 	clientIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
@@ -1020,10 +1020,10 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 	}
 
 	// Check if the file is already MP4 with H.264 - if so, stream directly
-	if strings.ToLower(mediaFile.Container) == "mp4" && 
-	   strings.ToLower(mediaFile.VideoCodec) == "h264" {
+	if strings.ToLower(mediaFile.Container) == "mp4" &&
+		strings.ToLower(mediaFile.VideoCodec) == "h264" {
 		// File is already compatible, stream directly
-		logger.Info("File already compatible, redirecting to direct stream", 
+		logger.Info("File already compatible, redirecting to direct stream",
 			"file_id", idStr,
 			"container", mediaFile.Container,
 			"codec", mediaFile.VideoCodec,
@@ -1032,8 +1032,8 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 		return
 	}
 
-	logger.Info("Starting transcoding session", 
-		"file_id", idStr, 
+	logger.Info("Starting transcoding session",
+		"file_id", idStr,
 		"source_container", mediaFile.Container,
 		"source_codec", mediaFile.VideoCodec,
 		"target_quality", quality,
@@ -1056,18 +1056,18 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 
 	// Build FFmpeg command for transcoding
 	ffmpegArgs := []string{
-		"-i", mediaFile.Path,           // Input file
-		"-c:v", "libx264",              // Video codec: H.264
-		"-preset", "veryfast",          // Fast encoding preset
-		"-crf", "23",                   // Constant Rate Factor (quality)
-		"-c:a", "aac",                  // Audio codec: AAC
-		"-ac", "2",                     // Audio channels: stereo
-		"-ar", "48000",                 // Audio sample rate
+		"-i", mediaFile.Path, // Input file
+		"-c:v", "libx264", // Video codec: H.264
+		"-preset", "veryfast", // Fast encoding preset
+		"-crf", "23", // Constant Rate Factor (quality)
+		"-c:a", "aac", // Audio codec: AAC
+		"-ac", "2", // Audio channels: stereo
+		"-ar", "44100", // Audio sample rate
 		"-movflags", "frag_keyframe+empty_moov", // Enable streaming
-		"-f", "mp4",                    // Output format
+		"-f", "mp4", // Output format
 		"-avoid_negative_ts", "make_zero", // Fix timestamp issues
-		"-fflags", "+genpts",           // Generate presentation timestamps
-		"-",                            // Output to stdout
+		"-fflags", "+genpts", // Generate presentation timestamps
+		"-", // Output to stdout
 	}
 
 	// Adjust quality settings
@@ -1080,13 +1080,13 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 		ffmpegArgs = append(ffmpegArgs[:4], append([]string{"-vf", "scale=-2:1080"}, ffmpegArgs[4:]...)...)
 	}
 
-	logger.Info("FFmpeg command prepared", 
+	logger.Info("FFmpeg command prepared",
 		"file_id", idStr,
 		"args", strings.Join(ffmpegArgs, " "))
 
 	// Start FFmpeg process
 	cmd := exec.Command("ffmpeg", ffmpegArgs...)
-	
+
 	// Get stdout pipe for streaming
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -1117,8 +1117,8 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 	}
 
 	processStartTime := time.Now()
-	logger.Info("FFmpeg process started", 
-		"file_id", idStr, 
+	logger.Info("FFmpeg process started",
+		"file_id", idStr,
 		"pid", cmd.Process.Pid,
 		"start_time", processStartTime)
 
@@ -1129,8 +1129,8 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.Contains(line, "error") || strings.Contains(line, "Error") || 
-			   strings.Contains(line, "warning") || strings.Contains(line, "Warning") {
+			if strings.Contains(line, "error") || strings.Contains(line, "Error") ||
+				strings.Contains(line, "warning") || strings.Contains(line, "Warning") {
 				logger.Warn("FFmpeg stderr", "file_id", idStr, "message", line)
 			} else if strings.Contains(line, "frame=") || strings.Contains(line, "time=") {
 				// Progress information (log periodically)
@@ -1148,8 +1148,8 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 		go func() {
 			select {
 			case <-cn.CloseNotify():
-				logger.Warn("Client connection closed (CloseNotifier)", 
-					"file_id", idStr, 
+				logger.Warn("Client connection closed (CloseNotifier)",
+					"file_id", idStr,
 					"client_ip", clientIP,
 					"duration", time.Since(processStartTime))
 				close(disconnected)
@@ -1164,7 +1164,7 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 	// Handle termination
 	go func() {
 		<-disconnected
-		logger.Info("Terminating transcoding due to client disconnect", 
+		logger.Info("Terminating transcoding due to client disconnect",
 			"file_id", idStr,
 			"duration", time.Since(processStartTime))
 		if cmd.Process != nil {
@@ -1193,24 +1193,24 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 		if n > 0 {
 			written, writeErr := c.Writer.Write(buffer[:n])
 			if writeErr != nil {
-				logger.Error("Failed to write to response", 
-					"file_id", idStr, 
+				logger.Error("Failed to write to response",
+					"file_id", idStr,
 					"error", writeErr,
 					"bytes_written_so_far", totalBytes)
 				break
 			}
 			totalBytes += int64(written)
 			chunkCount++
-			
+
 			// Flush immediately for streaming
 			if flusher, ok := c.Writer.(http.Flusher); ok {
 				flusher.Flush()
 			}
 
 			// Log progress every 10MB or 30 seconds
-			if totalBytes > 0 && (totalBytes % (10*1024*1024) == 0 || time.Since(lastLogTime) > 30*time.Second) {
+			if totalBytes > 0 && (totalBytes%(10*1024*1024) == 0 || time.Since(lastLogTime) > 30*time.Second) {
 				lastLogTime = time.Now()
-				logger.Info("Transcoding progress", 
+				logger.Info("Transcoding progress",
 					"file_id", idStr,
 					"bytes_streamed", totalBytes,
 					"chunks_sent", chunkCount,
@@ -1218,7 +1218,7 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 					"avg_speed_mbps", float64(totalBytes)/1024/1024/time.Since(processStartTime).Seconds())
 			}
 		}
-		
+
 		if err == io.EOF {
 			logger.Info("FFmpeg output completed (EOF)", "file_id", idStr)
 			break
@@ -1232,18 +1232,18 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 	// Wait for the command to finish
 	cmdErr := cmd.Wait()
 	duration := time.Since(processStartTime)
-	
+
 	// Wait for stderr logging to complete
 	<-stderrDone
 
 	if cmdErr != nil {
-		logger.Error("FFmpeg process failed", 
+		logger.Error("FFmpeg process failed",
 			"file_id", idStr,
 			"error", cmdErr,
 			"duration", duration,
 			"bytes_streamed", totalBytes)
 	} else {
-		logger.Info("Transcoding session completed successfully", 
+		logger.Info("Transcoding session completed successfully",
 			"file_id", idStr,
 			"bytes_streamed", totalBytes,
 			"chunks_sent", chunkCount,
@@ -1251,4 +1251,95 @@ func (m *Module) transcodeToMP4(c *gin.Context) {
 			"avg_speed_mbps", float64(totalBytes)/1024/1024/duration.Seconds(),
 			"client_ip", clientIP)
 	}
+}
+
+// getPlaybackDecision returns playback decision for a specific media file
+func (m *Module) getPlaybackDecision(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid file ID",
+		})
+		return
+	}
+
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", idStr).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Media file not found",
+		})
+		return
+	}
+
+	// Create device profile from request headers
+	userAgent := c.GetHeader("User-Agent")
+
+	// Simple playback decision logic (device profile would be used for more complex decisions)
+	_ = userAgent // Acknowledge we're getting user agent for future use
+
+	// For now, we'll return a basic decision based on file format
+	shouldTranscode := false
+	reason := "Media is compatible with client capabilities"
+
+	// Check if transcoding is needed based on container format
+	if strings.HasSuffix(strings.ToLower(mediaFile.Path), ".mkv") {
+		shouldTranscode = true
+		reason = "Container format (MKV) requires transcoding for web playback"
+	}
+
+	response := gin.H{
+		"should_transcode": shouldTranscode,
+		"reason":           reason,
+		"media_info": gin.H{
+			"id":         mediaFile.ID,
+			"container":  getFileExtension(mediaFile.Path),
+			"path":       mediaFile.Path,
+			"size_bytes": mediaFile.SizeBytes,
+		},
+	}
+
+	if shouldTranscode {
+		response["stream_url"] = fmt.Sprintf("/api/media/files/%s/transcode.mp4", idStr)
+	} else {
+		response["stream_url"] = fmt.Sprintf("/api/media/files/%s/stream", idStr)
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// getFileExtension returns the file extension without the dot
+func getFileExtension(path string) string {
+	ext := filepath.Ext(path)
+	if len(ext) > 1 {
+		return ext[1:] // Remove the leading dot
+	}
+	return ""
+}
+
+// redirectToPlaybackModule redirects streaming requests to the modern PlaybackModule
+func (m *Module) redirectToPlaybackModule(c *gin.Context) {
+	fileID := c.Param("id")
+
+	// Get the media file to extract the path
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", fileID).First(&mediaFile).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "Media file not found",
+			"message": "Please use the modern PlaybackModule API at /api/playback/decide for video streaming",
+		})
+		return
+	}
+
+	// Return helpful redirect information
+	c.JSON(http.StatusTemporaryRedirect, gin.H{
+		"message": "This endpoint now uses DASH/HLS streaming via PlaybackModule",
+		"modern_workflow": gin.H{
+			"step1": "POST /api/playback/decide with media_path and device_profile",
+			"step2": "POST /api/playback/start if transcoding is needed",
+			"step3": "Use manifest URLs for DASH/HLS streaming",
+		},
+		"media_path":      mediaFile.Path,
+		"file_id":         fileID,
+		"redirect_reason": "Intelligent streaming not available in media module",
+	})
 }

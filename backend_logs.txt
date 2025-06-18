@@ -1,0 +1,1433 @@
+backend-1  | =======================================
+backend-1  |   Viewra Media Server - Module System  
+backend-1  | =======================================
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Media Asset Manager (system.media.assets)
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Database Manager (system.database)
+backend-1  | 2025-06-17T22:26:29.248Z [INFO]  plugin-module: Creating new plugin module
+backend-1  | 2025-06-17T22:26:29.248Z [INFO]  plugin-module: Creating external plugin manager
+backend-1  | 2025-06-17T22:26:29.248Z [INFO]  plugin-module: External plugin manager created: manager=true
+backend-1  | 2025-06-17T22:26:29.248Z [INFO]  plugin-module: Plugin module created: external_manager_stored=true
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Plugin Manager (system.plugins)
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Playback Manager (system.playback)
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Media Manager (system.media)
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Enrichment Manager (system.enrichment)
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Media Scanner (system.scanner)
+backend-1  | 2025/06/17 22:26:29 INFO: 📦 Module registered: Event Management (system.events)
+backend-1  | 2025/06/17 22:26:29 ✅ Configuration loaded successfully
+backend-1  | 2025/06/17 22:26:29 ✅ Using default configuration
+backend-1  | 2025/06/17 22:26:29 🔄 Initializing database...
+backend-1  | 2025/06/17 22:26:29 🔍 Validating database configuration...
+backend-1  | 2025/06/17 22:26:29 ⚠️  Warning: Found redundant database files:
+backend-1  | 2025/06/17 22:26:29    - /app/data/app.db
+backend-1  | 2025/06/17 22:26:29    - /app/data/viewra.db
+backend-1  | 2025/06/17 22:26:29    - /app/viewra.db
+backend-1  | 2025/06/17 22:26:29    Run: ./scripts/cleanup-databases.sh
+backend-1  | 2025/06/17 22:26:29 ✅ Database configuration validated: /app/viewra-data/viewra.db
+backend-1  | 2025/06/17 22:26:29 📊 Database connection pool configured:
+backend-1  | 2025/06/17 22:26:29    - Max Open Connections: 100
+backend-1  | 2025/06/17 22:26:29    - Max Idle Connections: 20
+backend-1  | 2025/06/17 22:26:29    - Connection Max Lifetime: 2h0m0s
+backend-1  | 2025/06/17 22:26:29    - Connection Max Idle Time: 30m0s
+backend-1  | 2025/06/17 22:26:29 📊 Initial connection pool stats:
+backend-1  | 2025/06/17 22:26:29    - Open Connections: 1
+backend-1  | 2025/06/17 22:26:29    - In Use: 0
+backend-1  | 2025/06/17 22:26:29    - Idle: 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.029ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="users"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.048ms] [34;1m[rows:3][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "users" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.012ms] [34;1m[rows:-][0m SELECT * FROM `users` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.010ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "users" AND name = "idx_users_username"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "users" AND name = "idx_users_email"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_libraries"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.023ms] [34;1m[rows:1][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_libraries" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:-][0m SELECT * FROM `media_libraries` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="scan_jobs"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.022ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "scan_jobs" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.012ms] [34;1m[rows:-][0m SELECT * FROM `scan_jobs` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.024ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "scan_jobs" AND (sql LIKE "%CONSTRAINT ""fk_scan_jobs_library"" %" OR sql LIKE "%CONSTRAINT fk_scan_jobs_library %" OR sql LIKE "%CONSTRAINT `fk_scan_jobs_library`%" OR sql LIKE "%CONSTRAINT [fk_scan_jobs_library]%" OR sql LIKE "%CONSTRAINT 	fk_scan_jobs_library	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "scan_jobs" AND name = "idx_scan_jobs_library_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_files"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.031ms] [34;1m[rows:7][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_files" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.034ms] [34;1m[rows:-][0m SELECT * FROM `media_files` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_path"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_hash"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_library_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_scan_job_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_assets"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.028ms] [34;1m[rows:7][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_assets" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.016ms] [34;1m[rows:-][0m SELECT * FROM `media_assets` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:1][0m PRAGMA foreign_keys
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.009ms] [34;1m[rows:0][0m PRAGMA foreign_keys = OFF
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.010ms] [34;1m[rows:-][0m SELECT sql FROM sqlite_master WHERE type = "table" AND tbl_name = "media_assets" AND name = "media_assets"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.173ms] [34;1m[rows:0][0m CREATE TABLE `media_assets__temp`  (`id` varchar(36),`entity_type` text NOT NULL,`entity_id` varchar(36) NOT NULL,`type` text NOT NULL,`source` text NOT NULL,`plugin_id` text,`path` text NOT NULL,`language` text DEFAULT "",`format` text NOT NULL,`width` integer DEFAULT 0,`height` integer DEFAULT 0,`preferred` numeric DEFAULT false,`resolution` text,`size_bytes` integer DEFAULT 0,`created_at` datetime,`updated_at` datetime,PRIMARY KEY (`id`))
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.981ms] [34;1m[rows:426][0m INSERT INTO `media_assets__temp`(`id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at`) SELECT `id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at` FROM `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.810ms] [34;1m[rows:426][0m DROP TABLE `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[1.448ms] [34;1m[rows:426][0m ALTER TABLE `media_assets__temp` RENAME TO `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.008ms] [34;1m[rows:426][0m PRAGMA foreign_keys = ON
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.012ms] [34;1m[rows:1][0m PRAGMA foreign_keys
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:426][0m PRAGMA foreign_keys = OFF
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT sql FROM sqlite_master WHERE type = "table" AND tbl_name = "media_assets" AND name = "media_assets"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.152ms] [34;1m[rows:426][0m CREATE TABLE `media_assets__temp`  (`id` varchar(36),`entity_type` text NOT NULL,`entity_id` varchar(36) NOT NULL,`type` text NOT NULL,`source` text NOT NULL,`plugin_id` text,`path` text NOT NULL,`language` text,`format` text NOT NULL,`width` integer DEFAULT 0,`height` integer DEFAULT 0,`preferred` numeric DEFAULT false,`resolution` text,`size_bytes` integer DEFAULT 0,`created_at` datetime,`updated_at` datetime,PRIMARY KEY (`id`))
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.782ms] [34;1m[rows:426][0m INSERT INTO `media_assets__temp`(`id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at`) SELECT `id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at` FROM `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.135ms] [34;1m[rows:426][0m DROP TABLE `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[1.314ms] [34;1m[rows:426][0m ALTER TABLE `media_assets__temp` RENAME TO `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.005ms] [34;1m[rows:426][0m PRAGMA foreign_keys = ON
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_entity_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.221ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_entity_type` ON `media_assets`(`entity_type`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_entity_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.276ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_entity_id` ON `media_assets`(`entity_id`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.195ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_type` ON `media_assets`(`type`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_source"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.193ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_source` ON `media_assets`(`source`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.245ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_plugin_id` ON `media_assets`(`plugin_id`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="peoples"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.044ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "peoples" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.012ms] [34;1m[rows:-][0m SELECT * FROM `peoples` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "peoples" AND name = "idx_peoples_name"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="roles"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.028ms] [34;1m[rows:5][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "roles" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.018ms] [34;1m[rows:-][0m SELECT * FROM `roles` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_person_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_role"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="artists"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.030ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "artists" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.013ms] [34;1m[rows:-][0m SELECT * FROM `artists` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "artists" AND name = "idx_artists_name"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="albums"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.024ms] [34;1m[rows:3][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "albums" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.011ms] [34;1m[rows:-][0m SELECT * FROM `albums` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "albums" AND (sql LIKE "%CONSTRAINT ""fk_albums_artist"" %" OR sql LIKE "%CONSTRAINT fk_albums_artist %" OR sql LIKE "%CONSTRAINT `fk_albums_artist`%" OR sql LIKE "%CONSTRAINT [fk_albums_artist]%" OR sql LIKE "%CONSTRAINT 	fk_albums_artist	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.009ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "albums" AND name = "idx_albums_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "albums" AND name = "idx_albums_artist_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="tracks"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.032ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "tracks" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.042ms] [34;1m[rows:-][0m SELECT * FROM `tracks` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "tracks" AND (sql LIKE "%CONSTRAINT ""fk_tracks_album"" %" OR sql LIKE "%CONSTRAINT fk_tracks_album %" OR sql LIKE "%CONSTRAINT `fk_tracks_album`%" OR sql LIKE "%CONSTRAINT [fk_tracks_album]%" OR sql LIKE "%CONSTRAINT 	fk_tracks_album	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.005ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "tracks" AND (sql LIKE "%CONSTRAINT ""fk_tracks_artist"" %" OR sql LIKE "%CONSTRAINT fk_tracks_artist %" OR sql LIKE "%CONSTRAINT `fk_tracks_artist`%" OR sql LIKE "%CONSTRAINT [fk_tracks_artist]%" OR sql LIKE "%CONSTRAINT 	fk_tracks_artist	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tracks" AND name = "idx_tracks_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tracks" AND name = "idx_tracks_album_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tracks" AND name = "idx_tracks_artist_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="movies"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.044ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "movies" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.073ms] [34;1m[rows:-][0m SELECT * FROM `movies` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "movies" AND name = "idx_movies_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "movies" AND name = "idx_movies_tmdb_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "movies" AND name = "idx_movies_imdb_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="tv_shows"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.039ms] [34;1m[rows:3][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "tv_shows" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.040ms] [34;1m[rows:-][0m SELECT * FROM `tv_shows` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tv_shows" AND name = "idx_tv_shows_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tv_shows" AND name = "idx_tv_shows_tmdb_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="seasons"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.029ms] [34;1m[rows:3][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "seasons" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.029ms] [34;1m[rows:-][0m SELECT * FROM `seasons` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "seasons" AND (sql LIKE "%CONSTRAINT ""fk_seasons_tv_show"" %" OR sql LIKE "%CONSTRAINT fk_seasons_tv_show %" OR sql LIKE "%CONSTRAINT `fk_seasons_tv_show`%" OR sql LIKE "%CONSTRAINT [fk_seasons_tv_show]%" OR sql LIKE "%CONSTRAINT 	fk_seasons_tv_show	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "seasons" AND name = "idx_seasons_tv_show_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "seasons" AND name = "idx_seasons_season_number"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="episodes"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.027ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "episodes" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.015ms] [34;1m[rows:-][0m SELECT * FROM `episodes` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "episodes" AND (sql LIKE "%CONSTRAINT ""fk_episodes_season"" %" OR sql LIKE "%CONSTRAINT fk_episodes_season %" OR sql LIKE "%CONSTRAINT `fk_episodes_season`%" OR sql LIKE "%CONSTRAINT [fk_episodes_season]%" OR sql LIKE "%CONSTRAINT 	fk_episodes_season	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "episodes" AND name = "idx_episodes_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "episodes" AND name = "idx_episodes_episode_number"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "episodes" AND name = "idx_episodes_season_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_external_ids"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.025ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_external_ids" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.011ms] [34;1m[rows:-][0m SELECT * FROM `media_external_ids` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_external_ids" AND name = "idx_media_external_ids_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_external_ids" AND name = "idx_media_external_ids_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_external_ids" AND name = "idx_media_external_ids_source"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_enrichments"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.035ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_enrichments" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.010ms] [34;1m[rows:-][0m SELECT * FROM `media_enrichments` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_enrichments" AND name = "idx_media_enrichments_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_enrichments" AND name = "idx_media_enrichments_plugin"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_enrichments" AND name = "idx_media_enrichments_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="plugins"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.022ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "plugins" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.021ms] [34;1m[rows:-][0m SELECT * FROM `plugins` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "plugins" AND name = "idx_plugins_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="plugin_permissions"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.022ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "plugin_permissions" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.019ms] [34;1m[rows:-][0m SELECT * FROM `plugin_permissions` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "plugin_permissions" AND name = "idx_plugin_permissions_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="plugin_events"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.026ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "plugin_events" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.012ms] [34;1m[rows:-][0m SELECT * FROM `plugin_events` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "plugin_events" AND name = "idx_plugin_events_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="plugin_hooks"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.021ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "plugin_hooks" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.009ms] [34;1m[rows:-][0m SELECT * FROM `plugin_hooks` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "plugin_hooks" AND name = "idx_plugin_hooks_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="plugin_admin_pages"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.025ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "plugin_admin_pages" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.017ms] [34;1m[rows:-][0m SELECT * FROM `plugin_admin_pages` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "plugin_admin_pages" AND name = "idx_plugin_admin_pages_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="plugin_ui_components"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.022ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "plugin_ui_components" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.019ms] [34;1m[rows:-][0m SELECT * FROM `plugin_ui_components` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "plugin_ui_components" AND name = "idx_plugin_ui_components_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="system_events"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.027ms] [34;1m[rows:7][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "system_events" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.012ms] [34;1m[rows:-][0m SELECT * FROM `system_events` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.005ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_priority"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_created_at"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_event_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_source"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/database/database.go:83
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_target"
+backend-1  | 2025/06/17 22:26:29 ✅ Database initialized with SQLite at /app/viewra-data/viewra.db
+backend-1  | [GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+backend-1  | 
+backend-1  | [GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+backend-1  |  - using env:	export GIN_MODE=release
+backend-1  |  - using code:	gin.SetMode(gin.ReleaseMode)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [EVENT-INFO] Event bus started%!(EXTRA string=buffer_size, int=1000)
+backend-1  | 2025/06/17 22:26:29 ✅ System event bus initialized and started
+backend-1  | 2025/06/17 22:26:29 INFO: 🔄 Loading 8 modules...
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Database Manager
+backend-1  | 2025/06/17 22:26:29 INFO: Migrating database module schema
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="system_events"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.025ms] [34;1m[rows:7][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "system_events" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `system_events` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_event_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_source"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_target"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_priority"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/module.go:80
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "system_events" AND name = "idx_system_events_created_at"
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing database module
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/migration_manager.go:260
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="migration_records"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/migration_manager.go:260
+backend-1  | [0m[33m[0.022ms] [34;1m[rows:1][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "migration_records" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/databasemodule/migration_manager.go:260
+backend-1  | [0m[33m[0.026ms] [34;1m[rows:-][0m SELECT * FROM `migration_records` LIMIT 1
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing database connection pool
+backend-1  | 2025/06/17 22:26:29 INFO: No read-only database configured, using primary connection
+backend-1  | 2025/06/17 22:26:29 INFO: No analytics database configured, using primary connection
+backend-1  | 2025/06/17 22:26:29 INFO: Connection pool initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing transaction manager
+backend-1  | 2025/06/17 22:26:29 INFO: Transaction manager initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing model registry
+backend-1  | 2025/06/17 22:26:29 INFO: Model registry initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Database module initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Database Manager
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Plugin Manager
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  plugin-module: running plugin module database migrations
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  plugin-module: Database connection set during migration
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  plugin-module: initializing plugin module
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  plugin-module: initializing plugin module
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  core-plugin-manager: loading core plugins from global registry
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  core-plugin-manager: creating core plugin: name=enrichment
+backend-1  | 2025/06/17 22:26:29 [EVENT-DEBUG] Processing event%!(EXTRA string=type, events.EventType=database.module.initialized, string=id, string=20250617222629.266605, string=source, string=system)
+backend-1  | 2025/06/17 22:26:29 ✅ Registered core plugin: music_metadata_extractor_plugin (type: enrichment)
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  core-plugin-manager: loaded core plugin from registry: name=enrichment type=enrichment
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  core-plugin-manager: creating core plugin: name=ffmpeg
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:230
+backend-1  | [0m[33m[0.073ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "music_metadata_extractor_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:230
+backend-1  | [0m[33m[0.160ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "ffmpeg_probe_core_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | 2025/06/17 22:26:29 ✅ Registered core plugin: ffmpeg_probe_core_plugin (type: ffmpeg)
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  core-plugin-manager: loaded core plugin from registry: name=ffmpeg type=ffmpeg
+backend-1  | 2025-06-17T22:26:29.266Z [INFO]  core-plugin-manager: creating core plugin: name=movie_structure
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/events/storage.go:136
+backend-1  | [0m[33m[0.626ms] [34;1m[rows:1][0m INSERT INTO `system_events` (`event_id`,`type`,`source`,`target`,`title`,`message`,`data`,`priority`,`tags`,`ttl`,`created_at`,`updated_at`) VALUES ("20250617222629.266605","database.module.initialized","system","","Database Module Initialized","Database module has been successfully initialized","{}",5,"[]",NULL,"2025-06-17 22:26:29.266","2025-06-17 22:26:29.266") RETURNING `id`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:230
+backend-1  | [0m[33m[0.640ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "movie_structure_parser_core_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | 2025/06/17 22:26:29 ✅ Registered core plugin: movie_structure_parser_core_plugin (type: movie_structure_parser)
+backend-1  | 2025-06-17T22:26:29.267Z [INFO]  core-plugin-manager: loaded core plugin from registry: name=movie_structure type=movie_structure_parser
+backend-1  | 2025-06-17T22:26:29.267Z [INFO]  core-plugin-manager: creating core plugin: name=tv_structure
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:230
+backend-1  | [0m[33m[0.022ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "tv_structure_parser_core_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | 2025/06/17 22:26:29 ✅ Registered core plugin: tv_structure_parser_core_plugin (type: tv_structure_parser)
+backend-1  | 2025-06-17T22:26:29.267Z [INFO]  core-plugin-manager: loaded core plugin from registry: name=tv_structure type=tv_structure_parser
+backend-1  | 2025-06-17T22:26:29.267Z [INFO]  core-plugin-manager: core plugin loading completed: count=4
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:287
+backend-1  | [0m[33m[0.015ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "tv_structure_parser_core_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | DEBUG: Initializing TV Structure Parser Core Plugin
+backend-1  | DEBUG: TV Structure Parser plugin supports 14 file types: [.mkv .mp4 .avi .mov .wmv .flv .webm .m4v .ts .mts .m2ts .mpg .mpeg .ogv]
+backend-1  | 2025/06/17 22:26:29 ✅ Initialized core plugin: tv_structure_parser_core_plugin
+backend-1  | ✅ TV Structure Parser initialized - TV show metadata parsing available
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:287
+backend-1  | [0m[33m[0.015ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "music_metadata_extractor_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | 2025/06/17 22:26:29 ✅ Music Metadata Extractor initialized - music metadata extraction available
+backend-1  | 2025/06/17 22:26:29 ✅ Initialized core plugin: music_metadata_extractor_plugin
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:287
+backend-1  | [0m[33m[0.015ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "ffmpeg_probe_core_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | DEBUG: Initializing FFmpeg Core Plugin
+backend-1  | DEBUG: FFmpeg plugin supports 26 file types: [.mp4 .mkv .avi .mov .wmv .flv .webm .m4v .3gp .ogv .mpg .mpeg .ts .mts .m2ts .mp3 .flac .wav .m4a .aac .ogg .wma .opus .aiff .ape .wv]
+backend-1  | 2025/06/17 22:26:29 ✅ Initialized core plugin: ffmpeg_probe_core_plugin
+backend-1  | DEBUG: FFprobe is available
+backend-1  | ✅ FFprobe detected - Enhanced media metadata available
+backend-1  | 2025/06/17 22:26:29 ✅ Initialized core plugin: movie_structure_parser_core_plugin
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/core_manager.go:287
+backend-1  | [0m[33m[0.067ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "movie_structure_parser_core_plugin" AND type = "core" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | DEBUG: Initializing Movie Structure Parser Core Plugin
+backend-1  | DEBUG: Movie Structure Parser plugin supports 14 file types: [.mkv .mp4 .avi .mov .wmv .flv .webm .m4v .ts .mts .m2ts .mpg .mpeg .ogv]
+backend-1  | ✅ Movie Structure Parser initialized - Movie metadata parsing available
+backend-1  | 2025-06-17T22:26:29.287Z [INFO]  plugin-module: initializing external plugin manager: plugin_dir=/app/data/plugins
+backend-1  | 2025-06-17T22:26:29.287Z [INFO]  plugin-module: starting reliability monitoring systems
+backend-1  | 2025-06-17T22:26:29.287Z [INFO]  plugin-module: discovering external plugins: plugin_dir=/app/data/plugins
+backend-1  | 2025-06-17T22:26:29.287Z [INFO]  plugin-module.health-monitor: starting plugin health monitor: check_interval=30s
+backend-1  | 2025-06-17T22:26:29.287Z [ERROR] plugin-module: failed to parse plugin manifest: plugin=audiodb_enricher error="missing required fields (id or name) in plugin manifest"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/external_manager.go:1027
+backend-1  | 2025-06-17T22:26:29.288Z [INFO]  plugin-module: registered external plugin: plugin_name="FFmpeg Transcoder" plugin_id=ffmpeg_transcoder
+backend-1  | 2025-06-17T22:26:29.288Z [INFO]  plugin-module: discovered external plugin: plugin_id=ffmpeg_transcoder name="FFmpeg Transcoder" version=1.0.0
+backend-1  | [0m[33m[0.065ms] [34;1m[rows:1][0m SELECT * FROM `plugins` WHERE plugin_id = "ffmpeg_transcoder" AND type = "external" ORDER BY `plugins`.`id` LIMIT 1
+backend-1  | 2025-06-17T22:26:29.288Z [ERROR] plugin-module: failed to parse plugin manifest: plugin=musicbrainz_enricher error="missing required fields (id or name) in plugin manifest"
+backend-1  | 2025-06-17T22:26:29.288Z [ERROR] plugin-module: failed to parse plugin manifest: plugin=tmdb_enricher_v2 error="missing required fields (id or name) in plugin manifest"
+backend-1  | 2025-06-17T22:26:29.288Z [INFO]  plugin-module: external plugin discovery completed: discovered_count=1
+backend-1  | 2025-06-17T22:26:29.288Z [INFO]  plugin-module: auto-loading enabled plugins
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/external_manager.go:1755
+backend-1  | [0m[33m[0.169ms] [34;1m[rows:8][0m SELECT * FROM `plugins` WHERE status IN ("enabled", "running")
+backend-1  | 2025-06-17T22:26:29.288Z [WARN]  plugin-module: plugin not found in memory: plugin=ffmpeg_probe_core_plugin
+backend-1  | 2025-06-17T22:26:29.288Z [WARN]  plugin-module: plugin not found in memory: plugin=movie_structure_parser_core_plugin
+backend-1  | 2025-06-17T22:26:29.288Z [WARN]  plugin-module: plugin not found in memory: plugin=tv_structure_parser_core_plugin
+backend-1  | 2025-06-17T22:26:29.288Z [WARN]  plugin-module: plugin not found in memory: plugin=music_metadata_extractor_plugin
+backend-1  | 2025-06-17T22:26:29.288Z [WARN]  plugin-module: plugin not found in memory: plugin=musicbrainz_enricher
+backend-1  | 2025-06-17T22:26:29.288Z [WARN]  plugin-module: plugin not found in memory: plugin=tmdb_enricher
+backend-1  | 2025-06-17T22:26:29.288Z [WARN]  plugin-module: plugin not found in memory: plugin=tmdb_enricher_v2
+backend-1  | 2025-06-17T22:26:29.288Z [INFO]  plugin-module: starting external plugin: plugin=ffmpeg_transcoder
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/external_manager.go:1695
+backend-1  | [0m[33m[0.093ms] [34;1m[rows:1][0m UPDATE `plugins` SET `status`="loading",`updated_at`="2025-06-17 22:26:29.288" WHERE plugin_id = "ffmpeg_transcoder" AND type = "external"
+backend-1  | 2025-06-17T22:26:29.288Z [DEBUG] plugin-module.ffmpeg_transcoder: starting plugin: path=/app/data/plugins/ffmpeg_transcoder/ffmpeg_transcoder args=["/app/data/plugins/ffmpeg_transcoder/ffmpeg_transcoder"]
+backend-1  | 2025-06-17T22:26:29.288Z [DEBUG] plugin-module.ffmpeg_transcoder: plugin started: path=/app/data/plugins/ffmpeg_transcoder/ffmpeg_transcoder pid=5329
+backend-1  | 2025-06-17T22:26:29.288Z [DEBUG] plugin-module.ffmpeg_transcoder: waiting for RPC address: plugin=/app/data/plugins/ffmpeg_transcoder/ffmpeg_transcoder
+backend-1  | 2025-06-17T22:26:29.291Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: plugin address: address=/tmp/plugin3590780053 network=unix timestamp=2025-06-17T22:26:29.291Z
+backend-1  | 2025-06-17T22:26:29.291Z [DEBUG] plugin-module.ffmpeg_transcoder: using plugin: version=1
+backend-1  | 2025-06-17T22:26:29.291Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.291Z [INFO]  ffmpeg_transcoder: FFmpeg Transcoder initializing: base_path=/app/data/plugins/ffmpeg_transcoder plugin_base_path=/app/data/plugins/ffmpeg_transcoder
+backend-1  | 2025-06-17T22:26:29.291Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.291Z [INFO]  ffmpeg_transcoder: Connecting to main application database: database_url=sqlite:///app/viewra-data/viewra.db
+backend-1  | 2025-06-17T22:26:29.292Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.292Z [INFO]  ffmpeg_transcoder: Connected to main application database successfully
+backend-1  | 2025-06-17T22:26:29.292Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.292Z [INFO]  ffmpeg_transcoder: Starting database migration for transcode session tables
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: Database migration completed - transcode sessions now stored in main database
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: Connecting to host services: addr=localhost:50051
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: Connected to host services successfully
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: Initializing plugin services
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: loading configuration from CUE file
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: cleaning up stale sessions from previous run
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: stopping all active sessions for plugin cleanup: plugin_id=ffmpeg_transcoder
+backend-1  | 2025-06-17T22:26:29.293Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.293Z [INFO]  ffmpeg_transcoder: no active sessions to stop: plugin_id=ffmpeg_transcoder
+backend-1  | 2025-06-17T22:26:29.314Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.314Z [INFO]  ffmpeg_transcoder: FFmpeg availability verified: path=ffmpeg
+backend-1  | 2025-06-17T22:26:29.314Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.314Z [INFO]  ffmpeg_transcoder: DEBUG: Creating transcoding service
+backend-1  | 2025-06-17T22:26:29.314Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.314Z [INFO]  ffmpeg_transcoder: DEBUG: Transcoding service created successfully: service="&{0xc0002af330 0xc00058a000 0xc0004bd1d0 0xc0004d6340 0xc00034ab00}"
+backend-1  | 2025-06-17T22:26:29.314Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.314Z [INFO]  ffmpeg_transcoder: DEBUG: Notified lazy service that transcoding service is ready
+backend-1  | 2025-06-17T22:26:29.314Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.314Z [INFO]  ffmpeg_transcoder: Plugin services initialized successfully
+backend-1  | 2025-06-17T22:26:29.314Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.314Z [INFO]  ffmpeg_transcoder: FFmpeg Transcoder initialized successfully with main database integration
+backend-1  | 2025-06-17T22:26:29.314Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.314Z [INFO]  ffmpeg_transcoder: Starting background cleanup routine
+backend-1  | 2025-06-17T22:26:29.315Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.315Z [INFO]  ffmpeg_transcoder: FFmpeg Transcoder started
+backend-1  | 2025-06-17T22:26:29.315Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.315Z [INFO]  ffmpeg_transcoder: session cleanup routine started
+backend-1  | 2025-06-17T22:26:29.337Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.337Z [INFO]  ffmpeg_transcoder: FFmpeg availability verified: path=ffmpeg
+backend-1  | 2025-06-17T22:26:29.337Z [INFO]  plugin-module: setting up database for plugin: plugin=ffmpeg_transcoder models=2
+backend-1  | 2025-06-17T22:26:29.337Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.337Z [INFO]  ffmpeg_transcoder: Migrating generic transcode session tables to main database: connection_string=sqlite:///app/viewra-data/viewra.db
+backend-1  | 2025-06-17T22:26:29.338Z [DEBUG] plugin-module.ffmpeg_transcoder.ffmpeg_transcoder: 2025-06-17T22:26:29.338Z [INFO]  ffmpeg_transcoder: Successfully migrated generic transcode session tables to main database
+backend-1  | 2025-06-17T22:26:29.339Z [INFO]  plugin-module: successfully set up plugin database: plugin=ffmpeg_transcoder
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/pluginmodule/external_manager.go:1695
+backend-1  | [0m[33m[0.115ms] [34;1m[rows:1][0m UPDATE `plugins` SET `enabled_at`="2025-06-17 22:26:29.339",`status`="running",`updated_at`="2025-06-17 22:26:29.339" WHERE plugin_id = "ffmpeg_transcoder" AND type = "external"
+backend-1  | 2025-06-17T22:26:29.339Z [INFO]  plugin-module: successfully auto-loaded external plugin: plugin=ffmpeg_transcoder
+backend-1  | 2025-06-17T22:26:29.339Z [INFO]  plugin-module: auto-loading completed: loaded=1 failed=0 total=8
+backend-1  | 2025-06-17T22:26:29.339Z [INFO]  plugin-module: external plugin manager initialized successfully
+backend-1  | 2025-06-17T22:26:29.339Z [INFO]  plugin-module.media-plugin-manager: media plugin manager initialized
+backend-1  | 2025-06-17T22:26:29.339Z [INFO]  plugin-module: plugin module initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Plugin Manager
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Playback Manager
+backend-1  | 2025/06/17 22:26:29 INFO: Migrating playback module schema
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing playback module components
+backend-1  | 2025/06/17 22:26:29 INFO: Playback module initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Playback Manager
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Media Manager
+backend-1  | 2025/06/17 22:26:29 INFO: Migrating media module schema
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | 2025/06/17 22:26:29 [EVENT-DEBUG] Processing event%!(EXTRA string=type, events.EventType=info, string=id, string=20250617222629.339170, string=source, string=system)
+backend-1  | [0m[33m[0.024ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_libraries"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.126ms] [34;1m[rows:1][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_libraries" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.027ms] [34;1m[rows:-][0m SELECT * FROM `media_libraries` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_files"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.035ms] [34;1m[rows:7][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_files" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/events/storage.go:136
+backend-1  | [0m[33m[0.309ms] [34;1m[rows:1][0m INSERT INTO `system_events` (`event_id`,`type`,`source`,`target`,`title`,`message`,`data`,`priority`,`tags`,`ttl`,`created_at`,`updated_at`) VALUES ("20250617222629.339170","info","system","","Playback Module Initialized","Playback module has been successfully initialized","{}",5,"[]",NULL,"2025-06-17 22:26:29.339","2025-06-17 22:26:29.339") RETURNING `id`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT * FROM `media_files` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_library_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_scan_job_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_path"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_hash"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_files" AND name = "idx_media_files_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_assets"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.030ms] [34;1m[rows:6][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_assets" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT * FROM `media_assets` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_entity_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_entity_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_source"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_plugin_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="peoples"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.024ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "peoples" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `peoples` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "peoples" AND name = "idx_peoples_name"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="roles"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.033ms] [34;1m[rows:5][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "roles" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:-][0m SELECT * FROM `roles` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_role"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_person_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.005ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "roles" AND name = "idx_roles_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.005ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="artists"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.029ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "artists" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT * FROM `artists` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.009ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "artists" AND name = "idx_artists_name"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="albums"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.029ms] [34;1m[rows:3][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "albums" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT * FROM `albums` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "albums" AND (sql LIKE "%CONSTRAINT ""fk_albums_artist"" %" OR sql LIKE "%CONSTRAINT fk_albums_artist %" OR sql LIKE "%CONSTRAINT `fk_albums_artist`%" OR sql LIKE "%CONSTRAINT [fk_albums_artist]%" OR sql LIKE "%CONSTRAINT 	fk_albums_artist	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "albums" AND name = "idx_albums_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "albums" AND name = "idx_albums_artist_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="tracks"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.027ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "tracks" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT * FROM `tracks` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "tracks" AND (sql LIKE "%CONSTRAINT ""fk_tracks_album"" %" OR sql LIKE "%CONSTRAINT fk_tracks_album %" OR sql LIKE "%CONSTRAINT `fk_tracks_album`%" OR sql LIKE "%CONSTRAINT [fk_tracks_album]%" OR sql LIKE "%CONSTRAINT 	fk_tracks_album	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "tracks" AND (sql LIKE "%CONSTRAINT ""fk_tracks_artist"" %" OR sql LIKE "%CONSTRAINT fk_tracks_artist %" OR sql LIKE "%CONSTRAINT `fk_tracks_artist`%" OR sql LIKE "%CONSTRAINT [fk_tracks_artist]%" OR sql LIKE "%CONSTRAINT 	fk_tracks_artist	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tracks" AND name = "idx_tracks_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tracks" AND name = "idx_tracks_album_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tracks" AND name = "idx_tracks_artist_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="movies"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.032ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "movies" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT * FROM `movies` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "movies" AND name = "idx_movies_imdb_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "movies" AND name = "idx_movies_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "movies" AND name = "idx_movies_tmdb_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="tv_shows"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.026ms] [34;1m[rows:3][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "tv_shows" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `tv_shows` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tv_shows" AND name = "idx_tv_shows_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "tv_shows" AND name = "idx_tv_shows_tmdb_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="seasons"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.023ms] [34;1m[rows:3][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "seasons" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `seasons` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "seasons" AND (sql LIKE "%CONSTRAINT ""fk_seasons_tv_show"" %" OR sql LIKE "%CONSTRAINT fk_seasons_tv_show %" OR sql LIKE "%CONSTRAINT `fk_seasons_tv_show`%" OR sql LIKE "%CONSTRAINT [fk_seasons_tv_show]%" OR sql LIKE "%CONSTRAINT 	fk_seasons_tv_show	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "seasons" AND name = "idx_seasons_tv_show_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "seasons" AND name = "idx_seasons_season_number"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="episodes"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.024ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "episodes" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `episodes` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "episodes" AND (sql LIKE "%CONSTRAINT ""fk_episodes_season"" %" OR sql LIKE "%CONSTRAINT fk_episodes_season %" OR sql LIKE "%CONSTRAINT `fk_episodes_season`%" OR sql LIKE "%CONSTRAINT [fk_episodes_season]%" OR sql LIKE "%CONSTRAINT 	fk_episodes_season	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "episodes" AND name = "idx_episodes_season_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "episodes" AND name = "idx_episodes_title"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "episodes" AND name = "idx_episodes_episode_number"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_external_ids"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.026ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_external_ids" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `media_external_ids` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_external_ids" AND name = "idx_media_external_ids_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_external_ids" AND name = "idx_media_external_ids_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_external_ids" AND name = "idx_media_external_ids_source"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_enrichments"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.023ms] [34;1m[rows:4][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_enrichments" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `media_enrichments` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_enrichments" AND name = "idx_media_enrichments_media_id"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_enrichments" AND name = "idx_media_enrichments_media_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/module.go:114
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_enrichments" AND name = "idx_media_enrichments_plugin"
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing media module
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing media library manager
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing library manager
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/mediamodule/library_manager.go:69
+backend-1  | [0m[33m[0.038ms] [34;1m[rows:1][0m SELECT * FROM `media_libraries`
+backend-1  | 2025/06/17 22:26:29 INFO: Loaded library: /media/tv (ID: 4)
+backend-1  | 2025/06/17 22:26:29 INFO: Loaded 1 libraries
+backend-1  | 2025/06/17 22:26:29 INFO: Library manager initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Library manager initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing media file processor
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing file processor
+backend-1  | 2025/06/17 22:26:29 INFO: File processor initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: File processor initialized without plugin module (limited functionality)
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing metadata manager
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing metadata manager
+backend-1  | 2025/06/17 22:26:29 INFO: Metadata manager initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Metadata manager initialized without plugin module (limited functionality)
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing playback integration for intelligent streaming
+backend-1  | 2025/06/17 22:26:29 INFO: Playback integration initialized - intelligent streaming available
+backend-1  | 2025/06/17 22:26:29 WARN: Plugin module not available - transcoding features limited
+backend-1  | 2025/06/17 22:26:29 INFO: Media module initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Media Manager
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Enrichment Manager
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file processor worker 2
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file processor worker 0
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file processor worker 1
+backend-1  | 2025/06/17 22:26:29 [EVENT-DEBUG] Processing event%!(EXTRA string=type, events.EventType=media.module.initialized, string=id, string=20250617222629.343837, string=source, string=system)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="enrichment_sources"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.041ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "enrichment_sources" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.037ms] [34;1m[rows:-][0m SELECT * FROM `enrichment_sources` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "enrichment_sources" AND name = "idx_enrichment_sources_name"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="enrichment_jobs"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.026ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "enrichment_jobs" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.015ms] [34;1m[rows:-][0m SELECT * FROM `enrichment_jobs` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/enrichmentmodule/module.go:99
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "enrichment_jobs" AND name = "idx_enrichment_jobs_media_file_id"
+backend-1  | 2025/06/17 22:26:29 INFO: Enrichment module initialized with validation and deduplication systems
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Enrichment Manager
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Media Scanner
+backend-1  | 2025/06/17 22:26:29 INFO: Migrating scanner database schema
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/events/storage.go:136
+backend-1  | [0m[33m[0.396ms] [34;1m[rows:1][0m INSERT INTO `system_events` (`event_id`,`type`,`source`,`target`,`title`,`message`,`data`,`priority`,`tags`,`ttl`,`created_at`,`updated_at`) VALUES ("20250617222629.343837","media.module.initialized","system","","Media Module Initialized","Media module has been successfully initialized","{}",5,"[]",NULL,"2025-06-17 22:26:29.343","2025-06-17 22:26:29.343") RETURNING `id`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_libraries"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.021ms] [34;1m[rows:1][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_libraries" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `media_libraries` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.001ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="scan_jobs"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.030ms] [34;1m[rows:2][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "scan_jobs" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `scan_jobs` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.003ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "table" AND tbl_name = "scan_jobs" AND (sql LIKE "%CONSTRAINT ""fk_scan_jobs_library"" %" OR sql LIKE "%CONSTRAINT fk_scan_jobs_library %" OR sql LIKE "%CONSTRAINT `fk_scan_jobs_library`%" OR sql LIKE "%CONSTRAINT [fk_scan_jobs_library]%" OR sql LIKE "%CONSTRAINT 	fk_scan_jobs_library	%")
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/module.go:66
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "scan_jobs" AND name = "idx_scan_jobs_library_id"
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing scanner module
+backend-1  | 2025/06/17 22:26:29 ERROR: Scanner module db is nil
+backend-1  | 2025/06/17 22:26:29 ERROR: Scanner module eventBus is nil
+backend-1  | 2025/06/17 22:26:29 INFO: Scanner module initialized successfully with manager: &{0xc0001f1d10 0xc000147900 <nil> <nil> 0xc000a140f0 {{{} {0 0}} 0 0 {{} 0} {{} 0}} map[] map[] 24 0xc000a241c0 <nil> <nil> 0xc000a140a0 0xc0002c12c0 {0 0 <nil>} 0xc00030dea0 0x4b44e0 {{} {{} {} 0} 0} 0xc0005193b0}
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Media Scanner
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Event Management
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Event Management
+backend-1  | 2025/06/17 22:26:29 INFO: 📋 Initializing module: Media Asset Manager
+backend-1  | 2025/06/17 22:26:29 Migrating media asset module schema
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type='table' AND name="media_assets"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.027ms] [34;1m[rows:6][0m SELECT sql FROM sqlite_master WHERE type IN ("table","index") AND tbl_name = "media_assets" AND sql IS NOT NULL order by type = "table" desc
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT * FROM `media_assets` LIMIT 1
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:1][0m PRAGMA foreign_keys
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:1][0m PRAGMA foreign_keys = OFF
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.002ms] [34;1m[rows:-][0m SELECT sql FROM sqlite_master WHERE type = "table" AND tbl_name = "media_assets" AND name = "media_assets"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.171ms] [34;1m[rows:1][0m CREATE TABLE `media_assets__temp`  (`id` varchar(36),`entity_type` text NOT NULL,`entity_id` uuid NOT NULL,`type` text NOT NULL,`source` text NOT NULL,`plugin_id` text,`path` text NOT NULL,`language` text,`format` text NOT NULL,`width` integer DEFAULT 0,`height` integer DEFAULT 0,`preferred` numeric DEFAULT false,`resolution` text,`size_bytes` integer DEFAULT 0,`created_at` datetime,`updated_at` datetime,PRIMARY KEY (`id`))
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.893ms] [34;1m[rows:426][0m INSERT INTO `media_assets__temp`(`id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at`) SELECT `id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at` FROM `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.389ms] [34;1m[rows:426][0m DROP TABLE `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[1.483ms] [34;1m[rows:426][0m ALTER TABLE `media_assets__temp` RENAME TO `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.020ms] [34;1m[rows:426][0m PRAGMA foreign_keys = ON
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.023ms] [34;1m[rows:1][0m PRAGMA foreign_keys
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:426][0m PRAGMA foreign_keys = OFF
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.004ms] [34;1m[rows:-][0m SELECT sql FROM sqlite_master WHERE type = "table" AND tbl_name = "media_assets" AND name = "media_assets"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.168ms] [34;1m[rows:426][0m CREATE TABLE `media_assets__temp`  (`id` varchar(36),`entity_type` text NOT NULL,`entity_id` uuid NOT NULL,`type` text NOT NULL,`source` text NOT NULL,`plugin_id` text,`path` text NOT NULL,`language` text DEFAULT "",`format` text NOT NULL,`width` integer DEFAULT 0,`height` integer DEFAULT 0,`preferred` numeric DEFAULT false,`resolution` text,`size_bytes` integer DEFAULT 0,`created_at` datetime,`updated_at` datetime,PRIMARY KEY (`id`))
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.797ms] [34;1m[rows:426][0m INSERT INTO `media_assets__temp`(`id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at`) SELECT `id`,`entity_type`,`entity_id`,`type`,`source`,`plugin_id`,`path`,`language`,`format`,`width`,`height`,`preferred`,`resolution`,`size_bytes`,`created_at`,`updated_at` FROM `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[0.109ms] [34;1m[rows:426][0m DROP TABLE `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m
+backend-1  | [0m[33m[1.380ms] [34;1m[rows:426][0m ALTER TABLE `media_assets__temp` RENAME TO `media_assets`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.022ms] [34;1m[rows:426][0m PRAGMA foreign_keys = ON
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.012ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_type"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.296ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_type` ON `media_assets`(`type`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.008ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_source"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.292ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_source` ON `media_assets`(`source`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.008ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_plugin"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.324ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_plugin` ON `media_assets`(`plugin_id`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.007ms] [34;1m[rows:-][0m SELECT count(*) FROM sqlite_master WHERE type = "index" AND tbl_name = "media_assets" AND name = "idx_media_assets_entity"
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:75
+backend-1  | [0m[33m[0.451ms] [34;1m[rows:426][0m CREATE INDEX `idx_media_assets_entity` ON `media_assets`(`entity_type`,`entity_id`)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:92
+backend-1  | [0m[33m[0.018ms] [34;1m[rows:426][0m CREATE INDEX IF NOT EXISTS idx_media_assets_entity ON media_assets(entity_type, entity_id)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:97
+backend-1  | [0m[33m[0.011ms] [34;1m[rows:426][0m CREATE INDEX IF NOT EXISTS idx_media_assets_type ON media_assets(type)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:102
+backend-1  | [0m[33m[0.025ms] [34;1m[rows:426][0m CREATE INDEX IF NOT EXISTS idx_media_assets_source ON media_assets(source)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:107
+backend-1  | [0m[33m[0.214ms] [34;1m[rows:426][0m CREATE INDEX IF NOT EXISTS idx_media_assets_preferred ON media_assets(preferred)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/assetmodule/module.go:112
+backend-1  | [0m[33m[0.519ms] [34;1m[rows:426][0m CREATE INDEX IF NOT EXISTS idx_media_assets_entity_type_preferred ON media_assets(entity_type, entity_id, type, preferred)
+backend-1  | 2025/06/17 22:26:29 Media asset module schema migration completed
+backend-1  | 2025/06/17 22:26:29 Initializing media asset module
+backend-1  | 2025/06/17 22:26:29 Initializing comprehensive asset manager
+backend-1  | 2025/06/17 22:26:29 Asset manager initialized with data dir: /app/viewra-data
+backend-1  | 2025/06/17 22:26:29 Asset manager initialized successfully
+backend-1  | 2025/06/17 22:26:29 Media asset module initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Module loaded: Media Asset Manager
+backend-1  | 2025/06/17 22:26:29 🔍 DEBUG: Found existing plugin module from registry
+backend-1  | 2025/06/17 22:26:29 🔍 DEBUG: Using existing plugin module instead of creating new one
+backend-1  | 2025-06-17T22:26:29.370Z [INFO]  plugin-module: GetExternalManager called: manager_exists=true
+backend-1  | 2025-06-17T22:26:29.370Z [INFO]  plugin-module: Returning external manager: type="*pluginmodule.ExternalPluginManager"
+backend-1  | 2025/06/17 22:26:29 🔍 DEBUG: External manager from existing plugin module: true
+backend-1  | 2025/06/17 22:26:29 INFO: External plugin manager connected to enrichment module
+backend-1  | 2025/06/17 22:26:29 ✅ Connected external plugin manager to enrichment module
+backend-1  | 2025/06/17 22:26:29 ✅ Plugin handlers initialized with existing plugin module
+backend-1  | 2025/06/17 22:26:29 ✅ Plugin system connected to enrichment module using existing plugin module
+backend-1  | 2025/06/17 22:26:29 INFO: Updating media module components with plugin module
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing file processor
+backend-1  | 2025/06/17 22:26:29 INFO: File processor initialized successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Initializing metadata manager
+backend-1  | 2025/06/17 22:26:29 INFO: Metadata manager initialized successfully
+backend-1  | 2025/06/17 22:26:29 ✅ Media module components updated with plugin module
+backend-1  | 2025/06/17 22:26:29 ✅ Connected plugin module to media module
+backend-1  | 2025/06/17 22:26:29 INFO: Enrichment hook registered with scanner manager
+backend-1  | 2025/06/17 22:26:29 ✅ Registered enrichment module as scanner hook
+backend-1  | 2025/06/17 22:26:29 INFO: Setting plugin module for scanner
+backend-1  | 2025/06/17 22:26:29 ✅ Connected plugin module to scanner (4 handlers available) - scanner: true
+backend-1  | 2025/06/17 22:26:29 🔄 Starting scanner module and performing orphaned job recovery...
+backend-1  | 2025/06/17 22:26:29 INFO: Starting scanner module
+backend-1  | 2025/06/17 22:26:29 INFO: Recovering orphaned scan jobs...
+backend-1  | 2025/06/17 22:26:29 INFO: Starting orphaned job recovery process...
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file processor worker 0
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file processor worker 1
+backend-1  | 2025/06/17 22:26:29 [EVENT-DEBUG] Processing event%!(EXTRA string=type, events.EventType=mediaasset.module.initialized, string=id, string=20250617222629.370954, string=source, string=system)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/scanner/manager.go:125
+backend-1  | [0m[33m[0.065ms] [34;1m[rows:0][0m SELECT * FROM `scan_jobs` WHERE status = "running"
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file processor worker 2
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/events/storage.go:136
+backend-1  | [0m[33m[0.256ms] [34;1m[rows:1][0m INSERT INTO `system_events` (`event_id`,`type`,`source`,`target`,`title`,`message`,`data`,`priority`,`tags`,`ttl`,`created_at`,`updated_at`) VALUES ("20250617222629.370954","mediaasset.module.initialized","system","","Media Asset Module Initialized","Comprehensive media asset module has been successfully initialized","{""core_module"":true,""module_id"":""system.media.assets"",""module_name"":""Media Asset Manager"",""module_version"":""2.0.0""}",5,"[]",NULL,"2025-06-17 22:26:29.37","2025-06-17 22:26:29.371") RETURNING `id`
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/scanner/manager.go:131
+backend-1  | [0m[33m[0.532ms] [34;1m[rows:0][0m SELECT * FROM `scan_jobs` WHERE status = "paused" AND files_processed > 0
+backend-1  | 2025/06/17 22:26:29 INFO: No orphaned or resumable scan jobs found
+backend-1  | 2025/06/17 22:26:29 INFO: Starting enhanced safeguards system...
+backend-1  | 2025/06/17 22:26:29 INFO: Enhanced safeguards system started successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Starting background state synchronizer...
+backend-1  | 2025/06/17 22:26:29 INFO: Started background state synchronizer
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file monitoring service...
+backend-1  | 2025/06/17 22:26:29 INFO: Starting file monitor service
+backend-1  | 2025/06/17 22:26:29 INFO: File monitor service started
+backend-1  | 2025/06/17 22:26:29 INFO: File monitoring service started successfully
+backend-1  | 2025/06/17 22:26:29 INFO: Scanner module started successfully
+backend-1  | 2025/06/17 22:26:29 ✅ Scanner module started successfully
+backend-1  | 
+backend-1  | 2025/06/17 22:26:29 [32m/app/internal/modules/scannermodule/scanner/manager.go:258
+backend-1  | [0m[33m[0.027ms] [34;1m[rows:0][0m SELECT library_id, COUNT(*) as job_count FROM `scan_jobs` GROUP BY `library_id` HAVING COUNT(*) > 1
+backend-1  | [GIN-debug] GET    /plugins/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (4 handlers)
+backend-1  | [GIN-debug] HEAD   /plugins/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (4 handlers)
+backend-1  | [GIN-debug] GET    /api/health               --> github.com/mantonx/viewra/internal/server/handlers.HandleHealthCheck (4 handlers)
+backend-1  | [GIN-debug] GET    /api/db-status            --> github.com/mantonx/viewra/internal/server/handlers.HandleDBStatus (4 handlers)
+backend-1  | [GIN-debug] GET    /api/db-health            --> github.com/mantonx/viewra/internal/server/handlers.HandleDatabaseHealth (4 handlers)
+backend-1  | [GIN-debug] GET    /api/connection-pool      --> github.com/mantonx/viewra/internal/server/handlers.HandleConnectionPoolStats (4 handlers)
+backend-1  | 2025/06/17 22:26:29 ✅ Module system initialized with 8 modules
+backend-1  | 2025/06/17 22:26:29 ┌────────────────────────────────────────────────────────────────┐
+backend-1  | 2025/06/17 22:26:29 │ MODULE NAME          │ MODULE ID                 │ CORE     │
+backend-1  | 2025/06/17 22:26:29 ├────────────────────────────────────────────────────────────────┤
+backend-1  | 2025/06/17 22:26:29 │ Media Asset Manager  │ system.media.assets       │ Yes      │
+backend-1  | 2025/06/17 22:26:29 │ Database Manager     │ system.database           │ Yes      │
+backend-1  | 2025/06/17 22:26:29 │ Plugin Manager       │ system.plugins            │ Yes      │
+backend-1  | 2025/06/17 22:26:29 │ Playback Manager     │ system.playback           │ Yes      │
+backend-1  | [GIN-debug] POST   /api/dev/load-test-music  --> github.com/mantonx/viewra/internal/server/handlers.LoadTestMusicData (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | [GIN-debug] PUT    /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | 2025/06/17 22:26:29 │ Media Manager        │ system.media              │ Yes      │
+backend-1  | 2025/06/17 22:26:29 │ Enrichment Manager   │ system.enrichment         │ Yes      │
+backend-1  | 2025/06/17 22:26:29 │ Media Scanner        │ system.scanner            │ Yes      │
+backend-1  | 2025/06/17 22:26:29 │ Event Management     │ system.events             │ Yes      │
+backend-1  | 2025/06/17 22:26:29 └────────────────────────────────────────────────────────────────┘
+backend-1  | 2025/06/17 22:26:29 INFO: File monitor event loop started
+backend-1  | 2025/06/17 22:26:29 INFO: File event processor started
+backend-1  | [GIN-debug] PATCH  /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | [GIN-debug] HEAD   /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | [GIN-debug] OPTIONS /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Media Asset Manager
+backend-1  | [GIN-debug] DELETE /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | [GIN-debug] CONNECT /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | [GIN-debug] TRACE  /api/plugins/*path        --> github.com/mantonx/viewra/internal/server/handlers.HandlePluginRoute (4 handlers)
+backend-1  | [GIN-debug] GET    /api/events/              --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetEvents-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/events/by-time       --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetEventsByTimeRange-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/events/stats         --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetEventStats-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/events/types         --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetEventTypes-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/events/stream        --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).EventStream-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/events/              --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).PublishEvent-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/events/subscriptions --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetSubscriptions-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/events/:id           --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).DeleteEvent-fm (4 handlers)
+backend-1  | 2025/06/17 22:26:29 Media asset API routes registered
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Database Manager
+backend-1  | [GIN-debug] DELETE /api/events/              --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).ClearEvents-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/               --> github.com/mantonx/viewra/internal/server/handlers.(*MediaHandler).GetMedia-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/:id            --> github.com/mantonx/viewra/internal/server/handlers.(*MediaHandler).GetMediaByID-fm (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering database module routes
+backend-1  | [GIN-debug] GET    /api/media/:id/stream     --> github.com/mantonx/viewra/internal/server/handlers.(*MediaHandler).StreamMedia-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/:id/artwork    --> github.com/mantonx/viewra/internal/server/handlers.GetArtwork (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Plugin Manager
+backend-1  | [GIN-debug] GET    /api/media/:id/metadata   --> github.com/mantonx/viewra/internal/server/handlers.(*MusicHandler).GetMusicMetadata-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/music          --> github.com/mantonx/viewra/internal/server/handlers.(*MusicHandler).GetMusicFiles-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/media/playback/start --> github.com/mantonx/viewra/internal/server/handlers.(*MusicHandler).RecordPlaybackStarted-fm (4 handlers)
+backend-1  | 2025-06-17T22:26:29.371Z [INFO]  plugin-module: registering plugin module HTTP routes
+backend-1  | [GIN-debug] POST   /api/media/playback/end   --> github.com/mantonx/viewra/internal/server/handlers.(*MusicHandler).RecordPlaybackFinished-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/media/playback/progress --> github.com/mantonx/viewra/internal/server/handlers.(*MusicHandler).RecordPlaybackProgress-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/users/               --> github.com/mantonx/viewra/internal/server/handlers.(*UsersHandler).GetUsers-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/users/               --> github.com/mantonx/viewra/internal/server/handlers.(*UsersHandler).CreateUser-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/users/login          --> github.com/mantonx/viewra/internal/server/handlers.(*UsersHandler).LoginUser-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/users/logout         --> github.com/mantonx/viewra/internal/server/handlers.(*UsersHandler).LogoutUser-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/media-libraries/ --> github.com/mantonx/viewra/internal/server/handlers.(*AdminHandler).GetMediaLibraries-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/media-libraries/ --> github.com/mantonx/viewra/internal/server/handlers.(*AdminHandler).CreateMediaLibrary-fm (4 handlers)
+backend-1  | 2025-06-17T22:26:29.371Z [INFO]  plugin-module: registered plugin health monitoring HTTP routes
+backend-1  | 2025-06-17T22:26:29.371Z [INFO]  plugin-module: registered external plugin health monitoring routes
+backend-1  | [GIN-debug] DELETE /api/admin/media-libraries/:id --> github.com/mantonx/viewra/internal/server/handlers.(*AdminHandler).DeleteMediaLibrary-fm (4 handlers)
+backend-1  | 2025-06-17T22:26:29.371Z [INFO]  plugin-module: plugin module HTTP routes registered successfully
+backend-1  | [GIN-debug] GET    /api/admin/media-libraries/:id/stats --> github.com/mantonx/viewra/internal/server/handlers.(*AdminHandler).GetLibraryStats-fm (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Playback Manager
+backend-1  | 2025/06/17 22:26:29 INFO: Registering playback module routes (initialized: true, core: true)
+backend-1  | [GIN-debug] GET    /api/admin/media-libraries/:id/files --> github.com/mantonx/viewra/internal/server/handlers.(*AdminHandler).GetMediaFiles-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/stats  --> github.com/mantonx/viewra/internal/server/handlers.GetScannerStats (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/library-stats --> github.com/mantonx/viewra/internal/server/handlers.GetAllLibraryStats (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/status --> github.com/mantonx/viewra/internal/server/handlers.GetScannerStatus (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/current-jobs --> github.com/mantonx/viewra/internal/server/handlers.GetCurrentJobs (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Media Manager
+backend-1  | [GIN-debug] POST   /api/admin/scanner/start/:id --> github.com/mantonx/viewra/internal/server/handlers.StartLibraryScanByID (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering media module routes (initialized: true, db: true)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/pause/:id --> github.com/mantonx/viewra/internal/server/handlers.StopLibraryScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/stop/:id --> github.com/mantonx/viewra/internal/server/handlers.StopLibraryScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/resume/:id --> github.com/mantonx/viewra/internal/server/handlers.ResumeLibraryScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/cleanup-orphaned --> github.com/mantonx/viewra/internal/server/handlers.CleanupOrphanedJobs (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/cleanup-orphaned-assets --> github.com/mantonx/viewra/internal/server/handlers.CleanupOrphanedAssets (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: ✅ Registered DASH/HLS intelligent streaming routes
+backend-1  | [GIN-debug] POST   /api/admin/scanner/cleanup-orphaned-files --> github.com/mantonx/viewra/internal/server/handlers.CleanupOrphanedFiles (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/admin/scanner/jobs/:id --> github.com/mantonx/viewra/internal/server/handlers.DeleteScanJob (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/monitoring-status --> github.com/mantonx/viewra/internal/server/handlers.GetMonitoringStatus (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/safe/start/:id --> github.com/mantonx/viewra/internal/server/handlers.StartSafeguardedLibraryScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/safe/pause/:id --> github.com/mantonx/viewra/internal/server/handlers.PauseSafeguardedLibraryScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/safe/resume/:id --> github.com/mantonx/viewra/internal/server/handlers.ResumeSafeguardedLibraryScan (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: 🎬 Media module configured for DASH/HLS-first streaming workflow
+backend-1  | [GIN-debug] DELETE /api/admin/scanner/safe/jobs/:id --> github.com/mantonx/viewra/internal/server/handlers.DeleteSafeguardedLibraryScan (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Enrichment Manager
+backend-1  | [GIN-debug] GET    /api/admin/scanner/safeguards/status --> github.com/mantonx/viewra/internal/server/handlers.GetSafeguardStatus (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/emergency/cleanup --> github.com/mantonx/viewra/internal/server/handlers.ForceEmergencyCleanup (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/force-complete/:id --> github.com/mantonx/viewra/internal/server/handlers.ForceCompleteScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/throttle/disable/:jobId --> github.com/mantonx/viewra/internal/server/handlers.DisableThrottling (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/throttle/enable/:jobId --> github.com/mantonx/viewra/internal/server/handlers.EnableThrottling (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/throttle/status --> github.com/mantonx/viewra/internal/server/handlers.GetAdaptiveThrottleStatus (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/scanner/throttle/config --> github.com/mantonx/viewra/internal/server/handlers.UpdateThrottleConfig (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/throttle/performance/:jobId --> github.com/mantonx/viewra/internal/server/handlers.GetThrottlePerformanceHistory (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/scanner/health/:id --> github.com/mantonx/viewra/internal/server/handlers.GetScanHealth (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/plugins/       --> github.com/mantonx/viewra/internal/server/handlers.GetPlugins (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/plugins/:id    --> github.com/mantonx/viewra/internal/server/handlers.GetPlugin (4 handlers)
+backend-1  | 2025/06/17 22:26:29 ✅ Registered enrichment module HTTP routes
+backend-1  | [GIN-debug] GET    /api/admin/plugins/:id/health --> github.com/mantonx/viewra/internal/server/handlers.GetPluginHealth (4 handlers)
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Media Scanner
+backend-1  | 2025/06/17 22:26:29 INFO: Registering routes for module: Event Management
+backend-1  | [GIN-debug] GET    /api/admin/plugins/:id/events --> github.com/mantonx/viewra/internal/server/handlers.GetPluginEvents (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/plugins/events --> github.com/mantonx/viewra/internal/server/handlers.GetAllPluginEvents (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/plugins/refresh --> github.com/mantonx/viewra/internal/server/handlers.RefreshPlugins (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/plugins/:id/manifest --> github.com/mantonx/viewra/internal/server/handlers.GetPluginManifest (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/plugins/admin-pages --> github.com/mantonx/viewra/internal/server/handlers.GetPluginAdminPages (4 handlers)
+backend-1  | [GIN-debug] GET    /api/admin/plugins/ui-components --> github.com/mantonx/viewra/internal/server/handlers.GetPluginUIComponents (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/plugins/:id/enable --> github.com/mantonx/viewra/internal/server/handlers.EnablePlugin (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/plugins/:id/disable --> github.com/mantonx/viewra/internal/server/handlers.DisablePlugin (4 handlers)
+backend-1  | [GIN-debug] POST   /api/admin/plugins/:id/install --> github.com/mantonx/viewra/internal/server/handlers.InstallPlugin (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/admin/plugins/:id    --> github.com/mantonx/viewra/internal/server/handlers.UninstallPlugin (4 handlers)
+backend-1  | 2025/06/17 22:26:29 🚀 Starting Viewra server on 0.0.0.0:8080
+backend-1  | [GIN-debug] POST   /api/scan/start           --> github.com/mantonx/viewra/internal/server/handlers.StartDirectoryScan (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scan/:id/progress    --> github.com/mantonx/viewra/internal/server/handlers.GetScanProgress (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scan/:id/stop        --> github.com/mantonx/viewra/internal/server/handlers.StopScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scan/:id/resume      --> github.com/mantonx/viewra/internal/server/handlers.ResumeScan (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scan/:id/results     --> github.com/mantonx/viewra/internal/server/handlers.GetScanResults (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/scan/:id             --> github.com/mantonx/viewra/internal/server/handlers.DeleteScan (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scan/:id/pause       --> github.com/mantonx/viewra/internal/server/handlers.PauseScan (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scan/:id/details     --> github.com/mantonx/viewra/internal/server/handlers.GetScanDetails (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scan/library/:id     --> github.com/mantonx/viewra/internal/server/handlers.StartLibraryScan (4 handlers)
+backend-1  | [GIN-debug] GET    /api/library/:id/trickplay-analysis --> github.com/mantonx/viewra/internal/server/handlers.AnalyzeTrickplayContent (4 handlers)
+backend-1  | [GIN-debug] POST   /api/library/:id/cleanup  --> github.com/mantonx/viewra/internal/server/handlers.CleanupLibraryData (4 handlers)
+backend-1  | [GIN-debug] POST   /api/v1/assets/           --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).createAsset-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/:id        --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getAsset-fm (4 handlers)
+backend-1  | [GIN-debug] PUT    /api/v1/assets/:id/preferred --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).setPreferredAsset-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/v1/assets/:id        --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).deleteAsset-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/entity/:type/:id --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getAssetsByEntity-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/entity/:type/:id/preferred/:asset_type --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getPreferredAsset-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/entity/:type/:id/preferred/:asset_type/data --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getPreferredAssetData-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/v1/assets/entity/:type/:id --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).deleteAssetsByEntity-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/:id/data   --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getAssetData-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/stats      --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getAssetStats-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/v1/assets/cleanup    --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).cleanupOrphanedFiles-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/types      --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getValidTypes-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/sources    --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getValidSources-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/assets/entity-types --> github.com/mantonx/viewra/internal/modules/assetmodule.(*Module).getEntityTypes-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/health      --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getHealth-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/status      --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getStatus-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/stats       --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getStats-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/connections --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getConnectionStats-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/connections/health --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getConnectionHealth-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/migrations  --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getMigrations-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/database/migrations/execute --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).executePendingMigrations-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/database/migrations/:id/rollback --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).rollbackMigration-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/models      --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getRegisteredModels-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/models/stats --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getModelStats-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/database/models/migrate --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).autoMigrateModels-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/database/transactions/stats --> github.com/mantonx/viewra/internal/modules/databasemodule.(*Module).getTransactionStats-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugin-manager       --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).listAllPluginsHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugin-manager/core  --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).listCorePluginsHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugin-manager/external --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).listExternalPluginsHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugin-manager/external/:plugin_id --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).getExternalPluginHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-manager/external/:plugin_id/enable --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).enableExternalPluginHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-manager/external/:plugin_id/disable --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).disableExternalPluginHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-manager/external/:plugin_id/load --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).loadExternalPluginHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-manager/external/:plugin_id/unload --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).unloadExternalPluginHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-manager/external/refresh --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).refreshExternalPluginsHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-manager/core/:plugin_name/enable --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).enableCorePluginHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-manager/core/:plugin_name/disable --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*PluginModule).disableCorePluginHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugin-health        --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*ExternalPluginManager).GetAllPluginHealthHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugin-health/:plugin_id --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*ExternalPluginManager).GetPluginHealthHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/plugin-health/:plugin_id/status --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*ExternalPluginManager).GetPluginReliabilityStatusHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/plugin-health/:plugin_id/reset --> github.com/mantonx/viewra/internal/modules/pluginmodule.(*ExternalPluginManager).ResetPluginHealthHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/playback/decide      --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handlePlaybackDecision-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/playback/start       --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleStartTranscode-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/session/:sessionId --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleGetSession-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/playback/session/:sessionId --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleStopTranscode-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/sessions    --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleListSessions-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stats       --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleGetStats-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/health      --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleHealthCheck-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId/init-stream0.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] HEAD   /api/playback/stream/:sessionId/init-stream0.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId/init-stream1.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] HEAD   /api/playback/stream/:sessionId/init-stream1.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId/chunk-stream0-:chunkNumber.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] HEAD   /api/playback/stream/:sessionId/chunk-stream0-:chunkNumber.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId/chunk-stream1-:chunkNumber.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] HEAD   /api/playback/stream/:sessionId/chunk-stream1-:chunkNumber.m4s --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashSegmentSpecific-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId/manifest.mpd --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleDashManifest-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId/playlist.m3u8 --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleHlsPlaylist-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId/segment/:segmentName --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleSegment-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/playback/stream/:sessionId --> github.com/mantonx/viewra/internal/modules/playbackmodule.(*PlaybackModule).handleStreamTranscode-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/libraries      --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getLibraries-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/media/libraries      --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).createLibrary-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/media/libraries/:id  --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).deleteLibrary-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/libraries/:id/stats --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getLibraryStats-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/libraries/:id/files --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getLibraryFiles-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/files          --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getFiles-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/files/:id      --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getFile-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/media/files/:id      --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).deleteFile-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/files/:id/stream --> github.com/mantonx/viewra/internal/modules/mediamodule.(*PlaybackIntegration).HandleIntelligentStream-fm (4 handlers)
+backend-1  | [GIN-debug] HEAD   /api/media/files/:id/stream --> github.com/mantonx/viewra/internal/modules/mediamodule.(*PlaybackIntegration).HandleIntelligentStreamHead-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/files/:id/metadata --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getFileMetadata-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/files/:id/album-id --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getFileAlbumId-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/files/:id/album-artwork --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getFileAlbumArtwork-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/tv-shows       --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getTVShows-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/media/files/:id/metadata/extract --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).extractMetadata-fm (4 handlers)
+backend-1  | [GIN-debug] PUT    /api/media/files/:id/metadata --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).updateMetadata-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/media/files/:id/process --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).processFile-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/processing/status --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getProcessingStatus-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/health         --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getHealth-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/status         --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getStatus-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/media/stats          --> github.com/mantonx/viewra/internal/modules/mediamodule.(*Module).getStats-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/enrichment/status/:mediaFileId --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).GetEnrichmentStatusHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/enrichment/apply/:mediaFileId/:fieldName/:sourceName --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).ForceApplyEnrichmentHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/enrichment/sources   --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).GetEnrichmentSourcesHandler-fm (4 handlers)
+backend-1  | [GIN-debug] PUT    /api/enrichment/sources/:sourceName --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).UpdateEnrichmentSourceHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/enrichment/jobs      --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).GetEnrichmentJobsHandler-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/enrichment/jobs/:mediaFileId --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).TriggerEnrichmentJobHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/enrichment/progress  --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).GetOverallProgressHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/enrichment/progress/tv-shows --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).GetTVShowProgressHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/enrichment/progress/movies --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).GetMovieProgressHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/enrichment/progress/music --> github.com/mantonx/viewra/internal/modules/enrichmentmodule.(*Module).GetMusicProgressHandler-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scanner/status       --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).getGeneralStatus-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scanner/config       --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).getConfig-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scanner/config       --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).setConfig-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scanner/scan         --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).startGeneralScan-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scanner/jobs         --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).listScanJobs-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scanner/cancel-all   --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).cancelAllScans-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scanner/jobs/:id     --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).getScanStatus-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/scanner/jobs/:id     --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).cancelScan-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/scanner/resume/:id   --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).resumeScan-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scanner/progress/:id --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).getScanProgress-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/scanner/monitoring   --> github.com/mantonx/viewra/internal/modules/scannermodule.(*Module).getMonitoringStatus-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/events/           --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetEvents-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/events/range      --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetEventsByTimeRange-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/events/types      --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).GetEventTypes-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/v1/events/           --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).PublishEvent-fm (4 handlers)
+backend-1  | [GIN-debug] DELETE /api/v1/events/:id        --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).DeleteEvent-fm (4 handlers)
+backend-1  | [GIN-debug] POST   /api/v1/events/clear      --> github.com/mantonx/viewra/internal/server/handlers.(*EventsHandler).ClearEvents-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/v1/events/health     --> github.com/mantonx/viewra/internal/modules/eventsmodule.(*Module).getEventHealth-fm (4 handlers)
+backend-1  | [GIN-debug] GET    /api/config/              --> github.com/mantonx/viewra/internal/server/handlers.GetConfig (4 handlers)
+backend-1  | [GIN-debug] GET    /api/config/:section      --> github.com/mantonx/viewra/internal/server/handlers.GetConfigSection (4 handlers)
+backend-1  | [GIN-debug] PUT    /api/config/:section      --> github.com/mantonx/viewra/internal/server/handlers.UpdateConfigSection (4 handlers)
+backend-1  | [GIN-debug] POST   /api/config/reload        --> github.com/mantonx/viewra/internal/server/handlers.ReloadConfig (4 handlers)
+backend-1  | [GIN-debug] POST   /api/config/save          --> github.com/mantonx/viewra/internal/server/handlers.SaveConfig (4 handlers)
+backend-1  | [GIN-debug] POST   /api/config/validate      --> github.com/mantonx/viewra/internal/server/handlers.ValidateConfig (4 handlers)
+backend-1  | [GIN-debug] GET    /api/config/defaults      --> github.com/mantonx/viewra/internal/server/handlers.GetConfigDefaults (4 handlers)
+backend-1  | [GIN-debug] GET    /api/config/info          --> github.com/mantonx/viewra/internal/server/handlers.GetConfigInfo (4 handlers)
+backend-1  | [GIN-debug] GET    /api                      --> github.com/mantonx/viewra/internal/server/handlers.ApiRootHandler (4 handlers)
+backend-1  | 
+backend-1  | 2025/06/17 22:26:59 [32m/app/internal/modules/scannermodule/scanner/manager.go:1429
+backend-1  | [0m[33m[0.346ms] [34;1m[rows:0][0m SELECT * FROM `scan_jobs` WHERE status = "running"
+backend-1  | [GIN] 2025/06/17 - 22:27:20 | 500 |     208.772µs |      172.18.0.1 | POST     "/api/playback/start"
+

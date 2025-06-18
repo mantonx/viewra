@@ -11,7 +11,9 @@ services:
       - GIN_MODE=${GIN_MODE:-debug}
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
       - VIEWRA_DATA_DIR=/app/viewra-data
+      - VIEWRA_TRANSCODING_DIR=/viewra-data/transcoding
       - VIEWRA_DATABASE_PATH=${VIEWRA_DATABASE_PATH:-/app/viewra-data/viewra.db}
+      - VIEWRA_PLUGIN_DIR=/app/data/plugins
       - PORT=8080
       - PLUGIN_DIR=/app/data/plugins
       - TMDB_API_KEY=${TMDB_API_KEY:-}
@@ -19,7 +21,7 @@ services:
       - ./backend:/app
       - ./backend/data:/app/data
       - ./viewra-data:/app/viewra-data
-      # Re-enabled NFS mounts after fixing permission issues
+      - ./viewra-data/transcoding:/viewra-data/transcoding
       - /cifs/fictionalserver/music:/media/music:ro
       - /cifs/fictionalserver/tv:/media/tv:ro
       - /cifs/fictionalserver/movies:/media/movies:ro
@@ -39,8 +41,8 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
-      # Re-enabled NFS mounts after fixing permission issues
-      - /nfs/fictionalserver/music:/media/music:ro
+      # Temporarily disabled NFS mounts for dev environment startup
+      # - /nfs/fictionalserver/music:/media/music:ro
     depends_on:
       - backend
     networks:

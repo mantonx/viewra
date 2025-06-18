@@ -10,7 +10,6 @@ echo ""
 PLUGINS_DIR="${PLUGINS_DIR:-./backend/data/plugins}"
 TARGET_OS="${TARGET_OS:-linux}"
 TARGET_ARCH="${TARGET_ARCH:-amd64}"
-BUILD_FLAGS="${BUILD_FLAGS:--ldflags='-s -w'}"
 
 # Set build environment
 export CGO_ENABLED=1  # Enable CGO for SQLite support
@@ -20,7 +19,6 @@ export GOARCH=$TARGET_ARCH
 echo "Build Configuration:"
 echo "  Target OS/Arch: $TARGET_OS/$TARGET_ARCH"
 echo "  Plugins Dir: $PLUGINS_DIR"
-echo "  Build Flags: $BUILD_FLAGS"
 echo ""
 
 # Check if plugins directory exists
@@ -30,13 +28,19 @@ if [ ! -d "$PLUGINS_DIR" ]; then
     exit 1
 fi
 
-cd "$PLUGINS_DIR"
+# Save current directory and change to plugins directory
+ORIGINAL_DIR=$(pwd)
+cd "$PLUGINS_DIR" || {
+    echo "❌ Failed to change to plugins directory: $PLUGINS_DIR"
+    exit 1
+}
 
 # Find all plugin directories
-PLUGIN_DIRS=($(find . -name "*_enricher" -type d))
+PLUGIN_DIRS=($(find . -name "*_enricher" -o -name "*_transcoder" -type d | head -10))
 
 if [ ${#PLUGIN_DIRS[@]} -eq 0 ]; then
     echo "❌ No plugin directories found in $PLUGINS_DIR"
+    cd "$ORIGINAL_DIR"
     exit 1
 fi
 
@@ -70,9 +74,13 @@ for plugin_dir in "${PLUGIN_DIRS[@]}"; do
     fi
     
     # Build the plugin
-    cd "$plugin_dir"
+    cd "$plugin_dir" || {
+        echo "  ❌ Failed to change to $plugin_dir"
+        FAILED_PLUGINS+=("$plugin_name: cd failed")
+        continue
+    }
     
-    if go build $BUILD_FLAGS -o "$plugin_name" main.go; then
+    if go build -ldflags='-s -w' -o "$plugin_name" .; then
         echo "  ✅ Built successfully"
         
         # Verify the binary
@@ -95,9 +103,14 @@ for plugin_dir in "${PLUGIN_DIRS[@]}"; do
         FAILED_PLUGINS+=("$plugin_name: build failed")
     fi
     
-    cd "$PLUGINS_DIR"
+    cd "$PLUGINS_DIR" || {
+        echo "  ⚠️  Failed to return to plugins directory"
+    }
     echo ""
 done
+
+# Return to original directory
+cd "$ORIGINAL_DIR"
 
 echo "=== Build Summary ==="
 echo "Successfully built: ${#BUILT_PLUGINS[@]} plugin(s)"
@@ -119,7 +132,9 @@ fi
 echo ""
 echo "=== Final Verification ==="
 echo "All plugin binaries:"
-find . -name "*_enricher" -type f -executable -exec ls -la {} \;
+cd "$PLUGINS_DIR"
+find . \( -name "*_enricher" -o -name "*_transcoder" \) -type f -executable -exec ls -la {} \;
+cd "$ORIGINAL_DIR"
 
 echo ""
 echo "✅ All plugins built successfully with $TARGET_OS/$TARGET_ARCH architecture!"

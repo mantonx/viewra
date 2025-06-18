@@ -14,7 +14,7 @@ PLUGIN_DIR=data/plugins
 
 # Protobuf parameters
 PROTOC=protoc
-PROTO_DIR=internal/plugins/proto
+PROTO_DIR=pkg/plugins/proto
 PROTO_FILES=$(PROTO_DIR)/*.proto
 
 .PHONY: all build clean test test-verbose test-coverage proto build-plugins install-protoc deps

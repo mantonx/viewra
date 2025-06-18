@@ -44,6 +44,9 @@ type Config struct {
 
 	// Performance configuration
 	Performance PerformanceConfig `yaml:"performance" json:"performance"`
+
+	// Transcoding configuration
+	Transcoding TranscodingConfig `yaml:"transcoding" json:"transcoding"`
 }
 
 // ServerConfig holds server-related configuration
@@ -88,6 +91,15 @@ type AssetConfig struct {
 	CleanupInterval  time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_ASSET_CLEANUP_INTERVAL" default:"6h"`
 }
 
+// TranscodingConfig holds transcoding configuration
+type TranscodingConfig struct {
+	DataDir         string        `yaml:"data_dir" json:"data_dir" env:"VIEWRA_TRANSCODING_DIR" default:"/viewra-data/transcoding"`
+	MaxSessions     int           `yaml:"max_sessions" json:"max_sessions" env:"VIEWRA_MAX_TRANSCODE_SESSIONS" default:"25"`
+	SessionTimeout  time.Duration `yaml:"session_timeout" json:"session_timeout" env:"VIEWRA_TRANSCODE_SESSION_TIMEOUT" default:"2h"`
+	CleanupInterval time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_TRANSCODE_CLEANUP_INTERVAL" default:"10m"`
+	FFmpegPath      string        `yaml:"ffmpeg_path" json:"ffmpeg_path" env:"VIEWRA_FFMPEG_PATH" default:"ffmpeg"`
+}
+
 // ScannerConfig holds scanner configuration
 type ScannerConfig struct {
 	ParallelScanning  bool          `yaml:"parallel_scanning" json:"parallel_scanning" env:"VIEWRA_PARALLEL_SCANNING" default:"true"`
@@ -105,7 +117,7 @@ type ScannerConfig struct {
 
 // PluginConfig holds plugin system configuration
 type PluginConfig struct {
-	PluginDir            string        `yaml:"plugin_dir" json:"plugin_dir" env:"PLUGIN_DIR" default:"./data/plugins"`
+	PluginDir            string        `yaml:"plugin_dir" json:"plugin_dir" env:"VIEWRA_PLUGIN_DIR" default:"./data/plugins"`
 	EnableHotReload      bool          `yaml:"enable_hot_reload" json:"enable_hot_reload" env:"VIEWRA_PLUGIN_HOT_RELOAD" default:"true"`
 	DefaultEnabled       bool          `yaml:"default_enabled" json:"default_enabled" env:"VIEWRA_PLUGINS_DEFAULT_ENABLED" default:"false"`
 	EnrichmentEnabled    bool          `yaml:"enrichment_enabled" json:"enrichment_enabled" env:"VIEWRA_ENRICHMENT_ENABLED" default:"true"`
@@ -230,7 +242,7 @@ func DefaultConfig() *Config {
 			Host:           "0.0.0.0",
 			Port:           8080,
 			ReadTimeout:    30 * time.Second,
-			WriteTimeout:   30 * time.Second,
+			WriteTimeout:   0,       // No timeout for video streaming (local network optimized)
 			MaxHeaderBytes: 1 << 20, // 1MB
 			EnableCORS:     true,
 			TrustedProxies: []string{},
@@ -378,6 +390,13 @@ func DefaultConfig() *Config {
 			MemoryThreshold:          85.0,
 			CPUThreshold:             80.0,
 			EnableAdaptiveThrottling: true,
+		},
+		Transcoding: TranscodingConfig{
+			DataDir:         "/viewra-data/transcoding",
+			MaxSessions:     25,
+			SessionTimeout:  2 * time.Hour,
+			CleanupInterval: 10 * time.Minute,
+			FFmpegPath:      "ffmpeg",
 		},
 	}
 }

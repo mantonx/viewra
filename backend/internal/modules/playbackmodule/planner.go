@@ -1,239 +1,379 @@
 package playbackmodule
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/mantonx/viewra/pkg/plugins"
 )
 
 // PlaybackPlannerImpl implements the PlaybackPlanner interface
-type PlaybackPlannerImpl struct {
-	// No dependencies - pure decision logic
-}
+type PlaybackPlannerImpl struct{}
 
-// NewPlaybackPlanner creates a new playback planner instance
+// NewPlaybackPlanner creates a new playback planner
 func NewPlaybackPlanner() PlaybackPlanner {
 	return &PlaybackPlannerImpl{}
 }
 
-// DecidePlayback analyzes media file and device to determine playback strategy
-func (p *PlaybackPlannerImpl) DecidePlayback(ctx context.Context, mediaPath string, profile DeviceProfile) (*PlaybackDecision, error) {
-	// Get media info (this would typically come from metadata extraction)
+// DecidePlayback determines whether to direct play or transcode based on media and device capabilities
+func (p *PlaybackPlannerImpl) DecidePlayback(mediaPath string, deviceProfile *plugins.DeviceProfile) (*PlaybackDecision, error) {
+	// Analyze media file
 	mediaInfo, err := p.analyzeMedia(mediaPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze media: %w", err)
 	}
 
-	// Check container compatibility
-	if p.needsContainerTranscode(mediaInfo, profile) {
+	// Check if direct play is possible
+	if p.canDirectPlay(mediaInfo, deviceProfile) {
 		return &PlaybackDecision{
-			ShouldTranscode: true,
-			TranscodeReq: &TranscodeRequest{
-				InputPath:   mediaPath,
-				TargetCodec: p.selectBestCodec(profile),
-				Resolution:  p.selectBestResolution(mediaInfo, profile),
-				Bitrate:     p.calculateOptimalBitrate(mediaInfo, profile),
-				DeviceHints: profile,
-			},
-			Reason: fmt.Sprintf("Container %s not supported, transcoding required", mediaInfo.Container),
+			ShouldTranscode: false,
+			DirectPlayURL:   mediaPath,
+			Reason:          "Media is compatible with client capabilities",
 		}, nil
 	}
 
-	// Check codec compatibility
-	if p.needsCodecTranscode(mediaInfo, profile) {
-		return &PlaybackDecision{
-			ShouldTranscode: true,
-			TranscodeReq: &TranscodeRequest{
-				InputPath:   mediaPath,
-				TargetCodec: p.selectBestCodec(profile),
-				Resolution:  p.selectBestResolution(mediaInfo, profile),
-				Bitrate:     p.calculateOptimalBitrate(mediaInfo, profile),
-				DeviceHints: profile,
-			},
-			Reason: fmt.Sprintf("Codec %s not supported by device", mediaInfo.VideoCodec),
-		}, nil
-	}
+	// Determine transcoding parameters
+	transcodeParams, reason := p.determineTranscodeParams(mediaPath, mediaInfo, deviceProfile)
 
-	// Check bitrate/quality requirements
-	if p.needsBitrateTranscode(mediaInfo, profile) {
-		return &PlaybackDecision{
-			ShouldTranscode: true,
-			TranscodeReq: &TranscodeRequest{
-				InputPath:   mediaPath,
-				TargetCodec: mediaInfo.VideoCodec, // Keep same codec, just lower bitrate
-				Resolution:  p.selectBestResolution(mediaInfo, profile),
-				Bitrate:     profile.MaxBitrate,
-				DeviceHints: profile,
-			},
-			Reason: fmt.Sprintf("Bitrate %d exceeds device limit %d", mediaInfo.Bitrate, profile.MaxBitrate),
-		}, nil
-	}
-
-	// Direct playback is fine
 	return &PlaybackDecision{
-		ShouldTranscode: false,
-		DirectPath:      mediaPath,
-		Reason:          "Media compatible with device capabilities",
+		ShouldTranscode: true,
+		TranscodeParams: transcodeParams,
+		Reason:          reason,
 	}, nil
 }
 
-// analyzeMedia extracts metadata from media file
-func (p *PlaybackPlannerImpl) analyzeMedia(mediaPath string) (*MediaInfo, error) {
-	// For now, detect based on file extension
-	// In a real implementation, this would use FFprobe or similar
-	ext := strings.ToLower(filepath.Ext(mediaPath))
-	
-	switch ext {
-	case ".mkv":
-		return &MediaInfo{
-			Container:    "matroska",
-			VideoCodec:   "h264", // Assumption
-			AudioCodec:   "aac",
-			Resolution:   "1080p",
-			Bitrate:      5000000, // 5 Mbps assumption
-			Duration:     3600,    // 1 hour assumption
-			HasHDR:       false,
-			HasSubtitles: true,
-		}, nil
-	case ".mp4":
-		return &MediaInfo{
-			Container:    "mp4",
-			VideoCodec:   "h264",
-			AudioCodec:   "aac",
-			Resolution:   "1080p",
-			Bitrate:      3000000, // 3 Mbps assumption
-			Duration:     3600,
-			HasHDR:       false,
-			HasSubtitles: false,
-		}, nil
-	case ".webm":
-		return &MediaInfo{
-			Container:    "webm",
-			VideoCodec:   "vp9",
-			AudioCodec:   "opus",
-			Resolution:   "1080p",
-			Bitrate:      2000000, // 2 Mbps assumption
-			Duration:     3600,
-			HasHDR:       false,
-			HasSubtitles: false,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unsupported file format: %s", ext)
+// canDirectPlay checks if the media can be played directly without transcoding
+func (p *PlaybackPlannerImpl) canDirectPlay(media *MediaInfo, profile *plugins.DeviceProfile) bool {
+	// Check container format
+	if !p.isContainerSupported(media.Container, profile) {
+		return false
 	}
+
+	// Check video codec
+	if !p.isCodecSupported(media.VideoCodec, profile.SupportedCodecs) {
+		return false
+	}
+
+	// Check bitrate limits
+	if profile.MaxBitrate > 0 && media.Bitrate > int64(profile.MaxBitrate) {
+		return false
+	}
+
+	// Check resolution limits
+	if !p.isResolutionSupported(media.Resolution, profile.MaxResolution) {
+		return false
+	}
+
+	// Check HDR support
+	if media.HasHDR && !profile.SupportsHDR {
+		return false
+	}
+
+	return true
 }
 
-// needsContainerTranscode checks if container format is incompatible
-func (p *PlaybackPlannerImpl) needsContainerTranscode(media *MediaInfo, profile DeviceProfile) bool {
-	// MKV is problematic for web playback
-	if media.Container == "matroska" {
+// isContainerSupported checks if the container format is supported
+func (p *PlaybackPlannerImpl) isContainerSupported(container string, profile *plugins.DeviceProfile) bool {
+	// Web browsers typically don't support MKV directly
+	if container == "mkv" && p.isWebBrowser(profile.UserAgent) {
+		return false
+	}
+
+	// Most modern clients support MP4
+	if container == "mp4" {
 		return true
 	}
-	
-	// Most other containers should work
+
+	// WebM is supported by most web browsers
+	if container == "webm" && p.isWebBrowser(profile.UserAgent) {
+		return true
+	}
+
 	return false
 }
 
-// needsCodecTranscode checks if codec is incompatible with device
-func (p *PlaybackPlannerImpl) needsCodecTranscode(media *MediaInfo, profile DeviceProfile) bool {
-	// Check if device supports the codec
-	for _, codec := range profile.SupportedCodecs {
-		if strings.EqualFold(codec, media.VideoCodec) {
-			return false
+// isCodecSupported checks if the codec is in the supported list
+func (p *PlaybackPlannerImpl) isCodecSupported(codec string, supportedCodecs []string) bool {
+	for _, supported := range supportedCodecs {
+		if strings.EqualFold(codec, supported) {
+			return true
 		}
 	}
-	
-	// Special cases for modern codecs
-	if media.VideoCodec == "hevc" && !profile.SupportsHEVC {
-		return true
-	}
-	if media.VideoCodec == "av1" && !profile.SupportsAV1 {
-		return true
-	}
-	
 	return false
 }
 
-// needsBitrateTranscode checks if bitrate exceeds device capabilities
-func (p *PlaybackPlannerImpl) needsBitrateTranscode(media *MediaInfo, profile DeviceProfile) bool {
-	if profile.MaxBitrate > 0 && int(media.Bitrate) > profile.MaxBitrate {
-		return true
+// isResolutionSupported checks if the resolution is within limits
+func (p *PlaybackPlannerImpl) isResolutionSupported(mediaRes, maxRes string) bool {
+	if maxRes == "" {
+		return true // No limit specified
 	}
+
+	mediaHeight := p.getResolutionHeight(mediaRes)
+	maxHeight := p.getResolutionHeight(maxRes)
+
+	return mediaHeight <= maxHeight
+}
+
+// getResolutionHeight extracts height from resolution string
+func (p *PlaybackPlannerImpl) getResolutionHeight(resolution string) int {
+	switch strings.ToLower(resolution) {
+	case "480p":
+		return 480
+	case "720p":
+		return 720
+	case "1080p":
+		return 1080
+	case "1440p":
+		return 1440
+	case "2160p", "4k":
+		return 2160
+	default:
+		return 1080 // Default assumption
+	}
+}
+
+// isWebBrowser checks if the user agent indicates a web browser
+func (p *PlaybackPlannerImpl) isWebBrowser(userAgent string) bool {
+	userAgent = strings.ToLower(userAgent)
+	browsers := []string{"chrome", "firefox", "safari", "edge", "opera"}
+
+	for _, browser := range browsers {
+		if strings.Contains(userAgent, browser) {
+			return true
+		}
+	}
+
 	return false
 }
 
-// selectBestCodec chooses optimal codec for device
-func (p *PlaybackPlannerImpl) selectBestCodec(profile DeviceProfile) string {
-	// Prefer modern codecs if supported
-	if profile.SupportsAV1 {
-		return "av1"
+// determineTranscodeParams determines the optimal transcoding parameters
+func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *MediaInfo, profile *plugins.DeviceProfile) (*plugins.TranscodeRequest, string) {
+	var reasons []string
+
+	// Determine target codec
+	targetCodec := p.selectTargetCodec(media.VideoCodec, profile)
+	if targetCodec != media.VideoCodec {
+		reasons = append(reasons, fmt.Sprintf("codec change: %s -> %s", media.VideoCodec, targetCodec))
 	}
-	if profile.SupportsHEVC {
+
+	// Determine target resolution
+	targetResolution := p.selectTargetResolution(media.Resolution, profile.MaxResolution)
+	if targetResolution != media.Resolution {
+		reasons = append(reasons, fmt.Sprintf("resolution change: %s -> %s", media.Resolution, targetResolution))
+	}
+
+	// Determine target bitrate
+	targetBitrate := p.calculateTargetBitrate(targetResolution, profile.MaxBitrate)
+	if int64(targetBitrate) < media.Bitrate {
+		reasons = append(reasons, fmt.Sprintf("bitrate reduction: %d -> %d", media.Bitrate, targetBitrate))
+	}
+
+	// Determine container based on client capabilities and content type
+	targetContainer := p.selectTargetContainer(media.Container, profile)
+	if media.Container != targetContainer {
+		reasons = append(reasons, fmt.Sprintf("container change: %s -> %s", media.Container, targetContainer))
+	}
+
+	reason := "Transcoding required: " + strings.Join(reasons, ", ")
+
+	return &plugins.TranscodeRequest{
+		InputPath:       mediaPath, // Fix: Add the missing InputPath field
+		TargetCodec:     targetCodec,
+		TargetContainer: targetContainer,
+		Resolution:      targetResolution,
+		Bitrate:         targetBitrate,
+		AudioCodec:      "aac",
+		AudioBitrate:    128,
+		Quality:         23, // CRF value
+		Preset:          "fast",
+		DeviceProfile:   profile,
+		Priority:        5,
+	}, reason
+}
+
+// selectTargetCodec chooses the best codec for the client
+func (p *PlaybackPlannerImpl) selectTargetCodec(sourceCodec string, profile *plugins.DeviceProfile) string {
+	// Prefer H.264 for maximum compatibility
+	if p.isCodecSupported("h264", profile.SupportedCodecs) {
+		return "h264"
+	}
+
+	// Use HEVC if supported and client supports it
+	if profile.SupportsHEVC && p.isCodecSupported("hevc", profile.SupportedCodecs) {
 		return "hevc"
 	}
-	
-	// Fall back to H.264 (universal support)
+
+	// Fall back to VP8/VP9 for web browsers
+	if p.isWebBrowser(profile.UserAgent) {
+		if p.isCodecSupported("vp9", profile.SupportedCodecs) {
+			return "vp9"
+		}
+		if p.isCodecSupported("vp8", profile.SupportedCodecs) {
+			return "vp8"
+		}
+	}
+
+	// Default to H.264
 	return "h264"
 }
 
-// selectBestResolution chooses optimal resolution for device
-func (p *PlaybackPlannerImpl) selectBestResolution(media *MediaInfo, profile DeviceProfile) string {
-	maxRes := profile.MaxResolution
+// selectTargetResolution chooses the appropriate resolution
+func (p *PlaybackPlannerImpl) selectTargetResolution(sourceRes, maxRes string) string {
 	if maxRes == "" {
-		maxRes = "1080p" // Default
+		return sourceRes
 	}
-	
-	// Don't upscale
-	mediaRes := media.Resolution
-	if p.isResolutionLower(mediaRes, maxRes) {
-		return mediaRes
+
+	sourceHeight := p.getResolutionHeight(sourceRes)
+	maxHeight := p.getResolutionHeight(maxRes)
+
+	if sourceHeight <= maxHeight {
+		return sourceRes
 	}
-	
+
+	// Downscale to maximum supported resolution
 	return maxRes
 }
 
-// calculateOptimalBitrate determines best bitrate for transcoding
-func (p *PlaybackPlannerImpl) calculateOptimalBitrate(media *MediaInfo, profile DeviceProfile) int {
-	// Start with source bitrate
-	bitrate := int(media.Bitrate)
-	
-	// Cap at device maximum
-	if profile.MaxBitrate > 0 && bitrate > profile.MaxBitrate {
-		bitrate = profile.MaxBitrate
+// calculateTargetBitrate calculates appropriate bitrate for resolution
+func (p *PlaybackPlannerImpl) calculateTargetBitrate(resolution string, maxBitrate int) int {
+	// Base bitrates for different resolutions (in kbps)
+	baseBitrates := map[string]int{
+		"480p":  1500,
+		"720p":  3000,
+		"1080p": 6000,
+		"1440p": 12000,
+		"2160p": 25000,
 	}
-	
-	// Apply reasonable minimums based on resolution
-	switch media.Resolution {
-	case "2160p":
-		if bitrate < 8000000 {
-			bitrate = 8000000 // 8 Mbps minimum for 4K
-		}
-	case "1440p":
-		if bitrate < 5000000 {
-			bitrate = 5000000 // 5 Mbps minimum for 1440p
-		}
-	case "1080p":
-		if bitrate < 2500000 {
-			bitrate = 2500000 // 2.5 Mbps minimum for 1080p
-		}
-	case "720p":
-		if bitrate < 1500000 {
-			bitrate = 1500000 // 1.5 Mbps minimum for 720p
-		}
+
+	targetBitrate := baseBitrates[resolution]
+	if targetBitrate == 0 {
+		targetBitrate = 6000 // Default to 1080p bitrate
 	}
-	
-	return bitrate
+
+	// Apply client bitrate limit if specified
+	if maxBitrate > 0 && targetBitrate > maxBitrate {
+		targetBitrate = maxBitrate
+	}
+
+	return targetBitrate
 }
 
-// isResolutionLower compares two resolution strings
-func (p *PlaybackPlannerImpl) isResolutionLower(res1, res2 string) bool {
-	resOrder := map[string]int{
-		"480p":  1,
-		"720p":  2,
-		"1080p": 3,
-		"1440p": 4,
-		"2160p": 5,
+// selectTargetContainer chooses the best container format for the client
+func (p *PlaybackPlannerImpl) selectTargetContainer(sourceContainer string, profile *plugins.DeviceProfile) string {
+	userAgent := strings.ToLower(profile.UserAgent)
+
+	// Determine if adaptive streaming would be beneficial
+	// Use adaptive streaming for:
+	// 1. High-resolution content (1440p+) that benefits from adaptive bitrates
+	// 2. Long-form content where seeking is important
+	// 3. Clients with variable network conditions (mobile, remote)
+	shouldUseAdaptiveStreaming := p.shouldUseAdaptiveStreaming(profile)
+
+	if !shouldUseAdaptiveStreaming {
+		// For simple cases, prefer progressive MP4 for lower latency and simpler setup
+		return "mp4"
 	}
-	
-	return resOrder[res1] < resOrder[res2]
-} 
+
+	// Choose adaptive streaming format based on client capabilities
+	// Modern browsers with MSE support can handle DASH
+	if strings.Contains(userAgent, "chrome") || strings.Contains(userAgent, "firefox") || strings.Contains(userAgent, "edge") {
+		// Prefer DASH for Chromium-based browsers and Firefox
+		return "dash"
+	}
+
+	// Safari and iOS have better HLS support
+	if strings.Contains(userAgent, "safari") || strings.Contains(userAgent, "mobile") || strings.Contains(userAgent, "ios") {
+		return "hls"
+	}
+
+	// Smart TV and streaming devices often prefer HLS
+	if strings.Contains(userAgent, "tv") || strings.Contains(userAgent, "roku") || strings.Contains(userAgent, "appletv") {
+		return "hls"
+	}
+
+	// Default to DASH for unknown modern clients with MSE support
+	return "dash"
+}
+
+// shouldUseAdaptiveStreaming determines if adaptive streaming (DASH/HLS) would be beneficial
+func (p *PlaybackPlannerImpl) shouldUseAdaptiveStreaming(profile *plugins.DeviceProfile) bool {
+	// Don't use adaptive streaming for very low resolution content
+	if profile.MaxResolution != "" {
+		maxHeight := p.getResolutionHeight(profile.MaxResolution)
+		if maxHeight < 720 {
+			return false // Use progressive for SD content
+		}
+	}
+
+	// Use adaptive streaming for high-resolution content
+	if profile.MaxResolution != "" {
+		maxHeight := p.getResolutionHeight(profile.MaxResolution)
+		if maxHeight >= 1440 {
+			return true // Always use adaptive for 1440p+ content
+		}
+	}
+
+	// Use adaptive streaming for limited bandwidth scenarios
+	if profile.MaxBitrate > 0 && profile.MaxBitrate < 5000 {
+		return true // Use adaptive for bandwidth-constrained clients
+	}
+
+	// Use adaptive streaming for mobile clients (more variable network conditions)
+	userAgent := strings.ToLower(profile.UserAgent)
+	if strings.Contains(userAgent, "mobile") || strings.Contains(userAgent, "android") || strings.Contains(userAgent, "ios") {
+		return true
+	}
+
+	// Use adaptive streaming for remote clients (if we had this information)
+	// For now, assume all clients could benefit from adaptive streaming in HD+ content
+	if profile.MaxResolution == "" || p.getResolutionHeight(profile.MaxResolution) >= 1080 {
+		return true
+	}
+
+	// Default to adaptive streaming for modern browsers (Chrome detected in user agent)
+	if strings.Contains(userAgent, "chrome") || strings.Contains(userAgent, "firefox") {
+		return true
+	}
+
+	return false
+}
+
+// analyzeMedia extracts media information from the file
+func (p *PlaybackPlannerImpl) analyzeMedia(mediaPath string) (*MediaInfo, error) {
+	// This is a simplified implementation
+	// In a real system, you would use FFprobe or similar tool
+
+	ext := strings.ToLower(filepath.Ext(mediaPath))
+
+	info := &MediaInfo{
+		Container:    p.getContainerFromExtension(ext),
+		VideoCodec:   "h264",  // Default assumption
+		AudioCodec:   "aac",   // Default assumption
+		Resolution:   "1080p", // Default assumption
+		Bitrate:      6000000, // 6 Mbps default
+		Duration:     3600,    // 1 hour default
+		HasHDR:       false,
+		HasSubtitles: false,
+	}
+
+	return info, nil
+}
+
+// getContainerFromExtension determines container format from file extension
+func (p *PlaybackPlannerImpl) getContainerFromExtension(ext string) string {
+	switch ext {
+	case ".mp4", ".m4v":
+		return "mp4"
+	case ".mkv":
+		return "mkv"
+	case ".avi":
+		return "avi"
+	case ".webm":
+		return "webm"
+	case ".mov":
+		return "mov"
+	default:
+		return "unknown"
+	}
+}

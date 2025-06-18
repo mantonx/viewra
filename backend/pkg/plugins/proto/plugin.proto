@@ -330,4 +330,153 @@ message AdminPageConfig {
   string category = 5;
   string url = 6;
   string type = 7;
+}
+
+// Transcoding service for video/audio transcoding plugins
+service TranscodingService {
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse);
+  rpc StartTranscode(StartTranscodeRequest) returns (StartTranscodeResponse);
+  rpc GetTranscodeSession(GetTranscodeSessionRequest) returns (GetTranscodeSessionResponse);
+  rpc StopTranscode(StopTranscodeRequest) returns (StopTranscodeResponse);
+  rpc ListActiveSessions(ListActiveSessionsRequest) returns (ListActiveSessionsResponse);
+  rpc GetTranscodeStream(GetTranscodeStreamRequest) returns (stream TranscodeStreamChunk);
+}
+
+// Transcoding capabilities message
+message TranscodingCapabilities {
+  string name = 1;
+  repeated string supported_codecs = 2;
+  repeated string supported_resolutions = 3;
+  repeated string supported_containers = 4;
+  bool hardware_acceleration = 5;
+  int32 max_concurrent_sessions = 6;
+  TranscodingFeatures features = 7;
+  int32 priority = 8;
+}
+
+message TranscodingFeatures {
+  bool subtitle_burn_in = 1;
+  bool subtitle_passthrough = 2;
+  bool multi_audio_tracks = 3;
+  bool hdr_support = 4;
+  bool tone_mapping = 5;
+  bool streaming_output = 6;
+  bool segmented_output = 7;
+}
+
+// Transcoding request/response messages
+message GetCapabilitiesRequest {}
+
+message GetCapabilitiesResponse {
+  TranscodingCapabilities capabilities = 1;
+  string error = 2;
+}
+
+message StartTranscodeRequest {
+  TranscodeRequest request = 1;
+}
+
+message StartTranscodeResponse {
+  TranscodeSession session = 1;
+  string error = 2;
+}
+
+message GetTranscodeSessionRequest {
+  string session_id = 1;
+}
+
+message GetTranscodeSessionResponse {
+  TranscodeSession session = 1;
+  string error = 2;
+}
+
+message StopTranscodeRequest {
+  string session_id = 1;
+}
+
+message StopTranscodeResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ListActiveSessionsRequest {}
+
+message ListActiveSessionsResponse {
+  repeated TranscodeSession sessions = 1;
+  string error = 2;
+}
+
+message GetTranscodeStreamRequest {
+  string session_id = 1;
+}
+
+message TranscodeStreamChunk {
+  bytes data = 1;
+  bool eof = 2;
+  string error = 3;
+}
+
+// Core transcoding data structures
+message TranscodeRequest {
+  string input_path = 1;
+  string target_codec = 2;
+  string target_container = 3;
+  string resolution = 4;
+  int32 bitrate = 5;
+  string audio_codec = 6;
+  int32 audio_bitrate = 7;
+  int32 audio_stream = 8;
+  SubtitleConfig subtitles = 9;
+  int32 quality = 10;
+  string preset = 11;
+  map<string, string> options = 12;
+  DeviceProfile device_profile = 13;
+  int32 priority = 14;
+}
+
+message SubtitleConfig {
+  bool enabled = 1;
+  string language = 2;
+  bool burn_in = 3;
+  int32 stream_idx = 4;
+  int32 font_size = 5;
+  string font_color = 6;
+}
+
+message DeviceProfile {
+  string user_agent = 1;
+  repeated string supported_codecs = 2;
+  string max_resolution = 3;
+  int32 max_bitrate = 4;
+  bool supports_hevc = 5;
+  bool supports_av1 = 6;
+  bool supports_hdr = 7;
+  string client_ip = 8;
+  string platform = 9;
+  string browser = 10;
+}
+
+message TranscodeSession {
+  string id = 1;
+  TranscodeRequest request = 2;
+  string status = 3; // pending, starting, running, completed, failed, cancelled
+  double progress = 4;
+  int64 start_time = 5; // Unix timestamp
+  int64 end_time = 6;   // Unix timestamp, optional
+  string backend = 7;
+  string error = 8;
+  TranscodeStats stats = 9;
+  map<string, string> metadata = 10;
+}
+
+message TranscodeStats {
+  int64 duration = 1;        // Duration in nanoseconds
+  int64 bytes_processed = 2;
+  int64 bytes_generated = 3;
+  int64 frames_processed = 4;
+  double current_fps = 5;
+  double average_fps = 6;
+  double cpu_usage = 7;
+  int64 memory_usage = 8;
+  double speed = 9;          // Transcoding speed multiplier
 } 

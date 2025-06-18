@@ -1,12 +1,11 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-
-// Import Shaka Player
-// @ts-expect-error - Shaka Player doesn't have proper TypeScript definitions
+import { ArrowLeft, Play, Pause, Square, SkipBack, SkipForward, Volume2, VolumeX, Maximize, Minimize2 } from 'lucide-react';
+import { Tooltip } from 'react-tooltip';
 import shaka from 'shaka-player/dist/shaka-player.ui.js';
-import 'shaka-player/dist/controls.css';
 
+
+// Types
 interface Episode {
   id: string;
   title: string;
@@ -40,37 +39,337 @@ interface MediaFile {
   size_bytes: number;
 }
 
+interface PlaybackDecision {
+  should_transcode: boolean;
+  reason: string;
+  direct_play_url?: string;
+  stream_url: string;
+  manifest_url?: string;
+  media_info: {
+    id: string;
+    container: string;
+    video_codec: string;
+    audio_codec: string;
+    resolution: string;
+    duration: number;
+    size_bytes: number;
+  };
+  transcode_params?: {
+    target_codec: string;
+    target_container: string;
+    resolution: string;
+    bitrate: number;
+  };
+  session_id?: string;
+}
+
 const VideoPlayer: React.FC = () => {
   const { episodeId } = useParams<{ episodeId: string }>();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
+  // Debug flag - controlled by URL query param (?debug=true) or set manually
+  const DEBUG = searchParams.get('debug') === 'true' || searchParams.get('debug') === '1';
+  
+  // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
-  const playerRef = useRef<typeof shaka.Player | null>(null);
-  const uiRef = useRef<typeof shaka.ui.Overlay | null>(null);
+  const playerRef = useRef<any>(null);
+  const uiRef = useRef<any>(null);
+  const initializationRef = useRef(false); // Prevent multiple initializations
 
-  const [episode, setEpisode] = useState<Episode | null>(null);
-  const [mediaFile, setMediaFile] = useState<MediaFile | null>(null);
+  // State
+  const [, setEpisode] = useState<Episode | null>(null);
+  const [, setMediaFile] = useState<MediaFile | null>(null);
+  const [playbackDecision, setPlaybackDecision] = useState<PlaybackDecision | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [seekableDuration, setSeekableDuration] = useState(0); // Available for seeking
+  const [originalDuration, setOriginalDuration] = useState(0); // Full file duration
+  const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [showPlayButton, setShowPlayButton] = useState(false);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
 
-  // Get start time from URL params
+  // URL params
   const startTime = parseInt(searchParams.get('t') || '0', 10);
+  const shouldAutoplay = searchParams.get('autoplay') !== 'false';
+  
+  // Debug URL params and check for saved position
+  const savedPosition = localStorage.getItem(`video-position-${episodeId}`);
+  if (DEBUG) {
+    console.log('🔍 Video position debug:', { 
+      episodeId,
+      rawTParam: searchParams.get('t'), 
+      startTime, 
+      shouldAutoplay,
+      savedPosition: savedPosition ? parseFloat(savedPosition) : null,
+      currentDuration: duration,
+      allParams: Object.fromEntries(searchParams.entries())
+    });
+  }
+
+  // Clean up player
+  const cleanupPlayer = useCallback(() => {
+    if (uiRef.current && typeof uiRef.current.destroy === 'function') {
+      try {
+        uiRef.current.destroy();
+      } catch (e) {
+        console.warn('Error destroying UI:', e);
+      }
+      uiRef.current = null;
+    }
+
+    if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+      try {
+        playerRef.current.destroy();
+      } catch (e) {
+        console.warn('Error destroying player:', e);
+      }
+      playerRef.current = null;
+    }
+
+    initializationRef.current = false;
+  }, []);
+
+  // Wait for manifest to be available
+  const waitForManifest = useCallback(async (url: string, maxAttempts = 60, intervalMs = 2000) => {
+    // Give FFmpeg a few seconds to start generating the manifest
+    if (DEBUG) console.log('⏳ Initial delay to allow FFmpeg to start...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (DEBUG) console.log(`🔄 Checking manifest availability (${attempt}/${maxAttempts}): ${url}`);
+        
+        const response = await fetch(url, { method: 'HEAD' });
+        if (response.ok) {
+          if (DEBUG) console.log('✅ Manifest is available!');
+          return true;
+        }
+        
+        if (DEBUG) console.log(`⏳ Manifest not ready yet (${response.status}), waiting...`);
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+      } catch (error) {
+        if (DEBUG) console.log(`⏳ Manifest check failed (${attempt}/${maxAttempts}):`, error);
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+      }
+    }
+    
+    throw new Error(`Manifest not available after ${maxAttempts} attempts`);
+  }, [DEBUG]);
+
+  // Initialize Shaka Player
+  const initializePlayer = useCallback(async () => {
+    if (!videoRef.current || !playbackDecision || initializationRef.current) {
+      return;
+    }
+
+    // Prevent multiple initializations
+    initializationRef.current = true;
+
+    try {
+      if (DEBUG) console.log('🎬 Initializing Shaka Player...');
+
+      // Install polyfills
+      if (shaka.polyfill) {
+        shaka.polyfill.installAll();
+      }
+
+      // Check browser support
+      if (!shaka.Player.isBrowserSupported()) {
+        throw new Error('Browser not supported');
+      }
+
+      // Create player (modern approach without passing video element to constructor)
+      const player = new shaka.Player();
+      playerRef.current = player;
+      
+      // Attach player to video element
+      await player.attach(videoRef.current);
+
+      // Configure player
+      player.configure({
+        streaming: {
+          bufferingGoal: 30,
+          rebufferingGoal: 5,
+        },
+      });
+
+      // Get manifest URL (prefer manifest_url for DASH/HLS, fallback to stream_url)
+      const manifestUrl = playbackDecision.manifest_url || playbackDecision.stream_url;
+      if (DEBUG) console.log('🎬 Loading manifest/stream:', manifestUrl);
+
+      // For DASH/HLS adaptive streaming, wait for manifest to be available
+      if (playbackDecision.manifest_url && playbackDecision.should_transcode) {
+        if (DEBUG) console.log('⏳ Waiting for DASH manifest to be generated...');
+        await waitForManifest(manifestUrl);
+      }
+
+      // Load the manifest/stream
+      await player.load(manifestUrl);
+      if (DEBUG) console.log('✅ Player loaded successfully');
+
+      // Set up video event listeners
+      const video = videoRef.current;
+      if (video) {
+        const handleLoadedMetadata = () => {
+          if (DEBUG) {
+            console.log('🔍 Video metadata loaded:', { 
+              duration: video.duration, 
+              currentTime: video.currentTime,
+              startTimeParam: startTime,
+              seekableStart: video.seekable.length > 0 ? video.seekable.start(0) : 'N/A',
+              seekableEnd: video.seekable.length > 0 ? video.seekable.end(0) : 'N/A',
+              isFinite: isFinite(video.duration),
+              isNaN: isNaN(video.duration)
+            });
+          }
+          
+          // Only set duration if it's a valid finite number
+          if (isFinite(video.duration) && video.duration > 0) {
+            setDuration(video.duration);
+            if (DEBUG) console.log('✅ Valid duration set:', video.duration);
+          } else {
+            if (DEBUG) console.warn('❌ Invalid duration detected:', video.duration);
+          }
+          
+          // Determine start position: URL param > saved position > beginning
+          let targetStartTime = 0;
+          if (startTime > 0) {
+            targetStartTime = startTime;
+            console.log('📍 Using URL start time:', startTime);
+          } else if (savedPosition && parseFloat(savedPosition) > 0) {
+            targetStartTime = parseFloat(savedPosition);
+            console.log('📍 Resuming from saved position:', targetStartTime);
+          } else {
+            console.log('📍 Starting from beginning');
+          }
+          
+          video.currentTime = targetStartTime;
+          
+          if (shouldAutoplay) {
+            video.play().catch(console.warn);
+          }
+        };
+
+        const handleTimeUpdate = () => {
+          setCurrentTime(video.currentTime);
+          
+          // Update duration if it becomes available (important for DASH streams)
+                      if (!duration || duration <= 0) {
+             // Try multiple ways to get duration for DASH streams
+             let detectedDuration = 0;
+             
+             if (isFinite(video.duration) && video.duration > 0) {
+               detectedDuration = video.duration;
+               if (DEBUG) console.log('🕒 Duration from video.duration:', detectedDuration);
+             } else if (video.seekable && video.seekable.length > 0) {
+               detectedDuration = video.seekable.end(video.seekable.length - 1);
+               if (DEBUG) console.log('🕒 Duration from seekable range:', detectedDuration);
+             } else if (video.buffered && video.buffered.length > 0) {
+               detectedDuration = video.buffered.end(video.buffered.length - 1);
+               if (DEBUG) console.log('🕒 Duration from buffered range:', detectedDuration);
+             }
+             
+             if (detectedDuration > 0 && isFinite(detectedDuration)) {
+               if (DEBUG) console.log('✅ Seekable duration detected during playback:', detectedDuration);
+               setSeekableDuration(detectedDuration);
+               
+               // Only update display duration if we don't have original duration or if seekable >= original
+               if (!originalDuration || detectedDuration >= originalDuration) {
+                 setDuration(detectedDuration);
+               }
+             }
+           }
+          
+          // Save position every 5 seconds
+          if (Math.floor(video.currentTime) % 5 === 0) {
+            localStorage.setItem(`video-position-${episodeId}`, video.currentTime.toString());
+          }
+        };
+        const handlePlay = () => setIsPlaying(true);
+        const handlePause = () => setIsPlaying(false);
+        const handleVolumeChange = () => {
+          setVolume(video.volume);
+          setIsMuted(video.muted);
+        };
+
+        // Additional handler for duration detection
+        const handleDurationChange = () => {
+          console.log('🎬 Duration change event fired:', video.duration);
+          if (isFinite(video.duration) && video.duration > 0) {
+            setDuration(video.duration);
+          }
+        };
+
+        const handleLoadedData = () => {
+          console.log('📊 Loaded data event fired:', {
+            duration: video.duration,
+            seekable: video.seekable.length > 0 ? video.seekable.end(0) : 'none',
+            buffered: video.buffered.length > 0 ? video.buffered.end(0) : 'none'
+          });
+          
+          // Try to detect duration from multiple sources
+          let detectedDuration = 0;
+          if (isFinite(video.duration) && video.duration > 0) {
+            detectedDuration = video.duration;
+          } else if (video.seekable && video.seekable.length > 0) {
+            detectedDuration = video.seekable.end(video.seekable.length - 1);
+          }
+          
+                     if (detectedDuration > 0) {
+             if (DEBUG) console.log('✅ Seekable duration from loadeddata:', detectedDuration);
+             setSeekableDuration(detectedDuration);
+             
+             // Only update display duration if we don't have original duration or if seekable >= original
+             if (!originalDuration || detectedDuration >= originalDuration) {
+               setDuration(detectedDuration);
+             }
+           }
+        };
+
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('loadeddata', handleLoadedData);
+        video.addEventListener('durationchange', handleDurationChange);
+        video.addEventListener('timeupdate', handleTimeUpdate);
+        video.addEventListener('play', handlePlay);
+        video.addEventListener('pause', handlePause);
+        video.addEventListener('volumechange', handleVolumeChange);
+
+        // Store cleanup function
+        (video as HTMLVideoElement & { cleanupVideoEvents?: () => void }).cleanupVideoEvents = () => {
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+          video.removeEventListener('loadeddata', handleLoadedData);
+          video.removeEventListener('durationchange', handleDurationChange);
+          video.removeEventListener('timeupdate', handleTimeUpdate);
+          video.removeEventListener('play', handlePlay);
+          video.removeEventListener('pause', handlePause);
+          video.removeEventListener('volumechange', handleVolumeChange);
+        };
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error('❌ Player initialization failed:', err);
+      setError(`Player initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setLoading(false);
+      initializationRef.current = false;
+    }
+  }, [playbackDecision, startTime, shouldAutoplay, savedPosition, DEBUG]);
 
   // Load episode data
   const loadEpisodeData = useCallback(async () => {
     if (!episodeId) return;
 
-    setLoading(true);
-    setError(null);
-
     try {
-      // First, find the media file for this episode
+      setLoading(true);
+      setError(null);
+
+      // Get media files
       const filesResponse = await fetch(`/api/media/files?limit=1000`);
       const filesData = await filesResponse.json();
 
@@ -85,460 +384,295 @@ const VideoPlayer: React.FC = () => {
 
       setMediaFile(episodeFile);
 
+      // Set original duration from file metadata
+      if (episodeFile.duration && episodeFile.duration > 0) {
+        setOriginalDuration(episodeFile.duration);
+        setDuration(episodeFile.duration); // Start with original duration
+        if (DEBUG) console.log('📏 Original file duration:', episodeFile.duration, 'seconds');
+      }
+
+      // Get playback decision
+      const deviceProfile = {
+        user_agent: navigator.userAgent,
+        supported_codecs: ["h264", "aac", "mp3"],
+        max_resolution: "1080p",
+        max_bitrate: 8000,
+        supports_hevc: false,
+        target_container: "dash"
+      };
+
+      const decisionResponse = await fetch('/api/playback/decide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          media_path: episodeFile.path,
+          device_profile: deviceProfile
+        })
+      });
+
+      if (!decisionResponse.ok) {
+        throw new Error(`Playback decision failed: ${decisionResponse.statusText}`);
+      }
+
+      const decision = await decisionResponse.json();
+      setPlaybackDecision(decision);
+
+      // Start transcoding session if needed
+      if (decision.should_transcode) {
+        const sessionResponse = await fetch('/api/playback/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input_path: episodeFile.path,
+            target_codec: decision.transcode_params?.target_codec || 'h264',
+            target_container: decision.transcode_params?.target_container || 'dash',
+            resolution: decision.transcode_params?.resolution || '1080p'
+          })
+        });
+
+        if (!sessionResponse.ok) {
+          throw new Error(`Session start failed: ${sessionResponse.statusText}`);
+        }
+
+        const sessionData = await sessionResponse.json();
+        console.log('✅ Transcoding session started:', sessionData.id);
+
+        // Store session info for player initialization
+        setPlaybackDecision(prev => ({
+          ...prev!,
+          session_id: sessionData.id,
+          manifest_url: `/api/playback/stream/${sessionData.id}/manifest.mpd`
+        }));
+      }
+
       // Get episode metadata
       const metadataResponse = await fetch(`/api/media/files/${episodeFile.id}/metadata`);
-      const metadataData = await metadataResponse.json();
-
-      if (metadataData.metadata?.type === 'episode') {
-        setEpisode({
-          id: metadataData.metadata.episode_id,
-          title: metadataData.metadata.title,
-          episode_number: metadataData.metadata.episode_number,
-          air_date: metadataData.metadata.air_date,
-          description: metadataData.metadata.description,
-          duration: metadataData.metadata.duration,
-          still_image: metadataData.metadata.still_image,
-          season: metadataData.metadata.season,
-        });
+      if (metadataResponse.ok) {
+        const metadata = await metadataResponse.json();
+        setEpisode(metadata.episode);
       }
+
+      // Data loading complete - now player can initialize
+      setLoading(false);
+
     } catch (err) {
-      console.error('Failed to load episode data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load episode data');
-    } finally {
+      console.error('❌ Failed to load episode data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load episode');
       setLoading(false);
     }
   }, [episodeId]);
 
-  // Initialize Shaka Player for adaptive streaming
-  const initializePlayer = useCallback(async () => {
-    if (!videoRef.current || !mediaFile) return;
-
-    try {
-      console.log('🎬 Initializing Shaka Player...');
-      console.log('📁 Media file info:', {
-        id: mediaFile.id,
-        container: mediaFile.container,
-        codec: mediaFile.video_codec,
-        size: mediaFile.size_bytes,
-        duration: mediaFile.duration,
-      });
-
-      // Install polyfills
-      shaka.polyfill.installAll();
-
-      // Check for browser support
-      if (!shaka.Player.isBrowserSupported()) {
-        throw new Error('Browser not supported for Shaka Player');
-      }
-
-      console.log('✅ Creating Shaka Player instance...');
-      // Create a Player instance using the new pattern
-      const player = new shaka.Player();
-      await player.attach(videoRef.current);
-      playerRef.current = player;
-
-      console.log('⚙️ Configuring player...');
-      // Configure player for adaptive streaming
-      player.configure({
-        streaming: {
-          bufferingGoal: 30,
-          rebufferingGoal: 5,
-          bufferBehind: 30,
-          ignoreTextStreamFailures: true,
-          alwaysStreamText: false,
-          startAtSegmentBoundary: false,
-        },
-        manifest: {
-          retryParameters: {
-            timeout: 30000,
-            maxAttempts: 3,
-            baseDelay: 1000,
-            backoffFactor: 2,
-            fuzzFactor: 0.5,
-          },
-        },
-      });
-
-      console.log('🛡️ Setting up error handling...');
-      // Set up error handling
-      player.addEventListener(
-        'error',
-        (event: { detail: { message?: string; category?: string } }) => {
-          console.error('❌ Shaka Player error:', event.detail);
-          const errorMessage = event.detail?.message || event.detail?.category || 'Unknown error';
-          setError(`Playback error: ${errorMessage}`);
-        }
-      );
-
-      console.log('🎮 Creating UI overlay...');
-      // Create UI overlay
-      let videoUrl: string;
-
-      // Check if the file needs transcoding for Shaka Player compatibility
-      const needsTranscoding =
-        mediaFile.container && !['mp4', 'webm'].includes(mediaFile.container.toLowerCase());
-
-      if (needsTranscoding) {
-        // Use transcoding endpoint for incompatible formats (MKV, AVI, etc.)
-        videoUrl = `/api/media/files/${mediaFile.id}/transcode.mp4?quality=720p`;
-        console.log('🔄 Using transcoding endpoint for', mediaFile.container, 'file:', videoUrl);
-        console.log('⚠️ TRANSCODING MODE - Keep this browser tab open to maintain stream!');
+  // Control functions
+  const togglePlayPause = useCallback(() => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
       } else {
-        // Use direct streaming for compatible formats
-        videoUrl = `/api/media/files/${mediaFile.id}/stream`;
-        console.log('📺 Using direct streaming for', mediaFile.container, 'file:', videoUrl);
+        videoRef.current.play();
       }
-
-      try {
-        console.log('📡 Starting player.load() for video...');
-        const loadStartTime = performance.now();
-
-        // Add network monitoring for transcoded streams
-        if (needsTranscoding) {
-          console.log('🔍 Setting up connection monitoring for transcoded stream...');
-
-          // Monitor for potential issues
-          const connectionMonitor = setInterval(() => {
-            const video = videoRef.current;
-            if (video) {
-              console.log('📊 Stream status:', {
-                currentTime: video.currentTime.toFixed(2),
-                buffered: video.buffered.length > 0 ? video.buffered.end(0).toFixed(2) : 'none',
-                readyState: video.readyState,
-                networkState: video.networkState,
-                paused: video.paused,
-                ended: video.ended,
-              });
-
-              // Check for stalled playback
-              if (video.readyState < 3 && !video.paused && !video.ended) {
-                console.warn('⚠️ Video seems to be stalling - ready state:', video.readyState);
-              }
-            }
-          }, 10000); // Log every 10 seconds
-
-          // Clear monitor when component unmounts or video ends
-          const cleanup = () => {
-            clearInterval(connectionMonitor);
-          };
-
-          // Store cleanup function
-          (window as Window & { __videoStreamMonitor?: () => void }).__videoStreamMonitor = cleanup;
-        }
-
-        await player.load(videoUrl);
-        const loadTime = performance.now() - loadStartTime;
-        console.log(`✅ Video loaded successfully in ${loadTime.toFixed(2)}ms`);
-      } catch (loadError) {
-        console.error('❌ Failed to load video:', loadError);
-        if (loadError instanceof Error && loadError.message.includes('NETWORK_ERROR')) {
-          console.error('🌐 Network error detected - this could be due to:');
-          console.error('   • Server-side transcoding process terminated');
-          console.error('   • Network connection issues');
-          console.error('   • Browser/tab was backgrounded causing connection timeout');
-        }
-        throw new Error(`Failed to load video: ${loadError}`);
-      }
-
-      // Wait for the video to have some basic metadata before creating UI
-      const videoElement = videoRef.current;
-
-      // Wait for loadedmetadata event to ensure video properties are available
-      await new Promise<void>((resolve) => {
-        const handleLoadedMetadata = () => {
-          videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-          resolve();
-        };
-
-        if (videoElement.readyState >= 1) {
-          // Metadata already loaded
-          resolve();
-        } else {
-          videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
-        }
-      });
-
-      // For transcoded content, use native HTML5 controls instead of Shaka UI
-      // Shaka UI has issues with progressive download MP4 streams
-      if (needsTranscoding) {
-        console.log('🎛️ Using native HTML5 controls for transcoded content');
-        videoElement.controls = true;
-        uiRef.current = null;
-        setShowPlayButton(false);
-
-        // Add additional monitoring for transcoded streams
-        const handleError = (e: Event) => {
-          console.error('❌ Video element error:', e);
-          console.error('   Error details:', {
-            error: videoElement.error,
-            networkState: videoElement.networkState,
-            readyState: videoElement.readyState,
-          });
-        };
-
-        const handleStalled = () => {
-          console.warn('⚠️ Video stalled - network might be slow or connection lost');
-        };
-
-        const handleWaiting = () => {
-          console.log('⏳ Video is waiting for more data...');
-        };
-
-        const handleCanPlay = () => {
-          console.log('▶️ Video can start playing');
-        };
-
-        videoElement.addEventListener('error', handleError);
-        videoElement.addEventListener('stalled', handleStalled);
-        videoElement.addEventListener('waiting', handleWaiting);
-        videoElement.addEventListener('canplay', handleCanPlay);
-      } else {
-        // Only try Shaka UI for direct streaming content
-        try {
-          console.log('🎨 Creating Shaka UI overlay for direct stream...');
-          const parentElement = videoElement.parentElement;
-
-          if (!parentElement) {
-            throw new Error('Video element must have a parent container');
-          }
-
-          // Configure UI options
-          const uiConfig = {
-            controlPanelElements: [
-              'play_pause',
-              'time_and_duration',
-              'spacer',
-              'mute',
-              'volume',
-              'fullscreen',
-            ],
-            addSeekBar: true,
-            addBigPlayButton: true,
-            enableKeyboardPlaybackControls: true,
-            enableFullscreenOnRotation: true,
-            forceLandscapeOnFullscreen: true,
-          };
-
-          const ui = new shaka.ui.Overlay(player, videoElement, parentElement);
-          ui.configure(uiConfig);
-          uiRef.current = ui;
-          console.log('✅ UI configured successfully');
-
-          // Hide our custom controls since Shaka UI is working
-          setShowPlayButton(false);
-        } catch (uiError) {
-          console.warn('⚠️ Failed to create Shaka UI overlay:', uiError);
-          console.warn('   Falling back to basic controls...');
-          uiRef.current = null;
-
-          // If UI overlay fails, add basic controls to the video element
-          videoElement.controls = true;
-          setShowPlayButton(true);
-        }
-      }
-
-      // Try to start playback automatically
-      try {
-        console.log('🎵 Attempting auto-play...');
-        await videoElement.play();
-        console.log('✅ Auto-play successful');
-        setShowPlayButton(false);
-      } catch (playError) {
-        console.warn('⚠️ Auto-play failed (expected in many browsers):', playError);
-        setShowPlayButton(true);
-      }
-
-      // Set start time if provided
-      if (startTime > 0 && videoElement) {
-        console.log(`⏰ Setting start time to ${startTime} seconds`);
-        videoElement.currentTime = startTime;
-      }
-
-      // Set up video event listeners with better monitoring
-      let lastTimeUpdate = 0;
-      const handleTimeUpdate = () => {
-        const newTime = Math.floor(videoElement.currentTime);
-        // Only update URL every 5 seconds to avoid excessive re-renders
-        if (newTime > 0 && newTime !== lastTimeUpdate && newTime % 5 === 0) {
-          lastTimeUpdate = newTime;
-          // Use replace to avoid creating browser history entries
-          setSearchParams(
-            (prev) => {
-              const newParams = new URLSearchParams(prev);
-              newParams.set('t', newTime.toString());
-              return newParams;
-            },
-            { replace: true }
-          );
-        }
-      };
-
-      const handleLoadedMetadata = () => {
-        console.log('📊 Video metadata loaded:', {
-          duration: videoElement.duration,
-          videoWidth: videoElement.videoWidth,
-          videoHeight: videoElement.videoHeight,
-        });
-        setDuration(videoElement.duration);
-        if (startTime > 0) {
-          videoElement.currentTime = startTime;
-        }
-      };
-
-      const handlePlay = () => {
-        console.log('▶️ Video started playing');
-        setIsPlaying(true);
-        setShowPlayButton(false);
-      };
-      const handlePause = () => {
-        console.log('⏸️ Video paused');
-        setIsPlaying(false);
-      };
-
-      videoElement.addEventListener('timeupdate', handleTimeUpdate);
-      videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
-      videoElement.addEventListener('play', handlePlay);
-      videoElement.addEventListener('pause', handlePause);
-
-      // Cleanup function
-      return () => {
-        console.log('🧹 Cleaning up video event listeners');
-        videoElement.removeEventListener('timeupdate', handleTimeUpdate);
-        videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        videoElement.removeEventListener('play', handlePlay);
-        videoElement.removeEventListener('pause', handlePause);
-
-        // Clean up connection monitor
-        const windowWithMonitor = window as Window & { __videoStreamMonitor?: () => void };
-        if (windowWithMonitor.__videoStreamMonitor) {
-          windowWithMonitor.__videoStreamMonitor();
-          delete windowWithMonitor.__videoStreamMonitor;
-        }
-      };
-    } catch (err) {
-      console.error('❌ Failed to initialize player:', err);
-      setError(err instanceof Error ? err.message : 'Failed to initialize player');
     }
-  }, [mediaFile]);
+  }, [isPlaying]);
 
-  // Cleanup player
-  const cleanupPlayer = useCallback(() => {
-    if (uiRef.current) {
-      uiRef.current.destroy();
-      uiRef.current = null;
+  const stopVideo = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+      setCurrentTime(0);
+      // Clear saved position when explicitly stopped
+      localStorage.removeItem(`video-position-${episodeId}`);
+      console.log('⏹️ Video stopped and position reset');
     }
-    if (playerRef.current) {
-      playerRef.current.destroy();
-      playerRef.current = null;
+  }, [episodeId]);
+
+  const restartFromBeginning = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      setCurrentTime(0);
+      // Clear saved position and start playing
+      localStorage.removeItem(`video-position-${episodeId}`);
+      videoRef.current.play();
+      console.log('🔄 Video restarted from beginning');
+    }
+  }, [episodeId]);
+
+  const toggleMute = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
     }
   }, []);
 
-  // Handle fullscreen
   const toggleFullscreen = useCallback(() => {
-    if (!videoRef.current) return;
-
     if (!document.fullscreenElement) {
-      videoRef.current.parentElement?.requestFullscreen();
-      setIsFullscreen(true);
+      videoRef.current?.parentElement?.requestFullscreen();
     } else {
       document.exitFullscreen();
-      setIsFullscreen(false);
     }
   }, []);
 
-  // Handle keyboard shortcuts
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (!videoRef.current) return;
+  // Enhanced seek function with seek-ahead support
+  const handleSeek = useCallback(async (progress: number) => {
+    if (!videoRef.current || !playbackDecision) return;
 
-      switch (event.code) {
-        case 'Space':
-          event.preventDefault();
-          if (isPlaying) {
-            videoRef.current.pause();
-          } else {
-            videoRef.current.play();
+    // Get duration from video element, but validate it first
+    const rawDuration = videoRef.current.duration;
+    const duration = (isFinite(rawDuration) && rawDuration > 0) ? rawDuration : Math.max(originalDuration, 0);
+    
+    // If we still don't have a valid duration, can't seek
+    if (!duration || duration <= 0) {
+      console.warn('❌ No valid duration available for seeking:', { rawDuration, duration, originalDuration });
+      return;
+    }
+
+    const seekTime = progress * duration;
+
+    console.log('🎯 Seeking to:', { progress, duration, seekTime, rawDuration });
+
+    // Validate seek time before setting
+    if (!isFinite(seekTime) || isNaN(seekTime) || seekTime < 0) {
+      console.warn('❌ Invalid seek time:', { progress, duration, seekTime });
+      return;
+    }
+
+    // Always seek immediately for instant user feedback
+    videoRef.current.currentTime = seekTime;
+
+    // For DASH/HLS streams, check if we need seek-ahead
+    if (playbackDecision.transcode_params?.target_container === 'dash' || playbackDecision.transcode_params?.target_container === 'hls') {
+      const currentSeekableDuration = seekableDuration;
+      
+      if (seekTime > currentSeekableDuration + 5) { // 5 second buffer
+        console.log('🚀 Seeking beyond available content, starting background transcoding');
+        
+        // Extract session ID from manifest URL or use stored session ID
+        let sessionId = playbackDecision.session_id;
+        if (!sessionId && playbackDecision.manifest_url) {
+          const urlMatch = playbackDecision.manifest_url.match(/\/stream\/([^/]+)\//);
+          if (urlMatch) {
+            sessionId = urlMatch[1];
           }
-          break;
+        }
+
+        if (sessionId) {
+          try {
+            // Call seek-ahead API in background (don't await)
+            fetch('/api/playback/seek-ahead', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                session_id: sessionId,
+                seek_time: Math.floor(seekTime)
+              })
+            }).then(response => {
+              if (response.ok) {
+                console.log('✅ Seek-ahead transcoding started in background');
+              } else {
+                console.warn('⚠️ Seek-ahead request failed:', response.status);
+              }
+            }).catch(error => {
+              console.warn('⚠️ Seek-ahead request error:', error);
+            });
+          } catch (error) {
+            console.warn('⚠️ Seek-ahead error:', error);
+          }
+        }
+      }
+    }
+  }, [playbackDecision, seekableDuration]);
+
+  // Skip functions
+  const skipBackward = useCallback(() => {
+    if (videoRef.current && duration > 0) {
+      const newTime = Math.max(0, currentTime - 10);
+      console.log('⏪ Skipping backward to:', newTime);
+      handleSeek(newTime / duration);
+    }
+  }, [currentTime, duration, handleSeek]);
+
+  const skipForward = useCallback(() => {
+    if (videoRef.current && duration > 0) {
+      const newTime = Math.min(duration, currentTime + 10);
+      console.log('⏩ Skipping forward to:', newTime);
+      handleSeek(newTime / duration);
+    }
+  }, [currentTime, duration, handleSeek]);
+
+  // Keyboard shortcuts for seeking
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (videoRef.current && duration > 0) {
+      switch (e.code) {
         case 'ArrowLeft':
-          event.preventDefault();
-          videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+          e.preventDefault();
+          handleSeek((Math.max(0, currentTime - 10) / duration));
           break;
         case 'ArrowRight':
-          event.preventDefault();
-          videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 10);
+          e.preventDefault();
+          handleSeek((Math.min(duration, currentTime + 10) / duration));
           break;
-        case 'ArrowUp':
-          event.preventDefault();
-          videoRef.current.volume = Math.min(1, videoRef.current.volume + 0.1);
+        case 'Home':
+          e.preventDefault();
+          handleSeek(0);
           break;
-        case 'ArrowDown':
-          event.preventDefault();
-          videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
-          break;
-        case 'KeyF':
-          event.preventDefault();
-          toggleFullscreen();
-          break;
-        case 'KeyM':
-          event.preventDefault();
-          videoRef.current.muted = !videoRef.current.muted;
+        case 'End':
+          e.preventDefault();
+          handleSeek(1);
           break;
       }
-    },
-    [isPlaying, duration, toggleFullscreen]
-  );
+    }
+  }, [currentTime, duration, handleSeek]);
+
+  const handleVolumeChange = useCallback((newVolume: number) => {
+    if (videoRef.current) {
+      videoRef.current.volume = newVolume;
+    }
+  }, []);
+
+  const formatTime = (time: number) => {
+    // Handle invalid time values
+    if (!isFinite(time) || isNaN(time) || time < 0) {
+      return '0:00';
+    }
+    
+    const hours = Math.floor(time / 3600);
+    const minutes = Math.floor((time % 3600) / 60);
+    const seconds = Math.floor(time % 60);
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   // Auto-hide controls
   useEffect(() => {
-    let timeout: number;
+    let hideTimeout: ReturnType<typeof setTimeout>;
 
     const resetTimeout = () => {
       setShowControls(true);
-      clearTimeout(timeout);
-      timeout = window.setTimeout(() => {
-        if (isPlaying) {
-          setShowControls(false);
-        }
-      }, 3000);
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => setShowControls(false), 3000);
     };
 
     const handleMouseMove = () => resetTimeout();
     const handleMouseLeave = () => {
-      clearTimeout(timeout);
-      if (isPlaying) {
-        setShowControls(false);
-      }
+      clearTimeout(hideTimeout);
+      setShowControls(false);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseleave', handleMouseLeave);
-    document.addEventListener('keydown', handleKeyDown);
+    if (videoRef.current?.parentElement) {
+      const container = videoRef.current.parentElement;
+      container.addEventListener('mousemove', handleMouseMove);
+      container.addEventListener('mouseleave', handleMouseLeave);
+      resetTimeout();
 
-    resetTimeout();
-
-    return () => {
-      clearTimeout(timeout);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseleave', handleMouseLeave);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isPlaying, handleKeyDown]);
-
-  // Load episode data on mount
-  useEffect(() => {
-    loadEpisodeData();
-  }, [loadEpisodeData]);
-
-  // Initialize player when media file is loaded
-  useEffect(() => {
-    if (mediaFile) {
-      initializePlayer();
+      return () => {
+        container.removeEventListener('mousemove', handleMouseMove);
+        container.removeEventListener('mouseleave', handleMouseLeave);
+        clearTimeout(hideTimeout);
+      };
     }
-    return cleanupPlayer;
-  }, [mediaFile]);
+  }, []);
 
-  // Handle fullscreen change
+  // Fullscreen change handler
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -548,12 +682,67 @@ const VideoPlayer: React.FC = () => {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Keyboard event handler
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Load data on mount
+  useEffect(() => {
+    loadEpisodeData();
+  }, [loadEpisodeData]);
+
+  // Initialize player when ready
+  useEffect(() => {
+    console.log('🔍 Player init check:', { 
+      hasPlaybackDecision: !!playbackDecision, 
+      hasVideoRef: !!videoRef.current, 
+      alreadyInitialized: initializationRef.current,
+      manifestUrl: playbackDecision?.manifest_url 
+    });
+    
+    if (playbackDecision && videoRef.current && !initializationRef.current) {
+      console.log('✅ Triggering player initialization');
+      initializePlayer();
+    }
+  }, [playbackDecision, initializePlayer]);
+
+  // Callback ref to ensure we catch when video element is attached
+  const videoCallbackRef = useCallback((element: HTMLVideoElement | null) => {
+    videoRef.current = element;
+    console.log('🔍 Video element attached:', !!element);
+    
+    // Try to initialize player when video element becomes available
+    if (element && playbackDecision && !initializationRef.current) {
+      console.log('✅ Video element ready - triggering player initialization');
+      initializePlayer();
+    }
+  }, [playbackDecision, initializePlayer]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (videoRef.current && (videoRef.current as HTMLVideoElement & { cleanupVideoEvents?: () => void }).cleanupVideoEvents) {
+        (videoRef.current as HTMLVideoElement & { cleanupVideoEvents?: () => void }).cleanupVideoEvents?.();
+      }
+      if (cleanupPlayer) {
+        cleanupPlayer();
+      }
+    };
+  }, [cleanupPlayer]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="flex items-center justify-center h-screen bg-black text-white">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading episode...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading video player...</p>
+          {playbackDecision && (
+            <p className="text-sm text-gray-400 mt-2">
+              {playbackDecision.should_transcode ? 'Preparing DASH stream...' : 'Preparing direct stream...'}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -561,32 +750,15 @@ const VideoPlayer: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="flex items-center justify-center h-screen bg-black text-white">
         <div className="text-center max-w-md">
-          <div className="text-red-400 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-white mb-2">Playback Error</h2>
-          <p className="text-slate-400 mb-4">{error}</p>
+          <h2 className="text-xl font-bold mb-4">Playback Error</h2>
+          <p className="text-red-400 mb-4">{error}</p>
           <button
-            onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
           >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!episode || !mediaFile) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-slate-400">Episode not found</p>
-          <button
-            onClick={() => navigate(-1)}
-            className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
-          >
-            Go Back
+            Reload Player
           </button>
         </div>
       </div>
@@ -594,144 +766,222 @@ const VideoPlayer: React.FC = () => {
   }
 
   return (
-    <div
-      className={`${isFullscreen ? 'fixed inset-0 z-50' : 'min-h-screen'} bg-black flex flex-col`}
-    >
-      {/* Header with show info - hidden in fullscreen */}
-      {!isFullscreen && (
-        <div className="bg-slate-900 p-4 flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-white" />
-          </button>
+    <div className="relative h-screen bg-black overflow-hidden">
+      {/* Back button */}
+      <button
+        data-tooltip-id="back-button"
+        onClick={() => navigate(-1)}
+        className="absolute top-4 left-4 z-50 bg-black/50 hover:bg-black/80 hover:scale-110 text-white p-2 rounded-full transition-all duration-200 shadow-lg"
+      >
+        <ArrowLeft className="w-6 h-6" />
+      </button>
+      <Tooltip id="back-button" content="Go back" place="bottom" />
 
-          <div className="flex items-center gap-4 flex-1">
-            {episode.season.tv_show.poster && (
-              <img
-                src={episode.season.tv_show.poster}
-                alt={episode.season.tv_show.title}
-                className="w-12 h-16 object-cover rounded"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (episode.season.tv_show.id) {
-                    target.src = `/api/v1/assets/entity/tv_show/${episode.season.tv_show.id}/preferred/poster/data`;
-                  } else {
-                    target.style.display = 'none';
-                  }
-                }}
-              />
-            )}
-
-            <div>
-              <h1 className="text-white font-bold text-lg">{episode.season.tv_show.title}</h1>
-              <p className="text-slate-400">
-                Season {episode.season.season_number}, Episode {episode.episode_number}:{' '}
-                {episode.title}
-              </p>
-              {episode.description && (
-                <p className="text-slate-500 text-sm mt-1 line-clamp-2">{episode.description}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="text-slate-400 text-sm">
-            {mediaFile.resolution && <span className="mr-4">{mediaFile.resolution}</span>}
-            {mediaFile.video_codec && (
-              <span className="mr-4">{mediaFile.video_codec.toUpperCase()}</span>
-            )}
-            {mediaFile.audio_codec && <span>{mediaFile.audio_codec.toUpperCase()}</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Development monitoring overlay for transcoded streams */}
-      {import.meta.env.DEV &&
-        mediaFile?.container &&
-        !['mp4', 'webm'].includes(mediaFile.container.toLowerCase()) && (
-          <div className="fixed top-4 right-4 bg-black/80 text-white p-3 rounded text-xs font-mono z-50 max-w-xs">
-            <div className="text-yellow-400 font-bold mb-1">🔄 TRANSCODING MODE</div>
-            <div>Container: {mediaFile.container}</div>
-            <div>Quality: 720p</div>
-            <div className="text-yellow-300 mt-1 text-xs">⚠️ Keep tab open to maintain stream</div>
-            <div className="text-gray-400 mt-1 text-xs">Check console for detailed logs</div>
-          </div>
-        )}
-
-      {/* Video Player Container */}
-      <div className={`relative flex-1 bg-black ${isFullscreen ? 'w-full h-full' : ''}`}>
-        {/* Background artwork */}
-        {episode.season.tv_show.backdrop && (
-          <div
-            className="absolute inset-0 opacity-10 bg-cover bg-center blur-sm"
-            style={{
-              backgroundImage: `url("${episode.season.tv_show.backdrop}")`,
-            }}
-          />
-        )}
-
-        {/* Video Element */}
+      {/* Video container */}
+      <div className="relative w-full h-full">
         <video
-          ref={videoRef}
+          ref={videoCallbackRef}
           className="w-full h-full object-contain"
-          poster={episode.still_image || episode.season.tv_show.backdrop}
+          playsInline
           preload="metadata"
-          crossOrigin="anonymous"
+          autoPlay={shouldAutoplay}
+          muted={false}
+          onDoubleClick={restartFromBeginning}
+          title="Double-click to restart from beginning"
         />
 
-        {/* Play button overlay for when auto-play is blocked */}
-        {showPlayButton && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-            <button
-              onClick={() => {
-                if (videoRef.current) {
-                  videoRef.current.play();
-                  setShowPlayButton(false);
-                }
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white rounded-full p-6 transition-colors shadow-lg"
-            >
-              <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </button>
+        {/* Streaming info */}
+        {playbackDecision && (
+          <div className="absolute top-4 right-4 z-50 bg-black/70 text-white p-3 rounded-lg text-sm">
+            <div className="font-semibold mb-1">
+              {playbackDecision.should_transcode ? '🎬 DASH Streaming' : '📺 Direct Stream'}
+            </div>
+            <div className="text-xs text-gray-300">
+              {playbackDecision.reason}
+            </div>
           </div>
         )}
 
-        {/* Custom overlay for additional info */}
+        {/* Custom Controls */}
         <div
-          className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 transition-opacity duration-300 ${
+            showControls ? 'opacity-100' : 'opacity-0'
+          }`}
         >
-          {/* Episode info overlay */}
-          <div className="absolute top-4 left-4 bg-black/70 rounded-lg p-3 max-w-md">
-            <h3 className="text-white font-semibold text-sm">
-              S{episode.season.season_number}E{episode.episode_number}: {episode.title}
-            </h3>
-            {episode.air_date && (
-              <p className="text-slate-300 text-xs mt-1">
-                Aired: {new Date(episode.air_date).toLocaleDateString()}
-              </p>
+                  {/* Enhanced Progress Bar with Seek-Ahead Indication */}
+        <div className="mb-4">
+          <div className="relative group">
+            {/* Hover time preview */}
+            {hoverTime !== null && (
+              <div
+                className="absolute -top-8 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm pointer-events-none z-10"
+                style={{ left: `${(hoverTime / Math.max(duration, originalDuration)) * 100}%` }}
+              >
+                {formatTime(hoverTime)}
+                {hoverTime > (seekableDuration || duration) && playbackDecision?.transcode_params?.target_container && (
+                  <span className="ml-1 text-blue-300">⚡</span>
+                )}
+              </div>
             )}
+            
+            {/* Main progress track */}
+            <div 
+              className="w-full h-2 bg-gray-600 rounded-full cursor-pointer relative overflow-hidden group-hover:h-3 transition-all"
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const progress = (e.clientX - rect.left) / rect.width;
+                const totalDuration = Math.max(duration, originalDuration);
+                setHoverTime(progress * totalDuration);
+              }}
+              onMouseLeave={() => setHoverTime(null)}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const progress = (e.clientX - rect.left) / rect.width;
+                
+                // Use finite duration values only
+                const validDuration = (isFinite(duration) && duration > 0) ? duration : 0;
+                const validOriginalDuration = (isFinite(originalDuration) && originalDuration > 0) ? originalDuration : 0;
+                const totalDuration = Math.max(validDuration, validOriginalDuration);
+                
+                // Validate values before seeking
+                if (!isFinite(progress) || progress < 0 || progress > 1 || !totalDuration || totalDuration <= 0) {
+                  console.warn('❌ Invalid progress bar click:', { 
+                    progress, 
+                    duration, 
+                    originalDuration, 
+                    validDuration, 
+                    validOriginalDuration, 
+                    totalDuration 
+                  });
+                  return;
+                }
+                
+                console.log('🎯 Progress bar seek:', { progress, totalDuration });
+                handleSeek(progress);
+              }}
+            >
+              {/* Total duration background */}
+              <div className="absolute inset-0 bg-gray-700 rounded-full"></div>
+              
+              {/* Transcoded/available content */}
+              {seekableDuration > 0 && (
+                <div
+                  className="absolute top-0 left-0 h-full bg-gray-400 rounded-full"
+                  style={{ width: `${Math.max(duration, originalDuration) > 0 ? (seekableDuration / Math.max(duration, originalDuration)) * 100 : 0}%` }}
+                ></div>
+              )}
+              
+              {/* Seek-ahead indicator for untranscoded content */}
+              {originalDuration > (seekableDuration || duration) && playbackDecision?.transcode_params?.target_container && (
+                <div
+                  className="absolute top-0 bg-blue-400 bg-opacity-40 h-full rounded-full"
+                  style={{ 
+                    left: `${(seekableDuration || duration) / originalDuration * 100}%`,
+                    width: `${((originalDuration - (seekableDuration || duration)) / originalDuration) * 100}%`
+                  }}
+                  title="Click to seek-ahead (will start transcoding from this point)"
+                ></div>
+              )}
+              
+              {/* Current playback position */}
+              <div
+                className="absolute top-0 left-0 h-full bg-red-500 rounded-full"
+                style={{ width: `${Math.max(duration, originalDuration) > 0 ? (currentTime / Math.max(duration, originalDuration)) * 100 : 0}%` }}
+              ></div>
+              
+              {/* Progress handle */}
+              <div
+                className="absolute top-1/2 w-4 h-4 bg-red-500 rounded-full transform -translate-y-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                style={{ left: `${Math.max(duration, originalDuration) > 0 ? (currentTime / Math.max(duration, originalDuration)) * 100 : 0}%` }}
+              ></div>
+            </div>
           </div>
+          
+          {/* Time display */}
+          <div className="flex justify-between text-xs text-gray-300 mt-2">
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(Math.max(duration, originalDuration))}</span>
+          </div>
+        </div>
 
-          {/* Technical info overlay */}
-          <div className="absolute top-4 right-4 bg-black/70 rounded-lg p-2 text-xs text-slate-300">
-            <div>Direct Play • No Transcoding</div>
-            {mediaFile.container && <div>Container: {mediaFile.container.toUpperCase()}</div>}
-            {mediaFile.video_codec && <div>Video: {mediaFile.video_codec.toUpperCase()}</div>}
-            {mediaFile.audio_codec && <div>Audio: {mediaFile.audio_codec.toUpperCase()}</div>}
+          {/* Control buttons */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                data-tooltip-id="skip-back"
+                onClick={skipBackward}
+                className="text-white hover:text-red-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent"
+                disabled={!duration || duration <= 0}
+              >
+                <SkipBack className="w-6 h-6" />
+              </button>
+              <Tooltip id="skip-back" content="Skip backward 10 seconds" place="top" />
+
+              <button
+                data-tooltip-id="play-pause"
+                onClick={togglePlayPause}
+                className="text-white hover:text-red-400 hover:scale-110 transition-all duration-200 p-3 rounded-full hover:bg-white/10"
+              >
+                {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8" />}
+              </button>
+              <Tooltip id="play-pause" content={isPlaying ? "Pause" : "Play"} place="top" />
+
+              <button
+                data-tooltip-id="skip-forward"
+                onClick={skipForward}
+                className="text-white hover:text-red-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent"
+                disabled={!duration || duration <= 0}
+              >
+                <SkipForward className="w-6 h-6" />
+              </button>
+              <Tooltip id="skip-forward" content="Skip forward 10 seconds" place="top" />
+
+              <button
+                data-tooltip-id="stop"
+                onClick={stopVideo}
+                className="text-white hover:text-red-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10"
+              >
+                <Square className="w-6 h-6" />
+              </button>
+              <Tooltip id="stop" content="Stop and reset to beginning" place="top" />
+
+              <div className="flex items-center space-x-2">
+                <button
+                  data-tooltip-id="volume"
+                  onClick={toggleMute}
+                  className="text-white hover:text-red-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10"
+                >
+                  {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                </button>
+                <Tooltip id="volume" content={isMuted ? "Unmute" : "Mute"} place="top" />
+                
+                <input
+                  data-tooltip-id="volume-slider"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                  className="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer hover:bg-gray-500 transition-colors duration-200"
+                />
+                <Tooltip id="volume-slider" content={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`} place="top" />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <button
+                data-tooltip-id="fullscreen"
+                onClick={toggleFullscreen}
+                className="text-white hover:text-red-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10"
+              >
+                {isFullscreen ? <Minimize2 className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+              </button>
+              <Tooltip id="fullscreen" content={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} place="top" />
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Episode details - hidden in fullscreen */}
-      {!isFullscreen && episode.description && (
-        <div className="bg-slate-900 p-4">
-          <h3 className="text-white font-semibold mb-2">Episode Description</h3>
-          <p className="text-slate-400 text-sm leading-relaxed">{episode.description}</p>
-        </div>
-      )}
     </div>
   );
 };

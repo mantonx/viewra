@@ -119,7 +119,11 @@ func (m *ExternalPluginManager) ResetPluginHealthHandler(c *gin.Context) {
 
 	// Get the plugin interface to re-register it
 	if pluginInterface, exists := m.GetRunningPluginInterface(pluginID); exists {
-		m.registerPluginHealth(pluginID, pluginInterface)
+		// Handle both ExternalPluginInterface and plugins.Implementation (adapter)
+		if externalInterface, ok := pluginInterface.(ExternalPluginInterface); ok {
+			m.registerPluginHealth(pluginID, externalInterface)
+		}
+		// For adapters, we'll skip health registration since they're wrappers
 	}
 
 	c.JSON(http.StatusOK, gin.H{

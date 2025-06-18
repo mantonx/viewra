@@ -24,16 +24,16 @@ const (
 
 // Register registers this module with the module system
 func Register() {
-	// Create a temporary plugin module for registration - it will be properly initialized later
-	// Use the configuration system to get the correct plugin directory
+	// Try to get plugin directory from configuration during registration
 	cfg := config.Get()
 	pluginDir := cfg.Plugins.PluginDir
 
 	// Manual fallback: check environment variable if config is empty or default
 	if pluginDir == "" || pluginDir == "./data/plugins" {
-		if envPluginDir := os.Getenv("PLUGIN_DIR"); envPluginDir != "" {
+		if envPluginDir := os.Getenv("VIEWRA_PLUGIN_DIR"); envPluginDir != "" {
 			pluginDir = envPluginDir
-			fmt.Printf("Using PLUGIN_DIR environment variable: %s\n", pluginDir)
+		} else if envPluginDir := os.Getenv("PLUGIN_DIR"); envPluginDir != "" {
+			pluginDir = envPluginDir
 		}
 	}
 
@@ -75,6 +75,13 @@ func (pm *PluginModule) Core() bool {
 
 func (pm *PluginModule) Migrate(db *gorm.DB) error {
 	pm.logger.Info("running plugin module database migrations")
+
+	// Set the database connection if it's not already set
+	if pm.db == nil {
+		pm.db = db
+		pm.logger.Info("Database connection set during migration")
+	}
+
 	// Database migrations for plugin-related tables would go here
 	// For now, plugin tables are defined elsewhere
 	return nil
@@ -82,13 +89,57 @@ func (pm *PluginModule) Migrate(db *gorm.DB) error {
 
 func (pm *PluginModule) Init() error {
 	pm.logger.Info("initializing plugin module")
-	// The actual initialization happens in Initialize() method
+
+	// Call the full initialization method with a background context
+	ctx := context.Background()
+	if err := pm.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize plugin module: %w", err)
+	}
+
 	return nil
 }
 
 // Initialize initializes the plugin module and all sub-managers
 func (pm *PluginModule) Initialize(ctx context.Context) error {
 	pm.logger.Info("initializing plugin module")
+
+	// Ensure database connection is set for sub-managers
+	if pm.db != nil {
+		// Update sub-managers with database connection if they were created without it
+		if pm.coreManager != nil && pm.coreManager.db == nil {
+			pm.coreManager.db = pm.db
+		}
+		if pm.externalManager != nil && pm.externalManager.db == nil {
+			pm.externalManager.db = pm.db
+		}
+		if pm.libraryManager != nil && pm.libraryManager.db == nil {
+			pm.libraryManager.db = pm.db
+		}
+		if pm.mediaManager != nil && pm.mediaManager.db == nil {
+			pm.mediaManager.db = pm.db
+		}
+	}
+
+	// Resolve plugin directory if not set during registration
+	if pm.config.PluginDir == "" {
+		// Use the configuration system to get the correct plugin directory
+		cfg := config.Get()
+		pluginDir := cfg.Plugins.PluginDir
+
+		// Manual fallback: check environment variable if config is empty or default
+		if pluginDir == "" || pluginDir == "./data/plugins" {
+			if envPluginDir := os.Getenv("VIEWRA_PLUGIN_DIR"); envPluginDir != "" {
+				pluginDir = envPluginDir
+				pm.logger.Info("Using VIEWRA_PLUGIN_DIR environment variable", "plugin_dir", pluginDir)
+			} else if envPluginDir := os.Getenv("PLUGIN_DIR"); envPluginDir != "" {
+				pluginDir = envPluginDir
+				pm.logger.Info("Using PLUGIN_DIR environment variable", "plugin_dir", pluginDir)
+			}
+		}
+
+		pm.config.PluginDir = pluginDir
+		pm.logger.Info("Resolved plugin directory", "plugin_dir", pluginDir)
+	}
 
 	// Load core plugins from the global registry first
 	if err := pm.coreManager.LoadCorePluginsFromRegistry(); err != nil {

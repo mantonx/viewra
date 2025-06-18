@@ -18,6 +18,7 @@ import (
 	"github.com/mantonx/viewra/internal/modules/enrichmentmodule"
 	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/server/handlers"
@@ -28,6 +29,7 @@ import (
 	_ "github.com/mantonx/viewra/internal/modules/enrichmentmodule"
 	_ "github.com/mantonx/viewra/internal/modules/eventsmodule"
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
+	_ "github.com/mantonx/viewra/internal/modules/playbackmodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 
 	// Bootstrap core plugins
@@ -141,36 +143,97 @@ func initializeModules() error {
 	return nil
 }
 
+// PlaybackPluginManagerAdapter adapts the external plugin manager to the playback module interface
+type PlaybackPluginManagerAdapter struct {
+	externalManager interface{}
+}
+
+func (a *PlaybackPluginManagerAdapter) GetRunningPluginInterface(pluginID string) (interface{}, bool) {
+	if mgr, ok := a.externalManager.(interface {
+		GetRunningPluginInterface(string) (interface{}, bool)
+	}); ok {
+		return mgr.GetRunningPluginInterface(pluginID)
+	}
+	return nil, false
+}
+
+func (a *PlaybackPluginManagerAdapter) ListPlugins() []playbackmodule.PluginInfo {
+	if mgr, ok := a.externalManager.(interface {
+		ListPlugins() []pluginmodule.PluginInfo
+	}); ok {
+		plugins := mgr.ListPlugins()
+		var result []playbackmodule.PluginInfo
+		for _, p := range plugins {
+			result = append(result, playbackmodule.PluginInfo{
+				ID:          p.ID,
+				Name:        p.Name,
+				Version:     p.Version,
+				Type:        p.Type,
+				Description: p.Description,
+				Author:      "", // Not available in pluginmodule.PluginInfo
+				Status:      "", // Not available in pluginmodule.PluginInfo
+			})
+		}
+		return result
+	}
+	return []playbackmodule.PluginInfo{}
+}
+
+func (a *PlaybackPluginManagerAdapter) GetRunningPlugins() []playbackmodule.PluginInfo {
+	return a.ListPlugins()
+}
+
 // connectPluginManagerToModules connects the plugin manager to modules that need it
 func connectPluginManagerToModules() error {
-	modules := modulemanager.ListModules()
-
-	// Initialize enrichment plugin manager first
-	db := database.GetDB()
+	var pluginModule *pluginmodule.PluginModule
 	var enrichmentModule *enrichmentmodule.Module
 
+	// Get database reference
+	db := database.GetDB()
+
+	modules := modulemanager.ListModules()
+
+	// Find existing enrichment and plugin modules
 	for _, module := range modules {
-		// Get enrichment module reference and initialize it
 		if module.ID() == "system.enrichment" {
 			if em, ok := module.(*enrichmentmodule.Module); ok {
 				enrichmentModule = em
-				// Initialize the module first
-				if err := enrichmentModule.Init(); err != nil {
-					log.Printf("❌ Failed to initialize enrichment module: %v", err)
-					return err
-				}
-				// Then start it
-				if err := enrichmentModule.Start(); err != nil {
-					log.Printf("❌ Failed to start enrichment module: %v", err)
-					return err
-				}
-				log.Printf("✅ Started enrichment module")
+			}
+		}
+		if module.ID() == "system.plugins" {
+			if pm, ok := module.(*pluginmodule.PluginModule); ok {
+				pluginModule = pm
+				log.Printf("🔍 DEBUG: Found existing plugin module from registry")
 			}
 		}
 	}
 
-	// Create plugin module if we have the enrichment module
-	if enrichmentModule != nil {
+	// If we have both modules, connect them
+	if enrichmentModule != nil && pluginModule != nil {
+		log.Printf("🔍 DEBUG: Using existing plugin module instead of creating new one")
+
+		// NOTE: Don't call Initialize() here - the module manager already initialized it
+		// The plugin module is already initialized by the module manager's automatic initialization
+
+		// Connect external manager to enrichment module
+		extMgr := pluginModule.GetExternalManager()
+		log.Printf("🔍 DEBUG: External manager from existing plugin module: %v", extMgr != nil)
+
+		if extMgr != nil {
+			enrichmentModule.SetExternalPluginManager(extMgr)
+			log.Printf("✅ Connected external plugin manager to enrichment module")
+		} else {
+			log.Printf("⚠️  WARNING: GetExternalManager() returned nil from existing plugin module")
+		}
+
+		// Initialize plugin handlers with the existing plugin module
+		handlers.InitializePluginManager(pluginModule)
+		log.Printf("✅ Plugin handlers initialized with existing plugin module")
+
+		log.Printf("✅ Plugin system connected to enrichment module using existing plugin module")
+	} else if enrichmentModule != nil {
+		log.Printf("🔍 DEBUG: No existing plugin module found, creating new one")
+		// Only create a new plugin module if one doesn't exist
 		// Get plugin directory and create config
 		pluginDir := GetPluginDirectory()
 
@@ -205,7 +268,7 @@ func connectPluginManagerToModules() error {
 		extMgr := pluginModule.GetExternalManager()
 		log.Printf("🔍 DEBUG: External manager from GetExternalManager(): %v", extMgr)
 		log.Printf("🔍 DEBUG: External manager is nil: %v", extMgr == nil)
-		
+
 		if extMgr != nil {
 			log.Printf("🔍 DEBUG: External manager type: %T", extMgr)
 			enrichmentModule.SetExternalPluginManager(extMgr)
@@ -241,6 +304,31 @@ func connectPluginManagerToModules() error {
 				if pluginModule != nil {
 					mediaModule.SetPluginModule(pluginModule)
 					log.Printf("✅ Connected plugin module to media module")
+				}
+			}
+		}
+
+		// Connect playback module to plugin system
+		if module.ID() == "system.playback" {
+			if playbackModule, ok := module.(*playbackmodule.Module); ok {
+				if pluginModule != nil && playbackModule.GetPlaybackCore() != nil {
+					// Recreate the playback core with plugin manager support
+					logger := hclog.NewNullLogger().Named("playback-module")
+					extMgr := pluginModule.GetExternalManager()
+					if extMgr != nil {
+						// Create adapter for the external manager to match the expected interface
+						adapter := &PlaybackPluginManagerAdapter{externalManager: extMgr}
+
+						// Create new playback core with plugin support
+						newPlaybackCore := playbackmodule.NewPlaybackModule(logger, adapter)
+						if err := newPlaybackCore.Initialize(); err != nil {
+							log.Printf("⚠️  WARNING: Failed to initialize playback core with plugin support: %v", err)
+						} else {
+							// Replace the simple playback core with the plugin-enabled one
+							playbackModule.SetPlaybackCore(newPlaybackCore)
+							log.Printf("✅ Connected plugin module to playback module")
+						}
+					}
 				}
 			}
 		}

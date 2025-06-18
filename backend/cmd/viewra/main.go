@@ -19,6 +19,7 @@ import (
 	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
 	_ "github.com/mantonx/viewra/internal/modules/eventsmodule"
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
+	_ "github.com/mantonx/viewra/internal/modules/playbackmodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
 )
 

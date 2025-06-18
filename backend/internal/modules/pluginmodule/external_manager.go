@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/pkg/plugins"
 	"github.com/mantonx/viewra/pkg/plugins/proto"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
@@ -93,7 +95,436 @@ type ExternalPluginGRPCClient struct {
 	conn   *grpc.ClientConn
 }
 
-// Core plugin service implementations
+// ExternalPluginAdapter adapts the GRPC client to implement plugins.Implementation
+type ExternalPluginAdapter struct {
+	client     *ExternalPluginGRPCClient
+	pluginInfo *ExternalPluginInfo
+}
+
+// Implement plugins.Implementation interface (NOT ExternalPluginInterface)
+func (a *ExternalPluginAdapter) Initialize(ctx *plugins.PluginContext) error {
+	// Convert plugins.PluginContext to ExternalPluginContext
+	externalCtx := &ExternalPluginContext{
+		PluginID:        ctx.PluginID,
+		DatabaseURL:     ctx.DatabaseURL,
+		HostServiceAddr: ctx.HostServiceAddr,
+		LogLevel:        ctx.LogLevel,
+		BasePath:        ctx.PluginBasePath,
+	}
+	return a.client.Initialize(externalCtx)
+}
+
+func (a *ExternalPluginAdapter) Start() error {
+	return a.client.Start()
+}
+
+func (a *ExternalPluginAdapter) Stop() error {
+	return a.client.Stop()
+}
+
+func (a *ExternalPluginAdapter) Info() (*plugins.PluginInfo, error) {
+	externalInfo, err := a.client.Info()
+	if err != nil {
+		return nil, err
+	}
+	// Convert ExternalPluginInfo to plugins.PluginInfo
+	return &plugins.PluginInfo{
+		ID:          externalInfo.ID,
+		Name:        externalInfo.Name,
+		Version:     externalInfo.Version,
+		Type:        externalInfo.Type,
+		Description: externalInfo.Description,
+		Author:      externalInfo.Author,
+	}, nil
+}
+
+func (a *ExternalPluginAdapter) Health() error {
+	return a.client.Health()
+}
+
+// Service methods - return nil for unsupported services
+func (a *ExternalPluginAdapter) MetadataScraperService() plugins.MetadataScraperService { return nil }
+func (a *ExternalPluginAdapter) ScannerHookService() plugins.ScannerHookService         { return nil }
+func (a *ExternalPluginAdapter) AssetService() plugins.AssetService                     { return nil }
+func (a *ExternalPluginAdapter) DatabaseService() plugins.DatabaseService               { return nil }
+func (a *ExternalPluginAdapter) AdminPageService() plugins.AdminPageService             { return nil }
+func (a *ExternalPluginAdapter) APIRegistrationService() plugins.APIRegistrationService { return nil }
+func (a *ExternalPluginAdapter) SearchService() plugins.SearchService                   { return nil }
+func (a *ExternalPluginAdapter) HealthMonitorService() plugins.HealthMonitorService     { return nil }
+func (a *ExternalPluginAdapter) ConfigurationService() plugins.ConfigurationService     { return nil }
+func (a *ExternalPluginAdapter) PerformanceMonitorService() plugins.PerformanceMonitorService {
+	return nil
+}
+
+// TranscodingService - return a basic implementation for ffmpeg_transcoder
+func (a *ExternalPluginAdapter) TranscodingService() plugins.TranscodingService {
+	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
+		return &BasicTranscodingService{client: a.client}
+	}
+	return nil
+}
+
+// BasicTranscodingService implements GRPC communication with external transcoding plugins
+type BasicTranscodingService struct {
+	client *ExternalPluginGRPCClient
+}
+
+// GetCapabilities returns transcoding capabilities via GRPC
+func (s *BasicTranscodingService) GetCapabilities(ctx context.Context) (*plugins.TranscodingCapabilities, error) {
+	// Create GRPC client for transcoding service
+	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
+
+	fmt.Printf("DEBUG: BasicTranscodingService.GetCapabilities calling GRPC\n")
+	resp, err := transcodingClient.GetCapabilities(ctx, &proto.GetCapabilitiesRequest{})
+	if err != nil {
+		fmt.Printf("DEBUG: BasicTranscodingService.GetCapabilities GRPC failed: %v\n", err)
+		return nil, fmt.Errorf("failed to get capabilities: %w", err)
+	}
+	fmt.Printf("DEBUG: BasicTranscodingService.GetCapabilities GRPC succeeded\n")
+
+	if resp.Error != "" {
+		return nil, fmt.Errorf("plugin error: %s", resp.Error)
+	}
+
+	// DEBUG: Log the raw protobuf response
+	fmt.Printf("DEBUG: GRPC response - Name: %s\n", resp.Capabilities.Name)
+	fmt.Printf("DEBUG: GRPC response - SupportedCodecs: %v\n", resp.Capabilities.SupportedCodecs)
+	fmt.Printf("DEBUG: GRPC response - SupportedResolutions: %v\n", resp.Capabilities.SupportedResolutions)
+	fmt.Printf("DEBUG: GRPC response - SupportedContainers: %v\n", resp.Capabilities.SupportedContainers)
+	fmt.Printf("DEBUG: GRPC response - Priority: %d\n", resp.Capabilities.Priority)
+
+	// Convert protobuf response to internal format
+	capabilities := &plugins.TranscodingCapabilities{
+		Name:                  resp.Capabilities.Name,
+		SupportedCodecs:       resp.Capabilities.SupportedCodecs,
+		SupportedResolutions:  resp.Capabilities.SupportedResolutions,
+		SupportedContainers:   resp.Capabilities.SupportedContainers,
+		HardwareAcceleration:  resp.Capabilities.HardwareAcceleration,
+		MaxConcurrentSessions: int(resp.Capabilities.MaxConcurrentSessions),
+		Priority:              int(resp.Capabilities.Priority),
+		Features: plugins.TranscodingFeatures{
+			SubtitleBurnIn:      resp.Capabilities.Features.SubtitleBurnIn,
+			SubtitlePassthrough: resp.Capabilities.Features.SubtitlePassthrough,
+			MultiAudioTracks:    resp.Capabilities.Features.MultiAudioTracks,
+			HDRSupport:          resp.Capabilities.Features.HdrSupport,
+			ToneMapping:         resp.Capabilities.Features.ToneMapping,
+			StreamingOutput:     resp.Capabilities.Features.StreamingOutput,
+			SegmentedOutput:     resp.Capabilities.Features.SegmentedOutput,
+		},
+	}
+
+	// DEBUG: Log the converted internal capabilities
+	fmt.Printf("DEBUG: Converted capabilities - Name: %s\n", capabilities.Name)
+	fmt.Printf("DEBUG: Converted capabilities - SupportedCodecs: %v\n", capabilities.SupportedCodecs)
+	fmt.Printf("DEBUG: Converted capabilities - SupportedResolutions: %v\n", capabilities.SupportedResolutions)
+	fmt.Printf("DEBUG: Converted capabilities - SupportedContainers: %v\n", capabilities.SupportedContainers)
+	fmt.Printf("DEBUG: Converted capabilities - Priority: %d\n", capabilities.Priority)
+
+	return capabilities, nil
+}
+
+// StartTranscode starts a transcoding session via GRPC
+func (s *BasicTranscodingService) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error) {
+	// Create GRPC client for transcoding service
+	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
+
+	// Convert internal request to protobuf
+	protoReq := &proto.StartTranscodeRequest{
+		Request: &proto.TranscodeRequest{
+			InputPath:       req.InputPath,
+			TargetCodec:     req.TargetCodec,
+			TargetContainer: req.TargetContainer,
+			Resolution:      req.Resolution,
+			Bitrate:         int32(req.Bitrate),
+			AudioCodec:      req.AudioCodec,
+			AudioBitrate:    int32(req.AudioBitrate),
+			AudioStream:     int32(req.AudioStream),
+			Quality:         int32(req.Quality),
+			Preset:          req.Preset,
+			Options:         req.Options,
+			Priority:        int32(req.Priority),
+		},
+	}
+
+	// Handle subtitles if present
+	if req.Subtitles != nil {
+		protoReq.Request.Subtitles = &proto.SubtitleConfig{
+			Enabled:   req.Subtitles.Enabled,
+			Language:  req.Subtitles.Language,
+			BurnIn:    req.Subtitles.BurnIn,
+			StreamIdx: int32(req.Subtitles.StreamIdx),
+			FontSize:  int32(req.Subtitles.FontSize),
+			FontColor: req.Subtitles.FontColor,
+		}
+	}
+
+	// Handle device profile if present
+	if req.DeviceProfile != nil {
+		protoReq.Request.DeviceProfile = &proto.DeviceProfile{
+			UserAgent:       req.DeviceProfile.UserAgent,
+			SupportedCodecs: req.DeviceProfile.SupportedCodecs,
+			MaxResolution:   req.DeviceProfile.MaxResolution,
+			MaxBitrate:      int32(req.DeviceProfile.MaxBitrate),
+			SupportsHevc:    req.DeviceProfile.SupportsHEVC,
+			SupportsAv1:     req.DeviceProfile.SupportsAV1,
+			SupportsHdr:     req.DeviceProfile.SupportsHDR,
+			ClientIp:        req.DeviceProfile.ClientIP,
+			Platform:        req.DeviceProfile.Platform,
+			Browser:         req.DeviceProfile.Browser,
+		}
+	}
+
+	fmt.Printf("DEBUG: BasicTranscodingService.StartTranscode calling GRPC with InputPath='%s', TargetCodec='%s', Resolution='%s'\n",
+		protoReq.Request.InputPath, protoReq.Request.TargetCodec, protoReq.Request.Resolution)
+	resp, err := transcodingClient.StartTranscode(ctx, protoReq)
+	if err != nil {
+		fmt.Printf("DEBUG: BasicTranscodingService.StartTranscode GRPC failed: %v\n", err)
+		return nil, fmt.Errorf("failed to start transcode: %w", err)
+	}
+	fmt.Printf("DEBUG: BasicTranscodingService.StartTranscode GRPC succeeded\n")
+
+	if resp.Error != "" {
+		return nil, fmt.Errorf("plugin error: %s", resp.Error)
+	}
+
+	// Convert protobuf session to internal format
+	session := s.convertSessionFromProto(resp.Session)
+	return session, nil
+}
+
+// GetTranscodeSession gets transcoding session info via GRPC
+func (s *BasicTranscodingService) GetTranscodeSession(ctx context.Context, sessionID string) (*plugins.TranscodeSession, error) {
+	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
+
+	resp, err := transcodingClient.GetTranscodeSession(ctx, &proto.GetTranscodeSessionRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transcode session: %w", err)
+	}
+
+	if resp.Error != "" {
+		return nil, fmt.Errorf("plugin error: %s", resp.Error)
+	}
+
+	return s.convertSessionFromProto(resp.Session), nil
+}
+
+// StopTranscode stops a transcoding session via GRPC
+func (s *BasicTranscodingService) StopTranscode(ctx context.Context, sessionID string) error {
+	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
+
+	resp, err := transcodingClient.StopTranscode(ctx, &proto.StopTranscodeRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to stop transcode: %w", err)
+	}
+
+	if resp.Error != "" {
+		return fmt.Errorf("plugin error: %s", resp.Error)
+	}
+
+	return nil
+}
+
+// ListActiveSessions lists active transcoding sessions via GRPC
+func (s *BasicTranscodingService) ListActiveSessions(ctx context.Context) ([]*plugins.TranscodeSession, error) {
+	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
+
+	resp, err := transcodingClient.ListActiveSessions(ctx, &proto.ListActiveSessionsRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active sessions: %w", err)
+	}
+
+	if resp.Error != "" {
+		return nil, fmt.Errorf("plugin error: %s", resp.Error)
+	}
+
+	var sessions []*plugins.TranscodeSession
+	for _, protoSession := range resp.Sessions {
+		sessions = append(sessions, s.convertSessionFromProto(protoSession))
+	}
+
+	return sessions, nil
+}
+
+// GetTranscodeStream gets the transcoded stream via GRPC
+func (s *BasicTranscodingService) GetTranscodeStream(ctx context.Context, sessionID string) (io.ReadCloser, error) {
+	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
+
+	stream, err := transcodingClient.GetTranscodeStream(ctx, &proto.GetTranscodeStreamRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transcode stream: %w", err)
+	}
+
+	return &grpcStreamReader{stream: stream}, nil
+}
+
+// Helper method to convert protobuf session to internal format
+func (s *BasicTranscodingService) convertSessionFromProto(protoSession *proto.TranscodeSession) *plugins.TranscodeSession {
+	session := &plugins.TranscodeSession{
+		ID:        protoSession.Id,
+		Status:    plugins.TranscodeStatus(protoSession.Status),
+		Progress:  protoSession.Progress,
+		StartTime: time.Unix(protoSession.StartTime, 0),
+		Backend:   protoSession.Backend,
+		Error:     protoSession.Error,
+		Metadata:  make(map[string]interface{}),
+	}
+
+	// Convert metadata
+	for k, v := range protoSession.Metadata {
+		session.Metadata[k] = v
+	}
+
+	if protoSession.EndTime > 0 {
+		endTime := time.Unix(protoSession.EndTime, 0)
+		session.EndTime = &endTime
+	}
+
+	if protoSession.Request != nil {
+		session.Request = &plugins.TranscodeRequest{
+			InputPath:       protoSession.Request.InputPath,
+			TargetCodec:     protoSession.Request.TargetCodec,
+			TargetContainer: protoSession.Request.TargetContainer,
+			Resolution:      protoSession.Request.Resolution,
+			Bitrate:         int(protoSession.Request.Bitrate),
+			AudioCodec:      protoSession.Request.AudioCodec,
+			AudioBitrate:    int(protoSession.Request.AudioBitrate),
+			AudioStream:     int(protoSession.Request.AudioStream),
+			Quality:         int(protoSession.Request.Quality),
+			Preset:          protoSession.Request.Preset,
+			Options:         protoSession.Request.Options,
+			Priority:        int(protoSession.Request.Priority),
+		}
+
+		if protoSession.Request.Subtitles != nil {
+			session.Request.Subtitles = &plugins.SubtitleConfig{
+				Enabled:   protoSession.Request.Subtitles.Enabled,
+				Language:  protoSession.Request.Subtitles.Language,
+				BurnIn:    protoSession.Request.Subtitles.BurnIn,
+				StreamIdx: int(protoSession.Request.Subtitles.StreamIdx),
+				FontSize:  int(protoSession.Request.Subtitles.FontSize),
+				FontColor: protoSession.Request.Subtitles.FontColor,
+			}
+		}
+
+		if protoSession.Request.DeviceProfile != nil {
+			session.Request.DeviceProfile = &plugins.DeviceProfile{
+				UserAgent:       protoSession.Request.DeviceProfile.UserAgent,
+				SupportedCodecs: protoSession.Request.DeviceProfile.SupportedCodecs,
+				MaxResolution:   protoSession.Request.DeviceProfile.MaxResolution,
+				MaxBitrate:      int(protoSession.Request.DeviceProfile.MaxBitrate),
+				SupportsHEVC:    protoSession.Request.DeviceProfile.SupportsHevc,
+				SupportsAV1:     protoSession.Request.DeviceProfile.SupportsAv1,
+				SupportsHDR:     protoSession.Request.DeviceProfile.SupportsHdr,
+				ClientIP:        protoSession.Request.DeviceProfile.ClientIp,
+				Platform:        protoSession.Request.DeviceProfile.Platform,
+				Browser:         protoSession.Request.DeviceProfile.Browser,
+			}
+		}
+	}
+
+	if protoSession.Stats != nil {
+		session.Stats = &plugins.TranscodeStats{
+			Duration:        time.Duration(protoSession.Stats.Duration),
+			BytesProcessed:  protoSession.Stats.BytesProcessed,
+			BytesGenerated:  protoSession.Stats.BytesGenerated,
+			FramesProcessed: protoSession.Stats.FramesProcessed,
+			CurrentFPS:      protoSession.Stats.CurrentFps,
+			AverageFPS:      protoSession.Stats.AverageFps,
+			CPUUsage:        protoSession.Stats.CpuUsage,
+			MemoryUsage:     protoSession.Stats.MemoryUsage,
+			Speed:           protoSession.Stats.Speed,
+		}
+	}
+
+	return session
+}
+
+// grpcStreamReader implements io.ReadCloser for GRPC streaming
+type grpcStreamReader struct {
+	stream   grpc.ServerStreamingClient[proto.TranscodeStreamChunk]
+	buffer   []byte
+	position int
+	closed   bool
+}
+
+func (r *grpcStreamReader) Read(p []byte) (n int, err error) {
+	if r.closed {
+		return 0, io.EOF
+	}
+
+	// If we have buffered data, read from it first
+	if r.position < len(r.buffer) {
+		n = copy(p, r.buffer[r.position:])
+		r.position += n
+		return n, nil
+	}
+
+	// Get next chunk from stream
+	chunk, err := r.stream.Recv()
+	if err != nil {
+		r.closed = true
+		return 0, err
+	}
+
+	if chunk.Error != "" {
+		r.closed = true
+		return 0, fmt.Errorf("stream error: %s", chunk.Error)
+	}
+
+	if chunk.Eof {
+		r.closed = true
+		return 0, io.EOF
+	}
+
+	// Copy data to output buffer
+	n = copy(p, chunk.Data)
+
+	// If chunk is larger than output buffer, save remainder
+	if len(chunk.Data) > len(p) {
+		r.buffer = chunk.Data[n:]
+		r.position = 0
+	} else {
+		r.buffer = nil
+		r.position = 0
+	}
+
+	return n, nil
+}
+
+func (r *grpcStreamReader) Close() error {
+	r.closed = true
+	return nil
+}
+
+// Database service methods - delegate to the client
+func (a *ExternalPluginAdapter) GetModels() []string {
+	return a.client.GetModels()
+}
+
+func (a *ExternalPluginAdapter) Migrate(connectionString string) error {
+	return a.client.Migrate(connectionString)
+}
+
+// Scanner hook service methods - delegate to the client
+func (a *ExternalPluginAdapter) OnMediaFileScanned(mediaFileID string, filePath string, metadata map[string]string) error {
+	return a.client.OnMediaFileScanned(mediaFileID, filePath, metadata)
+}
+
+func (a *ExternalPluginAdapter) OnScanStarted(scanJobID, libraryID uint32, libraryPath string) error {
+	return a.client.OnScanStarted(scanJobID, libraryID, libraryPath)
+}
+
+func (a *ExternalPluginAdapter) OnScanCompleted(scanJobID, libraryID uint32, stats map[string]string) error {
+	return a.client.OnScanCompleted(scanJobID, libraryID, stats)
+}
+
+// Core plugin service implementations for ExternalPluginGRPCClient
 func (c *ExternalPluginGRPCClient) Initialize(ctx *ExternalPluginContext) error {
 	client := proto.NewPluginServiceClient(c.conn)
 
@@ -447,7 +878,9 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 	}
 
 	lines := strings.Split(string(content), "\n")
+	inPluginBlock := false
 	inSettingsBlock := false
+	blockDepth := 0
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -457,22 +890,40 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 			continue
 		}
 
-		// Skip settings block for now
-		if strings.Contains(line, "settings:") {
-			inSettingsBlock = true
-			continue
-		}
+		// Track block depth with braces
+		openBraces := strings.Count(line, "{")
+		closeBraces := strings.Count(line, "}")
 
-		if inSettingsBlock && strings.Contains(line, "}") {
+		// Handle block endings first
+		blockDepth -= closeBraces
+		if blockDepth <= 0 {
+			inPluginBlock = false
 			inSettingsBlock = false
+		}
+
+		// Check for plugin block start
+		if strings.Contains(line, "plugin:") && strings.Contains(line, "{") {
+			inPluginBlock = true
+			blockDepth = 1
 			continue
 		}
 
-		if inSettingsBlock {
+		// Check for settings block (for future expansion)
+		if strings.Contains(line, "settings:") && strings.Contains(line, "{") {
+			inSettingsBlock = true
+			blockDepth = 1
 			continue
 		}
 
-		// Parse basic fields
+		// Add opening braces to depth
+		blockDepth += openBraces
+
+		// Parse lines inside plugin block or at root level
+		if !inPluginBlock && !inSettingsBlock {
+			continue
+		}
+
+		// Parse basic fields (look for these anywhere, not just in settings block)
 		if strings.Contains(line, "id:") {
 			manifest.ID = m.extractQuotedValue(line)
 		} else if strings.Contains(line, "name:") {
@@ -484,7 +935,21 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 		} else if strings.Contains(line, "author:") {
 			manifest.Author = m.extractQuotedValue(line)
 		} else if strings.Contains(line, "type:") {
-			manifest.Type = m.extractQuotedValue(line)
+			// Special handling for type field to handle CUE constraints
+			typeValue := m.extractQuotedValue(line)
+			// Clean up CUE constraint syntax (e.g., "string | *\"none\"" -> "transcoder")
+			if typeValue == "" {
+				// Try to extract from CUE constraint syntax
+				rest := strings.TrimSpace(line[strings.Index(line, ":")+1:])
+				if strings.Contains(rest, "\"transcoder\"") {
+					typeValue = "transcoder"
+				} else if strings.Contains(rest, "\"metadata_scraper\"") {
+					typeValue = "metadata_scraper"
+				} else if strings.Contains(rest, "\"scanner_hook\"") {
+					typeValue = "scanner_hook"
+				}
+			}
+			manifest.Type = typeValue
 		} else if strings.Contains(line, "enabled_by_default:") {
 			manifest.EnabledDefault = strings.Contains(line, "true")
 		} else if strings.Contains(line, "main:") && strings.Contains(line, "entry_points") {
@@ -1073,11 +1538,40 @@ func (m *ExternalPluginManager) GetEnabledFileHandlers() []FileHandlerPlugin {
 }
 
 // GetRunningPluginInterface returns the interface for a running plugin
-func (m *ExternalPluginManager) GetRunningPluginInterface(pluginID string) (ExternalPluginInterface, bool) {
+func (m *ExternalPluginManager) GetRunningPluginInterface(pluginID string) (interface{}, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	pluginInterface, exists := m.pluginInterfaces[pluginID]
+	if !exists {
+		fmt.Printf("DEBUG: GetRunningPluginInterface - plugin interface not found: %s\n", pluginID)
+		return nil, false
+	}
+
+	// For transcoder plugins, return an adapter that implements plugins.Implementation
+	plugin, pluginExists := m.plugins[pluginID]
+	fmt.Printf("DEBUG: GetRunningPluginInterface - plugin=%s, exists=%v", pluginID, pluginExists)
+	if pluginExists {
+		fmt.Printf(", type=%s\n", plugin.Type)
+	} else {
+		fmt.Printf(", plugin not in plugins map\n")
+	}
+
+	if pluginExists && plugin.Type == "transcoder" {
+		if grpcClient, ok := pluginInterface.(*ExternalPluginGRPCClient); ok {
+			info, _ := grpcClient.Info()
+			adapter := &ExternalPluginAdapter{
+				client:     grpcClient,
+				pluginInfo: info,
+			}
+			fmt.Printf("DEBUG: GetRunningPluginInterface - returning adapter for transcoder: %s\n", pluginID)
+			return adapter, true
+		} else {
+			fmt.Printf("DEBUG: GetRunningPluginInterface - pluginInterface is not *ExternalPluginGRPCClient: %T\n", pluginInterface)
+		}
+	}
+
+	fmt.Printf("DEBUG: GetRunningPluginInterface - returning raw interface for non-transcoder: %s\n", pluginID)
 	return pluginInterface, exists
 }
 

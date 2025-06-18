@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
@@ -193,6 +194,12 @@ func (p *GRPCPlugin) GRPCServer(broker *goplugin.GRPCBroker, s *grpc.Server) err
 		proto.RegisterAssetServiceServer(s, &AssetServer{Impl: assetService})
 	}
 
+	// Register TranscodingService if implemented
+	if transcodingService := p.Impl.TranscodingService(); transcodingService != nil {
+		server := &TranscodingServer{Impl: transcodingService}
+		proto.RegisterTranscodingServiceServer(s, server)
+	}
+
 	return nil
 }
 
@@ -207,6 +214,7 @@ func (p *GRPCPlugin) GRPCClient(ctx context.Context, broker *goplugin.GRPCBroker
 		APIRegistrationServiceClient: proto.NewAPIRegistrationServiceClient(c),
 		SearchServiceClient:          proto.NewSearchServiceClient(c),
 		AssetServiceClient:           proto.NewAssetServiceClient(c),
+		TranscodingServiceClient:     proto.NewTranscodingServiceClient(c),
 	}, nil
 }
 
@@ -220,6 +228,7 @@ type GRPCClient struct {
 	proto.APIRegistrationServiceClient
 	proto.SearchServiceClient
 	proto.AssetServiceClient
+	proto.TranscodingServiceClient
 }
 
 // Server implementations
@@ -535,4 +544,289 @@ func (s *AssetServer) RemoveAsset(ctx context.Context, req *proto.RemoveAssetReq
 	}
 
 	return &proto.RemoveAssetResponse{Success: true}, nil
+}
+
+// TranscodingServer implements the transcoding service
+type TranscodingServer struct {
+	proto.UnimplementedTranscodingServiceServer
+	Impl TranscodingService
+}
+
+func (s *TranscodingServer) GetCapabilities(ctx context.Context, req *proto.GetCapabilitiesRequest) (*proto.GetCapabilitiesResponse, error) {
+	capabilities, err := s.Impl.GetCapabilities(ctx)
+	if err != nil {
+		return &proto.GetCapabilitiesResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	// Convert to protobuf
+	protoCapabilities := &proto.TranscodingCapabilities{
+		Name:                  capabilities.Name,
+		SupportedCodecs:       capabilities.SupportedCodecs,
+		SupportedResolutions:  capabilities.SupportedResolutions,
+		SupportedContainers:   capabilities.SupportedContainers,
+		HardwareAcceleration:  capabilities.HardwareAcceleration,
+		MaxConcurrentSessions: int32(capabilities.MaxConcurrentSessions),
+		Priority:              int32(capabilities.Priority),
+		Features: &proto.TranscodingFeatures{
+			SubtitleBurnIn:      capabilities.Features.SubtitleBurnIn,
+			SubtitlePassthrough: capabilities.Features.SubtitlePassthrough,
+			MultiAudioTracks:    capabilities.Features.MultiAudioTracks,
+			HdrSupport:          capabilities.Features.HDRSupport,
+			ToneMapping:         capabilities.Features.ToneMapping,
+			StreamingOutput:     capabilities.Features.StreamingOutput,
+			SegmentedOutput:     capabilities.Features.SegmentedOutput,
+		},
+	}
+
+	return &proto.GetCapabilitiesResponse{
+		Capabilities: protoCapabilities,
+	}, nil
+}
+
+func (s *TranscodingServer) StartTranscode(ctx context.Context, req *proto.StartTranscodeRequest) (*proto.StartTranscodeResponse, error) {
+	// DEBUG: Log what we received from GRPC
+	fmt.Printf("DEBUG: TranscodingServer.StartTranscode received: InputPath='%s', TargetCodec='%s', Resolution='%s'\n",
+		req.Request.InputPath, req.Request.TargetCodec, req.Request.Resolution)
+
+	// Convert protobuf request to internal request
+	internalReq := &TranscodeRequest{
+		InputPath:       req.Request.InputPath,
+		TargetCodec:     req.Request.TargetCodec,
+		TargetContainer: req.Request.TargetContainer,
+		Resolution:      req.Request.Resolution,
+		Bitrate:         int(req.Request.Bitrate),
+		AudioCodec:      req.Request.AudioCodec,
+		AudioBitrate:    int(req.Request.AudioBitrate),
+		AudioStream:     int(req.Request.AudioStream),
+		Quality:         int(req.Request.Quality),
+		Preset:          req.Request.Preset,
+		Options:         req.Request.Options,
+		Priority:        int(req.Request.Priority),
+	}
+
+	fmt.Printf("DEBUG: Converted internal request: InputPath='%s', TargetCodec='%s', Resolution='%s'\n",
+		internalReq.InputPath, internalReq.TargetCodec, internalReq.Resolution)
+
+	// Handle subtitles if present
+	if req.Request.Subtitles != nil {
+		internalReq.Subtitles = &SubtitleConfig{
+			Enabled:   req.Request.Subtitles.Enabled,
+			Language:  req.Request.Subtitles.Language,
+			BurnIn:    req.Request.Subtitles.BurnIn,
+			StreamIdx: int(req.Request.Subtitles.StreamIdx),
+			FontSize:  int(req.Request.Subtitles.FontSize),
+			FontColor: req.Request.Subtitles.FontColor,
+		}
+	}
+
+	// Handle device profile if present
+	if req.Request.DeviceProfile != nil {
+		internalReq.DeviceProfile = &DeviceProfile{
+			UserAgent:       req.Request.DeviceProfile.UserAgent,
+			SupportedCodecs: req.Request.DeviceProfile.SupportedCodecs,
+			MaxResolution:   req.Request.DeviceProfile.MaxResolution,
+			MaxBitrate:      int(req.Request.DeviceProfile.MaxBitrate),
+			SupportsHEVC:    req.Request.DeviceProfile.SupportsHevc,
+			SupportsAV1:     req.Request.DeviceProfile.SupportsAv1,
+			SupportsHDR:     req.Request.DeviceProfile.SupportsHdr,
+			ClientIP:        req.Request.DeviceProfile.ClientIp,
+			Platform:        req.Request.DeviceProfile.Platform,
+			Browser:         req.Request.DeviceProfile.Browser,
+		}
+	}
+
+	session, err := s.Impl.StartTranscode(ctx, internalReq)
+	if err != nil {
+		return &proto.StartTranscodeResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	if session == nil {
+		return &proto.StartTranscodeResponse{
+			Error: "StartTranscode returned nil session",
+		}, nil
+	}
+
+	// Convert session to protobuf
+	protoSession := convertSessionToProto(session)
+	if protoSession == nil {
+		return &proto.StartTranscodeResponse{
+			Error: "Failed to convert session to protobuf",
+		}, nil
+	}
+
+	return &proto.StartTranscodeResponse{
+		Session: protoSession,
+	}, nil
+}
+
+func (s *TranscodingServer) GetTranscodeSession(ctx context.Context, req *proto.GetTranscodeSessionRequest) (*proto.GetTranscodeSessionResponse, error) {
+	session, err := s.Impl.GetTranscodeSession(ctx, req.SessionId)
+	if err != nil {
+		return &proto.GetTranscodeSessionResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	protoSession := convertSessionToProto(session)
+
+	return &proto.GetTranscodeSessionResponse{
+		Session: protoSession,
+	}, nil
+}
+
+func (s *TranscodingServer) StopTranscode(ctx context.Context, req *proto.StopTranscodeRequest) (*proto.StopTranscodeResponse, error) {
+	err := s.Impl.StopTranscode(ctx, req.SessionId)
+	if err != nil {
+		return &proto.StopTranscodeResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &proto.StopTranscodeResponse{
+		Success: true,
+	}, nil
+}
+
+func (s *TranscodingServer) ListActiveSessions(ctx context.Context, req *proto.ListActiveSessionsRequest) (*proto.ListActiveSessionsResponse, error) {
+	sessions, err := s.Impl.ListActiveSessions(ctx)
+	if err != nil {
+		return &proto.ListActiveSessionsResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	var protoSessions []*proto.TranscodeSession
+	for _, session := range sessions {
+		protoSessions = append(protoSessions, convertSessionToProto(session))
+	}
+
+	return &proto.ListActiveSessionsResponse{
+		Sessions: protoSessions,
+	}, nil
+}
+
+func (s *TranscodingServer) GetTranscodeStream(req *proto.GetTranscodeStreamRequest, stream proto.TranscodingService_GetTranscodeStreamServer) error {
+	reader, err := s.Impl.GetTranscodeStream(context.Background(), req.SessionId)
+	if err != nil {
+		return stream.Send(&proto.TranscodeStreamChunk{
+			Error: err.Error(),
+		})
+	}
+	defer reader.Close()
+
+	buffer := make([]byte, 32*1024) // 32KB chunks
+	for {
+		n, err := reader.Read(buffer)
+		if n > 0 {
+			chunk := &proto.TranscodeStreamChunk{
+				Data: buffer[:n],
+			}
+			if sendErr := stream.Send(chunk); sendErr != nil {
+				return sendErr
+			}
+		}
+		if err != nil {
+			if err.Error() != "EOF" {
+				return stream.Send(&proto.TranscodeStreamChunk{
+					Error: err.Error(),
+				})
+			}
+			// Send EOF marker
+			return stream.Send(&proto.TranscodeStreamChunk{
+				Eof: true,
+			})
+		}
+	}
+}
+
+// Helper function to convert internal session to protobuf
+func convertSessionToProto(session *TranscodeSession) *proto.TranscodeSession {
+	if session == nil {
+		return nil
+	}
+
+	protoSession := &proto.TranscodeSession{
+		Id:        session.ID,
+		Status:    string(session.Status),
+		Progress:  session.Progress,
+		StartTime: session.StartTime.Unix(),
+		Backend:   session.Backend,
+		Error:     session.Error,
+		Metadata:  make(map[string]string),
+	}
+
+	// Convert metadata interface{} to string
+	for k, v := range session.Metadata {
+		if str, ok := v.(string); ok {
+			protoSession.Metadata[k] = str
+		}
+	}
+
+	if session.EndTime != nil {
+		protoSession.EndTime = session.EndTime.Unix()
+	}
+
+	if session.Request != nil {
+		protoSession.Request = &proto.TranscodeRequest{
+			InputPath:       session.Request.InputPath,
+			TargetCodec:     session.Request.TargetCodec,
+			TargetContainer: session.Request.TargetContainer,
+			Resolution:      session.Request.Resolution,
+			Bitrate:         int32(session.Request.Bitrate),
+			AudioCodec:      session.Request.AudioCodec,
+			AudioBitrate:    int32(session.Request.AudioBitrate),
+			AudioStream:     int32(session.Request.AudioStream),
+			Quality:         int32(session.Request.Quality),
+			Preset:          session.Request.Preset,
+			Options:         session.Request.Options,
+			Priority:        int32(session.Request.Priority),
+		}
+
+		if session.Request.Subtitles != nil {
+			protoSession.Request.Subtitles = &proto.SubtitleConfig{
+				Enabled:   session.Request.Subtitles.Enabled,
+				Language:  session.Request.Subtitles.Language,
+				BurnIn:    session.Request.Subtitles.BurnIn,
+				StreamIdx: int32(session.Request.Subtitles.StreamIdx),
+				FontSize:  int32(session.Request.Subtitles.FontSize),
+				FontColor: session.Request.Subtitles.FontColor,
+			}
+		}
+
+		if session.Request.DeviceProfile != nil {
+			protoSession.Request.DeviceProfile = &proto.DeviceProfile{
+				UserAgent:       session.Request.DeviceProfile.UserAgent,
+				SupportedCodecs: session.Request.DeviceProfile.SupportedCodecs,
+				MaxResolution:   session.Request.DeviceProfile.MaxResolution,
+				MaxBitrate:      int32(session.Request.DeviceProfile.MaxBitrate),
+				SupportsHevc:    session.Request.DeviceProfile.SupportsHEVC,
+				SupportsAv1:     session.Request.DeviceProfile.SupportsAV1,
+				SupportsHdr:     session.Request.DeviceProfile.SupportsHDR,
+				ClientIp:        session.Request.DeviceProfile.ClientIP,
+				Platform:        session.Request.DeviceProfile.Platform,
+				Browser:         session.Request.DeviceProfile.Browser,
+			}
+		}
+	}
+
+	if session.Stats != nil {
+		protoSession.Stats = &proto.TranscodeStats{
+			Duration:        session.Stats.Duration.Nanoseconds(),
+			BytesProcessed:  session.Stats.BytesProcessed,
+			BytesGenerated:  session.Stats.BytesGenerated,
+			FramesProcessed: session.Stats.FramesProcessed,
+			CurrentFps:      session.Stats.CurrentFPS,
+			AverageFps:      session.Stats.AverageFPS,
+			CpuUsage:        session.Stats.CPUUsage,
+			MemoryUsage:     session.Stats.MemoryUsage,
+			Speed:           session.Stats.Speed,
+		}
+	}
+
+	return protoSession
 }

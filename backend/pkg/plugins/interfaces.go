@@ -40,6 +40,7 @@ type Implementation interface {
 	HealthMonitorService() HealthMonitorService
 	ConfigurationService() ConfigurationService
 	PerformanceMonitorService() PerformanceMonitorService
+	TranscodingService() TranscodingService
 }
 
 // Service interfaces
