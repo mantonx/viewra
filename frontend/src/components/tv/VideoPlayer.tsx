@@ -95,7 +95,7 @@ const VideoPlayer: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
-  const [seekAheadOffset, setSeekAheadOffset] = useState(0); // Offset for seek-ahead content
+  const [isSeekingAhead, setIsSeekingAhead] = useState(false); // Track seek-ahead state
 
   // URL params
   const startTime = parseInt(searchParams.get('t') || '0', 10);
@@ -260,9 +260,7 @@ const VideoPlayer: React.FC = () => {
         };
 
         const handleTimeUpdate = () => {
-          // Add seek-ahead offset to current time for accurate timeline display
-          const adjustedCurrentTime = video.currentTime + seekAheadOffset;
-          setCurrentTime(adjustedCurrentTime);
+          setCurrentTime(video.currentTime);
           
           // Update duration if it becomes available (important for DASH streams)
                       if (!duration || duration <= 0) {
@@ -291,9 +289,9 @@ const VideoPlayer: React.FC = () => {
              }
            }
           
-          // Save position every 5 seconds (use adjusted time for seek-ahead content)
-          if (Math.floor(adjustedCurrentTime) % 5 === 0) {
-            localStorage.setItem(`video-position-${episodeId}`, adjustedCurrentTime.toString());
+          // Save position every 5 seconds
+          if (Math.floor(video.currentTime) % 5 === 0) {
+            localStorage.setItem(`video-position-${episodeId}`, video.currentTime.toString());
           }
         };
         const handlePlay = () => setIsPlaying(true);
@@ -449,8 +447,8 @@ const VideoPlayer: React.FC = () => {
           manifest_url: `/api/playback/stream/${sessionData.id}/manifest.mpd`
         }));
         
-        // Reset seek-ahead offset for new regular sessions
-        setSeekAheadOffset(0);
+        // Reset seek-ahead state for new regular sessions
+        setIsSeekingAhead(false);
       }
 
       // Get episode metadata
@@ -517,71 +515,69 @@ const VideoPlayer: React.FC = () => {
     }
   }, []);
 
-  // Update video player to use seek-ahead manifest
-  const updateVideoForSeekAhead = useCallback(async (seekTime: number) => {
-    if (!playerRef.current || !playbackDecision || !mediaFile) {
-      console.warn('⚠️ Cannot update for seek-ahead: missing player, playback decision, or media file');
+  // Simple seek-ahead: directly seek within current content or start background transcoding for beyond-available content
+  const requestSeekAhead = useCallback(async (seekTime: number) => {
+    if (!playbackDecision || !mediaFile) {
+      console.warn('⚠️ Cannot request seek-ahead: missing playback decision or media file');
       return;
     }
 
     try {
-      console.log('🔄 Updating video for seek-ahead to time:', seekTime);
+      console.log('🚀 Requesting seek-ahead to time:', seekTime);
       
-      // Start a new transcoding session with seek time using the original file path
-      const startResponse = await fetch('/api/playback/start', {
+      // Extract session ID from manifest URL or use stored session ID
+      let sessionId = playbackDecision.session_id;
+      if (!sessionId && playbackDecision.manifest_url) {
+        const urlMatch = playbackDecision.manifest_url.match(/\/stream\/([^/]+)\//);
+        if (urlMatch) {
+          sessionId = urlMatch[1];
+        }
+      }
+
+      if (!sessionId) {
+        console.warn('⚠️ No session ID available for seek-ahead');
+        return;
+      }
+
+      // Call seek-ahead API to start background transcoding
+      const response = await fetch('/api/playback/seek-ahead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          input_path: mediaFile.path, // Use the actual file path
-          target_codec: playbackDecision.transcode_params?.target_codec || 'h264',
-          target_container: playbackDecision.transcode_params?.target_container || 'dash',
-          resolution: playbackDecision.transcode_params?.resolution || '1080p',
-          start_time: seekTime
+          session_id: sessionId,
+          seek_time: Math.floor(seekTime)
         })
       });
 
-      if (!startResponse.ok) {
-        throw new Error(`Failed to start seek-ahead session: ${startResponse.status}`);
-      }
-
-      const sessionData = await startResponse.json();
-      console.log('✅ Seek-ahead session created:', sessionData);
-
-      // Build the new manifest URL for the seek-ahead session
-      const container = playbackDecision.transcode_params?.target_container || 'dash';
-      const manifestExt = container === 'hls' ? 'm3u8' : 'mpd';
-      const newManifestUrl = `/api/playback/stream/${sessionData.id}/manifest.${manifestExt}`;
-      
-      console.log('🎬 Loading seek-ahead manifest:', newManifestUrl);
-
-      // Wait for the manifest to be available
-      await waitForManifest(newManifestUrl);
-
-      // Load the new manifest in the player
-      await playerRef.current.load(newManifestUrl);
-      
-      // Update the timeline offset for seek-ahead content
-      setSeekAheadOffset(seekTime);
-      
-      // The seek-ahead content starts at time 0 in the new manifest
-      if (videoRef.current) {
-        videoRef.current.currentTime = 0; // Start from beginning of seek-ahead content
-      }
-
-      console.log('✅ Video updated for seek-ahead successfully - offset set to:', seekTime);
+             if (response.ok) {
+         const seekResponse = await response.json();
+         console.log('✅ Seek-ahead transcoding started:', seekResponse);
+         setIsSeekingAhead(true);
+         
+         // Reset seeking state after 30 seconds
+         setTimeout(() => {
+           setIsSeekingAhead(false);
+         }, 30000);
+         
+         // Give user feedback that transcoding started
+         // Note: We don't switch manifests or complicate the UI
+         // The background transcoding will make more content available
+       } else {
+         console.warn('⚠️ Seek-ahead request failed:', response.status);
+       }
       
     } catch (error) {
-      console.error('❌ Failed to update video for seek-ahead:', error);
+      console.error('❌ Failed to request seek-ahead:', error);
     }
-  }, [playbackDecision, mediaFile, waitForManifest]);
+  }, [playbackDecision, mediaFile]);
 
-  // Enhanced seek function with seek-ahead support
+  // Simple, robust seek function
   const handleSeek = useCallback(async (progress: number) => {
     if (!videoRef.current || !playbackDecision) return;
 
-    // Get duration from video element, but validate it first
+    // Get duration from video element, fallback to original duration
     const rawDuration = videoRef.current.duration;
-    const duration = (isFinite(rawDuration) && rawDuration > 0) ? rawDuration : Math.max(originalDuration, 0);
+    const duration = (isFinite(rawDuration) && rawDuration > 0) ? rawDuration : originalDuration;
     
     // If we still don't have a valid duration, can't seek
     if (!duration || duration <= 0) {
@@ -599,57 +595,37 @@ const VideoPlayer: React.FC = () => {
       return;
     }
 
-    // Always seek immediately for instant user feedback
-    // Adjust for seek-ahead offset if we're playing seek-ahead content
-    const adjustedSeekTime = Math.max(0, seekTime - seekAheadOffset);
-    videoRef.current.currentTime = adjustedSeekTime;
+    // For normal seeking within available content, just seek directly
+    if (seekTime <= seekableDuration) {
+      videoRef.current.currentTime = seekTime;
+      console.log('✅ Normal seek within available content:', seekTime);
+      return;
+    }
 
-    // For DASH/HLS streams, check if we need seek-ahead
-    if (playbackDecision.transcode_params?.target_container === 'dash' || playbackDecision.transcode_params?.target_container === 'hls') {
-      const currentSeekableDuration = seekableDuration;
+    // For DASH/HLS streams, check if we need seek-ahead beyond available content
+    if (playbackDecision.transcode_params?.target_container === 'dash' || 
+        playbackDecision.transcode_params?.target_container === 'hls') {
       
-      if (seekTime > currentSeekableDuration + 5) { // 5 second buffer
+      if (seekTime > seekableDuration + 5) { // 5 second buffer
         console.log('🚀 Seeking beyond available content, starting background transcoding');
         
-        // Extract session ID from manifest URL or use stored session ID
-        let sessionId = playbackDecision.session_id;
-        if (!sessionId && playbackDecision.manifest_url) {
-          const urlMatch = playbackDecision.manifest_url.match(/\/stream\/([^/]+)\//);
-          if (urlMatch) {
-            sessionId = urlMatch[1];
-          }
-        }
-
-        if (sessionId) {
-          try {
-            // Call seek-ahead API and wait for response
-            const response = await fetch('/api/playback/seek-ahead', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                session_id: sessionId,
-                seek_time: Math.floor(seekTime)
-              })
-            });
-
-            if (response.ok) {
-              const seekResponse = await response.json();
-              console.log('✅ Seek-ahead transcoding started:', seekResponse);
-              
-              // Wait for a moment to let transcoding start, then update video with seek-ahead manifest
-              setTimeout(async () => {
-                await updateVideoForSeekAhead(Math.floor(seekTime));
-              }, 2000);
-            } else {
-              console.warn('⚠️ Seek-ahead request failed:', response.status);
-            }
-          } catch (error) {
-            console.warn('⚠️ Seek-ahead error:', error);
-          }
-        }
+        // Request background transcoding, but keep current position
+        await requestSeekAhead(seekTime);
+        
+        // For now, seek to the furthest available position
+        videoRef.current.currentTime = Math.min(seekTime, seekableDuration);
+        console.log(`⏩ Seeking to furthest available position: ${Math.min(seekTime, seekableDuration)}, requested: ${seekTime}`);
+      } else {
+        // Seeking just slightly beyond - allow it
+        videoRef.current.currentTime = seekTime;
+        console.log('✅ Seeking slightly beyond available content:', seekTime);
       }
+    } else {
+      // Direct play - just seek normally
+      videoRef.current.currentTime = seekTime;
+      console.log('✅ Direct play seek:', seekTime);
     }
-  }, [playbackDecision, seekableDuration]);
+  }, [playbackDecision, seekableDuration, originalDuration, requestSeekAhead]);
 
   // Skip functions
   const skipBackward = useCallback(() => {
@@ -871,6 +847,11 @@ const VideoPlayer: React.FC = () => {
             <div className="text-xs text-gray-300">
               {playbackDecision.reason}
             </div>
+            {isSeekingAhead && (
+              <div className="text-xs text-blue-300 mt-1 animate-pulse">
+                ⚡ Transcoding ahead...
+              </div>
+            )}
           </div>
         )}
 
