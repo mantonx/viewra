@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, RotateCcw, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { Save, RotateCcw, AlertTriangle, CheckCircle, RefreshCw, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import type {
   Plugin,
   ConfigurationSchema,
@@ -25,6 +25,8 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadConfigurationData();
@@ -40,6 +42,12 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
 
       if (schemaResponse.success && schemaResponse.data) {
         setSchema(schemaResponse.data);
+        // Auto-expand first few categories
+        const expanded: Record<string, boolean> = {};
+        schemaResponse.data.categories?.slice(0, 2).forEach(cat => {
+          expanded[cat.id] = !cat.collapsed;
+        });
+        setExpandedCategories(expanded);
       }
 
       if (configResponse.success && configResponse.data) {
@@ -113,6 +121,20 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     }
   };
 
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [categoryId]: !prev[categoryId]
+    }));
+  };
+
+  const toggleSensitiveVisibility = (fieldId: string) => {
+    setShowSensitive(prev => ({
+      ...prev,
+      [fieldId]: !prev[fieldId]
+    }));
+  };
+
   const renderField = (field: ConfigurationProperty, fieldId: string) => {
     const value = formData[fieldId] ?? field.default;
 
@@ -120,78 +142,157 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       case 'text':
       case 'string':
         return (
-          <input
-            type={field.sensitive ? 'password' : 'text'}
-            value={String(value || '')}
-            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
-            placeholder={field.placeholder}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+          <div className="relative">
+            <input
+              type={field.sensitive && !showSensitive[fieldId] ? 'password' : 'text'}
+              value={String(value || '')}
+              onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+              placeholder={`Enter ${field.title.toLowerCase()}`}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500 pr-10"
+              {...(field.pattern && { pattern: field.pattern })}
+              {...(field.minLength && { minLength: field.minLength })}
+              {...(field.maxLength && { maxLength: field.maxLength })}
+            />
+            {field.sensitive && (
+              <button
+                type="button"
+                onClick={() => toggleSensitiveVisibility(fieldId)}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                {showSensitive[fieldId] ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            )}
+          </div>
         );
 
       case 'number':
-      case 'integer':
         return (
           <input
             type="number"
             value={String(value || '')}
             onChange={(e) => handleFieldChange(fieldId, Number(e.target.value))}
-            min={field.min}
-            max={field.max}
-            step={field.type === 'integer' ? 1 : 0.1}
+            min={field.minimum}
+            max={field.maximum}
+            step={0.1}
             className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
         );
 
       case 'boolean':
         return (
-          <label className="flex items-center space-x-3">
+          <label className="flex items-center space-x-3 cursor-pointer">
             <input
               type="checkbox"
               checked={Boolean(value)}
               onChange={(e) => handleFieldChange(fieldId, e.target.checked)}
               className="w-4 h-4 text-purple-600 bg-slate-700 border-slate-600 rounded focus:ring-purple-500"
             />
-            <span className="text-slate-300">
-              {field.label || field.title}
+            <span className="text-slate-300 text-sm">
+              {field.description || `Enable ${field.title}`}
             </span>
           </label>
         );
 
-      case 'select':
+      case 'array': {
+        const arrayValue = Array.isArray(value) ? value : [];
         return (
-          <select
-            value={String(value || '')}
-            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-          >
-            <option value="">Select an option</option>
-            {field.options?.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+          <div className="space-y-2">
+            {arrayValue.map((item, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={String(item)}
+                  onChange={(e) => {
+                    const newArray = [...arrayValue];
+                    newArray[index] = e.target.value;
+                    handleFieldChange(fieldId, newArray);
+                  }}
+                  className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <button
+                  onClick={() => {
+                    const newArray = arrayValue.filter((_, i) => i !== index);
+                    handleFieldChange(fieldId, newArray);
+                  }}
+                  className="px-2 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md"
+                >
+                  ×
+                </button>
+              </div>
             ))}
-          </select>
+            <button
+              onClick={() => {
+                const newArray = [...arrayValue, ''];
+                handleFieldChange(fieldId, newArray);
+              }}
+              className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm"
+            >
+              Add Item
+            </button>
+          </div>
         );
+      }
 
-      case 'textarea':
+      case 'object':
         return (
-          <textarea
-            value={String(value || '')}
-            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
-            placeholder={field.placeholder}
-            rows={field.rows || 4}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+          <div className="bg-slate-800 border border-slate-600 rounded-md p-4">
+            <div className="text-slate-400 text-sm">Object configuration</div>
+            <div className="text-xs text-slate-500 mt-1">Advanced configuration - edit carefully</div>
+          </div>
         );
 
       default:
+        // Handle enum/select cases
+        if (field.enum && field.enum.length > 0) {
+          return (
+            <select
+              value={String(value || '')}
+              onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Select an option</option>
+              {field.enum.map((option, index) => (
+                <option key={index} value={String(option)}>
+                  {String(option)}
+                </option>
+              ))}
+            </select>
+          );
+        }
+
         return (
-          <div className="text-slate-400 italic">
-            Unsupported field type: {field.type}
-          </div>
+          <input
+            type="text"
+            value={String(value || '')}
+            onChange={(e) => handleFieldChange(fieldId, e.target.value)}
+            placeholder={`Enter ${field.title.toLowerCase()}`}
+            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
         );
     }
+  };
+
+  const getPropertiesByCategory = (categoryId: string) => {
+    if (!schema?.properties) return [];
+    
+    return Object.entries(schema.properties).filter(([, property]) => 
+      property.category === categoryId
+    );
+  };
+
+  const getUncategorizedProperties = () => {
+    if (!schema?.properties) return [];
+    
+    const categorizedProps = new Set();
+    schema.categories?.forEach(category => {
+      getPropertiesByCategory(category.id).forEach(([key]) => {
+        categorizedProps.add(key);
+      });
+    });
+
+    return Object.entries(schema.properties).filter(([key]) => 
+      !categorizedProps.has(key)
+    );
   };
 
   if (loading) {
@@ -230,20 +331,23 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-h-[80vh] overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between sticky top-0 bg-slate-800 p-4 border-b border-slate-700">
         <div>
-          <h3 className="text-lg font-medium text-white">{schema.title}</h3>
+          <h3 className="text-lg font-medium text-white">{schema.title || plugin.name}</h3>
           {schema.description && (
             <p className="text-sm text-slate-400 mt-1">{schema.description}</p>
           )}
+          <div className="text-xs text-slate-500 mt-1">
+            {Object.keys(schema.properties).length} configuration options
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <button
             onClick={handleReset}
             disabled={saving}
-            className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm transition-colors"
           >
             <RotateCcw size={16} className="mr-2" />
             Reset
@@ -251,7 +355,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           <button
             onClick={handleSave}
             disabled={saving || !hasChanges}
-            className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm"
+            className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-sm transition-colors"
           >
             {saving ? (
               <RefreshCw size={16} className="mr-2 animate-spin" />
@@ -283,46 +387,118 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       )}
 
       {/* Configuration Form */}
-      <div className="space-y-6">
+      <div className="space-y-4 px-4 pb-4">
         {schema.categories && schema.categories.length > 0 ? (
           // Render by categories
-          schema.categories.map((category) => (
-            <div key={category.id} className="bg-slate-700 rounded-lg p-6">
-              <h4 className="text-white font-medium mb-2">{category.title}</h4>
-              {category.description && (
-                <p className="text-slate-400 text-sm mb-4">{category.description}</p>
-              )}
-              <div className="space-y-4">
-                {category.fields.map((field) => {
-                  const fieldId = field.id || field.title.toLowerCase().replace(/\s+/g, '_');
-                  return (
-                    <div key={fieldId}>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {field.label || field.title}
-                        {field.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
+          <>
+            {schema.categories
+              .sort((a, b) => (a.order || 0) - (b.order || 0))
+              .map((category) => {
+                const categoryProperties = getPropertiesByCategory(category.id);
+                if (categoryProperties.length === 0) return null;
+
+                const isExpanded = expandedCategories[category.id];
+
+                return (
+                  <div key={category.id} className="bg-slate-700 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => toggleCategory(category.id)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-slate-600 transition-colors"
+                    >
+                      <div className="text-left">
+                        <h4 className="text-white font-medium">{category.title}</h4>
+                        {category.description && (
+                          <p className="text-slate-400 text-sm mt-1">{category.description}</p>
+                        )}
+                        <p className="text-slate-500 text-xs mt-1">
+                          {categoryProperties.length} setting{categoryProperties.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <div className="text-slate-400">
+                        {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                      </div>
+                    </button>
+                    
+                    {isExpanded && (
+                      <div className="p-4 border-t border-slate-600 space-y-4">
+                        {categoryProperties.map(([fieldId, field]) => (
+                          <div key={fieldId} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="block text-sm font-medium text-white">
+                                {field.title}
+                                {schema.required?.includes(fieldId) && (
+                                  <span className="text-red-400 ml-1">*</span>
+                                )}
+                              </label>
+                              {field.default !== undefined && (
+                                <span className="text-xs text-slate-500">
+                                  Default: {String(field.default)}
+                                </span>
+                              )}
+                            </div>
+                            {field.description && (
+                              <p className="text-slate-400 text-xs">{field.description}</p>
+                            )}
+                            {renderField(field, fieldId)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+            {/* Uncategorized properties */}
+            {getUncategorizedProperties().length > 0 && (
+              <div className="bg-slate-700 rounded-lg p-4">
+                <h4 className="text-white font-medium mb-4">Other Settings</h4>
+                <div className="space-y-4">
+                  {getUncategorizedProperties().map(([fieldId, field]) => (
+                    <div key={fieldId} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-white">
+                          {field.title}
+                          {schema.required?.includes(fieldId) && (
+                            <span className="text-red-400 ml-1">*</span>
+                          )}
+                        </label>
+                        {field.default !== undefined && (
+                          <span className="text-xs text-slate-500">
+                            Default: {String(field.default)}
+                          </span>
+                        )}
+                      </div>
                       {field.description && (
-                        <p className="text-slate-400 text-xs mb-2">{field.description}</p>
+                        <p className="text-slate-400 text-xs">{field.description}</p>
                       )}
                       {renderField(field, fieldId)}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))
+            )}
+          </>
         ) : (
-          // Render properties directly
-          <div className="bg-slate-700 rounded-lg p-6">
+          // Render properties directly if no categories
+          <div className="bg-slate-700 rounded-lg p-4">
             <div className="space-y-4">
               {Object.entries(schema.properties).map(([fieldId, field]) => (
-                <div key={fieldId}>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    {field.label || field.title}
-                    {field.required && <span className="text-red-400 ml-1">*</span>}
-                  </label>
+                <div key={fieldId} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-white">
+                      {field.title}
+                      {schema.required?.includes(fieldId) && (
+                        <span className="text-red-400 ml-1">*</span>
+                      )}
+                    </label>
+                    {field.default !== undefined && (
+                      <span className="text-xs text-slate-500">
+                        Default: {String(field.default)}
+                      </span>
+                    )}
+                  </div>
                   {field.description && (
-                    <p className="text-slate-400 text-xs mb-2">{field.description}</p>
+                    <p className="text-slate-400 text-xs">{field.description}</p>
                   )}
                   {renderField(field, fieldId)}
                 </div>
@@ -334,8 +510,8 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
 
       {/* Configuration Info */}
       {config && (
-        <div className="bg-slate-700 rounded-lg p-4">
-          <h4 className="text-white font-medium mb-2">Configuration Info</h4>
+        <div className="bg-slate-700 rounded-lg p-4 mx-4">
+          <h4 className="text-white font-medium mb-3">Configuration Info</h4>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-slate-400">Version:</span>
@@ -352,7 +528,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               <span className="text-white ml-2">{config.modified_by || 'System'}</span>
             </div>
             <div>
-              <span className="text-slate-400">Fields:</span>
+              <span className="text-slate-400">Total Fields:</span>
               <span className="text-white ml-2">{Object.keys(schema.properties).length}</span>
             </div>
           </div>

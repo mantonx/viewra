@@ -93,11 +93,11 @@
 			skip_existing_assets: bool | *true // Skip downloading existing assets
 			download_enabled:     bool | *true   // Enable artwork downloads
 			max_size_mb:          int | *10    // Maximum asset size in MB
-			formats:              string[] | *["jpg", "png", "webp"]
+			formats:              [...string] | *["jpg", "png", "webp"]
 			sizes: {
-				poster: string[] | *["w500", "w780", "original"]
-				backdrop: string[] | *["w1280", "w1920", "original"]
-				profile: string[] | *["w185", "w632", "original"]
+				poster: [...string] | *["w500", "w780", "original"]
+				backdrop: [...string] | *["w1280", "w1920", "original"]
+				profile: [...string] | *["w185", "w632", "original"]
 			}
 		}
 

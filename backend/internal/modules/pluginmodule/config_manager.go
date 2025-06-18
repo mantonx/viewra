@@ -13,9 +13,10 @@ import (
 
 // PluginConfigManager handles plugin configuration management
 type PluginConfigManager struct {
-	db     *gorm.DB
-	logger hclog.Logger
-	cache  map[string]*PluginConfiguration
+	db        *gorm.DB
+	logger    hclog.Logger
+	cache     map[string]*PluginConfiguration
+	cueParser *CUEParser
 }
 
 // PluginConfiguration represents a complete plugin configuration
@@ -113,9 +114,10 @@ type ValidationResult struct {
 // NewPluginConfigManager creates a new plugin configuration manager
 func NewPluginConfigManager(db *gorm.DB, logger hclog.Logger) *PluginConfigManager {
 	return &PluginConfigManager{
-		db:     db,
-		logger: logger.Named("config-manager"),
-		cache:  make(map[string]*PluginConfiguration),
+		db:        db,
+		logger:    logger.Named("config-manager"),
+		cache:     make(map[string]*PluginConfiguration),
+		cueParser: NewCUEParser(logger),
 	}
 }
 
@@ -315,18 +317,28 @@ func (pcm *PluginConfigManager) loadConfigurationFromDB(pluginID string) (*Plugi
 	err := pcm.db.Where("plugin_id = ?", pluginID).First(&dbConfig).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// Return empty configuration for new plugins
-			return &PluginConfiguration{
-				PluginID:     pluginID,
-				Settings:     make(map[string]ConfigurationValue),
-				Version:      "1.0.0",
-				LastModified: time.Now(),
-			}, nil
+			// Try to load configuration from CUE file for new plugins
+			return pcm.loadConfigurationFromCUE(pluginID)
 		}
 		return nil, err
 	}
 
-	return pcm.parseDBConfiguration(dbConfig)
+	config, err := pcm.parseDBConfiguration(dbConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no schema in database, try to load from CUE file
+	if config.Schema == nil {
+		cueConfig, err := pcm.loadConfigurationFromCUE(pluginID)
+		if err == nil && cueConfig.Schema != nil {
+			config.Schema = cueConfig.Schema
+			// Merge in CUE defaults for missing settings
+			pcm.mergeDefaultSettings(config, cueConfig)
+		}
+	}
+
+	return config, nil
 }
 
 func (pcm *PluginConfigManager) parseDBConfiguration(dbConfig database.PluginConfiguration) (*PluginConfiguration, error) {
@@ -506,6 +518,68 @@ func (pcm *PluginConfigManager) validateSettings(schema *ConfigurationSchema, se
 	}
 
 	return result, nil
+}
+
+// loadConfigurationFromCUE loads configuration from a plugin's CUE file
+func (pcm *PluginConfigManager) loadConfigurationFromCUE(pluginID string) (*PluginConfiguration, error) {
+	// Determine plugin directory path
+	pluginDir := fmt.Sprintf("/app/data/plugins/%s", pluginID)
+
+	// Try to parse CUE configuration
+	schema, err := pcm.cueParser.ParsePluginConfiguration(pluginDir)
+	if err != nil {
+		pcm.logger.Debug("Failed to parse CUE configuration", "plugin", pluginID, "error", err)
+		// Return basic configuration if CUE parsing fails
+		return &PluginConfiguration{
+			PluginID:     pluginID,
+			Settings:     make(map[string]ConfigurationValue),
+			Version:      "1.0.0",
+			LastModified: time.Now(),
+		}, nil
+	}
+
+	// Load default values from CUE
+	defaults, err := pcm.cueParser.GetPluginConfigurationDefaults(pluginDir)
+	if err != nil {
+		pcm.logger.Warn("Failed to extract defaults from CUE", "plugin", pluginID, "error", err)
+		defaults = make(map[string]interface{})
+	}
+
+	// Convert defaults to ConfigurationValue format
+	settings := make(map[string]ConfigurationValue)
+	for key, value := range defaults {
+		settings[key] = ConfigurationValue{
+			Value:       value,
+			Type:        pcm.inferValueType(value, schema, key),
+			Source:      "cue_default",
+			Overridden:  false,
+			LastChanged: time.Now(),
+			ChangedBy:   "system",
+		}
+	}
+
+	return &PluginConfiguration{
+		PluginID:     pluginID,
+		Schema:       schema,
+		Settings:     settings,
+		Version:      schema.Version,
+		LastModified: time.Now(),
+		ModifiedBy:   "system",
+	}, nil
+}
+
+// mergeDefaultSettings merges default settings from CUE into existing configuration
+func (pcm *PluginConfigManager) mergeDefaultSettings(config *PluginConfiguration, cueConfig *PluginConfiguration) {
+	if config.Settings == nil {
+		config.Settings = make(map[string]ConfigurationValue)
+	}
+
+	// Add missing settings from CUE defaults
+	for key, defaultValue := range cueConfig.Settings {
+		if _, exists := config.Settings[key]; !exists {
+			config.Settings[key] = defaultValue
+		}
+	}
 }
 
 func (pcm *PluginConfigManager) applyValidationRule(rule ValidationRule, settings map[string]interface{}, result *ValidationResult) error {

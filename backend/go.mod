@@ -20,8 +20,17 @@ require (
 )
 
 require (
+	cuelabs.dev/go/oci/ociregistry v0.0.0-20250304105642-27e071d2c9b1 // indirect
+	cuelang.org/go v0.13.1 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
+	github.com/emicklei/proto v1.14.0 // indirect
 	github.com/mitchellh/go-testing-interface v0.0.0-20171004221916-a61a99592b77 // indirect
+	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/protocolbuffers/txtpbfmt v0.0.0-20250129171521-feedd8250727 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
+	golang.org/x/oauth2 v0.29.0 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
