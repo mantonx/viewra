@@ -142,15 +142,14 @@ const VideoPlayer: React.FC = () => {
     initializationRef.current = false;
   }, []);
 
-  // Wait for manifest to be available
-  const waitForManifest = useCallback(async (url: string, maxAttempts = 60, intervalMs = 2000) => {
-    // Give FFmpeg a few seconds to start generating the manifest
-    if (DEBUG) console.log('⏳ Initial delay to allow FFmpeg to start...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+  // Fast manifest availability check with aggressive polling
+  const waitForManifest = useCallback(async (url: string, maxAttempts = 30, initialIntervalMs = 200) => {
+    // Start checking immediately - no initial delay
+    if (DEBUG) console.log('⚡ Fast checking manifest availability...');
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        if (DEBUG) console.log(`🔄 Checking manifest availability (${attempt}/${maxAttempts}): ${url}`);
+        if (DEBUG) console.log(`🔄 Checking manifest (${attempt}/${maxAttempts}): ${url}`);
         
         const response = await fetch(url, { method: 'HEAD' });
         if (response.ok) {
@@ -158,11 +157,15 @@ const VideoPlayer: React.FC = () => {
           return true;
         }
         
-        if (DEBUG) console.log(`⏳ Manifest not ready yet (${response.status}), waiting...`);
-        await new Promise(resolve => setTimeout(resolve, intervalMs));
+        // Progressive backoff: start fast, slow down gradually
+        const delay = Math.min(initialIntervalMs * Math.pow(1.5, attempt - 1), 2000);
+        if (DEBUG) console.log(`⏳ Manifest not ready (${response.status}), retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       } catch (error) {
-        if (DEBUG) console.log(`⏳ Manifest check failed (${attempt}/${maxAttempts}):`, error);
-        await new Promise(resolve => setTimeout(resolve, intervalMs));
+        // Use shorter delays for network errors to retry quickly
+        const delay = Math.min(initialIntervalMs * attempt, 1000);
+        if (DEBUG) console.log(`⏳ Manifest check failed (${attempt}/${maxAttempts}), retrying in ${delay}ms:`, error);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
     
@@ -198,11 +201,21 @@ const VideoPlayer: React.FC = () => {
       // Attach player to video element
       await player.attach(videoRef.current);
 
-      // Configure player
+      // Configure player for fast startup
       player.configure({
         streaming: {
-          bufferingGoal: 30,
-          rebufferingGoal: 5,
+          bufferingGoal: 10, // Reduced from 30 for faster startup
+          rebufferingGoal: 3, // Reduced from 5 for faster startup
+          bufferBehind: 30,
+        },
+        manifest: {
+          retryParameters: {
+            timeout: 5000, // Faster timeout
+            maxAttempts: 3, // Fewer attempts for faster failure detection
+            baseDelay: 200, // Faster initial retry
+            backoffFactor: 1.5,
+            fuzzFactor: 0.5,
+          },
         },
       });
 
@@ -445,7 +458,7 @@ const VideoPlayer: React.FC = () => {
         if (DEBUG) console.log('📏 Original file duration:', episodeFile.duration, 'seconds');
       }
 
-      // Get playback decision
+      // Start both playback decision and metadata fetch in parallel for speed
       const deviceProfile = {
         user_agent: navigator.userAgent,
         supported_codecs: ["h264", "aac", "mp3"],
@@ -455,14 +468,18 @@ const VideoPlayer: React.FC = () => {
         target_container: "dash"
       };
 
-      const decisionResponse = await fetch('/api/playback/decide', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          media_path: episodeFile.path,
-          device_profile: deviceProfile
-        })
-      });
+      // Parallel requests for speed
+      const [decisionResponse, metadataResponse] = await Promise.all([
+        fetch('/api/playback/decide', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            media_path: episodeFile.path,
+            device_profile: deviceProfile
+          })
+        }),
+        fetch(`/api/media/files/${episodeFile.id}/metadata`) // Start metadata fetch in parallel
+      ]);
 
       if (!decisionResponse.ok) {
         throw new Error(`Playback decision failed: ${decisionResponse.statusText}`);
@@ -470,6 +487,12 @@ const VideoPlayer: React.FC = () => {
 
       const decision = await decisionResponse.json();
       setPlaybackDecision(decision);
+
+      // Process metadata while starting transcoding session
+      if (metadataResponse.ok) {
+        const metadata = await metadataResponse.json();
+        setEpisode(metadata.episode);
+      }
 
       // Start transcoding session if needed
       if (decision.should_transcode) {
@@ -502,12 +525,7 @@ const VideoPlayer: React.FC = () => {
         setIsSeekingAhead(false);
       }
 
-      // Get episode metadata
-      const metadataResponse = await fetch(`/api/media/files/${episodeFile.id}/metadata`);
-      if (metadataResponse.ok) {
-        const metadata = await metadataResponse.json();
-        setEpisode(metadata.episode);
-      }
+      // Episode metadata already loaded above in parallel
 
       // Data loading complete - now player can initialize
       setLoading(false);
@@ -877,7 +895,7 @@ const VideoPlayer: React.FC = () => {
           ref={videoCallbackRef}
           className="w-full h-full object-contain"
           playsInline
-          preload="metadata"
+          preload="auto"
           autoPlay={shouldAutoplay}
           muted={false}
           onDoubleClick={restartFromBeginning}
