@@ -342,6 +342,14 @@ service TranscodingService {
   rpc GetTranscodeStream(GetTranscodeStreamRequest) returns (stream TranscodeStreamChunk);
 }
 
+// Dashboard service for plugin dashboard integration
+service DashboardService {
+  rpc GetDashboardSections(GetDashboardSectionsRequest) returns (GetDashboardSectionsResponse);
+  rpc GetMainData(GetMainDataRequest) returns (GetMainDataResponse);
+  rpc GetNerdData(GetNerdDataRequest) returns (GetNerdDataResponse);
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+}
+
 // Transcoding capabilities message
 message TranscodingCapabilities {
   string name = 1;
@@ -479,4 +487,88 @@ message TranscodeStats {
   double cpu_usage = 7;
   int64 memory_usage = 8;
   double speed = 9;          // Transcoding speed multiplier
+}
+
+// Dashboard service messages
+message GetDashboardSectionsRequest {}
+
+message GetDashboardSectionsResponse {
+  repeated DashboardSection sections = 1;
+  string error = 2;
+}
+
+message GetMainDataRequest {
+  string section_id = 1;
+}
+
+message GetMainDataResponse {
+  string data_json = 1;  // JSON-encoded data
+  string error = 2;
+}
+
+message GetNerdDataRequest {
+  string section_id = 1;
+}
+
+message GetNerdDataResponse {
+  string data_json = 1;  // JSON-encoded data
+  string error = 2;
+}
+
+message GetMetricsRequest {
+  string section_id = 1;
+  int64 start_time = 2;  // Unix timestamp
+  int64 end_time = 3;    // Unix timestamp
+  string step = 4;       // Time step (e.g., "1m", "5m", "1h")
+}
+
+message GetMetricsResponse {
+  repeated MetricPoint points = 1;
+  string error = 2;
+}
+
+message DashboardSection {
+  string id = 1;
+  string plugin_id = 2;
+  string type = 3;
+  string title = 4;
+  string description = 5;
+  string icon = 6;
+  int32 priority = 7;
+  DashboardSectionConfig config = 8;
+  DashboardManifest manifest = 9;
+}
+
+message DashboardSectionConfig {
+  int32 refresh_interval = 1;
+  bool supports_realtime = 2;
+  bool has_nerd_panel = 3;
+  bool requires_auth = 4;
+  int32 min_refresh_rate = 5;
+  int32 max_data_points = 6;
+}
+
+message DashboardManifest {
+  string component_type = 1;
+  repeated DashboardAction actions = 2;
+  map<string, string> ui_schema = 3;  // Simplified as string map
+}
+
+message DashboardAction {
+  string id = 1;
+  string label = 2;
+  string icon = 3;
+  string style = 4;
+  string endpoint = 5;
+  string method = 6;
+  bool confirm = 7;
+  string payload_json = 8;  // JSON-encoded payload
+  string shortcut = 9;
+}
+
+message MetricPoint {
+  int64 timestamp = 1;  // Unix timestamp
+  double value = 2;
+  map<string, string> labels = 3;
+  string metadata_json = 4;  // JSON-encoded metadata
 } 

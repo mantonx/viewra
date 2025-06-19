@@ -91,10 +91,13 @@ func convertAdminPageConfigToProto(configs []*AdminPageConfig) []*proto.AdminPag
 	for i, config := range configs {
 		if config != nil {
 			result[i] = &proto.AdminPageConfig{
-				Id:    config.ID,
-				Title: config.Title,
-				Path:  config.URL, // Using URL field from plugin SDK
-				Icon:  "",         // Not available in plugin SDK
+				Id:       config.ID,
+				Title:    config.Title,
+				Path:     config.URL,      // Using URL field from plugin SDK as Path
+				Icon:     config.Icon,     // Now properly set from config
+				Category: config.Category, // Now properly set
+				Url:      config.URL,      // Set URL field as well
+				Type:     config.Type,     // Critical: Set the Type field
 			}
 		}
 	}

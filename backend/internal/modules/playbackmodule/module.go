@@ -307,6 +307,41 @@ func (pm *PlaybackModule) handlePlaybackDecision(c *gin.Context) {
 	c.JSON(http.StatusOK, decision)
 }
 
+// waitForManifest waits for the manifest file to be created for DASH/HLS sessions
+func (pm *PlaybackModule) waitForManifest(session *plugins.TranscodeSession, maxWaitSeconds int) error {
+	// Only wait for DASH/HLS sessions
+	if session.Request.TargetContainer != "dash" && session.Request.TargetContainer != "hls" {
+		return nil
+	}
+
+	sessionDir := pm.getSessionDirectory(session.ID, session)
+	var manifestFile string
+
+	switch session.Request.TargetContainer {
+	case "dash":
+		manifestFile = "manifest.mpd"
+	case "hls":
+		manifestFile = "playlist.m3u8"
+	default:
+		return nil
+	}
+
+	manifestPath := filepath.Join(sessionDir, manifestFile)
+
+	pm.logger.Debug("waiting for manifest file", "path", manifestPath, "session_id", session.ID)
+
+	// Wait for the manifest file to be created
+	for i := 0; i < maxWaitSeconds; i++ {
+		if _, err := os.Stat(manifestPath); err == nil {
+			pm.logger.Debug("manifest file ready", "path", manifestPath, "session_id", session.ID, "wait_time", i)
+			return nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return fmt.Errorf("manifest file not created within %d seconds", maxWaitSeconds)
+}
+
 // handleStartTranscode initiates a new transcoding session
 func (pm *PlaybackModule) handleStartTranscode(c *gin.Context) {
 	var request plugins.TranscodeRequest
@@ -321,6 +356,12 @@ func (pm *PlaybackModule) handleStartTranscode(c *gin.Context) {
 		pm.logger.Error("failed to start transcode", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// For DASH/HLS sessions, wait for manifest to be ready before responding
+	if err := pm.waitForManifest(session, 10); err != nil {
+		pm.logger.Warn("manifest not ready in time", "session_id", session.ID, "error", err)
+		// Don't fail the request, just log the warning - the frontend can still retry if needed
 	}
 
 	c.JSON(http.StatusCreated, session)

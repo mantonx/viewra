@@ -180,7 +180,25 @@ func (a *PlaybackPluginManagerAdapter) ListPlugins() []playbackmodule.PluginInfo
 }
 
 func (a *PlaybackPluginManagerAdapter) GetRunningPlugins() []playbackmodule.PluginInfo {
-	return a.ListPlugins()
+	if mgr, ok := a.externalManager.(interface {
+		GetRunningPlugins() []pluginmodule.PluginInfo
+	}); ok {
+		plugins := mgr.GetRunningPlugins()
+		var result []playbackmodule.PluginInfo
+		for _, p := range plugins {
+			result = append(result, playbackmodule.PluginInfo{
+				ID:          p.ID,
+				Name:        p.Name,
+				Version:     p.Version,
+				Type:        p.Type,
+				Description: p.Description,
+				Author:      "", // Not available in pluginmodule.PluginInfo
+				Status:      "", // Not available in pluginmodule.PluginInfo
+			})
+		}
+		return result
+	}
+	return []playbackmodule.PluginInfo{}
 }
 
 // connectPluginManagerToModules connects the plugin manager to modules that need it

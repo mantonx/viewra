@@ -15,7 +15,7 @@ const PluginAdminPageRenderer: React.FC<PluginAdminPageRendererProps> = ({
   onBack,
 }) => {
   // Find the plugin that owns this admin page
-  const ownerPlugin = plugins.find(plugin =>
+  const ownerPlugin = plugins.find(plugin => 
     plugin.admin_pages?.some(ap => ap.id === page.id)
   );
 

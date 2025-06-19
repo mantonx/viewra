@@ -69,6 +69,9 @@ type PluginModule struct {
 
 	// API handlers
 	apiHandlers *PluginAPIHandlers
+
+	// Dashboard manager
+	dashboardManager *DashboardManager
 }
 
 // Module interface implementation
@@ -231,6 +234,16 @@ func (pm *PluginModule) Initialize(ctx context.Context, db *gorm.DB) error {
 	// Initialize API handlers
 	pm.apiHandlers = NewPluginAPIHandlers(pm, pm.db, pm.logger)
 	pm.logger.Info("plugin API handlers initialized")
+
+	// Initialize dashboard manager
+	pm.dashboardManager = NewDashboardManager(pm.logger)
+	pm.logger.Info("dashboard manager initialized")
+
+	// Connect external plugin manager to dashboard manager
+	if pm.externalManager != nil {
+		pm.externalManager.SetDashboardManager(pm.dashboardManager)
+		pm.logger.Info("external plugin manager connected to dashboard manager")
+	}
 
 	pm.logger.Info("plugin module initialized successfully")
 	return nil
@@ -395,6 +408,11 @@ func (pm *PluginModule) GetMediaManager() *MediaPluginManager {
 	return pm.mediaManager
 }
 
+// GetDashboardManager returns the dashboard manager
+func (pm *PluginModule) GetDashboardManager() *DashboardManager {
+	return pm.dashboardManager
+}
+
 // Hot Reload Management
 
 // GetHotReloadManager returns the hot reload manager
@@ -447,6 +465,14 @@ func (pm *PluginModule) RegisterRoutes(router *gin.Engine) {
 	if pm.apiHandlers != nil {
 		pm.apiHandlers.RegisterRoutes(router)
 		pm.logger.Info("registered comprehensive plugin API routes under /api/v1/plugins")
+	}
+
+	// Register dashboard API routes
+	if pm.dashboardManager != nil {
+		dashboardAPI := NewDashboardAPIHandlers(pm.dashboardManager)
+		apiGroup := router.Group("/api/v1")
+		dashboardAPI.RegisterRoutes(apiGroup)
+		pm.logger.Info("registered dashboard API routes under /api/v1/dashboard")
 	}
 
 	// Register legacy plugin management routes for backward compatibility
@@ -741,14 +767,15 @@ func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
 	configManager := NewPluginConfigManager(db, logger)
 
 	pm := &PluginModule{
-		db:              db,
-		config:          config,
-		logger:          logger,
-		coreManager:     NewCorePluginManager(db),
-		externalManager: externalManager,
-		libraryManager:  NewLibraryPluginManager(db),
-		mediaManager:    NewMediaPluginManager(db, logger),
-		configManager:   configManager,
+		db:               db,
+		config:           config,
+		logger:           logger,
+		coreManager:      NewCorePluginManager(db),
+		externalManager:  externalManager,
+		libraryManager:   NewLibraryPluginManager(db),
+		mediaManager:     NewMediaPluginManager(db, logger),
+		configManager:    configManager,
+		dashboardManager: NewDashboardManager(logger),
 	}
 
 	// Initialize API handlers with all dependencies

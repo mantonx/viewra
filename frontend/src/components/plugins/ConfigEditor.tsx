@@ -58,10 +58,15 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
 
       if (schemaResponse.success && schemaResponse.data) {
         setSchema(schemaResponse.data);
-        // Auto-expand first few categories
-        const expanded: Record<string, boolean> = {};
+        // Auto-expand General category and other important categories
+        const expanded: Record<string, boolean> = {
+          'General': true,  // Always expand General category
+        };
+        // Also expand first few other categories if they exist
         schemaResponse.data.categories?.slice(0, 2).forEach(cat => {
-          expanded[cat.id] = !cat.collapsed;
+          if (cat.id !== 'General') {
+            expanded[cat.id] = !cat.collapsed;
+          }
         });
         setExpandedCategories(expanded);
       }
@@ -76,6 +81,16 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
             ? (configValue as { value: unknown }).value 
             : configValue;
         });
+        
+        // Fill in default values for any missing settings from schema
+        if (schemaResponse.success && schemaResponse.data?.properties) {
+          Object.entries(schemaResponse.data.properties).forEach(([key, property]) => {
+            if (settingsData[key] === undefined && property.default !== undefined) {
+              settingsData[key] = property.default;
+            }
+          });
+        }
+        
         setFormData(settingsData);
       }
 
@@ -412,7 +427,8 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   // Simplified field renderer for the new clean UI
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderSettingField = (fieldId: string, field: any) => {
-    const value: any = config[fieldId];
+    // Use current value from formData first, then fallback to field default
+    const value: any = formData[fieldId] !== undefined ? formData[fieldId] : field.default;
     const isRequired = schema.required?.includes(fieldId);
     
     return (
@@ -448,23 +464,26 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   // Field control renderer
   const renderFieldControl = (field: any, fieldId: string, value: any) => {
     switch (field.type) {
-      case 'boolean':
+      case 'boolean': {
+        // Use value if defined, otherwise use field default, finally fallback to false
+        const booleanValue = value !== undefined ? value : (field.default !== undefined ? field.default : false);
         return (
           <div className="flex items-center">
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 className="sr-only peer"
-                checked={value || false}
+                checked={booleanValue}
                 onChange={(e) => handleFieldChange(fieldId, e.target.checked)}
               />
               <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
             </label>
             <span className="ml-3 text-sm text-slate-300">
-              {value ? 'Enabled' : 'Disabled'}
+              {booleanValue ? 'Enabled' : 'Disabled'}
             </span>
           </div>
         );
+      }
 
       case 'number':
       case 'integer':
@@ -692,9 +711,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           <div className="flex-1">
             <div className="flex items-center space-x-3">
               <h3 className="text-xl font-bold text-white">{plugin.name} Configuration</h3>
-              <span className="px-2 py-1 bg-purple-600/20 text-purple-400 border border-purple-600 rounded text-xs">
-                {Object.keys(filteredProperties).length} settings
-              </span>
             </div>
             {schema.description && (
               <p className="text-slate-400 mt-2 max-w-2xl">{schema.description}</p>
@@ -755,10 +771,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
             </div>
           </div>
 
-          {/* Settings Count */}
-          <div className="text-sm text-slate-400">
-            Showing {Object.keys(filteredProperties).length} of {Object.keys(schema.properties).length} settings
-          </div>
+
         </div>
       </div>
 
@@ -832,7 +845,14 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               acc[category].push([key, field]);
               return acc;
             }, {} as Record<string, Array<[string, any]>>)
-          ).map(([categoryName, categoryFields]) => (
+          )
+          .sort(([a], [b]) => {
+            // Sort categories: General first, then alphabetically
+            if (a === 'General') return -1;
+            if (b === 'General') return 1;
+            return a.localeCompare(b);
+          })
+          .map(([categoryName, categoryFields]) => (
             <div key={categoryName} className="bg-slate-800 rounded-lg border border-slate-700">
               <button
                 onClick={() => toggleCategory(categoryName)}

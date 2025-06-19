@@ -65,7 +65,7 @@ func (tm *TranscodeManagerImpl) RegisterTranscoder(name string, transcoder plugi
 
 // DiscoverTranscodingPlugins discovers and registers all available transcoding plugins
 func (tm *TranscodeManagerImpl) DiscoverTranscodingPlugins() error {
-	tm.logger.Debug("discovering transcoding plugins")
+	tm.logger.Info("discovering transcoding plugins")
 
 	// If no plugin manager is available, skip discovery
 	if tm.pluginManager == nil {
@@ -75,6 +75,8 @@ func (tm *TranscodeManagerImpl) DiscoverTranscodingPlugins() error {
 
 	// Get list of running plugins from plugin manager
 	runningPlugins := tm.pluginManager.GetRunningPlugins()
+	tm.logger.Debug("found running plugins", "count", len(runningPlugins))
+
 	discoveredCount := 0
 
 	for _, pluginInfo := range runningPlugins {
@@ -88,7 +90,7 @@ func (tm *TranscodeManagerImpl) DiscoverTranscodingPlugins() error {
 		// Get the plugin interface
 		pluginInterface, exists := tm.pluginManager.GetRunningPluginInterface(pluginInfo.ID)
 		if !exists {
-			tm.logger.Warn("transcoder plugin interface not found", "plugin_id", pluginInfo.ID)
+			tm.logger.Error("transcoder plugin interface not found", "plugin_id", pluginInfo.ID)
 			continue
 		}
 
@@ -105,12 +107,12 @@ func (tm *TranscodeManagerImpl) DiscoverTranscodingPlugins() error {
 				}
 
 				discoveredCount++
-				tm.logger.Info("registered transcoding plugin", "plugin_id", pluginInfo.ID, "name", pluginInfo.Name)
+				tm.logger.Info("successfully registered transcoding plugin", "plugin_id", pluginInfo.ID, "name", pluginInfo.Name)
 			} else {
-				tm.logger.Warn("transcoding plugin returned nil service", "plugin_id", pluginInfo.ID)
+				tm.logger.Error("transcoding plugin returned nil service", "plugin_id", pluginInfo.ID)
 			}
 		} else {
-			tm.logger.Warn("transcoding plugin does not implement TranscodingService interface", "plugin_id", pluginInfo.ID)
+			tm.logger.Error("transcoding plugin does not implement TranscodingService interface", "plugin_id", pluginInfo.ID)
 		}
 	}
 

@@ -221,4 +221,172 @@ The system has been tested with real-world content including 4K HDR movies, TV s
 4. **Monitor Performance**: Check health metrics and quality indicators
 5. **Fine-tune Settings**: Adjust profiles based on your specific use cases
 
-The enhanced transcoding system is designed to work out of the box with sensible defaults while providing extensive customization options for advanced users. 
+The enhanced transcoding system is designed to work out of the box with sensible defaults while providing extensive customization options for advanced users.
+
+# Enhanced Transcoding & Playback Issue Resolution
+
+## 🎯 Issue Summary
+
+**Problem**: Some videos wouldn't play despite successful transcoding, showing 404 errors for session cleanup and no video playback.
+
+**Root Cause**: FFmpeg was producing **valid, playable content** but exiting with non-zero status codes (exit status 255), causing the system to mark sessions as "failed" even when useful DASH content was generated.
+
+## 🔍 Investigation Results
+
+### **Case Study: Cheers Episode**
+- **Session ID**: `ffmpeg_1750307093353344227`
+- **Status**: Marked as "failed" by system
+- **Reality**: Successfully generated 24 video segments + 44 audio segments
+- **Duration**: 2 minutes 54 seconds of playable content
+- **Files**: Valid manifest.mpd + complete DASH segments (~140MB)
+
+### **Technical Analysis**
+```
+✅ Manifest exists: /app/viewra-data/transcoding/dash_ffmpeg_1750307093353344227/manifest.mpd
+✅ DASH segments: 24 video + 44 audio chunks
+✅ Resolution: 1440x1080 (proper 4:3 aspect ratio)
+✅ Audio: 2-channel, 48kHz AAC
+❌ Session status: "failed"
+❌ API response: 404 Not Found for manifest URL
+```
+
+## 🛠️ Solution Implemented
+
+### **1. Enhanced Error Handling**
+- **Smart Success Detection**: Check for manifest file existence before marking as failed
+- **Partial Success Recognition**: Treat jobs with valid output as completed (with warning)
+- **Better Logging**: Distinguish between fatal errors and non-critical warnings
+
+### **2. Improved Process Management**
+- **Session Tracking**: Fixed missing session storage in plugin adapter
+- **Emergency Cleanup**: Added fallback process termination for orphaned FFmpeg
+- **Graceful Termination**: SIGTERM → 2s wait → SIGKILL sequence
+
+### **3. Automatic Cleanup System**
+- **Startup Cleanup**: Remove orphaned processes from previous runs
+- **Periodic Monitoring**: 1-minute intervals to catch missed processes
+- **Age-Based Cleanup**: Kill processes older than 10 minutes
+
+## 🎯 Key Changes
+
+### **Modified Files**
+```
+backend/data/plugins/ffmpeg_transcoder/main.go
+├── Enhanced session tracking (store all sessions)
+├── Added emergency process cleanup
+├── Implemented periodic cleanup routine
+└── Startup orphaned process removal
+
+backend/data/plugins/ffmpeg_transcoder/internal/services/transcoding.go
+├── Smart error handling (check manifest existence)
+├── Partial success recognition
+├── Better process termination
+└── Enhanced debug logging
+```
+
+### **New Logic Flow**
+```
+1. FFmpeg Process Executes
+2. ⬇️
+3. Check Exit Code
+4. ⬇️
+5. IF error exists:
+   ├── Check if manifest.mpd exists
+   ├── ✅ Manifest exists → Mark as "completed with warning"
+   └── ❌ No manifest → Mark as "failed"
+6. ⬇️
+7. Session available for playback
+```
+
+## 📊 Results
+
+### **Before Fix**
+- **Orphaned Processes**: 4 FFmpeg processes consuming CPU
+- **Failed Sessions**: Valid content marked as failed
+- **Playback**: 404 errors for partially transcoded content
+- **Session Management**: Lost track of running processes
+
+### **After Fix**
+- **Process Management**: ✅ Only active processes remain
+- **Smart Success**: ✅ Partial transcoding recognized as success
+- **Session Cleanup**: ✅ Proper 404 handling (expected behavior)
+- **Resource Usage**: ✅ No orphaned processes consuming CPU
+
+## 🎬 Video Playback Analysis
+
+### **The 404 Errors Are Normal**
+The frontend 404 errors during session cleanup are **expected behavior**:
+
+1. **Backend Auto-Cleanup**: Sessions cleaned up every 30 seconds
+2. **Frontend Cleanup**: Component unmount tries to DELETE session
+3. **Timing Race**: Backend often cleans up before frontend
+4. **Result**: 404 = "already cleaned up" = ✅ **Good!**
+
+### **Real Issues vs False Alarms**
+```
+❌ FALSE ALARM: 404 on session DELETE (this is correct)
+✅ REAL ISSUE: FFmpeg exit 255 marking valid content as failed
+✅ REAL ISSUE: Orphaned processes consuming CPU
+✅ REAL ISSUE: Missing session tracking
+```
+
+## 🚀 System Improvements
+
+### **Bulletproof Session Management**
+- **All sessions tracked** in adapter memory
+- **Emergency cleanup** for lost sessions
+- **Process monitoring** prevents orphans
+- **Graceful termination** with fallback kill
+
+### **Smart Content Recognition**
+- **Manifest-based success** detection
+- **Partial content preservation** for streaming
+- **Warning vs failure** distinction
+- **Better user experience** with working content
+
+### **Enhanced Monitoring**
+```bash
+# Check FFmpeg processes
+docker exec <container> ps aux | grep ffmpeg
+
+# Manual cleanup if needed  
+docker exec <container> pkill -f 'ffmpeg.*dash_'
+
+# Check active sessions
+curl http://localhost:5175/api/playback/sessions
+
+# View debug logs
+tail -f viewra-data/transcoding/plugin_debug.log
+```
+
+## 🎯 Expected Behavior Now
+
+### **Working Videos**
+- ✅ Complete transcoding → "completed" status → playback works
+- ✅ Partial transcoding with manifest → "completed with warning" → playback works
+- ✅ Session cleanup 404s → normal behavior (backend already cleaned up)
+
+### **Actually Broken Videos**
+- ❌ FFmpeg fails with no manifest → "failed" status → no playback
+- ❌ File not found → immediate error
+- ❌ Permission issues → transcoding fails
+
+## 📝 Technical Debt Resolved
+
+1. **Process Isolation Bug**: Fixed context cancellation issues
+2. **Session Tracking Gap**: All sessions now properly tracked
+3. **Binary Success Logic**: Manifest existence = success
+4. **Resource Leaks**: Comprehensive cleanup prevents orphans
+5. **Error Classification**: Warnings vs failures properly distinguished
+
+## 🔮 Future Enhancements
+
+1. **Resume Capability**: Resume partial transcoding from last segment
+2. **Quality Scaling**: Automatic quality adjustment based on source
+3. **Hardware Acceleration**: Better GPU utilization detection
+4. **Progress Streaming**: Real-time transcoding progress to frontend
+5. **Content Analysis**: Smart encoding parameter selection
+
+---
+
+**Result**: Videos that previously failed due to strict error handling now play correctly, while maintaining robust cleanup and process management. The system is more resilient to FFmpeg quirks while preventing resource waste. 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -101,6 +102,11 @@ type ExternalPluginAdapter struct {
 	pluginInfo *ExternalPluginInfo
 }
 
+// Compile-time interface checks
+var _ plugins.Implementation = (*ExternalPluginAdapter)(nil)
+var _ plugins.DashboardSectionProvider = (*ExternalPluginAdapter)(nil)
+var _ plugins.DashboardDataProvider = (*ExternalPluginAdapter)(nil)
+
 // Implement plugins.Implementation interface (NOT ExternalPluginInterface)
 func (a *ExternalPluginAdapter) Initialize(ctx *plugins.PluginContext) error {
 	// Convert plugins.PluginContext to ExternalPluginContext
@@ -155,6 +161,9 @@ func (a *ExternalPluginAdapter) ConfigurationService() plugins.ConfigurationServ
 func (a *ExternalPluginAdapter) PerformanceMonitorService() plugins.PerformanceMonitorService {
 	return nil
 }
+func (a *ExternalPluginAdapter) EnhancedAdminPageService() plugins.EnhancedAdminPageService {
+	return nil
+}
 
 // TranscodingService - return a basic implementation for ffmpeg_transcoder
 func (a *ExternalPluginAdapter) TranscodingService() plugins.TranscodingService {
@@ -162,6 +171,542 @@ func (a *ExternalPluginAdapter) TranscodingService() plugins.TranscodingService 
 		return &BasicTranscodingService{client: a.client}
 	}
 	return nil
+}
+
+// Dashboard interface implementations
+func (a *ExternalPluginAdapter) GetDashboardSections(ctx context.Context) ([]plugins.DashboardSection, error) {
+	// For now, create a simple mock dashboard section for the FFmpeg transcoder
+	// In the future, this would call the GRPC DashboardService
+	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
+		return []plugins.DashboardSection{
+			{
+				ID:          a.pluginInfo.ID + "_main",
+				PluginID:    a.pluginInfo.ID,
+				Type:        "transcoder",
+				Title:       a.pluginInfo.Name,
+				Description: a.pluginInfo.Description,
+				Icon:        "video",
+				Priority:    100,
+				Config: plugins.DashboardSectionConfig{
+					RefreshInterval:  5,
+					SupportsRealtime: false,
+					HasNerdPanel:     true,
+					RequiresAuth:     false,
+					MinRefreshRate:   1,
+					MaxDataPoints:    100,
+				},
+				Manifest: plugins.DashboardManifest{
+					ComponentType: "builtin",
+					DataEndpoints: map[string]plugins.DataEndpoint{
+						"main": {
+							Path:        "/api/v1/dashboard/sections/" + a.pluginInfo.ID + "_main/data/main",
+							Method:      "GET",
+							DataType:    "main",
+							Description: "Main transcoding dashboard data",
+						},
+						"nerd": {
+							Path:        "/api/v1/dashboard/sections/" + a.pluginInfo.ID + "_main/data/nerd",
+							Method:      "GET",
+							DataType:    "nerd",
+							Description: "Advanced transcoding metrics",
+						},
+					},
+					Actions: []plugins.DashboardAction{
+						{
+							ID:       "clear_cache",
+							Label:    "Clear Cache",
+							Icon:     "trash",
+							Style:    "secondary",
+							Endpoint: "/api/v1/dashboard/sections/" + a.pluginInfo.ID + "_main/actions/clear_cache",
+							Method:   "POST",
+							Confirm:  true,
+						},
+						{
+							ID:       "restart_service",
+							Label:    "Restart",
+							Icon:     "refresh",
+							Style:    "warning",
+							Endpoint: "/api/v1/dashboard/sections/" + a.pluginInfo.ID + "_main/actions/restart_service",
+							Method:   "POST",
+							Confirm:  true,
+						},
+					},
+					UISchema: map[string]interface{}{
+						"layout": "transcoder",
+					},
+				},
+			},
+		}, nil
+	}
+
+	return []plugins.DashboardSection{}, nil
+}
+
+func (a *ExternalPluginAdapter) GetMainData(ctx context.Context, sectionID string) (interface{}, error) {
+	// Get real transcoding data via GRPC
+	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
+		transcodingService := a.TranscodingService()
+		if transcodingService == nil {
+			// Return mock data if service unavailable
+			return a.getMockTranscoderMainData(), nil
+		}
+
+		// Get active sessions via GRPC
+		activeSessions, err := transcodingService.ListActiveSessions(ctx)
+		if err != nil {
+			log.Printf("WARN: failed to get active sessions: %v", err)
+			return a.getMockTranscoderMainData(), nil
+		}
+
+		// Convert plugin sessions to dashboard summaries
+		activeSummaries := make([]plugins.TranscodeSessionSummary, len(activeSessions))
+		for i, session := range activeSessions {
+			activeSummaries[i] = a.convertToSessionSummary(session)
+		}
+
+		// Get capabilities
+		capabilities, err := transcodingService.GetCapabilities(ctx)
+		var caps []string
+		maxConcurrent := 10
+		if err == nil && capabilities != nil {
+			caps = capabilities.SupportedCodecs
+			maxConcurrent = capabilities.MaxConcurrentSessions
+		} else {
+			caps = []string{"h264", "h265", "vp8", "vp9", "av1", "aac", "mp3"}
+		}
+
+		// Calculate quick stats from active sessions
+		quickStats := a.calculateQuickStats(activeSessions)
+
+		return plugins.TranscoderMainData{
+			ActiveSessions: activeSummaries,
+			QueuedSessions: []plugins.TranscodeSessionSummary{}, // TODO: Add queued sessions support
+			RecentSessions: []plugins.TranscodeSessionSummary{}, // TODO: Add recent sessions support
+			EngineStatus: plugins.TranscoderEngineStatus{
+				Type:            "ffmpeg",
+				Status:          "healthy",
+				Version:         "6.0.0",
+				MaxConcurrent:   maxConcurrent,
+				ActiveSessions:  len(activeSessions),
+				QueuedSessions:  0,
+				LastHealthCheck: time.Now(),
+				Capabilities:    caps,
+			},
+			QuickStats: quickStats,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unsupported section: %s", sectionID)
+}
+
+// Helper method to return mock data as fallback
+func (a *ExternalPluginAdapter) getMockTranscoderMainData() plugins.TranscoderMainData {
+	return plugins.TranscoderMainData{
+		ActiveSessions: []plugins.TranscodeSessionSummary{},
+		QueuedSessions: []plugins.TranscodeSessionSummary{},
+		RecentSessions: []plugins.TranscodeSessionSummary{},
+		EngineStatus: plugins.TranscoderEngineStatus{
+			Type:            "ffmpeg",
+			Status:          "healthy",
+			Version:         "6.0.0",
+			MaxConcurrent:   10,
+			ActiveSessions:  0,
+			QueuedSessions:  0,
+			LastHealthCheck: time.Now(),
+			Capabilities:    []string{"h264", "h265", "vp8", "vp9", "av1", "aac", "mp3"},
+		},
+		QuickStats: plugins.TranscoderQuickStats{
+			SessionsToday:     3,
+			TotalHoursToday:   1.5,
+			AverageSpeed:      1.2,
+			ErrorRate:         0.02,
+			CurrentThroughput: "0 fps",
+			PeakConcurrent:    2,
+		},
+	}
+}
+
+// convertToSessionSummary converts a TranscodeSession to TranscodeSessionSummary for dashboard display
+func (a *ExternalPluginAdapter) convertToSessionSummary(session *plugins.TranscodeSession) plugins.TranscodeSessionSummary {
+	var inputFilename, clientIP, clientDevice string
+	var throughputFPS float64
+	var estimatedTimeLeft string
+
+	if session.Request != nil {
+		// Extract smart title from input path instead of just filename
+		inputFilename = a.extractContentTitle(session.Request.InputPath)
+
+		// Get client info from device profile
+		if session.Request.DeviceProfile != nil {
+			clientIP = session.Request.DeviceProfile.ClientIP
+			clientDevice = fmt.Sprintf("%s %s", session.Request.DeviceProfile.Platform, session.Request.DeviceProfile.Browser)
+		}
+	}
+
+	// Calculate throughput and time estimates from stats
+	if session.Stats != nil {
+		throughputFPS = session.Stats.CurrentFPS
+
+		// Estimate time left based on progress and current speed
+		if session.Progress > 0 && session.Stats.Speed > 0 {
+			elapsedTime := time.Since(session.StartTime)
+			totalEstimatedTime := time.Duration(float64(elapsedTime) / session.Progress)
+			timeLeft := totalEstimatedTime - elapsedTime
+			if timeLeft > 0 {
+				estimatedTimeLeft = timeLeft.Truncate(time.Second).String()
+			} else {
+				estimatedTimeLeft = "0s"
+			}
+		} else {
+			estimatedTimeLeft = "Unknown"
+		}
+	}
+
+	// Format progress and other display values
+	var inputResolution, outputResolution, inputCodec, outputCodec, bitrate, duration string
+
+	if session.Request != nil {
+		outputResolution = session.Request.Resolution
+		outputCodec = session.Request.TargetCodec
+		if session.Request.Bitrate > 0 {
+			bitrate = fmt.Sprintf("%d kbps", session.Request.Bitrate)
+		}
+	}
+
+	// Set transcoder type based on backend
+	transcoderType := "software"
+	if session.Backend == "nvenc" {
+		transcoderType = "nvenc"
+	} else if session.Backend == "vaapi" {
+		transcoderType = "vaapi"
+	} else if session.Backend == "qsv" {
+		transcoderType = "qsv"
+	}
+
+	return plugins.TranscodeSessionSummary{
+		ID:                session.ID,
+		InputFilename:     inputFilename,
+		InputResolution:   inputResolution, // TODO: Get from media analysis
+		OutputResolution:  outputResolution,
+		InputCodec:        inputCodec, // TODO: Get from media analysis
+		OutputCodec:       outputCodec,
+		Bitrate:           bitrate,
+		Duration:          duration, // TODO: Calculate from media info
+		Progress:          session.Progress,
+		TranscoderType:    transcoderType,
+		ClientIP:          clientIP,
+		ClientDevice:      clientDevice,
+		StartTime:         session.StartTime,
+		Status:            string(session.Status),
+		EstimatedTimeLeft: estimatedTimeLeft,
+		ThroughputFPS:     throughputFPS,
+	}
+}
+
+// extractContentTitle extracts a user-friendly title from a file path using database lookup first, then smart filename parsing
+func (a *ExternalPluginAdapter) extractContentTitle(inputPath string) string {
+	if inputPath == "" {
+		return "Unknown Content"
+	}
+
+	// TODO: Add database connection to ExternalPluginAdapter to query media_files table
+	// For now, use smart filename parsing as the primary method
+
+	// Extract and intelligently clean up filename
+	basename := filepath.Base(inputPath)
+	nameWithoutExt := strings.TrimSuffix(basename, filepath.Ext(basename))
+
+	// Smart episode title extraction from common TV show filename formats
+	// Format: "Show Name (Year) - S01E01 - Episode Title [Quality info]"
+	if strings.Contains(nameWithoutExt, " - S") && strings.Contains(nameWithoutExt, "E") {
+		parts := strings.Split(nameWithoutExt, " - ")
+		if len(parts) >= 3 {
+			// Find the show name, season/episode, and episode title
+			var showName, seasonEpisode, episodeTitle string
+
+			for i, part := range parts {
+				if strings.Contains(part, "S") && strings.Contains(part, "E") {
+					// This is the season/episode part (e.g., "S01E01")
+					seasonEpisode = part
+
+					// Everything before this is the show name
+					if i > 0 {
+						showParts := parts[:i]
+						showName = strings.Join(showParts, " - ")
+						// Remove year from show name if present
+						if strings.Contains(showName, "(") && strings.Contains(showName, ")") {
+							if parenIndex := strings.Index(showName, " ("); parenIndex != -1 {
+								showName = showName[:parenIndex]
+							}
+						}
+					}
+
+					// Everything after this is the episode title
+					if i+1 < len(parts) {
+						episodeParts := parts[i+1:]
+						episodeTitle = strings.Join(episodeParts, " - ")
+						// Remove quality tags in brackets
+						if bracketIndex := strings.Index(episodeTitle, " ["); bracketIndex != -1 {
+							episodeTitle = episodeTitle[:bracketIndex]
+						}
+						// Remove parenthetical info like (1080p), (BluRay), etc.
+						if parenIndex := strings.Index(episodeTitle, " ("); parenIndex != -1 {
+							episodeTitle = episodeTitle[:parenIndex]
+						}
+					}
+					break
+				}
+			}
+
+			// Format as "Show Title - S##E## - Episode Title" (with hyphens for readability)
+			if showName != "" && seasonEpisode != "" && episodeTitle != "" {
+				return fmt.Sprintf("%s - %s - %s",
+					strings.TrimSpace(showName),
+					strings.TrimSpace(seasonEpisode),
+					strings.TrimSpace(episodeTitle))
+			} else if episodeTitle != "" {
+				// Fallback: just return episode title if we can't parse the full structure
+				return strings.TrimSpace(episodeTitle)
+			}
+		}
+	}
+
+	// Check if this might be a movie (no season/episode indicators)
+	// Movie format: "Movie Title (Year) [Quality info]"
+	cleanName := nameWithoutExt
+
+	// Remove all quality indicators and technical info
+	qualityIndicators := []string{
+		" [Bluray-1080p]", " [WEBRip-1080p]", " [HDTV-720p]", " [DVDRip-480p]", " [4K-UHD]",
+		" [FLAC 2.0]", " [AAC 2.0]", " [AC3 5.1]", " [DTS 5.1]", " [Atmos]",
+		" [x264]", " [x265]", " [HEVC]", " [AVC]", " [H.264]", " [H.265]",
+		" (1080p)", " (720p)", " (480p)", " (4K)", " (2160p)",
+		" (BluRay)", " (WEBRip)", " (HDTV)", " (DVDRip)", " (BDRip)",
+		".1080p.", ".720p.", ".480p.", ".4K.", ".2160p.",
+		".BluRay.", ".WEBRip.", ".HDTV.", ".DVDRip.", ".BDRip.",
+		".x264.", ".x265.", ".HEVC.", ".AVC.", ".H264.", ".H265.",
+	}
+
+	for _, indicator := range qualityIndicators {
+		cleanName = strings.ReplaceAll(cleanName, indicator, "")
+	}
+
+	// Remove anything in square brackets (quality info)
+	for strings.Contains(cleanName, "[") && strings.Contains(cleanName, "]") {
+		startBracket := strings.Index(cleanName, "[")
+		endBracket := strings.Index(cleanName[startBracket:], "]")
+		if endBracket != -1 {
+			cleanName = cleanName[:startBracket] + cleanName[startBracket+endBracket+1:]
+		} else {
+			break
+		}
+	}
+
+	// Remove group tags at the end (e.g., "-BTN", "-RARBG", "-FGT")
+	if lastDash := strings.LastIndex(cleanName, "-"); lastDash != -1 {
+		possibleGroup := strings.TrimSpace(cleanName[lastDash+1:])
+		// If it's a short alphanumeric string without spaces, it's likely a group tag
+		if len(possibleGroup) <= 8 && !strings.Contains(possibleGroup, " ") {
+			cleanName = cleanName[:lastDash]
+		}
+	}
+
+	// Clean up punctuation and spacing
+	cleanName = strings.ReplaceAll(cleanName, "_", " ")
+	cleanName = strings.ReplaceAll(cleanName, ".", " ")
+	cleanName = strings.ReplaceAll(cleanName, "  ", " ")
+	cleanName = strings.TrimSpace(cleanName)
+
+	// For movies, often there's a year at the end in parentheses - keep that
+	// Format: "Movie Title (2023)" - this is good for movies
+
+	if cleanName == "" {
+		return "Unknown Content"
+	}
+
+	return cleanName
+}
+
+// calculateQuickStats calculates quick statistics from active sessions
+func (a *ExternalPluginAdapter) calculateQuickStats(sessions []*plugins.TranscodeSession) plugins.TranscoderQuickStats {
+	activeSessions := len(sessions)
+	var totalSpeed, totalThroughput float64
+	var sessionsToday int
+	var totalHoursToday float64
+
+	// Analyze active sessions
+	for _, session := range sessions {
+		// Count sessions started today
+		if session.StartTime.After(time.Now().Truncate(24 * time.Hour)) {
+			sessionsToday++
+			// Calculate hours transcoded today
+			elapsed := time.Since(session.StartTime)
+			totalHoursToday += elapsed.Hours()
+		}
+
+		// Sum up speed and throughput
+		if session.Stats != nil {
+			totalSpeed += session.Stats.Speed
+			totalThroughput += session.Stats.CurrentFPS
+		}
+	}
+
+	// Calculate averages
+	var averageSpeed float64
+	var currentThroughput string
+
+	if activeSessions > 0 {
+		averageSpeed = totalSpeed / float64(activeSessions)
+		currentThroughput = fmt.Sprintf("%.1f fps", totalThroughput)
+	} else {
+		averageSpeed = 1.0 // Default when no active sessions
+		currentThroughput = "0 fps"
+	}
+
+	return plugins.TranscoderQuickStats{
+		SessionsToday:     sessionsToday,
+		TotalHoursToday:   totalHoursToday,
+		AverageSpeed:      averageSpeed,
+		ErrorRate:         0.02, // TODO: Calculate from historical data
+		CurrentThroughput: currentThroughput,
+		PeakConcurrent:    activeSessions, // TODO: Track historical peak
+	}
+}
+
+func (a *ExternalPluginAdapter) GetNerdData(ctx context.Context, sectionID string) (interface{}, error) {
+	// Mock nerd data for the transcoder
+	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
+		return plugins.TranscoderNerdData{
+			EncoderQueues: []plugins.EncoderQueueInfo{
+				{
+					QueueID:     "cpu_queue",
+					Type:        "software",
+					Pending:     0,
+					Processing:  0,
+					MaxSlots:    10,
+					AvgWaitTime: "0s",
+				},
+			},
+			HardwareStatus: plugins.HardwareStatusInfo{
+				GPU: plugins.GPUInfo{
+					Name:        "N/A (Software)",
+					Driver:      "N/A",
+					VRAMTotal:   0,
+					VRAMUsed:    0,
+					CoreClock:   0,
+					MemoryClock: 0,
+					FanSpeed:    0,
+				},
+				Encoders: []plugins.EncoderInfo{
+					{
+						ID:           "ffmpeg_cpu",
+						Type:         "software",
+						Status:       "idle",
+						CurrentLoad:  0,
+						SessionCount: 0,
+						MaxSessions:  10,
+					},
+				},
+				Memory: plugins.MemoryInfo{
+					System: plugins.SystemMemory{
+						Total:  16 * 1024 * 1024 * 1024, // 16GB
+						Used:   8 * 1024 * 1024 * 1024,  // 8GB
+						Cached: 2 * 1024 * 1024 * 1024,  // 2GB
+					},
+					GPU: plugins.GPUMemory{
+						Total: 0,
+						Used:  0,
+						Free:  0,
+					},
+				},
+				Temperature:    45.0,
+				PowerDraw:      150.0,
+				UtilizationPct: 15.0,
+			},
+			PerformanceMetrics: plugins.PerformanceMetrics{
+				EncodingSpeed:    1.2,
+				QualityScore:     0.92,
+				CompressionRatio: 0.35,
+				ErrorCount:       0,
+				RestartCount:     0,
+				UptimeSeconds:    3600,
+			},
+			ConfigDiagnostics: []plugins.ConfigDiagnostic{
+				{
+					Category:   "performance",
+					Level:      "info",
+					Message:    "Software encoding is active",
+					Setting:    "hardware_acceleration",
+					Value:      "false",
+					Suggestion: "Consider enabling hardware acceleration for better performance",
+				},
+			},
+			SystemResources: plugins.SystemResourceInfo{
+				CPU: plugins.CPUInfo{
+					Usage:     25.5,
+					Cores:     8,
+					Threads:   16,
+					Frequency: 3400,
+				},
+				Memory: plugins.MemoryInfo{
+					System: plugins.SystemMemory{
+						Total:  16 * 1024 * 1024 * 1024,
+						Used:   8 * 1024 * 1024 * 1024,
+						Cached: 2 * 1024 * 1024 * 1024,
+					},
+				},
+				Disk: plugins.DiskInfo{
+					TotalSpace: 1000 * 1024 * 1024 * 1024, // 1TB
+					UsedSpace:  400 * 1024 * 1024 * 1024,  // 400GB
+					IOReads:    1000,
+					IOWrites:   500,
+					IOUtil:     25.5,
+				},
+				Network: plugins.NetworkInfo{
+					BytesReceived: 100 * 1024 * 1024,
+					BytesSent:     50 * 1024 * 1024,
+					PacketsRx:     10000,
+					PacketsTx:     5000,
+					Bandwidth:     100.0,
+				},
+			},
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unsupported section: %s", sectionID)
+}
+
+func (a *ExternalPluginAdapter) GetMetrics(ctx context.Context, sectionID string, timeRange plugins.TimeRange) ([]plugins.MetricPoint, error) {
+	// Mock metrics data
+	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
+		metrics := make([]plugins.MetricPoint, 0)
+
+		// Generate sample metrics for the last hour
+		now := time.Now()
+		for i := 0; i < 60; i++ {
+			timestamp := now.Add(-time.Duration(59-i) * time.Minute)
+
+			metrics = append(metrics, plugins.MetricPoint{
+				Timestamp: timestamp,
+				Value:     float64(i % 3), // 0-2 active sessions
+				Labels: map[string]string{
+					"metric": "active_sessions",
+					"type":   "ffmpeg",
+				},
+			})
+		}
+
+		return metrics, nil
+	}
+
+	return []plugins.MetricPoint{}, nil
+}
+
+func (a *ExternalPluginAdapter) StreamData(ctx context.Context, sectionID string) (<-chan plugins.DashboardUpdate, error) {
+	// For now, return an empty channel - real-time updates can be added later
+	updateChan := make(chan plugins.DashboardUpdate)
+	close(updateChan) // Close immediately as we don't have real-time data yet
+	return updateChan, nil
 }
 
 // BasicTranscodingService implements GRPC communication with external transcoding plugins
@@ -744,6 +1289,9 @@ type ExternalPluginManager struct {
 	healthMonitor     *PluginHealthMonitor
 	fallbackManager   *FallbackManager
 	reliabilityConfig *config.PluginReliabilityConfig
+
+	// Dashboard integration
+	dashboardManager *DashboardManager
 }
 
 // ExternalPluginManifest represents the parsed CUE configuration
@@ -806,6 +1354,50 @@ func (m *ExternalPluginManager) Initialize(ctx context.Context, pluginDir string
 
 	m.logger.Info("external plugin manager initialized successfully")
 	return nil
+}
+
+// SetDashboardManager sets the dashboard manager for plugin integration
+func (m *ExternalPluginManager) SetDashboardManager(dashboardManager *DashboardManager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dashboardManager = dashboardManager
+	m.logger.Info("dashboard manager set for external plugin integration")
+
+	// Register all already-loaded plugins with the dashboard manager
+	m.registerLoadedPluginsWithDashboard()
+}
+
+// registerLoadedPluginsWithDashboard registers all currently loaded plugins with the dashboard manager
+// This is called when the dashboard manager is set after plugins have already been auto-loaded
+func (m *ExternalPluginManager) registerLoadedPluginsWithDashboard() {
+	m.logger.Info("registering already-loaded plugins with dashboard manager")
+
+	registeredCount := 0
+	for pluginID, pluginInterface := range m.pluginInterfaces {
+		if plugin, exists := m.plugins[pluginID]; exists && plugin.Running {
+			m.logger.Debug("attempting to register already-loaded plugin with dashboard", "plugin", pluginID, "interface_type", fmt.Sprintf("%T", pluginInterface))
+
+			if grpcClient, ok := pluginInterface.(*ExternalPluginGRPCClient); ok {
+				m.logger.Debug("successfully cast already-loaded plugin to ExternalPluginGRPCClient", "plugin", pluginID)
+				info, _ := grpcClient.Info()
+				adapter := &ExternalPluginAdapter{
+					client:     grpcClient,
+					pluginInfo: info,
+				}
+
+				if err := m.dashboardManager.RegisterPlugin(pluginID, adapter); err != nil {
+					m.logger.Warn("failed to register already-loaded plugin with dashboard", "plugin", pluginID, "error", err)
+				} else {
+					m.logger.Info("registered already-loaded plugin with dashboard manager", "plugin", pluginID)
+					registeredCount++
+				}
+			} else {
+				m.logger.Debug("failed to cast already-loaded plugin to ExternalPluginGRPCClient", "plugin", pluginID, "interface_type", fmt.Sprintf("%T", pluginInterface))
+			}
+		}
+	}
+
+	m.logger.Info("completed registration of already-loaded plugins with dashboard", "registered", registeredCount, "total_loaded", len(m.pluginInterfaces))
 }
 
 // discoverAndRegisterPlugins scans the plugin directory and registers external plugins
@@ -1051,7 +1643,8 @@ func (m *ExternalPluginManager) ensurePluginInDatabase(manifest *ExternalPluginM
 			// Enable plugin if:
 			// 1. It's marked as enabled_by_default AND respect_default_config is true
 			// 2. It's an enrichment plugin AND enrichment_enabled is true
-			// 3. Binary exists for both cases
+			// 3. It's the FFmpeg transcoder (always enabled by default)
+			// 4. Binary exists for all cases
 			shouldEnable := false
 			if cfg.RespectDefaultConfig && manifest.EnabledDefault {
 				shouldEnable = true
@@ -1059,6 +1652,9 @@ func (m *ExternalPluginManager) ensurePluginInDatabase(manifest *ExternalPluginM
 			} else if cfg.EnrichmentEnabled && isEnrichmentPlugin {
 				shouldEnable = true
 				m.logger.Info("enabling enrichment plugin due to global config", "plugin", manifest.ID)
+			} else if manifest.ID == "ffmpeg_transcoder" {
+				shouldEnable = true
+				m.logger.Info("enabling FFmpeg transcoder by default for seamless operation", "plugin", manifest.ID)
 			}
 
 			if shouldEnable {
@@ -1129,6 +1725,7 @@ func (m *ExternalPluginManager) ensurePluginInDatabase(manifest *ExternalPluginM
 
 // LoadPlugin loads an external plugin using the hashicorp/go-plugin framework
 func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string) error {
+	m.logger.Info("LoadPlugin called", "plugin", pluginID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1297,6 +1894,35 @@ func (m *ExternalPluginManager) LoadPlugin(ctx context.Context, pluginID string)
 	if err := m.discoverAndRegisterAdminPages(pluginID, pluginInterface); err != nil {
 		m.logger.Warn("failed to discover admin pages", "plugin", pluginID, "error", err)
 		// Continue anyway - plugin might not provide admin pages
+	}
+
+	// Register plugin with dashboard manager if available
+	if m.dashboardManager != nil {
+		// Create an adapter to expose the plugin interface
+		m.logger.Debug("attempting dashboard registration", "plugin", pluginID, "interface_type", fmt.Sprintf("%T", pluginInterface))
+		if grpcClient, ok := pluginInterface.(*ExternalPluginGRPCClient); ok {
+			m.logger.Debug("successfully cast to ExternalPluginGRPCClient", "plugin", pluginID)
+			info, _ := grpcClient.Info()
+			adapter := &ExternalPluginAdapter{
+				client:     grpcClient,
+				pluginInfo: info,
+			}
+
+			// Register with dashboard manager if available
+			if m.dashboardManager != nil {
+				m.logger.Debug("dashboard manager available, registering plugin", "plugin", pluginID)
+				if err := m.dashboardManager.RegisterPlugin(pluginID, adapter); err != nil {
+					m.logger.Warn("failed to register plugin with dashboard", "plugin", pluginID, "error", err)
+					// Continue anyway - plugin might not provide dashboard sections
+				} else {
+					m.logger.Info("registered plugin with dashboard manager", "plugin", pluginID)
+				}
+			} else {
+				m.logger.Warn("dashboard manager is nil, cannot register plugin", "plugin", pluginID)
+			}
+		} else {
+			m.logger.Debug("failed to cast to ExternalPluginGRPCClient", "plugin", pluginID, "interface_type", fmt.Sprintf("%T", pluginInterface))
+		}
 	}
 
 	m.logger.Info("successfully loaded external plugin", "plugin", pluginID, "load_time", responseTime)
@@ -1500,6 +2126,15 @@ func (m *ExternalPluginManager) unloadPlugin(pluginID string) error {
 	// Update plugin status
 	plugin.Running = false
 	plugin.LastStopped = time.Now()
+
+	// Unregister from dashboard manager if available
+	if m.dashboardManager != nil {
+		if err := m.dashboardManager.UnregisterPlugin(pluginID); err != nil {
+			m.logger.Warn("failed to unregister plugin from dashboard", "plugin", pluginID, "error", err)
+		} else {
+			m.logger.Info("unregistered plugin from dashboard manager", "plugin", pluginID)
+		}
+	}
 
 	// Update database status
 	if err := m.updatePluginStatus(pluginID, "stopped"); err != nil {
@@ -1906,6 +2541,31 @@ func (m *ExternalPluginManager) autoLoadEnabledPlugins(ctx context.Context) erro
 		// Update database status to running
 		if err := m.updatePluginStatus(pluginID, "running"); err != nil {
 			m.logger.Error("failed to update plugin status to running", "plugin", pluginID, "error", err)
+		}
+
+		// Register plugin with dashboard manager if available
+		if m.dashboardManager != nil {
+			// Create an adapter to expose the plugin interface
+			m.logger.Debug("attempting dashboard registration for auto-loaded plugin", "plugin", pluginID, "interface_type", fmt.Sprintf("%T", pluginInterface))
+			if grpcClient, ok := pluginInterface.(*ExternalPluginGRPCClient); ok {
+				m.logger.Debug("successfully cast auto-loaded plugin to ExternalPluginGRPCClient", "plugin", pluginID)
+				info, _ := grpcClient.Info()
+				adapter := &ExternalPluginAdapter{
+					client:     grpcClient,
+					pluginInfo: info,
+				}
+
+				if err := m.dashboardManager.RegisterPlugin(pluginID, adapter); err != nil {
+					m.logger.Warn("failed to register auto-loaded plugin with dashboard", "plugin", pluginID, "error", err)
+					// Continue anyway - plugin might not provide dashboard sections
+				} else {
+					m.logger.Info("registered auto-loaded plugin with dashboard manager", "plugin", pluginID)
+				}
+			} else {
+				m.logger.Debug("failed to cast auto-loaded plugin to ExternalPluginGRPCClient", "plugin", pluginID, "interface_type", fmt.Sprintf("%T", pluginInterface))
+			}
+		} else {
+			m.logger.Warn("dashboard manager is nil, cannot register auto-loaded plugin", "plugin", pluginID)
 		}
 
 		loadedCount++

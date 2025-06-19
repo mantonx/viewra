@@ -67,6 +67,22 @@ export interface AdminPage {
   url: string;
   type: 'configuration' | 'dashboard' | 'status' | 'external';
   permissions?: string[];
+  description?: string;
+  status_api?: {
+    endpoint: string;
+    refresh_interval: number;
+    status_indicator: string;
+  };
+  actions?: Array<{
+    id: string;
+    label: string;
+    type: string;
+    style: string;
+    endpoint: string;
+    method: string;
+    confirm: boolean;
+    payload?: Record<string, unknown>;
+  }>;
 }
 
 // Configuration System

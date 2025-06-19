@@ -7,6 +7,7 @@ package ffmpeg_transcoder
 	type:        "transcoder"
 	description: "FFmpeg-based video transcoding service with comprehensive codec support and streaming capabilities"
 	author:      "Viewra Team"
+	enabled_by_default: true
 	
 	// Entry points for plugin execution
 	entry_points: {
@@ -38,14 +39,14 @@ package ffmpeg_transcoder
 		// Job timeout in seconds
 		timeout_seconds: int | *7200 @ui(importance=6,level="basic",category="Performance")
 		
-		// Enable hardware acceleration
-		hardware_acceleration: bool | *false @ui(importance=7,level="basic",category="Hardware")
+		// Enable hardware acceleration (always auto mode)
+		hardware_acceleration: bool | *true @ui(importance=7,level="basic",category="Hardware")
 		
-		// Hardware acceleration type (auto, nvenc, vaapi, qsv, videotoolbox)
-		hardware_type: string | *"auto" @ui(importance=6,level="basic",category="Hardware")
+		// Hardware acceleration type (always auto - let FFmpeg choose best available)
+		hardware_type: string | *"auto" @ui(importance=4,level="advanced",category="Hardware")
 		
-		// Fallback to software if hardware fails
-		hardware_fallback: bool | *true @ui(importance=5,level="basic",category="Hardware")
+		// Fallback to software if hardware fails (compatibility setting)
+		hardware_fallback: bool | *true @ui(importance=3,level="advanced",category="Hardware")
 		
 		// Default audio bitrate (kbps)
 		audio_bitrate: int | *128 @ui(importance=6,level="basic",category="Audio")

@@ -2,83 +2,201 @@ package models
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
-// TranscodeSession represents a transcoding session in the main database
-// Generic for all transcoding backends (FFmpeg, VAAPI, QSV, NVENC, etc.)
-type TranscodeSession struct {
-	ID         string     `gorm:"primaryKey" json:"id"`
-	PluginID   string     `gorm:"not null;index;default:'ffmpeg_transcoder'" json:"plugin_id"` // Scope sessions by plugin
-	Backend    string     `gorm:"not null;index" json:"backend"`                               // ffmpeg, vaapi, qsv, nvenc, etc.
-	InputPath  string     `gorm:"not null;index" json:"input_path"`                            // Add index for duplicate detection
-	OutputPath string     `json:"output_path"`
-	Status     string     `gorm:"not null;default:'pending';index" json:"status"` // Add index for status queries
-	Progress   float64    `gorm:"default:0" json:"progress"`
-	StartTime  time.Time  `gorm:"not null;index" json:"start_time"` // Add index for cleanup queries
-	EndTime    *time.Time `json:"end_time,omitempty"`
-
-	// Transcoding parameters - generic for all backends
-	TargetCodec     string `json:"target_codec,omitempty"`     // h264, hevc, av1, etc.
-	TargetContainer string `json:"target_container,omitempty"` // mp4, webm, mkv, etc.
-	Resolution      string `json:"resolution,omitempty"`       // 1080p, 720p, etc.
-	Bitrate         int    `json:"bitrate,omitempty"`          // Target bitrate in kbps
-	AudioCodec      string `json:"audio_codec,omitempty"`      // aac, opus, etc.
-	AudioBitrate    int    `json:"audio_bitrate,omitempty"`    // Audio bitrate in kbps
-	Quality         int    `json:"quality,omitempty"`          // Quality setting (0-51 for x264/x265)
-	Preset          string `json:"preset,omitempty"`           // Encoding preset (fast, medium, slow, etc.)
-
-	// Seek-ahead functionality
-	StartTimeOffset int `gorm:"default:0;index" json:"start_time_offset"` // Start time offset in seconds for seek-ahead
-
-	// Hardware acceleration settings
-	HWAccel       string `json:"hw_accel,omitempty"`        // vaapi, qsv, nvenc, etc.
-	HWAccelDevice string `json:"hw_accel_device,omitempty"` // GPU device path/ID
-
-	// Session metadata
-	Error     string `gorm:"type:text" json:"error,omitempty"`
-	ClientIP  string `json:"client_ip,omitempty"`
-	UserAgent string `json:"user_agent,omitempty"`
-	Metadata  string `gorm:"type:text" json:"metadata,omitempty"` // JSON for additional backend-specific data
-
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+// TranscodingJob represents a single transcoding job/session
+type TranscodingJob struct {
+	ID            string            `json:"id"`
+	Status        TranscodingStatus `json:"status"`
+	InputFile     string            `json:"input_file"`
+	OutputFile    string            `json:"output_file"`
+	Settings      JobSettings       `json:"settings"`
+	Progress      Progress          `json:"progress"`
+	StartTime     time.Time         `json:"start_time"`
+	EndTime       *time.Time        `json:"end_time,omitempty"`
+	Error         string            `json:"error,omitempty"`
+	FFmpegCommand string            `json:"ffmpeg_command,omitempty"`
+	Metrics       JobMetrics        `json:"metrics"`
+	CreatedAt     time.Time         `json:"created_at"`
+	UpdatedAt     time.Time         `json:"updated_at"`
 }
 
-// TableName returns the table name for the TranscodeSession model
-func (TranscodeSession) TableName() string {
-	return "transcode_sessions"
+// TranscodingStatus represents the current status of a transcoding job
+type TranscodingStatus string
+
+const (
+	StatusPending    TranscodingStatus = "pending"
+	StatusQueued     TranscodingStatus = "queued"
+	StatusProcessing TranscodingStatus = "processing"
+	StatusCompleted  TranscodingStatus = "completed"
+	StatusFailed     TranscodingStatus = "failed"
+	StatusCancelled  TranscodingStatus = "cancelled"
+	StatusTimeout    TranscodingStatus = "timeout"
+)
+
+// JobSettings contains the transcoding settings for a specific job
+type JobSettings struct {
+	VideoCodec   string            `json:"video_codec"`
+	AudioCodec   string            `json:"audio_codec"`
+	Container    string            `json:"container"`
+	Quality      int               `json:"quality"` // CRF value
+	Preset       string            `json:"preset"`  // Encoding preset
+	Resolution   *Resolution       `json:"resolution,omitempty"`
+	AudioBitrate int               `json:"audio_bitrate"` // kbps
+	Filters      []string          `json:"filters,omitempty"`
+	Custom       map[string]string `json:"custom,omitempty"` // Custom FFmpeg options
 }
 
-// TranscodeStats represents transcoding statistics in the main database
-// Generic for all transcoding backends
-type TranscodeStats struct {
-	ID        uint   `gorm:"primaryKey" json:"id"`
-	SessionID string `gorm:"not null;index" json:"session_id"`                            // FK to transcode_sessions
-	PluginID  string `gorm:"not null;index;default:'ffmpeg_transcoder'" json:"plugin_id"` // Scope stats by plugin
-	Backend   string `gorm:"not null;index" json:"backend"`                               // ffmpeg, vaapi, qsv, nvenc, etc.
-
-	// Performance metrics - generic for all backends
-	Duration        int64   `json:"duration"`         // Duration in milliseconds
-	BytesProcessed  int64   `json:"bytes_processed"`  // Input bytes processed
-	BytesGenerated  int64   `json:"bytes_generated"`  // Output bytes generated
-	FramesProcessed int64   `json:"frames_processed"` // Video frames processed
-	CurrentFPS      float64 `json:"current_fps"`      // Current processing FPS
-	AverageFPS      float64 `json:"average_fps"`      // Average processing FPS
-	Speed           float64 `json:"speed"`            // Processing speed multiplier
-
-	// System resource usage
-	CPUUsage    float64 `json:"cpu_usage"`    // CPU usage percentage
-	MemoryUsage int64   `json:"memory_usage"` // Memory usage in bytes
-	GPUUsage    float64 `json:"gpu_usage"`    // GPU usage percentage (for HW accel)
-	GPUMemory   int64   `json:"gpu_memory"`   // GPU memory usage in bytes
-
-	RecordedAt time.Time `gorm:"not null;index" json:"recorded_at"` // Add index for cleanup queries
+// Resolution represents video resolution
+type Resolution struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
 }
 
-// TableName returns the table name for the TranscodeStats model
-func (TranscodeStats) TableName() string {
-	return "transcode_stats"
+// Progress represents the current progress of a transcoding job
+type Progress struct {
+	Percentage    float64       `json:"percentage"` // 0.0 to 100.0
+	FramesTotal   int64         `json:"frames_total"`
+	FramesCurrent int64         `json:"frames_current"`
+	TimeTotal     time.Duration `json:"time_total"`   // Total duration of input
+	TimeCurrent   time.Duration `json:"time_current"` // Current position
+	Speed         float64       `json:"speed"`        // Processing speed multiplier
+	Bitrate       string        `json:"bitrate"`      // Current bitrate
+	LastUpdate    time.Time     `json:"last_update"`
+}
+
+// JobMetrics contains performance metrics for a transcoding job
+type JobMetrics struct {
+	InputFileSize    int64         `json:"input_file_size"`   // Bytes
+	OutputFileSize   int64         `json:"output_file_size"`  // Bytes
+	ProcessingTime   time.Duration `json:"processing_time"`   // Total processing time
+	AverageSpeed     float64       `json:"average_speed"`     // Average processing speed
+	PeakCPUUsage     float64       `json:"peak_cpu_usage"`    // Peak CPU usage percentage
+	PeakMemoryUsage  int64         `json:"peak_memory_usage"` // Peak memory usage in bytes
+	CompressionRatio float64       `json:"compression_ratio"` // Output size / input size
+	Quality          float64       `json:"quality,omitempty"` // Quality metric if available
+}
+
+// SessionInfo represents information about an active transcoding session
+type SessionInfo struct {
+	ID            string            `json:"id"`
+	Status        TranscodingStatus `json:"status"`
+	InputFile     string            `json:"input_file"`
+	OutputFile    string            `json:"output_file"`
+	Progress      Progress          `json:"progress"`
+	StartTime     time.Time         `json:"start_time"`
+	EstimatedEnd  *time.Time        `json:"estimated_end,omitempty"`
+	CurrentCPU    float64           `json:"current_cpu"`
+	CurrentMemory int64             `json:"current_memory"`
+}
+
+// TranscodingCapabilities represents the capabilities of the transcoder
+type TranscodingCapabilities struct {
+	SupportedFormats     []string            `json:"supported_formats"`
+	SupportedCodecs      map[string][]string `json:"supported_codecs"` // format -> codecs
+	MaxConcurrentJobs    int                 `json:"max_concurrent_jobs"`
+	HardwareAcceleration []string            `json:"hardware_acceleration,omitempty"`
+	Features             []string            `json:"features"`
+}
+
+// FormatInfo represents information about a media format
+type FormatInfo struct {
+	Container    string            `json:"container"`
+	VideoCodec   string            `json:"video_codec,omitempty"`
+	AudioCodec   string            `json:"audio_codec,omitempty"`
+	Duration     time.Duration     `json:"duration"`
+	Resolution   *Resolution       `json:"resolution,omitempty"`
+	Bitrate      int               `json:"bitrate"` // Total bitrate in kbps
+	AudioBitrate int               `json:"audio_bitrate,omitempty"`
+	Framerate    float64           `json:"framerate,omitempty"`
+	FileSize     int64             `json:"file_size"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+}
+
+// TranscodingRequest represents a request to start a new transcoding job
+type TranscodingRequest struct {
+	InputFile   string            `json:"input_file"`
+	OutputFile  string            `json:"output_file"`
+	Settings    JobSettings       `json:"settings"`
+	Priority    int               `json:"priority,omitempty"` // 1-10, higher = more priority
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	CallbackURL string            `json:"callback_url,omitempty"`
+}
+
+// TranscodingResponse represents the response from starting a transcoding job
+type TranscodingResponse struct {
+	JobID     string            `json:"job_id"`
+	Status    TranscodingStatus `json:"status"`
+	Message   string            `json:"message,omitempty"`
+	QueueSize int               `json:"queue_size,omitempty"`
+}
+
+// SystemStats represents current system statistics
+type SystemStats struct {
+	ActiveJobs    int        `json:"active_jobs"`
+	QueuedJobs    int        `json:"queued_jobs"`
+	CompletedJobs int        `json:"completed_jobs"`
+	FailedJobs    int        `json:"failed_jobs"`
+	TotalJobs     int        `json:"total_jobs"`
+	AverageCPU    float64    `json:"average_cpu"`
+	AverageMemory int64      `json:"average_memory"`
+	UptimeSeconds int64      `json:"uptime_seconds"`
+	LastJobTime   *time.Time `json:"last_job_time,omitempty"`
+}
+
+// IsCompleted returns true if the job has finished (success or failure)
+func (j *TranscodingJob) IsCompleted() bool {
+	return j.Status == StatusCompleted || j.Status == StatusFailed ||
+		j.Status == StatusCancelled || j.Status == StatusTimeout
+}
+
+// IsActive returns true if the job is currently running
+func (j *TranscodingJob) IsActive() bool {
+	return j.Status == StatusProcessing
+}
+
+// Duration returns the total duration of the job (if completed)
+func (j *TranscodingJob) Duration() time.Duration {
+	if j.EndTime != nil {
+		return j.EndTime.Sub(j.StartTime)
+	}
+	if j.IsActive() {
+		return time.Since(j.StartTime)
+	}
+	return 0
+}
+
+// EstimatedTimeRemaining estimates how much time is left based on current progress
+func (p *Progress) EstimatedTimeRemaining() time.Duration {
+	if p.Percentage <= 0 || p.Speed <= 0 {
+		return 0
+	}
+
+	remaining := p.TimeTotal - p.TimeCurrent
+	if remaining <= 0 {
+		return 0
+	}
+
+	return time.Duration(float64(remaining) / p.Speed)
+}
+
+// Update updates the progress with new values
+func (p *Progress) Update(framesCurrent int64, timeCurrent time.Duration, speed float64, bitrate string) {
+	p.FramesCurrent = framesCurrent
+	p.TimeCurrent = timeCurrent
+	p.Speed = speed
+	p.Bitrate = bitrate
+	p.LastUpdate = time.Now()
+
+	// Calculate percentage
+	if p.FramesTotal > 0 {
+		p.Percentage = float64(framesCurrent) / float64(p.FramesTotal) * 100.0
+	} else if p.TimeTotal > 0 {
+		p.Percentage = float64(timeCurrent) / float64(p.TimeTotal) * 100.0
+	}
+
+	// Ensure percentage doesn't exceed 100%
+	if p.Percentage > 100.0 {
+		p.Percentage = 100.0
+	}
 }

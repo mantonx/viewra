@@ -12,7 +12,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds
+.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds plugins build-plugins-docker build-plugins-host build-plugin-% setup-plugins dev-plugins logs-plugins
 
 help: ## Show this help message
 	@echo "Viewra Development Commands:"
@@ -74,27 +74,11 @@ build-plugins: enforce-docker-builds ## Build all plugins using Docker container
 # Remove the old host/container mode options - everything is Docker now
 build-plugins-container: build-plugins ## Alias for build-plugins (all builds are now containerized)
 
-# Remove host build option entirely
-build-plugins-host: ## DEPRECATED: Host builds are no longer supported
-	@echo "$(RED)❌ Host builds are no longer supported for consistency and reliability.$(NC)"
-	@echo "$(YELLOW)All plugin builds now use Docker containers.$(NC)"
-	@echo "$(GREEN)Use 'make build-plugins' instead.$(NC)"
-	@exit 1
-
 clean-binaries: ## Remove all plugin binaries
 	@echo "$(GREEN)Cleaning plugin binaries...$(NC)"
 	@find $(PLUGINS_DIR) -name "*_*" -type f -executable -delete 2>/dev/null || true
 	@find $(PLUGINS_DIR) -name "*.exe" -type f -delete 2>/dev/null || true
 	@echo "Plugin binaries cleaned"
-
-clean-plugins: ## Clean plugin build artifacts and caches
-	@echo "$(GREEN)Cleaning plugin build artifacts...$(NC)"
-	@for plugin in $$(find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "%f\n" 2>/dev/null); do \
-		echo "Cleaning $$plugin..."; \
-		(cd $(PLUGINS_DIR)/$$plugin && go clean -cache -modcache -testcache 2>/dev/null || true); \
-	done
-	@$(MAKE) clean-binaries
-	@echo "Plugin cleanup completed"
 
 test-plugin: ## Test a specific plugin build (usage: make test-plugin p=PLUGIN_NAME)
 	@if [ -z "$(p)" ]; then \
@@ -208,3 +192,47 @@ db-web-restart: ## Restart SQLite Web
 	@echo "SQLite Web available at http://localhost:8081"
 
 db-web-logs: ## Show SQLite Web logs
+
+# Plugin management targets
+.PHONY: plugins build-plugins setup-plugins clean-plugins
+
+# Build all plugins with auto-detection
+plugins:
+	@echo "🔨 Building plugins..."
+	@./scripts/build-plugins.sh
+
+# Build plugins in Docker (force mode)
+build-plugins-docker:
+	@echo "🐳 Building plugins in Docker..."
+	@./scripts/build-plugins.sh docker
+
+# Build plugins on host (force mode)
+build-plugins-host:
+	@echo "🏠 Building plugins on host..."
+	@./scripts/build-plugins.sh host
+
+# Build specific plugin
+build-plugin-%:
+	@echo "🎯 Building plugin: $*"
+	@./scripts/build-plugins.sh auto $*
+
+# Complete plugin setup (build + enable + restart)
+setup-plugins:
+	@echo "⚙️ Setting up plugins..."
+	@./scripts/setup-plugins.sh
+
+# Clean all plugin binaries
+clean-plugins:
+	@echo "🧹 Cleaning plugin binaries..."
+	@find backend/data/plugins -name "*_transcoder" -o -name "*_enricher" -o -name "*_scanner" | xargs -I {} find {} -type f -executable -name "*_*" -delete 2>/dev/null || true
+	@echo "✅ Plugin binaries cleaned"
+
+# Quick development workflow
+dev-plugins: clean-plugins build-plugins-docker
+	@echo "🚀 Development plugin build complete"
+	@docker-compose logs backend --tail=5 | grep -i plugin || echo "Check logs with: make logs-plugins"
+
+# Show plugin-related logs
+logs-plugins:
+	@echo "📋 Recent plugin logs:"
+	@docker-compose logs backend --tail=20 | grep -i plugin || echo "No recent plugin logs found"

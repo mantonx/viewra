@@ -3,567 +3,743 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/mantonx/viewra/pkg/plugins"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-
 	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/config"
-	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/models"
 	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/services"
+	"github.com/mantonx/viewra/pkg/plugins"
 )
 
-// Version information
-type VersionInfo struct {
-	Version   string
-	BuildTime string
-	GitCommit string
+// SimpleTranscodingAdapter provides a minimal implementation of TranscodingService
+type SimpleTranscodingAdapter struct {
+	config             *config.Config
+	logger             plugins.Logger
+	transcodingService *services.DefaultTranscodingService
+	sessions           map[string]*plugins.TranscodeSession
+	mutex              sync.RWMutex
 }
 
-// GetVersion returns version information for the plugin
-func GetVersion() VersionInfo {
-	return VersionInfo{
-		Version:   "1.0.0",
-		BuildTime: time.Now().Format("2006-01-02 15:04:05"),
-		GitCommit: "dev", // This would be set during build in production
+// GetCapabilities returns basic FFmpeg capabilities
+func (s *SimpleTranscodingAdapter) GetCapabilities(ctx context.Context) (*plugins.TranscodingCapabilities, error) {
+	// Default max concurrent sessions if config is not available
+	maxConcurrent := 4
+	if s.config != nil {
+		maxConcurrent = s.config.GetMaxConcurrentSessions()
 	}
+
+	return &plugins.TranscodingCapabilities{
+		Name:                  "FFmpeg Transcoder",
+		SupportedCodecs:       []string{"h264", "h265", "hevc", "vp8", "vp9", "av1"},
+		SupportedResolutions:  []string{"240p", "360p", "480p", "720p", "1080p", "1440p", "4k"},
+		SupportedContainers:   []string{"mp4", "webm", "mkv", "dash", "hls"},
+		HardwareAcceleration:  true,
+		MaxConcurrentSessions: maxConcurrent,
+		Features: plugins.TranscodingFeatures{
+			SubtitleBurnIn:      true,
+			SubtitlePassthrough: true,
+			MultiAudioTracks:    true,
+			HDRSupport:          false,
+			ToneMapping:         false,
+			StreamingOutput:     true,
+			SegmentedOutput:     true,
+		},
+		Priority: 100,
+	}, nil
 }
 
-// FFmpegTranscoderPlugin represents the main plugin implementation
-type FFmpegTranscoderPlugin struct {
-	// Core services
-	db       *gorm.DB
-	logger   plugins.Logger
-	basePath string
-	context  *plugins.PluginContext
-
-	// Plugin services
-	transcodingService *services.TranscodingService
-	sessionManager     *services.SessionManager
-	ffmpegService      *services.FFmpegService
-
-	// SDK services
-	healthService      *plugins.BaseHealthService
-	configService      *config.FFmpegConfigurationService
-	performanceMonitor *plugins.BasePerformanceMonitor
-
-	// Host service connections
-	unifiedClient *plugins.UnifiedServiceClient
-
-	// Lazy wrapper for GRPC registration
-	lazyTranscodingService *LazyTranscodingService
-}
-
-// Plugin lifecycle methods
-func (f *FFmpegTranscoderPlugin) Initialize(ctx *plugins.PluginContext) error {
-	// Basic nil checks to prevent segmentation fault
-	if ctx == nil {
-		return fmt.Errorf("plugin context is nil")
+// StartTranscode starts a transcoding session - returns success to indicate capability
+func (s *SimpleTranscodingAdapter) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error) {
+	// Write debug info to a log file
+	debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if debugFile != nil {
+		fmt.Fprintf(debugFile, "🎯 [%s] StartTranscode called - input='%s', codec='%s', container='%s'\n",
+			time.Now().Format("15:04:05"), req.InputPath, req.TargetCodec, req.TargetContainer)
+		debugFile.Close()
 	}
 
-	if ctx.Logger == nil {
-		return fmt.Errorf("logger in plugin context is nil")
+	if s.logger != nil {
+		s.logger.Info("StartTranscode called - FFmpeg plugin is available for transcoding", "input", req.InputPath, "codec", req.TargetCodec)
 	}
 
-	f.logger = ctx.Logger
-	f.basePath = ctx.BasePath
-	f.context = ctx
+	// Generate session ID that will be used for directory naming
+	sessionID := fmt.Sprintf("ffmpeg_%d", time.Now().UnixNano())
 
-	f.logger.Info("FFmpeg Transcoder initializing", "base_path", f.basePath, "plugin_base_path", ctx.PluginBasePath)
-
-	// Initialize database connection using main application database
-	if ctx.DatabaseURL == "" {
-		f.logger.Error("DatabaseURL is empty - plugin must use main application database")
-		return fmt.Errorf("DatabaseURL is empty - plugin cannot create separate database")
+	// Create a MINIMAL session to test GRPC conversion
+	session := &plugins.TranscodeSession{
+		ID:        sessionID,
+		Status:    plugins.TranscodeStatusStarting,
+		Progress:  0.0,
+		StartTime: time.Now(),
+		Backend:   "ffmpeg",
+		Error:     "",
+		EndTime:   nil,
+		// Initialize ALL fields to prevent nil pointer issues
+		Request: &plugins.TranscodeRequest{
+			InputPath:       req.InputPath,       // Get from incoming request
+			TargetCodec:     req.TargetCodec,     // Get from incoming request
+			TargetContainer: req.TargetContainer, // Get from incoming request
+			Resolution:      req.Resolution,      // Get from incoming request
+			Bitrate:         req.Bitrate,         // Get from incoming request
+			AudioCodec:      req.AudioCodec,      // Get from incoming request
+			AudioBitrate:    req.AudioBitrate,    // Get from incoming request
+			Quality:         req.Quality,         // Get from incoming request
+			Preset:          req.Preset,          // Get from incoming request
+			Priority:        req.Priority,        // Get from incoming request
+			Options:         make(map[string]string),
+			// Leave nested pointers as nil - they have nil checks in convertSessionToProto
+		},
+		Metadata: make(map[string]interface{}),
+		Stats: &plugins.TranscodeStats{
+			Duration:        time.Duration(0),
+			BytesProcessed:  0,
+			BytesGenerated:  0,
+			FramesProcessed: 0,
+			CurrentFPS:      0.0,
+			AverageFPS:      0.0,
+			CPUUsage:        0.0,
+			MemoryUsage:     0,
+			Speed:           0.0,
+		},
 	}
 
-	f.logger.Info("Connecting to main application database", "database_url", ctx.DatabaseURL)
-
-	// Parse database URL and connect to main database
-	var db *gorm.DB
-	var err error
-
-	if strings.HasPrefix(ctx.DatabaseURL, "sqlite://") {
-		dbPath := strings.TrimPrefix(ctx.DatabaseURL, "sqlite://")
-		db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
-	} else if strings.HasPrefix(ctx.DatabaseURL, "postgres://") {
-		// For future PostgreSQL support
-		return fmt.Errorf("PostgreSQL support not yet implemented in plugin")
-	} else {
-		return fmt.Errorf("unsupported database URL format: %s", ctx.DatabaseURL)
+	// Copy options from incoming request if available
+	if req.Options != nil {
+		session.Request.Options = make(map[string]string)
+		for k, v := range req.Options {
+			session.Request.Options[k] = v
+		}
 	}
 
-	if err != nil {
-		f.logger.Error("Failed to connect to main database", "error", err, "database_url", ctx.DatabaseURL)
-		return fmt.Errorf("failed to connect to main database: %w", err)
+	// If we have a transcoding service and valid input, start the actual transcoding job
+	if s.logger != nil {
+		s.logger.Info("Checking transcoding service", "service_nil", s.transcodingService == nil, "input_path", req.InputPath)
 	}
 
-	f.db = db
-	f.logger.Info("Connected to main application database successfully")
-
-	// Auto-migrate our tables to the main database
-	f.logger.Info("Starting database migration for transcode session tables")
-	if err := f.db.AutoMigrate(&models.TranscodeSession{}, &models.TranscodeStats{}); err != nil {
-		f.logger.Error("Database migration failed", "error", err)
-		return fmt.Errorf("failed to migrate transcode session tables: %w", err)
+	// Write to debug log
+	if debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); debugFile != nil {
+		fmt.Fprintf(debugFile, "🔍 [%s] transcoding service check - service_nil=%t, input_path='%s'\n",
+			time.Now().Format("15:04:05"), s.transcodingService == nil, req.InputPath)
+		debugFile.Close()
 	}
-	f.logger.Info("Database migration completed - transcode sessions now stored in main database")
 
-	// Initialize unified client for host services
-	if ctx.HostServiceAddr != "" {
-		f.logger.Info("Connecting to host services", "addr", ctx.HostServiceAddr)
-		client, err := plugins.NewUnifiedServiceClient(ctx.HostServiceAddr)
-		if err != nil {
-			f.logger.Warn("failed to connect to host services", "error", err)
+	if s.transcodingService != nil && req.InputPath != "" {
+		// Create output directory using the session ID for consistent naming
+		outputDir := filepath.Join(s.config.GetOutputDir(), fmt.Sprintf("dash_%s", sessionID))
+		if s.logger != nil {
+			s.logger.Info("Creating transcoding request", "output_dir", outputDir, "session_id", sessionID)
+		}
+
+		// Write to debug log
+		if debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); debugFile != nil {
+			fmt.Fprintf(debugFile, "📁 [%s] Creating transcoding request - output_dir='%s', session_id='%s'\n",
+				time.Now().Format("15:04:05"), outputDir, sessionID)
+			debugFile.Close()
+		}
+
+		transcodingReq := &services.TranscodingRequest{
+			InputFile:  req.InputPath,
+			OutputFile: filepath.Join(outputDir, "manifest.mpd"),
+			Settings: services.JobSettings{
+				VideoCodec:   req.TargetCodec,
+				AudioCodec:   s.getAudioCodec(req.AudioCodec),
+				Quality:      s.getQuality(req.Quality),
+				AudioBitrate: s.getAudioBitrate(req.AudioBitrate),
+				Preset:       s.getPreset(req.Preset),
+				Container:    req.TargetContainer,
+			},
+		}
+
+		if s.logger != nil {
+			s.logger.Info("About to start transcoding job", "input_file", transcodingReq.InputFile, "output_file", transcodingReq.OutputFile)
+		}
+
+		// Write to debug log
+		if debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); debugFile != nil {
+			fmt.Fprintf(debugFile, "🎬 [%s] About to call transcodingService.StartJob - input='%s', output='%s', container='%s'\n",
+				time.Now().Format("15:04:05"), transcodingReq.InputFile, transcodingReq.OutputFile, transcodingReq.Settings.Container)
+			debugFile.Close()
+		}
+
+		// Start the transcoding job
+		if response, err := s.transcodingService.StartJob(ctx, transcodingReq); err != nil {
+			if s.logger != nil {
+				s.logger.Error("Failed to start transcoding job", "error", err, "session_id", sessionID)
+			}
+
+			// Write to debug log
+			if debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); debugFile != nil {
+				fmt.Fprintf(debugFile, "❌ [%s] StartJob failed - error='%v'\n", time.Now().Format("15:04:05"), err)
+				debugFile.Close()
+			}
+
+			session.Status = plugins.TranscodeStatusFailed
+			session.Error = err.Error()
 		} else {
-			f.unifiedClient = client
-			f.logger.Info("Connected to host services successfully")
+			if s.logger != nil {
+				s.logger.Info("Started transcoding job successfully", "session_id", sessionID, "output_dir", outputDir, "job_id", response.JobID)
+			}
+
+			// Write to debug log
+			if debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); debugFile != nil {
+				fmt.Fprintf(debugFile, "✅ [%s] StartJob succeeded - job_id='%s', status='%s'\n",
+					time.Now().Format("15:04:05"), response.JobID, response.Status)
+				debugFile.Close()
+			}
+
+			session.Status = plugins.TranscodeStatusRunning
+			// Store job info in metadata
+			session.Metadata["job_id"] = response.JobID
+			session.Metadata["output_dir"] = outputDir
+
+			// CRITICAL: Store session for proper tracking and cleanup
+			s.mutex.Lock()
+			s.sessions[sessionID] = session
+			s.mutex.Unlock()
 		}
 	} else {
-		f.logger.Info("No host service address provided")
+		if s.logger != nil {
+			s.logger.Warn("Cannot start transcoding", "service_nil", s.transcodingService == nil, "input_path_empty", req.InputPath == "")
+		}
+
+		// Write to debug log
+		if debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); debugFile != nil {
+			fmt.Fprintf(debugFile, "⚠️ [%s] Cannot start transcoding - service_nil=%t, input_path_empty=%t\n",
+				time.Now().Format("15:04:05"), s.transcodingService == nil, req.InputPath == "")
+			debugFile.Close()
+		}
+
+		session.Error = "Transcoding service not available or input path empty"
 	}
 
-	// Initialize services with dependency injection
-	f.logger.Info("Initializing plugin services")
-	if err := f.initializeServices(); err != nil {
-		f.logger.Error("Failed to initialize services", "error", err)
-		return fmt.Errorf("failed to initialize services: %w", err)
-	}
-	f.logger.Info("Plugin services initialized successfully")
+	// Always store the session for tracking, even if transcoding failed to start
+	s.mutex.Lock()
+	s.sessions[sessionID] = session
+	s.mutex.Unlock()
 
-	f.logger.Info("FFmpeg Transcoder initialized successfully with main database integration")
-	return nil
+	if s.logger != nil {
+		s.logger.Info("FFmpeg transcoding session created", "session_id", session.ID, "status", session.Status)
+	}
+	return session, nil
 }
 
-func (f *FFmpegTranscoderPlugin) Start() error {
-	f.logger.Info("FFmpeg Transcoder started")
-
-	// Start background tasks
-	if f.sessionManager != nil {
-		go f.sessionManager.StartCleanupRoutine(context.Background())
+// GetTranscodeSession returns session info
+func (s *SimpleTranscodingAdapter) GetTranscodeSession(ctx context.Context, sessionID string) (*plugins.TranscodeSession, error) {
+	if s.logger != nil {
+		s.logger.Debug("GetTranscodeSession called", "session_id", sessionID)
 	}
 
-	return nil
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if session, exists := s.sessions[sessionID]; exists {
+		// Update session status from the underlying service if available
+		if s.transcodingService != nil {
+			if jobID, ok := session.Metadata["job_id"].(string); ok {
+				if status, err := s.transcodingService.GetJobStatus(ctx, jobID); err == nil {
+					session.Status = s.convertStatus(status.Status)
+					session.Progress = status.Progress.Percentage / 100.0 // Convert percentage to 0.0-1.0 range
+					if status.Error != "" {
+						session.Error = status.Error
+					}
+				}
+			}
+		}
+		return session, nil
+	}
+
+	return nil, fmt.Errorf("session not found: %s", sessionID)
 }
 
-func (f *FFmpegTranscoderPlugin) Stop() error {
-	f.logger.Info("FFmpeg Transcoder stopping")
-
-	// Stop all active transcoding sessions
-	if f.sessionManager != nil {
-		f.sessionManager.StopAllSessions()
-		f.sessionManager.StopCleanupRoutine()
+// StopTranscode stops a transcoding session
+func (s *SimpleTranscodingAdapter) StopTranscode(ctx context.Context, sessionID string) error {
+	if s.logger != nil {
+		s.logger.Info("StopTranscode called", "session_id", sessionID)
 	}
 
-	// Cleanup FFmpeg service
-	if f.ffmpegService != nil {
-		f.ffmpegService.Cleanup()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	session, exists := s.sessions[sessionID]
+	if !exists {
+		if s.logger != nil {
+			s.logger.Warn("Session not found in adapter, attempting emergency cleanup", "session_id", sessionID)
+		}
+		// Even if session not found, try emergency process cleanup
+		return s.emergencyProcessCleanup(sessionID)
 	}
 
-	// Cleanup resources
-	if f.db != nil {
-		if sqlDB, err := f.db.DB(); err == nil {
-			sqlDB.Close()
+	// Stop the underlying job if we have a job ID
+	if s.transcodingService != nil {
+		if jobID, ok := session.Metadata["job_id"].(string); ok {
+			if err := s.transcodingService.StopJob(ctx, jobID); err != nil {
+				if s.logger != nil {
+					s.logger.Warn("Failed to cancel underlying job", "job_id", jobID, "error", err)
+				}
+				// If normal stop fails, try emergency cleanup
+				s.emergencyProcessCleanup(sessionID)
+			}
 		}
 	}
 
-	if f.unifiedClient != nil {
-		f.unifiedClient.Close()
+	// Update session status and remove from tracking
+	session.Status = plugins.TranscodeStatusCancelled
+	delete(s.sessions, sessionID)
+
+	if s.logger != nil {
+		s.logger.Info("Successfully stopped transcoding session", "session_id", sessionID)
 	}
 
-	f.logger.Info("FFmpeg Transcoder stopped")
 	return nil
 }
 
-func (f *FFmpegTranscoderPlugin) Info() (*plugins.PluginInfo, error) {
-	version := GetVersion()
+// ListActiveSessions returns active sessions
+func (s *SimpleTranscodingAdapter) ListActiveSessions(ctx context.Context) ([]*plugins.TranscodeSession, error) {
+	if s.logger != nil {
+		s.logger.Debug("ListActiveSessions called")
+	}
+
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var activeSessions []*plugins.TranscodeSession
+	for _, session := range s.sessions {
+		// Update session status from the underlying service if available
+		if s.transcodingService != nil {
+			if jobID, ok := session.Metadata["job_id"].(string); ok {
+				if status, err := s.transcodingService.GetJobStatus(ctx, jobID); err == nil {
+					session.Status = s.convertStatus(status.Status)
+					session.Progress = status.Progress.Percentage / 100.0 // Convert percentage to 0.0-1.0 range
+					if status.Error != "" {
+						session.Error = status.Error
+					}
+				}
+			}
+		}
+
+		// Only include sessions that are not completed or failed
+		if session.Status == plugins.TranscodeStatusRunning ||
+			session.Status == plugins.TranscodeStatusPending ||
+			session.Status == plugins.TranscodeStatusStarting {
+			activeSessions = append(activeSessions, session)
+		}
+	}
+
+	return activeSessions, nil
+}
+
+// GetTranscodeStream returns the stream
+func (s *SimpleTranscodingAdapter) GetTranscodeStream(ctx context.Context, sessionID string) (io.ReadCloser, error) {
+	if s.logger != nil {
+		s.logger.Debug("GetTranscodeStream called", "session_id", sessionID)
+	}
+	return nil, fmt.Errorf("direct streaming not supported - use DASH/HLS manifests")
+}
+
+// Helper methods to provide default values when request parameters are empty
+
+// getAudioCodec returns the request audio codec or default if empty
+func (s *SimpleTranscodingAdapter) getAudioCodec(requestCodec string) string {
+	if requestCodec != "" {
+		return requestCodec
+	}
+	if s.config != nil {
+		return s.config.Transcoding.AudioCodec
+	}
+	return "aac" // Fallback default
+}
+
+// getQuality returns the request quality or default if zero
+func (s *SimpleTranscodingAdapter) getQuality(requestQuality int) int {
+	if requestQuality > 0 {
+		return requestQuality
+	}
+	if s.config != nil {
+		return s.config.Transcoding.Quality
+	}
+	return 23 // Fallback default
+}
+
+// getAudioBitrate returns the request bitrate or default if zero
+func (s *SimpleTranscodingAdapter) getAudioBitrate(requestBitrate int) int {
+	if requestBitrate > 0 {
+		return requestBitrate
+	}
+	if s.config != nil {
+		return s.config.Transcoding.AudioBitrate
+	}
+	return 128 // Fallback default
+}
+
+// getPreset returns the request preset or default if empty
+func (s *SimpleTranscodingAdapter) getPreset(requestPreset string) string {
+	if requestPreset != "" {
+		return requestPreset
+	}
+	if s.config != nil {
+		return s.config.Transcoding.Preset
+	}
+	return "medium" // Fallback default
+}
+
+// convertStatus converts internal status to plugin status
+func (s *SimpleTranscodingAdapter) convertStatus(status services.TranscodingStatus) plugins.TranscodeStatus {
+	switch status {
+	case services.StatusQueued:
+		return plugins.TranscodeStatusPending
+	case services.StatusProcessing:
+		return plugins.TranscodeStatusRunning
+	case services.StatusCompleted:
+		return plugins.TranscodeStatusCompleted
+	case services.StatusFailed:
+		return plugins.TranscodeStatusFailed
+	case services.StatusCancelled:
+		return plugins.TranscodeStatusCancelled
+	case services.StatusTimeout:
+		return plugins.TranscodeStatusFailed // Map timeout to failed
+	default:
+		return plugins.TranscodeStatusStarting
+	}
+}
+
+// emergencyProcessCleanup kills orphaned FFmpeg processes for a session
+func (s *SimpleTranscodingAdapter) emergencyProcessCleanup(sessionID string) error {
+	if s.logger != nil {
+		s.logger.Warn("Performing emergency process cleanup", "session_id", sessionID)
+	}
+
+	// Use pkill to find and kill FFmpeg processes related to this session
+	// The session ID appears in the output path, so we can search for it
+	cmd := fmt.Sprintf("pkill -f 'ffmpeg.*%s'", sessionID)
+
+	// Execute the kill command
+	if err := exec.Command("sh", "-c", cmd).Run(); err != nil {
+		if s.logger != nil {
+			s.logger.Warn("Emergency cleanup command failed", "session_id", sessionID, "cmd", cmd, "error", err)
+		}
+		// Don't return error - this is best effort cleanup
+	} else {
+		if s.logger != nil {
+			s.logger.Info("Emergency cleanup completed", "session_id", sessionID)
+		}
+	}
+
+	return nil
+}
+
+// FFmpegTranscoderPlugin implements the plugins.Implementation interface
+type FFmpegTranscoderPlugin struct {
+	ctx                *plugins.PluginContext
+	config             *config.Config
+	configService      *config.FFmpegConfigurationService
+	transcodingService *services.DefaultTranscodingService
+	logger             plugins.Logger
+	pluginID           string
+	startTime          time.Time
+	adapter            *SimpleTranscodingAdapter // Persistent adapter to maintain session state
+}
+
+// Initialize sets up the plugin with the provided context
+func (p *FFmpegTranscoderPlugin) Initialize(ctx *plugins.PluginContext) error {
+	p.ctx = ctx
+	p.logger = ctx.Logger // Set the logger field
+	p.pluginID = ctx.PluginID
+	p.startTime = time.Now()
+
+	// Load configuration FIRST
+	cfg := config.DefaultConfig()
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	p.config = cfg
+
+	// Initialize transcoding service IMMEDIATELY after config (BEFORE any other setup)
+	p.transcodingService = services.NewTranscodingService(cfg)
+
+	// Log that the core service is now available
+	ctx.Logger.Info("🚀 Core transcoding service initialized early for GRPC registration")
+
+	// Initialize configuration service
+	configPath := filepath.Join(ctx.PluginBasePath, "ffmpeg_config.json")
+	p.configService = config.NewFFmpegConfigurationService(configPath)
+
+	// Set the loaded configuration
+	if err := p.configService.UpdateFFmpegConfig(cfg); err != nil {
+		ctx.Logger.Error("Configuration service validation failed", "error", err)
+		return fmt.Errorf("failed to validate FFmpeg configuration: %w", err)
+	}
+
+	ctx.Logger.Info("FFmpeg transcoder plugin initialized",
+		"ffmpeg_path", cfg.GetFFmpegPath(),
+		"output_dir", cfg.GetOutputDir(),
+		"max_concurrent", cfg.GetMaxConcurrentSessions())
+
+	return nil
+}
+
+// Start begins plugin operation
+func (p *FFmpegTranscoderPlugin) Start() error {
+	p.ctx.Logger.Info("Starting FFmpeg transcoder plugin")
+
+	// Validate FFmpeg installation
+	executor := services.NewFFmpegExecutor(p.config)
+	if err := executor.ValidateInstallation(context.Background()); err != nil {
+		return fmt.Errorf("FFmpeg validation failed: %w", err)
+	}
+
+	// Get and log FFmpeg version
+	if version, err := executor.GetVersion(context.Background()); err == nil {
+		p.ctx.Logger.Info("FFmpeg version detected", "version", version)
+	}
+
+	// Clean up any orphaned processes from previous runs
+	p.cleanupOrphanedProcesses()
+
+	// Start periodic cleanup routine
+	go p.startCleanupRoutine()
+
+	p.ctx.Logger.Info("FFmpeg transcoder plugin started successfully")
+
+	// Debug: Test if TranscodingService() works
+	p.ctx.Logger.Info("🔍 Testing TranscodingService() during startup")
+	if service := p.TranscodingService(); service != nil {
+		p.ctx.Logger.Info("✅ TranscodingService() returned valid service during startup")
+	} else {
+		p.ctx.Logger.Error("❌ TranscodingService() returned nil during startup")
+	}
+
+	return nil
+}
+
+// Stop gracefully shuts down the plugin
+func (p *FFmpegTranscoderPlugin) Stop() error {
+	p.ctx.Logger.Info("Stopping FFmpeg transcoder plugin")
+
+	// Clean up any active transcoding jobs
+	if p.transcodingService != nil {
+		// Get system stats to see active jobs
+		if stats, err := p.transcodingService.GetSystemStats(context.Background()); err == nil {
+			if stats.ActiveJobs > 0 {
+				p.ctx.Logger.Warn("Stopping plugin with active transcoding jobs",
+					"active_jobs", stats.ActiveJobs)
+			}
+		}
+	}
+
+	p.ctx.Logger.Info("FFmpeg transcoder plugin stopped")
+	return nil
+}
+
+// Info returns plugin information
+func (p *FFmpegTranscoderPlugin) Info() (*plugins.PluginInfo, error) {
 	return &plugins.PluginInfo{
 		ID:          "ffmpeg_transcoder",
 		Name:        "FFmpeg Transcoder",
-		Version:     version.Version,
+		Version:     "1.0.0",
 		Type:        "transcoder",
-		Description: "FFmpeg-based video transcoding service with comprehensive codec support and streaming capabilities",
+		Description: "Video transcoding plugin using FFmpeg",
 		Author:      "Viewra Team",
 	}, nil
 }
 
-// CheckHealth returns nil if the plugin is healthy
-func (f *FFmpegTranscoderPlugin) Health() error {
-	// Check database connection
-	if sqlDB, err := f.db.DB(); err != nil {
-		return fmt.Errorf("database error: %w", err)
-	} else if err := sqlDB.Ping(); err != nil {
-		return fmt.Errorf("database ping failed: %w", err)
-	}
-
+// Health returns the current health status of the plugin
+func (p *FFmpegTranscoderPlugin) Health() error {
 	// Check FFmpeg availability
-	if f.ffmpegService != nil {
-		if err := f.ffmpegService.CheckAvailability(); err != nil {
+	if p.transcodingService != nil {
+		executor := services.NewFFmpegExecutor(p.config)
+		if err := executor.ValidateInstallation(context.Background()); err != nil {
 			return fmt.Errorf("FFmpeg not available: %w", err)
 		}
+
+		// Get system stats to check for issues
+		if stats, err := p.transcodingService.GetSystemStats(context.Background()); err == nil {
+			// Determine health based on job statistics
+			if stats.TotalJobs > 0 {
+				errorRate := float64(stats.FailedJobs) / float64(stats.TotalJobs) * 100
+				if errorRate > 80 {
+					return fmt.Errorf("critical error rate: %.1f%% of jobs failed", errorRate)
+				}
+			}
+		}
 	}
 
 	return nil
 }
 
-// Database service implementation
-func (f *FFmpegTranscoderPlugin) GetModels() []string {
-	return []string{
-		"TranscodeSession",
-		"TranscodeStats",
-	}
+// Service implementations - return nil for services not supported by this plugin
+func (p *FFmpegTranscoderPlugin) MetadataScraperService() plugins.MetadataScraperService {
+	return nil
 }
 
-func (f *FFmpegTranscoderPlugin) Migrate(connectionString string) error {
-	f.logger.Info("Migrating generic transcode session tables to main database", "connection_string", connectionString)
+func (p *FFmpegTranscoderPlugin) ScannerHookService() plugins.ScannerHookService {
+	return nil
+}
 
-	// Parse connection string and connect
-	var db *gorm.DB
-	var err error
+func (p *FFmpegTranscoderPlugin) AssetService() plugins.AssetService {
+	return nil
+}
 
-	if strings.HasPrefix(connectionString, "sqlite://") {
-		dbPath := strings.TrimPrefix(connectionString, "sqlite://")
-		db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+func (p *FFmpegTranscoderPlugin) DatabaseService() plugins.DatabaseService {
+	return p
+}
+
+func (p *FFmpegTranscoderPlugin) AdminPageService() plugins.AdminPageService {
+	return nil
+}
+
+func (p *FFmpegTranscoderPlugin) APIRegistrationService() plugins.APIRegistrationService {
+	return nil
+}
+
+func (p *FFmpegTranscoderPlugin) SearchService() plugins.SearchService {
+	return nil
+}
+
+func (p *FFmpegTranscoderPlugin) HealthMonitorService() plugins.HealthMonitorService {
+	return nil
+}
+
+func (p *FFmpegTranscoderPlugin) ConfigurationService() plugins.ConfigurationService {
+	if p.configService == nil {
+		return nil
+	}
+	return p.configService
+}
+
+func (p *FFmpegTranscoderPlugin) PerformanceMonitorService() plugins.PerformanceMonitorService {
+	return nil
+}
+
+// TranscodingService returns the transcoding service interface
+func (p *FFmpegTranscoderPlugin) TranscodingService() plugins.TranscodingService {
+	if p.logger != nil {
+		p.logger.Info("🎬 TranscodingService() called - returning persistent adapter")
+	}
+
+	// If transcodingService is nil, create it on-demand with default config
+	if p.transcodingService == nil {
+		if p.logger != nil {
+			p.logger.Info("⚡ TranscodingService() - creating service on-demand for GRPC registration")
+		}
+
+		// Create default config if we don't have one yet
+		cfg := p.config
+		if cfg == nil {
+			cfg = config.DefaultConfig()
+		}
+
+		// Initialize the transcoding service on-demand
+		p.transcodingService = services.NewTranscodingService(cfg)
+		p.config = cfg // Ensure config is set
+	}
+
+	// Create persistent adapter only once, not on every call
+	if p.adapter == nil {
+		if p.logger != nil {
+			p.logger.Info("🔧 Creating persistent adapter for session management")
+		}
+
+		p.adapter = &SimpleTranscodingAdapter{
+			config:             p.config,
+			logger:             p.logger,
+			transcodingService: p.transcodingService,
+			sessions:           make(map[string]*plugins.TranscodeSession),
+			mutex:              sync.RWMutex{},
+		}
+	}
+
+	if p.logger != nil {
+		p.logger.Info("✅ TranscodingService() - returning persistent adapter", "adapter_logger_nil", p.adapter.logger == nil, "adapter_service_nil", p.adapter.transcodingService == nil)
+	}
+
+	// Return the persistent adapter that maintains session state
+	return p.adapter
+}
+
+func (p *FFmpegTranscoderPlugin) EnhancedAdminPageService() plugins.EnhancedAdminPageService {
+	return nil
+}
+
+// GetModels returns empty slice since this plugin doesn't require database models
+func (p *FFmpegTranscoderPlugin) GetModels() []string {
+	return []string{}
+}
+
+// Migrate is a no-op since this plugin doesn't require database changes
+func (p *FFmpegTranscoderPlugin) Migrate(connectionString string) error {
+	return nil
+}
+
+// Rollback is a no-op since this plugin doesn't require database changes
+func (p *FFmpegTranscoderPlugin) Rollback(connectionString string) error {
+	return nil
+}
+
+// cleanupOrphanedProcesses kills any leftover FFmpeg processes
+func (p *FFmpegTranscoderPlugin) cleanupOrphanedProcesses() {
+	p.ctx.Logger.Info("🧹 Cleaning up orphaned FFmpeg processes")
+
+	// Kill any FFmpeg processes that are transcoding files (not just the plugin binary)
+	cmd := exec.Command("sh", "-c", "pkill -f 'ffmpeg.*dash_' || true")
+	if err := cmd.Run(); err != nil {
+		p.ctx.Logger.Warn("Failed to cleanup orphaned processes", "error", err)
 	} else {
-		// Handle the case where connectionString is a direct path (legacy compatibility)
-		db, err = gorm.Open(sqlite.Open(connectionString), &gorm.Config{})
+		p.ctx.Logger.Info("✅ Orphaned process cleanup completed")
 	}
+}
 
-	if err != nil {
-		return fmt.Errorf("failed to connect to main database for migration: %w", err)
-	}
+// startCleanupRoutine runs a periodic cleanup routine
+func (p *FFmpegTranscoderPlugin) startCleanupRoutine() {
+	ticker := time.NewTicker(1 * time.Minute) // Check every minute
+	defer ticker.Stop()
 
-	// Check if we need to migrate from old FFmpeg-specific tables
-	var oldTableCount int
-	err = db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('ffmpeg_transcode_sessions', 'ffmpeg_transcode_stats')").Scan(&oldTableCount).Error
+	p.ctx.Logger.Info("🔄 Starting FFmpeg process cleanup routine (every 1 minute)")
 
-	// Auto-migrate new generic tables first
-	err = db.AutoMigrate(
-		&models.TranscodeSession{},
-		&models.TranscodeStats{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create new generic transcode tables: %w", err)
-	}
-
-	// If old tables exist, migrate the data
-	if oldTableCount > 0 {
-		f.logger.Info("Found old FFmpeg-specific tables, migrating data to generic tables")
-		err = f.migrateOldTableData(db)
-		if err != nil {
-			f.logger.Error("Failed to migrate old table data", "error", err)
-			// Continue anyway - new sessions will use new tables
+	for {
+		select {
+		case <-ticker.C:
+			p.performPeriodicCleanup()
 		}
 	}
-
-	f.logger.Info("Successfully migrated generic transcode session tables to main database")
-	return nil
 }
 
-// migrateOldTableData migrates data from FFmpeg-specific tables to generic tables
-func (f *FFmpegTranscoderPlugin) migrateOldTableData(db *gorm.DB) error {
-	// Migrate sessions with error handling for missing columns
-	err := db.Exec(`
-		INSERT INTO transcode_sessions 
-		(id, plugin_id, backend, input_path, output_path, status, progress, start_time, end_time,
-		 target_codec, target_container, resolution, bitrate, audio_codec, audio_bitrate, 
-		 quality, preset, error, client_ip, user_agent, metadata, created_at, updated_at)
-		SELECT 
-		 id, 
-		 COALESCE(plugin_id, 'ffmpeg_transcoder') as plugin_id,
-		 'ffmpeg' as backend, 
-		 input_path, 
-		 output_path, 
-		 status, 
-		 progress, 
-		 start_time, 
-		 end_time,
-		 target_codec, 
-		 target_container, 
-		 resolution, 
-		 bitrate, 
-		 audio_codec, 
-		 audio_bitrate,
-		 quality, 
-		 preset, 
-		 error, 
-		 client_ip, 
-		 user_agent, 
-		 metadata, 
-		 created_at, 
-		 updated_at
-		FROM ffmpeg_transcode_sessions
-		WHERE id NOT IN (SELECT id FROM transcode_sessions)
-	`).Error
-
+// performPeriodicCleanup performs regular maintenance cleanup
+func (p *FFmpegTranscoderPlugin) performPeriodicCleanup() {
+	// Count current FFmpeg processes
+	cmd := exec.Command("sh", "-c", "ps aux | grep -c 'ffmpeg.*dash_' || echo '0'")
+	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to migrate session data: %w", err)
+		return
 	}
 
-	// Migrate stats
-	err = db.Exec(`
-		INSERT INTO transcode_stats 
-		(session_id, plugin_id, backend, duration, bytes_processed, bytes_generated, 
-		 frames_processed, current_fps, average_fps, cpu_usage, memory_usage, speed, recorded_at)
-		SELECT 
-		 session_id, 
-		 COALESCE(plugin_id, 'ffmpeg_transcoder') as plugin_id,
-		 'ffmpeg' as backend, 
-		 duration, 
-		 bytes_processed, 
-		 bytes_generated,
-		 frames_processed, 
-		 current_fps, 
-		 average_fps, 
-		 cpu_usage, 
-		 memory_usage, 
-		 speed, 
-		 recorded_at
-		FROM ffmpeg_transcode_stats
-		WHERE NOT EXISTS (
-			SELECT 1 FROM transcode_stats 
-			WHERE transcode_stats.session_id = ffmpeg_transcode_stats.session_id 
-			AND transcode_stats.recorded_at = ffmpeg_transcode_stats.recorded_at
-		)
-	`).Error
+	processCount := strings.TrimSpace(string(output))
+	if processCount != "0" && processCount != "" {
+		p.ctx.Logger.Debug("🔍 Periodic cleanup found FFmpeg processes", "count", processCount)
 
-	if err != nil {
-		return fmt.Errorf("failed to migrate stats data: %w", err)
-	}
+		// Clean up any processes older than 10 minutes without activity
+		// This uses a more sophisticated approach to find truly orphaned processes
+		cleanupCmd := exec.Command("sh", "-c", `
+			# Find FFmpeg processes older than 10 minutes
+			ps -eo pid,etime,cmd | grep 'ffmpeg.*dash_' | awk '$2 ~ /^[1-9][0-9]:[0-9][0-9]/ || $2 ~ /^[0-9]+-/ {print $1}' | while read pid; do
+				echo "Killing old FFmpeg process: $pid"
+				kill -TERM "$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+			done
+		`)
 
-	f.logger.Info("Successfully migrated data from old FFmpeg-specific tables to generic tables")
-	return nil
-}
-
-func (f *FFmpegTranscoderPlugin) Rollback(connectionString string) error {
-	// Implementation for rolling back database changes
-	return fmt.Errorf("rollback not implemented")
-}
-
-// Service interface implementations
-func (f *FFmpegTranscoderPlugin) MetadataScraperService() plugins.MetadataScraperService {
-	return nil // Not applicable for transcoding plugin
-}
-
-func (f *FFmpegTranscoderPlugin) DatabaseService() plugins.DatabaseService {
-	return f
-}
-
-func (f *FFmpegTranscoderPlugin) ScannerHookService() plugins.ScannerHookService {
-	return nil // Not applicable for transcoding plugin
-}
-
-func (f *FFmpegTranscoderPlugin) SearchService() plugins.SearchService {
-	return nil // Not applicable for transcoding plugin
-}
-
-func (f *FFmpegTranscoderPlugin) AssetService() plugins.AssetService {
-	return nil // Not applicable for transcoding plugin
-}
-
-func (f *FFmpegTranscoderPlugin) AdminPageService() plugins.AdminPageService {
-	return &FFmpegAdminPageService{
-		plugin: f,
-		logger: f.logger,
-	}
-}
-
-func (f *FFmpegTranscoderPlugin) APIRegistrationService() plugins.APIRegistrationService {
-	return nil // Could be implemented for transcoding API endpoints
-}
-
-func (f *FFmpegTranscoderPlugin) HealthMonitorService() plugins.HealthMonitorService {
-	if f.healthService == nil {
-		return nil
-	}
-	return f.healthService
-}
-
-func (f *FFmpegTranscoderPlugin) ConfigurationService() plugins.ConfigurationService {
-	if f.configService == nil {
-		return nil
-	}
-	return f.configService
-}
-
-func (f *FFmpegTranscoderPlugin) PerformanceMonitorService() plugins.PerformanceMonitorService {
-	if f.performanceMonitor == nil {
-		return nil
-	}
-	return &performanceServiceAdapter{monitor: f.performanceMonitor}
-}
-
-func (f *FFmpegTranscoderPlugin) TranscodingService() plugins.TranscodingService {
-	// Create lazy service on first call
-	if f.lazyTranscodingService == nil {
-		f.lazyTranscodingService = NewLazyTranscodingService(f)
-	}
-
-	if f.logger != nil {
-		f.logger.Info("DEBUG: TranscodingService() called, returning lazy service")
-	}
-
-	return f.lazyTranscodingService
-}
-
-// Performance service adapter
-type performanceServiceAdapter struct {
-	monitor *plugins.BasePerformanceMonitor
-}
-
-func (p *performanceServiceAdapter) GetPerformanceSnapshot(ctx context.Context) (*plugins.PerformanceSnapshot, error) {
-	return p.monitor.GetSnapshot(), nil
-}
-
-func (p *performanceServiceAdapter) RecordOperation(operationName string, duration time.Duration, success bool, context string) {
-	p.monitor.RecordOperation(operationName, duration, success, context)
-}
-
-func (p *performanceServiceAdapter) RecordError(errorType, message, context, operation string) {
-	p.monitor.RecordError(errorType, message, context, operation)
-}
-
-func (p *performanceServiceAdapter) GetUptimeString() string {
-	return p.monitor.GetUptimeString()
-}
-
-func (p *performanceServiceAdapter) Reset() {
-	p.monitor.Reset()
-}
-
-// FFmpegAdminPageService implements the AdminPageService for FFmpeg transcoder
-type FFmpegAdminPageService struct {
-	plugin *FFmpegTranscoderPlugin
-	logger plugins.Logger
-}
-
-// GetAdminPages returns the admin pages provided by this plugin
-func (a *FFmpegAdminPageService) GetAdminPages() []*plugins.AdminPageConfig {
-	return []*plugins.AdminPageConfig{
-		{
-			ID:       "ffmpeg_config",
-			Title:    "FFmpeg Configuration",
-			URL:      "/admin/plugins/ffmpeg_transcoder/config",
-			Icon:     "settings",
-			Category: "transcoding",
-			Type:     "configuration",
-		},
-		{
-			ID:       "ffmpeg_monitoring",
-			Title:    "Transcoding Monitor",
-			URL:      "/admin/plugins/ffmpeg_transcoder/monitor",
-			Icon:     "activity",
-			Category: "transcoding",
-			Type:     "dashboard",
-		},
-		{
-			ID:       "ffmpeg_sessions",
-			Title:    "Active Sessions",
-			URL:      "/admin/plugins/ffmpeg_transcoder/sessions",
-			Icon:     "play",
-			Category: "transcoding",
-			Type:     "status",
-		},
-		{
-			ID:       "ffmpeg_health",
-			Title:    "Health & Performance",
-			URL:      "/admin/plugins/ffmpeg_transcoder/health",
-			Icon:     "heart",
-			Category: "transcoding",
-			Type:     "status",
-		},
-	}
-}
-
-// RegisterRoutes registers the admin page routes for this plugin
-func (a *FFmpegAdminPageService) RegisterRoutes(basePath string) error {
-	a.logger.Info("Registering FFmpeg transcoder admin routes", "base_path", basePath)
-
-	// Here we would register HTTP routes for the admin pages
-	// The actual route registration would be handled by the host application
-	// We just need to define what routes this plugin provides
-
-	return nil
-}
-
-// Service initialization
-func (f *FFmpegTranscoderPlugin) initializeServices() error {
-	// Load configuration
-	configService, err := config.NewFFmpegConfigurationService(f.context, f.logger)
-	if err != nil {
-		return fmt.Errorf("failed to initialize configuration service: %w", err)
-	}
-	f.configService = configService
-
-	// Initialize health service
-	f.healthService = plugins.NewHealthServiceBuilder("FFmpeg Transcoder").
-		WithCustomCounter("transcode_sessions", 0).
-		WithCustomCounter("transcode_completed", 0).
-		WithCustomCounter("transcode_failed", 0).
-		WithCustomGauge("active_sessions", 0.0).
-		Build()
-
-	// Initialize performance monitor
-	f.performanceMonitor = plugins.NewPerformanceMonitorBuilder("FFmpeg Transcoder").
-		WithCustomCounter("ffmpeg_processes", 0).
-		WithCustomCounter("bytes_transcoded", 0).
-		WithCustomGauge("cpu_usage", 0.0).
-		WithCustomGauge("memory_usage", 0.0).
-		WithMaxErrorHistory(50).
-		Build()
-
-	// Initialize session manager first
-	sessionManager, err := services.NewSessionManager(f.db, f.logger, f.performanceMonitor)
-	if err != nil {
-		return fmt.Errorf("failed to initialize session manager: %w", err)
-	}
-	f.sessionManager = sessionManager
-
-	// Clean up any stale running sessions from previous shutdowns
-	f.logger.Info("cleaning up stale sessions from previous run")
-	f.sessionManager.StopAllSessions()
-
-	// Initialize FFmpeg service with callback to update session status
-	statusCallback := func(sessionID, status, errorMsg string) {
-		if err := f.sessionManager.UpdateSessionStatus(sessionID, status, errorMsg); err != nil {
-			f.logger.Warn("failed to update session status", "session_id", sessionID, "status", status, "error", err)
+		if err := cleanupCmd.Run(); err != nil {
+			p.ctx.Logger.Debug("Periodic cleanup command failed", "error", err)
 		}
 	}
-
-	ffmpegService, err := services.NewFFmpegService(f.logger, f.configService, statusCallback)
-	if err != nil {
-		return fmt.Errorf("failed to initialize FFmpeg service: %w", err)
-	}
-	f.ffmpegService = ffmpegService
-
-	// Initialize transcoding service
-	f.logger.Info("DEBUG: Creating transcoding service")
-	transcodingService, err := services.NewTranscodingService(
-		f.logger,
-		f.ffmpegService,
-		f.sessionManager,
-		f.configService,
-		f.performanceMonitor,
-	)
-	if err != nil {
-		f.logger.Error("DEBUG: Failed to create transcoding service", "error", err)
-		return fmt.Errorf("failed to initialize transcoding service: %w", err)
-	}
-	f.transcodingService = transcodingService
-	f.logger.Info("DEBUG: Transcoding service created successfully", "service", f.transcodingService)
-
-	// Notify lazy service that the real service is ready
-	if f.lazyTranscodingService != nil {
-		f.lazyTranscodingService.NotifyReady()
-		f.logger.Info("DEBUG: Notified lazy service that transcoding service is ready")
-	}
-
-	return nil
 }
 
-// Main plugin entry point
 func main() {
 	plugin := &FFmpegTranscoderPlugin{}
 	plugins.StartPlugin(plugin)
