@@ -293,7 +293,7 @@ func DefaultConfig() *Config {
 		},
 		Plugins: PluginConfig{
 			PluginDir:            "./data/plugins",
-			EnableHotReload:      true,
+			EnableHotReload:      getEnvBool("VIEWRA_ENABLE_HOT_RELOAD", true), // Force enable by default, allow override
 			DefaultEnabled:       false,
 			EnrichmentEnabled:    true,
 			RespectDefaultConfig: true,
@@ -303,8 +303,8 @@ func DefaultConfig() *Config {
 			AllowNetworkAccess:   true,
 			AllowFileSystemWrite: false,
 			HotReload: PluginHotReloadConfig{
-				Enabled:         true,
-				DebounceDelayMs: 500,
+				Enabled:         getEnvBool("VIEWRA_HOT_RELOAD_ENABLED", true), // Force enable by default
+				DebounceDelayMs: getEnvInt("VIEWRA_HOT_RELOAD_DEBOUNCE_MS", 500),
 				WatchPatterns:   []string{"*_transcoder", "*_enricher", "*_scanner"},
 				ExcludePatterns: []string{"*.tmp", "*.log", "*.pid", ".git*", "*.swp", "*.swo", "go.mod", "go.sum", "*.go", "plugin.cue", "*.json"},
 				PreserveState:   true,
@@ -706,6 +706,29 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// getEnvBool gets a boolean value from environment with a default
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if value == "true" || value == "1" || value == "yes" || value == "on" {
+			return true
+		}
+		if value == "false" || value == "0" || value == "no" || value == "off" {
+			return false
+		}
+	}
+	return defaultValue
+}
+
+// getEnvInt gets an integer value from environment with a default
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
 }
 
 // Global convenience functions

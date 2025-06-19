@@ -17,6 +17,10 @@ services:
       - PORT=8080
       - PLUGIN_DIR=/app/data/plugins
       - TMDB_API_KEY=${TMDB_API_KEY:-}
+      # Hot Reload Configuration - Always Enabled for Development
+      - VIEWRA_ENABLE_HOT_RELOAD=true
+      - VIEWRA_HOT_RELOAD_ENABLED=true
+      - VIEWRA_HOT_RELOAD_DEBOUNCE_MS=500
     volumes:
       - ./backend:/app
       - ./backend/data:/app/data

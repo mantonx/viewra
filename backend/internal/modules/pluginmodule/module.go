@@ -40,7 +40,17 @@ func Register() {
 	}
 
 	pluginConfig := &PluginModuleConfig{
-		PluginDir: pluginDir, // Use resolved plugin directory
+		PluginDir:       pluginDir,
+		EnableHotReload: cfg.Plugins.EnableHotReload, // Always use the main config setting
+		HotReload: PluginHotReloadConfig{
+			Enabled:         cfg.Plugins.HotReload.Enabled,
+			DebounceDelayMs: cfg.Plugins.HotReload.DebounceDelayMs,
+			WatchPatterns:   cfg.Plugins.HotReload.WatchPatterns,
+			ExcludePatterns: cfg.Plugins.HotReload.ExcludePatterns,
+			PreserveState:   cfg.Plugins.HotReload.PreserveState,
+			MaxRetries:      cfg.Plugins.HotReload.MaxRetries,
+			RetryDelayMs:    cfg.Plugins.HotReload.RetryDelayMs,
+		},
 	}
 	pluginModule := NewPluginModule(nil, pluginConfig) // DB will be set during initialization
 	modulemanager.Register(pluginModule)
