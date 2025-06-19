@@ -36,15 +36,17 @@ const (
 
 // JobSettings contains the transcoding settings for a specific job
 type JobSettings struct {
-	VideoCodec   string            `json:"video_codec"`
-	AudioCodec   string            `json:"audio_codec"`
-	Container    string            `json:"container"`
-	Quality      int               `json:"quality"` // CRF value
-	Preset       string            `json:"preset"`  // Encoding preset
-	Resolution   *Resolution       `json:"resolution,omitempty"`
-	AudioBitrate int               `json:"audio_bitrate"` // kbps
-	Filters      []string          `json:"filters,omitempty"`
-	Custom       map[string]string `json:"custom,omitempty"` // Custom FFmpeg options
+	VideoCodec            string            `json:"video_codec"`
+	AudioCodec            string            `json:"audio_codec"`
+	Container             string            `json:"container"`
+	Quality               int               `json:"quality"` // CRF value
+	Preset                string            `json:"preset"`  // Encoding preset
+	Resolution            *Resolution       `json:"resolution,omitempty"`
+	AudioBitrate          int               `json:"audio_bitrate"`                     // kbps
+	AudioChannels         int               `json:"audio_channels,omitempty"`          // Number of audio channels
+	PreserveSurroundSound bool              `json:"preserve_surround_sound,omitempty"` // Whether to preserve surround sound
+	Filters               []string          `json:"filters,omitempty"`
+	Custom                map[string]string `json:"custom,omitempty"` // Custom FFmpeg options
 }
 
 // Resolution represents video resolution

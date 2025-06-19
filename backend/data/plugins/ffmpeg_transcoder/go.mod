@@ -2,7 +2,10 @@ module github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder
 
 go 1.24.3
 
-require github.com/mantonx/viewra/pkg/plugins v0.0.0
+require (
+	github.com/google/uuid v1.6.0
+	github.com/mantonx/viewra/pkg/plugins v0.0.0
+)
 
 require (
 	github.com/fatih/color v1.13.0 // indirect

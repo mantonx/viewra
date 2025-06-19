@@ -1,38 +1,109 @@
 # Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
 
-# Dependencies and package management
-node_modules/
-frontend/node_modules/
-backend/vendor/
+# === PERFORMANCE OPTIMIZATIONS ===
+# Exclude heavy files that cause Cursor freezing but preserve development essentials
 
-# Build artifacts and binaries (only specific ones)
-frontend/dist/
-backend/bin/
-*.exe
+# Transcoding temporary files (major performance impact)
+viewra-data/transcoding/
+backend/tmp/
+*/transcoding/
+**/transcoding/
+**/dash_*/
+**/hls_*/
+**/ffmpeg_*/
 
-# Data and runtime directories
-viewra-data/
-backend/viewra-data/
-data/*.db
-data/*.sqlite
-docker-data/
-volumes/
-
-# Large database files and test data
-*.db
-*.sqlite
-*.sqlite3
-
-# Media files (typically large and not useful for code assistance)
-*.mp3
+# Large temporary media files (not source files)
 *.mp4
 *.mkv
 *.avi
 *.mov
-*.wmv
-*.flv
-*.webm
-*.m4v
+*.mpd
+*.m3u8
+*.ts
+*.m4s
+
+# Large log files
+*.log
+backend_logs.txt
+**/logs/
+*.log.*
+
+# Build artifacts and binaries
+backend/bin/
+frontend/dist/
+backend/data/plugins/*/main
+*.exe
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/vendor/
+backend/data/plugins/*/vendor/
+
+# === PRESERVE ESSENTIAL DEVELOPMENT FILES ===
+# Explicitly allow plugin development
+!backend/data/plugins/**/*.go
+!backend/data/plugins/**/go.mod
+!backend/data/plugins/**/plugin.cue
+!backend/data/plugins/**/internal/**/*.go
+
+# Allow database schema and development database files
+!backend/internal/database/**
+!**/*_test.go
+!**/migrations/**
+!**/schema/**
+
+# Allow main application databases (keep these accessible for development)
+!backend/data/viewra.db
+!backend/data/app.db
+!backend/viewra.db
+!viewra-data/viewra.db
+!viewra-data/database.db
+!backend/data/plugins/*/plugin.db
+!backend/data/plugins/*/*.db
+
+# Exclude only large cache/temporary databases
+viewra-data/cache/
+viewra-data/temp/
+backend/tmp/**/*.db
+**/transcoding/**/*.db
+**/cache/*.db
+**/temp/*.db
+
+# === DOCKER AND ENVIRONMENT ===
+.docker/
+docker-data/
+volumes/
+
+# === STANDARD EXCLUSIONS ===
+# IDE files
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env.local
+.env.production
+
+# Backup files
+*.bak
+*.backup
+
+# Documentation build outputs
+docs/_build/
+docs/build/
+
+# Lock files (useful to have in git but not for code assistance)
+package-lock.json
+yarn.lock
+
+# Media files (typically large and not useful for code assistance)
+*.mp3
 *.wav
 *.flac
 *.m4a
@@ -52,42 +123,5 @@ temp/
 backend/tmp/
 .cache/
 
-# IDE and editor files
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
 # Environment and config files with secrets
 .env
-.env.local
-.env.production
-
-# Backup files
-*.bak
-*.backup
-
-# Documentation build outputs
-docs/_build/
-docs/build/
-
-# Lock files (useful to have in git but not for code assistance)
-package-lock.json
-yarn.lock
-
-# Allow plugin development files
-!**/plugins/**/*.go
-!**/plugins/**/*.cue
-!**/plugins/**/*.mod
-!**/plugins/**/*.sum
-!**/plugins/**/go.mod
-!**/plugins/**/plugin.cue

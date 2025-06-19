@@ -49,7 +49,7 @@ package ffmpeg_transcoder
 		hardware_fallback: bool | *true @ui(importance=3,level="advanced",category="Hardware")
 		
 		// Default audio bitrate (kbps)
-		audio_bitrate: int | *128 @ui(importance=6,level="basic",category="Audio")
+		audio_bitrate: int | *128 @ui(importance=7, is_basic=true, user_friendly="Audio Bitrate (kbps)")
 		
 		// Extract embedded subtitles
 		extract_subtitles: bool | *true @ui(importance=5,level="basic",category="Subtitles")
@@ -58,13 +58,13 @@ package ffmpeg_transcoder
 		threads: int | *0 @ui(importance=4,level="advanced",category="Performance")
 		
 		// Advanced: Audio codec
-		audio_codec: string | *"aac" @ui(importance=5,level="advanced",category="Audio")
+		audio_codec: string | *"aac" @ui(importance=8, is_basic=true, user_friendly="Audio Codec")
 		
 		// Advanced: Audio sample rate
 		audio_sample_rate: int | *48000 @ui(importance=3,level="advanced",category="Audio")
 		
 		// Advanced: Audio channels
-		audio_channels: int | *2 @ui(importance=4,level="advanced",category="Audio")
+		audio_channels: int | *2 @ui(importance=6, is_basic=false, user_friendly="Audio Channels (2=stereo, 6=5.1)")
 		
 		// Advanced: Normalize audio levels
 		normalize_audio: bool | *true @ui(importance=4,level="advanced",category="Audio")
@@ -131,5 +131,8 @@ package ffmpeg_transcoder
 		
 		// Advanced: Sharpening strength
 		sharpen_strength: number | *0.3 @ui(importance=3,level="advanced",category="Filters")
+		
+		// Audio encoding settings
+		preserve_surround_sound: bool | *false @ui(importance=5, is_basic=false, user_friendly="Preserve Surround Sound (5.1/7.1)")
 	}
 }

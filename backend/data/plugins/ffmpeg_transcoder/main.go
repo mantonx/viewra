@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/config"
 	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/services"
 	"github.com/mantonx/viewra/pkg/plugins"
@@ -68,7 +69,7 @@ func (s *SimpleTranscodingAdapter) StartTranscode(ctx context.Context, req *plug
 	}
 
 	// Generate session ID that will be used for directory naming
-	sessionID := fmt.Sprintf("ffmpeg_%d", time.Now().UnixNano())
+	sessionID := fmt.Sprintf("ffmpeg_%s", uuid.New().String())
 
 	// Create a MINIMAL session to test GRPC conversion
 	session := &plugins.TranscodeSession{
@@ -413,20 +414,34 @@ func (s *SimpleTranscodingAdapter) emergencyProcessCleanup(sessionID string) err
 		s.logger.Warn("Performing emergency process cleanup", "session_id", sessionID)
 	}
 
-	// Use pkill to find and kill FFmpeg processes related to this session
-	// The session ID appears in the output path, so we can search for it
-	cmd := fmt.Sprintf("pkill -f 'ffmpeg.*%s'", sessionID)
+	// Enhanced cleanup - try multiple approaches to find and kill processes
+	commands := []string{
+		// Original approach - look for sessionID in command line
+		fmt.Sprintf("pkill -f 'ffmpeg.*%s'", sessionID),
+		// Look for sessionID in output directory paths
+		fmt.Sprintf("pkill -f 'dash_%s'", sessionID),
+		fmt.Sprintf("pkill -f 'hls_%s'", sessionID),
+		// Look for any FFmpeg processes writing to our session directory
+		fmt.Sprintf("lsof +D /app/viewra-data/transcoding/dash_%s 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r kill -TERM", sessionID),
+		fmt.Sprintf("lsof +D /app/viewra-data/transcoding/hls_%s 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r kill -TERM", sessionID),
+	}
 
-	// Execute the kill command
-	if err := exec.Command("sh", "-c", cmd).Run(); err != nil {
-		if s.logger != nil {
-			s.logger.Warn("Emergency cleanup command failed", "session_id", sessionID, "cmd", cmd, "error", err)
+	successCount := 0
+	for i, cmd := range commands {
+		if err := exec.Command("sh", "-c", cmd).Run(); err != nil {
+			if s.logger != nil {
+				s.logger.Debug("Emergency cleanup command failed", "attempt", i+1, "cmd", cmd, "error", err)
+			}
+		} else {
+			successCount++
+			if s.logger != nil {
+				s.logger.Debug("Emergency cleanup command succeeded", "attempt", i+1, "cmd", cmd)
+			}
 		}
-		// Don't return error - this is best effort cleanup
-	} else {
-		if s.logger != nil {
-			s.logger.Info("Emergency cleanup completed", "session_id", sessionID)
-		}
+	}
+
+	if s.logger != nil {
+		s.logger.Info("Emergency cleanup completed", "session_id", sessionID, "successful_commands", successCount)
 	}
 
 	return nil
@@ -687,21 +702,40 @@ func (p *FFmpegTranscoderPlugin) Rollback(connectionString string) error {
 func (p *FFmpegTranscoderPlugin) cleanupOrphanedProcesses() {
 	p.ctx.Logger.Info("🧹 Cleaning up orphaned FFmpeg processes")
 
-	// Kill any FFmpeg processes that are transcoding files (not just the plugin binary)
-	cmd := exec.Command("sh", "-c", "pkill -f 'ffmpeg.*dash_' || true")
-	if err := cmd.Run(); err != nil {
-		p.ctx.Logger.Warn("Failed to cleanup orphaned processes", "error", err)
-	} else {
-		p.ctx.Logger.Info("✅ Orphaned process cleanup completed")
+	// Enhanced startup cleanup - kill ALL transcoding-related FFmpeg processes
+	cleanupCommands := []string{
+		// Kill any FFmpeg processes working on dash or hls directories
+		"pkill -f 'ffmpeg.*dash_' || true",
+		"pkill -f 'ffmpeg.*hls_' || true",
+		// Kill any FFmpeg processes writing to our transcoding directory
+		"pkill -f '/app/viewra-data/transcoding/' || true",
+		// Kill any FFmpeg processes with transcoding output files
+		"pkill -f 'ffmpeg.*\\.mp4' || true",
+		"pkill -f 'ffmpeg.*\\.mpd' || true",
+		"pkill -f 'ffmpeg.*\\.m3u8' || true",
+		// Broad cleanup for any FFmpeg processes that might be stuck
+		"ps aux | grep 'ffmpeg' | grep -v grep | awk '{print $2}' | xargs -r kill -TERM || true",
 	}
+
+	successCount := 0
+	for i, cmd := range cleanupCommands {
+		if err := exec.Command("sh", "-c", cmd).Run(); err != nil {
+			p.ctx.Logger.Debug("Startup cleanup command failed", "attempt", i+1, "error", err)
+		} else {
+			successCount++
+			p.ctx.Logger.Debug("Startup cleanup command succeeded", "attempt", i+1)
+		}
+	}
+
+	p.ctx.Logger.Info("✅ Enhanced orphaned process cleanup completed", "successful_commands", successCount)
 }
 
 // startCleanupRoutine runs a periodic cleanup routine
 func (p *FFmpegTranscoderPlugin) startCleanupRoutine() {
-	ticker := time.NewTicker(1 * time.Minute) // Check every minute
+	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds (more frequent)
 	defer ticker.Stop()
 
-	p.ctx.Logger.Info("🔄 Starting FFmpeg process cleanup routine (every 1 minute)")
+	p.ctx.Logger.Info("🔄 Starting FFmpeg process cleanup routine (every 30 seconds)")
 
 	for {
 		select {
@@ -713,8 +747,8 @@ func (p *FFmpegTranscoderPlugin) startCleanupRoutine() {
 
 // performPeriodicCleanup performs regular maintenance cleanup
 func (p *FFmpegTranscoderPlugin) performPeriodicCleanup() {
-	// Count current FFmpeg processes
-	cmd := exec.Command("sh", "-c", "ps aux | grep -c 'ffmpeg.*dash_' || echo '0'")
+	// Count current FFmpeg processes more accurately (exclude the grep command itself)
+	cmd := exec.Command("sh", "-c", "ps aux | grep 'ffmpeg.*dash_' | grep -v grep | wc -l")
 	output, err := cmd.Output()
 	if err != nil {
 		return
@@ -724,18 +758,36 @@ func (p *FFmpegTranscoderPlugin) performPeriodicCleanup() {
 	if processCount != "0" && processCount != "" {
 		p.ctx.Logger.Debug("🔍 Periodic cleanup found FFmpeg processes", "count", processCount)
 
-		// Clean up any processes older than 10 minutes without activity
-		// This uses a more sophisticated approach to find truly orphaned processes
+		// MORE AGGRESSIVE: Clean up any FFmpeg processes after just 2 minutes (instead of 10)
+		// Also look for both dash_ and hls_ patterns, and any orphaned FFmpeg processes
 		cleanupCmd := exec.Command("sh", "-c", `
-			# Find FFmpeg processes older than 10 minutes
-			ps -eo pid,etime,cmd | grep 'ffmpeg.*dash_' | awk '$2 ~ /^[1-9][0-9]:[0-9][0-9]/ || $2 ~ /^[0-9]+-/ {print $1}' | while read pid; do
-				echo "Killing old FFmpeg process: $pid"
-				kill -TERM "$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+			# Find ALL transcoding FFmpeg processes (dash, hls, or any with output files)
+			# Kill any that are older than 2 minutes OR consuming high CPU without progress
+			ps -eo pid,etime,pcpu,cmd | grep 'ffmpeg' | grep -E '(dash_|hls_|\.mp4|\.m3u8|\.mpd)' | while read pid etime pcpu cmd; do
+				# Kill processes older than 2 minutes
+				if echo "$etime" | grep -qE '^[0-9]?[2-9]:[0-9][0-9]|^[1-9][0-9]+:' ; then
+					echo "🧹 Killing old FFmpeg process ($etime): $pid"
+					kill -TERM "$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+				# Also kill high-CPU processes that seem stuck (>90% CPU for over 30 seconds)
+				elif echo "$etime" | grep -qE '^[0-9]:[3-9][0-9]|^[1-9]:' && [ "${pcpu%.*}" -gt 90 ]; then
+					echo "🔥 Killing stuck high-CPU FFmpeg process ($pcpu% CPU, $etime): $pid"
+					kill -TERM "$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+				fi
+			done
+			
+			# Also clean up any ffmpeg processes that don't have a parent (orphaned)
+			ps -eo pid,ppid,cmd | grep 'ffmpeg' | grep -E '(dash_|hls_)' | while read pid ppid cmd; do
+				if ! ps -p "$ppid" >/dev/null 2>&1; then
+					echo "👻 Killing orphaned FFmpeg process: $pid"
+					kill -TERM "$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+				fi
 			done
 		`)
 
 		if err := cleanupCmd.Run(); err != nil {
 			p.ctx.Logger.Debug("Periodic cleanup command failed", "error", err)
+		} else {
+			p.ctx.Logger.Debug("🧹 Enhanced periodic cleanup completed")
 		}
 	}
 }

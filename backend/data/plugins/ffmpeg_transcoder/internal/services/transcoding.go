@@ -336,11 +336,22 @@ func (s *DefaultTranscodingService) buildFFmpegArgs(job *TranscodingJob) ([]stri
 		"-crf", strconv.Itoa(job.Settings.Quality),
 	)
 
-	// Audio encoding settings
-	args = append(args,
+	// Audio encoding settings with proper channel handling
+	audioArgs := []string{
 		"-c:a", job.Settings.AudioCodec,
 		"-b:a", fmt.Sprintf("%dk", job.Settings.AudioBitrate),
-	)
+	}
+
+	// Force stereo downmix for better compatibility with surround sound sources
+	// This fixes issues with EAC3 5.1/7.1 sources that don't play properly
+	if job.Settings.AudioCodec == "aac" {
+		audioArgs = append(audioArgs,
+			"-ac", "2", // Force stereo output
+			"-af", "aformat=channel_layouts=stereo", // Ensure stereo channel layout
+		)
+	}
+
+	args = append(args, audioArgs...)
 
 	// Container-specific settings
 	switch job.Settings.Container {
@@ -568,4 +579,20 @@ func (e *FFmpegExecutorImpl) ValidateInstallation(ctx context.Context) error {
 		return fmt.Errorf("FFmpeg not found or not working: %w", err)
 	}
 	return nil
+}
+
+// getChannelLayoutName returns the FFmpeg channel layout name for the given number of channels
+func getChannelLayoutName(channels int) string {
+	switch channels {
+	case 1:
+		return "mono"
+	case 2:
+		return "stereo"
+	case 6:
+		return "5.1"
+	case 8:
+		return "7.1"
+	default:
+		return "stereo" // Default to stereo for unknown layouts
+	}
 }

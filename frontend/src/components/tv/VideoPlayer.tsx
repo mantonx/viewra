@@ -123,12 +123,32 @@ const VideoPlayer: React.FC = () => {
   const [activeSessionIds, setActiveSessionIds] = useState<Set<string>>(new Set());
   const [isStoppingSession, setIsStoppingSession] = useState(false);
 
-  // Helper function to stop transcoding sessions
+  // Helper function to validate session ID format (UUID-based)
+  const isValidSessionId = useCallback((sessionId: string) => {
+    if (!sessionId) return false;
+    // Check for new UUID format: ffmpeg_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    const uuidPattern = /^ffmpeg_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidPattern.test(sessionId);
+  }, []);
+
+  // Helper function to stop transcoding sessions with UUID validation
   const stopTranscodingSession = useCallback(async (sessionId: string) => {
     if (!sessionId || isStoppingSession) return;
     
+    // Validate session ID format
+    if (!isValidSessionId(sessionId)) {
+      console.warn('⚠️ Skipping cleanup for invalid/old session ID format:', sessionId);
+      // Remove from tracking set anyway since it's invalid
+      setActiveSessionIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sessionId);
+        return newSet;
+      });
+      return;
+    }
+    
     setIsStoppingSession(true);
-    console.log('🛑 Stopping transcoding session:', sessionId);
+    console.log('🛑 Stopping transcoding session (UUID-based):', sessionId);
     
     try {
       const response = await fetch(`/api/playback/session/${sessionId}`, {
@@ -145,6 +165,14 @@ const VideoPlayer: React.FC = () => {
           newSet.delete(sessionId);
           return newSet;
         });
+      } else if (response.status === 404) {
+        console.log('ℹ️ Session already cleaned up by backend:', sessionId);
+        // Remove from tracking since it's already gone
+        setActiveSessionIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(sessionId);
+          return newSet;
+        });
       } else {
         console.warn('⚠️ Failed to stop transcoding session:', sessionId, response.status);
       }
@@ -153,7 +181,7 @@ const VideoPlayer: React.FC = () => {
     } finally {
       setIsStoppingSession(false);
     }
-  }, [isStoppingSession]);
+  }, [isStoppingSession, isValidSessionId]);
 
   // Function to stop all active sessions
   const stopAllSessions = useCallback(async () => {
@@ -191,10 +219,15 @@ const VideoPlayer: React.FC = () => {
   // Track session IDs when they're created
   useEffect(() => {
     if (playbackDecision?.session_id) {
-      console.log('📝 Tracking new session:', playbackDecision.session_id);
-      setActiveSessionIds(prev => new Set(prev).add(playbackDecision.session_id!));
+      // Validate new session ID format
+      if (isValidSessionId(playbackDecision.session_id)) {
+        console.log('📝 Tracking new UUID-based session:', playbackDecision.session_id);
+        setActiveSessionIds(prev => new Set(prev).add(playbackDecision.session_id!));
+      } else {
+        console.warn('⚠️ Received session with invalid/old format, not tracking:', playbackDecision.session_id);
+      }
     }
-  }, [playbackDecision?.session_id]);
+  }, [playbackDecision?.session_id, isValidSessionId]);
 
   // Cleanup on unmount or episode change
   useEffect(() => {
@@ -203,28 +236,35 @@ const VideoPlayer: React.FC = () => {
       // Use current value directly since this is cleanup
       const currentSessions = Array.from(activeSessionIds);
       currentSessions.forEach(sessionId => {
-        fetch(`/api/playback/session/${sessionId}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-        }).catch(error => console.error('Cleanup error for session:', sessionId, error));
+        // Only attempt cleanup for valid UUID-based session IDs
+        if (isValidSessionId(sessionId)) {
+          fetch(`/api/playback/session/${sessionId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+          }).catch(error => console.error('Cleanup error for session:', sessionId, error));
+        } else {
+          console.log('🚫 Skipping cleanup for invalid session ID:', sessionId);
+        }
       });
     };
-  }, [episodeId]); // Clean up when episode changes
+  }, [episodeId, isValidSessionId]); // Clean up when episode changes
 
   // Enhanced beforeunload to clean up sessions when page is closed/refreshed
   useEffect(() => {
     const handleBeforeUnload = () => {
-      // Send synchronous cleanup requests
+      // Send synchronous cleanup requests for valid UUID-based sessions only
       const currentSessions = Array.from(activeSessionIds);
       currentSessions.forEach(sessionId => {
-        navigator.sendBeacon(`/api/playback/session/${sessionId}`, 
-          JSON.stringify({ method: 'DELETE' }));
+        if (isValidSessionId(sessionId)) {
+          navigator.sendBeacon(`/api/playback/session/${sessionId}`, 
+            JSON.stringify({ method: 'DELETE' }));
+        }
       });
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [activeSessionIds]);
+  }, [activeSessionIds, isValidSessionId]);
 
   // Clean up player
   const cleanupPlayer = useCallback(() => {
@@ -536,11 +576,20 @@ const VideoPlayer: React.FC = () => {
     }
   }, [playbackDecision, startTime, shouldAutoplay, savedPosition, DEBUG]);
 
+  // Session request tracking to prevent duplicates
+  const isRequestingSession = useRef(false);
+
   // Load episode data
   const loadEpisodeData = useCallback(async () => {
-    if (!episodeId) return;
+    if (!episodeId || isRequestingSession.current) {
+      if (isRequestingSession.current) {
+        console.log('🚦 Session request already in progress, skipping duplicate');
+      }
+      return;
+    }
 
     try {
+      isRequestingSession.current = true;
       setLoading(true);
       setError(null);
 
@@ -602,8 +651,10 @@ const VideoPlayer: React.FC = () => {
         setEpisode(metadata.episode);
       }
 
-      // Start transcoding session if needed
+      // Start transcoding session if needed - ONLY ONCE
       if (decision.should_transcode) {
+        console.log('🎬 Starting single transcoding session for:', episodeFile.path);
+        
         const sessionResponse = await fetch('/api/playback/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -621,6 +672,9 @@ const VideoPlayer: React.FC = () => {
 
         const sessionData = await sessionResponse.json();
         console.log('✅ Transcoding session started:', sessionData.id);
+
+        // Track this session to prevent duplicate cleanup
+        setActiveSessionIds(prev => new Set(prev).add(sessionData.id));
 
         // Store session info for player initialization
         setPlaybackDecision(prev => ({
@@ -642,6 +696,8 @@ const VideoPlayer: React.FC = () => {
       console.error('❌ Failed to load episode data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load episode');
       setLoading(false);
+    } finally {
+      isRequestingSession.current = false;
     }
   }, [episodeId]);
 
@@ -936,10 +992,12 @@ const VideoPlayer: React.FC = () => {
       hasPlaybackDecision: !!playbackDecision, 
       hasVideoRef: !!videoRef.current, 
       alreadyInitialized: initializationRef.current,
+      isRequestingSession: isRequestingSession.current,
       manifestUrl: playbackDecision?.manifest_url 
     });
     
-    if (playbackDecision && videoRef.current && !initializationRef.current) {
+    // Only initialize if not already requesting session and not already initialized
+    if (playbackDecision && videoRef.current && !initializationRef.current && !isRequestingSession.current) {
       console.log('✅ Triggering player initialization');
       initializePlayer();
     }
@@ -951,7 +1009,8 @@ const VideoPlayer: React.FC = () => {
     console.log('🔍 Video element attached:', !!element);
     
     // Try to initialize player when video element becomes available
-    if (element && playbackDecision && !initializationRef.current) {
+    // Only if not already requesting a session and not already initialized
+    if (element && playbackDecision && !initializationRef.current && !isRequestingSession.current) {
       console.log('✅ Video element ready - triggering player initialization');
       initializePlayer();
     }
@@ -968,6 +1027,27 @@ const VideoPlayer: React.FC = () => {
       }
     };
   }, [cleanupPlayer]);
+
+  // Clear any stale session state on component mount
+  useEffect(() => {
+    console.log('🚀 VideoPlayer mounted, clearing any stale session state...');
+    
+    // Clear localStorage entries related to old sessions (if any exist)
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.includes('session') && !key.includes('video-position')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => {
+      console.log('🧹 Removing stale localStorage key:', key);
+      localStorage.removeItem(key);
+    });
+    
+    // Reset session tracking state
+    setActiveSessionIds(new Set());
+  }, [episodeId]); // Reset when episode changes
 
   if (loading) {
     return (
