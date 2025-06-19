@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -161,6 +162,8 @@ type PlaybackModule struct {
 	transcodeManager TranscodeManager
 	profileManager   TranscodeProfileManager
 	pluginManager    PluginManagerInterface
+	ctx              context.Context
+	cancel           context.CancelFunc
 
 	// Configuration
 	enabled bool
@@ -168,22 +171,28 @@ type PlaybackModule struct {
 
 // NewPlaybackModule creates a new playback module instance with plugin system
 func NewPlaybackModule(logger hclog.Logger, pluginManager PluginManagerInterface) *PlaybackModule {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &PlaybackModule{
 		logger:           logger.Named("playback-module"),
 		planner:          NewPlaybackPlanner(),
 		transcodeManager: NewTranscodeManager(logger, nil, pluginManager),
 		pluginManager:    pluginManager,
+		ctx:              ctx,
+		cancel:           cancel,
 		enabled:          true,
 	}
 }
 
 // NewSimplePlaybackModule creates a new playback module instance without plugin support
 func NewSimplePlaybackModule(logger hclog.Logger, db *gorm.DB) *PlaybackModule {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &PlaybackModule{
 		logger:           logger.Named("playback-module"),
 		planner:          NewPlaybackPlanner(),
 		transcodeManager: NewTranscodeManager(logger, db, nil),
 		pluginManager:    nil, // No plugin manager for fallback scenarios
+		ctx:              ctx,
+		cancel:           cancel,
 		enabled:          true,
 	}
 }
@@ -195,7 +204,7 @@ func (pm *PlaybackModule) Initialize() error {
 	// Initialize the transcoding manager
 	if initializer, ok := pm.transcodeManager.(interface{ Initialize() error }); ok {
 		if err := initializer.Initialize(); err != nil {
-			return err
+			return fmt.Errorf("failed to initialize transcode manager: %w", err)
 		}
 	}
 
@@ -206,11 +215,8 @@ func (pm *PlaybackModule) Initialize() error {
 		}
 	}
 
-	// Start cleanup routine for expired sessions with context
-	ctx := context.Background()
-	go pm.cleanupRoutine(ctx)
-
-	// Transcode manager cleanup is handled internally
+	// Start the session cleanup service
+	pm.startCleanupService()
 
 	pm.logger.Info("playback module initialized successfully")
 	return nil
@@ -309,15 +315,26 @@ func (pm *PlaybackModule) handlePlaybackDecision(c *gin.Context) {
 
 // waitForManifest waits for the manifest file to be created for DASH/HLS sessions
 func (pm *PlaybackModule) waitForManifest(session *plugins.TranscodeSession, maxWaitSeconds int) error {
+	pm.logger.Info("waitForManifest called", "session_id", session.ID, "max_wait", maxWaitSeconds)
+
+	// Get container type from CodecOpts
+	var container string
+	if session.Request != nil && session.Request.CodecOpts != nil {
+		container = session.Request.CodecOpts.Container
+		pm.logger.Info("container detected", "container", container, "session_id", session.ID)
+	} else {
+		pm.logger.Info("no container in session request", "session_id", session.ID, "request_nil", session.Request == nil)
+	}
+
 	// Only wait for DASH/HLS sessions
-	if session.Request.TargetContainer != "dash" && session.Request.TargetContainer != "hls" {
+	if container != "dash" && container != "hls" {
 		return nil
 	}
 
 	sessionDir := pm.getSessionDirectory(session.ID, session)
 	var manifestFile string
 
-	switch session.Request.TargetContainer {
+	switch container {
 	case "dash":
 		manifestFile = "manifest.mpd"
 	case "hls":
@@ -328,7 +345,19 @@ func (pm *PlaybackModule) waitForManifest(session *plugins.TranscodeSession, max
 
 	manifestPath := filepath.Join(sessionDir, manifestFile)
 
-	pm.logger.Debug("waiting for manifest file", "path", manifestPath, "session_id", session.ID)
+	pm.logger.Info("waiting for manifest file", "path", manifestPath, "session_id", session.ID, "session_dir", sessionDir, "backend", session.Backend)
+
+	// Debug: List actual directories in transcoding folder
+	cfg := config.Get()
+	if entries, err := os.ReadDir(cfg.Transcoding.DataDir); err == nil {
+		var dirs []string
+		for _, entry := range entries {
+			if entry.IsDir() && strings.Contains(entry.Name(), session.ID) {
+				dirs = append(dirs, entry.Name())
+			}
+		}
+		pm.logger.Info("actual directories found with session ID", "session_id", session.ID, "directories", dirs)
+	}
 
 	// Wait for the manifest file to be created
 	for i := 0; i < maxWaitSeconds; i++ {
@@ -344,27 +373,43 @@ func (pm *PlaybackModule) waitForManifest(session *plugins.TranscodeSession, max
 
 // handleStartTranscode initiates a new transcoding session
 func (pm *PlaybackModule) handleStartTranscode(c *gin.Context) {
+	pm.logger.Info("handleStartTranscode called")
 	var request plugins.TranscodeRequest
 
 	if err := c.ShouldBindJSON(&request); err != nil {
+		pm.logger.Error("failed to bind JSON request", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	// Log request info with nil safety
+	container := "none"
+	if request.CodecOpts != nil {
+		container = request.CodecOpts.Container
+	}
+	pm.logger.Info("JSON request bound successfully", "input_path", request.InputPath, "container", container)
+
+	pm.logger.Info("calling transcodeManager.StartTranscode")
 	session, err := pm.transcodeManager.StartTranscode(&request)
+
 	if err != nil {
 		pm.logger.Error("failed to start transcode", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transcoding session: " + err.Error()})
 		return
 	}
 
-	// For DASH/HLS sessions, wait for manifest to be ready before responding
-	if err := pm.waitForManifest(session, 10); err != nil {
-		pm.logger.Warn("manifest not ready in time", "session_id", session.ID, "error", err)
-		// Don't fail the request, just log the warning - the frontend can still retry if needed
-	}
+	pm.logger.Info("transcode session created successfully", "session_id", session.ID)
 
-	c.JSON(http.StatusCreated, session)
+	// No manifest waiting - return immediately for DASH streaming
+	pm.logger.Info("returning session info immediately (no manifest waiting)")
+
+	// Return the session information
+	c.JSON(http.StatusOK, gin.H{
+		"id":           session.ID,
+		"status":       session.Status,
+		"manifest_url": fmt.Sprintf("/api/playback/stream/%s/manifest.mpd", session.ID),
+		"backend":      session.Backend,
+	})
 }
 
 // handleStopTranscode terminates a transcoding session
@@ -475,24 +520,46 @@ func (pm *PlaybackModule) handleHealthCheck(c *gin.Context) {
 func (pm *PlaybackModule) getSessionDirectory(sessionID string, session *plugins.TranscodeSession) string {
 	cfg := config.Get()
 
-	// Determine directory name based on container type
+	// Determine directory name based on container type, using plugin naming convention
 	var dirName string
-	if session != nil && session.Request != nil {
-		switch session.Request.TargetContainer {
+	if session != nil && session.Request != nil && session.Request.CodecOpts != nil {
+		switch session.Request.CodecOpts.Container {
 		case "dash":
-			dirName = fmt.Sprintf("dash_%s", sessionID)
+			// Plugin naming convention: [container]_[backend]_[sessionID]
+			dirName = fmt.Sprintf("dash_%s_%s", session.Backend, sessionID)
 		case "hls":
-			dirName = fmt.Sprintf("hls_%s", sessionID)
+			dirName = fmt.Sprintf("hls_%s_%s", session.Backend, sessionID)
 		default:
-			// For progressive streaming, use session_ prefix
-			dirName = fmt.Sprintf("session_%s", sessionID)
+			// For progressive streaming, use software_[backend]_[sessionID] format
+			dirName = fmt.Sprintf("software_%s_%s", session.Backend, sessionID)
 		}
 	} else {
-		// Fallback to session_ prefix if we can't determine container type
-		dirName = fmt.Sprintf("session_%s", sessionID)
+		// Fallback: try to detect existing directories with this session ID
+		return pm.findSessionDirectory(sessionID)
 	}
 
 	return filepath.Join(cfg.Transcoding.DataDir, dirName)
+}
+
+// findSessionDirectory searches for existing session directories that end with the session ID
+func (pm *PlaybackModule) findSessionDirectory(sessionID string) string {
+	cfg := config.Get()
+
+	// Try to find existing directory that ends with this session ID
+	entries, err := os.ReadDir(cfg.Transcoding.DataDir)
+	if err != nil {
+		pm.logger.Warn("failed to read transcoding directory", "error", err)
+		return filepath.Join(cfg.Transcoding.DataDir, fmt.Sprintf("session_%s", sessionID))
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), sessionID) {
+			return filepath.Join(cfg.Transcoding.DataDir, entry.Name())
+		}
+	}
+
+	// Fallback to generic session directory
+	return filepath.Join(cfg.Transcoding.DataDir, fmt.Sprintf("session_%s", sessionID))
 }
 
 // handleDashManifest serves DASH manifest files
@@ -518,7 +585,11 @@ func (pm *PlaybackModule) handleDashManifest(c *gin.Context) {
 	sessionDir := pm.getSessionDirectory(sessionID, session)
 	manifestPath := filepath.Join(sessionDir, "manifest.mpd")
 
-	pm.logger.Debug("looking for DASH manifest", "session_id", sessionID, "path", manifestPath, "container", session.Request.TargetContainer)
+	container := ""
+	if session.Request != nil && session.Request.CodecOpts != nil {
+		container = session.Request.CodecOpts.Container
+	}
+	pm.logger.Debug("looking for DASH manifest", "session_id", sessionID, "path", manifestPath, "container", container)
 
 	// Check if manifest file exists
 	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
@@ -604,7 +675,11 @@ func (pm *PlaybackModule) handleSegment(c *gin.Context) {
 	// Get the correct session directory path based on container type
 	sessionDir := pm.getSessionDirectory(sessionID, session)
 
-	pm.logger.Debug("using session directory", "session_id", sessionID, "dir", sessionDir, "container", session.Request.TargetContainer)
+	sessionContainer := ""
+	if session.Request != nil && session.Request.CodecOpts != nil {
+		sessionContainer = session.Request.CodecOpts.Container
+	}
+	pm.logger.Debug("using session directory", "session_id", sessionID, "dir", sessionDir, "container", sessionContainer)
 
 	// Construct full path to segment file
 	segmentPath := filepath.Join(sessionDir, segmentName)
@@ -679,7 +754,11 @@ func (pm *PlaybackModule) handleDashSegmentSpecific(c *gin.Context) {
 	sessionDir := pm.getSessionDirectory(sessionID, session)
 	fullSegmentPath := filepath.Join(sessionDir, segmentFile)
 
-	pm.logger.Debug("serving segment via specific route", "session_id", sessionID, "dir", sessionDir, "segment", segmentFile, "container", session.Request.TargetContainer)
+	debugContainer := ""
+	if session.Request != nil && session.Request.CodecOpts != nil {
+		debugContainer = session.Request.CodecOpts.Container
+	}
+	pm.logger.Debug("serving segment via specific route", "session_id", sessionID, "dir", sessionDir, "segment", segmentFile, "container", debugContainer)
 
 	// Security check - ensure the segment file is within the session directory
 	if !strings.HasPrefix(fullSegmentPath, sessionDir) {
@@ -783,22 +862,68 @@ func (pm *PlaybackModule) handleDeleteProfile(c *gin.Context) {
 
 // Utility Methods
 
-// cleanupRoutine periodically cleans up expired sessions
-func (pm *PlaybackModule) cleanupRoutine(ctx context.Context) {
-	// Run cleanup every 30 seconds for better session management
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+// startCleanupService starts a goroutine that periodically cleans up expired transcoding sessions
+func (pm *PlaybackModule) startCleanupService() {
+	// Get cleanup configuration from environment or use defaults
+	retentionHours := 2  // Default 2 hours retention
+	maxSizeLimitGB := 10 // Default 10GB limit
 
-	pm.logger.Info("playback module cleanup routine started")
-
-	for {
-		select {
-		case <-ctx.Done():
-			pm.logger.Info("playback module cleanup routine stopped")
-			return
-		case <-ticker.C:
-			pm.transcodeManager.Cleanup()
+	if envRetention := os.Getenv("VIEWRA_TRANSCODING_RETENTION_HOURS"); envRetention != "" {
+		if hours, err := strconv.Atoi(envRetention); err == nil && hours > 0 {
+			retentionHours = hours
 		}
+	}
+
+	if envMaxSize := os.Getenv("VIEWRA_TRANSCODING_MAX_SIZE_GB"); envMaxSize != "" {
+		if maxSize, err := strconv.Atoi(envMaxSize); err == nil && maxSize > 0 {
+			maxSizeLimitGB = maxSize
+		}
+	}
+
+	// Create transcoding helper for cleanup operations
+	helper := plugins.NewTranscodingHelper(pm.logger)
+
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute) // Run cleanup every 30 minutes
+		defer ticker.Stop()
+
+		pm.logger.Info("started transcoding cleanup service",
+			"retention_hours", retentionHours,
+			"max_size_gb", maxSizeLimitGB,
+			"cleanup_interval", "30m",
+		)
+
+		for {
+			select {
+			case <-ticker.C:
+				pm.runPeriodicCleanup(helper, retentionHours, maxSizeLimitGB)
+			case <-pm.ctx.Done():
+				pm.logger.Info("stopping transcoding cleanup service")
+				return
+			}
+		}
+	}()
+}
+
+// runPeriodicCleanup performs the actual cleanup of expired sessions
+func (pm *PlaybackModule) runPeriodicCleanup(helper *plugins.TranscodingHelper, retentionHours, maxSizeLimitGB int) {
+	pm.logger.Debug("running periodic transcoding cleanup")
+
+	stats, err := helper.CleanupExpiredSessions(retentionHours, maxSizeLimitGB)
+	if err != nil {
+		pm.logger.Error("failed to cleanup expired sessions", "error", err)
+		return
+	}
+
+	if stats.DirectoriesRemoved > 0 {
+		pm.logger.Info("completed transcoding cleanup",
+			"directories_removed", stats.DirectoriesRemoved,
+			"size_freed_gb", fmt.Sprintf("%.2f", stats.SizeFreedGB),
+			"total_directories", stats.TotalDirectories,
+			"total_size_gb", fmt.Sprintf("%.2f", stats.TotalSizeGB),
+		)
+	} else {
+		pm.logger.Debug("no transcoding files required cleanup")
 	}
 }
 

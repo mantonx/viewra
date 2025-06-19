@@ -194,7 +194,7 @@ db-web-restart: ## Restart SQLite Web
 db-web-logs: ## Show SQLite Web logs
 
 # Plugin management targets
-.PHONY: plugins build-plugins setup-plugins clean-plugins
+.PHONY: plugins build-plugins setup-plugins clean-plugins verify-transcoding
 
 # Build all plugins with auto-detection
 plugins:
@@ -236,3 +236,8 @@ dev-plugins: clean-plugins build-plugins-docker
 logs-plugins:
 	@echo "📋 Recent plugin logs:"
 	@docker-compose logs backend --tail=20 | grep -i plugin || echo "No recent plugin logs found"
+
+# Verify transcoding setup
+verify-transcoding: ## Verify FFmpeg transcoder is properly configured
+	@echo "$(GREEN)Verifying transcoding setup...$(NC)"
+	@bash scripts/verify-transcoding-setup.sh
