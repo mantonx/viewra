@@ -388,7 +388,7 @@ func (m *MockTranscodingService) simulateTranscoding(session *plugins.TranscodeS
 	}
 
 	// Create mock files based on container type
-	switch session.Request.TargetContainer {
+	switch session.Request.CodecOpts.Container {
 	case "dash":
 		m.createMockDashFiles(sessionDir)
 	case "hls":

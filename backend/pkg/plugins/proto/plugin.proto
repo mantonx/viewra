@@ -440,6 +440,7 @@ message TranscodeRequest {
   map<string, string> options = 12;
   DeviceProfile device_profile = 13;
   int32 priority = 14;
+  string session_id = 15;  // Added session ID field
 }
 
 message SubtitleConfig {

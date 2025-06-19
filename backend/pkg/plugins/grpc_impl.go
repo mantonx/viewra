@@ -593,34 +593,57 @@ func (s *TranscodingServer) StartTranscode(ctx context.Context, req *proto.Start
 	fmt.Printf("DEBUG: TranscodingServer.StartTranscode received: InputPath='%s', TargetCodec='%s', Resolution='%s'\n",
 		req.Request.InputPath, req.Request.TargetCodec, req.Request.Resolution)
 
-	// Convert protobuf request to internal request
+	// Convert protobuf request to internal modern request format
 	internalReq := &TranscodeRequest{
-		InputPath:       req.Request.InputPath,
-		TargetCodec:     req.Request.TargetCodec,
-		TargetContainer: req.Request.TargetContainer,
-		Resolution:      req.Request.Resolution,
-		Bitrate:         int(req.Request.Bitrate),
-		AudioCodec:      req.Request.AudioCodec,
-		AudioBitrate:    int(req.Request.AudioBitrate),
-		AudioStream:     int(req.Request.AudioStream),
-		Quality:         int(req.Request.Quality),
-		Preset:          req.Request.Preset,
-		Options:         req.Request.Options,
-		Priority:        int(req.Request.Priority),
+		InputPath:  req.Request.InputPath,
+		OutputPath: "",                    // This will be set by the transcode manager
+		SessionID:  req.Request.SessionId, // Pass session ID from GRPC
+		CodecOpts: &CodecOptions{
+			Video:     req.Request.TargetCodec,
+			Audio:     req.Request.AudioCodec,
+			Container: req.Request.TargetContainer,
+			Bitrate:   fmt.Sprintf("%dk", req.Request.Bitrate),
+			Quality:   int(req.Request.Quality),
+			Preset:    req.Request.Preset,
+		},
+		Environment: make(map[string]string),
 	}
 
-	fmt.Printf("DEBUG: Converted internal request: InputPath='%s', TargetCodec='%s', Resolution='%s'\n",
-		internalReq.InputPath, internalReq.TargetCodec, internalReq.Resolution)
+	// Add additional fields to environment
+	if req.Request.Priority > 0 {
+		internalReq.Environment["priority"] = fmt.Sprintf("%d", req.Request.Priority)
+	}
+	if req.Request.Resolution != "" {
+		internalReq.Environment["resolution"] = req.Request.Resolution
+	}
+	if req.Request.AudioBitrate > 0 {
+		internalReq.Environment["audio_bitrate"] = fmt.Sprintf("%dk", req.Request.AudioBitrate)
+	}
+	if req.Request.AudioStream > 0 {
+		internalReq.Environment["audio_stream"] = fmt.Sprintf("%d", req.Request.AudioStream)
+	}
+	if len(req.Request.Options) > 0 {
+		for k, v := range req.Request.Options {
+			internalReq.Environment[k] = v
+		}
+	}
 
-	// Handle subtitles if present
+	fmt.Printf("DEBUG: Converted internal request: InputPath='%s', VideoCodec='%s', Container='%s'\n",
+		internalReq.InputPath, internalReq.CodecOpts.Video, internalReq.CodecOpts.Container)
+
+	// Handle subtitles if present - add to environment
 	if req.Request.Subtitles != nil {
-		internalReq.Subtitles = &SubtitleConfig{
-			Enabled:   req.Request.Subtitles.Enabled,
-			Language:  req.Request.Subtitles.Language,
-			BurnIn:    req.Request.Subtitles.BurnIn,
-			StreamIdx: int(req.Request.Subtitles.StreamIdx),
-			FontSize:  int(req.Request.Subtitles.FontSize),
-			FontColor: req.Request.Subtitles.FontColor,
+		internalReq.Environment["subtitles_enabled"] = fmt.Sprintf("%t", req.Request.Subtitles.Enabled)
+		if req.Request.Subtitles.Language != "" {
+			internalReq.Environment["subtitles_language"] = req.Request.Subtitles.Language
+		}
+		internalReq.Environment["subtitles_burn_in"] = fmt.Sprintf("%t", req.Request.Subtitles.BurnIn)
+		internalReq.Environment["subtitles_stream_idx"] = fmt.Sprintf("%d", req.Request.Subtitles.StreamIdx)
+		if req.Request.Subtitles.FontSize > 0 {
+			internalReq.Environment["subtitles_font_size"] = fmt.Sprintf("%d", req.Request.Subtitles.FontSize)
+		}
+		if req.Request.Subtitles.FontColor != "" {
+			internalReq.Environment["subtitles_font_color"] = req.Request.Subtitles.FontColor
 		}
 	}
 
@@ -777,27 +800,28 @@ func convertSessionToProto(session *TranscodeSession) *proto.TranscodeSession {
 	if session.Request != nil {
 		protoSession.Request = &proto.TranscodeRequest{
 			InputPath:       session.Request.InputPath,
-			TargetCodec:     session.Request.TargetCodec,
-			TargetContainer: session.Request.TargetContainer,
-			Resolution:      session.Request.Resolution,
-			Bitrate:         int32(session.Request.Bitrate),
-			AudioCodec:      session.Request.AudioCodec,
-			AudioBitrate:    int32(session.Request.AudioBitrate),
-			AudioStream:     int32(session.Request.AudioStream),
-			Quality:         int32(session.Request.Quality),
-			Preset:          session.Request.Preset,
-			Options:         session.Request.Options,
-			Priority:        int32(session.Request.Priority),
+			TargetCodec:     session.Request.CodecOpts.Video,
+			TargetContainer: session.Request.CodecOpts.Container,
+			Resolution:      session.Request.Environment["resolution"],
+			Bitrate:         getBitrateFromString(session.Request.CodecOpts.Bitrate),
+			AudioCodec:      session.Request.CodecOpts.Audio,
+			AudioBitrate:    getBitrateFromString(session.Request.Environment["audio_bitrate"]),
+			AudioStream:     getIntFromString(session.Request.Environment["audio_stream"]),
+			Quality:         int32(session.Request.CodecOpts.Quality),
+			Preset:          session.Request.CodecOpts.Preset,
+			Options:         session.Request.Environment, // Pass through environment as options
+			Priority:        getIntFromString(session.Request.Environment["priority"]),
 		}
 
-		if session.Request.Subtitles != nil {
+		// Handle subtitles from environment
+		if session.Request.Environment["subtitles_enabled"] == "true" {
 			protoSession.Request.Subtitles = &proto.SubtitleConfig{
-				Enabled:   session.Request.Subtitles.Enabled,
-				Language:  session.Request.Subtitles.Language,
-				BurnIn:    session.Request.Subtitles.BurnIn,
-				StreamIdx: int32(session.Request.Subtitles.StreamIdx),
-				FontSize:  int32(session.Request.Subtitles.FontSize),
-				FontColor: session.Request.Subtitles.FontColor,
+				Enabled:   session.Request.Environment["subtitles_enabled"] == "true",
+				Language:  session.Request.Environment["subtitles_language"],
+				BurnIn:    session.Request.Environment["subtitles_burn_in"] == "true",
+				StreamIdx: getIntFromString(session.Request.Environment["subtitles_stream_idx"]),
+				FontSize:  getIntFromString(session.Request.Environment["subtitles_font_size"]),
+				FontColor: session.Request.Environment["subtitles_font_color"],
 			}
 		}
 
@@ -832,4 +856,29 @@ func convertSessionToProto(session *TranscodeSession) *proto.TranscodeSession {
 	}
 
 	return protoSession
+}
+
+// Helper functions for converting string values from environment
+
+func getBitrateFromString(bitrate string) int32 {
+	if bitrate == "" {
+		return 0
+	}
+	// Parse bitrate string like "1000k" to int
+	var val int
+	if _, err := fmt.Sscanf(bitrate, "%dk", &val); err == nil {
+		return int32(val)
+	}
+	return 0
+}
+
+func getIntFromString(value string) int32 {
+	if value == "" {
+		return 0
+	}
+	var val int
+	if _, err := fmt.Sscanf(value, "%d", &val); err == nil {
+		return int32(val)
+	}
+	return 0
 }

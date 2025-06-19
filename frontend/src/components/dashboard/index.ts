@@ -1,2 +1,2 @@
 export { default as PluginDashboard } from './PluginDashboard';
-export { TranscoderSectionRenderer } from './sections/TranscoderSectionRenderer'; 
+export { default as TranscoderSectionRenderer } from './sections/TranscoderSectionRenderer'; 

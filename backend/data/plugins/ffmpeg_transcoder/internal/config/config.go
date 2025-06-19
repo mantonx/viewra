@@ -4,199 +4,208 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mantonx/viewra/pkg/plugins"
 )
 
-// Config represents the complete FFmpeg transcoder plugin configuration
+// Config represents the complete FFmpeg transcoder configuration
 // This mirrors the CUE schema defined in plugin.cue
 type Config struct {
 	Enabled     bool              `json:"enabled"`
+	Priority    int               `json:"priority"`
 	FFmpeg      FFmpegConfig      `json:"ffmpeg"`
 	Transcoding TranscodingConfig `json:"transcoding"`
-	Sessions    SessionsConfig    `json:"sessions"`
-	Performance PerformanceConfig `json:"performance"`
 	Hardware    HardwareConfig    `json:"hardware"`
+	Sessions    SessionConfig     `json:"sessions"`
+	Performance PerformanceConfig `json:"performance"`
+	Cleanup     CleanupConfig     `json:"cleanup"`
 	Debug       DebugConfig       `json:"debug"`
 }
 
-// FFmpegConfig contains FFmpeg binary and execution settings
+// FFmpegConfig contains FFmpeg binary settings
 type FFmpegConfig struct {
-	Path     string `json:"path"`     // Path to FFmpeg binary
-	Threads  int    `json:"threads"`  // Number of threads (0 = auto)
-	Priority int    `json:"priority"` // Process priority
+	Path    string `json:"path"`    // Path to FFmpeg binary
+	Threads int    `json:"threads"` // Number of threads (0 = auto)
 }
 
-// TranscodingConfig contains default transcoding settings
+// TranscodingConfig contains transcoding defaults
 type TranscodingConfig struct {
-	OutputDir    string `json:"output_dir"`    // Output directory for transcoded files
-	Quality      int    `json:"quality"`       // Default CRF quality (0-51)
-	Preset       string `json:"preset"`        // Default encoding preset
-	AudioCodec   string `json:"audio_codec"`   // Default audio codec
-	AudioBitrate int    `json:"audio_bitrate"` // Default audio bitrate in kbps
-	Container    string `json:"container"`     // Default output container
-}
+	// Video settings
+	VideoCodec  string `json:"video_codec"`  // Default video codec
+	VideoPreset string `json:"video_preset"` // Encoding preset
+	VideoCRF    int    `json:"video_crf"`    // CRF value (0-51)
 
-// SessionsConfig contains session management settings
-type SessionsConfig struct {
-	MaxConcurrent int `json:"max_concurrent"` // Maximum concurrent sessions
-	CleanupHours  int `json:"cleanup_hours"`  // Hours after which to clean up old sessions
-	TimeoutHours  int `json:"timeout_hours"`  // Hours after which to timeout stuck sessions
-}
+	// Audio settings
+	AudioCodec    string `json:"audio_codec"`    // Default audio codec
+	AudioBitrate  int    `json:"audio_bitrate"`  // Audio bitrate in kbps
+	AudioChannels int    `json:"audio_channels"` // Audio channels (2=stereo, 6=5.1)
 
-// PerformanceConfig contains performance monitoring settings
-type PerformanceConfig struct {
-	EnableMetrics    bool `json:"enable_metrics"`    // Enable performance metrics collection
-	MetricsInterval  int  `json:"metrics_interval"`  // Metrics collection interval in seconds
-	ResourceMonitor  bool `json:"resource_monitor"`  // Monitor CPU/memory usage
-	ProgressInterval int  `json:"progress_interval"` // Progress update interval in seconds
+	// Container settings
+	DefaultContainer string `json:"default_container"` // Default output container
+
+	// Output settings
+	OutputDir string `json:"output_dir"` // Output directory for transcoded files
 }
 
 // HardwareConfig contains hardware acceleration settings
 type HardwareConfig struct {
-	Acceleration bool   `json:"acceleration"` // Always enabled (auto mode)
-	Type         string `json:"type"`         // Always "auto" - let FFmpeg choose
-	Fallback     bool   `json:"fallback"`     // Not used in auto mode
+	Acceleration bool   `json:"acceleration"` // Enable hardware acceleration
+	Type         string `json:"type"`         // Hardware type (auto, nvenc, vaapi, etc.)
+	Fallback     bool   `json:"fallback"`     // Fallback to software on failure
 }
 
-// DebugConfig contains debugging and logging settings
+// SessionConfig contains session management settings
+type SessionConfig struct {
+	MaxConcurrent  int `json:"max_concurrent"`  // Maximum concurrent sessions
+	TimeoutMinutes int `json:"timeout_minutes"` // Session timeout in minutes
+	IdleMinutes    int `json:"idle_minutes"`    // Idle timeout in minutes
+}
+
+// PerformanceConfig contains performance settings
+type PerformanceConfig struct {
+	BufferSize       int  `json:"buffer_size"`       // Streaming buffer size
+	ProgressInterval int  `json:"progress_interval"` // Progress update interval in seconds
+	TwoPass          bool `json:"two_pass"`          // Enable two-pass encoding
+}
+
+// CleanupConfig contains file cleanup settings
+type CleanupConfig struct {
+	RetentionHours  int `json:"retention_hours"`  // Keep files for N hours
+	ExtendedHours   int `json:"extended_hours"`   // Extended retention for small files
+	MaxSizeGB       int `json:"max_size_gb"`      // Maximum total size in GB
+	IntervalMinutes int `json:"interval_minutes"` // Cleanup interval in minutes
+}
+
+// DebugConfig contains debugging settings
 type DebugConfig struct {
-	Enabled      bool   `json:"enabled"`       // Enable debug logging
-	LogFFmpeg    bool   `json:"log_ffmpeg"`    // Log FFmpeg command output
-	SaveCommands bool   `json:"save_commands"` // Save FFmpeg commands to file
-	LogLevel     string `json:"log_level"`     // Log level (debug, info, warn, error)
+	Enabled         bool   `json:"enabled"`    // Enable debug logging
+	LogFFmpegOutput bool   `json:"log_ffmpeg"` // Log FFmpeg output
+	LogLevel        string `json:"log_level"`  // Log level
 }
 
-// DefaultConfig returns the default configuration for the FFmpeg transcoder
+// DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Enabled: true,
+		Enabled:  true,
+		Priority: 50,
 		FFmpeg: FFmpegConfig{
-			Path:     detectFFmpegPath(),
-			Threads:  0, // Auto-detect
-			Priority: 0, // Normal priority
+			Path:    "ffmpeg",
+			Threads: 0, // Auto-detect
 		},
 		Transcoding: TranscodingConfig{
-			OutputDir:    "/app/viewra-data/transcoding",
-			Quality:      23, // Good quality/size balance
-			Preset:       "medium",
-			AudioCodec:   "aac",
-			AudioBitrate: 128,
-			Container:    "mp4",
-		},
-		Sessions: SessionsConfig{
-			MaxConcurrent: 4,
-			CleanupHours:  24,
-			TimeoutHours:  2,
-		},
-		Performance: PerformanceConfig{
-			EnableMetrics:    true,
-			MetricsInterval:  30,
-			ResourceMonitor:  true,
-			ProgressInterval: 5,
+			VideoCodec:       "h264",
+			VideoPreset:      "fast",
+			VideoCRF:         23,
+			AudioCodec:       "aac",
+			AudioBitrate:     128,
+			AudioChannels:    2,
+			DefaultContainer: "mp4",
+			OutputDir:        "/viewra-data/transcoding",
 		},
 		Hardware: HardwareConfig{
 			Acceleration: true,
 			Type:         "auto",
 			Fallback:     true,
 		},
+		Sessions: SessionConfig{
+			MaxConcurrent:  10,
+			TimeoutMinutes: 120,
+			IdleMinutes:    10,
+		},
+		Performance: PerformanceConfig{
+			BufferSize:       32768,
+			ProgressInterval: 5,
+			TwoPass:          false,
+		},
+		Cleanup: CleanupConfig{
+			RetentionHours:  2,
+			ExtendedHours:   8,
+			MaxSizeGB:       10,
+			IntervalMinutes: 30,
+		},
 		Debug: DebugConfig{
-			Enabled:      false,
-			LogFFmpeg:    false,
-			SaveCommands: false,
-			LogLevel:     "info",
+			Enabled:         false,
+			LogFFmpegOutput: false,
+			LogLevel:        "info",
 		},
 	}
 }
 
-// Validate validates the configuration and returns any errors
-func (c *Config) Validate() error {
-	// Validate FFmpeg path
-	if c.FFmpeg.Path == "" {
-		return fmt.Errorf("FFmpeg path cannot be empty")
-	}
-
-	// Check if FFmpeg binary exists
-	if _, err := os.Stat(c.FFmpeg.Path); os.IsNotExist(err) {
-		return fmt.Errorf("FFmpeg binary not found at path: %s", c.FFmpeg.Path)
-	}
-
-	// Validate transcoding settings
-	if c.Transcoding.Quality < 0 || c.Transcoding.Quality > 51 {
-		return fmt.Errorf("quality must be between 0 and 51, got: %d", c.Transcoding.Quality)
-	}
-
-	if c.Transcoding.AudioBitrate <= 0 {
-		return fmt.Errorf("audio bitrate must be positive, got: %d", c.Transcoding.AudioBitrate)
-	}
-
-	// Validate session settings
-	if c.Sessions.MaxConcurrent <= 0 {
-		return fmt.Errorf("max concurrent sessions must be positive, got: %d", c.Sessions.MaxConcurrent)
-	}
-
-	// Validate output directory
-	if c.Transcoding.OutputDir == "" {
-		return fmt.Errorf("output directory cannot be empty")
-	}
-
-	return nil
+// GetSessionTimeout returns the session timeout duration
+func (c *SessionConfig) GetSessionTimeout() time.Duration {
+	return time.Duration(c.TimeoutMinutes) * time.Minute
 }
 
-// GetFFmpegPath returns the configured FFmpeg path
-func (c *Config) GetFFmpegPath() string {
-	return c.FFmpeg.Path
+// GetIdleTimeout returns the idle timeout duration
+func (c *SessionConfig) GetIdleTimeout() time.Duration {
+	return time.Duration(c.IdleMinutes) * time.Minute
 }
 
-// GetOutputDir returns the configured output directory
-func (c *Config) GetOutputDir() string {
-	return c.Transcoding.OutputDir
+// GetCleanupInterval returns the cleanup interval duration
+func (c *CleanupConfig) GetCleanupInterval() time.Duration {
+	return time.Duration(c.IntervalMinutes) * time.Minute
 }
 
-// IsDebugEnabled returns whether debug mode is enabled
-func (c *Config) IsDebugEnabled() bool {
-	return c.Debug.Enabled
+// GetRetentionDuration returns the retention duration
+func (c *CleanupConfig) GetRetentionDuration() time.Duration {
+	return time.Duration(c.RetentionHours) * time.Hour
 }
 
-// GetMaxConcurrentSessions returns the maximum number of concurrent sessions
+// GetExtendedRetentionDuration returns the extended retention duration
+func (c *CleanupConfig) GetExtendedRetentionDuration() time.Duration {
+	return time.Duration(c.ExtendedHours) * time.Hour
+}
+
+// GetMaxConcurrentSessions returns the maximum concurrent sessions allowed
 func (c *Config) GetMaxConcurrentSessions() int {
 	return c.Sessions.MaxConcurrent
 }
 
-// GetHardwareAcceleration returns whether hardware acceleration is enabled
-func (c *Config) GetHardwareAcceleration() bool {
-	return c.Hardware.Acceleration
+// GetFFmpegPath returns the path to the FFmpeg executable
+func (c *Config) GetFFmpegPath() string {
+	return c.FFmpeg.Path
 }
 
-// GetHardwareType returns the hardware acceleration type
-func (c *Config) GetHardwareType() string {
-	return c.Hardware.Type
-}
-
-// GetHardwareFallback returns whether to fallback to software if hardware fails
-func (c *Config) GetHardwareFallback() bool {
-	return c.Hardware.Fallback
-}
-
-// detectFFmpegPath attempts to find FFmpeg in common locations
-func detectFFmpegPath() string {
-	commonPaths := []string{
-		"ffmpeg",                   // In PATH
-		"/usr/bin/ffmpeg",          // Common Linux location
-		"/usr/local/bin/ffmpeg",    // Homebrew location
-		"/opt/homebrew/bin/ffmpeg", // Apple Silicon Homebrew
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	// Validate FFmpeg settings
+	if c.FFmpeg.Path == "" {
+		return fmt.Errorf("FFmpeg path cannot be empty")
 	}
 
-	for _, path := range commonPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
+	if c.FFmpeg.Threads < 0 {
+		return fmt.Errorf("thread count must be non-negative")
 	}
 
-	// Default to assuming it's in PATH
-	return "ffmpeg"
+	// Validate transcoding settings
+	if c.Transcoding.VideoCRF < 0 || c.Transcoding.VideoCRF > 51 {
+		return fmt.Errorf("video CRF must be between 0 and 51")
+	}
+
+	if c.Transcoding.AudioBitrate <= 0 {
+		return fmt.Errorf("audio bitrate must be positive")
+	}
+
+	// Validate session settings
+	if c.Sessions.MaxConcurrent <= 0 {
+		return fmt.Errorf("max concurrent sessions must be positive")
+	}
+
+	if c.Sessions.TimeoutMinutes <= 0 {
+		return fmt.Errorf("session timeout must be positive")
+	}
+
+	// Validate cleanup settings
+	if c.Cleanup.RetentionHours <= 0 {
+		return fmt.Errorf("retention hours must be positive")
+	}
+
+	if c.Cleanup.MaxSizeGB <= 0 {
+		return fmt.Errorf("max size must be positive")
+	}
+
+	return nil
 }
 
 // FFmpegConfigurationService extends the base configuration service with FFmpeg-specific functionality
@@ -292,17 +301,17 @@ func (c *FFmpegConfigurationService) ffmpegToPluginConfig(ffmpegConfig *Config) 
 		Enabled:  ffmpegConfig.Enabled,
 		Settings: configMap,
 		Features: map[string]bool{
-			"enabled":          ffmpegConfig.Enabled,
-			"performance_mode": ffmpegConfig.Performance.EnableMetrics,
-			"resource_monitor": ffmpegConfig.Performance.ResourceMonitor,
-			"debug_mode":       ffmpegConfig.Debug.Enabled,
-			"ffmpeg_logging":   ffmpegConfig.Debug.LogFFmpeg,
+			"enabled":         ffmpegConfig.Enabled,
+			"debug_mode":      ffmpegConfig.Debug.Enabled,
+			"ffmpeg_logging":  ffmpegConfig.Debug.LogFFmpegOutput,
+			"two_pass":        ffmpegConfig.Performance.TwoPass,
+			"hw_acceleration": ffmpegConfig.Hardware.Acceleration,
 		},
 		Thresholds: &plugins.HealthThresholds{
 			MaxMemoryUsage:      512 * 1024 * 1024, // 512MB
 			MaxCPUUsage:         80.0,
 			MaxErrorRate:        10.0,
-			MaxResponseTime:     time.Duration(ffmpegConfig.Sessions.TimeoutHours) * time.Hour,
+			MaxResponseTime:     time.Duration(ffmpegConfig.Sessions.TimeoutMinutes) * time.Minute,
 			HealthCheckInterval: 30 * time.Second,
 		},
 		LastModified: time.Now(),
@@ -369,26 +378,27 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 				"type":  "object",
 				"title": "Transcoding Settings",
 				"properties": map[string]interface{}{
-					"output_dir": map[string]interface{}{
+					"video_codec": map[string]interface{}{
 						"type":        "string",
-						"title":       "Output Directory",
-						"description": "Directory for transcoded files",
-						"default":     "/app/viewra-data/transcoding",
+						"title":       "Video Codec",
+						"description": "Default video codec",
+						"enum":        []string{"h264", "h265", "vp8", "vp9"},
+						"default":     "h264",
 					},
-					"quality": map[string]interface{}{
+					"video_preset": map[string]interface{}{
+						"type":        "string",
+						"title":       "Video Preset",
+						"description": "Encoding preset",
+						"enum":        []string{"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"},
+						"default":     "fast",
+					},
+					"video_crf": map[string]interface{}{
 						"type":        "integer",
-						"title":       "Video Quality (CRF)",
+						"title":       "Video CRF",
 						"description": "Constant Rate Factor (0-51, lower = better)",
 						"minimum":     0,
 						"maximum":     51,
 						"default":     23,
-					},
-					"preset": map[string]interface{}{
-						"type":        "string",
-						"title":       "Encoding Preset",
-						"description": "Speed/quality tradeoff",
-						"enum":        []string{"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"},
-						"default":     "medium",
 					},
 					"audio_codec": map[string]interface{}{
 						"type":        "string",
@@ -405,6 +415,20 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 						"maximum":     320,
 						"default":     128,
 					},
+					"audio_channels": map[string]interface{}{
+						"type":        "integer",
+						"title":       "Audio Channels",
+						"description": "Default audio channels",
+						"enum":        []string{"2", "6"},
+						"default":     2,
+					},
+					"default_container": map[string]interface{}{
+						"type":        "string",
+						"title":       "Default Container",
+						"description": "Default output container",
+						"enum":        []string{"mp4", "mkv", "avi", "mov", "webm"},
+						"default":     "mp4",
+					},
 				},
 			},
 			"sessions": map[string]interface{}{
@@ -417,23 +441,23 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 						"description": "Maximum number of concurrent transcoding sessions",
 						"minimum":     1,
 						"maximum":     100,
-						"default":     4,
+						"default":     10,
 					},
-					"cleanup_hours": map[string]interface{}{
+					"timeout_minutes": map[string]interface{}{
 						"type":        "integer",
-						"title":       "Cleanup After (hours)",
-						"description": "Hours after which to clean up old sessions",
+						"title":       "Session Timeout (minutes)",
+						"description": "Session timeout in minutes",
 						"minimum":     1,
-						"maximum":     168,
-						"default":     24,
+						"maximum":     120,
+						"default":     120,
 					},
-					"timeout_hours": map[string]interface{}{
+					"idle_minutes": map[string]interface{}{
 						"type":        "integer",
-						"title":       "Session Timeout (hours)",
-						"description": "Hours after which to timeout stuck sessions",
+						"title":       "Idle Timeout (minutes)",
+						"description": "Idle timeout in minutes",
 						"minimum":     1,
-						"maximum":     24,
-						"default":     2,
+						"maximum":     120,
+						"default":     10,
 					},
 				},
 			},
@@ -441,25 +465,65 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 				"type":  "object",
 				"title": "Performance Settings",
 				"properties": map[string]interface{}{
-					"enable_metrics": map[string]interface{}{
-						"type":        "boolean",
-						"title":       "Enable Metrics",
-						"description": "Enable performance metrics collection",
-						"default":     true,
-					},
-					"metrics_interval": map[string]interface{}{
+					"buffer_size": map[string]interface{}{
 						"type":        "integer",
-						"title":       "Metrics Interval (seconds)",
-						"description": "Metrics collection interval",
+						"title":       "Buffer Size",
+						"description": "Streaming buffer size",
+						"minimum":     1024,
+						"maximum":     1048576,
+						"default":     32768,
+					},
+					"progress_interval": map[string]interface{}{
+						"type":        "integer",
+						"title":       "Progress Interval (seconds)",
+						"description": "Progress update interval",
 						"minimum":     5,
 						"maximum":     300,
-						"default":     30,
+						"default":     5,
 					},
-					"resource_monitor": map[string]interface{}{
+					"two_pass": map[string]interface{}{
 						"type":        "boolean",
-						"title":       "Resource Monitoring",
-						"description": "Monitor CPU/memory usage",
-						"default":     true,
+						"title":       "Two-Pass Encoding",
+						"description": "Enable two-pass encoding",
+						"default":     false,
+					},
+				},
+			},
+			"cleanup": map[string]interface{}{
+				"type":  "object",
+				"title": "Cleanup Settings",
+				"properties": map[string]interface{}{
+					"retention_hours": map[string]interface{}{
+						"type":        "integer",
+						"title":       "Retention Hours",
+						"description": "Keep files for N hours",
+						"minimum":     1,
+						"maximum":     24,
+						"default":     2,
+					},
+					"extended_hours": map[string]interface{}{
+						"type":        "integer",
+						"title":       "Extended Hours",
+						"description": "Extended retention for small files",
+						"minimum":     1,
+						"maximum":     24,
+						"default":     8,
+					},
+					"max_size_gb": map[string]interface{}{
+						"type":        "integer",
+						"title":       "Max Size (GB)",
+						"description": "Maximum total size in GB",
+						"minimum":     1,
+						"maximum":     100,
+						"default":     10,
+					},
+					"interval_minutes": map[string]interface{}{
+						"type":        "integer",
+						"title":       "Cleanup Interval (minutes)",
+						"description": "Cleanup interval in minutes",
+						"minimum":     1,
+						"maximum":     60,
+						"default":     30,
 					},
 				},
 			},
@@ -479,12 +543,6 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 						"description": "Log FFmpeg command output",
 						"default":     false,
 					},
-					"save_commands": map[string]interface{}{
-						"type":        "boolean",
-						"title":       "Save Commands",
-						"description": "Save FFmpeg commands to file",
-						"default":     false,
-					},
 				},
 			},
 		},
@@ -500,16 +558,18 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 				"priority": 0,
 			},
 			"transcoding": map[string]interface{}{
-				"output_dir":    "/app/viewra-data/transcoding",
-				"quality":       23,
-				"preset":        "medium",
-				"audio_codec":   "aac",
-				"audio_bitrate": 128,
+				"video_codec":       "h264",
+				"video_preset":      "fast",
+				"video_crf":         23,
+				"audio_codec":       "aac",
+				"audio_bitrate":     128,
+				"audio_channels":    2,
+				"default_container": "mp4",
 			},
 			"sessions": map[string]interface{}{
-				"max_concurrent": 4,
-				"cleanup_hours":  24,
-				"timeout_hours":  2,
+				"max_concurrent":  10,
+				"timeout_minutes": 120,
+				"idle_minutes":    10,
 			},
 		},
 		"high_performance": map[string]interface{}{
@@ -520,16 +580,18 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 				"priority": -5,
 			},
 			"transcoding": map[string]interface{}{
-				"output_dir":    "/fast/storage/transcoding",
-				"quality":       20,
-				"preset":        "fast",
-				"audio_codec":   "aac",
-				"audio_bitrate": 192,
+				"video_codec":       "h265",
+				"video_preset":      "ultrafast",
+				"video_crf":         20,
+				"audio_codec":       "aac",
+				"audio_bitrate":     192,
+				"audio_channels":    6,
+				"default_container": "mkv",
 			},
 			"sessions": map[string]interface{}{
-				"max_concurrent": 10,
-				"cleanup_hours":  12,
-				"timeout_hours":  1,
+				"max_concurrent":  10,
+				"timeout_minutes": 120,
+				"idle_minutes":    10,
 			},
 		},
 	}
@@ -542,29 +604,34 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 			"priority": 0,
 		},
 		"transcoding": map[string]interface{}{
-			"output_dir":    "/app/viewra-data/transcoding",
-			"quality":       23,
-			"preset":        "medium",
-			"audio_codec":   "aac",
-			"audio_bitrate": 128,
-			"container":     "mp4",
+			"video_codec":       "h264",
+			"video_preset":      "fast",
+			"video_crf":         23,
+			"audio_codec":       "aac",
+			"audio_bitrate":     128,
+			"audio_channels":    2,
+			"default_container": "mp4",
 		},
 		"sessions": map[string]interface{}{
-			"max_concurrent": 4,
-			"cleanup_hours":  24,
-			"timeout_hours":  2,
+			"max_concurrent":  10,
+			"timeout_minutes": 120,
+			"idle_minutes":    10,
 		},
 		"performance": map[string]interface{}{
-			"enable_metrics":    true,
-			"metrics_interval":  30,
-			"resource_monitor":  true,
+			"buffer_size":       32768,
 			"progress_interval": 5,
+			"two_pass":          false,
+		},
+		"cleanup": map[string]interface{}{
+			"retention_hours":  2,
+			"extended_hours":   8,
+			"max_size_gb":      10,
+			"interval_minutes": 30,
 		},
 		"debug": map[string]interface{}{
-			"enabled":       false,
-			"log_ffmpeg":    false,
-			"save_commands": false,
-			"log_level":     "info",
+			"enabled":    false,
+			"log_ffmpeg": false,
+			"log_level":  "info",
 		},
 	}
 

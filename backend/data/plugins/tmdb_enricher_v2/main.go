@@ -395,6 +395,11 @@ func (t *TMDbEnricherV2) TranscodingService() plugins.TranscodingService {
 	return nil
 }
 
+// EnhancedAdminPageService returns the enhanced admin page service interface
+func (t *TMDbEnricherV2) EnhancedAdminPageService() plugins.EnhancedAdminPageService {
+	return nil // Return nil if enhanced admin page service is not implemented
+}
+
 // performanceServiceAdapter adapts BasePerformanceMonitor to PerformanceMonitorService interface
 type performanceServiceAdapter struct {
 	monitor *plugins.BasePerformanceMonitor

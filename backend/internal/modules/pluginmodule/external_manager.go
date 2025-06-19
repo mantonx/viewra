@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -366,10 +367,10 @@ func (a *ExternalPluginAdapter) convertToSessionSummary(session *plugins.Transco
 	var inputResolution, outputResolution, inputCodec, outputCodec, bitrate, duration string
 
 	if session.Request != nil {
-		outputResolution = session.Request.Resolution
-		outputCodec = session.Request.TargetCodec
-		if session.Request.Bitrate > 0 {
-			bitrate = fmt.Sprintf("%d kbps", session.Request.Bitrate)
+		outputResolution = session.Request.Environment["resolution"]
+		outputCodec = session.Request.CodecOpts.Video
+		if session.Request.CodecOpts.Bitrate != "" {
+			bitrate = session.Request.CodecOpts.Bitrate
 		}
 	}
 
@@ -773,33 +774,59 @@ func (s *BasicTranscodingService) StartTranscode(ctx context.Context, req *plugi
 	// Create GRPC client for transcoding service
 	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
 
-	// Convert internal request to protobuf
-	protoReq := &proto.StartTranscodeRequest{
-		Request: &proto.TranscodeRequest{
-			InputPath:       req.InputPath,
-			TargetCodec:     req.TargetCodec,
-			TargetContainer: req.TargetContainer,
-			Resolution:      req.Resolution,
-			Bitrate:         int32(req.Bitrate),
-			AudioCodec:      req.AudioCodec,
-			AudioBitrate:    int32(req.AudioBitrate),
-			AudioStream:     int32(req.AudioStream),
-			Quality:         int32(req.Quality),
-			Preset:          req.Preset,
-			Options:         req.Options,
-			Priority:        int32(req.Priority),
-		},
+	// Convert new TranscodeRequest to legacy format for GRPC
+	legacyReq := &proto.TranscodeRequest{
+		InputPath: req.InputPath,
+		Priority:  5,             // Default priority
+		SessionId: req.SessionID, // Pass session ID to plugin
 	}
 
-	// Handle subtitles if present
-	if req.Subtitles != nil {
+	// Add seek time to environment if present
+	if req.Seek > 0 {
+		if req.Environment == nil {
+			req.Environment = make(map[string]string)
+		}
+		req.Environment["seek_time"] = fmt.Sprintf("%.0f", req.Seek.Seconds())
+	}
+
+	// Extract codec options
+	if req.CodecOpts != nil {
+		legacyReq.TargetCodec = req.CodecOpts.Video
+		legacyReq.TargetContainer = req.CodecOpts.Container
+		legacyReq.AudioCodec = req.CodecOpts.Audio
+		legacyReq.Preset = req.CodecOpts.Preset
+		legacyReq.Quality = int32(req.CodecOpts.Quality)
+		if req.CodecOpts.Bitrate != "" {
+			// Parse bitrate string like "1000k" to int
+			bitrateStr := strings.TrimSuffix(req.CodecOpts.Bitrate, "k")
+			if bitrate, err := strconv.Atoi(bitrateStr); err == nil {
+				legacyReq.Bitrate = int32(bitrate)
+			}
+		}
+	}
+
+	// Extract environment settings
+	if req.Environment != nil {
+		if priorityStr, ok := req.Environment["priority"]; ok {
+			if priority, err := strconv.Atoi(priorityStr); err == nil {
+				legacyReq.Priority = int32(priority)
+			}
+		}
+	}
+
+	protoReq := &proto.StartTranscodeRequest{
+		Request: legacyReq,
+	}
+
+	// Handle subtitles if present in environment
+	if req.Environment["subtitles_enabled"] == "true" {
 		protoReq.Request.Subtitles = &proto.SubtitleConfig{
-			Enabled:   req.Subtitles.Enabled,
-			Language:  req.Subtitles.Language,
-			BurnIn:    req.Subtitles.BurnIn,
-			StreamIdx: int32(req.Subtitles.StreamIdx),
-			FontSize:  int32(req.Subtitles.FontSize),
-			FontColor: req.Subtitles.FontColor,
+			Enabled:   true,
+			Language:  req.Environment["subtitles_language"],
+			BurnIn:    req.Environment["subtitles_burn_in"] == "true",
+			StreamIdx: parseIntToInt32(req.Environment["subtitles_stream_idx"]),
+			FontSize:  parseIntToInt32(req.Environment["subtitles_font_size"]),
+			FontColor: req.Environment["subtitles_font_color"],
 		}
 	}
 
@@ -932,29 +959,32 @@ func (s *BasicTranscodingService) convertSessionFromProto(protoSession *proto.Tr
 
 	if protoSession.Request != nil {
 		session.Request = &plugins.TranscodeRequest{
-			InputPath:       protoSession.Request.InputPath,
-			TargetCodec:     protoSession.Request.TargetCodec,
-			TargetContainer: protoSession.Request.TargetContainer,
-			Resolution:      protoSession.Request.Resolution,
-			Bitrate:         int(protoSession.Request.Bitrate),
-			AudioCodec:      protoSession.Request.AudioCodec,
-			AudioBitrate:    int(protoSession.Request.AudioBitrate),
-			AudioStream:     int(protoSession.Request.AudioStream),
-			Quality:         int(protoSession.Request.Quality),
-			Preset:          protoSession.Request.Preset,
-			Options:         protoSession.Request.Options,
-			Priority:        int(protoSession.Request.Priority),
+			InputPath:     protoSession.Request.InputPath,
+			OutputPath:    "",  // Set by plugin
+			Seek:          0,   // No seek time from proto
+			Duration:      0,   // Full duration
+			DeviceProfile: nil, // Will be set below if available
+			CodecOpts: &plugins.CodecOptions{
+				Video:     protoSession.Request.TargetCodec,
+				Audio:     protoSession.Request.AudioCodec,
+				Container: protoSession.Request.TargetContainer,
+				Bitrate:   fmt.Sprintf("%dk", protoSession.Request.Bitrate),
+				Quality:   int(protoSession.Request.Quality),
+				Preset:    protoSession.Request.Preset,
+			},
+			Environment: map[string]string{
+				"priority": fmt.Sprintf("%d", protoSession.Request.Priority),
+			},
 		}
 
+		// Handle subtitles if present in proto - add to environment
 		if protoSession.Request.Subtitles != nil {
-			session.Request.Subtitles = &plugins.SubtitleConfig{
-				Enabled:   protoSession.Request.Subtitles.Enabled,
-				Language:  protoSession.Request.Subtitles.Language,
-				BurnIn:    protoSession.Request.Subtitles.BurnIn,
-				StreamIdx: int(protoSession.Request.Subtitles.StreamIdx),
-				FontSize:  int(protoSession.Request.Subtitles.FontSize),
-				FontColor: protoSession.Request.Subtitles.FontColor,
-			}
+			session.Request.Environment["subtitles_enabled"] = fmt.Sprintf("%t", protoSession.Request.Subtitles.Enabled)
+			session.Request.Environment["subtitles_language"] = protoSession.Request.Subtitles.Language
+			session.Request.Environment["subtitles_burn_in"] = fmt.Sprintf("%t", protoSession.Request.Subtitles.BurnIn)
+			session.Request.Environment["subtitles_stream_idx"] = fmt.Sprintf("%d", protoSession.Request.Subtitles.StreamIdx)
+			session.Request.Environment["subtitles_font_size"] = fmt.Sprintf("%d", protoSession.Request.Subtitles.FontSize)
+			session.Request.Environment["subtitles_font_color"] = protoSession.Request.Subtitles.FontColor
 		}
 
 		if protoSession.Request.DeviceProfile != nil {
@@ -2707,6 +2737,18 @@ func (m *ExternalPluginManager) discoverAndRegisterAdminPages(pluginID string, p
 }
 
 // discoverAdminPagesViaGRPC discovers admin pages using direct GRPC communication
+// Helper function for parsing int strings to int32
+func parseIntToInt32(value string) int32 {
+	if value == "" {
+		return 0
+	}
+	var val int
+	if _, err := fmt.Sscanf(value, "%d", &val); err == nil {
+		return int32(val)
+	}
+	return 0
+}
+
 func (m *ExternalPluginManager) discoverAdminPagesViaGRPC(pluginID string, client *goplugin.Client) error {
 	// Get the raw GRPC client
 	rpcClient, err := client.Client()

@@ -11,7 +11,6 @@ import {
   EyeOff,
   Settings,
   Zap,
-  Shield,
   Search
 } from 'lucide-react';
 import type {
@@ -429,7 +428,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const renderSettingField = (fieldId: string, field: any) => {
     // Use current value from formData first, then fallback to field default
     const value: any = formData[fieldId] !== undefined ? formData[fieldId] : field.default;
-    const isRequired = schema.required?.includes(fieldId);
+    const isRequired = schema?.required?.includes(fieldId);
     
     return (
       <div className="space-y-2">

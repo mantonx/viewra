@@ -3,24 +3,75 @@ package services
 import (
 	"context"
 	"time"
+
+	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/types"
+	"github.com/mantonx/viewra/pkg/plugins"
 )
 
-// TranscodingService defines the core transcoding functionality
+// TranscodingService handles FFmpeg transcoding operations
 type TranscodingService interface {
-	// Start a new transcoding job
-	StartJob(ctx context.Context, request *TranscodingRequest) (*TranscodingResponse, error)
+	// StartTranscode starts a new transcoding session
+	StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*types.Session, error)
 
-	// Stop a running transcoding job
-	StopJob(ctx context.Context, jobID string) error
+	// GetSession retrieves session information
+	GetSession(sessionID string) (*types.Session, error)
 
-	// Get job status and progress
-	GetJobStatus(ctx context.Context, jobID string) (*TranscodingJob, error)
+	// StopSession stops a transcoding session
+	StopSession(sessionID string) error
 
-	// Get system statistics
-	GetSystemStats(ctx context.Context) (*SystemStats, error)
+	// ListSessions returns all active sessions
+	ListSessions() ([]*types.Session, error)
 
-	// Clean up old/completed jobs
-	CleanupJobs(ctx context.Context, olderThan int) (int, error)
+	// GetCapabilities returns transcoding capabilities
+	GetCapabilities() *plugins.TranscodingCapabilities
+}
+
+// SessionManager manages transcoding sessions
+type SessionManager interface {
+	// CreateSession creates a new session
+	CreateSession(id string, inputPath string, container string) (*types.Session, error)
+
+	// GetSession retrieves a session
+	GetSession(sessionID string) (*types.Session, error)
+
+	// UpdateSession updates session information
+	UpdateSession(id string, update func(*types.Session) error) error
+
+	// RemoveSession removes a session
+	RemoveSession(sessionID string) error
+
+	// ListActiveSessions returns all active sessions
+	ListActiveSessions() ([]*types.Session, error)
+
+	// ListAllSessions returns all sessions
+	ListAllSessions() ([]*types.Session, error)
+
+	// CleanupStaleSessions removes stale sessions
+	CleanupStaleSessions(maxAge time.Duration) error
+}
+
+// HardwareDetector detects available hardware acceleration
+type HardwareDetector interface {
+	// DetectHardware detects available hardware acceleration
+	DetectHardware() (*types.HardwareInfo, error)
+
+	// GetBestEncoder returns the best encoder for given codec
+	GetBestEncoder(codec string) string
+
+	// IsEncoderAvailable checks if an encoder is available
+	IsEncoderAvailable(encoder string) bool
+}
+
+// CleanupService handles file and session cleanup
+type CleanupService interface {
+	// CleanupExpiredSessions removes expired transcoding files
+	CleanupExpiredSessions() (*types.CleanupInfo, error)
+
+	// GetCleanupStats returns cleanup statistics
+	GetCleanupStats() (*types.CleanupInfo, error)
+
+	// CleanupSession removes a specific session's files
+	CleanupSession(sessionID string) error
 }
 
 // FFmpegExecutor defines the interface for executing FFmpeg commands

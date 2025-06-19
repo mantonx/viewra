@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/pkg/plugins"
 	"gorm.io/gorm"
@@ -67,6 +68,12 @@ func (sm *SessionManager) GetBestPlugin(req *plugins.TranscodeRequest) (string, 
 
 		// Check if plugin can handle this request (basic validation)
 		if !sm.canPluginHandleRequest(capabilities, req) {
+			sm.logger.Debug("plugin cannot handle request",
+				"plugin_id", pluginID,
+				"video_codec", req.CodecOpts.Video,
+				"container", req.CodecOpts.Container,
+				"supported_codecs", capabilities.SupportedCodecs,
+				"supported_containers", capabilities.SupportedContainers)
 			continue
 		}
 
@@ -86,6 +93,11 @@ func (sm *SessionManager) GetBestPlugin(req *plugins.TranscodeRequest) (string, 
 
 // StartSession starts a new transcoding session with automatic plugin selection
 func (sm *SessionManager) StartSession(ctx context.Context, req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error) {
+	// Generate a UUID session ID if one isn't provided
+	if req.SessionID == "" {
+		req.SessionID = generateSessionID()
+	}
+
 	// Find the best plugin for this request
 	pluginID, plugin, err := sm.GetBestPlugin(req)
 	if err != nil {
@@ -107,8 +119,8 @@ func (sm *SessionManager) StartSession(ctx context.Context, req *plugins.Transco
 		"session_id", session.ID,
 		"plugin_id", pluginID,
 		"input_path", req.InputPath,
-		"target_codec", req.TargetCodec,
-		"resolution", req.Resolution)
+		"target_codec", req.CodecOpts.Video,
+		"resolution", req.Environment["resolution"])
 
 	return session, nil
 }
@@ -270,18 +282,22 @@ func (sm *SessionManager) GetStats() (*TranscodingStats, error) {
 
 // Helper function to check if a plugin can handle a request
 func (sm *SessionManager) canPluginHandleRequest(capabilities *plugins.TranscodingCapabilities, req *plugins.TranscodeRequest) bool {
-	// Check codec support
-	if req.TargetCodec != "" && !stringInSlice(req.TargetCodec, capabilities.SupportedCodecs) {
+	if req.CodecOpts == nil {
+		return true // No specific requirements
+	}
+
+	// Check codec support - allow "auto" as it means the plugin will choose the best codec
+	if req.CodecOpts.Video != "" && req.CodecOpts.Video != "auto" && !stringInSlice(req.CodecOpts.Video, capabilities.SupportedCodecs) {
 		return false
 	}
 
 	// Check container support
-	if req.TargetContainer != "" && !stringInSlice(req.TargetContainer, capabilities.SupportedContainers) {
+	if req.CodecOpts.Container != "" && !stringInSlice(req.CodecOpts.Container, capabilities.SupportedContainers) {
 		return false
 	}
 
 	// Check resolution support (basic check)
-	if req.Resolution != "" && len(capabilities.SupportedResolutions) > 0 && !stringInSlice(req.Resolution, capabilities.SupportedResolutions) {
+	if resolution := req.Environment["resolution"]; resolution != "" && len(capabilities.SupportedResolutions) > 0 && !stringInSlice(resolution, capabilities.SupportedResolutions) {
 		return false
 	}
 
@@ -351,4 +367,9 @@ func (sm *SessionManager) calculateDirectorySize(dirPath string) int64 {
 	})
 
 	return size
+}
+
+// generateSessionID creates a new UUID for session identification
+func generateSessionID() string {
+	return uuid.New().String()
 }

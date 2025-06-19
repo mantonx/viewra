@@ -37,6 +37,7 @@ type TranscodeStartRequest struct {
 	CallbackURL  string            `json:"callback_url,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 	ForceBackend string            `json:"force_backend,omitempty"`
+	Priority     int               `json:"priority,omitempty"`
 }
 
 // SessionListRequest represents parameters for listing sessions
@@ -228,13 +229,22 @@ func (pm *PlaybackModule) handlePlaybackDecisionEnhanced(c *gin.Context) {
 
 	// Apply request options to decision
 	if decision.TranscodeParams != nil && request.Options.PreferredCodec != "" {
-		decision.TranscodeParams.TargetCodec = request.Options.PreferredCodec
+		if decision.TranscodeParams.CodecOpts == nil {
+			decision.TranscodeParams.CodecOpts = &plugins.CodecOptions{}
+		}
+		decision.TranscodeParams.CodecOpts.Video = request.Options.PreferredCodec
 	}
 	if decision.TranscodeParams != nil && request.Options.Quality > 0 {
-		decision.TranscodeParams.Quality = request.Options.Quality
+		if decision.TranscodeParams.CodecOpts == nil {
+			decision.TranscodeParams.CodecOpts = &plugins.CodecOptions{}
+		}
+		decision.TranscodeParams.CodecOpts.Quality = request.Options.Quality
 	}
 	if decision.TranscodeParams != nil && request.Options.Preset != "" {
-		decision.TranscodeParams.Preset = request.Options.Preset
+		if decision.TranscodeParams.CodecOpts == nil {
+			decision.TranscodeParams.CodecOpts = &plugins.CodecOptions{}
+		}
+		decision.TranscodeParams.CodecOpts.Preset = request.Options.Preset
 	}
 
 	processTime := time.Since(startTime).Milliseconds()
@@ -256,23 +266,41 @@ func (pm *PlaybackModule) handlePlaybackDecisionEnhanced(c *gin.Context) {
 
 // handleStartTranscodeEnhanced initiates a new transcoding session with enhanced options
 func (pm *PlaybackModule) handleStartTranscodeEnhanced(c *gin.Context) {
+	fmt.Printf("=== HANDLESTARTTRANSCODE FUNCTION ENTRY ===\n")
+
 	var request TranscodeStartRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
-	// Apply priority if specified
-	if request.Priority > 0 {
-		request.TranscodeRequest.Priority = request.Priority
+	// Convert to internal request format
+	transcodeReq := &plugins.TranscodeRequest{
+		InputPath: request.InputPath,
+		CodecOpts: &plugins.CodecOptions{
+			Video:     request.CodecOpts.Video,
+			Audio:     request.CodecOpts.Audio,
+			Container: request.CodecOpts.Container,
+		},
+		Environment: make(map[string]string),
 	}
 
-	session, err := pm.transcodeManager.StartTranscode(&request.TranscodeRequest)
+	// Add environment variables
+	if request.Environment != nil {
+		for k, v := range request.Environment {
+			transcodeReq.Environment[k] = v
+		}
+	}
+
+	fmt.Printf("DEBUG: About to call transcodeManager.StartTranscode\n")
+	// Start transcoding session
+	session, err := pm.transcodeManager.StartTranscode(transcodeReq)
 	if err != nil {
-		pm.logger.Error("failed to start transcode", "error", err)
+		fmt.Printf("DEBUG: transcodeManager.StartTranscode failed with error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Printf("DEBUG: transcodeManager.StartTranscode succeeded\n")
 
 	// Convert to enhanced response
 	response := &TranscodeSessionResponse{
@@ -599,7 +627,7 @@ func (pm *PlaybackModule) handleSeekAhead(c *gin.Context) {
 
 	// Create a new transcode request starting from the seek time
 	seekRequest := *currentSession.Request
-	seekRequest.StartTime = request.SeekTime
+	seekRequest.Seek = time.Duration(request.SeekTime) * time.Second
 
 	// Start new transcoding session from seek time (asynchronously)
 	go func() {

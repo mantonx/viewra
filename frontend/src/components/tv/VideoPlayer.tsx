@@ -660,9 +660,18 @@ const VideoPlayer: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             input_path: episodeFile.path,
-            target_codec: decision.transcode_params?.target_codec || 'h264',
-            target_container: decision.transcode_params?.target_container || 'dash',
-            resolution: decision.transcode_params?.resolution || '1080p'
+            codec_opts: {
+              video: decision.transcode_params?.target_codec || 'h264',
+              audio: 'aac',
+              container: decision.transcode_params?.target_container || 'dash',
+              bitrate: decision.transcode_params?.bitrate ? `${decision.transcode_params.bitrate}k` : '6000k',
+              quality: 23,
+              preset: 'fast'
+            },
+            environment: {
+              resolution: decision.transcode_params?.resolution || '1080p',
+              priority: '5'
+            }
           })
         });
 

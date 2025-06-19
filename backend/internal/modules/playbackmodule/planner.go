@@ -178,17 +178,22 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 	reason := "Transcoding required: " + strings.Join(reasons, ", ")
 
 	return &plugins.TranscodeRequest{
-		InputPath:       mediaPath, // Fix: Add the missing InputPath field
-		TargetCodec:     targetCodec,
-		TargetContainer: targetContainer,
-		Resolution:      targetResolution,
-		Bitrate:         targetBitrate,
-		AudioCodec:      "aac",
-		AudioBitrate:    128,
-		Quality:         23, // CRF value
-		Preset:          "fast",
-		DeviceProfile:   profile,
-		Priority:        5,
+		InputPath:     mediaPath,
+		OutputPath:    "", // Will be set by the transcoding service
+		Seek:          0,  // No seek by default
+		Duration:      0,  // Will use full duration
+		DeviceProfile: profile,
+		CodecOpts: &plugins.CodecOptions{
+			Video:     targetCodec,
+			Audio:     "aac",
+			Container: targetContainer,
+			Bitrate:   fmt.Sprintf("%dk", targetBitrate),
+			Quality:   23, // CRF value
+			Preset:    "fast",
+		},
+		Environment: map[string]string{
+			"priority": "5",
+		},
 	}, reason
 }
 

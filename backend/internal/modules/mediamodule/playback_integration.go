@@ -93,16 +93,21 @@ func (pi *PlaybackIntegration) HandleStreamWithDecision(c *gin.Context) {
 	if forceTranscode {
 		// Force transcoding with specified quality
 		transcodeParams := &plugins.TranscodeRequest{
-			InputPath:       mediaFile.Path,
-			TargetCodec:     "h264",
-			TargetContainer: "mp4",
-			Resolution:      quality,
-			Bitrate:         pi.getBitrateForQuality(quality),
-			AudioCodec:      "aac",
-			AudioBitrate:    128,
-			Quality:         23,
-			Preset:          "fast",
-			Priority:        5,
+			InputPath:  mediaFile.Path,
+			OutputPath: "", // Will be set by transcoding manager
+			CodecOpts: &plugins.CodecOptions{
+				Video:     "h264",
+				Audio:     "aac",
+				Container: "mp4",
+				Bitrate:   fmt.Sprintf("%dk", pi.getBitrateForQuality(quality)),
+				Quality:   23,
+				Preset:    "fast",
+			},
+			Environment: map[string]string{
+				"resolution":    quality,
+				"audio_bitrate": "128k",
+				"priority":      "5",
+			},
 		}
 
 		pi.handleTranscodingStream(c, &mediaFile, transcodeParams)
@@ -162,9 +167,14 @@ func (pi *PlaybackIntegration) HandlePlaybackDecision(c *gin.Context) {
 		transcodeManager := pi.playbackModule.GetTranscodeManager()
 
 		// Test if transcoding would work (without actually starting it)
-		log.Printf("DEBUG: Testing CanTranscode with params: codec=%s, container=%s, resolution=%s, bitrate=%d",
-			decision.TranscodeParams.TargetCodec, decision.TranscodeParams.TargetContainer,
-			decision.TranscodeParams.Resolution, decision.TranscodeParams.Bitrate)
+		codecOpts := decision.TranscodeParams.CodecOpts
+		resolution := decision.TranscodeParams.Environment["resolution"]
+		bitrate := "unknown"
+		if codecOpts != nil {
+			bitrate = codecOpts.Bitrate
+		}
+		log.Printf("DEBUG: Testing CanTranscode with params: codec=%s, container=%s, resolution=%s, bitrate=%s",
+			codecOpts.Video, codecOpts.Container, resolution, bitrate)
 
 		if err := transcodeManager.CanTranscode(decision.TranscodeParams); err != nil {
 			log.Printf("DEBUG: CanTranscode failed: %v", err)
@@ -200,8 +210,13 @@ func (pi *PlaybackIntegration) handleTranscodingStream(c *gin.Context, mediaFile
 	clientIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
+	targetResolution := transcodeParams.Environment["resolution"]
+	targetContainer := ""
+	if transcodeParams.CodecOpts != nil {
+		targetContainer = transcodeParams.CodecOpts.Container
+	}
 	log.Printf("🔍 [TELEMETRY] Session start: file_id=%s client_ip=%s user_agent=%s container=%s video_codec=%s audio_codec=%s target_resolution=%s target_container=%s",
-		mediaFile.ID, clientIP, userAgent, mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec, transcodeParams.Resolution, transcodeParams.TargetContainer)
+		mediaFile.ID, clientIP, userAgent, mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec, targetResolution, targetContainer)
 
 	transcodeManager := pi.playbackModule.GetTranscodeManager()
 
@@ -234,42 +249,46 @@ func (pi *PlaybackIntegration) handleTranscodingStream(c *gin.Context, mediaFile
 
 	transcodingStartTime := time.Now()
 	log.Printf("🔍 [TELEMETRY] Transcoding started: file_id=%s session_id=%s backend=%s setup_duration=%v target_container=%s",
-		mediaFile.ID, session.ID, session.Backend, time.Since(sessionStartTime), transcodeParams.TargetContainer)
+		mediaFile.ID, session.ID, session.Backend, time.Since(sessionStartTime), targetContainer)
 
+	targetCodec := ""
+	if transcodeParams.CodecOpts != nil {
+		targetCodec = transcodeParams.CodecOpts.Video
+	}
 	log.Printf("INFO: Transcoding session started for file_id=%s, session_id=%s, backend=%s, target_codec=%s, resolution=%s, container=%s",
-		mediaFile.ID, session.ID, session.Backend, transcodeParams.TargetCodec, transcodeParams.Resolution, transcodeParams.TargetContainer)
+		mediaFile.ID, session.ID, session.Backend, targetCodec, targetResolution, targetContainer)
 
 	// ===== CRITICAL FIX: Handle DASH/HLS adaptive streaming differently =====
-	if transcodeParams.TargetContainer == "dash" || transcodeParams.TargetContainer == "hls" {
-		log.Printf("🎬 ADAPTIVE STREAMING: Returning session info for %s adaptive streaming instead of progressive stream", strings.ToUpper(transcodeParams.TargetContainer))
+	if targetContainer == "dash" || targetContainer == "hls" {
+		log.Printf("🎬 ADAPTIVE STREAMING: Returning session info for %s adaptive streaming instead of progressive stream", strings.ToUpper(targetContainer))
 
 		// For DASH/HLS, return session information so frontend can construct manifest URLs
 		manifestEndpoint := ""
-		if transcodeParams.TargetContainer == "dash" {
+		if targetContainer == "dash" {
 			manifestEndpoint = fmt.Sprintf("/api/playback/stream/%s/manifest.mpd", session.ID)
 		} else {
 			manifestEndpoint = fmt.Sprintf("/api/playback/stream/%s/playlist.m3u8", session.ID)
 		}
 
 		log.Printf("🔍 [TELEMETRY] Adaptive streaming session info returned: session_id=%s container=%s manifest_url=%s setup_duration=%v",
-			session.ID, transcodeParams.TargetContainer, manifestEndpoint, time.Since(sessionStartTime))
+			session.ID, targetContainer, manifestEndpoint, time.Since(sessionStartTime))
 
 		// Return adaptive streaming session information
 		c.Header("Content-Type", "application/json")
 		c.Header("X-Adaptive-Streaming", "true")
 		c.Header("X-Transcode-Session-ID", session.ID)
 		c.Header("X-Transcode-Backend", session.Backend)
-		c.Header("X-Transcode-Container", transcodeParams.TargetContainer)
+		c.Header("X-Transcode-Container", targetContainer)
 		c.Header("X-Manifest-URL", manifestEndpoint)
 
 		c.JSON(http.StatusOK, gin.H{
 			"adaptive_streaming": true,
 			"session_id":         session.ID,
-			"container":          transcodeParams.TargetContainer,
+			"container":          targetContainer,
 			"manifest_url":       manifestEndpoint,
 			"backend":            session.Backend,
-			"resolution":         transcodeParams.Resolution,
-			"message":            fmt.Sprintf("Use manifest URL for %s adaptive streaming", strings.ToUpper(transcodeParams.TargetContainer)),
+			"resolution":         targetResolution,
+			"message":            fmt.Sprintf("Use manifest URL for %s adaptive streaming", strings.ToUpper(targetContainer)),
 		})
 		return
 	}
@@ -290,7 +309,7 @@ func (pi *PlaybackIntegration) handleTranscodingStream(c *gin.Context, mediaFile
 	// Add transcoding session headers
 	c.Header("X-Transcode-Session-ID", session.ID)
 	c.Header("X-Transcode-Backend", session.Backend)
-	c.Header("X-Transcode-Quality", transcodeParams.Resolution)
+	c.Header("X-Transcode-Quality", targetResolution)
 
 	// Get transcoding service for streaming
 	transcodingService, err := transcodeManager.GetTranscodeStream(session.ID)

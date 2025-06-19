@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	enrichmentpb "github.com/mantonx/viewra/api/proto/enrichment"
 	pluginspb "github.com/mantonx/viewra/pkg/plugins/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -13,9 +12,10 @@ import (
 
 // UnifiedServiceClient provides both asset and enrichment services from a single connection
 type UnifiedServiceClient struct {
-	conn              *grpc.ClientConn
-	assetClient       pluginspb.AssetServiceClient
-	enrichmentClient  enrichmentpb.EnrichmentServiceClient
+	conn        *grpc.ClientConn
+	assetClient pluginspb.AssetServiceClient
+	// Remove enrichment client for now
+	// enrichmentClient  enrichmentpb.EnrichmentServiceClient
 }
 
 // NewUnifiedServiceClient creates a single connection that provides both asset and enrichment services
@@ -36,16 +36,17 @@ func NewUnifiedServiceClient(hostServiceAddr string) (*UnifiedServiceClient, err
 			grpc.MaxCallSendMsgSize(16*1024*1024), // 16MB to match server
 		),
 	}
-	
+
 	conn, err := grpc.DialContext(ctx, hostServiceAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to host service: %w", err)
 	}
 
 	return &UnifiedServiceClient{
-		conn:              conn,
-		assetClient:       pluginspb.NewAssetServiceClient(conn),
-		enrichmentClient:  enrichmentpb.NewEnrichmentServiceClient(conn),
+		conn:        conn,
+		assetClient: pluginspb.NewAssetServiceClient(conn),
+		// Remove enrichment client initialization
+		// enrichmentClient:  enrichmentpb.NewEnrichmentServiceClient(conn),
 	}, nil
 }
 
@@ -57,12 +58,10 @@ func (c *UnifiedServiceClient) AssetService() AssetServiceClient {
 	}
 }
 
-// EnrichmentService returns the enrichment service client
+// EnrichmentService returns the enrichment service client (stub implementation)
 func (c *UnifiedServiceClient) EnrichmentService() EnrichmentServiceClient {
-	return &GRPCEnrichmentServiceClient{
-		conn:   c.conn,
-		client: c.enrichmentClient,
-	}
+	// Return a stub implementation for now
+	return &StubEnrichmentServiceClient{}
 }
 
 // Close closes the unified connection
@@ -71,4 +70,4 @@ func (c *UnifiedServiceClient) Close() error {
 		return c.conn.Close()
 	}
 	return nil
-} 
+}
