@@ -57,6 +57,18 @@ backend/data/plugins/*/*
 !backend/data/plugins/*/tagreader/
 !backend/data/plugins/*/testdata/
 
+# Plugin runtime files
+backend/data/plugins/*/*.json
+backend/data/plugins/*/*.m4s
+backend/data/plugins/*/*.mpd
+backend/data/plugins/*/*.m3u8
+backend/data/plugins/*/*.ts
+backend/data/plugins/*/.tmp
+backend/data/plugins/*/ffmpeg_transcoder
+backend/data/plugins/*/tmdb_enricher_v2
+backend/data/plugins/*/musicbrainz_enricher
+backend/data/plugins/*/audiodb_enricher
+
 # Backup files
 *.bak
 *.backup
