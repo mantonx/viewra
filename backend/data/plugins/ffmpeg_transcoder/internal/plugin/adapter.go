@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/types"
@@ -14,12 +15,16 @@ import (
 // transcodingServiceAdapter adapts the internal plugin to the SDK interface
 type transcodingServiceAdapter struct {
 	plugin *FFmpegTranscoderPlugin
+	// Track requests by session ID since internal sessions don't store them
+	sessionRequests map[string]*plugins.TranscodeRequest
+	mutex           sync.RWMutex
 }
 
 // newTranscodingServiceAdapter creates a new adapter
 func newTranscodingServiceAdapter(plugin *FFmpegTranscoderPlugin) *transcodingServiceAdapter {
 	return &transcodingServiceAdapter{
-		plugin: plugin,
+		plugin:          plugin,
+		sessionRequests: make(map[string]*plugins.TranscodeRequest),
 	}
 }
 
@@ -75,9 +80,16 @@ func (a *transcodingServiceAdapter) StartTranscode(ctx context.Context, req *plu
 		Metadata:  make(map[string]interface{}),
 	}
 
+	// Store the request for later retrieval
+	a.mutex.Lock()
+	a.sessionRequests[session.ID] = req
+	a.mutex.Unlock()
+
 	// Add output path to metadata
 	if session.OutputPath != "" {
 		pluginSession.Metadata["output_path"] = session.OutputPath
+		// Also store input path for seek-ahead
+		pluginSession.Metadata["input_path"] = req.InputPath
 	}
 	if session.SessionDir != "" {
 		pluginSession.Metadata["session_dir"] = session.SessionDir
@@ -113,7 +125,14 @@ func (a *transcodingServiceAdapter) StopTranscode(ctx context.Context, sessionID
 		return fmt.Errorf("transcoding service not initialized")
 	}
 
-	return a.plugin.transcodingService.StopSession(sessionID)
+	err := a.plugin.transcodingService.StopSession(sessionID)
+
+	// Clean up the stored request regardless of error
+	a.mutex.Lock()
+	delete(a.sessionRequests, sessionID)
+	a.mutex.Unlock()
+
+	return err
 }
 
 // ListActiveSessions returns all currently active transcoding sessions
@@ -191,8 +210,14 @@ func (a *transcodingServiceAdapter) convertSession(session *types.Session) *plug
 		status = plugins.StatusPending
 	}
 
-	return &plugins.TranscodeSession{
+	// Retrieve the stored request
+	a.mutex.RLock()
+	request := a.sessionRequests[session.ID]
+	a.mutex.RUnlock()
+
+	pluginSession := &plugins.TranscodeSession{
 		ID:        session.ID,
+		Request:   request, // Include the stored request
 		Status:    status,
 		Progress:  session.Progress,
 		StartTime: session.StartTime,
@@ -204,4 +229,11 @@ func (a *transcodingServiceAdapter) convertSession(session *types.Session) *plug
 			"container":   session.Container,
 		},
 	}
+
+	// Also include input path in metadata if we have the request
+	if request != nil && request.InputPath != "" {
+		pluginSession.Metadata["input_path"] = request.InputPath
+	}
+
+	return pluginSession
 }
