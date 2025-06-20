@@ -206,7 +206,7 @@ test_transcode() {
     
     # Test transcoding
     response=$(curl -s -X POST -H "Content-Type: application/json" \
-        -d '{"media_path": "/tmp/test_video.mp4", "client_info": {"user_agent": "Mozilla/5.0 Chrome/125.0", "client_ip": "127.0.0.1"}, "force_transcode": true, "transcode_params": {"container": "dash", "video_codec": "h264", "audio_codec": "aac", "quality": 70}}' \
+        -d '{"input_path": "/tmp/test_video.mp4", "container": "dash", "video_codec": "h264", "audio_codec": "aac", "quality": 70}' \
         http://localhost:8080/api/playback/start)
     
     if echo "$response" | grep -q "error"; then

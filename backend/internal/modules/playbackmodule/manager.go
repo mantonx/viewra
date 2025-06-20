@@ -317,10 +317,14 @@ func (m *Manager) SetEnabled(enabled bool) {
 
 // SetPluginManager sets the plugin manager (used for late binding)
 func (m *Manager) SetPluginManager(pluginManager PluginManagerInterface) {
+	logger.Info("Manager.SetPluginManager called", "pluginManager_nil", pluginManager == nil)
 	m.pluginManager = pluginManager
 
 	// Update transcoding manager if it supports plugin manager updates
 	if updater, ok := m.transcodeManager.(interface{ SetPluginManager(PluginManagerInterface) }); ok {
+		logger.Info("Updating transcodeManager with plugin manager")
 		updater.SetPluginManager(pluginManager)
+	} else {
+		logger.Warn("transcodeManager does not support SetPluginManager")
 	}
 }

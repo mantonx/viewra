@@ -206,12 +206,15 @@ func (m *Module) GetManager() *Manager {
 
 // SetPluginModule sets the plugin module for the playback system
 func (m *Module) SetPluginModule(pluginModule PluginManagerInterface) {
-	logger.Info("Setting plugin module for playback")
+	logger.Info("SetPluginModule called", "pluginModule_nil", pluginModule == nil)
 	m.pluginModule = pluginModule
 
 	// Update manager if it exists
 	if m.manager != nil {
+		logger.Info("Updating manager with plugin module")
 		m.manager.SetPluginManager(pluginModule)
+	} else {
+		logger.Warn("Manager is nil when setting plugin module")
 	}
 }
 

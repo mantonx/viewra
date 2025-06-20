@@ -60,6 +60,15 @@ func NewTranscodeManager(logger hclog.Logger, db *gorm.DB, pluginManager interfa
 	}
 }
 
+// SetPluginManager sets the plugin manager for late binding
+func (tm *TranscodeManagerImpl) SetPluginManager(pluginManager PluginManagerInterface) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	tm.logger.Info("TranscodeManagerImpl.SetPluginManager called", "pluginManager_nil", pluginManager == nil)
+	tm.pluginManager = pluginManager
+}
+
 // Initialize sets up the transcoding manager
 func (tm *TranscodeManagerImpl) Initialize() error {
 	tm.logger.Info("initializing transcode manager")
@@ -93,9 +102,13 @@ func (tm *TranscodeManagerImpl) RegisterProvider(pluginID string, provider plugi
 func (tm *TranscodeManagerImpl) DiscoverTranscodingPlugins() error {
 	tm.logger.Info("discovering transcoding plugins")
 
+	// Debug print to verify this is being called
+	fmt.Printf("DEBUG: DiscoverTranscodingPlugins called, pluginManager = %v\n", tm.pluginManager)
+
 	// If no plugin manager is available, skip discovery
 	if tm.pluginManager == nil {
 		tm.logger.Debug("no plugin manager available for transcoding plugin discovery")
+		fmt.Printf("DEBUG: pluginManager is nil!\n")
 		return nil
 	}
 
