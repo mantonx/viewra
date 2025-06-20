@@ -270,6 +270,7 @@ func (w *transcodingServiceWrapper) StartTranscode(ctx context.Context, req *plu
 			Preset:       req.CodecOpts.Preset,
 			AudioBitrate: 128, // Default
 		},
+		Environment: req.Environment, // Pass through the environment variables
 	}
 
 	// Start the job

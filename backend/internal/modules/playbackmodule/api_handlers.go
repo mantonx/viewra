@@ -627,35 +627,47 @@ func (pm *PlaybackModule) handleSeekAhead(c *gin.Context) {
 
 	// Create a new transcode request starting from the seek time
 	seekRequest := *currentSession.Request
-	seekRequest.Seek = time.Duration(request.SeekTime) * time.Second
 
-	// Start new transcoding session from seek time (asynchronously)
-	go func() {
-		newSession, err := pm.transcodeManager.StartTranscode(&seekRequest)
-		if err != nil {
-			pm.logger.Error("failed to start seek-ahead transcode", "error", err, "seek_time", request.SeekTime)
-			return
+	// Add seek time to the request
+	if seekRequest.Environment == nil {
+		seekRequest.Environment = make(map[string]string)
+	}
+	seekRequest.Environment["SEEK_START"] = fmt.Sprintf("%d", request.SeekTime)
+
+	// Start new transcoding session from seek time
+	newSession, err := pm.transcodeManager.StartTranscode(&seekRequest)
+	if err != nil {
+		pm.logger.Error("failed to start seek-ahead transcode", "error", err, "seek_time", request.SeekTime)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start seek-ahead transcoding"})
+		return
+	}
+
+	// Construct response with new session info
+	manifestURL := ""
+	if currentSession.Request != nil && currentSession.Request.CodecOpts != nil {
+		switch currentSession.Request.CodecOpts.Container {
+		case "dash":
+			manifestURL = fmt.Sprintf("/api/playback/stream/%s/manifest.mpd", newSession.ID)
+		case "hls":
+			manifestURL = fmt.Sprintf("/api/playback/stream/%s/playlist.m3u8", newSession.ID)
+		default:
+			manifestURL = fmt.Sprintf("/api/playback/stream/%s", newSession.ID)
 		}
+	}
 
-		pm.logger.Info("seek-ahead transcoding started in background",
-			"original_session_id", request.SessionID,
-			"new_session_id", newSession.ID,
-			"seek_time", request.SeekTime)
-
-		// Note: We don't stop the old session because the plugin intelligently
-		// reuses sessions for the same input file. Stopping it would break playback.
-	}()
-
-	// Immediately return success - let Shaka Player handle the seeking
-	pm.logger.Info("seek-ahead request accepted",
-		"session_id", request.SessionID,
-		"seek_time", request.SeekTime)
+	pm.logger.Info("seek-ahead transcoding started",
+		"original_session_id", request.SessionID,
+		"new_session_id", newSession.ID,
+		"seek_time", request.SeekTime,
+		"manifest_url", manifestURL)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    "seek-ahead transcoding started",
-		"session_id": request.SessionID,
-		"seek_time":  request.SeekTime,
-		"status":     "background_processing",
+		"message":      "seek-ahead transcoding started",
+		"session_id":   newSession.ID,
+		"manifest_url": manifestURL,
+		"seek_time":    request.SeekTime,
+		"status":       string(newSession.Status),
+		"backend":      newSession.Backend,
 	})
 }
 

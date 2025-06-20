@@ -51,22 +51,21 @@ func (s *DefaultTranscodingService) StartJob(ctx context.Context, request *Trans
 	// Generate job ID
 	jobID := generateJobID()
 
-	// Create job
+	// Create a cancelable context for the job
+	jobCtx, cancelFunc := context.WithCancel(context.Background())
+
+	// Create the job
 	job := &TranscodingJob{
 		ID:         jobID,
-		Status:     StatusPending,
+		Status:     StatusQueued,
 		InputFile:  request.InputFile,
 		OutputFile: request.OutputFile,
 		Settings:   request.Settings,
 		StartTime:  time.Now(),
-		Progress: Progress{
-			LastUpdate: time.Now(),
-		},
+		Progress:   Progress{},
+		CancelFunc: cancelFunc,
+		Request:    request, // Store the original request
 	}
-
-	// Create a cancelable context for the job
-	jobCtx, cancelFunc := context.WithCancel(context.Background())
-	job.CancelFunc = cancelFunc
 
 	// Store job
 	s.jobs[jobID] = job
@@ -322,6 +321,14 @@ func (s *DefaultTranscodingService) buildFFmpegArgs(job *TranscodingJob) ([]stri
 	// This automatically detects and uses the best available hardware acceleration
 	// (NVENC, VAAPI, QSV, VideoToolbox) without manual configuration
 	args = append(args, "-hwaccel", "auto")
+
+	// Check if we need to seek to a specific time
+	if job.Request != nil && job.Request.Environment != nil {
+		if seekStart, ok := job.Request.Environment["SEEK_START"]; ok && seekStart != "" {
+			// Add seek before input for efficient seeking
+			args = append(args, "-ss", seekStart)
+		}
+	}
 
 	// Input file
 	args = append(args, "-i", job.InputFile)

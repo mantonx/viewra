@@ -803,22 +803,48 @@ const VideoPlayer: React.FC = () => {
         })
       });
 
-             if (response.ok) {
-         const seekResponse = await response.json();
-         console.log('✅ Seek-ahead transcoding started:', seekResponse);
-         setIsSeekingAhead(true);
-         
-         // Reset seeking state after 30 seconds
-         setTimeout(() => {
-           setIsSeekingAhead(false);
-         }, 30000);
-         
-         // Give user feedback that transcoding started
-         // Note: We don't switch manifests or complicate the UI
-         // The background transcoding will make more content available
-       } else {
-         console.warn('⚠️ Seek-ahead request failed:', response.status);
-       }
+      if (response.ok) {
+        const seekResponse = await response.json();
+        console.log('✅ Seek-ahead transcoding started:', seekResponse);
+        setIsSeekingAhead(true);
+        
+        // Add the new session to active sessions
+        if (seekResponse.session_id) {
+          setActiveSessionIds(prev => new Set([...prev, seekResponse.session_id]));
+        }
+        
+        // If we have a new manifest URL, update the player
+        if (seekResponse.manifest_url && playerRef.current) {
+          console.log('🔄 Switching to new manifest URL:', seekResponse.manifest_url);
+          
+          // Update playback decision with new manifest URL
+          setPlaybackDecision(prev => ({
+            ...prev!,
+            manifest_url: seekResponse.manifest_url,
+            session_id: seekResponse.session_id
+          }));
+          
+          // Load the new manifest in Shaka Player
+          try {
+            await playerRef.current.load(seekResponse.manifest_url);
+            console.log('✅ New manifest loaded successfully');
+            
+            // The new stream starts from the seek position, so set current time to 0
+            if (videoRef.current) {
+              videoRef.current.currentTime = 0;
+            }
+          } catch (err) {
+            console.error('❌ Failed to load new manifest:', err);
+          }
+        }
+        
+        // Reset seeking state after a short delay
+        setTimeout(() => {
+          setIsSeekingAhead(false);
+        }, 5000);
+      } else {
+        console.warn('⚠️ Seek-ahead request failed:', response.status);
+      }
       
     } catch (error) {
       console.error('❌ Failed to request seek-ahead:', error);
@@ -841,7 +867,14 @@ const VideoPlayer: React.FC = () => {
 
     const seekTime = progress * duration;
 
-    console.log('🎯 Seeking to:', { progress, duration, seekTime, rawDuration });
+    console.log('🎯 Seeking to:', { 
+      progress, 
+      duration, 
+      seekTime, 
+      rawDuration,
+      seekableDuration,
+      buffered: videoRef.current.buffered.length > 0 ? videoRef.current.buffered.end(0) : 0
+    });
 
     // Validate seek time before setting
     if (!isFinite(seekTime) || isNaN(seekTime) || seekTime < 0) {
@@ -849,37 +882,46 @@ const VideoPlayer: React.FC = () => {
       return;
     }
 
-    // For normal seeking within available content, just seek directly
-    if (seekTime <= seekableDuration) {
+    // For DASH/HLS, check actual buffered range instead of seekableDuration
+    const actualBufferedEnd = videoRef.current.buffered.length > 0 
+      ? videoRef.current.buffered.end(videoRef.current.buffered.length - 1)
+      : 0;
+
+    // For normal seeking within buffered content, just seek directly
+    if (seekTime <= actualBufferedEnd) {
       videoRef.current.currentTime = seekTime;
-      console.log('✅ Normal seek within available content:', seekTime);
+      console.log('✅ Normal seek within buffered content:', seekTime);
       return;
     }
 
-    // For DASH/HLS streams, check if we need seek-ahead beyond available content
+    // For DASH/HLS streams, check if we need seek-ahead beyond buffered content
     if (playbackDecision.transcode_params?.target_container === 'dash' || 
         playbackDecision.transcode_params?.target_container === 'hls') {
       
-      if (seekTime > seekableDuration + 5) { // 5 second buffer
-        console.log('🚀 Seeking beyond available content, starting background transcoding');
+      // If seeking beyond buffered content by more than 30 seconds, use seek-ahead
+      if (seekTime > actualBufferedEnd + 30) {
+        console.log('🚀 Seeking beyond buffered content, starting seek-ahead transcoding', {
+          seekTime,
+          actualBufferedEnd,
+          difference: seekTime - actualBufferedEnd
+        });
         
-        // Request background transcoding, but keep current position
+        // Request seek-ahead transcoding
         await requestSeekAhead(seekTime);
         
-        // For now, seek to the furthest available position
-        videoRef.current.currentTime = Math.min(seekTime, seekableDuration);
-        console.log(`⏩ Seeking to furthest available position: ${Math.min(seekTime, seekableDuration)}, requested: ${seekTime}`);
+        // Don't seek locally - let the new manifest load handle positioning
+        console.log('⏸️ Waiting for new manifest to load...');
       } else {
-        // Seeking just slightly beyond - allow it
+        // Seeking just slightly beyond buffered - the player can handle this
         videoRef.current.currentTime = seekTime;
-        console.log('✅ Seeking slightly beyond available content:', seekTime);
+        console.log('✅ Seeking slightly beyond buffered content (within 30s):', seekTime);
       }
     } else {
       // Direct play - just seek normally
       videoRef.current.currentTime = seekTime;
       console.log('✅ Direct play seek:', seekTime);
     }
-  }, [playbackDecision, seekableDuration, originalDuration, requestSeekAhead]);
+  }, [playbackDecision, originalDuration, requestSeekAhead]);
 
   // Skip functions
   const skipBackward = useCallback(() => {
@@ -1171,7 +1213,9 @@ const VideoPlayer: React.FC = () => {
                 style={{ left: `${(hoverTime / Math.max(duration, originalDuration)) * 100}%` }}
               >
                 {formatTime(hoverTime)}
-                {hoverTime > (seekableDuration || duration) && playbackDecision?.transcode_params?.target_container && (
+                {videoRef.current && videoRef.current.buffered.length > 0 && 
+                 hoverTime > videoRef.current.buffered.end(videoRef.current.buffered.length - 1) && 
+                 playbackDecision?.transcode_params?.target_container && (
                   <span className="ml-1 text-blue-300">⚡</span>
                 )}
               </div>
@@ -1216,21 +1260,28 @@ const VideoPlayer: React.FC = () => {
               {/* Total duration background */}
               <div className="absolute inset-0 bg-gray-700 rounded-full"></div>
               
-              {/* Transcoded/available content */}
-              {seekableDuration > 0 && (
+              {/* Buffered content (what's actually available for playback) */}
+              {videoRef.current && videoRef.current.buffered.length > 0 && (
                 <div
                   className="absolute top-0 left-0 h-full bg-gray-400 rounded-full"
-                  style={{ width: `${Math.max(duration, originalDuration) > 0 ? (seekableDuration / Math.max(duration, originalDuration)) * 100 : 0}%` }}
+                  style={{ 
+                    width: `${Math.max(duration, originalDuration) > 0 
+                      ? (videoRef.current.buffered.end(videoRef.current.buffered.length - 1) / Math.max(duration, originalDuration)) * 100 
+                      : 0}%` 
+                  }}
+                  title="Buffered content"
                 ></div>
               )}
               
-              {/* Seek-ahead indicator for untranscoded content */}
-              {originalDuration > (seekableDuration || duration) && playbackDecision?.transcode_params?.target_container && (
+              {/* Seek-ahead indicator for unbuffered content */}
+              {videoRef.current && videoRef.current.buffered.length > 0 && 
+               originalDuration > videoRef.current.buffered.end(videoRef.current.buffered.length - 1) && 
+               playbackDecision?.transcode_params?.target_container && (
                 <div
                   className="absolute top-0 bg-blue-400 bg-opacity-40 h-full rounded-full"
                   style={{ 
-                    left: `${(seekableDuration || duration) / originalDuration * 100}%`,
-                    width: `${((originalDuration - (seekableDuration || duration)) / originalDuration) * 100}%`
+                    left: `${videoRef.current.buffered.end(videoRef.current.buffered.length - 1) / originalDuration * 100}%`,
+                    width: `${((originalDuration - videoRef.current.buffered.end(videoRef.current.buffered.length - 1)) / originalDuration) * 100}%`
                   }}
                   title="Click to seek-ahead (will start transcoding from this point)"
                 ></div>

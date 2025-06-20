@@ -94,11 +94,12 @@ type ProgressCallback func(jobID string, progress *Progress)
 
 // Basic types used by the interfaces
 type TranscodingRequest struct {
-	InputFile  string            `json:"input_file"`
-	OutputFile string            `json:"output_file"`
-	Settings   JobSettings       `json:"settings"`
-	Priority   int               `json:"priority,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
+	InputFile   string            `json:"input_file"`
+	OutputFile  string            `json:"output_file"`
+	Settings    JobSettings       `json:"settings"`
+	Priority    int               `json:"priority,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	Environment map[string]string `json:"environment,omitempty"`
 }
 
 type TranscodingResponse struct {
@@ -109,16 +110,17 @@ type TranscodingResponse struct {
 }
 
 type TranscodingJob struct {
-	ID         string             `json:"id"`
-	Status     TranscodingStatus  `json:"status"`
-	InputFile  string             `json:"input_file"`
-	OutputFile string             `json:"output_file"`
-	Settings   JobSettings        `json:"settings"`
-	Progress   Progress           `json:"progress"`
-	StartTime  time.Time          `json:"start_time"`
-	EndTime    *time.Time         `json:"end_time,omitempty"`
-	Error      string             `json:"error,omitempty"`
-	CancelFunc context.CancelFunc `json:"-"` // Function to cancel the job context
+	ID         string              `json:"id"`
+	Status     TranscodingStatus   `json:"status"`
+	InputFile  string              `json:"input_file"`
+	OutputFile string              `json:"output_file"`
+	Settings   JobSettings         `json:"settings"`
+	Progress   Progress            `json:"progress"`
+	StartTime  time.Time           `json:"start_time"`
+	EndTime    *time.Time          `json:"end_time,omitempty"`
+	Error      string              `json:"error,omitempty"`
+	CancelFunc context.CancelFunc  `json:"-"`                 // Function to cancel the job context
+	Request    *TranscodingRequest `json:"request,omitempty"` // Store the original request
 }
 
 type TranscodingStatus string
