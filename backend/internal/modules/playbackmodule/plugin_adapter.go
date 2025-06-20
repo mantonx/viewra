@@ -9,9 +9,9 @@ type ExternalPluginManagerAdapter struct {
 	manager *pluginmodule.ExternalPluginManager
 }
 
-// PluginModuleAdapter adapts the PluginModule to our interface
+// PluginModuleAdapter adapts pluginmodule.ExternalPluginManager to PluginManagerInterface
 type PluginModuleAdapter struct {
-	pluginModule *pluginmodule.PluginModule
+	extManager *pluginmodule.ExternalPluginManager
 }
 
 // NewExternalPluginManagerAdapter creates a new adapter
@@ -21,10 +21,10 @@ func NewExternalPluginManagerAdapter(manager *pluginmodule.ExternalPluginManager
 	}
 }
 
-// NewPluginModuleAdapter creates a new adapter for PluginModule
-func NewPluginModuleAdapter(pluginModule *pluginmodule.PluginModule) PluginManagerInterface {
+// NewPluginModuleAdapter creates a new adapter
+func NewPluginModuleAdapter(extManager *pluginmodule.ExternalPluginManager) *PluginModuleAdapter {
 	return &PluginModuleAdapter{
-		pluginModule: pluginModule,
+		extManager: extManager,
 	}
 }
 
@@ -33,19 +33,62 @@ func (a *ExternalPluginManagerAdapter) GetRunningPluginInterface(pluginID string
 	return a.manager.GetRunningPluginInterface(pluginID)
 }
 
-// GetRunningPluginInterface returns the plugin interface for a running plugin
+// GetRunningPluginInterface implements PluginManagerInterface
 func (a *PluginModuleAdapter) GetRunningPluginInterface(pluginID string) (interface{}, bool) {
-	if a.pluginModule == nil {
+	if a.extManager == nil {
 		return nil, false
 	}
+	return a.extManager.GetRunningPluginInterface(pluginID)
+}
 
-	// Get the external plugin manager from the PluginModule
-	externalManager := a.pluginModule.GetExternalManager()
-	if externalManager == nil {
-		return nil, false
+// ListPlugins implements PluginManagerInterface
+func (a *PluginModuleAdapter) ListPlugins() []PluginInfo {
+	if a.extManager == nil {
+		return nil
 	}
 
-	return externalManager.GetRunningPluginInterface(pluginID)
+	// Convert from pluginmodule.PluginInfo to playbackmodule.PluginInfo
+	plugins := a.extManager.ListPlugins()
+	result := make([]PluginInfo, 0, len(plugins))
+
+	for _, p := range plugins {
+		result = append(result, PluginInfo{
+			ID:          p.ID,
+			Name:        p.Name,
+			Version:     p.Version,
+			Type:        p.Type,
+			Description: p.Description,
+			Author:      "", // Not available in pluginmodule.PluginInfo
+			Status:      "", // Not available in pluginmodule.PluginInfo
+		})
+	}
+
+	return result
+}
+
+// GetRunningPlugins implements PluginManagerInterface
+func (a *PluginModuleAdapter) GetRunningPlugins() []PluginInfo {
+	if a.extManager == nil {
+		return nil
+	}
+
+	// Convert from pluginmodule.PluginInfo to playbackmodule.PluginInfo
+	plugins := a.extManager.GetRunningPlugins()
+	result := make([]PluginInfo, 0, len(plugins))
+
+	for _, p := range plugins {
+		result = append(result, PluginInfo{
+			ID:          p.ID,
+			Name:        p.Name,
+			Version:     p.Version,
+			Type:        p.Type,
+			Description: p.Description,
+			Author:      "", // Not available in pluginmodule.PluginInfo
+			Status:      "", // Not available in pluginmodule.PluginInfo
+		})
+	}
+
+	return result
 }
 
 // ListPlugins returns all plugins
@@ -68,69 +111,9 @@ func (a *ExternalPluginManagerAdapter) ListPlugins() []PluginInfo {
 	return result
 }
 
-// ListPlugins returns all plugins
-func (a *PluginModuleAdapter) ListPlugins() []PluginInfo {
-	if a.pluginModule == nil {
-		return []PluginInfo{}
-	}
-
-	// Get the external plugin manager from the PluginModule
-	externalManager := a.pluginModule.GetExternalManager()
-	if externalManager == nil {
-		return []PluginInfo{}
-	}
-
-	plugins := externalManager.ListPlugins()
-	result := make([]PluginInfo, len(plugins))
-
-	for i, plugin := range plugins {
-		result[i] = PluginInfo{
-			ID:          plugin.ID,
-			Name:        plugin.Name,
-			Version:     plugin.Version,
-			Type:        plugin.Type,
-			Description: plugin.Description,
-			Author:      "",        // Not available in pluginmodule.PluginInfo
-			Status:      "unknown", // Not available in pluginmodule.PluginInfo
-		}
-	}
-
-	return result
-}
-
 // GetRunningPlugins returns all running plugins
 func (a *ExternalPluginManagerAdapter) GetRunningPlugins() []PluginInfo {
 	plugins := a.manager.GetRunningPlugins()
-	result := make([]PluginInfo, len(plugins))
-
-	for i, plugin := range plugins {
-		result[i] = PluginInfo{
-			ID:          plugin.ID,
-			Name:        plugin.Name,
-			Version:     plugin.Version,
-			Type:        plugin.Type,
-			Description: plugin.Description,
-			Author:      "",        // Not available in pluginmodule.PluginInfo
-			Status:      "running", // These are running plugins
-		}
-	}
-
-	return result
-}
-
-// GetRunningPlugins returns all running plugins
-func (a *PluginModuleAdapter) GetRunningPlugins() []PluginInfo {
-	if a.pluginModule == nil {
-		return []PluginInfo{}
-	}
-
-	// Get the external plugin manager from the PluginModule
-	externalManager := a.pluginModule.GetExternalManager()
-	if externalManager == nil {
-		return []PluginInfo{}
-	}
-
-	plugins := externalManager.GetRunningPlugins()
 	result := make([]PluginInfo, len(plugins))
 
 	for i, plugin := range plugins {

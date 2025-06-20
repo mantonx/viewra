@@ -18,6 +18,7 @@ import (
 	"github.com/mantonx/viewra/internal/modules/enrichmentmodule"
 	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/server/handlers"
@@ -273,6 +274,28 @@ func connectPluginManagerToModules() error {
 				if pluginModule != nil {
 					mediaModule.SetPluginModule(pluginModule)
 					log.Printf("✅ Connected plugin module to media module")
+				}
+			}
+		}
+
+		// Connect playback module to plugin system
+		if module.ID() == "system.playback" {
+			// Use the GetManager method to access the business logic
+			if playbackMod, ok := module.(interface{ GetManager() interface{} }); ok {
+				if manager := playbackMod.GetManager(); manager != nil {
+					// Cast to playback Manager
+					if pbManager, ok := manager.(*playbackmodule.Manager); ok {
+						// Get external manager and create adapter
+						if pluginModule != nil {
+							extMgr := pluginModule.GetExternalManager()
+							if extMgr != nil {
+								// Create adapter that bridges the type mismatch
+								adapter := playbackmodule.NewPluginModuleAdapter(extMgr)
+								pbManager.SetPluginManager(adapter)
+								log.Printf("✅ Connected plugin module to playback module via adapter")
+							}
+						}
+					}
 				}
 			}
 		}

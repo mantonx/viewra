@@ -167,9 +167,12 @@ func (a *ExternalPluginAdapter) EnhancedAdminPageService() plugins.EnhancedAdmin
 // TranscodingProvider - return a provider implementation for transcoder plugins
 func (a *ExternalPluginAdapter) TranscodingProvider() plugins.TranscodingProvider {
 	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
-		// For now, return nil since we don't have full gRPC implementation
-		// TODO: Implement BasicTranscodingProvider that wraps the gRPC client
-		return nil
+		// Create a basic transcoding provider that uses the GRPC client
+		return &ExternalTranscodingProvider{
+			pluginID:   a.pluginInfo.ID,
+			pluginInfo: a.pluginInfo,
+			client:     a.client,
+		}
 	}
 	return nil
 }
@@ -1125,18 +1128,6 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 		} else if strings.Contains(line, "type:") {
 			// Special handling for type field to handle CUE constraints
 			typeValue := m.extractQuotedValue(line)
-			// Clean up CUE constraint syntax (e.g., "string | *\"none\"" -> "transcoder")
-			if typeValue == "" {
-				// Try to extract from CUE constraint syntax
-				rest := strings.TrimSpace(line[strings.Index(line, ":")+1:])
-				if strings.Contains(rest, "\"transcoder\"") {
-					typeValue = "transcoder"
-				} else if strings.Contains(rest, "\"metadata_scraper\"") {
-					typeValue = "metadata_scraper"
-				} else if strings.Contains(rest, "\"scanner_hook\"") {
-					typeValue = "scanner_hook"
-				}
-			}
 			manifest.Type = typeValue
 		} else if strings.Contains(line, "enabled_by_default:") {
 			manifest.EnabledDefault = strings.Contains(line, "true")
@@ -2367,4 +2358,162 @@ func (m *ExternalPluginManager) discoverAdminPagesViaGRPC(pluginID string, clien
 	}
 
 	return nil
+}
+
+// ExternalTranscodingProvider wraps an external plugin to provide transcoding services
+type ExternalTranscodingProvider struct {
+	pluginID   string
+	pluginInfo *ExternalPluginInfo
+	client     *ExternalPluginGRPCClient
+}
+
+// Ensure it implements the interface
+var _ plugins.TranscodingProvider = (*ExternalTranscodingProvider)(nil)
+
+// GetInfo returns provider information
+func (p *ExternalTranscodingProvider) GetInfo() plugins.ProviderInfo {
+	return plugins.ProviderInfo{
+		ID:          p.pluginID,
+		Name:        p.pluginInfo.Name,
+		Version:     p.pluginInfo.Version,
+		Description: p.pluginInfo.Description,
+		Author:      p.pluginInfo.Author,
+		Priority:    50, // Default priority
+	}
+}
+
+// GetSupportedFormats returns supported container formats
+func (p *ExternalTranscodingProvider) GetSupportedFormats() []plugins.ContainerFormat {
+	return []plugins.ContainerFormat{
+		{
+			Format:      "dash",
+			MimeType:    "application/dash+xml",
+			Extensions:  []string{".mpd", ".m4s"},
+			Description: "MPEG-DASH adaptive streaming",
+			Adaptive:    true,
+		},
+		{
+			Format:      "hls",
+			MimeType:    "application/vnd.apple.mpegurl",
+			Extensions:  []string{".m3u8", ".ts"},
+			Description: "HLS adaptive streaming",
+			Adaptive:    true,
+		},
+		{
+			Format:      "mp4",
+			MimeType:    "video/mp4",
+			Extensions:  []string{".mp4"},
+			Description: "MP4 container",
+			Adaptive:    false,
+		},
+	}
+}
+
+// GetHardwareAccelerators returns available hardware accelerators
+func (p *ExternalTranscodingProvider) GetHardwareAccelerators() []plugins.HardwareAccelerator {
+	// TODO: Query plugin via GRPC
+	return []plugins.HardwareAccelerator{
+		{
+			Type:        "auto",
+			ID:          "auto",
+			Name:        "Auto-detect",
+			Available:   true,
+			DeviceCount: 0,
+		},
+	}
+}
+
+// GetQualityPresets returns available quality presets
+func (p *ExternalTranscodingProvider) GetQualityPresets() []plugins.QualityPreset {
+	return []plugins.QualityPreset{
+		{
+			ID:          "high",
+			Name:        "High Quality",
+			Description: "Best quality, slower encoding",
+			Quality:     90,
+			SpeedRating: 3,
+			SizeRating:  8,
+		},
+		{
+			ID:          "balanced",
+			Name:        "Balanced",
+			Description: "Good quality/speed balance",
+			Quality:     70,
+			SpeedRating: 6,
+			SizeRating:  5,
+		},
+		{
+			ID:          "fast",
+			Name:        "Fast",
+			Description: "Faster encoding, lower quality",
+			Quality:     50,
+			SpeedRating: 9,
+			SizeRating:  3,
+		},
+	}
+}
+
+// StartTranscode starts a new transcoding job
+func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
+	// TODO: Implement GRPC call to plugin's StartTranscode method
+	// For now, return an error indicating not implemented
+	return nil, fmt.Errorf("GRPC transcoding not yet implemented for plugin %s", p.pluginID)
+}
+
+// GetProgress returns the progress of a transcoding job
+func (p *ExternalTranscodingProvider) GetProgress(handle *plugins.TranscodeHandle) (*plugins.TranscodingProgress, error) {
+	// TODO: Implement GRPC call to plugin's GetProgress method
+	return nil, fmt.Errorf("GRPC get progress not yet implemented")
+}
+
+// StopTranscode stops a transcoding job
+func (p *ExternalTranscodingProvider) StopTranscode(handle *plugins.TranscodeHandle) error {
+	// TODO: Implement GRPC call to plugin's StopTranscode method
+	return fmt.Errorf("GRPC stop transcoding not yet implemented")
+}
+
+// StartStream starts a streaming transcode operation
+func (p *ExternalTranscodingProvider) StartStream(ctx context.Context, req plugins.TranscodeRequest) (*plugins.StreamHandle, error) {
+	// TODO: Implement GRPC streaming
+	return nil, fmt.Errorf("GRPC streaming not yet implemented")
+}
+
+// GetStream returns the stream reader
+func (p *ExternalTranscodingProvider) GetStream(handle *plugins.StreamHandle) (io.ReadCloser, error) {
+	// TODO: Implement GRPC streaming
+	return nil, fmt.Errorf("GRPC streaming not yet implemented")
+}
+
+// StopStream stops a streaming operation
+func (p *ExternalTranscodingProvider) StopStream(handle *plugins.StreamHandle) error {
+	// TODO: Implement GRPC streaming
+	return fmt.Errorf("GRPC streaming not yet implemented")
+}
+
+// GetDashboardSections returns dashboard sections
+func (p *ExternalTranscodingProvider) GetDashboardSections() []plugins.DashboardSection {
+	// Delegate to the adapter's implementation
+	return []plugins.DashboardSection{
+		{
+			ID:          p.pluginID + "_main",
+			PluginID:    p.pluginID,
+			Type:        "transcoder",
+			Title:       p.pluginInfo.Name,
+			Description: p.pluginInfo.Description,
+			Icon:        "video",
+			Priority:    100,
+		},
+	}
+}
+
+// GetDashboardData returns dashboard data
+func (p *ExternalTranscodingProvider) GetDashboardData(sectionID string) (interface{}, error) {
+	// TODO: Implement GRPC call
+	return nil, fmt.Errorf("dashboard data not yet implemented")
+}
+
+// ExecuteDashboardAction executes a dashboard action
+func (p *ExternalTranscodingProvider) ExecuteDashboardAction(actionID string, params map[string]interface{}) error {
+	// TODO: Implement GRPC call
+	return fmt.Errorf("dashboard actions not yet implemented")
 }

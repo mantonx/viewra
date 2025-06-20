@@ -4,47 +4,38 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// registerRoutes registers all playback module routes
-func registerRoutes(router *gin.Engine, handler *APIHandler) {
-	// Create playback API group
-	playbackGroup := router.Group("/api/playback")
+// RegisterRoutes registers all playback module routes
+func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
+	api := r.Group("/api/playback")
 	{
-		// Playback decision endpoint
-		playbackGroup.POST("/decide", handler.HandlePlaybackDecision)
+		// Decision endpoints
+		api.POST("/decide", handler.HandlePlaybackDecision)
 
-		// Session management endpoints
-		playbackGroup.POST("/start", handler.HandleStartTranscode)
-		playbackGroup.POST("/seek-ahead", handler.HandleSeekAhead)
-		playbackGroup.GET("/session/:sessionId", handler.HandleGetSession)
-		playbackGroup.DELETE("/session/:sessionId", handler.HandleStopTranscode)
-		playbackGroup.GET("/sessions", handler.HandleListSessions)
+		// Session management
+		api.POST("/start", handler.HandleStartTranscode)
+		api.GET("/session/:sessionId", handler.HandleGetSession)
+		api.DELETE("/session/:sessionId", handler.HandleStopTranscode)
+		api.GET("/sessions", handler.HandleListSessions)
 
-		// Statistics endpoint
-		playbackGroup.GET("/stats", handler.HandleGetStats)
+		// Seek-ahead functionality
+		api.POST("/seek-ahead", handler.HandleSeekAhead)
 
-		// Health check endpoint
-		playbackGroup.GET("/health", handler.HandleHealthCheck)
-		playbackGroup.HEAD("/health", handler.HandleHealthCheck)
+		// Statistics and health
+		api.GET("/stats", handler.HandleGetStats)
+		api.GET("/health", handler.HandleHealthCheck)
 
-		// Plugin management endpoints
-		playbackGroup.POST("/plugins/refresh", handler.HandleRefreshPlugins)
+		// Streaming endpoints
+		api.GET("/stream/:sessionId", handler.HandleStreamTranscode)
+		api.GET("/stream/:sessionId/manifest.mpd", handler.HandleDashManifest)
+		api.GET("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
+		api.GET("/stream/:sessionId/segment/:segmentName", handler.HandleSegment)
+		api.GET("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
 
-		// Cleanup management endpoints
-		playbackGroup.POST("/cleanup/run", handler.HandleManualCleanup)
-		playbackGroup.GET("/cleanup/stats", handler.HandleCleanupStats)
+		// Cleanup endpoints
+		api.POST("/cleanup/run", handler.HandleManualCleanup)
+		api.GET("/cleanup/stats", handler.HandleCleanupStats)
 
-		// DASH/HLS segment routes (specific patterns MUST come before catch-all)
-		playbackGroup.GET("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
-		playbackGroup.HEAD("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
-
-		// DASH/HLS streaming endpoints
-		playbackGroup.GET("/stream/:sessionId/manifest.mpd", handler.HandleDashManifest)
-		playbackGroup.HEAD("/stream/:sessionId/manifest.mpd", handler.HandleDashManifest)
-		playbackGroup.GET("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
-		playbackGroup.HEAD("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
-		playbackGroup.GET("/stream/:sessionId/segment/:segmentName", handler.HandleSegment)
-
-		// Progressive streaming endpoint (catch-all MUST come last)
-		playbackGroup.GET("/stream/:sessionId", handler.HandleStreamTranscode)
+		// Plugin management
+		api.POST("/plugins/refresh", handler.HandleRefreshPlugins)
 	}
 }

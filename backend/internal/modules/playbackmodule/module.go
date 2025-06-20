@@ -140,7 +140,7 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 	handler := NewAPIHandler(m.manager)
 
 	// Register all routes from routes.go
-	registerRoutes(router, handler)
+	RegisterRoutes(router, handler)
 
 	logger.Info("Playback module routes registered successfully")
 }

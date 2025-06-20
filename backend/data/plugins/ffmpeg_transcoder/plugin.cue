@@ -1,5 +1,14 @@
 package ffmpeg_transcoder
 
+// Plugin metadata (required for discovery)
+id:          "ffmpeg_transcoder"
+name:        "FFmpeg Transcoder"
+version:     "1.0.0"
+type: "transcoder"
+description: "High-performance video transcoding using FFmpeg with hardware acceleration support"
+author:      "Viewra Team"
+enabled_by_default: true
+
 // Generic transcoding plugin configuration
 core: {
     enabled: bool | *true 
@@ -10,7 +19,7 @@ core: {
         @ui(title="Output Directory", importance=8, is_basic=true)
 }
 
-// Generic hardware configuration
+// Generic hardware configuration  
 hardware: {
     enabled: bool | *true 
         @ui(title="Enable Hardware Acceleration", importance=10, is_basic=true)
