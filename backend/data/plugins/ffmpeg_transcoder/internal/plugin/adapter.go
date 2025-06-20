@@ -75,7 +75,7 @@ func (a *transcodingServiceAdapter) StartTranscode(ctx context.Context, req *plu
 		Status:    plugins.TranscodeStatus(session.Status),
 		Progress:  session.Progress,
 		StartTime: session.StartTime,
-		Backend:   "ffmpeg",
+		Backend:   "ffmpeg_transcoder",
 		Stats:     &plugins.TranscodeStats{},
 		Metadata:  make(map[string]interface{}),
 	}
@@ -221,7 +221,7 @@ func (a *transcodingServiceAdapter) convertSession(session *types.Session) *plug
 		Status:    status,
 		Progress:  session.Progress,
 		StartTime: session.StartTime,
-		Backend:   "ffmpeg",
+		Backend:   "ffmpeg_transcoder",
 		Stats:     &plugins.TranscodeStats{},
 		Metadata: map[string]interface{}{
 			"output_path": session.OutputPath,
