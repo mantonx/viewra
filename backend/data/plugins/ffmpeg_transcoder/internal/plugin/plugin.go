@@ -144,10 +144,8 @@ func (p *FFmpegTranscoderPlugin) Health() error {
 
 // TranscodingService returns the transcoding service interface
 func (p *FFmpegTranscoderPlugin) TranscodingService() plugins.TranscodingService {
-	// The adapter from the original implementation
-	return &transcodingServiceAdapter{
-		plugin: p,
-	}
+	// Use the proper constructor that initializes the map
+	return newTranscodingServiceAdapter(p)
 }
 
 // loadConfiguration loads the plugin configuration
