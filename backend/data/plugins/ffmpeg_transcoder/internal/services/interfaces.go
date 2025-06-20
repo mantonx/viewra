@@ -21,9 +21,6 @@ type TranscodingService interface {
 
 	// ListSessions returns all active sessions
 	ListSessions() ([]*types.Session, error)
-
-	// GetCapabilities returns transcoding capabilities
-	GetCapabilities() *plugins.TranscodingCapabilities
 }
 
 // SessionManager manages transcoding sessions

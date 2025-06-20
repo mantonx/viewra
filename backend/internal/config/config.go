@@ -93,11 +93,25 @@ type AssetConfig struct {
 
 // TranscodingConfig holds transcoding configuration
 type TranscodingConfig struct {
-	DataDir         string        `yaml:"data_dir" json:"data_dir" env:"VIEWRA_TRANSCODING_DIR" default:"/viewra-data/transcoding"`
-	MaxSessions     int           `yaml:"max_sessions" json:"max_sessions" env:"VIEWRA_MAX_TRANSCODE_SESSIONS" default:"25"`
-	SessionTimeout  time.Duration `yaml:"session_timeout" json:"session_timeout" env:"VIEWRA_TRANSCODE_SESSION_TIMEOUT" default:"2h"`
-	CleanupInterval time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_TRANSCODE_CLEANUP_INTERVAL" default:"10m"`
-	FFmpegPath      string        `yaml:"ffmpeg_path" json:"ffmpeg_path" env:"VIEWRA_FFMPEG_PATH" default:"ffmpeg"`
+	// Paths - all from environment variables
+	DataDir       string `yaml:"data_dir" json:"data_dir" env:"VIEWRA_TRANSCODING_DIR" default:"/viewra-data/transcoding"`
+	TempDirectory string `yaml:"temp_directory" json:"temp_directory" env:"VIEWRA_TEMP_DIR" default:"/tmp/viewra"`
+
+	// Global limits
+	MaxSessions    int   `yaml:"max_sessions" json:"max_sessions" env:"VIEWRA_MAX_TRANSCODE_SESSIONS" default:"10"`
+	MaxDiskUsageGB int64 `yaml:"max_disk_usage_gb" json:"max_disk_usage_gb" env:"VIEWRA_MAX_DISK_GB" default:"50"`
+
+	// Session management
+	SessionTimeout time.Duration `yaml:"session_timeout" json:"session_timeout" env:"VIEWRA_TRANSCODE_SESSION_TIMEOUT" default:"2h"`
+
+	// Cleanup settings
+	CleanupInterval    time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_TRANSCODE_CLEANUP_INTERVAL" default:"30s"`
+	RetentionHours     int           `yaml:"retention_hours" json:"retention_hours" env:"VIEWRA_RETENTION_HOURS" default:"24"`
+	ExtendedHours      int           `yaml:"extended_hours" json:"extended_hours" env:"VIEWRA_EXTENDED_RETENTION_HOURS" default:"48"`
+	LargeFileThreshold int64         `yaml:"large_file_threshold" json:"large_file_threshold" env:"VIEWRA_LARGE_FILE_MB" default:"500"` // In MB
+
+	// Legacy field for backwards compatibility (will be removed)
+	FFmpegPath string `yaml:"ffmpeg_path" json:"ffmpeg_path" env:"VIEWRA_FFMPEG_PATH" default:"ffmpeg"`
 }
 
 // ScannerConfig holds scanner configuration
@@ -413,11 +427,16 @@ func DefaultConfig() *Config {
 			EnableAdaptiveThrottling: true,
 		},
 		Transcoding: TranscodingConfig{
-			DataDir:         "/viewra-data/transcoding",
-			MaxSessions:     25,
-			SessionTimeout:  2 * time.Hour,
-			CleanupInterval: 10 * time.Minute,
-			FFmpegPath:      "ffmpeg",
+			DataDir:            "/viewra-data/transcoding",
+			TempDirectory:      "/tmp/viewra",
+			MaxSessions:        10,
+			MaxDiskUsageGB:     50,
+			SessionTimeout:     2 * time.Hour,
+			CleanupInterval:    30 * time.Second,
+			RetentionHours:     24,
+			ExtendedHours:      48,
+			LargeFileThreshold: 500, // MB
+			FFmpegPath:         "ffmpeg",
 		},
 	}
 }

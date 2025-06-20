@@ -9,125 +9,118 @@ import (
 	"github.com/mantonx/viewra/pkg/plugins"
 )
 
-// Config represents the complete FFmpeg transcoder configuration
-// This mirrors the CUE schema defined in plugin.cue
+// Config represents the complete transcoder configuration
+// Split into generic settings and FFmpeg-specific settings
 type Config struct {
-	Enabled     bool              `json:"enabled"`
-	Priority    int               `json:"priority"`
-	FFmpeg      FFmpegConfig      `json:"ffmpeg"`
-	Transcoding TranscodingConfig `json:"transcoding"`
-	Hardware    HardwareConfig    `json:"hardware"`
-	Sessions    SessionConfig     `json:"sessions"`
-	Performance PerformanceConfig `json:"performance"`
-	Cleanup     CleanupConfig     `json:"cleanup"`
-	Debug       DebugConfig       `json:"debug"`
+	// Generic settings that all transcoders need
+	Core     CoreConfig     `json:"core"`
+	Hardware HardwareConfig `json:"hardware"`
+	Sessions SessionConfig  `json:"sessions"`
+	Cleanup  CleanupConfig  `json:"cleanup"`
+	Debug    DebugConfig    `json:"debug"`
+
+	// FFmpeg-specific settings
+	FFmpeg FFmpegConfig `json:"ffmpeg"`
 }
 
-// FFmpegConfig contains FFmpeg binary settings
-type FFmpegConfig struct {
-	Path    string `json:"path"`    // Path to FFmpeg binary
-	Threads int    `json:"threads"` // Number of threads (0 = auto)
+// CoreConfig contains generic core settings
+type CoreConfig struct {
+	Enabled         bool   `json:"enabled"`
+	Priority        int    `json:"priority"`
+	OutputDirectory string `json:"output_directory"`
 }
 
-// TranscodingConfig contains transcoding defaults
-type TranscodingConfig struct {
-	// Video settings
-	VideoCodec  string `json:"video_codec"`  // Default video codec
-	VideoPreset string `json:"video_preset"` // Encoding preset
-	VideoCRF    int    `json:"video_crf"`    // CRF value (0-51)
-
-	// Audio settings
-	AudioCodec    string `json:"audio_codec"`    // Default audio codec
-	AudioBitrate  int    `json:"audio_bitrate"`  // Audio bitrate in kbps
-	AudioChannels int    `json:"audio_channels"` // Audio channels (2=stereo, 6=5.1)
-
-	// Container settings
-	DefaultContainer string `json:"default_container"` // Default output container
-
-	// Output settings
-	OutputDir string `json:"output_dir"` // Output directory for transcoded files
-}
-
-// HardwareConfig contains hardware acceleration settings
+// HardwareConfig contains generic hardware acceleration settings
 type HardwareConfig struct {
-	Acceleration bool   `json:"acceleration"` // Enable hardware acceleration
-	Type         string `json:"type"`         // Hardware type (auto, nvenc, vaapi, etc.)
-	Fallback     bool   `json:"fallback"`     // Fallback to software on failure
+	Enabled         bool                 `json:"enabled"`
+	PreferredType   plugins.HardwareType `json:"preferred_type"`   // "auto", "cuda", "vaapi", etc.
+	DeviceSelection string               `json:"device_selection"` // "auto", "first", "load-balanced"
+	Fallback        bool                 `json:"fallback"`         // Fall back to software if HW fails
 }
 
-// SessionConfig contains session management settings
+// SessionConfig contains generic session management settings
 type SessionConfig struct {
-	MaxConcurrent  int `json:"max_concurrent"`  // Maximum concurrent sessions
-	TimeoutMinutes int `json:"timeout_minutes"` // Session timeout in minutes
-	IdleMinutes    int `json:"idle_minutes"`    // Idle timeout in minutes
+	MaxConcurrent  int `json:"max_concurrent"`
+	TimeoutMinutes int `json:"timeout_minutes"`
+	IdleMinutes    int `json:"idle_minutes"`
 }
 
-// PerformanceConfig contains performance settings
-type PerformanceConfig struct {
-	BufferSize       int  `json:"buffer_size"`       // Streaming buffer size
-	ProgressInterval int  `json:"progress_interval"` // Progress update interval in seconds
-	TwoPass          bool `json:"two_pass"`          // Enable two-pass encoding
-}
-
-// CleanupConfig contains file cleanup settings
+// CleanupConfig contains generic cleanup settings
 type CleanupConfig struct {
-	RetentionHours  int `json:"retention_hours"`  // Keep files for N hours
-	ExtendedHours   int `json:"extended_hours"`   // Extended retention for small files
-	MaxSizeGB       int `json:"max_size_gb"`      // Maximum total size in GB
-	IntervalMinutes int `json:"interval_minutes"` // Cleanup interval in minutes
+	Enabled         bool `json:"enabled"`
+	RetentionHours  int  `json:"retention_hours"`
+	ExtendedHours   int  `json:"extended_hours"` // Extended retention for small files
+	MaxSizeGB       int  `json:"max_size_gb"`
+	IntervalMinutes int  `json:"interval_minutes"`
 }
 
-// DebugConfig contains debugging settings
+// DebugConfig contains generic debug settings
 type DebugConfig struct {
-	Enabled         bool   `json:"enabled"`    // Enable debug logging
-	LogFFmpegOutput bool   `json:"log_ffmpeg"` // Log FFmpeg output
-	LogLevel        string `json:"log_level"`  // Log level
+	Enabled  bool   `json:"enabled"`
+	LogLevel string `json:"log_level"` // "debug", "info", "warn", "error"
+}
+
+// FFmpegConfig contains FFmpeg-specific settings
+type FFmpegConfig struct {
+	BinaryPath string `json:"binary_path"`
+	ProbePath  string `json:"probe_path"`
+	Threads    int    `json:"threads"` // 0 = auto
+
+	// FFmpeg-specific quality defaults (will be mapped from generic quality)
+	DefaultCRF    map[string]int `json:"default_crf"`    // Per-codec CRF defaults
+	DefaultPreset string         `json:"default_preset"` // FFmpeg preset default
+
+	// Advanced FFmpeg options
+	ExtraArgs       []string `json:"extra_args"`        // Additional FFmpeg arguments
+	TwoPass         bool     `json:"two_pass"`          // Enable two-pass encoding
+	AudioBitrate    int      `json:"audio_bitrate"`     // Default audio bitrate in kbps
+	LogFFmpegOutput bool     `json:"log_ffmpeg_output"` // Log FFmpeg command output
 }
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Enabled:  true,
-		Priority: 50,
-		FFmpeg: FFmpegConfig{
-			Path:    "ffmpeg",
-			Threads: 0, // Auto-detect
-		},
-		Transcoding: TranscodingConfig{
-			VideoCodec:       "h264",
-			VideoPreset:      "fast",
-			VideoCRF:         23,
-			AudioCodec:       "aac",
-			AudioBitrate:     128,
-			AudioChannels:    2,
-			DefaultContainer: "mp4",
-			OutputDir:        "/viewra-data/transcoding",
+		Core: CoreConfig{
+			Enabled:         true,
+			Priority:        50,
+			OutputDirectory: "/viewra-data/transcoding",
 		},
 		Hardware: HardwareConfig{
-			Acceleration: true,
-			Type:         "auto",
-			Fallback:     true,
+			Enabled:         true,
+			PreferredType:   plugins.HardwareTypeNone,
+			DeviceSelection: "auto",
+			Fallback:        true,
 		},
 		Sessions: SessionConfig{
 			MaxConcurrent:  10,
 			TimeoutMinutes: 120,
 			IdleMinutes:    10,
 		},
-		Performance: PerformanceConfig{
-			BufferSize:       32768,
-			ProgressInterval: 5,
-			TwoPass:          false,
-		},
 		Cleanup: CleanupConfig{
+			Enabled:         true,
 			RetentionHours:  2,
 			ExtendedHours:   8,
 			MaxSizeGB:       10,
 			IntervalMinutes: 30,
 		},
 		Debug: DebugConfig{
-			Enabled:         false,
+			Enabled:  false,
+			LogLevel: "info",
+		},
+		FFmpeg: FFmpegConfig{
+			BinaryPath: "ffmpeg",
+			ProbePath:  "ffprobe",
+			Threads:    0, // Auto-detect
+			DefaultCRF: map[string]int{
+				"h264": 23,
+				"h265": 28,
+				"vp9":  31,
+				"av1":  30,
+			},
+			DefaultPreset:   "fast",
+			AudioBitrate:    128,
+			TwoPass:         false,
 			LogFFmpegOutput: false,
-			LogLevel:        "info",
 		},
 	}
 }
@@ -164,27 +157,33 @@ func (c *Config) GetMaxConcurrentSessions() int {
 
 // GetFFmpegPath returns the path to the FFmpeg executable
 func (c *Config) GetFFmpegPath() string {
-	return c.FFmpeg.Path
+	return c.FFmpeg.BinaryPath
+}
+
+// GetOutputDirectory returns the output directory
+func (c *Config) GetOutputDirectory() string {
+	return c.Core.OutputDirectory
+}
+
+// IsEnabled returns whether the plugin is enabled
+func (c *Config) IsEnabled() bool {
+	return c.Core.Enabled
 }
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
+	// Validate core settings
+	if c.Core.OutputDirectory == "" {
+		return fmt.Errorf("output directory cannot be empty")
+	}
+
 	// Validate FFmpeg settings
-	if c.FFmpeg.Path == "" {
+	if c.FFmpeg.BinaryPath == "" {
 		return fmt.Errorf("FFmpeg path cannot be empty")
 	}
 
 	if c.FFmpeg.Threads < 0 {
 		return fmt.Errorf("thread count must be non-negative")
-	}
-
-	// Validate transcoding settings
-	if c.Transcoding.VideoCRF < 0 || c.Transcoding.VideoCRF > 51 {
-		return fmt.Errorf("video CRF must be between 0 and 51")
-	}
-
-	if c.Transcoding.AudioBitrate <= 0 {
-		return fmt.Errorf("audio bitrate must be positive")
 	}
 
 	// Validate session settings
@@ -298,14 +297,14 @@ func (c *FFmpegConfigurationService) ffmpegToPluginConfig(ffmpegConfig *Config) 
 
 	return &plugins.PluginConfiguration{
 		Version:  "1.0.0",
-		Enabled:  ffmpegConfig.Enabled,
+		Enabled:  ffmpegConfig.Core.Enabled,
 		Settings: configMap,
 		Features: map[string]bool{
-			"enabled":         ffmpegConfig.Enabled,
+			"enabled":         ffmpegConfig.Core.Enabled,
 			"debug_mode":      ffmpegConfig.Debug.Enabled,
-			"ffmpeg_logging":  ffmpegConfig.Debug.LogFFmpegOutput,
-			"two_pass":        ffmpegConfig.Performance.TwoPass,
-			"hw_acceleration": ffmpegConfig.Hardware.Acceleration,
+			"ffmpeg_logging":  ffmpegConfig.FFmpeg.LogFFmpegOutput,
+			"two_pass":        ffmpegConfig.FFmpeg.TwoPass,
+			"hw_acceleration": ffmpegConfig.Hardware.Enabled,
 		},
 		Thresholds: &plugins.HealthThresholds{
 			MaxMemoryUsage:      512 * 1024 * 1024, // 512MB
@@ -350,11 +349,17 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 				"type":  "object",
 				"title": "FFmpeg Settings",
 				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
+					"binary_path": map[string]interface{}{
 						"type":        "string",
 						"title":       "FFmpeg Path",
 						"description": "Path to the FFmpeg executable",
 						"default":     "ffmpeg",
+					},
+					"probe_path": map[string]interface{}{
+						"type":        "string",
+						"title":       "Probe Path",
+						"description": "Path to the ffprobe executable",
+						"default":     "ffprobe",
 					},
 					"threads": map[string]interface{}{
 						"type":        "integer",
@@ -553,9 +558,9 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 		"basic": map[string]interface{}{
 			"enabled": true,
 			"ffmpeg": map[string]interface{}{
-				"path":     "ffmpeg",
-				"threads":  0,
-				"priority": 0,
+				"binary_path": "ffmpeg",
+				"threads":     0,
+				"priority":    0,
 			},
 			"transcoding": map[string]interface{}{
 				"video_codec":       "h264",
@@ -575,9 +580,9 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 		"high_performance": map[string]interface{}{
 			"enabled": true,
 			"ffmpeg": map[string]interface{}{
-				"path":     "/usr/bin/ffmpeg",
-				"threads":  8,
-				"priority": -5,
+				"binary_path": "ffmpeg",
+				"threads":     8,
+				"priority":    -5,
 			},
 			"transcoding": map[string]interface{}{
 				"video_codec":       "h265",
@@ -599,9 +604,9 @@ func (c *FFmpegConfigurationService) createFFmpegSchema() *plugins.Configuration
 	defaults := map[string]interface{}{
 		"enabled": true,
 		"ffmpeg": map[string]interface{}{
-			"path":     "ffmpeg",
-			"threads":  0,
-			"priority": 0,
+			"binary_path": "ffmpeg",
+			"threads":     0,
+			"priority":    0,
 		},
 		"transcoding": map[string]interface{}{
 			"video_codec":       "h264",

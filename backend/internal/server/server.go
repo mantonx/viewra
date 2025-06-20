@@ -18,7 +18,6 @@ import (
 	"github.com/mantonx/viewra/internal/modules/enrichmentmodule"
 	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/server/handlers"
@@ -141,64 +140,6 @@ func initializeModules() error {
 	logModuleStatus()
 
 	return nil
-}
-
-// PlaybackPluginManagerAdapter adapts the external plugin manager to the playback module interface
-type PlaybackPluginManagerAdapter struct {
-	externalManager interface{}
-}
-
-func (a *PlaybackPluginManagerAdapter) GetRunningPluginInterface(pluginID string) (interface{}, bool) {
-	if mgr, ok := a.externalManager.(interface {
-		GetRunningPluginInterface(string) (interface{}, bool)
-	}); ok {
-		return mgr.GetRunningPluginInterface(pluginID)
-	}
-	return nil, false
-}
-
-func (a *PlaybackPluginManagerAdapter) ListPlugins() []playbackmodule.PluginInfo {
-	if mgr, ok := a.externalManager.(interface {
-		ListPlugins() []pluginmodule.PluginInfo
-	}); ok {
-		plugins := mgr.ListPlugins()
-		var result []playbackmodule.PluginInfo
-		for _, p := range plugins {
-			result = append(result, playbackmodule.PluginInfo{
-				ID:          p.ID,
-				Name:        p.Name,
-				Version:     p.Version,
-				Type:        p.Type,
-				Description: p.Description,
-				Author:      "", // Not available in pluginmodule.PluginInfo
-				Status:      "", // Not available in pluginmodule.PluginInfo
-			})
-		}
-		return result
-	}
-	return []playbackmodule.PluginInfo{}
-}
-
-func (a *PlaybackPluginManagerAdapter) GetRunningPlugins() []playbackmodule.PluginInfo {
-	if mgr, ok := a.externalManager.(interface {
-		GetRunningPlugins() []pluginmodule.PluginInfo
-	}); ok {
-		plugins := mgr.GetRunningPlugins()
-		var result []playbackmodule.PluginInfo
-		for _, p := range plugins {
-			result = append(result, playbackmodule.PluginInfo{
-				ID:          p.ID,
-				Name:        p.Name,
-				Version:     p.Version,
-				Type:        p.Type,
-				Description: p.Description,
-				Author:      "", // Not available in pluginmodule.PluginInfo
-				Status:      "", // Not available in pluginmodule.PluginInfo
-			})
-		}
-		return result
-	}
-	return []playbackmodule.PluginInfo{}
 }
 
 // connectPluginManagerToModules connects the plugin manager to modules that need it
@@ -332,31 +273,6 @@ func connectPluginManagerToModules() error {
 				if pluginModule != nil {
 					mediaModule.SetPluginModule(pluginModule)
 					log.Printf("✅ Connected plugin module to media module")
-				}
-			}
-		}
-
-		// Connect playback module to plugin system
-		if module.ID() == "system.playback" {
-			if playbackModule, ok := module.(*playbackmodule.Module); ok {
-				if pluginModule != nil && playbackModule.GetPlaybackCore() != nil {
-					// Recreate the playback core with plugin manager support
-					logger := hclog.NewNullLogger().Named("playback-module")
-					extMgr := pluginModule.GetExternalManager()
-					if extMgr != nil {
-						// Create adapter for the external manager to match the expected interface
-						adapter := &PlaybackPluginManagerAdapter{externalManager: extMgr}
-
-						// Create new playback core with plugin support
-						newPlaybackCore := playbackmodule.NewPlaybackModule(logger, adapter)
-						if err := newPlaybackCore.Initialize(); err != nil {
-							log.Printf("⚠️  WARNING: Failed to initialize playback core with plugin support: %v", err)
-						} else {
-							// Replace the simple playback core with the plugin-enabled one
-							playbackModule.SetPlaybackCore(newPlaybackCore)
-							log.Printf("✅ Connected plugin module to playback module")
-						}
-					}
 				}
 			}
 		}

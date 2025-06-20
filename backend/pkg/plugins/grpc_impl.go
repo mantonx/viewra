@@ -2,7 +2,10 @@ package plugins
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
@@ -198,9 +201,19 @@ func (p *GRPCPlugin) GRPCServer(broker *goplugin.GRPCBroker, s *grpc.Server) err
 	}
 
 	// Register TranscodingService if implemented
-	if transcodingService := p.Impl.TranscodingService(); transcodingService != nil {
-		server := &TranscodingServer{Impl: transcodingService}
-		proto.RegisterTranscodingServiceServer(s, server)
+	// DEPRECATED: TranscodingService has been removed in favor of TranscodingProvider
+	// TODO: Implement gRPC support for TranscodingProvider
+	/*
+		if transcodingService := p.Impl.TranscodingService(); transcodingService != nil {
+			server := &TranscodingServer{Impl: transcodingService}
+			proto.RegisterTranscodingServiceServer(s, server)
+		}
+	*/
+
+	// Register TranscodingProvider if implemented
+	if transcodingProvider := p.Impl.TranscodingProvider(); transcodingProvider != nil {
+		server := &TranscodingProviderServer{Impl: transcodingProvider}
+		proto.RegisterTranscodingProviderServiceServer(s, server)
 	}
 
 	return nil
@@ -217,7 +230,6 @@ func (p *GRPCPlugin) GRPCClient(ctx context.Context, broker *goplugin.GRPCBroker
 		APIRegistrationServiceClient: proto.NewAPIRegistrationServiceClient(c),
 		SearchServiceClient:          proto.NewSearchServiceClient(c),
 		AssetServiceClient:           proto.NewAssetServiceClient(c),
-		TranscodingServiceClient:     proto.NewTranscodingServiceClient(c),
 	}, nil
 }
 
@@ -231,7 +243,6 @@ type GRPCClient struct {
 	proto.APIRegistrationServiceClient
 	proto.SearchServiceClient
 	proto.AssetServiceClient
-	proto.TranscodingServiceClient
 }
 
 // Server implementations
@@ -487,6 +498,299 @@ type AssetServer struct {
 	Impl AssetService
 }
 
+// TranscodingProviderServer implements the transcoding provider service for plugins
+type TranscodingProviderServer struct {
+	proto.UnimplementedTranscodingProviderServiceServer
+	Impl TranscodingProvider
+}
+
+// GetProviderInfo returns provider information
+func (s *TranscodingProviderServer) GetProviderInfo(ctx context.Context, req *proto.GetProviderInfoRequest) (*proto.GetProviderInfoResponse, error) {
+	info := s.Impl.GetInfo()
+	return &proto.GetProviderInfoResponse{
+		Info: &proto.ProviderInfo{
+			Name:         info.Name,
+			Description:  info.Description,
+			Priority:     int32(info.Priority),
+			Capabilities: map[string]string{}, // Empty map since SDK doesn't have this field
+		},
+	}, nil
+}
+
+// GetSupportedFormats returns supported container formats
+func (s *TranscodingProviderServer) GetSupportedFormats(ctx context.Context, req *proto.GetSupportedFormatsRequest) (*proto.GetSupportedFormatsResponse, error) {
+	formats := s.Impl.GetSupportedFormats()
+	protoFormats := make([]*proto.ContainerFormat, len(formats))
+	for i, f := range formats {
+		protoFormats[i] = &proto.ContainerFormat{
+			Name:            f.Format, // Map Format to Name
+			Description:     f.Description,
+			Extensions:      f.Extensions,
+			SupportedCodecs: []string{}, // SDK doesn't have this field
+		}
+	}
+	return &proto.GetSupportedFormatsResponse{Formats: protoFormats}, nil
+}
+
+// GetHardwareAccelerators returns available hardware accelerators
+func (s *TranscodingProviderServer) GetHardwareAccelerators(ctx context.Context, req *proto.GetHardwareAcceleratorsRequest) (*proto.GetHardwareAcceleratorsResponse, error) {
+	accelerators := s.Impl.GetHardwareAccelerators()
+	protoAccelerators := make([]*proto.HardwareAccelerator, len(accelerators))
+	for i, a := range accelerators {
+		protoAccelerators[i] = &proto.HardwareAccelerator{
+			Id:         a.ID,
+			Name:       a.Name,
+			DevicePath: "", // SDK doesn't have this field
+			Available:  a.Available,
+		}
+	}
+	return &proto.GetHardwareAcceleratorsResponse{Accelerators: protoAccelerators}, nil
+}
+
+// GetQualityPresets returns quality presets
+func (s *TranscodingProviderServer) GetQualityPresets(ctx context.Context, req *proto.GetQualityPresetsRequest) (*proto.GetQualityPresetsResponse, error) {
+	presets := s.Impl.GetQualityPresets()
+	protoPresets := make([]*proto.QualityPreset, len(presets))
+	for i, p := range presets {
+		protoPresets[i] = &proto.QualityPreset{
+			Name:        p.Name,
+			Description: p.Description,
+			Quality:     int32(p.Quality),
+			Details:     "", // SDK doesn't have this field
+		}
+	}
+	return &proto.GetQualityPresetsResponse{Presets: protoPresets}, nil
+}
+
+// StartTranscode starts a transcoding operation
+func (s *TranscodingProviderServer) StartTranscode(ctx context.Context, req *proto.StartTranscodeProviderRequest) (*proto.StartTranscodeProviderResponse, error) {
+	// Convert proto request to SDK request
+	transcodeReq := TranscodeRequest{
+		SessionID:      req.Request.SessionId,
+		InputPath:      req.Request.InputPath,
+		OutputPath:     req.Request.OutputDir, // Map OutputDir to OutputPath
+		Quality:        int(req.Request.Quality),
+		SpeedPriority:  SpeedPriority(req.Request.SpeedPriority),
+		Container:      req.Request.Container,
+		VideoCodec:     req.Request.VideoCodec,
+		AudioCodec:     req.Request.AudioCodec,
+		PreferHardware: req.Request.PreferHardware,
+		HardwareType:   HardwareType(req.Request.HardwareType),
+	}
+
+	// Handle resolution if provided
+	if req.Request.Resolution != "" {
+		// Parse resolution string (e.g., "1080p") to VideoResolution
+		// For now, just use predefined resolutions
+		switch req.Request.Resolution {
+		case "480p":
+			res := Resolution480p
+			transcodeReq.Resolution = &res
+		case "720p":
+			res := Resolution720p
+			transcodeReq.Resolution = &res
+		case "1080p":
+			res := Resolution1080p
+			transcodeReq.Resolution = &res
+		case "1440p":
+			res := Resolution1440p
+			transcodeReq.Resolution = &res
+		case "4k", "2160p":
+			res := Resolution4K
+			transcodeReq.Resolution = &res
+		}
+	}
+
+	handle, err := s.Impl.StartTranscode(ctx, transcodeReq)
+	if err != nil {
+		return &proto.StartTranscodeProviderResponse{Error: err.Error()}, nil
+	}
+
+	// Convert private data to string (assume JSON marshaling)
+	privateDataStr := ""
+	if handle.PrivateData != nil {
+		if jsonData, err := json.Marshal(handle.PrivateData); err == nil {
+			privateDataStr = string(jsonData)
+		}
+	}
+
+	return &proto.StartTranscodeProviderResponse{
+		Handle: &proto.TranscodeHandle{
+			SessionId:   handle.SessionID,
+			Provider:    handle.Provider,
+			StartTime:   handle.StartTime.UnixNano(),
+			Directory:   handle.Directory,
+			PrivateData: privateDataStr,
+		},
+	}, nil
+}
+
+// GetProgress returns transcoding progress
+func (s *TranscodingProviderServer) GetProgress(ctx context.Context, req *proto.GetProgressRequest) (*proto.GetProgressResponse, error) {
+	// Convert proto handle to SDK handle
+	handle := &TranscodeHandle{
+		SessionID:   req.Handle.SessionId,
+		Provider:    req.Handle.Provider,
+		StartTime:   time.Unix(0, req.Handle.StartTime),
+		Directory:   req.Handle.Directory,
+		PrivateData: req.Handle.PrivateData,
+	}
+
+	progress, err := s.Impl.GetProgress(handle)
+	if err != nil {
+		return &proto.GetProgressResponse{Error: err.Error()}, nil
+	}
+
+	return &proto.GetProgressResponse{
+		Progress: &proto.TranscodingProgress{
+			PercentComplete: int32(progress.PercentComplete),
+			TimeElapsed:     int64(progress.TimeElapsed),
+			TimeRemaining:   int64(progress.TimeRemaining),
+			CurrentSpeed:    progress.CurrentSpeed,
+			BytesRead:       progress.BytesRead,
+			BytesWritten:    progress.BytesWritten,
+			CurrentBitrate:  0,  // SDK doesn't have this field
+			CurrentFrame:    0,  // SDK doesn't have this field
+			CurrentFps:      0,  // SDK doesn't have this field
+			StatusMessage:   "", // SDK doesn't have this field
+		},
+	}, nil
+}
+
+// StopTranscode stops a transcoding operation
+func (s *TranscodingProviderServer) StopTranscode(ctx context.Context, req *proto.StopTranscodeProviderRequest) (*proto.StopTranscodeProviderResponse, error) {
+	// Convert proto handle to SDK handle
+	handle := &TranscodeHandle{
+		SessionID:   req.Handle.SessionId,
+		Provider:    req.Handle.Provider,
+		StartTime:   time.Unix(0, req.Handle.StartTime),
+		Directory:   req.Handle.Directory,
+		PrivateData: req.Handle.PrivateData,
+	}
+
+	err := s.Impl.StopTranscode(handle)
+	if err != nil {
+		return &proto.StopTranscodeProviderResponse{Success: false, Error: err.Error()}, nil
+	}
+
+	return &proto.StopTranscodeProviderResponse{Success: true}, nil
+}
+
+// StartStream starts a streaming operation
+func (s *TranscodingProviderServer) StartStream(ctx context.Context, req *proto.StartStreamRequest) (*proto.StartStreamResponse, error) {
+	// Convert proto request to SDK request
+	transcodeReq := TranscodeRequest{
+		SessionID:      req.Request.SessionId,
+		InputPath:      req.Request.InputPath,
+		OutputPath:     req.Request.OutputDir, // Map OutputDir to OutputPath
+		Quality:        int(req.Request.Quality),
+		SpeedPriority:  SpeedPriority(req.Request.SpeedPriority),
+		Container:      req.Request.Container,
+		VideoCodec:     req.Request.VideoCodec,
+		AudioCodec:     req.Request.AudioCodec,
+		PreferHardware: req.Request.PreferHardware,
+		HardwareType:   HardwareType(req.Request.HardwareType),
+	}
+
+	// Handle resolution if provided
+	if req.Request.Resolution != "" {
+		// Parse resolution string (e.g., "1080p") to VideoResolution
+		// For now, just use predefined resolutions
+		switch req.Request.Resolution {
+		case "480p":
+			res := Resolution480p
+			transcodeReq.Resolution = &res
+		case "720p":
+			res := Resolution720p
+			transcodeReq.Resolution = &res
+		case "1080p":
+			res := Resolution1080p
+			transcodeReq.Resolution = &res
+		case "1440p":
+			res := Resolution1440p
+			transcodeReq.Resolution = &res
+		case "4k", "2160p":
+			res := Resolution4K
+			transcodeReq.Resolution = &res
+		}
+	}
+
+	handle, err := s.Impl.StartStream(ctx, transcodeReq)
+	if err != nil {
+		return &proto.StartStreamResponse{Error: err.Error()}, nil
+	}
+
+	// Convert private data to string (assume JSON marshaling)
+	privateDataStr := ""
+	if handle.PrivateData != nil {
+		if jsonData, err := json.Marshal(handle.PrivateData); err == nil {
+			privateDataStr = string(jsonData)
+		}
+	}
+
+	return &proto.StartStreamResponse{
+		Handle: &proto.StreamHandle{
+			SessionId:   handle.SessionID,
+			Provider:    handle.Provider,
+			StartTime:   handle.StartTime.UnixNano(),
+			ContentType: "video/mp4", // Default content type (proto has this field, SDK doesn't)
+			Codec:       "",          // Default codec (proto has this field, SDK doesn't)
+			PrivateData: privateDataStr,
+		},
+	}, nil
+}
+
+// GetStreamData streams transcoded data
+func (s *TranscodingProviderServer) GetStreamData(req *proto.GetStreamDataRequest, stream proto.TranscodingProviderService_GetStreamDataServer) error {
+	// Convert proto handle to SDK handle
+	handle := &StreamHandle{
+		SessionID:   req.Handle.SessionId,
+		Provider:    req.Handle.Provider,
+		StartTime:   time.Unix(0, req.Handle.StartTime),
+		PrivateData: req.Handle.PrivateData,
+	}
+
+	reader, err := s.Impl.GetStream(handle)
+	if err != nil {
+		return stream.Send(&proto.StreamDataChunk{Error: err.Error()})
+	}
+	defer reader.Close()
+
+	buf := make([]byte, 32*1024) // 32KB chunks
+	for {
+		n, err := reader.Read(buf)
+		if n > 0 {
+			if err := stream.Send(&proto.StreamDataChunk{Data: buf[:n]}); err != nil {
+				return err
+			}
+		}
+		if err == io.EOF {
+			return stream.Send(&proto.StreamDataChunk{Eof: true})
+		}
+		if err != nil {
+			return stream.Send(&proto.StreamDataChunk{Error: err.Error()})
+		}
+	}
+}
+
+// StopStream stops a streaming operation
+func (s *TranscodingProviderServer) StopStream(ctx context.Context, req *proto.StopStreamRequest) (*proto.StopStreamResponse, error) {
+	// Convert proto handle to SDK handle
+	handle := &StreamHandle{
+		SessionID:   req.Handle.SessionId,
+		Provider:    req.Handle.Provider,
+		StartTime:   time.Unix(0, req.Handle.StartTime),
+		PrivateData: req.Handle.PrivateData,
+	}
+
+	err := s.Impl.StopStream(handle)
+	if err != nil {
+		return &proto.StopStreamResponse{Success: false, Error: err.Error()}, nil
+	}
+
+	return &proto.StopStreamResponse{Success: true}, nil
+}
+
 func (s *AssetServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest) (*proto.SaveAssetResponse, error) {
 	// Pass the UUID string directly to the plugin implementation including the pluginID
 	assetID, hash, relativePath, err := s.Impl.SaveAsset(
@@ -549,314 +853,14 @@ func (s *AssetServer) RemoveAsset(ctx context.Context, req *proto.RemoveAssetReq
 	return &proto.RemoveAssetResponse{Success: true}, nil
 }
 
-// TranscodingServer implements the transcoding service
-type TranscodingServer struct {
-	proto.UnimplementedTranscodingServiceServer
-	Impl TranscodingService
-}
-
-func (s *TranscodingServer) GetCapabilities(ctx context.Context, req *proto.GetCapabilitiesRequest) (*proto.GetCapabilitiesResponse, error) {
-	capabilities, err := s.Impl.GetCapabilities(ctx)
-	if err != nil {
-		return &proto.GetCapabilitiesResponse{
-			Error: err.Error(),
-		}, nil
-	}
-
-	// Convert to protobuf
-	protoCapabilities := &proto.TranscodingCapabilities{
-		Name:                  capabilities.Name,
-		SupportedCodecs:       capabilities.SupportedCodecs,
-		SupportedResolutions:  capabilities.SupportedResolutions,
-		SupportedContainers:   capabilities.SupportedContainers,
-		HardwareAcceleration:  capabilities.HardwareAcceleration,
-		MaxConcurrentSessions: int32(capabilities.MaxConcurrentSessions),
-		Priority:              int32(capabilities.Priority),
-		Features: &proto.TranscodingFeatures{
-			SubtitleBurnIn:      capabilities.Features.SubtitleBurnIn,
-			SubtitlePassthrough: capabilities.Features.SubtitlePassthrough,
-			MultiAudioTracks:    capabilities.Features.MultiAudioTracks,
-			HdrSupport:          capabilities.Features.HDRSupport,
-			ToneMapping:         capabilities.Features.ToneMapping,
-			StreamingOutput:     capabilities.Features.StreamingOutput,
-			SegmentedOutput:     capabilities.Features.SegmentedOutput,
-		},
-	}
-
-	return &proto.GetCapabilitiesResponse{
-		Capabilities: protoCapabilities,
-	}, nil
-}
-
-func (s *TranscodingServer) StartTranscode(ctx context.Context, req *proto.StartTranscodeRequest) (*proto.StartTranscodeResponse, error) {
-	// DEBUG: Log what we received from GRPC
-	fmt.Printf("DEBUG: TranscodingServer.StartTranscode received: InputPath='%s', TargetCodec='%s', Resolution='%s'\n",
-		req.Request.InputPath, req.Request.TargetCodec, req.Request.Resolution)
-
-	// Convert protobuf request to internal modern request format
-	internalReq := &TranscodeRequest{
-		InputPath:  req.Request.InputPath,
-		OutputPath: "",                    // This will be set by the transcode manager
-		SessionID:  req.Request.SessionId, // Pass session ID from GRPC
-		CodecOpts: &CodecOptions{
-			Video:     req.Request.TargetCodec,
-			Audio:     req.Request.AudioCodec,
-			Container: req.Request.TargetContainer,
-			Bitrate:   fmt.Sprintf("%dk", req.Request.Bitrate),
-			Quality:   int(req.Request.Quality),
-			Preset:    req.Request.Preset,
-		},
-		Environment: make(map[string]string),
-	}
-
-	// Add additional fields to environment
-	if req.Request.Priority > 0 {
-		internalReq.Environment["priority"] = fmt.Sprintf("%d", req.Request.Priority)
-	}
-	if req.Request.Resolution != "" {
-		internalReq.Environment["resolution"] = req.Request.Resolution
-	}
-	if req.Request.AudioBitrate > 0 {
-		internalReq.Environment["audio_bitrate"] = fmt.Sprintf("%dk", req.Request.AudioBitrate)
-	}
-	if req.Request.AudioStream > 0 {
-		internalReq.Environment["audio_stream"] = fmt.Sprintf("%d", req.Request.AudioStream)
-	}
-	if len(req.Request.Options) > 0 {
-		for k, v := range req.Request.Options {
-			internalReq.Environment[k] = v
-		}
-	}
-
-	fmt.Printf("DEBUG: Converted internal request: InputPath='%s', VideoCodec='%s', Container='%s'\n",
-		internalReq.InputPath, internalReq.CodecOpts.Video, internalReq.CodecOpts.Container)
-
-	// Handle subtitles if present - add to environment
-	if req.Request.Subtitles != nil {
-		internalReq.Environment["subtitles_enabled"] = fmt.Sprintf("%t", req.Request.Subtitles.Enabled)
-		if req.Request.Subtitles.Language != "" {
-			internalReq.Environment["subtitles_language"] = req.Request.Subtitles.Language
-		}
-		internalReq.Environment["subtitles_burn_in"] = fmt.Sprintf("%t", req.Request.Subtitles.BurnIn)
-		internalReq.Environment["subtitles_stream_idx"] = fmt.Sprintf("%d", req.Request.Subtitles.StreamIdx)
-		if req.Request.Subtitles.FontSize > 0 {
-			internalReq.Environment["subtitles_font_size"] = fmt.Sprintf("%d", req.Request.Subtitles.FontSize)
-		}
-		if req.Request.Subtitles.FontColor != "" {
-			internalReq.Environment["subtitles_font_color"] = req.Request.Subtitles.FontColor
-		}
-	}
-
-	// Handle device profile if present
-	if req.Request.DeviceProfile != nil {
-		internalReq.DeviceProfile = &DeviceProfile{
-			UserAgent:       req.Request.DeviceProfile.UserAgent,
-			SupportedCodecs: req.Request.DeviceProfile.SupportedCodecs,
-			MaxResolution:   req.Request.DeviceProfile.MaxResolution,
-			MaxBitrate:      int(req.Request.DeviceProfile.MaxBitrate),
-			SupportsHEVC:    req.Request.DeviceProfile.SupportsHevc,
-			SupportsAV1:     req.Request.DeviceProfile.SupportsAv1,
-			SupportsHDR:     req.Request.DeviceProfile.SupportsHdr,
-			ClientIP:        req.Request.DeviceProfile.ClientIp,
-			Platform:        req.Request.DeviceProfile.Platform,
-			Browser:         req.Request.DeviceProfile.Browser,
-		}
-	}
-
-	session, err := s.Impl.StartTranscode(ctx, internalReq)
-	if err != nil {
-		return &proto.StartTranscodeResponse{
-			Error: err.Error(),
-		}, nil
-	}
-
-	if session == nil {
-		return &proto.StartTranscodeResponse{
-			Error: "StartTranscode returned nil session",
-		}, nil
-	}
-
-	// Convert session to protobuf
-	protoSession := convertSessionToProto(session)
-	if protoSession == nil {
-		return &proto.StartTranscodeResponse{
-			Error: "Failed to convert session to protobuf",
-		}, nil
-	}
-
-	return &proto.StartTranscodeResponse{
-		Session: protoSession,
-	}, nil
-}
-
-func (s *TranscodingServer) GetTranscodeSession(ctx context.Context, req *proto.GetTranscodeSessionRequest) (*proto.GetTranscodeSessionResponse, error) {
-	session, err := s.Impl.GetTranscodeSession(ctx, req.SessionId)
-	if err != nil {
-		return &proto.GetTranscodeSessionResponse{
-			Error: err.Error(),
-		}, nil
-	}
-
-	protoSession := convertSessionToProto(session)
-
-	return &proto.GetTranscodeSessionResponse{
-		Session: protoSession,
-	}, nil
-}
-
-func (s *TranscodingServer) StopTranscode(ctx context.Context, req *proto.StopTranscodeRequest) (*proto.StopTranscodeResponse, error) {
-	err := s.Impl.StopTranscode(ctx, req.SessionId)
-	if err != nil {
-		return &proto.StopTranscodeResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-
-	return &proto.StopTranscodeResponse{
-		Success: true,
-	}, nil
-}
-
-func (s *TranscodingServer) ListActiveSessions(ctx context.Context, req *proto.ListActiveSessionsRequest) (*proto.ListActiveSessionsResponse, error) {
-	sessions, err := s.Impl.ListActiveSessions(ctx)
-	if err != nil {
-		return &proto.ListActiveSessionsResponse{
-			Error: err.Error(),
-		}, nil
-	}
-
-	var protoSessions []*proto.TranscodeSession
-	for _, session := range sessions {
-		protoSessions = append(protoSessions, convertSessionToProto(session))
-	}
-
-	return &proto.ListActiveSessionsResponse{
-		Sessions: protoSessions,
-	}, nil
-}
-
-func (s *TranscodingServer) GetTranscodeStream(req *proto.GetTranscodeStreamRequest, stream proto.TranscodingService_GetTranscodeStreamServer) error {
-	reader, err := s.Impl.GetTranscodeStream(context.Background(), req.SessionId)
-	if err != nil {
-		return stream.Send(&proto.TranscodeStreamChunk{
-			Error: err.Error(),
-		})
-	}
-	defer reader.Close()
-
-	buffer := make([]byte, 32*1024) // 32KB chunks
-	for {
-		n, err := reader.Read(buffer)
-		if n > 0 {
-			chunk := &proto.TranscodeStreamChunk{
-				Data: buffer[:n],
-			}
-			if sendErr := stream.Send(chunk); sendErr != nil {
-				return sendErr
-			}
-		}
-		if err != nil {
-			if err.Error() != "EOF" {
-				return stream.Send(&proto.TranscodeStreamChunk{
-					Error: err.Error(),
-				})
-			}
-			// Send EOF marker
-			return stream.Send(&proto.TranscodeStreamChunk{
-				Eof: true,
-			})
-		}
-	}
-}
-
 // Helper function to convert internal session to protobuf
+// DEPRECATED: This is for the old TranscodeSession type which has been removed
+/*
 func convertSessionToProto(session *TranscodeSession) *proto.TranscodeSession {
-	if session == nil {
-		return nil
-	}
-
-	protoSession := &proto.TranscodeSession{
-		Id:        session.ID,
-		Status:    string(session.Status),
-		Progress:  session.Progress,
-		StartTime: session.StartTime.Unix(),
-		Backend:   session.Backend,
-		Error:     session.Error,
-		Metadata:  make(map[string]string),
-	}
-
-	// Convert metadata interface{} to string
-	for k, v := range session.Metadata {
-		if str, ok := v.(string); ok {
-			protoSession.Metadata[k] = str
-		}
-	}
-
-	if session.EndTime != nil {
-		protoSession.EndTime = session.EndTime.Unix()
-	}
-
-	if session.Request != nil {
-		protoSession.Request = &proto.TranscodeRequest{
-			InputPath:       session.Request.InputPath,
-			TargetCodec:     session.Request.CodecOpts.Video,
-			TargetContainer: session.Request.CodecOpts.Container,
-			Resolution:      session.Request.Environment["resolution"],
-			Bitrate:         getBitrateFromString(session.Request.CodecOpts.Bitrate),
-			AudioCodec:      session.Request.CodecOpts.Audio,
-			AudioBitrate:    getBitrateFromString(session.Request.Environment["audio_bitrate"]),
-			AudioStream:     getIntFromString(session.Request.Environment["audio_stream"]),
-			Quality:         int32(session.Request.CodecOpts.Quality),
-			Preset:          session.Request.CodecOpts.Preset,
-			Options:         session.Request.Environment, // Pass through environment as options
-			Priority:        getIntFromString(session.Request.Environment["priority"]),
-		}
-
-		// Handle subtitles from environment
-		if session.Request.Environment["subtitles_enabled"] == "true" {
-			protoSession.Request.Subtitles = &proto.SubtitleConfig{
-				Enabled:   session.Request.Environment["subtitles_enabled"] == "true",
-				Language:  session.Request.Environment["subtitles_language"],
-				BurnIn:    session.Request.Environment["subtitles_burn_in"] == "true",
-				StreamIdx: getIntFromString(session.Request.Environment["subtitles_stream_idx"]),
-				FontSize:  getIntFromString(session.Request.Environment["subtitles_font_size"]),
-				FontColor: session.Request.Environment["subtitles_font_color"],
-			}
-		}
-
-		if session.Request.DeviceProfile != nil {
-			protoSession.Request.DeviceProfile = &proto.DeviceProfile{
-				UserAgent:       session.Request.DeviceProfile.UserAgent,
-				SupportedCodecs: session.Request.DeviceProfile.SupportedCodecs,
-				MaxResolution:   session.Request.DeviceProfile.MaxResolution,
-				MaxBitrate:      int32(session.Request.DeviceProfile.MaxBitrate),
-				SupportsHevc:    session.Request.DeviceProfile.SupportsHEVC,
-				SupportsAv1:     session.Request.DeviceProfile.SupportsAV1,
-				SupportsHdr:     session.Request.DeviceProfile.SupportsHDR,
-				ClientIp:        session.Request.DeviceProfile.ClientIP,
-				Platform:        session.Request.DeviceProfile.Platform,
-				Browser:         session.Request.DeviceProfile.Browser,
-			}
-		}
-	}
-
-	if session.Stats != nil {
-		protoSession.Stats = &proto.TranscodeStats{
-			Duration:        session.Stats.Duration.Nanoseconds(),
-			BytesProcessed:  session.Stats.BytesProcessed,
-			BytesGenerated:  session.Stats.BytesGenerated,
-			FramesProcessed: session.Stats.FramesProcessed,
-			CurrentFps:      session.Stats.CurrentFPS,
-			AverageFps:      session.Stats.AverageFPS,
-			CpuUsage:        session.Stats.CPUUsage,
-			MemoryUsage:     session.Stats.MemoryUsage,
-			Speed:           session.Stats.Speed,
-		}
-	}
-
-	return protoSession
+	// Implementation removed - using TranscodingProvider now
+	return nil
 }
+*/
 
 // Helper functions for converting string values from environment
 

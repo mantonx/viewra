@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -166,10 +164,12 @@ func (a *ExternalPluginAdapter) EnhancedAdminPageService() plugins.EnhancedAdmin
 	return nil
 }
 
-// TranscodingService - return a basic implementation for ffmpeg_transcoder
-func (a *ExternalPluginAdapter) TranscodingService() plugins.TranscodingService {
+// TranscodingProvider - return a provider implementation for transcoder plugins
+func (a *ExternalPluginAdapter) TranscodingProvider() plugins.TranscodingProvider {
 	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
-		return &BasicTranscodingService{client: a.client}
+		// For now, return nil since we don't have full gRPC implementation
+		// TODO: Implement BasicTranscodingProvider that wraps the gRPC client
+		return nil
 	}
 	return nil
 }
@@ -246,55 +246,9 @@ func (a *ExternalPluginAdapter) GetDashboardSections(ctx context.Context) ([]plu
 func (a *ExternalPluginAdapter) GetMainData(ctx context.Context, sectionID string) (interface{}, error) {
 	// Get real transcoding data via GRPC
 	if a.pluginInfo != nil && a.pluginInfo.Type == "transcoder" {
-		transcodingService := a.TranscodingService()
-		if transcodingService == nil {
-			// Return mock data if service unavailable
-			return a.getMockTranscoderMainData(), nil
-		}
-
-		// Get active sessions via GRPC
-		activeSessions, err := transcodingService.ListActiveSessions(ctx)
-		if err != nil {
-			log.Printf("WARN: failed to get active sessions: %v", err)
-			return a.getMockTranscoderMainData(), nil
-		}
-
-		// Convert plugin sessions to dashboard summaries
-		activeSummaries := make([]plugins.TranscodeSessionSummary, len(activeSessions))
-		for i, session := range activeSessions {
-			activeSummaries[i] = a.convertToSessionSummary(session)
-		}
-
-		// Get capabilities
-		capabilities, err := transcodingService.GetCapabilities(ctx)
-		var caps []string
-		maxConcurrent := 10
-		if err == nil && capabilities != nil {
-			caps = capabilities.SupportedCodecs
-			maxConcurrent = capabilities.MaxConcurrentSessions
-		} else {
-			caps = []string{"h264", "h265", "vp8", "vp9", "av1", "aac", "mp3"}
-		}
-
-		// Calculate quick stats from active sessions
-		quickStats := a.calculateQuickStats(activeSessions)
-
-		return plugins.TranscoderMainData{
-			ActiveSessions: activeSummaries,
-			QueuedSessions: []plugins.TranscodeSessionSummary{}, // TODO: Add queued sessions support
-			RecentSessions: []plugins.TranscodeSessionSummary{}, // TODO: Add recent sessions support
-			EngineStatus: plugins.TranscoderEngineStatus{
-				Type:            "ffmpeg",
-				Status:          "healthy",
-				Version:         "6.0.0",
-				MaxConcurrent:   maxConcurrent,
-				ActiveSessions:  len(activeSessions),
-				QueuedSessions:  0,
-				LastHealthCheck: time.Now(),
-				Capabilities:    caps,
-			},
-			QuickStats: quickStats,
-		}, nil
+		// TODO: Update to use TranscodingProvider once gRPC support is added
+		// For now, return mock data
+		return a.getMockTranscoderMainData(), nil
 	}
 
 	return nil, fmt.Errorf("unsupported section: %s", sectionID)
@@ -328,81 +282,13 @@ func (a *ExternalPluginAdapter) getMockTranscoderMainData() plugins.TranscoderMa
 }
 
 // convertToSessionSummary converts a TranscodeSession to TranscodeSessionSummary for dashboard display
+// DEPRECATED: This uses the old TranscodeSession type which has been removed
+/*
 func (a *ExternalPluginAdapter) convertToSessionSummary(session *plugins.TranscodeSession) plugins.TranscodeSessionSummary {
-	var inputFilename, clientIP, clientDevice string
-	var throughputFPS float64
-	var estimatedTimeLeft string
-
-	if session.Request != nil {
-		// Extract smart title from input path instead of just filename
-		inputFilename = a.extractContentTitle(session.Request.InputPath)
-
-		// Get client info from device profile
-		if session.Request.DeviceProfile != nil {
-			clientIP = session.Request.DeviceProfile.ClientIP
-			clientDevice = fmt.Sprintf("%s %s", session.Request.DeviceProfile.Platform, session.Request.DeviceProfile.Browser)
-		}
-	}
-
-	// Calculate throughput and time estimates from stats
-	if session.Stats != nil {
-		throughputFPS = session.Stats.CurrentFPS
-
-		// Estimate time left based on progress and current speed
-		if session.Progress > 0 && session.Stats.Speed > 0 {
-			elapsedTime := time.Since(session.StartTime)
-			totalEstimatedTime := time.Duration(float64(elapsedTime) / session.Progress)
-			timeLeft := totalEstimatedTime - elapsedTime
-			if timeLeft > 0 {
-				estimatedTimeLeft = timeLeft.Truncate(time.Second).String()
-			} else {
-				estimatedTimeLeft = "0s"
-			}
-		} else {
-			estimatedTimeLeft = "Unknown"
-		}
-	}
-
-	// Format progress and other display values
-	var inputResolution, outputResolution, inputCodec, outputCodec, bitrate, duration string
-
-	if session.Request != nil {
-		outputResolution = session.Request.Environment["resolution"]
-		outputCodec = session.Request.CodecOpts.Video
-		if session.Request.CodecOpts.Bitrate != "" {
-			bitrate = session.Request.CodecOpts.Bitrate
-		}
-	}
-
-	// Set transcoder type based on backend
-	transcoderType := "software"
-	if session.Backend == "nvenc" {
-		transcoderType = "nvenc"
-	} else if session.Backend == "vaapi" {
-		transcoderType = "vaapi"
-	} else if session.Backend == "qsv" {
-		transcoderType = "qsv"
-	}
-
-	return plugins.TranscodeSessionSummary{
-		ID:                session.ID,
-		InputFilename:     inputFilename,
-		InputResolution:   inputResolution, // TODO: Get from media analysis
-		OutputResolution:  outputResolution,
-		InputCodec:        inputCodec, // TODO: Get from media analysis
-		OutputCodec:       outputCodec,
-		Bitrate:           bitrate,
-		Duration:          duration, // TODO: Calculate from media info
-		Progress:          session.Progress,
-		TranscoderType:    transcoderType,
-		ClientIP:          clientIP,
-		ClientDevice:      clientDevice,
-		StartTime:         session.StartTime,
-		Status:            string(session.Status),
-		EstimatedTimeLeft: estimatedTimeLeft,
-		ThroughputFPS:     throughputFPS,
-	}
+	// Implementation removed - using TranscodingProvider now
+	return plugins.TranscodeSessionSummary{}
 }
+*/
 
 // extractContentTitle extracts a user-friendly title from a file path using database lookup first, then smart filename parsing
 func (a *ExternalPluginAdapter) extractContentTitle(inputPath string) string {
@@ -529,50 +415,13 @@ func (a *ExternalPluginAdapter) extractContentTitle(inputPath string) string {
 }
 
 // calculateQuickStats calculates quick statistics from active sessions
+// DEPRECATED: This uses the old TranscodeSession type which has been removed
+/*
 func (a *ExternalPluginAdapter) calculateQuickStats(sessions []*plugins.TranscodeSession) plugins.TranscoderQuickStats {
-	activeSessions := len(sessions)
-	var totalSpeed, totalThroughput float64
-	var sessionsToday int
-	var totalHoursToday float64
-
-	// Analyze active sessions
-	for _, session := range sessions {
-		// Count sessions started today
-		if session.StartTime.After(time.Now().Truncate(24 * time.Hour)) {
-			sessionsToday++
-			// Calculate hours transcoded today
-			elapsed := time.Since(session.StartTime)
-			totalHoursToday += elapsed.Hours()
-		}
-
-		// Sum up speed and throughput
-		if session.Stats != nil {
-			totalSpeed += session.Stats.Speed
-			totalThroughput += session.Stats.CurrentFPS
-		}
-	}
-
-	// Calculate averages
-	var averageSpeed float64
-	var currentThroughput string
-
-	if activeSessions > 0 {
-		averageSpeed = totalSpeed / float64(activeSessions)
-		currentThroughput = fmt.Sprintf("%.1f fps", totalThroughput)
-	} else {
-		averageSpeed = 1.0 // Default when no active sessions
-		currentThroughput = "0 fps"
-	}
-
-	return plugins.TranscoderQuickStats{
-		SessionsToday:     sessionsToday,
-		TotalHoursToday:   totalHoursToday,
-		AverageSpeed:      averageSpeed,
-		ErrorRate:         0.02, // TODO: Calculate from historical data
-		CurrentThroughput: currentThroughput,
-		PeakConcurrent:    activeSessions, // TODO: Track historical peak
-	}
+	// Implementation removed - using TranscodingProvider now
+	return plugins.TranscoderQuickStats{}
 }
+*/
 
 func (a *ExternalPluginAdapter) GetNerdData(ctx context.Context, sectionID string) (interface{}, error) {
 	// Mock nerd data for the transcoder
@@ -710,319 +559,29 @@ func (a *ExternalPluginAdapter) StreamData(ctx context.Context, sectionID string
 	return updateChan, nil
 }
 
-// BasicTranscodingService implements GRPC communication with external transcoding plugins
-type BasicTranscodingService struct {
-	client *ExternalPluginGRPCClient
-}
+// GetProviderInfo returns the provider information
+// DEPRECATED: This uses the old TranscodingService interface which has been replaced by TranscodingProvider
+// They used the old TranscodingService interface which has been replaced by TranscodingProvider
 
-// GetCapabilities returns transcoding capabilities via GRPC
-func (s *BasicTranscodingService) GetCapabilities(ctx context.Context) (*plugins.TranscodingCapabilities, error) {
-	// Create GRPC client for transcoding service
-	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
+// GetQualityPresets returns available quality presets
+// DEPRECATED: This uses the old TranscodingService interface which has been replaced by TranscodingProvider
+// They used the old TranscodingService interface which has been replaced by TranscodingProvider
 
-	fmt.Printf("DEBUG: BasicTranscodingService.GetCapabilities calling GRPC\n")
-	resp, err := transcodingClient.GetCapabilities(ctx, &proto.GetCapabilitiesRequest{})
-	if err != nil {
-		fmt.Printf("DEBUG: BasicTranscodingService.GetCapabilities GRPC failed: %v\n", err)
-		return nil, fmt.Errorf("failed to get capabilities: %w", err)
-	}
-	fmt.Printf("DEBUG: BasicTranscodingService.GetCapabilities GRPC succeeded\n")
+// MapQualityToProvider maps generic quality to provider-specific settings
+// DEPRECATED: This uses the old TranscodingService interface which has been replaced by TranscodingProvider
+// They used the old TranscodingService interface which has been replaced by TranscodingProvider
 
-	if resp.Error != "" {
-		return nil, fmt.Errorf("plugin error: %s", resp.Error)
-	}
+// GetHardwareAccelerators returns available hardware accelerators
+// DEPRECATED: This uses the old TranscodingService interface which has been replaced by TranscodingProvider
+// They used the old TranscodingService interface which has been replaced by TranscodingProvider
 
-	// DEBUG: Log the raw protobuf response
-	fmt.Printf("DEBUG: GRPC response - Name: %s\n", resp.Capabilities.Name)
-	fmt.Printf("DEBUG: GRPC response - SupportedCodecs: %v\n", resp.Capabilities.SupportedCodecs)
-	fmt.Printf("DEBUG: GRPC response - SupportedResolutions: %v\n", resp.Capabilities.SupportedResolutions)
-	fmt.Printf("DEBUG: GRPC response - SupportedContainers: %v\n", resp.Capabilities.SupportedContainers)
-	fmt.Printf("DEBUG: GRPC response - Priority: %d\n", resp.Capabilities.Priority)
-
-	// Convert protobuf response to internal format
-	capabilities := &plugins.TranscodingCapabilities{
-		Name:                  resp.Capabilities.Name,
-		SupportedCodecs:       resp.Capabilities.SupportedCodecs,
-		SupportedResolutions:  resp.Capabilities.SupportedResolutions,
-		SupportedContainers:   resp.Capabilities.SupportedContainers,
-		HardwareAcceleration:  resp.Capabilities.HardwareAcceleration,
-		MaxConcurrentSessions: int(resp.Capabilities.MaxConcurrentSessions),
-		Priority:              int(resp.Capabilities.Priority),
-		Features: plugins.TranscodingFeatures{
-			SubtitleBurnIn:      resp.Capabilities.Features.SubtitleBurnIn,
-			SubtitlePassthrough: resp.Capabilities.Features.SubtitlePassthrough,
-			MultiAudioTracks:    resp.Capabilities.Features.MultiAudioTracks,
-			HDRSupport:          resp.Capabilities.Features.HdrSupport,
-			ToneMapping:         resp.Capabilities.Features.ToneMapping,
-			StreamingOutput:     resp.Capabilities.Features.StreamingOutput,
-			SegmentedOutput:     resp.Capabilities.Features.SegmentedOutput,
-		},
-	}
-
-	// DEBUG: Log the converted internal capabilities
-	fmt.Printf("DEBUG: Converted capabilities - Name: %s\n", capabilities.Name)
-	fmt.Printf("DEBUG: Converted capabilities - SupportedCodecs: %v\n", capabilities.SupportedCodecs)
-	fmt.Printf("DEBUG: Converted capabilities - SupportedResolutions: %v\n", capabilities.SupportedResolutions)
-	fmt.Printf("DEBUG: Converted capabilities - SupportedContainers: %v\n", capabilities.SupportedContainers)
-	fmt.Printf("DEBUG: Converted capabilities - Priority: %d\n", capabilities.Priority)
-
-	return capabilities, nil
-}
-
-// StartTranscode starts a transcoding session via GRPC
-func (s *BasicTranscodingService) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error) {
-	// Create GRPC client for transcoding service
-	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
-
-	// Convert new TranscodeRequest to legacy format for GRPC
-	legacyReq := &proto.TranscodeRequest{
-		InputPath: req.InputPath,
-		Priority:  5,             // Default priority
-		SessionId: req.SessionID, // Pass session ID to plugin
-	}
-
-	// Add seek time to environment if present
-	if req.Seek > 0 {
-		if req.Environment == nil {
-			req.Environment = make(map[string]string)
-		}
-		req.Environment["seek_time"] = fmt.Sprintf("%.0f", req.Seek.Seconds())
-	}
-
-	// Extract codec options
-	if req.CodecOpts != nil {
-		legacyReq.TargetCodec = req.CodecOpts.Video
-		legacyReq.TargetContainer = req.CodecOpts.Container
-		legacyReq.AudioCodec = req.CodecOpts.Audio
-		legacyReq.Preset = req.CodecOpts.Preset
-		legacyReq.Quality = int32(req.CodecOpts.Quality)
-		if req.CodecOpts.Bitrate != "" {
-			// Parse bitrate string like "1000k" to int
-			bitrateStr := strings.TrimSuffix(req.CodecOpts.Bitrate, "k")
-			if bitrate, err := strconv.Atoi(bitrateStr); err == nil {
-				legacyReq.Bitrate = int32(bitrate)
-			}
-		}
-	}
-
-	// Extract environment settings
-	if req.Environment != nil {
-		if priorityStr, ok := req.Environment["priority"]; ok {
-			if priority, err := strconv.Atoi(priorityStr); err == nil {
-				legacyReq.Priority = int32(priority)
-			}
-		}
-	}
-
-	protoReq := &proto.StartTranscodeRequest{
-		Request: legacyReq,
-	}
-
-	// Handle subtitles if present in environment
-	if req.Environment["subtitles_enabled"] == "true" {
-		protoReq.Request.Subtitles = &proto.SubtitleConfig{
-			Enabled:   true,
-			Language:  req.Environment["subtitles_language"],
-			BurnIn:    req.Environment["subtitles_burn_in"] == "true",
-			StreamIdx: parseIntToInt32(req.Environment["subtitles_stream_idx"]),
-			FontSize:  parseIntToInt32(req.Environment["subtitles_font_size"]),
-			FontColor: req.Environment["subtitles_font_color"],
-		}
-	}
-
-	// Handle device profile if present
-	if req.DeviceProfile != nil {
-		protoReq.Request.DeviceProfile = &proto.DeviceProfile{
-			UserAgent:       req.DeviceProfile.UserAgent,
-			SupportedCodecs: req.DeviceProfile.SupportedCodecs,
-			MaxResolution:   req.DeviceProfile.MaxResolution,
-			MaxBitrate:      int32(req.DeviceProfile.MaxBitrate),
-			SupportsHevc:    req.DeviceProfile.SupportsHEVC,
-			SupportsAv1:     req.DeviceProfile.SupportsAV1,
-			SupportsHdr:     req.DeviceProfile.SupportsHDR,
-			ClientIp:        req.DeviceProfile.ClientIP,
-			Platform:        req.DeviceProfile.Platform,
-			Browser:         req.DeviceProfile.Browser,
-		}
-	}
-
-	fmt.Printf("DEBUG: BasicTranscodingService.StartTranscode calling GRPC with InputPath='%s', TargetCodec='%s', Resolution='%s'\n",
-		protoReq.Request.InputPath, protoReq.Request.TargetCodec, protoReq.Request.Resolution)
-	resp, err := transcodingClient.StartTranscode(ctx, protoReq)
-	if err != nil {
-		fmt.Printf("DEBUG: BasicTranscodingService.StartTranscode GRPC failed: %v\n", err)
-		return nil, fmt.Errorf("failed to start transcode: %w", err)
-	}
-	fmt.Printf("DEBUG: BasicTranscodingService.StartTranscode GRPC succeeded\n")
-
-	if resp.Error != "" {
-		return nil, fmt.Errorf("plugin error: %s", resp.Error)
-	}
-
-	// Convert protobuf session to internal format
-	session := s.convertSessionFromProto(resp.Session)
-	return session, nil
-}
-
-// GetTranscodeSession gets transcoding session info via GRPC
-func (s *BasicTranscodingService) GetTranscodeSession(ctx context.Context, sessionID string) (*plugins.TranscodeSession, error) {
-	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
-
-	resp, err := transcodingClient.GetTranscodeSession(ctx, &proto.GetTranscodeSessionRequest{
-		SessionId: sessionID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get transcode session: %w", err)
-	}
-
-	if resp.Error != "" {
-		return nil, fmt.Errorf("plugin error: %s", resp.Error)
-	}
-
-	return s.convertSessionFromProto(resp.Session), nil
-}
-
-// StopTranscode stops a transcoding session via GRPC
-func (s *BasicTranscodingService) StopTranscode(ctx context.Context, sessionID string) error {
-	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
-
-	resp, err := transcodingClient.StopTranscode(ctx, &proto.StopTranscodeRequest{
-		SessionId: sessionID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to stop transcode: %w", err)
-	}
-
-	if resp.Error != "" {
-		return fmt.Errorf("plugin error: %s", resp.Error)
-	}
-
-	return nil
-}
-
-// ListActiveSessions lists active transcoding sessions via GRPC
-func (s *BasicTranscodingService) ListActiveSessions(ctx context.Context) ([]*plugins.TranscodeSession, error) {
-	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
-
-	resp, err := transcodingClient.ListActiveSessions(ctx, &proto.ListActiveSessionsRequest{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list active sessions: %w", err)
-	}
-
-	if resp.Error != "" {
-		return nil, fmt.Errorf("plugin error: %s", resp.Error)
-	}
-
-	var sessions []*plugins.TranscodeSession
-	for _, protoSession := range resp.Sessions {
-		sessions = append(sessions, s.convertSessionFromProto(protoSession))
-	}
-
-	return sessions, nil
-}
-
-// GetTranscodeStream gets the transcoded stream via GRPC
-func (s *BasicTranscodingService) GetTranscodeStream(ctx context.Context, sessionID string) (io.ReadCloser, error) {
-	transcodingClient := proto.NewTranscodingServiceClient(s.client.conn)
-
-	stream, err := transcodingClient.GetTranscodeStream(ctx, &proto.GetTranscodeStreamRequest{
-		SessionId: sessionID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get transcode stream: %w", err)
-	}
-
-	return &grpcStreamReader{stream: stream}, nil
-}
-
-// Helper method to convert protobuf session to internal format
-func (s *BasicTranscodingService) convertSessionFromProto(protoSession *proto.TranscodeSession) *plugins.TranscodeSession {
-	session := &plugins.TranscodeSession{
-		ID:        protoSession.Id,
-		Status:    plugins.TranscodeStatus(protoSession.Status),
-		Progress:  protoSession.Progress,
-		StartTime: time.Unix(protoSession.StartTime, 0),
-		Backend:   protoSession.Backend,
-		Error:     protoSession.Error,
-		Metadata:  make(map[string]interface{}),
-	}
-
-	// Convert metadata
-	for k, v := range protoSession.Metadata {
-		session.Metadata[k] = v
-	}
-
-	if protoSession.EndTime > 0 {
-		endTime := time.Unix(protoSession.EndTime, 0)
-		session.EndTime = &endTime
-	}
-
-	if protoSession.Request != nil {
-		session.Request = &plugins.TranscodeRequest{
-			InputPath:     protoSession.Request.InputPath,
-			OutputPath:    "",  // Set by plugin
-			Seek:          0,   // No seek time from proto
-			Duration:      0,   // Full duration
-			DeviceProfile: nil, // Will be set below if available
-			CodecOpts: &plugins.CodecOptions{
-				Video:     protoSession.Request.TargetCodec,
-				Audio:     protoSession.Request.AudioCodec,
-				Container: protoSession.Request.TargetContainer,
-				Bitrate:   fmt.Sprintf("%dk", protoSession.Request.Bitrate),
-				Quality:   int(protoSession.Request.Quality),
-				Preset:    protoSession.Request.Preset,
-			},
-			Environment: map[string]string{
-				"priority": fmt.Sprintf("%d", protoSession.Request.Priority),
-			},
-		}
-
-		// Handle subtitles if present in proto - add to environment
-		if protoSession.Request.Subtitles != nil {
-			session.Request.Environment["subtitles_enabled"] = fmt.Sprintf("%t", protoSession.Request.Subtitles.Enabled)
-			session.Request.Environment["subtitles_language"] = protoSession.Request.Subtitles.Language
-			session.Request.Environment["subtitles_burn_in"] = fmt.Sprintf("%t", protoSession.Request.Subtitles.BurnIn)
-			session.Request.Environment["subtitles_stream_idx"] = fmt.Sprintf("%d", protoSession.Request.Subtitles.StreamIdx)
-			session.Request.Environment["subtitles_font_size"] = fmt.Sprintf("%d", protoSession.Request.Subtitles.FontSize)
-			session.Request.Environment["subtitles_font_color"] = protoSession.Request.Subtitles.FontColor
-		}
-
-		if protoSession.Request.DeviceProfile != nil {
-			session.Request.DeviceProfile = &plugins.DeviceProfile{
-				UserAgent:       protoSession.Request.DeviceProfile.UserAgent,
-				SupportedCodecs: protoSession.Request.DeviceProfile.SupportedCodecs,
-				MaxResolution:   protoSession.Request.DeviceProfile.MaxResolution,
-				MaxBitrate:      int(protoSession.Request.DeviceProfile.MaxBitrate),
-				SupportsHEVC:    protoSession.Request.DeviceProfile.SupportsHevc,
-				SupportsAV1:     protoSession.Request.DeviceProfile.SupportsAv1,
-				SupportsHDR:     protoSession.Request.DeviceProfile.SupportsHdr,
-				ClientIP:        protoSession.Request.DeviceProfile.ClientIp,
-				Platform:        protoSession.Request.DeviceProfile.Platform,
-				Browser:         protoSession.Request.DeviceProfile.Browser,
-			}
-		}
-	}
-
-	if protoSession.Stats != nil {
-		session.Stats = &plugins.TranscodeStats{
-			Duration:        time.Duration(protoSession.Stats.Duration),
-			BytesProcessed:  protoSession.Stats.BytesProcessed,
-			BytesGenerated:  protoSession.Stats.BytesGenerated,
-			FramesProcessed: protoSession.Stats.FramesProcessed,
-			CurrentFPS:      protoSession.Stats.CurrentFps,
-			AverageFPS:      protoSession.Stats.AverageFps,
-			CPUUsage:        protoSession.Stats.CpuUsage,
-			MemoryUsage:     protoSession.Stats.MemoryUsage,
-			Speed:           protoSession.Stats.Speed,
-		}
-	}
-
-	return session
-}
+// GetSessionProgress returns detailed progress for a session
+// DEPRECATED: This uses the old TranscodingService interface which has been replaced by TranscodingProvider
+// They used the old TranscodingService interface which has been replaced by TranscodingProvider
 
 // grpcStreamReader implements io.ReadCloser for GRPC streaming
 type grpcStreamReader struct {
-	stream   grpc.ServerStreamingClient[proto.TranscodeStreamChunk]
+	stream   grpc.ServerStreamingClient[proto.StreamDataChunk]
 	buffer   []byte
 	position int
 	closed   bool

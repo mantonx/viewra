@@ -7,14 +7,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hashicorp/go-hclog"
+	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-// Type aliases for compatibility
-type PlaybackModule = playbackmodule.PlaybackModule
 
 type TestData struct {
 	VideoPath        string
@@ -50,14 +47,16 @@ func setupTestEnvironment(t *testing.T) *TestData {
 func setupTestDatabase(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// Run migrations
+	db.AutoMigrate(&database.TranscodeSession{})
 	return db
 }
 
-func createTestRouter(t *testing.T, playbackModule *PlaybackModule) *gin.Engine {
+func createTestRouter(t *testing.T, module *playbackmodule.Module) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	playbackModule.RegisterRoutes(router)
+	module.RegisterRoutes(router)
 	return router
 }
 
@@ -112,14 +111,15 @@ func (m *MockPluginManager) GetRunningPlugins() []PluginInfo {
 	return m.ListPlugins()
 }
 
-func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *PlaybackModule {
+func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *playbackmodule.Module {
 	t.Helper()
-	logger := hclog.NewNullLogger()
 	mockPluginManager := &MockPluginManager{}
 	adapter := &PluginManagerAdapter{pluginManager: mockPluginManager}
-	playbackModule := playbackmodule.NewPlaybackModule(logger, adapter)
-	playbackModule.Initialize()
-	return playbackModule
+	module := playbackmodule.NewModule(db, nil, adapter)
+	if err := module.Init(); err != nil {
+		t.Fatalf("Failed to initialize module: %v", err)
+	}
+	return module
 }
 
 func createTestVideo(path string) error {

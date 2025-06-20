@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/config"
+	"github.com/mantonx/viewra/data/plugins/ffmpeg_transcoder/internal/progress"
 )
 
 // DefaultTranscodingService implements the TranscodingService interface
@@ -464,6 +466,12 @@ func (e *FFmpegExecutorImpl) Execute(ctx context.Context, args []string, progres
 		debugFile.Close()
 	}
 
+	// Create stderr pipe to capture progress
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
 	// Start the command
 	if err := cmd.Start(); err != nil {
 		if debugFile, _ := os.OpenFile("/app/viewra-data/transcoding/plugin_debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); debugFile != nil {
@@ -478,6 +486,83 @@ func (e *FFmpegExecutorImpl) Execute(ctx context.Context, args []string, progres
 		fmt.Fprintf(debugFile, "🎯 [%s] FFmpeg started with PID: %d\n", time.Now().Format("15:04:05"), cmd.Process.Pid)
 		debugFile.Close()
 	}
+
+	// Get job ID from args to use with callback
+	var jobID string
+	for i, arg := range args {
+		if strings.Contains(arg, "/viewra-data/transcoding/") && i > 0 {
+			// Extract job ID from output path
+			parts := strings.Split(arg, "/")
+			for _, part := range parts {
+				if strings.HasPrefix(part, "job_") {
+					jobID = strings.Split(part, "_")[1]
+					if idx := strings.Index(jobID, "/"); idx > 0 {
+						jobID = jobID[:idx]
+					}
+					jobID = "job_" + jobID
+					break
+				}
+			}
+			break
+		}
+	}
+
+	// Start progress monitoring goroutine
+	progressDone := make(chan struct{})
+	go func() {
+		defer close(progressDone)
+
+		// First probe the input file to get duration
+		var totalDuration time.Duration
+		if len(args) > 2 {
+			// Find input file in args (after -i flag)
+			for i, arg := range args {
+				if arg == "-i" && i+1 < len(args) {
+					inputFile := args[i+1]
+					// Probe file to get duration
+					probeCmd := exec.CommandContext(ctx, "ffprobe",
+						"-v", "error",
+						"-show_entries", "format=duration",
+						"-of", "default=noprint_wrappers=1:nokey=1",
+						inputFile,
+					)
+					if output, err := probeCmd.Output(); err == nil {
+						if duration, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 64); err == nil {
+							totalDuration = time.Duration(duration * float64(time.Second))
+						}
+					}
+					break
+				}
+			}
+		}
+
+		// Create progress converter
+		converter := progress.NewConverter(totalDuration)
+		scanner := bufio.NewScanner(stderr)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			// Log progress lines for debugging
+			if strings.Contains(line, "frame=") || strings.Contains(line, "time=") {
+				// Parse progress and call callback
+				if progressCallback != nil && jobID != "" {
+					prog := converter.Convert(line)
+
+					// Convert to internal Progress format
+					internalProgress := &Progress{
+						Percentage:  prog.PercentComplete,
+						TimeCurrent: prog.TimeElapsed,
+						TimeTotal:   totalDuration,
+						Speed:       prog.CurrentSpeed,
+						LastUpdate:  time.Now(),
+					}
+
+					progressCallback(jobID, internalProgress)
+				}
+			}
+		}
+	}()
 
 	// Set up cleanup for when context is canceled
 	go func() {
@@ -509,7 +594,11 @@ func (e *FFmpegExecutorImpl) Execute(ctx context.Context, args []string, progres
 	}()
 
 	// Wait for completion
-	err := cmd.Wait()
+	err = cmd.Wait()
+
+	// Wait for progress monitoring to finish
+	<-progressDone
+
 	if err != nil {
 		// Check if it was killed due to context cancellation
 		if ctx.Err() != nil {

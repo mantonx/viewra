@@ -1,138 +1,90 @@
 package ffmpeg_transcoder
 
-#Plugin: {
-	id:          "ffmpeg_transcoder"
-	name:        "FFmpeg Transcoder"
-	version:     "1.0.0"
-	type:        "transcoder"
-	description: "FFmpeg-based video transcoding service with comprehensive codec support and streaming capabilities"
-	author:      "Viewra Team"
-	enabled_by_default: true
-	
-	// Entry points for plugin execution
-	entry_points: {
-		main: "ffmpeg_transcoder"
-	}
-	
-	settings: {
-		// Plugin enabled/disabled
-		enabled: bool | *true @ui(importance=10,level="basic",category="General")
-		
-		// Plugin priority (higher = preferred)
-		priority: int | *50 @ui(importance=7,level="basic",category="General")
-		
-		// FFmpeg executable path
-		ffmpeg_path: string | *"ffmpeg" @ui(importance=6,level="basic",category="General")
-		
-		// Encoding preset for speed vs quality balance
-		preset: string | *"fast" @ui(importance=9,level="basic",category="Quality")
-		
-		// H.264 CRF value (lower = higher quality, 18-28 recommended)
-		crf_h264: number | *23.0 @ui(importance=8,level="basic",category="Quality")
-		
-		// Quality vs speed balance (0-3, higher = slower but better quality)
-		quality_speed_balance: int | *1 @ui(importance=6,level="basic",category="Quality")
-		
-		// Maximum concurrent transcoding jobs
-		max_concurrent_jobs: int | *25 @ui(importance=8,level="basic",category="Performance")
-		
-		// Job timeout in seconds
-		timeout_seconds: int | *7200 @ui(importance=6,level="basic",category="Performance")
-		
-		// Enable hardware acceleration (always auto mode)
-		hardware_acceleration: bool | *true @ui(importance=7,level="basic",category="Hardware")
-		
-		// Hardware acceleration type (always auto - let FFmpeg choose best available)
-		hardware_type: string | *"auto" @ui(importance=4,level="advanced",category="Hardware")
-		
-		// Fallback to software if hardware fails (compatibility setting)
-		hardware_fallback: bool | *true @ui(importance=3,level="advanced",category="Hardware")
-		
-		// Default audio bitrate (kbps)
-		audio_bitrate: int | *128 @ui(importance=7, is_basic=true, user_friendly="Audio Bitrate (kbps)")
-		
-		// Extract embedded subtitles
-		extract_subtitles: bool | *true @ui(importance=5,level="basic",category="Subtitles")
-		
-		// Advanced: Number of threads (0 = auto)
-		threads: int | *0 @ui(importance=4,level="advanced",category="Performance")
-		
-		// Advanced: Audio codec
-		audio_codec: string | *"aac" @ui(importance=8, is_basic=true, user_friendly="Audio Codec")
-		
-		// Advanced: Audio sample rate
-		audio_sample_rate: int | *48000 @ui(importance=3,level="advanced",category="Audio")
-		
-		// Advanced: Audio channels
-		audio_channels: int | *2 @ui(importance=6, is_basic=false, user_friendly="Audio Channels (2=stereo, 6=5.1)")
-		
-		// Advanced: Normalize audio levels
-		normalize_audio: bool | *true @ui(importance=4,level="advanced",category="Audio")
-		
-		// Advanced: H.264 profile
-		h264_profile: string | *"high" @ui(importance=3,level="advanced",category="Codecs")
-		
-		// Advanced: H.264 level
-		h264_level: string | *"4.1" @ui(importance=3,level="advanced",category="Codecs")
-		
-		// Advanced: H.264 tune
-		h264_tune: string | *"film" @ui(importance=3,level="advanced",category="Codecs")
-		
-		// Advanced: Two-pass encoding for better quality
-		two_pass_encoding: bool | *false @ui(importance=4,level="advanced",category="Quality")
-		
-		// Advanced: B-frames for H.264
-		h264_bframes: int | *3 @ui(importance=3,level="advanced",category="Codecs")
-		
-		// Advanced: Reference frames for H.264
-		h264_refs: int | *3 @ui(importance=3,level="advanced",category="Codecs")
-		
-		// Advanced: Subtitle burn-in codec
-		subtitle_burn_codec: string | *"subtitles" @ui(importance=3,level="advanced",category="Subtitles")
-		
-		// Advanced: Soft subtitle codec
-		subtitle_soft_codec: string | *"mov_text" @ui(importance=3,level="advanced",category="Subtitles")
-		
-		// Advanced: Preferred subtitle languages
-		subtitle_languages: [...string] | *["en", "eng"] @ui(importance=4,level="advanced",category="Subtitles")
-		
-		// Advanced: Log level
-		log_level: string | *"info" @ui(importance=4,level="advanced",category="Logging")
-		
-		// Advanced: Include FFmpeg output in logs
-		log_ffmpeg_output: bool | *false @ui(importance=3,level="advanced",category="Logging")
-		
-		// Advanced: Log transcoding statistics
-		log_stats: bool | *true @ui(importance=3,level="advanced",category="Logging")
-		
-		// Advanced: File retention hours
-		file_retention_hours: int | *3 @ui(importance=5,level="advanced",category="Cleanup")
-		
-		// Advanced: Maximum storage size (GB)
-		max_storage_gb: int | *15 @ui(importance=6,level="advanced",category="Cleanup")
-		
-		// Advanced: Cleanup interval (minutes)
-		cleanup_interval_minutes: int | *30 @ui(importance=4,level="advanced",category="Cleanup")
-		
-		// Advanced: Enable deinterlacing
-		enable_deinterlace: bool | *true @ui(importance=4,level="advanced",category="Filters")
-		
-		// Advanced: Deinterlacing method
-		deinterlace_method: string | *"yadif" @ui(importance=3,level="advanced",category="Filters")
-		
-		// Advanced: Enable noise reduction
-		enable_denoise: bool | *false @ui(importance=3,level="advanced",category="Filters")
-		
-		// Advanced: Noise reduction strength
-		denoise_strength: number | *0.5 @ui(importance=3,level="advanced",category="Filters")
-		
-		// Advanced: Enable sharpening
-		enable_sharpen: bool | *false @ui(importance=3,level="advanced",category="Filters")
-		
-		// Advanced: Sharpening strength
-		sharpen_strength: number | *0.3 @ui(importance=3,level="advanced",category="Filters")
-		
-		// Audio encoding settings
-		preserve_surround_sound: bool | *false @ui(importance=5, is_basic=false, user_friendly="Preserve Surround Sound (5.1/7.1)")
-	}
+// Generic transcoding plugin configuration
+core: {
+    enabled: bool | *true 
+        @ui(title="Enable Plugin", importance=10, is_basic=true)
+    priority: int & >=1 & <=100 | *50 
+        @ui(title="Plugin Priority", importance=9, is_basic=true)
+    output_directory: string | *"/viewra-data/transcoding" 
+        @ui(title="Output Directory", importance=8, is_basic=true)
 }
+
+// Generic hardware configuration
+hardware: {
+    enabled: bool | *true 
+        @ui(title="Enable Hardware Acceleration", importance=10, is_basic=true)
+    preferred_type: "auto" | "none" | "cuda" | "vaapi" | "qsv" | "videotoolbox" | *"auto"
+        @ui(title="Preferred Hardware Type", importance=9)
+    device_selection: "auto" | "first" | "load-balanced" | *"auto"
+        @ui(title="Device Selection", importance=8)
+    fallback: bool | *true
+        @ui(title="Fallback to Software", importance=7, is_basic=true)
+}
+
+// Generic session management
+sessions: {
+    max_concurrent: int & >=1 & <=100 | *10
+        @ui(title="Max Concurrent Sessions", importance=10, is_basic=true)
+    timeout_minutes: int & >=1 & <=1440 | *120
+        @ui(title="Session Timeout (minutes)", importance=9)
+    idle_minutes: int & >=1 & <=120 | *10
+        @ui(title="Idle Timeout (minutes)", importance=8)
+}
+
+// Generic cleanup settings
+cleanup: {
+    enabled: bool | *true
+        @ui(title="Enable Cleanup", importance=10, is_basic=true)
+    retention_hours: int & >=1 & <=168 | *2
+        @ui(title="Retention Hours", importance=9, is_basic=true)
+    extended_hours: int & >=1 & <=720 | *8
+        @ui(title="Extended Retention Hours", importance=8)
+    max_size_gb: int & >=1 & <=1000 | *10
+        @ui(title="Max Size (GB)", importance=7, is_basic=true)
+    interval_minutes: int & >=1 & <=1440 | *30
+        @ui(title="Cleanup Interval (minutes)", importance=6)
+}
+
+// Generic debug settings
+debug: {
+    enabled: bool | *false
+        @ui(title="Enable Debug Mode", importance=10)
+    log_level: "debug" | "info" | "warn" | "error" | *"info"
+        @ui(title="Log Level", importance=9)
+}
+
+// FFmpeg-specific settings
+ffmpeg: {
+    binary_path: string | *"ffmpeg"
+        @ui(title="FFmpeg Binary Path", importance=10, is_basic=true)
+    probe_path: string | *"ffprobe"  
+        @ui(title="FFprobe Binary Path", importance=9)
+    threads: int & >=0 & <=32 | *0
+        @ui(title="Thread Count (0=auto)", importance=8)
+    
+    // FFmpeg quality defaults
+    default_crf: {
+        h264: int & >=0 & <=51 | *23
+            @ui(title="H.264 Default CRF", importance=7)
+        h265: int & >=0 & <=51 | *28
+            @ui(title="H.265 Default CRF", importance=6)
+        vp9: int & >=0 & <=63 | *31
+            @ui(title="VP9 Default CRF", importance=5)
+        av1: int & >=0 & <=63 | *30
+            @ui(title="AV1 Default CRF", importance=4)
+    }
+    
+    default_preset: "ultrafast" | "superfast" | "veryfast" | "faster" | "fast" | "medium" | "slow" | "slower" | "veryslow" | *"fast"
+        @ui(title="Default Encoding Preset", importance=7, is_basic=true)
+    
+    // Advanced FFmpeg options
+    extra_args: [...string] | *[]
+        @ui(title="Extra FFmpeg Arguments", importance=3)
+    two_pass: bool | *false
+        @ui(title="Enable Two-Pass Encoding", importance=4)
+    audio_bitrate: int & >=64 & <=320 | *128
+        @ui(title="Default Audio Bitrate (kbps)", importance=5, is_basic=true)
+    log_ffmpeg_output: bool | *false
+        @ui(title="Log FFmpeg Output", importance=2)
+} 

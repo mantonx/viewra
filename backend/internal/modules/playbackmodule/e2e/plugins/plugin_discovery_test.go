@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-hclog"
+	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/stretchr/testify/assert"
@@ -18,9 +19,6 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-// Type aliases for compatibility
-type PlaybackModule = playbackmodule.PlaybackModule
 
 type TestData struct {
 	VideoPath        string
@@ -56,30 +54,37 @@ func setupTestEnvironment(t *testing.T) *TestData {
 func setupTestDatabase(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// Run migrations
+	db.AutoMigrate(&database.TranscodeSession{})
 	return db
 }
 
-func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *PlaybackModule {
+func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *playbackmodule.Module {
 	t.Helper()
-	logger := hclog.NewNullLogger()
 	mockPluginManager := &MockPluginManager{}
 	adapter := &PluginManagerAdapter{pluginManager: mockPluginManager}
-	playbackModule := playbackmodule.NewPlaybackModule(logger, adapter)
-	playbackModule.Initialize()
-	return playbackModule
+	module := playbackmodule.NewModule(db, nil, adapter)
+	if err := module.Init(); err != nil {
+		t.Fatalf("Failed to initialize module: %v", err)
+	}
+	return module
 }
 
-func createTestRouter(t *testing.T, playbackModule *PlaybackModule) *gin.Engine {
+func createTestRouter(t *testing.T, module *playbackmodule.Module) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	playbackModule.RegisterRoutes(router)
+	module.RegisterRoutes(router)
 	return router
 }
 
-func NewPlaybackModule(logger hclog.Logger, pluginManager PluginManagerInterface) *PlaybackModule {
+func createModuleWithAdapter(t *testing.T, db *gorm.DB, pluginManager PluginManagerInterface) *playbackmodule.Module {
 	adapter := &PluginManagerAdapter{pluginManager: pluginManager}
-	return playbackmodule.NewPlaybackModule(logger, adapter)
+	module := playbackmodule.NewModule(db, nil, adapter)
+	if err := module.Init(); err != nil {
+		t.Fatalf("Failed to initialize module: %v", err)
+	}
+	return module
 }
 
 func NewExternalPluginManagerAdapter() PluginManagerInterface {
@@ -138,8 +143,8 @@ func TestE2EPluginDiscovery(t *testing.T) {
 	t.Run("MockPluginEnvironment", func(t *testing.T) {
 		// Test our mock plugin environment for comparison
 		db := setupTestDatabase(t)
-		mockPlaybackModule := setupPluginEnabledEnvironment(t, db)
-		mockRouter := createTestRouter(t, mockPlaybackModule)
+		mockModule := setupPluginEnabledEnvironment(t, db)
+		mockRouter := createTestRouter(t, mockModule)
 
 		// Test system health with mocks
 		req := httptest.NewRequest("GET", "/api/playback/health", nil)
@@ -209,14 +214,14 @@ func TestE2EPluginDiscovery(t *testing.T) {
 		}
 
 		// Create adapter to bridge external plugin manager to playback module
-		adapter := NewExternalPluginManagerAdapter()
+		adapter := playbackmodule.NewExternalPluginManagerAdapter(externalPluginManager)
 
 		// Create playback module with external plugin manager - THE CORRECT APPROACH
-		playbackModule := NewPlaybackModule(logger, adapter)
-		err = playbackModule.Initialize()
+		module := playbackmodule.NewModule(db, nil, adapter)
+		err = module.Init()
 		require.NoError(t, err, "External plugin environment should initialize")
 
-		externalRouter := createTestRouter(t, playbackModule)
+		externalRouter := createTestRouter(t, module)
 
 		// Test system health with external plugins
 		req := httptest.NewRequest("GET", "/api/playback/health", nil)
@@ -298,10 +303,8 @@ func TestE2EPluginDiscovery(t *testing.T) {
 		t.Logf("✅ Mock module created successfully")
 
 		// Test with simple module (no external plugins)
-		logger := hclog.NewNullLogger()
-		simpleAdapter := &PluginManagerAdapter{pluginManager: &MockPluginManager{}}
-		simpleModule := playbackmodule.NewPlaybackModule(logger, simpleAdapter)
-		err := simpleModule.Initialize()
+		simpleModule := playbackmodule.NewModule(db, nil, nil)
+		err := simpleModule.Init()
 		require.NoError(t, err)
 		t.Logf("✅ Simple module created successfully")
 
@@ -349,7 +352,7 @@ func TestE2EPluginDiscovery(t *testing.T) {
 		t.Logf("💡 Recommendations:")
 		t.Logf("  - Build real FFmpeg plugin binary")
 		t.Logf("  - Configure plugin discovery paths")
-		t.Logf("  - Use NewPlaybackModule with external plugin manager")
+		t.Logf("  - Use Module with external plugin manager")
 		t.Logf("  - Test plugin registration and loading")
 	})
 }

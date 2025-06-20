@@ -5,10 +5,13 @@ import (
 	"io"
 	"time"
 
+	"github.com/mantonx/viewra/internal/database"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
 	"github.com/mantonx/viewra/pkg/plugins"
 )
 
 // DeviceProfile captures client playback capabilities
+// This is used for decision-making, not transcoding parameters
 type DeviceProfile struct {
 	UserAgent       string   `json:"user_agent"`
 	SupportedCodecs []string `json:"supported_codecs"`
@@ -18,25 +21,6 @@ type DeviceProfile struct {
 	SupportsAV1     bool     `json:"supports_av1"`
 	SupportsHDR     bool     `json:"supports_hdr"`
 	ClientIP        string   `json:"client_ip"`
-}
-
-// SubtitleConfig defines subtitle handling options
-type SubtitleConfig struct {
-	Enabled   bool   `json:"enabled"`
-	Language  string `json:"language"`
-	BurnIn    bool   `json:"burn_in"`
-	StreamIdx int    `json:"stream_idx"`
-}
-
-// TranscodeRequest represents a transcoding request
-type TranscodeRequest struct {
-	InputPath   string          `json:"input_path"`
-	TargetCodec string          `json:"target_codec"`
-	Resolution  string          `json:"resolution"`
-	Bitrate     int             `json:"bitrate"`
-	Subtitles   *SubtitleConfig `json:"subtitles,omitempty"`
-	AudioStream int             `json:"audio_stream"`
-	DeviceHints DeviceProfile   `json:"device_hints"`
 }
 
 // PlaybackDecision represents the decision made by the planner
@@ -50,7 +34,7 @@ type PlaybackDecision struct {
 // PlaybackPlanner interface for making playback decisions
 type PlaybackPlanner interface {
 	// DecidePlayback determines whether to direct play or transcode
-	DecidePlayback(mediaPath string, deviceProfile *plugins.DeviceProfile) (*PlaybackDecision, error)
+	DecidePlayback(mediaPath string, deviceProfile *DeviceProfile) (*PlaybackDecision, error)
 }
 
 // PluginInfo represents plugin information
@@ -73,8 +57,8 @@ type PluginManagerInterface interface {
 
 // TranscodeManager interface for managing transcoding sessions
 type TranscodeManager interface {
-	// RegisterTranscoder registers a transcoding plugin
-	RegisterTranscoder(name string, transcoder plugins.TranscodingService) error
+	// RegisterProvider registers a transcoding provider from a plugin
+	RegisterProvider(pluginID string, provider plugins.TranscodingProvider) error
 
 	// DiscoverTranscodingPlugins discovers and registers all available transcoding plugins
 	DiscoverTranscodingPlugins() error
@@ -82,53 +66,58 @@ type TranscodeManager interface {
 	// CanTranscode checks if transcoding is available for given parameters without starting a session
 	CanTranscode(req *plugins.TranscodeRequest) error
 
-	// StartTranscode starts a new transcoding session
-	StartTranscode(req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error)
+	// StartTranscode starts a new transcoding session using the service
+	StartTranscode(req *plugins.TranscodeRequest) (*database.TranscodeSession, error)
 
 	// GetSession retrieves a transcoding session
-	GetSession(sessionID string) (*plugins.TranscodeSession, error)
+	GetSession(sessionID string) (*database.TranscodeSession, error)
 
 	// StopSession stops a transcoding session
 	StopSession(sessionID string) error
 
 	// ListSessions lists all active sessions
-	ListSessions() ([]*plugins.TranscodeSession, error)
+	ListSessions() ([]*database.TranscodeSession, error)
 
 	// GetStats returns transcoding statistics
 	GetStats() (*TranscodingStats, error)
 
-	// GetTranscodeStream returns the transcoding service for streaming
-	GetTranscodeStream(sessionID string) (plugins.TranscodingService, error)
+	// GetTranscodeService returns the core transcode service
+	GetTranscodeService() *core.TranscodeService
 
 	// Cleanup performs cleanup of expired sessions
 	Cleanup()
 
 	// GetCleanupStats returns cleanup-related statistics
 	GetCleanupStats() (*CleanupStats, error)
+
+	// Streaming methods
+	StartStreamingTranscode(req *plugins.TranscodeRequest) (*plugins.StreamHandle, error)
+	GetStream(sessionID string) (io.ReadCloser, error)
+	StopStreamingTranscode(sessionID string) error
 }
 
 // TranscodingStats represents overall transcoding statistics
 type TranscodingStats struct {
-	ActiveSessions    int                         `json:"active_sessions"`
-	TotalSessions     int64                       `json:"total_sessions"`
-	CompletedSessions int64                       `json:"completed_sessions"`
-	FailedSessions    int64                       `json:"failed_sessions"`
-	TotalBytesOut     int64                       `json:"total_bytes_out"`
-	AverageSpeed      float64                     `json:"average_speed"`
-	Backends          map[string]*BackendStats    `json:"backends"`
-	RecentSessions    []*plugins.TranscodeSession `json:"recent_sessions"`
+	ActiveSessions    int                          `json:"active_sessions"`
+	TotalSessions     int64                        `json:"total_sessions"`
+	CompletedSessions int64                        `json:"completed_sessions"`
+	FailedSessions    int64                        `json:"failed_sessions"`
+	TotalBytesOut     int64                        `json:"total_bytes_out"`
+	AverageSpeed      float64                      `json:"average_speed"`
+	Backends          map[string]*BackendStats     `json:"backends"`
+	RecentSessions    []*database.TranscodeSession `json:"recent_sessions"`
 }
 
 // BackendStats represents statistics for a specific transcoding backend
 type BackendStats struct {
-	Name           string                           `json:"name"`
-	Priority       int                              `json:"priority"`
-	ActiveSessions int                              `json:"active_sessions"`
-	TotalSessions  int64                            `json:"total_sessions"`
-	SuccessRate    float64                          `json:"success_rate"`
-	AverageSpeed   float64                          `json:"average_speed"`
-	Capabilities   *plugins.TranscodingCapabilities `json:"capabilities"`
-	LastUsed       *time.Time                       `json:"last_used,omitempty"`
+	Name           string                 `json:"name"`
+	Priority       int                    `json:"priority"`
+	ActiveSessions int                    `json:"active_sessions"`
+	TotalSessions  int64                  `json:"total_sessions"`
+	SuccessRate    float64                `json:"success_rate"`
+	AverageSpeed   float64                `json:"average_speed"`
+	Capabilities   map[string]interface{} `json:"capabilities"`
+	LastUsed       *time.Time             `json:"last_used,omitempty"`
 }
 
 // CleanupStats represents statistics about file cleanup operations
@@ -142,66 +131,6 @@ type CleanupStats struct {
 	RetentionHours         int       `json:"retention_hours"`
 	ExtendedRetentionHours int       `json:"extended_retention_hours"`
 	MaxSizeLimitGB         int       `json:"max_size_limit_gb"`
-}
-
-// Codec represents a video/audio codec
-type Codec string
-
-const (
-	CodecH264 Codec = "h264"
-	CodecHEVC Codec = "hevc"
-	CodecVP8  Codec = "vp8"
-	CodecVP9  Codec = "vp9"
-	CodecAV1  Codec = "av1"
-)
-
-// Resolution represents video resolution
-type Resolution string
-
-const (
-	Res480p  Resolution = "480p"
-	Res720p  Resolution = "720p"
-	Res1080p Resolution = "1080p"
-	Res1440p Resolution = "1440p"
-	Res2160p Resolution = "2160p"
-)
-
-// TranscodeSession represents an active transcoding session
-type TranscodeSession struct {
-	ID        string           `json:"id"`
-	Request   TranscodeRequest `json:"request"`
-	Status    SessionStatus    `json:"status"`
-	StartTime time.Time        `json:"start_time"`
-	Backend   string           `json:"backend"`
-	Stream    io.ReadCloser    `json:"-"`
-}
-
-// SessionStatus represents the status of a transcoding session
-type SessionStatus string
-
-const (
-	StatusPending  SessionStatus = "pending"
-	StatusRunning  SessionStatus = "running"
-	StatusComplete SessionStatus = "complete"
-	StatusFailed   SessionStatus = "failed"
-)
-
-// TranscodeProfile represents a reusable quality profile
-type TranscodeProfile struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	VideoCodec  Codec             `json:"video_codec"`
-	Resolution  Resolution        `json:"resolution"`
-	Bitrate     int               `json:"bitrate"`
-	Options     map[string]string `json:"options"`
-}
-
-// TranscodeProfileManager interface - Optional component
-type TranscodeProfileManager interface {
-	GetProfile(name string) (*TranscodeProfile, error)
-	ListProfiles() []*TranscodeProfile
-	CreateProfile(profile TranscodeProfile) error
-	DeleteProfile(name string) error
 }
 
 // MediaInfo represents file metadata

@@ -35,7 +35,7 @@ func (s *cleanupService) CleanupExpiredSessions() (*types.CleanupInfo, error) {
 	}
 
 	// Get transcoding directory
-	transcodingDir := s.config.Transcoding.OutputDir
+	transcodingDir := s.config.Core.OutputDirectory
 
 	// List all directories in the transcoding directory
 	entries, err := os.ReadDir(transcodingDir)
@@ -113,7 +113,7 @@ func (s *cleanupService) GetCleanupStats() (*types.CleanupInfo, error) {
 		LastCleanup: time.Now(),
 	}
 
-	transcodingDir := s.config.Transcoding.OutputDir
+	transcodingDir := s.config.Core.OutputDirectory
 
 	entries, err := os.ReadDir(transcodingDir)
 	if err != nil {
@@ -138,7 +138,7 @@ func (s *cleanupService) GetCleanupStats() (*types.CleanupInfo, error) {
 
 // CleanupSession removes a specific session's files
 func (s *cleanupService) CleanupSession(sessionID string) error {
-	transcodingDir := s.config.Transcoding.OutputDir
+	transcodingDir := s.config.Core.OutputDirectory
 
 	// Find and remove all directories that contain this session ID
 	entries, err := os.ReadDir(transcodingDir)

@@ -61,16 +61,16 @@ func TestE2EDockerTranscodingIntegration(t *testing.T) {
 	t.Run("DockerDASHWorkflow", func(t *testing.T) {
 		// 1. Start DASH transcoding session
 		transcodeRequest := map[string]interface{}{
-			"input_path":       testData.VideoPath,
-			"target_codec":     "h264",
-			"target_container": "dash",
-			"resolution":       "720p",
-			"bitrate":          3000,
-			"audio_codec":      "aac",
-			"audio_bitrate":    128,
-			"quality":          23,
-			"preset":           "fast",
-			"priority":         5,
+			"input_path":    testData.VideoPath,
+			"video_codec":   "h264",
+			"container":     "dash",
+			"resolution":    map[string]int{"width": 1280, "height": 720},
+			"bitrate":       3000,
+			"audio_codec":   "aac",
+			"audio_bitrate": 128,
+			"quality":       23,
+			"preset":        "fast",
+			"priority":      5,
 		}
 
 		body, _ := json.Marshal(transcodeRequest)
@@ -191,16 +191,16 @@ func TestE2EDockerTranscodingIntegration(t *testing.T) {
 	t.Run("DockerHLSWorkflow", func(t *testing.T) {
 		// Start HLS transcoding session
 		transcodeRequest := map[string]interface{}{
-			"input_path":       testData.VideoPath,
-			"target_codec":     "h264",
-			"target_container": "hls",
-			"resolution":       "720p",
-			"bitrate":          3000,
-			"audio_codec":      "aac",
-			"audio_bitrate":    128,
-			"quality":          23,
-			"preset":           "fast",
-			"priority":         5,
+			"input_path":    testData.VideoPath,
+			"video_codec":   "h264",
+			"container":     "hls",
+			"resolution":    map[string]int{"width": 1280, "height": 720},
+			"bitrate":       3000,
+			"audio_codec":   "aac",
+			"audio_bitrate": 128,
+			"quality":       23,
+			"preset":        "fast",
+			"priority":      5,
 		}
 
 		body, _ := json.Marshal(transcodeRequest)
@@ -369,13 +369,13 @@ func TestE2EDockerVolumeStress(t *testing.T) {
 	t.Run("CreateMultipleSessions", func(t *testing.T) {
 		for i := 0; i < numSessions; i++ {
 			transcodeRequest := map[string]interface{}{
-				"input_path":       testData.VideoPath,
-				"target_codec":     "h264",
-				"target_container": "dash",
-				"resolution":       "720p",
-				"bitrate":          3000,
-				"audio_codec":      "aac",
-				"priority":         5,
+				"input_path":  testData.VideoPath,
+				"video_codec": "h264",
+				"container":   "dash",
+				"resolution":  map[string]int{"width": 1280, "height": 720},
+				"bitrate":     3000,
+				"audio_codec": "aac",
+				"priority":    5,
 			}
 
 			body, _ := json.Marshal(transcodeRequest)

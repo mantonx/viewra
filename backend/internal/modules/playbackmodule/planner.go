@@ -17,7 +17,7 @@ func NewPlaybackPlanner() PlaybackPlanner {
 }
 
 // DecidePlayback determines whether to direct play or transcode based on media and device capabilities
-func (p *PlaybackPlannerImpl) DecidePlayback(mediaPath string, deviceProfile *plugins.DeviceProfile) (*PlaybackDecision, error) {
+func (p *PlaybackPlannerImpl) DecidePlayback(mediaPath string, deviceProfile *DeviceProfile) (*PlaybackDecision, error) {
 	// Analyze media file
 	mediaInfo, err := p.analyzeMedia(mediaPath)
 	if err != nil {
@@ -44,7 +44,7 @@ func (p *PlaybackPlannerImpl) DecidePlayback(mediaPath string, deviceProfile *pl
 }
 
 // canDirectPlay checks if the media can be played directly without transcoding
-func (p *PlaybackPlannerImpl) canDirectPlay(media *MediaInfo, profile *plugins.DeviceProfile) bool {
+func (p *PlaybackPlannerImpl) canDirectPlay(media *MediaInfo, profile *DeviceProfile) bool {
 	// Check container format
 	if !p.isContainerSupported(media.Container, profile) {
 		return false
@@ -74,7 +74,7 @@ func (p *PlaybackPlannerImpl) canDirectPlay(media *MediaInfo, profile *plugins.D
 }
 
 // isContainerSupported checks if the container format is supported
-func (p *PlaybackPlannerImpl) isContainerSupported(container string, profile *plugins.DeviceProfile) bool {
+func (p *PlaybackPlannerImpl) isContainerSupported(container string, profile *DeviceProfile) bool {
 	// Web browsers typically don't support MKV directly
 	if container == "mkv" && p.isWebBrowser(profile.UserAgent) {
 		return false
@@ -148,7 +148,7 @@ func (p *PlaybackPlannerImpl) isWebBrowser(userAgent string) bool {
 }
 
 // determineTranscodeParams determines the optimal transcoding parameters
-func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *MediaInfo, profile *plugins.DeviceProfile) (*plugins.TranscodeRequest, string) {
+func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *MediaInfo, profile *DeviceProfile) (*plugins.TranscodeRequest, string) {
 	var reasons []string
 
 	// Determine target codec
@@ -159,8 +159,16 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 
 	// Determine target resolution
 	targetResolution := p.selectTargetResolution(media.Resolution, profile.MaxResolution)
+	var resolution *plugins.VideoResolution
 	if targetResolution != media.Resolution {
 		reasons = append(reasons, fmt.Sprintf("resolution change: %s -> %s", media.Resolution, targetResolution))
+		// Convert resolution string to VideoResolution
+		height := p.getResolutionHeight(targetResolution)
+		width := int(float64(height) * 16.0 / 9.0) // Assume 16:9 aspect ratio
+		resolution = &plugins.VideoResolution{
+			Width:  width,
+			Height: height,
+		}
 	}
 
 	// Determine target bitrate
@@ -175,30 +183,51 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 		reasons = append(reasons, fmt.Sprintf("container change: %s -> %s", media.Container, targetContainer))
 	}
 
+	// Determine quality based on bitrate (0-100 scale)
+	quality := p.calculateQuality(targetBitrate)
+
+	// Determine speed priority
+	speedPriority := plugins.SpeedPriorityBalanced
+	if p.isWebBrowser(profile.UserAgent) {
+		speedPriority = plugins.SpeedPriorityFastest // Faster encoding for web clients
+	}
+
 	reason := "Transcoding required: " + strings.Join(reasons, ", ")
 
 	return &plugins.TranscodeRequest{
 		InputPath:     mediaPath,
 		OutputPath:    "", // Will be set by the transcoding service
-		Seek:          0,  // No seek by default
-		Duration:      0,  // Will use full duration
-		DeviceProfile: profile,
-		CodecOpts: &plugins.CodecOptions{
-			Video:     targetCodec,
-			Audio:     "aac",
-			Container: targetContainer,
-			Bitrate:   fmt.Sprintf("%dk", targetBitrate),
-			Quality:   23, // CRF value
-			Preset:    "fast",
-		},
-		Environment: map[string]string{
-			"priority": "5",
-		},
+		VideoCodec:    targetCodec,
+		AudioCodec:    "aac",
+		Container:     targetContainer,
+		Quality:       quality,
+		SpeedPriority: speedPriority,
+		Resolution:    resolution,
+		Seek:          0, // No seek by default
+		Duration:      0, // Will use full duration
 	}, reason
 }
 
+// calculateQuality converts bitrate to quality scale (0-100)
+func (p *PlaybackPlannerImpl) calculateQuality(bitrate int) int {
+	// Map bitrate to quality
+	// Higher bitrate = higher quality
+	if bitrate >= 25000 {
+		return 90 // Very high quality
+	} else if bitrate >= 12000 {
+		return 80 // High quality
+	} else if bitrate >= 6000 {
+		return 70 // Good quality
+	} else if bitrate >= 3000 {
+		return 60 // Medium quality
+	} else if bitrate >= 1500 {
+		return 50 // Fair quality
+	}
+	return 40 // Low quality
+}
+
 // selectTargetCodec chooses the best codec for the client
-func (p *PlaybackPlannerImpl) selectTargetCodec(sourceCodec string, profile *plugins.DeviceProfile) string {
+func (p *PlaybackPlannerImpl) selectTargetCodec(sourceCodec string, profile *DeviceProfile) string {
 	// Prefer H.264 for maximum compatibility
 	if p.isCodecSupported("h264", profile.SupportedCodecs) {
 		return "h264"
@@ -265,7 +294,7 @@ func (p *PlaybackPlannerImpl) calculateTargetBitrate(resolution string, maxBitra
 }
 
 // selectTargetContainer chooses the best container format for the client
-func (p *PlaybackPlannerImpl) selectTargetContainer(sourceContainer string, profile *plugins.DeviceProfile) string {
+func (p *PlaybackPlannerImpl) selectTargetContainer(sourceContainer string, profile *DeviceProfile) string {
 	userAgent := strings.ToLower(profile.UserAgent)
 
 	// Determine if adaptive streaming would be beneficial
@@ -302,7 +331,7 @@ func (p *PlaybackPlannerImpl) selectTargetContainer(sourceContainer string, prof
 }
 
 // shouldUseAdaptiveStreaming determines if adaptive streaming (DASH/HLS) would be beneficial
-func (p *PlaybackPlannerImpl) shouldUseAdaptiveStreaming(profile *plugins.DeviceProfile) bool {
+func (p *PlaybackPlannerImpl) shouldUseAdaptiveStreaming(profile *DeviceProfile) bool {
 	// Don't use adaptive streaming for very low resolution content
 	if profile.MaxResolution != "" {
 		maxHeight := p.getResolutionHeight(profile.MaxResolution)

@@ -1550,75 +1550,16 @@ func (h *PluginAPIHandlers) handleEngineAction(c *gin.Context) {
 
 // stopTranscodingSession stops a specific transcoding session
 func (h *PluginAPIHandlers) stopTranscodingSession(sessionID string) error {
-	// Find the transcoding plugin and stop the session
-	plugins := h.pluginModule.externalManager.GetRunningPlugins()
-
-	for _, pluginInfo := range plugins {
-		pluginInterface, exists := h.pluginModule.externalManager.GetRunningPluginInterface(pluginInfo.ID)
-		if !exists {
-			continue
-		}
-
-		// Check if plugin has transcoding service
-		if adapter, ok := pluginInterface.(*ExternalPluginAdapter); ok {
-			if service := adapter.TranscodingService(); service != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-
-				err := service.StopTranscode(ctx, sessionID)
-				if err == nil {
-					h.logger.Info("stopped transcoding session", "session_id", sessionID, "plugin_id", pluginInfo.ID)
-					return nil
-				}
-			}
-		}
-	}
-
-	return fmt.Errorf("session not found: %s", sessionID)
+	// TODO: Update to use TranscodingProvider once gRPC support is added
+	// For now, return not implemented
+	return fmt.Errorf("transcoding session management not implemented - awaiting TranscodingProvider gRPC support")
 }
 
 // restartTranscodingSession restarts a transcoding session
 func (h *PluginAPIHandlers) restartTranscodingSession(sessionID string) error {
-	// Find the session first to get its parameters
-	plugins := h.pluginModule.externalManager.GetRunningPlugins()
-
-	for _, pluginInfo := range plugins {
-		pluginInterface, exists := h.pluginModule.externalManager.GetRunningPluginInterface(pluginInfo.ID)
-		if !exists {
-			continue
-		}
-
-		if adapter, ok := pluginInterface.(*ExternalPluginAdapter); ok {
-			if service := adapter.TranscodingService(); service != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-
-				// Get session details
-				session, err := service.GetTranscodeSession(ctx, sessionID)
-				if err != nil {
-					continue
-				}
-
-				// Stop current session
-				err = service.StopTranscode(ctx, sessionID)
-				if err != nil {
-					h.logger.Warn("failed to stop session before restart", "session_id", sessionID, "error", err)
-				}
-
-				// Start new session with same parameters
-				if session.Request != nil {
-					newSession, err := service.StartTranscode(ctx, session.Request)
-					if err != nil {
-						return fmt.Errorf("failed to restart session: %w", err)
-					}
-					h.logger.Info("restarted transcoding session", "old_session_id", sessionID, "new_session_id", newSession.ID, "plugin_id", pluginInfo.ID)
-					return nil
-				}
-			}
-		}
-	}
-
-	return fmt.Errorf("session not found: %s", sessionID)
+	// TODO: Update to use TranscodingProvider once gRPC support is added
+	// For now, return not implemented
+	return fmt.Errorf("transcoding session management not implemented - awaiting TranscodingProvider gRPC support")
 }
 
 // prioritizeTranscodingSession moves a session to higher priority
@@ -1631,60 +1572,14 @@ func (h *PluginAPIHandlers) prioritizeTranscodingSession(sessionID string) error
 
 // clearTranscodingCache clears transcoding cache
 func (h *PluginAPIHandlers) clearTranscodingCache() error {
-	// Clear cache across all transcoding plugins
-	plugins := h.pluginModule.externalManager.GetRunningPlugins()
-	clearedCount := 0
-
-	for _, pluginInfo := range plugins {
-		pluginInterface, exists := h.pluginModule.externalManager.GetRunningPluginInterface(pluginInfo.ID)
-		if !exists {
-			continue
-		}
-
-		if adapter, ok := pluginInterface.(*ExternalPluginAdapter); ok {
-			if service := adapter.TranscodingService(); service != nil {
-				// For now, just log the action as cache clearing would require
-				// extending the transcoding interface
-				h.logger.Info("clearing cache for transcoding plugin", "plugin_id", pluginInfo.ID)
-				clearedCount++
-			}
-		}
-	}
-
-	if clearedCount == 0 {
-		return fmt.Errorf("no transcoding plugins found")
-	}
-
-	h.logger.Info("cleared transcoding cache", "plugins_affected", clearedCount)
-	return nil
+	// TODO: Update to use TranscodingProvider once gRPC support is added
+	// For now, return not implemented
+	return fmt.Errorf("transcoding cache management not implemented - awaiting TranscodingProvider gRPC support")
 }
 
 // restartTranscodingService restarts transcoding services
 func (h *PluginAPIHandlers) restartTranscodingService() error {
-	// Restart all transcoding plugins
-	plugins := h.pluginModule.externalManager.GetRunningPlugins()
-	restartedCount := 0
-
-	for _, pluginInfo := range plugins {
-		pluginInterface, exists := h.pluginModule.externalManager.GetRunningPluginInterface(pluginInfo.ID)
-		if !exists {
-			continue
-		}
-
-		if adapter, ok := pluginInterface.(*ExternalPluginAdapter); ok {
-			if service := adapter.TranscodingService(); service != nil {
-				// For a full restart, we'd need to reload the plugin
-				// For now, just log the action
-				h.logger.Info("restarting transcoding service", "plugin_id", pluginInfo.ID)
-				restartedCount++
-			}
-		}
-	}
-
-	if restartedCount == 0 {
-		return fmt.Errorf("no transcoding services found")
-	}
-
-	h.logger.Info("initiated restart for transcoding services", "services_affected", restartedCount)
-	return nil
+	// TODO: Update to use TranscodingProvider once gRPC support is added
+	// For now, return not implemented
+	return fmt.Errorf("transcoding service management not implemented - awaiting TranscodingProvider gRPC support")
 }

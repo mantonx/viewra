@@ -1,26 +1,47 @@
-# Playback Module - Plugin Integration
+# Playback Module - Clean Architecture
 
 ## Overview
 
-The Playback Module has been completely refactored to integrate with the Viewra plugin system, enabling dynamic discovery and use of transcoding plugins. This provides a scalable, extensible architecture for video transcoding and streaming.
+The Playback Module has been completely refactored to follow a clean architecture pattern, providing dynamic discovery and use of transcoding plugins. This provides a scalable, extensible architecture for video transcoding and streaming.
 
 ## Architecture
 
+### Module Structure
+
+The playback module follows a clean separation of concerns:
+
+1. **module.go** - Module lifecycle management (Init, Migrate, RegisterRoutes, Shutdown)
+2. **manager.go** - Business logic and service management
+3. **api_handler.go** - HTTP request handling
+4. **routes.go** - Route registration
+5. **transcode_manager.go** - Transcoding session management
+6. **planner.go** - Playback decision logic
+7. **types.go** - Shared type definitions
+8. **plugin_adapter.go** - Plugin system integration
+
 ### Core Components
 
-1. **PlaybackPlanner** - Analyzes media and device capabilities to decide between direct play and transcoding
-2. **PluginTranscodeManager** - Plugin-aware transcoding session manager
-3. **ExternalPluginManagerAdapter** - Bridges the external plugin manager with playback module interfaces
-4. **HTTP API Module** - REST endpoints for playback decisions and transcoding control
+1. **Manager** - Central business logic coordinator
+   - Owns the TranscodeManager and Planner
+   - Manages background services (cleanup)
+   - Handles configuration
+
+2. **PlaybackPlanner** - Analyzes media and device capabilities to decide between direct play and transcoding
+
+3. **TranscodeManager** - Plugin-aware transcoding session manager
+
+4. **APIHandler** - HTTP endpoint handlers
 
 ### Plugin Integration Flow
 
 ```
 [Client Request] 
     ↓
-[PlaybackModule] 
+[APIHandler] 
     ↓
-[PluginTranscodeManager] 
+[Manager] 
+    ↓
+[TranscodeManager] 
     ↓
 [Plugin Discovery] → [Available Transcoding Plugins]
     ↓
@@ -94,7 +115,7 @@ POST /api/playback/decide
 
 ### Start Transcoding
 ```http
-POST /api/playback/transcode/start
+POST /api/playback/start
 ```
 **Request:**
 ```json
@@ -123,37 +144,47 @@ POST /api/playback/transcode/start
 
 ### Stream Transcoded Video
 ```http
-GET /api/playback/transcode/:sessionId/stream
+GET /api/playback/stream/:sessionId
 ```
 **Response:** Direct video stream with appropriate headers
 
 ### Session Management
 ```http
-GET    /api/playback/transcode/:sessionId      # Get session info
-DELETE /api/playback/transcode/:sessionId      # Stop session
-GET    /api/playback/transcode/sessions        # List active sessions
-GET    /api/playback/stats                     # Get statistics
+GET    /api/playback/session/:sessionId      # Get session info
+DELETE /api/playback/session/:sessionId      # Stop session
+GET    /api/playback/sessions                # List active sessions
+GET    /api/playback/stats                   # Get statistics
+```
+
+### Cleanup Management
+```http
+POST   /api/playback/cleanup/run             # Run manual cleanup
+GET    /api/playback/cleanup/stats           # Get cleanup statistics
 ```
 
 ## Configuration
 
 ### Module Configuration
 ```go
-type PlaybackModuleConfig struct {
-    Enabled           bool              `json:"enabled"`
-    TranscodingConfig TranscodingConfig `json:"transcoding"`
-    StreamingConfig   StreamingConfig   `json:"streaming"`
-}
-
-type TranscodingConfig struct {
-    MaxConcurrentSessions int      `json:"max_concurrent_sessions"`
-    SessionTimeoutMinutes int      `json:"session_timeout_minutes"`
-    AutoDiscoverPlugins   bool     `json:"auto_discover_plugins"`
-    PreferredCodecs       []string `json:"preferred_codecs"`
-    DefaultQuality        int      `json:"default_quality"`
-    DefaultPreset         string   `json:"default_preset"`
+type Config struct {
+    MaxConcurrentSessions    int
+    SessionTimeoutMinutes    int
+    EnableHardwareAccel      bool
+    DefaultQuality           int
+    DefaultPreset            string
+    TranscodingTimeout       time.Duration
+    BufferSize               int
+    CleanupIntervalMinutes   int
+    CleanupRetentionMinutes  int
+    EnableDebugLogging       bool
 }
 ```
+
+Configuration can be set via environment variables:
+- `PLAYBACK_MAX_CONCURRENT_SESSIONS` (default: 3)
+- `PLAYBACK_SESSION_TIMEOUT_MINUTES` (default: 120)
+- `PLAYBACK_CLEANUP_INTERVAL_MINUTES` (default: 30)
+- etc.
 
 ### Plugin Configuration (FFmpeg Example)
 Located in `backend/data/plugins/ffmpeg_transcoder/plugin.cue`:
@@ -190,14 +221,16 @@ performance: {
 package main
 
 import (
-    "github.com/hashicorp/go-hclog"
+    "github.com/mantonx/viewra/internal/database"
+    "github.com/mantonx/viewra/internal/events"
     "github.com/mantonx/viewra/internal/modules/playbackmodule"
     "github.com/mantonx/viewra/internal/modules/pluginmodule"
     "gorm.io/gorm"
 )
 
-func setupPlaybackModule(db *gorm.DB, logger hclog.Logger) error {
+func setupPlaybackModule(db *gorm.DB) error {
     // 1. Create external plugin manager
+    logger := hclog.NewNullLogger()
     externalPluginManager := pluginmodule.NewExternalPluginManager(db, logger)
     
     // 2. Initialize with plugin directory
@@ -209,44 +242,47 @@ func setupPlaybackModule(db *gorm.DB, logger hclog.Logger) error {
         return err
     }
 
-    // 3. Create adapter and playback module
+    // 3. Create adapter and module
     adapter := playbackmodule.NewExternalPluginManagerAdapter(externalPluginManager)
-    playbackModule := playbackmodule.NewPlaybackModule(logger, adapter)
+    module := playbackmodule.NewModule(db, nil, adapter)
     
-    // 4. Initialize (discovers transcoding plugins)
-    return playbackModule.Initialize()
+    // 4. Initialize module
+    return module.Init()
 }
 ```
 
 ### Usage Example
 ```go
+// Get the manager from the module
+manager := module.GetManager()
+if manager == nil {
+    return fmt.Errorf("playback manager not available")
+}
+
 // Get playback decision
-deviceProfile := &plugins.DeviceProfile{
+deviceProfile := &playbackmodule.DeviceProfile{
     UserAgent:       "Chrome/Browser",
     SupportedCodecs: []string{"h264", "aac"},
     MaxResolution:   "1080p",
     MaxBitrate:      6000,
 }
 
-decision, err := playbackModule.GetPlanner().DecidePlayback(mediaPath, deviceProfile)
+planner := manager.GetPlanner()
+decision, err := planner.DecidePlayback(mediaPath, deviceProfile)
 if err != nil {
     return err
 }
 
 // Start transcoding if needed
 if decision.ShouldTranscode {
-    session, err := playbackModule.GetTranscodeManager().StartTranscode(decision.TranscodeParams)
+    transcodeManager := manager.GetTranscodeManager()
+    session, err := transcodeManager.StartTranscode(decision.TranscodeParams)
     if err != nil {
         return err
     }
     
-    // Stream the transcoded video
-    transcodingService, err := playbackModule.GetTranscodeManager().GetTranscodeStream(session.ID)
-    if err != nil {
-        return err
-    }
-    
-    stream, err := transcodingService.GetTranscodeStream(ctx, session.ID)
+    // Get the transcoding stream
+    stream, err := transcodeManager.GetStream(session.ID)
     if err != nil {
         return err
     }
@@ -261,44 +297,46 @@ if decision.ShouldTranscode {
 ### Implementing a Transcoding Plugin
 
 1. **Implement the `plugins.Implementation` interface**
-2. **Provide `TranscodingService()` method**
-3. **Implement `plugins.TranscodingService` interface**
+2. **Provide `TranscodingProvider()` method**
+3. **Implement `plugins.TranscodingProvider` interface**
 
 ```go
 type MyTranscoderPlugin struct {
     // Plugin fields
 }
 
-func (p *MyTranscoderPlugin) TranscodingService() plugins.TranscodingService {
-    return p.transcodingService
+func (p *MyTranscoderPlugin) TranscodingProvider() plugins.TranscodingProvider {
+    return p.transcodingProvider
 }
 
 func (p *MyTranscoderPlugin) Initialize(ctx *plugins.PluginContext) error {
-    // Initialize transcoding service
+    // Initialize transcoding provider
     return nil
 }
 ```
 
-### Transcoding Service Implementation
+### Transcoding Provider Implementation
 
 ```go
-func (s *MyTranscodingService) GetCapabilities(ctx context.Context) (*plugins.TranscodingCapabilities, error) {
-    return &plugins.TranscodingCapabilities{
-        Name:                  "my-transcoder",
-        SupportedCodecs:       []string{"h264", "hevc"},
-        SupportedResolutions:  []string{"480p", "720p", "1080p"},
-        SupportedContainers:   []string{"mp4", "webm"},
-        MaxConcurrentSessions: 5,
-        Priority:              75, // Higher = preferred
-        Features: plugins.TranscodingFeatures{
-            StreamingOutput:     true,
-            SubtitleBurnIn:      true,
-            MultiAudioTracks:    true,
-        },
-    }, nil
+func (p *MyProvider) GetInfo() plugins.ProviderInfo {
+    return plugins.ProviderInfo{
+        ID:          "my-transcoder",
+        Name:        "My Transcoder",
+        Description: "Custom transcoding provider",
+        Version:     "1.0.0",
+        Author:      "My Company",
+        Priority:    75, // Higher = preferred
+    }
 }
 
-func (s *MyTranscodingService) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error) {
+func (p *MyProvider) GetSupportedFormats() []plugins.ContainerFormat {
+    return []plugins.ContainerFormat{
+        {Format: "mp4", MimeType: "video/mp4", Extensions: []string{".mp4"}},
+        {Format: "webm", MimeType: "video/webm", Extensions: []string{".webm"}},
+    }
+}
+
+func (p *MyProvider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
     // Implement transcoding logic
 }
 ```
@@ -307,19 +345,19 @@ func (s *MyTranscodingService) StartTranscode(ctx context.Context, req *plugins.
 
 ### Real-time Statistics
 ```go
-stats, err := playbackModule.GetTranscodeManager().GetStats()
+manager := module.GetManager()
+stats, err := manager.GetTranscodeManager().GetStats()
 
 // Access backend information
 for backendID, backend := range stats.Backends {
     fmt.Printf("Backend: %s (Priority: %d, Active: %d)\n", 
         backend.Name, backend.Priority, backend.ActiveSessions)
-    fmt.Printf("Codecs: %v\n", backend.Capabilities.SupportedCodecs)
 }
 
 // Access recent sessions
 for _, session := range stats.RecentSessions {
     fmt.Printf("Session %s: %s (%s)\n", 
-        session.ID, session.Status, session.Backend)
+        session.ID, session.Status, session.Provider)
 }
 ```
 

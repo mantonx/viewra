@@ -7,16 +7,21 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
-	"github.com/mantonx/viewra/internal/modules/pluginmodule"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
+
+// Helper types for real plugin testing
+type ProgressUpdate struct {
+	Timestamp time.Time
+	Status    string
+	Progress  float64
+	Backend   string
+}
 
 // TestE2EExternalPluginIntegration tests integration with real external plugins
 func TestE2EExternalPluginIntegration(t *testing.T) {
@@ -238,7 +243,7 @@ func TestE2EExternalPluginIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("ExternalPluginError handling", func(t *testing.T) {
+	t.Run("ExternalPluginErrorHandling", func(t *testing.T) {
 		// Test invalid input file handling
 		transcodeRequest := map[string]interface{}{
 			"input_path":       "/nonexistent/file.mp4",
@@ -461,11 +466,12 @@ func TestE2ERealPluginRequirements(t *testing.T) {
 		t.Skip("Real external plugin manager not available")
 	}
 
-	adapter := &ExternalPluginManagerAdapter{manager: externalPluginManager}
-	playbackModule := NewPlaybackModule(logger, adapter)
-	require.NoError(t, playbackModule.Initialize())
+	// Use the external plugin manager directly with the adapter from playbackmodule
+	adapter := playbackmodule.NewExternalPluginManagerAdapter(externalPluginManager)
+	module := playbackmodule.NewModule(db, nil, adapter)
+	require.NoError(t, module.Init())
 
-	router := createTestRouter(t, playbackModule)
+	router := createTestRouter(t, module)
 
 	t.Run("RealPluginDetection", func(t *testing.T) {
 		// Verify we're actually using real plugins, not mocks
@@ -600,44 +606,4 @@ func TestE2ERealPluginRequirements(t *testing.T) {
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 	})
-}
-
-// Helper types for real plugin testing
-type ProgressUpdate struct {
-	Timestamp time.Time
-	Status    string
-	Progress  float64
-	Backend   string
-}
-
-// setupTestLogger creates a logger for testing
-func setupTestLogger() hclog.Logger {
-	return hclog.New(&hclog.LoggerOptions{
-		Name:  "external-plugin-test",
-		Level: hclog.Debug,
-	})
-}
-
-// setupExternalPluginManager creates a real external plugin manager for testing
-func setupExternalPluginManager(ctx context.Context, db *gorm.DB, logger hclog.Logger) *pluginmodule.ExternalPluginManager {
-	// Try to create external plugin manager
-	externalPluginManager := pluginmodule.NewExternalPluginManager(db, logger)
-
-	// Get plugin directory from environment or use Docker default
-	pluginDir := os.Getenv("VIEWRA_PLUGIN_DIR")
-	if pluginDir == "" {
-		pluginDir = "/viewra-data/plugins"
-	}
-
-	// Create minimal host services
-	hostServices := &pluginmodule.HostServices{}
-
-	// Initialize the external plugin manager
-	err := externalPluginManager.Initialize(ctx, pluginDir, hostServices)
-	if err != nil {
-		logger.Warn("External plugin manager initialization failed", "error", err)
-		return nil
-	}
-
-	return externalPluginManager
 }

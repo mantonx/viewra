@@ -11,14 +11,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/config"
+	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/pkg/plugins"
 	"github.com/stretchr/testify/assert"
@@ -27,16 +26,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// Type aliases and local definitions for error handling tests
-type PlaybackModule = playbackmodule.PlaybackModule
+// Test-specific types for error handling
 
-type TestData struct {
-	VideoPath        string
-	TempDir          string
-	TranscodingDir   string
-	ExpectedDuration int
-}
-
+// PluginInfo represents plugin information for tests
 type PluginInfo struct {
 	ID          string
 	Name        string
@@ -47,100 +39,121 @@ type PluginInfo struct {
 	Status      string
 }
 
+// PluginManagerInterface defines the interface for plugin managers in tests
 type PluginManagerInterface interface {
 	GetRunningPluginInterface(pluginID string) (interface{}, bool)
 	ListPlugins() []PluginInfo
 	GetRunningPlugins() []PluginInfo
 }
 
-// Helper functions for error handling tests
+// TestData holds test environment data
+type TestData struct {
+	VideoPath      string
+	TempDir        string
+	TranscodingDir string
+}
+
+// setupTestDatabase creates an in-memory test database
+func setupTestDatabase(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	// Run migrations
+	err = db.AutoMigrate(&database.TranscodeSession{})
+	require.NoError(t, err)
+
+	return db
+}
+
+// createTestVideo creates a small test video file using FFmpeg
+func createTestVideo(t *testing.T, outputPath string) error {
+	t.Helper()
+
+	// Check if FFmpeg is available
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return fmt.Errorf("FFmpeg not found in PATH")
+	}
+
+	// Generate a simple test pattern video (5 seconds)
+	cmd := exec.Command("ffmpeg",
+		"-f", "lavfi", "-i", "testsrc=duration=5:size=320x240:rate=25",
+		"-f", "lavfi", "-i", "sine=frequency=440:duration=5",
+		"-c:v", "libx264", "-c:a", "aac",
+		"-y", outputPath,
+	)
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create test video: %w", err)
+	}
+
+	return nil
+}
+
+// setupTestEnvironment creates test directories and files
 func setupTestEnvironment(t *testing.T) *TestData {
 	t.Helper()
-	tempDir, err := os.MkdirTemp("", "viewra_error_test_")
+
+	tempDir, err := os.MkdirTemp("", "playback_error_test_")
 	require.NoError(t, err)
 
 	transcodingDir := filepath.Join(tempDir, "transcoding")
 	err = os.MkdirAll(transcodingDir, 0755)
 	require.NoError(t, err)
 
-	// Create a test video file using FFmpeg (if available)
 	videoPath := filepath.Join(tempDir, "test_video.mp4")
 	if err := createTestVideo(t, videoPath); err != nil {
 		t.Skipf("Skipping test - FFmpeg not available: %v", err)
 	}
-
-	cfg := config.Get()
-	cfg.Transcoding.DataDir = transcodingDir
 
 	t.Cleanup(func() {
 		os.RemoveAll(tempDir)
 	})
 
 	return &TestData{
-		VideoPath:        videoPath,
-		TempDir:          tempDir,
-		TranscodingDir:   transcodingDir,
-		ExpectedDuration: 10,
+		VideoPath:      videoPath,
+		TempDir:        tempDir,
+		TranscodingDir: transcodingDir,
 	}
 }
 
-func createTestVideo(t *testing.T, outputPath string) error {
+// setupPluginEnabledEnvironment sets up a test environment with mock plugin manager
+func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *playbackmodule.Module {
 	t.Helper()
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return fmt.Errorf("ffmpeg not found in PATH")
-	}
 
-	cmd := exec.Command("ffmpeg",
-		"-f", "lavfi",
-		"-i", "testsrc2=duration=10:size=1280x720:rate=30",
-		"-f", "lavfi",
-		"-i", "sine=frequency=440:duration=10",
-		"-c:v", "libx264",
-		"-c:a", "aac",
-		"-preset", "ultrafast",
-		"-y",
-		outputPath,
-	)
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
+	// Create mock plugin manager
+	adapter := &PluginManagerAdapter{mockPluginManager: &MockPluginManager{}}
 
-func setupTestDatabase(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// Create module
+	module := playbackmodule.NewModule(db, nil, adapter)
+	err := module.Init()
 	require.NoError(t, err)
-	return db
+
+	return module
 }
 
-func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *PlaybackModule {
+// createTestRouter sets up a Gin router with playback module routes
+func createTestRouter(t *testing.T, module *playbackmodule.Module) *gin.Engine {
 	t.Helper()
-	logger := hclog.NewNullLogger()
-	mockPluginManager := &MockPluginManager{}
-	adapter := &PluginManagerAdapter{pluginManager: mockPluginManager}
-	playbackModule := playbackmodule.NewPlaybackModule(logger, adapter)
-	require.NoError(t, playbackModule.Initialize())
-	return playbackModule
-}
 
-func createTestRouter(t *testing.T, playbackModule *PlaybackModule) *gin.Engine {
-	t.Helper()
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	playbackModule.RegisterRoutes(router)
+	module.RegisterRoutes(router)
 	return router
 }
 
 // PluginManagerAdapter adapts our test interface to the real plugin manager interface
 type PluginManagerAdapter struct {
-	pluginManager PluginManagerInterface
+	mockPluginManager PluginManagerInterface
 }
 
 func (a *PluginManagerAdapter) GetRunningPluginInterface(pluginID string) (interface{}, bool) {
-	return a.pluginManager.GetRunningPluginInterface(pluginID)
+	return a.mockPluginManager.GetRunningPluginInterface(pluginID)
 }
 
 func (a *PluginManagerAdapter) ListPlugins() []playbackmodule.PluginInfo {
-	testPlugins := a.pluginManager.ListPlugins()
+	testPlugins := a.mockPluginManager.ListPlugins()
 	var result []playbackmodule.PluginInfo
 	for _, p := range testPlugins {
 		result = append(result, playbackmodule.PluginInfo{
@@ -187,129 +200,378 @@ func (m *MockPluginManager) GetRunningPlugins() []PluginInfo {
 
 // MockPluginImpl represents a mock plugin that provides a transcoding service
 type MockPluginImpl struct {
-	service *MockTranscodingService
+	provider plugins.TranscodingProvider
 }
 
-func (m *MockPluginImpl) TranscodingService() plugins.TranscodingService {
-	if m.service == nil {
-		m.service = &MockTranscodingService{
-			sessions: make(map[string]*plugins.TranscodeSession),
-		}
+// NewMockPluginImpl creates a new mock plugin implementation
+func NewMockPluginImpl() *MockPluginImpl {
+	return &MockPluginImpl{
+		provider: NewMockTranscodingProvider(),
 	}
-	return m.service
 }
 
-// MockTranscodingService implements the TranscodingService interface for testing
-type MockTranscodingService struct {
-	sessions map[string]*plugins.TranscodeSession
-	mu       sync.RWMutex
+// TranscodingProvider returns the mock transcoding provider
+func (m *MockPluginImpl) TranscodingProvider() plugins.TranscodingProvider {
+	return m.provider
 }
 
-func (m *MockTranscodingService) GetCapabilities(ctx context.Context) (*plugins.TranscodingCapabilities, error) {
-	return &plugins.TranscodingCapabilities{
-		Name:                  "mock_ffmpeg",
-		SupportedCodecs:       []string{"h264", "h265", "vp9", "aac", "mp3"},
-		SupportedResolutions:  []string{"480p", "720p", "1080p"},
-		SupportedContainers:   []string{"dash", "hls", "mp4"},
-		HardwareAcceleration:  false,
-		MaxConcurrentSessions: 10,
-		Features: plugins.TranscodingFeatures{
-			SubtitleBurnIn:      true,
-			SubtitlePassthrough: true,
-			MultiAudioTracks:    true,
-			HDRSupport:          false,
-			ToneMapping:         false,
-			StreamingOutput:     true,
-			SegmentedOutput:     true,
-		},
-		Priority: 5,
+// Initialize initializes the plugin
+func (m *MockPluginImpl) Initialize(ctx *plugins.PluginContext) error { return nil }
+
+// Start starts the plugin
+func (m *MockPluginImpl) Start() error { return nil }
+
+// Stop stops the plugin
+func (m *MockPluginImpl) Stop() error { return nil }
+
+// Info returns plugin information
+func (m *MockPluginImpl) Info() (*plugins.PluginInfo, error) {
+	info := m.provider.GetInfo()
+	return &plugins.PluginInfo{
+		ID:          info.ID,
+		Name:        info.Name,
+		Version:     info.Version,
+		Description: info.Description,
+		Author:      info.Author,
+		Type:        "transcoding",
 	}, nil
 }
 
-func (m *MockTranscodingService) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error) {
-	sessionID := fmt.Sprintf("session_%d", time.Now().UnixNano())
+// Health returns plugin health status
+func (m *MockPluginImpl) Health() error { return nil }
 
-	session := &plugins.TranscodeSession{
-		ID:        sessionID,
-		Request:   req,
-		Status:    plugins.TranscodeStatusStarting,
-		Progress:  0.0,
-		StartTime: time.Now(),
-		Backend:   "mock_ffmpeg",
-	}
+// MetadataScraperService not implemented for transcoding plugin
+func (m *MockPluginImpl) MetadataScraperService() plugins.MetadataScraperService { return nil }
 
-	m.mu.Lock()
-	m.sessions[sessionID] = session
-	m.mu.Unlock()
+// ScannerHookService not implemented for transcoding plugin
+func (m *MockPluginImpl) ScannerHookService() plugins.ScannerHookService { return nil }
 
-	// Simulate transcoding progress
-	go m.simulateTranscoding(session)
+// AssetService not implemented for transcoding plugin
+func (m *MockPluginImpl) AssetService() plugins.AssetService { return nil }
 
-	return session, nil
+// DatabaseService not implemented for transcoding plugin
+func (m *MockPluginImpl) DatabaseService() plugins.DatabaseService { return nil }
+
+// AdminPageService not implemented for transcoding plugin
+func (m *MockPluginImpl) AdminPageService() plugins.AdminPageService { return nil }
+
+// APIRegistrationService not implemented for transcoding plugin
+func (m *MockPluginImpl) APIRegistrationService() plugins.APIRegistrationService { return nil }
+
+// SearchService not implemented for transcoding plugin
+func (m *MockPluginImpl) SearchService() plugins.SearchService { return nil }
+
+// HealthMonitorService not implemented for transcoding plugin
+func (m *MockPluginImpl) HealthMonitorService() plugins.HealthMonitorService { return nil }
+
+// ConfigurationService not implemented for transcoding plugin
+func (m *MockPluginImpl) ConfigurationService() plugins.ConfigurationService { return nil }
+
+// PerformanceMonitorService not implemented for transcoding plugin
+func (m *MockPluginImpl) PerformanceMonitorService() plugins.PerformanceMonitorService { return nil }
+
+// EnhancedAdminPageService not implemented for transcoding plugin
+func (m *MockPluginImpl) EnhancedAdminPageService() plugins.EnhancedAdminPageService { return nil }
+
+// MockTranscodingProvider implements the TranscodingProvider interface for testing
+type MockTranscodingProvider struct {
+	mu       sync.Mutex
+	sessions map[string]*plugins.TranscodeHandle
+	streams  map[string]*mockStream
 }
 
-func (m *MockTranscodingService) GetTranscodeSession(ctx context.Context, sessionID string) (*plugins.TranscodeSession, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	session, exists := m.sessions[sessionID]
-	if !exists {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
-	}
-
-	return session, nil
+// mockStream represents a mock streaming session
+type mockStream struct {
+	data   []byte
+	reader io.ReadCloser
 }
 
-func (m *MockTranscodingService) StopTranscode(ctx context.Context, sessionID string) error {
+// NewMockTranscodingProvider creates a new mock transcoding provider
+func NewMockTranscodingProvider() *MockTranscodingProvider {
+	return &MockTranscodingProvider{
+		sessions: make(map[string]*plugins.TranscodeHandle),
+		streams:  make(map[string]*mockStream),
+	}
+}
+
+// GetInfo returns provider information
+func (m *MockTranscodingProvider) GetInfo() plugins.ProviderInfo {
+	return plugins.ProviderInfo{
+		ID:          "mock-ffmpeg",
+		Name:        "Mock FFmpeg Provider",
+		Description: "Mock transcoding provider for testing",
+		Version:     "1.0.0",
+		Author:      "Test Suite",
+		Priority:    100,
+	}
+}
+
+// GetSupportedFormats returns supported container formats
+func (m *MockTranscodingProvider) GetSupportedFormats() []plugins.ContainerFormat {
+	return []plugins.ContainerFormat{
+		{
+			Format:      "mp4",
+			MimeType:    "video/mp4",
+			Extensions:  []string{".mp4"},
+			Description: "MPEG-4 Part 14",
+			Adaptive:    false,
+		},
+		{
+			Format:      "dash",
+			MimeType:    "application/dash+xml",
+			Extensions:  []string{".mpd", ".m4s"},
+			Description: "Dynamic Adaptive Streaming over HTTP",
+			Adaptive:    true,
+		},
+		{
+			Format:      "hls",
+			MimeType:    "application/vnd.apple.mpegurl",
+			Extensions:  []string{".m3u8", ".ts"},
+			Description: "HTTP Live Streaming",
+			Adaptive:    true,
+		},
+	}
+}
+
+// GetHardwareAccelerators returns available hardware accelerators
+func (m *MockTranscodingProvider) GetHardwareAccelerators() []plugins.HardwareAccelerator {
+	return []plugins.HardwareAccelerator{
+		{
+			Type:        "none",
+			ID:          "software",
+			Name:        "Software Encoding",
+			Available:   true,
+			DeviceCount: 1,
+		},
+	}
+}
+
+// GetQualityPresets returns quality presets
+func (m *MockTranscodingProvider) GetQualityPresets() []plugins.QualityPreset {
+	return []plugins.QualityPreset{
+		{
+			ID:          "low",
+			Name:        "Low Quality",
+			Description: "Fast encoding, smaller file size",
+			Quality:     30,
+			SpeedRating: 10,
+			SizeRating:  3,
+		},
+		{
+			ID:          "medium",
+			Name:        "Medium Quality",
+			Description: "Balanced quality and speed",
+			Quality:     50,
+			SpeedRating: 5,
+			SizeRating:  5,
+		},
+		{
+			ID:          "high",
+			Name:        "High Quality",
+			Description: "Better quality, slower encoding",
+			Quality:     80,
+			SpeedRating: 2,
+			SizeRating:  8,
+		},
+	}
+}
+
+// StartTranscode starts a transcoding operation
+func (m *MockTranscodingProvider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.sessions, sessionID)
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = fmt.Sprintf("mock-%d", time.Now().UnixNano())
+	}
+
+	handle := &plugins.TranscodeHandle{
+		SessionID:  sessionID,
+		Provider:   "mock-ffmpeg",
+		StartTime:  time.Now(),
+		Directory:  filepath.Join("/tmp/viewra-transcode", sessionID),
+		ProcessID:  12345, // Mock PID
+		Context:    ctx,
+		CancelFunc: func() {},
+	}
+
+	m.sessions[sessionID] = handle
+
+	// Create mock DASH/HLS files if requested
+	if req.Container == "dash" || req.Container == "hls" {
+		go m.createMockAdaptiveFiles(handle.Directory, req.Container)
+	}
+
+	return handle, nil
+}
+
+// GetProgress returns transcoding progress
+func (m *MockTranscodingProvider) GetProgress(handle *plugins.TranscodeHandle) (*plugins.TranscodingProgress, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.sessions[handle.SessionID]; !exists {
+		return nil, fmt.Errorf("session not found: %s", handle.SessionID)
+	}
+
+	// Simulate progress based on time elapsed
+	elapsed := time.Since(handle.StartTime)
+	percentComplete := float64(elapsed.Seconds()) * 10.0 // 10% per second
+	if percentComplete > 100 {
+		percentComplete = 100
+	}
+
+	return &plugins.TranscodingProgress{
+		PercentComplete: percentComplete,
+		TimeElapsed:     elapsed,
+		TimeRemaining:   time.Duration((100-percentComplete)/10) * time.Second,
+		BytesRead:       int64(percentComplete * 1000000), // 100MB total
+		BytesWritten:    int64(percentComplete * 500000),  // 50MB output
+		CurrentSpeed:    1.0,
+		AverageSpeed:    1.0,
+	}, nil
+}
+
+// StopTranscode stops a transcoding operation
+func (m *MockTranscodingProvider) StopTranscode(handle *plugins.TranscodeHandle) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.sessions, handle.SessionID)
 	return nil
 }
 
-func (m *MockTranscodingService) ListActiveSessions(ctx context.Context) ([]*plugins.TranscodeSession, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// StartStream starts a streaming operation
+func (m *MockTranscodingProvider) StartStream(ctx context.Context, req plugins.TranscodeRequest) (*plugins.StreamHandle, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	var sessions []*plugins.TranscodeSession
-	for _, session := range m.sessions {
-		sessions = append(sessions, session)
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = fmt.Sprintf("stream-%d", time.Now().UnixNano())
 	}
 
-	return sessions, nil
+	handle := &plugins.StreamHandle{
+		SessionID:  sessionID,
+		Provider:   "mock-ffmpeg",
+		StartTime:  time.Now(),
+		ProcessID:  12346, // Mock PID
+		Context:    ctx,
+		CancelFunc: func() {},
+	}
+
+	// Create mock stream data
+	mockData := []byte("mock transcoded streaming data")
+	m.streams[sessionID] = &mockStream{
+		data:   mockData,
+		reader: io.NopCloser(bytes.NewReader(mockData)),
+	}
+
+	return handle, nil
 }
 
-func (m *MockTranscodingService) GetTranscodeStream(ctx context.Context, sessionID string) (io.ReadCloser, error) {
-	// Return a mock stream for testing
-	return io.NopCloser(strings.NewReader("mock transcoded data")), nil
+// GetStream returns the stream reader
+func (m *MockTranscodingProvider) GetStream(handle *plugins.StreamHandle) (io.ReadCloser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	stream, exists := m.streams[handle.SessionID]
+	if !exists {
+		return nil, fmt.Errorf("stream not found: %s", handle.SessionID)
+	}
+
+	return stream.reader, nil
 }
 
-func (m *MockTranscodingService) simulateTranscoding(session *plugins.TranscodeSession) {
-	// Simulate transcoding progress over time
-	for i := 0; i <= 10; i++ {
-		time.Sleep(200 * time.Millisecond)
+// StopStream stops a streaming operation
+func (m *MockTranscodingProvider) StopStream(handle *plugins.StreamHandle) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-		m.mu.Lock()
-		if _, exists := m.sessions[session.ID]; !exists {
-			m.mu.Unlock()
-			return // Session was stopped
-		}
+	if stream, exists := m.streams[handle.SessionID]; exists {
+		stream.reader.Close()
+		delete(m.streams, handle.SessionID)
+	}
+	return nil
+}
 
-		session.Progress = float64(i) / 10.0
-		if i == 10 {
-			session.Status = plugins.TranscodeStatusCompleted
-		} else if i == 0 {
-			session.Status = plugins.TranscodeStatusRunning
-		}
-		m.mu.Unlock()
+// GetDashboardSections returns dashboard sections
+func (m *MockTranscodingProvider) GetDashboardSections() []plugins.DashboardSection {
+	return []plugins.DashboardSection{
+		{
+			ID:          "mock-transcoder",
+			PluginID:    "mock-ffmpeg",
+			Type:        "transcoder",
+			Title:       "Mock Transcoder",
+			Description: "Mock transcoding statistics",
+			Icon:        "film",
+			Priority:    100,
+		},
 	}
 }
 
-// Now define NewPlaybackModule to fix the compilation error
-func NewPlaybackModule(logger hclog.Logger, pluginManager PluginManagerInterface) *PlaybackModule {
-	adapter := &PluginManagerAdapter{pluginManager: pluginManager}
-	return playbackmodule.NewPlaybackModule(logger, adapter)
+// GetDashboardData returns dashboard data
+func (m *MockTranscodingProvider) GetDashboardData(sectionID string) (interface{}, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return map[string]interface{}{
+		"active_sessions": len(m.sessions),
+		"total_processed": 42,
+		"status":          "healthy",
+	}, nil
+}
+
+// ExecuteDashboardAction executes a dashboard action
+func (m *MockTranscodingProvider) ExecuteDashboardAction(actionID string, params map[string]interface{}) error {
+	// Mock implementation - just return success
+	return nil
+}
+
+// createMockAdaptiveFiles creates mock DASH/HLS files for testing
+func (m *MockTranscodingProvider) createMockAdaptiveFiles(sessionDir, container string) {
+	// Create directory
+	os.MkdirAll(sessionDir, 0755)
+
+	if container == "dash" {
+		// Create mock DASH manifest
+		manifest := `<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT10S">
+  <Period>
+    <AdaptationSet mimeType="video/mp4">
+      <Representation id="0" bandwidth="1000000">
+        <SegmentTemplate media="chunk-$RepresentationID$-$Number$.m4s" initialization="init-$RepresentationID$.m4s"/>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>`
+		os.WriteFile(filepath.Join(sessionDir, "manifest.mpd"), []byte(manifest), 0644)
+
+		// Create mock init segments
+		os.WriteFile(filepath.Join(sessionDir, "init-0.m4s"), []byte("mock init segment"), 0644)
+
+		// Create mock media segments
+		for i := 1; i <= 5; i++ {
+			segmentFile := fmt.Sprintf("chunk-0-%05d.m4s", i)
+			os.WriteFile(filepath.Join(sessionDir, segmentFile), []byte(fmt.Sprintf("mock segment %d", i)), 0644)
+		}
+	} else if container == "hls" {
+		// Create mock HLS playlist
+		playlist := `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:10
+#EXTINF:10.0,
+segment001.ts
+#EXTINF:10.0,
+segment002.ts
+#EXT-X-ENDLIST`
+		os.WriteFile(filepath.Join(sessionDir, "playlist.m3u8"), []byte(playlist), 0644)
+
+		// Create mock segments
+		os.WriteFile(filepath.Join(sessionDir, "segment001.ts"), []byte("mock segment 1"), 0644)
+		os.WriteFile(filepath.Join(sessionDir, "segment002.ts"), []byte("mock segment 2"), 0644)
+	}
 }
 
 // TestE2EErrorHandling tests comprehensive error scenarios
@@ -793,40 +1055,44 @@ func TestE2EProtocolErrors(t *testing.T) {
 }
 
 // setupSlowTranscodingEnvironment creates a mock environment that simulates slow transcoding
-func setupSlowTranscodingEnvironment(t *testing.T, db *gorm.DB) *PlaybackModule {
+func setupSlowTranscodingEnvironment(t *testing.T, db *gorm.DB) *playbackmodule.Module {
 	t.Helper()
 
-	logger := hclog.NewNullLogger()
+	// Create slow mock plugin manager
+	slowMockPluginManager := &SlowMockPluginManager{
+		provider: NewSlowMockTranscodingProvider(),
+	}
 
-	// Create a special slow mock plugin manager
-	mockPluginManager := &SlowMockPluginManager{}
+	// Create adapter
+	adapter := &PluginManagerAdapter{mockPluginManager: slowMockPluginManager}
 
-	// Create PlaybackModule with the slow mock
-	playbackModule := NewPlaybackModule(logger, mockPluginManager)
-	err := playbackModule.Initialize()
+	// Create module
+	module := playbackmodule.NewModule(db, nil, adapter)
+	err := module.Init()
 	require.NoError(t, err)
 
-	return playbackModule
+	return module
 }
 
 // SlowMockPluginManager simulates slow transcoding operations
-type SlowMockPluginManager struct{}
+type SlowMockPluginManager struct {
+	provider plugins.TranscodingProvider
+}
 
 func (m *SlowMockPluginManager) GetRunningPluginInterface(pluginID string) (interface{}, bool) {
-	if pluginID == "transcoding.ffmpeg" {
-		return &SlowMockPluginImpl{service: &SlowMockTranscodingService{sessions: make(map[string]*plugins.TranscodeSession)}}, true
-	}
-	return nil, false
+	return &SlowMockPluginImpl{provider: m.provider}, true
 }
 
 func (m *SlowMockPluginManager) ListPlugins() []PluginInfo {
 	return []PluginInfo{
 		{
-			ID:      "transcoding.ffmpeg",
-			Name:    "Slow FFmpeg Transcoder",
-			Version: "1.0.0",
-			Type:    "transcoding",
-			Status:  "running",
+			ID:          "slow_mock_ffmpeg",
+			Name:        "Slow Mock FFmpeg Transcoder",
+			Version:     "1.0.0",
+			Type:        "transcoder",
+			Description: "Slow mock transcoding service for timeout testing",
+			Author:      "Test Suite",
+			Status:      "running",
 		},
 	}
 }
@@ -837,101 +1103,41 @@ func (m *SlowMockPluginManager) GetRunningPlugins() []PluginInfo {
 
 // SlowMockPluginImpl implements the plugin interface with slow operations
 type SlowMockPluginImpl struct {
-	service *SlowMockTranscodingService
+	provider plugins.TranscodingProvider
 }
 
-func (m *SlowMockPluginImpl) TranscodingService() plugins.TranscodingService {
-	return m.service
+// TranscodingProvider returns the slow mock transcoding provider
+func (m *SlowMockPluginImpl) TranscodingProvider() plugins.TranscodingProvider {
+	return m.provider
 }
 
-// SlowMockTranscodingService implements slow transcoding operations
-type SlowMockTranscodingService struct {
-	sessions map[string]*plugins.TranscodeSession
-	mu       sync.RWMutex
+// SlowMockTranscodingProvider implements a slow transcoding provider for timeout testing
+type SlowMockTranscodingProvider struct {
+	MockTranscodingProvider
+	delay time.Duration
 }
 
-func (m *SlowMockTranscodingService) GetCapabilities(ctx context.Context) (*plugins.TranscodingCapabilities, error) {
-	// Simulate slow capability check
-	time.Sleep(1 * time.Second)
-
-	return &plugins.TranscodingCapabilities{
-		Name:                  "Slow FFmpeg Transcoder",
-		SupportedCodecs:       []string{"h264", "h265", "av1"},
-		SupportedResolutions:  []string{"720p", "1080p", "4k"},
-		SupportedContainers:   []string{"mp4", "dash", "hls"},
-		HardwareAcceleration:  false,
-		MaxConcurrentSessions: 2,
-		Priority:              1,
-	}, nil
-}
-
-func (m *SlowMockTranscodingService) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*plugins.TranscodeSession, error) {
-	// Simulate slow session startup
-	time.Sleep(2 * time.Second)
-
-	sessionID := fmt.Sprintf("slow_mock_%d", time.Now().UnixNano())
-	session := &plugins.TranscodeSession{
-		ID:       sessionID,
-		Status:   "starting",
-		Progress: 0,
+// NewSlowMockTranscodingProvider creates a new slow mock transcoding provider
+func NewSlowMockTranscodingProvider() *SlowMockTranscodingProvider {
+	return &SlowMockTranscodingProvider{
+		MockTranscodingProvider: MockTranscodingProvider{
+			sessions: make(map[string]*plugins.TranscodeHandle),
+			streams:  make(map[string]*mockStream),
+		},
+		delay: 3 * time.Second, // Simulate slow operations
 	}
-
-	m.mu.Lock()
-	m.sessions[sessionID] = session
-	m.mu.Unlock()
-
-	// Start slow transcoding simulation
-	go m.simulateSlowTranscoding(session)
-
-	return session, nil
 }
 
-func (m *SlowMockTranscodingService) GetTranscodeSession(ctx context.Context, sessionID string) (*plugins.TranscodeSession, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	session, exists := m.sessions[sessionID]
-	if !exists {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
-	}
-
-	return session, nil
+// StartTranscode starts a slow transcoding operation
+func (s *SlowMockTranscodingProvider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
+	// Simulate slow startup
+	time.Sleep(s.delay)
+	return s.MockTranscodingProvider.StartTranscode(ctx, req)
 }
 
-func (m *SlowMockTranscodingService) StopTranscode(ctx context.Context, sessionID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	delete(m.sessions, sessionID)
-	return nil
-}
-
-func (m *SlowMockTranscodingService) ListActiveSessions(ctx context.Context) ([]*plugins.TranscodeSession, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	sessions := make([]*plugins.TranscodeSession, 0, len(m.sessions))
-	for _, session := range m.sessions {
-		sessions = append(sessions, session)
-	}
-
-	return sessions, nil
-}
-
-func (m *SlowMockTranscodingService) GetTranscodeStream(ctx context.Context, sessionID string) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader("slow_mock_stream_data")), nil
-}
-
-func (m *SlowMockTranscodingService) simulateSlowTranscoding(session *plugins.TranscodeSession) {
-	// Very slow transcoding simulation
-	session.Status = "running"
-
-	for i := 0; i <= 100; i += 5 {
-		time.Sleep(1 * time.Second) // Very slow progress
-		session.Progress = float64(i)
-
-		if i == 100 {
-			session.Status = "completed"
-		}
-	}
+// GetProgress returns transcoding progress slowly
+func (s *SlowMockTranscodingProvider) GetProgress(handle *plugins.TranscodeHandle) (*plugins.TranscodingProgress, error) {
+	// Simulate slow progress check
+	time.Sleep(500 * time.Millisecond)
+	return s.MockTranscodingProvider.GetProgress(handle)
 }
