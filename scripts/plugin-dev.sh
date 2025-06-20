@@ -64,25 +64,25 @@ validate_cue() {
     # Extract and validate required fields
     local errors=0
     
-    # Check for required fields
+    # Check for required fields (now inside #Plugin block)
     for field in "id" "name" "version" "type" "description"; do
-        if ! grep -q "^${field}:" "$cue_file"; then
+        if ! grep -q "^[[:space:]]*${field}:" "$cue_file"; then
             print_error "Missing required field: $field"
             ((errors++))
         fi
     done
     
     # Check that type is a simple string, not a constraint
-    if grep -q 'type:.*|' "$cue_file"; then
+    if grep -q '^[[:space:]]*type:.*|' "$cue_file"; then
         print_warning "Type field contains constraints. This may cause parsing issues."
         print_info "Fixing type field to be a simple string..."
         
-        # Extract the actual type from constraint
-        local type_line=$(grep "^type:" "$cue_file")
+        # Extract the actual type from constraint (handle indentation)
+        local type_line=$(grep "^[[:space:]]*type:" "$cue_file")
         if [[ $type_line =~ \"([a-z_]+)\" ]]; then
             local actual_type="${BASH_REMATCH[1]}"
-            # Replace the line with simple type
-            sed -i "s/^type:.*$/type: \"$actual_type\"/" "$cue_file"
+            # Replace the line with simple type (preserve indentation)
+            sed -i "s/^\([[:space:]]*\)type:.*$/\1type: \"$actual_type\"/" "$cue_file"
             print_success "Fixed type field to: \"$actual_type\""
         fi
     fi
@@ -248,7 +248,7 @@ workflow() {
     check_status "$plugin_name"
     
     # 4. If it's a transcoder, refresh and test
-    local plugin_type=$(grep "^type:" "$PLUGIN_DIR/$plugin_name/plugin.cue" | cut -d'"' -f2)
+    local plugin_type=$(grep "^[[:space:]]*type:" "$PLUGIN_DIR/$plugin_name/plugin.cue" | sed 's/.*"\([^"]*\)".*/\1/')
     if [ "$plugin_type" = "transcoder" ]; then
         refresh_transcoding
         test_transcode

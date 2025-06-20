@@ -1071,7 +1071,9 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 	}
 
 	lines := strings.Split(string(content), "\n")
+	inPluginBlock := false
 	inSettingsBlock := false
+	inEntryPointsBlock := false
 	blockDepth := 0
 
 	for _, line := range lines {
@@ -1085,56 +1087,68 @@ func (m *ExternalPluginManager) parsePluginManifest(cuePath string) (*ExternalPl
 		// Track block depth with braces
 		openBraces := strings.Count(line, "{")
 		closeBraces := strings.Count(line, "}")
+		blockDepth += openBraces - closeBraces
 
-		// Handle block endings first
-		blockDepth -= closeBraces
+		// Check for plugin block start
+		if strings.Contains(line, "#Plugin:") && strings.Contains(line, "{") {
+			inPluginBlock = true
+			continue
+		}
+
+		// Handle nested blocks
+		if inPluginBlock {
+			// Check for settings block (we skip this for manifest parsing)
+			if strings.Contains(line, "settings:") && strings.Contains(line, "{") {
+				inSettingsBlock = true
+				continue
+			}
+
+			// Check for entry_points block
+			if strings.Contains(line, "entry_points:") && strings.Contains(line, "{") {
+				inEntryPointsBlock = true
+				continue
+			}
+
+			// Skip settings block content
+			if inSettingsBlock {
+				if blockDepth <= 1 {
+					inSettingsBlock = false
+				}
+				continue
+			}
+
+			// Parse entry_points block
+			if inEntryPointsBlock {
+				if strings.Contains(line, "main:") {
+					manifest.EntryPoints["main"] = m.extractQuotedValue(line)
+				}
+				if blockDepth <= 1 {
+					inEntryPointsBlock = false
+				}
+				continue
+			}
+
+			// Parse basic fields
+			if strings.Contains(line, "id:") {
+				manifest.ID = m.extractQuotedValue(line)
+			} else if strings.Contains(line, "name:") {
+				manifest.Name = m.extractQuotedValue(line)
+			} else if strings.Contains(line, "version:") {
+				manifest.Version = m.extractQuotedValue(line)
+			} else if strings.Contains(line, "description:") {
+				manifest.Description = m.extractQuotedValue(line)
+			} else if strings.Contains(line, "author:") {
+				manifest.Author = m.extractQuotedValue(line)
+			} else if strings.Contains(line, "type:") {
+				manifest.Type = m.extractQuotedValue(line)
+			} else if strings.Contains(line, "enabled_by_default:") {
+				manifest.EnabledDefault = strings.Contains(line, "true")
+			}
+		}
+
+		// Check if we've exited the plugin block
 		if blockDepth <= 0 {
-			inSettingsBlock = false
-		}
-
-		// Check for plugin block start - for CUE compatibility we don't need to track this
-		if (strings.Contains(line, "plugin:") || strings.Contains(line, "#Plugin:")) && strings.Contains(line, "{") {
-			blockDepth = 1
-			continue
-		}
-
-		// Check for settings block (for future expansion)
-		if strings.Contains(line, "settings:") && strings.Contains(line, "{") {
-			inSettingsBlock = true
-			blockDepth = 1
-			continue
-		}
-
-		// Add opening braces to depth
-		blockDepth += openBraces
-
-		// Parse lines inside plugin block or at root level (allow all lines for CUE compatibility)
-		// Skip only settings block parsing since that's not needed for basic manifest info
-		if inSettingsBlock {
-			continue
-		}
-
-		// Parse basic fields (look for these anywhere, not just in settings block)
-		if strings.Contains(line, "id:") {
-			manifest.ID = m.extractQuotedValue(line)
-		} else if strings.Contains(line, "name:") {
-			manifest.Name = m.extractQuotedValue(line)
-		} else if strings.Contains(line, "version:") {
-			manifest.Version = m.extractQuotedValue(line)
-		} else if strings.Contains(line, "description:") {
-			manifest.Description = m.extractQuotedValue(line)
-		} else if strings.Contains(line, "author:") {
-			manifest.Author = m.extractQuotedValue(line)
-		} else if strings.Contains(line, "type:") {
-			// Special handling for type field to handle CUE constraints
-			typeValue := m.extractQuotedValue(line)
-			manifest.Type = typeValue
-		} else if strings.Contains(line, "enabled_by_default:") {
-			manifest.EnabledDefault = strings.Contains(line, "true")
-		} else if strings.Contains(line, "main:") && strings.Contains(line, "entry_points") {
-			// Skip for now - we'll extract from context
-		} else if strings.Contains(line, "main:") {
-			manifest.EntryPoints["main"] = m.extractQuotedValue(line)
+			inPluginBlock = false
 		}
 	}
 

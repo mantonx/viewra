@@ -319,6 +319,21 @@ func connectPluginManagerToModules() error {
 			}
 		}
 	}
+
+	// Connect plugin module to playback module
+	playbackModule, exists := modulemanager.GetModule("system.playback")
+	if exists {
+		if pm, ok := playbackModule.(*playbackmodule.Module); ok {
+			logger.Info("Setting plugin module for playback")
+			// Get the external plugin manager from plugin module
+			extManager := pluginModule.GetExternalManager()
+			if extManager != nil {
+				adapter := playbackmodule.NewPluginModuleAdapter(extManager)
+				pm.SetPluginModule(adapter)
+			}
+		}
+	}
+
 	return nil
 }
 
