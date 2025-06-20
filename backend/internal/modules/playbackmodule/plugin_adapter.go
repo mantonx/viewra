@@ -1,6 +1,7 @@
 package playbackmodule
 
 import (
+	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 )
 
@@ -12,6 +13,7 @@ type ExternalPluginManagerAdapter struct {
 // PluginModuleAdapter adapts pluginmodule.ExternalPluginManager to PluginManagerInterface
 type PluginModuleAdapter struct {
 	extManager *pluginmodule.ExternalPluginManager
+	logger     hclog.Logger
 }
 
 // NewExternalPluginManagerAdapter creates a new adapter
@@ -23,8 +25,13 @@ func NewExternalPluginManagerAdapter(manager *pluginmodule.ExternalPluginManager
 
 // NewPluginModuleAdapter creates a new adapter
 func NewPluginModuleAdapter(extManager *pluginmodule.ExternalPluginManager) *PluginModuleAdapter {
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "plugin-adapter",
+		Level: hclog.Info,
+	})
 	return &PluginModuleAdapter{
 		extManager: extManager,
+		logger:     logger,
 	}
 }
 
@@ -68,12 +75,16 @@ func (a *PluginModuleAdapter) ListPlugins() []PluginInfo {
 
 // GetRunningPlugins implements PluginManagerInterface
 func (a *PluginModuleAdapter) GetRunningPlugins() []PluginInfo {
+	a.logger.Info("PluginModuleAdapter.GetRunningPlugins called", "extManager_nil", a.extManager == nil)
+
 	if a.extManager == nil {
+		a.logger.Warn("extManager is nil in PluginModuleAdapter")
 		return nil
 	}
 
 	// Convert from pluginmodule.PluginInfo to playbackmodule.PluginInfo
 	plugins := a.extManager.GetRunningPlugins()
+	a.logger.Info("Got plugins from extManager", "count", len(plugins))
 	result := make([]PluginInfo, 0, len(plugins))
 
 	for _, p := range plugins {
