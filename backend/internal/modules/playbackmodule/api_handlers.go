@@ -625,21 +625,33 @@ func (pm *PlaybackModule) handleSeekAhead(c *gin.Context) {
 		return
 	}
 
-	// Extract input path from session metadata
-	inputPath := ""
-	if currentSession.Metadata != nil {
-		if path, ok := currentSession.Metadata["input_path"].(string); ok {
+	// Try to get input path from multiple sources
+	var inputPath string
+
+	// First try: Get from session Request field if available
+	if currentSession.Request != nil && currentSession.Request.InputPath != "" {
+		inputPath = currentSession.Request.InputPath
+	}
+
+	// Second try: Get from session metadata
+	if inputPath == "" && currentSession.Metadata != nil {
+		if path, ok := currentSession.Metadata["input_path"].(string); ok && path != "" {
 			inputPath = path
 		}
 	}
 
-	// If we can't find the input path, try to reconstruct from session
-	if inputPath == "" && currentSession.Request != nil {
-		inputPath = currentSession.Request.InputPath
+	// Third try: Extract from output path pattern (if it contains the original media file ID)
+	if inputPath == "" && currentSession.Metadata != nil {
+		// Try to extract from session_dir or output_path
+		if sessionDir, ok := currentSession.Metadata["session_dir"].(string); ok {
+			// Look for media file ID in the path
+			// This is a fallback - ideally we should have the input path stored
+			pm.logger.Warn("seek-ahead: input path not found in session, unable to extract from session dir", "session_id", request.SessionID, "session_dir", sessionDir)
+		}
 	}
 
 	if inputPath == "" {
-		pm.logger.Error("cannot determine input path for seek-ahead", "session_id", request.SessionID)
+		pm.logger.Error("seek-ahead: cannot determine input path for session", "session_id", request.SessionID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot determine input path for session"})
 		return
 	}
@@ -647,21 +659,25 @@ func (pm *PlaybackModule) handleSeekAhead(c *gin.Context) {
 	// Create a new transcode request starting from the seek time
 	seekRequest := &plugins.TranscodeRequest{
 		InputPath: inputPath,
-		CodecOpts: &plugins.CodecOptions{
+		SessionID: fmt.Sprintf("%s_seek_%d", request.SessionID, request.SeekTime),
+		Seek:      time.Duration(request.SeekTime) * time.Second,
+		Environment: map[string]string{
+			"SEEK_START": fmt.Sprintf("%d", request.SeekTime),
+		},
+	}
+
+	// Copy codec options and device profile from the original session if available
+	if currentSession.Request != nil {
+		seekRequest.CodecOpts = currentSession.Request.CodecOpts
+		seekRequest.DeviceProfile = currentSession.Request.DeviceProfile
+	} else {
+		// Use defaults if original request is not available
+		seekRequest.CodecOpts = &plugins.CodecOptions{
+			Container: "dash",
 			Video:     "h264",
 			Audio:     "aac",
-			Container: "dash",
-		},
-		Environment: make(map[string]string),
+		}
 	}
-
-	// Copy codec options from current session if available
-	if currentSession.Request != nil && currentSession.Request.CodecOpts != nil {
-		seekRequest.CodecOpts = currentSession.Request.CodecOpts
-	}
-
-	// Add seek time to the request
-	seekRequest.Environment["SEEK_START"] = fmt.Sprintf("%d", request.SeekTime)
 
 	// Start new transcoding session from seek time
 	newSession, err := pm.transcodeManager.StartTranscode(seekRequest)
