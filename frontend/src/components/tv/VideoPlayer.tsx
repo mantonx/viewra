@@ -873,7 +873,9 @@ const VideoPlayer: React.FC = () => {
       seekTime, 
       rawDuration,
       seekableDuration,
-      buffered: videoRef.current.buffered.length > 0 ? videoRef.current.buffered.end(0) : 0
+      buffered: videoRef.current.buffered.length > 0 ? videoRef.current.buffered.end(0) : 0,
+      playbackDecision: playbackDecision,
+      targetContainer: playbackDecision?.transcode_params?.target_container
     });
 
     // Validate seek time before setting
@@ -887,6 +889,13 @@ const VideoPlayer: React.FC = () => {
       ? videoRef.current.buffered.end(videoRef.current.buffered.length - 1)
       : 0;
 
+    console.log('📊 Buffered vs seek:', {
+      actualBufferedEnd,
+      seekTime,
+      difference: seekTime - actualBufferedEnd,
+      shouldTriggerSeekAhead: seekTime > actualBufferedEnd + 30
+    });
+
     // For normal seeking within buffered content, just seek directly
     if (seekTime <= actualBufferedEnd) {
       videoRef.current.currentTime = seekTime;
@@ -895,8 +904,11 @@ const VideoPlayer: React.FC = () => {
     }
 
     // For DASH/HLS streams, check if we need seek-ahead beyond buffered content
-    if (playbackDecision.transcode_params?.target_container === 'dash' || 
-        playbackDecision.transcode_params?.target_container === 'hls') {
+    // Check manifest URL to detect DASH/HLS streaming
+    const isDashOrHls = playbackDecision?.manifest_url && 
+      (playbackDecision.manifest_url.includes('.mpd') || playbackDecision.manifest_url.includes('.m3u8'));
+    
+    if (isDashOrHls) {
       
       // If seeking beyond buffered content by more than 30 seconds, use seek-ahead
       if (seekTime > actualBufferedEnd + 30) {
