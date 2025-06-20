@@ -82,6 +82,21 @@ Refactor the playback module to follow the same clean architecture pattern as th
 - [x] Create dedicated routes.go for route registration
 - [x] Update documentation
 
+### Phase 8: Fix Tests ⚠️ NEEDS FIXES
+
+#### Test Fixes Required:
+- [x] E2E Tests: Fix JSON unmarshaling error for `resolution` field
+  - ✅ Changed from string "720p" to struct `{"width": 1280, "height": 720}`
+  - ✅ Fixed field names: `target_container` → `container`, `target_codec` → `video_codec`
+  - ✅ Removed duplicate helper functions in external_plugin_integration_test.go
+- [ ] Integration Tests: Update to use new module structure
+- [ ] Mock Implementations: Update to use new interfaces
+
+#### Known Issues:
+- [ ] Missing transcoding provider implementations in tests
+- [ ] Database migrations need to be run before tests
+- [ ] Mock plugin manager needs TranscodingProvider support
+
 ## File Structure After Refactoring
 
 ```

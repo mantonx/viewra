@@ -7,12 +7,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule"
+	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // Helper types for real plugin testing
@@ -21,6 +26,29 @@ type ProgressUpdate struct {
 	Status    string
 	Progress  float64
 	Backend   string
+}
+
+// setupTestLogger creates a test logger
+func setupTestLogger() hclog.Logger {
+	return hclog.NewNullLogger()
+}
+
+// setupExternalPluginManager attempts to create a real external plugin manager
+func setupExternalPluginManager(ctx context.Context, db *gorm.DB, logger hclog.Logger) *pluginmodule.ExternalPluginManager {
+	// Create external plugin manager
+	extMgr := pluginmodule.NewExternalPluginManager(db, logger)
+
+	// Try to initialize with test plugin directory
+	pluginDir := filepath.Join(os.TempDir(), "test_plugins")
+	os.MkdirAll(pluginDir, 0755)
+
+	hostServices := &pluginmodule.HostServices{}
+	if err := extMgr.Initialize(ctx, pluginDir, hostServices); err != nil {
+		// Return nil if real plugin manager can't be initialized
+		return nil
+	}
+
+	return extMgr
 }
 
 // TestE2EExternalPluginIntegration tests integration with real external plugins

@@ -27,11 +27,11 @@ func TestE2EDockerTranscodingIntegration(t *testing.T) {
 	testData := setupDockerStyleEnvironment(t)
 	defer cleanupDockerEnvironment(t, testData)
 
+	// CRITICAL: Configure transcoding BEFORE creating database and module
+	configureDockerStyleTranscoding(t, testData)
+
 	// Create database
 	db := setupTestDatabase(t)
-
-	// CRITICAL: Configure transcoding BEFORE creating playback module
-	configureDockerStyleTranscoding(t, testData)
 
 	// Create plugin-enabled playback module AFTER config is set
 	playbackModule := setupPluginEnabledEnvironment(t, db)
@@ -234,7 +234,7 @@ func TestE2EDockerTranscodingIntegration(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, hlsW.Code)
 
-		playlistContent := hlsW.BodyString()
+		playlistContent := hlsW.Body.String()
 		assert.Contains(t, playlistContent, "#EXTM3U")
 		assert.Contains(t, playlistContent, "#EXT-X-VERSION")
 
@@ -273,79 +273,6 @@ func TestE2EDockerTranscodingIntegration(t *testing.T) {
 
 		t.Logf("✅ Session cleanup verified")
 	})
-}
-
-// setupDockerStyleEnvironment creates a test environment that mimics Docker setup
-func setupDockerStyleEnvironment(t *testing.T) *TestData {
-	t.Helper()
-
-	tempDir, err := os.MkdirTemp("", "viewra_docker_test_")
-	require.NoError(t, err)
-
-	// Create Docker-style directory structure
-	transcodingDir := filepath.Join(tempDir, "viewra-data", "transcoding")
-	err = os.MkdirAll(transcodingDir, 0755)
-	require.NoError(t, err)
-
-	// Create test video file
-	videoPath := filepath.Join(tempDir, "test_video.mp4")
-	err = createTestVideo(videoPath)
-	if err != nil {
-		t.Skipf("Skipping Docker integration test - FFmpeg not available: %v", err)
-	}
-
-	return &TestData{
-		VideoPath:        videoPath,
-		TempDir:          tempDir,
-		TranscodingDir:   transcodingDir,
-		ExpectedDuration: 10,
-	}
-}
-
-// configureDockerStyleTranscoding sets up transcoding configuration for Docker environment
-func configureDockerStyleTranscoding(t *testing.T, testData *TestData) {
-	t.Helper()
-
-	// Set environment variable (primary method for our mock service)
-	os.Setenv("VIEWRA_TEST_TRANSCODE_DIR", testData.TranscodingDir)
-
-	// Also set Docker-style environment variable
-	os.Setenv("VIEWRA_TRANSCODING_DIR", testData.TranscodingDir)
-
-	// CRITICAL: Force config reload to pick up new environment variables
-	// This ensures the config system recognizes our test directory
-	err := config.Load("")
-	if err != nil {
-		t.Logf("⚠️ Config reload failed: %v (continuing with direct config modification)", err)
-	}
-
-	// Verify and configure via config system
-	cfg := config.Get()
-	if cfg != nil {
-		// Force set the transcoding directory directly
-		cfg.Transcoding.DataDir = testData.TranscodingDir
-		t.Logf("🐳 Config updated - Transcoding.DataDir: %s", cfg.Transcoding.DataDir)
-	} else {
-		t.Fatal("Config is nil - cannot configure transcoding directory")
-	}
-
-	t.Logf("🐳 Docker-style transcoding configured: %s", testData.TranscodingDir)
-}
-
-// cleanupDockerEnvironment cleans up Docker-style test environment
-func cleanupDockerEnvironment(t *testing.T, testData *TestData) {
-	t.Helper()
-
-	// Clean up environment variables
-	os.Unsetenv("VIEWRA_TEST_TRANSCODE_DIR")
-	os.Unsetenv("VIEWRA_TRANSCODING_DIR")
-
-	// Clean up temp directory
-	if testData != nil && testData.TempDir != "" {
-		os.RemoveAll(testData.TempDir)
-	}
-
-	t.Logf("🧹 Docker environment cleanup completed")
 }
 
 // TestE2EDockerVolumeStress tests transcoding under Docker volume stress conditions
