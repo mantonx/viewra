@@ -625,17 +625,46 @@ func (pm *PlaybackModule) handleSeekAhead(c *gin.Context) {
 		return
 	}
 
+	// Extract input path from session metadata
+	inputPath := ""
+	if currentSession.Metadata != nil {
+		if path, ok := currentSession.Metadata["input_path"].(string); ok {
+			inputPath = path
+		}
+	}
+
+	// If we can't find the input path, try to reconstruct from session
+	if inputPath == "" && currentSession.Request != nil {
+		inputPath = currentSession.Request.InputPath
+	}
+
+	if inputPath == "" {
+		pm.logger.Error("cannot determine input path for seek-ahead", "session_id", request.SessionID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot determine input path for session"})
+		return
+	}
+
 	// Create a new transcode request starting from the seek time
-	seekRequest := *currentSession.Request
+	seekRequest := &plugins.TranscodeRequest{
+		InputPath: inputPath,
+		CodecOpts: &plugins.CodecOptions{
+			Video:     "h264",
+			Audio:     "aac",
+			Container: "dash",
+		},
+		Environment: make(map[string]string),
+	}
+
+	// Copy codec options from current session if available
+	if currentSession.Request != nil && currentSession.Request.CodecOpts != nil {
+		seekRequest.CodecOpts = currentSession.Request.CodecOpts
+	}
 
 	// Add seek time to the request
-	if seekRequest.Environment == nil {
-		seekRequest.Environment = make(map[string]string)
-	}
 	seekRequest.Environment["SEEK_START"] = fmt.Sprintf("%d", request.SeekTime)
 
 	// Start new transcoding session from seek time
-	newSession, err := pm.transcodeManager.StartTranscode(&seekRequest)
+	newSession, err := pm.transcodeManager.StartTranscode(seekRequest)
 	if err != nil {
 		pm.logger.Error("failed to start seek-ahead transcode", "error", err, "seek_time", request.SeekTime)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start seek-ahead transcoding"})
@@ -644,15 +673,13 @@ func (pm *PlaybackModule) handleSeekAhead(c *gin.Context) {
 
 	// Construct response with new session info
 	manifestURL := ""
-	if currentSession.Request != nil && currentSession.Request.CodecOpts != nil {
-		switch currentSession.Request.CodecOpts.Container {
-		case "dash":
-			manifestURL = fmt.Sprintf("/api/playback/stream/%s/manifest.mpd", newSession.ID)
-		case "hls":
-			manifestURL = fmt.Sprintf("/api/playback/stream/%s/playlist.m3u8", newSession.ID)
-		default:
-			manifestURL = fmt.Sprintf("/api/playback/stream/%s", newSession.ID)
-		}
+	switch seekRequest.CodecOpts.Container {
+	case "dash":
+		manifestURL = fmt.Sprintf("/api/playback/stream/%s/manifest.mpd", newSession.ID)
+	case "hls":
+		manifestURL = fmt.Sprintf("/api/playback/stream/%s/playlist.m3u8", newSession.ID)
+	default:
+		manifestURL = fmt.Sprintf("/api/playback/stream/%s", newSession.ID)
 	}
 
 	pm.logger.Info("seek-ahead transcoding started",

@@ -110,6 +110,17 @@ func (sm *SessionManager) StartSession(ctx context.Context, req *plugins.Transco
 		return nil, fmt.Errorf("failed to start transcoding with plugin %s: %w", pluginID, err)
 	}
 
+	// Ensure the session has the request stored
+	if session.Request == nil {
+		session.Request = req
+	}
+
+	// Also store input path in metadata for seek-ahead
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]interface{})
+	}
+	session.Metadata["input_path"] = req.InputPath
+
 	// Store session in memory for quick access
 	sm.mutex.Lock()
 	sm.sessions[session.ID] = session
