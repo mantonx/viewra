@@ -666,6 +666,11 @@ func (pm *PlaybackModule) handleSeekAhead(c *gin.Context) {
 		},
 	}
 
+	pm.logger.Info("seek-ahead: created request",
+		"session_id", seekRequest.SessionID,
+		"seek_time", request.SeekTime,
+		"environment", seekRequest.Environment)
+
 	// Copy codec options and device profile from the original session if available
 	if currentSession.Request != nil {
 		seekRequest.CodecOpts = currentSession.Request.CodecOpts

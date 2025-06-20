@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -269,6 +270,22 @@ func (w *transcodingServiceWrapper) StartTranscode(ctx context.Context, req *plu
 			AudioBitrate: 128, // Default
 		},
 		Environment: req.Environment, // Pass through the environment variables
+	}
+
+	// Check if this is a seek session by parsing the session ID
+	// Format: {original_id}_seek_{seconds}
+	if strings.Contains(sessionUUID, "_seek_") {
+		parts := strings.Split(sessionUUID, "_seek_")
+		if len(parts) == 2 {
+			seekTimeStr := parts[1]
+			if serviceReq.Environment == nil {
+				serviceReq.Environment = make(map[string]string)
+			}
+			serviceReq.Environment["SEEK_START"] = seekTimeStr
+			w.logger.Info("detected seek session",
+				"session_id", sessionUUID,
+				"seek_time", seekTimeStr)
+		}
 	}
 
 	// Start the job

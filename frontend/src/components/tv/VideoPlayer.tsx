@@ -78,6 +78,7 @@ const VideoPlayer: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const uiRef = useRef<any>(null);
   const initializationRef = useRef(false); // Prevent multiple initializations
+  const seekOffsetRef = useRef(0); // Track seek offset in a ref to avoid stale closures
 
   // State
   const [, setEpisode] = useState<Episode | null>(null);
@@ -426,7 +427,17 @@ const VideoPlayer: React.FC = () => {
         };
 
         const handleTimeUpdate = () => {
-          setCurrentTime(video.currentTime);
+          // Account for seek offset when displaying time (use ref to avoid stale closure)
+          const actualTime = video.currentTime + seekOffsetRef.current;
+          setCurrentTime(actualTime);
+          
+          if (DEBUG && seekOffsetRef.current > 0) {
+            console.log('⏱️ Time update with seek offset:', {
+              videoTime: video.currentTime,
+              seekOffset: seekOffsetRef.current,
+              actualTime: actualTime
+            });
+          }
           
           // Update duration if it becomes available (important for DASH streams)
                       if (!duration || duration <= 0) {
@@ -455,9 +466,9 @@ const VideoPlayer: React.FC = () => {
              }
            }
           
-          // Save position every 5 seconds
-          if (Math.floor(video.currentTime) % 5 === 0) {
-            localStorage.setItem(`video-position-${episodeId}`, video.currentTime.toString());
+          // Save position every 5 seconds (use actual time with offset)
+          if (Math.floor(actualTime) % 5 === 0) {
+            localStorage.setItem(`video-position-${episodeId}`, actualTime.toString());
           }
         };
         // Use our enhanced handlers with session management
@@ -741,6 +752,7 @@ const VideoPlayer: React.FC = () => {
       
       videoRef.current.currentTime = 0;
       setCurrentTime(0);
+      seekOffsetRef.current = 0; // Reset seek offset when restarting
       // Clear saved position and start playing
       localStorage.removeItem(`video-position-${episodeId}`);
       videoRef.current.play();
@@ -807,6 +819,10 @@ const VideoPlayer: React.FC = () => {
         const seekResponse = await response.json();
         console.log('✅ Seek-ahead transcoding started:', seekResponse);
         setIsSeekingAhead(true);
+        setIsBuffering(true); // Show buffering indicator
+        
+        // Track the seek offset for proper time display
+        seekOffsetRef.current = Math.floor(seekTime);
         
         // Add the new session to active sessions
         if (seekResponse.session_id) {
@@ -826,15 +842,26 @@ const VideoPlayer: React.FC = () => {
           
           // Load the new manifest in Shaka Player
           try {
+            // Wait for the manifest to be created before loading
+            console.log('⏳ Waiting for seek-ahead manifest to be created...');
+            await waitForManifest(seekResponse.manifest_url);
+            console.log('✅ Manifest is ready, loading in player...');
+            
             await playerRef.current.load(seekResponse.manifest_url);
             console.log('✅ New manifest loaded successfully');
             
-            // The new stream starts from the seek position, so set current time to 0
+            // The new stream starts from the seek position, so video time is 0
+            // but we track the offset to show correct timestamps
             if (videoRef.current) {
               videoRef.current.currentTime = 0;
+              // Force a time update to show the correct position immediately
+              setCurrentTime(seekTime);
             }
+            
+            // Buffering will be cleared when video starts playing
           } catch (err) {
             console.error('❌ Failed to load new manifest:', err);
+            setIsBuffering(false);
           }
         }
         
@@ -844,6 +871,7 @@ const VideoPlayer: React.FC = () => {
         }, 5000);
       } else {
         console.warn('⚠️ Seek-ahead request failed:', response.status);
+        setIsBuffering(false);
       }
       
     } catch (error) {
@@ -900,6 +928,8 @@ const VideoPlayer: React.FC = () => {
     if (seekTime <= actualBufferedEnd) {
       videoRef.current.currentTime = seekTime;
       console.log('✅ Normal seek within buffered content:', seekTime);
+      // Reset seek offset for normal seeks
+      seekOffsetRef.current = 0;
       return;
     }
 
@@ -927,17 +957,22 @@ const VideoPlayer: React.FC = () => {
         // Seeking just slightly beyond buffered - the player can handle this
         videoRef.current.currentTime = seekTime;
         console.log('✅ Seeking slightly beyond buffered content (within 30s):', seekTime);
+        // Reset seek offset for normal seeks
+        seekOffsetRef.current = 0;
       }
     } else {
       // Direct play - just seek normally
       videoRef.current.currentTime = seekTime;
       console.log('✅ Direct play seek:', seekTime);
+      // Reset seek offset for normal seeks
+      seekOffsetRef.current = 0;
     }
   }, [playbackDecision, originalDuration, requestSeekAhead]);
 
   // Skip functions
   const skipBackward = useCallback(() => {
     if (videoRef.current && duration > 0) {
+      // Use currentTime which already includes the seek offset
       const newTime = Math.max(0, currentTime - 10);
       console.log('⏪ Skipping backward to:', newTime);
       handleSeek(newTime / duration);
@@ -946,6 +981,7 @@ const VideoPlayer: React.FC = () => {
 
   const skipForward = useCallback(() => {
     if (videoRef.current && duration > 0) {
+      // Use currentTime which already includes the seek offset
       const newTime = Math.min(duration, currentTime + 10);
       console.log('⏩ Skipping forward to:', newTime);
       handleSeek(newTime / duration);
@@ -1110,6 +1146,8 @@ const VideoPlayer: React.FC = () => {
     
     // Reset session tracking state
     setActiveSessionIds(new Set());
+    // Reset seek offset when changing episodes
+    seekOffsetRef.current = 0;
   }, [episodeId]); // Reset when episode changes
 
   if (loading) {
@@ -1174,6 +1212,8 @@ const VideoPlayer: React.FC = () => {
             </div>
           </div>
         )}
+
+
 
         {/* Loading spinner overlay - shows until video starts playing */}
         {isVideoLoading && !isPlaying && (
