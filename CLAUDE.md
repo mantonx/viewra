@@ -237,3 +237,20 @@ const data = await apiCall<ResponseType>('/api/endpoint');
 - Check all dependencies: `make check-env`
 - Restart services: `docker-compose restart`
 - Clean rebuild: `make clean && make dev-setup`
+
+## Tool Preferences
+
+### File System Operations
+- **PREFER**: Use MCP filesystem tools (mcp__filesystem__*) for all file operations
+- These tools provide better performance and integration compared to traditional file reading tools
+- Available MCP filesystem operations:
+  - `mcp__filesystem__read_file` - Read single files
+  - `mcp__filesystem__read_multiple_files` - Read multiple files efficiently
+  - `mcp__filesystem__write_file` - Write files
+  - `mcp__filesystem__edit_file` - Edit files with line-based replacements
+  - `mcp__filesystem__create_directory` - Create directories
+  - `mcp__filesystem__list_directory` - List directory contents
+  - `mcp__filesystem__directory_tree` - Get recursive directory structure
+  - `mcp__filesystem__move_file` - Move/rename files
+  - `mcp__filesystem__search_files` - Search for files by pattern
+  - `mcp__filesystem__get_file_info` - Get file metadata

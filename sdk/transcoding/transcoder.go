@@ -536,7 +536,6 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 			"-ldash", "1",                          // Low-latency DASH
 			"-target_latency", "2000000",           // 2 second target latency (microseconds)
 			"-min_seg_duration", "1000000",         // Min 1s segments (microseconds)
-			"-max_seg_duration", "8000000",         // Max 8s segments (microseconds)
 			"-init_seg_name", "init-$RepresentationID$.m4s",
 			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
 			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
@@ -544,7 +543,6 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 			"-single_file", "0",
 			"-remove_at_exit", "1",                 // Cleanup segments on exit
 			// Low-latency optimizations
-			"-seg_duration_adaptive", "1",          // Adaptive segment duration
 			"-utc_timing_url", "https://time.akamai.com/?iso", // UTC timing for sync
 		)
 	case "hls":
