@@ -234,10 +234,50 @@ func (h *APIHandler) HandleGetStats(c *gin.Context) {
 
 // HandleHealthCheck returns module health status
 func (h *APIHandler) HandleHealthCheck(c *gin.Context) {
+	// Get provider count
+	providerCount := 0
+	var providerNames []string
+	
+	if h.manager.transcodingService != nil {
+		providerManager := h.manager.transcodingService.GetProviderManager()
+		if providerManager != nil {
+			providers := providerManager.GetProviders()
+			providerCount = len(providers)
+			for id, p := range providers {
+				info := p.GetInfo()
+				providerNames = append(providerNames, fmt.Sprintf("%s (%s)", info.Name, id))
+			}
+		}
+	}
+	
+	// Determine readiness
+	ready := h.manager.IsEnabled() && h.manager.initialized && providerCount > 0
+	status := "healthy"
+	if !ready {
+		status = "degraded"
+	}
+	
 	health := gin.H{
-		"status":  "healthy",
-		"enabled": h.manager.IsEnabled(),
-		"uptime":  time.Since(time.Now()).String(), // This would be tracked properly in real implementation
+		"status":    status,
+		"ready":     ready,
+		"enabled":   h.manager.IsEnabled(),
+		"initialized": h.manager.initialized,
+		"providers": gin.H{
+			"count": providerCount,
+			"names": providerNames,
+		},
+		"message": func() string {
+			if !h.manager.IsEnabled() {
+				return "Playback module is disabled"
+			}
+			if !h.manager.initialized {
+				return "Playback module is not initialized"
+			}
+			if providerCount == 0 {
+				return "No transcoding providers available (plugin discovery in progress)"
+			}
+			return "Ready for transcoding"
+		}(),
 	}
 
 	c.JSON(http.StatusOK, health)

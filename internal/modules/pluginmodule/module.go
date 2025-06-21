@@ -255,6 +255,9 @@ func (pm *PluginModule) Initialize(ctx context.Context, db *gorm.DB) error {
 		pm.logger.Info("external plugin manager connected to dashboard manager")
 	}
 
+	// Auto-enable transcoding plugins for self-healing system
+	go pm.autoEnableTranscodingPlugins()
+
 	pm.logger.Info("plugin module initialized successfully")
 	return nil
 }
@@ -793,4 +796,46 @@ func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
 
 	logger.Info("Plugin module created", "external_manager_stored", pm.externalManager != nil, "api_handlers_initialized", pm.apiHandlers != nil)
 	return pm
+}
+
+// autoEnableTranscodingPlugins automatically enables all transcoding plugins found
+// This is part of the self-healing system to avoid manual plugin management
+func (pm *PluginModule) autoEnableTranscodingPlugins() {
+	pm.logger.Info("Starting auto-enable for transcoding plugins")
+	
+	// Wait a bit for plugin discovery to complete
+	time.Sleep(2 * time.Second)
+	
+	// Get all external plugins
+	plugins := pm.externalManager.ListPlugins()
+	pm.logger.Info("Found external plugins for auto-enable", "count", len(plugins))
+	
+	enabledCount := 0
+	for _, plugin := range plugins {
+		// Check if it's a transcoding plugin
+		if plugin.Type == "transcoder" || plugin.Type == "transcoding" {
+			pm.logger.Info("Found transcoding plugin", "id", plugin.ID, "name", plugin.Name, "enabled", plugin.Enabled)
+			
+			// Enable it if not already enabled
+			if !plugin.Enabled {
+				pm.logger.Info("Auto-enabling transcoding plugin", "id", plugin.ID)
+				if err := pm.EnableExternalPlugin(plugin.ID); err != nil {
+					pm.logger.Error("Failed to auto-enable transcoding plugin", "id", plugin.ID, "error", err)
+				} else {
+					enabledCount++
+					pm.logger.Info("Successfully auto-enabled transcoding plugin", "id", plugin.ID)
+					
+					// Also start the plugin if not running
+					ctx := context.Background()
+					if err := pm.LoadExternalPlugin(ctx, plugin.ID); err != nil {
+						pm.logger.Error("Failed to start transcoding plugin after enabling", "id", plugin.ID, "error", err)
+					} else {
+						pm.logger.Info("Successfully started transcoding plugin", "id", plugin.ID)
+					}
+				}
+			}
+		}
+	}
+	
+	pm.logger.Info("Auto-enable transcoding plugins completed", "enabled_count", enabledCount)
 }

@@ -104,12 +104,8 @@ func (m *Manager) Initialize() error {
 		return nil
 	}
 
-	// Discover transcoding plugins directly
-	if m.pluginManager != nil {
-		if err := m.discoverTranscodingPlugins(); err != nil {
-			m.logger.Warn("failed to discover transcoding plugins", "error", err)
-		}
-	}
+	// Start aggressive plugin discovery in background
+	go m.startAggressivePluginDiscovery()
 
 	// Start the cleanup service
 	go m.cleanupService.Run(m.ctx)
@@ -181,19 +177,38 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 		"request_container", request.Container,
 		"request_input_path", request.InputPath)
 	
-	// ROBUSTNESS FIX: If no providers are available, try to re-run plugin discovery
+	// ROBUSTNESS FIX: If no providers are available, wait for them with timeout
 	// This handles timing issues where discovery ran before plugins were ready
 	providerManager := m.transcodingService.GetProviderManager()
 	if providerManager != nil && len(providerManager.GetProviders()) == 0 {
-		m.logger.Warn("No providers available when starting transcode - attempting to re-run plugin discovery")
+		m.logger.Warn("No providers available when starting transcode - waiting for plugin discovery")
+		
+		// Try a quick discovery first
 		if m.pluginManager != nil {
-			if err := m.discoverTranscodingPlugins(); err != nil {
-				m.logger.Error("Failed to re-run plugin discovery", "error", err)
-			} else {
-				m.logger.Info("Plugin discovery re-run completed", "providers_now", len(providerManager.GetProviders()))
+			_ = m.discoverTranscodingPlugins()
+		}
+		
+		// Wait up to 5 seconds for providers to appear
+		timeout := time.After(5 * time.Second)
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-timeout:
+				m.logger.Error("Timeout waiting for transcoding providers")
+				return nil, fmt.Errorf("no transcoding providers available after timeout")
+			case <-ticker.C:
+				if len(providerManager.GetProviders()) > 0 {
+					m.logger.Info("Transcoding providers now available", 
+						"count", len(providerManager.GetProviders()))
+					goto providersReady
+				}
 			}
 		}
 	}
+	
+providersReady:
 	
 	return m.transcodingService.StartTranscode(context.Background(), request)
 }
@@ -420,4 +435,57 @@ func (m *Manager) discoverTranscodingPlugins() error {
 
 	m.logger.Info("plugin discovery completed", "count", discoveredCount)
 	return nil
+}
+
+// startAggressivePluginDiscovery continuously attempts to discover plugins until some are found
+func (m *Manager) startAggressivePluginDiscovery() {
+	m.logger.Info("Starting aggressive plugin discovery")
+	
+	attempts := 0
+	for {
+		select {
+		case <-m.ctx.Done():
+			m.logger.Info("Aggressive plugin discovery stopped")
+			return
+		default:
+			attempts++
+			
+			// Try to discover plugins
+			if m.pluginManager != nil {
+				if err := m.discoverTranscodingPlugins(); err != nil {
+					m.logger.Debug("Plugin discovery attempt failed", "attempt", attempts, "error", err)
+				} else {
+					// Check if we found any providers
+					if m.transcodingService != nil {
+						providerManager := m.transcodingService.GetProviderManager()
+						if providerManager != nil && len(providerManager.GetProviders()) > 0 {
+							m.logger.Info("Successfully discovered transcoding providers", 
+								"count", len(providerManager.GetProviders()),
+								"attempts", attempts)
+							return
+						}
+					}
+				}
+			}
+			
+			// Wait before next attempt, with exponential backoff up to 30 seconds
+			waitTime := time.Duration(attempts) * time.Second
+			if waitTime > 30*time.Second {
+				waitTime = 30 * time.Second
+			}
+			
+			if attempts == 1 {
+				// First attempt failed, try again quickly
+				waitTime = 100 * time.Millisecond
+			} else if attempts <= 5 {
+				// Next few attempts with short delays
+				waitTime = time.Duration(attempts) * 500 * time.Millisecond
+			}
+			
+			m.logger.Debug("Waiting before next plugin discovery attempt", 
+				"wait_time", waitTime, "attempt", attempts)
+			
+			time.Sleep(waitTime)
+		}
+	}
 }

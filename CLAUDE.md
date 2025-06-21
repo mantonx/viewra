@@ -14,6 +14,13 @@ Viewra is a modern media management platform with a Go backend and React fronten
 
 ## Development Environment
 
+**CRITICAL**: ALWAYS use Docker Compose for ALL development work. NEVER build or run the application directly on the host. The containerized environment provides:
+- Consistent build environment with all dependencies
+- Hot reloading via Air
+- Proper volume mounts for live editing
+- Database persistence
+- Debugging tools
+
 **IMPORTANT**: This project uses Docker Compose for the development environment. All development work should be done within the containerized environment using the development configuration.
 
 ### Development Setup Commands
@@ -243,6 +250,17 @@ const data = await apiCall<ResponseType>('/api/endpoint');
 ### File System Operations
 - **PREFER**: Use MCP filesystem tools (mcp__filesystem__*) for all file operations
 - These tools provide better performance and integration compared to traditional file reading tools
+
+### Build and Development
+- **ALWAYS**: Use Docker Compose commands for building and running
+- **NEVER**: Run `go build` or `go run` directly on the host
+- **NEVER**: Install Go dependencies on the host
+- **RELY ON AIR**: The development environment uses Air for automatic hot reloading
+  - Air watches all Go files and rebuilds automatically on changes
+  - No manual rebuilds needed - just save the file
+  - Check `.air.toml` for configuration (already set up)
+  - If build fails, check `docker-compose logs backend` for errors
+- The Docker environment handles all builds automatically with hot reloading
 - Available MCP filesystem operations:
   - `mcp__filesystem__read_file` - Read single files
   - `mcp__filesystem__read_multiple_files` - Read multiple files efficiently
