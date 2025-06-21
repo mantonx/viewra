@@ -529,13 +529,13 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 		args = append(args,
 			"-f", "dash",
 			"-seg_duration", segDuration,            // Adaptive segment duration
-			"-frag_duration", "500000",              // 500ms fragments for low latency (microseconds)
+			"-frag_duration", "0.5",                // 500ms fragments for low latency
 			"-use_template", "1",
 			"-use_timeline", "1",
 			"-streaming", "1",                       // Enable streaming mode
 			"-ldash", "1",                          // Low-latency DASH
-			"-target_latency", "2000000",           // 2 second target latency (microseconds)
-			"-min_seg_duration", "1000000",         // Min 1s segments (microseconds)
+			"-target_latency", "2",                 // 2 second target latency
+			"-min_seg_duration", "1",               // Min 1s segments
 			"-init_seg_name", "init-$RepresentationID$.m4s",
 			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
 			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
@@ -577,8 +577,8 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 		args = append(args,
 			"-f", "mp4",
 			"-movflags", "+faststart+frag_keyframe+empty_moov+dash+cmaf",
-			"-frag_duration", "1000000",            // 1s fragments for better seeking
-			"-min_frag_duration", "500000",         // Min 500ms fragments
+			"-frag_duration", "1",                  // 1s fragments for better seeking
+			"-min_frag_duration", "0.5",            // Min 500ms fragments
 			"-brand", "mp42",                       // Better compatibility
 		)
 	}
