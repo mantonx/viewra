@@ -1,359 +1,408 @@
-# PlaybackModule Documentation
+# Playback Module - Clean Architecture
 
-> **Comprehensive Video Transcoding & Streaming Module for Viewra**
+## Overview
 
-The PlaybackModule is the core transcoding and streaming engine for the Viewra media server, providing adaptive bitrate streaming, session management, and plugin-based transcoding architecture.
+The Playback Module has been completely refactored to follow a clean architecture pattern, providing dynamic discovery and use of transcoding plugins. This provides a scalable, extensible architecture for video transcoding and streaming.
 
-## 📋 Table of Contents
+## Architecture
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [API Documentation](#api-documentation)
-- [E2E Testing](#e2e-testing)
-- [Critical Issues & Fixes](#critical-issues--fixes)
-- [Development](#development)
-- [Production Deployment](#production-deployment)
+### Module Structure
 
-## 🎯 Overview
+The playback module follows a clean separation of concerns:
 
-### Key Features
-
-- **🎬 Adaptive Streaming**: DASH and HLS support with intelligent container selection
-- **🔧 Plugin Architecture**: Extensible transcoding backend system (FFmpeg, VAAPI, QSV, NVENC)
-- **📊 Session Management**: Robust, thread-safe transcoding session handling
-- **🐳 Docker Ready**: Fully containerized with volume mounting support
-- **⚡ Real-time Streaming**: Progressive transcoding with live streaming capabilities
-- **🛡️ Error Resilience**: Comprehensive error handling and recovery
-
-### Browser Compatibility
-
-| Browser | Container | Status |
-|---------|-----------|--------|
-| Chrome/Firefox | DASH | ✅ Fully Supported |
-| Safari | HLS | ✅ Fully Supported |
-| Edge | DASH | ✅ Fully Supported |
-
-## 🏗️ Architecture
+1. **module.go** - Module lifecycle management (Init, Migrate, RegisterRoutes, Shutdown)
+2. **manager.go** - Business logic and service management
+3. **api_handler.go** - HTTP request handling
+4. **routes.go** - Route registration
+5. **transcode_manager.go** - Transcoding session management
+6. **planner.go** - Playback decision logic
+7. **types.go** - Shared type definitions
+8. **plugin_adapter.go** - Plugin system integration
 
 ### Core Components
 
+1. **Manager** - Central business logic coordinator
+   - Owns the TranscodeManager and Planner
+   - Manages background services (cleanup)
+   - Handles configuration
+
+2. **PlaybackPlanner** - Analyzes media and device capabilities to decide between direct play and transcoding
+
+3. **TranscodeManager** - Plugin-aware transcoding session manager
+
+4. **APIHandler** - HTTP endpoint handlers
+
+### Plugin Integration Flow
+
 ```
-PlaybackModule
-├── session.go          # Session lifecycle management
-├── transcode_manager.go # Core transcoding orchestration  
-├── module.go           # Module interface & routing
-├── types.go            # Type definitions & models
-├── planner.go          # Transcoding decision logic
-├── plugin_adapter.go   # Plugin integration layer
-└── api_handlers.go     # HTTP API endpoints
-```
-
-### Plugin Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   PlaybackModule │────│  Plugin Manager  │────│ FFmpeg Plugin   │
-│                 │    │                  │    │                 │
-│ - Session Mgmt  │    │ - Discovery      │    │ - H264/H265     │
-│ - API Handlers  │    │ - Lifecycle      │    │ - DASH/HLS      │
-│ - Routing       │    │ - Communication  │    │ - Hardware Accel│
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-## 🚀 Quick Start
-
-### 1. Development Setup
-
-```bash
-# Start with Docker Compose
-docker-compose up -d
-
-# The backend runs on port 8080
-# Frontend proxy runs on port 5173
+[Client Request] 
+    ↓
+[APIHandler] 
+    ↓
+[Manager] 
+    ↓
+[TranscodeManager] 
+    ↓
+[Plugin Discovery] → [Available Transcoding Plugins]
+    ↓
+[Best Plugin Selection] 
+    ↓
+[Transcoding Session] → [FFmpeg/Other Transcoder]
+    ↓
+[Streaming Response]
 ```
 
-### 2. Create a Transcoding Session
+## Key Features
 
-```bash
-curl -X POST http://localhost:8080/api/playback/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input_path": "/path/to/video.mp4",
-    "target_codec": "h264",
-    "target_container": "dash",
-    "resolution": "720p",
-    "bitrate": 3000
-  }'
+### 🔍 **Automatic Plugin Discovery**
+- Scans running plugins for transcoding services
+- Dynamically registers available transcoders
+- Supports hot-reloading of plugins
+
+### 🎯 **Intelligent Backend Selection**
+- Evaluates plugins based on:
+  - Codec support (H.264, HEVC, VP8, VP9, AV1)
+  - Resolution capabilities
+  - Container format support
+  - Priority and current load
+- Automatically selects the best available transcoder
+
+### 📊 **Comprehensive Session Management**
+- Real-time session tracking
+- Concurrent session limits
+- Automatic cleanup of expired sessions
+- Detailed statistics and monitoring
+
+### 🔄 **Streaming Optimization**
+- Direct streaming from transcoder output
+- Real-time progress monitoring
+- Efficient memory usage with streaming pipes
+
+## API Endpoints
+
+### Playback Decision
+```http
+POST /api/playback/decide
 ```
-
-### 3. Stream the Content
-
-```bash
-# DASH Manifest
-curl http://localhost:8080/api/playback/stream/{sessionId}/manifest.mpd
-
-# HLS Playlist  
-curl http://localhost:8080/api/playbook/stream/{sessionId}/playlist.m3u8
-```
-
-## 📚 API Documentation
-
-### Core Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/playback/start` | Create transcoding session |
-| `GET` | `/api/playback/session/{id}` | Get session status |
-| `DELETE` | `/api/playback/session/{id}` | Stop session |
-| `GET` | `/api/playback/sessions` | List all sessions |
-| `GET` | `/api/playback/health` | System health check |
-| `GET` | `/api/playback/stats` | System statistics |
-
-### Streaming Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/playback/stream/{id}/manifest.mpd` | DASH manifest |
-| `GET` | `/api/playback/stream/{id}/playlist.m3u8` | HLS playlist |
-| `GET` | `/api/playback/stream/{id}/{segment}` | Media segments |
-
-### Request Examples
-
-<details>
-<summary><strong>Create DASH Session</strong></summary>
-
-```json
-POST /api/playback/start
-{
-  "input_path": "/media/movie.mp4",
-  "target_codec": "h264",
-  "target_container": "dash",
-  "resolution": "1080p",
-  "bitrate": 5000,
-  "audio_codec": "aac",
-  "preset": "medium"
-}
-```
-
-Response:
+**Request:**
 ```json
 {
-  "id": "session_1234567890",
-  "status": "starting",
-  "created_at": "2024-01-01T12:00:00Z"
-}
-```
-</details>
-
-<details>
-<summary><strong>Session Status</strong></summary>
-
-```json
-GET /api/playback/session/session_1234567890
-
-{
-  "session": {
-    "id": "session_1234567890",
-    "status": "running",
-    "progress": 0.45,
-    "backend": "ffmpeg",
-    "container": "dash",
-    "created_at": "2024-01-01T12:00:00Z"
+  "media_path": "/path/to/video.mkv",
+  "device_profile": {
+    "user_agent": "Mozilla/5.0...",
+    "supported_codecs": ["h264", "aac"],
+    "max_resolution": "1080p",
+    "max_bitrate": 6000,
+    "supports_hevc": false,
+    "client_ip": "192.168.1.100"
   }
 }
 ```
-</details>
 
-### Status Codes
-
-| Code | Status | Description |
-|------|--------|-------------|
-| `201` | Created | Session created successfully |
-| `200` | OK | Request successful |
-| `404` | Not Found | Session or resource not found |
-| `500` | Internal Error | Server error (often: no suitable plugin) |
-
-## 🧪 E2E Testing
-
-Our comprehensive E2E testing suite is organized by category:
-
-```
-e2e/
-├── integration/        # Core transcoding workflows
-├── error_handling/     # Error scenarios & edge cases  
-├── docker/            # Container & volume integration
-├── plugins/           # Plugin discovery & real FFmpeg
-└── performance/       # Performance & benchmarking
+**Response:**
+```json
+{
+  "should_transcode": true,
+  "transcode_params": {
+    "target_codec": "h264",
+    "target_container": "mp4",
+    "resolution": "1080p",
+    "bitrate": 3000
+  },
+  "reason": "Transcoding required: container change: mkv -> mp4"
+}
 ```
 
-### Running E2E Tests
-
-```bash
-# Run all E2E tests
-go test -v ./internal/modules/playbackmodule/e2e/...
-
-# Run specific test categories
-go test -v ./internal/modules/playbackmodule/e2e/docker
-go test -v ./internal/modules/playbackmodule/e2e/error_handling
-go test -v ./internal/modules/playbackmodule/e2e/plugins
+### Start Transcoding
+```http
+POST /api/playback/start
+```
+**Request:**
+```json
+{
+  "input_path": "/path/to/video.mkv",
+  "target_codec": "h264",
+  "target_container": "mp4",
+  "resolution": "1080p",
+  "bitrate": 3000,
+  "audio_codec": "aac",
+  "quality": 23,
+  "preset": "fast"
+}
 ```
 
-### Test Coverage Summary
-
-| Test Category | Status | Coverage |
-|---------------|--------|----------|
-| **Docker Integration** | ✅ Complete | Volume mounting, directory config |
-| **DASH/HLS Streaming** | ✅ Complete | Manifest/playlist generation |
-| **Session Management** | ✅ Complete | Creation, status, cleanup |
-| **Error Handling** | 🔍 Issues Found | Request validation gaps |
-| **Network Resilience** | ✅ Complete | Client disconnects, concurrency |
-| **Plugin Architecture** | 🔍 Issues Found | Real plugin integration |
-
-## 🚨 Critical Issues & Fixes
-
-Based on our comprehensive E2E testing, here are the **critical areas requiring immediate attention**:
-
-### 🔥 **Priority 1: Request Validation (Security Critical)**
-
-**Issue**: System accepts invalid requests with 201 status instead of proper validation
-
-```bash
-# Current behavior (WRONG)
-curl -X POST /api/playback/start -H "Content-Type: text/plain" -d "{}"
-# Returns: 201 Created (should be 400 Bad Request)
+**Response:**
+```json
+{
+  "id": "uuid-session-id",
+  "status": "running",
+  "start_time": "2024-01-01T12:00:00Z",
+  "backend": "ffmpeg_transcoder",
+  "progress": 0.0
+}
 ```
 
-**Required Fixes**:
-- [ ] Add request validation middleware
-- [ ] Implement proper Content-Type checking  
-- [ ] Return correct HTTP status codes
-- [ ] Add input sanitization
+### Stream Transcoded Video
+```http
+GET /api/playback/stream/:sessionId
+```
+**Response:** Direct video stream with appropriate headers
 
-### 🔥 **Priority 2: Plugin Integration (Functionality Critical)**
-
-**Issue**: Real plugin environment returns 500 errors while mocks work perfectly
-
-```bash
-# Mock environment: ✅ 201 Created
-# Real environment: ❌ 500 Internal Server Error: "no suitable transcoding plugin found"
+### Session Management
+```http
+GET    /api/playback/session/:sessionId      # Get session info
+DELETE /api/playback/session/:sessionId      # Stop session
+GET    /api/playback/sessions                # List active sessions
+GET    /api/playback/stats                   # Get statistics
 ```
 
-**Required Fixes**:
-- [ ] Build actual FFmpeg plugin binary
-- [ ] Configure plugin discovery paths
-- [ ] Set up plugin registration system
-- [ ] Test plugin loading and communication
-
-### ⚠️ **Priority 3: HTTP Method Handling**
-
-**Issue**: Returns 404 instead of 405 for unsupported HTTP methods
-
-```bash
-curl -X PUT /api/playbook/start
-# Returns: 404 Not Found (should be 405 Method Not Allowed)
+### Cleanup Management
+```http
+POST   /api/playback/cleanup/run             # Run manual cleanup
+GET    /api/playback/cleanup/stats           # Get cleanup statistics
 ```
 
-**Required Fixes**:
-- [ ] Add proper method validation
-- [ ] Return 405 for unsupported methods
-- [ ] Include `Allow` header in responses
+## Configuration
 
-### ⚠️ **Priority 4: Production Hardening**
-
-**Issues**:
-- Missing rate limiting
-- No authentication/authorization
-- Limited monitoring/telemetry
-- No resource constraints
-
-**Required Fixes**:
-- [ ] Add rate limiting middleware
-- [ ] Implement authentication system
-- [ ] Add comprehensive monitoring
-- [ ] Set resource limits (CPU, memory, concurrent sessions)
-
-## 💻 Development
-
-### Prerequisites
-
-- Go 1.21+
-- Docker & Docker Compose
-- FFmpeg (for real plugin testing)
-
-### Development Workflow
-
-```bash
-# 1. Start development environment
-docker-compose up -d
-
-# 2. Run tests
-go test -v ./internal/modules/playbackmodule
-
-# 3. Run E2E tests  
-go test -v ./internal/modules/playbackmodule/e2e/...
-
-# 4. Check logs
-docker-compose logs backend
+### Module Configuration
+```go
+type Config struct {
+    MaxConcurrentSessions    int
+    SessionTimeoutMinutes    int
+    EnableHardwareAccel      bool
+    DefaultQuality           int
+    DefaultPreset            string
+    TranscodingTimeout       time.Duration
+    BufferSize               int
+    CleanupIntervalMinutes   int
+    CleanupRetentionMinutes  int
+    EnableDebugLogging       bool
+}
 ```
 
-### Adding New Features
+Configuration can be set via environment variables:
+- `PLAYBACK_MAX_CONCURRENT_SESSIONS` (default: 3)
+- `PLAYBACK_SESSION_TIMEOUT_MINUTES` (default: 120)
+- `PLAYBACK_CLEANUP_INTERVAL_MINUTES` (default: 30)
+- etc.
 
-1. **Add Core Logic**: Update `module.go`, `session.go`, or `transcode_manager.go`
-2. **Add API Endpoints**: Update `api_handlers.go` and routing in `module.go`
-3. **Add Types**: Update `types.go` for new data structures
-4. **Add Tests**: Create unit tests and E2E tests
-5. **Update Documentation**: Update this README and API docs
+### Plugin Configuration (FFmpeg Example)
+Located in `backend/data/plugins/ffmpeg_transcoder/plugin.cue`:
 
-## 🚀 Production Deployment
+```cue
+plugin: {
+    id:          "ffmpeg_transcoder"
+    name:        "FFmpeg Transcoder"
+    type:        "transcoder"
+    priority:    50
+}
 
-### Docker Configuration
+ffmpeg: {
+    path:    "ffmpeg"
+    preset:  "fast"
+    threads: 0
+}
 
-```yaml
-# docker-compose.yml
-services:
-  backend:
-    image: viewra-backend:latest
-    volumes:
-      - ./viewra-data:/viewra-data  # Critical: transcoding storage
-    environment:
-      - VIEWRA_TRANSCODING_DIR=/viewra-data/transcoding
-      - VIEWRA_PLUGINS_DIR=/app/plugins
-    ports:
-      - "8080:8080"
+quality: {
+    crf_h264: 23.0
+    crf_hevc: 28.0
+}
+
+performance: {
+    max_concurrent_jobs: 3
+    timeout_seconds:     1800
+}
 ```
 
-### Environment Variables
+## Integration Example
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VIEWRA_TRANSCODING_DIR` | Transcoding output directory | `/viewra-data/transcoding` |
-| `VIEWRA_PLUGINS_DIR` | Plugin discovery directory | `/app/plugins` |
-| `VIEWRA_MAX_SESSIONS` | Maximum concurrent sessions | `10` |
+### Basic Setup
+```go
+package main
 
-### Production Checklist
+import (
+    "github.com/mantonx/viewra/internal/database"
+    "github.com/mantonx/viewra/internal/events"
+    "github.com/mantonx/viewra/internal/modules/playbackmodule"
+    "github.com/mantonx/viewra/internal/modules/pluginmodule"
+    "gorm.io/gorm"
+)
 
-- [ ] **Security**: Fix request validation (Priority 1)
-- [ ] **Plugins**: Build and deploy real FFmpeg plugin (Priority 2)  
-- [ ] **Monitoring**: Add telemetry and health checks
-- [ ] **Performance**: Set resource limits and optimize
-- [ ] **Backup**: Configure transcoding data persistence
-- [ ] **Scaling**: Test horizontal scaling capabilities
+func setupPlaybackModule(db *gorm.DB) error {
+    // 1. Create external plugin manager
+    logger := hclog.NewNullLogger()
+    externalPluginManager := pluginmodule.NewExternalPluginManager(db, logger)
+    
+    // 2. Initialize with plugin directory
+    pluginDir := "/path/to/plugins"
+    hostServices := &pluginmodule.HostServices{}
+    
+    err := externalPluginManager.Initialize(ctx, pluginDir, hostServices)
+    if err != nil {
+        return err
+    }
 
-## 📖 Additional Documentation
+    // 3. Create adapter and module
+    adapter := playbackmodule.NewExternalPluginManagerAdapter(externalPluginManager)
+    module := playbackmodule.NewModule(db, nil, adapter)
+    
+    // 4. Initialize module
+    return module.Init()
+}
+```
 
-- [`docs/api.md`](docs/api.md) - Detailed API reference
-- [`docs/implementation.md`](docs/implementation.md) - Implementation details
-- [`e2e/README.md`](e2e/README.md) - E2E testing guide
+### Usage Example
+```go
+// Get the manager from the module
+manager := module.GetManager()
+if manager == nil {
+    return fmt.Errorf("playback manager not available")
+}
 
-## 🤝 Contributing
+// Get playback decision
+deviceProfile := &playbackmodule.DeviceProfile{
+    UserAgent:       "Chrome/Browser",
+    SupportedCodecs: []string{"h264", "aac"},
+    MaxResolution:   "1080p",
+    MaxBitrate:      6000,
+}
 
-1. Follow the existing code patterns
-2. Add comprehensive tests for new features
-3. Update documentation
-4. Ensure E2E tests pass
-5. Address security considerations
+planner := manager.GetPlanner()
+decision, err := planner.DecidePlayback(mediaPath, deviceProfile)
+if err != nil {
+    return err
+}
 
-## 📄 License
+// Start transcoding if needed
+if decision.ShouldTranscode {
+    transcodeManager := manager.GetTranscodeManager()
+    session, err := transcodeManager.StartTranscode(decision.TranscodeParams)
+    if err != nil {
+        return err
+    }
+    
+    // Get the transcoding stream
+    stream, err := transcodeManager.GetStream(session.ID)
+    if err != nil {
+        return err
+    }
+    defer stream.Close()
+    
+    // Use stream for HTTP response...
+}
+```
 
-Part of the Viewra Media Server project. 
+## Plugin Development
+
+### Implementing a Transcoding Plugin
+
+1. **Implement the `plugins.Implementation` interface**
+2. **Provide `TranscodingProvider()` method**
+3. **Implement `plugins.TranscodingProvider` interface**
+
+```go
+type MyTranscoderPlugin struct {
+    // Plugin fields
+}
+
+func (p *MyTranscoderPlugin) TranscodingProvider() plugins.TranscodingProvider {
+    return p.transcodingProvider
+}
+
+func (p *MyTranscoderPlugin) Initialize(ctx *plugins.PluginContext) error {
+    // Initialize transcoding provider
+    return nil
+}
+```
+
+### Transcoding Provider Implementation
+
+```go
+func (p *MyProvider) GetInfo() plugins.ProviderInfo {
+    return plugins.ProviderInfo{
+        ID:          "my-transcoder",
+        Name:        "My Transcoder",
+        Description: "Custom transcoding provider",
+        Version:     "1.0.0",
+        Author:      "My Company",
+        Priority:    75, // Higher = preferred
+    }
+}
+
+func (p *MyProvider) GetSupportedFormats() []plugins.ContainerFormat {
+    return []plugins.ContainerFormat{
+        {Format: "mp4", MimeType: "video/mp4", Extensions: []string{".mp4"}},
+        {Format: "webm", MimeType: "video/webm", Extensions: []string{".webm"}},
+    }
+}
+
+func (p *MyProvider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
+    // Implement transcoding logic
+}
+```
+
+## Monitoring and Statistics
+
+### Real-time Statistics
+```go
+manager := module.GetManager()
+stats, err := manager.GetTranscodeManager().GetStats()
+
+// Access backend information
+for backendID, backend := range stats.Backends {
+    fmt.Printf("Backend: %s (Priority: %d, Active: %d)\n", 
+        backend.Name, backend.Priority, backend.ActiveSessions)
+}
+
+// Access recent sessions
+for _, session := range stats.RecentSessions {
+    fmt.Printf("Session %s: %s (%s)\n", 
+        session.ID, session.Status, session.Provider)
+}
+```
+
+### Health Monitoring
+- Automatic session cleanup
+- Plugin health checks
+- Performance metrics
+- Error tracking and recovery
+
+## Benefits
+
+### 🚀 **Scalability**
+- Add new transcoding backends without code changes
+- Horizontal scaling with multiple plugin instances
+- Load balancing across available transcoders
+
+### 🔧 **Flexibility**
+- Support for multiple transcoding engines (FFmpeg, hardware encoders, cloud services)
+- Runtime plugin discovery and registration
+- Configurable quality and performance settings
+
+### 📈 **Performance**
+- Intelligent backend selection
+- Real-time streaming without temporary files
+- Concurrent session management
+- Resource optimization
+
+### 🛠 **Maintainability**
+- Clean separation of concerns
+- Plugin-based architecture
+- Comprehensive error handling
+- Extensive logging and monitoring
+
+## Current Plugin Support
+
+### FFmpeg Transcoder Plugin
+- **Location**: `backend/data/plugins/ffmpeg_transcoder/`
+- **Codecs**: H.264, HEVC, VP8, VP9, AV1
+- **Features**: Subtitle burn-in, multi-audio, streaming output
+- **Priority**: 50 (configurable)
+- **Status**: ✅ Complete implementation
+
+### Future Plugin Opportunities
+- **Hardware Transcoders**: NVENC, VAAPI, QuickSync
+- **Cloud Transcoders**: AWS Elemental, Google Transcoder API
+- **Specialized Encoders**: x265, SVT-AV1, rav1e
+
+ 

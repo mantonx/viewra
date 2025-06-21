@@ -1,0 +1,136 @@
+package enrichmentmodule
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/hashicorp/go-hclog"
+	enrichmentpb "github.com/mantonx/viewra/sdk/grpc"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"gorm.io/gorm"
+)
+
+// =============================================================================
+// ENRICHMENT GRPC SERVICE
+// =============================================================================
+// This service handles enrichment data registration and management via gRPC.
+// It runs on the same gRPC server (port 50051) as the AssetService, providing
+// a consolidated interface for external plugins to:
+// 1. Register enrichment metadata (this service)
+// 2. Save/manage assets like artwork (AssetService in asset_grpc_server.go)
+//
+// Both services are registered in module.go Start() method.
+
+// GRPCServer implements the enrichment gRPC service
+type GRPCServer struct {
+	enrichmentpb.UnimplementedEnrichmentServiceServer
+	module *Module
+	db     *gorm.DB
+	logger hclog.Logger
+}
+
+// NewGRPCServer creates a new gRPC server for the enrichment module
+func NewGRPCServer(module *Module, db *gorm.DB, logger hclog.Logger) *GRPCServer {
+	return &GRPCServer{
+		module: module,
+		db:     db,
+		logger: logger,
+	}
+}
+
+// RegisterEnrichment registers enriched metadata for a media file
+func (s *GRPCServer) RegisterEnrichment(ctx context.Context, req *enrichmentpb.RegisterEnrichmentRequest) (*enrichmentpb.RegisterEnrichmentResponse, error) {
+	if req.MediaFileId == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "media_file_id is required")
+	}
+
+	if req.SourceName == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "source_name is required")
+	}
+
+	if len(req.Enrichments) == 0 {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "enrichments cannot be empty")
+	}
+
+	if req.ConfidenceScore < 0.0 || req.ConfidenceScore > 1.0 {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "confidence_score must be between 0.0 and 1.0")
+	}
+
+	// Convert map[string]string to map[string]interface{}
+	enrichments := make(map[string]interface{})
+	for key, value := range req.Enrichments {
+		enrichments[key] = value
+	}
+
+	// Register the enrichment data
+	if err := s.module.RegisterEnrichmentData(req.MediaFileId, req.SourceName, enrichments, req.ConfidenceScore); err != nil {
+		return nil, grpcstatus.Errorf(codes.Internal, "failed to register enrichment: %v", err)
+	}
+
+	return &enrichmentpb.RegisterEnrichmentResponse{
+		Success: true,
+		Message: fmt.Sprintf("Enrichment registered successfully for media file %s", req.MediaFileId),
+		JobId:   "pending",
+	}, nil
+}
+
+// GetEnrichmentStatus returns enrichment status for a media file
+func (s *GRPCServer) GetEnrichmentStatus(ctx context.Context, req *enrichmentpb.GetEnrichmentStatusRequest) (*enrichmentpb.GetEnrichmentStatusResponse, error) {
+	if req.MediaFileId == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "media_file_id is required")
+	}
+
+	statusData, err := s.module.GetEnrichmentStatus(req.MediaFileId)
+	if err != nil {
+		return nil, grpcstatus.Errorf(codes.Internal, "failed to get enrichment status: %v", err)
+	}
+
+	// Convert to protobuf response
+	response := &enrichmentpb.GetEnrichmentStatusResponse{
+		MediaFileId:      req.MediaFileId,
+		TotalEnrichments: int32(statusData["total_enrichments"].(int)),
+		AppliedCount:     int32(statusData["applied_count"].(int)),
+		PendingCount:     int32(statusData["pending_count"].(int)),
+		Sources:          make(map[string]int32),
+		Fields:           make(map[string]*enrichmentpb.FieldEnrichmentStatus),
+	}
+
+	return response, nil
+}
+
+// ListEnrichmentSources returns all enrichment sources
+func (s *GRPCServer) ListEnrichmentSources(ctx context.Context, req *enrichmentpb.ListEnrichmentSourcesRequest) (*enrichmentpb.ListEnrichmentSourcesResponse, error) {
+	return &enrichmentpb.ListEnrichmentSourcesResponse{}, nil
+}
+
+// UpdateEnrichmentSource updates an enrichment source configuration
+func (s *GRPCServer) UpdateEnrichmentSource(ctx context.Context, req *enrichmentpb.UpdateEnrichmentSourceRequest) (*enrichmentpb.UpdateEnrichmentSourceResponse, error) {
+	return &enrichmentpb.UpdateEnrichmentSourceResponse{
+		Success: true,
+		Message: "Not implemented yet",
+	}, nil
+}
+
+// TriggerEnrichmentJob triggers an enrichment job for a media file
+func (s *GRPCServer) TriggerEnrichmentJob(ctx context.Context, req *enrichmentpb.TriggerEnrichmentJobRequest) (*enrichmentpb.TriggerEnrichmentJobResponse, error) {
+	if req.MediaFileId == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "media_file_id is required")
+	}
+
+	// Convert mediaFileId to uint if it's a string ID
+	var mediaFileIDUint uint
+	if mediaFileIDInt, err := strconv.Atoi(req.MediaFileId); err == nil {
+		mediaFileIDUint = uint(mediaFileIDInt)
+	} else {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "invalid media_file_id format")
+	}
+
+	// For now, just return success - full implementation would call module methods
+	return &enrichmentpb.TriggerEnrichmentJobResponse{
+		Success: true,
+		Message: fmt.Sprintf("Enrichment job triggered for media file %s", req.MediaFileId),
+		JobId:   fmt.Sprintf("%d", mediaFileIDUint),
+	}, nil
+}

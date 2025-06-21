@@ -1,10 +1,9 @@
 # Viewra Development Makefile
 
 # Variables
-BACKEND_DIR = backend
-PLUGINS_DIR = $(BACKEND_DIR)/data/plugins
-BUILD_SCRIPT = $(BACKEND_DIR)/scripts/build-plugin.sh
+PLUGINS_DIR = plugins
 DOCKER_COMPOSE = docker-compose
+GO = go
 
 # Colors for output
 GREEN = \033[0;32m
@@ -20,56 +19,34 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Plugin Build Examples:"
-	@echo "  make build-plugin p=audiodb_enricher              # Docker build (enforced)"
-	@echo "  make build-plugin p=musicbrainz_enricher          # Docker build (enforced)"
-	@echo "  make build-plugin p=tmdb_enricher_v2              # Docker build (enforced)"
+	@echo "  make build-plugin p=audiodb_enricher              # Build specific plugin"
+	@echo "  make build-plugin p=musicbrainz_enricher          # Build specific plugin"
+	@echo "  make build-plugin p=tmdb_enricher_v2              # Build specific plugin"
+	@echo "  make build-plugins                                # Build all plugins"
 	@echo ""
-	@echo "$(RED)⚠️  All plugin builds now use Docker containers for consistency$(NC)"
+	@echo "$(GREEN)✅ Fast local builds for rapid development$(NC)"
 	@echo "📖 For comprehensive documentation see: DEVELOPMENT.md"
 	@echo ""
 
-# Enforce Docker builds for all plugins - no more host builds
-enforce-docker-builds: ## Check that Docker is available for plugin builds
-	@echo "$(GREEN)Checking Docker environment for plugin builds...$(NC)"
-	@if ! command -v docker >/dev/null 2>&1; then \
-		echo "$(RED)❌ Docker not found. Plugin builds require Docker for consistency.$(NC)"; \
-		echo "$(YELLOW)Please install Docker to build plugins.$(NC)"; \
-		exit 1; \
-	fi
-	@if ! docker ps >/dev/null 2>&1; then \
-		echo "$(RED)❌ Docker daemon not running. Please start Docker.$(NC)"; \
-		exit 1; \
-	fi
-	@container_id=$$(docker ps --filter "expose=8080" --format "{{.ID}}" | head -1); \
-	if [ -z "$$container_id" ]; then \
-		echo "$(RED)❌ Backend container not running. Starting services...$(NC)"; \
-		$(DOCKER_COMPOSE) up -d backend; \
-		sleep 5; \
-		container_id=$$(docker ps --filter "expose=8080" --format "{{.ID}}" | head -1); \
-		if [ -z "$$container_id" ]; then \
-			echo "$(RED)❌ Failed to start backend container$(NC)"; \
-			exit 1; \
-		fi; \
-	fi
-	@echo "$(GREEN)✅ Docker environment ready for plugin builds$(NC)"
-
-build-plugin: enforce-docker-builds ## Build a specific plugin using Docker (usage: make build-plugin p=PLUGIN_NAME)
+# Simplified build system - support both local and container builds
+build-plugin: ## Build a specific plugin (usage: make build-plugin p=PLUGIN_NAME [mode=auto|local|container])
 	@if [ -z "$(p)" ]; then \
 		echo "$(YELLOW)Error: Plugin name required. Usage: make build-plugin p=PLUGIN_NAME$(NC)"; \
 		echo "Available plugins:"; \
-		find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "  %f\n" 2>/dev/null | sort; \
+		find plugins/ -maxdepth 1 -type d -name "*_*" -printf "  %f\n" 2>/dev/null | sort; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Building plugin: $(p) (Docker-only mode)$(NC)"
-	@chmod +x $(BUILD_SCRIPT)
-	@$(BUILD_SCRIPT) $(p) container
+	@echo "$(GREEN)Building plugin: $(p)$(NC)"
+	@$(GO) build -o $(PLUGINS_DIR)/$(p)/$(p) ./$(PLUGINS_DIR)/$(p)
+	@echo "$(GREEN)✅ Plugin $(p) built successfully$(NC)"
 
-build-plugins: enforce-docker-builds ## Build all plugins using Docker containers
-	@echo "$(GREEN)Building all plugins using Docker containers...$(NC)"
+build-plugins: ## Build all plugins locally
+	@echo "$(GREEN)Building all plugins locally...$(NC)"
 	@for plugin in $$(find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "%f\n" 2>/dev/null); do \
-		echo "$(GREEN)Building $$plugin in Docker container...$(NC)"; \
+		echo "$(GREEN)Building $$plugin...$(NC)"; \
 		$(MAKE) build-plugin p=$$plugin || echo "$(YELLOW)Failed to build $$plugin$(NC)"; \
 	done
+	@echo "$(GREEN)✅ All plugins built$(NC)"
 
 # Remove the old host/container mode options - everything is Docker now
 build-plugins-container: build-plugins ## Alias for build-plugins (all builds are now containerized)

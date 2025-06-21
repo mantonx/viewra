@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0.1750461949",
+  "enabled": true,
+  "settings": {
+    "api": {
+      "delay_ms": 1200,
+      "key": "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1YTU2ODc0YjRmMzU4YjIzZDhkM2YzZmI5ZDc4NDNiOSIsIm5iZiI6MTc0ODYzOTc1Ny40MDEsInN1YiI6IjY4M2EyMDBkNzA5OGI4MzMzNThmZThmOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.OXT68T0EtU-WXhcP7nwyWjMePuEuCpfWtDlvdntWKw8",
+      "language": "en-US",
+      "rate_limit": 40,
+      "region": "US",
+      "timeout_sec": 60,
+      "user_agent": "Viewra/2.0"
+    },
+    "artwork": {
+      "asset_timeout_sec": 60,
+      "backdrop_size": "\"w780\"  // w300, w780, w1280, original",
+      "download_backdrops": false,
+      "download_episode_stills": true,
+      "download_logos": false,
+      "download_posters": true,
+      "download_season_posters": true,
+      "download_stills": false,
+      "logo_size": "\"w300\"  // w45, w92, w154, w185, w300, w500, original",
+      "max_asset_size_mb": 10,
+      "poster_size": "\"w500\"  // w92, w154, w185, w342, w500, w780, original",
+      "skip_existing_assets": true,
+      "still_size": "\"w300\"  // w92, w185, w300, original"
+    },
+    "cache": {
+      "cleanup_interval": 24,
+      "duration_hours": 168
+    },
+    "debug": {
+      "enabled": false,
+      "log_api_requests": false,
+      "log_cache_hits": false
+    },
+    "features": {
+      "auto_enrich": true,
+      "enable_artwork": true,
+      "enable_episodes": true,
+      "enable_movies": true,
+      "enable_tv_shows": true,
+      "overwrite_existing": false
+    },
+    "matching": {
+      "match_threshold": 0.85,
+      "match_year": true,
+      "year_tolerance": 2
+    },
+    "reliability": {
+      "backoff_multiplier": 2,
+      "initial_delay_sec": 2,
+      "max_delay_sec": 30,
+      "max_retries": 5,
+      "retry_failed_downloads": true
+    }
+  },
+  "features": {
+    "artwork": true,
+    "auto_enrich": true,
+    "debug": false,
+    "episodes": true,
+    "movies": true,
+    "overwrite_existing": false,
+    "tv_shows": true
+  },
+  "thresholds": {
+    "max_memory_usage": 268435456,
+    "max_cpu_usage": 70,
+    "max_error_rate": 5,
+    "max_response_time": 60000000000,
+    "health_check_interval": 30000000000
+  },
+  "last_modified": "2025-06-20T23:25:49.898123818Z",
+  "modified_by": "tmdb_plugin"
+}

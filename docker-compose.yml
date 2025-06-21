@@ -1,12 +1,11 @@
 services:
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile.dev
     ports:
       - '${BACKEND_PORT:-8080}:8080'
       - '${GRPC_PORT:-50051}:50051'
-    # user: '${UID:-1000}:${GID:-1000}'  # Temporarily disabled for permission fix
     environment:
       - GIN_MODE=${GIN_MODE:-debug}
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
@@ -17,15 +16,12 @@ services:
       - PORT=8080
       - PLUGIN_DIR=/app/data/plugins
       - TMDB_API_KEY=${TMDB_API_KEY:-}
-      # Hot Reload Configuration - Always Enabled for Development
-      - VIEWRA_ENABLE_HOT_RELOAD=true
-      - VIEWRA_HOT_RELOAD_ENABLED=true
-      - VIEWRA_HOT_RELOAD_DEBOUNCE_MS=500
     volumes:
-      - ./backend:/app
-      - ./backend/data:/app/data
+      # Runtime data and database
       - ./viewra-data:/app/viewra-data
-      - ./viewra-data/transcoding:/viewra-data/transcoding
+      # Plugin data directory (for external plugins)
+      - ./viewra-data/plugins:/app/data/plugins
+      # Media directories
       - /cifs/fictionalserver/music:/media/music:ro
       - /cifs/fictionalserver/tv:/media/tv:ro
       - /cifs/fictionalserver/movies:/media/movies:ro
@@ -39,14 +35,11 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - '${FRONTEND_PORT:-5175}:5173'
-    # user: '${UID:-1000}:${GID:-1000}'  # Temporarily disabled for permission fix
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
-      # Temporarily disabled NFS mounts for dev environment startup
-      # - /nfs/fictionalserver/music:/media/music:ro
     depends_on:
       - backend
     networks:
@@ -66,7 +59,6 @@ services:
     profiles:
       - dev
       - all
-
 
 volumes:
   backend-data:

@@ -1,0 +1,24 @@
+FROM golang:alpine AS development
+
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev sqlite-dev ffmpeg
+
+# Set working directory
+WORKDIR /app
+
+# Set CGO_ENABLED for SQLite support
+ENV CGO_ENABLED=1
+
+# Copy go modules files first for better caching
+COPY go.mod go.sum ./
+COPY sdk/ ./sdk/
+RUN go mod download
+
+# Copy entire source code
+COPY . .
+
+# Build the application
+RUN go build -o viewra ./cmd/viewra/main.go
+
+# Run the application
+CMD ["./viewra"]

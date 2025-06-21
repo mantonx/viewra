@@ -1,256 +1,773 @@
 package config
 
 import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
-// Config represents the MusicBrainz enricher plugin configuration
+// Config holds the complete application configuration
 type Config struct {
-	// Core Settings
-	Enabled bool `json:"enabled" default:"true"`
+	// Server configuration
+	Server ServerConfig `yaml:"server" json:"server"`
 
-	// API Configuration
-	API APIConfig `json:"api"`
+	// Database configuration
+	Database DatabaseFullConfig `yaml:"database" json:"database"`
 
-	// Feature toggles
-	Features FeatureConfig `json:"features"`
+	// Asset management configuration
+	Assets AssetConfig `yaml:"assets" json:"assets"`
 
-	// Cover Art Settings
-	CoverArt CoverArtConfig `json:"cover_art"`
+	// Scanner configuration
+	Scanner ScannerConfig `yaml:"scanner" json:"scanner"`
 
-	// Matching Configuration
-	Matching MatchingConfig `json:"matching"`
+	// Plugin configuration
+	Plugins PluginConfig `yaml:"plugins" json:"plugins"`
 
-	// Data Enrichment Options
-	Enrichment EnrichmentConfig `json:"enrichment"`
+	// Library-specific Plugin Configuration
+	LibraryPluginRestrictions map[string]LibraryPluginSettings `yaml:"library_plugin_restrictions" json:"library_plugin_restrictions"`
 
-	// Reliability & Error Handling
-	Reliability ReliabilityConfig `json:"reliability"`
+	// Logging configuration
+	Logging LoggingConfig `yaml:"logging" json:"logging"`
 
-	// Debug & Logging
-	Debug DebugConfig `json:"debug"`
+	// Security configuration
+	Security SecurityConfig `yaml:"security" json:"security"`
+
+	// Performance configuration
+	Performance PerformanceConfig `yaml:"performance" json:"performance"`
+
+	// Transcoding configuration
+	Transcoding TranscodingConfig `yaml:"transcoding" json:"transcoding"`
 }
 
-// APIConfig holds API-related configuration
-type APIConfig struct {
-	UserAgent          string `json:"user_agent" default:"Viewra/2.0 (https://github.com/mantonx/viewra)"`
-	RequestTimeout     int    `json:"request_timeout" default:"30"` // seconds
-	MaxConnections     int    `json:"max_connections" default:"5"`  // concurrent connections
-	RequestDelay       int    `json:"request_delay" default:"1000"` // milliseconds between requests (MusicBrainz rate limiting)
-	EnableCache        bool   `json:"enable_cache" default:"true"`
-	CacheDurationHours int    `json:"cache_duration_hours" default:"168"` // 1 week
+// ServerConfig holds server-related configuration
+type ServerConfig struct {
+	Host           string        `yaml:"host" json:"host" env:"VIEWRA_HOST" default:"0.0.0.0"`
+	Port           int           `yaml:"port" json:"port" env:"VIEWRA_PORT" default:"8080"`
+	ReadTimeout    time.Duration `yaml:"read_timeout" json:"read_timeout" env:"VIEWRA_READ_TIMEOUT" default:"30s"`
+	WriteTimeout   time.Duration `yaml:"write_timeout" json:"write_timeout" env:"VIEWRA_WRITE_TIMEOUT" default:"30s"`
+	MaxHeaderBytes int           `yaml:"max_header_bytes" json:"max_header_bytes" env:"VIEWRA_MAX_HEADER_BYTES" default:"1048576"`
+	EnableCORS     bool          `yaml:"enable_cors" json:"enable_cors" env:"VIEWRA_ENABLE_CORS" default:"true"`
+	TrustedProxies []string      `yaml:"trusted_proxies" json:"trusted_proxies" env:"VIEWRA_TRUSTED_PROXIES"`
 }
 
-// FeatureConfig controls which features are enabled
-type FeatureConfig struct {
-	EnableArtists       bool `json:"enable_artists" default:"true"`
-	EnableAlbums        bool `json:"enable_albums" default:"true"`
-	EnableTracks        bool `json:"enable_tracks" default:"true"`
-	EnableCoverArt      bool `json:"enable_cover_art" default:"true"`
-	EnableRelationships bool `json:"enable_relationships" default:"true"` // Artist relationships, collaborations
-	EnableGenres        bool `json:"enable_genres" default:"true"`
-	EnableTags          bool `json:"enable_tags" default:"true"`
+// DatabaseFullConfig extends the basic database config with more options
+type DatabaseFullConfig struct {
+	Type            string        `yaml:"type" json:"type" env:"DATABASE_TYPE" default:"sqlite"`
+	URL             string        `yaml:"url" json:"url" env:"DATABASE_URL"`
+	Host            string        `yaml:"host" json:"host" env:"POSTGRES_HOST" default:"localhost"`
+	Port            int           `yaml:"port" json:"port" env:"POSTGRES_PORT" default:"5432"`
+	Username        string        `yaml:"username" json:"username" env:"POSTGRES_USER" default:"viewra"`
+	Password        string        `yaml:"password" json:"password" env:"POSTGRES_PASSWORD"`
+	Database        string        `yaml:"database" json:"database" env:"POSTGRES_DB" default:"viewra"`
+	DataDir         string        `yaml:"data_dir" json:"data_dir" env:"VIEWRA_DATA_DIR" default:"/app/viewra-data"`
+	DatabasePath    string        `yaml:"database_path" json:"database_path" env:"VIEWRA_DATABASE_PATH"`
+	MaxOpenConns    int           `yaml:"max_open_conns" json:"max_open_conns" env:"DB_MAX_OPEN_CONNS" default:"100"`
+	MaxIdleConns    int           `yaml:"max_idle_conns" json:"max_idle_conns" env:"DB_MAX_IDLE_CONNS" default:"20"`
+	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime" json:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME" default:"2h"`
+	ConnMaxIdleTime time.Duration `yaml:"conn_max_idle_time" json:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME" default:"30m"`
+	EnableMetrics   bool          `yaml:"enable_metrics" json:"enable_metrics" env:"DB_ENABLE_METRICS" default:"true"`
+	LogQueries      bool          `yaml:"log_queries" json:"log_queries" env:"DB_LOG_QUERIES" default:"false"`
 }
 
-// CoverArtConfig controls cover art download behavior
-type CoverArtConfig struct {
-	DownloadCovers     bool     `json:"download_covers" default:"true"`
-	DownloadThumbnails bool     `json:"download_thumbnails" default:"false"`
-	PreferredSize      string   `json:"preferred_size" default:"500"` // 250, 500, 1200, original
-	MaxSizeMB          int      `json:"max_size_mb" default:"5"`      // Maximum cover art file size
-	SkipExisting       bool     `json:"skip_existing" default:"true"`
-	CoverSources       []string `json:"cover_sources"` // Preferred sources in order
+// AssetConfig holds asset management configuration
+type AssetConfig struct {
+	DataDir          string        `yaml:"data_dir" json:"data_dir" env:"VIEWRA_ASSETS_DIR"`
+	MaxFileSize      int64         `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_MAX_ASSET_SIZE" default:"52428800"`
+	DefaultQuality   int           `yaml:"default_quality" json:"default_quality" env:"VIEWRA_ASSET_QUALITY" default:"95"`
+	EnableWebP       bool          `yaml:"enable_webp" json:"enable_webp" env:"VIEWRA_ENABLE_WEBP" default:"true"`
+	EnableThumbnails bool          `yaml:"enable_thumbnails" json:"enable_thumbnails" env:"VIEWRA_ENABLE_THUMBNAILS" default:"true"`
+	ThumbnailSizes   []int         `yaml:"thumbnail_sizes" json:"thumbnail_sizes" env:"VIEWRA_THUMBNAIL_SIZES"`
+	CacheDuration    time.Duration `yaml:"cache_duration" json:"cache_duration" env:"VIEWRA_ASSET_CACHE_DURATION" default:"24h"`
+	CleanupInterval  time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_ASSET_CLEANUP_INTERVAL" default:"6h"`
 }
 
-// MatchingConfig controls how content matching works
-type MatchingConfig struct {
-	MatchThreshold    float64 `json:"match_threshold" default:"0.80"` // Minimum match confidence
-	AutoEnrich        bool    `json:"auto_enrich" default:"true"`
-	OverwriteExisting bool    `json:"overwrite_existing" default:"false"`
-	FuzzyMatching     bool    `json:"fuzzy_matching" default:"true"`
-	MatchByISRC       bool    `json:"match_by_isrc" default:"true"`    // International Standard Recording Code
-	MatchByBarcode    bool    `json:"match_by_barcode" default:"true"` // Album barcode matching
-	MatchDuration     bool    `json:"match_duration" default:"true"`   // Track duration matching tolerance
-	DurationTolerance int     `json:"duration_tolerance" default:"10"` // seconds tolerance for duration matching
+// TranscodingConfig holds transcoding configuration
+type TranscodingConfig struct {
+	// Paths - all from environment variables
+	DataDir       string `yaml:"data_dir" json:"data_dir" env:"VIEWRA_TRANSCODING_DIR" default:"/viewra-data/transcoding"`
+	TempDirectory string `yaml:"temp_directory" json:"temp_directory" env:"VIEWRA_TEMP_DIR" default:"/tmp/viewra"`
+
+	// Global limits
+	MaxSessions    int   `yaml:"max_sessions" json:"max_sessions" env:"VIEWRA_MAX_TRANSCODE_SESSIONS" default:"10"`
+	MaxDiskUsageGB int64 `yaml:"max_disk_usage_gb" json:"max_disk_usage_gb" env:"VIEWRA_MAX_DISK_GB" default:"50"`
+
+	// Session management
+	SessionTimeout time.Duration `yaml:"session_timeout" json:"session_timeout" env:"VIEWRA_TRANSCODE_SESSION_TIMEOUT" default:"2h"`
+
+	// Cleanup settings
+	CleanupInterval    time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" env:"VIEWRA_TRANSCODE_CLEANUP_INTERVAL" default:"30s"`
+	RetentionHours     int           `yaml:"retention_hours" json:"retention_hours" env:"VIEWRA_RETENTION_HOURS" default:"24"`
+	ExtendedHours      int           `yaml:"extended_hours" json:"extended_hours" env:"VIEWRA_EXTENDED_RETENTION_HOURS" default:"48"`
+	LargeFileThreshold int64         `yaml:"large_file_threshold" json:"large_file_threshold" env:"VIEWRA_LARGE_FILE_MB" default:"500"` // In MB
+
+	// Legacy field for backwards compatibility (will be removed)
+	FFmpegPath string `yaml:"ffmpeg_path" json:"ffmpeg_path" env:"VIEWRA_FFMPEG_PATH" default:"ffmpeg"`
 }
 
-// EnrichmentConfig controls what data is included in enrichment
-type EnrichmentConfig struct {
-	IncludeAliases        bool `json:"include_aliases" default:"true"`         // Alternative artist/album names
-	IncludeAnnotations    bool `json:"include_annotations" default:"false"`    // Detailed annotations (can be verbose)
-	IncludeRecordingLevel bool `json:"include_recording_level" default:"true"` // Recording-level metadata vs. track-level
-	IncludeWorkInfo       bool `json:"include_work_info" default:"true"`       // Musical work information (compositions)
-	IncludeLabelInfo      bool `json:"include_label_info" default:"true"`      // Record label information
-	IncludeCountryInfo    bool `json:"include_country_info" default:"true"`    // Release country information
-	MaxTagsPerItem        int  `json:"max_tags_per_item" default:"10"`         // Limit tags to avoid data bloat
-	MaxGenresPerItem      int  `json:"max_genres_per_item" default:"5"`        // Limit genres per item
+// ScannerConfig holds scanner configuration
+type ScannerConfig struct {
+	ParallelScanning  bool          `yaml:"parallel_scanning" json:"parallel_scanning" env:"VIEWRA_PARALLEL_SCANNING" default:"true"`
+	WorkerCount       int           `yaml:"worker_count" json:"worker_count" env:"VIEWRA_WORKER_COUNT" default:"0"`
+	BatchSize         int           `yaml:"batch_size" json:"batch_size" env:"VIEWRA_BATCH_SIZE" default:"50"`
+	ChannelBufferSize int           `yaml:"channel_buffer_size" json:"channel_buffer_size" env:"VIEWRA_CHANNEL_BUFFER_SIZE" default:"100"`
+	SmartHashEnabled  bool          `yaml:"smart_hash_enabled" json:"smart_hash_enabled" env:"VIEWRA_SMART_HASH" default:"true"`
+	AsyncMetadata     bool          `yaml:"async_metadata" json:"async_metadata" env:"VIEWRA_ASYNC_METADATA" default:"true"`
+	MetadataWorkers   int           `yaml:"metadata_workers" json:"metadata_workers" env:"VIEWRA_METADATA_WORKERS" default:"2"`
+	ScanInterval      time.Duration `yaml:"scan_interval" json:"scan_interval" env:"VIEWRA_SCAN_INTERVAL" default:"1h"`
+	AutoScanEnabled   bool          `yaml:"auto_scan_enabled" json:"auto_scan_enabled" env:"VIEWRA_AUTO_SCAN" default:"false"`
+	IgnorePatterns    []string      `yaml:"ignore_patterns" json:"ignore_patterns" env:"VIEWRA_IGNORE_PATTERNS"`
+	MaxFileSize       int64         `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_MAX_SCAN_FILE_SIZE" default:"10737418240"`
 }
 
-// ReliabilityConfig controls retry and circuit breaker behavior
-type ReliabilityConfig struct {
-	MaxRetries        int                  `json:"max_retries" default:"3"`
-	InitialRetryDelay int                  `json:"initial_retry_delay" default:"2"`  // seconds
-	MaxRetryDelay     int                  `json:"max_retry_delay" default:"30"`     // seconds
-	BackoffMultiplier float64              `json:"backoff_multiplier" default:"2.0"` // exponential backoff
-	TimeoutMultiplier float64              `json:"timeout_multiplier" default:"1.5"` // increase timeout on retries
-	CircuitBreaker    CircuitBreakerConfig `json:"circuit_breaker"`
+// PluginConfig holds plugin system configuration
+type PluginConfig struct {
+	PluginDir            string                `yaml:"plugin_dir" json:"plugin_dir" env:"VIEWRA_PLUGIN_DIR" default:"./data/plugins"`
+	EnableHotReload      bool                  `yaml:"enable_hot_reload" json:"enable_hot_reload" env:"VIEWRA_PLUGIN_HOT_RELOAD" default:"true"`
+	DefaultEnabled       bool                  `yaml:"default_enabled" json:"default_enabled" env:"VIEWRA_PLUGINS_DEFAULT_ENABLED" default:"false"`
+	EnrichmentEnabled    bool                  `yaml:"enrichment_enabled" json:"enrichment_enabled" env:"VIEWRA_ENRICHMENT_ENABLED" default:"true"`
+	RespectDefaultConfig bool                  `yaml:"respect_default_config" json:"respect_default_config" env:"VIEWRA_PLUGIN_RESPECT_DEFAULT" default:"true"`
+	MaxExecutionTime     time.Duration         `yaml:"max_execution_time" json:"max_execution_time" env:"VIEWRA_PLUGIN_MAX_EXEC_TIME" default:"30s"`
+	EnableSandbox        bool                  `yaml:"enable_sandbox" json:"enable_sandbox" env:"VIEWRA_PLUGIN_SANDBOX" default:"true"`
+	MemoryLimit          int64                 `yaml:"memory_limit" json:"memory_limit" env:"VIEWRA_PLUGIN_MEMORY_LIMIT" default:"536870912"`
+	AllowNetworkAccess   bool                  `yaml:"allow_network_access" json:"allow_network_access" env:"VIEWRA_PLUGIN_NETWORK" default:"true"`
+	AllowFileSystemWrite bool                  `yaml:"allow_filesystem_write" json:"allow_filesystem_write" env:"VIEWRA_PLUGIN_FS_WRITE" default:"false"`
+	HotReload            PluginHotReloadConfig `yaml:"hot_reload" json:"hot_reload"`
 }
 
-// CircuitBreakerConfig controls circuit breaker behavior
-type CircuitBreakerConfig struct {
-	FailureThreshold int `json:"failure_threshold" default:"5"` // failures before opening circuit
-	SuccessThreshold int `json:"success_threshold" default:"3"` // successes to close circuit
-	Timeout          int `json:"timeout" default:"60"`          // seconds before retry after failure
+// PluginHotReloadConfig configures hot reload behavior
+type PluginHotReloadConfig struct {
+	Enabled         bool     `json:"enabled" yaml:"enabled" env:"VIEWRA_HOT_RELOAD_ENABLED" default:"true"`
+	DebounceDelayMs int      `json:"debounce_delay_ms" yaml:"debounce_delay_ms" env:"VIEWRA_HOT_RELOAD_DEBOUNCE_MS" default:"500"`
+	WatchPatterns   []string `json:"watch_patterns" yaml:"watch_patterns"`
+	ExcludePatterns []string `json:"exclude_patterns" yaml:"exclude_patterns"`
+	PreserveState   bool     `json:"preserve_state" yaml:"preserve_state" default:"true"`
+	MaxRetries      int      `json:"max_retries" yaml:"max_retries" default:"3"`
+	RetryDelayMs    int      `json:"retry_delay_ms" yaml:"retry_delay_ms" default:"1000"`
 }
 
-// DebugConfig controls debug and logging options
-type DebugConfig struct {
-	EnableDebugLogs  bool `json:"enable_debug_logs" default:"false"`
-	LogAPIRequests   bool `json:"log_api_requests" default:"false"`
-	LogMatchDetails  bool `json:"log_match_details" default:"false"`
-	SaveAPIResponses bool `json:"save_api_responses" default:"false"` // For debugging API issues
+// LibraryPluginSettings defines plugin settings for a specific library type
+type LibraryPluginSettings struct {
+	CorePlugins          CorePluginSettings       `yaml:"core_plugins" json:"core_plugins"`
+	EnrichmentPlugins    EnrichmentPluginSettings `yaml:"enrichment_plugins" json:"enrichment_plugins"`
+	FileTypeRestrictions FileTypeRestrictions     `yaml:"file_type_restrictions" json:"file_type_restrictions"`
+	SharedPlugins        SharedPluginSettings     `yaml:"shared_plugins" json:"shared_plugins"`
 }
 
-// GetDefaultConfig returns a configuration with all default values set
-func GetDefaultConfig() *Config {
+// CorePluginSettings defines core plugin configuration
+type CorePluginSettings struct {
+	MetadataExtractors []string `yaml:"metadata_extractors" json:"metadata_extractors"`
+	StructureParsers   []string `yaml:"structure_parsers" json:"structure_parsers"`
+	TechnicalAnalyzers []string `yaml:"technical_analyzers" json:"technical_analyzers"`
+}
+
+// EnrichmentPluginSettings defines enrichment plugin configuration
+type EnrichmentPluginSettings struct {
+	Enabled           bool     `yaml:"enabled" json:"enabled"`
+	AutoEnrich        bool     `yaml:"auto_enrich" json:"auto_enrich"`
+	AllowedPlugins    []string `yaml:"allowed_plugins" json:"allowed_plugins"`
+	DisallowedPlugins []string `yaml:"disallowed_plugins" json:"disallowed_plugins"`
+}
+
+// FileTypeRestrictions defines file type restrictions for plugins
+type FileTypeRestrictions struct {
+	AllowedExtensions    []string `yaml:"allowed_extensions" json:"allowed_extensions"`
+	DisallowedExtensions []string `yaml:"disallowed_extensions" json:"disallowed_extensions"`
+	MimeTypeFilters      []string `yaml:"mime_type_filters" json:"mime_type_filters"`
+}
+
+// SharedPluginSettings defines settings for plugins that can run across library types
+type SharedPluginSettings struct {
+	AllowTechnicalMetadata bool     `yaml:"allow_technical_metadata" json:"allow_technical_metadata"`
+	AllowAssetExtraction   bool     `yaml:"allow_asset_extraction" json:"allow_asset_extraction"`
+	SharedPluginNames      []string `yaml:"shared_plugin_names" json:"shared_plugin_names"`
+}
+
+// LoggingConfig holds logging configuration
+type LoggingConfig struct {
+	Level            string `yaml:"level" json:"level" env:"VIEWRA_LOG_LEVEL" default:"info"`
+	Format           string `yaml:"format" json:"format" env:"VIEWRA_LOG_FORMAT" default:"json"`
+	Output           string `yaml:"output" json:"output" env:"VIEWRA_LOG_OUTPUT" default:"stdout"`
+	FilePath         string `yaml:"file_path" json:"file_path" env:"VIEWRA_LOG_FILE"`
+	MaxFileSize      int    `yaml:"max_file_size" json:"max_file_size" env:"VIEWRA_LOG_MAX_SIZE" default:"100"`
+	MaxBackups       int    `yaml:"max_backups" json:"max_backups" env:"VIEWRA_LOG_MAX_BACKUPS" default:"3"`
+	MaxAge           int    `yaml:"max_age" json:"max_age" env:"VIEWRA_LOG_MAX_AGE" default:"30"`
+	EnableColors     bool   `yaml:"enable_colors" json:"enable_colors" env:"VIEWRA_LOG_COLORS" default:"true"`
+	EnableStackTrace bool   `yaml:"enable_stack_trace" json:"enable_stack_trace" env:"VIEWRA_LOG_STACK_TRACE" default:"false"`
+}
+
+// SecurityConfig holds security-related configuration
+type SecurityConfig struct {
+	EnableAuthentication bool          `yaml:"enable_authentication" json:"enable_authentication" env:"VIEWRA_ENABLE_AUTH" default:"false"`
+	JWTSecret            string        `yaml:"jwt_secret" json:"-" env:"VIEWRA_JWT_SECRET"`
+	JWTExpiration        time.Duration `yaml:"jwt_expiration" json:"jwt_expiration" env:"VIEWRA_JWT_EXPIRATION" default:"24h"`
+	SessionTimeout       time.Duration `yaml:"session_timeout" json:"session_timeout" env:"VIEWRA_SESSION_TIMEOUT" default:"30m"`
+	RateLimitEnabled     bool          `yaml:"rate_limit_enabled" json:"rate_limit_enabled" env:"VIEWRA_RATE_LIMIT" default:"true"`
+	RateLimitRPM         int           `yaml:"rate_limit_rpm" json:"rate_limit_rpm" env:"VIEWRA_RATE_LIMIT_RPM" default:"1000"`
+	AllowedOrigins       []string      `yaml:"allowed_origins" json:"allowed_origins" env:"VIEWRA_ALLOWED_ORIGINS"`
+	SecureHeaders        bool          `yaml:"secure_headers" json:"secure_headers" env:"VIEWRA_SECURE_HEADERS" default:"true"`
+}
+
+// PerformanceConfig holds performance-related configuration
+type PerformanceConfig struct {
+	EnablePprof              bool    `yaml:"enable_pprof" json:"enable_pprof" env:"VIEWRA_ENABLE_PPROF" default:"false"`
+	EnableMetrics            bool    `yaml:"enable_metrics" json:"enable_metrics" env:"VIEWRA_ENABLE_METRICS" default:"true"`
+	MaxConcurrentScans       int     `yaml:"max_concurrent_scans" json:"max_concurrent_scans" env:"VIEWRA_MAX_CONCURRENT_SCANS" default:"2"`
+	GCPercent                int     `yaml:"gc_percent" json:"gc_percent" env:"GOGC" default:"100"`
+	MaxProcs                 int     `yaml:"max_procs" json:"max_procs" env:"GOMAXPROCS" default:"0"`
+	MemoryThreshold          float64 `yaml:"memory_threshold" json:"memory_threshold" env:"VIEWRA_MEMORY_THRESHOLD" default:"85.0"`
+	CPUThreshold             float64 `yaml:"cpu_threshold" json:"cpu_threshold" env:"VIEWRA_CPU_THRESHOLD" default:"80.0"`
+	EnableAdaptiveThrottling bool    `yaml:"enable_adaptive_throttling" json:"enable_adaptive_throttling" env:"VIEWRA_ADAPTIVE_THROTTLING" default:"true"`
+}
+
+// ConfigManager manages application configuration with hot-reload support
+type ConfigManager struct {
+	config     *Config
+	configPath string
+	watchers   []ConfigWatcher
+	mu         sync.RWMutex
+}
+
+// ConfigWatcher is called when configuration changes
+type ConfigWatcher func(oldConfig, newConfig *Config)
+
+var (
+	globalConfigManager *ConfigManager
+	configOnce          sync.Once
+)
+
+// GetConfigManager returns the global configuration manager instance
+func GetConfigManager() *ConfigManager {
+	configOnce.Do(func() {
+		globalConfigManager = NewConfigManager()
+	})
+	return globalConfigManager
+}
+
+// NewConfigManager creates a new configuration manager
+func NewConfigManager() *ConfigManager {
+	return &ConfigManager{
+		config:   DefaultConfig(),
+		watchers: make([]ConfigWatcher, 0),
+	}
+}
+
+// DefaultConfig returns the default application configuration
+func DefaultConfig() *Config {
 	return &Config{
-		Enabled: true,
-		API: APIConfig{
-			UserAgent:          "Viewra/2.0 (https://github.com/mantonx/viewra)",
-			RequestTimeout:     30,
-			MaxConnections:     5,
-			RequestDelay:       1000,
-			EnableCache:        true,
-			CacheDurationHours: 168,
+		Server: ServerConfig{
+			Host:           "0.0.0.0",
+			Port:           8080,
+			ReadTimeout:    30 * time.Second,
+			WriteTimeout:   0,       // No timeout for video streaming (local network optimized)
+			MaxHeaderBytes: 1 << 20, // 1MB
+			EnableCORS:     true,
+			TrustedProxies: []string{},
 		},
-		Features: FeatureConfig{
-			EnableArtists:       true,
-			EnableAlbums:        true,
-			EnableTracks:        true,
-			EnableCoverArt:      true,
-			EnableRelationships: true,
-			EnableGenres:        true,
-			EnableTags:          true,
+		Database: DatabaseFullConfig{
+			Type:            "sqlite",
+			DataDir:         "/app/viewra-data",
+			MaxOpenConns:    100,
+			MaxIdleConns:    20,
+			ConnMaxLifetime: 2 * time.Hour,
+			ConnMaxIdleTime: 30 * time.Minute,
+			EnableMetrics:   true,
+			LogQueries:      false,
 		},
-		CoverArt: CoverArtConfig{
-			DownloadCovers:     true,
-			DownloadThumbnails: false,
-			PreferredSize:      "500",
-			MaxSizeMB:          5,
-			SkipExisting:       true,
-			CoverSources: []string{
-				"Cover Art Archive",
-				"Amazon",
-				"Discogs",
-				"Last.fm",
+		Assets: AssetConfig{
+			MaxFileSize:      50 * 1024 * 1024, // 50MB
+			DefaultQuality:   95,
+			EnableWebP:       true,
+			EnableThumbnails: true,
+			ThumbnailSizes:   []int{150, 300, 600},
+			CacheDuration:    24 * time.Hour,
+			CleanupInterval:  6 * time.Hour,
+		},
+		Scanner: ScannerConfig{
+			ParallelScanning:  true,
+			WorkerCount:       0, // Auto-detect
+			BatchSize:         50,
+			ChannelBufferSize: 100,
+			SmartHashEnabled:  true,
+			AsyncMetadata:     true,
+			MetadataWorkers:   2,
+			ScanInterval:      1 * time.Hour,
+			AutoScanEnabled:   false,
+			IgnorePatterns:    []string{".*", "Thumbs.db", ".DS_Store"},
+			MaxFileSize:       10 * 1024 * 1024 * 1024, // 10GB
+		},
+		Plugins: PluginConfig{
+			PluginDir:            "./data/plugins",
+			EnableHotReload:      getEnvBool("VIEWRA_ENABLE_HOT_RELOAD", true), // Force enable by default, allow override
+			DefaultEnabled:       false,
+			EnrichmentEnabled:    true,
+			RespectDefaultConfig: true,
+			MaxExecutionTime:     30 * time.Second,
+			EnableSandbox:        true,
+			MemoryLimit:          512 * 1024 * 1024, // 512MB
+			AllowNetworkAccess:   true,
+			AllowFileSystemWrite: false,
+			HotReload: PluginHotReloadConfig{
+				Enabled:         getEnvBool("VIEWRA_HOT_RELOAD_ENABLED", true), // Force enable by default
+				DebounceDelayMs: getEnvInt("VIEWRA_HOT_RELOAD_DEBOUNCE_MS", 500),
+				WatchPatterns:   []string{"*_transcoder", "*_enricher", "*_scanner"},
+				ExcludePatterns: []string{"*.tmp", "*.log", "*.pid", ".git*", "*.swp", "*.swo", "go.mod", "go.sum", "*.go", "plugin.cue", "*.json"},
+				PreserveState:   true,
+				MaxRetries:      3,
+				RetryDelayMs:    1000,
 			},
 		},
-		Matching: MatchingConfig{
-			MatchThreshold:    0.80,
-			AutoEnrich:        true,
-			OverwriteExisting: false,
-			FuzzyMatching:     true,
-			MatchByISRC:       true,
-			MatchByBarcode:    true,
-			MatchDuration:     true,
-			DurationTolerance: 10,
-		},
-		Enrichment: EnrichmentConfig{
-			IncludeAliases:        true,
-			IncludeAnnotations:    false,
-			IncludeRecordingLevel: true,
-			IncludeWorkInfo:       true,
-			IncludeLabelInfo:      true,
-			IncludeCountryInfo:    true,
-			MaxTagsPerItem:        10,
-			MaxGenresPerItem:      5,
-		},
-		Reliability: ReliabilityConfig{
-			MaxRetries:        3,
-			InitialRetryDelay: 2,
-			MaxRetryDelay:     30,
-			BackoffMultiplier: 2.0,
-			TimeoutMultiplier: 1.5,
-			CircuitBreaker: CircuitBreakerConfig{
-				FailureThreshold: 5,
-				SuccessThreshold: 3,
-				Timeout:          60,
+		LibraryPluginRestrictions: map[string]LibraryPluginSettings{
+			"music": {
+				CorePlugins: CorePluginSettings{
+					MetadataExtractors: []string{"music_metadata_extractor_plugin"},
+					StructureParsers:   []string{},
+					TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
+				},
+				EnrichmentPlugins: EnrichmentPluginSettings{
+					Enabled:           true,
+					AutoEnrich:        true,
+					AllowedPlugins:    []string{"musicbrainz_enricher", "audiodb_enricher"},
+					DisallowedPlugins: []string{"tmdb_enricher"},
+				},
+				FileTypeRestrictions: FileTypeRestrictions{
+					AllowedExtensions:    []string{".mp3", ".flac", ".m4a", ".aac", ".ogg", ".wav", ".wma"},
+					DisallowedExtensions: []string{".mp4", ".mkv", ".avi", ".mov"},
+					MimeTypeFilters:      []string{"audio/*"},
+				},
+				SharedPlugins: SharedPluginSettings{
+					AllowTechnicalMetadata: true,
+					AllowAssetExtraction:   true,
+					SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
+				},
+			},
+			"tv": {
+				CorePlugins: CorePluginSettings{
+					MetadataExtractors: []string{"ffmpeg_probe_core_plugin"},
+					StructureParsers:   []string{"tv_structure_parser_core_plugin"},
+					TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
+				},
+				EnrichmentPlugins: EnrichmentPluginSettings{
+					Enabled:           true,
+					AutoEnrich:        true,
+					AllowedPlugins:    []string{"tmdb_enricher_v2"},
+					DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
+				},
+				FileTypeRestrictions: FileTypeRestrictions{
+					AllowedExtensions:    []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"},
+					DisallowedExtensions: []string{".mp3", ".flac", ".m4a", ".aac"},
+					MimeTypeFilters:      []string{"video/*"},
+				},
+				SharedPlugins: SharedPluginSettings{
+					AllowTechnicalMetadata: true,
+					AllowAssetExtraction:   true,
+					SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
+				},
+			},
+			"movie": {
+				CorePlugins: CorePluginSettings{
+					MetadataExtractors: []string{"ffmpeg_probe_core_plugin"},
+					StructureParsers:   []string{"movie_structure_parser_core_plugin"},
+					TechnicalAnalyzers: []string{"ffmpeg_probe_core_plugin"},
+				},
+				EnrichmentPlugins: EnrichmentPluginSettings{
+					Enabled:           true,
+					AutoEnrich:        true,
+					AllowedPlugins:    []string{"tmdb_enricher_v2"},
+					DisallowedPlugins: []string{"musicbrainz_enricher", "audiodb_enricher"},
+				},
+				FileTypeRestrictions: FileTypeRestrictions{
+					AllowedExtensions:    []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"},
+					DisallowedExtensions: []string{".mp3", ".flac", ".m4a", ".aac"},
+					MimeTypeFilters:      []string{"video/*"},
+				},
+				SharedPlugins: SharedPluginSettings{
+					AllowTechnicalMetadata: true,
+					AllowAssetExtraction:   true,
+					SharedPluginNames:      []string{"ffmpeg_probe_core_plugin"},
+				},
 			},
 		},
-		Debug: DebugConfig{
-			EnableDebugLogs:  false,
-			LogAPIRequests:   false,
-			LogMatchDetails:  false,
-			SaveAPIResponses: false,
+		Logging: LoggingConfig{
+			Level:            "info",
+			Format:           "json",
+			Output:           "stdout",
+			MaxFileSize:      100,
+			MaxBackups:       3,
+			MaxAge:           30,
+			EnableColors:     true,
+			EnableStackTrace: false,
+		},
+		Security: SecurityConfig{
+			EnableAuthentication: false,
+			JWTExpiration:        24 * time.Hour,
+			SessionTimeout:       30 * time.Minute,
+			RateLimitEnabled:     true,
+			RateLimitRPM:         1000,
+			AllowedOrigins:       []string{"*"},
+			SecureHeaders:        true,
+		},
+		Performance: PerformanceConfig{
+			EnablePprof:              false,
+			EnableMetrics:            true,
+			MaxConcurrentScans:       2,
+			GCPercent:                100,
+			MaxProcs:                 0, // Auto-detect
+			MemoryThreshold:          85.0,
+			CPUThreshold:             80.0,
+			EnableAdaptiveThrottling: true,
+		},
+		Transcoding: TranscodingConfig{
+			DataDir:            "/viewra-data/transcoding",
+			TempDirectory:      "/tmp/viewra",
+			MaxSessions:        10,
+			MaxDiskUsageGB:     50,
+			SessionTimeout:     2 * time.Hour,
+			CleanupInterval:    30 * time.Second,
+			RetentionHours:     24,
+			ExtendedHours:      48,
+			LargeFileThreshold: 500, // MB
+			FFmpegPath:         "ffmpeg",
 		},
 	}
 }
 
-// Validate checks if the configuration is valid
-func (c *Config) Validate() error {
-	// Add validation logic here
-	if c.API.RequestTimeout < 5 || c.API.RequestTimeout > 300 {
-		return &ValidationError{Field: "api.request_timeout", Message: "must be between 5 and 300 seconds"}
+// LoadConfig loads configuration from file and environment variables
+func (cm *ConfigManager) LoadConfig(configPath string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	oldConfig := *cm.config
+	cm.configPath = configPath
+
+	// Start with default configuration
+	newConfig := DefaultConfig()
+
+	// Load from file if it exists
+	if configPath != "" && fileExists(configPath) {
+		if err := cm.loadFromFile(configPath, newConfig); err != nil {
+			return fmt.Errorf("failed to load config from file: %w", err)
+		}
+		log.Printf("✅ Configuration loaded from file: %s", configPath)
 	}
 
-	if c.API.RequestDelay < 500 || c.API.RequestDelay > 5000 {
-		return &ValidationError{Field: "api.request_delay", Message: "must be between 500 and 5000 milliseconds"}
+	// Override with environment variables
+	if err := cm.loadFromEnv(newConfig); err != nil {
+		return fmt.Errorf("failed to load config from environment: %w", err)
 	}
 
-	if c.Matching.MatchThreshold < 0.1 || c.Matching.MatchThreshold > 1.0 {
-		return &ValidationError{Field: "matching.match_threshold", Message: "must be between 0.1 and 1.0"}
+	// Validate configuration
+	if err := cm.validateConfig(newConfig); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	if c.Matching.DurationTolerance < 1 || c.Matching.DurationTolerance > 60 {
-		return &ValidationError{Field: "matching.duration_tolerance", Message: "must be between 1 and 60 seconds"}
+	// Apply derived configurations
+	cm.applyDerivedConfig(newConfig)
+
+	cm.config = newConfig
+
+	// Notify watchers of config change
+	for _, watcher := range cm.watchers {
+		go watcher(&oldConfig, newConfig)
 	}
 
-	if c.Reliability.MaxRetries < 1 || c.Reliability.MaxRetries > 10 {
-		return &ValidationError{Field: "reliability.max_retries", Message: "must be between 1 and 10"}
+	log.Printf("✅ Configuration loaded successfully")
+	return nil
+}
+
+// GetConfig returns the current configuration (thread-safe)
+func (cm *ConfigManager) GetConfig() *Config {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	// Return a copy to prevent external modifications
+	configCopy := *cm.config
+	return &configCopy
+}
+
+// AddWatcher adds a configuration change watcher
+func (cm *ConfigManager) AddWatcher(watcher ConfigWatcher) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.watchers = append(cm.watchers, watcher)
+}
+
+// SaveConfig saves the current configuration to file
+func (cm *ConfigManager) SaveConfig() error {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	if cm.configPath == "" {
+		return fmt.Errorf("no config path set")
 	}
 
-	if c.Enrichment.MaxTagsPerItem < 1 || c.Enrichment.MaxTagsPerItem > 50 {
-		return &ValidationError{Field: "enrichment.max_tags_per_item", Message: "must be between 1 and 50"}
+	return cm.saveToFile(cm.configPath, cm.config)
+}
+
+// Helper methods
+
+func (cm *ConfigManager) loadFromFile(path string, config *Config) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
 	}
 
-	if c.CoverArt.MaxSizeMB < 1 || c.CoverArt.MaxSizeMB > 20 {
-		return &ValidationError{Field: "cover_art.max_size_mb", Message: "must be between 1 and 20 MB"}
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".yaml", ".yml":
+		return yaml.Unmarshal(data, config)
+	case ".json":
+		return json.Unmarshal(data, config)
+	default:
+		return fmt.Errorf("unsupported config file format: %s", ext)
+	}
+}
+
+func (cm *ConfigManager) saveToFile(path string, config *Config) error {
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+
+	ext := strings.ToLower(filepath.Ext(path))
+	var data []byte
+	var err error
+
+	switch ext {
+	case ".yaml", ".yml":
+		data, err = yaml.Marshal(config)
+	case ".json":
+		data, err = json.MarshalIndent(config, "", "  ")
+	default:
+		return fmt.Errorf("unsupported config file format: %s", ext)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+func (cm *ConfigManager) loadFromEnv(config *Config) error {
+	return loadStructFromEnv(reflect.ValueOf(config).Elem())
+}
+
+func loadStructFromEnv(v reflect.Value) error {
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		fieldType := t.Field(i)
+
+		if !field.CanSet() {
+			continue
+		}
+
+		// Handle nested structs recursively
+		if field.Kind() == reflect.Struct {
+			if err := loadStructFromEnv(field); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Get environment variable name
+		envTag := fieldType.Tag.Get("env")
+		if envTag == "" {
+			continue
+		}
+
+		// Get default value
+		defaultTag := fieldType.Tag.Get("default")
+
+		// Get environment value
+		envValue := os.Getenv(envTag)
+		if envValue == "" && defaultTag != "" {
+			envValue = defaultTag
+		}
+
+		if envValue == "" {
+			continue
+		}
+
+		// Set field value based on type
+		if err := setFieldValue(field, envValue); err != nil {
+			return fmt.Errorf("failed to set field %s: %w", fieldType.Name, err)
+		}
 	}
 
 	return nil
 }
 
-// ValidationError represents a configuration validation error
-type ValidationError struct {
-	Field   string
-	Message string
+func setFieldValue(field reflect.Value, value string) error {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(value)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if field.Type() == reflect.TypeOf(time.Duration(0)) {
+			duration, err := time.ParseDuration(value)
+			if err != nil {
+				return err
+			}
+			field.SetInt(int64(duration))
+		} else {
+			intVal, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return err
+			}
+			field.SetInt(intVal)
+		}
+	case reflect.Float32, reflect.Float64:
+		floatVal, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return err
+		}
+		field.SetFloat(floatVal)
+	case reflect.Bool:
+		boolVal, err := strconv.ParseBool(value)
+		if err != nil {
+			return err
+		}
+		field.SetBool(boolVal)
+	case reflect.Slice:
+		if field.Type().Elem().Kind() == reflect.String {
+			values := strings.Split(value, ",")
+			for i, v := range values {
+				values[i] = strings.TrimSpace(v)
+			}
+			field.Set(reflect.ValueOf(values))
+		} else if field.Type().Elem().Kind() == reflect.Int {
+			stringValues := strings.Split(value, ",")
+			intValues := make([]int, len(stringValues))
+			for i, v := range stringValues {
+				intVal, err := strconv.Atoi(strings.TrimSpace(v))
+				if err != nil {
+					return err
+				}
+				intValues[i] = intVal
+			}
+			field.Set(reflect.ValueOf(intValues))
+		}
+	default:
+		return fmt.Errorf("unsupported field type: %v", field.Kind())
+	}
+
+	return nil
 }
 
-func (e *ValidationError) Error() string {
-	return "validation error in field '" + e.Field + "': " + e.Message
+func (cm *ConfigManager) validateConfig(config *Config) error {
+	// Basic validation
+	if config.Server.Port < 1 || config.Server.Port > 65535 {
+		return fmt.Errorf("invalid server port: %d", config.Server.Port)
+	}
+
+	if config.Database.Type != "sqlite" && config.Database.Type != "postgres" {
+		return fmt.Errorf("unsupported database type: %s", config.Database.Type)
+	}
+
+	if config.Scanner.WorkerCount < 0 {
+		return fmt.Errorf("invalid worker count: %d", config.Scanner.WorkerCount)
+	}
+
+	if config.Assets.MaxFileSize <= 0 {
+		return fmt.Errorf("invalid max file size: %d", config.Assets.MaxFileSize)
+	}
+
+	return nil
 }
 
-// Helper methods for duration conversion
-func (c *Config) GetRequestTimeout() time.Duration {
-	return time.Duration(c.API.RequestTimeout) * time.Second
+func (cm *ConfigManager) applyDerivedConfig(config *Config) {
+	// Set derived database path if not explicitly set
+	if config.Database.DatabasePath == "" && config.Database.Type == "sqlite" {
+		config.Database.DatabasePath = filepath.Join(config.Database.DataDir, "viewra.db")
+	}
+
+	// Set derived asset data dir if not explicitly set
+	if config.Assets.DataDir == "" {
+		config.Assets.DataDir = filepath.Join(config.Database.DataDir, "assets")
+	}
+
+	// Auto-detect worker count if not set
+	if config.Scanner.WorkerCount == 0 {
+		// Use number of CPU cores, with reasonable limits
+		config.Scanner.WorkerCount = min(max(1, getCPUCount()), 16)
+	}
 }
 
-func (c *Config) GetRequestDelay() time.Duration {
-	return time.Duration(c.API.RequestDelay) * time.Millisecond
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
-func (c *Config) GetCacheDuration() time.Duration {
-	return time.Duration(c.API.CacheDurationHours) * time.Hour
+func getCPUCount() int {
+	return runtime.NumCPU()
 }
 
-func (c *Config) GetInitialRetryDelay() time.Duration {
-	return time.Duration(c.Reliability.InitialRetryDelay) * time.Second
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
-func (c *Config) GetMaxRetryDelay() time.Duration {
-	return time.Duration(c.Reliability.MaxRetryDelay) * time.Second
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
-func (c *Config) GetCircuitBreakerTimeout() time.Duration {
-	return time.Duration(c.Reliability.CircuitBreaker.Timeout) * time.Second
+// getEnvBool gets a boolean value from environment with a default
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if value == "true" || value == "1" || value == "yes" || value == "on" {
+			return true
+		}
+		if value == "false" || value == "0" || value == "no" || value == "off" {
+			return false
+		}
+	}
+	return defaultValue
+}
+
+// getEnvInt gets an integer value from environment with a default
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
+}
+
+// Global convenience functions
+
+// Get returns the current global configuration
+func Get() *Config {
+	return GetConfigManager().GetConfig()
+}
+
+// Load loads configuration from the specified path
+func Load(configPath string) error {
+	return GetConfigManager().LoadConfig(configPath)
+}
+
+// AddWatcher adds a global configuration watcher
+func AddWatcher(watcher ConfigWatcher) {
+	GetConfigManager().AddWatcher(watcher)
+}
+
+// Save saves the current configuration
+func Save() error {
+	return GetConfigManager().SaveConfig()
 }

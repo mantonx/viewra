@@ -36,38 +36,20 @@ logs/
 docker-data/
 volumes/
 
-# Data directories
+# Runtime data directories
 viewra-data/
-
-# Plugin binaries (compiled executables)
-backend/data/plugins/*/audiodb_enricher
-backend/data/plugins/*/musicbrainz_enricher
-backend/data/plugins/*/*_enricher
-backend/data/plugins/*/plugin
-backend/data/plugins/*/main
-backend/data/plugins/*/*
-!backend/data/plugins/*/*.go
-!backend/data/plugins/*/*.mod
-!backend/data/plugins/*/*.sum
-!backend/data/plugins/*/*.cue
-!backend/data/plugins/*/config/
-!backend/data/plugins/*/internal/
-!backend/data/plugins/*/audiodb/
-!backend/data/plugins/*/musicbrainz/
-!backend/data/plugins/*/tagreader/
-!backend/data/plugins/*/testdata/
+data/plugins/*/audiodb_enricher
+data/plugins/*/musicbrainz_enricher
+data/plugins/*/tmdb_enricher_v2
+data/plugins/*/ffmpeg_transcoder
+data/plugins/*/*_enricher
+data/plugins/*/plugin
+data/plugins/*/main
 
 # Plugin runtime files
-backend/data/plugins/*/*.json
-backend/data/plugins/*/*.m4s
-backend/data/plugins/*/*.mpd
-backend/data/plugins/*/*.m3u8
-backend/data/plugins/*/*.ts
-backend/data/plugins/*/.tmp
-backend/data/plugins/*/ffmpeg_transcoder
-backend/data/plugins/*/tmdb_enricher_v2
-backend/data/plugins/*/musicbrainz_enricher
-backend/data/plugins/*/audiodb_enricher
+data/plugins/*/*.json
+data/plugins/*/*.db
+data/plugins/*/.tmp
 
 # Backup files
 *.bak
@@ -77,13 +59,5 @@ backend/data/plugins/*/audiodb_enricher
 tmp/
 temp/
 
-# Media files (for development)
-# Uncomment these when you start handling actual media files
-# *.mp4
-# *.mkv
-# *.avi
-# *.mov
-# *.wmv
-# *.flv
-# *.webm
-# *.m4v
+# Legacy cleanup
+.legacy_protobuf_files/
