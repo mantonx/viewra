@@ -805,7 +805,7 @@ const VideoPlayer: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
-          seek_time: Math.floor(seekTime)
+          seek_position: Math.floor(seekTime)
         })
       });
 

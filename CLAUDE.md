@@ -12,6 +12,33 @@ Viewra is a modern media management platform with a Go backend and React fronten
 - Plugin System: HashiCorp go-plugin, CueLang configuration
 - Containerization: Docker, Docker Compose
 
+## Development Environment
+
+**IMPORTANT**: This project uses Docker Compose for the development environment. All development work should be done within the containerized environment using the development configuration.
+
+### Development Setup Commands
+```bash
+# Use the development environment with hot reloading
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Check logs
+docker-compose logs backend -f
+
+# Restart services if needed
+docker-compose restart backend
+```
+
+### Key Development Files
+- `docker-compose.dev.yml` - Development overrides with Air hot reloading
+- `backend/Dockerfile.dev-air` - Development container with debugging tools
+- `.air.toml` - Hot reload configuration (ensure paths are `./cmd/viewra/main.go`)
+
+### Development Environment Features
+- **Hot Reloading**: Air automatically rebuilds on Go file changes
+- **Volume Mounts**: Source code is mounted for live editing
+- **Debugging Tools**: strace, tcpdump, htop, etc. are pre-installed
+- **Database Persistence**: Uses local `./viewra-data` directory
+
 ## Common Development Commands
 
 ### Backend Development
@@ -137,7 +164,7 @@ config: {
 
 ## Development Workflow
 
-1. **Environment Setup**: Run `make dev-setup` for initial setup
+1. **Environment Setup**: Run `docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d` for development with hot reloading
 2. **Plugin Development**: Use Docker-based builds for consistency
 3. **Database Changes**: Create migrations in appropriate module
 4. **API Changes**: Update both backend routes and frontend API layer
@@ -150,7 +177,7 @@ config: {
 - **Plugin SDK**: `sdk/`
 - **Database Models**: `internal/database/models.go`
 - **Frontend API Layer**: `frontend/src/utils/api.ts`
-- **Docker Configs**: `docker-compose.yml`, `backend/Dockerfile.dev`
+- **Docker Configs**: `docker-compose.yml`, `docker-compose.dev.yml`, `backend/Dockerfile.dev-air`
 
 ## Common Patterns
 
@@ -190,6 +217,11 @@ const data = await apiCall<ResponseType>('/api/endpoint');
 - **Memory**: Monitor plugin memory usage, especially for transcoding
 
 ## Troubleshooting
+
+### Development Environment Issues
+- **Hot Reload Not Working**: Check Air config paths in `.air.toml` (should be `./cmd/viewra/main.go`)
+- **Wrong Database**: Ensure development config uses `./viewra-data:/app/viewra-data` not Docker volume
+- **Build Failures**: Check container logs with `docker-compose logs backend`
 
 ### Plugin Build Issues
 - Ensure Docker is running: `make check-env`

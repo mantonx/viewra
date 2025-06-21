@@ -64,8 +64,9 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 	
 	// Try to parse as media file request first
 	var mediaRequest struct {
-		MediaFileID string `json:"media_file_id"`
-		Container   string `json:"container"`
+		MediaFileID  string  `json:"media_file_id"`
+		Container    string  `json:"container"`
+		SeekPosition float64 `json:"seek_position,omitempty"` // Optional seek position in seconds
 	}
 	
 	parseErr := json.Unmarshal(bodyBytes, &mediaRequest)
@@ -73,8 +74,8 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 	
 	if parseErr == nil && mediaRequest.MediaFileID != "" {
 		// Handle media file based request
-		logger.Info("handling media file based request", "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container)
-		session, err := h.manager.StartTranscodeFromMediaFile(mediaRequest.MediaFileID, mediaRequest.Container)
+		logger.Info("handling media file based request", "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container, "seek_position", mediaRequest.SeekPosition)
+		session, err := h.manager.StartTranscodeFromMediaFile(mediaRequest.MediaFileID, mediaRequest.Container, mediaRequest.SeekPosition)
 		if err != nil {
 			logger.Error("failed to start transcode from media file", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transcoding session: " + err.Error()})
@@ -121,15 +122,30 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 
 // HandleSeekAhead handles seek-ahead transcoding requests
 func (h *APIHandler) HandleSeekAhead(c *gin.Context) {
+	logger.Info("HandleSeekAhead called")
+	
+	// Read the raw body to debug what's being sent
+	bodyBytes, err := c.GetRawData()
+	if err != nil {
+		logger.Error("failed to read request body", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+		return
+	}
+	
+	logger.Info("seek-ahead raw request body", "body", string(bodyBytes))
+	
 	var request struct {
 		SessionID    string  `json:"session_id" binding:"required"`
 		SeekPosition float64 `json:"seek_position" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := json.Unmarshal(bodyBytes, &request); err != nil {
+		logger.Error("failed to parse JSON request", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	
+	logger.Info("seek-ahead request parsed", "session_id", request.SessionID, "seek_position", request.SeekPosition)
 
 	// Get the original session
 	originalSession, err := h.manager.GetSession(request.SessionID)

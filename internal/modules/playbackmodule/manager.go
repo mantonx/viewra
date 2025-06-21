@@ -3,6 +3,7 @@ package playbackmodule
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/config"
@@ -198,7 +199,7 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 }
 
 // StartTranscodeFromMediaFile initiates a new transcoding session from a media file ID
-func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string) (*database.TranscodeSession, error) {
+func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string, seekSeconds float64) (*database.TranscodeSession, error) {
 	m.logger.Info("StartTranscodeFromMediaFile called", "media_file_id", mediaFileID, "container", container)
 	
 	if !m.initialized {
@@ -227,6 +228,7 @@ func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container stri
 		AudioCodec:    "aac",  // Default audio codec
 		Quality:       70,     // Default quality
 		SpeedPriority: plugins.SpeedPriorityBalanced,
+		Seek:          time.Duration(seekSeconds * float64(time.Second)), // Convert seconds to time.Duration
 	}
 
 	m.logger.Info("created transcode request from media file",

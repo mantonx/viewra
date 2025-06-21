@@ -578,6 +578,7 @@ func (s *TranscodingProviderServer) StartTranscode(ctx context.Context, req *pro
 		AudioCodec:     req.Request.AudioCodec,
 		PreferHardware: req.Request.PreferHardware,
 		HardwareType:   HardwareType(req.Request.HardwareType),
+		Seek:           time.Duration(req.Request.SeekNs), // Convert nanoseconds to time.Duration
 	}
 
 	// Handle resolution if provided
@@ -692,6 +693,7 @@ func (s *TranscodingProviderServer) StartStream(ctx context.Context, req *proto.
 		AudioCodec:     req.Request.AudioCodec,
 		PreferHardware: req.Request.PreferHardware,
 		HardwareType:   HardwareType(req.Request.HardwareType),
+		Seek:           time.Duration(req.Request.SeekNs), // Convert nanoseconds to time.Duration
 	}
 
 	// Handle resolution if provided

@@ -36,8 +36,8 @@ services:
         target: /tmp/go-cache
       - type: tmpfs
         target: /tmp/go-mod-cache
-      # Preserve data directory
-      - viewra-data:/app/viewra-data
+      # Preserve data directory - use local bind mount for development
+      - ./viewra-data:/app/viewra-data
     # Disable restart in dev for easier debugging
     restart: "no"
     # Install debugging tools
