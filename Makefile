@@ -11,7 +11,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds plugins build-plugins-docker build-plugins-host build-plugin-% setup-plugins dev-plugins logs-plugins plugin-dev plugin-setup plugin-build plugin-reload plugin-test
+.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds plugins build-plugins-docker build-plugins-host build-plugin-% setup-plugins dev-plugins logs-plugins plugin-dev plugin-setup plugin-build plugin-reload plugin-test plugin-watch plugin-fast plugin-cache
 
 help: ## Show this help message
 	@echo "Viewra Development Commands:"
@@ -28,7 +28,7 @@ help: ## Show this help message
 	@echo "📖 For comprehensive documentation see: DEVELOPMENT.md"
 	@echo ""
 
-# Simplified build system - support both local and container builds
+# Plugin build system
 build-plugin: ## Build a specific plugin (usage: make build-plugin p=PLUGIN_NAME)
 	@if [ -z "$(p)" ]; then \
 		echo "$(YELLOW)Error: Plugin name required. Usage: make build-plugin p=PLUGIN_NAME$(NC)"; \
@@ -36,9 +36,16 @@ build-plugin: ## Build a specific plugin (usage: make build-plugin p=PLUGIN_NAME
 		find plugins/ -maxdepth 1 -type d -name "*_*" -printf "  %f\n" 2>/dev/null | sort; \
 		exit 1; \
 	fi
+	@./scripts/build-plugin.sh build $(p)
+
+# Original slow build for comparison
+build-plugin-slow: ## Build plugin using original slow method
+	@if [ -z "$(p)" ]; then \
+		echo "$(YELLOW)Error: Plugin name required. Usage: make build-plugin-slow p=PLUGIN_NAME$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)Building plugin for container architecture: $(p)$(NC)"
 	@mkdir -p viewra-data/plugins/$(p)
-	@# Use the same base image as backend to ensure compatibility
 	@docker run --rm \
 		-v $(shell pwd):/workspace \
 		-w /workspace \
@@ -53,18 +60,11 @@ build-plugin: ## Build a specific plugin (usage: make build-plugin p=PLUGIN_NAME
 	@if [ -f "$(PLUGINS_DIR)/$(p)/plugin.cue" ]; then \
 		cp $(PLUGINS_DIR)/$(p)/plugin.cue viewra-data/plugins/$(p)/; \
 	fi
-	@# Verify the binary is executable and correct architecture
-	@echo "$(YELLOW)Verifying plugin binary...$(NC)"
 	@ls -la viewra-data/plugins/$(p)/$(p) || echo "$(RED)❌ Binary not found!$(NC)"
 	@echo "$(GREEN)✅ Plugin $(p) built for container architecture$(NC)"
 
-build-plugins: ## Build all plugins locally
-	@echo "$(GREEN)Building all plugins locally...$(NC)"
-	@for plugin in $$(find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "%f\n" 2>/dev/null); do \
-		echo "$(GREEN)Building $$plugin...$(NC)"; \
-		$(MAKE) build-plugin p=$$plugin || echo "$(YELLOW)Failed to build $$plugin$(NC)"; \
-	done
-	@echo "$(GREEN)✅ All plugins built$(NC)"
+build-plugins: ## Build all plugins
+	@./scripts/build-plugin.sh all
 
 # Remove the old host/container mode options - everything is Docker now
 build-plugins-container: build-plugins ## Alias for build-plugins (all builds are now containerized)
@@ -228,27 +228,10 @@ db-web-restart: ## Restart SQLite Web
 db-web-logs: ## Show SQLite Web logs
 
 # Plugin management targets
-.PHONY: plugins build-plugins setup-plugins clean-plugins verify-transcoding
+.PHONY: plugins setup-plugins clean-plugins verify-transcoding
 
-# Build all plugins with auto-detection
-plugins:
-	@echo "🔨 Building plugins..."
-	@./scripts/build-plugins.sh
-
-# Build plugins in Docker (force mode)
-build-plugins-docker:
-	@echo "🐳 Building plugins in Docker..."
-	@./scripts/build-plugins.sh docker
-
-# Build plugins on host (force mode)
-build-plugins-host:
-	@echo "🏠 Building plugins on host..."
-	@./scripts/build-plugins.sh host
-
-# Build specific plugin
-build-plugin-%:
-	@echo "🎯 Building plugin: $*"
-	@./scripts/build-plugins.sh auto $*
+# Build all plugins (alias)
+plugins: build-plugins
 
 # Complete plugin setup (build + enable + restart)
 setup-plugins:
@@ -276,64 +259,25 @@ verify-transcoding: ## Verify FFmpeg transcoder is properly configured
 	@echo "$(GREEN)Verifying transcoding setup...$(NC)"
 	@bash scripts/verify-transcoding-setup.sh
 
-# =====================================
-# Enhanced Plugin Development Workflow
-# =====================================
 
-plugin-setup: ## Setup complete plugin development environment
-	@echo "$(GREEN)Setting up plugin development environment...$(NC)"
-	@./scripts/plugin-dev.sh setup
 
-plugin-build: ## Build specific plugin (usage: make plugin-build p=PLUGIN_NAME)
+# Plugin development commands
+plugin-setup: ## Setup plugin build environment
+	@./scripts/build-plugin.sh setup
+
+plugin-watch: ## Watch and auto-rebuild plugin (usage: make plugin-watch p=PLUGIN_NAME)
 	@if [ -z "$(p)" ]; then \
-		echo "$(YELLOW)Error: Plugin name required. Usage: make plugin-build p=PLUGIN_NAME$(NC)"; \
-		echo "Available transcoding plugins:"; \
-		find plugins/ -maxdepth 1 -type d -name "ffmpeg_*" -printf "  %f\n" 2>/dev/null | sort; \
+		echo "$(YELLOW)Error: Plugin name required. Usage: make plugin-watch p=PLUGIN_NAME$(NC)"; \
 		exit 1; \
 	fi
-	@./scripts/plugin-dev.sh build $(p)
+	@./scripts/build-plugin.sh watch $(p)
 
-plugin-reload: ## Hot reload plugin (usage: make plugin-reload p=PLUGIN_NAME)
-	@if [ -z "$(p)" ]; then \
-		echo "$(YELLOW)Error: Plugin name required. Usage: make plugin-reload p=PLUGIN_NAME$(NC)"; \
-		exit 1; \
-	fi
-	@./scripts/plugin-dev.sh reload $(p)
+plugin-list: ## List all plugins and their build status
+	@./scripts/build-plugin.sh list
 
-plugin-enable: ## Enable plugin (usage: make plugin-enable p=PLUGIN_NAME)
-	@if [ -z "$(p)" ]; then \
-		echo "$(YELLOW)Error: Plugin name required. Usage: make plugin-enable p=PLUGIN_NAME$(NC)"; \
-		exit 1; \
-	fi
-	@./scripts/plugin-dev.sh enable $(p)
+plugin-clean: ## Clean plugin build caches
+	@./scripts/build-plugin.sh clean
 
-plugin-disable: ## Disable plugin (usage: make plugin-disable p=PLUGIN_NAME)
-	@if [ -z "$(p)" ]; then \
-		echo "$(YELLOW)Error: Plugin name required. Usage: make plugin-disable p=PLUGIN_NAME$(NC)"; \
-		exit 1; \
-	fi
-	@./scripts/plugin-dev.sh disable $(p)
-
-plugin-test: ## Test plugin functionality (usage: make plugin-test p=PLUGIN_NAME)
-	@if [ -z "$(p)" ]; then \
-		echo "$(YELLOW)Error: Plugin name required. Usage: make plugin-test p=PLUGIN_NAME$(NC)"; \
-		exit 1; \
-	fi
-	@./scripts/plugin-dev.sh test $(p)
-
-plugin-list: ## List all transcoding plugins and their status
-	@./scripts/plugin-dev.sh list
-
-plugin-dev: ## Start complete plugin development workflow
-	@echo "$(GREEN)🚀 Starting plugin development workflow...$(NC)"
-	@echo ""
-	@echo "$(GREEN)Step 1:$(NC) Setting up environment..."
-	@./scripts/plugin-dev.sh setup
-	@echo ""
-	@echo "$(GREEN)Step 2:$(NC) Available commands:"
-	@echo "  make plugin-build p=ffmpeg_software    # Build specific plugin"
-	@echo "  make plugin-reload p=ffmpeg_software   # Hot reload plugin"
-	@echo "  make plugin-test p=ffmpeg_software     # Test plugin"
-	@echo "  make plugin-list                       # List all plugins"
-	@echo ""
-	@echo "$(GREEN)✅ Plugin development environment ready!$(NC)"
+# Shortcut for FFmpeg plugin rebuild
+ffmpeg: ## Quick rebuild FFmpeg plugin
+	@./scripts/build-plugin.sh build ffmpeg_software
