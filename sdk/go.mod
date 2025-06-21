@@ -3,6 +3,7 @@ module github.com/mantonx/viewra/sdk
 go 1.24
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.0
 	google.golang.org/grpc v1.73.0

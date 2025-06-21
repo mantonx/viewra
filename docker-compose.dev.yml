@@ -1,0 +1,52 @@
+# Development-optimized Docker Compose configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.dev-air
+      args:
+        # Disable caching in dev mode
+        BUILDKIT_INLINE_CACHE: 0
+      # Always pull latest base image in dev
+      pull: true
+    environment:
+      # Development-specific environment variables
+      - LOG_LEVEL=debug
+      - DEBUG_HTTP_REQUESTS=true
+      - DISABLE_CACHE=true
+      - PLUGIN_HOT_RELOAD=true
+      - PLUGIN_LOG_LEVEL=debug
+      - GIN_MODE=debug
+      # Force Go to not cache builds
+      - GOCACHE=/tmp/go-cache
+      - GOMODCACHE=/tmp/go-mod-cache
+      # FFmpeg debugging
+      - FFMPEG_DEBUG=true
+      - FFMPEG_LOG_LEVEL=debug
+    volumes:
+      # Mount source code for hot reload
+      - ./internal:/app/internal:delegated
+      - ./cmd:/app/cmd:delegated
+      - ./sdk:/app/sdk:delegated
+      - ./plugins:/app/plugins:delegated
+      # Use tmpfs for build caches to avoid persistence
+      - type: tmpfs
+        target: /tmp/go-cache
+      - type: tmpfs
+        target: /tmp/go-mod-cache
+      # Preserve data directory
+      - viewra-data:/app/viewra-data
+    # Disable restart in dev for easier debugging
+    restart: "no"
+    # Install debugging tools
+    entrypoint: |
+      sh -c "
+        # Install debugging tools
+        apk add --no-cache strace tcpdump htop iotop
+        # Install air for hot-reload if not present
+        which air || go install github.com/air-verse/air@latest
+        # Use the .air.toml from the project
+        exec air -c .air.toml
+      "

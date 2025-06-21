@@ -280,21 +280,15 @@ func connectPluginManagerToModules() error {
 
 		// Connect playback module to plugin system
 		if module.ID() == "system.playback" {
-			// Use the GetManager method to access the business logic
-			if playbackMod, ok := module.(interface{ GetManager() interface{} }); ok {
-				if manager := playbackMod.GetManager(); manager != nil {
-					// Cast to playback Manager
-					if pbManager, ok := manager.(*playbackmodule.Manager); ok {
-						// Get external manager and create adapter
-						if pluginModule != nil {
-							extMgr := pluginModule.GetExternalManager()
-							if extMgr != nil {
-								// Create adapter that bridges the type mismatch
-								adapter := playbackmodule.NewPluginModuleAdapter(extMgr)
-								pbManager.SetPluginManager(adapter)
-								log.Printf("✅ Connected plugin module to playback module via adapter")
-							}
-						}
+			// Playback module connectivity is now handled internally via its SetPluginModule method
+			// which is called during module initialization by the playback module itself
+			if playbackMod, ok := module.(*playbackmodule.Module); ok {
+				if pluginModule != nil {
+					extMgr := pluginModule.GetExternalManager()
+					if extMgr != nil {
+						adapter := playbackmodule.NewExternalPluginManagerAdapter(extMgr)
+						playbackMod.SetPluginModule(adapter)
+						log.Printf("✅ Connected plugin module to playback module via adapter")
 					}
 				}
 			}
@@ -320,19 +314,9 @@ func connectPluginManagerToModules() error {
 		}
 	}
 
-	// Connect plugin module to playback module
-	playbackModule, exists := modulemanager.GetModule("system.playback")
-	if exists {
-		if pm, ok := playbackModule.(*playbackmodule.Module); ok {
-			logger.Info("Setting plugin module for playback")
-			// Get the external plugin manager from plugin module
-			extManager := pluginModule.GetExternalManager()
-			if extManager != nil {
-				adapter := playbackmodule.NewPluginModuleAdapter(extManager)
-				pm.SetPluginModule(adapter)
-			}
-		}
-	}
+	// Plugin module connectivity for playback is now handled via service registry
+	// The playback module registers its service and other modules access it through the registry
+	log.Printf("✅ Plugin connectivity for playback handled via service registry")
 
 	return nil
 }

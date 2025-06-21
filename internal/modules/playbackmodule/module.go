@@ -9,6 +9,7 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/services"
 	"gorm.io/gorm"
 )
 
@@ -122,6 +123,11 @@ func (m *Module) Init() error {
 		return fmt.Errorf("failed to initialize playback manager: %w", err)
 	}
 
+	// Register the PlaybackService with the service registry
+	playbackService := NewPlaybackServiceImpl(m.manager)
+	services.RegisterService("playback", playbackService)
+	logger.Info("PlaybackService registered with service registry")
+
 	logger.Info("Playback module initialized successfully with manager: %v", m.manager)
 
 	return nil
@@ -191,6 +197,12 @@ func (m *Module) GetManager() *Manager {
 		if m.manager != nil {
 			if err := m.manager.Initialize(); err != nil {
 				logger.Error("Failed to initialize re-created manager: %v", err)
+			} else {
+				// CRITICAL: Ensure plugin discovery runs on fallback manager
+				if m.pluginModule != nil {
+					m.manager.SetPluginManager(m.pluginModule)
+					logger.Info("Plugin discovery completed for fallback manager")
+				}
 			}
 		}
 

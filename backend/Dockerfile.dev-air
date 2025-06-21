@@ -1,0 +1,59 @@
+# Development Dockerfile optimized for Air hot-reload
+FROM golang:1.24-alpine
+
+# Install build dependencies and debugging tools
+RUN apk add --no-cache \
+    gcc musl-dev sqlite-dev ffmpeg \
+    git bash curl \
+    # Debugging tools for FFmpeg
+    strace ltrace gdb \
+    # System monitoring
+    htop iotop sysstat \
+    # Process tools
+    procps util-linux
+
+# Install Air for hot-reload
+RUN go install github.com/air-verse/air@latest
+
+# Install Delve for debugging
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+WORKDIR /app
+
+# Create necessary directories
+RUN mkdir -p tmp viewra-data/transcoding viewra-data/plugins
+
+# Copy go mod files first
+COPY go.mod go.sum ./
+COPY sdk/go.mod sdk/go.sum ./sdk/
+
+# Download dependencies
+RUN go mod download
+
+# Copy air config
+COPY backend/.air.toml ./
+
+# Set up debugging script
+RUN cat > /usr/local/bin/debug-ffmpeg << 'EOF'
+#!/bin/sh
+echo "=== FFmpeg Process Debugging ==="
+echo "Looking for FFmpeg processes..."
+ps aux | grep -E "(ffmpeg|plugin)" | grep -v grep
+
+echo -e "\nChecking process limits..."
+if [ -n "$1" ]; then
+    cat /proc/$1/limits 2>/dev/null || echo "Process $1 not found"
+fi
+
+echo -e "\nChecking system resources..."
+free -h
+df -h /app/viewra-data
+
+echo -e "\nRecent FFmpeg debug logs..."
+find /app/viewra-data/transcoding -name "*.log" -mtime -1 -exec tail -20 {} \; 2>/dev/null
+EOF
+
+RUN chmod +x /usr/local/bin/debug-ffmpeg
+
+# Default command
+CMD ["air", "-c", ".air.toml"]

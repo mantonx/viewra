@@ -9,8 +9,8 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
+	"github.com/mantonx/viewra/internal/services"
 
 	"gorm.io/gorm"
 )
@@ -193,38 +193,13 @@ func (m *Module) initializeComponents() error {
 		log.Println("INFO: Metadata manager initialized without plugin module (limited functionality)")
 	}
 
-	// Initialize playback integration
-	if m.pluginModule != nil {
-		// Create playback module with plugin support
-		var playbackModule *playbackmodule.Module
-
-		// Get external plugin manager from plugin module
-		extMgr := m.pluginModule.GetExternalManager()
-		if extMgr != nil {
-			adapter := playbackmodule.NewExternalPluginManagerAdapter(extMgr)
-			playbackModule = playbackmodule.NewModule(m.db, nil, adapter)
-			log.Println("INFO: Creating playback module with plugin support")
-		} else {
-			// If no external plugin manager, create module without plugin support
-			log.Println("No external plugin manager available, creating playback module without plugin support")
-			playbackModule = playbackmodule.NewModule(m.db, nil, nil)
-		}
-
-		// Initialize the module
-		if err := playbackModule.Init(); err != nil {
-			log.Printf("ERROR: Failed to initialize playback module: %v", err)
-		} else {
-			// Get the manager from the module
-			playbackManager := playbackModule.GetManager()
-			if playbackManager != nil {
-				m.playbackIntegration = NewPlaybackIntegration(m.db, playbackManager)
-				log.Println("✅ Playback integration initialized with plugin support")
-			} else {
-				log.Println("WARN: ⚠️ Failed to get playback manager from module")
-			}
-		}
+	// Initialize playback integration using service registry
+	if playbackService, err := services.GetService[services.PlaybackService]("playback"); err == nil {
+		m.playbackIntegration = NewPlaybackIntegration(m.db, playbackService)
+		log.Println("✅ Playback integration initialized using service registry")
 	} else {
-		log.Println("ℹ️ No plugin module provided - playback integration disabled")
+		log.Printf("WARN: ⚠️ PlaybackService not available in service registry: %v", err)
+		log.Println("ℹ️ Playback integration disabled - service not registered")
 	}
 
 	return nil
@@ -354,60 +329,11 @@ func (m *Module) SetPluginModule(pluginModule *pluginmodule.PluginModule) {
 			m.metadataManager.Initialize()
 		}
 
-		// CRITICAL: Recreate playback integration with plugin support
-		log.Printf("INFO: Recreating playback integration with plugin transcoding support")
-
-		extMgr := pluginModule.GetExternalManager()
-		if extMgr != nil {
-			// Create adapter for the external manager
-			adapter := playbackmodule.NewExternalPluginManagerAdapter(extMgr)
-			playbackModule := playbackmodule.NewModule(m.db, nil, adapter)
-
-			if err := playbackModule.Init(); err != nil {
-				log.Printf("WARN: Failed to initialize plugin-enabled playback module: %v", err)
-			} else {
-				m.playbackIntegration = NewPlaybackIntegration(m.db, playbackModule.GetManager())
-				log.Printf("✅ Playback integration recreated with plugin transcoding support")
-			}
-		} else {
-			log.Printf("WARN: External manager not available, keeping existing playback integration")
-		}
+		// PlaybackService integration is already set up during module initialization
+		// No need to recreate it when plugins are updated
+		log.Printf("✅ Plugin module updated - playback integration uses service registry")
 
 		log.Printf("✅ Media module components updated with plugin module")
 	}
 }
 
-// refreshPlaybackIntegration recreates the playback integration with current plugin state
-func (m *Module) refreshPlaybackIntegration() {
-	log.Println("Refreshing playback integration with latest plugin state...")
-
-	// Close existing integration if any
-	if m.playbackIntegration != nil {
-		// Nothing to close for now
-		m.playbackIntegration = nil
-	}
-
-	// Get external manager if available
-	if m.pluginModule != nil {
-		if extMgr := m.pluginModule.GetExternalManager(); extMgr != nil {
-			// Create adapter for external plugin manager
-			adapter := playbackmodule.NewExternalPluginManagerAdapter(extMgr)
-			playbackModule := playbackmodule.NewModule(m.db, nil, adapter)
-
-			if err := playbackModule.Init(); err != nil {
-				log.Printf("WARN: Failed to initialize playback module: %v", err)
-			} else {
-				// Get the manager from the module
-				playbackManager := playbackModule.GetManager()
-				if playbackManager != nil {
-					m.playbackIntegration = NewPlaybackIntegration(m.db, playbackManager)
-					log.Printf("✅ Playback integration recreated with plugin transcoding support")
-				} else {
-					log.Println("WARN: Failed to get playback manager from module")
-				}
-			}
-		} else {
-			log.Println("No external plugin manager available")
-		}
-	}
-}

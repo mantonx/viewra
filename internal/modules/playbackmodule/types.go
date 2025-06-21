@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
 	plugins "github.com/mantonx/viewra/sdk"
 )
 
@@ -55,45 +54,22 @@ type PluginManagerInterface interface {
 	GetRunningPlugins() []PluginInfo
 }
 
-// TranscodeManager interface for managing transcoding sessions
-type TranscodeManager interface {
-	// RegisterProvider registers a transcoding provider from a plugin
-	RegisterProvider(pluginID string, provider plugins.TranscodingProvider) error
-
-	// DiscoverTranscodingPlugins discovers and registers all available transcoding plugins
-	DiscoverTranscodingPlugins() error
-
-	// CanTranscode checks if transcoding is available for given parameters without starting a session
-	CanTranscode(req *plugins.TranscodeRequest) error
-
-	// StartTranscode starts a new transcoding session using the service
-	StartTranscode(req *plugins.TranscodeRequest) (*database.TranscodeSession, error)
+// TranscodingService interface for managing transcoding operations
+type TranscodingService interface {
+	// StartTranscode starts a new transcoding session
+	StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*database.TranscodeSession, error)
 
 	// GetSession retrieves a transcoding session
 	GetSession(sessionID string) (*database.TranscodeSession, error)
 
-	// StopSession stops a transcoding session
-	StopSession(sessionID string) error
+	// StopTranscode stops a transcoding session
+	StopTranscode(sessionID string) error
 
-	// ListSessions lists all active sessions
-	ListSessions() ([]*database.TranscodeSession, error)
+	// GetProviders returns available transcoding providers
+	GetProviders() []plugins.ProviderInfo
 
-	// GetStats returns transcoding statistics
-	GetStats() (*TranscodingStats, error)
-
-	// GetTranscodeService returns the core transcode service
-	GetTranscodeService() *core.TranscodeService
-
-	// Cleanup performs cleanup of expired sessions
-	Cleanup()
-
-	// GetCleanupStats returns cleanup-related statistics
-	GetCleanupStats() (*CleanupStats, error)
-
-	// Streaming methods
-	StartStreamingTranscode(req *plugins.TranscodeRequest) (*plugins.StreamHandle, error)
-	GetStream(sessionID string) (io.ReadCloser, error)
-	StopStreamingTranscode(sessionID string) error
+	// RegisterProvider registers a transcoding provider
+	RegisterProvider(provider plugins.TranscodingProvider) error
 }
 
 // TranscodingStats represents overall transcoding statistics

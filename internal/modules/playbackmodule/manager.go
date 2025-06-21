@@ -3,7 +3,6 @@ package playbackmodule
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/config"
@@ -24,93 +23,55 @@ type Manager struct {
 	cancel   context.CancelFunc
 
 	// Core services
-	planner          PlaybackPlanner
-	transcodeManager TranscodeManager
-	transcodeService *core.TranscodeService
-	cleanupService   *core.CleanupService
-	fileManager      *core.FileManager
-	providerManager  *core.ProviderManager
-	sessionStore     *core.SessionStore
+	planner         PlaybackPlanner
+	transcodingService *core.TranscodeService
+	cleanupService  *core.CleanupService
+	fileManager     *core.FileManager
+	sessionStore    *core.SessionStore
 
 	// Plugin integration
 	pluginManager PluginManagerInterface
 
 	// Configuration
-	config      *ManagerConfig
+	config      config.TranscodingConfig
 	enabled     bool
 	initialized bool
 }
 
-// ManagerConfig contains configuration for the playback manager
-type ManagerConfig struct {
-	// Transcoding settings
-	MaxConcurrentSessions int
-	SessionTimeout        time.Duration
-	CleanupInterval       time.Duration
-
-	// Paths
-	TranscodingDir string
-	TempDir        string
-
-	// Resource limits
-	MaxDiskUsageGB int
-	MaxMemoryMB    int
-
-	// Retention policy
-	RetentionHours         int
-	ExtendedRetentionHours int
-	LargeFileSizeMB        int
-}
-
 // NewManager creates a new playback manager
-func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManagerInterface, managerConfig *ManagerConfig) *Manager {
+func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManagerInterface, _ interface{}) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Set defaults
-	if managerConfig == nil {
-		managerConfig = &ManagerConfig{
-			MaxConcurrentSessions:  10,
-			SessionTimeout:         2 * time.Hour,
-			CleanupInterval:        30 * time.Second,
-			TranscodingDir:         "/viewra-data/transcoding",
-			TempDir:                "/tmp/viewra",
-			MaxDiskUsageGB:         50,
-			MaxMemoryMB:            4096,
-			RetentionHours:         24,
-			ExtendedRetentionHours: 48,
-			LargeFileSizeMB:        500,
-		}
-	}
+	// Get global config
+	cfg := config.Get()
 
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "playback-manager",
 		Level: hclog.Info,
 	})
 
-	// Create core services with correct signatures
+	// Create core services
 	sessionStore := core.NewSessionStore(db, logger.Named("session-store"))
-	fileManager := core.NewFileManager(managerConfig.TranscodingDir, logger.Named("file-manager"))
-	providerManager := core.NewProviderManager(sessionStore, logger.Named("provider-manager"))
+	fileManager := core.NewFileManager(cfg.Transcoding.DataDir, logger.Named("file-manager"))
+
+	// Create transcoding service
+	transcodingService, err := core.NewTranscodeService(cfg.Transcoding, db, logger.Named("transcode-service"))
+	if err != nil {
+		logger.Error("failed to create transcoding service", "error", err)
+		// Continue without transcoding service for now
+	}
 
 	// Create cleanup config
 	cleanupConfig := core.CleanupConfig{
-		BaseDirectory:      managerConfig.TranscodingDir,
-		RetentionHours:     managerConfig.RetentionHours,
-		ExtendedHours:      managerConfig.ExtendedRetentionHours,
-		MaxTotalSizeGB:     int64(managerConfig.MaxDiskUsageGB),
-		CleanupInterval:    managerConfig.CleanupInterval,
-		LargeFileThreshold: int64(managerConfig.LargeFileSizeMB),
+		BaseDirectory:      cfg.Transcoding.DataDir,
+		RetentionHours:     cfg.Transcoding.RetentionHours,
+		ExtendedHours:      cfg.Transcoding.ExtendedHours,
+		MaxTotalSizeGB:     cfg.Transcoding.MaxDiskUsageGB,
+		CleanupInterval:    cfg.Transcoding.CleanupInterval,
+		LargeFileThreshold: cfg.Transcoding.LargeFileThreshold * 1024 * 1024,
 	}
 
 	cleanupService := core.NewCleanupService(cleanupConfig, sessionStore, fileManager, logger.Named("cleanup-service"))
-
-	// Create transcoding config from system config
-	cfg := config.Get()
-	transcodeService, err := core.NewTranscodeService(cfg.Transcoding, db, logger.Named("transcode-service"))
-	if err != nil {
-		// Log error but continue - the service can be initialized later
-		logger.Error("failed to create transcode service", "error", err)
-	}
 
 	return &Manager{
 		logger:      logger,
@@ -118,18 +79,16 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManag
 		eventBus:    eventBus,
 		ctx:         ctx,
 		cancel:      cancel,
-		config:      managerConfig,
+		config:      cfg.Transcoding,
 		enabled:     true,
 		initialized: false,
 
 		// Core services
-		planner:          NewPlaybackPlanner(),
-		transcodeManager: NewTranscodeManager(logger, db, pluginManager),
-		transcodeService: transcodeService,
-		cleanupService:   cleanupService,
-		fileManager:      fileManager,
-		providerManager:  providerManager,
-		sessionStore:     sessionStore,
+		planner:            NewPlaybackPlanner(),
+		transcodingService: transcodingService,
+		cleanupService:     cleanupService,
+		fileManager:        fileManager,
+		sessionStore:       sessionStore,
 
 		// Plugin integration
 		pluginManager: pluginManager,
@@ -144,16 +103,9 @@ func (m *Manager) Initialize() error {
 		return nil
 	}
 
-	// Initialize the transcoding manager
-	if initializer, ok := m.transcodeManager.(interface{ Initialize() error }); ok {
-		if err := initializer.Initialize(); err != nil {
-			return fmt.Errorf("failed to initialize transcode manager: %w", err)
-		}
-	}
-
-	// Discover transcoding plugins only if using plugin manager
+	// Discover transcoding plugins directly
 	if m.pluginManager != nil {
-		if err := m.transcodeManager.DiscoverTranscodingPlugins(); err != nil {
+		if err := m.discoverTranscodingPlugins(); err != nil {
 			m.logger.Warn("failed to discover transcoding plugins", "error", err)
 		}
 	}
@@ -172,7 +124,7 @@ func (m *Manager) Initialize() error {
 	}
 
 	m.initialized = true
-	logger.Info("Playback manager initialized successfully")
+	logger.Info("Playback manager initialized successfully", "manager_instance", fmt.Sprintf("%p", m))
 	return nil
 }
 
@@ -184,11 +136,11 @@ func (m *Manager) Shutdown() error {
 	m.cancel()
 
 	// Stop all active sessions
-	sessions, err := m.transcodeManager.ListSessions()
+	sessions, err := m.sessionStore.GetActiveSessions()
 	if err == nil {
 		for _, session := range sessions {
-			if session.Status == "running" || session.Status == "pending" {
-				_ = m.transcodeManager.StopSession(session.ID)
+			if session.Status == "running" || session.Status == "queued" {
+				_ = m.StopSession(session.ID)
 			}
 		}
 	}
@@ -219,7 +171,70 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 		return nil, fmt.Errorf("playback manager is disabled")
 	}
 
-	return m.transcodeManager.StartTranscode(request)
+	if m.transcodingService == nil {
+		return nil, fmt.Errorf("transcoding service not available")
+	}
+
+	m.logger.Info("TRACE: Manager.StartTranscode called",
+		"transcoding_service_instance", fmt.Sprintf("%p", m.transcodingService),
+		"request_container", request.Container,
+		"request_input_path", request.InputPath)
+	
+	// ROBUSTNESS FIX: If no providers are available, try to re-run plugin discovery
+	// This handles timing issues where discovery ran before plugins were ready
+	providerManager := m.transcodingService.GetProviderManager()
+	if providerManager != nil && len(providerManager.GetProviders()) == 0 {
+		m.logger.Warn("No providers available when starting transcode - attempting to re-run plugin discovery")
+		if m.pluginManager != nil {
+			if err := m.discoverTranscodingPlugins(); err != nil {
+				m.logger.Error("Failed to re-run plugin discovery", "error", err)
+			} else {
+				m.logger.Info("Plugin discovery re-run completed", "providers_now", len(providerManager.GetProviders()))
+			}
+		}
+	}
+	
+	return m.transcodingService.StartTranscode(context.Background(), request)
+}
+
+// StartTranscodeFromMediaFile initiates a new transcoding session from a media file ID
+func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string) (*database.TranscodeSession, error) {
+	m.logger.Info("StartTranscodeFromMediaFile called", "media_file_id", mediaFileID, "container", container)
+	
+	if !m.initialized {
+		return nil, fmt.Errorf("playback manager not initialized")
+	}
+
+	// Look up media file from database
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
+		m.logger.Error("failed to find media file", "media_file_id", mediaFileID, "error", err)
+		return nil, fmt.Errorf("media file not found: %w", err)
+	}
+
+	m.logger.Info("found media file", "path", mediaFile.Path, "container", mediaFile.Container)
+
+	// Default container if not specified
+	if container == "" {
+		container = "dash"
+	}
+
+	// Create transcode request from media file
+	request := &plugins.TranscodeRequest{
+		InputPath:     mediaFile.Path,
+		Container:     container,
+		VideoCodec:    "h264", // Default codec
+		AudioCodec:    "aac",  // Default audio codec
+		Quality:       70,     // Default quality
+		SpeedPriority: plugins.SpeedPriorityBalanced,
+	}
+
+	m.logger.Info("created transcode request from media file",
+		"media_file_id", mediaFileID,
+		"input_path", request.InputPath,
+		"container", request.Container)
+
+	return m.StartTranscode(request)
 }
 
 // StopSession stops a transcoding session
@@ -228,7 +243,11 @@ func (m *Manager) StopSession(sessionID string) error {
 		return fmt.Errorf("playback manager not initialized")
 	}
 
-	return m.transcodeManager.StopSession(sessionID)
+	if m.transcodingService == nil {
+		return fmt.Errorf("transcoding service not available")
+	}
+
+	return m.transcodingService.StopTranscode(sessionID)
 }
 
 // GetSession retrieves session information
@@ -237,7 +256,7 @@ func (m *Manager) GetSession(sessionID string) (*database.TranscodeSession, erro
 		return nil, fmt.Errorf("playback manager not initialized")
 	}
 
-	return m.transcodeManager.GetSession(sessionID)
+	return m.sessionStore.GetSession(sessionID)
 }
 
 // ListSessions returns all sessions
@@ -246,7 +265,7 @@ func (m *Manager) ListSessions() ([]*database.TranscodeSession, error) {
 		return nil, fmt.Errorf("playback manager not initialized")
 	}
 
-	return m.transcodeManager.ListSessions()
+	return m.sessionStore.GetActiveSessions()
 }
 
 // GetStats returns transcoding statistics
@@ -255,7 +274,35 @@ func (m *Manager) GetStats() (*TranscodingStats, error) {
 		return nil, fmt.Errorf("playback manager not initialized")
 	}
 
-	return m.transcodeManager.GetStats()
+	// Get sessions directly from session store
+	sessions, err := m.sessionStore.GetActiveSessions()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build basic stats
+	stats := &TranscodingStats{
+		ActiveSessions:    len(sessions),
+		TotalSessions:     0,
+		CompletedSessions: 0,
+		FailedSessions:    0,
+		Backends:          make(map[string]*BackendStats),
+		RecentSessions:    sessions,
+	}
+
+	// Get provider info from transcoding service
+	if m.transcodingService != nil {
+		providers := m.transcodingService.GetProviders()
+		for _, info := range providers {
+			stats.Backends[info.ID] = &BackendStats{
+				Name:         info.Name,
+				Priority:     info.Priority,
+				Capabilities: make(map[string]interface{}),
+			}
+		}
+	}
+
+	return stats, nil
 }
 
 // RefreshTranscodingPlugins refreshes the list of available transcoding plugins
@@ -264,7 +311,7 @@ func (m *Manager) RefreshTranscodingPlugins() error {
 		return fmt.Errorf("playback manager not initialized")
 	}
 
-	return m.transcodeManager.DiscoverTranscodingPlugins()
+	return m.discoverTranscodingPlugins()
 }
 
 // Getters for components
@@ -274,14 +321,9 @@ func (m *Manager) GetPlanner() PlaybackPlanner {
 	return m.planner
 }
 
-// GetTranscodeManager returns the transcode manager
-func (m *Manager) GetTranscodeManager() TranscodeManager {
-	return m.transcodeManager
-}
-
 // GetTranscodeService returns the transcode service
 func (m *Manager) GetTranscodeService() *core.TranscodeService {
-	return m.transcodeService
+	return m.transcodingService
 }
 
 // GetCleanupService returns the cleanup service
@@ -304,11 +346,11 @@ func (m *Manager) SetEnabled(enabled bool) {
 	m.enabled = enabled
 	if !enabled {
 		// Stop all active sessions when disabling
-		sessions, err := m.transcodeManager.ListSessions()
+		sessions, err := m.sessionStore.GetActiveSessions()
 		if err == nil {
 			for _, session := range sessions {
-				if session.Status == "running" || session.Status == "pending" {
-					_ = m.transcodeManager.StopSession(session.ID)
+				if session.Status == "running" || session.Status == "queued" {
+					_ = m.StopSession(session.ID)
 				}
 			}
 		}
@@ -320,11 +362,60 @@ func (m *Manager) SetPluginManager(pluginManager PluginManagerInterface) {
 	logger.Info("Manager.SetPluginManager called", "pluginManager_nil", pluginManager == nil)
 	m.pluginManager = pluginManager
 
-	// Update transcoding manager if it supports plugin manager updates
-	if updater, ok := m.transcodeManager.(interface{ SetPluginManager(PluginManagerInterface) }); ok {
-		logger.Info("Updating transcodeManager with plugin manager")
-		updater.SetPluginManager(pluginManager)
-	} else {
-		logger.Warn("transcodeManager does not support SetPluginManager")
+	// Discover plugins immediately
+	if pluginManager != nil {
+		if err := m.discoverTranscodingPlugins(); err != nil {
+			m.logger.Warn("failed to discover plugins after setting plugin manager", "error", err)
+		}
 	}
+}
+
+// discoverTranscodingPlugins discovers and registers transcoding providers from plugins
+func (m *Manager) discoverTranscodingPlugins() error {
+	m.logger.Info("discovering transcoding plugins")
+
+	if m.pluginManager == nil {
+		m.logger.Debug("no plugin manager available")
+		return nil
+	}
+
+	runningPlugins := m.pluginManager.GetRunningPlugins()
+	m.logger.Info("found plugins", "count", len(runningPlugins))
+
+	discoveredCount := 0
+
+	for _, pluginInfo := range runningPlugins {
+		if pluginInfo.Type != "transcoder" {
+			continue
+		}
+
+		pluginInterface, exists := m.pluginManager.GetRunningPluginInterface(pluginInfo.ID)
+		if !exists {
+			m.logger.Error("plugin interface not found", "plugin_id", pluginInfo.ID)
+			continue
+		}
+
+		// Check if plugin provides transcoding
+		if pluginImpl, ok := pluginInterface.(interface {
+			TranscodingProvider() plugins.TranscodingProvider
+		}); ok {
+			provider := pluginImpl.TranscodingProvider()
+			if provider != nil {
+				// Register only with transcoding service
+				if m.transcodingService != nil {
+					if err := m.transcodingService.RegisterProvider(provider); err != nil {
+						m.logger.Error("failed to register provider", "plugin_id", pluginInfo.ID, "error", err)
+						continue
+					}
+					discoveredCount++
+					m.logger.Info("registered provider", "plugin_id", pluginInfo.ID, "name", pluginInfo.Name)
+				} else {
+					m.logger.Error("transcoding service not available for provider registration", "plugin_id", pluginInfo.ID)
+				}
+			}
+		}
+	}
+
+	m.logger.Info("plugin discovery completed", "count", discoveredCount)
+	return nil
 }

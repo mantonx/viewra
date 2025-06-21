@@ -37,5 +37,8 @@ func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
 
 		// Plugin management
 		api.POST("/plugins/refresh", handler.HandleRefreshPlugins)
+		
+		// Diagnostics (development)
+		RegisterDiagnosticRoutes(api, handler)
 	}
 }

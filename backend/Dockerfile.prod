@@ -1,0 +1,68 @@
+# Production Dockerfile - Multi-stage build for minimal image size
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+WORKDIR /app
+
+# Copy go mod files for dependency caching
+COPY go.mod go.sum ./
+COPY sdk/go.mod sdk/go.sum ./sdk/
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build with optimizations
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -a -installsuffix cgo \
+    -o viewra ./cmd/viewra/main.go
+
+# Build plugins
+RUN mkdir -p /app/plugins && \
+    for plugin in plugins/*/; do \
+        if [ -f "$plugin/main.go" ]; then \
+            cd "$plugin" && \
+            go build -o "$(basename $plugin)" . && \
+            mv "$(basename $plugin)" /app/plugins/ && \
+            cd /app; \
+        fi \
+    done
+
+# Runtime stage
+FROM alpine:latest
+
+# Install runtime dependencies only
+RUN apk add --no-cache \
+    ca-certificates \
+    ffmpeg \
+    sqlite-libs \
+    tzdata
+
+# Create non-root user
+RUN addgroup -g 1000 viewra && \
+    adduser -D -u 1000 -G viewra viewra
+
+# Copy binary from builder
+COPY --from=builder /app/viewra /usr/local/bin/viewra
+COPY --from=builder /app/plugins /app/plugins
+
+# Create necessary directories
+RUN mkdir -p /app/viewra-data/transcoding && \
+    chown -R viewra:viewra /app
+
+USER viewra
+WORKDIR /app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
+
+EXPOSE 8080
+
+CMD ["viewra"]

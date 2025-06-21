@@ -16,7 +16,6 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.4
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.73.0
-	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/driver/sqlite v1.5.6
@@ -34,6 +33,7 @@ require (
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20250129171521-feedd8250727 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	golang.org/x/oauth2 v0.29.0 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 )
 
 require (

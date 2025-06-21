@@ -1,0 +1,31 @@
+# Development Dockerfile with hot-reload optimization
+FROM golang:1.24-alpine
+
+# Install build dependencies and development tools
+RUN apk add --no-cache \
+    gcc musl-dev sqlite-dev ffmpeg \
+    git bash curl \
+    # Debugging tools
+    strace tcpdump
+
+# Install development tools
+RUN go install github.com/air-verse/air@latest && \
+    go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+
+# Copy SDK separately for better layer caching
+COPY sdk/go.mod sdk/go.sum ./sdk/
+
+# Download dependencies - this layer is cached unless go.mod changes
+RUN go mod download
+
+# Create directories
+RUN mkdir -p /app/viewra-data/transcoding /app/plugins
+
+# Default command - will be overridden by docker-compose
+CMD ["air"]

@@ -34,12 +34,13 @@ type TranscodingProvider interface {
 
 // ProviderInfo contains information about a transcoding provider
 type ProviderInfo struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Version     string `json:"version"`
-	Author      string `json:"author"`
-	Priority    int    `json:"priority"` // Higher priority providers are preferred
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Version      string   `json:"version"`
+	Author       string   `json:"author"`
+	Priority     int      `json:"priority"`     // Higher priority providers are preferred
+	Capabilities []string `json:"capabilities"` // List of supported capabilities
 }
 
 // ContainerFormat represents a supported output format

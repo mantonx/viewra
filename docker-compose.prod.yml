@@ -1,0 +1,96 @@
+# Production Docker Compose configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+      cache_from:
+        - viewra-backend:latest
+    image: viewra-backend:latest
+    environment:
+      - LOG_LEVEL=info
+      - GIN_MODE=release
+      - VIEWRA_ENV=production
+    volumes:
+      # Only mount data directory in production
+      - viewra-data:/app/viewra-data
+    restart: always
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+      
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      - NODE_ENV=production
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+          
+  # Production database (PostgreSQL instead of SQLite)
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=viewra
+      - POSTGRES_USER=${DB_USER:-viewra}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+          
+  # Reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: always
+
+volumes:
+  viewra-data:
+    driver: local
+  postgres-data:
+    driver: local

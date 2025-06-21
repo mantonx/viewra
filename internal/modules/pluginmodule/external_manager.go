@@ -2398,29 +2398,33 @@ func (p *ExternalTranscodingProvider) GetInfo() plugins.ProviderInfo {
 
 // GetSupportedFormats returns supported container formats
 func (p *ExternalTranscodingProvider) GetSupportedFormats() []plugins.ContainerFormat {
-	return []plugins.ContainerFormat{
-		{
-			Format:      "dash",
-			MimeType:    "application/dash+xml",
-			Extensions:  []string{".mpd", ".m4s"},
-			Description: "MPEG-DASH adaptive streaming",
-			Adaptive:    true,
-		},
-		{
-			Format:      "hls",
-			MimeType:    "application/vnd.apple.mpegurl",
-			Extensions:  []string{".m3u8", ".ts"},
-			Description: "HLS adaptive streaming",
-			Adaptive:    true,
-		},
-		{
-			Format:      "mp4",
-			MimeType:    "video/mp4",
-			Extensions:  []string{".mp4"},
-			Description: "MP4 container",
-			Adaptive:    false,
-		},
+	// Create gRPC client
+	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
+	
+	// Make gRPC call to get supported formats
+	ctx := context.Background()
+	resp, err := client.GetSupportedFormats(ctx, &proto.GetSupportedFormatsRequest{})
+	if err != nil {
+		// Log gRPC error and fallback to empty list
+		fmt.Printf("ERROR: gRPC GetSupportedFormats failed: %v\n", err)
+		return []plugins.ContainerFormat{}
 	}
+	
+	fmt.Printf("SUCCESS: gRPC GetSupportedFormats returned %d formats\n", len(resp.Formats))
+	
+	// Convert proto formats to SDK formats
+	formats := make([]plugins.ContainerFormat, len(resp.Formats))
+	for i, protoFormat := range resp.Formats {
+		formats[i] = plugins.ContainerFormat{
+			Format:      protoFormat.Name,
+			Description: protoFormat.Description,
+			Extensions:  protoFormat.Extensions,
+			// Note: protobuf doesn't have MimeType or Adaptive fields, 
+			// these will need to be added to proto definition if needed
+		}
+	}
+	
+	return formats
 }
 
 // GetHardwareAccelerators returns available hardware accelerators
@@ -2469,6 +2473,14 @@ func (p *ExternalTranscodingProvider) GetQualityPresets() []plugins.QualityPrese
 
 // StartTranscode starts a new transcoding job
 func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
+	logger := hclog.Default().Named("external-transcoding-provider")
+	logger.Info("StartTranscode called on external provider",
+		"plugin_id", p.pluginID,
+		"session_id", req.SessionID,
+		"input_path", req.InputPath,
+		"output_path", req.OutputPath,
+		"container", req.Container)
+
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
 	
@@ -2477,7 +2489,7 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 		Request: &proto.TranscodeProviderRequest{
 			SessionId:         req.SessionID,
 			InputPath:         req.InputPath,
-			OutputDir:         req.OutputPath, // Use OutputPath as OutputDir
+			OutputDir:         "", // Let the plugin handle directory creation
 			Quality:           int32(req.Quality),
 			SpeedPriority:     string(req.SpeedPriority),
 			Container:         req.Container,
@@ -2494,19 +2506,36 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 		protoReq.Request.Resolution = fmt.Sprintf("%dx%d", req.Resolution.Width, req.Resolution.Height)
 	}
 	
+	logger.Info("Sending gRPC StartTranscode request",
+		"plugin_id", p.pluginID,
+		"proto_request", protoReq.Request)
+	
 	// Make gRPC call
 	resp, err := client.StartTranscode(ctx, protoReq)
 	if err != nil {
+		logger.Error("gRPC StartTranscode failed",
+			"plugin_id", p.pluginID,
+			"error", err.Error())
 		return nil, fmt.Errorf("gRPC StartTranscode failed: %w", err)
 	}
 	
 	if resp.Error != "" {
+		logger.Error("plugin returned error",
+			"plugin_id", p.pluginID,
+			"error", resp.Error)
 		return nil, fmt.Errorf("plugin returned error: %s", resp.Error)
 	}
 	
 	if resp.Handle == nil {
+		logger.Error("plugin returned nil handle",
+			"plugin_id", p.pluginID)
 		return nil, fmt.Errorf("plugin returned nil handle")
 	}
+	
+	logger.Info("gRPC StartTranscode successful",
+		"plugin_id", p.pluginID,
+		"handle_session_id", resp.Handle.SessionId,
+		"handle_directory", resp.Handle.Directory)
 	
 	// Convert proto handle to SDK handle
 	handle := &plugins.TranscodeHandle{

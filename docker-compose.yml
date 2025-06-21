@@ -10,12 +10,16 @@ services:
       - GIN_MODE=${GIN_MODE:-debug}
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
       - VIEWRA_DATA_DIR=/app/viewra-data
-      - VIEWRA_TRANSCODING_DIR=/viewra-data/transcoding
+      - VIEWRA_TRANSCODING_DIR=/app/viewra-data/transcoding
       - VIEWRA_DATABASE_PATH=${VIEWRA_DATABASE_PATH:-/app/viewra-data/viewra.db}
       - VIEWRA_PLUGIN_DIR=/app/data/plugins
       - PORT=8080
       - PLUGIN_DIR=/app/data/plugins
       - TMDB_API_KEY=${TMDB_API_KEY:-}
+      - FFMPEG_DEBUG=true
+      - FFMPEG_LOG_LEVEL=debug
+      - FFMPEG_PATH=/app/data/plugins/ffmpeg-nohup.sh
+      - VIEWRA_MAX_TRANSCODE_SESSIONS=50
     volumes:
       # Runtime data and database
       - ./viewra-data:/app/viewra-data
@@ -63,6 +67,7 @@ services:
 volumes:
   backend-data:
   frontend-node-modules:
+  viewra-data:
 
 networks:
   viewra-network:

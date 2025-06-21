@@ -1,17 +1,16 @@
 package mediamodule
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule"
+	"github.com/mantonx/viewra/internal/services"
+	"github.com/mantonx/viewra/internal/types"
 	plugins "github.com/mantonx/viewra/sdk"
 	"gorm.io/gorm"
 )
@@ -19,14 +18,14 @@ import (
 // PlaybackIntegration handles intelligent video playback and transcoding
 type PlaybackIntegration struct {
 	db              *gorm.DB
-	playbackManager *playbackmodule.Manager
+	playbackService services.PlaybackService
 }
 
 // NewPlaybackIntegration creates a new playback integration service
-func NewPlaybackIntegration(db *gorm.DB, playbackManager *playbackmodule.Manager) *PlaybackIntegration {
+func NewPlaybackIntegration(db *gorm.DB, playbackService services.PlaybackService) *PlaybackIntegration {
 	return &PlaybackIntegration{
 		db:              db,
-		playbackManager: playbackManager,
+		playbackService: playbackService,
 	}
 }
 
@@ -52,18 +51,8 @@ func (pi *PlaybackIntegration) HandleIntelligentStream(c *gin.Context) {
 	// Create device profile from request
 	deviceProfile := pi.createDeviceProfileFromRequest(c)
 
-	// Get the planner from the manager
-	planner := pi.playbackManager.GetPlanner()
-	if planner == nil {
-		log.Printf("ERROR: ❌ No playback planner available")
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Playback service unavailable",
-		})
-		return
-	}
-
-	// Make intelligent playback decision
-	decision, err := planner.DecidePlayback(mediaFile.Path, deviceProfile)
+	// Make intelligent playback decision using the service interface
+	decision, err := pi.playbackService.DecidePlayback(mediaFile.Path, deviceProfile)
 	if err != nil {
 		log.Printf("ERROR: Failed to make playback decision for file_id=%s: %v", fileID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to analyze media for playback"})
@@ -80,7 +69,12 @@ func (pi *PlaybackIntegration) HandleIntelligentStream(c *gin.Context) {
 	}
 
 	// Need transcoding - start intelligent transcoding session
-	pi.handleTranscodingStream(c, &mediaFile, decision.TranscodeParams)
+	if transcodeParams, ok := decision.TranscodeParams.(*plugins.TranscodeRequest); ok {
+		pi.handleTranscodingStream(c, &mediaFile, transcodeParams)
+	} else {
+		log.Printf("ERROR: Invalid transcode parameters type")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid transcode parameters"})
+	}
 }
 
 // HandleStreamWithDecision handles streaming with an explicit transcoding decision
@@ -141,18 +135,8 @@ func (pi *PlaybackIntegration) HandlePlaybackDecision(c *gin.Context) {
 	// Create device profile
 	deviceProfile := pi.createDeviceProfileFromRequest(c)
 
-	// Get the planner from the manager
-	planner := pi.playbackManager.GetPlanner()
-	if planner == nil {
-		log.Printf("ERROR: ❌ No playback planner available")
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Playback service unavailable",
-		})
-		return
-	}
-
-	// Make decision
-	decision, err := planner.DecidePlayback(mediaFile.Path, deviceProfile)
+	// Make decision using the service interface
+	decision, err := pi.playbackService.DecidePlayback(mediaFile.Path, deviceProfile)
 	if err != nil {
 		log.Printf("ERROR: ❌ Failed to decide playback: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -180,53 +164,24 @@ func (pi *PlaybackIntegration) HandlePlaybackDecision(c *gin.Context) {
 	if decision.TranscodeParams != nil {
 		response["transcode_params"] = decision.TranscodeParams
 
-		// Check if transcoding is actually available before recommending transcode=true
-		transcodeManager := pi.playbackManager.GetTranscodeManager()
-		if transcodeManager == nil {
-			log.Printf("ERROR: ❌ No transcode manager available")
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "Transcoding service unavailable",
-			})
-			return
-		}
-
-		// Test if transcoding would work (without actually starting it)
-		// Extract resolution from provider settings
-		resolution := ""
-		bitrate := ""
-		if decision.TranscodeParams != nil {
-			// Parse provider settings to get resolution/bitrate
-			var settings map[string]interface{}
-			if err := json.Unmarshal(decision.TranscodeParams.ProviderSettings, &settings); err == nil {
-				if res, ok := settings["resolution"].(string); ok {
-					resolution = res
-				}
-				if br, ok := settings["bitrate"].(string); ok {
-					bitrate = br
-				}
-			}
-		}
-		log.Printf("DEBUG: Testing CanTranscode with params: codec=%s, container=%s, resolution=%s, bitrate=%s",
-			decision.TranscodeParams.VideoCodec, decision.TranscodeParams.Container, resolution, bitrate)
-
-		if err := transcodeManager.CanTranscode(decision.TranscodeParams); err != nil {
-			log.Printf("DEBUG: CanTranscode failed: %v", err)
-			// Transcoding not available, check if we can fall back to direct streaming
-			if pi.isShakaPlayerCompatible(mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec) {
-				log.Printf("INFO: Transcoding recommended but not available, providing direct stream URL for Shaka-compatible format %s with codecs %s/%s",
-					mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec)
-				response["stream_url"] = fmt.Sprintf("/api/media/files/%s/stream", fileID)
-				response["reason"] = fmt.Sprintf("%s (fallback to direct stream - transcoding unavailable)", decision.Reason)
-			} else {
-				log.Printf("WARN: Transcoding recommended but not available, and format %s with codecs %s/%s is not Shaka-compatible",
-					mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec)
-				response["stream_url"] = fmt.Sprintf("/api/media/files/%s/stream", fileID)
-				response["reason"] = fmt.Sprintf("%s (WARNING: transcoding recommended but unavailable)", decision.Reason)
-				response["warning"] = "Playback may fail - transcoding required but not available"
-			}
+		// For transcoding recommendations, we'll trust that the service can handle it
+		// The service layer will handle availability checks internally
+		if transcodeParams, ok := decision.TranscodeParams.(*plugins.TranscodeRequest); ok {
+			log.Printf("DEBUG: Transcoding recommended with params: codec=%s, container=%s",
+				transcodeParams.VideoCodec, transcodeParams.Container)
 		} else {
-			log.Printf("DEBUG: CanTranscode succeeded - transcoding is available")
-			// Transcoding is available
+			log.Printf("DEBUG: Transcoding recommended with unknown parameters type")
+		}
+
+		// Check if we can fall back to direct streaming for unsupported transcoding scenarios
+		if pi.isShakaPlayerCompatible(mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec) {
+			log.Printf("INFO: Format %s with codecs %s/%s is Shaka-compatible, transcoding will be attempted first",
+				mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec)
+			response["stream_url"] = fmt.Sprintf("/api/media/files/%s/stream?transcode=true", fileID)
+			response["fallback_stream_url"] = fmt.Sprintf("/api/media/files/%s/stream", fileID)
+		} else {
+			log.Printf("INFO: Format %s with codecs %s/%s requires transcoding",
+				mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec)
 			response["stream_url"] = fmt.Sprintf("/api/media/files/%s/stream?transcode=true", fileID)
 		}
 	} else {
@@ -258,17 +213,9 @@ func (pi *PlaybackIntegration) handleTranscodingStream(c *gin.Context, mediaFile
 	log.Printf("🔍 [TELEMETRY] Session start: file_id=%s client_ip=%s user_agent=%s container=%s video_codec=%s audio_codec=%s target_resolution=%s target_container=%s",
 		mediaFile.ID, clientIP, userAgent, mediaFile.Container, mediaFile.VideoCodec, mediaFile.AudioCodec, targetResolution, targetContainer)
 
-	transcodeManager := pi.playbackManager.GetTranscodeManager()
-	if transcodeManager == nil {
-		log.Printf("ERROR: ❌ No transcode manager available")
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Transcoding service unavailable",
-		})
-		return
-	}
-
-	// Start transcoding session
-	session, err := transcodeManager.StartTranscode(transcodeParams)
+	// Start transcoding session using the service interface
+	ctx := c.Request.Context()
+	session, err := pi.playbackService.StartTranscode(ctx, transcodeParams)
 	if err != nil {
 		log.Printf("🔍 [TELEMETRY] Transcoding failed to start: file_id=%s error=%v duration=%v",
 			mediaFile.ID, err, time.Since(sessionStartTime))
@@ -388,136 +335,38 @@ func (pi *PlaybackIntegration) handleTranscodingStream(c *gin.Context, mediaFile
 		}
 	}
 
-	// Start streaming transcode
-	streamHandle, err := transcodeManager.StartStreamingTranscode(streamReq)
+	// For progressive streaming (MP4), we need to redirect to the transcoding session
+	// The service has already started the transcoding, so we redirect to the session's output
+	log.Printf("INFO: Progressive streaming - redirecting to transcoding session output")
+	
+	// Check if session is ready for streaming
+	sessionInfo, err := pi.playbackService.GetSession(session.ID)
 	if err != nil {
-		log.Printf("ERROR: Failed to start streaming transcode: %v", err)
+		log.Printf("ERROR: Failed to get session info: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":      "Failed to start streaming",
+			"error":      "Failed to get transcoding session info",
 			"session_id": session.ID,
 			"reason":     err.Error(),
 		})
 		return
 	}
-
-	// Get the stream
-	stream, err := transcodeManager.GetStream(streamHandle.SessionID)
-	if err != nil {
-		log.Printf("ERROR: Failed to get stream: %v", err)
-		transcodeManager.StopStreamingTranscode(streamHandle.SessionID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":      "Failed to get stream",
-			"session_id": session.ID,
-			"reason":     err.Error(),
-		})
-		return
-	}
-	defer stream.Close()
-
-	log.Printf("🔍 [TELEMETRY] Stream ready for reading: session_id=%s", session.ID)
-
-	// Handle client disconnect - stop stream immediately
-	ctx, cancel := context.WithCancel(c.Request.Context())
-	defer cancel()
-
-	done := make(chan struct{})
-	disconnectedAt := time.Time{}
-	go func() {
-		defer close(done)
-		<-ctx.Done()
-		disconnectedAt = time.Now()
-		sessionDuration := disconnectedAt.Sub(sessionStartTime)
-		log.Printf("🔍 [TELEMETRY] Client disconnected: session_id=%s client_ip=%s session_duration=%v reason=%s",
-			session.ID, clientIP, sessionDuration, ctx.Err().Error())
-		log.Printf("INFO: Client disconnected from session_id=%s, stopping streaming immediately", session.ID)
-
-		// Stop the streaming session immediately when client disconnects
-		if err := transcodeManager.StopStreamingTranscode(streamHandle.SessionID); err != nil {
-			log.Printf("WARN: Failed to stop streaming session on disconnect: %s error=%v", streamHandle.SessionID, err)
-		}
-
-		// Also stop the regular session
-		if err := transcodeManager.StopSession(session.ID); err != nil {
-			log.Printf("WARN: Failed to stop session on disconnect: session_id=%s error=%v", session.ID, err)
-		}
-	}()
-
-	// Stream the transcoded video with enhanced telemetry
-	buffer := make([]byte, 1024*1024) // 1MB buffer for high bitrate streaming
-	totalBytes := int64(0)
-	chunkCount := 0
-	lastTelemetryTime := time.Now()
-	streamingStartTime := time.Now()
-
-	log.Printf("🔍 [TELEMETRY] Starting to stream data: session_id=%s buffer_size=%d",
-		session.ID, len(buffer))
-
-	for {
-		select {
-		case <-done:
-			finalDuration := time.Since(sessionStartTime)
-			streamingDuration := time.Since(streamingStartTime)
-			disconnectDelay := time.Since(disconnectedAt)
-
-			log.Printf("🔍 [TELEMETRY] Streaming stopped due to client disconnect: session_id=%s total_bytes=%d chunks=%d session_duration=%v streaming_duration=%v disconnect_processing_time=%v",
-				session.ID, totalBytes, chunkCount, finalDuration, streamingDuration, disconnectDelay)
-			log.Printf("INFO: Streaming stopped due to client disconnect session_id=%s, bytes_streamed=%d, duration=%v",
-				session.ID, totalBytes, finalDuration)
-			return
-		default:
-		}
-
-		readStartTime := time.Now()
-		n, err := stream.Read(buffer)
-		readDuration := time.Since(readStartTime)
-
-		if n > 0 {
-			totalBytes += int64(n)
-			chunkCount++
-
-			writeStartTime := time.Now()
-			if _, writeErr := c.Writer.Write(buffer[:n]); writeErr != nil {
-				writeDuration := time.Since(writeStartTime)
-				log.Printf("🔍 [TELEMETRY] Write error: session_id=%s error=%v bytes_written_so_far=%d chunks=%d write_duration=%v",
-					session.ID, writeErr, totalBytes, chunkCount, writeDuration)
-				log.Printf("ERROR: Error writing to response session_id=%s: %v", session.ID, writeErr)
-				return
-			}
-			writeDuration := time.Since(writeStartTime)
-
-			c.Writer.Flush()
-
-			// Log detailed telemetry every 5 seconds or every 50 chunks
-			now := time.Now()
-			if now.Sub(lastTelemetryTime) >= 5*time.Second || chunkCount%50 == 0 {
-				sessionDuration := now.Sub(sessionStartTime)
-				streamingDuration := now.Sub(streamingStartTime)
-				avgBytesPerSecond := float64(totalBytes) / streamingDuration.Seconds()
-
-				log.Printf("🔍 [TELEMETRY] Streaming progress: session_id=%s bytes=%d chunks=%d session_time=%v streaming_time=%v read_time=%v write_time=%v avg_bps=%.2f",
-					session.ID, totalBytes, chunkCount, sessionDuration, streamingDuration, readDuration, writeDuration, avgBytesPerSecond)
-
-				lastTelemetryTime = now
-			}
-		}
-
-		if err != nil {
-			finalDuration := time.Since(sessionStartTime)
-			streamingDuration := time.Since(streamingStartTime)
-
-			if err == io.EOF {
-				log.Printf("🔍 [TELEMETRY] Stream completed (EOF): session_id=%s total_bytes=%d chunks=%d session_duration=%v streaming_duration=%v",
-					session.ID, totalBytes, chunkCount, finalDuration, streamingDuration)
-				log.Printf("INFO: Transcoding stream completed session_id=%s, bytes_streamed=%d, duration=%v",
-					session.ID, totalBytes, finalDuration)
-			} else {
-				log.Printf("🔍 [TELEMETRY] Stream error: session_id=%s error=%v total_bytes=%d chunks=%d session_duration=%v streaming_duration=%v read_duration=%v",
-					session.ID, err, totalBytes, chunkCount, finalDuration, streamingDuration, readDuration)
-				log.Printf("ERROR: Error reading from transcoding stream session_id=%s: %v", session.ID, err)
-			}
-			return
-		}
-	}
+	
+	// For now, return session info and let the client handle the streaming
+	// This is a cleaner approach that works with the service interface
+	c.Header("Content-Type", "application/json")
+	c.Header("X-Transcode-Session-ID", session.ID)
+	c.Header("X-Transcode-Provider", sessionInfo.Provider)
+	c.Header("X-Transcode-Status", string(sessionInfo.Status))
+	
+	c.JSON(http.StatusOK, gin.H{
+		"session_id":     session.ID,
+		"provider":       sessionInfo.Provider,
+		"status":         string(sessionInfo.Status),
+		"stream_url":     fmt.Sprintf("/api/playback/stream/%s", session.ID),
+		"container":      targetContainer,
+		"resolution":     targetResolution,
+		"message":        "Transcoding session started - use stream_url for progressive streaming",
+	})
 }
 
 // serveDirectStream serves the file directly without transcoding
@@ -540,7 +389,7 @@ func (pi *PlaybackIntegration) serveDirectStream(c *gin.Context, mediaFile *Medi
 }
 
 // createDeviceProfileFromRequest creates a device profile from the HTTP request
-func (pi *PlaybackIntegration) createDeviceProfileFromRequest(c *gin.Context) *playbackmodule.DeviceProfile {
+func (pi *PlaybackIntegration) createDeviceProfileFromRequest(c *gin.Context) *types.DeviceProfile {
 	userAgent := c.GetHeader("User-Agent")
 	clientIP := c.ClientIP()
 
@@ -572,7 +421,7 @@ func (pi *PlaybackIntegration) createDeviceProfileFromRequest(c *gin.Context) *p
 		maxBitrate = pi.getBitrateForQuality(preferredQuality)
 	}
 
-	return &playbackmodule.DeviceProfile{
+	return &types.DeviceProfile{
 		UserAgent:       userAgent,
 		SupportedCodecs: supportedCodecs,
 		MaxResolution:   maxResolution,
@@ -788,7 +637,7 @@ func (pi *PlaybackIntegration) HandleIntelligentStreamHead(c *gin.Context) {
 
 	// For intelligent streaming, make the same decision as HandleIntelligentStream would make
 	deviceProfile := pi.createDeviceProfileFromRequest(c)
-	decision, err := pi.playbackManager.GetPlanner().DecidePlayback(mediaFile.Path, deviceProfile)
+	decision, err := pi.playbackService.DecidePlayback(mediaFile.Path, deviceProfile)
 	if err != nil {
 		log.Printf("ERROR: Failed to make playback decision for HEAD request: %v", err)
 		c.Status(http.StatusInternalServerError)

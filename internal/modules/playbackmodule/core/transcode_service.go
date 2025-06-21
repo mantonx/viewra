@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -69,6 +70,21 @@ func (ts *TranscodeService) RegisterProvider(provider plugins.TranscodingProvide
 	return ts.providerManager.RegisterProvider(provider)
 }
 
+// ForcePluginDiscovery triggers plugin discovery via external callback
+// This is a robustness method to ensure providers are available
+func (ts *TranscodeService) ForcePluginDiscovery(discoveryCallback func() error) error {
+	if discoveryCallback != nil {
+		ts.logger.Info("Forcing plugin discovery due to missing providers")
+		return discoveryCallback()
+	}
+	return nil
+}
+
+// GetProviderManager returns the provider manager
+func (ts *TranscodeService) GetProviderManager() *ProviderManager {
+	return ts.providerManager
+}
+
 // StartTranscode starts a new transcoding operation
 func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*database.TranscodeSession, error) {
 	// Check session limits
@@ -81,9 +97,22 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 		return nil, fmt.Errorf("maximum number of sessions reached: %d", ts.config.MaxSessions)
 	}
 
+	ts.logger.Info("TRACE: TranscodeService.StartTranscode called",
+		"transcode_service_instance", fmt.Sprintf("%p", ts),
+		"provider_manager_instance", fmt.Sprintf("%p", ts.providerManager),
+		"request_container", req.Container,
+		"request_input_path", req.InputPath)
+
 	// Select provider
 	provider, err := ts.providerManager.SelectProvider(ctx, req)
 	if err != nil {
+		// Check if this is a "no providers" error - if so, this might be a timing issue
+		// where plugin discovery hasn't run yet. This is a safeguard for robustness.
+		if strings.Contains(err.Error(), "no capable providers found") {
+			ts.logger.Warn("No providers found - this suggests plugin discovery timing issue", 
+				"error", err.Error(),
+				"transcode_service_instance", fmt.Sprintf("%p", ts))
+		}
 		return nil, fmt.Errorf("failed to select provider: %w", err)
 	}
 
@@ -111,18 +140,29 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 
 	// Start transcoding in goroutine
 	go func() {
-		defer cancel()
+		defer func() {
+			ts.logger.Info("transcoding goroutine exiting, cancelling context", "session_id", session.ID)
+			cancel()
+		}()
 
+		// Update request to use the database session ID instead of user-provided ID
+		providerReq := *req
+		providerReq.SessionID = session.ID
+		providerReq.OutputPath = dirPath
+
+		ts.logger.Info("calling StartTranscode", "session_id", session.ID)
 		// Start the transcoding operation
-		handle, err := provider.StartTranscode(transcodeCtx, *req)
+		handle, err := provider.StartTranscode(transcodeCtx, providerReq)
 		if err != nil {
 			ts.logger.Error("failed to start transcoding", "error", err, "session_id", session.ID)
 			ts.sessionStore.FailSession(session.ID, err)
 			return
 		}
 
+		ts.logger.Info("StartTranscode successful, starting progress monitoring", "session_id", session.ID)
 		// Monitor progress
 		ts.monitorProgress(transcodeCtx, session.ID, provider, handle)
+		ts.logger.Info("monitorProgress returned", "session_id", session.ID)
 	}()
 
 	ts.logger.Info("started transcoding session",
@@ -135,6 +175,7 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 
 // monitorProgress monitors the progress of a transcoding operation
 func (ts *TranscodeService) monitorProgress(ctx context.Context, sessionID string, provider plugins.TranscodingProvider, handle *plugins.TranscodeHandle) {
+	ts.logger.Info("monitorProgress started", "session_id", sessionID)
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -142,6 +183,7 @@ func (ts *TranscodeService) monitorProgress(ctx context.Context, sessionID strin
 		select {
 		case <-ctx.Done():
 			// Context cancelled, stop transcoding
+			ts.logger.Warn("monitorProgress context cancelled", "session_id", sessionID, "error", ctx.Err())
 			provider.StopTranscode(handle)
 			ts.sessionStore.FailSession(sessionID, ctx.Err())
 			return

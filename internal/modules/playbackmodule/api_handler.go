@@ -1,6 +1,7 @@
 package playbackmodule
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -50,15 +51,55 @@ func (h *APIHandler) HandlePlaybackDecision(c *gin.Context) {
 // HandleStartTranscode initiates a new transcoding session
 func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 	logger.Info("handleStartTranscode called")
+	
+	// Read the raw body to check what type of request this is
+	bodyBytes, err := c.GetRawData()
+	if err != nil {
+		logger.Error("failed to read request body", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+		return
+	}
+	
+	logger.Info("raw request body", "body", string(bodyBytes))
+	
+	// Try to parse as media file request first
+	var mediaRequest struct {
+		MediaFileID string `json:"media_file_id"`
+		Container   string `json:"container"`
+	}
+	
+	parseErr := json.Unmarshal(bodyBytes, &mediaRequest)
+	logger.Info("media request parse result", "error", parseErr, "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container)
+	
+	if parseErr == nil && mediaRequest.MediaFileID != "" {
+		// Handle media file based request
+		logger.Info("handling media file based request", "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container)
+		session, err := h.manager.StartTranscodeFromMediaFile(mediaRequest.MediaFileID, mediaRequest.Container)
+		if err != nil {
+			logger.Error("failed to start transcode from media file", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transcoding session: " + err.Error()})
+			return
+		}
+		
+		logger.Info("transcode session created successfully", "session_id", session.ID)
+		
+		// Return the session information
+		c.JSON(http.StatusOK, gin.H{
+			"id":           session.ID,
+			"status":       session.Status,
+			"manifest_url": fmt.Sprintf("/api/playback/stream/%s/manifest.mpd", session.ID),
+			"provider":     session.Provider,
+		})
+		return
+	}
+	
+	// Fall back to direct transcode request
 	var request plugins.TranscodeRequest
-
-	if err := c.ShouldBindJSON(&request); err != nil {
-		logger.Error("failed to bind JSON request", "error", err)
+	if err := json.Unmarshal(bodyBytes, &request); err != nil {
+		logger.Error("failed to parse JSON request", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	logger.Info("JSON request bound successfully", "input_path", request.InputPath, "container", request.Container)
 
 	session, err := h.manager.StartTranscode(&request)
 	if err != nil {
@@ -293,9 +334,12 @@ func (h *APIHandler) HandleDashSegmentSpecific(c *gin.Context) {
 // Helper methods
 
 func (h *APIHandler) serveManifestFile(c *gin.Context, sessionID, filename string) {
+	logger.Info("serveManifestFile called", "session_id", sessionID, "filename", filename)
+	
 	// Get the session to find directory
 	session, err := h.manager.GetSession(sessionID)
 	if err != nil {
+		logger.Error("session not found in serveManifestFile", "session_id", sessionID, "error", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}

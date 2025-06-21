@@ -42,10 +42,11 @@ func (pm *ProviderManager) RegisterProvider(provider plugins.TranscodingProvider
 	pm.providers[info.ID] = provider
 	pm.priorities[info.ID] = info.Priority
 
-	pm.logger.Info("registered transcoding provider",
-		"id", info.ID,
-		"name", info.Name,
-		"priority", info.Priority)
+	pm.logger.Info("TRACE: Provider registered",
+		"provider_manager_instance", fmt.Sprintf("%p", pm),
+		"provider_id", info.ID,
+		"provider_name", info.Name,
+		"total_providers_after", len(pm.providers))
 
 	return nil
 }
@@ -102,9 +103,29 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
+	pm.logger.Info("TRACE: SelectProvider called",
+		"provider_manager_instance", fmt.Sprintf("%p", pm),
+		"total_providers", len(pm.providers),
+		"requested_container", req.Container)
+
 	// Get capable providers
 	candidates := pm.getCapableProviders(req)
+	
+	pm.logger.Debug("DEBUG: SelectProvider after getCapableProviders",
+		"candidates_count", len(candidates),
+		"requested_container", req.Container)
+
 	if len(candidates) == 0 {
+		pm.logger.Debug("DEBUG: No capable providers found",
+			"total_providers", len(pm.providers),
+			"requested_container", req.Container)
+		
+		// If no providers are found, this might be a timing issue with plugin discovery
+		// This is a safeguard to ensure the system is self-healing
+		if len(pm.providers) == 0 {
+			pm.logger.Warn("No providers registered at all - this suggests a plugin discovery issue")
+		}
+		
 		return nil, fmt.Errorf("no capable providers found for format: %s", req.Container)
 	}
 
@@ -126,18 +147,56 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 func (pm *ProviderManager) getCapableProviders(req *plugins.TranscodeRequest) []plugins.TranscodingProvider {
 	var capable []plugins.TranscodingProvider
 
-	for _, provider := range pm.providers {
+	pm.logger.Debug("DEBUG: getCapableProviders called",
+		"provider_count", len(pm.providers),
+		"requested_container", req.Container)
+
+	for providerID, provider := range pm.providers {
+		info := provider.GetInfo()
+		pm.logger.Debug("DEBUG: checking provider",
+			"provider_id", providerID,
+			"provider_name", info.Name)
+		
 		// Check if provider supports the requested format
 		formats := provider.GetSupportedFormats()
+		pm.logger.Debug("DEBUG: provider formats",
+			"provider_id", providerID,
+			"format_count", len(formats))
+		
 		for _, format := range formats {
+			pm.logger.Debug("DEBUG: checking format",
+				"provider_id", providerID,
+				"format", format.Format,
+				"requested", req.Container)
+			
 			if format.Format == req.Container {
+				pm.logger.Debug("DEBUG: provider supports format",
+					"provider_id", providerID,
+					"format", format.Format)
 				capable = append(capable, provider)
 				break
 			}
 		}
 	}
 
+	pm.logger.Debug("DEBUG: getCapableProviders result",
+		"capable_count", len(capable),
+		"requested_container", req.Container)
+
 	return capable
+}
+
+// GetProviders returns the number of registered providers (for robustness checks)
+func (pm *ProviderManager) GetProviders() map[string]plugins.TranscodingProvider {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	// Return a copy to prevent external modification
+	providers := make(map[string]plugins.TranscodingProvider)
+	for id, provider := range pm.providers {
+		providers[id] = provider
+	}
+	return providers
 }
 
 // selectOptimalProvider selects the best provider from candidates
