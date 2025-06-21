@@ -349,30 +349,79 @@ const VideoPlayer: React.FC = () => {
       // Attach player to video element
       await player.attach(videoRef.current);
 
-      // Configure player for low-latency streaming and fast startup
+      // Configure player with optimized settings (using valid Shaka Player options only)
       player.configure({
-        streaming: {
-          // Low-latency streaming optimizations
-          bufferingGoal: 4,           // Very low buffering for responsiveness
-          rebufferingGoal: 2,         // Quick rebuffering
-          bufferBehind: 10,           // Keep minimal buffer behind
-          retryParameters: {
-            timeout: 2000,            // Very fast timeout for low latency
-            maxAttempts: 2,           // Quick failure detection
-            baseDelay: 100,           // Fast initial retry
-            backoffFactor: 1.2,       // Minimal backoff
-            fuzzFactor: 0.1,          // Low variance
-          },
-        },
         manifest: {
-          retryParameters: {
-            timeout: 2000,            // Very fast timeout for low latency
-            maxAttempts: 2,           // Quick failure detection
-            baseDelay: 100,           // Fast initial retry
-            backoffFactor: 1.2,       // Minimal backoff
-            fuzzFactor: 0.1,          // Low variance
+          defaultPresentationDelay: 10,
+          availabilityWindowOverride: 300,
+          dash: {
+            ignoreSuggestedPresentationDelay: false,
+            autoCorrectDrift: true,
           },
         },
+        streaming: {
+          // Optimized buffer configuration to reduce buffering issues
+          bufferingGoal: 15,          // Reduced from 30 to 15 seconds
+          rebufferingGoal: 5,         // Reduced from 15 to 5 seconds for faster recovery
+          bufferBehind: 15,           // Reduced buffer behind to 15 seconds
+          
+          // Enhanced retry configuration for stability
+          retryParameters: {
+            maxAttempts: 2,           // Reduced attempts for faster failure detection
+            baseDelay: 500,           // Faster initial retry
+            backoffFactor: 2,
+            fuzzFactor: 0.3,          // Reduced fuzz for more predictable timing
+            timeout: 20000,           // Reduced timeout
+            stallTimeout: 3000,       // Faster stall detection
+            connectionTimeout: 8000,  // Faster connection timeout
+          },
+          
+          // Gap jumping settings (use only valid Shaka options)
+          jumpLargeGaps: true,        // Allow jumping large gaps
+          
+          // Enhanced transmuxing for compatibility
+          forceTransmuxTS: true,
+          forceHTTPS: false,          // Allow HTTP for local development
+          
+          // Optimized segment prefetch
+          segmentPrefetchLimit: 3,    // Increased prefetch
+          
+          // Stall detection settings
+          stallEnabled: true,
+          stallThreshold: 0.5,        // Faster stall detection
+          stallSkip: 0.05,            // Smaller skip amount
+          
+          // Additional valid settings
+          maxDisabledTime: 30,        // Max time a stream can be disabled
+          inaccurateManifestTolerance: 0.2, // Tighter tolerance
+        },
+        abr: {
+          // Adaptive bitrate configuration
+          enabled: true,
+          defaultBandwidthEstimate: 500000, // 500 kbps conservative start
+          switchInterval: 8,
+          bandwidthUpgradeTarget: 0.85,
+          bandwidthDowngradeTarget: 0.95,
+          
+          // Advanced ABR settings (valid options only)
+          restrictToElementSize: true,
+          restrictToScreenSize: true,
+          ignoreDevicePixelRatio: false,
+          clearBufferSwitch: true,
+          
+          // Use network information if available
+          useNetworkInformation: true,
+        },
+        drm: {
+          retryParameters: {
+            maxAttempts: 2,
+            baseDelay: 1000,
+            backoffFactor: 2,
+          },
+        },
+        preferredAudioLanguage: 'en',
+        preferredTextLanguage: 'en',
+        preferredVariantRole: 'main',
       } as any); // Use any to bypass TypeScript restrictions for advanced config
 
       // Player initialization starting
@@ -852,25 +901,66 @@ const VideoPlayer: React.FC = () => {
             await playerRef.current.load(seekResponse.manifest_url);
             console.log('✅ New manifest loaded successfully');
             
-            // The new stream starts from the seek position, so video time is 0
-            // but we track the offset to show correct timestamps
+            // CRITICAL FIX: Don't set currentTime to 0 after loading seek-ahead manifest
+            // The new manifest timeline starts from 0, but represents content starting at seekTime
+            // Let the player start naturally and the offset tracking will handle time display
+            console.log('⏭️ New manifest loaded, letting player start naturally with offset tracking');
+            
+            // Set up multiple event listeners for better seek-ahead loading detection
+            const onCanPlay = () => {
+              console.log('✅ Seek-ahead content is ready to play (canplay event)');
+              setIsBuffering(false);
+              setIsSeekingAhead(false);
+              
+              // Auto-play the new seek-ahead content
+              if (videoRef.current) {
+                videoRef.current.play().catch(err => {
+                  console.warn('⚠️ Auto-play failed after seek-ahead:', err);
+                });
+              }
+              
+              // Remove event listeners after use
+              if (videoRef.current) {
+                videoRef.current.removeEventListener('canplay', onCanPlay);
+                videoRef.current.removeEventListener('loadeddata', onLoadedData);
+                videoRef.current.removeEventListener('durationchange', onDurationChange);
+              }
+            };
+            
+            const onLoadedData = () => {
+              console.log('✅ Seek-ahead data loaded (loadeddata event)');
+              setIsBuffering(false);
+              setIsSeekingAhead(false);
+            };
+            
+            const onDurationChange = () => {
+              console.log('✅ Seek-ahead duration changed:', videoRef.current?.duration);
+              // Duration change often indicates the new content is properly loaded
+              if (videoRef.current && isFinite(videoRef.current.duration) && videoRef.current.duration > 0) {
+                setIsBuffering(false);
+                setIsSeekingAhead(false);
+              }
+            };
+            
+            // Add multiple event listeners for better reliability
             if (videoRef.current) {
-              videoRef.current.currentTime = 0;
-              // Force a time update to show the correct position immediately
-              setCurrentTime(seekTime);
+              videoRef.current.addEventListener('canplay', onCanPlay);
+              videoRef.current.addEventListener('loadeddata', onLoadedData);
+              videoRef.current.addEventListener('durationchange', onDurationChange);
             }
             
-            // Buffering will be cleared when video starts playing
           } catch (err) {
             console.error('❌ Failed to load new manifest:', err);
             setIsBuffering(false);
           }
         }
         
-        // Reset seeking state after a short delay
+        // Safety timeout fallback in case event listeners don't fire
         setTimeout(() => {
+          console.log('⏰ Seek-ahead timeout fallback - clearing buffering state');
           setIsSeekingAhead(false);
-        }, 5000);
+          setIsBuffering(false);
+        }, 10000); // Increased from 5s to 10s for more time
       } else {
         console.warn('⚠️ Seek-ahead request failed:', response.status);
         setIsBuffering(false);
