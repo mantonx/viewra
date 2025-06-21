@@ -192,6 +192,7 @@ func (p *SoftwareTranscoder) StartTranscode(ctx context.Context, req plugins.Tra
 		Seek:           req.Seek, // Pass through the seek position
 		HardwareType:   transcoding.HardwareTypeNone,
 		PreferHardware: false,
+		EnableABR:      req.EnableABR, // Pass through ABR flag
 	}
 	
 	handle, err := p.transcoder.StartTranscode(ctx, transcodingReq)
@@ -285,6 +286,7 @@ func (p *SoftwareTranscoder) StartStream(ctx context.Context, req plugins.Transc
 		Seek:           req.Seek, // Pass through the seek position
 		HardwareType:   transcoding.HardwareTypeNone,
 		PreferHardware: false,
+		EnableABR:      req.EnableABR, // Pass through ABR flag
 	}
 	
 	handle, err := p.transcoder.StartStream(ctx, transcodingReq)

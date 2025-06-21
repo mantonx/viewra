@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -380,8 +381,9 @@ func (t *Transcoder) buildSimpleFFmpegArgs(req TranscodeRequest, outputPath stri
 	// Always overwrite output files
 	args = append(args, "-y")
 
-	// Hardware acceleration detection (auto-detect available hardware)
-	args = append(args, "-hwaccel", "auto")
+	// Disable hardware acceleration for stability
+	// Hardware acceleration can cause timing issues
+	// args = append(args, "-hwaccel", "auto")
 	
 	// Seek to position if specified (input seeking for efficiency)
 	if req.Seek > 0 {
@@ -409,6 +411,10 @@ func (t *Transcoder) buildSimpleFFmpegArgs(req TranscodeRequest, outputPath stri
 	qualityArgs := t.getOptimalQualitySettings(req, videoCodec)
 	args = append(args, qualityArgs...)
 
+	// Keyframe alignment for optimal seeking and segment boundaries
+	keyframeArgs := t.getKeyframeAlignmentArgs(req)
+	args = append(args, keyframeArgs...)
+
 	// Video filtering for quality enhancement
 	videoFilters := t.getVideoFilters(req)
 	if len(videoFilters) > 0 {
@@ -419,8 +425,8 @@ func (t *Transcoder) buildSimpleFFmpegArgs(req TranscodeRequest, outputPath stri
 	audioArgs := t.getOptimalAudioSettings(req)
 	args = append(args, audioArgs...)
 
-	// Threading and performance optimization
-	args = append(args, "-threads", "0") // Use all available CPU cores
+	// Conservative threading to prevent resource contention
+	args = append(args, "-threads", "4") // Limit to 4 threads for stability
 
 	// Container-specific settings with quality optimizations
 	containerArgs := t.getContainerSpecificArgs(req, outputPath)
@@ -446,11 +452,11 @@ func (t *Transcoder) getOptimalVideoCodec(req TranscodeRequest) string {
 func (t *Transcoder) getOptimalPreset(speedPriority SpeedPriority, codec string) string {
 	switch speedPriority {
 	case SpeedPriorityFastest:
-		return "faster"     // Balance speed vs quality
+		return "medium"     // More conservative than "faster"
 	case SpeedPriorityQuality:
 		return "slow"       // High quality
 	default:
-		return "medium"     // Balanced default
+		return "slow"       // Default to slow for quality and stability
 	}
 }
 
@@ -472,10 +478,27 @@ func (t *Transcoder) getOptimalQualitySettings(req TranscodeRequest, codec strin
 	
 	// Additional quality settings for H.264
 	if codec == "libx264" {
-		args = append(args, "-profile:v", "high")
-		args = append(args, "-level", "4.1")
-		// Optimize for streaming with good compression
-		args = append(args, "-x264-params", "ref=4:bframes=3:b-pyramid=normal:mixed-refs=1:8x8dct=1:trellis=1:fast-pskip=0:cabac=1")
+		// Use baseline profile for low bitrate stream, high for others
+		if req.Quality < 30 {
+			args = append(args, "-profile:v", "baseline")
+			args = append(args, "-level", "3.0")
+		} else {
+			args = append(args, "-profile:v", "high")
+			args = append(args, "-level", "4.1")
+		}
+		// Conservative x264 params for stability
+		args = append(args, "-x264-params", "ref=2:bframes=2:me=hex:subme=6:rc-lookahead=40")
+	} else if codec == "libx265" {
+		args = append(args, "-preset", "medium")
+		args = append(args, "-x265-params", "keyint=48:min-keyint=24:no-open-gop=1")
+	} else if codec == "libvpx-vp9" {
+		args = append(args, "-b:v", "0") // Use constant quality mode
+		args = append(args, "-deadline", "good")
+		args = append(args, "-cpu-used", "2")
+		args = append(args, "-row-mt", "1")
+		args = append(args, "-tile-columns", "2")
+		args = append(args, "-tile-rows", "1")
+		args = append(args, "-g", "48") // Keyframe interval
 	}
 	
 	return args
@@ -483,8 +506,24 @@ func (t *Transcoder) getOptimalQualitySettings(req TranscodeRequest, codec strin
 
 // getVideoFilters returns video filters for quality enhancement
 func (t *Transcoder) getVideoFilters(req TranscodeRequest) string {
-	// Scale filter for resolution optimization if needed
-	// This will be expanded based on source content analysis
+	var filters []string
+	
+	// Resolution scaling if specified
+	if req.Resolution != nil && req.Resolution.Width > 0 && req.Resolution.Height > 0 {
+		// Use lanczos for high quality downscaling
+		scaleFilter := fmt.Sprintf("scale=%d:%d:flags=lanczos", req.Resolution.Width, req.Resolution.Height)
+		filters = append(filters, scaleFilter)
+	}
+	
+	// Deinterlacing if needed (detect interlaced content)
+	filters = append(filters, "yadif=mode=send_field:deint=interlaced")
+	
+	// Pixel format conversion for compatibility
+	filters = append(filters, "format=yuv420p")
+	
+	if len(filters) > 0 {
+		return strings.Join(filters, ",")
+	}
 	
 	return ""
 }
@@ -499,20 +538,19 @@ func (t *Transcoder) getOptimalAudioSettings(req TranscodeRequest) []string {
 	}
 	args = append(args, "-c:a", audioCodec)
 	
-	// Enhanced audio settings for high-quality content
+	// Conservative audio settings to prevent pops and artifacts
 	if audioCodec == "aac" {
-		// Higher bitrate for better quality with multichannel support
-		args = append(args, "-b:a", "256k")      // Increased for better multichannel quality
+		// Moderate bitrate for compatibility
+		args = append(args, "-b:a", "128k")      // Standard quality
 		args = append(args, "-profile:a", "aac_low")
 		args = append(args, "-ar", "48000")      // Standard sample rate
 		
-		// Enhanced channel handling - preserve up to 5.1 for better audio experience
-		// This will be mixed down appropriately by FFmpeg if source has fewer channels
-		args = append(args, "-ac", "6")          // Support up to 5.1 surround
-		args = append(args, "-channel_layout", "5.1") // Explicit 5.1 layout
+		// Force stereo output for maximum compatibility
+		// This prevents issues with multichannel audio
+		args = append(args, "-ac", "2")          // Stereo output
 		
-		// Audio filtering for better downmixing when needed
-		args = append(args, "-af", "aresample=async=1000") // Better audio sync
+		// No audio filters - let FFmpeg handle conversion naturally
+		// Audio filters can introduce artifacts and pops
 	}
 	
 	return args
@@ -524,50 +562,68 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 	
 	switch req.Container {
 	case "dash":
-		// Low-latency DASH with adaptive segments and optimized settings
-		segDuration := t.getAdaptiveSegmentDuration(req)
+		// Check if ABR ladder is requested
+		if req.EnableABR {
+			return t.getDashABRArgs(req, outputPath)
+		}
+		
+		// Single bitrate DASH with conservative settings
+		// segDuration := t.getAdaptiveSegmentDuration(req)
 		args = append(args,
 			"-f", "dash",
-			"-seg_duration", segDuration,            // Adaptive segment duration
-			"-frag_duration", "0.5",                // 500ms fragments for low latency
+			"-seg_duration", "4",                    // 4s segments for stability
+			"-frag_duration", "2",                  // 2s fragments for better buffering
 			"-use_template", "1",
 			"-use_timeline", "1",
 			"-streaming", "1",                       // Enable streaming mode
-			"-ldash", "1",                          // Low-latency DASH
-			"-target_latency", "2",                 // 2 second target latency
-			"-min_seg_duration", "1",               // Min 1s segments
+			"-ldash", "0",                          // Disable low-latency for stability
+			"-target_latency", "6",                 // 6 second target latency for stability
+			"-min_seg_duration", "2",               // Min 2s segments
 			"-init_seg_name", "init-$RepresentationID$.m4s",
 			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
 			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
 			"-dash_segment_type", "mp4",
 			"-single_file", "0",
-			"-remove_at_exit", "1",                 // Cleanup segments on exit
+			"-frag_type", "duration",                // Use duration-based fragmentation
+			"-avoid_negative_ts", "make_zero",      // Fix timestamp issues
+			// Seek optimization with sidx boxes
+			"-write_prft", "1",                      // Producer Reference Time for sync
+			"-global_sidx", "1",                    // Global SIDX for better seeking
 			// Low-latency optimizations
 			"-utc_timing_url", "https://time.akamai.com/?iso", // UTC timing for sync
 		)
 	case "hls":
+		// Check if ABR ladder is requested
+		if req.EnableABR {
+			return t.getHLSABRArgs(req, outputPath)
+		}
+		
+		// Single bitrate HLS
 		outputDir := filepath.Dir(outputPath)
 		segDuration := t.getAdaptiveSegmentDuration(req)
+		
+		// Use fMP4 segments for better seeking with byte-range support
 		args = append(args,
 			"-f", "hls",
 			"-hls_time", segDuration,               // Adaptive segment duration
 			"-hls_playlist_type", "vod",
-			"-hls_segment_type", "mpegts",
-			"-hls_segment_filename", filepath.Join(outputDir, "segment_%03d.ts"),
-			"-hls_flags", "independent_segments+program_date_time",
+			"-hls_segment_type", "fmp4",            // Use fMP4 for byte-range support
+			"-hls_fmp4_init_filename", "init.mp4",  // Single init segment
+			"-hls_segment_filename", filepath.Join(outputDir, "segment_%03d.m4s"),
+			"-hls_flags", "independent_segments+program_date_time+single_file",
+			// Enable byte-range support for efficient seeking
+			"-hls_segment_options", "movflags=+cmaf+dash+delay_moov+global_sidx+write_colr+write_gama",
 			// Low-latency HLS optimizations
-			"-hls_list_size", "10",                 // Keep more segments in playlist
-			"-hls_delete_threshold", "10",          // Cleanup old segments
+			"-hls_list_size", "0",                  // Keep all segments in playlist
 			"-hls_start_number_source", "datetime", // Better segment numbering
 			// Partial segment support for LL-HLS
 			"-hls_partial_duration", "0.5",        // 500ms partial segments
-			"-hls_segment_options", "movflags=+cmaf+dash+frag_every_frame",
 		)
 		
 		// Add LL-HLS specific settings if seek position indicates need for responsiveness
 		if req.Seek > 0 {
 			args = append(args,
-				"-hls_flags", "independent_segments+program_date_time+temp_file",
+				"-hls_flags", "independent_segments+program_date_time+single_file+temp_file",
 				"-master_pl_name", "master.m3u8",
 				"-master_pl_publish_rate", "2",     // Update master playlist every 2 segments
 			)
@@ -576,10 +632,13 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 	default: // MP4 with streaming optimizations
 		args = append(args,
 			"-f", "mp4",
-			"-movflags", "+faststart+frag_keyframe+empty_moov+dash+cmaf",
+			"-movflags", "+faststart+frag_keyframe+empty_moov+dash+cmaf+global_sidx+write_colr",
 			"-frag_duration", "1",                  // 1s fragments for better seeking
 			"-min_frag_duration", "0.5",            // Min 500ms fragments
 			"-brand", "mp42",                       // Better compatibility
+			// Seek optimization
+			"-write_tmcd", "0",                     // Disable timecode track
+			"-strict", "experimental",              // Enable experimental features
 		)
 	}
 	
@@ -651,6 +710,267 @@ func (t *Transcoder) GetStream(handle *StreamHandle) (io.ReadCloser, error) {
 
 func (t *Transcoder) StopStream(handle *StreamHandle) error {
 	return fmt.Errorf("streaming not implemented in simple transcoder")
+}
+
+// getKeyframeAlignmentArgs returns FFmpeg arguments for keyframe alignment
+func (t *Transcoder) getKeyframeAlignmentArgs(req TranscodeRequest) []string {
+	var args []string
+	
+	// Determine segment duration for adaptive streaming
+	segmentDuration := 2.0 // Default 2 seconds
+	if req.Container == "dash" || req.Container == "hls" {
+		segmentDuration = t.getSegmentDurationFloat(req)
+	}
+	
+	// Force keyframes at consistent intervals matching segment boundaries
+	// This ensures each segment starts with a keyframe for efficient seeking
+	keyframeExpr := fmt.Sprintf("expr:gte(t,n_forced*%.1f)", segmentDuration)
+	args = append(args, "-force_key_frames", keyframeExpr)
+	
+	// Conservative GOP size for stability
+	gopSize := int(segmentDuration * 30) // Standard GOP size
+	args = append(args, "-g", strconv.Itoa(gopSize))
+	
+	// Ensure closed GOPs for better seeking
+	args = append(args, "-flags", "+cgop")
+	
+	// Scene change detection threshold
+	args = append(args, "-sc_threshold", "40")
+	
+	return args
+}
+
+// getSegmentDurationFloat returns segment duration as float for calculations
+func (t *Transcoder) getSegmentDurationFloat(req TranscodeRequest) float64 {
+	// Use consistent segment duration for stability
+	return 4.0 // 4 seconds for all cases
+}
+
+// getDashABRArgs returns DASH arguments for adaptive bitrate streaming
+func (t *Transcoder) getDashABRArgs(req TranscodeRequest, outputPath string) []string {
+	var args []string
+	
+	// Get source dimensions (simplified - in real implementation would probe the file)
+	sourceWidth := 1920
+	sourceHeight := 1080
+	if req.Resolution != nil {
+		sourceWidth = req.Resolution.Width
+		sourceHeight = req.Resolution.Height
+	}
+	
+	// Generate bitrate ladder
+	ladder := t.generateBitrateLadder(sourceWidth, sourceHeight, req.Quality)
+	
+	// Map streams for each quality level
+	var maps []string
+	var adaptationSets []string
+	
+	for i, rung := range ladder {
+		// Create a named output for each quality
+		maps = append(maps,
+			"-map", "0:v:0",
+			"-map", "0:a:0",
+		)
+		
+		// Video encoding settings for this rung
+		streamIndex := i * 2
+		args = append(args,
+			fmt.Sprintf("-c:v:%d", streamIndex), "libx264",
+			fmt.Sprintf("-b:v:%d", streamIndex), fmt.Sprintf("%dk", rung.videoBitrate),
+			fmt.Sprintf("-maxrate:%d", streamIndex), fmt.Sprintf("%dk", int(float64(rung.videoBitrate)*1.5)),
+			fmt.Sprintf("-bufsize:%d", streamIndex), fmt.Sprintf("%dk", rung.videoBitrate*2),
+			fmt.Sprintf("-vf:%d", streamIndex), fmt.Sprintf("scale=%d:%d:flags=lanczos", rung.width, rung.height),
+			fmt.Sprintf("-profile:v:%d", streamIndex), rung.profile,
+			fmt.Sprintf("-level:%d", streamIndex), rung.level,
+			fmt.Sprintf("-crf:%d", streamIndex), strconv.Itoa(rung.crf),
+		)
+		
+		// Audio encoding settings for this rung
+		audioIndex := streamIndex + 1
+		args = append(args,
+			fmt.Sprintf("-c:a:%d", audioIndex), "aac",
+			fmt.Sprintf("-b:a:%d", audioIndex), fmt.Sprintf("%dk", rung.audioBitrate),
+			fmt.Sprintf("-ar:%d", audioIndex), "48000",
+			fmt.Sprintf("-profile:a:%d", audioIndex), "aac_low",
+			// Let FFmpeg handle channels automatically
+		)
+		
+		// Build adaptation set mapping
+		adaptationSets = append(adaptationSets, fmt.Sprintf("id=%d,streams=%d", i, streamIndex))
+		adaptationSets = append(adaptationSets, fmt.Sprintf("id=%d,streams=%d", len(ladder)+i, audioIndex))
+	}
+	
+	// Apply all maps first
+	args = append(maps, args...)
+	
+	// DASH muxer settings with seek optimization
+	segDuration := t.getAdaptiveSegmentDuration(req)
+	args = append(args,
+		"-f", "dash",
+		"-seg_duration", segDuration,
+		"-use_template", "1",
+		"-use_timeline", "1",
+		"-single_file", "0",
+		"-adaptation_sets", strings.Join(adaptationSets, " "),
+		"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
+		"-init_seg_name", "init-$RepresentationID$.m4s",
+		// Seek optimization features
+		"-write_prft", "1",                      // Producer Reference Time
+		"-global_sidx", "1",                    // Global SIDX for all segments
+		"-profile", "urn:mpeg:dash:profile:isoff-on-demand:2011", // On-demand profile
+	)
+	
+	return args
+}
+
+// getHLSABRArgs returns HLS arguments for adaptive bitrate streaming  
+func (t *Transcoder) getHLSABRArgs(req TranscodeRequest, outputPath string) []string {
+	var args []string
+	
+	// Get source dimensions
+	sourceWidth := 1920
+	sourceHeight := 1080
+	if req.Resolution != nil {
+		sourceWidth = req.Resolution.Width
+		sourceHeight = req.Resolution.Height
+	}
+	
+	// Generate bitrate ladder
+	ladder := t.generateBitrateLadder(sourceWidth, sourceHeight, req.Quality)
+	outputDir := filepath.Dir(outputPath)
+	
+	// Create variant streams
+	var variantStreams []string
+	
+	for i, rung := range ladder {
+		// Map video and audio
+		args = append(args,
+			"-map", "0:v:0",
+			"-map", "0:a:0",
+		)
+		
+		// Video encoding settings
+		args = append(args,
+			fmt.Sprintf("-c:v:%d", i), "libx264",
+			fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", rung.videoBitrate),
+			fmt.Sprintf("-maxrate:%d", i), fmt.Sprintf("%dk", int(float64(rung.videoBitrate)*1.5)),
+			fmt.Sprintf("-bufsize:%d", i), fmt.Sprintf("%dk", rung.videoBitrate*2),
+			fmt.Sprintf("-vf:%d", i), fmt.Sprintf("scale=%d:%d:flags=lanczos", rung.width, rung.height),
+			fmt.Sprintf("-profile:v:%d", i), rung.profile,
+			fmt.Sprintf("-level:%d", i), rung.level,
+		)
+		
+		// Audio encoding settings
+		args = append(args,
+			fmt.Sprintf("-c:a:%d", i), "aac",
+			fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", rung.audioBitrate),
+			fmt.Sprintf("-ar:%d", i), "48000",
+			fmt.Sprintf("-profile:a:%d", i), "aac_low",
+		)
+		
+		// Variant playlist info
+		variantStreams = append(variantStreams,
+			fmt.Sprintf("v:%d,a:%d,name:%s", i, i, rung.label),
+		)
+	}
+	
+	// HLS muxer settings
+	segDuration := t.getAdaptiveSegmentDuration(req)
+	args = append(args,
+		"-f", "hls",
+		"-hls_time", segDuration,
+		"-hls_playlist_type", "vod",
+		"-hls_segment_type", "mpegts",
+		"-hls_flags", "independent_segments",
+		"-master_pl_name", "playlist.m3u8",
+		"-hls_segment_filename", filepath.Join(outputDir, "stream_%v/segment_%03d.ts"),
+		"-var_stream_map", strings.Join(variantStreams, " "),
+	)
+	
+	return args
+}
+
+// generateBitrateLadder creates an optimized set of encoding profiles
+func (t *Transcoder) generateBitrateLadder(sourceWidth, sourceHeight, quality int) []bitrateLadderRung {
+	var ladder []bitrateLadderRung
+	
+	// Calculate aspect ratio
+	aspectRatio := float64(sourceWidth) / float64(sourceHeight)
+	
+	// Define standard ladder rungs
+	standardRungs := []struct {
+		height       int
+		videoBitrate int // kbps
+		audioBitrate int // kbps  
+		profile      string
+		level        string
+		crf          int
+		label        string
+	}{
+		{240, 300, 64, "baseline", "3.0", 28, "240p"},
+		{360, 600, 96, "baseline", "3.0", 26, "360p"},
+		{480, 1000, 128, "main", "3.1", 24, "480p"},
+		{720, 2500, 192, "high", "4.0", 23, "720p"},
+		{1080, 5000, 256, "high", "4.1", 22, "1080p"},
+	}
+	
+	// Only include rungs up to source resolution
+	for _, rung := range standardRungs {
+		if rung.height > sourceHeight {
+			break
+		}
+		
+		width := int(float64(rung.height) * aspectRatio)
+		if width%2 != 0 {
+			width++
+		}
+		
+		// Adjust bitrate based on quality setting
+		adjustedBitrate := rung.videoBitrate * quality / 65
+		
+		ladder = append(ladder, bitrateLadderRung{
+			width:        width,
+			height:       rung.height,
+			videoBitrate: adjustedBitrate,
+			audioBitrate: rung.audioBitrate,
+			profile:      rung.profile,
+			level:        rung.level,
+			crf:          rung.crf,
+			label:        rung.label,
+		})
+	}
+	
+	// Always include at least the lowest rung
+	if len(ladder) == 0 {
+		width := int(float64(240) * aspectRatio)
+		if width%2 != 0 {
+			width++
+		}
+		ladder = append(ladder, bitrateLadderRung{
+			width:        width,
+			height:       240,
+			videoBitrate: 300,
+			audioBitrate: 64,
+			profile:      "baseline",
+			level:        "3.0",
+			crf:          28,
+			label:        "240p",
+		})
+	}
+	
+	return ladder
+}
+
+// bitrateLadderRung represents a single quality level in the ABR ladder
+type bitrateLadderRung struct {
+	width        int
+	height       int
+	videoBitrate int    // kbps
+	audioBitrate int    // kbps
+	profile      string // H.264 profile
+	level        string // H.264 level
+	crf          int    // Constant Rate Factor
+	label        string // Human-readable label
 }
 
 // Dashboard methods (basic implementations)

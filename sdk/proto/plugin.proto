@@ -447,11 +447,14 @@ message TranscodeProviderRequest {
   bool prefer_hardware = 11;
   string hardware_type = 12;   // "auto", "nvenc", "vaapi", "qsv", "videotoolbox"
   
+  // Adaptive bitrate streaming
+  bool enable_abr = 13;        // Enable multi-bitrate encoding for DASH/HLS
+  
   // Playback position
-  int64 seek_ns = 13;          // Seek position in nanoseconds
+  int64 seek_ns = 14;          // Seek position in nanoseconds
   
   // Additional options
-  map<string, string> extra_options = 14;
+  map<string, string> extra_options = 15;
 }
 
 message TranscodeHandle {

@@ -579,6 +579,14 @@ func (s *TranscodingProviderServer) StartTranscode(ctx context.Context, req *pro
 		PreferHardware: req.Request.PreferHardware,
 		HardwareType:   HardwareType(req.Request.HardwareType),
 		Seek:           time.Duration(req.Request.SeekNs), // Convert nanoseconds to time.Duration
+		// EnableABR:      req.Request.EnableAbr, // TODO: Uncomment after proto regeneration
+	}
+	
+	// Check ExtraOptions for enable_abr flag (temporary workaround)
+	if req.Request.ExtraOptions != nil {
+		if abrStr, ok := req.Request.ExtraOptions["enable_abr"]; ok {
+			transcodeReq.EnableABR = abrStr == "true"
+		}
 	}
 
 	// Handle resolution if provided

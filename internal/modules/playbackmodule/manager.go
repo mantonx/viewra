@@ -214,8 +214,8 @@ providersReady:
 }
 
 // StartTranscodeFromMediaFile initiates a new transcoding session from a media file ID
-func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string, seekSeconds float64) (*database.TranscodeSession, error) {
-	m.logger.Info("StartTranscodeFromMediaFile called", "media_file_id", mediaFileID, "container", container)
+func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string, seekSeconds float64, enableABR bool) (*database.TranscodeSession, error) {
+	m.logger.Info("StartTranscodeFromMediaFile called", "media_file_id", mediaFileID, "container", container, "enable_abr", enableABR)
 	
 	if !m.initialized {
 		return nil, fmt.Errorf("playback manager not initialized")
@@ -244,12 +244,14 @@ func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container stri
 		Quality:       70,     // Default quality
 		SpeedPriority: plugins.SpeedPriorityBalanced,
 		Seek:          time.Duration(seekSeconds * float64(time.Second)), // Convert seconds to time.Duration
+		EnableABR:     enableABR, // Pass through the ABR flag
 	}
 
 	m.logger.Info("created transcode request from media file",
 		"media_file_id", mediaFileID,
 		"input_path", request.InputPath,
-		"container", request.Container)
+		"container", request.Container,
+		"enable_abr", request.EnableABR)
 
 	return m.StartTranscode(request)
 }

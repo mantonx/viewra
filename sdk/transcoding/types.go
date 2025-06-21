@@ -110,6 +110,9 @@ type TranscodeRequest struct {
 	PreferHardware bool         `json:"prefer_hardware"`
 	HardwareType   HardwareType `json:"hardware_type,omitempty"`
 
+	// Adaptive Bitrate Streaming
+	EnableABR bool `json:"enable_abr,omitempty"` // Enable multi-bitrate encoding
+
 	// Provider-specific overrides
 	ProviderSettings json.RawMessage `json:"provider_settings,omitempty"`
 }

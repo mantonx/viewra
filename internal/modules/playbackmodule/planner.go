@@ -186,6 +186,9 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 	// Determine quality based on bitrate (0-100 scale)
 	quality := p.calculateQuality(targetBitrate)
 
+	// Enable ABR for adaptive streaming containers
+	enableABR := targetContainer == "dash" || targetContainer == "hls"
+
 	// Determine speed priority
 	speedPriority := plugins.SpeedPriorityBalanced
 	if p.isWebBrowser(profile.UserAgent) {
@@ -205,6 +208,7 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 		Resolution:    resolution,
 		Seek:          0, // No seek by default
 		Duration:      0, // Will use full duration
+		EnableABR:     enableABR,
 	}, reason
 }
 

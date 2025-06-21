@@ -2497,8 +2497,11 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 			AudioCodec:        req.AudioCodec,
 			PreferHardware:    req.PreferHardware,
 			HardwareType:      string(req.HardwareType),
+			// EnableAbr:         req.EnableABR, // TODO: Uncomment after proto regeneration
 			SeekNs:            int64(req.Seek), // Convert time.Duration to nanoseconds
-			ExtraOptions:      make(map[string]string), // Empty for now
+			ExtraOptions:      map[string]string{
+				"enable_abr": fmt.Sprintf("%t", req.EnableABR), // Pass ABR flag via extra options
+			},
 		},
 	}
 	

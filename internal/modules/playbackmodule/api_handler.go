@@ -3,9 +3,12 @@ package playbackmodule
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -67,6 +70,7 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 		MediaFileID  string  `json:"media_file_id"`
 		Container    string  `json:"container"`
 		SeekPosition float64 `json:"seek_position,omitempty"` // Optional seek position in seconds
+		EnableABR    bool    `json:"enable_abr,omitempty"`     // Optional ABR flag
 	}
 	
 	parseErr := json.Unmarshal(bodyBytes, &mediaRequest)
@@ -74,8 +78,8 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 	
 	if parseErr == nil && mediaRequest.MediaFileID != "" {
 		// Handle media file based request
-		logger.Info("handling media file based request", "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container, "seek_position", mediaRequest.SeekPosition)
-		session, err := h.manager.StartTranscodeFromMediaFile(mediaRequest.MediaFileID, mediaRequest.Container, mediaRequest.SeekPosition)
+		logger.Info("handling media file based request", "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container, "seek_position", mediaRequest.SeekPosition, "enable_abr", mediaRequest.EnableABR)
+		session, err := h.manager.StartTranscodeFromMediaFile(mediaRequest.MediaFileID, mediaRequest.Container, mediaRequest.SeekPosition, mediaRequest.EnableABR)
 		if err != nil {
 			logger.Error("failed to start transcode from media file", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transcoding session: " + err.Error()})
@@ -448,8 +452,9 @@ func (h *APIHandler) serveSegmentFile(c *gin.Context, sessionID, segmentName str
 
 	segmentPath := filepath.Join(h.getSessionDirectory(sessionID, session), segmentName)
 
-	// Check if file exists
-	if _, err := os.Stat(segmentPath); os.IsNotExist(err) {
+	// Check if file exists and get file info
+	fileInfo, err := os.Stat(segmentPath)
+	if os.IsNotExist(err) {
 		logger.Warn("segment file not found", "path", segmentPath)
 		c.JSON(http.StatusNotFound, gin.H{"error": "segment not found"})
 		return
@@ -464,6 +469,13 @@ func (h *APIHandler) serveSegmentFile(c *gin.Context, sessionID, segmentName str
 		contentType = "video/mp2t"
 	case ".m3u8":
 		contentType = "application/vnd.apple.mpegurl"
+	}
+
+	// Handle byte-range requests
+	rangeHeader := c.Request.Header.Get("Range")
+	if rangeHeader != "" {
+		h.serveByteRange(c, segmentPath, fileInfo, contentType, rangeHeader)
+		return
 	}
 
 	// Low-latency segment delivery optimizations
@@ -521,5 +533,144 @@ func (h *APIHandler) getSessionDirectory(sessionID string, session *database.Tra
 	}
 
 	return filepath.Join(cfg.Transcoding.DataDir, dirName)
+}
+
+// serveByteRange handles HTTP byte-range requests for efficient seeking
+func (h *APIHandler) serveByteRange(c *gin.Context, filePath string, fileInfo os.FileInfo, contentType, rangeHeader string) {
+	fileSize := fileInfo.Size()
+	
+	// Parse Range header (e.g., "bytes=0-1023")
+	rangePrefix := "bytes="
+	if !strings.HasPrefix(rangeHeader, rangePrefix) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid range header"})
+		return
+	}
+	
+	rangeSpec := rangeHeader[len(rangePrefix):]
+	parts := strings.Split(rangeSpec, "-")
+	if len(parts) != 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid range format"})
+		return
+	}
+	
+	var start, end int64
+	var err error
+	
+	// Parse start
+	if parts[0] != "" {
+		start, err = strconv.ParseInt(parts[0], 10, 64)
+		if err != nil || start < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid range start"})
+			return
+		}
+	} else {
+		// Suffix range (e.g., "-500" means last 500 bytes)
+		if parts[1] == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid range"})
+			return
+		}
+		suffixLength, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || suffixLength <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid suffix length"})
+			return
+		}
+		start = fileSize - suffixLength
+		if start < 0 {
+			start = 0
+		}
+		end = fileSize - 1
+	}
+	
+	// Parse end
+	if parts[1] != "" && parts[0] != "" {
+		end, err = strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid range end"})
+			return
+		}
+	} else if parts[0] != "" {
+		// Open-ended range (e.g., "1024-")
+		end = fileSize - 1
+	}
+	
+	// Validate range
+	if start > end || start >= fileSize {
+		c.JSON(http.StatusRequestedRangeNotSatisfiable, gin.H{"error": "range not satisfiable"})
+		return
+	}
+	if end >= fileSize {
+		end = fileSize - 1
+	}
+	
+	// Open file
+	file, err := os.Open(filePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open file"})
+		return
+	}
+	defer file.Close()
+	
+	// Seek to start position
+	_, err = file.Seek(start, 0)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to seek"})
+		return
+	}
+	
+	// Set response headers
+	contentLength := end - start + 1
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
+	c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	c.Header("ETag", fmt.Sprintf("\"%s-%d\"", fileInfo.Name(), fileInfo.ModTime().Unix()))
+	
+	// CORS headers for byte-range requests
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "Range, Content-Type")
+	c.Header("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges")
+	
+	// Set status to 206 Partial Content
+	c.Status(http.StatusPartialContent)
+	
+	// Stream the requested range
+	io.CopyN(c.Writer, file, contentLength)
+}
+
+// parseRangeHeader parses an HTTP Range header
+func parseRangeHeader(rangeHeader string, fileSize int64) (start, end int64, err error) {
+	// Simple implementation - extend as needed
+	rangePrefix := "bytes="
+	if !strings.HasPrefix(rangeHeader, rangePrefix) {
+		return 0, 0, fmt.Errorf("invalid range header")
+	}
+	
+	rangeSpec := rangeHeader[len(rangePrefix):]
+	parts := strings.Split(rangeSpec, "-")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid range format")
+	}
+	
+	// Parse start
+	if parts[0] != "" {
+		start, err = strconv.ParseInt(parts[0], 10, 64)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	
+	// Parse end
+	if parts[1] != "" {
+		end, err = strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			return 0, 0, err
+		}
+	} else {
+		end = fileSize - 1
+	}
+	
+	return start, end, nil
 }
 
