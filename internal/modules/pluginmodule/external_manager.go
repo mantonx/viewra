@@ -2497,6 +2497,7 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 			AudioCodec:        req.AudioCodec,
 			PreferHardware:    req.PreferHardware,
 			HardwareType:      string(req.HardwareType),
+			SeekNs:            int64(req.Seek), // Convert time.Duration to nanoseconds
 			ExtraOptions:      make(map[string]string), // Empty for now
 		},
 	}
@@ -2644,6 +2645,7 @@ func (p *ExternalTranscodingProvider) StartStream(ctx context.Context, req plugi
 			AudioCodec:        req.AudioCodec,
 			PreferHardware:    req.PreferHardware,
 			HardwareType:      string(req.HardwareType),
+			SeekNs:            int64(req.Seek), // Convert time.Duration to nanoseconds
 			ExtraOptions:      make(map[string]string), // Empty for now
 		},
 	}

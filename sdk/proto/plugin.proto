@@ -447,8 +447,11 @@ message TranscodeProviderRequest {
   bool prefer_hardware = 11;
   string hardware_type = 12;   // "auto", "nvenc", "vaapi", "qsv", "videotoolbox"
   
+  // Playback position
+  int64 seek_ns = 13;          // Seek position in nanoseconds
+  
   // Additional options
-  map<string, string> extra_options = 13;
+  map<string, string> extra_options = 14;
 }
 
 message TranscodeHandle {

@@ -319,55 +319,155 @@ func (t *Transcoder) StopTranscode(handle *TranscodeHandle) error {
 	return nil
 }
 
-// buildSimpleFFmpegArgs builds FFmpeg arguments using the old working approach
+// buildSimpleFFmpegArgs builds optimized FFmpeg arguments for high-quality transcoding
 func (t *Transcoder) buildSimpleFFmpegArgs(req TranscodeRequest, outputPath string) []string {
 	var args []string
 
 	// Always overwrite output files
 	args = append(args, "-y")
 
+	// Hardware acceleration detection (auto-detect available hardware)
+	args = append(args, "-hwaccel", "auto")
+	
+	// Seek to position if specified (input seeking for efficiency)
+	if req.Seek > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", req.Seek.Seconds()))
+	}
+
 	// Input file
 	args = append(args, "-i", req.InputPath)
 
-	// Video codec
-	videoCodec := req.VideoCodec
-	if videoCodec == "" {
-		videoCodec = "libx264"
-	}
+	// Advanced video mapping and filtering
+	args = append(args, "-map", "0:v:0") // Map first video stream
+	args = append(args, "-map", "0:a:0") // Map first audio stream
+
+	// Video codec with intelligent defaults
+	videoCodec := t.getOptimalVideoCodec(req)
 	args = append(args, "-c:v", videoCodec)
 
-	// Preset based on speed priority
-	preset := "medium"
-	switch req.SpeedPriority {
+	// Preset optimization based on speed priority
+	preset := t.getOptimalPreset(req.SpeedPriority, videoCodec)
+	if preset != "" {
+		args = append(args, "-preset", preset)
+	}
+
+	// Quality settings optimized for content
+	qualityArgs := t.getOptimalQualitySettings(req, videoCodec)
+	args = append(args, qualityArgs...)
+
+	// Video filtering for quality enhancement
+	videoFilters := t.getVideoFilters(req)
+	if len(videoFilters) > 0 {
+		args = append(args, "-vf", videoFilters)
+	}
+
+	// Audio settings optimized for source content
+	audioArgs := t.getOptimalAudioSettings(req)
+	args = append(args, audioArgs...)
+
+	// Threading and performance optimization
+	args = append(args, "-threads", "0") // Use all available CPU cores
+
+	// Container-specific settings with quality optimizations
+	containerArgs := t.getContainerSpecificArgs(req, outputPath)
+	args = append(args, containerArgs...)
+
+	// Output file
+	args = append(args, outputPath)
+
+	return args
+}
+
+// getOptimalVideoCodec selects the best video codec based on request and available hardware
+func (t *Transcoder) getOptimalVideoCodec(req TranscodeRequest) string {
+	if req.VideoCodec != "" {
+		return req.VideoCodec
+	}
+	
+	// Default to H.264 for compatibility, hardware acceleration will auto-detect
+	return "libx264"
+}
+
+// getOptimalPreset selects the best encoding preset for quality/speed balance
+func (t *Transcoder) getOptimalPreset(speedPriority SpeedPriority, codec string) string {
+	switch speedPriority {
 	case SpeedPriorityFastest:
-		preset = "ultrafast"
-	case SpeedPriorityBalanced:
-		preset = "medium"
+		return "faster"     // Balance speed vs quality
 	case SpeedPriorityQuality:
-		preset = "slow"
+		return "slow"       // High quality
+	default:
+		return "medium"     // Balanced default
 	}
-	args = append(args, "-preset", preset)
+}
 
-	// Quality (CRF)
-	crf := 51 - (req.Quality * 33 / 100) // Map 0-100 to CRF 51-18
-	if crf < 18 {
-		crf = 18
+// getOptimalQualitySettings returns quality parameters optimized for content
+func (t *Transcoder) getOptimalQualitySettings(req TranscodeRequest, codec string) []string {
+	var args []string
+	
+	// CRF calculation with improved mapping for better quality
+	// Map 0-100 quality to CRF 28-16 for better visual quality
+	crf := 28 - (req.Quality * 12 / 100)
+	if crf < 16 {
+		crf = 16 // Maximum quality
 	}
-	if crf > 51 {
-		crf = 51
+	if crf > 28 {
+		crf = 28 // Minimum quality for streaming
 	}
+	
 	args = append(args, "-crf", strconv.Itoa(crf))
+	
+	// Additional quality settings for H.264
+	if codec == "libx264" {
+		args = append(args, "-profile:v", "high")
+		args = append(args, "-level", "4.1")
+		// Optimize for streaming with good compression
+		args = append(args, "-x264-params", "ref=4:bframes=3:b-pyramid=normal:mixed-refs=1:8x8dct=1:trellis=1:fast-pskip=0:cabac=1")
+	}
+	
+	return args
+}
 
-	// Audio codec
+// getVideoFilters returns video filters for quality enhancement
+func (t *Transcoder) getVideoFilters(req TranscodeRequest) string {
+	// Scale filter for resolution optimization if needed
+	// This will be expanded based on source content analysis
+	
+	return ""
+}
+
+// getOptimalAudioSettings returns optimized audio encoding settings
+func (t *Transcoder) getOptimalAudioSettings(req TranscodeRequest) []string {
+	var args []string
+	
 	audioCodec := req.AudioCodec
 	if audioCodec == "" {
 		audioCodec = "aac"
 	}
 	args = append(args, "-c:a", audioCodec)
-	args = append(args, "-b:a", "128k")
-	args = append(args, "-ac", "2") // Force stereo
+	
+	// Enhanced audio settings for high-quality content
+	if audioCodec == "aac" {
+		// Higher bitrate for better quality with multichannel support
+		args = append(args, "-b:a", "256k")      // Increased for better multichannel quality
+		args = append(args, "-profile:a", "aac_low")
+		args = append(args, "-ar", "48000")      // Standard sample rate
+		
+		// Enhanced channel handling - preserve up to 5.1 for better audio experience
+		// This will be mixed down appropriately by FFmpeg if source has fewer channels
+		args = append(args, "-ac", "6")          // Support up to 5.1 surround
+		args = append(args, "-channel_layout", "5.1") // Explicit 5.1 layout
+		
+		// Audio filtering for better downmixing when needed
+		args = append(args, "-af", "aresample=async=1000") // Better audio sync
+	}
+	
+	return args
+}
 
-	// Container-specific settings
+// getContainerSpecificArgs returns optimized settings for each container format
+func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath string) []string {
+	var args []string
+	
 	switch req.Container {
 	case "dash":
 		args = append(args,
@@ -378,6 +478,8 @@ func (t *Transcoder) buildSimpleFFmpegArgs(req TranscodeRequest, outputPath stri
 			"-init_seg_name", "init-$RepresentationID$.m4s",
 			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
 			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
+			"-dash_segment_type", "mp4",            // Better compatibility
+			"-single_file", "0",                    // Separate init segments
 		)
 	case "hls":
 		outputDir := filepath.Dir(outputPath)
@@ -385,18 +487,17 @@ func (t *Transcoder) buildSimpleFFmpegArgs(req TranscodeRequest, outputPath stri
 			"-f", "hls",
 			"-hls_time", "4",
 			"-hls_playlist_type", "vod",
+			"-hls_segment_type", "mpegts",
 			"-hls_segment_filename", filepath.Join(outputDir, "segment_%03d.ts"),
+			"-hls_flags", "independent_segments",    // Better seeking
 		)
-	default:
+	default: // MP4
 		args = append(args,
 			"-f", "mp4",
-			"-movflags", "+faststart",
+			"-movflags", "+faststart+frag_keyframe+empty_moov", // Optimized for streaming
 		)
 	}
-
-	// Output file
-	args = append(args, outputPath)
-
+	
 	return args
 }
 

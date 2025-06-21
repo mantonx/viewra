@@ -189,6 +189,7 @@ func (p *SoftwareTranscoder) StartTranscode(ctx context.Context, req plugins.Tra
 		AudioCodec:     req.AudioCodec,
 		Quality:        req.Quality,
 		SpeedPriority:  transcoding.SpeedPriority(req.SpeedPriority),
+		Seek:           req.Seek, // Pass through the seek position
 		HardwareType:   transcoding.HardwareTypeNone,
 		PreferHardware: false,
 	}
@@ -281,6 +282,7 @@ func (p *SoftwareTranscoder) StartStream(ctx context.Context, req plugins.Transc
 		AudioCodec:     req.AudioCodec,
 		Quality:        req.Quality,
 		SpeedPriority:  transcoding.SpeedPriority(req.SpeedPriority),
+		Seek:           req.Seek, // Pass through the seek position
 		HardwareType:   transcoding.HardwareTypeNone,
 		PreferHardware: false,
 	}
