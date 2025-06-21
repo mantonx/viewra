@@ -375,8 +375,26 @@ func (h *APIHandler) serveManifestFile(c *gin.Context, sessionID, filename strin
 		contentType = "application/vnd.apple.mpegurl"
 	}
 
+	// Low-latency streaming optimizations
 	c.Header("Content-Type", contentType)
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Header("Transfer-Encoding", "chunked")                    // Enable chunked transfer
+	c.Header("Access-Control-Allow-Origin", "*")               // CORS for streaming
+	c.Header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "Range, Content-Type")
+	c.Header("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges")
+	
+	// DASH-specific low-latency headers
+	if contentType == "application/dash+xml" {
+		c.Header("X-Suggested-Presentation-Delay", "1.0")      // 1 second delay for low latency
+	}
+	
+	// HLS-specific low-latency headers  
+	if contentType == "application/vnd.apple.mpegurl" {
+		c.Header("X-Playlist-Type", "VOD")
+		c.Header("X-Version", "7")                              // Support for EXT-X-PART
+	}
+	
 	c.File(manifestPath)
 }
 
@@ -408,8 +426,28 @@ func (h *APIHandler) serveSegmentFile(c *gin.Context, sessionID, segmentName str
 		contentType = "application/vnd.apple.mpegurl"
 	}
 
+	// Low-latency segment delivery optimizations
 	c.Header("Content-Type", contentType)
-	c.Header("Cache-Control", "public, max-age=3600")
+	c.Header("Accept-Ranges", "bytes")                         // Enable range requests
+	c.Header("Transfer-Encoding", "chunked")                   // Chunked transfer for better streaming
+	c.Header("Access-Control-Allow-Origin", "*")              // CORS support
+	c.Header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "Range, Content-Type")
+	c.Header("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges")
+	
+	// Different caching strategies based on segment type
+	if filepath.Ext(segmentName) == ".m4s" || filepath.Ext(segmentName) == ".ts" {
+		// Video/audio segments - cache aggressively
+		c.Header("Cache-Control", "public, max-age=31536000, immutable") // 1 year for segments
+		c.Header("ETag", fmt.Sprintf("\"%s\"", segmentName))             // Add ETag for validation
+	} else {
+		// Other files - shorter cache
+		c.Header("Cache-Control", "public, max-age=60")                  // 1 minute for other files
+	}
+	
+	// Enable HTTP/2 Server Push hints if available
+	c.Header("Link", fmt.Sprintf("<%s>; rel=preload; as=video", segmentName))
+	
 	c.File(segmentPath)
 }
 
@@ -445,24 +483,3 @@ func (h *APIHandler) getSessionDirectory(sessionID string, session *database.Tra
 	return filepath.Join(cfg.Transcoding.DataDir, dirName)
 }
 
-func (h *APIHandler) findSessionDirectory(sessionID string) string {
-	cfg := config.Get()
-
-	// Try common patterns
-	patterns := []string{
-		fmt.Sprintf("dash_*_%s", sessionID),
-		fmt.Sprintf("hls_*_%s", sessionID),
-		fmt.Sprintf("software_*_%s", sessionID),
-		fmt.Sprintf("*_%s", sessionID),
-	}
-
-	for _, pattern := range patterns {
-		matches, err := filepath.Glob(filepath.Join(cfg.Transcoding.DataDir, pattern))
-		if err == nil && len(matches) > 0 {
-			return filepath.Base(matches[0])
-		}
-	}
-
-	// Default fallback
-	return sessionID
-}

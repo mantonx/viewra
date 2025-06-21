@@ -470,35 +470,83 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 	
 	switch req.Container {
 	case "dash":
+		// Low-latency DASH with adaptive segments and optimized settings
+		segDuration := t.getAdaptiveSegmentDuration(req)
 		args = append(args,
 			"-f", "dash",
-			"-seg_duration", "4",
+			"-seg_duration", segDuration,            // Adaptive segment duration
+			"-frag_duration", "500000",              // 500ms fragments for low latency (microseconds)
 			"-use_template", "1",
 			"-use_timeline", "1",
+			"-streaming", "1",                       // Enable streaming mode
+			"-ldash", "1",                          // Low-latency DASH
+			"-target_latency", "2000000",           // 2 second target latency (microseconds)
+			"-min_seg_duration", "1000000",         // Min 1s segments (microseconds)
+			"-max_seg_duration", "8000000",         // Max 8s segments (microseconds)
 			"-init_seg_name", "init-$RepresentationID$.m4s",
 			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
 			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
-			"-dash_segment_type", "mp4",            // Better compatibility
-			"-single_file", "0",                    // Separate init segments
+			"-dash_segment_type", "mp4",
+			"-single_file", "0",
+			"-remove_at_exit", "1",                 // Cleanup segments on exit
+			// Low-latency optimizations
+			"-seg_duration_adaptive", "1",          // Adaptive segment duration
+			"-utc_timing_url", "https://time.akamai.com/?iso", // UTC timing for sync
 		)
 	case "hls":
 		outputDir := filepath.Dir(outputPath)
+		segDuration := t.getAdaptiveSegmentDuration(req)
 		args = append(args,
 			"-f", "hls",
-			"-hls_time", "4",
+			"-hls_time", segDuration,               // Adaptive segment duration
 			"-hls_playlist_type", "vod",
 			"-hls_segment_type", "mpegts",
 			"-hls_segment_filename", filepath.Join(outputDir, "segment_%03d.ts"),
-			"-hls_flags", "independent_segments",    // Better seeking
+			"-hls_flags", "independent_segments+program_date_time",
+			// Low-latency HLS optimizations
+			"-hls_list_size", "10",                 // Keep more segments in playlist
+			"-hls_delete_threshold", "10",          // Cleanup old segments
+			"-hls_start_number_source", "datetime", // Better segment numbering
+			// Partial segment support for LL-HLS
+			"-hls_partial_duration", "0.5",        // 500ms partial segments
+			"-hls_segment_options", "movflags=+cmaf+dash+frag_every_frame",
 		)
-	default: // MP4
+		
+		// Add LL-HLS specific settings if seek position indicates need for responsiveness
+		if req.Seek > 0 {
+			args = append(args,
+				"-hls_flags", "independent_segments+program_date_time+temp_file",
+				"-master_pl_name", "master.m3u8",
+				"-master_pl_publish_rate", "2",     // Update master playlist every 2 segments
+			)
+		}
+		
+	default: // MP4 with streaming optimizations
 		args = append(args,
 			"-f", "mp4",
-			"-movflags", "+faststart+frag_keyframe+empty_moov", // Optimized for streaming
+			"-movflags", "+faststart+frag_keyframe+empty_moov+dash+cmaf",
+			"-frag_duration", "1000000",            // 1s fragments for better seeking
+			"-min_frag_duration", "500000",         // Min 500ms fragments
+			"-brand", "mp42",                       // Better compatibility
 		)
 	}
 	
 	return args
+}
+
+// getAdaptiveSegmentDuration returns segment duration based on content and seek position
+func (t *Transcoder) getAdaptiveSegmentDuration(req TranscodeRequest) string {
+	// For seek-ahead requests, use shorter segments for better responsiveness
+	if req.Seek > 0 {
+		return "2" // 2 second segments for seek-ahead
+	}
+	
+	// For regular playback, optimize based on content characteristics
+	// Start with shorter segments, can be adapted during transcoding
+	
+	// Default to 3 seconds for good balance of startup time vs efficiency
+	// FFmpeg will adapt this based on keyframe intervals and content
+	return "3"
 }
 
 // monitorSession monitors a transcoding session

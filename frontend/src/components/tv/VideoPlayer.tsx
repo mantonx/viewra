@@ -349,23 +349,31 @@ const VideoPlayer: React.FC = () => {
       // Attach player to video element
       await player.attach(videoRef.current);
 
-      // Configure player for fast startup
+      // Configure player for low-latency streaming and fast startup
       player.configure({
         streaming: {
-          bufferingGoal: 10, // Reduced from 30 for faster startup
-          rebufferingGoal: 3, // Reduced from 5 for faster startup
-          bufferBehind: 30,
+          // Low-latency streaming optimizations
+          bufferingGoal: 4,           // Very low buffering for responsiveness
+          rebufferingGoal: 2,         // Quick rebuffering
+          bufferBehind: 10,           // Keep minimal buffer behind
+          retryParameters: {
+            timeout: 2000,            // Very fast timeout for low latency
+            maxAttempts: 2,           // Quick failure detection
+            baseDelay: 100,           // Fast initial retry
+            backoffFactor: 1.2,       // Minimal backoff
+            fuzzFactor: 0.1,          // Low variance
+          },
         },
         manifest: {
           retryParameters: {
-            timeout: 5000, // Faster timeout
-            maxAttempts: 3, // Fewer attempts for faster failure detection
-            baseDelay: 200, // Faster initial retry
-            backoffFactor: 1.5,
-            fuzzFactor: 0.5,
+            timeout: 2000,            // Very fast timeout for low latency
+            maxAttempts: 2,           // Quick failure detection
+            baseDelay: 100,           // Fast initial retry
+            backoffFactor: 1.2,       // Minimal backoff
+            fuzzFactor: 0.1,          // Low variance
           },
         },
-      });
+      } as any); // Use any to bypass TypeScript restrictions for advanced config
 
       // Player initialization starting
 
