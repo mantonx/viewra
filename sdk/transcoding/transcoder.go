@@ -270,7 +270,7 @@ func (t *Transcoder) GetProgress(handle *TranscodeHandle) (*TranscodingProgress,
 	return progress, nil
 }
 
-// StopTranscode stops a transcoding session
+// StopTranscode stops a transcoding session with improved cleanup
 func (t *Transcoder) StopTranscode(handle *TranscodeHandle) error {
 	if handle == nil {
 		return fmt.Errorf("invalid handle")
@@ -287,36 +287,90 @@ func (t *Transcoder) StopTranscode(handle *TranscodeHandle) error {
 		return fmt.Errorf("session not found: %s", handle.SessionID)
 	}
 
-	// Cancel the context (this should stop FFmpeg)
+	if t.logger != nil {
+		t.logger.Info("stopping transcoding session", "session_id", handle.SessionID)
+	}
+
+	// Cancel the context first
 	session.Cancel()
 
-	// Kill the process group if it's still running
+	// Improved process termination with timeout
 	if session.Process != nil && session.Process.Process != nil {
-		// Kill the entire process group to ensure background processes are cleaned up
-		pgid, err := syscall.Getpgid(session.Process.Process.Pid)
-		if err == nil {
-			if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
-				if t.logger != nil {
-					t.logger.Warn("failed to kill FFmpeg process group", "error", err)
-				}
-				// Fallback to killing the main process
-				if err := session.Process.Process.Kill(); err != nil {
-					if t.logger != nil {
-						t.logger.Warn("failed to kill FFmpeg process", "error", err)
-					}
-				}
+		pid := session.Process.Process.Pid
+		
+		// Try graceful termination first
+		if err := t.terminateProcessGroup(pid); err != nil {
+			if t.logger != nil {
+				t.logger.Warn("graceful termination failed, forcing kill", "pid", pid, "error", err)
 			}
-		} else {
-			// Fallback to killing the main process
-			if err := session.Process.Process.Kill(); err != nil {
-				if t.logger != nil {
-					t.logger.Warn("failed to kill FFmpeg process", "error", err)
-				}
-			}
+			// Force kill if graceful termination fails
+			t.forceKillProcess(pid)
 		}
+		
+		// Wait for process to actually terminate (with timeout)
+		go func() {
+			timeout := time.NewTimer(10 * time.Second)
+			defer timeout.Stop()
+			
+			done := make(chan error, 1)
+			go func() {
+				done <- session.Process.Wait()
+			}()
+			
+			select {
+			case <-done:
+				if t.logger != nil {
+					t.logger.Info("FFmpeg process terminated", "session_id", handle.SessionID, "pid", pid)
+				}
+			case <-timeout.C:
+				if t.logger != nil {
+					t.logger.Warn("FFmpeg process did not terminate within timeout", "session_id", handle.SessionID, "pid", pid)
+				}
+			}
+		}()
 	}
 
 	return nil
+}
+
+// terminateProcessGroup gracefully terminates a process group
+func (t *Transcoder) terminateProcessGroup(pid int) error {
+	// Get process group ID
+	pgid, err := syscall.Getpgid(pid)
+	if err != nil {
+		return fmt.Errorf("failed to get process group: %w", err)
+	}
+	
+	// Send SIGTERM to the entire process group
+	if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("failed to send SIGTERM to process group: %w", err)
+	}
+	
+	// Give it 5 seconds to terminate gracefully
+	time.Sleep(5 * time.Second)
+	
+	// Check if the main process is still running
+	if err := syscall.Kill(pid, 0); err == nil {
+		// Process is still running, need to force kill
+		return fmt.Errorf("process %d still running after SIGTERM", pid)
+	}
+	
+	return nil
+}
+
+// forceKillProcess forcefully kills a process and its group
+func (t *Transcoder) forceKillProcess(pid int) {
+	if t.logger != nil {
+		t.logger.Warn("force killing FFmpeg process", "pid", pid)
+	}
+	
+	// Try to kill the process group first
+	if pgid, err := syscall.Getpgid(pid); err == nil {
+		syscall.Kill(-pgid, syscall.SIGKILL)
+	}
+	
+	// Kill the main process
+	syscall.Kill(pid, syscall.SIGKILL)
 }
 
 // buildSimpleFFmpegArgs builds optimized FFmpeg arguments for high-quality transcoding
