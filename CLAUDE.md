@@ -245,6 +245,28 @@ const data = await apiCall<ResponseType>('/api/endpoint');
 - Restart services: `docker-compose restart`
 - Clean rebuild: `make clean && make dev-setup`
 
+## Development Workflow Preferences
+
+**CRITICAL DEVELOPMENT RULES:**
+
+### Plugin Development
+- **ALWAYS** use the build script: `make build-plugin p=PLUGIN_NAME`
+- **NEVER** manually build plugins with `go build` or Docker commands
+- The build script is fixed and handles permissions correctly
+- Plugin builds are fast and include hot-reloading
+
+### Backend Development
+- **AVOID** restarting the backend container when possible
+- **USE** Air hot-reloading for Go code changes (it's already configured)
+- Air automatically rebuilds and restarts the backend on file changes
+- Only restart the backend container if there are container-level issues
+
+### Frontend Development  
+- **AVOID** restarting the frontend container when possible
+- **USE** Vite hot-reload for React/TypeScript changes (it's already configured)
+- Vite automatically updates the browser on file changes
+- Only restart if there are dependency or configuration issues
+
 ## Tool Preferences
 
 ### File System Operations
@@ -252,15 +274,14 @@ const data = await apiCall<ResponseType>('/api/endpoint');
 - These tools provide better performance and integration compared to traditional file reading tools
 
 ### Build and Development
-- **ALWAYS**: Use Docker Compose commands for building and running
-- **NEVER**: Run `go build` or `go run` directly on the host
-- **NEVER**: Install Go dependencies on the host
-- **RELY ON AIR**: The development environment uses Air for automatic hot reloading
-  - Air watches all Go files and rebuilds automatically on changes
-  - No manual rebuilds needed - just save the file
-  - Check `.air.toml` for configuration (already set up)
-  - If build fails, check `docker-compose logs backend` for errors
-- The Docker environment handles all builds automatically with hot reloading
+- **ALWAYS**: Use the build script `make build-plugin p=PLUGIN_NAME` for plugin builds
+- **NEVER**: Run `go build` directly for plugins or manually build with Docker
+- **AVOID**: Restarting backend/frontend containers unnecessarily
+- **RELY ON HOT-RELOAD**: 
+  - Backend: Air automatically rebuilds Go code changes
+  - Frontend: Vite automatically updates React/TypeScript changes
+  - Both systems watch files and update automatically on save
+- **PREFER**: MCP filesystem tools over traditional file operations
 - Available MCP filesystem operations:
   - `mcp__filesystem__read_file` - Read single files
   - `mcp__filesystem__read_multiple_files` - Read multiple files efficiently
