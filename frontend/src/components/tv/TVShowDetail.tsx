@@ -155,7 +155,7 @@ const TVShowDetail: React.FC = () => {
   }, [loadTVShowData]);
 
   const handlePlayEpisode = (episodeId: string) => {
-    navigate(`/watch/episode/${episodeId}`);
+    navigate(`/player/episode/${episodeId}`);
   };
 
   const formatDuration = (seconds?: number) => {

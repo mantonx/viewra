@@ -16,6 +16,11 @@ func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
 		api.GET("/session/:sessionId", handler.HandleGetSession)
 		api.DELETE("/session/:sessionId", handler.HandleStopTranscode)
 		api.GET("/sessions", handler.HandleListSessions)
+		
+		// Enhanced session management
+		api.DELETE("/sessions/all", handler.HandleStopAllSessions)
+		api.POST("/sessions/cleanup", handler.HandleCleanupStaleSessions)
+		api.GET("/sessions/orphaned", handler.HandleListOrphanedSessions)
 
 		// Seek-ahead functionality
 		api.POST("/seek-ahead", handler.HandleSeekAhead)

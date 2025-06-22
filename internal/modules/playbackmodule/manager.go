@@ -278,6 +278,11 @@ func (m *Manager) GetSession(sessionID string) (*database.TranscodeSession, erro
 	return m.sessionStore.GetSession(sessionID)
 }
 
+// GetSessionStore returns the session store for direct access
+func (m *Manager) GetSessionStore() *core.SessionStore {
+	return m.sessionStore
+}
+
 // ListSessions returns all sessions
 func (m *Manager) ListSessions() ([]*database.TranscodeSession, error) {
 	if !m.initialized {

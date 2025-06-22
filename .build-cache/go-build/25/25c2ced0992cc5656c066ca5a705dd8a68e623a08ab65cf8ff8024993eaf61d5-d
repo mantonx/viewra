@@ -1,0 +1,17 @@
+./asset_client.go
+./base_plugin.go
+./build_helper.go
+./client.go
+./config.go
+./dashboard_helpers.go
+./enrichment_client.go
+./grpc_impl.go
+./health.go
+./helpers.go
+./interfaces.go
+./performance.go
+./provider.go
+./resource_manager.go
+./transcoding_types.go
+./types.go
+./validation.go

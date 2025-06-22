@@ -6,34 +6,46 @@ import Admin from './pages/Admin';
 import Music from './pages/Music';
 import TVShows from './pages/TVShows';
 import EnrichmentDashboard from './pages/EnrichmentDashboard';
-import VideoPlayer from './components/tv/VideoPlayer';
+
 import TVShowDetail from './components/tv/TVShowDetail';
 import VideoPlayerTest from './pages/VideoPlayerTest';
+import EpisodePlayer from './pages/player/EpisodePlayer';
+import MoviePlayer from './pages/player/MoviePlayer';
+import { ThemeProvider } from './providers/ThemeProvider';
 
 const App = () => {
   return (
     <Provider>
-      <div className="min-h-screen bg-slate-950">
-        <Header />
-        <main className="container mx-auto px-4 py-8">
-          {/* Docker Compose Development Environment */}
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/music" element={<Music />} />
-            <Route path="/tv-shows" element={<TVShows />} />
-            <Route path="/tv-shows/:showId" element={<TVShowDetail />} />
-            <Route path="/watch/episode/:episodeId" element={<VideoPlayer />} />
-            <Route path="/video-test" element={<VideoPlayerTest />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/enrichment-dashboard" element={<EnrichmentDashboard />} />
-            {/* Future routes for media manager:
-                <Route path="/library" element={<Library />} />
-                <Route path="/media/:id" element={<MediaDetail />} />
-                <Route path="/settings" element={<Settings />} />
-            */}
-          </Routes>
-        </main>
-      </div>
+      <ThemeProvider defaultTheme="system">
+        <div className="min-h-screen bg-background text-foreground">
+          <Header />
+          <main className="container mx-auto px-4 py-8">
+            {/* Docker Compose Development Environment */}
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/music" element={<Music />} />
+              <Route path="/tv-shows" element={<TVShows />} />
+              <Route path="/tv-shows/:showId" element={<TVShowDetail />} />
+              
+              {/* New MediaPlayer routes */}
+              <Route path="/player/episode/:episodeId" element={<EpisodePlayer />} />
+              <Route path="/player/movie/:movieId" element={<MoviePlayer />} />
+              
+              {/* Test route */}
+              <Route path="/video-test" element={<VideoPlayerTest />} />
+              
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/enrichment-dashboard" element={<EnrichmentDashboard />} />
+              
+              {/* Future routes for media manager:
+                  <Route path="/library" element={<Library />} />
+                  <Route path="/media/:id" element={<MediaDetail />} />
+                  <Route path="/settings" element={<Settings />} />
+              */}
+            </Routes>
+          </main>
+        </div>
+      </ThemeProvider>
     </Provider>
   );
 };

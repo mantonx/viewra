@@ -266,6 +266,7 @@ const data = await apiCall<ResponseType>('/api/endpoint');
 - **USE** Vite hot-reload for React/TypeScript changes (it's already configured)
 - Vite automatically updates the browser on file changes
 - Only restart if there are dependency or configuration issues
+- **STORYBOOK**: No need to restart Storybook - it has fast reload and will automatically update when files change
 
 ## Tool Preferences
 

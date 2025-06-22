@@ -213,7 +213,7 @@ const VideoPlayerTest: React.FC = () => {
 
                       {/* Play button overlay */}
                       <Link
-                        to={`/watch/episode/${episode.id}`}
+                        to={`/player/episode/${episode.id}`}
                         className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
                       >
                         <Play className="w-10 h-10 text-white" />
@@ -279,7 +279,7 @@ const VideoPlayerTest: React.FC = () => {
 
                         {/* Play button */}
                         <Link
-                          to={`/watch/episode/${episode.id}`}
+                          to={`/player/episode/${episode.id}`}
                           className="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex-shrink-0"
                         >
                           <Play className="w-5 h-5" />

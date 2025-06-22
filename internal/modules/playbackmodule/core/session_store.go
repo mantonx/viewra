@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,8 +81,8 @@ func (s *SessionStore) GetSession(sessionID string) (*database.TranscodeSession,
 		return nil, fmt.Errorf("session not found: %w", err)
 	}
 
-	// Update last accessed time
-	s.db.Model(&session).Update("last_accessed", time.Now())
+	// Don't update last_accessed automatically - only update for active operations
+	// This was preventing cleanup of old sessions
 
 	return &session, nil
 }
@@ -229,16 +230,30 @@ func (s *SessionStore) CleanupExpiredSessions(policy RetentionPolicy) (int, erro
 
 	// Find sessions to cleanup
 	var sessions []*database.TranscodeSession
-	if err := s.db.Where("last_accessed < ? AND status IN ?", cutoffTime, []string{"completed", "failed"}).
+	if err := s.db.Where("last_accessed < ? AND status IN ?", cutoffTime, []string{"completed", "failed", "cancelled"}).
 		Find(&sessions).Error; err != nil {
 		return 0, fmt.Errorf("failed to find expired sessions: %w", err)
 	}
 
-	// Delete expired sessions
+	// Delete expired sessions and their directories
 	if len(sessions) > 0 {
 		sessionIDs := make([]string, len(sessions))
 		for i, session := range sessions {
 			sessionIDs[i] = session.ID
+			
+			// Also remove the directory if it exists
+			if session.DirectoryPath != "" {
+				if err := os.RemoveAll(session.DirectoryPath); err != nil {
+					s.logger.Warn("failed to remove session directory", 
+						"session_id", session.ID, 
+						"path", session.DirectoryPath, 
+						"error", err)
+				} else {
+					s.logger.Debug("removed session directory", 
+						"session_id", session.ID, 
+						"path", session.DirectoryPath)
+				}
+			}
 		}
 
 		if err := s.db.Where("id IN ?", sessionIDs).Delete(&database.TranscodeSession{}).Error; err != nil {
@@ -246,9 +261,73 @@ func (s *SessionStore) CleanupExpiredSessions(policy RetentionPolicy) (int, erro
 		}
 
 		s.logger.Info("cleaned up expired sessions", "count", len(sessions))
+		
+		// Log details about what was cleaned
+		for _, session := range sessions {
+			s.logger.Debug("cleaned session details", 
+				"session_id", session.ID,
+				"status", session.Status,
+				"directory_path", session.DirectoryPath,
+				"has_dir", session.DirectoryPath != "")
+		}
 	}
 
 	return len(sessions), nil
+}
+
+// CleanupStaleSessions marks running/queued sessions as failed if they've been stuck for too long
+func (s *SessionStore) CleanupStaleSessions(maxAge time.Duration) (int, error) {
+	cutoffTime := time.Now().Add(-maxAge)
+	
+	// Find stale running/queued sessions
+	var staleSessions []*database.TranscodeSession
+	if err := s.db.Where("last_accessed < ? AND status IN ?", cutoffTime, []string{"running", "queued"}).
+		Find(&staleSessions).Error; err != nil {
+		return 0, fmt.Errorf("failed to find stale sessions: %w", err)
+	}
+	
+	// Mark them as failed
+	if len(staleSessions) > 0 {
+		sessionIDs := make([]string, len(staleSessions))
+		for i, session := range staleSessions {
+			sessionIDs[i] = session.ID
+		}
+		
+		// Update status to failed with explanation
+		updates := map[string]interface{}{
+			"status": "failed",
+			"result": `{"error": "Session timed out - no activity for too long"}`,
+			"end_time": time.Now(),
+		}
+		
+		if err := s.db.Model(&database.TranscodeSession{}).
+			Where("id IN ?", sessionIDs).
+			Updates(updates).Error; err != nil {
+			return 0, fmt.Errorf("failed to update stale sessions: %w", err)
+		}
+		
+		s.logger.Warn("marked stale sessions as failed", "count", len(staleSessions), "max_age", maxAge)
+	}
+	
+	return len(staleSessions), nil
+}
+
+// UpdateSessionStatus updates the status of a session
+func (s *SessionStore) UpdateSessionStatus(sessionID, status, result string) error {
+	updates := map[string]interface{}{
+		"status": status,
+		"result": result,
+		"end_time": time.Now(),
+	}
+	
+	if err := s.db.Model(&database.TranscodeSession{}).
+		Where("id = ?", sessionID).
+		Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to update session status: %w", err)
+	}
+	
+	s.logger.Info("updated session status", "session_id", sessionID, "status", status)
+	return nil
 }
 
 // RemoveProviderSessions removes all sessions for a provider

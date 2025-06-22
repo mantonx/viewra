@@ -15,6 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
 	plugins "github.com/mantonx/viewra/sdk"
 )
 
@@ -224,6 +225,102 @@ func (h *APIHandler) HandleListSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sessions": sessions})
 }
 
+// HandleStopAllSessions stops all active transcoding sessions
+func (h *APIHandler) HandleStopAllSessions(c *gin.Context) {
+	sessions, err := h.manager.ListSessions()
+	if err != nil {
+		logger.Error("failed to list sessions", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	
+	var stoppedCount int
+	var errors []string
+	
+	for _, session := range sessions {
+		if session.Status == "running" || session.Status == "queued" {
+			if err := h.manager.StopSession(session.ID); err != nil {
+				errors = append(errors, fmt.Sprintf("session %s: %v", session.ID, err))
+				logger.Error("failed to stop session", "session_id", session.ID, "error", err)
+			} else {
+				stoppedCount++
+			}
+		}
+	}
+	
+	response := gin.H{
+		"stopped_count": stoppedCount,
+		"total_sessions": len(sessions),
+	}
+	
+	if len(errors) > 0 {
+		response["errors"] = errors
+	}
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// HandleCleanupStaleSessions manually triggers cleanup of stale sessions
+func (h *APIHandler) HandleCleanupStaleSessions(c *gin.Context) {
+	// Parse optional max_age parameter (default 2 hours)
+	maxAgeHours := 2
+	if maxAge := c.Query("max_age_hours"); maxAge != "" {
+		if parsed, err := strconv.Atoi(maxAge); err == nil && parsed > 0 {
+			maxAgeHours = parsed
+		}
+	}
+	
+	maxAge := time.Duration(maxAgeHours) * time.Hour
+	
+	// Call the cleanup method directly
+	count, err := h.manager.GetSessionStore().CleanupStaleSessions(maxAge)
+	if err != nil {
+		logger.Error("failed to cleanup stale sessions", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"cleaned_count": count,
+		"max_age_hours": maxAgeHours,
+		"message": fmt.Sprintf("Marked %d stale sessions as failed", count),
+	})
+}
+
+// HandleListOrphanedSessions lists potential orphaned sessions
+func (h *APIHandler) HandleListOrphanedSessions(c *gin.Context) {
+	// Get all sessions
+	sessions, err := h.manager.GetSessionStore().GetActiveSessions()
+	if err != nil {
+		logger.Error("failed to get active sessions", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	
+	// Check for orphaned sessions (running/queued for too long)
+	var orphaned []gin.H
+	threshold := 30 * time.Minute
+	
+	for _, session := range sessions {
+		if time.Since(session.UpdatedAt) > threshold {
+			orphaned = append(orphaned, gin.H{
+				"id": session.ID,
+				"status": session.Status,
+				"provider": session.Provider,
+				"last_update": session.UpdatedAt,
+				"age": time.Since(session.UpdatedAt).String(),
+				"directory": session.DirectoryPath,
+			})
+		}
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"orphaned_sessions": orphaned,
+		"count": len(orphaned),
+		"threshold": threshold.String(),
+	})
+}
+
 // HandleGetStats returns transcoding statistics
 func (h *APIHandler) HandleGetStats(c *gin.Context) {
 	stats, err := h.manager.GetStats()
@@ -306,14 +403,34 @@ func (h *APIHandler) HandleManualCleanup(c *gin.Context) {
 		return
 	}
 
-	stats, err := cleanupService.GetCleanupStats()
+	// Check for custom retention hours parameter
+	retentionHours := 24 // default
+	if hours := c.Query("retention_hours"); hours != "" {
+		if parsed, err := strconv.Atoi(hours); err == nil && parsed > 0 {
+			retentionHours = parsed
+		}
+	}
+
+	// Run cleanup with custom retention
+	policy := core.RetentionPolicy{
+		RetentionHours:     retentionHours,
+		ExtendedHours:      retentionHours * 2,
+		MaxTotalSizeGB:     50,
+		LargeFileThreshold: 500 * 1024 * 1024,
+	}
+
+	count, err := h.manager.GetSessionStore().CleanupExpiredSessions(policy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	stats, _ := cleanupService.GetCleanupStats()
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "manual cleanup triggered",
+		"cleaned_sessions": count,
+		"retention_hours": retentionHours,
 		"stats":   stats,
 	})
 }

@@ -1,0 +1,166 @@
+/**
+ * Design tokens for Viewra theme system
+ * Supports light and dark modes with CSS custom properties
+ */
+
+@layer base {
+  :root {
+    /* Color Tokens - Light Mode */
+    
+    /* Primary Colors */
+    --color-primary-50: 254 242 242;
+    --color-primary-100: 254 226 226;
+    --color-primary-200: 254 202 202;
+    --color-primary-300: 252 165 165;
+    --color-primary-400: 248 113 113;
+    --color-primary-500: 239 68 68;
+    --color-primary-600: 220 38 38;
+    --color-primary-700: 185 28 28;
+    --color-primary-800: 153 27 27;
+    --color-primary-900: 127 29 29;
+    --color-primary-950: 69 10 10;
+
+    /* Secondary Colors */
+    --color-secondary-50: 248 250 252;
+    --color-secondary-100: 241 245 249;
+    --color-secondary-200: 226 232 240;
+    --color-secondary-300: 203 213 225;
+    --color-secondary-400: 148 163 184;
+    --color-secondary-500: 100 116 139;
+    --color-secondary-600: 71 85 105;
+    --color-secondary-700: 51 65 85;
+    --color-secondary-800: 30 41 59;
+    --color-secondary-900: 15 23 42;
+    --color-secondary-950: 2 6 23;
+
+    /* Background Colors */
+    --color-background: 255 255 255;
+    --color-background-secondary: 249 250 251;
+    --color-background-tertiary: 243 244 246;
+    --color-background-elevated: 255 255 255;
+    --color-background-overlay: 0 0 0;
+
+    /* Foreground Colors */
+    --color-foreground: 15 23 42;
+    --color-foreground-secondary: 51 65 85;
+    --color-foreground-tertiary: 100 116 139;
+    --color-foreground-muted: 148 163 184;
+
+    /* Border Colors */
+    --color-border: 226 232 240;
+    --color-border-secondary: 203 213 225;
+    --color-border-focus: 239 68 68;
+
+    /* Semantic Colors */
+    --color-success: 34 197 94;
+    --color-warning: 251 146 60;
+    --color-error: 239 68 68;
+    --color-info: 59 130 246;
+
+    /* Player Specific Colors */
+    --color-player-bg: 0 0 0;
+    --color-player-controls-bg: 0 0 0;
+    --color-player-progress-bg: 75 85 99;
+    --color-player-progress-buffered: 156 163 175;
+    --color-player-progress-played: 239 68 68;
+    --color-player-progress-hover: 96 165 250;
+    --color-player-text: 255 255 255;
+    --color-player-text-secondary: 209 213 219;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+    /* Opacity values for overlays */
+    --opacity-overlay-light: 0.3;
+    --opacity-overlay-medium: 0.5;
+    --opacity-overlay-heavy: 0.8;
+
+    /* Animation Durations */
+    --duration-fast: 150ms;
+    --duration-normal: 200ms;
+    --duration-slow: 300ms;
+
+    /* Border Radius */
+    --radius-sm: 0.125rem;
+    --radius: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
+    --radius-full: 9999px;
+  }
+
+  /* Dark Mode */
+  [data-theme="dark"],
+  .dark {
+    /* Primary Colors - Dark Mode */
+    --color-primary-50: 69 10 10;
+    --color-primary-100: 127 29 29;
+    --color-primary-200: 153 27 27;
+    --color-primary-300: 185 28 28;
+    --color-primary-400: 220 38 38;
+    --color-primary-500: 239 68 68;
+    --color-primary-600: 248 113 113;
+    --color-primary-700: 252 165 165;
+    --color-primary-800: 254 202 202;
+    --color-primary-900: 254 226 226;
+    --color-primary-950: 254 242 242;
+
+    /* Secondary Colors - Dark Mode */
+    --color-secondary-50: 2 6 23;
+    --color-secondary-100: 15 23 42;
+    --color-secondary-200: 30 41 59;
+    --color-secondary-300: 51 65 85;
+    --color-secondary-400: 71 85 105;
+    --color-secondary-500: 100 116 139;
+    --color-secondary-600: 148 163 184;
+    --color-secondary-700: 203 213 225;
+    --color-secondary-800: 226 232 240;
+    --color-secondary-900: 241 245 249;
+    --color-secondary-950: 248 250 252;
+
+    /* Background Colors - Dark Mode */
+    --color-background: 9 9 11;
+    --color-background-secondary: 24 24 27;
+    --color-background-tertiary: 39 39 42;
+    --color-background-elevated: 39 39 42;
+    --color-background-overlay: 0 0 0;
+
+    /* Foreground Colors - Dark Mode */
+    --color-foreground: 248 250 252;
+    --color-foreground-secondary: 226 232 240;
+    --color-foreground-tertiary: 148 163 184;
+    --color-foreground-muted: 100 116 139;
+
+    /* Border Colors - Dark Mode */
+    --color-border: 39 39 42;
+    --color-border-secondary: 63 63 70;
+    --color-border-focus: 239 68 68;
+
+    /* Player Specific Colors - Dark Mode */
+    --color-player-bg: 0 0 0;
+    --color-player-controls-bg: 9 9 11;
+    --color-player-progress-bg: 63 63 70;
+    --color-player-progress-buffered: 113 113 122;
+    --color-player-progress-played: 239 68 68;
+    --color-player-progress-hover: 96 165 250;
+    --color-player-text: 248 250 252;
+    --color-player-text-secondary: 161 161 170;
+
+    /* Opacity values for overlays - Dark Mode */
+    --opacity-overlay-light: 0.4;
+    --opacity-overlay-medium: 0.6;
+    --opacity-overlay-heavy: 0.9;
+  }
+
+  /* Special theme for pure player view */
+  [data-theme="player"],
+  .player-theme {
+    --color-background: 0 0 0;
+    --color-foreground: 255 255 255;
+    --color-player-controls-bg: 0 0 0;
+  }
+}

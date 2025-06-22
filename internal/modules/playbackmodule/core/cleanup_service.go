@@ -127,6 +127,15 @@ func (cs *CleanupService) cleanupAllProviders() {
 		cs.logger.Info("cleaned up database sessions", "count", dbCount)
 	}
 
+	// Clean up stale running/queued sessions (stuck for more than 2 hours)
+	staleTimeout := 2 * time.Hour
+	staleCount, err := cs.store.CleanupStaleSessions(staleTimeout)
+	if err != nil {
+		cs.logger.Error("failed to cleanup stale sessions", "error", err)
+	} else if staleCount > 0 {
+		cs.logger.Info("cleaned up stale sessions", "count", staleCount, "timeout", staleTimeout)
+	}
+
 	// Clean up orphaned directories
 	orphanCount, err := cs.cleanupOrphanedDirectories()
 	if err != nil {
@@ -134,6 +143,9 @@ func (cs *CleanupService) cleanupAllProviders() {
 	} else if orphanCount > 0 {
 		cs.logger.Info("cleaned up orphaned directories", "count", orphanCount)
 	}
+	
+	// Clean up orphaned processes
+	cs.cleanupOrphanedProcesses()
 }
 
 // runEmergencyCleanup removes files to get under size limit
@@ -188,6 +200,7 @@ func (cs *CleanupService) runEmergencyCleanup(currentSize int64) {
 
 // cleanupOrphanedDirectories removes directories without database records
 func (cs *CleanupService) cleanupOrphanedDirectories() (int, error) {
+	cs.logger.Info("checking for orphaned directories")
 	entries, err := os.ReadDir(cs.baseDir)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read base directory: %w", err)
@@ -212,6 +225,7 @@ func (cs *CleanupService) cleanupOrphanedDirectories() (int, error) {
 		if err != nil {
 			// Session not found, this is an orphan
 			dirPath := filepath.Join(cs.baseDir, dirName)
+			cs.logger.Info("found orphaned directory", "dir", dirName, "session_id", sessionID, "error", err.Error())
 
 			// Check age before removing
 			info, err := entry.Info()
@@ -219,13 +233,13 @@ func (cs *CleanupService) cleanupOrphanedDirectories() (int, error) {
 				continue
 			}
 
-			// Only remove if older than 1 hour
-			if time.Since(info.ModTime()) > time.Hour {
+			// Only remove if older than 30 minutes (reduced from 1 hour for faster cleanup)
+			if time.Since(info.ModTime()) > 30*time.Minute {
 				if err := os.RemoveAll(dirPath); err != nil {
 					cs.logger.Error("failed to remove orphaned directory", "path", dirPath, "error", err)
 				} else {
 					orphanCount++
-					cs.logger.Debug("removed orphaned directory", "path", dirPath)
+					cs.logger.Info("removed orphaned directory", "path", dirPath, "age", time.Since(info.ModTime()))
 				}
 			}
 		}
@@ -238,10 +252,18 @@ func (cs *CleanupService) cleanupOrphanedDirectories() (int, error) {
 func (cs *CleanupService) extractSessionID(dirName string) string {
 	// Directory format: container_provider_sessionid
 	// Example: dash_ffmpeg_software_1234567890-abcd-...
+	// The session ID is the UUID part at the end
+	
+	// Find the last occurrence of underscore followed by a UUID pattern
 	parts := strings.Split(filepath.Base(dirName), "_")
 	if len(parts) >= 3 {
-		// Return everything after provider (container_provider_sessionid)
-		return strings.Join(parts[2:], "_")
+		// The session ID should be the last part after the provider name
+		// For ffmpeg_software provider, we need to skip both "ffmpeg" and "software"
+		if len(parts) >= 4 && parts[1] == "ffmpeg" && parts[2] == "software" {
+			return parts[3]
+		}
+		// For other providers, session ID is the last part
+		return parts[len(parts)-1]
 	}
 	// Fallback for malformed directory names
 	return ""
@@ -336,8 +358,9 @@ func (cs *CleanupService) cleanupOrphanedProcesses() {
 	killedCount := 0
 	for _, proc := range processes {
 		// Check if this process corresponds to a known session
-		if !cs.isProcessTracked(proc) {
-			cs.logger.Warn("found orphaned FFmpeg process", "pid", proc.PID, "cmd", proc.CmdLine)
+		sessionID, isOrphaned := cs.isProcessOrphaned(proc)
+		if isOrphaned {
+			cs.logger.Warn("found orphaned FFmpeg process", "pid", proc.PID, "session_id", sessionID, "cmd", proc.CmdLine)
 			
 			// Kill the orphaned process
 			if err := cs.killProcess(proc.PID); err != nil {
@@ -345,6 +368,13 @@ func (cs *CleanupService) cleanupOrphanedProcesses() {
 			} else {
 				killedCount++
 				cs.logger.Info("killed orphaned FFmpeg process", "pid", proc.PID)
+				
+				// If we have a session ID, mark it as failed in the database
+				if sessionID != "" {
+					if err := cs.store.UpdateSessionStatus(sessionID, "failed", `{"error": "Process was orphaned and killed"}`); err != nil {
+						cs.logger.Error("failed to update orphaned session status", "session_id", sessionID, "error", err)
+					}
+				}
 			}
 		}
 	}
@@ -427,8 +457,8 @@ func (cs *CleanupService) getFFmpegProcesses() ([]Process, error) {
 	return processes, nil
 }
 
-// isProcessTracked checks if a process corresponds to a known session
-func (cs *CleanupService) isProcessTracked(proc Process) bool {
+// isProcessOrphaned checks if a process is orphaned and returns the session ID if found
+func (cs *CleanupService) isProcessOrphaned(proc Process) (string, bool) {
 	// Extract potential session ID from command line
 	for _, part := range strings.Fields(proc.CmdLine) {
 		// Look for output paths that contain session IDs
@@ -438,14 +468,25 @@ func (cs *CleanupService) isProcessTracked(proc Process) bool {
 			sessionID := cs.extractSessionID(dirName)
 			if sessionID != "" {
 				// Check if this session exists in the database
-				_, err := cs.store.GetSession(sessionID)
-				return err == nil
+				session, err := cs.store.GetSession(sessionID)
+				if err != nil {
+					// Session not found, this is an orphan
+					return sessionID, true
+				}
+				// Also check if session is in a stuck state
+				if session.Status == "running" || session.Status == "queued" {
+					// Check if it's been too long without update
+					if time.Since(session.UpdatedAt) > 30*time.Minute {
+						return sessionID, true
+					}
+				}
+				return sessionID, false
 			}
 		}
 	}
 	
-	// If we can't determine the session, assume it's tracked to be safe
-	return true
+	// If we can't determine the session, assume it's not orphaned to be safe
+	return "", false
 }
 
 // killProcess kills a process by PID
