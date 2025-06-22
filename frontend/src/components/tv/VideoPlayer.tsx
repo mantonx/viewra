@@ -906,6 +906,21 @@ const VideoPlayer: React.FC = () => {
             // Let the player start naturally and the offset tracking will handle time display
             console.log('⏭️ New manifest loaded, letting player start naturally with offset tracking');
             
+            // Immediately try to start playback to trigger buffering
+            setTimeout(() => {
+              if (videoRef.current) {
+                console.log('🎬 Attempting immediate playback after manifest load...');
+                videoRef.current.play().then(() => {
+                  console.log('✅ Immediate playback successful');
+                  setIsBuffering(false);
+                  setIsSeekingAhead(false);
+                }).catch(err => {
+                  console.log('⚠️ Immediate playback failed, waiting for events:', err.message);
+                  // Fall back to event listeners
+                });
+              }
+            }, 100);
+            
             // Set up multiple event listeners for better seek-ahead loading detection
             const onCanPlay = () => {
               console.log('✅ Seek-ahead content is ready to play (canplay event)');
@@ -923,6 +938,7 @@ const VideoPlayer: React.FC = () => {
               if (videoRef.current) {
                 videoRef.current.removeEventListener('canplay', onCanPlay);
                 videoRef.current.removeEventListener('loadeddata', onLoadedData);
+                videoRef.current.removeEventListener('progress', onProgress);
                 videoRef.current.removeEventListener('durationchange', onDurationChange);
               }
             };
@@ -933,12 +949,39 @@ const VideoPlayer: React.FC = () => {
               setIsSeekingAhead(false);
             };
             
+            const onProgress = () => {
+              console.log('✅ Seek-ahead progress event - buffering data');
+              // Progress event indicates buffering is happening, which means content is loading
+              if (videoRef.current && videoRef.current.buffered.length > 0) {
+                const bufferedEnd = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
+                console.log('✅ Seek-ahead has buffered data:', bufferedEnd, 'seconds');
+                if (bufferedEnd > 1) { // At least 1 second buffered
+                  console.log('✅ Sufficient data buffered, clearing buffering state');
+                  setIsBuffering(false);
+                  setIsSeekingAhead(false);
+                }
+              }
+            };
+            
             const onDurationChange = () => {
               console.log('✅ Seek-ahead duration changed:', videoRef.current?.duration);
-              // Duration change often indicates the new content is properly loaded
-              if (videoRef.current && isFinite(videoRef.current.duration) && videoRef.current.duration > 0) {
-                setIsBuffering(false);
-                setIsSeekingAhead(false);
+              // For DASH streams, duration might be Infinity - that's normal for live/dynamic content
+              // Don't rely solely on finite duration for seek-ahead content
+              if (videoRef.current) {
+                const duration = videoRef.current.duration;
+                if (isFinite(duration) && duration > 0) {
+                  console.log('✅ Seek-ahead has finite duration, content ready');
+                  setIsBuffering(false);
+                  setIsSeekingAhead(false);
+                } else if (duration === Infinity) {
+                  console.log('✅ Seek-ahead has infinite duration (DASH live), checking readyState...');
+                  // For infinite duration, check if video has enough data loaded
+                  if (videoRef.current.readyState >= 3) { // HAVE_FUTURE_DATA or higher
+                    console.log('✅ Video has enough data loaded, clearing buffering');
+                    setIsBuffering(false);
+                    setIsSeekingAhead(false);
+                  }
+                }
               }
             };
             
@@ -946,6 +989,7 @@ const VideoPlayer: React.FC = () => {
             if (videoRef.current) {
               videoRef.current.addEventListener('canplay', onCanPlay);
               videoRef.current.addEventListener('loadeddata', onLoadedData);
+              videoRef.current.addEventListener('progress', onProgress);
               videoRef.current.addEventListener('durationchange', onDurationChange);
             }
             

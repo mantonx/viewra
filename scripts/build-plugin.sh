@@ -133,6 +133,10 @@ build_plugin() {
     # Create output directory
     mkdir -p "$output_dir"
     
+    # Get current user info for proper file ownership
+    local HOST_UID=$(id -u)
+    local HOST_GID=$(id -g)
+    
     # Use persistent container if available for speed
     if [ "$USE_CACHE" == "true" ] && check_build_container; then
         # Fast build with persistent container
@@ -142,7 +146,8 @@ build_plugin() {
                 -buildvcs=false \
                 -ldflags='-s -w' \
                 -trimpath \
-                -o /workspace/viewra-data/plugins/${plugin_name}/${plugin_name} .
+                -o /workspace/viewra-data/plugins/${plugin_name}/${plugin_name} . && \
+            chown ${HOST_UID}:${HOST_GID} /workspace/viewra-data/plugins/${plugin_name}/${plugin_name}
         "
     else
         # Standard Docker build (slower but always works)
@@ -157,7 +162,8 @@ build_plugin() {
                 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
                     -buildvcs=false \
                     -ldflags='-s -w' \
-                    -o /workspace/viewra-data/plugins/${plugin_name}/${plugin_name} .
+                    -o /workspace/viewra-data/plugins/${plugin_name}/${plugin_name} . && \
+                chown ${HOST_UID}:${HOST_GID} /workspace/viewra-data/plugins/${plugin_name}/${plugin_name}
             "
     fi
     

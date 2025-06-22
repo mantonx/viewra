@@ -452,11 +452,11 @@ func (t *Transcoder) getOptimalVideoCodec(req TranscodeRequest) string {
 func (t *Transcoder) getOptimalPreset(speedPriority SpeedPriority, codec string) string {
 	switch speedPriority {
 	case SpeedPriorityFastest:
-		return "fast"       // Balanced speed for responsiveness
+		return "medium"     // More conservative than "faster"
 	case SpeedPriorityQuality:
-		return "slower"     // High quality but still reasonable speed
+		return "slow"       // High quality
 	default:
-		return "medium"     // Better balance of speed vs quality
+		return "slow"       // Default to slow for quality and stability
 	}
 }
 
@@ -538,39 +538,19 @@ func (t *Transcoder) getOptimalAudioSettings(req TranscodeRequest) []string {
 	}
 	args = append(args, "-c:a", audioCodec)
 	
-	// Enhanced audio settings to prevent pops and artifacts
+	// Conservative audio settings to prevent pops and artifacts
 	if audioCodec == "aac" {
-		// High quality bitrate for clean audio
-		args = append(args, "-b:a", "192k")      // Increased from 128k for better quality
+		// Moderate bitrate for compatibility
+		args = append(args, "-b:a", "128k")      // Standard quality
 		args = append(args, "-profile:a", "aac_low")
 		args = append(args, "-ar", "48000")      // Standard sample rate
 		
-		// Critical: Audio sync and timing correction to prevent pops
-		args = append(args, "-async", "1")       // Audio sync correction
-		args = append(args, "-fps_mode", "cfr")  // Constant frame rate for sync (replaces deprecated -vsync)
-		
-		// Simplified audio filtering for stability (test with basic filters first)
-		var audioFilters []string
-		
-		// Basic high-quality resampling
-		audioFilters = append(audioFilters, "aresample=48000")
-		
-		// Simple channel downmixing for compatibility
-		audioFilters = append(audioFilters, "pan=stereo|FL=FL+0.707*FC|FR=FR+0.707*FC")
-		
-		// Apply simplified audio filters
-		if len(audioFilters) > 0 {
-			args = append(args, "-af", strings.Join(audioFilters, ","))
-		}
-		
-		// Force stereo output after proper processing
+		// Force stereo output for maximum compatibility
+		// This prevents issues with multichannel audio
 		args = append(args, "-ac", "2")          // Stereo output
 		
-		// Basic AAC encoding parameters for stability
-		args = append(args, "-cutoff", "15000")            // Anti-aliasing filter
-		
-		// Audio delay correction for sync issues
-		args = append(args, "-max_muxing_queue_size", "1024") // Prevent buffer overflows
+		// No audio filters - let FFmpeg handle conversion naturally
+		// Audio filters can introduce artifacts and pops
 	}
 	
 	return args
@@ -587,41 +567,30 @@ func (t *Transcoder) getContainerSpecificArgs(req TranscodeRequest, outputPath s
 			return t.getDashABRArgs(req, outputPath)
 		}
 		
-		// Enhanced DASH settings with stability fixes (using valid FFmpeg options only)
+		// Single bitrate DASH with conservative settings
+		// segDuration := t.getAdaptiveSegmentDuration(req)
 		args = append(args,
 			"-f", "dash",
-			
-			// Fixed timing to prevent 2-minute failures
-			"-seg_duration", "2",                    // Shorter, more reliable segments
-			// Note: min_seg_duration and max_seg_duration are not valid in this FFmpeg version
-			
-			// Core DASH settings
+			"-seg_duration", "4",                    // 4s segments for stability
+			"-frag_duration", "2",                  // 2s fragments for better buffering
 			"-use_template", "1",
 			"-use_timeline", "1",
 			"-streaming", "1",                       // Enable streaming mode
-			"-single_file", "0",
-			
-			// Timestamp fixes for problematic sources
-			"-avoid_negative_ts", "make_zero",       // Fix timestamp issues
-			"-copyts",                               // Preserve original timestamps
-			
-			// Segment naming and structure
+			"-ldash", "0",                          // Disable low-latency for stability
+			"-target_latency", "6",                 // 6 second target latency for stability
+			"-min_seg_duration", "2",               // Min 2s segments
 			"-init_seg_name", "init-$RepresentationID$.m4s",
 			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
 			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
 			"-dash_segment_type", "mp4",
-			
-			// Better seeking and streaming optimization
-			"-write_prft", "1",                      // Producer Reference Time for sync
-			"-global_sidx", "1",                     // Global SIDX for better seeking
+			"-single_file", "0",
 			"-frag_type", "duration",                // Use duration-based fragmentation
-			"-frag_duration", "1",                   // 1 second fragment duration
-			
-			// Disable problematic low-latency features for stability
-			"-ldash", "0",                           // Disable low-latency DASH
-			
-			// UTC timing for better sync (optional)
-			"-utc_timing_url", "https://time.akamai.com/?iso",
+			"-avoid_negative_ts", "make_zero",      // Fix timestamp issues
+			// Seek optimization with sidx boxes
+			"-write_prft", "1",                      // Producer Reference Time for sync
+			"-global_sidx", "1",                    // Global SIDX for better seeking
+			// Low-latency optimizations
+			"-utc_timing_url", "https://time.akamai.com/?iso", // UTC timing for sync
 		)
 	case "hls":
 		// Check if ABR ladder is requested
@@ -753,29 +722,20 @@ func (t *Transcoder) getKeyframeAlignmentArgs(req TranscodeRequest) []string {
 		segmentDuration = t.getSegmentDurationFloat(req)
 	}
 	
-	// Enhanced keyframe alignment to prevent 2-minute failures
 	// Force keyframes at consistent intervals matching segment boundaries
+	// This ensures each segment starts with a keyframe for efficient seeking
 	keyframeExpr := fmt.Sprintf("expr:gte(t,n_forced*%.1f)", segmentDuration)
 	args = append(args, "-force_key_frames", keyframeExpr)
 	
-	// Improved GOP settings for stability and seeking
-	gopSize := int(segmentDuration * 30) // 60 frames at 30fps for 2s segments
-	minGopSize := int(segmentDuration * 24) // 48 frames at 24fps minimum
+	// Conservative GOP size for stability
+	gopSize := int(segmentDuration * 30) // Standard GOP size
+	args = append(args, "-g", strconv.Itoa(gopSize))
 	
-	args = append(args, "-g", strconv.Itoa(gopSize))           // Max GOP size
-	args = append(args, "-keyint_min", strconv.Itoa(minGopSize)) // Min GOP size
-	
-	// Ensure closed GOPs for better seeking and segment alignment
+	// Ensure closed GOPs for better seeking
 	args = append(args, "-flags", "+cgop")
-	args = append(args, "-bf", "3")                            // 3 B-frames for quality
-	args = append(args, "-b_strategy", "2")                    // Optimal B-frame strategy
 	
-	// Scene change detection threshold - prevent excessive keyframes
+	// Scene change detection threshold
 	args = append(args, "-sc_threshold", "40")
-	
-	// Additional stability settings
-	args = append(args, "-refs", "2")                          // Reference frames
-	args = append(args, "-rc_lookahead", "40")                 // Rate control lookahead
 	
 	return args
 }
