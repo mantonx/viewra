@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -169,6 +170,33 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 		"session_id", session.ID,
 		"provider", providerInfo.ID,
 		"container", req.Container)
+
+	// For streaming formats, wait for manifest to be generated
+	if req.Container == "dash" || req.Container == "hls" {
+		manifestFile := "manifest.mpd"
+		if req.Container == "hls" {
+			manifestFile = "playlist.m3u8"
+		}
+		
+		manifestPath := fmt.Sprintf("%s/%s", dirPath, manifestFile)
+		ts.logger.Info("waiting for manifest file", "path", manifestPath, "session_id", session.ID)
+		
+		// Wait up to 5 seconds for manifest to appear
+		manifestFound := false
+		for i := 0; i < 50; i++ { // 50 * 100ms = 5 seconds
+			if _, err := os.Stat(manifestPath); err == nil {
+				manifestFound = true
+				ts.logger.Info("manifest file found", "path", manifestPath, "attempts", i+1)
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		
+		if !manifestFound {
+			ts.logger.Warn("manifest file not generated in time", "path", manifestPath)
+			// Don't fail - the frontend will also retry
+		}
+	}
 
 	return session, nil
 }

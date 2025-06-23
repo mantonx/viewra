@@ -104,9 +104,6 @@ func (m *Manager) Initialize() error {
 		return nil
 	}
 
-	// Start aggressive plugin discovery in background
-	go m.startAggressivePluginDiscovery()
-
 	// Start the cleanup service
 	go m.cleanupService.Run(m.ctx)
 
@@ -177,38 +174,19 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 		"request_container", request.Container,
 		"request_input_path", request.InputPath)
 	
-	// ROBUSTNESS FIX: If no providers are available, wait for them with timeout
-	// This handles timing issues where discovery ran before plugins were ready
-	providerManager := m.transcodingService.GetProviderManager()
-	if providerManager != nil && len(providerManager.GetProviders()) == 0 {
-		m.logger.Warn("No providers available when starting transcode - waiting for plugin discovery")
+	// Ensure plugins are available before starting transcode
+	if !m.hasTranscodingProviders() {
+		m.logger.Warn("No providers available, waiting for plugins")
 		
-		// Try a quick discovery first
-		if m.pluginManager != nil {
-			_ = m.discoverTranscodingPlugins()
-		}
+		// Use our waitForPlugins method with a shorter timeout for responsiveness
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		
-		// Wait up to 5 seconds for providers to appear
-		timeout := time.After(5 * time.Second)
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		
-		for {
-			select {
-			case <-timeout:
-				m.logger.Error("Timeout waiting for transcoding providers")
-				return nil, fmt.Errorf("no transcoding providers available after timeout")
-			case <-ticker.C:
-				if len(providerManager.GetProviders()) > 0 {
-					m.logger.Info("Transcoding providers now available", 
-						"count", len(providerManager.GetProviders()))
-					goto providersReady
-				}
-			}
+		if err := m.waitForPlugins(ctx); err != nil {
+			m.logger.Error("Failed to find transcoding providers", "error", err)
+			return nil, fmt.Errorf("no transcoding providers available: %w", err)
 		}
 	}
-	
-providersReady:
 	
 	return m.transcodingService.StartTranscode(context.Background(), request)
 }
@@ -444,55 +422,44 @@ func (m *Manager) discoverTranscodingPlugins() error {
 	return nil
 }
 
-// startAggressivePluginDiscovery continuously attempts to discover plugins until some are found
-func (m *Manager) startAggressivePluginDiscovery() {
-	m.logger.Info("Starting aggressive plugin discovery")
+// waitForPlugins waits for at least one transcoding plugin to be available
+func (m *Manager) waitForPlugins(ctx context.Context) error {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 	
+	m.logger.Info("Waiting for transcoding plugins to be available")
 	attempts := 0
+	
 	for {
 		select {
-		case <-m.ctx.Done():
-			m.logger.Info("Aggressive plugin discovery stopped")
-			return
-		default:
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for plugins: %w", ctx.Err())
+		case <-ticker.C:
 			attempts++
-			
-			// Try to discover plugins
 			if m.pluginManager != nil {
+				// Try to discover plugins
 				if err := m.discoverTranscodingPlugins(); err != nil {
 					m.logger.Debug("Plugin discovery attempt failed", "attempt", attempts, "error", err)
-				} else {
-					// Check if we found any providers
-					if m.transcodingService != nil {
-						providerManager := m.transcodingService.GetProviderManager()
-						if providerManager != nil && len(providerManager.GetProviders()) > 0 {
-							m.logger.Info("Successfully discovered transcoding providers", 
-								"count", len(providerManager.GetProviders()),
-								"attempts", attempts)
-							return
-						}
-					}
+				}
+				
+				// Check if we have providers now
+				if m.hasTranscodingProviders() {
+					m.logger.Info("Transcoding plugins are now available", "attempts", attempts)
+					return nil
 				}
 			}
-			
-			// Wait before next attempt, with exponential backoff up to 30 seconds
-			waitTime := time.Duration(attempts) * time.Second
-			if waitTime > 30*time.Second {
-				waitTime = 30 * time.Second
-			}
-			
-			if attempts == 1 {
-				// First attempt failed, try again quickly
-				waitTime = 100 * time.Millisecond
-			} else if attempts <= 5 {
-				// Next few attempts with short delays
-				waitTime = time.Duration(attempts) * 500 * time.Millisecond
-			}
-			
-			m.logger.Debug("Waiting before next plugin discovery attempt", 
-				"wait_time", waitTime, "attempt", attempts)
-			
-			time.Sleep(waitTime)
+			m.logger.Debug("Still waiting for transcoding plugins", "attempt", attempts)
 		}
 	}
 }
+
+// hasTranscodingProviders checks if any transcoding providers are registered
+func (m *Manager) hasTranscodingProviders() bool {
+	if m.transcodingService == nil {
+		return false
+	}
+	providerManager := m.transcodingService.GetProviderManager()
+	return providerManager != nil && len(providerManager.GetProviders()) > 0
+}
+
+
