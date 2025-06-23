@@ -35,7 +35,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
     >
       <button
         onClick={onToggleMute}
-        className="text-player-text hover:text-primary hover:scale-110 transition-all duration-normal p-2 rounded-full hover:bg-player-text/10"
+        className="text-white hover:text-blue-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10"
         title={isMuted ? 'Unmute' : 'Mute'}
       >
         {isMuted ? (
@@ -59,17 +59,17 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
             value={displayVolume}
             onChange={handleVolumeChange}
             className={cn(
-              'h-1 rounded-lg appearance-none cursor-pointer transition-colors duration-normal',
+              'h-1 rounded-lg appearance-none cursor-pointer transition-colors duration-200',
               vertical && 'transform -rotate-90 origin-center w-20',
               !vertical && 'w-20',
               '[&::-webkit-slider-thumb]:appearance-none',
               '[&::-webkit-slider-thumb]:w-3',
               '[&::-webkit-slider-thumb]:h-3',
               '[&::-webkit-slider-thumb]:rounded-full',
-              '[&::-webkit-slider-thumb]:bg-player-progress-played'
+              '[&::-webkit-slider-thumb]:bg-blue-500'
             )}
             style={{
-              background: `linear-gradient(to right, rgb(var(--color-player-progress-played)) 0%, rgb(var(--color-player-progress-played)) ${displayVolume * 100}%, rgb(var(--color-player-progress-bg)) ${displayVolume * 100}%, rgb(var(--color-player-progress-bg)) 100%)`
+              background: `linear-gradient(to right, rgb(59, 130, 246) 0%, rgb(59, 130, 246) ${displayVolume * 100}%, rgb(107, 114, 128) ${displayVolume * 100}%, rgb(107, 114, 128) 100%)`
             }}
             title={`Volume: ${Math.round(displayVolume * 100)}%`}
           />

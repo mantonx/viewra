@@ -56,7 +56,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
       
       {/* Time display */}
       {showTimeDisplay && (
-        <div className="flex justify-between text-xs text-player-text-secondary mt-2">
+        <div className="flex justify-between text-xs text-gray-300 mt-2" data-testid="time-display">
           <span>{formatTime(currentTime)}</span>
           <span>{hasValidDuration ? formatRemainingTime(currentTime, duration) : '--:--'}</span>
         </div>
@@ -69,7 +69,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
           {showSkipButtons && onSkipBackward && (
             <button
               onClick={onSkipBackward}
-              className="text-player-text hover:text-primary hover:scale-110 transition-all duration-normal p-2 rounded-full hover:bg-player-text/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent"
+              className="text-white hover:text-blue-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent"
               disabled={!hasValidDuration}
               title={`Skip backward ${skipSeconds} seconds`}
             >
@@ -80,7 +80,8 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
           {/* Play/Pause */}
           <button
             onClick={onPlayPause}
-            className="text-player-text hover:text-primary hover:scale-110 transition-all duration-normal p-3 rounded-full hover:bg-player-text/10"
+            data-testid="play-button"
+            className="text-white hover:text-blue-400 hover:scale-110 transition-all duration-200 p-3 rounded-full hover:bg-white/10"
             title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
@@ -94,7 +95,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
           {showSkipButtons && onSkipForward && (
             <button
               onClick={onSkipForward}
-              className="text-player-text hover:text-primary hover:scale-110 transition-all duration-normal p-2 rounded-full hover:bg-player-text/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent"
+              className="text-white hover:text-blue-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent"
               disabled={!hasValidDuration}
               title={`Skip forward ${skipSeconds} seconds`}
             >
@@ -106,7 +107,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
           {showStopButton && onStop && (
             <button
               onClick={onStop}
-              className="text-player-text hover:text-primary hover:scale-110 transition-all duration-normal p-2 rounded-full hover:bg-player-text/10"
+              className="text-white hover:text-blue-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10"
               title="Stop"
             >
               <Square className="w-6 h-6" />
@@ -117,7 +118,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
           {onRestart && (
             <button
               onClick={onRestart}
-              className="text-player-text hover:text-primary hover:scale-110 transition-all duration-normal p-2 rounded-full hover:bg-player-text/10"
+              className="text-white hover:text-blue-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10"
               title="Restart from beginning"
             >
               <RotateCcw className="w-6 h-6" />
@@ -126,12 +127,14 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
 
           {/* Volume control */}
           {showVolumeControl && (
-            <VolumeControl
-              volume={volume}
-              isMuted={isMuted}
-              onVolumeChange={onVolumeChange}
-              onToggleMute={onToggleMute}
-            />
+            <div data-testid="volume-control">
+              <VolumeControl
+                volume={volume}
+                isMuted={isMuted}
+                onVolumeChange={onVolumeChange}
+                onToggleMute={onToggleMute}
+              />
+            </div>
           )}
         </div>
 
@@ -140,7 +143,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
           {showFullscreenButton && (
             <button
               onClick={onToggleFullscreen}
-              className="text-player-text hover:text-primary hover:scale-110 transition-all duration-normal p-2 rounded-full hover:bg-player-text/10"
+              className="text-white hover:text-blue-400 hover:scale-110 transition-all duration-200 p-2 rounded-full hover:bg-white/10"
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
               {isFullscreen ? (

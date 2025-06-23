@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -297,11 +298,35 @@ func (bt *BaseTranscoder) GetProgress(handle *TranscodeHandle) (*TranscodingProg
 		return nil, fmt.Errorf("session not found: %s", handle.SessionID)
 	}
 
-	// For now, return basic progress based on time
-	// TODO: Parse FFmpeg output for real progress
+	// Calculate elapsed time
 	elapsed := time.Since(session.StartTime)
+	
+	// Check if the session has completed
+	var percentComplete float64 = 0
+	if session.Handle != nil {
+		switch session.Handle.Status {
+		case TranscodeStatusCompleted:
+			percentComplete = 100
+		case TranscodeStatusFailed, TranscodeStatusCancelled:
+			// Return error for failed sessions
+			errorMsg := session.Handle.Error
+			if errorMsg == "" {
+				errorMsg = fmt.Sprintf("session %s", session.Handle.Status)
+			}
+			return nil, fmt.Errorf("transcoding failed: %s", errorMsg)
+		case TranscodeStatusRunning:
+			// For running sessions, estimate progress based on elapsed time
+			// This is a rough estimate - ideally we'd parse FFmpeg output
+			if elapsed > 10*time.Second {
+				percentComplete = math.Min(90, float64(elapsed.Seconds())/60*100)
+			}
+		default:
+			percentComplete = 0
+		}
+	}
+
 	progress := &TranscodingProgress{
-		PercentComplete: 0, // Would need FFmpeg output parsing
+		PercentComplete: percentComplete,
 		TimeElapsed:     elapsed,
 		CurrentSpeed:    1.0,
 		AverageSpeed:    1.0,
@@ -383,7 +408,7 @@ func (bt *BaseTranscoder) monitorSession(session *TranscodeSession) {
 	// Wait for the process to complete
 	err := session.Process.Wait()
 
-	// Get exit information before removing session
+	// Get exit information
 	var exitCode int
 	var wasKilled bool
 	if session.Process.ProcessState != nil {
@@ -391,9 +416,19 @@ func (bt *BaseTranscoder) monitorSession(session *TranscodeSession) {
 		wasKilled = !session.Process.ProcessState.Success() && exitCode == -1
 	}
 
-	// Remove from sessions
+	// Mark session as completed but DON'T remove it yet
+	// The session will be cleaned up by the main service or timeout
 	bt.mutex.Lock()
-	delete(bt.sessions, session.ID)
+	if sessionData, exists := bt.sessions[session.ID]; exists {
+		// Update session state to indicate completion
+		if sessionData.Handle != nil {
+			sessionData.Handle.Status = TranscodeStatusCompleted
+			if err != nil {
+				sessionData.Handle.Status = TranscodeStatusFailed
+				sessionData.Handle.Error = err.Error()
+			}
+		}
+	}
 	bt.mutex.Unlock()
 
 	if err != nil && bt.logger != nil {
@@ -408,6 +443,17 @@ func (bt *BaseTranscoder) monitorSession(session *TranscodeSession) {
 			"session_id", session.ID,
 			"exit_code", exitCode)
 	}
+
+	// Start cleanup timer - remove session after 5 minutes to allow final progress checks
+	go func() {
+		time.Sleep(5 * time.Minute)
+		bt.mutex.Lock()
+		delete(bt.sessions, session.ID)
+		bt.mutex.Unlock()
+		if bt.logger != nil {
+			bt.logger.Debug("cleaned up completed session", "session_id", session.ID)
+		}
+	}()
 }
 
 // logWriter is a simple writer that logs output
@@ -707,12 +753,7 @@ func (bt *BaseTranscoder) monitorStreamSession(streamSession *StreamSession) {
 	// Wait for the process to complete
 	err := streamSession.Process.Wait()
 
-	// Remove from sessions
-	bt.mutex.Lock()
-	delete(bt.sessions, streamSession.ID)
-	bt.mutex.Unlock()
-
-	// Update handle status
+	// Update handle status but don't remove session immediately
 	if err != nil {
 		streamSession.Handle.Status = TranscodeStatusFailed
 		streamSession.Handle.Error = err.Error()
@@ -725,6 +766,17 @@ func (bt *BaseTranscoder) monitorStreamSession(streamSession *StreamSession) {
 			bt.logger.Info("FFmpeg streaming process completed", "session_id", streamSession.ID)
 		}
 	}
+
+	// Cleanup after delay
+	go func() {
+		time.Sleep(5 * time.Minute)
+		bt.mutex.Lock()
+		delete(bt.sessions, streamSession.ID)
+		bt.mutex.Unlock()
+		if bt.logger != nil {
+			bt.logger.Debug("cleaned up completed stream session", "session_id", streamSession.ID)
+		}
+	}()
 }
 
 // Dashboard methods (basic implementations)

@@ -511,7 +511,7 @@ func (h *APIHandler) HandleDashSegmentSpecific(c *gin.Context) {
 // Helper methods
 
 func (h *APIHandler) serveManifestFile(c *gin.Context, sessionID, filename string) {
-	logger.Info("serveManifestFile called", "session_id", sessionID, "filename", filename)
+	logger.Info("serveManifestFile called", "session_id", sessionID, "filename", filename, "method", c.Request.Method)
 	
 	// Get the session to find directory
 	session, err := h.manager.GetSession(sessionID)
@@ -524,7 +524,8 @@ func (h *APIHandler) serveManifestFile(c *gin.Context, sessionID, filename strin
 	manifestPath := filepath.Join(h.getSessionDirectory(sessionID, session), filename)
 
 	// Check if file exists
-	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+	fileInfo, err := os.Stat(manifestPath)
+	if os.IsNotExist(err) {
 		logger.Warn("manifest file not found", "path", manifestPath)
 		c.JSON(http.StatusNotFound, gin.H{"error": "manifest not found"})
 		return
@@ -554,6 +555,13 @@ func (h *APIHandler) serveManifestFile(c *gin.Context, sessionID, filename strin
 	if contentType == "application/vnd.apple.mpegurl" {
 		c.Header("X-Playlist-Type", "VOD")
 		c.Header("X-Version", "7")                              // Support for EXT-X-PART
+	}
+	
+	// Handle HEAD requests properly
+	if c.Request.Method == "HEAD" {
+		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+		c.Status(http.StatusOK)
+		return
 	}
 	
 	c.File(manifestPath)

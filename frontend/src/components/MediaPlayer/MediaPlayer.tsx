@@ -55,7 +55,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const { mediaId, handleBack, config, loadingState: navLoadingState } = useMediaNavigation(mediaType);
   useMediaPlayer();
   const videoControls = useVideoControls();
-  const { stopTranscodingSession } = useSessionManager();
+  const { stopTranscodingSession, stopAllSessions } = useSessionManager();
   const { requestSeekAhead, isSeekAheadNeeded, seekAheadState } = useSeekAhead();
   const { isFullscreen, toggleFullscreen } = useFullscreenManager();
   const { showControls } = useControlsVisibility({
@@ -179,24 +179,40 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
     : [];
 
   // Custom back handler
-  const handleBackClick = useCallback(() => {
+  const handleBackClick = useCallback(async () => {
+    console.log('🔙 Back button clicked, stopping sessions...');
+    await stopAllSessions();
     if (onBack) {
       onBack();
     } else {
       handleBack();
     }
-  }, [onBack, handleBack]);
+  }, [onBack, handleBack, stopAllSessions]);
 
   // Update fullscreen state
   useEffect(() => {
     setPlayerState(prev => ({ ...prev, isFullscreen }));
   }, [isFullscreen, setPlayerState]);
 
-  if (loadingState.isLoading || navLoadingState.isLoading) {
+  // Cleanup on unmount - only when actually navigating away
+  useEffect(() => {
+    return () => {
+      // Only cleanup sessions when there's an error or when truly unmounting
+      // Don't cleanup during normal component lifecycle
+      if (loadingState.error) {
+        console.log('🧹 MediaPlayer unmounting due to error, cleaning up sessions...');
+        stopAllSessions();
+      } else {
+        console.log('🔄 MediaPlayer unmounting, keeping sessions alive for playback');
+      }
+    };
+  }, [loadingState.error]); // Only depend on error state
+
+  if ((loadingState.isLoading || navLoadingState.isLoading) && !playbackDecision) {
     return (
-      <div className="flex items-center justify-center h-screen bg-player-bg text-player-text">
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-player-text mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p>Loading video...</p>
         </div>
       </div>
@@ -205,13 +221,13 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
 
   if (loadingState.error || navLoadingState.error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-player-bg text-player-text">
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-bold mb-4">Playback Error</h2>
-          <p className="text-error mb-4">{loadingState.error || navLoadingState.error}</p>
+          <p className="text-red-400 mb-4">{loadingState.error || navLoadingState.error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-primary hover:bg-primary/80 px-4 py-2 rounded transition-colors duration-normal"
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition-colors duration-200"
           >
             Reload Player
           </button>
@@ -224,14 +240,14 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
     <div 
       ref={containerRef} 
       data-testid="media-player"
-      className={cn('relative w-full h-full bg-black overflow-hidden', className)}
+      className={cn('relative h-screen bg-gradient-to-br from-slate-900 to-slate-800 overflow-hidden', className)}
       onMouseMove={showControls ? undefined : () => {}}
       onMouseLeave={showControls ? undefined : () => {}}
     >
       {/* Back button */}
       <button
         onClick={handleBackClick}
-        className="absolute top-4 left-4 z-50 bg-player-controls-bg/50 hover:bg-player-controls-bg/80 hover:scale-110 text-player-text p-2 rounded-full transition-all duration-normal shadow-lg backdrop-blur-sm"
+        className="absolute top-4 left-4 z-50 bg-slate-800/50 hover:bg-slate-800/80 hover:scale-110 text-white p-2 rounded-full transition-all duration-200 shadow-lg backdrop-blur-sm"
         title="Go back"
       >
         <ArrowLeft className="w-6 h-6" />
@@ -279,7 +295,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
         {/* Video controls */}
         <div
           className={cn(
-            'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-player-controls-bg/80 to-transparent p-6 transition-opacity duration-slow',
+            'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900/80 to-transparent p-6 transition-opacity duration-500',
             showControls ? 'opacity-100' : 'opacity-0'
           )}
         >

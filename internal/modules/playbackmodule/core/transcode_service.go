@@ -88,6 +88,17 @@ func (ts *TranscodeService) GetProviderManager() *ProviderManager {
 
 // StartTranscode starts a new transcoding operation
 func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*database.TranscodeSession, error) {
+	// Validate request
+	if req == nil {
+		return nil, fmt.Errorf("transcode request cannot be nil")
+	}
+	if req.InputPath == "" {
+		return nil, fmt.Errorf("input path cannot be empty")
+	}
+	if req.Container == "" {
+		return nil, fmt.Errorf("container format cannot be empty")
+	}
+
 	// Check session limits
 	activeSessions, err := ts.sessionStore.GetActiveSessions()
 	if err != nil {
@@ -158,6 +169,11 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 			ts.logger.Error("failed to start transcoding", "error", err, "session_id", session.ID)
 			ts.sessionStore.FailSession(session.ID, err)
 			return
+		}
+
+		// Update session status to running immediately after successful start
+		if err := ts.sessionStore.UpdateSessionStatus(session.ID, string(database.TranscodeStatusRunning), ""); err != nil {
+			ts.logger.Error("failed to update session status to running", "error", err, "session_id", session.ID)
 		}
 
 		ts.logger.Info("StartTranscode successful, starting progress monitoring", "session_id", session.ID)

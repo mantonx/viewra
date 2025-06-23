@@ -32,7 +32,9 @@ func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
 		// Streaming endpoints
 		api.GET("/stream/:sessionId", handler.HandleStreamTranscode)
 		api.GET("/stream/:sessionId/manifest.mpd", handler.HandleDashManifest)
+		api.HEAD("/stream/:sessionId/manifest.mpd", handler.HandleDashManifest)
 		api.GET("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
+		api.HEAD("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
 		api.GET("/stream/:sessionId/segment/:segmentName", handler.HandleSegment)
 		api.GET("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
 
@@ -45,5 +47,8 @@ func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
 		
 		// Diagnostics (development)
 		RegisterDiagnosticRoutes(api, handler)
+		
+		// FFmpeg monitoring
+		RegisterMonitoringRoutes(api, handler)
 	}
 }

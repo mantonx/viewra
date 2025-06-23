@@ -6,6 +6,7 @@ This project includes MCP server configurations for enhanced AI assistant capabi
 
 1. **GitHub** - For GitHub repository operations
 2. **Filesystem** - For enhanced file operations within the project
+3. **Sequential Thinking** - For structured problem-solving and step-by-step reasoning
 
 ## Setup Instructions
 
@@ -27,6 +28,34 @@ The `.mcp.json` file is already configured, but if you need to add the GitHub to
 ### 3. Restart Claude Code
 
 After setting up the environment variables, restart Claude Code to load the MCP servers.
+
+## Sequential Thinking MCP Server
+
+The Sequential Thinking MCP server enables Claude to engage in structured, step-by-step problem-solving. It's particularly useful for:
+
+- Breaking down complex problems into manageable steps
+- Planning and design tasks that may require revision
+- Analysis that might need course correction
+- Problems where the full scope might not be clear initially
+- Tasks requiring context maintenance across multiple reasoning steps
+
+### How It Works
+
+The server provides a `sequential_thinking` tool that allows Claude to:
+1. Generate thoughts step-by-step
+2. Track progress through numbered thoughts
+3. Revise previous thoughts as understanding deepens
+4. Branch into alternative reasoning paths
+5. Maintain context throughout the problem-solving process
+
+### When to Use
+
+Sequential Thinking is ideal for:
+- Complex architectural decisions
+- Debugging intricate issues
+- Planning multi-step implementations
+- Analyzing problems with unclear requirements
+- Tasks requiring iterative refinement
 
 ## Security Note
 

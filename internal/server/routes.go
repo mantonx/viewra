@@ -183,6 +183,8 @@ func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 		media.GET("/music", musicHandler.GetMusicFiles)
 		apiroutes.Register(media.BasePath()+"/music", "GET", "List all music files.")
 
+	// Media files endpoints are registered by mediamodule
+
 		playback := media.Group("/playback")
 		{
 			playback.POST("/start", musicHandler.RecordPlaybackStarted)

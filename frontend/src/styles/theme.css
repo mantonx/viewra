@@ -1,0 +1,139 @@
+/* Theme CSS Variables */
+:root {
+  /* Light theme colors */
+  --color-primary-50: 239 246 255;
+  --color-primary-100: 219 234 254;
+  --color-primary-200: 191 219 254;
+  --color-primary-300: 147 197 253;
+  --color-primary-400: 96 165 250;
+  --color-primary-500: 59 130 246;
+  --color-primary-600: 37 99 235;
+  --color-primary-700: 29 78 216;
+  --color-primary-800: 30 64 175;
+  --color-primary-900: 30 58 138;
+  --color-primary-950: 23 37 84;
+
+  --color-secondary-50: 248 250 252;
+  --color-secondary-100: 241 245 249;
+  --color-secondary-200: 226 232 240;
+  --color-secondary-300: 203 213 225;
+  --color-secondary-400: 148 163 184;
+  --color-secondary-500: 100 116 139;
+  --color-secondary-600: 71 85 105;
+  --color-secondary-700: 51 65 85;
+  --color-secondary-800: 30 41 59;
+  --color-secondary-900: 15 23 42;
+  --color-secondary-950: 2 6 23;
+
+  --color-background: 255 255 255;
+  --color-background-secondary: 248 250 252;
+  --color-background-tertiary: 241 245 249;
+  --color-background-elevated: 255 255 255;
+  --color-background-overlay: 0 0 0;
+
+  --color-foreground: 15 23 42;
+  --color-foreground-secondary: 51 65 85;
+  --color-foreground-tertiary: 100 116 139;
+  --color-foreground-muted: 148 163 184;
+
+  --color-border: 226 232 240;
+  --color-border-secondary: 203 213 225;
+  --color-border-focus: 59 130 246;
+
+  --color-success: 34 197 94;
+  --color-warning: 251 146 60;
+  --color-error: 239 68 68;
+  --color-info: 59 130 246;
+
+  /* Player specific colors */
+  --color-player-bg: 0 0 0;
+  --color-player-controls-bg: 15 23 42;
+  --color-player-progress-bg: 51 65 85;
+  --color-player-progress-buffered: 100 116 139;
+  --color-player-progress-played: 59 130 246;
+  --color-player-progress-hover: 96 165 250;
+  --color-player-text: 255 255 255;
+  --color-player-text-secondary: 203 213 225;
+
+  /* Opacity values */
+  --opacity-overlay-light: 0.1;
+  --opacity-overlay-medium: 0.3;
+  --opacity-overlay-heavy: 0.6;
+
+  /* Timing */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+
+  /* Border radius */
+  --radius-sm: 0.125rem;
+  --radius: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+[data-theme='dark'] {
+  /* Dark theme colors */
+  --color-primary-50: 23 37 84;
+  --color-primary-100: 30 58 138;
+  --color-primary-200: 30 64 175;
+  --color-primary-300: 29 78 216;
+  --color-primary-400: 37 99 235;
+  --color-primary-500: 59 130 246;
+  --color-primary-600: 96 165 250;
+  --color-primary-700: 147 197 253;
+  --color-primary-800: 191 219 254;
+  --color-primary-900: 219 234 254;
+  --color-primary-950: 239 246 255;
+
+  --color-secondary-50: 2 6 23;
+  --color-secondary-100: 15 23 42;
+  --color-secondary-200: 30 41 59;
+  --color-secondary-300: 51 65 85;
+  --color-secondary-400: 71 85 105;
+  --color-secondary-500: 100 116 139;
+  --color-secondary-600: 148 163 184;
+  --color-secondary-700: 203 213 225;
+  --color-secondary-800: 226 232 240;
+  --color-secondary-900: 241 245 249;
+  --color-secondary-950: 248 250 252;
+
+  --color-background: 15 23 42;
+  --color-background-secondary: 30 41 59;
+  --color-background-tertiary: 51 65 85;
+  --color-background-elevated: 30 41 59;
+  --color-background-overlay: 0 0 0;
+
+  --color-foreground: 241 245 249;
+  --color-foreground-secondary: 203 213 225;
+  --color-foreground-tertiary: 148 163 184;
+  --color-foreground-muted: 100 116 139;
+
+  --color-border: 51 65 85;
+  --color-border-secondary: 71 85 105;
+  --color-border-focus: 59 130 246;
+
+  --color-success: 34 197 94;
+  --color-warning: 251 146 60;
+  --color-error: 239 68 68;
+  --color-info: 59 130 246;
+
+  /* Player specific colors (same for both themes) */
+  --color-player-bg: 0 0 0;
+  --color-player-controls-bg: 15 23 42;
+  --color-player-progress-bg: 51 65 85;
+  --color-player-progress-buffered: 100 116 139;
+  --color-player-progress-played: 59 130 246;
+  --color-player-progress-hover: 96 165 250;
+  --color-player-text: 255 255 255;
+  --color-player-text-secondary: 203 213 225;
+}

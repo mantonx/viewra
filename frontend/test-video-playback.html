@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Playback Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.compiled.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        #video {
+            width: 100%;
+            max-width: 800px;
+            background: black;
+        }
+        #log {
+            margin-top: 20px;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        button {
+            margin: 10px 5px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .info {
+            margin: 10px 0;
+            padding: 10px;
+            background: #444;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Playback Test</h1>
+    
+    <div class="info">
+        <strong>Episode ID:</strong> 28b93b1f-b43a-4134-abaa-c6f255eafbfd<br>
+        <strong>File ID:</strong> 4c182292-552d-4c79-a9e7-97b8fecd0f18<br>
+        <strong>Show:</strong> 1883 - S01E07 - Lightning Yellow Hair
+    </div>
+    
+    <div>
+        <button onclick="testDASH()">Test DASH Playback</button>
+        <button onclick="testHLS()">Test HLS Playback</button>
+        <button onclick="clearLog()">Clear Log</button>
+        <button onclick="stopAllSessions()">Stop All Sessions</button>
+    </div>
+    
+    <video id="video" controls></video>
+    
+    <div id="log"></div>
+    
+    <script>
+        const video = document.getElementById('video');
+        const logDiv = document.getElementById('log');
+        let player = null;
+        let currentSessionId = null;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString().substring(11, 19);
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : '📋';
+            logDiv.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`${prefix} ${message}`);
+        }
+        
+        function clearLog() {
+            logDiv.textContent = '';
+        }
+        
+        async function stopAllSessions() {
+            try {
+                const response = await fetch('/api/playback/sessions/all', {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                log(`Stopped ${data.stopped_count} sessions`, 'success');
+            } catch (error) {
+                log(`Failed to stop sessions: ${error.message}`, 'error');
+            }
+        }
+        
+        async function initializePlayer() {
+            if (player) {
+                await player.destroy();
+                player = null;
+            }
+            
+            shaka.polyfill.installAll();
+            
+            if (!shaka.Player.isBrowserSupported()) {
+                log('Browser not supported!', 'error');
+                return false;
+            }
+            
+            player = new shaka.Player(video);
+            
+            player.addEventListener('error', (event) => {
+                const error = event.detail;
+                log(`Shaka error: ${error.code} - ${error.message || 'Unknown error'}`, 'error');
+            });
+            
+            // Configure player for low latency
+            player.configure({
+                streaming: {
+                    bufferingGoal: 10,
+                    rebufferingGoal: 5,
+                    bufferBehind: 15,
+                    retryParameters: {
+                        maxAttempts: 3,
+                        baseDelay: 1000,
+                        backoffFactor: 2,
+                    },
+                },
+                abr: {
+                    enabled: true,
+                    defaultBandwidthEstimate: 500000,
+                },
+            });
+            
+            return true;
+        }
+        
+        async function testDASH() {
+            clearLog();
+            log('Starting DASH test...');
+            
+            try {
+                // Stop any existing sessions
+                await stopAllSessions();
+                
+                // Start new DASH session
+                log('Starting DASH transcoding session...');
+                const startResponse = await fetch('/api/playback/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        media_file_id: '4c182292-552d-4c79-a9e7-97b8fecd0f18',
+                        container: 'dash'
+                    })
+                });
+                
+                if (!startResponse.ok) {
+                    throw new Error(`Failed to start session: ${startResponse.statusText}`);
+                }
+                
+                const session = await startResponse.json();
+                currentSessionId = session.id;
+                log(`Session created: ${session.id}`, 'success');
+                log(`Manifest URL: ${session.manifest_url}`);
+                
+                // Wait a bit for transcoding to start
+                log('Waiting for transcoding to start...');
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Check session status
+                const statusResponse = await fetch(`/api/playback/session/${session.id}`);
+                const status = await statusResponse.json();
+                log(`Session status: ${status.Status}`);
+                
+                // Check if manifest exists
+                const manifestUrl = session.manifest_url;
+                log(`Checking manifest at: ${manifestUrl}`);
+                
+                const manifestResponse = await fetch(manifestUrl);
+                if (manifestResponse.ok) {
+                    log('Manifest available!', 'success');
+                    const manifestText = await manifestResponse.text();
+                    log(`Manifest size: ${manifestText.length} bytes`);
+                    
+                    // Initialize player
+                    log('Initializing Shaka Player...');
+                    if (await initializePlayer()) {
+                        // Load manifest
+                        log('Loading manifest into player...');
+                        await player.load(manifestUrl);
+                        log('DASH playback started!', 'success');
+                    }
+                } else {
+                    log(`Manifest not ready: ${manifestResponse.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`Test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testHLS() {
+            clearLog();
+            log('Starting HLS test...');
+            
+            try {
+                // Stop any existing sessions
+                await stopAllSessions();
+                
+                // Start new HLS session
+                log('Starting HLS transcoding session...');
+                const startResponse = await fetch('/api/playback/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        media_file_id: '4c182292-552d-4c79-a9e7-97b8fecd0f18',
+                        container: 'hls'
+                    })
+                });
+                
+                if (!startResponse.ok) {
+                    throw new Error(`Failed to start session: ${startResponse.statusText}`);
+                }
+                
+                const session = await startResponse.json();
+                currentSessionId = session.id;
+                log(`Session created: ${session.id}`, 'success');
+                
+                // For HLS, the manifest URL needs adjustment
+                const playlistUrl = session.manifest_url.replace('manifest.mpd', 'playlist.m3u8');
+                log(`Playlist URL: ${playlistUrl}`);
+                
+                // Wait for transcoding
+                log('Waiting for transcoding to start...');
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Check playlist
+                const playlistResponse = await fetch(playlistUrl);
+                if (playlistResponse.ok) {
+                    log('HLS playlist available!', 'success');
+                    
+                    // Initialize player
+                    log('Initializing Shaka Player...');
+                    if (await initializePlayer()) {
+                        // Load playlist
+                        log('Loading playlist into player...');
+                        await player.load(playlistUrl);
+                        log('HLS playback started!', 'success');
+                    }
+                } else {
+                    log(`Playlist not ready: ${playlistResponse.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`Test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', async () => {
+            if (currentSessionId) {
+                await fetch(`/api/playback/session/${currentSessionId}`, {
+                    method: 'DELETE'
+                });
+            }
+        });
+    </script>
+</body>
+</html>

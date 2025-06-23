@@ -294,3 +294,69 @@ const data = await apiCall<ResponseType>('/api/endpoint');
   - `mcp__filesystem__move_file` - Move/rename files
   - `mcp__filesystem__search_files` - Search for files by pattern
   - `mcp__filesystem__get_file_info` - Get file metadata
+
+### Sequential Thinking MCP
+- **PURPOSE**: Enhances problem-solving with structured, step-by-step reasoning
+- **WHEN TO USE**: 
+  - Complex architectural decisions
+  - Debugging intricate issues
+  - Planning new features or modules
+  - Analyzing performance problems
+  - Designing plugin interfaces
+- **CAPABILITIES**:
+  - Break down complex problems into manageable steps
+  - Revise and refine reasoning dynamically
+  - Maintain context across multiple reasoning steps
+  - Explore alternative solution paths
+- **CONFIGURATION**: Already configured in `.mcp.json`
+
+### Memory MCP
+- **PURPOSE**: Persistent memory across chat sessions using a local knowledge graph
+- **WHEN TO USE**:
+  - Storing user preferences and project decisions
+  - Tracking ongoing issues and their solutions
+  - Remembering architectural decisions and rationale
+  - Building relationships between project components
+- **CAPABILITIES**:
+  - `create_entities`: Add entities (people, systems, concepts)
+  - `create_relations`: Connect entities with relationships
+  - `add_observations`: Record facts about entities
+  - `search_nodes`: Find information by query
+  - `read_graph`: View entire knowledge graph
+- **STORAGE**: Local persistent file-based storage
+- **CONFIGURATION**: Already configured in `.mcp.json`
+
+### Context7 MCP
+- **PURPOSE**: Provides real-time, version-specific documentation for libraries
+- **WHEN TO USE**:
+  - Working with external libraries or frameworks
+  - Need accurate, up-to-date API documentation
+  - Implementing features using third-party packages
+  - Avoiding outdated or hallucinated library information
+- **CAPABILITIES**:
+  - `resolve-library-id`: Convert library names to Context7 IDs
+  - `get-library-docs`: Fetch current documentation for libraries
+- **BENEFITS**:
+  - Always provides current, accurate documentation
+  - Reduces errors from outdated information
+  - No need to manually check documentation sites
+- **CONFIGURATION**: Already configured in `.mcp.json`
+
+### Serena MCP
+- **PURPOSE**: Powerful coding agent toolkit for semantic code analysis and editing
+- **WHEN TO USE**:
+  - Large-scale code refactoring
+  - Semantic code analysis across the codebase
+  - Complex code modifications requiring LSP features
+  - Autonomous code generation and editing tasks
+- **CAPABILITIES**:
+  - Semantic code retrieval using Language Server Protocol
+  - Direct code editing with semantic understanding
+  - Shell command execution for build/test automation
+  - Multi-language support (Go, TypeScript, Python, Rust, Java, C++)
+- **FEATURES**:
+  - Works with free Claude tiers
+  - IDE-like code understanding
+  - Language-aware refactoring
+  - Project-specific configuration support
+- **CONFIGURATION**: Already configured in `.mcp.json` using uvx

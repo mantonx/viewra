@@ -11,6 +11,7 @@ import {
   progressStateAtom,
 } from '@/atoms/mediaPlayer';
 import { MediaService } from '@/services/MediaService';
+import { buildApiUrl } from '@/constants/api';
 import { useSessionManager } from '../session/useSessionManager';
 import type { MediaIdentifier } from '@/components/MediaPlayer';
 
@@ -41,6 +42,10 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
     if (!mediaId) return;
 
     try {
+      // Clean up any existing sessions first
+      console.log('🧹 Cleaning up existing sessions before loading new media...');
+      await stopAllSessions();
+      
       setLoadingState(prev => ({ ...prev, isLoading: true, error: null }));
 
       const mediaFile = await MediaService.getMediaFiles(mediaId, mediaType);
@@ -60,11 +65,10 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
       const deviceProfile = MediaService.getDefaultDeviceProfile();
       
       const [decision, metadata] = await Promise.all([
-        MediaService.getPlaybackDecision(mediaFile.path, deviceProfile),
+        MediaService.getPlaybackDecision(mediaFile.path, mediaFile.id, deviceProfile),
         MediaService.getMediaMetadata(mediaId, mediaFile.id),
       ]);
 
-      setPlaybackDecision(decision);
       if (metadata) {
         setCurrentMedia(metadata);
       }
@@ -73,18 +77,29 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
         console.log('🎬 Starting transcoding session for:', mediaFile.path);
         
         const sessionData = await MediaService.startTranscodingSession(
-          mediaFile.path,
+          mediaFile.id,  // Use media file ID instead of path
           decision.transcode_params?.target_container || 'dash',
           decision.transcode_params?.target_codec || 'h264'
         );
 
         console.log('✅ Transcoding session started:', sessionData.id);
 
-        setPlaybackDecision(prev => ({
-          ...prev!,
+        // Update decision with transcoding session info
+        const updatedDecision = {
+          ...decision,
           session_id: sessionData.id,
-          manifest_url: `/api/playback/stream/${sessionData.id}/manifest.mpd`,
-        }));
+          manifest_url: sessionData.manifest_url || buildApiUrl(`/playback/stream/${sessionData.id}/manifest.mpd`),
+          stream_url: sessionData.manifest_url || buildApiUrl(`/playback/stream/${sessionData.id}/manifest.mpd`),
+        };
+        
+        setPlaybackDecision(updatedDecision);
+      } else {
+        // For direct play, ensure stream_url is set
+        const updatedDecision = {
+          ...decision,
+          stream_url: decision.direct_play_url || decision.stream_url || mediaFile.path,
+        };
+        setPlaybackDecision(updatedDecision);
       }
 
       setLoadingState(prev => ({ ...prev, isLoading: false }));
@@ -97,7 +112,7 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
         isLoading: false,
       }));
     }
-  }, [mediaId, mediaType, setLoadingState, setMediaFile, setProgressState, setPlaybackDecision, setCurrentMedia]);
+  }, [mediaId, mediaType, setLoadingState, setMediaFile, setProgressState, setPlaybackDecision, setCurrentMedia, stopAllSessions]);
 
   const updateConfig = useCallback(() => {
     const debug = searchParams.get('debug') === 'true' || searchParams.get('debug') === '1';
@@ -117,9 +132,19 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
 
   useEffect(() => {
     if (mediaId) {
+      // Reset state when media changes
+      setPlaybackDecision(null);
+      setCurrentMedia(null);
+      setMediaFile(null);
+      setLoadingState({
+        isLoading: true,
+        isVideoLoading: false,
+        error: null,
+      });
+      
       loadMediaData();
     }
-  }, [mediaId, loadMediaData]);
+  }, [mediaId]); // Intentionally not including all deps to avoid infinite loops
 
   const getSavedPositionForMedia = useCallback((): number => {
     return mediaId ? getSavedPosition(mediaId) : 0;

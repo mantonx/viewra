@@ -21,8 +21,10 @@ export const isValidUUID = (uuid: string): boolean => {
  */
 export const isValidSessionId = (sessionId: string): boolean => {
   if (!sessionId) return false;
-  const sessionPattern = /^ffmpeg_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return sessionPattern.test(sessionId);
+  // Accept both plain UUID and legacy ffmpeg_UUID format
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const legacyPattern = /^ffmpeg_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(sessionId) || legacyPattern.test(sessionId);
 };
 
 /**

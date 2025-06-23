@@ -14,6 +14,38 @@
         "@modelcontextprotocol/server-filesystem",
         "/home/fictional/Projects/viewra"
       ]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    "serena": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena-mcp-server"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@context7/mcp-server-sse"
+      ],
+      "env": {
+        "SSE_URL": "https://mcp.context7.com/sse"
+      }
     }
   }
 }

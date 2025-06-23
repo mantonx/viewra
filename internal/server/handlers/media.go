@@ -315,16 +315,21 @@ func GetMediaFile(c *gin.Context) {
 	result := db.Where("id = ?", idParam).First(&mediaFile)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Media file not found",
-			})
+			// Try to find by media_id (episode, movie, or track ID)
+			result = db.Where("media_id = ?", idParam).First(&mediaFile)
+			if result.Error != nil {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error": "Media file not found",
+				})
+				return
+			}
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "Failed to retrieve media file",
 				"details": result.Error.Error(),
 			})
+			return
 		}
-		return
 	}
 
 	// Build response with metadata if it's a music track
@@ -338,6 +343,132 @@ func GetMediaFile(c *gin.Context) {
 			Where("id = ?", mediaFile.MediaID).First(&track).Error; err == nil {
 			response["track_info"] = track
 		}
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetMediaFileMetadata retrieves metadata for a media file based on its type
+func GetMediaFileMetadata(c *gin.Context) {
+	idParam := c.Param("id")
+
+	if idParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid media file ID",
+		})
+		return
+	}
+
+	db := database.GetDB()
+	var mediaFile database.MediaFile
+	result := db.Where("id = ?", idParam).First(&mediaFile)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Media file not found",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to retrieve media file",
+				"details": result.Error.Error(),
+			})
+		}
+		return
+	}
+
+	response := gin.H{
+		"media_file": mediaFile,
+	}
+
+	// Based on media type, return appropriate metadata
+	switch mediaFile.MediaType {
+	case database.MediaTypeTrack:
+		if mediaFile.MediaID != "" {
+			var track database.Track
+			if err := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
+				Where("id = ?", mediaFile.MediaID).First(&track).Error; err == nil {
+				response["metadata"] = gin.H{
+					"type":        "track",
+					"track_id":    track.ID,
+					"title":       track.Title,
+					"artist":      track.Artist.Name,
+					"album":       track.Album.Title,
+					"album_artist": track.Album.Artist.Name,
+					"track_number": track.TrackNumber,
+
+					"duration":     track.Duration,
+				}
+			} else {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error": "Track metadata not found",
+				})
+				return
+			}
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "File is not a music track",
+			})
+			return
+		}
+	case database.MediaTypeEpisode:
+		if mediaFile.MediaID != "" {
+			var episode database.Episode
+			if err := db.Preload("Season").Preload("Season.TVShow").
+				Where("id = ?", mediaFile.MediaID).First(&episode).Error; err == nil {
+				response["metadata"] = gin.H{
+					"type":           "episode",
+					"episode_id":     episode.ID,
+					"title":          episode.Title,
+					"episode_number": episode.EpisodeNumber,
+					"season": gin.H{
+						"id":            episode.Season.ID,
+						"season_number": episode.Season.SeasonNumber,
+						"tv_show": gin.H{
+							"id":    episode.Season.TVShow.ID,
+							"title": episode.Season.TVShow.Title,
+						},
+					},
+				}
+			} else {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error": "Episode metadata not found",
+				})
+				return
+			}
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "File is not an episode",
+			})
+			return
+		}
+	case database.MediaTypeMovie:
+		if mediaFile.MediaID != "" {
+			var movie database.Movie
+			if err := db.Where("id = ?", mediaFile.MediaID).First(&movie).Error; err == nil {
+				response["metadata"] = gin.H{
+					"type":     "movie",
+					"movie_id": movie.ID,
+					"title":    movie.Title,
+					"release_date": movie.ReleaseDate,
+					"runtime":  movie.Runtime,
+				}
+			} else {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error": "Movie metadata not found",
+				})
+				return
+			}
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "File is not a movie",
+			})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Unknown media type",
+		})
+		return
 	}
 
 	c.JSON(http.StatusOK, response)

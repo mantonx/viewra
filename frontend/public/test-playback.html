@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Playback Test</title>
+    <script>
+        async function testPlaybackDecision() {
+            console.log('Testing playback decision API...');
+            
+            const response = await fetch('/api/playback/decide', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_id: '4c182292-552d-4c79-a9e7-97b8fecd0f18',
+                    media_path: '/media/tv/1883/Season 01/1883 (2021) - S01E07 - Lightning Yellow Hair [Bluray-1080p][AAC 5.1][x265]-Vyndros.mkv',
+                    device_profile: {
+                        user_agent: 'Mozilla/5.0',
+                        supported_codecs: ['h264', 'aac'],
+                        max_resolution: '1080p',
+                        max_bitrate: 8000,
+                        supports_hevc: false,
+                        target_container: 'dash'
+                    }
+                })
+            });
+            
+            const decision = await response.json();
+            console.log('Playback decision:', decision);
+            
+            document.getElementById('result').textContent = JSON.stringify(decision, null, 2);
+            
+            if (decision.should_transcode) {
+                console.log('Starting transcoding session...');
+                
+                const startResponse = await fetch('/api/playback/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        media_file_id: '4c182292-552d-4c79-a9e7-97b8fecd0f18',
+                        container: 'dash'
+                    })
+                });
+                
+                const session = await startResponse.json();
+                console.log('Transcoding session:', session);
+                
+                document.getElementById('session').textContent = JSON.stringify(session, null, 2);
+                
+                // Test the episode player URL
+                const episodeId = '28b93b1f-b43a-4134-abaa-c6f255eafbfd';
+                document.getElementById('playerLink').href = `/player/episode/${episodeId}`;
+                document.getElementById('playerLink').style.display = 'block';
+            }
+        }
+        
+        window.onload = testPlaybackDecision;
+    </script>
+</head>
+<body>
+    <h1>Playback Decision Test</h1>
+    <h2>Decision:</h2>
+    <pre id="result">Loading...</pre>
+    
+    <h2>Session:</h2>
+    <pre id="session"></pre>
+    
+    <a id="playerLink" href="#" style="display:none; font-size: 20px;">Open Episode Player</a>
+</body>
+</html>

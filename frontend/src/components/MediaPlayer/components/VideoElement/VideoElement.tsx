@@ -1,7 +1,8 @@
-import React, { forwardRef, useRef, useImperativeHandle, useCallback, useEffect } from 'react';
+import React, { forwardRef, useRef, useImperativeHandle, useCallback, useEffect, useState } from 'react';
 import { useAtom } from 'jotai';
+import { Play } from 'lucide-react';
 
-import { videoElementAtom, shakaPlayerAtom, configAtom } from '@/atoms/mediaPlayer';
+import { videoElementAtom, shakaPlayerAtom, configAtom, playerStateAtom } from '@/atoms/mediaPlayer';
 import type { VideoElementProps, VideoElementRef } from './types';
 import { cn } from '@/utils/cn';
 
@@ -27,6 +28,8 @@ export const VideoElement = forwardRef<VideoElementRef, VideoElementProps>(({
   const [, setVideoElement] = useAtom(videoElementAtom);
   const [shakaPlayer, setShakaPlayer] = useAtom(shakaPlayerAtom);
   const [config] = useAtom(configAtom);
+  const [playerState] = useAtom(playerStateAtom);
+  const [hasVideo, setHasVideo] = useState(false);
   
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -52,11 +55,23 @@ export const VideoElement = forwardRef<VideoElementRef, VideoElementProps>(({
     
     if (shakaPlayer) {
       try {
-        shakaPlayer.destroy();
+        // Safely detach and destroy
+        if (typeof shakaPlayer.detach === 'function') {
+          shakaPlayer.detach();
+        }
+        if (typeof shakaPlayer.destroy === 'function') {
+          shakaPlayer.destroy();
+        }
         setShakaPlayer(null);
       } catch (error) {
         console.warn('Error destroying Shaka player:', error);
       }
+    }
+    
+    // Clear video element source to prevent memory leaks
+    if (videoRef.current) {
+      videoRef.current.src = '';
+      videoRef.current.load();
     }
   }, [shakaPlayer, setShakaPlayer]);
 
@@ -73,15 +88,33 @@ export const VideoElement = forwardRef<VideoElementRef, VideoElementProps>(({
 
     setVideoElement(video);
 
+    const handleLoadedData = () => {
+      console.log('🎥 Video loaded data event fired');
+      setHasVideo(true);
+      if (onLoadedData) onLoadedData();
+    };
+    
+    const handleLoadedMetadata = () => {
+      console.log('🎥 Video loaded metadata event fired');
+      setHasVideo(true);
+      if (onLoadedMetadata) onLoadedMetadata();
+    };
+    
+    const handleCanPlay = () => {
+      console.log('🎥 Video can play event fired');
+      setHasVideo(true);
+      if (onCanPlay) onCanPlay();
+    };
+
     const eventHandlers = {
-      loadedmetadata: onLoadedMetadata,
-      loadeddata: onLoadedData,
+      loadedmetadata: handleLoadedMetadata,
+      loadeddata: handleLoadedData,
       timeupdate: onTimeUpdate,
       play: onPlay,
       pause: onPause,
       volumechange: onVolumeChange,
       durationchange: onDurationChange,
-      canplay: onCanPlay,
+      canplay: handleCanPlay,
       waiting: onWaiting,
       playing: onPlaying,
       stalled: onStalled,
@@ -125,14 +158,25 @@ export const VideoElement = forwardRef<VideoElementRef, VideoElementProps>(({
   ]);
 
   return (
-    <video
-      ref={videoRef}
-      className={cn('w-full h-full object-contain', className)}
-      playsInline
-      preload={preload}
-      autoPlay={autoPlay}
-      muted={muted}
-    />
+    <div className="relative w-full h-full">
+      <video
+        ref={videoRef}
+        className={cn('w-full h-full object-contain', className)}
+        playsInline
+        preload={preload}
+        autoPlay={autoPlay}
+        muted={muted}
+      />
+      
+      {/* Placeholder when no video is loaded */}
+      {!hasVideo && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="text-8xl text-white/10 animate-pulse">
+            {playerState.isPlaying ? <Play className="w-32 h-32" fill="currentColor" /> : <Play className="w-32 h-32" />}
+          </div>
+        </div>
+      )}
+    </div>
   );
 });
 

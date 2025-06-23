@@ -26,8 +26,11 @@ type DeviceProfile struct {
 type PlaybackDecision struct {
 	ShouldTranscode bool                      `json:"should_transcode"`
 	DirectPlayURL   string                    `json:"direct_play_url,omitempty"`
+	StreamURL       string                    `json:"stream_url,omitempty"`        // URL for streaming (either direct or transcoded)
+	ManifestURL     string                    `json:"manifest_url,omitempty"`      // URL for DASH/HLS manifest
 	TranscodeParams *plugins.TranscodeRequest `json:"transcode_params,omitempty"`
 	Reason          string                    `json:"reason"`
+	SessionID       string                    `json:"session_id,omitempty"` // Transcoding session ID if applicable
 }
 
 // PlaybackPlanner interface for making playback decisions

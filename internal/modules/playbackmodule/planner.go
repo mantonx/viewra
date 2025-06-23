@@ -29,6 +29,7 @@ func (p *PlaybackPlannerImpl) DecidePlayback(mediaPath string, deviceProfile *De
 		return &PlaybackDecision{
 			ShouldTranscode: false,
 			DirectPlayURL:   mediaPath,
+			StreamURL:       mediaPath, // For frontend compatibility
 			Reason:          "Media is compatible with client capabilities",
 		}, nil
 	}

@@ -99,6 +99,7 @@ func (s *SessionStore) UpdateProgress(sessionID string, progress *plugins.Transc
 		"progress":      string(progressJSON),
 		"status":        database.TranscodeStatusRunning,
 		"last_accessed": time.Now(),
+		"updated_at":    time.Now(),
 	}
 
 	if err := s.db.Model(&database.TranscodeSession{}).Where("id = ?", sessionID).Updates(updates).Error; err != nil {
@@ -316,8 +317,14 @@ func (s *SessionStore) CleanupStaleSessions(maxAge time.Duration) (int, error) {
 func (s *SessionStore) UpdateSessionStatus(sessionID, status, result string) error {
 	updates := map[string]interface{}{
 		"status": status,
-		"result": result,
-		"end_time": time.Now(),
+		"last_accessed": time.Now(),
+		"updated_at":    time.Now(),
+	}
+	
+	// Only set result and end_time if result is provided
+	if result != "" {
+		updates["result"] = result
+		updates["end_time"] = time.Now()
 	}
 	
 	if err := s.db.Model(&database.TranscodeSession{}).

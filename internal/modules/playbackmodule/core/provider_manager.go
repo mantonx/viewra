@@ -106,7 +106,9 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 	pm.logger.Info("TRACE: SelectProvider called",
 		"provider_manager_instance", fmt.Sprintf("%p", pm),
 		"total_providers", len(pm.providers),
-		"requested_container", req.Container)
+		"requested_container", req.Container,
+		"container_empty", req.Container == "",
+		"request_input_path", req.InputPath)
 
 	// Get capable providers
 	candidates := pm.getCapableProviders(req)
@@ -118,12 +120,39 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 	if len(candidates) == 0 {
 		pm.logger.Debug("DEBUG: No capable providers found",
 			"total_providers", len(pm.providers),
-			"requested_container", req.Container)
+			"requested_container", req.Container,
+			"container_empty", req.Container == "")
+		
+		// Enhanced debugging for the root cause
+		if req.Container == "" {
+			pm.logger.Error("CRITICAL: Container field is empty in TranscodeRequest - this indicates a bug in request construction",
+				"input_path", req.InputPath,
+				"session_id", req.SessionID)
+		}
 		
 		// If no providers are found, this might be a timing issue with plugin discovery
 		// This is a safeguard to ensure the system is self-healing
 		if len(pm.providers) == 0 {
 			pm.logger.Warn("No providers registered at all - this suggests a plugin discovery issue")
+		} else {
+			// Log details about available providers when container is not empty but no match found
+			if req.Container != "" {
+				pm.logger.Warn("Providers are available but none support the requested format",
+					"requested_format", req.Container,
+					"available_providers", len(pm.providers))
+				
+				// Log what formats each provider supports
+				for providerID, provider := range pm.providers {
+					formats := provider.GetSupportedFormats()
+					formatStrings := make([]string, len(formats))
+					for i, format := range formats {
+						formatStrings[i] = format.Format
+					}
+					pm.logger.Debug("Provider supported formats",
+						"provider_id", providerID,
+						"supported_formats", formatStrings)
+				}
+			}
 		}
 		
 		return nil, fmt.Errorf("no capable providers found for format: %s", req.Container)

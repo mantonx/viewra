@@ -106,12 +106,12 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       {/* Hover tooltip */}
       {showTooltip && hoverTime !== null && (
         <div
-          className="absolute -top-8 transform -translate-x-1/2 bg-player-controls-bg/90 text-player-text px-2 py-1 rounded text-sm pointer-events-none z-10 backdrop-blur-sm"
+          className="absolute -top-8 transform -translate-x-1/2 bg-slate-800/90 text-white px-2 py-1 rounded text-sm pointer-events-none z-10 backdrop-blur-sm"
           style={{ left: `${(hoverTime / duration) * 100}%` }}
         >
           {formatTime(hoverTime)}
           {showSeekAheadForHover && (
-            <span className="ml-1 text-player-progress-hover">⚡</span>
+            <span className="ml-1 text-blue-400">⚡</span>
           )}
         </div>
       )}
@@ -120,7 +120,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       <div 
         ref={progressRef}
         className={cn(
-          "w-full h-3 bg-player-progress-bg rounded-full cursor-pointer relative transition-all duration-normal",
+          "w-full h-3 bg-gray-700 rounded-full cursor-pointer relative transition-all duration-200",
           "hover:h-4",
           !isSeekable && "cursor-not-allowed opacity-50",
           isDragging && "h-4"
@@ -154,7 +154,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         {/* Seek-ahead indicator */}
         {showSeekAheadIndicator && duration > 0 && (
           <div
-            className="absolute top-0 bg-player-progress-hover/40 h-full rounded-full"
+            className="absolute top-0 bg-blue-400/40 h-full rounded-full"
             style={{ 
               left: `${(getMaxBufferedEnd() / duration) * 100}%`,
               width: `${((duration - getMaxBufferedEnd()) / duration) * 100}%`
@@ -165,25 +165,25 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         
         {/* Current progress */}
         <div
-          className="absolute top-0 left-0 h-full rounded-full transition-all duration-fast"
-          style={{ 
-            width: `${progress}%`,
-            backgroundColor: 'rgb(239, 68, 68)' // red-500
-          }}
+        className="absolute top-0 left-0 h-full rounded-full transition-all duration-150"
+        style={{ 
+        width: `${progress}%`,
+        backgroundColor: 'rgb(59, 130, 246)' // blue-500
+        }}
         />
         
         {/* Progress handle */}
         {isSeekable && (
           <div
             className={cn(
-              "absolute top-1/2 w-4 h-4 rounded-full -translate-y-1/2 -translate-x-1/2 transition-all duration-fast z-20",
-              hoverTime !== null || isDragging ? "scale-125" : "scale-100"
+            "absolute top-1/2 w-4 h-4 rounded-full -translate-y-1/2 -translate-x-1/2 transition-all duration-150 z-20",
+            hoverTime !== null || isDragging ? "scale-125" : "scale-100"
             )}
             style={{ 
-              left: `${progress}%`,
-              backgroundColor: '#ffffff',
-              border: '2px solid rgb(239, 68, 68)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            left: `${progress}%`,
+            backgroundColor: '#ffffff',
+            border: '2px solid rgb(59, 130, 246)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
             }}
           />
         )}
@@ -192,7 +192,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       {/* Loading indicator */}
       {isSeekingAhead && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-player-controls-bg/80 px-2 py-1 rounded text-xs text-player-text animate-pulse backdrop-blur-sm">
+          <div className="bg-slate-800/80 px-2 py-1 rounded text-xs text-white animate-pulse backdrop-blur-sm">
             Seeking...
           </div>
         </div>

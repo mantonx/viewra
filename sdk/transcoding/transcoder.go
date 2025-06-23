@@ -393,44 +393,51 @@ func (t *Transcoder) buildSimpleFFmpegArgs(req TranscodeRequest, outputPath stri
 	// Input file
 	args = append(args, "-i", req.InputPath)
 
-	// Advanced video mapping and filtering
-	args = append(args, "-map", "0:v:0") // Map first video stream
-	args = append(args, "-map", "0:a:0") // Map first audio stream
+	// For ABR (Adaptive Bitrate) streaming, let the specific function handle everything
+	if (req.Container == "dash" || req.Container == "hls") && req.EnableABR {
+		// Container-specific settings will handle all mapping and encoding
+		containerArgs := t.getContainerSpecificArgs(req, outputPath)
+		args = append(args, containerArgs...)
+	} else {
+		// Advanced video mapping and filtering
+		args = append(args, "-map", "0:v:0") // Map first video stream
+		args = append(args, "-map", "0:a:0") // Map first audio stream
 
-	// Video codec with intelligent defaults
-	videoCodec := t.getOptimalVideoCodec(req)
-	args = append(args, "-c:v", videoCodec)
+		// Video codec with intelligent defaults
+		videoCodec := t.getOptimalVideoCodec(req)
+		args = append(args, "-c:v", videoCodec)
 
-	// Preset optimization based on speed priority
-	preset := t.getOptimalPreset(req.SpeedPriority, videoCodec)
-	if preset != "" {
-		args = append(args, "-preset", preset)
+		// Preset optimization based on speed priority
+		preset := t.getOptimalPreset(req.SpeedPriority, videoCodec)
+		if preset != "" {
+			args = append(args, "-preset", preset)
+		}
+
+		// Quality settings optimized for content
+		qualityArgs := t.getOptimalQualitySettings(req, videoCodec)
+		args = append(args, qualityArgs...)
+
+		// Keyframe alignment for optimal seeking and segment boundaries
+		keyframeArgs := t.getKeyframeAlignmentArgs(req)
+		args = append(args, keyframeArgs...)
+
+		// Video filtering for quality enhancement
+		videoFilters := t.getVideoFilters(req)
+		if len(videoFilters) > 0 {
+			args = append(args, "-vf", videoFilters)
+		}
+
+		// Audio settings optimized for source content
+		audioArgs := t.getOptimalAudioSettings(req)
+		args = append(args, audioArgs...)
+
+		// Conservative threading to prevent resource contention
+		args = append(args, "-threads", "4") // Limit to 4 threads for stability
+
+		// Container-specific settings with quality optimizations
+		containerArgs := t.getContainerSpecificArgs(req, outputPath)
+		args = append(args, containerArgs...)
 	}
-
-	// Quality settings optimized for content
-	qualityArgs := t.getOptimalQualitySettings(req, videoCodec)
-	args = append(args, qualityArgs...)
-
-	// Keyframe alignment for optimal seeking and segment boundaries
-	keyframeArgs := t.getKeyframeAlignmentArgs(req)
-	args = append(args, keyframeArgs...)
-
-	// Video filtering for quality enhancement
-	videoFilters := t.getVideoFilters(req)
-	if len(videoFilters) > 0 {
-		args = append(args, "-vf", videoFilters)
-	}
-
-	// Audio settings optimized for source content
-	audioArgs := t.getOptimalAudioSettings(req)
-	args = append(args, audioArgs...)
-
-	// Conservative threading to prevent resource contention
-	args = append(args, "-threads", "4") // Limit to 4 threads for stability
-
-	// Container-specific settings with quality optimizations
-	containerArgs := t.getContainerSpecificArgs(req, outputPath)
-	args = append(args, containerArgs...)
 
 	// Output file
 	args = append(args, outputPath)
@@ -763,15 +770,23 @@ func (t *Transcoder) getDashABRArgs(req TranscodeRequest, outputPath string) []s
 	
 	// Map streams for each quality level
 	var maps []string
-	var adaptationSets []string
+	var videoStreamIndices []string
+	var audioStreamIndices []string
 	
-	for i, rung := range ladder {
+	// First add all the maps
+	for range ladder {
 		// Create a named output for each quality
 		maps = append(maps,
 			"-map", "0:v:0",
 			"-map", "0:a:0",
 		)
-		
+	}
+	
+	// Add all maps to args first
+	args = append(args, maps...)
+	
+	// Then add encoding settings for each stream
+	for i, rung := range ladder {
 		// Video encoding settings for this rung
 		streamIndex := i * 2
 		args = append(args,
@@ -795,13 +810,17 @@ func (t *Transcoder) getDashABRArgs(req TranscodeRequest, outputPath string) []s
 			// Let FFmpeg handle channels automatically
 		)
 		
-		// Build adaptation set mapping
-		adaptationSets = append(adaptationSets, fmt.Sprintf("id=%d,streams=%d", i, streamIndex))
-		adaptationSets = append(adaptationSets, fmt.Sprintf("id=%d,streams=%d", len(ladder)+i, audioIndex))
+		// Collect stream indices for adaptation sets
+		videoStreamIndices = append(videoStreamIndices, strconv.Itoa(streamIndex))
+		audioStreamIndices = append(audioStreamIndices, strconv.Itoa(audioIndex))
 	}
 	
-	// Apply all maps first
-	args = append(maps, args...)
+	// Build adaptation sets - one for all video streams, one for all audio streams
+	adaptationSets := fmt.Sprintf("id=0,streams=%s id=1,streams=%s", 
+		strings.Join(videoStreamIndices, ","),
+		strings.Join(audioStreamIndices, ","))
+	
+	// Maps already added above, no need to add again
 	
 	// DASH muxer settings with seek optimization
 	segDuration := t.getAdaptiveSegmentDuration(req)
@@ -811,13 +830,13 @@ func (t *Transcoder) getDashABRArgs(req TranscodeRequest, outputPath string) []s
 		"-use_template", "1",
 		"-use_timeline", "1",
 		"-single_file", "0",
-		"-adaptation_sets", strings.Join(adaptationSets, " "),
+		"-adaptation_sets", adaptationSets,
 		"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
 		"-init_seg_name", "init-$RepresentationID$.m4s",
 		// Seek optimization features
 		"-write_prft", "1",                      // Producer Reference Time
 		"-global_sidx", "1",                    // Global SIDX for all segments
-		"-profile", "urn:mpeg:dash:profile:isoff-on-demand:2011", // On-demand profile
+		// Note: DASH profile is set automatically by FFmpeg based on other parameters
 	)
 	
 	return args

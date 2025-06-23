@@ -61,3 +61,4 @@ temp/
 
 # Legacy cleanup
 .legacy_protobuf_files/
+.build-cache/

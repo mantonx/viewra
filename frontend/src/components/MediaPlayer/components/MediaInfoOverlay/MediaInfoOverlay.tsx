@@ -36,7 +36,7 @@ export const MediaInfoOverlay: React.FC<MediaInfoOverlayProps> = ({
   return (
     <div
       className={cn(
-        'absolute z-20 bg-player-controls-bg/70 text-player-text p-4 rounded-lg backdrop-blur-sm transition-opacity duration-slow',
+        'absolute z-20 bg-slate-800/70 text-white p-4 rounded-lg backdrop-blur-sm transition-opacity duration-500',
         positionClasses[position],
         isVisible ? 'opacity-100' : 'opacity-0',
         showOnHover && 'opacity-0 hover:opacity-100',
@@ -46,24 +46,24 @@ export const MediaInfoOverlay: React.FC<MediaInfoOverlayProps> = ({
       {isEpisode(media) ? (
         <>
           <h3 className="text-lg font-semibold">{media.series.title}</h3>
-          <p className="text-sm text-player-text-secondary">
+          <p className="text-sm text-gray-300">
             Season {media.season_number}, Episode {media.episode_number}
           </p>
           <h4 className="text-md font-medium mt-1">{media.title}</h4>
           {media.description && (
-            <p className="text-xs text-player-text-secondary/80 mt-2 line-clamp-2">{media.description}</p>
+            <p className="text-xs text-gray-400 mt-2 line-clamp-2">{media.description}</p>
           )}
         </>
       ) : (
         <>
           <h3 className="text-lg font-semibold">{media.title}</h3>
           {media.release_date && (
-            <p className="text-sm text-player-text-secondary">
+            <p className="text-sm text-gray-300">
               {new Date(media.release_date).getFullYear()}
             </p>
           )}
           {media.description && (
-            <p className="text-xs text-player-text-secondary/80 mt-2 line-clamp-2">{media.description}</p>
+            <p className="text-xs text-gray-400 mt-2 line-clamp-2">{media.description}</p>
           )}
         </>
       )}
