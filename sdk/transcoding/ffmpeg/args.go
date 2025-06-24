@@ -26,6 +26,7 @@ package ffmpeg
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -35,13 +36,15 @@ import (
 
 // FFmpegArgsBuilder handles building FFmpeg command arguments
 type FFmpegArgsBuilder struct {
-	logger types.Logger
+	logger          types.Logger
+	resourceManager *ResourceManager
 }
 
 // NewFFmpegArgsBuilder creates a new FFmpeg args builder
 func NewFFmpegArgsBuilder(logger types.Logger) *FFmpegArgsBuilder {
 	return &FFmpegArgsBuilder{
-		logger: logger,
+		logger:          logger,
+		resourceManager: NewResourceManager(logger),
 	}
 }
 
@@ -52,15 +55,22 @@ func (b *FFmpegArgsBuilder) BuildArgs(req types.TranscodeRequest, outputPath str
 	// Hardware acceleration - auto-detect best available method
 	args = append(args, "-hwaccel", "auto")
 	
+	// Get resource configuration
+	resources := b.resourceManager.GetOptimalResources(
+		(req.Container == "dash" || req.Container == "hls") && req.EnableABR,
+		b.getStreamCount(req),
+		req.SpeedPriority,
+	)
+	
 	// CRITICAL: Optimized flags for VOD transcoding
 	// NOTE: Do NOT use -re or low_delay for VOD content
 	args = append(args, "-fflags", "+genpts+fastseek") // Generate PTS, fast seeking
-	args = append(args, "-probesize", "5000000") // 5MB probe size for accurate stream detection
-	args = append(args, "-analyzeduration", "5000000") // 5 second analyze duration
+	args = append(args, "-probesize", resources.ProbeSize) // Dynamic probe size based on memory
+	args = append(args, "-analyzeduration", resources.AnalyzeDuration) // Dynamic analyze duration
 	
 	// Global options
-	args = append(args, GlobalArgs.Overwrite...) // Always overwrite output files
-	args = append(args, GlobalArgs.HideBanner...) // Hide FFmpeg banner for cleaner logs
+	args = append(args, "-y") // Always overwrite output files
+	args = append(args, "-hide_banner") // Hide FFmpeg banner for cleaner logs
 
 	// Seek to position if specified (input seeking for efficiency)
 	if req.Seek > 0 {
@@ -113,12 +123,8 @@ func (b *FFmpegArgsBuilder) BuildArgs(req types.TranscodeRequest, outputPath str
 		audioArgs := b.getOptimalAudioSettings(req)
 		args = append(args, audioArgs...)
 
-		// Optimized threading for better performance
-		args = append(args, "-threads", "0") // Let FFmpeg auto-detect optimal thread count
-		
-		// Add real-time buffer settings to prevent blocking
-		args = append(args, "-max_muxing_queue_size", "1024") // Increase muxing queue
-		args = append(args, "-max_delay", "500000") // Max delay 0.5 seconds
+		// Apply resource optimizations
+		args = append(args, b.applyResourceOptimizations(resources, false)...)
 
 		// Container-specific settings with quality optimizations
 		containerArgs := b.getContainerSpecificArgs(req, outputPath)
@@ -128,6 +134,40 @@ func (b *FFmpegArgsBuilder) BuildArgs(req types.TranscodeRequest, outputPath str
 	// Output file
 	args = append(args, outputPath)
 
+	return args
+}
+
+// getStreamCount determines how many streams will be encoded
+func (b *FFmpegArgsBuilder) getStreamCount(req types.TranscodeRequest) int {
+	if !req.EnableABR {
+		return 1
+	}
+	
+	// For ABR, use the default ladder size (3 quality levels)
+	// This could be made configurable in the future
+	return 3
+}
+
+// applyResourceOptimizations applies all resource-related FFmpeg arguments
+func (b *FFmpegArgsBuilder) applyResourceOptimizations(resources ResourceConfig, isABR bool) []string {
+	var args []string
+	
+	// Thread settings
+	args = append(args, "-threads", resources.ThreadCount)
+	
+	// Memory and buffer settings
+	args = append(args, "-max_muxing_queue_size", resources.MuxingQueueSize)
+	args = append(args, "-max_delay", resources.MaxDelay)
+	
+	// Filter thread settings (if using filters)
+	args = append(args, "-filter_threads", resources.FilterThreads)
+	
+	// Decoder threads
+	args = append(args, "-threads:0", resources.DecodeThreads) // Input thread count
+	
+	// Scale filter threads (applied via filter_complex)
+	// This is handled within the scale filter itself
+	
 	return args
 }
 
@@ -143,14 +183,8 @@ func (b *FFmpegArgsBuilder) getOptimalVideoCodec(req types.TranscodeRequest) str
 
 // getOptimalPreset selects the best encoding preset for quality/speed balance
 func (b *FFmpegArgsBuilder) getOptimalPreset(speedPriority types.SpeedPriority, codec string) string {
-	switch speedPriority {
-	case types.SpeedPriorityFastest:
-		return "veryfast"  // Fast encoding for real-time
-	case types.SpeedPriorityQuality:
-		return "medium"    // Good balance of quality and speed
-	default:
-		return "fast"      // Default to fast for better real-time performance
-	}
+	// Use the resource manager to get system-aware preset
+	return b.resourceManager.GetEncodingPreset(speedPriority, runtime.NumCPU())
 }
 
 // getOptimalQualitySettings returns quality parameters optimized for content
@@ -179,8 +213,11 @@ func (b *FFmpegArgsBuilder) getOptimalQualitySettings(req types.TranscodeRequest
 			args = append(args, "-profile:v", "high")
 			args = append(args, "-level", "4.1")
 		}
-		// Optimized x264 params for real-time streaming
-		args = append(args, "-x264-params", "ref=1:bframes=0:me=dia:subme=1:rc-lookahead=10:keyint=48:min-keyint=24:no-scenecut=1:aq-mode=0")
+		// Optimized x264 params based on system resources
+		resources := b.resourceManager.GetOptimalResources(false, 1, req.SpeedPriority)
+		x264Params := fmt.Sprintf("ref=1:bframes=0:me=hex:subme=2:rc-lookahead=%s:keyint=48:min-keyint=24:no-scenecut=1:aq-mode=0",
+			resources.RCLookahead)
+		args = append(args, "-x264-params", x264Params)
 	} else if codec == "libx265" {
 		args = append(args, "-preset", "medium")
 		args = append(args, "-x265-params", "keyint=48:min-keyint=24:no-open-gop=1")
@@ -458,8 +495,8 @@ func (b *FFmpegArgsBuilder) getDashABRArgs(req types.TranscodeRequest, outputPat
 			fmt.Sprintf("-c:a:%d", audioIndex), "aac",
 			fmt.Sprintf("-b:a:%d", audioIndex), fmt.Sprintf("%dk", rung.AudioBitrate),
 			fmt.Sprintf("-ar:%d", audioIndex), "48000",
+			fmt.Sprintf("-ac:%d", audioIndex), "2",  // Force stereo for compatibility
 			fmt.Sprintf("-profile:a:%d", audioIndex), "aac_low",
-			// Let FFmpeg handle channels automatically
 		)
 		
 		// Collect stream indices for adaptation sets
@@ -471,6 +508,10 @@ func (b *FFmpegArgsBuilder) getDashABRArgs(req types.TranscodeRequest, outputPat
 	adaptationSets := fmt.Sprintf("id=0,streams=%s id=1,streams=%s", 
 		strings.Join(videoStreamIndices, ","),
 		strings.Join(audioStreamIndices, ","))
+	
+	// Apply resource optimizations for ABR
+	resources := b.resourceManager.GetOptimalResources(true, len(ladder), req.SpeedPriority)
+	args = append(args, b.applyResourceOptimizations(resources, true)...)
 	
 	// DASH muxer settings with VOD optimization
 	segDuration := "2" // 2 second segments for faster adaptation
@@ -550,6 +591,7 @@ func (b *FFmpegArgsBuilder) getHLSABRArgs(req types.TranscodeRequest, outputPath
 			fmt.Sprintf("-c:a:%d", i), "aac",
 			fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", rung.AudioBitrate),
 			fmt.Sprintf("-ar:%d", i), "48000",
+			fmt.Sprintf("-ac:%d", i), "2",  // Force stereo for compatibility
 			fmt.Sprintf("-profile:a:%d", i), "aac_low",
 		)
 		
@@ -565,6 +607,10 @@ func (b *FFmpegArgsBuilder) getHLSABRArgs(req types.TranscodeRequest, outputPath
 				fmt.Sprintf("v:%d,a:%d,name:%s", i, i, rung.Label),
 			)
 	}
+	
+	// Apply resource optimizations for HLS ABR
+	resources := b.resourceManager.GetOptimalResources(true, len(ladder), req.SpeedPriority)
+	args = append(args, b.applyResourceOptimizations(resources, true)...)
 	
 	// HLS muxer settings with optimizations
 	segDuration := "2" // Fixed 2 second segments for ABR

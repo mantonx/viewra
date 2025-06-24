@@ -32,6 +32,8 @@ stop_on_error = true
 send_interrupt = true
 # Delay after sending Interrupt signal (ms)
 kill_delay = 2000
+# Post-build command to ensure FFmpeg plugin is enabled
+post_cmd = "/app/scripts/ensure-ffmpeg-plugin.sh > /dev/null 2>&1 &"
 
 [log]
 # Show log timestamps
