@@ -145,7 +145,9 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 	session.DirectoryPath = dirPath
 
 	// Update session with directory path
-	ts.db.Model(session).Update("directory_path", dirPath)
+	if err := ts.db.Model(session).Update("directory_path", dirPath).Error; err != nil {
+		ts.logger.Error("failed to update session directory path", "error", err, "session_id", session.ID)
+	}
 
 	// Start transcoding with timeout
 	transcodeCtx, cancel := context.WithTimeout(ctx, ts.config.SessionTimeout)

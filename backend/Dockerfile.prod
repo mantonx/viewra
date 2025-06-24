@@ -37,12 +37,46 @@ RUN mkdir -p /app/plugins && \
 # Runtime stage
 FROM alpine:latest
 
-# Install runtime dependencies only
+# Install runtime dependencies and FFmpeg v7
 RUN apk add --no-cache \
     ca-certificates \
-    ffmpeg \
     sqlite-libs \
-    tzdata
+    tzdata \
+    # FFmpeg v7 build dependencies
+    build-base yasm nasm cmake pkgconf \
+    # FFmpeg library dependencies
+    x264-dev x265-dev libvpx-dev opus-dev \
+    lame-dev fdk-aac-dev libass-dev freetype-dev
+
+# Install FFmpeg v7.1.1 from source
+RUN cd /tmp && \
+    wget https://ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz && \
+    tar -xf ffmpeg-7.1.1.tar.xz && \
+    cd ffmpeg-7.1.1 && \
+    ./configure \
+        --prefix=/usr/local \
+        --enable-gpl \
+        --enable-version3 \
+        --enable-nonfree \
+        --enable-libx264 \
+        --enable-libx265 \
+        --enable-libvpx \
+        --enable-libopus \
+        --enable-libmp3lame \
+        --enable-libfdk-aac \
+        --enable-libass \
+        --enable-libfreetype \
+        --disable-debug \
+        --disable-doc \
+        --disable-ffplay \
+        --enable-shared \
+        --enable-pic && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd / && rm -rf /tmp/ffmpeg-* && \
+    # Clean up build dependencies to reduce image size
+    apk del build-base yasm nasm cmake pkgconf
 
 # Create non-root user
 RUN addgroup -g 1000 viewra && \

@@ -52,7 +52,7 @@ func (p *SoftwareTranscoder) Info() (*plugins.PluginInfo, error) {
 		Version:     "1.0.0",
 		Description: "High-quality CPU-based transcoding using FFmpeg",
 		Author:      "Viewra Team",
-		Type:        "transcoding",
+		Type:        "transcoder",
 	}, nil
 }
 

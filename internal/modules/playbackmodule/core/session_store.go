@@ -71,7 +71,9 @@ func (s *SessionStore) generateSessionID() string {
 // generateSessionDirectory creates the directory path for a session
 func (s *SessionStore) generateSessionDirectory(container, provider, sessionID string) string {
 	// Format: [container]_[provider]_[sessionID]
-	return fmt.Sprintf("/app/viewra-data/transcoding/%s_%s_%s", container, provider, sessionID)
+	// This is just the directory name, not the full path
+	// The actual path will be set when the directory is created
+	return ""
 }
 
 // GetSession retrieves a session by ID

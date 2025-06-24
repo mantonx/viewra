@@ -2,24 +2,27 @@ package playbackmodule
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	plugins "github.com/mantonx/viewra/sdk"
 )
 
 // PlaybackPlannerImpl implements the PlaybackPlanner interface
-type PlaybackPlannerImpl struct{}
+type PlaybackPlannerImpl struct {
+	mediaAnalyzer MediaAnalyzer
+}
 
-// NewPlaybackPlanner creates a new playback planner
-func NewPlaybackPlanner() PlaybackPlanner {
-	return &PlaybackPlannerImpl{}
+// NewPlaybackPlanner creates a new playback planner with media analyzer
+func NewPlaybackPlanner(mediaAnalyzer MediaAnalyzer) PlaybackPlanner {
+	return &PlaybackPlannerImpl{
+		mediaAnalyzer: mediaAnalyzer,
+	}
 }
 
 // DecidePlayback determines whether to direct play or transcode based on media and device capabilities
 func (p *PlaybackPlannerImpl) DecidePlayback(mediaPath string, deviceProfile *DeviceProfile) (*PlaybackDecision, error) {
-	// Analyze media file
-	mediaInfo, err := p.analyzeMedia(mediaPath)
+	// Analyze media file using injected analyzer
+	mediaInfo, err := p.mediaAnalyzer.AnalyzeMedia(mediaPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze media: %w", err)
 	}
@@ -377,41 +380,4 @@ func (p *PlaybackPlannerImpl) determineSpeedPriority(profile *DeviceProfile) plu
 	return plugins.SpeedPriorityBalanced
 }
 
-// analyzeMedia extracts media information from the file
-func (p *PlaybackPlannerImpl) analyzeMedia(mediaPath string) (*MediaInfo, error) {
-	// This is a simplified implementation
-	// In a real system, you would use FFprobe or similar tool
 
-	ext := strings.ToLower(filepath.Ext(mediaPath))
-
-	info := &MediaInfo{
-		Container:    p.getContainerFromExtension(ext),
-		VideoCodec:   "h264",  // Default assumption
-		AudioCodec:   "aac",   // Default assumption
-		Resolution:   "1080p", // Default assumption
-		Bitrate:      6000000, // 6 Mbps default
-		Duration:     3600,    // 1 hour default
-		HasHDR:       false,
-		HasSubtitles: false,
-	}
-
-	return info, nil
-}
-
-// getContainerFromExtension determines container format from file extension
-func (p *PlaybackPlannerImpl) getContainerFromExtension(ext string) string {
-	switch ext {
-	case ".mp4", ".m4v":
-		return "mp4"
-	case ".mkv":
-		return "mkv"
-	case ".avi":
-		return "avi"
-	case ".webm":
-		return "webm"
-	case ".mov":
-		return "mov"
-	default:
-		return "unknown"
-	}
-}

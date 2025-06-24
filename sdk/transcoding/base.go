@@ -160,6 +160,12 @@ func (bt *BaseTranscoder) StartTranscode(ctx context.Context, req types.Transcod
 	// Build FFmpeg arguments
 	args := bt.argsBuilder.BuildArgs(req, outputPath)
 
+	// Validate FFmpeg arguments before execution
+	if err := ffmpeg.ValidateArgs(args); err != nil {
+		bt.sessionManager.RemoveSession(sess.ID)
+		return nil, fmt.Errorf("invalid FFmpeg arguments: %w", err)
+	}
+
 	// Create command
 	cmd := exec.Command(bt.ffmpegPath, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{

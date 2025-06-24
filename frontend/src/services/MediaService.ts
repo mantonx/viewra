@@ -138,10 +138,14 @@ export class MediaService {
     videoCodec: string = 'h264',
     audioCodec: string = 'aac',
     quality: number = 23,
-    speedPriority: string = 'balanced'
+    speedPriority: string = 'balanced',
+    deviceProfile?: DeviceProfile
   ): Promise<TranscodingSession> {
     try {
       const url = buildApiUrl(API_ENDPOINTS.PLAYBACK.START.path);
+      
+      // Get device profile if not provided
+      const profile = deviceProfile || await getDeviceProfile();
       
       // Check if this looks like a media file ID (UUID format)
       const isMediaFileId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaFileIdOrPath);
@@ -151,6 +155,16 @@ export class MediaService {
         container,
         seek_position: 0,
         enable_abr: true,
+        device_profile: {
+          user_agent: profile.userAgent,
+          supported_codecs: profile.supportedCodecs,
+          max_resolution: profile.maxResolution,
+          max_bitrate: profile.maxBitrate,
+          supports_hevc: profile.supportsHEVC,
+          supports_av1: profile.capabilities.videoCodecs.av1,
+          supports_hdr: profile.capabilities.supportsHDR,
+          client_ip: profile.capabilities.location?.ipAddress || '',
+        },
       } : {
         input_path: mediaFileIdOrPath,
         container,

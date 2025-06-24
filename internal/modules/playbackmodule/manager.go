@@ -29,6 +29,8 @@ type Manager struct {
 	cleanupService  *core.CleanupService
 	fileManager     *core.FileManager
 	sessionStore    *core.SessionStore
+	errorRecovery   *ErrorRecoveryManager
+	mediaValidator  MediaValidator
 
 	// Plugin integration
 	pluginManager PluginManagerInterface
@@ -74,6 +76,12 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManag
 
 	cleanupService := core.NewCleanupService(cleanupConfig, sessionStore, fileManager, logger.Named("cleanup-service"))
 
+	// Create error recovery manager
+	errorRecovery := NewErrorRecoveryManager(logger.Named("error-recovery"))
+
+	// Create media validator
+	mediaValidator := NewStandardMediaValidator(logger.Named("media-validator"))
+
 	return &Manager{
 		logger:      logger,
 		db:          db,
@@ -84,12 +92,14 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManag
 		enabled:     true,
 		initialized: false,
 
-		// Core services
-		planner:            NewPlaybackPlanner(),
+		// Core services  
+		planner:            NewPlaybackPlanner(NewFFProbeMediaAnalyzer()),
 		transcodingService: transcodingService,
 		cleanupService:     cleanupService,
 		fileManager:        fileManager,
 		sessionStore:       sessionStore,
+		errorRecovery:      errorRecovery,
+		mediaValidator:     mediaValidator,
 
 		// Plugin integration
 		pluginManager: pluginManager,
@@ -155,10 +165,32 @@ func (m *Manager) DecidePlayback(mediaPath string, deviceProfile *DeviceProfile)
 		return nil, fmt.Errorf("playback manager not initialized")
 	}
 
+	// First, validate the media file
+	m.logger.Debug("Validating media file before playback decision", "path", mediaPath)
+	
+	validation, err := m.mediaValidator.QuickValidate(mediaPath)
+	if err != nil {
+		return nil, fmt.Errorf("media validation failed: %w", err)
+	}
+	
+	if !validation.IsValid {
+		return nil, NewMediaValidationError(
+			mediaPath,
+			validation.ErrorMessage,
+			fmt.Errorf("file failed validation"),
+		)
+	}
+	
+	if len(validation.Warnings) > 0 {
+		m.logger.Warn("Media file has validation warnings", 
+			"path", mediaPath,
+			"warnings", validation.Warnings)
+	}
+
 	return m.planner.DecidePlayback(mediaPath, deviceProfile)
 }
 
-// StartTranscode initiates a new transcoding session
+// StartTranscode initiates a new transcoding session with error recovery
 func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.TranscodeSession, error) {
 	if !m.initialized {
 		return nil, fmt.Errorf("playback manager not initialized")
@@ -177,6 +209,44 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 		"request_container", request.Container,
 		"request_input_path", request.InputPath)
 	
+	// Comprehensive media validation before transcoding
+	m.logger.Debug("Performing comprehensive media validation", "input_path", request.InputPath)
+	
+	validation, err := m.mediaValidator.ValidateMedia(context.Background(), request.InputPath)
+	if err != nil {
+		return nil, fmt.Errorf("media validation failed: %w", err)
+	}
+	
+	if !validation.IsValid {
+		return nil, NewMediaValidationError(
+			request.InputPath,
+			validation.ErrorMessage,
+			fmt.Errorf("file failed comprehensive validation"),
+		)
+	}
+	
+	if validation.IsCorrupted {
+		return nil, NewMediaValidationError(
+			request.InputPath,
+			"file appears to be corrupted",
+			fmt.Errorf("corruption detected"),
+		)
+	}
+	
+	if len(validation.Warnings) > 0 {
+		m.logger.Warn("Media file has validation warnings", 
+			"input_path", request.InputPath,
+			"warnings", validation.Warnings)
+	}
+	
+	m.logger.Info("Media validation passed", 
+		"input_path", request.InputPath,
+		"size_bytes", validation.SizeBytes,
+		"format", validation.FileFormat,
+		"has_video", validation.HasVideoTrack,
+		"has_audio", validation.HasAudioTrack,
+		"duration", validation.Duration)
+	
 	// Ensure plugins are available before starting transcode
 	if !m.hasTranscodingProviders() {
 		m.logger.Warn("No providers available, waiting for plugins")
@@ -191,11 +261,29 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 		}
 	}
 	
-	return m.transcodingService.StartTranscode(context.Background(), request)
+	// Execute transcoding with error recovery and fallback
+	var session *database.TranscodeSession
+	
+	fallbackErr := m.errorRecovery.ExecuteWithFallback(
+		context.Background(),
+		request,
+		func(ctx context.Context, req *plugins.TranscodeRequest) error {
+			var err error
+			session, err = m.transcodingService.StartTranscode(ctx, req)
+			return err
+		},
+	)
+	
+	if fallbackErr != nil {
+		m.logger.Error("Transcoding failed after all recovery attempts", "error", fallbackErr)
+		return nil, fmt.Errorf("transcoding failed: %w", fallbackErr)
+	}
+	
+	return session, nil
 }
 
-// StartTranscodeFromMediaFile initiates a new transcoding session from a media file ID
-func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string, seekSeconds float64, enableABR bool) (*database.TranscodeSession, error) {
+// StartTranscodeFromMediaFile initiates a new transcoding session from a media file ID using intelligent decisions
+func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string, seekSeconds float64, enableABR bool, deviceProfile *DeviceProfile) (*database.TranscodeSession, error) {
 	m.logger.Info("StartTranscodeFromMediaFile called", "media_file_id", mediaFileID, "container", container, "enable_abr", enableABR)
 	
 	if !m.initialized {
@@ -211,28 +299,45 @@ func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container stri
 
 	m.logger.Info("found media file", "path", mediaFile.Path, "container", mediaFile.Container)
 
-	// Default container if not specified
-	if container == "" {
-		container = "dash"
+	// Use playback planner to make intelligent decisions
+	decision, err := m.planner.DecidePlayback(mediaFile.Path, deviceProfile)
+	if err != nil {
+		m.logger.Error("failed to make playback decision", "error", err)
+		return nil, fmt.Errorf("failed to make playback decision: %w", err)
 	}
 
-	// Create transcode request from media file
-	request := &plugins.TranscodeRequest{
-		InputPath:     mediaFile.Path,
-		Container:     container,
-		VideoCodec:    "h264", // Default codec
-		AudioCodec:    "aac",  // Default audio codec
-		Quality:       70,     // Default quality
-		SpeedPriority: plugins.SpeedPriorityBalanced,
-		Seek:          time.Duration(seekSeconds * float64(time.Second)), // Convert seconds to time.Duration
-		EnableABR:     enableABR, // Pass through the ABR flag
+	// Check if transcoding is even needed
+	if !decision.ShouldTranscode {
+		m.logger.Info("direct play recommended", "reason", decision.Reason)
+		return nil, fmt.Errorf("direct play recommended: %s", decision.Reason)
 	}
 
-	m.logger.Info("created transcode request from media file",
+	// Use intelligent transcoding parameters from the decision
+	request := decision.TranscodeParams
+	if request == nil {
+		return nil, fmt.Errorf("no transcoding parameters in decision")
+	}
+
+	// Apply user-specified overrides where appropriate
+	if container != "" {
+		request.Container = container
+	}
+	if seekSeconds > 0 {
+		request.Seek = time.Duration(seekSeconds * float64(time.Second))
+	}
+	// Override ABR setting if explicitly requested
+	request.EnableABR = enableABR
+
+	m.logger.Info("using intelligent transcode request",
 		"media_file_id", mediaFileID,
 		"input_path", request.InputPath,
 		"container", request.Container,
-		"enable_abr", request.EnableABR)
+		"video_codec", request.VideoCodec,
+		"audio_codec", request.AudioCodec,
+		"quality", request.Quality,
+		"speed_priority", request.SpeedPriority,
+		"enable_abr", request.EnableABR,
+		"decision_reason", decision.Reason)
 
 	return m.StartTranscode(request)
 }
@@ -505,5 +610,33 @@ func (m *Manager) KillZombieProcesses() (int, error) {
 
 	m.logger.Info("zombie process cleanup completed", "killed_count", registryKilled)
 	return registryKilled, nil
+}
+
+// GetErrorRecoveryStats returns error recovery and circuit breaker statistics
+func (m *Manager) GetErrorRecoveryStats() map[string]interface{} {
+	if m.errorRecovery == nil {
+		return map[string]interface{}{
+			"error": "error recovery manager not available",
+		}
+	}
+	
+	return m.errorRecovery.GetStats()
+}
+
+// ValidateMediaFile validates a media file using the media validator
+func (m *Manager) ValidateMediaFile(ctx context.Context, mediaPath string, quick bool) (*MediaValidationResult, error) {
+	if !m.initialized {
+		return nil, fmt.Errorf("playback manager not initialized")
+	}
+	
+	if m.mediaValidator == nil {
+		return nil, fmt.Errorf("media validator not available")
+	}
+	
+	if quick {
+		return m.mediaValidator.QuickValidate(mediaPath)
+	}
+	
+	return m.mediaValidator.ValidateMedia(ctx, mediaPath)
 }
 

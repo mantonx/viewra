@@ -176,8 +176,19 @@ export function getOptimalSource(streamUrl: string): OptimalSource {
   const format = detectOptimalFormat(streamUrl, device);
   const config = getOptimalPlayerConfig(format, device.type);
   
+  // Ensure absolute URL for better compatibility
+  const absoluteUrl = streamUrl.startsWith('http') ? streamUrl : 
+    (streamUrl.startsWith('/') ? window.location.origin + streamUrl : streamUrl);
+  
+  console.log('📺 Media source:', {
+    original: streamUrl,
+    absolute: absoluteUrl,
+    format,
+    device: device.type
+  });
+  
   return {
-    src: streamUrl,
+    src: absoluteUrl,
     type: getMimeType(format),
     config,
   };

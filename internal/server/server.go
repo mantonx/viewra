@@ -286,7 +286,7 @@ func connectPluginManagerToModules() error {
 				if pluginModule != nil {
 					extMgr := pluginModule.GetExternalManager()
 					if extMgr != nil {
-						adapter := playbackmodule.NewExternalPluginManagerAdapter(extMgr)
+						adapter := playbackmodule.NewPluginModuleAdapter(extMgr)
 						playbackMod.SetPluginModule(adapter)
 						log.Printf("✅ Connected plugin module to playback module via adapter")
 					}

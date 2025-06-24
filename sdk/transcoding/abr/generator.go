@@ -66,18 +66,18 @@ func (g *Generator) GenerateLadder(sourceWidth, sourceHeight, quality int) []Bit
 		label        string
 		useCase      string // Device/network type this targets
 	}{
-		// Ultra-low bandwidth for 2G/poor connections
-		{240, 250, 64, "baseline", "3.0", 30, "240p", "2G/dialup"},
-		// Mobile-friendly for 3G networks
-		{360, 500, 96, "baseline", "3.0", 28, "360p", "3G/mobile"},
-		// WiFi/4G standard definition
-		{480, 800, 128, "main", "3.1", 26, "480p", "WiFi/4G"},
-		// HD for good connections
-		{720, 1800, 128, "high", "4.0", 24, "720p", "broadband"},
-		// Full HD for excellent connections
-		{1080, 3500, 192, "high", "4.1", 23, "1080p", "fiber/excellent"},
+		// Ultra-low bandwidth for 2G/poor connections - optimized for real-time
+		{240, 200, 48, "baseline", "3.0", 33, "240p", "2G/dialup"},
+		// Mobile-friendly for 3G networks - reduced bitrate for stability
+		{360, 400, 64, "baseline", "3.0", 30, "360p", "3G/mobile"},
+		// WiFi/4G standard definition - balanced for streaming
+		{480, 700, 96, "main", "3.1", 28, "480p", "WiFi/4G"},
+		// HD for good connections - optimized bitrate
+		{720, 1500, 96, "main", "4.0", 26, "720p", "broadband"},
+		// Full HD for excellent connections - real-time optimized
+		{1080, 2800, 128, "high", "4.1", 24, "1080p", "fiber/excellent"},
 		// 4K for ultra-high bandwidth (only if source supports it)
-		{2160, 8000, 256, "high", "5.1", 22, "4K", "ultra-high-bandwidth"},
+		{2160, 6000, 192, "high", "5.1", 23, "4K", "ultra-high-bandwidth"},
 	}
 	
 	// Filter rungs based on source resolution and create adaptive ladder
@@ -93,14 +93,14 @@ func (g *Generator) GenerateLadder(sourceWidth, sourceHeight, quality int) []Bit
 			width++ // Ensure even width for video encoding
 		}
 		
-		// Adjust bitrate based on quality setting (50-100 range)
-		// Lower quality = more aggressive compression
-		qualityMultiplier := float64(quality) / 70.0 // Normalize around 70% quality
-		if qualityMultiplier < 0.4 {
-			qualityMultiplier = 0.4 // Minimum quality threshold
+		// Adjust bitrate based on quality setting (0-100 range)
+		// Optimized for real-time streaming
+		qualityMultiplier := float64(quality) / 80.0 // Normalize around 80% quality
+		if qualityMultiplier < 0.5 {
+			qualityMultiplier = 0.5 // Minimum quality threshold
 		}
-		if qualityMultiplier > 1.5 {
-			qualityMultiplier = 1.5 // Maximum quality threshold
+		if qualityMultiplier > 1.2 {
+			qualityMultiplier = 1.2 // Maximum quality threshold for real-time
 		}
 		
 		adjustedBitrate := int(float64(rung.videoBitrate) * qualityMultiplier)

@@ -49,16 +49,28 @@ func NewFFmpegArgsBuilder(logger types.Logger) *FFmpegArgsBuilder {
 func (b *FFmpegArgsBuilder) BuildArgs(req types.TranscodeRequest, outputPath string) []string {
 	var args []string
 
-	// Always overwrite output files
-	args = append(args, "-y")
+	// Hardware acceleration - auto-detect best available method
+	args = append(args, "-hwaccel", "auto")
+	
+	// CRITICAL: Optimized flags for VOD transcoding
+	// NOTE: Do NOT use -re or low_delay for VOD content
+	args = append(args, "-fflags", "+genpts+fastseek") // Generate PTS, fast seeking
+	args = append(args, "-probesize", "5000000") // 5MB probe size for accurate stream detection
+	args = append(args, "-analyzeduration", "5000000") // 5 second analyze duration
+	
+	// Global options
+	args = append(args, GlobalArgs.Overwrite...) // Always overwrite output files
+	args = append(args, GlobalArgs.HideBanner...) // Hide FFmpeg banner for cleaner logs
 
 	// Seek to position if specified (input seeking for efficiency)
 	if req.Seek > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%.3f", req.Seek.Seconds()))
+		args = append(args, InputArgs.SeekStart...)
+		args = append(args, fmt.Sprintf("%.3f", req.Seek.Seconds()))
 	}
 
 	// Input file
-	args = append(args, "-i", req.InputPath)
+	args = append(args, InputArgs.Input...)
+	args = append(args, req.InputPath)
 
 	// For ABR (Adaptive Bitrate) streaming, let the specific function handle everything
 	if (req.Container == "dash" || req.Container == "hls") && req.EnableABR {
@@ -67,12 +79,15 @@ func (b *FFmpegArgsBuilder) BuildArgs(req types.TranscodeRequest, outputPath str
 		args = append(args, containerArgs...)
 	} else {
 		// Advanced video mapping and filtering
-		args = append(args, "-map", "0:v:0") // Map first video stream
-		args = append(args, "-map", "0:a:0") // Map first audio stream
+		args = append(args, StreamMappingArgs.Map...)
+		args = append(args, "0:v:0") // Map first video stream
+		args = append(args, StreamMappingArgs.Map...)
+		args = append(args, "0:a:0") // Map first audio stream
 
 		// Video codec with intelligent defaults
 		videoCodec := b.getOptimalVideoCodec(req)
-		args = append(args, "-c:v", videoCodec)
+		args = append(args, VideoEncodingArgs.Codec...)
+		args = append(args, videoCodec)
 
 		// Preset optimization based on speed priority
 		preset := b.getOptimalPreset(req.SpeedPriority, videoCodec)
@@ -98,8 +113,12 @@ func (b *FFmpegArgsBuilder) BuildArgs(req types.TranscodeRequest, outputPath str
 		audioArgs := b.getOptimalAudioSettings(req)
 		args = append(args, audioArgs...)
 
-		// Conservative threading to prevent resource contention
-		args = append(args, "-threads", "4") // Limit to 4 threads for stability
+		// Optimized threading for better performance
+		args = append(args, "-threads", "0") // Let FFmpeg auto-detect optimal thread count
+		
+		// Add real-time buffer settings to prevent blocking
+		args = append(args, "-max_muxing_queue_size", "1024") // Increase muxing queue
+		args = append(args, "-max_delay", "500000") // Max delay 0.5 seconds
 
 		// Container-specific settings with quality optimizations
 		containerArgs := b.getContainerSpecificArgs(req, outputPath)
@@ -126,11 +145,11 @@ func (b *FFmpegArgsBuilder) getOptimalVideoCodec(req types.TranscodeRequest) str
 func (b *FFmpegArgsBuilder) getOptimalPreset(speedPriority types.SpeedPriority, codec string) string {
 	switch speedPriority {
 	case types.SpeedPriorityFastest:
-		return "medium"     // More conservative than "faster"
+		return "veryfast"  // Fast encoding for real-time
 	case types.SpeedPriorityQuality:
-		return "slow"       // High quality
+		return "medium"    // Good balance of quality and speed
 	default:
-		return "slow"       // Default to slow for quality and stability
+		return "fast"      // Default to fast for better real-time performance
 	}
 }
 
@@ -138,14 +157,14 @@ func (b *FFmpegArgsBuilder) getOptimalPreset(speedPriority types.SpeedPriority, 
 func (b *FFmpegArgsBuilder) getOptimalQualitySettings(req types.TranscodeRequest, codec string) []string {
 	var args []string
 	
-	// CRF calculation with improved mapping for better quality
-	// Map 0-100 quality to CRF 28-16 for better visual quality
-	crf := 28 - (req.Quality * 12 / 100)
-	if crf < 16 {
-		crf = 16 // Maximum quality
+	// CRF calculation optimized for streaming
+	// Map 0-100 quality to CRF 35-18 for better streaming performance
+	crf := 35 - (req.Quality * 17 / 100)
+	if crf < 18 {
+		crf = 18 // Maximum quality
 	}
-	if crf > 28 {
-		crf = 28 // Minimum quality for streaming
+	if crf > 35 {
+		crf = 35 // Minimum quality for streaming
 	}
 	
 	args = append(args, "-crf", strconv.Itoa(crf))
@@ -160,8 +179,8 @@ func (b *FFmpegArgsBuilder) getOptimalQualitySettings(req types.TranscodeRequest
 			args = append(args, "-profile:v", "high")
 			args = append(args, "-level", "4.1")
 		}
-		// Conservative x264 params for stability
-		args = append(args, "-x264-params", "ref=2:bframes=2:me=hex:subme=6:rc-lookahead=40")
+		// Optimized x264 params for real-time streaming
+		args = append(args, "-x264-params", "ref=1:bframes=0:me=dia:subme=1:rc-lookahead=10:keyint=48:min-keyint=24:no-scenecut=1:aq-mode=0")
 	} else if codec == "libx265" {
 		args = append(args, "-preset", "medium")
 		args = append(args, "-x265-params", "keyint=48:min-keyint=24:no-open-gop=1")
@@ -214,8 +233,8 @@ func (b *FFmpegArgsBuilder) getOptimalAudioSettings(req types.TranscodeRequest) 
 	
 	// Conservative audio settings to prevent pops and artifacts
 	if audioCodec == "aac" {
-		// Moderate bitrate for compatibility
-		args = append(args, "-b:a", "128k")      // Standard quality
+		// Optimized audio bitrate for streaming
+		args = append(args, "-b:a", "96k")       // Lower bitrate for better streaming
 		args = append(args, "-profile:a", "aac_low")
 		args = append(args, "-ar", "48000")      // Standard sample rate
 		
@@ -255,19 +274,21 @@ func (b *FFmpegArgsBuilder) getKeyframeAlignmentArgs(req types.TranscodeRequest)
 	args = append(args, "-force_key_frames", keyframeExpr)
 	
 	// Set GOP size to match segment duration exactly
-	args = append(args, "-g", strconv.Itoa(gopSize))
+	args = append(args, VideoEncodingArgs.KeyInt...)
+	args = append(args, strconv.Itoa(gopSize))
 	
 	// Set minimum keyframe interval to match GOP size
-	args = append(args, "-keyint_min", strconv.Itoa(gopSize))
+	args = append(args, VideoEncodingArgs.KeyIntMin...)
+	args = append(args, strconv.Itoa(gopSize))
 	
 	// Ensure closed GOPs for better seeking and segment independence
 	args = append(args, "-flags", "+cgop")
 	
 	// CRITICAL: Disable scene change detection for consistent GOP boundaries
-	args = append(args, "-sc_threshold", "0")
+	args = append(args, VideoEncodingArgs.ScThreshold...)
+	args = append(args, "0")
 	
-	// Force strict GOP structure
-	args = append(args, "-strict_gop", "1")
+	// GOP structure is controlled by keyint settings above
 	
 	return args
 }
@@ -289,40 +310,31 @@ func (b *FFmpegArgsBuilder) getContainerSpecificArgs(req types.TranscodeRequest,
 			return b.getDashABRArgs(req, outputPath)
 		}
 		
-		// Single bitrate DASH for VOD content with critical optimizations
+		// Single bitrate DASH for VOD content
+		// CRITICAL: Force VOD mode for static manifests
 		args = append(args,
 			"-f", "dash",
-			// CRITICAL: Use static MPD for VOD content
-			"-streaming", "0",                       // Disable streaming mode for VOD
-			"-ldash", "0",                          // Disable low-latency DASH
-			"-seg_duration", "2",                    // 2s segments for better startup
-			"-frag_duration", "0.5",                // 500ms fragments for precise seeking
-			// CRITICAL: Timeline addressing for precise seeking
-			"-use_timeline", "1",                   // Enable timeline addressing
-			"-segment_timeline", "1",               // Enable segment timeline
-			"-use_template", "1",                   // Use template-based addressing
-			// Static MPD profile
-			"-mpd_profile", "onDemand",             // Force static (on-demand) profile
+			"-dash_segment_type", "mp4",
+			"-seg_duration", "2",                  // 2s segments for faster startup
+			"-use_timeline", "0",                 // Don't use timeline (causes issues)
+			"-use_template", "1",                 // Use template-based addressing
 			// Segment naming
 			"-init_seg_name", "init-$RepresentationID$.m4s",
-			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
+			"-media_seg_name", "chunk-$RepresentationID$-$Number%05d$.m4s",
 			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
-			"-dash_segment_type", "mp4",
-			"-single_file", "0",
-			// CRITICAL: Proper init segments with all metadata
-			"-frag_type", "duration",                // Use duration-based fragmentation
-			"-movflags", "+dash+cmaf+faststart",    // CMAF with fast start
-			// VOD optimizations
-			"-write_prft", "0",                      // No producer reference time needed
-			"-global_sidx", "1",                    // Global SIDX for better seeking
-			"-http_persistent", "0",                // Don't keep connections open
-			"-hls_playlist", "0",                   // Disable HLS compatibility
-			// Keep all segments for VOD
-			"-remove_at_exit", "0",                // Don't remove segments on exit
-			"-window_size", "0",                     // Keep all segments (no sliding window)
-			"-extra_window_size", "0",              // No extra window
+			"-single_file", "0",                  // Separate segment files
+			// CRITICAL VOD settings for static manifest
+			"-window_size", "0",                  // MUST be 0 for VOD
+			"-remove_at_exit", "0",              // Don't remove segments
+			// Disable streaming features explicitly
+			"-streaming", "0",                   // Disable streaming mode
+			"-ldash", "0",                       // Disable low latency DASH
+			// Fragmentation settings
+			"-frag_duration", "0.5",             // 500ms fragments in seconds
+			"-min_seg_duration", "2000000",      // Minimum segment duration in microseconds
+			"-movflags", "+dash+cmaf+faststart+delay_moov", // DASH optimizations
 			// Timestamp handling
-			"-avoid_negative_ts", "make_zero",      // Fix timestamp issues
+			"-avoid_negative_ts", "make_zero",   // Fix timestamp issues
 		)
 	case "hls":
 		// Check if ABR ladder is requested
@@ -432,8 +444,8 @@ func (b *FFmpegArgsBuilder) getDashABRArgs(req types.TranscodeRequest, outputPat
 		args = append(args,
 			fmt.Sprintf("-c:v:%d", streamIndex), "libx264",
 			fmt.Sprintf("-b:v:%d", streamIndex), fmt.Sprintf("%dk", rung.VideoBitrate),
-			fmt.Sprintf("-maxrate:%d", streamIndex), fmt.Sprintf("%dk", int(float64(rung.VideoBitrate)*1.5)),
-			fmt.Sprintf("-bufsize:%d", streamIndex), fmt.Sprintf("%dk", rung.VideoBitrate*2),
+			fmt.Sprintf("-maxrate:%d", streamIndex), fmt.Sprintf("%dk", int(float64(rung.VideoBitrate)*1.2)),
+			fmt.Sprintf("-bufsize:%d", streamIndex), fmt.Sprintf("%dk", rung.VideoBitrate),
 			fmt.Sprintf("-vf:%d", streamIndex), fmt.Sprintf("scale=%d:%d:flags=lanczos", rung.Width, rung.Height),
 			fmt.Sprintf("-profile:v:%d", streamIndex), rung.Profile,
 			fmt.Sprintf("-level:%d", streamIndex), rung.Level,
@@ -460,25 +472,28 @@ func (b *FFmpegArgsBuilder) getDashABRArgs(req types.TranscodeRequest, outputPat
 		strings.Join(videoStreamIndices, ","),
 		strings.Join(audioStreamIndices, ","))
 	
-	// DASH muxer settings with fast startup optimization
-	segDuration := "1" // 1 second segments for ABR fast startup
+	// DASH muxer settings with VOD optimization
+	segDuration := "2" // 2 second segments for faster adaptation
 	args = append(args,
 		"-f", "dash",
+		"-dash_segment_type", "mp4",           // Use MP4 segments
 		"-seg_duration", segDuration,
-		"-frag_duration", "0.5",                // 500ms fragments
-		"-use_template", "1",
-		"-use_timeline", "1",
-		"-single_file", "0",
+		"-use_template", "1",                   // Use template naming
+		"-use_timeline", "0",                   // Don't use timeline for better compatibility
+		"-single_file", "0",                    // Separate segment files
 		"-adaptation_sets", adaptationSets,
-		"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
+		"-media_seg_name", "chunk-$RepresentationID$-$Number%05d$.m4s",
 		"-init_seg_name", "init-$RepresentationID$.m4s",
-		// VOD optimizations - keep all segments for complete playback
-		"-streaming", "0",                       // Disable live streaming mode
-		"-ldash", "0",                          // Disable low-latency DASH
-		"-remove_at_exit", "0",                // Don't remove segments on exit
-		"-window_size", "0",                     // Keep all segments (no sliding window)
-		"-extra_window_size", "0",              // No extra window
-		"-mpd_profile", "onDemand",             // Force on-demand (static) profile
+		// CRITICAL VOD settings for static manifest
+		"-window_size", "0",                   // MUST be 0 for VOD
+		"-remove_at_exit", "0",               // Don't remove segments
+		// Disable streaming features explicitly
+		"-streaming", "0",                    // Disable streaming mode
+		"-ldash", "0",                        // Disable low latency DASH
+		// Fragmentation settings
+		"-frag_duration", "0.5",              // 500ms fragments in seconds
+		"-min_seg_duration", "2000000",       // Minimum segment duration in microseconds
+		"-movflags", "+dash+cmaf+faststart+delay_moov", // DASH optimizations
 	)
 	
 	return args
@@ -501,10 +516,18 @@ func (b *FFmpegArgsBuilder) getHLSABRArgs(req types.TranscodeRequest, outputPath
 	ladder := abrGen.GenerateLadder(sourceWidth, sourceHeight, req.Quality)
 	outputDir := filepath.Dir(outputPath)
 	
-	// Create variant streams
-	var variantStreams []string
-	
-	for i, rung := range ladder {
+	// Add optimized encoding settings for ABR before mapping
+	for i := range ladder {
+		// Force keyframe interval for all variants
+		args = append(args,
+			fmt.Sprintf("-force_key_frames:v:%d", i), "expr:gte(t,n_forced*2)",
+		)
+	}
+		
+		// Create variant streams
+		var variantStreams []string
+		
+		for i, rung := range ladder {
 		// Map video and audio
 		args = append(args,
 			"-map", "0:v:0",
@@ -530,24 +553,32 @@ func (b *FFmpegArgsBuilder) getHLSABRArgs(req types.TranscodeRequest, outputPath
 			fmt.Sprintf("-profile:a:%d", i), "aac_low",
 		)
 		
-		// Variant playlist info
-		variantStreams = append(variantStreams,
-			fmt.Sprintf("v:%d,a:%d,name:%s", i, i, rung.Label),
-		)
+		// Optimized GOP size and B-frames for this variant
+		args = append(args,
+		fmt.Sprintf("-g:%d", i), "48", // GOP size = 2s @ 24fps
+		 fmt.Sprintf("-bf:%d", i), "0", // No B-frames for real-time
+				fmt.Sprintf("-sc_threshold:%d", i), "0", // Disable scene detection
+			)
+			
+			// Variant playlist info
+			variantStreams = append(variantStreams,
+				fmt.Sprintf("v:%d,a:%d,name:%s", i, i, rung.Label),
+			)
 	}
 	
-	// HLS muxer settings
-	segDuration := b.getAdaptiveSegmentDuration(req)
+	// HLS muxer settings with optimizations
+	segDuration := "2" // Fixed 2 second segments for ABR
 	args = append(args,
-		"-f", "hls",
-		"-hls_time", segDuration,
-		"-hls_playlist_type", "vod",
-		"-hls_segment_type", "mpegts",
-		"-hls_flags", "independent_segments",
-		"-master_pl_name", "playlist.m3u8",
-		"-hls_segment_filename", filepath.Join(outputDir, "stream_%v/segment_%03d.ts"),
-		"-var_stream_map", strings.Join(variantStreams, " "),
-	)
+	"-f", "hls",
+	"-hls_time", segDuration,
+	"-hls_playlist_type", "vod",
+	"-hls_segment_type", "mpegts",
+	"-hls_flags", "independent_segments+split_by_time",
+	"-hls_list_size", "0", // Keep all segments
+	"-master_pl_name", "playlist.m3u8",
+	"-hls_segment_filename", filepath.Join(outputDir, "stream_%v/segment_%03d.ts"),
+	 "-var_stream_map", strings.Join(variantStreams, " "),
+		)
 	
 	return args
 }

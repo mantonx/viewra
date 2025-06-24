@@ -24,7 +24,7 @@ func NewExternalPluginManagerAdapter(manager *pluginmodule.ExternalPluginManager
 }
 
 // NewPluginModuleAdapter creates a new adapter
-func NewPluginModuleAdapter(extManager *pluginmodule.ExternalPluginManager) *PluginModuleAdapter {
+func NewPluginModuleAdapter(extManager *pluginmodule.ExternalPluginManager) PluginManagerInterface {
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "plugin-adapter",
 		Level: hclog.Info,

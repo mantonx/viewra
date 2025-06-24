@@ -690,6 +690,16 @@ func min(a, b int) int {
 	return b
 }
 
+// ExtractAudioTechnicalInfo exposes the audio technical information extraction
+func (p *FFmpegCorePlugin) ExtractAudioTechnicalInfo(filePath string) (*AudioTechnicalInfo, error) {
+	return p.extractAudioTechnicalInfo(filePath)
+}
+
+// ExtractComprehensiveTechnicalInfo exposes the comprehensive video technical information extraction
+func (p *FFmpegCorePlugin) ExtractComprehensiveTechnicalInfo(filePath string) (*VideoTechnicalInfo, error) {
+	return p.extractComprehensiveTechnicalInfo(filePath)
+}
+
 // updateMediaFileWithTechnicalInfo extracts technical metadata and updates the MediaFile record
 func (p *FFmpegCorePlugin) updateMediaFileWithTechnicalInfo(filePath string, mediaFileID string, db *gorm.DB) error {
 	// Extract technical information using FFprobe

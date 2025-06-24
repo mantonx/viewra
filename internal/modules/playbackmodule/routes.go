@@ -16,6 +16,7 @@ func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
 		api.GET("/session/:sessionId", handler.HandleGetSession)
 		api.DELETE("/session/:sessionId", handler.HandleStopTranscode)
 		api.GET("/sessions", handler.HandleListSessions)
+		api.GET("/session/:sessionId/logs", handler.HandleGetFFmpegLogs)
 		
 		// Enhanced session management
 		api.DELETE("/sessions/all", handler.HandleStopAllSessions)
@@ -36,7 +37,9 @@ func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
 		api.GET("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
 		api.HEAD("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
 		api.GET("/stream/:sessionId/segment/:segmentName", handler.HandleSegment)
+		api.HEAD("/stream/:sessionId/segment/:segmentName", handler.HandleSegment)
 		api.GET("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
+		api.HEAD("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
 
 		// Cleanup endpoints
 		api.POST("/cleanup/run", handler.HandleManualCleanup)

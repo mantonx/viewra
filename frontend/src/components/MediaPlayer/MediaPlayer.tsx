@@ -2,11 +2,15 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useAtom } from 'jotai';
 import { MediaPlayer as VidstackPlayer, MediaProvider, Poster, Track, Gesture, useMediaStore, useMediaRemote } from '@vidstack/react';
+import '@vidstack/react/player/styles/default/theme.css';
+import '@vidstack/react/player/styles/default/layouts/video.css';
 import { cn } from '@/utils/cn';
 import '@/styles/player-theme.css';
 import { PlaybackSessionTracker } from '@/utils/analytics';
 import { getDeviceProfile } from '@/utils/deviceProfile';
+import { initializeDashWithFixes } from '@/utils/player/dashCompatibility';
 import { getOptimalSource } from '@/utils/videoPlayerConfig';
+
 import {
   playerStateAtom,
   loadingStateAtom,
@@ -293,6 +297,22 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
       }
     };
   }, [loadingState.error, stopAllSessions, sessionTracker]);
+  
+  // Get the stream URL with format preference - must be before conditional returns
+  const streamUrl = playbackDecision?.manifest_url || playbackDecision?.stream_url || '';
+  
+  // Get optimal source configuration with device-specific optimizations
+  const mediaSource = getOptimalSource(streamUrl);
+  
+  // Apply DASH.js compatibility fixes for DASH content - MUST be before any conditional returns
+  useEffect(() => {
+    if (streamUrl && streamUrl.includes('.mpd')) {
+      console.log('🔧 Applying DASH.js compatibility enhancements');
+      initializeDashWithFixes(() => {
+        console.log('✅ DASH.js compatibility enhancements applied');
+      });
+    }
+  }, [streamUrl]);
 
   if ((loadingState.isLoading || navLoadingState.isLoading) && !playbackDecision) {
     return (
@@ -323,14 +343,6 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   }
 
   // Device detection is now handled by getOptimalSource utility
-  
-  // Get the stream URL with format preference
-  const streamUrl = playbackDecision?.manifest_url || playbackDecision?.stream_url || '';
-  
-  // Get optimal source configuration with device-specific optimizations
-  const mediaSource = getOptimalSource(streamUrl);
-  
-  // Player configuration is now handled by Vidstack player props
 
   return (
     <div 
@@ -373,6 +385,8 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
         playsInline
         onPause={handlePause}
         ref={playerRef}
+        // Ensure DASH provider is loaded
+        load="eager"
       >
         <MediaProvider />
         
@@ -439,8 +453,6 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
         autoHideDelay={5000}
       />
 
-      {/* Quality indicator */}
-      <QualityIndicator />
 
       {/* Video controls */}
       <div

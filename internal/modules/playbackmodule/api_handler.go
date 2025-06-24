@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,7 +17,6 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
-	plugins "github.com/mantonx/viewra/sdk"
 )
 
 // APIHandler handles HTTP requests for the playback module
@@ -68,19 +68,37 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 	
 	// Try to parse as media file request first
 	var mediaRequest struct {
-		MediaFileID  string  `json:"media_file_id"`
-		Container    string  `json:"container"`
-		SeekPosition float64 `json:"seek_position,omitempty"` // Optional seek position in seconds
-		EnableABR    bool    `json:"enable_abr,omitempty"`     // Optional ABR flag
+		MediaFileID   string         `json:"media_file_id"`
+		Container     string         `json:"container"`
+		SeekPosition  float64        `json:"seek_position,omitempty"`  // Optional seek position in seconds
+		EnableABR     bool           `json:"enable_abr,omitempty"`      // Optional ABR flag
+		DeviceProfile *DeviceProfile `json:"device_profile,omitempty"` // Optional device profile for intelligent decisions
 	}
 	
 	parseErr := json.Unmarshal(bodyBytes, &mediaRequest)
 	logger.Info("media request parse result", "error", parseErr, "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container)
 	
 	if parseErr == nil && mediaRequest.MediaFileID != "" {
-		// Handle media file based request
+		// Handle media file based request with intelligent decisions
 		logger.Info("handling media file based request", "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container, "seek_position", mediaRequest.SeekPosition, "enable_abr", mediaRequest.EnableABR)
-		session, err := h.manager.StartTranscodeFromMediaFile(mediaRequest.MediaFileID, mediaRequest.Container, mediaRequest.SeekPosition, mediaRequest.EnableABR)
+		
+		// Use device profile for intelligent transcoding decisions
+		// If no device profile provided, create a default one for compatibility
+		deviceProfile := mediaRequest.DeviceProfile
+		if deviceProfile == nil {
+			logger.Warn("no device profile provided, using default profile")
+			deviceProfile = &DeviceProfile{
+				UserAgent:       "unknown",
+				SupportedCodecs: []string{"h264", "aac"},
+				MaxResolution:   "1080p",
+				MaxBitrate:      6000,
+				SupportsHEVC:    false,
+				SupportsAV1:     false,
+				SupportsHDR:     false,
+			}
+		}
+		
+		session, err := h.manager.StartTranscodeFromMediaFile(mediaRequest.MediaFileID, mediaRequest.Container, mediaRequest.SeekPosition, mediaRequest.EnableABR, deviceProfile)
 		if err != nil {
 			logger.Error("failed to start transcode from media file", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transcoding session: " + err.Error()})
@@ -99,15 +117,86 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 		return
 	}
 	
-	// Fall back to direct transcode request
-	var request plugins.TranscodeRequest
-	if err := json.Unmarshal(bodyBytes, &request); err != nil {
-		logger.Error("failed to parse JSON request", "error", err)
+	// Fall back to direct transcode request with intelligent decisions
+	var directRequest struct {
+		InputPath     string         `json:"input_path" binding:"required"`
+		Container     string         `json:"container"`
+		VideoCodec    string         `json:"video_codec"`
+		AudioCodec    string         `json:"audio_codec"`
+		Quality       int            `json:"quality"`
+		SpeedPriority string         `json:"speed_priority"`
+		Seek          float64        `json:"seek"`
+		EnableABR     bool           `json:"enable_abr"`
+		DeviceProfile *DeviceProfile `json:"device_profile,omitempty"`
+	}
+	
+	if err := json.Unmarshal(bodyBytes, &directRequest); err != nil {
+		logger.Error("failed to parse direct transcode request", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	session, err := h.manager.StartTranscode(&request)
+	logger.Info("handling direct transcode request with intelligent decisions", "input_path", directRequest.InputPath)
+
+	// Use device profile for intelligent transcoding decisions
+	deviceProfile := directRequest.DeviceProfile
+	if deviceProfile == nil {
+		logger.Warn("no device profile provided for direct request, using default profile")
+		deviceProfile = &DeviceProfile{
+			UserAgent:       "unknown",
+			SupportedCodecs: []string{"h264", "aac"},
+			MaxResolution:   "1080p",
+			MaxBitrate:      6000,
+			SupportsHEVC:    false,
+			SupportsAV1:     false,
+			SupportsHDR:     false,
+		}
+	}
+
+	// Use playback planner to make intelligent decisions
+	decision, err := h.manager.DecidePlayback(directRequest.InputPath, deviceProfile)
+	if err != nil {
+		logger.Error("failed to make playback decision for direct request", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to make playback decision: " + err.Error()})
+		return
+	}
+
+	// Check if transcoding is needed
+	if !decision.ShouldTranscode {
+		logger.Info("direct play recommended for direct request", "reason", decision.Reason)
+		c.JSON(http.StatusOK, gin.H{
+			"direct_play": true,
+			"reason":      decision.Reason,
+			"stream_url":  decision.StreamURL,
+		})
+		return
+	}
+
+	// Use intelligent transcoding parameters from decision
+	request := decision.TranscodeParams
+	if request == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "no transcoding parameters in decision"})
+		return
+	}
+
+	// Apply user-specified overrides where provided
+	if directRequest.Container != "" {
+		request.Container = directRequest.Container
+	}
+	if directRequest.Seek > 0 {
+		request.Seek = time.Duration(directRequest.Seek * float64(time.Second))
+	}
+	request.EnableABR = directRequest.EnableABR
+
+	logger.Info("using intelligent transcode request for direct path",
+		"input_path", request.InputPath,
+		"container", request.Container,
+		"video_codec", request.VideoCodec,
+		"audio_codec", request.AudioCodec,
+		"quality", request.Quality,
+		"decision_reason", decision.Reason)
+
+	session, err := h.manager.StartTranscode(request)
 	if err != nil {
 		logger.Error("failed to start transcode", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transcoding session: " + err.Error()})
@@ -333,6 +422,35 @@ func (h *APIHandler) HandleGetStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+// HandleErrorRecoveryStats returns error recovery and circuit breaker statistics
+func (h *APIHandler) HandleErrorRecoveryStats(c *gin.Context) {
+	stats := h.manager.GetErrorRecoveryStats()
+	c.JSON(http.StatusOK, stats)
+}
+
+// HandleValidateMedia validates a media file
+func (h *APIHandler) HandleValidateMedia(c *gin.Context) {
+	var request struct {
+		MediaPath string `json:"media_path" binding:"required"`
+		Quick     bool   `json:"quick,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	validation, err := h.manager.ValidateMediaFile(c.Request.Context(), request.MediaPath, request.Quick)
+
+	if err != nil {
+		logger.Error("Media validation failed", "error", err, "path", request.MediaPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, validation)
+}
+
 // HandleHealthCheck returns module health status
 func (h *APIHandler) HandleHealthCheck(c *gin.Context) {
 	// Get provider count
@@ -508,6 +626,57 @@ func (h *APIHandler) HandleDashSegmentSpecific(c *gin.Context) {
 	h.serveSegmentFile(c, sessionID, segmentFile)
 }
 
+// HandleGetFFmpegLogs serves FFmpeg stdout/stderr logs for debugging
+func (h *APIHandler) HandleGetFFmpegLogs(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+	logType := c.Query("type") // "stdout" or "stderr"
+	
+	if logType == "" {
+		logType = "stderr" // Default to stderr
+	}
+	
+	// Get the session to find directory
+	session, err := h.manager.GetSession(sessionID)
+	if err != nil {
+		logger.Error("session not found for logs", "session_id", sessionID, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	var logFilename string
+	switch logType {
+	case "stdout":
+		logFilename = "ffmpeg-stdout.log"
+	case "stderr":
+		logFilename = "ffmpeg-stderr.log"
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid log type, use 'stdout' or 'stderr'"})
+		return
+	}
+
+	logPath := filepath.Join(h.getSessionDirectory(sessionID, session), logFilename)
+
+	// Check if file exists
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "log file not found"})
+		return
+	}
+
+	// Read log file
+	logContent, err := os.ReadFile(logPath)
+	if err != nil {
+		logger.Error("failed to read log file", "path", logPath, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read log file"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id": sessionID,
+		"log_type":   logType,
+		"content":    string(logContent),
+	})
+}
+
 // Helper methods
 
 func (h *APIHandler) serveManifestFile(c *gin.Context, sessionID, filename string) {
@@ -564,23 +733,86 @@ func (h *APIHandler) serveManifestFile(c *gin.Context, sessionID, filename strin
 		return
 	}
 	
+	// For DASH manifests, inject BaseURL
+	if contentType == "application/dash+xml" {
+		// Read the manifest
+		manifestData, err := os.ReadFile(manifestPath)
+		if err != nil {
+			logger.Error("failed to read manifest file", "path", manifestPath, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read manifest"})
+			return
+		}
+		
+		// Get the absolute base URL
+		proto := "http"
+		if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+			proto = "https"
+		}
+		
+		// Get the host, preferring forwarded headers
+		host := c.Request.Host
+		if forwardedHost := c.GetHeader("X-Forwarded-Host"); forwardedHost != "" {
+			host = forwardedHost
+		} else if origin := c.GetHeader("Origin"); origin != "" {
+			// Extract host from Origin header if available
+			if u, err := url.Parse(origin); err == nil {
+				host = u.Host
+			}
+		} else if referer := c.GetHeader("Referer"); referer != "" {
+			// Extract host from Referer header as fallback
+			if u, err := url.Parse(referer); err == nil {
+				host = u.Host
+			}
+		}
+		
+		// Replace backend:8080 with localhost:8080 for local development
+		if host == "backend:8080" {
+			host = "localhost:8080"
+		}
+		
+		baseURL := fmt.Sprintf("%s://%s/api/playback/stream/%s", proto, host, sessionID)
+		modifiedManifest := h.injectBaseURL(manifestData, baseURL)
+		
+		// Send the modified manifest
+		c.Data(http.StatusOK, contentType, modifiedManifest)
+		return
+	}
+	
 	c.File(manifestPath)
 }
 
 func (h *APIHandler) serveSegmentFile(c *gin.Context, sessionID, segmentName string) {
+	logger.Info("serveSegmentFile called", "session_id", sessionID, "segment_name", segmentName)
+	
 	// Get the session to find directory
 	session, err := h.manager.GetSession(sessionID)
 	if err != nil {
+		logger.Error("session not found in serveSegmentFile", "session_id", sessionID, "error", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}
 
-	segmentPath := filepath.Join(h.getSessionDirectory(sessionID, session), segmentName)
+	sessionDir := h.getSessionDirectory(sessionID, session)
+	logger.Info("session directory determined", "session_id", sessionID, "directory", sessionDir, "session_directory_path", session.DirectoryPath)
+	
+	segmentPath := filepath.Join(sessionDir, segmentName)
 
 	// Check if file exists and get file info
 	fileInfo, err := os.Stat(segmentPath)
 	if os.IsNotExist(err) {
 		logger.Warn("segment file not found", "path", segmentPath)
+		
+		// List files in the directory for debugging
+		if files, listErr := os.ReadDir(sessionDir); listErr == nil {
+			var fileNames []string
+			for _, f := range files {
+				fileNames = append(fileNames, f.Name())
+			}
+			logger.Warn("files in session directory", "directory", sessionDir, "files", fileNames)
+		} else {
+			logger.Error("failed to list directory contents", "directory", sessionDir, "error", listErr)
+		}
+		
 		c.JSON(http.StatusNotFound, gin.H{"error": "segment not found"})
 		return
 	}
@@ -625,6 +857,13 @@ func (h *APIHandler) serveSegmentFile(c *gin.Context, sessionID, segmentName str
 	// Enable HTTP/2 Server Push hints if available
 	c.Header("Link", fmt.Sprintf("<%s>; rel=preload; as=video", segmentName))
 	
+	// Handle HEAD requests
+	if c.Request.Method == "HEAD" {
+		c.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+		c.Status(http.StatusOK)
+		return
+	}
+	
 	c.File(segmentPath)
 }
 
@@ -633,6 +872,7 @@ func (h *APIHandler) getSessionDirectory(sessionID string, session *database.Tra
 
 	// If session has directory path, use it
 	if session != nil && session.DirectoryPath != "" {
+		logger.Info("using session.DirectoryPath", "session_id", sessionID, "directory_path", session.DirectoryPath)
 		return session.DirectoryPath
 	}
 
@@ -797,5 +1037,41 @@ func parseRangeHeader(rangeHeader string, fileSize int64) (start, end int64, err
 	}
 	
 	return start, end, nil
+}
+
+// injectBaseURL injects a BaseURL element into a DASH manifest
+func (h *APIHandler) injectBaseURL(manifest []byte, baseURL string) []byte {
+	manifestStr := string(manifest)
+	
+	// Check if BaseURL already exists
+	if strings.Contains(manifestStr, "<BaseURL>") {
+		return manifest
+	}
+	
+	// Find the insertion point (after the ServiceDescription closing tag)
+	insertPoint := strings.Index(manifestStr, "</ServiceDescription>")
+	if insertPoint == -1 {
+		// If no ServiceDescription, insert after ProgramInformation closing tag
+		insertPoint = strings.Index(manifestStr, "</ProgramInformation>")
+		if insertPoint == -1 {
+			// If no ProgramInformation, insert after MPD opening tag
+			insertPoint = strings.Index(manifestStr, ">")
+			if insertPoint != -1 {
+				insertPoint += 1
+			}
+		} else {
+			insertPoint += len("</ProgramInformation>")
+		}
+	} else {
+		insertPoint += len("</ServiceDescription>")
+	}
+	
+	// Create the BaseURL element
+	baseURLElement := fmt.Sprintf("\n\t<BaseURL>%s/</BaseURL>", baseURL)
+	
+	// Insert the BaseURL
+	result := manifestStr[:insertPoint] + baseURLElement + manifestStr[insertPoint:]
+	
+	return []byte(result)
 }
 

@@ -1,22 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useMediaStore } from '@vidstack/react';
+import { useMediaState } from '@vidstack/react';
 import { cn } from '@/utils/cn';
 import type { QualityInfo, QualityIndicatorProps } from './QualityIndicator.types';
 
 export const QualityIndicator: React.FC<QualityIndicatorProps> = ({ className }) => {
-  const store = useMediaStore();
-  const [quality, setQuality] = useState<any>(null);
-  
-  useEffect(() => {
-    if (!store) return;
-    
-    const unsubscribe = store.subscribe(() => {
-      const state = store.getState();
-      setQuality(state.quality);
-    });
-    
-    return unsubscribe;
-  }, [store]);
+  const quality = useMediaState('quality');
+  const qualities = useMediaState('qualities');
   
   const [currentQuality, setCurrentQuality] = useState<QualityInfo | null>(null);
   const [isUpgrading, setIsUpgrading] = useState(false);
@@ -31,7 +20,7 @@ export const QualityIndicator: React.FC<QualityIndicatorProps> = ({ className })
     const newQuality: QualityInfo = {
       height: quality.height || 0,
       width: quality.width || 0,
-      bandwidth: quality.bitrate || 0,
+      bandwidth: quality.bitrate || quality.bandwidth || 0,
       label: getQualityLabel(quality.height || 0),
     };
 

@@ -1020,9 +1020,50 @@ func (m *ExternalPluginManager) discoverAndRegisterPlugins() error {
 		pluginDirPath := filepath.Join(m.pluginDir, entry.Name())
 		pluginCuePath := filepath.Join(pluginDirPath, "plugin.cue")
 
-		// Check if plugin.cue exists
+		// Check if plugin.cue exists at this level
 		if _, err := os.Stat(pluginCuePath); os.IsNotExist(err) {
-			m.logger.Debug("skipping directory without plugin.cue", "dir", entry.Name())
+			// Generic handling for nested plugins - scan one level deeper
+			subEntries, err := os.ReadDir(pluginDirPath)
+			if err != nil {
+				m.logger.Debug("failed to read plugin subdirectory", "path", pluginDirPath, "error", err)
+				continue
+			}
+			
+			foundNestedPlugins := false
+			for _, subEntry := range subEntries {
+				if !subEntry.IsDir() {
+					continue
+				}
+				
+				subPluginDirPath := filepath.Join(pluginDirPath, subEntry.Name())
+				subPluginCuePath := filepath.Join(subPluginDirPath, "plugin.cue")
+				
+				if _, err := os.Stat(subPluginCuePath); os.IsNotExist(err) {
+					m.logger.Debug("skipping nested directory without plugin.cue", "category", entry.Name(), "dir", subEntry.Name())
+					continue
+				}
+				
+				// Parse and register the nested plugin
+				manifest, err := m.parsePluginManifest(subPluginCuePath)
+				if err != nil {
+					m.logger.Error("failed to parse nested plugin manifest", "category", entry.Name(), "plugin", subEntry.Name(), "error", err)
+					continue
+				}
+				
+				binaryPath := filepath.Join(subPluginDirPath, manifest.EntryPoints["main"])
+				if err := m.registerExternalPlugin(manifest, subPluginDirPath, binaryPath); err != nil {
+					m.logger.Error("failed to register nested plugin", "category", entry.Name(), "plugin", manifest.ID, "error", err)
+					continue
+				}
+				
+				discoveredCount++
+				foundNestedPlugins = true
+				m.logger.Info("discovered nested plugin", "category", entry.Name(), "plugin_id", manifest.ID, "name", manifest.Name)
+			}
+			
+			if !foundNestedPlugins {
+				m.logger.Debug("skipping directory without plugin.cue or nested plugins", "dir", entry.Name())
+			}
 			continue
 		}
 

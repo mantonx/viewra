@@ -116,6 +116,9 @@ build_plugin() {
     local plugin_dir="${PLUGINS_DIR}/${plugin_name}"
     local output_dir="${DATA_DIR}/plugins/${plugin_name}"
     
+    # Extract the actual binary name from the plugin path
+    local binary_name=$(basename "$plugin_name")
+    
     # Validate plugin exists
     if [ ! -d "$plugin_dir" ]; then
         print_error "Plugin directory not found: $plugin_dir"
@@ -146,8 +149,8 @@ build_plugin() {
                 -buildvcs=false \
                 -ldflags='-s -w' \
                 -trimpath \
-                -o /workspace/viewra-data/plugins/${plugin_name}/${plugin_name} . && \
-            chown ${HOST_UID}:${HOST_GID} /workspace/viewra-data/plugins/${plugin_name}/${plugin_name}
+                -o /workspace/viewra-data/plugins/${plugin_name}/${binary_name} . && \
+            chown ${HOST_UID}:${HOST_GID} /workspace/viewra-data/plugins/${plugin_name}/${binary_name}
         "
     else
         # Standard Docker build (slower but always works)
@@ -162,8 +165,8 @@ build_plugin() {
                 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
                     -buildvcs=false \
                     -ldflags='-s -w' \
-                    -o /workspace/viewra-data/plugins/${plugin_name}/${plugin_name} . && \
-                chown ${HOST_UID}:${HOST_GID} /workspace/viewra-data/plugins/${plugin_name}/${plugin_name}
+                    -o /workspace/viewra-data/plugins/${plugin_name}/${binary_name} . && \
+                chown ${HOST_UID}:${HOST_GID} /workspace/viewra-data/plugins/${plugin_name}/${binary_name}
             "
     fi
     
@@ -177,10 +180,10 @@ build_plugin() {
         fi
         
         # Make executable
-        chmod +x "$output_dir/$plugin_name"
+        chmod +x "$output_dir/$binary_name"
         
         # Get file size
-        local SIZE=$(du -h "$output_dir/$plugin_name" | cut -f1)
+        local SIZE=$(du -h "$output_dir/$binary_name" | cut -f1)
         
         print_success "Built $plugin_name in ${BUILD_TIME}s (${SIZE})"
         
@@ -207,11 +210,34 @@ build_all_plugins() {
     fi
     
     local plugins=()
-    for dir in "$PLUGINS_DIR"/*; do
-        if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
-            plugins+=("$(basename "$dir")")
-        fi
-    done
+    
+    # Function to find plugins recursively
+    find_plugins() {
+        local search_dir="$1"
+        local prefix="$2"
+        
+        for dir in "$search_dir"/*; do
+            if [ ! -d "$dir" ]; then
+                continue
+            fi
+            
+            local dir_name=$(basename "$dir")
+            local full_path="${prefix}${dir_name}"
+            
+            if [ -f "$dir/main.go" ]; then
+                # This directory contains a plugin
+                plugins+=("$full_path")
+            else
+                # Check subdirectories (but only one level deep to avoid infinite recursion)
+                if [ -z "$prefix" ]; then
+                    find_plugins "$dir" "${dir_name}/"
+                fi
+            fi
+        done
+    }
+    
+    # Find all plugins starting from plugins directory
+    find_plugins "$PLUGINS_DIR" ""
     
     if [ ${#plugins[@]} -eq 0 ]; then
         print_warning "No plugins found to build"
@@ -297,18 +323,40 @@ clean_caches() {
 list_plugins() {
     print_info "Available plugins:"
     
-    for dir in "$PLUGINS_DIR"/*; do
-        if [ -d "$dir" ] && [ -f "$dir/main.go" ]; then
-            local plugin_name=$(basename "$dir")
-            local binary="$DATA_DIR/plugins/$plugin_name/$plugin_name"
-            
-            if [ -x "$binary" ]; then
-                echo "  ✅ $plugin_name (built)"
-            else
-                echo "  ⭕ $plugin_name (not built)"
+    # Function to list plugins recursively
+    list_plugins_recursive() {
+        local search_dir="$1"
+        local prefix="$2"
+        
+        for dir in "$search_dir"/*; do
+            if [ ! -d "$dir" ]; then
+                continue
             fi
-        fi
-    done
+            
+            local dir_name=$(basename "$dir")
+            local full_path="${prefix}${dir_name}"
+            
+            if [ -f "$dir/main.go" ]; then
+                # This directory contains a plugin
+                local binary_name=$(basename "$dir")
+                local binary="$DATA_DIR/plugins/$full_path/$binary_name"
+                
+                if [ -x "$binary" ]; then
+                    echo "  ✅ $full_path (built)"
+                else
+                    echo "  ⭕ $full_path (not built)"
+                fi
+            else
+                # Check subdirectories (but only one level deep)
+                if [ -z "$prefix" ]; then
+                    list_plugins_recursive "$dir" "${dir_name}/"
+                fi
+            fi
+        done
+    }
+    
+    # List all plugins starting from plugins directory
+    list_plugins_recursive "$PLUGINS_DIR" ""
 }
 
 # Main execution
