@@ -1,24 +1,48 @@
+// Package transcoding provides base functionality for building transcoding providers.
+// The BaseTranscoder can be embedded in plugin implementations to provide common
+// transcoding operations while allowing customization of specific behaviors.
+//
+// This base implementation handles:
+// - Session lifecycle management
+// - Process monitoring and cleanup
+// - Progress tracking
+// - Resource management
+// - Error handling and recovery
+//
+// Plugin developers can embed BaseTranscoder and override specific methods
+// to customize behavior while leveraging the robust foundation.
 package transcoding
 
 import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
-	"sync"
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/mantonx/viewra/sdk/transcoding/dashboard"
+	"github.com/mantonx/viewra/sdk/transcoding/ffmpeg"
+	"github.com/mantonx/viewra/sdk/transcoding/process"
+	"github.com/mantonx/viewra/sdk/transcoding/session"
+	"github.com/mantonx/viewra/sdk/transcoding/streaming"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
+	"github.com/mantonx/viewra/sdk/transcoding/utils"
+	"github.com/mantonx/viewra/sdk/transcoding/validation"
 )
 
 // BaseTranscoder provides common transcoding functionality that can be embedded in plugins
 type BaseTranscoder struct {
-	logger Logger
+	// Core components
+	logger          types.Logger
+	sessionManager  *session.Manager
+	processMonitor  *process.Monitor
+	processRegistry *process.ProcessRegistry
+	argsBuilder     *ffmpeg.FFmpegArgsBuilder
+	streamer        *streaming.Streamer
+	dashboardProvider *dashboard.Provider
 	
 	// Configuration
 	name        string
@@ -26,28 +50,11 @@ type BaseTranscoder struct {
 	version     string
 	author      string
 	priority    int
-	
-	// FFmpeg configuration
-	argsBuilder *FFmpegArgsBuilder
 	ffmpegPath  string
-	
-	// Session management
-	sessions map[string]*TranscodeSession
-	mutex    sync.RWMutex
-}
-
-// TranscodeSession represents an active transcoding session
-type TranscodeSession struct {
-	ID        string
-	Handle    *TranscodeHandle
-	Process   *exec.Cmd
-	StartTime time.Time
-	Request   TranscodeRequest
-	Cancel    context.CancelFunc
 }
 
 // NewBaseTranscoder creates a new base transcoder
-func NewBaseTranscoder(name, description, version, author string, priority int, hwAccelType string) *BaseTranscoder {
+func NewBaseTranscoder(name, description, version, author string, priority int) *BaseTranscoder {
 	ffmpegPath := "ffmpeg"
 	if customPath := os.Getenv("FFMPEG_PATH"); customPath != "" {
 		ffmpegPath = customPath
@@ -59,20 +66,29 @@ func NewBaseTranscoder(name, description, version, author string, priority int, 
 		version:     version,
 		author:      author,
 		priority:    priority,
-		argsBuilder: NewFFmpegArgsBuilder(hwAccelType),
 		ffmpegPath:  ffmpegPath,
-		sessions:    make(map[string]*TranscodeSession),
 	}
 }
 
-// SetLogger sets the logger for this transcoder
-func (bt *BaseTranscoder) SetLogger(logger Logger) {
+// SetLogger sets the logger and initializes all components
+func (bt *BaseTranscoder) SetLogger(logger types.Logger) {
 	bt.logger = logger
+	
+	// Initialize components
+	bt.processRegistry = process.GetTranscoderProcessRegistry(logger)
+	bt.sessionManager = session.NewManager(logger)
+	bt.processMonitor = process.NewMonitor(logger, bt.processRegistry)
+	bt.argsBuilder = ffmpeg.NewFFmpegArgsBuilder(logger)
+	bt.streamer = streaming.NewStreamer(logger, bt.ffmpegPath, bt.processRegistry)
+	bt.dashboardProvider = dashboard.NewProvider(logger)
+	
+	// Register default dashboard sections
+	bt.setupDefaultDashboard()
 }
 
 // GetInfo returns provider information
-func (bt *BaseTranscoder) GetInfo() ProviderInfo {
-	return ProviderInfo{
+func (bt *BaseTranscoder) GetInfo() types.ProviderInfo {
+	return types.ProviderInfo{
 		ID:          bt.name,
 		Name:        bt.name,
 		Description: bt.description,
@@ -83,8 +99,8 @@ func (bt *BaseTranscoder) GetInfo() ProviderInfo {
 }
 
 // GetSupportedFormats returns supported container formats
-func (bt *BaseTranscoder) GetSupportedFormats() []ContainerFormat {
-	return []ContainerFormat{
+func (bt *BaseTranscoder) GetSupportedFormats() []types.ContainerFormat {
+	return []types.ContainerFormat{
 		{
 			Format:      "mp4",
 			MimeType:    "video/mp4",
@@ -124,14 +140,172 @@ func (bt *BaseTranscoder) GetSupportedFormats() []ContainerFormat {
 }
 
 // StartTranscode starts a new transcoding session
-func (bt *BaseTranscoder) StartTranscode(ctx context.Context, req TranscodeRequest) (*TranscodeHandle, error) {
-	// Generate session ID if not provided
-	sessionID := req.SessionID
-	if sessionID == "" {
-		sessionID = uuid.New().String()
+func (bt *BaseTranscoder) StartTranscode(ctx context.Context, req types.TranscodeRequest) (*types.TranscodeHandle, error) {
+	// Create session through session manager
+	sess, err := bt.sessionManager.CreateSession(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	// Use provided output directory or create default
+	// Prepare output paths
+	outputDir, outputPath, err := bt.prepareOutputPaths(req, sess.ID)
+	if err != nil {
+		bt.sessionManager.RemoveSession(sess.ID)
+		return nil, err
+	}
+
+	// Update session handle with directory
+	sess.Handle.Directory = outputDir
+
+	// Build FFmpeg arguments
+	args := bt.argsBuilder.BuildArgs(req, outputPath)
+
+	// Create command
+	cmd := exec.Command(bt.ffmpegPath, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true, // Create new process group
+	}
+	cmd.Dir = outputDir
+
+	// Set up logging
+	if err := bt.setupProcessLogging(cmd, outputDir, sess.ID); err != nil {
+		if bt.logger != nil {
+			bt.logger.Warn("failed to setup process logging", "error", err)
+		}
+	}
+
+	// Log the command
+	if bt.logger != nil {
+		bt.logger.Info("starting FFmpeg transcoding",
+			"session_id", sess.ID,
+			"command", fmt.Sprintf("ffmpeg %v", args),
+		)
+	}
+
+	// Update session with process
+	bt.sessionManager.UpdateSession(sess.ID, func(s *session.Session) {
+		s.Process = cmd
+		s.Status = session.SessionStatusStarting
+	})
+
+	// Start the process
+	if err := cmd.Start(); err != nil {
+		bt.handleStartError(sess.ID, err)
+		return nil, fmt.Errorf("failed to start FFmpeg: %w", err)
+	}
+
+	// Start monitoring
+	if err := bt.processMonitor.MonitorProcess(cmd, sess.ID, bt.name); err != nil {
+		if bt.logger != nil {
+			bt.logger.Warn("failed to start process monitoring", "error", err)
+		}
+	}
+
+	// Update status
+	bt.sessionManager.UpdateSession(sess.ID, func(s *session.Session) {
+		s.Status = session.SessionStatusRunning
+	})
+
+	// Start validation for DASH output
+	if req.Container == "dash" {
+		go bt.validateOutput(sess.ID, outputDir)
+	}
+
+	return sess.Handle, nil
+}
+
+// GetProgress returns transcoding progress
+func (bt *BaseTranscoder) GetProgress(handle *types.TranscodeHandle) (*types.TranscodingProgress, error) {
+	if handle == nil {
+		return nil, fmt.Errorf("invalid handle")
+	}
+
+	sess, err := bt.sessionManager.GetSession(handle.SessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate progress
+	elapsed := time.Since(sess.StartTime)
+	progress := &types.TranscodingProgress{
+		PercentComplete: sess.Progress,
+		TimeElapsed:     elapsed,
+		CurrentSpeed:    1.0,
+		AverageSpeed:    1.0,
+	}
+
+	return progress, nil
+}
+
+// StopTranscode stops a transcoding session
+func (bt *BaseTranscoder) StopTranscode(handle *types.TranscodeHandle) error {
+	if handle == nil {
+		return fmt.Errorf("invalid handle")
+	}
+
+	// Stop through session manager
+	if err := bt.sessionManager.StopSession(handle.SessionID); err != nil {
+		return err
+	}
+
+	// Get session to access process
+	sess, err := bt.sessionManager.GetSession(handle.SessionID)
+	if err != nil {
+		return err
+	}
+
+	// Stop the process if running
+	if sess.Process != nil && sess.Process.Process != nil {
+		pid := sess.Process.Process.Pid
+		if err := bt.processMonitor.StopProcess(pid, 10*time.Second); err != nil {
+			if bt.logger != nil {
+				bt.logger.Error("failed to stop process", "pid", pid, "error", err)
+			}
+		}
+	}
+
+	// Update status and schedule cleanup
+	bt.sessionManager.UpdateSession(handle.SessionID, func(s *session.Session) {
+		s.Status = session.SessionStatusStopped
+	})
+
+	// Schedule session removal
+	go func() {
+		time.Sleep(5 * time.Minute)
+		bt.sessionManager.RemoveSession(handle.SessionID)
+	}()
+
+	return nil
+}
+
+// Streaming methods delegate to the streamer component
+func (bt *BaseTranscoder) StartStream(ctx context.Context, req types.TranscodeRequest) (*types.StreamHandle, error) {
+	return bt.streamer.StartStream(ctx, req)
+}
+
+func (bt *BaseTranscoder) GetStream(handle *types.StreamHandle) (io.ReadCloser, error) {
+	return bt.streamer.GetManifest(handle)
+}
+
+func (bt *BaseTranscoder) StopStream(handle *types.StreamHandle) error {
+	return bt.streamer.StopStream(handle)
+}
+
+// Dashboard methods delegate to the dashboard provider
+func (bt *BaseTranscoder) GetDashboardSections() []types.DashboardSection {
+	return bt.dashboardProvider.GetSections()
+}
+
+func (bt *BaseTranscoder) GetDashboardData(sectionID string) (interface{}, error) {
+	return bt.dashboardProvider.GetSectionData(sectionID)
+}
+
+func (bt *BaseTranscoder) ExecuteDashboardAction(actionID string, params map[string]interface{}) error {
+	return bt.dashboardProvider.ExecuteAction(actionID, params)
+}
+
+// prepareOutputPaths prepares the output directory and path
+func (bt *BaseTranscoder) prepareOutputPaths(req types.TranscodeRequest, sessionID string) (string, string, error) {
 	var outputDir string
 	if req.OutputPath != "" {
 		outputDir = req.OutputPath
@@ -140,15 +314,15 @@ func (bt *BaseTranscoder) StartTranscode(ctx context.Context, req TranscodeReque
 		if envDir := os.Getenv("VIEWRA_TRANSCODING_DIR"); envDir != "" {
 			baseDir = envDir
 		}
-		outputDir = fmt.Sprintf("%s/%s_%s_%s", baseDir, req.Container, bt.name, sessionID)
+		outputDir = filepath.Join(baseDir, fmt.Sprintf("%s_%s_%s", req.Container, bt.name, sessionID))
 	}
 	
 	// Create output directory
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
+		return "", "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Determine output file based on container
+	// Determine output filename
 	var outputPath string
 	switch req.Container {
 	case "dash":
@@ -159,653 +333,114 @@ func (bt *BaseTranscoder) StartTranscode(ctx context.Context, req TranscodeReque
 		outputPath = filepath.Join(outputDir, fmt.Sprintf("output.%s", req.Container))
 	}
 
-	// Create context with cancel for this session
-	sessionCtx, cancelFunc := context.WithCancel(ctx)
+	return outputDir, outputPath, nil
+}
 
-	// Build FFmpeg arguments using SDK builder
-	args := bt.argsBuilder.BuildArgs(&req, outputPath)
-
-	// Create the command directly without shell wrapper
-	cmd := exec.CommandContext(sessionCtx, bt.ffmpegPath, args...)
-	
-	// Set process group to prevent FFmpeg from being killed with parent
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // Create new process group for FFmpeg
+// setupProcessLogging sets up logging for the FFmpeg process
+func (bt *BaseTranscoder) setupProcessLogging(cmd *exec.Cmd, outputDir string, sessionID string) error {
+	// Try debug logging first
+	debugLog, err := utils.SetupDebugLogging(sessionID, outputDir, cmd.Args)
+	if err == nil && debugLog != nil {
+		cmd.Stdout = debugLog
+		cmd.Stderr = debugLog
+		return nil
 	}
+
+	// Fall back to standard logging
+	stdoutFile, stderrFile, err := utils.SetupProcessLogging(outputDir, sessionID)
+	if err != nil {
+		// Fall back to logger-based logging
+		cmd.Stdout = &utils.LogWriter{Logger: bt.logger, Prefix: "[stdout] "}
+		cmd.Stderr = &utils.LogWriter{Logger: bt.logger, Prefix: "[stderr] "}
+		return err
+	}
+
+	cmd.Stdout = stdoutFile
+	cmd.Stderr = stderrFile
+	return nil
+}
+
+// handleStartError handles errors when starting a transcoding session
+func (bt *BaseTranscoder) handleStartError(sessionID string, err error) {
+	bt.sessionManager.UpdateSession(sessionID, func(s *session.Session) {
+		s.Status = session.SessionStatusFailed
+	})
 	
-	// Add debugging for process attributes
+	bt.sessionManager.RemoveSession(sessionID)
+	
 	if bt.logger != nil {
-		bt.logger.Info("configuring FFmpeg process",
-			"session_id", sessionID,
-			"ffmpeg_path", bt.ffmpegPath,
-			"setpgid", true,
-		)
+		bt.logger.Error("failed to start transcoding", "session_id", sessionID, "error", err)
 	}
+}
+
+// validateOutput validates DASH/HLS output
+func (bt *BaseTranscoder) validateOutput(sessionID string, outputDir string) {
+	// Wait for initial files
+	time.Sleep(10 * time.Second)
 	
-	// Enable debug mode if requested
-	if os.Getenv("FFMPEG_DEBUG") == "true" {
-		// Create debug directory
-		debugDir := filepath.Join(filepath.Dir(outputPath), "debug")
-		os.MkdirAll(debugDir, 0755)
-		
-		// Create debug log
-		debugLog, err := os.Create(filepath.Join(debugDir, fmt.Sprintf("ffmpeg_%s.log", sessionID)))
-		if err == nil {
-			debugLog.WriteString(fmt.Sprintf("=== FFmpeg Debug Log ===\n"))
-			debugLog.WriteString(fmt.Sprintf("Session: %s\n", sessionID))
-			debugLog.WriteString(fmt.Sprintf("Time: %s\n", time.Now().Format(time.RFC3339)))
-			debugLog.WriteString(fmt.Sprintf("Command: %s %v\n", bt.ffmpegPath, args))
-			debugLog.WriteString(fmt.Sprintf("Input: %s\n", req.InputPath))
-			debugLog.WriteString(fmt.Sprintf("Output: %s\n", outputPath))
-			debugLog.WriteString(fmt.Sprintf("\n=== Environment ===\n"))
-			for _, env := range os.Environ() {
-				if strings.Contains(env, "FFMPEG") || strings.Contains(env, "PATH") {
-					debugLog.WriteString(fmt.Sprintf("%s\n", env))
-				}
-			}
-			debugLog.WriteString(fmt.Sprintf("\n=== FFmpeg Output ===\n"))
-			
-			// Redirect both stdout and stderr to debug log
-			cmd.Stdout = debugLog
-			cmd.Stderr = debugLog
-			
-			defer debugLog.Close()
-		}
-	}
+	// Run validation
+	result := validation.ValidatePlaybackOutput(outputDir)
 	
-	// Capture stderr for debugging (only if not already redirected to debug log)
-	if os.Getenv("FFMPEG_DEBUG") != "true" {
-		cmd.Stderr = &logWriter{logger: bt.logger, prefix: "[ffmpeg stderr] "}
-		cmd.Stdout = &logWriter{logger: bt.logger, prefix: "[ffmpeg stdout] "}
-	}
-
-	// Log the command for debugging
-	if bt.logger != nil {
-		bt.logger.Info("starting FFmpeg transcoding",
-			"session_id", sessionID,
-			"command", fmt.Sprintf("ffmpeg %v", args),
-		)
-	}
-
-	// Create handle
-	handle := &TranscodeHandle{
-		SessionID:   sessionID,
-		Provider:    bt.name,
-		StartTime:   time.Now(),
-		Directory:   outputDir,
-		Context:     sessionCtx,
-		CancelFunc:  cancelFunc,
-		PrivateData: sessionID,
-	}
-
-	// Create session
-	session := &TranscodeSession{
-		ID:        sessionID,
-		Handle:    handle,
-		Process:   cmd,
-		StartTime: time.Now(),
-		Request:   req,
-		Cancel:    cancelFunc,
-	}
-
-	// Store session
-	bt.mutex.Lock()
-	bt.sessions[sessionID] = session
-	bt.mutex.Unlock()
-
-	// Start FFmpeg process
-	if err := cmd.Start(); err != nil {
-		cancelFunc()
-		bt.mutex.Lock()
-		delete(bt.sessions, sessionID)
-		bt.mutex.Unlock()
+	if !result.IsValid() {
 		if bt.logger != nil {
-			bt.logger.Error("failed to start FFmpeg process",
+			bt.logger.Warn("output validation failed",
 				"session_id", sessionID,
-				"error", err,
-				"ffmpeg_path", bt.ffmpegPath,
+				"issues", result.GetIssues(),
 			)
 		}
-		return nil, fmt.Errorf("failed to start FFmpeg: %w", err)
-	}
-
-	// Log process info
-	if bt.logger != nil {
-		bt.logger.Info("FFmpeg process started",
-			"session_id", sessionID,
-			"pid", cmd.Process.Pid,
-		)
-	}
-
-	// Monitor the process in a goroutine
-	go bt.monitorSession(session)
-
-	return handle, nil
-}
-
-// GetProgress returns transcoding progress
-func (bt *BaseTranscoder) GetProgress(handle *TranscodeHandle) (*TranscodingProgress, error) {
-	if handle == nil {
-		return nil, fmt.Errorf("invalid handle")
-	}
-
-	bt.mutex.RLock()
-	session, exists := bt.sessions[handle.SessionID]
-	bt.mutex.RUnlock()
-
-	if !exists {
-		// Session not found - it may have failed or been terminated
-		return nil, fmt.Errorf("session not found: %s", handle.SessionID)
-	}
-
-	// Calculate elapsed time
-	elapsed := time.Since(session.StartTime)
-	
-	// Check if the session has completed
-	var percentComplete float64 = 0
-	if session.Handle != nil {
-		switch session.Handle.Status {
-		case TranscodeStatusCompleted:
-			percentComplete = 100
-		case TranscodeStatusFailed, TranscodeStatusCancelled:
-			// Return error for failed sessions
-			errorMsg := session.Handle.Error
-			if errorMsg == "" {
-				errorMsg = fmt.Sprintf("session %s", session.Handle.Status)
-			}
-			return nil, fmt.Errorf("transcoding failed: %s", errorMsg)
-		case TranscodeStatusRunning:
-			// For running sessions, estimate progress based on elapsed time
-			// This is a rough estimate - ideally we'd parse FFmpeg output
-			if elapsed > 10*time.Second {
-				percentComplete = math.Min(90, float64(elapsed.Seconds())/60*100)
-			}
-		default:
-			percentComplete = 0
-		}
-	}
-
-	progress := &TranscodingProgress{
-		PercentComplete: percentComplete,
-		TimeElapsed:     elapsed,
-		CurrentSpeed:    1.0,
-		AverageSpeed:    1.0,
-	}
-
-	return progress, nil
-}
-
-// StopTranscode stops a transcoding session
-func (bt *BaseTranscoder) StopTranscode(handle *TranscodeHandle) error {
-	if handle == nil {
-		return fmt.Errorf("invalid handle")
-	}
-
-	bt.mutex.Lock()
-	session, exists := bt.sessions[handle.SessionID]
-	if exists {
-		delete(bt.sessions, handle.SessionID)
-	}
-	bt.mutex.Unlock()
-
-	if !exists {
-		return fmt.Errorf("session not found: %s", handle.SessionID)
-	}
-
-	// Cancel the context (this should stop FFmpeg)
-	session.Cancel()
-
-	// Kill the process group if it's still running
-	if session.Process != nil && session.Process.Process != nil {
-		pid := session.Process.Process.Pid
-		// Try to kill the entire process group
-		if pgid, err := syscall.Getpgid(pid); err == nil {
-			// Send SIGTERM to the process group (negative pgid)
-			if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
-				// Fallback to killing just the process
-				if err := session.Process.Process.Kill(); err != nil {
-					if bt.logger != nil {
-						bt.logger.Warn("failed to kill FFmpeg process", "error", err)
-					}
-				}
-			}
-		} else {
-			// Fallback to killing just the process
-			if err := session.Process.Process.Kill(); err != nil {
-				if bt.logger != nil {
-					bt.logger.Warn("failed to kill FFmpeg process", "error", err)
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// monitorSession monitors a transcoding session
-func (bt *BaseTranscoder) monitorSession(session *TranscodeSession) {
-	// Give process time to start
-	time.Sleep(500 * time.Millisecond)
-	
-	// Log process state before waiting
-	if bt.logger != nil && session.Process.Process != nil {
-		// Check if process is still alive
-		if session.Process.ProcessState == nil {
-			// Process hasn't exited yet
-			bt.logger.Info("monitoring FFmpeg process",
-				"session_id", session.ID,
-				"pid", session.Process.Process.Pid,
-				"process_state", "running")
-		} else {
-			// Process already exited
-			bt.logger.Warn("FFmpeg process already exited",
-				"session_id", session.ID,
-				"pid", session.Process.Process.Pid,
-				"exit_code", session.Process.ProcessState.ExitCode())
-		}
-	}
-	
-	// Wait for the process to complete
-	err := session.Process.Wait()
-
-	// Get exit information
-	var exitCode int
-	var wasKilled bool
-	if session.Process.ProcessState != nil {
-		exitCode = session.Process.ProcessState.ExitCode()
-		wasKilled = !session.Process.ProcessState.Success() && exitCode == -1
-	}
-
-	// Mark session as completed but DON'T remove it yet
-	// The session will be cleaned up by the main service or timeout
-	bt.mutex.Lock()
-	if sessionData, exists := bt.sessions[session.ID]; exists {
-		// Update session state to indicate completion
-		if sessionData.Handle != nil {
-			sessionData.Handle.Status = TranscodeStatusCompleted
-			if err != nil {
-				sessionData.Handle.Status = TranscodeStatusFailed
-				sessionData.Handle.Error = err.Error()
-			}
-		}
-	}
-	bt.mutex.Unlock()
-
-	if err != nil && bt.logger != nil {
-		bt.logger.Error("FFmpeg process failed", 
-			"session_id", session.ID, 
-			"error", err,
-			"exit_code", exitCode,
-			"was_killed", wasKilled,
-			"system_time", time.Now().Format(time.RFC3339Nano))
-	} else if bt.logger != nil {
-		bt.logger.Info("FFmpeg process completed", 
-			"session_id", session.ID,
-			"exit_code", exitCode)
-	}
-
-	// Start cleanup timer - remove session after 5 minutes to allow final progress checks
-	go func() {
-		time.Sleep(5 * time.Minute)
-		bt.mutex.Lock()
-		delete(bt.sessions, session.ID)
-		bt.mutex.Unlock()
-		if bt.logger != nil {
-			bt.logger.Debug("cleaned up completed session", "session_id", session.ID)
-		}
-	}()
-}
-
-// logWriter is a simple writer that logs output
-type logWriter struct {
-	logger Logger
-	prefix string
-}
-
-func (w *logWriter) Write(p []byte) (n int, err error) {
-	if w.logger != nil {
-		w.logger.Debug(w.prefix + string(p))
-	}
-	return len(p), nil
-}
-
-// StreamSession represents an active streaming session
-type StreamSession struct {
-	ID          string
-	Handle      *StreamHandle
-	Process     *exec.Cmd
-	StartTime   time.Time
-	Request     TranscodeRequest
-	Cancel      context.CancelFunc
-	OutputPath  string
-	IsAdaptive  bool
-}
-
-// Streaming methods with DASH/HLS support
-func (bt *BaseTranscoder) StartStream(ctx context.Context, req TranscodeRequest) (*StreamHandle, error) {
-	// Generate session ID if not provided
-	sessionID := req.SessionID
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-
-	// Use provided output directory or create default
-	var outputDir string
-	if req.OutputPath != "" {
-		outputDir = req.OutputPath
-	} else {
-		baseDir := "/app/viewra-data/streaming"
-		if envDir := os.Getenv("VIEWRA_STREAMING_DIR"); envDir != "" {
-			baseDir = envDir
-		}
-		outputDir = fmt.Sprintf("%s/%s_%s_%s", baseDir, req.Container, bt.name, sessionID)
-	}
-	
-	// Create output directory
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create streaming directory: %w", err)
-	}
-
-	// Determine output configuration based on container
-	var outputPath string
-	var isAdaptive bool
-	
-	switch req.Container {
-	case "dash":
-		outputPath = filepath.Join(outputDir, "manifest.mpd")
-		isAdaptive = true
-	case "hls":
-		outputPath = filepath.Join(outputDir, "playlist.m3u8")
-		isAdaptive = true
-	default:
-		return nil, fmt.Errorf("unsupported streaming container: %s", req.Container)
-	}
-
-	// Create context with cancel for this session
-	streamCtx, cancelFunc := context.WithCancel(ctx)
-
-	// Build FFmpeg arguments for streaming
-	args := bt.buildStreamingArgs(&req, outputPath)
-
-	// Create the streaming command
-	cmd := exec.CommandContext(streamCtx, bt.ffmpegPath, args...)
-	
-	// Set process group to prevent FFmpeg from being killed with parent
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // Create new process group for FFmpeg
-	}
-
-	// Log the streaming command
-	if bt.logger != nil {
-		bt.logger.Info("starting FFmpeg streaming",
-			"session_id", sessionID,
-			"container", req.Container,
-			"output", outputPath,
-			"command", fmt.Sprintf("ffmpeg %v", args),
-		)
-	}
-
-	// Create stream handle
-	handle := &StreamHandle{
-		SessionID:   sessionID,
-		Status:      TranscodeStatusStarting,
-		Context:     streamCtx,
-		CancelFunc:  cancelFunc,
-		PrivateData: sessionID,
-	}
-
-	// Create stream session
-	streamSession := &StreamSession{
-		ID:         sessionID,
-		Handle:     handle,
-		Process:    cmd,
-		StartTime:  time.Now(),
-		Request:    req,
-		Cancel:     cancelFunc,
-		OutputPath: outputPath,
-		IsAdaptive: isAdaptive,
-	}
-
-	// Store stream session (we'll use the same sessions map for simplicity)
-	bt.mutex.Lock()
-	// Convert to TranscodeSession for storage compatibility
-	session := &TranscodeSession{
-		ID:        sessionID,
-		Handle:    nil, // No transcode handle for streaming
-		Process:   cmd,
-		StartTime: time.Now(),
-		Request:   req,
-		Cancel:    cancelFunc,
-	}
-	bt.sessions[sessionID] = session
-	bt.mutex.Unlock()
-
-	// Start FFmpeg streaming process
-	if err := cmd.Start(); err != nil {
-		cancelFunc()
-		bt.mutex.Lock()
-		delete(bt.sessions, sessionID)
-		bt.mutex.Unlock()
-		return nil, fmt.Errorf("failed to start FFmpeg streaming: %w", err)
-	}
-
-	// Update status
-	handle.Status = TranscodeStatusRunning
-
-	// Monitor the streaming session
-	go bt.monitorStreamSession(streamSession)
-
-	return handle, nil
-}
-
-func (bt *BaseTranscoder) GetStream(handle *StreamHandle) (io.ReadCloser, error) {
-	if handle == nil {
-		return nil, fmt.Errorf("invalid stream handle")
-	}
-
-	bt.mutex.RLock()
-	session, exists := bt.sessions[handle.SessionID]
-	bt.mutex.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("stream session not found: %s", handle.SessionID)
-	}
-
-	// For DASH/HLS, we return the manifest/playlist file
-	baseDir := "/app/viewra-data/streaming"
-	if envDir := os.Getenv("VIEWRA_STREAMING_DIR"); envDir != "" {
-		baseDir = envDir
-	}
-	
-	var manifestPath string
-	switch session.Request.Container {
-	case "dash":
-		manifestPath = filepath.Join(fmt.Sprintf("%s/%s_%s_%s", 
-			baseDir, session.Request.Container, bt.name, handle.SessionID), "manifest.mpd")
-	case "hls":
-		manifestPath = filepath.Join(fmt.Sprintf("%s/%s_%s_%s", 
-			baseDir, session.Request.Container, bt.name, handle.SessionID), "playlist.m3u8")
-	default:
-		return nil, fmt.Errorf("unsupported streaming container: %s", session.Request.Container)
-	}
-
-	// Wait briefly for the manifest to be created
-	for i := 0; i < 30; i++ { // Wait up to 3 seconds
-		if _, err := os.Stat(manifestPath); err == nil {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// Open and return the manifest file
-	file, err := os.Open(manifestPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open streaming manifest: %w", err)
-	}
-
-	return file, nil
-}
-
-func (bt *BaseTranscoder) StopStream(handle *StreamHandle) error {
-	if handle == nil {
-		return fmt.Errorf("invalid stream handle")
-	}
-
-	bt.mutex.Lock()
-	session, exists := bt.sessions[handle.SessionID]
-	if exists {
-		delete(bt.sessions, handle.SessionID)
-	}
-	bt.mutex.Unlock()
-
-	if !exists {
-		return fmt.Errorf("stream session not found: %s", handle.SessionID)
-	}
-
-	// Cancel the context (this should stop FFmpeg)
-	session.Cancel()
-
-	// Kill the process if it's still running
-	if session.Process != nil && session.Process.Process != nil {
-		if err := session.Process.Process.Kill(); err != nil {
+		
+		// Generate report
+		reportPath := filepath.Join(outputDir, "validation-report.txt")
+		if err := validation.GenerateValidationReport(result, reportPath); err != nil {
 			if bt.logger != nil {
-				bt.logger.Warn("failed to kill FFmpeg streaming process", "error", err)
+				bt.logger.Error("failed to generate validation report",
+					"session_id", sessionID,
+					"error", err,
+				)
 			}
 		}
-	}
-
-	return nil
-}
-
-// buildStreamingArgs builds FFmpeg arguments for streaming
-func (bt *BaseTranscoder) buildStreamingArgs(req *TranscodeRequest, outputPath string) []string {
-	// Start with basic streaming-specific args
-	args := []string{"-y"} // Overwrite output
-
-	// Hardware acceleration (before input)
-	if bt.argsBuilder.hwAccelType != "none" {
-		args = append(args, "-hwaccel", bt.argsBuilder.hwAccelType)
-	}
-
-	// Input
-	args = append(args, "-i", req.InputPath)
-
-	// Video codec
-	args = append(args, "-c:v", req.VideoCodec)
-	
-	// Audio codec
-	args = append(args, "-c:a", req.AudioCodec)
-
-	// Quality settings based on quality percentage
-	if req.Quality > 0 {
-		switch req.VideoCodec {
-		case "h264", "libx264":
-			// CRF scale (lower = better quality)
-			crf := 51 - (req.Quality * 28 / 100) // Maps 0-100 to CRF 51-23
-			if crf < 18 { crf = 18 } // Minimum CRF
-			args = append(args, "-crf", fmt.Sprintf("%d", crf))
-		case "h265", "libx265":
-			crf := 51 - (req.Quality * 23 / 100) // Maps 0-100 to CRF 51-28
-			if crf < 20 { crf = 20 }
-			args = append(args, "-crf", fmt.Sprintf("%d", crf))
-		}
-	}
-
-	// Speed/preset settings
-	switch req.SpeedPriority {
-	case SpeedPriorityFastest:
-		args = append(args, "-preset", "ultrafast")
-	case SpeedPriorityBalanced:
-		args = append(args, "-preset", "medium")
-	case SpeedPriorityQuality:
-		args = append(args, "-preset", "slow")
-	}
-
-	// Container-specific streaming arguments
-	switch req.Container {
-	case "dash":
-		args = append(args,
-			"-f", "dash",
-			"-seg_duration", "4",
-			"-adaptation_sets", "id=0,streams=v id=1,streams=a",
-			"-use_template", "1",
-			"-use_timeline", "1",
-			"-init_seg_name", "init-$RepresentationID$.m4s",
-			"-media_seg_name", "chunk-$RepresentationID$-$Number$.m4s",
-		)
-	case "hls":
-		args = append(args,
-			"-f", "hls",
-			"-hls_time", "4",
-			"-hls_playlist_type", "vod",
-			"-hls_segment_filename", filepath.Join(filepath.Dir(outputPath), "segment_%03d.ts"),
-		)
-	}
-
-	// Add output path
-	args = append(args, outputPath)
-
-	return args
-}
-
-// monitorStreamSession monitors a streaming session
-func (bt *BaseTranscoder) monitorStreamSession(streamSession *StreamSession) {
-	// Wait for the process to complete
-	err := streamSession.Process.Wait()
-
-	// Update handle status but don't remove session immediately
-	if err != nil {
-		streamSession.Handle.Status = TranscodeStatusFailed
-		streamSession.Handle.Error = err.Error()
-		if bt.logger != nil {
-			bt.logger.Error("FFmpeg streaming process failed", "session_id", streamSession.ID, "error", err)
-		}
 	} else {
-		streamSession.Handle.Status = TranscodeStatusCompleted
 		if bt.logger != nil {
-			bt.logger.Info("FFmpeg streaming process completed", "session_id", streamSession.ID)
+			bt.logger.Info("output validation passed", "session_id", sessionID)
 		}
 	}
-
-	// Cleanup after delay
-	go func() {
-		time.Sleep(5 * time.Minute)
-		bt.mutex.Lock()
-		delete(bt.sessions, streamSession.ID)
-		bt.mutex.Unlock()
-		if bt.logger != nil {
-			bt.logger.Debug("cleaned up completed stream session", "session_id", streamSession.ID)
-		}
-	}()
 }
 
-// Dashboard methods (basic implementations)
-func (bt *BaseTranscoder) GetDashboardSections() []DashboardSection {
-	return []DashboardSection{
-		{
-			ID:    "overview",
-			Title: "Overview",
-			Type:  "stats",
+// setupDefaultDashboard sets up default dashboard sections
+func (bt *BaseTranscoder) setupDefaultDashboard() {
+	// Overview stats
+	bt.dashboardProvider.RegisterStatsSection(
+		"overview",
+		"Overview",
+		"General statistics and status",
+		func() (interface{}, error) {
+			return map[string]interface{}{
+				"provider":        bt.name,
+				"version":         bt.version,
+				"active_sessions": bt.sessionManager.GetSessionCount(),
+			}, nil
 		},
-	}
-}
+	)
 
-func (bt *BaseTranscoder) GetDashboardData(sectionID string) (interface{}, error) {
-	switch sectionID {
-	case "overview":
-		bt.mutex.RLock()
-		sessionCount := len(bt.sessions)
-		bt.mutex.RUnlock()
+	// Active sessions table
+	bt.dashboardProvider.RegisterTableSection(
+		"sessions",
+		"Active Sessions",
+		"Currently running transcoding sessions",
+		func() (interface{}, error) {
+			sessions := bt.sessionManager.GetAllSessions()
+			return sessions, nil
+		},
+	)
 
-		return map[string]interface{}{
-			"active_sessions": sessionCount,
-			"provider":        bt.name,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unknown section: %s", sectionID)
-	}
-}
+	// Register actions
+	bt.dashboardProvider.RegisterAction("stop_all", func(params map[string]interface{}) error {
+		bt.sessionManager.StopAllSessions()
+		return nil
+	})
 
-func (bt *BaseTranscoder) ExecuteDashboardAction(actionID string, params map[string]interface{}) error {
-	return fmt.Errorf("action not supported: %s", actionID)
+	bt.dashboardProvider.RegisterAction("cleanup_stale", func(params map[string]interface{}) error {
+		bt.sessionManager.CleanupStaleSessions(30 * time.Minute)
+		return nil
+	})
 }

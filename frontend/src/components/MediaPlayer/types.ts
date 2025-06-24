@@ -5,6 +5,13 @@ export interface BaseMedia {
   duration?: number;
   poster?: string;
   backdrop?: string;
+  subtitles?: Array<{
+    src: string;
+    kind?: string;
+    label?: string;
+    srclang?: string;
+    default?: boolean;
+  }>;
 }
 
 export interface Episode extends BaseMedia {
@@ -86,6 +93,7 @@ export interface PlayerState {
   isBuffering: boolean;
   isSeekingAhead: boolean;
   showControls: boolean;
+  currentQuality?: any; // For quality tracking with Vidstack
 }
 
 export interface SessionState {
@@ -125,61 +133,8 @@ export interface VideoEventHandlers {
   onStalled: () => void;
 }
 
-export interface ShakaPlayerConfig {
-  manifest: {
-    defaultPresentationDelay: number;
-    availabilityWindowOverride: number;
-    dash: {
-      ignoreSuggestedPresentationDelay: boolean;
-      autoCorrectDrift: boolean;
-    };
-  };
-  streaming: {
-    bufferingGoal: number;
-    rebufferingGoal: number;
-    bufferBehind: number;
-    retryParameters: {
-      maxAttempts: number;
-      baseDelay: number;
-      backoffFactor: number;
-      fuzzFactor: number;
-      timeout: number;
-      stallTimeout: number;
-      connectionTimeout: number;
-    };
-    jumpLargeGaps: boolean;
-    forceTransmuxTS: boolean;
-    forceHTTPS: boolean;
-    segmentPrefetchLimit: number;
-    stallEnabled: boolean;
-    stallThreshold: number;
-    stallSkip: number;
-    maxDisabledTime: number;
-    inaccurateManifestTolerance: number;
-  };
-  abr: {
-    enabled: boolean;
-    defaultBandwidthEstimate: number;
-    switchInterval: number;
-    bandwidthUpgradeTarget: number;
-    bandwidthDowngradeTarget: number;
-    restrictToElementSize: boolean;
-    restrictToScreenSize: boolean;
-    ignoreDevicePixelRatio: boolean;
-    clearBufferSwitch: boolean;
-    useNetworkInformation: boolean;
-  };
-  drm: {
-    retryParameters: {
-      maxAttempts: number;
-      baseDelay: number;
-      backoffFactor: number;
-    };
-  };
-  preferredAudioLanguage: string;
-  preferredTextLanguage: string;
-  preferredVariantRole: string;
-}
+// Removed ShakaPlayerConfig as we're now using Vidstack player
+// Vidstack configuration is handled through component props and the videoPlayerConfig utility
 
 export interface TranscodingSession {
   id: string;

@@ -1,3 +1,20 @@
+// Package progress provides FFmpeg progress parsing and conversion utilities.
+// This package interprets FFmpeg's stderr output to extract real-time transcoding
+// progress information, converting it into structured data that applications can
+// use to display progress bars, estimate completion times, and monitor performance.
+//
+// The progress converter handles:
+// - Parsing FFmpeg's progress output format
+// - Extracting frame counts, time codes, and bitrates
+// - Calculating completion percentages
+// - Estimating time remaining
+// - Detecting stalls and errors
+// - Providing moving averages for smooth progress updates
+//
+// FFmpeg output formats supported:
+// - Standard progress output (frame=, time=, speed=)
+// - JSON progress output (-progress_url)
+// - Custom progress reporting via pipes
 package progress
 
 import (
@@ -6,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mantonx/viewra/sdk/transcoding"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
 )
 
 // Converter converts FFmpeg progress to standard format
@@ -27,8 +44,8 @@ func NewConverter(totalDuration time.Duration) *Converter {
 }
 
 // Convert converts FFmpeg output to standard progress
-func (c *Converter) Convert(ffmpegOutput string) *transcoding.TranscodingProgress {
-	progress := &transcoding.TranscodingProgress{
+func (c *Converter) Convert(ffmpegOutput string) *types.TranscodingProgress {
+	progress := &types.TranscodingProgress{
 		TimeElapsed: time.Since(c.startTime),
 	}
 

@@ -21,10 +21,12 @@ type FFmpegProcess struct {
 	done       chan struct{}
 	ctx        context.Context
 	cancel     context.CancelFunc
+	provider   string
+	registry   *ProcessRegistry
 }
 
 // NewFFmpegProcess creates a new managed FFmpeg process
-func NewFFmpegProcess(ctx context.Context, sessionID string, args []string, logger hclog.Logger) *FFmpegProcess {
+func NewFFmpegProcess(ctx context.Context, sessionID string, args []string, provider string, logger hclog.Logger) *FFmpegProcess {
 	processCtx, cancel := context.WithCancel(ctx)
 	
 	cmd := exec.CommandContext(processCtx, "ffmpeg", args...)
@@ -46,6 +48,8 @@ func NewFFmpegProcess(ctx context.Context, sessionID string, args []string, logg
 		done:      make(chan struct{}),
 		ctx:       processCtx,
 		cancel:    cancel,
+		provider:  provider,
+		registry:  GetProcessRegistry(logger),
 	}
 }
 
@@ -61,9 +65,13 @@ func (fp *FFmpegProcess) Start() error {
 		return fmt.Errorf("failed to start FFmpeg: %w", err)
 	}
 	
+	pid := fp.cmd.Process.Pid
 	fp.logger.Info("started FFmpeg process", 
 		"session_id", fp.sessionID,
-		"pid", fp.cmd.Process.Pid)
+		"pid", pid)
+	
+	// Register process in global registry
+	fp.registry.Register(pid, fp.sessionID, fp.provider)
 	
 	// Monitor process in goroutine
 	go fp.monitor()
@@ -74,6 +82,9 @@ func (fp *FFmpegProcess) Start() error {
 // monitor watches the process and ensures cleanup
 func (fp *FFmpegProcess) monitor() {
 	defer close(fp.done)
+	
+	// Get PID before waiting
+	pid := fp.cmd.Process.Pid
 	
 	// Wait for process to exit
 	err := fp.cmd.Wait()
@@ -101,6 +112,9 @@ func (fp *FFmpegProcess) monitor() {
 	
 	// Ensure cleanup
 	fp.cleanup()
+	
+	// Unregister from global registry
+	fp.registry.Unregister(pid)
 }
 
 // Stop stops the FFmpeg process gracefully
@@ -112,32 +126,30 @@ func (fp *FFmpegProcess) Stop() error {
 		return nil
 	}
 	
+	pid := fp.cmd.Process.Pid
 	fp.logger.Info("stopping FFmpeg process",
 		"session_id", fp.sessionID,
-		"pid", fp.cmd.Process.Pid)
+		"pid", pid)
 	
 	// Cancel context first
 	fp.cancel()
 	
-	// Give it a chance to exit gracefully
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-fp.done:
-			close(done)
-		case <-time.After(5 * time.Second):
-			close(done)
-		}
-	}()
+	// Use the centralized kill function with proper timeout
+	err := KillProcessGroup(pid, fp.logger)
 	
-	<-done
+	// Unregister from global registry
+	fp.registry.Unregister(pid)
 	
-	// Force kill if still running
-	if fp.cmd.Process != nil {
-		fp.cleanup()
+	// Wait for monitor goroutine to finish
+	select {
+	case <-fp.done:
+		// Process monitor has finished
+	case <-time.After(10 * time.Second):
+		fp.logger.Warn("monitor goroutine did not finish in time",
+			"session_id", fp.sessionID)
 	}
 	
-	return nil
+	return err
 }
 
 // cleanup ensures the process and all children are terminated
@@ -148,20 +160,13 @@ func (fp *FFmpegProcess) cleanup() {
 	
 	pid := fp.cmd.Process.Pid
 	
-	// Kill the entire process group
-	pgid, err := syscall.Getpgid(pid)
-	if err == nil {
-		// Kill process group
-		syscall.Kill(-pgid, syscall.SIGKILL)
-		fp.logger.Debug("killed process group", "pgid", pgid, "session_id", fp.sessionID)
-	} else {
-		// Fallback: kill just the process
-		fp.cmd.Process.Kill()
-		fp.logger.Debug("killed process", "pid", pid, "session_id", fp.sessionID)
+	// Use the centralized kill function
+	if err := KillProcessGroup(pid, fp.logger); err != nil {
+		fp.logger.Error("failed to kill process group",
+			"pid", pid,
+			"session_id", fp.sessionID,
+			"error", err)
 	}
-	
-	// Reap the child to prevent zombies
-	fp.cmd.Process.Wait()
 }
 
 // IsRunning checks if the process is still running
@@ -220,7 +225,7 @@ func (m *FFmpegProcessManager) StartProcess(ctx context.Context, sessionID strin
 	}
 	
 	// Create new process
-	process := NewFFmpegProcess(ctx, sessionID, args, m.logger)
+	process := NewFFmpegProcess(ctx, sessionID, args, "ffmpeg_wrapper", m.logger)
 	
 	// Start it
 	if err := process.Start(); err != nil {

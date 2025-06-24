@@ -2,27 +2,29 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/mantonx/viewra/internal/database"
 	plugins "github.com/mantonx/viewra/sdk"
 )
 
 // CleanupService provides centralized cleanup for all transcoding providers
 type CleanupService struct {
-	baseDir     string
-	store       *SessionStore
-	fileManager *FileManager
-	logger      hclog.Logger
-	policies    map[string]RetentionPolicy
-	config      CleanupConfig
+	baseDir         string
+	store           *SessionStore
+	fileManager     *FileManager
+	logger          hclog.Logger
+	policies        map[string]RetentionPolicy
+	config          CleanupConfig
+	processRegistry *ProcessRegistry
 }
 
 // CleanupConfig contains cleanup configuration
@@ -52,12 +54,13 @@ func NewCleanupService(config CleanupConfig, store *SessionStore, fileManager *F
 	}
 
 	return &CleanupService{
-		baseDir:     baseDir,
-		store:       store,
-		fileManager: fileManager,
-		logger:      logger.Named("cleanup-service"),
-		config:      config,
-		policies:    make(map[string]RetentionPolicy),
+		baseDir:         baseDir,
+		store:           store,
+		fileManager:     fileManager,
+		logger:          logger.Named("cleanup-service"),
+		config:          config,
+		policies:        make(map[string]RetentionPolicy),
+		processRegistry: GetProcessRegistry(logger),
 	}
 }
 
@@ -71,7 +74,7 @@ func (cs *CleanupService) Run(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Run initial cleanup including orphaned processes
-	cs.cleanupOrphanedProcesses()
+	cs.CleanupOrphanedProcesses()
 	cs.cleanupAllProviders()
 
 	for {
@@ -79,7 +82,7 @@ func (cs *CleanupService) Run(ctx context.Context) {
 		case <-ticker.C:
 			cs.cleanupAllProviders()
 			// Also check for orphaned processes every cycle
-			cs.cleanupOrphanedProcesses()
+			cs.CleanupOrphanedProcesses()
 		case <-ctx.Done():
 			cs.logger.Info("cleanup service stopped")
 			return
@@ -127,13 +130,21 @@ func (cs *CleanupService) cleanupAllProviders() {
 		cs.logger.Info("cleaned up database sessions", "count", dbCount)
 	}
 
-	// Clean up stale running/queued sessions (stuck for more than 2 hours)
-	staleTimeout := 2 * time.Hour
+	// Clean up stale running/queued sessions (stuck for more than 30 minutes)
+	staleTimeout := 30 * time.Minute
 	staleCount, err := cs.store.CleanupStaleSessions(staleTimeout)
 	if err != nil {
 		cs.logger.Error("failed to cleanup stale sessions", "error", err)
 	} else if staleCount > 0 {
 		cs.logger.Info("cleaned up stale sessions", "count", staleCount, "timeout", staleTimeout)
+	}
+	
+	// Also clean up sessions that are making no progress
+	noProgressCount, err := cs.cleanupNoProgressSessions()
+	if err != nil {
+		cs.logger.Error("failed to cleanup no-progress sessions", "error", err)
+	} else if noProgressCount > 0 {
+		cs.logger.Info("cleaned up sessions with no progress", "count", noProgressCount)
 	}
 
 	// Clean up orphaned directories
@@ -145,7 +156,7 @@ func (cs *CleanupService) cleanupAllProviders() {
 	}
 	
 	// Clean up orphaned processes
-	cs.cleanupOrphanedProcesses()
+	cs.CleanupOrphanedProcesses()
 }
 
 // runEmergencyCleanup removes files to get under size limit
@@ -344,26 +355,41 @@ func (cs *CleanupService) CleanupSession(sessionID string) error {
 	return nil
 }
 
-// cleanupOrphanedProcesses kills orphaned FFmpeg processes that are no longer tracked
-func (cs *CleanupService) cleanupOrphanedProcesses() {
+// CleanupOrphanedProcesses kills orphaned FFmpeg processes that are no longer tracked
+func (cs *CleanupService) CleanupOrphanedProcesses() {
 	cs.logger.Debug("checking for orphaned FFmpeg processes")
 	
-	// Get all running FFmpeg processes
+	// First, use the process registry to check for long-running processes
+	registryKilled := cs.processRegistry.CleanupOrphaned()
+	if registryKilled > 0 {
+		cs.logger.Info("killed long-running processes from registry", "count", registryKilled)
+	}
+	
+	// Then check for any FFmpeg processes not in the registry
 	processes, err := cs.getFFmpegProcesses()
 	if err != nil {
 		cs.logger.Error("failed to get FFmpeg processes", "error", err)
 		return
 	}
 	
+	// Get all registered processes
+	registeredProcesses := cs.processRegistry.GetAllProcesses()
+	
 	killedCount := 0
 	for _, proc := range processes {
-		// Check if this process corresponds to a known session
+		// Check if this process is in the registry
+		if _, registered := registeredProcesses[proc.PID]; registered {
+			// Process is registered, skip it
+			continue
+		}
+		
+		// Process is not registered, check if it's orphaned
 		sessionID, isOrphaned := cs.isProcessOrphaned(proc)
 		if isOrphaned {
 			cs.logger.Warn("found orphaned FFmpeg process", "pid", proc.PID, "session_id", sessionID, "cmd", proc.CmdLine)
 			
-			// Kill the orphaned process
-			if err := cs.killProcess(proc.PID); err != nil {
+			// Kill the orphaned process using centralized function
+			if err := KillProcessGroup(proc.PID, cs.logger); err != nil {
 				cs.logger.Error("failed to kill orphaned process", "pid", proc.PID, "error", err)
 			} else {
 				killedCount++
@@ -388,12 +414,21 @@ func (cs *CleanupService) cleanupOrphanedProcesses() {
 func (cs *CleanupService) ForceCleanupSession(sessionID string) error {
 	cs.logger.Info("force cleaning session", "session_id", sessionID)
 	
+	// First check if there's a registered process for this session
+	if pid, ok := cs.processRegistry.GetProcessBySession(sessionID); ok {
+		cs.logger.Info("killing registered process for session", "session_id", sessionID, "pid", pid)
+		if err := KillProcessGroup(pid, cs.logger); err != nil {
+			cs.logger.Error("failed to kill registered process", "pid", pid, "error", err)
+		}
+		cs.processRegistry.Unregister(pid)
+	}
+	
 	// Clean up files
 	if err := cs.CleanupSession(sessionID); err != nil {
 		cs.logger.Warn("failed to cleanup session files", "session_id", sessionID, "error", err)
 	}
 	
-	// Kill any associated processes
+	// Also check for any unregistered processes (fallback)
 	processes, err := cs.getFFmpegProcesses()
 	if err != nil {
 		return fmt.Errorf("failed to get processes: %w", err)
@@ -402,8 +437,8 @@ func (cs *CleanupService) ForceCleanupSession(sessionID string) error {
 	for _, proc := range processes {
 		// Check if this process is for this session
 		if strings.Contains(proc.CmdLine, sessionID) {
-			cs.logger.Info("killing process for session", "session_id", sessionID, "pid", proc.PID)
-			if err := cs.killProcess(proc.PID); err != nil {
+			cs.logger.Info("killing unregistered process for session", "session_id", sessionID, "pid", proc.PID)
+			if err := KillProcessGroup(proc.PID, cs.logger); err != nil {
 				cs.logger.Error("failed to kill session process", "pid", proc.PID, "error", err)
 			}
 		}
@@ -489,24 +524,114 @@ func (cs *CleanupService) isProcessOrphaned(proc Process) (string, bool) {
 	return "", false
 }
 
-// killProcess kills a process by PID
+// killProcess is deprecated - use KillProcessGroup from process_registry.go instead
+// This is kept for backwards compatibility only
 func (cs *CleanupService) killProcess(pid int) error {
-	// First try graceful termination
-	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
-		cs.logger.Warn("SIGTERM failed, trying SIGKILL", "pid", pid, "error", err)
-		// If SIGTERM fails, use SIGKILL
-		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
-			return fmt.Errorf("failed to kill process %d: %w", pid, err)
+	return KillProcessGroup(pid, cs.logger)
+}
+
+// cleanupNoProgressSessions finds and kills sessions that have been running with 0% progress
+func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
+	// Find running sessions
+	var runningSessions []*database.TranscodeSession
+	if err := cs.store.db.Where("status = ?", "running").Find(&runningSessions).Error; err != nil {
+		return 0, fmt.Errorf("failed to find running sessions: %w", err)
+	}
+	
+	killedCount := 0
+	for _, session := range runningSessions {
+		// Parse progress data
+		progressData := make(map[string]interface{})
+		if session.Progress != "" {
+			if err := json.Unmarshal([]byte(session.Progress), &progressData); err != nil {
+				cs.logger.Warn("failed to parse progress data", "session_id", session.ID, "error", err)
+				continue
+			}
+		}
+		
+		// Check progress percentage
+		progressPercent, _ := progressData["percent_complete"].(float64)
+		timeElapsed, _ := progressData["time_elapsed"].(float64)
+		bytesWritten, _ := progressData["bytes_written"].(float64)
+		
+		// If process has been running for more than 10 minutes with 0% progress, it's stuck
+		// Convert nanoseconds to seconds
+		timeElapsedSeconds := timeElapsed / 1e9
+		
+		// Check if the session is truly stuck:
+		// 1. For ABR transcoding, FFmpeg may report 0% progress while actively writing segments
+		// 2. Check if bytes are being written as an alternative indicator of activity
+		// 3. Also check if the directory is being updated recently
+		isStuck := false
+		
+		if timeElapsedSeconds > 600 && progressPercent == 0 { // 10 minutes
+			// Before considering it stuck, check if files are being written
+			if session.DirectoryPath != "" {
+				// Check if directory has been modified recently (within last 2 minutes)
+				if info, err := os.Stat(session.DirectoryPath); err == nil {
+					if time.Since(info.ModTime()) < 2*time.Minute {
+						cs.logger.Debug("session shows 0% progress but directory is active",
+							"session_id", session.ID,
+							"elapsed_seconds", timeElapsedSeconds,
+							"dir_mod_time", info.ModTime())
+						continue // Skip this session, it's still active
+					}
+				}
+				
+				// Also check for recent file activity inside the directory
+				hasRecentActivity := false
+				entries, err := os.ReadDir(session.DirectoryPath)
+				if err == nil {
+					for _, entry := range entries {
+						info, err := entry.Info()
+						if err == nil && time.Since(info.ModTime()) < 2*time.Minute {
+							hasRecentActivity = true
+							break
+						}
+					}
+				}
+				
+				if hasRecentActivity {
+					cs.logger.Debug("session shows 0% progress but has recent file activity",
+						"session_id", session.ID,
+						"elapsed_seconds", timeElapsedSeconds)
+					continue // Skip this session, it's still active
+				}
+			}
+			
+			// Also check if bytes written is increasing (even if progress is 0%)
+			if bytesWritten > 0 {
+				cs.logger.Debug("session shows 0% progress but is writing bytes",
+					"session_id", session.ID,
+					"elapsed_seconds", timeElapsedSeconds,
+					"bytes_written", bytesWritten)
+				continue // Skip this session, it's still active
+			}
+			
+			// If we get here, the session is truly stuck
+			isStuck = true
+		}
+		
+		if isStuck {
+			cs.logger.Warn("found stuck session with no progress",
+				"session_id", session.ID,
+				"elapsed_seconds", timeElapsedSeconds,
+				"progress_percent", progressPercent)
+			
+			// Force cleanup this session
+			if err := cs.ForceCleanupSession(session.ID); err != nil {
+				cs.logger.Error("failed to force cleanup session", "session_id", session.ID, "error", err)
+			} else {
+				// Mark session as failed
+				if err := cs.store.UpdateSessionStatus(session.ID, "failed", `{"error": "Process stuck with no progress"}`); err != nil {
+					cs.logger.Error("failed to update session status", "session_id", session.ID, "error", err)
+				}
+				killedCount++
+			}
 		}
 	}
 	
-	// Try to kill the process group as well (in case of child processes)
-	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-		// Process group kill is best effort, don't fail if it doesn't work
-		cs.logger.Debug("failed to kill process group", "pid", pid, "error", err)
-	}
-	
-	return nil
+	return killedCount, nil
 }
 
 // CleanupStats contains cleanup statistics

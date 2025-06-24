@@ -12,6 +12,13 @@ import (
 // RegisterMonitoringRoutes registers FFmpeg monitoring endpoints
 func RegisterMonitoringRoutes(api *gin.RouterGroup, handler *APIHandler) {
 	monitor := api.Group("/monitor")
+	
+	// Add middleware to inject handler into context
+	monitor.Use(func(c *gin.Context) {
+		c.Set("handler", handler)
+		c.Next()
+	})
+	
 	{
 		monitor.GET("/ffmpeg-processes", handleGetFFmpegProcesses)
 		monitor.POST("/kill-zombies", handleKillZombies)
@@ -46,15 +53,29 @@ func handleGetFFmpegProcesses(c *gin.Context) {
 
 // handleKillZombies kills all zombie FFmpeg processes
 func handleKillZombies(c *gin.Context) {
-	killed := 0
-	processes, _ := getFFmpegProcesses()
-	
-	for _, proc := range processes {
-		if proc.IsZombie {
-			// Kill parent process to reap zombie
-			exec.Command("kill", "-9", strconv.Itoa(proc.PPID)).Run()
-			killed++
-		}
+	// Get handler from context
+	handlerInterface, exists := c.Get("handler")
+	if !exists {
+		c.JSON(500, gin.H{"error": "handler not found in context"})
+		return
+	}
+
+	handler, ok := handlerInterface.(*APIHandler)
+	if !ok {
+		c.JSON(500, gin.H{"error": "invalid handler type"})
+		return
+	}
+
+	// Use the manager's zombie cleanup method
+	if handler.manager == nil {
+		c.JSON(500, gin.H{"error": "manager not initialized"})
+		return
+	}
+
+	killed, err := handler.manager.KillZombieProcesses()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(200, gin.H{

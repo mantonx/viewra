@@ -1,3 +1,20 @@
+// Package config provides configuration management for the transcoding SDK.
+// This package handles loading, validating, and managing configuration settings
+// for transcoding operations. It supports various configuration sources including
+// files, environment variables, and programmatic settings.
+//
+// The configuration system provides:
+// - Type-safe configuration structures
+// - Validation of configuration values
+// - Default values and overrides
+// - Environment variable mapping
+// - Hot-reloading capabilities for dynamic updates
+//
+// Configuration can be loaded from:
+// - JSON/YAML configuration files
+// - Environment variables with prefixes
+// - Command-line arguments
+// - Programmatic API calls
 package config
 
 import (
@@ -6,8 +23,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mantonx/viewra/sdk"
-	"github.com/mantonx/viewra/sdk/transcoding"
+	plugins "github.com/mantonx/viewra/sdk"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
 )
 
 // Config represents the complete transcoder configuration
@@ -34,7 +51,7 @@ type CoreConfig struct {
 // HardwareConfig contains generic hardware acceleration settings
 type HardwareConfig struct {
 	Enabled         bool                 `json:"enabled"`
-	PreferredType   transcoding.HardwareType `json:"preferred_type"`   // "auto", "cuda", "vaapi", etc.
+	PreferredType   types.HardwareType `json:"preferred_type"`   // "auto", "cuda", "vaapi", etc.
 	DeviceSelection string               `json:"device_selection"` // "auto", "first", "load-balanced"
 	Fallback        bool                 `json:"fallback"`         // Fall back to software if HW fails
 }
@@ -88,7 +105,7 @@ func DefaultConfig() *Config {
 		},
 		Hardware: HardwareConfig{
 			Enabled:         true,
-			PreferredType:   transcoding.HardwareTypeNone,
+			PreferredType:   types.HardwareTypeNone,
 			DeviceSelection: "auto",
 			Fallback:        true,
 		},

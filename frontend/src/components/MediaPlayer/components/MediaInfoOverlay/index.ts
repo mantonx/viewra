@@ -1,2 +1,2 @@
 export { MediaInfoOverlay } from './MediaInfoOverlay';
-export type { MediaInfoOverlayProps } from './types';
+export type { MediaInfoOverlayProps } from './MediaInfoOverlay.types';

@@ -160,13 +160,13 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 
 	// Determine target resolution
 	targetResolution := p.selectTargetResolution(media.Resolution, profile.MaxResolution)
-	var resolution *plugins.VideoResolution
+	var resolution *plugins.Resolution
 	if targetResolution != media.Resolution {
 		reasons = append(reasons, fmt.Sprintf("resolution change: %s -> %s", media.Resolution, targetResolution))
 		// Convert resolution string to VideoResolution
 		height := p.getResolutionHeight(targetResolution)
 		width := int(float64(height) * 16.0 / 9.0) // Assume 16:9 aspect ratio
-		resolution = &plugins.VideoResolution{
+		resolution = &plugins.Resolution{
 			Width:  width,
 			Height: height,
 		}
@@ -187,14 +187,14 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 	// Determine quality based on bitrate (0-100 scale)
 	quality := p.calculateQuality(targetBitrate)
 
-	// Enable ABR for adaptive streaming containers
-	enableABR := targetContainer == "dash" || targetContainer == "hls"
-
-	// Determine speed priority
-	speedPriority := plugins.SpeedPriorityBalanced
-	if p.isWebBrowser(profile.UserAgent) {
-		speedPriority = plugins.SpeedPriorityFastest // Faster encoding for web clients
+	// ENHANCED: Smart ABR enablement based on device profile
+	enableABR := p.shouldEnableABR(targetContainer, profile, media)
+	if enableABR {
+		reasons = append(reasons, "enabling adaptive bitrate streaming for optimal experience")
 	}
+
+	// Determine speed priority based on device capabilities
+	speedPriority := p.determineSpeedPriority(profile)
 
 	reason := "Transcoding required: " + strings.Join(reasons, ", ")
 
@@ -208,7 +208,7 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 		SpeedPriority: speedPriority,
 		Resolution:    resolution,
 		Seek:          0, // No seek by default
-		Duration:      0, // Will use full duration
+		// Duration field removed - not in TranscodeRequest
 		EnableABR:     enableABR,
 	}, reason
 }
@@ -300,82 +300,81 @@ func (p *PlaybackPlannerImpl) calculateTargetBitrate(resolution string, maxBitra
 
 // selectTargetContainer chooses the best container format for the client
 func (p *PlaybackPlannerImpl) selectTargetContainer(sourceContainer string, profile *DeviceProfile) string {
+	// Use device-specific container selection for optimal playback
 	userAgent := strings.ToLower(profile.UserAgent)
-
-	// Determine if adaptive streaming would be beneficial
-	// Use adaptive streaming for:
-	// 1. High-resolution content (1440p+) that benefits from adaptive bitrates
-	// 2. Long-form content where seeking is important
-	// 3. Clients with variable network conditions (mobile, remote)
-	shouldUseAdaptiveStreaming := p.shouldUseAdaptiveStreaming(profile)
-
-	if !shouldUseAdaptiveStreaming {
-		// For simple cases, prefer progressive MP4 for lower latency and simpler setup
-		return "mp4"
-	}
-
-	// Choose adaptive streaming format based on client capabilities
-	// Modern browsers with MSE support can handle DASH
-	if strings.Contains(userAgent, "chrome") || strings.Contains(userAgent, "firefox") || strings.Contains(userAgent, "edge") {
-		// Prefer DASH for Chromium-based browsers and Firefox
-		return "dash"
-	}
-
-	// Safari and iOS have better HLS support
-	if strings.Contains(userAgent, "safari") || strings.Contains(userAgent, "mobile") || strings.Contains(userAgent, "ios") {
+	
+	// iOS devices and Safari prefer HLS (native support)
+	if strings.Contains(userAgent, "iphone") || strings.Contains(userAgent, "ipad") || 
+	   (strings.Contains(userAgent, "safari") && !strings.Contains(userAgent, "chrome")) {
 		return "hls"
 	}
-
-	// Smart TV and streaming devices often prefer HLS
-	if strings.Contains(userAgent, "tv") || strings.Contains(userAgent, "roku") || strings.Contains(userAgent, "appletv") {
-		return "hls"
-	}
-
-	// Default to DASH for unknown modern clients with MSE support
+	
+	// All other devices (Android, Desktop) use DASH for better performance
+	// DASH provides:
+	// - Better seeking performance with static MPD
+	// - More efficient segment structure
+	// - Superior adaptive streaming algorithms
 	return "dash"
 }
 
-// shouldUseAdaptiveStreaming determines if adaptive streaming (DASH/HLS) would be beneficial
-func (p *PlaybackPlannerImpl) shouldUseAdaptiveStreaming(profile *DeviceProfile) bool {
-	// Don't use adaptive streaming for very low resolution content
-	if profile.MaxResolution != "" {
-		maxHeight := p.getResolutionHeight(profile.MaxResolution)
-		if maxHeight < 720 {
-			return false // Use progressive for SD content
-		}
+// shouldEnableABR determines if adaptive bitrate streaming should be enabled
+// based on device capabilities and content characteristics
+func (p *PlaybackPlannerImpl) shouldEnableABR(container string, profile *DeviceProfile, media *MediaInfo) bool {
+	// Only enable ABR for adaptive streaming containers
+	if container != "dash" && container != "hls" {
+		return false
 	}
-
-	// Use adaptive streaming for high-resolution content
-	if profile.MaxResolution != "" {
-		maxHeight := p.getResolutionHeight(profile.MaxResolution)
-		if maxHeight >= 1440 {
-			return true // Always use adaptive for 1440p+ content
-		}
-	}
-
-	// Use adaptive streaming for limited bandwidth scenarios
-	if profile.MaxBitrate > 0 && profile.MaxBitrate < 5000 {
-		return true // Use adaptive for bandwidth-constrained clients
-	}
-
-	// Use adaptive streaming for mobile clients (more variable network conditions)
+	
+	// Check if device supports ABR based on performance level
 	userAgent := strings.ToLower(profile.UserAgent)
-	if strings.Contains(userAgent, "mobile") || strings.Contains(userAgent, "android") || strings.Contains(userAgent, "ios") {
+	
+	// Always enable ABR for desktop and high-performance devices
+	if strings.Contains(userAgent, "chrome") || strings.Contains(userAgent, "firefox") || 
+	   strings.Contains(userAgent, "edge") || strings.Contains(userAgent, "safari") {
 		return true
 	}
-
-	// Use adaptive streaming for remote clients (if we had this information)
-	// For now, assume all clients could benefit from adaptive streaming in HD+ content
-	if profile.MaxResolution == "" || p.getResolutionHeight(profile.MaxResolution) >= 1080 {
+	
+	// Enable ABR for mobile devices with sufficient bandwidth
+	if profile.MaxBitrate >= 2000 { // 2 Mbps minimum for effective ABR
 		return true
 	}
-
-	// Default to adaptive streaming for modern browsers (Chrome detected in user agent)
-	if strings.Contains(userAgent, "chrome") || strings.Contains(userAgent, "firefox") {
+	
+	// Enable ABR for long content (>10 minutes) where network conditions may vary
+	if media.Duration > 600 { // 10 minutes
 		return true
 	}
-
+	
+	// Enable ABR for high bitrate content that benefits from adaptation
+	if media.Bitrate > 5000000 { // 5 Mbps
+		return true
+	}
+	
+	// Default to single bitrate for simple scenarios
 	return false
+}
+
+// determineSpeedPriority selects encoding speed based on device capabilities
+func (p *PlaybackPlannerImpl) determineSpeedPriority(profile *DeviceProfile) plugins.SpeedPriority {
+	userAgent := strings.ToLower(profile.UserAgent)
+	
+	// Mobile devices prefer faster encoding for battery conservation
+	if strings.Contains(userAgent, "mobile") || strings.Contains(userAgent, "android") ||
+	   strings.Contains(userAgent, "iphone") || strings.Contains(userAgent, "ipad") {
+		return plugins.SpeedPriorityFastest
+	}
+	
+	// Desktop browsers prefer balanced encoding
+	if p.isWebBrowser(profile.UserAgent) {
+		return plugins.SpeedPriorityBalanced
+	}
+	
+	// High bitrate connections can afford quality-focused encoding
+	if profile.MaxBitrate >= 10000 { // 10 Mbps+
+		return plugins.SpeedPriorityQuality
+	}
+	
+	// Default to balanced
+	return plugins.SpeedPriorityBalanced
 }
 
 // analyzeMedia extracts media information from the file

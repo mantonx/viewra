@@ -58,7 +58,7 @@ const EpisodePlayer: React.FC = () => {
         
         // First try to get the file directly by file ID
         let mediaFile = null;
-        let fileResponse = await fetch(buildApiUrl(API_ENDPOINTS.MEDIA.FILE_BY_ID.path(episodeId)));
+        const fileResponse = await fetch(buildApiUrl(API_ENDPOINTS.MEDIA.FILE_BY_ID.path(episodeId)));
         
         if (fileResponse.ok) {
           const fileData = await fileResponse.json();

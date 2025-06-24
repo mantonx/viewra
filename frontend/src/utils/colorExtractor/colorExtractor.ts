@@ -1,9 +1,28 @@
-export interface ColorPalette {
-  primary: string;
-  secondary: string;
-  accent: string;
-}
+import type { ColorPalette } from './colorExtractor.types';
 
+/**
+ * Extracts a color palette from an image using canvas-based pixel sampling
+ * 
+ * This function loads an image, renders it to a small canvas, and analyzes
+ * the pixel data to extract dominant colors. It uses color clustering to
+ * group similar colors and returns the most frequent ones as a palette.
+ * 
+ * @param imageUrl - URL of the image to analyze (must be CORS-enabled)
+ * @returns Promise resolving to a ColorPalette with primary, secondary, and accent colors
+ * 
+ * @example
+ * ```typescript
+ * const palette = await extractColorsFromImage('/poster.jpg');
+ * console.log(palette.primary); // 'rgb(139, 69, 19)'
+ * ```
+ * 
+ * @remarks
+ * - Uses a 50x50 canvas for performance optimization
+ * - Skips transparent, very dark, or very light pixels
+ * - Groups similar colors using a threshold of 30 RGB units
+ * - Returns fallback colors if extraction fails
+ * - Requires images to be CORS-enabled (crossOrigin = 'anonymous')
+ */
 export const extractColorsFromImage = async (imageUrl: string): Promise<ColorPalette> => {
   return new Promise((resolve) => {
     const img = new Image();

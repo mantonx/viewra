@@ -22,7 +22,7 @@ type BitrateProfile struct {
 
 // BitrateRung represents a single rung in the adaptive bitrate ladder
 type BitrateRung struct {
-	Resolution   plugins.VideoResolution
+	Resolution   plugins.Resolution
 	VideoBitrate int     // kbps
 	AudioBitrate int     // kbps
 	Profile      string  // codec profile
@@ -88,7 +88,7 @@ func GetOptimizedBitrateLadder(sourceWidth, sourceHeight int, maxQuality int) *B
 		bitrate := rung.minBitrate + (rung.maxBitrate-rung.minBitrate)*maxQuality/100
 		
 		ladder.Rungs = append(ladder.Rungs, BitrateRung{
-			Resolution: plugins.VideoResolution{
+			Resolution: plugins.Resolution{
 				Width:  width,
 				Height: rung.height,
 			},
@@ -108,7 +108,7 @@ func GetOptimizedBitrateLadder(sourceWidth, sourceHeight int, maxQuality int) *B
 			width++
 		}
 		ladder.Rungs = append(ladder.Rungs, BitrateRung{
-			Resolution: plugins.VideoResolution{
+			Resolution: plugins.Resolution{
 				Width:  width,
 				Height: 240,
 			},

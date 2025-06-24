@@ -3,7 +3,7 @@ tmp_dir = "tmp"
 
 [build]
 # Build command - includes plugin rebuilding
-cmd = "cd /app && go build -o ./tmp/main ./backend/cmd/viewra/main.go"
+cmd = "go build -o ./tmp/main ./cmd/viewra/main.go"
 # Binary to run
 bin = "tmp/main"
 # Custom arguments

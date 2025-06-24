@@ -267,6 +267,7 @@ func (ts *TranscodeService) completeSession(sessionID string, handle *plugins.Tr
 		Success:      true,
 		OutputPath:   handle.Directory,
 		ManifestURL:  fmt.Sprintf("/api/playback/stream/%s/manifest", sessionID),
+		FileSize:     dirSize,
 		BytesWritten: dirSize,
 	}
 

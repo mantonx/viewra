@@ -105,16 +105,23 @@ validate_environment() {
 
 # Function to find plugin directories
 find_plugin_dirs() {
-    if [[ -n "$SPECIFIC_PLUGIN" ]]; then
-        if [[ -d "$PLUGINS_DIR/$SPECIFIC_PLUGIN" ]]; then
-            echo "$PLUGINS_DIR/$SPECIFIC_PLUGIN"
-        else
-            print_error "Plugin directory not found: $PLUGINS_DIR/$SPECIFIC_PLUGIN"
-            return 1
-        fi
-    else
-        find "$PLUGINS_DIR" -maxdepth 1 -type d \( -name "*_transcoder" -o -name "*_enricher" -o -name "*_scanner" \) | sort
-    fi
+if [[ -n "$SPECIFIC_PLUGIN" ]]; then
+# Check if it's in the transcoding subdirectory first
+if [[ -d "$PLUGINS_DIR/transcoding/$SPECIFIC_PLUGIN" ]]; then
+ echo "$PLUGINS_DIR/transcoding/$SPECIFIC_PLUGIN"
+elif [[ -d "$PLUGINS_DIR/$SPECIFIC_PLUGIN" ]]; then
+echo "$PLUGINS_DIR/$SPECIFIC_PLUGIN"
+else
+  print_error "Plugin directory not found: $SPECIFIC_PLUGIN (checked both $PLUGINS_DIR/$SPECIFIC_PLUGIN and $PLUGINS_DIR/transcoding/$SPECIFIC_PLUGIN)"
+ return 1
+ fi
+	else
+		# Find plugins in both root and transcoding subdirectory
+		{
+			find "$PLUGINS_DIR" -maxdepth 1 -type d \( -name "*_enricher" -o -name "*_scanner" \) 2>/dev/null || true
+			find "$PLUGINS_DIR/transcoding" -maxdepth 1 -type d -name "ffmpeg_*" 2>/dev/null || true
+		} | sort
+	fi
 }
 
 # Function to detect if plugin needs CGO
@@ -165,7 +172,14 @@ build_plugin_docker() {
     print_status "Building $plugin_name in Docker container..."
     
     # Get relative path from project root for Docker context
-    local relative_plugin_dir="data/plugins/$plugin_name"
+    # Handle transcoding plugins in subdirectory
+	local relative_plugin_dir
+	if [[ "$plugin_dir" == */transcoding/* ]]; then
+		local transcoding_plugin_name=$(basename "$plugin_dir")
+		relative_plugin_dir="data/plugins/transcoding/$transcoding_plugin_name"
+	else
+		relative_plugin_dir="data/plugins/$plugin_name"
+	fi
     
     # Clean old binaries first
     print_info "Cleaning old binaries for $plugin_name"
@@ -264,13 +278,16 @@ enable_ffmpeg_transcoder() {
     
     print_status "Ensuring FFmpeg transcoder is enabled by default..."
     
-    # The plugin is already configured with enabled_by_default: true in plugin.cue
-    # and special handling in external_manager.go, but let's ensure database consistency
+    # The ffmpeg_software plugin is our model transcoding provider
+    # and should be enabled by default for demonstration
     
     local sql_commands=(
-        "UPDATE plugins SET status = 'enabled' WHERE plugin_id = 'ffmpeg_transcoder' AND status != 'enabled';"
-        "UPDATE plugins SET enabled_at = datetime('now') WHERE plugin_id = 'ffmpeg_transcoder' AND enabled_at IS NULL;"
-    )
+    "UPDATE plugins SET status = 'enabled' WHERE plugin_id = 'ffmpeg_software' AND status != 'enabled';"
+    "UPDATE plugins SET enabled_at = datetime('now') WHERE plugin_id = 'ffmpeg_software' AND enabled_at IS NULL;"
+     # Also handle legacy ffmpeg_transcoder references
+			"UPDATE plugins SET status = 'enabled' WHERE plugin_id = 'ffmpeg_transcoder' AND status != 'enabled';"
+			"UPDATE plugins SET enabled_at = datetime('now') WHERE plugin_id = 'ffmpeg_transcoder' AND enabled_at IS NULL;"
+		)
     
     local has_updates=false
     for sql_cmd in "${sql_commands[@]}"; do
@@ -287,9 +304,9 @@ enable_ffmpeg_transcoder() {
     done
     
     if [[ "$has_updates" == "true" ]]; then
-        print_success "FFmpeg transcoder enabled in database"
+    print_success "FFmpeg software transcoder enabled in database"
     else
-        print_info "FFmpeg transcoder already enabled in database"
+    print_info "FFmpeg software transcoder already enabled in database"
     fi
 }
 
@@ -351,8 +368,12 @@ main() {
     
     print_info "Found ${#plugin_dirs[@]} plugin(s) to build"
     for dir in "${plugin_dirs[@]}"; do
-        print_info "  - $(basename "$dir")"
-    done
+    if [[ "$dir" == */transcoding/* ]]; then
+      print_info "  - $(basename "$dir") (transcoding)"
+		else
+			print_info "  - $(basename "$dir")"
+		fi
+	done
     
     # Prepare for Docker build if needed
     local container_id=""
@@ -408,14 +429,14 @@ main() {
         fi
     done
     
-    # Enable FFmpeg transcoder if we built it and we're using Docker
+    # Enable FFmpeg software transcoder if we built it and we're using Docker
     if [[ "$effective_build_mode" == "docker" && -n "$container_id" ]]; then
-        for plugin in "${built_plugins[@]}"; do
-            if [[ "$plugin" == "ffmpeg_transcoder" ]]; then
-                enable_ffmpeg_transcoder "$container_id"
-                break
-            fi
-        done
+    for plugin in "${built_plugins[@]}"; do
+    if [[ "$plugin" == "ffmpeg_software" || "$plugin" == "ffmpeg_transcoder" ]]; then
+    enable_ffmpeg_transcoder "$container_id"
+    break
+    fi
+    done
     fi
     
     # Print build summary

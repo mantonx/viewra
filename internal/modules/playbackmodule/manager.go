@@ -107,6 +107,9 @@ func (m *Manager) Initialize() error {
 	// Start the cleanup service
 	go m.cleanupService.Run(m.ctx)
 
+	// Start process registry cleanup on a regular interval
+	go m.runProcessRegistryCleanup()
+
 	// Publish initialization event
 	if m.eventBus != nil {
 		initEvent := events.NewSystemEvent(
@@ -462,4 +465,45 @@ func (m *Manager) hasTranscodingProviders() bool {
 	return providerManager != nil && len(providerManager.GetProviders()) > 0
 }
 
+// runProcessRegistryCleanup runs periodic cleanup of the process registry
+func (m *Manager) runProcessRegistryCleanup() {
+	// Run cleanup every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	processRegistry := core.GetProcessRegistry(m.logger)
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			m.logger.Info("stopping process registry cleanup")
+			return
+		case <-ticker.C:
+			// Run the cleanup
+			killedCount := processRegistry.CleanupOrphaned()
+			if killedCount > 0 {
+				m.logger.Info("process registry cleanup killed processes", "count", killedCount)
+			}
+		}
+	}
+}
+
+// KillZombieProcesses manually triggers cleanup of zombie FFmpeg processes
+func (m *Manager) KillZombieProcesses() (int, error) {
+	if !m.initialized {
+		return 0, fmt.Errorf("playback manager not initialized")
+	}
+
+	m.logger.Info("manually triggering zombie process cleanup")
+
+	// First run process registry cleanup
+	processRegistry := core.GetProcessRegistry(m.logger)
+	registryKilled := processRegistry.CleanupOrphaned()
+
+	// Then run cleanup service orphan detection
+	m.cleanupService.CleanupOrphanedProcesses()
+
+	m.logger.Info("zombie process cleanup completed", "killed_count", registryKilled)
+	return registryKilled, nil
+}
 

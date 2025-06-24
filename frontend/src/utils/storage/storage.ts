@@ -2,6 +2,8 @@
  * Local storage utilities for media player
  */
 
+import type { PlayerSettings, StorageUsage } from './storage.types';
+
 const STORAGE_KEYS = {
   VIDEO_POSITION: 'video-position',
   PLAYER_SETTINGS: 'player-settings',
@@ -124,17 +126,7 @@ export const saveMutedState = (muted: boolean): void => {
   setStorageItem(STORAGE_KEYS.MUTED, muted);
 };
 
-/**
- * Player settings interface
- */
-export interface PlayerSettings {
-  autoplay: boolean;
-  subtitlesEnabled: boolean;
-  defaultQuality: string;
-  skipIntroSeconds: number;
-  skipOutroSeconds: number;
-  seekStepSeconds: number;
-}
+
 
 /**
  * Gets saved player settings
@@ -181,11 +173,7 @@ export const clearPlayerStorage = (): void => {
  * Gets storage usage information
  * @returns Storage usage stats
  */
-export const getStorageUsage = (): {
-  used: number;
-  available: number;
-  percentage: number;
-} => {
+export const getStorageUsage = (): StorageUsage => {
   try {
     // Estimate storage usage
     let used = 0;

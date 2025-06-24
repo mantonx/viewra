@@ -3,49 +3,40 @@ package plugins
 // This file provides type aliases to transcoding types for the main SDK interfaces
 
 import (
-	"github.com/mantonx/viewra/sdk/transcoding"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
 )
 
 // Type aliases for clean interface definitions
 type (
-	TranscodeRequest       = transcoding.TranscodeRequest
-	TranscodeResult        = transcoding.TranscodeResult
-	TranscodingProgress    = transcoding.TranscodingProgress
-	TranscodeStatus        = transcoding.TranscodeStatus
-	SpeedPriority          = transcoding.SpeedPriority
-	HardwareType           = transcoding.HardwareType
-	VideoResolution        = transcoding.VideoResolution
-	HardwareInfo           = transcoding.HardwareInfo
-	QualityMapper          = transcoding.QualityMapper
+	TranscodeRequest       = types.TranscodeRequest
+	TranscodingProgress    = types.TranscodingProgress
+	TranscodeStatus        = types.TranscodeStatus
+	SpeedPriority          = types.SpeedPriority
+	TranscodeHandle        = types.TranscodeHandle
+	StreamHandle           = types.StreamHandle
+	TranscodeResult        = types.TranscodeResult
+	HardwareInfo           = types.HardwareInfo
+	VideoInfo              = types.VideoInfo
+	AudioInfo              = types.AudioInfo
+	Resolution             = types.Resolution
 )
 
 // Constants
 const (
-	SpeedPriorityFastest  = transcoding.SpeedPriorityFastest
-	SpeedPriorityBalanced = transcoding.SpeedPriorityBalanced
-	SpeedPriorityQuality  = transcoding.SpeedPriorityQuality
+	SpeedPriorityFastest  = types.SpeedPriorityFastest
+	SpeedPriorityBalanced = types.SpeedPriorityBalanced
+	SpeedPriorityQuality  = types.SpeedPriorityQuality
 
-	HardwareTypeNone         = transcoding.HardwareTypeNone
-	HardwareTypeCUDA         = transcoding.HardwareTypeCUDA
-	HardwareTypeVAAPI        = transcoding.HardwareTypeVAAPI
-	HardwareTypeQSV          = transcoding.HardwareTypeQSV
-	HardwareTypeVideoToolbox = transcoding.HardwareTypeVideoToolbox
-	HardwareTypeAMF          = transcoding.HardwareTypeAMF
+	TranscodeStatusStarting  = types.TranscodeStatusStarting
+	TranscodeStatusRunning   = types.TranscodeStatusRunning
+	TranscodeStatusCompleted = types.TranscodeStatusCompleted
+	TranscodeStatusFailed    = types.TranscodeStatusFailed
+	TranscodeStatusCancelled = types.TranscodeStatusCancelled
 
-	TranscodeStatusPending   = transcoding.TranscodeStatusPending
-	TranscodeStatusStarting  = transcoding.TranscodeStatusStarting
-	TranscodeStatusRunning   = transcoding.TranscodeStatusRunning
-	TranscodeStatusCompleted = transcoding.TranscodeStatusCompleted
-	TranscodeStatusFailed    = transcoding.TranscodeStatusFailed
-	TranscodeStatusCancelled = transcoding.TranscodeStatusCancelled
+	HardwareTypeNone         = types.HardwareTypeNone
+	HardwareTypeNVIDIA       = types.HardwareTypeNVIDIA
+	HardwareTypeVAAPI        = types.HardwareTypeVAAPI
+	HardwareTypeQSV          = types.HardwareTypeQSV
+	HardwareTypeVideoToolbox = types.HardwareTypeVideoToolbox
 )
 
-// Variables
-var (
-	Resolution480p  = transcoding.Resolution480p
-	Resolution720p  = transcoding.Resolution720p
-	Resolution1080p = transcoding.Resolution1080p
-	Resolution1440p = transcoding.Resolution1440p
-	Resolution4K    = transcoding.Resolution4K
-	Resolution8K    = transcoding.Resolution8K
-)

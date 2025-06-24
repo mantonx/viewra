@@ -3,7 +3,6 @@ package plugins
 import (
 	"context"
 	"io"
-	"time"
 )
 
 // TranscodingProvider is the ONLY interface transcoding plugins need to implement
@@ -71,25 +70,4 @@ type QualityPreset struct {
 	SizeRating  int    `json:"size_rating"`  // 1-10 (10 = largest)
 }
 
-// TranscodeHandle represents an active transcoding operation
-type TranscodeHandle struct {
-	SessionID   string             `json:"session_id"`
-	Provider    string             `json:"provider"`
-	StartTime   time.Time          `json:"start_time"`
-	Directory   string             `json:"directory"`
-	ProcessID   int                `json:"process_id,omitempty"`
-	Context     context.Context    `json:"-"`
-	CancelFunc  context.CancelFunc `json:"-"`
-	PrivateData interface{}        `json:"-"` // Provider-specific data
-}
-
-// StreamHandle represents an active streaming operation
-type StreamHandle struct {
-	SessionID   string             `json:"session_id"`
-	Provider    string             `json:"provider"`
-	StartTime   time.Time          `json:"start_time"`
-	ProcessID   int                `json:"process_id,omitempty"`
-	Context     context.Context    `json:"-"`
-	CancelFunc  context.CancelFunc `json:"-"`
-	PrivateData interface{}        `json:"-"` // Provider-specific data (e.g., FFmpeg cmd)
-}
+// Note: TranscodeHandle and StreamHandle are defined in transcoding_types.go as aliases to types.TranscodeHandle and types.StreamHandle

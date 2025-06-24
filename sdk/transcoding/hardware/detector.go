@@ -1,3 +1,22 @@
+// Package hardware provides hardware acceleration detection and management.
+// This package automatically detects available hardware encoders and decoders,
+// including NVIDIA NVENC, Intel Quick Sync, AMD VCE, and Apple VideoToolbox.
+// It helps transcoding operations leverage GPU acceleration for improved performance
+// and reduced CPU usage.
+//
+// The hardware detection system:
+// - Probes for available GPU devices and drivers
+// - Validates hardware encoder/decoder capabilities
+// - Provides codec support matrices for each hardware type
+// - Handles fallback to software encoding when hardware is unavailable
+// - Monitors GPU usage and availability
+//
+// Supported hardware acceleration:
+// - NVIDIA NVENC (H.264, H.265, AV1)
+// - Intel Quick Sync Video (H.264, H.265, VP9)
+// - AMD VCE/VCN (H.264, H.265)
+// - Apple VideoToolbox (H.264, H.265)
+// - VAAPI for Linux systems
 package hardware
 
 import (
@@ -6,20 +25,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mantonx/viewra/sdk"
-	"github.com/mantonx/viewra/sdk/transcoding"
+	plugins "github.com/mantonx/viewra/sdk"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
 )
 
 // hardwareDetector detects available hardware acceleration
 type hardwareDetector struct {
 	logger     plugins.Logger
-	hwInfo     *transcoding.HardwareInfo
+	hwInfo     *types.HardwareInfo
 	lastDetect time.Time
 }
 
 // HardwareDetector interface for hardware detection
 type HardwareDetector interface {
-	DetectHardware() (*transcoding.HardwareInfo, error)
+	DetectHardware() (*types.HardwareInfo, error)
 	GetBestEncoder(codec string) string
 	IsEncoderAvailable(encoder string) bool
 }
@@ -32,7 +51,7 @@ func NewHardwareDetector(logger plugins.Logger) HardwareDetector {
 }
 
 // DetectHardware detects available hardware acceleration
-func (d *hardwareDetector) DetectHardware() (*transcoding.HardwareInfo, error) {
+func (d *hardwareDetector) DetectHardware() (*types.HardwareInfo, error) {
 	// Cache hardware info for 5 minutes
 	if d.hwInfo != nil && time.Since(d.lastDetect) < 5*time.Minute {
 		return d.hwInfo, nil
@@ -40,7 +59,7 @@ func (d *hardwareDetector) DetectHardware() (*transcoding.HardwareInfo, error) {
 
 	d.logger.Info("detecting hardware acceleration capabilities")
 
-	hwInfo := &transcoding.HardwareInfo{
+	hwInfo := &types.HardwareInfo{
 		Available: false,
 		Type:      "none",
 		Encoders:  make(map[string][]string),

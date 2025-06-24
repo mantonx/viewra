@@ -1,2 +1,2 @@
 export { VolumeControl } from './VolumeControl';
-export type { VolumeControlProps } from './types';
+export type { VolumeControlProps } from './VolumeControl.types';

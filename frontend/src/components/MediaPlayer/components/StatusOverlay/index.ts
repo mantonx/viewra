@@ -1,2 +1,2 @@
 export { StatusOverlay } from './StatusOverlay';
-export type { StatusOverlayProps } from './types';
+export type { StatusOverlayProps } from './StatusOverlay.types';

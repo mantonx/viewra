@@ -21,6 +21,10 @@ const config: StorybookConfig = {
           '@': new URL('../src', import.meta.url).pathname,
         },
       },
+      // Don't optimize deps in dev mode for faster startup
+      optimizeDeps: {
+        include: ['react', 'react-dom'],
+      },
     });
   },
 };

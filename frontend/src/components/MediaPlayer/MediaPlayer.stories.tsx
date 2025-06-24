@@ -1,63 +1,39 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { MediaPlayer } from './MediaPlayer';
 import { MediaPlayerDemo } from './MediaPlayerDemo';
+import '@/styles/player-theme.css';
 
-// For the real MediaPlayer (shows loading state)
-const realMeta = {
-  title: 'MediaPlayer/MediaPlayer (Real)',
-  component: MediaPlayer,
-  parameters: {
-    layout: 'fullscreen',
-    docs: {
-      description: {
-        component: 'The actual MediaPlayer component. Shows loading state in Storybook since it requires backend integration.',
-      },
-    },
-  },
-  tags: ['autodocs'],
-  argTypes: {
-    mediaType: {
-      control: 'select',
-      options: ['episode', 'movie'],
-      description: 'Type of media to play',
-    },
-    autoplay: {
-      control: 'boolean',
-      description: 'Whether to start playing automatically',
-    },
-    onBack: {
-      action: 'back clicked',
-      description: 'Callback when back button is clicked',
-    },
-  },
-};
-
-// For the demo MediaPlayer (fully functional UI)
-const meta = {
-  title: 'MediaPlayer/MediaPlayer',
+const meta: Meta<typeof MediaPlayerDemo> = {
+  title: 'MediaPlayer/MediaPlayer (Demo)',
   component: MediaPlayerDemo,
   parameters: {
     layout: 'fullscreen',
     docs: {
       description: {
         component: `
-A fully functional demo of the MediaPlayer component that works without backend integration. 
+Demo of the VidstackPlayer component styling and interaction patterns.
 
-## Features:
-- **Playback Controls**: Play/pause, stop, restart, skip forward/backward
-- **Progress Bar**: Seekable with hover preview and buffered ranges
-- **Volume Control**: Adjustable volume with mute toggle
-- **Time Display**: Current time and remaining time
-- **Media Info**: Shows episode/movie metadata
-- **Auto-hide Controls**: Controls hide after 3 seconds of inactivity
-- **Keyboard Shortcuts**: Space (play/pause), arrows (seek), M (mute), F (fullscreen)
+## About MediaPlayer:
+The MediaPlayer is a modern video player built with Vidstack and designed for Viewra. It supports both DASH and HLS streaming with device-specific optimizations. This demo shows the UI and theming without requiring backend integration.
 
-## Interactive Elements:
-- Click the play button to start/pause playback
-- Click or drag on the progress bar to seek
-- Hover over the progress bar to see time preview
-- Adjust volume with the slider
-- Controls auto-hide when playing (move mouse to show)
+## Features Demonstrated:
+- **Design System**: Player-specific design tokens from player-theme.css
+- **Interactive Controls**: Play/pause, seek, volume, fullscreen controls
+- **Auto-hide Behavior**: Controls hide automatically during playback
+- **Responsive Design**: Adapts to different screen sizes
+- **Loading States**: Buffering and error state handling
+- **Media Info**: Episode/movie metadata display
+
+## Real Implementation Features:
+- **Adaptive Streaming**: Supports both DASH (desktop) and HLS (iOS/Safari) with automatic format selection
+- **Session Tracking**: Built-in analytics and session tracking
+- **Device Profiles**: Automatic device capability detection
+- **Backend Integration**: Media metadata and transcoding session management
+
+## Design Tokens:
+- CSS custom properties for consistent theming
+- Player-specific gradients and accent colors
+- Smooth transitions and hover effects
+- Accessible focus states
         `,
       },
     },
@@ -89,12 +65,16 @@ A fully functional demo of the MediaPlayer component that works without backend 
       control: 'text',
       description: 'Error message to display',
     },
+    className: {
+      control: 'text',
+      description: 'Additional CSS classes',
+    },
     onBack: {
       action: 'back clicked',
       description: 'Callback when back button is clicked',
     },
   },
-} satisfies Meta<typeof MediaPlayerDemo>;
+};
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -103,14 +83,24 @@ export const EpisodePlayer: Story = {
   args: {
     mediaType: 'episode',
     autoplay: false,
-    initialTime: 300, // 5 minutes in
+    initialTime: 300,
     showBuffering: false,
     showError: false,
   },
   parameters: {
     docs: {
       description: {
-        story: 'Episode player showing "The Beginning" (S01E01) from "Epic Adventure Series". Duration: 45 minutes.',
+        story: `
+Episode player demo showing "The Beginning" (S01E01) from "Epic Adventure Series". 
+Duration: 45 minutes, starting 5 minutes in.
+
+**Features demonstrated:**
+- Episode metadata display
+- Player accent theming from design tokens
+- Auto-hide controls behavior
+- Responsive progress bar with buffered ranges
+- Vidstack-powered playback engine
+        `,
       },
     },
   },
@@ -120,14 +110,21 @@ export const MoviePlayer: Story = {
   args: {
     mediaType: 'movie',
     autoplay: false,
-    initialTime: 1200, // 20 minutes in
+    initialTime: 1200,
     showBuffering: false,
     showError: false,
   },
   parameters: {
     docs: {
       description: {
-        story: 'Movie player showing "The Great Adventure". Duration: 2 hours.',
+        story: `
+Movie player demo showing "The Great Adventure". Duration: 2 hours, starting 20 minutes in.
+
+**Movie-specific features:**
+- Movie metadata display (no episode/season info)
+- Longer duration handling
+- Different media info overlay content
+        `,
       },
     },
   },
@@ -144,24 +141,15 @@ export const AutoplayEnabled: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Episode that starts playing automatically. The timer will advance and controls will auto-hide.',
-      },
-    },
-  },
-};
+        story: `
+Episode that starts playing automatically. The timer advances and controls auto-hide after 3 seconds.
 
-export const Paused: Story = {
-  args: {
-    mediaType: 'movie',
-    autoplay: false,
-    initialTime: 3600, // 1 hour in
-    showBuffering: false,
-    showError: false,
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Movie paused at the 1-hour mark.',
+**Autoplay demo features:**
+- Starts playing immediately
+- Controls auto-hide during playback
+- Progress bar updates in real-time
+- Time display shows current/remaining time
+        `,
       },
     },
   },
@@ -178,7 +166,15 @@ export const BufferingState: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Player showing buffering spinner overlay.',
+        story: `
+Player showing buffering state with spinner overlay.
+
+**Buffering features:**
+- Animated loading spinner
+- Overlay with themed background
+- Maintains player controls visibility
+- Proper accessibility labels
+        `,
       },
     },
   },
@@ -196,58 +192,42 @@ export const ErrorState: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Player showing error state with retry button.',
+        story: `
+Player showing error state with retry button.
+
+**Error state features:**
+- Clear error message display
+- Styled retry button with player theme
+- Proper error handling UI
+- Accessibility-friendly error states
+        `,
       },
     },
   },
 };
 
-export const JustStarted: Story = {
-  args: {
-    mediaType: 'episode',
-    autoplay: false,
-    initialTime: 5,
-    showBuffering: false,
-    showError: false,
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Episode just started playing (5 seconds in).',
-      },
-    },
-  },
-};
-
-export const NearEnd: Story = {
+export const WithCustomStyles: Story = {
   args: {
     mediaType: 'movie',
     autoplay: false,
-    initialTime: 7000, // Near end of 2-hour movie
+    initialTime: 3600,
     showBuffering: false,
     showError: false,
+    className: 'border-4 border-purple-500',
   },
   parameters: {
     docs: {
       description: {
-        story: 'Movie near the end (less than 4 minutes remaining).',
-      },
-    },
-  },
-};
+        story: `
+Player with custom styling applied. Shows how additional classes can be added 
+while maintaining the core player theme.
 
-export const MidEpisode: Story = {
-  args: {
-    mediaType: 'episode',
-    autoplay: false,
-    initialTime: 1350, // 22.5 minutes (middle of 45-min episode)
-    showBuffering: false,
-    showError: false,
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Episode at the halfway point.',
+**Custom styling:**
+- Additional border added via className
+- Player theme tokens still applied
+- Maintains responsive behavior
+- Movie at 1-hour mark
+        `,
       },
     },
   },

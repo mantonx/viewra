@@ -1,4 +1,6 @@
-import type { MediaType, MediaFile, MediaItem, PlaybackDecision, DeviceProfile, TranscodingSession, SeekAheadRequest, SeekAheadResponse } from '../components/MediaPlayer/types';
+import type { MediaType, MediaFile, MediaItem, PlaybackDecision, TranscodingSession, SeekAheadRequest, SeekAheadResponse } from '../components/MediaPlayer/types';
+import type { DeviceProfile } from '../utils/deviceProfile';
+import { getDeviceProfile } from '../utils/deviceProfile';
 import { isValidSessionId } from '../utils/mediaValidation';
 import { API_ENDPOINTS, buildApiUrl, buildApiUrlWithParams } from '../constants/api';
 
@@ -68,6 +70,17 @@ export class MediaService {
 
   static async getPlaybackDecision(mediaPath: string, fileId: string, deviceProfile?: DeviceProfile): Promise<PlaybackDecision> {
     try {
+      // Get device profile if not provided
+      const profile = deviceProfile || await getDeviceProfile();
+      
+      console.log('🎯 Getting playback decision with device profile:', {
+        maxResolution: profile.maxResolution,
+        maxBitrate: profile.maxBitrate,
+        platform: profile.capabilities.platform,
+        estimatedBandwidth: profile.capabilities.estimatedBandwidth,
+        supportedCodecs: profile.supportedCodecs
+      });
+
       const url = buildApiUrl(API_ENDPOINTS.PLAYBACK.DECIDE.path);
       const response = await fetch(url, {
         method: API_ENDPOINTS.PLAYBACK.DECIDE.method,
@@ -77,7 +90,34 @@ export class MediaService {
         body: JSON.stringify({
           file_id: fileId,
           media_path: mediaPath,
-          ...(deviceProfile && { device_profile: deviceProfile }),
+          device_profile: {
+            user_agent: profile.userAgent,
+            supported_codecs: profile.supportedCodecs,
+            max_resolution: profile.maxResolution,
+            max_bitrate: profile.maxBitrate,
+            supports_hevc: profile.supportsHEVC,
+            target_container: profile.targetContainer,
+            // Enhanced device info for better transcoding decisions
+            platform: profile.capabilities.platform,
+            estimated_bandwidth: profile.capabilities.estimatedBandwidth,
+            performance_level: profile.capabilities.estimatedPerformanceLevel,
+            connection_type: profile.capabilities.connectionType,
+            supports_hdr: profile.capabilities.supportsHDR,
+            
+            // Location and network info for CDN optimization
+            ...(profile.capabilities.location && {
+              ip_address: profile.capabilities.location.ipAddress,
+              ip_type: profile.capabilities.location.ipType,
+              country: profile.capabilities.location.country,
+              country_code: profile.capabilities.location.countryCode,
+              region: profile.capabilities.location.region,
+              city: profile.capabilities.location.city,
+              timezone: profile.capabilities.location.timezone,
+              isp: profile.capabilities.location.isp,
+              latitude: profile.capabilities.location.latitude,
+              longitude: profile.capabilities.location.longitude,
+            }),
+          },
         }),
       });
 
@@ -182,8 +222,19 @@ export class MediaService {
     }
   }
 
-  static async waitForManifest(url: string, maxAttempts: number = 60, initialIntervalMs: number = 500): Promise<boolean> {
-    console.log('⏳ Waiting for manifest to be ready...', { url, maxAttempts });
+  static async waitForManifest(
+    url: string, 
+    options: { 
+      maxAttempts?: number; 
+      checkInterval?: number;
+      requireSegments?: boolean;
+    } = {}
+  ): Promise<boolean> {
+    const maxAttempts = options.maxAttempts ?? 60;
+    const checkInterval = options.checkInterval ?? 500;
+    const requireSegments = options.requireSegments ?? true;
+    
+    console.log('⏳ Waiting for manifest to be ready...', { url, maxAttempts, requireSegments });
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -245,12 +296,8 @@ export class MediaService {
           break;
         }
         
-        // Progressive delay with some randomization to avoid thundering herd
-        const baseDelay = Math.min(initialIntervalMs + (attempt * 200), 3000);
-        const jitter = Math.random() * 200; // Add up to 200ms jitter
-        const delay = Math.floor(baseDelay + jitter);
-        console.log(`⏳ Waiting ${delay}ms before next attempt...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        // Use configured interval for fast checking
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
         
       } catch (error) {
         console.log(`❌ Attempt ${attempt}: Network error -`, error.message);
@@ -259,12 +306,11 @@ export class MediaService {
           break;
         }
         
-        const delay = Math.min(initialIntervalMs * attempt, 2000);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
       }
     }
     
-    const totalTime = Math.round((maxAttempts * initialIntervalMs) / 1000);
+    const totalTime = Math.round((maxAttempts * checkInterval) / 1000);
     throw new Error(`Manifest not ready after ${maxAttempts} attempts (${totalTime}s). URL: ${url}`);
   }
 
@@ -300,7 +346,10 @@ export class MediaService {
     }
   }
 
-  static async validateManifest(url: string): Promise<boolean> {
+  static async validateManifest(
+    url: string,
+    options: { quick?: boolean } = {}
+  ): Promise<boolean> {
     try {
       const response = await fetch(url, { method: 'GET' });
       if (!response.ok) {
@@ -329,7 +378,14 @@ export class MediaService {
         return false;
       }
       
-      // Check for DASH-specific elements
+      // Quick validation just checks basic structure
+      if (options.quick) {
+        const hasBasicStructure = manifestText.includes('<MPD') && manifestText.includes('<Period');
+        console.log(`⚡ Quick manifest validation: ${hasBasicStructure ? 'valid' : 'invalid'}`);
+        return hasBasicStructure;
+      }
+      
+      // Full validation - check for DASH-specific elements
       if (!manifestText.includes('<MPD') || !manifestText.includes('xmlns="urn:mpeg:dash:schema:mpd:2011"')) {
         console.warn('Manifest does not appear to be a valid DASH MPD');
         return false;
@@ -348,7 +404,13 @@ export class MediaService {
     }
   }
 
-  static async waitForTranscodingProgress(sessionId: string, maxAttempts: number = 5): Promise<boolean> {
+  static async waitForTranscodingProgress(
+    sessionId: string,
+    options: { maxAttempts?: number; checkInterval?: number } = {}
+  ): Promise<boolean> {
+    const maxAttempts = options.maxAttempts ?? 5;
+    const checkInterval = options.checkInterval ?? 500;
+    
     console.log('⏳ Waiting for transcoding to start...');
     
     // For DASH streaming, we only need to wait for the session to be running
@@ -376,11 +438,11 @@ export class MediaService {
           }
         }
         
-        // Shorter wait time for faster startup
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Use configured interval for faster startup
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
       } catch (error) {
         console.warn(`Attempt ${attempt}: Error checking transcoding status:`, error);
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
       }
     }
     
@@ -409,12 +471,37 @@ export class MediaService {
 
   static getDefaultDeviceProfile(): DeviceProfile {
     return {
-      user_agent: navigator.userAgent,
-      supported_codecs: ["h264", "aac", "mp3"],
-      max_resolution: "1080p",
-      max_bitrate: 8000,
-      supports_hevc: false,
-      target_container: "dash"
+      userAgent: navigator.userAgent,
+      supportedCodecs: ["h264", "aac"],
+      maxResolution: "1080p",
+      maxBitrate: 8000,
+      supportsHEVC: false,
+      targetContainer: "hls",
+      capabilities: {
+        maxResolution: "1080p",
+        screenWidth: screen.width,
+        screenHeight: screen.height,
+        pixelRatio: window.devicePixelRatio || 1,
+        hardwareAcceleration: true,
+        estimatedPerformanceLevel: 'medium',
+        estimatedBandwidth: 8000,
+        connectionType: 'unknown',
+        videoCodecs: {
+          h264: true,
+          hevc: false,
+          vp8: false,
+          vp9: false,
+          av1: false,
+        },
+        audioCodecs: ['aac'],
+        platform: 'desktop',
+        os: 'unknown',
+        browser: 'unknown',
+        supportsHDR: false,
+        supportsHEVC: false,
+        supportsMSE: !!window.MediaSource,
+        supportsHLS: !!(document.createElement('video').canPlayType('application/vnd.apple.mpegurl')),
+      },
     };
   }
 

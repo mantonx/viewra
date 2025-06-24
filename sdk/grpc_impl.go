@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/sdk/proto"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
 	"google.golang.org/grpc"
 )
 
@@ -572,14 +573,11 @@ func (s *TranscodingProviderServer) StartTranscode(ctx context.Context, req *pro
 		InputPath:      req.Request.InputPath,
 		OutputPath:     req.Request.OutputDir, // Map OutputDir to OutputPath
 		Quality:        int(req.Request.Quality),
-		SpeedPriority:  SpeedPriority(req.Request.SpeedPriority),
+		SpeedPriority:  parseSpeedPriority(req.Request.SpeedPriority),
 		Container:      req.Request.Container,
 		VideoCodec:     req.Request.VideoCodec,
 		AudioCodec:     req.Request.AudioCodec,
-		PreferHardware: req.Request.PreferHardware,
-		HardwareType:   HardwareType(req.Request.HardwareType),
 		Seek:           time.Duration(req.Request.SeekNs), // Convert nanoseconds to time.Duration
-		// EnableABR:      req.Request.EnableAbr, // TODO: Uncomment after proto regeneration
 	}
 	
 	// Check ExtraOptions for enable_abr flag (temporary workaround)
@@ -591,24 +589,19 @@ func (s *TranscodingProviderServer) StartTranscode(ctx context.Context, req *pro
 
 	// Handle resolution if provided
 	if req.Request.Resolution != "" {
-		// Parse resolution string (e.g., "1080p") to VideoResolution
+		// Parse resolution string (e.g., "1080p") to Resolution
 		// For now, just use predefined resolutions
 		switch req.Request.Resolution {
 		case "480p":
-			res := Resolution480p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 640, Height: 480}
 		case "720p":
-			res := Resolution720p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 1280, Height: 720}
 		case "1080p":
-			res := Resolution1080p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 1920, Height: 1080}
 		case "1440p":
-			res := Resolution1440p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 2560, Height: 1440}
 		case "4k", "2160p":
-			res := Resolution4K
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 3840, Height: 2160}
 		}
 	}
 
@@ -695,35 +688,28 @@ func (s *TranscodingProviderServer) StartStream(ctx context.Context, req *proto.
 		InputPath:      req.Request.InputPath,
 		OutputPath:     req.Request.OutputDir, // Map OutputDir to OutputPath
 		Quality:        int(req.Request.Quality),
-		SpeedPriority:  SpeedPriority(req.Request.SpeedPriority),
+		SpeedPriority:  parseSpeedPriority(req.Request.SpeedPriority),
 		Container:      req.Request.Container,
 		VideoCodec:     req.Request.VideoCodec,
 		AudioCodec:     req.Request.AudioCodec,
-		PreferHardware: req.Request.PreferHardware,
-		HardwareType:   HardwareType(req.Request.HardwareType),
 		Seek:           time.Duration(req.Request.SeekNs), // Convert nanoseconds to time.Duration
 	}
 
 	// Handle resolution if provided
 	if req.Request.Resolution != "" {
-		// Parse resolution string (e.g., "1080p") to VideoResolution
+		// Parse resolution string (e.g., "1080p") to Resolution
 		// For now, just use predefined resolutions
 		switch req.Request.Resolution {
 		case "480p":
-			res := Resolution480p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 640, Height: 480}
 		case "720p":
-			res := Resolution720p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 1280, Height: 720}
 		case "1080p":
-			res := Resolution1080p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 1920, Height: 1080}
 		case "1440p":
-			res := Resolution1440p
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 2560, Height: 1440}
 		case "4k", "2160p":
-			res := Resolution4K
-			transcodeReq.Resolution = &res
+			transcodeReq.Resolution = &types.Resolution{Width: 3840, Height: 2160}
 		}
 	}
 
@@ -897,4 +883,18 @@ func getIntFromString(value string) int32 {
 		return int32(val)
 	}
 	return 0
+}
+
+// parseSpeedPriority parses a string speed priority value
+func parseSpeedPriority(priority string) SpeedPriority {
+	switch priority {
+	case "fastest":
+		return SpeedPriorityFastest
+	case "quality":
+		return SpeedPriorityQuality
+	case "balanced", "":
+		return SpeedPriorityBalanced
+	default:
+		return SpeedPriorityBalanced
+	}
 }

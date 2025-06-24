@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { MediaPlayer, MediaProvider } from '@vidstack/react';
 import { MediaService } from '../services/MediaService';
 
 export default function TestVideoPlayback() {
@@ -36,15 +37,12 @@ export default function TestVideoPlayback() {
       if (manifestReady) {
         setStatus('manifest ready - playing');
         
-        // Load video using native HTML5 player for testing
-        const video = document.getElementById('test-video') as HTMLVideoElement;
-        if (video) {
-          // For DASH, we'd normally use Shaka Player, but for quick testing
-          // let's just verify the manifest is accessible
-          const response = await fetch(fullManifestUrl);
-          const manifestText = await response.text();
-          console.log('Manifest content:', manifestText.substring(0, 500));
-        }
+        // Verify the manifest is accessible
+        const response = await fetch(fullManifestUrl);
+        const manifestText = await response.text();
+        console.log('Manifest content:', manifestText.substring(0, 500));
+        
+        // Vidstack will handle loading the manifest through the src prop
       }
     } catch (err) {
       console.error('Playback error:', err);
@@ -97,17 +95,22 @@ export default function TestVideoPlayback() {
       
       {manifestUrl && status === 'manifest ready - playing' && (
         <div className="mt-4">
-          <p className="mb-2">Manifest is ready! In a real implementation, Shaka Player would load this manifest.</p>
-          <p className="text-sm text-gray-600">Check browser console for manifest content.</p>
+          <p className="mb-2">Manifest is ready! Vidstack player will load this manifest.</p>
+          <p className="text-sm text-gray-600 mb-4">Check browser console for manifest content.</p>
+          
+          {/* Vidstack Player for testing */}
+          <MediaPlayer
+            className="w-full max-w-4xl mx-auto"
+            title="Test Video Playback"
+            src={manifestUrl}
+            autoPlay={false}
+            crossOrigin="anonymous"
+            playsInline
+          >
+            <MediaProvider />
+          </MediaPlayer>
         </div>
       )}
-      
-      <video 
-        id="test-video"
-        className="w-full max-w-2xl bg-black mt-4"
-        controls
-        style={{ display: 'none' }}
-      />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { cn } from '@/utils/cn';
 import { formatTime, formatRemainingTime } from '@/utils/time';
 import { ProgressBar } from '../ProgressBar';
 import { VolumeControl } from '../VolumeControl';
-import type { VideoControlsProps } from './types';
+import type { VideoControlsProps } from './VideoControls.types';
 
 export const VideoControls: React.FC<VideoControlsProps> = ({
   // State

@@ -1,6 +1,5 @@
 import { atom } from 'jotai';
 import type { MediaItem, MediaFile, PlaybackDecision, PlayerState, SessionState, SeekAheadState, ProgressState } from '../components/MediaPlayer/types';
-import type shaka from 'shaka-player';
 
 export const currentMediaAtom = atom<MediaItem | null>(null);
 
@@ -18,6 +17,7 @@ export const playerStateAtom = atom<PlayerState>({
   isBuffering: false,
   isSeekingAhead: false,
   showControls: true,
+  currentQuality: undefined,
 });
 
 export const sessionStateAtom = atom<SessionState>({
@@ -60,13 +60,9 @@ export const debugAtom = atom<boolean>(false);
 
 export const activeSessionsAtom = atom<Set<string>>(new Set<string>());
 
+// Legacy atoms - kept for compatibility during transition
 export const playerInitializedAtom = atom<boolean>(false);
-
 export const videoElementAtom = atom<HTMLVideoElement | null>(null);
-
-export const shakaPlayerAtom = atom<shaka.Player | null>(null);
-
-export const shakaUIAtom = atom<shaka.ui.Overlay | null>(null);
 
 export const currentTimeAtom = atom(
   (get) => get(playerStateAtom).currentTime,

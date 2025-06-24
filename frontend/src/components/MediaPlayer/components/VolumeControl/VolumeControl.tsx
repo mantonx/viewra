@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { clampTime } from '@/utils/time';
-import type { VolumeControlProps } from './types';
+import type { VolumeControlProps } from './VolumeControl.types';
 
 export const VolumeControl: React.FC<VolumeControlProps> = ({
   volume,

@@ -20,3 +20,12 @@ export * from './colorExtractor';
 
 // Class name utilities
 export * from './cn';
+
+// Device profile detection
+export * from './deviceProfile';
+
+// Analytics and session tracking
+export * from './analytics';
+
+// Video player configuration utilities
+export * from './videoPlayerConfig';

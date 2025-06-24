@@ -1,2 +1,2 @@
 export { VideoControls } from './VideoControls';
-export type { VideoControlsProps } from './types';
+export type { VideoControlsProps } from './VideoControls.types';

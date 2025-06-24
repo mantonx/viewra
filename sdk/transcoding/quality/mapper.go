@@ -1,7 +1,25 @@
+// Package quality provides quality mapping and optimization for video encoding.
+// This package translates abstract quality levels (0-100) into codec-specific
+// parameters that achieve optimal visual quality while maintaining reasonable
+// file sizes. It understands the nuances of different codecs and their quality
+// scales.
+//
+// The quality mapper handles:
+// - Mapping quality percentages to CRF/QP values
+// - Codec-specific quality optimizations
+// - Bitrate recommendations based on quality targets
+// - Preset selection for quality/speed trade-offs
+// - Resolution-aware quality adjustments
+//
+// Supported codec mappings:
+// - H.264: CRF 0-51 scale with perceptual optimization
+// - H.265: CRF 0-51 scale with improved efficiency
+// - VP9: CQ 0-63 scale with rate control
+// - AV1: CQ 0-63 scale with advanced psychovisual tuning
 package quality
 
 import (
-	"github.com/mantonx/viewra/sdk/transcoding"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
 )
 
 // FFmpegQualityMapper implements QualityMapper for FFmpeg
@@ -15,7 +33,7 @@ type crfRange struct {
 }
 
 // NewFFmpegQualityMapper creates a new FFmpeg quality mapper
-func NewFFmpegQualityMapper() transcoding.QualityMapper {
+func NewFFmpegQualityMapper() *FFmpegQualityMapper {
 	return &FFmpegQualityMapper{
 		crfRanges: map[string]crfRange{
 			"h264": {min: 0, max: 51, optimal: 23},
@@ -54,13 +72,13 @@ func (m *FFmpegQualityMapper) MapQuality(percent int, codec string) map[string]i
 }
 
 // GetSpeedPreset maps generic speed priority to FFmpeg preset
-func (m *FFmpegQualityMapper) GetSpeedPreset(priority transcoding.SpeedPriority) string {
+func (m *FFmpegQualityMapper) GetSpeedPreset(priority types.SpeedPriority) string {
 	switch priority {
-	case transcoding.SpeedPriorityFastest:
+	case types.SpeedPriorityFastest:
 		return "ultrafast"
-	case transcoding.SpeedPriorityBalanced:
+	case types.SpeedPriorityBalanced:
 		return "fast"
-	case transcoding.SpeedPriorityQuality:
+	case types.SpeedPriorityQuality:
 		return "slow"
 	default:
 		return "fast"

@@ -32,9 +32,8 @@ func (rc *RequestConverter) ValidateRequest(req *plugins.TranscodeRequest) *plug
 	if req.Quality == 0 {
 		req.Quality = 50 // Default to medium quality
 	}
-	if req.SpeedPriority == "" {
-		req.SpeedPriority = plugins.SpeedPriorityBalanced
-	}
+	// SpeedPriority is already an enum type, not a string
+	// Default is already SpeedPriorityBalanced (value 0)
 
 	// Clamp quality to valid range
 	if req.Quality < 0 {

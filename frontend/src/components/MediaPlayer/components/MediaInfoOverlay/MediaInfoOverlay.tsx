@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { isEpisode } from '@/utils/mediaValidation';
-import type { MediaInfoOverlayProps } from './types';
+import type { MediaInfoOverlayProps } from './MediaInfoOverlay.types';
 
 export const MediaInfoOverlay: React.FC<MediaInfoOverlayProps> = ({
   media,

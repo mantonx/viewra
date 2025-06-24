@@ -1,16 +1,34 @@
+// Package services provides core service interfaces for the transcoding SDK.
+// This package defines the contracts for various services used throughout the
+// transcoding system, enabling dependency injection and testability. These
+// interfaces allow for different implementations while maintaining a consistent
+// API for consumers.
+//
+// Core service interfaces:
+// - SessionManager: Manages transcoding session lifecycle
+// - CleanupService: Handles resource cleanup and maintenance
+// - ProcessRegistry: Tracks and manages FFmpeg processes
+// - ProgressTracker: Monitors and reports transcoding progress
+// - QualityMapper: Maps quality settings to codec parameters
+//
+// Design principles:
+// - Interface segregation for focused responsibilities
+// - Dependency injection for flexibility
+// - Mockable interfaces for testing
+// - Clear separation of concerns
 package services
 
 import (
 	"context"
 	"time"
 
-	"github.com/mantonx/viewra/sdk/transcoding"
+	"github.com/mantonx/viewra/sdk/transcoding/types"
 )
 
 // TranscodingService handles FFmpeg transcoding operations
 type TranscodingService interface {
 	// StartTranscode starts a new transcoding session
-	StartTranscode(ctx context.Context, req *transcoding.TranscodeRequest) (*Session, error)
+	StartTranscode(ctx context.Context, req *types.TranscodeRequest) (*Session, error)
 
 	// GetSession retrieves session information
 	GetSession(sessionID string) (*Session, error)
@@ -49,7 +67,7 @@ type SessionManager interface {
 // HardwareDetector detects available hardware acceleration
 type HardwareDetector interface {
 	// DetectHardware detects available hardware acceleration
-	DetectHardware() (*transcoding.HardwareInfo, error)
+	DetectHardware() (*types.HardwareInfo, error)
 
 	// GetBestEncoder returns the best encoder for given codec
 	GetBestEncoder(codec string) string
@@ -117,7 +135,7 @@ type TranscodingJob struct {
 	Error      string              `json:"error,omitempty"`
 	CancelFunc context.CancelFunc  `json:"-"`                 // Function to cancel the job context
 	Request    *TranscodingRequest `json:"request,omitempty"` // Store the original request
-	SDKRequest *transcoding.TranscodeRequest `json:"-"` // Store the original SDK request for proper argument building
+	SDKRequest *types.TranscodeRequest `json:"-"` // Store the original SDK request for proper argument building
 }
 
 // Session represents an active transcoding session (moved from types)

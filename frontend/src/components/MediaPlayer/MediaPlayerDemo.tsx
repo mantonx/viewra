@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { VideoControls } from './components/VideoControls';
 import { StatusOverlay } from './components/StatusOverlay';
 import { MediaInfoOverlay } from './components/MediaInfoOverlay';
+import '@/styles/player-theme.css';
 import type { MediaType, Episode, Movie } from './types';
 
 interface MediaPlayerDemoProps {
@@ -124,13 +125,13 @@ export const MediaPlayerDemo: React.FC<MediaPlayerDemoProps> = ({
 
   if (showError) {
     return (
-      <div className="flex items-center justify-center h-screen bg-player-bg text-player-text">
+      <div className="flex items-center justify-center h-screen player-gradient text-white">
         <div className="text-center max-w-md">
           <h2 className="text-xl font-bold mb-4">Playback Error</h2>
-          <p className="text-error mb-4">{errorMessage}</p>
+          <p className="text-red-400 mb-4">{errorMessage}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-primary hover:bg-primary/80 px-4 py-2 rounded transition-colors duration-normal"
+            className="px-4 py-2 rounded transition-all duration-200 player-accent-gradient text-white hover:brightness-110 hover:scale-105 active:scale-95"
           >
             Reload Player
           </button>
@@ -140,11 +141,17 @@ export const MediaPlayerDemo: React.FC<MediaPlayerDemoProps> = ({
   }
 
   return (
-    <div ref={containerRef} className={cn('relative h-screen bg-player-bg overflow-hidden', className)}>
+    <div ref={containerRef} className={cn('relative h-screen player-gradient overflow-hidden', className)}>
       {/* Back button */}
       <button
         onClick={onBack || (() => console.log('Back clicked'))}
-        className="absolute top-4 left-4 z-50 bg-player-controls-bg/50 hover:bg-player-controls-bg/80 hover:scale-110 text-player-text p-2 rounded-full transition-all duration-normal shadow-lg backdrop-blur-sm"
+        className="absolute top-4 left-4 z-50 p-2 rounded-full text-white transition-all player-control-button"
+        style={{
+          backgroundColor: `rgb(var(--player-surface-overlay))`,
+          boxShadow: 'var(--player-shadow-md)',
+          backdropFilter: 'blur(12px)',
+          transitionDuration: 'var(--player-transition-fast)'
+        }}
         title="Go back"
       >
         <ArrowLeft className="w-6 h-6" />
@@ -178,9 +185,13 @@ export const MediaPlayerDemo: React.FC<MediaPlayerDemoProps> = ({
         {/* Video controls */}
         <div
           className={cn(
-            'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-player-controls-bg/80 to-transparent p-6 transition-opacity duration-slow',
+            'absolute bottom-0 left-0 right-0 p-6 transition-opacity',
             showControls ? 'opacity-100' : 'opacity-0'
           )}
+          style={{
+            background: `linear-gradient(to top, rgb(var(--player-surface-backdrop)), transparent)`,
+            transitionDuration: 'var(--player-transition-slow)'
+          }}
         >
           <VideoControls
             isPlaying={isPlaying}

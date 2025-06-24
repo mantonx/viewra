@@ -82,6 +82,34 @@ export default defineConfig({
           'progress-hover': withOpacity('--color-player-progress-hover'),
           text: withOpacity('--color-player-text'),
           'text-secondary': withOpacity('--color-player-text-secondary'),
+          // New player theme colors
+          'gradient-start': withOpacity('--player-gradient-start'),
+          'gradient-end': withOpacity('--player-gradient-end'),
+          accent: {
+            50: withOpacity('--player-accent-50'),
+            100: withOpacity('--player-accent-100'),
+            200: withOpacity('--player-accent-200'),
+            300: withOpacity('--player-accent-300'),
+            400: withOpacity('--player-accent-400'),
+            500: withOpacity('--player-accent-500'),
+            600: withOpacity('--player-accent-600'),
+            700: withOpacity('--player-accent-700'),
+            800: withOpacity('--player-accent-800'),
+            900: withOpacity('--player-accent-900'),
+            DEFAULT: withOpacity('--player-accent-500'),
+          },
+          surface: {
+            elevated: withOpacity('--player-surface-elevated'),
+            hover: withOpacity('--player-surface-hover'),
+            overlay: 'rgb(var(--player-surface-overlay))',
+            backdrop: 'rgb(var(--player-surface-backdrop))',
+          },
+          info: {
+            audio: withOpacity('--player-info-audio'),
+            file: withOpacity('--player-info-file'),
+            track: withOpacity('--player-info-track'),
+            playback: withOpacity('--player-info-playback'),
+          },
         },
       },
       backgroundColor: {
@@ -138,15 +166,21 @@ export default defineConfig({
         'fade-in': 'fadeIn var(--duration-normal) ease-out',
         'zoom-in': 'zoomIn var(--duration-normal) ease-out',
         'zoom-in-slow': 'zoomIn var(--duration-slow) ease-out',
+        'fadeIn': 'fadeIn 0.3s ease-out',
+        'slideUp': 'slideUp 0.3s ease-out',
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+          '0%': { opacity: '0', transform: 'translateY(-10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         zoomIn: {
           '0%': { opacity: '0', transform: 'scale(0.95)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(4px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },
     },

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, type MouseEvent } from 'react';
 import { cn } from '@/utils/cn';
 import { formatTime, formatProgress, isValidTime } from '@/utils/time';
-import type { ProgressBarProps } from './types';
+import type { ProgressBarProps } from './ProgressBar.types';
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   currentTime,

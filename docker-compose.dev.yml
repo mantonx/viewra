@@ -31,6 +31,8 @@ services:
       - ./cmd:/app/cmd:delegated
       - ./sdk:/app/sdk:delegated
       - ./plugins:/app/plugins:delegated
+      # Mount Air config for development
+      - ./.air.toml:/app/.air.toml:ro
       # Use tmpfs for build caches to avoid persistence
       - type: tmpfs
         target: /tmp/go-cache

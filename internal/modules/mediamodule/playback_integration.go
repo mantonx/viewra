@@ -318,20 +318,15 @@ func (pi *PlaybackIntegration) handleTranscodingStream(c *gin.Context, mediaFile
 		// Parse resolution to VideoResolution struct
 		switch targetResolution {
 		case "480p":
-			res := plugins.Resolution480p
-			streamReq.Resolution = &res
+			streamReq.Resolution = &plugins.Resolution{Width: 640, Height: 480}
 		case "720p":
-			res := plugins.Resolution720p
-			streamReq.Resolution = &res
+			streamReq.Resolution = &plugins.Resolution{Width: 1280, Height: 720}
 		case "1080p":
-			res := plugins.Resolution1080p
-			streamReq.Resolution = &res
+			streamReq.Resolution = &plugins.Resolution{Width: 1920, Height: 1080}
 		case "1440p":
-			res := plugins.Resolution1440p
-			streamReq.Resolution = &res
+			streamReq.Resolution = &plugins.Resolution{Width: 2560, Height: 1440}
 		case "2160p", "4k":
-			res := plugins.Resolution4K
-			streamReq.Resolution = &res
+			streamReq.Resolution = &plugins.Resolution{Width: 3840, Height: 2160}
 		}
 	}
 

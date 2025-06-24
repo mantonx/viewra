@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/utils/cn';
-import type { StatusOverlayProps } from './types';
+import type { StatusOverlayProps } from './StatusOverlay.types';
 
 export const StatusOverlay: React.FC<StatusOverlayProps> = ({
   isBuffering,
