@@ -11,7 +11,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds plugins build-plugins-docker build-plugins-host build-plugin-% setup-plugins dev-plugins logs-plugins plugin-dev plugin-setup plugin-build plugin-reload plugin-test plugin-watch plugin-fast plugin-cache
+.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds plugins build-plugins-docker build-plugins-host build-plugin-% setup-plugins dev-plugins logs-plugins plugin-dev plugin-setup plugin-build plugin-reload plugin-test plugin-watch plugin-fast plugin-cache refresh-plugins
 
 help: ## Show this help message
 	@echo "Viewra Development Commands:"
@@ -281,3 +281,16 @@ plugin-clean: ## Clean plugin build caches
 # Shortcut for FFmpeg plugin rebuild
 ffmpeg: ## Quick rebuild FFmpeg plugin
 	@./scripts/build-plugin.sh build ffmpeg_software
+
+# Plugin refresh commands
+refresh-plugins: ## Refresh all plugins after build
+	@./scripts/refresh-plugins.sh all
+
+refresh-external: ## Refresh external plugins only
+	@./scripts/refresh-plugins.sh external
+
+refresh-playback: ## Refresh playback/transcoding plugins only
+	@./scripts/refresh-plugins.sh playback
+
+plugin-status: ## Show plugin status
+	@./scripts/refresh-plugins.sh status

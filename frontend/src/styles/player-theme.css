@@ -111,3 +111,32 @@
   box-shadow: var(--player-shadow-lg), var(--player-shadow-glow);
   filter: brightness(1.1);
 }
+
+/* Ensure video fills the container without letterboxing */
+.vds-video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* Override Vidstack default styles for proper aspect ratio */
+video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* Ensure the media provider fills the container */
+.vds-media-provider {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Fix fullscreen positioning */
+.vds-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 9999 !important;
+}

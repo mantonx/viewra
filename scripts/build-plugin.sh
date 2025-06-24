@@ -190,7 +190,24 @@ build_plugin() {
         # Hot reload if backend is running
         if docker ps -q -f name=viewra-backend >/dev/null 2>&1; then
             docker exec viewra-backend-1 pkill -f "$plugin_name" 2>/dev/null || true
-            print_info "Plugin reloaded"
+            print_info "Plugin process terminated, triggering refresh..."
+            
+            # Trigger plugin refresh in plugin module
+            if curl -s -X POST http://localhost:8080/api/v1/plugins/external/refresh >/dev/null 2>&1; then
+                print_info "Plugin module refreshed"
+            fi
+            
+            # Trigger plugin refresh in playback module for transcoding plugins
+            if [[ "$plugin_name" == *"_transcoder" ]] || [[ "$plugin_name" == "ffmpeg_"* ]]; then
+                if curl -s -X POST http://localhost:8080/api/playback/plugins/refresh >/dev/null 2>&1; then
+                    print_info "Playback module refreshed for transcoding plugin"
+                fi
+            fi
+            
+            # Enable the plugin if it was previously enabled
+            if curl -s -X POST "http://localhost:8080/api/v1/plugins/${plugin_name}/reload" >/dev/null 2>&1; then
+                print_success "Plugin ${plugin_name} reloaded and enabled"
+            fi
         fi
         
         return 0

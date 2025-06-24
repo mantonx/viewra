@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useAtom } from 'jotai';
-import { MediaPlayer as VidstackPlayer, MediaProvider, Poster, Track, Gesture, useMediaStore, useMediaRemote } from '@vidstack/react';
+import { MediaPlayer as VidstackPlayer, MediaProvider, Poster, Track, Gesture, useMediaStore, useMediaRemote, type MediaPlayerInstance } from '@vidstack/react';
 import '@vidstack/react/player/styles/default/theme.css';
 import '@vidstack/react/player/styles/default/layouts/video.css';
 import { cn } from '@/utils/cn';
@@ -36,7 +36,7 @@ import type { MediaPlayerProps } from './MediaPlayer.types';
 export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const { className, autoplay = true, onBack, ...mediaType } = props;
   const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<HTMLMediaElement>(null);
+  const playerRef = useRef<MediaPlayerInstance>(null);
 
   // State atoms
   const [playerState, setPlayerState] = useAtom(playerStateAtom);
@@ -50,7 +50,9 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const { mediaId, handleBack, loadingState: navLoadingState } = useMediaNavigation(mediaType);
   const { stopTranscodingSession, stopAllSessions } = useSessionManager();
   const { requestSeekAhead, isSeekAheadNeeded, seekAheadState } = useSeekAhead();
-  const { isFullscreen, toggleFullscreen } = useFullscreenManager();
+  const { toggleFullscreen } = useFullscreenManager();
+  
+  // Remove the vidstackRemoteRef as we'll use playerRef instead
   const { showControls, handleMouseMove, handleMouseLeave } = useControlsVisibility({
     containerRef,
     enabled: !loadingState.isLoading,
@@ -73,6 +75,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const muted = store?.muted ?? false;
   const buffering = store?.buffering ?? false;
   const quality = store?.quality ?? null;
+  const fullscreen = store?.fullscreen ?? false;
   
   // Session tracking
   const [sessionTracker, setSessionTracker] = useState<PlaybackSessionTracker | null>(null);
@@ -264,7 +267,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   // 0-9: Seek to percentage (0=0%, 5=50%, 9=90%)
 
   // Get buffered ranges for display  
-  const bufferedRanges = playerRef.current && 'buffered' in playerRef.current ? getBufferedRanges(playerRef.current as HTMLVideoElement) : [];
+  const bufferedRanges: Array<{ start: number; end: number }> = [];
 
   // Custom back handler
   const handleBackClick = useCallback(async () => {
@@ -277,10 +280,10 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
     }
   }, [onBack, handleBack, stopAllSessions]);
 
-  // Update fullscreen state
+  // Update fullscreen state from Vidstack
   useEffect(() => {
-    setPlayerState(prev => ({ ...prev, isFullscreen }));
-  }, [isFullscreen, setPlayerState]);
+    setPlayerState(prev => ({ ...prev, isFullscreen: fullscreen }));
+  }, [fullscreen, setPlayerState]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -387,6 +390,10 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
         ref={playerRef}
         // Ensure DASH provider is loaded
         load="eager"
+        onProviderSetup={(event) => {
+          // Provider is ready
+          console.log('🎬 Vidstack provider ready');
+        }}
       >
         <MediaProvider />
         
@@ -483,7 +490,25 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
           onSkipForward={() => videoControls.skipForward(10)}
           onVolumeChange={videoControls.setVolume}
           onToggleMute={videoControls.toggleMute}
-          onToggleFullscreen={toggleFullscreen}
+          onToggleFullscreen={async () => {
+            // Use Vidstack's native fullscreen through player ref
+            if (playerRef.current) {
+              try {
+                if (fullscreen) {
+                  await playerRef.current.exitFullscreen();
+                } else {
+                  await playerRef.current.enterFullscreen();
+                }
+              } catch (error) {
+                console.error('Fullscreen error:', error);
+                // Fallback to custom fullscreen
+                toggleFullscreen();
+              }
+            } else {
+              // Fallback to custom fullscreen
+              toggleFullscreen();
+            }
+          }}
           showStopButton
           showSkipButtons
           showVolumeControl

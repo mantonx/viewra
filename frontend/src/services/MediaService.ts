@@ -61,6 +61,21 @@ export class MediaService {
       }
       
       const data = await response.json();
+      
+      // Handle metadata response structure
+      if (data.metadata) {
+        if (data.metadata.type === 'episode') {
+          return {
+            ...data.metadata,
+            series: data.metadata.season?.tv_show || {},
+            season_number: data.metadata.season?.season_number || 0,
+          };
+        } else if (data.metadata.type === 'movie') {
+          return data.metadata;
+        }
+      }
+      
+      // Fallback to direct structure
       return data.episode || data.movie || null;
     } catch (error) {
       console.error('Failed to get media metadata:', error);
