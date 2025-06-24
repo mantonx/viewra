@@ -49,6 +49,11 @@ export const useSeekAhead = () => {
         return;
       }
 
+      // Stop the current session before creating a new seek-ahead session
+      // This prevents multiple FFmpeg processes from running simultaneously
+      console.log('🛑 Stopping current session before seek-ahead:', sessionId);
+      await stopTranscodingSession(sessionId);
+
       setSeekAheadState(prev => ({ ...prev, isSeekingAhead: true }));
       setIsBuffering(true);
 
@@ -152,6 +157,7 @@ export const useSeekAhead = () => {
     setIsBuffering,
     setPlaybackDecision,
     addSession,
+    stopTranscodingSession,
     loadNewManifest,
     videoElement,
   ]);

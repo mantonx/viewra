@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useAtom } from 'jotai';
-import { MediaPlayer as VidstackPlayer, MediaProvider, Poster, Track, Gesture, useMediaStore, useMediaRemote, type MediaPlayerInstance } from '@vidstack/react';
+import { MediaPlayer as VidstackPlayer, MediaProvider, Poster, Track, Gesture, type MediaPlayerInstance } from '@vidstack/react';
 import '@vidstack/react/player/styles/default/theme.css';
 import '@vidstack/react/player/styles/default/layouts/video.css';
 import { cn } from '@/utils/cn';
@@ -32,6 +32,7 @@ import { MediaInfoOverlay } from './components/MediaInfoOverlay';
 import { QualityIndicator } from './components/QualityIndicator';
 import { getBufferedRanges } from '@/utils/video';
 import type { MediaPlayerProps } from './MediaPlayer.types';
+import { VidstackControls } from './VidstackControls';
 
 export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const { className, autoplay = true, onBack, ...mediaType } = props;
@@ -62,20 +63,29 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
     enabled: !!mediaId,
   });
 
-  // Use Vidstack's built-in store and remote
-  const store = useMediaStore();
-  const remote = useMediaRemote();
+  // Vidstack state and remote control
+  const [vidstackRemote, setVidstackRemote] = useState<any>(null);
+  const [vidstackStore, setVidstackStore] = useState<any>(null);
+  
+  // Memoized callbacks for VidstackControls
+  const handleRemoteReady = useCallback((remote: any) => {
+    setVidstackRemote(remote);
+  }, []);
+  
+  const handleStoreUpdate = useCallback((store: any) => {
+    setVidstackStore(store);
+  }, []);
   
   // Extract state from store
-  const playing = store?.playing ?? false;
-  const paused = store?.paused ?? true;
-  const duration = store?.duration ?? 0;
-  const currentTime = store?.currentTime ?? 0;
-  const volume = store?.volume ?? 1;
-  const muted = store?.muted ?? false;
-  const buffering = store?.buffering ?? false;
-  const quality = store?.quality ?? null;
-  const fullscreen = store?.fullscreen ?? false;
+  const playing = vidstackStore?.playing ?? false;
+  const paused = vidstackStore?.paused ?? true;
+  const duration = vidstackStore?.duration ?? 0;
+  const currentTime = vidstackStore?.currentTime ?? 0;
+  const volume = vidstackStore?.volume ?? 1;
+  const muted = vidstackStore?.muted ?? false;
+  const buffering = vidstackStore?.buffering ?? false;
+  const quality = vidstackStore?.quality ?? null;
+  const fullscreen = vidstackStore?.fullscreen ?? false;
   
   // Session tracking
   const [sessionTracker, setSessionTracker] = useState<PlaybackSessionTracker | null>(null);
@@ -105,9 +115,9 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   // Track state changes for analytics and position saving
   useEffect(() => {
     if (sessionTracker) {
-      sessionTracker.updatePlaybackState(currentTime + seekAheadState.seekOffset, duration);
+      sessionTracker.updatePlaybackState(currentTime, duration);
     }
-  }, [sessionTracker, currentTime, duration, seekAheadState.seekOffset]);
+  }, [sessionTracker, currentTime, duration]);
 
   // Track play/pause events
   useEffect(() => {
@@ -144,24 +154,46 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
       ...prev,
       isPlaying: playing,
       duration: duration,
-      currentTime: currentTime + seekAheadState.seekOffset,
+      currentTime: currentTime,
       volume: volume,
       isMuted: muted,
       isBuffering: buffering,
       currentQuality: quality,
     }));
-  }, [playing, duration, currentTime, volume, muted, buffering, quality, seekAheadState.seekOffset, setPlayerState]);
+  }, [playing, duration, currentTime, volume, muted, buffering, quality, setPlayerState]);
+  
+  // Monitor video element events for debugging
+  useEffect(() => {
+    if (playerRef.current) {
+      const video = playerRef.current.el?.querySelector('video');
+      if (video) {
+        const handlePlay = () => console.log('🎵 VIDEO ELEMENT: play event');
+        const handlePause = () => console.log('⏸️ VIDEO ELEMENT: pause event');
+        const handlePlaying = () => console.log('▶️ VIDEO ELEMENT: playing event');
+        
+        video.addEventListener('play', handlePlay);
+        video.addEventListener('pause', handlePause);
+        video.addEventListener('playing', handlePlaying);
+        
+        return () => {
+          video.removeEventListener('play', handlePlay);
+          video.removeEventListener('pause', handlePause);
+          video.removeEventListener('playing', handlePlaying);
+        };
+      }
+    }
+  }, []);
 
   // Save position periodically
   useEffect(() => {
     if (Math.floor(currentTime) % 5 === 0) {
-      savePosition(currentTime + seekAheadState.seekOffset);
+      savePosition(currentTime);
     }
-  }, [currentTime, seekAheadState.seekOffset, savePosition]);
+  }, [currentTime, savePosition]);
 
   // Handle seek with seek-ahead support
   const handleSeek = useCallback(async (progress: number) => {
-    if (!remote || !duration || duration <= 0) return;
+    if (!vidstackRemote || !duration || duration <= 0) return;
     
     const seekTime = progress * duration;
     const startTime = Date.now();
@@ -179,7 +211,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
         }
       } else {
         // Normal seek using Vidstack remote
-        remote.seek(seekTime);
+        vidstackRemote.seek(seekTime);
         if (sessionTracker) {
           sessionTracker.trackEvent('seek', { 
             seekTime, 
@@ -196,7 +228,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
         });
       }
     }
-  }, [remote, duration, isSeekAheadNeeded, requestSeekAhead, sessionTracker]);
+  }, [vidstackRemote, duration, isSeekAheadNeeded, requestSeekAhead, sessionTracker]);
 
   // Handle seek intent (hover)
   const handleSeekIntent = useCallback((time: number) => {
@@ -207,55 +239,58 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   // Video control handlers using Vidstack remote
   const videoControls = {
     togglePlayPause: useCallback(() => {
-      if (!remote) return;
-      if (paused) {
-        remote.play();
-      } else {
-        remote.pause();
+      if (!vidstackRemote) {
+        console.warn('⚠️ Vidstack remote not available');
+        return;
       }
-    }, [remote, paused]),
+      // Use playerState.isPlaying to determine current state
+      if (!playerState.isPlaying) {
+        vidstackRemote.play();
+      } else {
+        vidstackRemote.pause();
+      }
+    }, [vidstackRemote, playerState.isPlaying]),
     
     stop: useCallback(() => {
-      if (!remote) return;
-      remote.pause();
-      remote.seek(0);
+      if (!vidstackRemote) return;
+      vidstackRemote.pause();
+      vidstackRemote.seek(0);
       clearSavedPosition();
-    }, [remote, clearSavedPosition]),
+    }, [vidstackRemote, clearSavedPosition]),
     
     restartFromBeginning: useCallback(() => {
-      if (!remote) return;
-      remote.seek(0);
-      remote.play();
+      if (!vidstackRemote) return;
+      vidstackRemote.seek(0);
+      vidstackRemote.play();
       clearSavedPosition();
-    }, [remote, clearSavedPosition]),
+    }, [vidstackRemote, clearSavedPosition]),
     
     skipForward: useCallback((seconds: number) => {
-      if (!remote) return;
-      remote.seek(Math.min(currentTime + seconds, duration));
-    }, [remote, currentTime, duration]),
+      if (!vidstackRemote) return;
+      vidstackRemote.seek(Math.min(currentTime + seconds, duration));
+    }, [vidstackRemote, currentTime, duration]),
     
     skipBackward: useCallback((seconds: number) => {
-      if (!remote) return;
-      remote.seek(Math.max(currentTime - seconds, 0));
-    }, [remote, currentTime]),
+      if (!vidstackRemote) return;
+      vidstackRemote.seek(Math.max(currentTime - seconds, 0));
+    }, [vidstackRemote, currentTime]),
     
     setVolume: useCallback((newVolume: number) => {
-      if (!remote) return;
-      remote.setVolume(newVolume);
-    }, [remote]),
+      if (!vidstackRemote) return;
+      vidstackRemote.setVolume(newVolume);
+    }, [vidstackRemote]),
     
     toggleMute: useCallback(() => {
-      if (!remote) return;
-      remote.setMuted(!muted);
-    }, [remote, muted]),
+      if (!vidstackRemote) return;
+      vidstackRemote.setMuted(!muted);
+    }, [vidstackRemote, muted]),
   };
 
   const handlePause = useCallback(() => {
-    // Stop transcoding when paused to save resources
-    if (playbackDecision?.session_id) {
-      stopTranscodingSession(playbackDecision.session_id);
-    }
-  }, [playbackDecision?.session_id, stopTranscodingSession]);
+    // Log pause event but don't stop transcoding session
+    // Stopping the session causes the player to reset
+    console.log('Video paused');
+  }, []);
 
   // Vidstack has built-in keyboard shortcuts:
   // Space: Play/Pause
@@ -392,10 +427,15 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
         load="eager"
         onProviderSetup={(event) => {
           // Provider is ready
-          console.log('🎬 Vidstack provider ready');
         }}
       >
         <MediaProvider />
+        
+        {/* VidstackControls to properly handle hooks */}
+        <VidstackControls 
+          onRemoteReady={handleRemoteReady}
+          onStoreUpdate={handleStoreUpdate}
+        />
         
         {/* Add touch gesture support */}
         <Gesture 
