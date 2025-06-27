@@ -19,35 +19,35 @@ type LibraryDeletionService struct {
 
 // DeletionResult contains the results of a library deletion operation
 type DeletionResult struct {
-	LibraryID           uint32            `json:"library_id"`
-	LibraryPath         string            `json:"library_path"`
-	LibraryType         string            `json:"library_type"`
-	Success             bool              `json:"success"`
-	Message             string            `json:"message"`
-	Error               error             `json:"error,omitempty"`
-	CleanupStats        *CleanupStats     `json:"cleanup_stats"`
-	Duration            time.Duration     `json:"duration"`
-	Timestamp           time.Time         `json:"timestamp"`
+	LibraryID    uint32        `json:"library_id"`
+	LibraryPath  string        `json:"library_path"`
+	LibraryType  string        `json:"library_type"`
+	Success      bool          `json:"success"`
+	Message      string        `json:"message"`
+	Error        error         `json:"error,omitempty"`
+	CleanupStats *CleanupStats `json:"cleanup_stats"`
+	Duration     time.Duration `json:"duration"`
+	Timestamp    time.Time     `json:"timestamp"`
 }
 
 // CleanupStats tracks what was cleaned up during deletion
 type CleanupStats struct {
-	MediaFilesDeleted      int64 `json:"media_files_deleted"`
-	TracksDeleted          int64 `json:"tracks_deleted"`
-	AlbumsDeleted          int64 `json:"albums_deleted"`
-	ArtistsDeleted         int64 `json:"artists_deleted"`
-	EpisodesDeleted        int64 `json:"episodes_deleted"`
-	SeasonsDeleted         int64 `json:"seasons_deleted"`
-	TVShowsDeleted         int64 `json:"tv_shows_deleted"`
-	MoviesDeleted          int64 `json:"movies_deleted"`
-	AssetsDeleted          int64 `json:"assets_deleted"`
-	EnrichmentsDeleted     int64 `json:"enrichments_deleted"`
-	ExternalIDsDeleted     int64 `json:"external_ids_deleted"`
-	RolesDeleted           int64 `json:"roles_deleted"`
-	PeopleDeleted          int64 `json:"people_deleted"`
-	ScanJobsDeleted        int64 `json:"scan_jobs_deleted"`
-	AssetFilesRemoved      int64 `json:"asset_files_removed"`
-	OrphanedFilesRemoved   int64 `json:"orphaned_files_removed"`
+	MediaFilesDeleted    int64 `json:"media_files_deleted"`
+	TracksDeleted        int64 `json:"tracks_deleted"`
+	AlbumsDeleted        int64 `json:"albums_deleted"`
+	ArtistsDeleted       int64 `json:"artists_deleted"`
+	EpisodesDeleted      int64 `json:"episodes_deleted"`
+	SeasonsDeleted       int64 `json:"seasons_deleted"`
+	TVShowsDeleted       int64 `json:"tv_shows_deleted"`
+	MoviesDeleted        int64 `json:"movies_deleted"`
+	AssetsDeleted        int64 `json:"assets_deleted"`
+	EnrichmentsDeleted   int64 `json:"enrichments_deleted"`
+	ExternalIDsDeleted   int64 `json:"external_ids_deleted"`
+	RolesDeleted         int64 `json:"roles_deleted"`
+	PeopleDeleted        int64 `json:"people_deleted"`
+	ScanJobsDeleted      int64 `json:"scan_jobs_deleted"`
+	AssetFilesRemoved    int64 `json:"asset_files_removed"`
+	OrphanedFilesRemoved int64 `json:"orphaned_files_removed"`
 }
 
 // ScannerManagerInterface defines the interface for scanner operations
@@ -150,8 +150,8 @@ func (lds *LibraryDeletionService) DeleteLibrary(libraryID uint32) *DeletionResu
 	result.Message = "Library deleted successfully"
 	result.Duration = time.Since(startTime)
 
-	logger.Info("Library deletion completed successfully", 
-		"library_id", libraryID, 
+	logger.Info("Library deletion completed successfully",
+		"library_id", libraryID,
 		"duration", result.Duration,
 		"media_files_deleted", result.CleanupStats.MediaFilesDeleted,
 		"tracks_deleted", result.CleanupStats.TracksDeleted,
@@ -334,7 +334,7 @@ func (lds *LibraryDeletionService) cleanupMetadata(libraryID uint32, mediaFileID
 	// Delete movies and their assets
 	if len(movieIDs) > 0 {
 		logger.Info("Cleaning up movies")
-		
+
 		// Delete movie assets first
 		if movieAssetResult := lds.db.Where("media_id IN ? AND entity_type = ?", movieIDs, "movie").Delete(&database.MediaAsset{}); movieAssetResult.Error != nil {
 			logger.Warn("Failed to delete movie assets", "error", movieAssetResult.Error)
@@ -560,12 +560,12 @@ func (lds *LibraryDeletionService) publishDeletionEvent(result *DeletionResult) 
 		fmt.Sprintf("%s media library at path %s has been removed", result.LibraryType, result.LibraryPath),
 	)
 	deleteEvent.Data = map[string]interface{}{
-		"libraryId":      result.LibraryID,
-		"path":           result.LibraryPath,
-		"type":           result.LibraryType,
-		"success":        result.Success,
-		"duration":       result.Duration.String(),
-		"cleanup_stats":  result.CleanupStats,
+		"libraryId":     result.LibraryID,
+		"path":          result.LibraryPath,
+		"type":          result.LibraryType,
+		"success":       result.Success,
+		"duration":      result.Duration.String(),
+		"cleanup_stats": result.CleanupStats,
 	}
 	lds.eventBus.PublishAsync(deleteEvent)
-} 
+}

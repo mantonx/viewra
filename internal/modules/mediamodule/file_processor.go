@@ -10,18 +10,18 @@ import (
 
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
-	"github.com/mantonx/viewra/internal/modules/pluginmodule"
+	"github.com/mantonx/viewra/internal/services"
+	"github.com/mantonx/viewra/internal/types"
 	"github.com/mantonx/viewra/internal/utils"
 	"gorm.io/gorm"
 )
 
 // FileProcessor handles media file processing operations
 type FileProcessor struct {
-	db           *gorm.DB
-	eventBus     events.EventBus
-	pluginModule *pluginmodule.PluginModule
-	initialized  bool
-	mutex        sync.RWMutex
+	db          *gorm.DB
+	eventBus    events.EventBus
+	initialized bool
+	mutex       sync.RWMutex
 
 	// Processing queues and workers
 	processingQueue chan *ProcessJob
@@ -53,11 +53,10 @@ type ProcessingStats struct {
 }
 
 // NewFileProcessor creates a new file processor
-func NewFileProcessor(db *gorm.DB, eventBus events.EventBus, pluginModule *pluginmodule.PluginModule) *FileProcessor {
+func NewFileProcessor(db *gorm.DB, eventBus events.EventBus, _ interface{}) *FileProcessor {
 	return &FileProcessor{
 		db:              db,
 		eventBus:        eventBus,
-		pluginModule:    pluginModule,
 		processingQueue: make(chan *ProcessJob, 100), // Buffer size of 100
 		workerCount:     3,                           // Default to 3 workers
 		activeJobs:      make(map[string]*ProcessJob),
@@ -301,20 +300,22 @@ func (fp *FileProcessor) processFileJob(job *ProcessJob) error {
 func (fp *FileProcessor) processWithPlugins(job *ProcessJob, mediaFile *database.MediaFile) error {
 	log.Printf("INFO: Processing file with plugins: %s", job.FilePath)
 
-	// Check if plugin manager is available
-	if fp.pluginModule == nil {
-		log.Printf("WARNING: No plugin manager available for file: %s - skipping metadata extraction", job.FilePath)
+	// Try to get plugin service from registry
+	pluginService, err := services.GetPluginService()
+	if err != nil {
+		log.Printf("WARNING: Plugin service not available: %v - skipping metadata extraction", err)
 		return nil // Not an error, just no plugins available
 	}
 
-	// Get file info
-	fileInfo, err := os.Stat(job.FilePath)
-	if err != nil {
-		return fmt.Errorf("failed to get file info: %w", err)
+	// Get metadata scrapers from plugin service
+	scrapers := pluginService.GetMetadataScrapers()
+	if len(scrapers) == 0 {
+		log.Printf("WARNING: No metadata scrapers available for file: %s", job.FilePath)
+		return nil
 	}
 
-	// Get all available file handlers from plugin module
-	handlers := fp.pluginModule.GetEnabledFileHandlers()
+	// Determine file mime type (simplified)
+	mimeType := "" // Could use a library to detect mime type
 
 	var processedBy []string
 	var lastError error
@@ -322,45 +323,81 @@ func (fp *FileProcessor) processWithPlugins(job *ProcessJob, mediaFile *database
 	// Update progress
 	fp.updateJobProgress(job.ID, 50)
 
-	// Run ALL matching handlers, not just the first one
-	for _, handler := range handlers {
-		if handler.Match(job.FilePath, fileInfo) {
-			log.Printf("INFO: Processing file %s with handler: %s", job.FilePath, handler.GetName())
+	// Run ALL matching scrapers
+	for _, scraper := range scrapers {
+		if scraper.CanHandle(job.FilePath, mimeType) {
+			log.Printf("INFO: Processing file %s with scraper", job.FilePath)
 
-			// Create metadata context for plugin
-			ctx := &pluginmodule.MetadataContext{
-				DB:        fp.db,
-				MediaFile: mediaFile,
-				LibraryID: uint(mediaFile.LibraryID),
-				EventBus:  fp.eventBus,
-				PluginID:  handler.GetName(), // Add plugin ID for tracking
-			}
-
-			// Process file with the matching handler
-			if err := handler.HandleFile(job.FilePath, ctx); err != nil {
-				log.Printf("WARNING: Plugin handler %s failed for file %s: %v", handler.GetName(), job.FilePath, err)
+			// Extract metadata
+			metadata, err := scraper.ExtractMetadata(job.FilePath)
+			if err != nil {
+				log.Printf("WARNING: Metadata extraction failed for file %s: %v", job.FilePath, err)
 				lastError = err
-				continue // Try next handler
+				continue // Try next scraper
 			}
 
-			log.Printf("INFO: Successfully processed file %s with handler: %s", job.FilePath, handler.GetName())
-			processedBy = append(processedBy, handler.GetName())
+			// Update media file with extracted metadata
+			if err := fp.updateMediaFileMetadata(mediaFile, metadata); err != nil {
+				log.Printf("WARNING: Failed to update metadata for file %s: %v", job.FilePath, err)
+				lastError = err
+				continue
+			}
+
+			log.Printf("INFO: Successfully processed file %s with scraper", job.FilePath)
+			processedBy = append(processedBy, "metadata_scraper")
 		}
 	}
 
 	if len(processedBy) > 0 {
-		log.Printf("INFO: File processed by %d handlers: %s -> %v", len(processedBy), job.FilePath, processedBy)
-		return nil // Success if at least one handler succeeded
+		log.Printf("INFO: File processed by %d scrapers: %s -> %v", len(processedBy), job.FilePath, processedBy)
+		return nil // Success if at least one scraper succeeded
 	}
 
-	// If no handlers processed the file and we had errors, return the last error
+	// If no scrapers processed the file and we had errors, return the last error
 	if lastError != nil {
-		return fmt.Errorf("all plugin handlers failed: %w", lastError)
+		return fmt.Errorf("all metadata scrapers failed: %w", lastError)
 	}
 
-	// No handlers matched this file
-	log.Printf("WARNING: No plugin handlers found for file: %s", job.FilePath)
-	return nil // Not an error, just no handler available
+	// No scrapers matched this file
+	log.Printf("WARNING: No metadata scrapers found for file: %s", job.FilePath)
+	return nil // Not an error, just no scraper available
+}
+
+// updateMediaFileMetadata updates media file record with extracted metadata
+func (fp *FileProcessor) updateMediaFileMetadata(mediaFile *database.MediaFile, metadata map[string]string) error {
+	// Update fields from metadata
+	if _, ok := metadata["duration"]; ok {
+		// Parse duration and update
+		// mediaFile.Duration = parseDuration(val)
+	}
+	if val, ok := metadata["video_codec"]; ok {
+		mediaFile.VideoCodec = val
+	}
+	if val, ok := metadata["audio_codec"]; ok {
+		mediaFile.AudioCodec = val
+	}
+	if val, ok := metadata["resolution"]; ok {
+		mediaFile.Resolution = val
+	}
+
+	// Save updates
+	return fp.db.Save(mediaFile).Error
+}
+
+// GetBasicMediaInfo extracts basic media information from a file
+func (fp *FileProcessor) GetBasicMediaInfo(filePath string) (*types.MediaInfo, error) {
+	// This is a simplified implementation
+	// In production, this would use FFprobe or similar
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.MediaInfo{
+		Container: "unknown",
+		Duration:  0,
+		FileSize:  fileInfo.Size(),
+	}, nil
 }
 
 // updateJobProgress updates the progress of a job

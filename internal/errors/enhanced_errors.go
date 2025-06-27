@@ -13,16 +13,16 @@ import (
 // EnhancedError provides detailed error information with stack traces
 type EnhancedError struct {
 	*ViewraError
-	StackTrace   []StackFrame  `json:"stack_trace,omitempty"`
-	Timestamp    time.Time     `json:"timestamp"`
-	RequestID    string        `json:"request_id,omitempty"`
-	UserAgent    string        `json:"user_agent,omitempty"`
-	RequestPath  string        `json:"request_path,omitempty"`
-	Method       string        `json:"method,omitempty"`
-	RemoteAddr   string        `json:"remote_addr,omitempty"`
-	InnerErrors  []error       `json:"inner_errors,omitempty"`
-	Breadcrumbs  []Breadcrumb  `json:"breadcrumbs,omitempty"`
-	Tags         map[string]string `json:"tags,omitempty"`
+	StackTrace  []StackFrame      `json:"stack_trace,omitempty"`
+	Timestamp   time.Time         `json:"timestamp"`
+	RequestID   string            `json:"request_id,omitempty"`
+	UserAgent   string            `json:"user_agent,omitempty"`
+	RequestPath string            `json:"request_path,omitempty"`
+	Method      string            `json:"method,omitempty"`
+	RemoteAddr  string            `json:"remote_addr,omitempty"`
+	InnerErrors []error           `json:"inner_errors,omitempty"`
+	Breadcrumbs []Breadcrumb      `json:"breadcrumbs,omitempty"`
+	Tags        map[string]string `json:"tags,omitempty"`
 }
 
 // StackFrame represents a single frame in a stack trace
@@ -44,11 +44,11 @@ type Breadcrumb struct {
 
 // ErrorReporter handles enhanced error reporting
 type ErrorReporter struct {
-	enableStackTrace bool
-	maxStackDepth    int
+	enableStackTrace  bool
+	maxStackDepth     int
 	enableBreadcrumbs bool
-	maxBreadcrumbs   int
-	breadcrumbs      []Breadcrumb
+	maxBreadcrumbs    int
+	breadcrumbs       []Breadcrumb
 }
 
 // NewErrorReporter creates a new enhanced error reporter
@@ -86,18 +86,18 @@ func NewEnhancedError(code, message string, cause error) *EnhancedError {
 // NewEnhancedErrorFromGin creates an enhanced error from a gin context
 func NewEnhancedErrorFromGin(c *gin.Context, code, message string, cause error) *EnhancedError {
 	enhanced := NewEnhancedError(code, message, cause)
-	
+
 	// Add gin context information
 	enhanced.RequestPath = c.Request.URL.Path
 	enhanced.Method = c.Request.Method
 	enhanced.UserAgent = c.GetHeader("User-Agent")
 	enhanced.RemoteAddr = c.ClientIP()
-	
+
 	// Get request ID if available
 	if requestID, exists := c.Get("request_id"); exists {
 		enhanced.RequestID = fmt.Sprintf("%v", requestID)
 	}
-	
+
 	// Add query parameters as context
 	if len(c.Request.URL.RawQuery) > 0 {
 		enhanced.Context["query"] = c.Request.URL.RawQuery
@@ -109,20 +109,20 @@ func NewEnhancedErrorFromGin(c *gin.Context, code, message string, cause error) 
 // captureStackTrace captures the current stack trace
 func captureStackTrace(skip, maxDepth int) []StackFrame {
 	frames := make([]StackFrame, 0)
-	
+
 	for i := skip; i < skip+maxDepth; i++ {
 		pc, file, line, ok := runtime.Caller(i)
 		if !ok {
 			break
 		}
-		
+
 		fn := runtime.FuncForPC(pc)
 		if fn == nil {
 			continue
 		}
-		
+
 		funcName := fn.Name()
-		
+
 		// Extract package name
 		var packageName string
 		if lastSlash := strings.LastIndex(funcName, "/"); lastSlash >= 0 {
@@ -134,17 +134,17 @@ func captureStackTrace(skip, maxDepth int) []StackFrame {
 			packageName = funcName[:lastDot]
 			funcName = funcName[lastDot+1:]
 		}
-		
+
 		frame := StackFrame{
 			Function: funcName,
 			File:     file,
 			Line:     line,
 			Package:  packageName,
 		}
-		
+
 		frames = append(frames, frame)
 	}
-	
+
 	return frames
 }
 
@@ -177,7 +177,7 @@ func (er *ErrorReporter) AddBreadcrumb(message, category, level string, data map
 	if !er.enableBreadcrumbs {
 		return
 	}
-	
+
 	breadcrumb := Breadcrumb{
 		Timestamp: time.Now(),
 		Message:   message,
@@ -185,9 +185,9 @@ func (er *ErrorReporter) AddBreadcrumb(message, category, level string, data map
 		Level:     level,
 		Data:      data,
 	}
-	
+
 	er.breadcrumbs = append(er.breadcrumbs, breadcrumb)
-	
+
 	// Keep only the most recent breadcrumbs
 	if len(er.breadcrumbs) > er.maxBreadcrumbs {
 		er.breadcrumbs = er.breadcrumbs[1:]
@@ -200,37 +200,37 @@ func (er *ErrorReporter) ReportError(err *EnhancedError) {
 	if er.enableBreadcrumbs {
 		err.Breadcrumbs = append(err.Breadcrumbs, er.breadcrumbs...)
 	}
-	
+
 	// Log the error with structured data
 	fields := []interface{}{
 		"error_code", err.Code,
 		"error_message", err.Message,
 		"timestamp", err.Timestamp,
 	}
-	
+
 	if err.RequestID != "" {
 		fields = append(fields, "request_id", err.RequestID)
 	}
-	
+
 	if err.RequestPath != "" {
 		fields = append(fields, "path", err.RequestPath, "method", err.Method)
 	}
-	
+
 	if len(err.Tags) > 0 {
 		fields = append(fields, "tags", err.Tags)
 	}
-	
+
 	if len(err.Context) > 0 {
 		fields = append(fields, "context", err.Context)
 	}
-	
+
 	logger.Error("Enhanced error reported", fields...)
-	
+
 	// Log stack trace if enabled
 	if er.enableStackTrace && len(err.StackTrace) > 0 {
 		logger.Debug("Stack trace", "frames", err.StackTrace)
 	}
-	
+
 	// Log breadcrumbs if available
 	if len(err.Breadcrumbs) > 0 {
 		logger.Debug("Error breadcrumbs", "breadcrumbs", err.Breadcrumbs)
@@ -243,39 +243,39 @@ func (e *EnhancedError) ToGinResponse(c *gin.Context) {
 	if statusCode == 0 {
 		statusCode = 500
 	}
-	
+
 	response := gin.H{
 		"error":     e.Message,
 		"code":      e.Code,
 		"timestamp": e.Timestamp,
 	}
-	
+
 	// Include request ID if available
 	if e.RequestID != "" {
 		response["request_id"] = e.RequestID
 	}
-	
+
 	// Include context in development mode
 	if gin.Mode() == gin.DebugMode && len(e.Context) > 0 {
 		response["details"] = e.Context
 	}
-	
+
 	// Include stack trace in development mode
 	if gin.Mode() == gin.DebugMode && len(e.StackTrace) > 0 {
 		response["stack_trace"] = e.formatStackTrace()
 	}
-	
+
 	c.JSON(statusCode, response)
 }
 
 // formatStackTrace formats the stack trace for display
 func (e *EnhancedError) formatStackTrace() []string {
 	formatted := make([]string, len(e.StackTrace))
-	
+
 	for i, frame := range e.StackTrace {
 		formatted[i] = fmt.Sprintf("%s:%d %s()", frame.File, frame.Line, frame.Function)
 	}
-	
+
 	return formatted
 }
 
@@ -283,18 +283,18 @@ func (e *EnhancedError) formatStackTrace() []string {
 func (e *EnhancedError) Error() string {
 	var sb strings.Builder
 	sb.WriteString(e.Message)
-	
+
 	if e.Cause != nil {
 		sb.WriteString(": ")
 		sb.WriteString(e.Cause.Error())
 	}
-	
+
 	if len(e.InnerErrors) > 0 {
 		sb.WriteString(" (with ")
 		sb.WriteString(fmt.Sprintf("%d", len(e.InnerErrors)))
 		sb.WriteString(" inner errors)")
 	}
-	
+
 	return sb.String()
 }
 
@@ -346,15 +346,15 @@ func EnhancedErrorMiddleware(reporter *ErrorReporter) gin.HandlerFunc {
 				"ip":     c.ClientIP(),
 			},
 		)
-		
+
 		// Set request ID
 		requestID := generateRequestID()
 		c.Set("request_id", requestID)
 		c.Header("X-Request-ID", requestID)
-		
+
 		// Continue processing
 		c.Next()
-		
+
 		// Check for errors
 		if len(c.Errors) > 0 {
 			for _, ginErr := range c.Errors {
@@ -367,7 +367,7 @@ func EnhancedErrorMiddleware(reporter *ErrorReporter) gin.HandlerFunc {
 						enhanced.UserAgent = c.GetHeader("User-Agent")
 						enhanced.RemoteAddr = c.ClientIP()
 					}
-					
+
 					reporter.ReportError(enhanced)
 				} else {
 					// Create enhanced error from gin error
@@ -393,11 +393,11 @@ func EnhancedRecoveryMiddleware(reporter *ErrorReporter) gin.HandlerFunc {
 		} else {
 			err = fmt.Errorf("%v", recovered)
 		}
-		
+
 		enhanced := NewEnhancedErrorFromGin(c, "PANIC", "Panic recovered", err).
 			WithTag("type", "panic").
 			WithContext("recovered", recovered)
-		
+
 		reporter.ReportError(enhanced)
 		enhanced.ToGinResponse(c)
 	})

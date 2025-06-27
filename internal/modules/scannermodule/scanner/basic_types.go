@@ -19,6 +19,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"gorm.io/gorm"
 )
@@ -547,6 +548,21 @@ func (ls *LibraryScanner) processFile(filePath string, libraryID uint) error {
 		}
 	} else {
 		logger.Warn("No enrichment hook available", "path", filePath, "media_file_id", mediaFile.ID)
+	}
+
+	// Publish media scanned event for other modules to react to
+	if ls.eventBus != nil {
+		// Get module event handler for publishing module events
+		eventHandler := modulemanager.GetModuleEventHandler()
+		if eventHandler != nil {
+			// Get metadata for event
+			metadata := ls.getMetadataForEnrichment(mediaFile)
+
+			// Publish the event
+			eventHandler.NotifyMediaScanned("system.scanner", mediaFile.ID, metadata)
+
+			logger.Debug("Published media scanned event", "media_file_id", mediaFile.ID, "path", filePath)
+		}
 	}
 
 	ls.bytesProcessed.Add(fileInfo.Size())

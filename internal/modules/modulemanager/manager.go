@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/services"
 	"gorm.io/gorm"
 )
 
@@ -60,7 +61,7 @@ func LoadAll(db *gorm.DB) error {
 	return Registry.LoadAll(db)
 }
 
-// LoadAll initializes all registered modules
+// LoadAll initializes all registered modules in dependency order
 func (r *ModuleRegistry) LoadAll(db *gorm.DB) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -84,10 +85,9 @@ func (r *ModuleRegistry) LoadAll(db *gorm.DB) error {
 		logger.Info("Module disabled via configuration: %s", moduleID)
 	}
 
-	logger.Info("🔄 Loading %d modules...", len(r.modules))
-
+	// Filter out disabled modules
+	enabledModules := make(map[string]Module)
 	for id, module := range r.modules {
-		// Skip disabled modules
 		if r.isDisabled(id) {
 			if module.Core() {
 				return fmt.Errorf("attempted to disable core module: %s", id)
@@ -95,8 +95,64 @@ func (r *ModuleRegistry) LoadAll(db *gorm.DB) error {
 			logger.Warn("⚠️ Skipping module %s (disabled)", module.Name())
 			continue
 		}
+		enabledModules[id] = module
+	}
 
-		logger.Info("📋 Initializing module: %s", module.Name())
+	logger.Info("🔄 Loading %d modules...", len(enabledModules))
+
+	// Initialize lazy loading for services
+	services.RegisterServiceLoaders()
+	logger.Info("Initialized lazy service loading")
+
+	// Build dependency graph
+	depGraph, err := BuildDependencyGraph(enabledModules)
+	if err != nil {
+		return fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+
+	// Print dependency information for debugging
+	depGraph.PrintDependencyInfo()
+
+	// Validate service requirements
+	if errors := depGraph.ValidateServiceRequirements(); len(errors) > 0 {
+		for _, err := range errors {
+			logger.Warn("Service requirement warning: %v", err)
+		}
+	}
+
+	// Get initialization order
+	initOrder, err := depGraph.GetInitializationOrder()
+	if err != nil {
+		return fmt.Errorf("failed to determine initialization order: %w", err)
+	}
+
+	// Phase 1: Allow modules to register services early
+	logger.Info("🔄 Phase 1: Service registration")
+	for _, module := range initOrder {
+		if registrar, ok := module.(ServiceRegistrar); ok {
+			logger.Info("📝 Module %s registering services", module.Name())
+			if err := registrar.RegisterServices(); err != nil {
+				return fmt.Errorf("failed to register services for %s: %w", module.Name(), err)
+			}
+		}
+	}
+
+	// Phase 2: Inject services into modules that need them
+	logger.Info("🔄 Phase 2: Service injection")
+	availableServices := r.gatherAvailableServices()
+	for _, module := range initOrder {
+		if injector, ok := module.(ServiceInjector); ok {
+			logger.Info("💉 Injecting services into module %s", module.Name())
+			if err := injector.InjectServices(availableServices); err != nil {
+				return fmt.Errorf("failed to inject services for %s: %w", module.Name(), err)
+			}
+		}
+	}
+
+	// Phase 3: Initialize modules in dependency order
+	logger.Info("🔄 Phase 3: Module initialization")
+	for i, module := range initOrder {
+		logger.Info("📋 [%d/%d] Initializing module: %s", i+1, len(initOrder), module.Name())
 
 		// Migrate module database schemas
 		if err := module.Migrate(db); err != nil {
@@ -223,4 +279,19 @@ func (r *ModuleRegistry) RegisterRoutes(router *gin.Engine) {
 			routeRegistrar.RegisterRoutes(router)
 		}
 	}
+}
+
+// gatherAvailableServices collects all registered services
+func (r *ModuleRegistry) gatherAvailableServices() map[string]interface{} {
+	serviceMap := make(map[string]interface{})
+	
+	// Get all services from the service registry
+	serviceNames := services.List()
+	for _, name := range serviceNames {
+		if service, err := services.Get(name); err == nil {
+			serviceMap[name] = service
+		}
+	}
+	
+	return serviceMap
 }

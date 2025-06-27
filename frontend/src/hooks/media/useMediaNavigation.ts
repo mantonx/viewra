@@ -85,11 +85,33 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
         console.log('✅ Transcoding session started:', sessionData.id);
 
         // Update decision with transcoding session info
+        // Use content-addressable URLs if available
+        let manifestUrl = sessionData.manifest_url;
+        let streamUrl = sessionData.manifest_url;
+        
+        if (sessionData.content_hash) {
+          // Use content-addressable storage URLs
+          const container = decision.transcode_params?.target_container || 'dash';
+          if (container === 'hls') {
+            manifestUrl = buildApiUrl(`/v1/content/${sessionData.content_hash}/playlist.m3u8`);
+          } else {
+            manifestUrl = buildApiUrl(`/v1/content/${sessionData.content_hash}/manifest.mpd`);
+          }
+          streamUrl = manifestUrl;
+        } else if (!manifestUrl) {
+          // Fallback for sessions without manifest URL
+          console.warn('Session has no manifest URL and no content hash, this should not happen');
+          manifestUrl = '';
+          streamUrl = '';
+        }
+        
         const updatedDecision = {
           ...decision,
           session_id: sessionData.id,
-          manifest_url: sessionData.manifest_url || buildApiUrl(`/playback/stream/${sessionData.id}/manifest.mpd`),
-          stream_url: sessionData.manifest_url || buildApiUrl(`/playback/stream/${sessionData.id}/manifest.mpd`),
+          manifest_url: manifestUrl,
+          stream_url: streamUrl,
+          content_hash: sessionData.content_hash,
+          content_url: sessionData.content_url,
         };
         
         setPlaybackDecision(updatedDecision);

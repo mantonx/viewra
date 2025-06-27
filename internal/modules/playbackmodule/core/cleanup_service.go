@@ -138,7 +138,7 @@ func (cs *CleanupService) cleanupAllProviders() {
 	} else if staleCount > 0 {
 		cs.logger.Info("cleaned up stale sessions", "count", staleCount, "timeout", staleTimeout)
 	}
-	
+
 	// Also clean up sessions that are making no progress
 	noProgressCount, err := cs.cleanupNoProgressSessions()
 	if err != nil {
@@ -154,7 +154,7 @@ func (cs *CleanupService) cleanupAllProviders() {
 	} else if orphanCount > 0 {
 		cs.logger.Info("cleaned up orphaned directories", "count", orphanCount)
 	}
-	
+
 	// Clean up orphaned processes
 	cs.CleanupOrphanedProcesses()
 }
@@ -264,19 +264,35 @@ func (cs *CleanupService) extractSessionID(dirName string) string {
 	// Directory format: container_provider_sessionid
 	// Example: dash_ffmpeg_software_1234567890-abcd-...
 	// The session ID is the UUID part at the end
-	
-	// Find the last occurrence of underscore followed by a UUID pattern
-	parts := strings.Split(filepath.Base(dirName), "_")
-	if len(parts) >= 3 {
-		// The session ID should be the last part after the provider name
-		// For ffmpeg_software provider, we need to skip both "ffmpeg" and "software"
-		if len(parts) >= 4 && parts[1] == "ffmpeg" && parts[2] == "software" {
-			return parts[3]
+
+	// Common provider names that contain underscores
+	providers := []string{
+		"ffmpeg_software",
+		"ffmpeg_nvidia",
+		"ffmpeg_pipeline",
+		// Add more providers here as needed
+	}
+
+	baseName := filepath.Base(dirName)
+
+	// Try to match against known providers
+	for _, provider := range providers {
+		// Pattern: container_provider_sessionid
+		for _, container := range []string{"dash", "hls", "mp4"} {
+			prefix := fmt.Sprintf("%s_%s_", container, provider)
+			if strings.HasPrefix(baseName, prefix) {
+				// Extract session ID after the prefix
+				return strings.TrimPrefix(baseName, prefix)
+			}
 		}
-		// For other providers, session ID is the last part
+	}
+
+	// Fallback: assume it's container_singleprovider_sessionid
+	parts := strings.Split(baseName, "_")
+	if len(parts) >= 3 {
 		return parts[len(parts)-1]
 	}
-	// Fallback for malformed directory names
+
 	return ""
 }
 
@@ -358,23 +374,23 @@ func (cs *CleanupService) CleanupSession(sessionID string) error {
 // CleanupOrphanedProcesses kills orphaned FFmpeg processes that are no longer tracked
 func (cs *CleanupService) CleanupOrphanedProcesses() {
 	cs.logger.Debug("checking for orphaned FFmpeg processes")
-	
+
 	// First, use the process registry to check for long-running processes
 	registryKilled := cs.processRegistry.CleanupOrphaned()
 	if registryKilled > 0 {
 		cs.logger.Info("killed long-running processes from registry", "count", registryKilled)
 	}
-	
+
 	// Then check for any FFmpeg processes not in the registry
 	processes, err := cs.getFFmpegProcesses()
 	if err != nil {
 		cs.logger.Error("failed to get FFmpeg processes", "error", err)
 		return
 	}
-	
+
 	// Get all registered processes
 	registeredProcesses := cs.processRegistry.GetAllProcesses()
-	
+
 	killedCount := 0
 	for _, proc := range processes {
 		// Check if this process is in the registry
@@ -382,19 +398,19 @@ func (cs *CleanupService) CleanupOrphanedProcesses() {
 			// Process is registered, skip it
 			continue
 		}
-		
+
 		// Process is not registered, check if it's orphaned
 		sessionID, isOrphaned := cs.isProcessOrphaned(proc)
 		if isOrphaned {
 			cs.logger.Warn("found orphaned FFmpeg process", "pid", proc.PID, "session_id", sessionID, "cmd", proc.CmdLine)
-			
+
 			// Kill the orphaned process using centralized function
 			if err := KillProcessGroup(proc.PID, cs.logger); err != nil {
 				cs.logger.Error("failed to kill orphaned process", "pid", proc.PID, "error", err)
 			} else {
 				killedCount++
 				cs.logger.Info("killed orphaned FFmpeg process", "pid", proc.PID)
-				
+
 				// If we have a session ID, mark it as failed in the database
 				if sessionID != "" {
 					if err := cs.store.UpdateSessionStatus(sessionID, "failed", `{"error": "Process was orphaned and killed"}`); err != nil {
@@ -404,7 +420,7 @@ func (cs *CleanupService) CleanupOrphanedProcesses() {
 			}
 		}
 	}
-	
+
 	if killedCount > 0 {
 		cs.logger.Info("orphaned process cleanup completed", "killed_count", killedCount)
 	}
@@ -413,7 +429,7 @@ func (cs *CleanupService) CleanupOrphanedProcesses() {
 // ForceCleanupSession immediately cleans up a session's files and processes
 func (cs *CleanupService) ForceCleanupSession(sessionID string) error {
 	cs.logger.Info("force cleaning session", "session_id", sessionID)
-	
+
 	// First check if there's a registered process for this session
 	if pid, ok := cs.processRegistry.GetProcessBySession(sessionID); ok {
 		cs.logger.Info("killing registered process for session", "session_id", sessionID, "pid", pid)
@@ -422,18 +438,18 @@ func (cs *CleanupService) ForceCleanupSession(sessionID string) error {
 		}
 		cs.processRegistry.Unregister(pid)
 	}
-	
+
 	// Clean up files
 	if err := cs.CleanupSession(sessionID); err != nil {
 		cs.logger.Warn("failed to cleanup session files", "session_id", sessionID, "error", err)
 	}
-	
+
 	// Also check for any unregistered processes (fallback)
 	processes, err := cs.getFFmpegProcesses()
 	if err != nil {
 		return fmt.Errorf("failed to get processes: %w", err)
 	}
-	
+
 	for _, proc := range processes {
 		// Check if this process is for this session
 		if strings.Contains(proc.CmdLine, sessionID) {
@@ -443,7 +459,7 @@ func (cs *CleanupService) ForceCleanupSession(sessionID string) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -456,14 +472,14 @@ type Process struct {
 // getFFmpegProcesses returns all running FFmpeg processes
 func (cs *CleanupService) getFFmpegProcesses() ([]Process, error) {
 	var processes []Process
-	
+
 	// Use ps command to find FFmpeg processes
 	cmd := exec.Command("ps", "aux")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to run ps command: %w", err)
 	}
-	
+
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
 		// Look for lines containing "ffmpeg"
@@ -474,13 +490,13 @@ func (cs *CleanupService) getFFmpegProcesses() ([]Process, error) {
 				if err != nil {
 					continue
 				}
-				
+
 				// Reconstruct command line (everything from field 10 onwards)
 				cmdLine := ""
 				if len(fields) >= 11 {
 					cmdLine = strings.Join(fields[10:], " ")
 				}
-				
+
 				processes = append(processes, Process{
 					PID:     pid,
 					CmdLine: cmdLine,
@@ -488,7 +504,7 @@ func (cs *CleanupService) getFFmpegProcesses() ([]Process, error) {
 			}
 		}
 	}
-	
+
 	return processes, nil
 }
 
@@ -519,15 +535,9 @@ func (cs *CleanupService) isProcessOrphaned(proc Process) (string, bool) {
 			}
 		}
 	}
-	
+
 	// If we can't determine the session, assume it's not orphaned to be safe
 	return "", false
-}
-
-// killProcess is deprecated - use KillProcessGroup from process_registry.go instead
-// This is kept for backwards compatibility only
-func (cs *CleanupService) killProcess(pid int) error {
-	return KillProcessGroup(pid, cs.logger)
 }
 
 // cleanupNoProgressSessions finds and kills sessions that have been running with 0% progress
@@ -537,7 +547,7 @@ func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
 	if err := cs.store.db.Where("status = ?", "running").Find(&runningSessions).Error; err != nil {
 		return 0, fmt.Errorf("failed to find running sessions: %w", err)
 	}
-	
+
 	killedCount := 0
 	for _, session := range runningSessions {
 		// Parse progress data
@@ -548,22 +558,22 @@ func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
 				continue
 			}
 		}
-		
+
 		// Check progress percentage
 		progressPercent, _ := progressData["percent_complete"].(float64)
 		timeElapsed, _ := progressData["time_elapsed"].(float64)
 		bytesWritten, _ := progressData["bytes_written"].(float64)
-		
+
 		// If process has been running for more than 10 minutes with 0% progress, it's stuck
 		// Convert nanoseconds to seconds
 		timeElapsedSeconds := timeElapsed / 1e9
-		
+
 		// Check if the session is truly stuck:
 		// 1. For ABR transcoding, FFmpeg may report 0% progress while actively writing segments
 		// 2. Check if bytes are being written as an alternative indicator of activity
 		// 3. Also check if the directory is being updated recently
 		isStuck := false
-		
+
 		if timeElapsedSeconds > 600 && progressPercent == 0 { // 10 minutes
 			// Before considering it stuck, check if files are being written
 			if session.DirectoryPath != "" {
@@ -577,7 +587,7 @@ func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
 						continue // Skip this session, it's still active
 					}
 				}
-				
+
 				// Also check for recent file activity inside the directory
 				hasRecentActivity := false
 				entries, err := os.ReadDir(session.DirectoryPath)
@@ -590,7 +600,7 @@ func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
 						}
 					}
 				}
-				
+
 				if hasRecentActivity {
 					cs.logger.Debug("session shows 0% progress but has recent file activity",
 						"session_id", session.ID,
@@ -598,7 +608,7 @@ func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
 					continue // Skip this session, it's still active
 				}
 			}
-			
+
 			// Also check if bytes written is increasing (even if progress is 0%)
 			if bytesWritten > 0 {
 				cs.logger.Debug("session shows 0% progress but is writing bytes",
@@ -607,17 +617,17 @@ func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
 					"bytes_written", bytesWritten)
 				continue // Skip this session, it's still active
 			}
-			
+
 			// If we get here, the session is truly stuck
 			isStuck = true
 		}
-		
+
 		if isStuck {
 			cs.logger.Warn("found stuck session with no progress",
 				"session_id", session.ID,
 				"elapsed_seconds", timeElapsedSeconds,
 				"progress_percent", progressPercent)
-			
+
 			// Force cleanup this session
 			if err := cs.ForceCleanupSession(session.ID); err != nil {
 				cs.logger.Error("failed to force cleanup session", "session_id", session.ID, "error", err)
@@ -630,7 +640,7 @@ func (cs *CleanupService) cleanupNoProgressSessions() (int, error) {
 			}
 		}
 	}
-	
+
 	return killedCount, nil
 }
 

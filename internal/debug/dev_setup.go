@@ -16,7 +16,7 @@ import (
 // DevEnvironmentManager manages the development environment setup
 type DevEnvironmentManager struct {
 	projectRoot string
-	config     *DevConfig
+	config      *DevConfig
 }
 
 // DevConfig configuration for development environment
@@ -28,22 +28,22 @@ type DevConfig struct {
 	BuildParallel      bool              `json:"build_parallel"`
 	AutoStartServices  bool              `json:"auto_start_services"`
 	HealthCheckTimeout time.Duration     `json:"health_check_timeout"`
-	Services          map[string]string `json:"services"`
-	Environment       map[string]string `json:"environment"`
+	Services           map[string]string `json:"services"`
+	Environment        map[string]string `json:"environment"`
 }
 
 // DevEnvironmentStatus represents the status of the development environment
 type DevEnvironmentStatus struct {
-	ProjectRoot        string            `json:"project_root"`
-	GitStatus          *GitStatus        `json:"git_status"`
-	Dependencies       *DependencyStatus `json:"dependencies"`
-	Services           *ServiceStatus    `json:"services"`
-	Database           *DatabaseStatus   `json:"database"`
-	Plugins            *PluginStatus     `json:"plugins"`
-	Environment        map[string]string `json:"environment"`
-	HealthChecks       []HealthCheck     `json:"health_checks"`
-	Recommendations    []string          `json:"recommendations"`
-	LastChecked        time.Time         `json:"last_checked"`
+	ProjectRoot     string            `json:"project_root"`
+	GitStatus       *GitStatus        `json:"git_status"`
+	Dependencies    *DependencyStatus `json:"dependencies"`
+	Services        *ServiceStatus    `json:"services"`
+	Database        *DatabaseStatus   `json:"database"`
+	Plugins         *PluginStatus     `json:"plugins"`
+	Environment     map[string]string `json:"environment"`
+	HealthChecks    []HealthCheck     `json:"health_checks"`
+	Recommendations []string          `json:"recommendations"`
+	LastChecked     time.Time         `json:"last_checked"`
 }
 
 // GitStatus represents git repository status
@@ -58,12 +58,12 @@ type GitStatus struct {
 
 // DependencyStatus represents dependency status
 type DependencyStatus struct {
-	Go       *ToolStatus `json:"go"`
-	Node     *ToolStatus `json:"node"`
-	Docker   *ToolStatus `json:"docker"`
-	Make     *ToolStatus `json:"make"`
-	Git      *ToolStatus `json:"git"`
-	Modules  bool        `json:"modules_tidy"`
+	Go      *ToolStatus `json:"go"`
+	Node    *ToolStatus `json:"node"`
+	Docker  *ToolStatus `json:"docker"`
+	Make    *ToolStatus `json:"make"`
+	Git     *ToolStatus `json:"git"`
+	Modules bool        `json:"modules_tidy"`
 }
 
 // ToolStatus represents individual tool status
@@ -100,12 +100,12 @@ type DatabaseStatus struct {
 
 // PluginStatus represents plugin system status
 type PluginStatus struct {
-	Available      int      `json:"available"`
-	Built          int      `json:"built"`
-	Running        int      `json:"running"`
-	HotReload      bool     `json:"hot_reload_enabled"`
-	BuildTime      string   `json:"last_build_time"`
-	FailedBuilds   []string `json:"failed_builds"`
+	Available    int      `json:"available"`
+	Built        int      `json:"built"`
+	Running      int      `json:"running"`
+	HotReload    bool     `json:"hot_reload_enabled"`
+	BuildTime    string   `json:"last_build_time"`
+	FailedBuilds []string `json:"failed_builds"`
 }
 
 // HealthCheck represents a health check result
@@ -245,7 +245,7 @@ func (dem *DevEnvironmentManager) setupEnvironment(ctx context.Context) error {
 // checkDependencies checks for required development dependencies
 func (dem *DevEnvironmentManager) checkDependencies(ctx context.Context) error {
 	dependencies := []string{"go", "node", "docker", "make", "git"}
-	
+
 	for _, dep := range dependencies {
 		if _, err := exec.LookPath(dep); err != nil {
 			return fmt.Errorf("required dependency not found: %s", dep)
@@ -389,7 +389,7 @@ func (dem *DevEnvironmentManager) checkDependencyStatus() *DependencyStatus {
 func (dem *DevEnvironmentManager) checkServiceStatus(ctx context.Context) *ServiceStatus {
 	checkService := func(name, url string) *ServiceInfo {
 		info := &ServiceInfo{URL: url}
-		
+
 		// Try to connect to the service
 		client := &http.Client{Timeout: 2 * time.Second}
 		if resp, err := client.Get(url + "/api/health"); err == nil {
@@ -437,7 +437,7 @@ func (dem *DevEnvironmentManager) checkPluginStatus() *PluginStatus {
 		for _, entry := range entries {
 			if entry.IsDir() && strings.Contains(entry.Name(), "_") {
 				status.Available++
-				
+
 				// Check if binary exists
 				binaryPath := filepath.Join(pluginsDir, entry.Name(), entry.Name())
 				if _, err := os.Stat(binaryPath); err == nil {
@@ -528,7 +528,7 @@ func (dem *DevEnvironmentManager) generateRecommendations(status *DevEnvironment
 
 	// Plugin recommendations
 	if status.Plugins.Available > status.Plugins.Built {
-		recommendations = append(recommendations, fmt.Sprintf("Some plugins are not built (%d/%d). Run 'make build-plugins'.", 
+		recommendations = append(recommendations, fmt.Sprintf("Some plugins are not built (%d/%d). Run 'make build-plugins'.",
 			status.Plugins.Built, status.Plugins.Available))
 	}
 
@@ -547,7 +547,7 @@ func (dem *DevEnvironmentManager) generateRecommendations(status *DevEnvironment
 // QuickStart starts the development environment
 func (dem *DevEnvironmentManager) QuickStart(ctx context.Context) error {
 	logger.Info("🚀 Quick starting development environment...")
-	
+
 	steps := []struct {
 		name string
 		cmd  []string
@@ -572,7 +572,7 @@ func (dem *DevEnvironmentManager) QuickStart(ctx context.Context) error {
 // CleanBuild performs a clean build of everything
 func (dem *DevEnvironmentManager) CleanBuild(ctx context.Context) error {
 	logger.Info("🧹 Performing clean build...")
-	
+
 	steps := [][]string{
 		{"make", "clean"},
 		{"go", "mod", "tidy"},

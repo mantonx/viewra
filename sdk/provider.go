@@ -15,10 +15,15 @@ type TranscodingProvider interface {
 	GetHardwareAccelerators() []HardwareAccelerator
 	GetQualityPresets() []QualityPreset
 
-	// File-based transcoding
+	// File-based transcoding (now outputs intermediate MP4 files)
 	StartTranscode(ctx context.Context, req TranscodeRequest) (*TranscodeHandle, error)
 	GetProgress(handle *TranscodeHandle) (*TranscodingProgress, error)
 	StopTranscode(handle *TranscodeHandle) error
+
+	// Pipeline integration - NEW methods for two-stage workflow
+	SupportsIntermediateOutput() bool // Returns true if plugin outputs intermediate files
+	GetIntermediateOutputPath(handle *TranscodeHandle) (string, error) // Get path to intermediate MP4
+	GetABRVariants(req TranscodeRequest) ([]ABRVariant, error) // Get ABR encoding variants
 
 	// Streaming transcoding
 	StartStream(ctx context.Context, req TranscodeRequest) (*StreamHandle, error)
@@ -44,11 +49,12 @@ type ProviderInfo struct {
 
 // ContainerFormat represents a supported output format
 type ContainerFormat struct {
-	Format      string   `json:"format"`     // "mp4", "webm", "dash", "hls"
-	MimeType    string   `json:"mime_type"`  // "video/mp4", "application/dash+xml"
-	Extensions  []string `json:"extensions"` // [".mp4"], [".mpd", ".m4s"]
-	Description string   `json:"description"`
-	Adaptive    bool     `json:"adaptive"` // true for DASH/HLS
+	Format       string   `json:"format"`       // "mp4", "webm", "dash", "hls"
+	MimeType     string   `json:"mime_type"`    // "video/mp4", "application/dash+xml"
+	Extensions   []string `json:"extensions"`   // [".mp4"], [".mpd", ".m4s"]
+	Description  string   `json:"description"`
+	Adaptive     bool     `json:"adaptive"`     // true for DASH/HLS
+	Intermediate bool     `json:"intermediate"` // true for intermediate formats used in pipeline
 }
 
 // HardwareAccelerator represents a hardware acceleration option

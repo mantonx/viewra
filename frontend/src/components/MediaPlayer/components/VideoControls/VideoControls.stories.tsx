@@ -147,6 +147,13 @@ export const SeekingAhead: Story = {
     currentTime: 400,
     bufferedRanges: createBufferedRanges(600, 40),
   },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Shows the seek-ahead indicator when seeking beyond buffered content. This triggers a new transcoding session starting from the seek position.',
+      },
+    },
+  },
 };
 
 export const MinimalControls: Story = {
@@ -209,6 +216,13 @@ export const MultipleBufferedRanges: Story = {
       { start: 400, end: 450 },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Shows multiple buffered ranges from adaptive streaming. Common with DASH/HLS when segments are loaded out of order or after seeking.',
+      },
+    },
+  },
 };
 
 export const NoBuffer: Story = {
@@ -216,5 +230,49 @@ export const NoBuffer: Story = {
     ...Default.args,
     bufferedRanges: [],
     currentTime: 60,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'No buffered content yet. The entire progress bar shows as seek-ahead available area.',
+      },
+    },
+  },
+};
+
+export const ContentAddressablePlayback: Story = {
+  args: {
+    ...Default.args,
+    currentTime: 180,
+    duration: 600,
+    bufferedRanges: createBufferedRanges(600, 70),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: `Shows controls during content-addressable storage playback. The content is served from 
+        CDN-friendly URLs like /api/v1/content/{hash}/manifest.mpd for efficient delivery and deduplication.`,
+      },
+    },
+  },
+};
+
+export const SeekAheadWithBuffering: Story = {
+  args: {
+    ...Default.args,
+    isSeekingAhead: true,
+    currentTime: 480,
+    duration: 600,
+    bufferedRanges: [
+      { start: 0, end: 300 }, // First 5 minutes buffered
+      { start: 480, end: 485 }, // Small buffer at seek position
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Seek-ahead in progress with partial buffering at the new position. Shows how the player handles seeking to unbuffered areas.',
+      },
+    },
   },
 };

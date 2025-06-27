@@ -132,7 +132,7 @@ func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error 
 
 	if len(processedBy) > 0 {
 		log.Printf("INFO: File processed by %d handlers: %s -> %v", len(processedBy), mediaFile.Path, processedBy)
-		
+
 		// Publish event
 		if mm.eventBus != nil {
 			event := events.NewSystemEvent(
@@ -142,7 +142,7 @@ func (mm *MetadataManager) ExtractMetadata(mediaFile *database.MediaFile) error 
 			)
 			mm.eventBus.PublishAsync(event)
 		}
-		
+
 		return nil // Success if at least one handler succeeded
 	}
 

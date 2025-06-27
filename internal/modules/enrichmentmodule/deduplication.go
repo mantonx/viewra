@@ -91,13 +91,13 @@ func (dm *DuplicationManager) DetectDuplicates() ([]DuplicateGroup, error) {
 // groupByTMDBID groups shows by their TMDB ID
 func (dm *DuplicationManager) groupByTMDBID(shows []database.TVShow) map[string][]database.TVShow {
 	groups := make(map[string][]database.TVShow)
-	
+
 	for _, show := range shows {
 		if show.TmdbID != "" {
 			groups[show.TmdbID] = append(groups[show.TmdbID], show)
 		}
 	}
-	
+
 	return groups
 }
 
@@ -195,7 +195,7 @@ func (dm *DuplicationManager) generateMergeRecommendations(shows []database.TVSh
 	hasDescription := 0
 	hasAirDate := 0
 	hasTMDBID := 0
-	
+
 	for _, show := range shows {
 		if show.Description != "" {
 			hasDescription++
@@ -238,14 +238,14 @@ func (dm *DuplicationManager) GetMergeCandidates(threshold float64) ([]MergeCand
 		if group.SimilarityScore >= threshold && len(group.Shows) == 2 {
 			// Determine which show should be primary
 			primary, duplicate := dm.selectPrimaryShow(group.Shows[0], group.Shows[1])
-			
+
 			candidate := MergeCandidate{
 				PrimaryShow:   primary,
 				DuplicateShow: duplicate,
 				Confidence:    group.SimilarityScore,
 				Reasons:       group.Recommendations,
 			}
-			
+
 			candidates = append(candidates, candidate)
 		}
 	}
@@ -316,11 +316,11 @@ func (dm *DuplicationManager) calculateShowQualityScore(show database.TVShow) fl
 // MergeShows merges a duplicate show into a primary show
 func (dm *DuplicationManager) MergeShows(primaryID, duplicateID string, dryRun bool) (*MergeResult, error) {
 	var primary, duplicate database.TVShow
-	
+
 	if err := dm.db.Where("id = ?", primaryID).First(&primary).Error; err != nil {
 		return nil, fmt.Errorf("primary show not found: %w", err)
 	}
-	
+
 	if err := dm.db.Where("id = ?", duplicateID).First(&duplicate).Error; err != nil {
 		return nil, fmt.Errorf("duplicate show not found: %w", err)
 	}
@@ -369,7 +369,7 @@ func (dm *DuplicationManager) MergeShows(primaryID, duplicateID string, dryRun b
 	if !dryRun && len(result.Changes) > 0 {
 		// Start transaction
 		tx := dm.db.Begin()
-		
+
 		// Update primary show
 		if err := tx.Save(&updated).Error; err != nil {
 			tx.Rollback()
@@ -441,7 +441,7 @@ func (dm *DuplicationManager) AutoMergeSafeCandidates(confidenceThreshold float6
 				}
 				results = append(results, *result)
 			} else {
-				log.Printf("INFO: Skipping auto-merge for shows '%s' and '%s' - not safe", 
+				log.Printf("INFO: Skipping auto-merge for shows '%s' and '%s' - not safe",
 					candidate.PrimaryShow.Title, candidate.DuplicateShow.Title)
 			}
 		}
@@ -474,4 +474,4 @@ func (dm *DuplicationManager) isSafeToMerge(candidate MergeCandidate) bool {
 	}
 
 	return true
-} 
+}

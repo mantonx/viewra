@@ -212,7 +212,7 @@ func (p *PlaybackPlannerImpl) determineTranscodeParams(mediaPath string, media *
 		Resolution:    resolution,
 		Seek:          0, // No seek by default
 		// Duration field removed - not in TranscodeRequest
-		EnableABR:     enableABR,
+		EnableABR: enableABR,
 	}, reason
 }
 
@@ -305,13 +305,13 @@ func (p *PlaybackPlannerImpl) calculateTargetBitrate(resolution string, maxBitra
 func (p *PlaybackPlannerImpl) selectTargetContainer(sourceContainer string, profile *DeviceProfile) string {
 	// Use device-specific container selection for optimal playback
 	userAgent := strings.ToLower(profile.UserAgent)
-	
+
 	// iOS devices and Safari prefer HLS (native support)
-	if strings.Contains(userAgent, "iphone") || strings.Contains(userAgent, "ipad") || 
-	   (strings.Contains(userAgent, "safari") && !strings.Contains(userAgent, "chrome")) {
+	if strings.Contains(userAgent, "iphone") || strings.Contains(userAgent, "ipad") ||
+		(strings.Contains(userAgent, "safari") && !strings.Contains(userAgent, "chrome")) {
 		return "hls"
 	}
-	
+
 	// All other devices (Android, Desktop) use DASH for better performance
 	// DASH provides:
 	// - Better seeking performance with static MPD
@@ -327,31 +327,31 @@ func (p *PlaybackPlannerImpl) shouldEnableABR(container string, profile *DeviceP
 	if container != "dash" && container != "hls" {
 		return false
 	}
-	
+
 	// Check if device supports ABR based on performance level
 	userAgent := strings.ToLower(profile.UserAgent)
-	
+
 	// Always enable ABR for desktop and high-performance devices
-	if strings.Contains(userAgent, "chrome") || strings.Contains(userAgent, "firefox") || 
-	   strings.Contains(userAgent, "edge") || strings.Contains(userAgent, "safari") {
+	if strings.Contains(userAgent, "chrome") || strings.Contains(userAgent, "firefox") ||
+		strings.Contains(userAgent, "edge") || strings.Contains(userAgent, "safari") {
 		return true
 	}
-	
+
 	// Enable ABR for mobile devices with sufficient bandwidth
 	if profile.MaxBitrate >= 2000 { // 2 Mbps minimum for effective ABR
 		return true
 	}
-	
+
 	// Enable ABR for long content (>10 minutes) where network conditions may vary
 	if media.Duration > 600 { // 10 minutes
 		return true
 	}
-	
+
 	// Enable ABR for high bitrate content that benefits from adaptation
 	if media.Bitrate > 5000000 { // 5 Mbps
 		return true
 	}
-	
+
 	// Default to single bitrate for simple scenarios
 	return false
 }
@@ -359,25 +359,23 @@ func (p *PlaybackPlannerImpl) shouldEnableABR(container string, profile *DeviceP
 // determineSpeedPriority selects encoding speed based on device capabilities
 func (p *PlaybackPlannerImpl) determineSpeedPriority(profile *DeviceProfile) plugins.SpeedPriority {
 	userAgent := strings.ToLower(profile.UserAgent)
-	
+
 	// Mobile devices prefer faster encoding for battery conservation
 	if strings.Contains(userAgent, "mobile") || strings.Contains(userAgent, "android") ||
-	   strings.Contains(userAgent, "iphone") || strings.Contains(userAgent, "ipad") {
+		strings.Contains(userAgent, "iphone") || strings.Contains(userAgent, "ipad") {
 		return plugins.SpeedPriorityFastest
 	}
-	
+
 	// Desktop browsers prefer balanced encoding
 	if p.isWebBrowser(profile.UserAgent) {
 		return plugins.SpeedPriorityBalanced
 	}
-	
+
 	// High bitrate connections can afford quality-focused encoding
 	if profile.MaxBitrate >= 10000 { // 10 Mbps+
 		return plugins.SpeedPriorityQuality
 	}
-	
+
 	// Default to balanced
 	return plugins.SpeedPriorityBalanced
 }
-
-

@@ -261,7 +261,7 @@ func (p *MovieStructureCorePlugin) parseMovieFromPath(filePath string) (*MovieIn
 
 		// Clean up title
 		movieInfo.Title = p.cleanMovieTitle(movieInfo.Title)
-		
+
 		fmt.Printf("DEBUG: Final movie info: title='%s', year=%d, quality='%s', source='%s'\n",
 			movieInfo.Title, movieInfo.Year, movieInfo.Quality, movieInfo.Source)
 	} else {

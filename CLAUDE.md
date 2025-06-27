@@ -247,6 +247,36 @@ const data = await apiCall<ResponseType>('/api/endpoint');
 
 ## Development Workflow Preferences
 
+### Code Simplicity Guidelines
+
+**AVOID UNNECESSARY COMPLEXITY:**
+- **NO** unnecessary wrappers, adapters, or abstraction layers
+- **NO** circular dependencies between modules
+- **PREFER** direct, simple solutions over complex patterns
+- **QUESTION** whether added complexity provides real value
+- **KEEP** modules focused on their core responsibilities
+
+**Module Separation Principles:**
+- Each module should handle its own concerns
+- Avoid reaching into other modules' internal types
+- Use service interfaces for cross-module communication
+- Let modules own their routes and APIs
+- Don't duplicate functionality across modules
+
+**When Adding Code:**
+1. Ask: "Is this the simplest solution?"
+2. Ask: "Am I creating unnecessary dependencies?"
+3. Ask: "Should this logic live in a different module?"
+4. Ask: "Am I adding technical debt?"
+
+**Examples:**
+- ✅ Playback module serves session files
+- ✅ Transcoding module handles content-addressable storage
+- ❌ Playback module wrapping transcoding's content store
+- ❌ Creating adapters between internal module types
+
+## Development Workflow Preferences
+
 **CRITICAL DEVELOPMENT RULES:**
 
 ### Plugin Development

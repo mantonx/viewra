@@ -5,53 +5,47 @@ import (
 )
 
 // RegisterRoutes registers all playback module routes
-func RegisterRoutes(r *gin.Engine, handler *APIHandler) {
+func RegisterRoutes(r *gin.Engine, handler *APIHandler, sessionHandler *SessionHandler) {
 	api := r.Group("/api/playback")
 	{
 		// Decision endpoints
 		api.POST("/decide", handler.HandlePlaybackDecision)
 
-		// Session management
+		// Transcoding session management
 		api.POST("/start", handler.HandleStartTranscode)
-		api.GET("/session/:sessionId", handler.HandleGetSession)
 		api.DELETE("/session/:sessionId", handler.HandleStopTranscode)
-		api.GET("/sessions", handler.HandleListSessions)
-		api.GET("/session/:sessionId/logs", handler.HandleGetFFmpegLogs)
-		
-		// Enhanced session management
-		api.DELETE("/sessions/all", handler.HandleStopAllSessions)
-		api.POST("/sessions/cleanup", handler.HandleCleanupStaleSessions)
-		api.GET("/sessions/orphaned", handler.HandleListOrphanedSessions)
-
-		// Seek-ahead functionality
+		api.GET("/session/:sessionId", handler.HandleGetSession)
 		api.POST("/seek-ahead", handler.HandleSeekAhead)
+		api.DELETE("/sessions/all", handler.HandleStopAllSessions)
+		api.GET("/sessions", handler.HandleListSessions)
+
+		// Media validation
+		api.POST("/validate", handler.HandleValidateMedia)
 
 		// Statistics and health
 		api.GET("/stats", handler.HandleGetStats)
 		api.GET("/health", handler.HandleHealthCheck)
 
-		// Streaming endpoints
-		api.GET("/stream/:sessionId", handler.HandleStreamTranscode)
-		api.GET("/stream/:sessionId/manifest.mpd", handler.HandleDashManifest)
-		api.HEAD("/stream/:sessionId/manifest.mpd", handler.HandleDashManifest)
-		api.GET("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
-		api.HEAD("/stream/:sessionId/playlist.m3u8", handler.HandleHlsPlaylist)
-		api.GET("/stream/:sessionId/segment/:segmentName", handler.HandleSegment)
-		api.HEAD("/stream/:sessionId/segment/:segmentName", handler.HandleSegment)
-		api.GET("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
-		api.HEAD("/stream/:sessionId/:segmentFile", handler.HandleDashSegmentSpecific)
-
-		// Cleanup endpoints
-		api.POST("/cleanup/run", handler.HandleManualCleanup)
-		api.GET("/cleanup/stats", handler.HandleCleanupStats)
+		// Error recovery stats
+		api.GET("/error-recovery/stats", handler.HandleErrorRecoveryStats)
 
 		// Plugin management
 		api.POST("/plugins/refresh", handler.HandleRefreshPlugins)
-		
+
 		// Diagnostics (development)
 		RegisterDiagnosticRoutes(api, handler)
-		
+
 		// FFmpeg monitoring
 		RegisterMonitoringRoutes(api, handler)
 	}
+
+	// Session-based content routes (temporary URLs before content hash is available)
+	v1 := r.Group("/api/v1")
+	{
+		// Session-based routes serve files directly from session directories
+		v1.GET("/sessions/:sessionId/*file", sessionHandler.ServeSessionContent)
+	}
+
+	// Content-addressable storage routes are handled by the transcoding module
+	// The playback module only handles session-based serving
 }

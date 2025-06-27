@@ -120,3 +120,13 @@ func (m *Module) getEventHealth(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"healthy": true})
 }
+
+// ProvidedServices returns the list of services this module provides
+func (m *Module) ProvidedServices() []string {
+	return []string{"events", "event-bus"}
+}
+
+// Dependencies returns the list of module IDs this module depends on
+func (m *Module) Dependencies() []string {
+	return []string{"system.database"} // Events module depends on database for storage
+}

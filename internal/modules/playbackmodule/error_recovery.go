@@ -21,25 +21,25 @@ const (
 
 // CircuitBreaker implements circuit breaker pattern for provider failures
 type CircuitBreaker struct {
-	mu              sync.RWMutex
-	state           CircuitBreakerState
-	failures        int
+	mu               sync.RWMutex
+	state            CircuitBreakerState
+	failures         int
 	failureThreshold int
 	successThreshold int
-	timeout         time.Duration
-	lastFailureTime time.Time
-	nextRetryTime   time.Time
-	logger          hclog.Logger
+	timeout          time.Duration
+	lastFailureTime  time.Time
+	nextRetryTime    time.Time
+	logger           hclog.Logger
 }
 
 // NewCircuitBreaker creates a new circuit breaker
 func NewCircuitBreaker(failureThreshold, successThreshold int, timeout time.Duration, logger hclog.Logger) *CircuitBreaker {
 	return &CircuitBreaker{
-		state:           CircuitBreakerClosed,
+		state:            CircuitBreakerClosed,
 		failureThreshold: failureThreshold,
 		successThreshold: successThreshold,
-		timeout:         timeout,
-		logger:          logger,
+		timeout:          timeout,
+		logger:           logger,
 	}
 }
 
@@ -95,13 +95,13 @@ func (cb *CircuitBreaker) RecordFailure() {
 func (cb *CircuitBreaker) GetState() CircuitBreakerState {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
-	
+
 	// Check if we can transition from open to half-open
 	if cb.state == CircuitBreakerOpen && time.Now().After(cb.nextRetryTime) {
 		cb.mu.RUnlock()
 		cb.mu.Lock()
 		defer cb.mu.Unlock()
-		
+
 		// Double-check condition after acquiring write lock
 		if cb.state == CircuitBreakerOpen && time.Now().After(cb.nextRetryTime) {
 			cb.logger.Info("Circuit breaker transitioning to half-open state")
@@ -109,16 +109,16 @@ func (cb *CircuitBreaker) GetState() CircuitBreakerState {
 		}
 		return cb.state
 	}
-	
+
 	return cb.state
 }
 
 // ErrorRecoveryManager manages progressive fallback and circuit breaker patterns
 type ErrorRecoveryManager struct {
-	logger           hclog.Logger
-	circuitBreakers  map[string]*CircuitBreaker
-	mu               sync.RWMutex
-	
+	logger          hclog.Logger
+	circuitBreakers map[string]*CircuitBreaker
+	mu              sync.RWMutex
+
 	// Progressive fallback configuration
 	fallbackStrategies []FallbackStrategy
 	maxRetries         int
@@ -142,10 +142,10 @@ func NewErrorRecoveryManager(logger hclog.Logger) *ErrorRecoveryManager {
 		maxRetries:      3,
 		baseRetryDelay:  time.Second,
 	}
-	
+
 	// Initialize standard fallback strategies
 	erm.initializeFallbackStrategies()
-	
+
 	return erm
 }
 
@@ -158,7 +158,7 @@ func (erm *ErrorRecoveryManager) initializeFallbackStrategies() {
 			Condition: func(err error) bool {
 				return isCodecError(err)
 			},
-			Execute: erm.fallbackToSaferCodec,
+			Execute:     erm.fallbackToSaferCodec,
 			Description: "Fall back to H.264 codec for maximum compatibility",
 		},
 		{
@@ -167,7 +167,7 @@ func (erm *ErrorRecoveryManager) initializeFallbackStrategies() {
 			Condition: func(err error) bool {
 				return isPerformanceError(err)
 			},
-			Execute: erm.reduceQuality,
+			Execute:     erm.reduceQuality,
 			Description: "Reduce encoding quality to lower computational requirements",
 		},
 		{
@@ -176,7 +176,7 @@ func (erm *ErrorRecoveryManager) initializeFallbackStrategies() {
 			Condition: func(err error) bool {
 				return isResourceError(err)
 			},
-			Execute: erm.downscaleResolution,
+			Execute:     erm.downscaleResolution,
 			Description: "Reduce resolution to conserve resources",
 		},
 		{
@@ -185,7 +185,7 @@ func (erm *ErrorRecoveryManager) initializeFallbackStrategies() {
 			Condition: func(err error) bool {
 				return isContainerError(err)
 			},
-			Execute: erm.fallbackToMP4,
+			Execute:     erm.fallbackToMP4,
 			Description: "Switch to MP4 container for broad compatibility",
 		},
 		{
@@ -194,7 +194,7 @@ func (erm *ErrorRecoveryManager) initializeFallbackStrategies() {
 			Condition: func(err error) bool {
 				return isABRError(err)
 			},
-			Execute: erm.disableABR,
+			Execute:     erm.disableABR,
 			Description: "Disable adaptive bitrate streaming",
 		},
 	}
@@ -205,27 +205,27 @@ func (erm *ErrorRecoveryManager) GetCircuitBreaker(providerID string) *CircuitBr
 	erm.mu.RLock()
 	cb, exists := erm.circuitBreakers[providerID]
 	erm.mu.RUnlock()
-	
+
 	if exists {
 		return cb
 	}
-	
+
 	erm.mu.Lock()
 	defer erm.mu.Unlock()
-	
+
 	// Double-check after acquiring write lock
 	if cb, exists := erm.circuitBreakers[providerID]; exists {
 		return cb
 	}
-	
+
 	// Create new circuit breaker
 	cb = NewCircuitBreaker(
-		3,               // failure threshold
-		1,               // success threshold
-		30*time.Second,  // timeout
+		3,              // failure threshold
+		1,              // success threshold
+		30*time.Second, // timeout
 		erm.logger.Named("circuit-breaker").With("provider", providerID),
 	)
-	
+
 	erm.circuitBreakers[providerID] = cb
 	return cb
 }
@@ -238,38 +238,38 @@ func (erm *ErrorRecoveryManager) ExecuteWithFallback(
 ) error {
 	var lastErr error
 	currentRequest := *request // Copy the request
-	
+
 	// Try initial request
 	lastErr = executor(ctx, &currentRequest)
 	if lastErr == nil {
 		return nil
 	}
-	
+
 	erm.logger.Warn("Initial transcoding attempt failed, trying fallback strategies", "error", lastErr)
-	
+
 	// Try each fallback strategy
 	for _, strategy := range erm.fallbackStrategies {
 		if strategy.Condition(lastErr) {
 			erm.logger.Info("Applying fallback strategy", "strategy", strategy.Name, "description", strategy.Description)
-			
+
 			fallbackRequest, err := strategy.Execute(ctx, &currentRequest)
 			if err != nil {
 				erm.logger.Warn("Fallback strategy failed", "strategy", strategy.Name, "error", err)
 				continue
 			}
-			
+
 			// Try with fallback request
 			lastErr = executor(ctx, fallbackRequest)
 			if lastErr == nil {
 				erm.logger.Info("Fallback strategy succeeded", "strategy", strategy.Name)
 				return nil
 			}
-			
+
 			erm.logger.Warn("Fallback strategy attempt failed", "strategy", strategy.Name, "error", lastErr)
 			currentRequest = *fallbackRequest // Use the modified request for next fallback
 		}
 	}
-	
+
 	erm.logger.Error("All fallback strategies exhausted", "final_error", lastErr)
 	return fmt.Errorf("transcoding failed after all fallback attempts: %w", lastErr)
 }
@@ -281,30 +281,30 @@ func (erm *ErrorRecoveryManager) ExecuteWithRetry(
 	providerID string,
 ) error {
 	cb := erm.GetCircuitBreaker(providerID)
-	
+
 	for attempt := 0; attempt <= erm.maxRetries; attempt++ {
 		// Check circuit breaker
 		if !cb.Allow() {
 			return fmt.Errorf("circuit breaker is open for provider %s", providerID)
 		}
-		
+
 		err := operation()
 		if err == nil {
 			cb.RecordSuccess()
 			return nil
 		}
-		
+
 		cb.RecordFailure()
-		
+
 		// Don't retry on last attempt
 		if attempt == erm.maxRetries {
 			return fmt.Errorf("operation failed after %d attempts: %w", erm.maxRetries+1, err)
 		}
-		
+
 		// Calculate delay with exponential backoff
 		delay := erm.baseRetryDelay * time.Duration(1<<uint(attempt))
 		erm.logger.Warn("Operation failed, retrying", "attempt", attempt+1, "delay", delay, "error", err)
-		
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -312,7 +312,7 @@ func (erm *ErrorRecoveryManager) ExecuteWithRetry(
 			// Continue to next attempt
 		}
 	}
-	
+
 	return fmt.Errorf("operation failed after %d attempts", erm.maxRetries+1)
 }
 
@@ -439,24 +439,24 @@ func contains(errStr string, keywords ...string) bool {
 func (erm *ErrorRecoveryManager) GetStats() map[string]interface{} {
 	erm.mu.RLock()
 	defer erm.mu.RUnlock()
-	
+
 	stats := make(map[string]interface{})
-	
+
 	circuitBreakerStats := make(map[string]interface{})
 	for providerID, cb := range erm.circuitBreakers {
 		cb.mu.RLock()
 		circuitBreakerStats[providerID] = map[string]interface{}{
-			"state":            cb.state,
-			"failures":         cb.failures,
-			"last_failure":     cb.lastFailureTime,
-			"next_retry":       cb.nextRetryTime,
+			"state":        cb.state,
+			"failures":     cb.failures,
+			"last_failure": cb.lastFailureTime,
+			"next_retry":   cb.nextRetryTime,
 		}
 		cb.mu.RUnlock()
 	}
-	
+
 	stats["circuit_breakers"] = circuitBreakerStats
 	stats["fallback_strategies"] = len(erm.fallbackStrategies)
 	stats["max_retries"] = erm.maxRetries
-	
+
 	return stats
 }

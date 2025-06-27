@@ -19,7 +19,7 @@ func RequestLogger() gin.HandlerFunc {
 		}
 
 		start := time.Now()
-		
+
 		// Read and log request body
 		var bodyBytes []byte
 		if c.Request.Body != nil {
@@ -57,7 +57,7 @@ func RequestLogger() gin.HandlerFunc {
 func ErrorLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
-		
+
 		// Log any errors
 		if len(c.Errors) > 0 {
 			for _, err := range c.Errors {

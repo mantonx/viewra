@@ -33,10 +33,12 @@ type TranscodeSession struct {
 	EndTime       *time.Time      `gorm:"index"`
 	LastAccessed  time.Time       `gorm:"not null;index"`
 	DirectoryPath string          `gorm:"type:varchar(512)"`
+	ContentHash   string          `gorm:"type:varchar(64);index"` // Content-addressable storage hash
 
 	// Indexes for efficient queries
 	// Index on (provider, status) for provider-specific queries
 	// Index on (status, last_accessed) for cleanup queries
+	// Index on content_hash for content deduplication queries
 }
 
 // TableName returns the table name for GORM

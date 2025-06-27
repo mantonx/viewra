@@ -8,7 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// ScanJobStatus represents the possible states of a scan job
+// ScanJobStatus represents the possible states of a scan job.
+// These states track the lifecycle of a media library scanning operation.
 type ScanJobStatus string
 
 const (
@@ -19,23 +20,36 @@ const (
 	StatusFailed    ScanJobStatus = "failed"
 )
 
-// ScanJobCleanupDays defines how many days old completed jobs should be kept
+// ScanJobCleanupDays defines how many days old completed jobs should be kept.
+// After this period, old scan job records are automatically removed to prevent
+// database bloat while maintaining a reasonable audit trail.
 const ScanJobCleanupDays = 30
 
-// LibraryStats represents statistics for a scanned library
+// LibraryStats represents statistics for a scanned library.
+// These statistics provide insights into the composition and size of
+// a media library after scanning.
 type LibraryStats struct {
 	TotalFiles     int64           `json:"total_files"`
 	TotalSize      int64           `json:"total_size"`
 	ExtensionStats []ExtensionStat `json:"extension_stats"`
 }
 
-// ExtensionStat represents file count by extension
+// ExtensionStat represents file count by extension.
+// Used to show the distribution of file types in a library,
+// helping identify the most common media formats.
 type ExtensionStat struct {
 	Extension string `json:"extension"`
 	Count     int64  `json:"count"`
 }
 
-// ValidateScanJob checks if a scan job can be started for the given library
+// ValidateScanJob checks if a scan job can be started for the given library.
+// This function performs several validations:
+//   - Verifies the library exists
+//   - Cleans up old failed/paused jobs
+//   - Prevents duplicate scans on the same library
+//   - Prevents duplicate scans on the same path
+//
+// Returns an error if scanning cannot proceed.
 func ValidateScanJob(db *gorm.DB, libraryID uint32) error {
 	// Check if library exists
 	var library database.MediaLibrary
@@ -98,7 +112,9 @@ func ValidateScanJob(db *gorm.DB, libraryID uint32) error {
 	return nil
 }
 
-// CreateScanJob creates a new scan job in the database
+// CreateScanJob creates a new scan job in the database.
+// The job is created in "pending" status and will be picked up
+// by the scanner when it becomes available.
 func CreateScanJob(db *gorm.DB, libraryID uint32) (*database.ScanJob, error) {
 	scanJob := database.ScanJob{
 		LibraryID: libraryID,
@@ -112,7 +128,10 @@ func CreateScanJob(db *gorm.DB, libraryID uint32) (*database.ScanJob, error) {
 	return &scanJob, nil
 }
 
-// UpdateJobStatus updates the status of a scan job
+// UpdateJobStatus updates the status of a scan job.
+// This function handles all status transitions and updates relevant
+// timestamps (started_at, completed_at) based on the new status.
+// For failed jobs, an error message can be provided.
 func UpdateJobStatus(db *gorm.DB, jobID uint32, status ScanJobStatus, errorMsg string) error {
 	updates := map[string]interface{}{
 		"status": string(status),
@@ -136,7 +155,13 @@ func UpdateJobStatus(db *gorm.DB, jobID uint32, status ScanJobStatus, errorMsg s
 	return db.Model(&database.ScanJob{}).Where("id = ?", jobID).Updates(updates).Error
 }
 
-// GetLibraryStatistics calculates and returns statistics for a library
+// GetLibraryStatistics calculates and returns statistics for a library.
+// Provides aggregate data including:
+//   - Total number of media files
+//   - Total storage size used
+//   - Breakdown of files by extension (top 10)
+//
+// This information is useful for library management and optimization.
 func GetLibraryStatistics(db *gorm.DB, libraryID uint32) (*LibraryStats, error) {
 	var stats struct {
 		TotalFiles int64 `json:"total_files"`
@@ -173,7 +198,10 @@ func GetLibraryStatistics(db *gorm.DB, libraryID uint32) (*LibraryStats, error) 
 	}, nil
 }
 
-// CleanupOldScanJobs removes old completed/failed scan jobs
+// CleanupOldScanJobs removes old completed/failed scan jobs.
+// Jobs older than ScanJobCleanupDays are deleted to prevent database bloat.
+// This should be run periodically as part of maintenance tasks.
+// Returns the number of jobs cleaned up.
 func CleanupOldScanJobs(db *gorm.DB) (int64, error) {
 	cutoff := time.Now().AddDate(0, 0, -ScanJobCleanupDays)
 
@@ -191,7 +219,11 @@ func CleanupOldScanJobs(db *gorm.DB) (int64, error) {
 }
 
 // CleanupSkippedFiles removes files from the database that should be skipped
-// based on the SkippedExtensions list (e.g., trickplay files, subtitles, etc.)
+// based on the SkippedExtensions list (e.g., trickplay files, subtitles, etc.).
+//
+// This function is useful for cleaning up libraries that were scanned before
+// skip rules were implemented or updated. It processes files in batches
+// for better performance with large libraries.
 func CleanupSkippedFiles(db *gorm.DB, libraryID uint32) error {
 	// Get all media files for this library
 	var mediaFiles []database.MediaFile
@@ -231,7 +263,10 @@ func CleanupSkippedFiles(db *gorm.DB, libraryID uint32) error {
 	return nil
 }
 
-// CleanupDuplicateScanJobs removes duplicate scan jobs for a library, keeping only the most recent one
+// CleanupDuplicateScanJobs removes duplicate scan jobs for a library, keeping only the most recent one.
+// This maintenance function helps clean up situations where multiple scan jobs
+// were created for the same library due to bugs or race conditions.
+// The most recent job is preserved while older duplicates are removed.
 func CleanupDuplicateScanJobs(db *gorm.DB, libraryID uint32) error {
 	// Get all scan jobs for this library
 	var scanJobs []database.ScanJob

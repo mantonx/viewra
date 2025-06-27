@@ -43,7 +43,7 @@ func (e *ViewraError) ToGinResponse(c *gin.Context) {
 		response["details"] = e.Context
 	}
 
-	logger.Error("HTTP error response", 
+	logger.Error("HTTP error response",
 		"status", statusCode,
 		"code", e.Code,
 		"message", e.Message,
@@ -130,12 +130,12 @@ func ParseAndValidateUUID(c *gin.Context, paramName string) (string, bool) {
 		HandleValidationError(c, "Missing "+paramName, paramName)
 		return "", false
 	}
-	
+
 	// Basic UUID validation (you can make this more strict if needed)
 	if len(id) < 32 {
 		HandleValidationError(c, "Invalid "+paramName+" format", paramName)
 		return "", false
 	}
-	
+
 	return id, true
 }

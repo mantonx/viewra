@@ -1,3 +1,6 @@
+// Package utils provides file system utilities and media file handling functions.
+// This package contains optimized file operations, hashing utilities, and media type detection
+// designed for high-performance media scanning and processing.
 package utils
 
 import (
@@ -6,12 +9,16 @@ import (
 	"strings"
 )
 
-// PathResolver handles resolving file paths across different environments
+// PathResolver handles resolving file paths across different environments.
+// It provides intelligent path resolution that works seamlessly between Docker containers
+// and host systems, making development and testing easier across different environments.
 type PathResolver struct {
 	workspaceRoot string
 }
 
-// NewPathResolver creates a new path resolver
+// NewPathResolver creates a new path resolver instance.
+// The resolver uses the current working directory as the workspace root
+// for resolving relative paths.
 func NewPathResolver() *PathResolver {
 	pwd, _ := os.Getwd()
 	return &PathResolver{
@@ -19,7 +26,10 @@ func NewPathResolver() *PathResolver {
 	}
 }
 
-// ResolvePath attempts to find a valid file path by trying multiple variants
+// ResolvePath attempts to find a valid file path by trying multiple variants.
+// This is useful when paths may differ between Docker containers (/app/) and
+// local development environments. It tries the original path first, then
+// attempts various transformations to find a valid file.
 func (pr *PathResolver) ResolvePath(originalPath string) (string, error) {
 	pathVariants := pr.generatePathVariants(originalPath)
 
@@ -32,7 +42,9 @@ func (pr *PathResolver) ResolvePath(originalPath string) (string, error) {
 	return "", os.ErrNotExist
 }
 
-// ResolveDirectory attempts to find a valid directory path by trying multiple variants
+// ResolveDirectory attempts to find a valid directory path by trying multiple variants.
+// Similar to ResolvePath but specifically validates that the resolved path is a directory.
+// Returns os.ErrNotExist if no valid directory is found.
 func (pr *PathResolver) ResolveDirectory(originalPath string) (string, error) {
 	pathVariants := pr.generatePathVariants(originalPath)
 
@@ -45,7 +57,14 @@ func (pr *PathResolver) ResolveDirectory(originalPath string) (string, error) {
 	return "", os.ErrNotExist
 }
 
-// generatePathVariants creates a list of possible path variants
+// generatePathVariants creates a list of possible path variants to try.
+// The function handles:
+//   - Docker to local path mappings (/app/ prefix)
+//   - Current working directory resolution
+//   - Relative path handling (./)
+//   - Special test data path resolution
+//
+// Path variants are ordered from most specific to least specific.
 func (pr *PathResolver) generatePathVariants(originalPath string) []string {
 	variants := []string{originalPath}
 

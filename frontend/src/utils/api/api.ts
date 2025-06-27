@@ -1,10 +1,21 @@
-// API utility functions
+/**
+ * API utility functions for Viewra frontend.
+ * 
+ * This module provides utility functions for building API URLs, particularly for
+ * media assets like artwork and streaming endpoints. It handles URL construction
+ * with proper query parameters and integrates with the backend's asset system.
+ */
 
 /**
- * Builds an image URL with quality parameter for optimal frontend serving
+ * Builds an image URL with quality parameter for optimal frontend serving.
+ * 
+ * This function adds a quality parameter to image URLs to enable server-side
+ * image optimization. The backend can use this parameter to resize and compress
+ * images appropriately for different use cases (thumbnails vs full images).
+ * 
  * @param baseUrl - The base image URL
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
- * @returns URL with quality parameter
+ * @returns URL with quality parameter appended
  */
 export const buildImageUrl = (baseUrl: string, quality: number = 90): string => {
   if (!baseUrl) return baseUrl;
@@ -15,9 +26,13 @@ export const buildImageUrl = (baseUrl: string, quality: number = 90): string => 
 };
 
 /**
- * Builds an artwork URL for a media file using the new asset system
+ * Builds an artwork URL for a media file using the new asset system.
+ * 
  * This uses the backend's album-artwork endpoint which properly resolves the real Album.ID
- * @param mediaFileId - The media file ID (UUID string)
+ * from the media file's metadata. The endpoint handles the lookup internally and returns
+ * the appropriate album artwork or falls back to a placeholder if none exists.
+ * 
+ * @param mediaFileId - The media file ID (UUID string or legacy numeric ID)
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
  * @returns Optimized artwork URL for the new asset system
  */
@@ -34,7 +49,12 @@ export const buildArtworkUrl = (mediaFileId: number | string, quality: number = 
 };
 
 /**
- * Builds an artwork URL using the new entity-based asset system
+ * Builds an artwork URL using the new entity-based asset system.
+ * 
+ * This function directly accesses album artwork using the album's UUID,
+ * bypassing the need to look up through a media file. Use this when you
+ * already have the album UUID available.
+ * 
  * @param albumUUID - The album UUID (real Album.ID from database)
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
  * @returns Optimized artwork URL for the new asset system
@@ -54,11 +74,17 @@ export const buildAssetUrl = (assetId: string, quality: number = 90): string => 
 };
 
 /**
- * Gets the preferred asset for an entity
- * @param entityType - The entity type (e.g., 'album')
+ * Gets the preferred asset for an entity.
+ * 
+ * Retrieves metadata about the preferred asset of a specific type for an entity.
+ * The backend determines which asset is "preferred" based on quality, source,
+ * and user preferences.
+ * 
+ * @param entityType - The entity type (e.g., 'album', 'artist', 'movie')
  * @param entityId - The entity UUID
- * @param assetType - The asset type (e.g., 'cover')
- * @returns Promise with asset data
+ * @param assetType - The asset type (e.g., 'cover', 'backdrop', 'logo')
+ * @returns Promise resolving to asset metadata
+ * @throws Error if the request fails
  */
 export const getPreferredAsset = async (
   entityType: string,
@@ -75,11 +101,17 @@ export const getPreferredAsset = async (
 };
 
 /**
- * Gets all assets for an entity
- * @param entityType - The entity type (e.g., 'album')
+ * Gets all assets for an entity.
+ * 
+ * Retrieves a list of all assets associated with an entity, optionally filtered
+ * by type, quality, or other parameters. Useful for displaying multiple artwork
+ * options or building asset galleries.
+ * 
+ * @param entityType - The entity type (e.g., 'album', 'artist', 'movie')
  * @param entityId - The entity UUID
- * @param filter - Optional filter parameters
- * @returns Promise with assets data
+ * @param filter - Optional filter parameters (type, quality, source, etc.)
+ * @returns Promise resolving to array of asset metadata
+ * @throws Error if the request fails
  */
 export const getEntityAssets = async (
   entityType: string,
@@ -104,10 +136,15 @@ export const getEntityAssets = async (
 };
 
 /**
- * Gets the real album ID for a media file from the backend
- * This replaces the old placeholder UUID generation with proper database lookup
- * @param mediaFileId - The media file ID (UUID string)
- * @returns Promise with album information including real Album.ID
+ * Gets the real album ID for a media file from the backend.
+ * 
+ * This replaces the old placeholder UUID generation with proper database lookup.
+ * The backend examines the media file's metadata to determine its associated album
+ * and returns the actual Album entity UUID from the database.
+ * 
+ * @param mediaFileId - The media file ID (UUID string or legacy numeric ID)
+ * @returns Promise with album information including real Album.ID and asset URL
+ * @throws Error if the album lookup fails
  */
 export const getMediaFileAlbumId = async (
   mediaFileId: number | string
@@ -121,11 +158,15 @@ export const getMediaFileAlbumId = async (
 };
 
 /**
- * Builds an artwork URL for a media file by fetching the real Album.ID from the backend
- * This is an async alternative to buildArtworkUrl for when you need the actual Album.ID
- * @param mediaFileId - The media file ID (UUID string)
+ * Builds an artwork URL for a media file by fetching the real Album.ID from the backend.
+ * 
+ * This is an async alternative to buildArtworkUrl for when you need the actual Album.ID.
+ * It performs a two-step process: first fetching the album ID, then constructing the
+ * direct asset URL. Falls back to the simpler endpoint if the album lookup fails.
+ * 
+ * @param mediaFileId - The media file ID (UUID string or legacy numeric ID)
  * @param quality - Quality percentage (1-100), defaults to 90% for frontend
- * @returns Promise with optimized artwork URL using real Album.ID
+ * @returns Promise resolving to optimized artwork URL using real Album.ID
  */
 export const buildArtworkUrlAsync = async (
   mediaFileId: number | string,
@@ -145,8 +186,13 @@ export const buildArtworkUrlAsync = async (
 };
 
 /**
- * Builds a streaming URL for a media file
- * @param mediaFileId - The media file ID (UUID string)
+ * Builds a streaming URL for a media file.
+ * 
+ * Constructs the URL for streaming media content. The backend will handle
+ * transcoding, range requests, and format negotiation based on the client's
+ * capabilities.
+ * 
+ * @param mediaFileId - The media file ID (UUID string or legacy numeric ID)
  * @returns Streaming URL for the media file
  */
 export const buildStreamUrl = (mediaFileId: number | string): string => {

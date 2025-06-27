@@ -105,14 +105,14 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx *pluginmodule.Metadat
 
 		log.Printf("DEBUG: Processing music file from music library: %s", path)
 	}
-	
+
 	// IMPORTANT: Skip image files - they should not be processed as tracks
 	// Image files are now properly classified as MediaTypeImage by the scanner
 	if ctx.MediaFile != nil && ctx.MediaFile.MediaType == database.MediaTypeImage {
 		log.Printf("DEBUG: Skipping image file %s - not an audio track (media_type: %s)", path, ctx.MediaFile.MediaType)
 		return nil
 	}
-	
+
 	// IMPORTANT: Only process track files - skip movies, episodes, etc.
 	if ctx.MediaFile != nil && ctx.MediaFile.MediaType != database.MediaTypeTrack {
 		log.Printf("DEBUG: Skipping file %s - not a track (media_type: %s)", path, ctx.MediaFile.MediaType)
@@ -157,7 +157,7 @@ func (p *EnrichmentCorePlugin) HandleFile(path string, ctx *pluginmodule.Metadat
 	// DEBUG: Verify the database update was successful
 	var verifyMediaFile database.MediaFile
 	if err := p.db.Where("id = ?", ctx.MediaFile.ID).First(&verifyMediaFile).Error; err == nil {
-		log.Printf("DEBUG: Verified MediaFile update - ID: %s, MediaID: %s, MediaType: %s", 
+		log.Printf("DEBUG: Verified MediaFile update - ID: %s, MediaID: %s, MediaType: %s",
 			verifyMediaFile.ID, verifyMediaFile.MediaID, verifyMediaFile.MediaType)
 	} else {
 		log.Printf("ERROR: Failed to verify MediaFile update: %v", err)
@@ -299,25 +299,25 @@ func (p *EnrichmentCorePlugin) createOrGetArtist(artistName string) (*database.A
 		err = tx.Create(&newArtist).Error
 		if err != nil {
 			tx.Rollback()
-			
+
 			// Check if it's a unique constraint violation (duplicate name)
-			if strings.Contains(strings.ToLower(err.Error()), "unique") || 
-			   strings.Contains(strings.ToLower(err.Error()), "duplicate") {
-				
+			if strings.Contains(strings.ToLower(err.Error()), "unique") ||
+				strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+
 				log.Printf("DEBUG: Detected concurrent artist creation for '%s', retrying (attempt %d)", artistName, attempt+1)
-				
+
 				// Another thread created the artist, try to get it
 				var concurrentArtist database.Artist
 				if retryErr := p.db.Where("name = ?", artistName).First(&concurrentArtist).Error; retryErr == nil {
 					return &concurrentArtist, nil
 				}
-				
+
 				// If still not found, retry the whole process
 				if attempt < 2 {
 					continue
 				}
 			}
-			
+
 			return nil, fmt.Errorf("failed to create artist after %d attempts: %w", attempt+1, err)
 		}
 
@@ -375,25 +375,25 @@ func (p *EnrichmentCorePlugin) createOrGetAlbum(albumTitle string, artistID stri
 		err = tx.Create(&newAlbum).Error
 		if err != nil {
 			tx.Rollback()
-			
+
 			// Check if it's a unique constraint violation (duplicate title+artist)
-			if strings.Contains(strings.ToLower(err.Error()), "unique") || 
-			   strings.Contains(strings.ToLower(err.Error()), "duplicate") {
-				
+			if strings.Contains(strings.ToLower(err.Error()), "unique") ||
+				strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+
 				log.Printf("DEBUG: Detected concurrent album creation for '%s' by artist %s, retrying (attempt %d)", albumTitle, artistID, attempt+1)
-				
+
 				// Another thread created the album, try to get it
 				var concurrentAlbum database.Album
 				if retryErr := p.db.Where("title = ? AND artist_id = ?", albumTitle, artistID).First(&concurrentAlbum).Error; retryErr == nil {
 					return &concurrentAlbum, nil
 				}
-				
+
 				// If still not found, retry the whole process
 				if attempt < 2 {
 					continue
 				}
 			}
-			
+
 			return nil, fmt.Errorf("failed to create album after %d attempts: %w", attempt+1, err)
 		}
 
@@ -616,7 +616,7 @@ func (p *EnrichmentCorePlugin) scanExternalArtwork(albumDir string, albumID stri
 	// Define artwork filenames to look for (in order of preference)
 	artworkFilenames := []string{
 		"folder.jpg", "folder.png", "folder.webp",
-		"cover.jpg", "cover.png", "cover.webp", 
+		"cover.jpg", "cover.png", "cover.webp",
 		"front.jpg", "front.png", "front.webp",
 		"artwork.jpg", "artwork.png", "artwork.webp",
 		"album.jpg", "album.png", "album.webp",
@@ -625,7 +625,7 @@ func (p *EnrichmentCorePlugin) scanExternalArtwork(albumDir string, albumID stri
 
 	// Supported image extensions
 	supportedExts := map[string]bool{
-		".jpg": true, ".jpeg": true, ".png": true, ".webp": true, 
+		".jpg": true, ".jpeg": true, ".png": true, ".webp": true,
 		".bmp": true, ".tiff": true, ".gif": true,
 	}
 
@@ -645,12 +645,12 @@ func (p *EnrichmentCorePlugin) scanExternalArtwork(albumDir string, albumID stri
 	// Process each artwork file (first one will be marked as preferred)
 	for i, artworkPath := range artworkFiles {
 		preferred := i == 0 // First file is preferred
-		
+
 		if err := p.processExternalArtworkFile(artworkPath, albumID, preferred); err != nil {
 			log.Printf("WARNING: Failed to process external artwork file %s: %v", artworkPath, err)
 			continue
 		}
-		
+
 		log.Printf("INFO: Successfully processed external artwork: %s (preferred: %t)", artworkPath, preferred)
 	}
 
@@ -718,10 +718,10 @@ func (p *EnrichmentCorePlugin) sortArtworkFilesByPreference(files []string, pref
 		for j := i + 1; j < len(sortedFiles); j++ {
 			file1 := strings.ToLower(filepath.Base(sortedFiles[i]))
 			file2 := strings.ToLower(filepath.Base(sortedFiles[j]))
-			
+
 			pref1, exists1 := preferenceMap[file1]
 			pref2, exists2 := preferenceMap[file2]
-			
+
 			// If both exist in preference map, sort by preference
 			if exists1 && exists2 {
 				if pref1 > pref2 {

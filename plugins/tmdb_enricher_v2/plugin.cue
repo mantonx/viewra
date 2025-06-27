@@ -4,7 +4,7 @@
 	// Plugin identification
 	id:            "tmdb_enricher_v2"
 	name:          "TMDb Metadata Enricher v2"
-	version:       "2.0.0"
+	version:       "1.0.0"
 	description:   "Enriches TV shows and movie metadata using The Movie Database (TMDb) API with modern architecture and reliability features"
 	author:        "Viewra Team"
 	website:       "https://github.com/mantonx/viewra"

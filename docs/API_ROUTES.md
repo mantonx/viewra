@@ -186,22 +186,25 @@ This document provides a comprehensive reference of all API routes available in 
 ### Playback Module (`/api/playback`)
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| POST | `/api/playback/decide` | HandlePlaybackDecision | Make playback decision |
-| POST | `/api/playback/start` | HandleStartTranscode | Start transcoding session |
-| GET | `/api/playback/session/:sessionId` | HandleGetSession | Get session info |
-| DELETE | `/api/playback/session/:sessionId` | HandleStopTranscode | Stop transcoding session |
-| GET | `/api/playback/sessions` | HandleListSessions | List all sessions |
-| POST | `/api/playback/seek-ahead` | HandleSeekAhead | Seek-ahead functionality |
+| POST | `/api/playback/decide` | HandlePlaybackDecision | Make playback decision (direct play vs transcode) |
+| POST | `/api/playback/validate` | HandleValidateMedia | Validate media file compatibility |
 | GET | `/api/playback/stats` | HandleGetStats | Get playback statistics |
 | GET | `/api/playback/health` | HandleHealthCheck | Playback health check |
-| GET | `/api/playback/stream/:sessionId` | HandleStreamTranscode | Stream transcoded content |
-| GET | `/api/playback/stream/:sessionId/manifest.mpd` | HandleDashManifest | DASH manifest |
-| GET | `/api/playback/stream/:sessionId/playlist.m3u8` | HandleHlsPlaylist | HLS playlist |
-| GET | `/api/playback/stream/:sessionId/segment/:segmentName` | HandleSegment | Get segment |
-| GET | `/api/playback/stream/:sessionId/:segmentFile` | HandleDashSegmentSpecific | DASH segment |
-| POST | `/api/playback/cleanup/run` | HandleManualCleanup | Manual cleanup |
-| GET | `/api/playback/cleanup/stats` | HandleCleanupStats | Cleanup statistics |
+| GET | `/api/playback/error-recovery/stats` | HandleErrorRecoveryStats | Get error recovery statistics |
 | POST | `/api/playback/plugins/refresh` | HandleRefreshPlugins | Refresh plugins |
+
+### Content-Addressable Storage API (`/api/v1/content`)
+| Method | Path | Handler | Description |
+|--------|------|---------|-------------|
+| GET | `/api/v1/content/:hash/:file` | ServeContentFile | Serve content files (manifests, segments, etc.) |
+| GET | `/api/v1/content/:hash/manifest.mpd` | ServeContentFile | Get DASH manifest |
+| GET | `/api/v1/content/:hash/playlist.m3u8` | ServeContentFile | Get HLS playlist |
+| GET | `/api/v1/content/:hash/info` | GetContentInfo | Get content metadata |
+| GET | `/api/v1/content/by-media/:mediaId` | GetContentByMediaId | List content by media ID |
+| GET | `/api/v1/content/stats` | GetContentStats | Get storage statistics |
+| POST | `/api/v1/content/cleanup` | CleanupExpiredContent | Cleanup expired content |
+
+**Note**: The content-addressable storage API replaced the deprecated `/api/playback/stream/` endpoints. All streaming content is now served through content hashes, enabling deduplication and CDN-friendly URLs.
 
 ### Asset Module (`/api/v1/assets`)
 | Method | Path | Handler | Description |
@@ -352,11 +355,18 @@ This document provides a comprehensive reference of all API routes available in 
 | GET | `/api/v1/plugins/admin/settings` | handleGetGlobalPluginSettings | Get global settings |
 | PUT | `/api/v1/plugins/admin/settings` | handleUpdateGlobalPluginSettings | Update global settings |
 
-### Transcoding API (`/api/v1/transcoding`)
+### Transcoding Module (`/api/v1/transcoding`)
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| POST | `/api/v1/transcoding/sessions/:sessionId/:action` | handleSessionAction | Session actions |
-| POST | `/api/v1/transcoding/engine/:action` | handleEngineAction | Engine actions |
+| POST | `/api/v1/transcoding/transcode` | StartTranscode | Start a new transcoding session |
+| DELETE | `/api/v1/transcoding/transcode/:sessionId` | StopTranscode | Stop a transcoding session |
+| GET | `/api/v1/transcoding/progress/:sessionId` | GetProgress | Get real-time transcoding progress |
+| GET | `/api/v1/transcoding/sessions` | ListSessions | List all transcoding sessions |
+| GET | `/api/v1/transcoding/sessions/:sessionId` | GetSession | Get detailed session information |
+| GET | `/api/v1/transcoding/providers` | ListProviders | List available transcoding providers |
+| GET | `/api/v1/transcoding/providers/:providerId` | GetProvider | Get provider details |
+| GET | `/api/v1/transcoding/providers/:providerId/formats` | GetProviderFormats | Get supported formats for provider |
+| GET | `/api/v1/transcoding/pipeline/status` | GetPipelineStatus | Get pipeline provider status |
 
 ### Scan Routes
 | Method | Path | Handler | Description |

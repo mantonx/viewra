@@ -388,15 +388,15 @@ func GetMediaFileMetadata(c *gin.Context) {
 			if err := db.Preload("Artist").Preload("Album").Preload("Album.Artist").
 				Where("id = ?", mediaFile.MediaID).First(&track).Error; err == nil {
 				response["metadata"] = gin.H{
-					"type":        "track",
-					"track_id":    track.ID,
-					"title":       track.Title,
-					"artist":      track.Artist.Name,
-					"album":       track.Album.Title,
+					"type":         "track",
+					"track_id":     track.ID,
+					"title":        track.Title,
+					"artist":       track.Artist.Name,
+					"album":        track.Album.Title,
 					"album_artist": track.Album.Artist.Name,
 					"track_number": track.TrackNumber,
 
-					"duration":     track.Duration,
+					"duration": track.Duration,
 				}
 			} else {
 				c.JSON(http.StatusNotFound, gin.H{
@@ -446,11 +446,11 @@ func GetMediaFileMetadata(c *gin.Context) {
 			var movie database.Movie
 			if err := db.Where("id = ?", mediaFile.MediaID).First(&movie).Error; err == nil {
 				response["metadata"] = gin.H{
-					"type":     "movie",
-					"movie_id": movie.ID,
-					"title":    movie.Title,
+					"type":         "movie",
+					"movie_id":     movie.ID,
+					"title":        movie.Title,
 					"release_date": movie.ReleaseDate,
-					"runtime":  movie.Runtime,
+					"runtime":      movie.Runtime,
 				}
 			} else {
 				c.JSON(http.StatusNotFound, gin.H{

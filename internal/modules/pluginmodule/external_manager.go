@@ -1028,39 +1028,39 @@ func (m *ExternalPluginManager) discoverAndRegisterPlugins() error {
 				m.logger.Debug("failed to read plugin subdirectory", "path", pluginDirPath, "error", err)
 				continue
 			}
-			
+
 			foundNestedPlugins := false
 			for _, subEntry := range subEntries {
 				if !subEntry.IsDir() {
 					continue
 				}
-				
+
 				subPluginDirPath := filepath.Join(pluginDirPath, subEntry.Name())
 				subPluginCuePath := filepath.Join(subPluginDirPath, "plugin.cue")
-				
+
 				if _, err := os.Stat(subPluginCuePath); os.IsNotExist(err) {
 					m.logger.Debug("skipping nested directory without plugin.cue", "category", entry.Name(), "dir", subEntry.Name())
 					continue
 				}
-				
+
 				// Parse and register the nested plugin
 				manifest, err := m.parsePluginManifest(subPluginCuePath)
 				if err != nil {
 					m.logger.Error("failed to parse nested plugin manifest", "category", entry.Name(), "plugin", subEntry.Name(), "error", err)
 					continue
 				}
-				
+
 				binaryPath := filepath.Join(subPluginDirPath, manifest.EntryPoints["main"])
 				if err := m.registerExternalPlugin(manifest, subPluginDirPath, binaryPath); err != nil {
 					m.logger.Error("failed to register nested plugin", "category", entry.Name(), "plugin", manifest.ID, "error", err)
 					continue
 				}
-				
+
 				discoveredCount++
 				foundNestedPlugins = true
 				m.logger.Info("discovered nested plugin", "category", entry.Name(), "plugin_id", manifest.ID, "name", manifest.Name)
 			}
-			
+
 			if !foundNestedPlugins {
 				m.logger.Debug("skipping directory without plugin.cue or nested plugins", "dir", entry.Name())
 			}
@@ -2441,7 +2441,7 @@ func (p *ExternalTranscodingProvider) GetInfo() plugins.ProviderInfo {
 func (p *ExternalTranscodingProvider) GetSupportedFormats() []plugins.ContainerFormat {
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
-	
+
 	// Make gRPC call to get supported formats
 	ctx := context.Background()
 	resp, err := client.GetSupportedFormats(ctx, &proto.GetSupportedFormatsRequest{})
@@ -2450,9 +2450,9 @@ func (p *ExternalTranscodingProvider) GetSupportedFormats() []plugins.ContainerF
 		fmt.Printf("ERROR: gRPC GetSupportedFormats failed: %v\n", err)
 		return []plugins.ContainerFormat{}
 	}
-	
+
 	fmt.Printf("SUCCESS: gRPC GetSupportedFormats returned %d formats\n", len(resp.Formats))
-	
+
 	// Convert proto formats to SDK formats
 	formats := make([]plugins.ContainerFormat, len(resp.Formats))
 	for i, protoFormat := range resp.Formats {
@@ -2460,11 +2460,11 @@ func (p *ExternalTranscodingProvider) GetSupportedFormats() []plugins.ContainerF
 			Format:      protoFormat.Name,
 			Description: protoFormat.Description,
 			Extensions:  protoFormat.Extensions,
-			// Note: protobuf doesn't have MimeType or Adaptive fields, 
+			// Note: protobuf doesn't have MimeType or Adaptive fields,
 			// these will need to be added to proto definition if needed
 		}
 	}
-	
+
 	return formats
 }
 
@@ -2524,37 +2524,37 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
-	
+
 	// Convert SDK request to proto request
 	protoReq := &proto.StartTranscodeProviderRequest{
 		Request: &proto.TranscodeProviderRequest{
-			SessionId:         req.SessionID,
-			InputPath:         req.InputPath,
-			OutputDir:         "", // Let the plugin handle directory creation
-			Quality:           int32(req.Quality),
-			SpeedPriority:     string(req.SpeedPriority),
-			Container:         req.Container,
-			VideoCodec:        req.VideoCodec,
-			AudioCodec:        req.AudioCodec,
-			PreferHardware:    req.PreferHardware,
-			HardwareType:      string(req.HardwareType),
+			SessionId:      req.SessionID,
+			InputPath:      req.InputPath,
+			OutputDir:      "", // Let the plugin handle directory creation
+			Quality:        int32(req.Quality),
+			SpeedPriority:  speedPriorityToString(req.SpeedPriority),
+			Container:      req.Container,
+			VideoCodec:     req.VideoCodec,
+			AudioCodec:     req.AudioCodec,
+			PreferHardware: req.PreferHardware,
+			HardwareType:   string(req.HardwareType),
 			// EnableAbr:         req.EnableABR, // TODO: Uncomment after proto regeneration
-			SeekNs:            int64(req.Seek), // Convert time.Duration to nanoseconds
-			ExtraOptions:      map[string]string{
+			SeekNs: int64(req.Seek), // Convert time.Duration to nanoseconds
+			ExtraOptions: map[string]string{
 				"enable_abr": fmt.Sprintf("%t", req.EnableABR), // Pass ABR flag via extra options
 			},
 		},
 	}
-	
+
 	// Handle resolution if provided
 	if req.Resolution != nil {
 		protoReq.Request.Resolution = fmt.Sprintf("%dx%d", req.Resolution.Width, req.Resolution.Height)
 	}
-	
+
 	logger.Info("Sending gRPC StartTranscode request",
 		"plugin_id", p.pluginID,
 		"proto_request", protoReq.Request)
-	
+
 	// Make gRPC call
 	resp, err := client.StartTranscode(ctx, protoReq)
 	if err != nil {
@@ -2563,25 +2563,25 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 			"error", err.Error())
 		return nil, fmt.Errorf("gRPC StartTranscode failed: %w", err)
 	}
-	
+
 	if resp.Error != "" {
 		logger.Error("plugin returned error",
 			"plugin_id", p.pluginID,
 			"error", resp.Error)
 		return nil, fmt.Errorf("plugin returned error: %s", resp.Error)
 	}
-	
+
 	if resp.Handle == nil {
 		logger.Error("plugin returned nil handle",
 			"plugin_id", p.pluginID)
 		return nil, fmt.Errorf("plugin returned nil handle")
 	}
-	
+
 	logger.Info("gRPC StartTranscode successful",
 		"plugin_id", p.pluginID,
 		"handle_session_id", resp.Handle.SessionId,
 		"handle_directory", resp.Handle.Directory)
-	
+
 	// Convert proto handle to SDK handle
 	handle := &plugins.TranscodeHandle{
 		SessionID:   resp.Handle.SessionId,
@@ -2591,7 +2591,7 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 		Context:     ctx,
 		PrivateData: resp.Handle.PrivateData,
 	}
-	
+
 	return handle, nil
 }
 
@@ -2599,7 +2599,7 @@ func (p *ExternalTranscodingProvider) StartTranscode(ctx context.Context, req pl
 func (p *ExternalTranscodingProvider) GetProgress(handle *plugins.TranscodeHandle) (*plugins.TranscodingProgress, error) {
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
-	
+
 	// Convert SDK handle to proto handle
 	protoHandle := &proto.TranscodeHandle{
 		SessionId:   handle.SessionID,
@@ -2608,7 +2608,7 @@ func (p *ExternalTranscodingProvider) GetProgress(handle *plugins.TranscodeHandl
 		Directory:   handle.Directory,
 		PrivateData: fmt.Sprintf("%v", handle.PrivateData),
 	}
-	
+
 	// Make gRPC call
 	resp, err := client.GetProgress(context.Background(), &proto.GetProgressRequest{
 		Handle: protoHandle,
@@ -2616,15 +2616,15 @@ func (p *ExternalTranscodingProvider) GetProgress(handle *plugins.TranscodeHandl
 	if err != nil {
 		return nil, fmt.Errorf("gRPC GetProgress failed: %w", err)
 	}
-	
+
 	if resp.Error != "" {
 		return nil, fmt.Errorf("plugin returned error: %s", resp.Error)
 	}
-	
+
 	if resp.Progress == nil {
 		return nil, fmt.Errorf("plugin returned nil progress")
 	}
-	
+
 	// Convert proto progress to SDK progress
 	progress := &plugins.TranscodingProgress{
 		PercentComplete: float64(resp.Progress.PercentComplete),
@@ -2634,7 +2634,7 @@ func (p *ExternalTranscodingProvider) GetProgress(handle *plugins.TranscodeHandl
 		BytesRead:       resp.Progress.BytesRead,
 		BytesWritten:    resp.Progress.BytesWritten,
 	}
-	
+
 	return progress, nil
 }
 
@@ -2642,7 +2642,7 @@ func (p *ExternalTranscodingProvider) GetProgress(handle *plugins.TranscodeHandl
 func (p *ExternalTranscodingProvider) StopTranscode(handle *plugins.TranscodeHandle) error {
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
-	
+
 	// Convert SDK handle to proto handle
 	protoHandle := &proto.TranscodeHandle{
 		SessionId:   handle.SessionID,
@@ -2651,7 +2651,7 @@ func (p *ExternalTranscodingProvider) StopTranscode(handle *plugins.TranscodeHan
 		Directory:   handle.Directory,
 		PrivateData: fmt.Sprintf("%v", handle.PrivateData),
 	}
-	
+
 	// Make gRPC call
 	resp, err := client.StopTranscode(context.Background(), &proto.StopTranscodeProviderRequest{
 		Handle: protoHandle,
@@ -2659,15 +2659,15 @@ func (p *ExternalTranscodingProvider) StopTranscode(handle *plugins.TranscodeHan
 	if err != nil {
 		return fmt.Errorf("gRPC StopTranscode failed: %w", err)
 	}
-	
+
 	if resp.Error != "" {
 		return fmt.Errorf("plugin returned error: %s", resp.Error)
 	}
-	
+
 	if !resp.Success {
 		return fmt.Errorf("plugin reported failure to stop transcoding")
 	}
-	
+
 	return nil
 }
 
@@ -2675,44 +2675,44 @@ func (p *ExternalTranscodingProvider) StopTranscode(handle *plugins.TranscodeHan
 func (p *ExternalTranscodingProvider) StartStream(ctx context.Context, req plugins.TranscodeRequest) (*plugins.StreamHandle, error) {
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
-	
+
 	// Convert SDK request to proto request
 	protoReq := &proto.StartStreamRequest{
 		Request: &proto.TranscodeProviderRequest{
-			SessionId:         req.SessionID,
-			InputPath:         req.InputPath,
-			OutputDir:         req.OutputPath, // Use OutputPath as OutputDir
-			Quality:           int32(req.Quality),
-			SpeedPriority:     string(req.SpeedPriority),
-			Container:         req.Container,
-			VideoCodec:        req.VideoCodec,
-			AudioCodec:        req.AudioCodec,
-			PreferHardware:    req.PreferHardware,
-			HardwareType:      string(req.HardwareType),
-			SeekNs:            int64(req.Seek), // Convert time.Duration to nanoseconds
-			ExtraOptions:      make(map[string]string), // Empty for now
+			SessionId:      req.SessionID,
+			InputPath:      req.InputPath,
+			OutputDir:      req.OutputPath, // Use OutputPath as OutputDir
+			Quality:        int32(req.Quality),
+			SpeedPriority:  speedPriorityToString(req.SpeedPriority),
+			Container:      req.Container,
+			VideoCodec:     req.VideoCodec,
+			AudioCodec:     req.AudioCodec,
+			PreferHardware: req.PreferHardware,
+			HardwareType:   string(req.HardwareType),
+			SeekNs:         int64(req.Seek),         // Convert time.Duration to nanoseconds
+			ExtraOptions:   make(map[string]string), // Empty for now
 		},
 	}
-	
+
 	// Handle resolution if provided
 	if req.Resolution != nil {
 		protoReq.Request.Resolution = fmt.Sprintf("%dx%d", req.Resolution.Width, req.Resolution.Height)
 	}
-	
+
 	// Make gRPC call
 	resp, err := client.StartStream(ctx, protoReq)
 	if err != nil {
 		return nil, fmt.Errorf("gRPC StartStream failed: %w", err)
 	}
-	
+
 	if resp.Error != "" {
 		return nil, fmt.Errorf("plugin returned error: %s", resp.Error)
 	}
-	
+
 	if resp.Handle == nil {
 		return nil, fmt.Errorf("plugin returned nil handle")
 	}
-	
+
 	// Convert proto handle to SDK handle
 	handle := &plugins.StreamHandle{
 		SessionID:   resp.Handle.SessionId,
@@ -2720,7 +2720,7 @@ func (p *ExternalTranscodingProvider) StartStream(ctx context.Context, req plugi
 		StartTime:   time.Unix(0, resp.Handle.StartTime),
 		PrivateData: resp.Handle.PrivateData,
 	}
-	
+
 	return handle, nil
 }
 
@@ -2728,7 +2728,7 @@ func (p *ExternalTranscodingProvider) StartStream(ctx context.Context, req plugi
 func (p *ExternalTranscodingProvider) GetStream(handle *plugins.StreamHandle) (io.ReadCloser, error) {
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
-	
+
 	// Convert SDK handle to proto handle
 	protoHandle := &proto.StreamHandle{
 		SessionId:   handle.SessionID,
@@ -2736,7 +2736,7 @@ func (p *ExternalTranscodingProvider) GetStream(handle *plugins.StreamHandle) (i
 		StartTime:   handle.StartTime.UnixNano(),
 		PrivateData: fmt.Sprintf("%v", handle.PrivateData),
 	}
-	
+
 	// Start streaming
 	stream, err := client.GetStreamData(context.Background(), &proto.GetStreamDataRequest{
 		Handle: protoHandle,
@@ -2744,7 +2744,7 @@ func (p *ExternalTranscodingProvider) GetStream(handle *plugins.StreamHandle) (i
 	if err != nil {
 		return nil, fmt.Errorf("gRPC GetStreamData failed: %w", err)
 	}
-	
+
 	// Return a stream reader wrapper
 	return &grpcStreamReader{stream: stream}, nil
 }
@@ -2753,7 +2753,7 @@ func (p *ExternalTranscodingProvider) GetStream(handle *plugins.StreamHandle) (i
 func (p *ExternalTranscodingProvider) StopStream(handle *plugins.StreamHandle) error {
 	// Create gRPC client
 	client := proto.NewTranscodingProviderServiceClient(p.client.conn)
-	
+
 	// Convert SDK handle to proto handle
 	protoHandle := &proto.StreamHandle{
 		SessionId:   handle.SessionID,
@@ -2761,7 +2761,7 @@ func (p *ExternalTranscodingProvider) StopStream(handle *plugins.StreamHandle) e
 		StartTime:   handle.StartTime.UnixNano(),
 		PrivateData: fmt.Sprintf("%v", handle.PrivateData),
 	}
-	
+
 	// Make gRPC call
 	resp, err := client.StopStream(context.Background(), &proto.StopStreamRequest{
 		Handle: protoHandle,
@@ -2769,15 +2769,15 @@ func (p *ExternalTranscodingProvider) StopStream(handle *plugins.StreamHandle) e
 	if err != nil {
 		return fmt.Errorf("gRPC StopStream failed: %w", err)
 	}
-	
+
 	if resp.Error != "" {
 		return fmt.Errorf("plugin returned error: %s", resp.Error)
 	}
-	
+
 	if !resp.Success {
 		return fmt.Errorf("plugin reported failure to stop stream")
 	}
-	
+
 	return nil
 }
 
@@ -2807,4 +2807,36 @@ func (p *ExternalTranscodingProvider) GetDashboardData(sectionID string) (interf
 func (p *ExternalTranscodingProvider) ExecuteDashboardAction(actionID string, params map[string]interface{}) error {
 	// TODO: Implement GRPC call
 	return fmt.Errorf("dashboard actions not yet implemented")
+}
+
+// SupportsIntermediateOutput returns whether the provider outputs intermediate files
+func (p *ExternalTranscodingProvider) SupportsIntermediateOutput() bool {
+	// External plugins typically don't support intermediate output
+	return false
+}
+
+// GetIntermediateOutputPath returns the path to intermediate files
+func (p *ExternalTranscodingProvider) GetIntermediateOutputPath(handle *plugins.TranscodeHandle) (string, error) {
+	return "", fmt.Errorf("intermediate output not supported by external provider")
+}
+
+// GetABRVariants returns the ABR encoding variants
+func (p *ExternalTranscodingProvider) GetABRVariants(req plugins.TranscodeRequest) ([]plugins.ABRVariant, error) {
+	// TODO: Implement GRPC call to get ABR variants from plugin
+	// For now, return empty list
+	return []plugins.ABRVariant{}, nil
+}
+
+// speedPriorityToString converts SpeedPriority enum to string
+func speedPriorityToString(priority plugins.SpeedPriority) string {
+	switch priority {
+	case plugins.SpeedPriorityBalanced:
+		return "balanced"
+	case plugins.SpeedPriorityQuality:
+		return "quality"
+	case plugins.SpeedPriorityFastest:
+		return "fastest"
+	default:
+		return "balanced"
+	}
 }

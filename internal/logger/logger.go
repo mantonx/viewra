@@ -28,7 +28,7 @@ func Info(format string, args ...interface{}) {
 	log.Printf("INFO: "+format, args...)
 }
 
-// Warn logs warning messages  
+// Warn logs warning messages
 func Warn(format string, args ...interface{}) {
 	if len(args) > 0 {
 		if fields, ok := args[len(args)-1].([]Field); ok {

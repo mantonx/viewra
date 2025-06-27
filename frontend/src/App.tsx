@@ -8,10 +8,9 @@ import TVShows from './pages/TVShows';
 import EnrichmentDashboard from './pages/EnrichmentDashboard';
 
 import TVShowDetail from './components/tv/TVShowDetail';
-import VideoPlayerTest from './pages/VideoPlayerTest';
 import EpisodePlayer from './pages/player/EpisodePlayer';
 import MoviePlayer from './pages/player/MoviePlayer';
-import TestVideoPlayback from './pages/TestVideoPlayback';
+import MediaPlayerTest from './pages/MediaPlayerTest';
 import { ThemeProvider } from './providers/ThemeProvider';
 
 const App = () => {
@@ -28,13 +27,12 @@ const App = () => {
               <Route path="/tv-shows" element={<TVShows />} />
               <Route path="/tv-shows/:showId" element={<TVShowDetail />} />
               
-              {/* New MediaPlayer routes */}
+              {/* MediaPlayer routes */}
               <Route path="/player/episode/:episodeId" element={<EpisodePlayer />} />
               <Route path="/player/movie/:movieId" element={<MoviePlayer />} />
               
               {/* Test routes */}
-              <Route path="/video-test" element={<VideoPlayerTest />} />
-              <Route path="/test-playback" element={<TestVideoPlayback />} />
+              <Route path="/test/media-player" element={<MediaPlayerTest />} />
               
               <Route path="/admin" element={<Admin />} />
               <Route path="/enrichment-dashboard" element={<EnrichmentDashboard />} />

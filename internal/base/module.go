@@ -121,7 +121,7 @@ func (r *BaseRouteRegistrar) RegisterRoutes(router *gin.Engine, routes func(*gin
 
 	api := router.Group(r.basePath)
 	routes(api)
-	
+
 	logger.Info("Routes registered for module: %s", r.module.Name())
 }
 

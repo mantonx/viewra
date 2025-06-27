@@ -146,4 +146,129 @@ describe('ProgressBar', () => {
 
     expect(onSeekIntent).toHaveBeenCalledWith(30); // 25% of 120s
   });
+
+  it('shows seek-ahead indicator for unbuffered areas', () => {
+    const bufferedRanges = [
+      { start: 0, end: 60 }, // First 60 seconds buffered
+    ];
+    const { container } = render(
+      <ProgressBar
+        {...defaultProps}
+        bufferedRanges={bufferedRanges}
+        showSeekAheadIndicator={true}
+      />
+    );
+    
+    // Check for seek-ahead indicator area
+    const seekAheadArea = container.querySelector('[title="Seek-ahead available"]');
+    expect(seekAheadArea).toBeTruthy();
+    
+    // It should cover the unbuffered portion (60s to 120s = 50% of width)
+    expect(seekAheadArea?.getAttribute('style')).toContain('left: 50%');
+    expect(seekAheadArea?.getAttribute('style')).toContain('width: 50%');
+  });
+
+  it('shows lightning bolt icon when hovering over unbuffered area', () => {
+    const bufferedRanges = [
+      { start: 0, end: 30 }, // First 30 seconds buffered
+    ];
+    const { container } = render(
+      <ProgressBar
+        {...defaultProps}
+        bufferedRanges={bufferedRanges}
+        showSeekAheadIndicator={true}
+      />
+    );
+    const progressContainer = container.querySelector('.w-full.h-3');
+    
+    // Mock getBoundingClientRect
+    progressContainer!.getBoundingClientRect = vi.fn(() => ({
+      left: 0,
+      right: 400,
+      top: 0,
+      bottom: 20,
+      width: 400,
+      height: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    }));
+    
+    // Hover over unbuffered area (75% = 90s, which is beyond buffered 30s)
+    fireEvent.mouseMove(progressContainer!, {
+      clientX: 300, // 75% of 400px
+    });
+
+    // Should show time tooltip with lightning bolt
+    const tooltip = container.querySelector('.absolute.-top-8');
+    expect(tooltip?.textContent).toContain('⚡');
+  });
+
+  it('handles dragging to seek', () => {
+    const onSeek = vi.fn();
+    const { container } = render(
+      <ProgressBar {...defaultProps} onSeek={onSeek} />
+    );
+    const progressContainer = container.querySelector('.w-full.h-3');
+    
+    // Mock getBoundingClientRect
+    progressContainer!.getBoundingClientRect = vi.fn(() => ({
+      left: 0,
+      right: 400,
+      top: 0,
+      bottom: 20,
+      width: 400,
+      height: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    }));
+    
+    // Start dragging
+    fireEvent.mouseDown(progressContainer!);
+    
+    // Move mouse during drag
+    fireEvent.mouseMove(document, {
+      clientX: 200, // 50% position
+    });
+    
+    // Since we're using document event listeners, we need to check if seek was called
+    // during the drag (implementation may vary)
+    
+    // End dragging
+    fireEvent.mouseUp(document);
+    
+    // onSeek should have been called at some point during or after the drag
+    expect(onSeek).toHaveBeenCalled();
+  });
+
+  it('shows proper handle scaling on hover and drag', () => {
+    const { container } = render(<ProgressBar {...defaultProps} />);
+    const progressContainer = container.querySelector('.w-full.h-3');
+    
+    // Mock getBoundingClientRect
+    progressContainer!.getBoundingClientRect = vi.fn(() => ({
+      left: 0,
+      right: 400,
+      top: 0,
+      bottom: 20,
+      width: 400,
+      height: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    }));
+    
+    // Initially, handle should be normal size
+    let handle = container.querySelector('.w-4.h-4.rounded-full');
+    expect(handle?.classList.contains('scale-100')).toBe(true);
+    
+    // On hover, handle should scale up
+    fireEvent.mouseMove(progressContainer!, {
+      clientX: 100,
+    });
+    
+    handle = container.querySelector('.w-4.h-4.rounded-full');
+    expect(handle?.classList.contains('scale-125')).toBe(true);
+  });
 });

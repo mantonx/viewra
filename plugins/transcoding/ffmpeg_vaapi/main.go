@@ -229,6 +229,23 @@ func (p *VaapiTranscoder) ExecuteDashboardAction(actionID string, params map[str
 	return nil
 }
 
+// SupportsIntermediateOutput returns true as VAAPI encoder outputs intermediate MP4 files
+func (p *VaapiTranscoder) SupportsIntermediateOutput() bool {
+	return true
+}
+
+// GetIntermediateOutputPath returns the path to intermediate MP4 file
+func (p *VaapiTranscoder) GetIntermediateOutputPath(handle *plugins.TranscodeHandle) (string, error) {
+	// TODO: Implement when transcoding is implemented
+	return "", nil
+}
+
+// GetABRVariants returns the ABR encoding variants for VAAPI
+func (p *VaapiTranscoder) GetABRVariants(req plugins.TranscodeRequest) ([]plugins.ABRVariant, error) {
+	// TODO: Implement VAAPI-optimized ABR variants
+	return []plugins.ABRVariant{}, nil
+}
+
 // Return nil for unsupported services
 func (p *VaapiTranscoder) MetadataScraperService() plugins.MetadataScraperService         { return nil }
 func (p *VaapiTranscoder) ScannerHookService() plugins.ScannerHookService                 { return nil }

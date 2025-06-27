@@ -36,12 +36,23 @@ func (fm *FileManager) CreateSessionDirectory(sessionID, provider, container str
 	dirName := fmt.Sprintf("%s_%s_%s", container, provider, sessionID)
 	dirPath := filepath.Join(fm.baseDir, dirName)
 
-	// Create directory
+	// Create main directory
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
 		return "", fmt.Errorf("failed to create session directory: %w", err)
 	}
 
-	fm.logger.Debug("created session directory", "path", dirPath)
+	// Create encoded and packaged subdirectories
+	encodedDir := filepath.Join(dirPath, "encoded")
+	if err := os.MkdirAll(encodedDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create encoded directory: %w", err)
+	}
+
+	packagedDir := filepath.Join(dirPath, "packaged")
+	if err := os.MkdirAll(packagedDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create packaged directory: %w", err)
+	}
+
+	fm.logger.Debug("created session directory with subdirectories", "path", dirPath)
 	return dirPath, nil
 }
 
@@ -109,24 +120,30 @@ func (fm *FileManager) ListSegments(sessionID string) ([]string, error) {
 		return nil, err
 	}
 
+	// Look for segments in the packaged directory
+	packagedDir := filepath.Join(dirPath, "packaged")
 	var segments []string
-	err = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
 
-		if !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(path))
-			// Common segment extensions
-			if ext == ".ts" || ext == ".m4s" || ext == ".mp4" || ext == ".webm" {
-				segments = append(segments, path)
+	// Walk the packaged directory if it exists
+	if _, err := os.Stat(packagedDir); err == nil {
+		err = filepath.Walk(packagedDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
 			}
-		}
-		return nil
-	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list segments: %w", err)
+			if !info.IsDir() {
+				ext := strings.ToLower(filepath.Ext(path))
+				// Common segment extensions
+				if ext == ".ts" || ext == ".m4s" || ext == ".mp4" || ext == ".webm" {
+					segments = append(segments, path)
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list segments: %w", err)
+		}
 	}
 
 	return segments, nil

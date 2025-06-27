@@ -56,6 +56,8 @@ export interface PlaybackDecision {
   direct_play_url?: string;
   stream_url: string;
   manifest_url?: string;
+  content_hash?: string; // Content-addressable storage hash
+  content_url?: string; // CDN-friendly content URL
   media_info: {
     id: string;
     container: string;
@@ -70,6 +72,13 @@ export interface PlaybackDecision {
     target_container: string;
     resolution: string;
     bitrate: number;
+    enable_abr?: boolean;
+    abr_variants?: Array<{
+      height: number;
+      width: number;
+      bitrate: number;
+      label: string;
+    }>;
   };
   session_id?: string;
 }

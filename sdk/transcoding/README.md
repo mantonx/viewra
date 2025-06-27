@@ -1,143 +1,81 @@
-# Transcoding SDK Structure
+# Viewra Transcoding SDK
 
-This SDK provides a modular architecture for video transcoding with FFmpeg. The codebase has been organized into focused packages for better maintainability and clarity.
+This package provides a minimal, lightweight SDK for building transcoding plugins for Viewra.
 
-## Directory Structure
+## Files
 
-```
-transcoding/
-├── abr/                 # Adaptive Bitrate (ABR) ladder generation
-│   └── generator.go     # Generates optimized encoding profiles for different devices
-│
-├── ffmpeg/             # FFmpeg command building and utilities
-│   ├── args.go         # Builds FFmpeg command arguments
-│   └── ffmpeg.go       # FFmpeg-specific utilities
-│
-├── process/            # Process management and monitoring
-│   ├── monitor.go      # Monitors transcoding processes
-│   └── registry.go     # Tracks active processes globally
-│
-├── session/            # Session lifecycle management
-│   └── manager.go      # Manages transcoding sessions
-│
-├── types/              # Shared types and interfaces
-│   └── types.go        # Common types used across packages
-│
-├── validation/         # Output validation for reliable playback
-│   └── validator.go    # Validates DASH/HLS output quality
-│
-├── config/             # Configuration management
-│   └── config.go       # Configuration structures
-│
-├── hardware/           # Hardware acceleration detection
-│   └── detector.go     # Detects available hardware encoders
-│
-├── progress/           # Progress tracking utilities
-│   └── converter.go    # Converts FFmpeg progress output
-│
-├── quality/            # Quality mapping and optimization
-│   └── mapper.go       # Maps quality settings
-│
-├── services/           # Service interfaces and implementations
-│   ├── cleanup_service.go
-│   ├── interfaces.go
-│   └── session_manager.go
-│
-├── base.go             # Base transcoding interfaces
-├── transcoder.go       # Main transcoder implementation
-└── types.go            # Legacy types (being migrated to types/)
-```
+- **`types.go`** - Essential interfaces and types that plugins need to implement
+- **`transcoder.go`** - Base `Transcoder` struct that plugins can embed  
+- **`wrapper.go`** - `TranscoderWrapper` for more advanced plugin implementations
 
-## Package Descriptions
+## Usage
 
-### `abr/`
-Handles adaptive bitrate ladder generation for streaming. Creates optimized encoding profiles based on:
-- Source resolution
-- Target devices (mobile, desktop, TV)
-- Network conditions (2G to fiber)
-- Quality preferences
+### Basic Plugin
 
-### `ffmpeg/`
-Builds and manages FFmpeg commands:
-- Argument generation for different codecs
-- Container-specific settings (DASH, HLS, MP4)
-- Quality and performance optimization
-- Keyframe alignment for smooth playback
-
-### `process/`
-Manages FFmpeg process lifecycle:
-- Process registration and tracking
-- Graceful shutdown with timeout
-- Resource monitoring
-- Zombie process cleanup
-
-### `session/`
-Handles transcoding session management:
-- Session creation and tracking
-- Progress monitoring
-- Concurrent session handling
-- Session cleanup and statistics
-
-### `validation/`
-Ensures output meets quality standards:
-- DASH manifest validation
-- Segment duration checks
-- GOP alignment verification
-- Codec compatibility validation
-
-### `types/`
-Shared types and interfaces used across the SDK:
-- Common data structures
-- Interface definitions
-- Constants and enums
-
-## Usage Example
+Implement the `TranscodingProvider` interface:
 
 ```go
+package main
+
 import (
-    "github.com/viewra/viewra/sdk/transcoding"
-    "github.com/viewra/viewra/sdk/transcoding/types"
+    "context"
+    "github.com/mantonx/viewra/sdk/transcoding"
 )
 
-// Create a transcoder
-transcoder := transcoding.NewTranscoder("my-transcoder", "My Transcoder", "1.0", "Author", 100)
-
-// Start transcoding
-req := types.TranscodeRequest{
-    InputPath:    "/path/to/input.mp4",
-    OutputPath:   "/path/to/output",
-    Container:    "dash",
-    VideoCodec:   "libx264",
-    AudioCodec:   "aac",
-    Quality:      80,
-    EnableABR:    true,
+type MyTranscodingPlugin struct {
+    *transcoding.Transcoder
 }
 
-handle, err := transcoder.StartTranscode(ctx, req)
-if err != nil {
-    log.Fatal(err)
+func (p *MyTranscodingPlugin) StartTranscode(ctx context.Context, req transcoding.TranscodeRequest) (*transcoding.TranscodeHandle, error) {
+    // Your transcoding implementation
 }
 
-// Monitor progress
-progress, err := transcoder.GetProgress(handle)
-if err != nil {
-    log.Printf("Progress: %.2f%%", progress.PercentComplete)
+func main() {
+    plugin := &MyTranscodingPlugin{
+        Transcoder: transcoding.NewTranscoder("my-plugin", "My Transcoding Plugin", "1.0.0", "Me", 100),
+    }
+    // Register plugin with Viewra...
 }
 ```
 
-## Key Features
+### Advanced Plugin
 
-1. **Modular Architecture**: Each package has a focused responsibility
-2. **Hardware Acceleration**: Automatic detection and usage when available
-3. **ABR Support**: Intelligent bitrate ladder generation
-4. **Process Safety**: Proper process management and cleanup
-5. **Validation**: Ensures output quality for reliable playback
-6. **Flexible Configuration**: Supports various codecs and containers
+Use the `TranscoderWrapper` for more control:
 
-## Contributing
+```go
+type AdvancedPlugin struct {
+    *transcoding.TranscoderWrapper
+    // Additional fields
+}
 
-When adding new features:
-1. Place code in the appropriate package
-2. Follow the existing patterns
-3. Add tests for new functionality
-4. Update this README if adding new packages
+func main() {
+    plugin := &AdvancedPlugin{
+        TranscoderWrapper: transcoding.NewTranscoderWrapper("advanced-plugin", "Advanced Plugin", "1.0.0", "Me", 100),
+    }
+    // Register plugin with Viewra...
+}
+```
+
+## Architecture
+
+The SDK is intentionally minimal - it only provides interfaces and types. The actual transcoding implementation is handled by the Viewra transcoding module, ensuring:
+
+- **Lightweight plugins** - No heavy dependencies
+- **Clean separation** - Business logic stays in Viewra core
+- **Easy development** - Simple interfaces to implement
+- **Performance** - Minimal overhead
+
+## Key Interface
+
+The main interface to implement is `TranscodingProvider`:
+
+```go
+type TranscodingProvider interface {
+    GetInfo() ProviderInfo
+    GetSupportedFormats() []ContainerFormat
+    StartTranscode(ctx context.Context, req TranscodeRequest) (*TranscodeHandle, error)
+    GetProgress(handle *TranscodeHandle) (*TranscodingProgress, error)
+    StopTranscode(handle *TranscodeHandle) error
+    // ... other methods
+}
+```

@@ -15,10 +15,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/modules/enrichmentmodule"
-	"github.com/mantonx/viewra/internal/modules/mediamodule"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule"
 	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule"
 	"github.com/mantonx/viewra/internal/server/handlers"
@@ -31,6 +28,7 @@ import (
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/playbackmodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
+	_ "github.com/mantonx/viewra/internal/modules/transcodingmodule"
 
 	// Bootstrap core plugins
 	_ "github.com/mantonx/viewra/internal/plugins/bootstrap"
@@ -127,10 +125,7 @@ func initializeModules() error {
 		return err
 	}
 
-	// Connect plugin manager to modules that need it
-	if err := connectPluginManagerToModules(); err != nil {
-		log.Printf("Warning: Failed to connect plugin manager to modules: %v", err)
-	}
+	// Modules now use service discovery - no manual wiring needed
 
 	// Start modules that need post-initialization setup
 	if err := startModules(); err != nil {
@@ -143,190 +138,15 @@ func initializeModules() error {
 	return nil
 }
 
-// connectPluginManagerToModules connects the plugin manager to modules that need it
-func connectPluginManagerToModules() error {
-	var pluginModule *pluginmodule.PluginModule
-	var enrichmentModule *enrichmentmodule.Module
 
-	// Get database reference
-	db := database.GetDB()
-
-	modules := modulemanager.ListModules()
-
-	// Find existing enrichment and plugin modules
-	for _, module := range modules {
-		if module.ID() == "system.enrichment" {
-			if em, ok := module.(*enrichmentmodule.Module); ok {
-				enrichmentModule = em
-			}
-		}
-		if module.ID() == "system.plugins" {
-			if pm, ok := module.(*pluginmodule.PluginModule); ok {
-				pluginModule = pm
-				log.Printf("🔍 DEBUG: Found existing plugin module from registry")
-			}
-		}
-	}
-
-	// If we have both modules, connect them
-	if enrichmentModule != nil && pluginModule != nil {
-		log.Printf("🔍 DEBUG: Using existing plugin module instead of creating new one")
-
-		// NOTE: Don't call Initialize() here - the module manager already initialized it
-		// The plugin module is already initialized by the module manager's automatic initialization
-
-		// Connect external manager to enrichment module
-		extMgr := pluginModule.GetExternalManager()
-		log.Printf("🔍 DEBUG: External manager from existing plugin module: %v", extMgr != nil)
-
-		if extMgr != nil {
-			enrichmentModule.SetExternalPluginManager(extMgr)
-			log.Printf("✅ Connected external plugin manager to enrichment module")
-		} else {
-			log.Printf("⚠️  WARNING: GetExternalManager() returned nil from existing plugin module")
-		}
-
-		// Initialize plugin handlers with the existing plugin module
-		handlers.InitializePluginManager(pluginModule)
-		log.Printf("✅ Plugin handlers initialized with existing plugin module")
-
-		log.Printf("✅ Plugin system connected to enrichment module using existing plugin module")
-	} else if enrichmentModule != nil {
-		log.Printf("🔍 DEBUG: No existing plugin module found, creating new one")
-		// Only create a new plugin module if one doesn't exist
-		// Get plugin directory and create config
-		pluginDir := GetPluginDirectory()
-
-		// Ensure plugin directory exists
-		if err := os.MkdirAll(pluginDir, 0755); err != nil {
-			log.Printf("WARNING: Failed to create plugin directory: %v", err)
-		}
-
-		// Create plugin module config
-		pluginConfig := &pluginmodule.PluginModuleConfig{
-			PluginDir:       pluginDir,
-			EnabledCore:     []string{"ffmpeg", "enrichment", "tv_structure", "movie_structure"},
-			EnabledExternal: []string{},
-			LibraryConfigs:  make(map[string]pluginmodule.LibraryPluginSettings),
-			EnableHotReload: true, // Enable hot reload by default for development
-			HotReload: pluginmodule.PluginHotReloadConfig{
-				Enabled:         true,
-				DebounceDelayMs: 500,
-				WatchPatterns:   []string{"*_transcoder", "*_enricher", "*_scanner"},
-				ExcludePatterns: []string{"*.tmp", "*.log", "*.pid", ".git*", "*.swp", "*.swo", "go.mod", "go.sum", "*.go", "plugin.cue", "*.json"},
-				PreserveState:   true,
-				MaxRetries:      3,
-				RetryDelayMs:    1000,
-			},
-		}
-
-		// Create and initialize plugin module
-		log.Printf("🔍 DEBUG: Creating plugin module with config: %+v", pluginConfig)
-		pluginModule = pluginmodule.NewPluginModule(db, pluginConfig)
-		log.Printf("🔍 DEBUG: Plugin module created: %v", pluginModule != nil)
-
-		ctx := context.Background()
-		log.Printf("🔍 DEBUG: About to initialize plugin module...")
-		if err := pluginModule.Initialize(ctx, db); err != nil {
-			log.Printf("WARNING: Failed to initialize plugin module: %v", err)
-		} else {
-			log.Printf("✅ Plugin module initialized successfully")
-		}
-
-		// Debug external manager before calling GetExternalManager
-		log.Printf("🔍 DEBUG: About to call GetExternalManager()...")
-		extMgr := pluginModule.GetExternalManager()
-		log.Printf("🔍 DEBUG: External manager from GetExternalManager(): %v", extMgr)
-		log.Printf("🔍 DEBUG: External manager is nil: %v", extMgr == nil)
-
-		if extMgr != nil {
-			log.Printf("🔍 DEBUG: External manager type: %T", extMgr)
-			enrichmentModule.SetExternalPluginManager(extMgr)
-			log.Printf("✅ Connected external plugin manager to enrichment module")
-		} else {
-			log.Printf("⚠️  WARNING: GetExternalManager() returned nil - external plugin manager not connected!")
-		}
-
-		// Initialize plugin handlers with the plugin module
-		handlers.InitializePluginManager(pluginModule)
-		log.Printf("✅ Plugin handlers initialized with plugin module")
-
-		log.Printf("✅ Plugin system connected to enrichment module")
-	}
-
-	for _, module := range modules {
-		// Connect scanner module to plugin system
-		if module.ID() == "system.scanner" {
-			if scannerModule, ok := module.(*scannermodule.Module); ok {
-				if pluginModule != nil {
-					// Set the plugin module on the scanner
-					scannerModule.SetPluginModule(pluginModule)
-					// Get enabled file handlers for scanning
-					fileHandlers := pluginModule.GetEnabledFileHandlers()
-					log.Printf("✅ Connected plugin module to scanner (%d handlers available) - scanner: %v", len(fileHandlers), scannerModule != nil)
-				}
-			}
-		}
-
-		// Connect media module to plugin system
-		if module.ID() == "system.media" {
-			if mediaModule, ok := module.(*mediamodule.Module); ok {
-				if pluginModule != nil {
-					mediaModule.SetPluginModule(pluginModule)
-					log.Printf("✅ Connected plugin module to media module")
-				}
-			}
-		}
-
-		// Connect playback module to plugin system
-		if module.ID() == "system.playback" {
-			// Playback module connectivity is now handled internally via its SetPluginModule method
-			// which is called during module initialization by the playback module itself
-			if playbackMod, ok := module.(*playbackmodule.Module); ok {
-				if pluginModule != nil {
-					extMgr := pluginModule.GetExternalManager()
-					if extMgr != nil {
-						adapter := playbackmodule.NewPluginModuleAdapter(extMgr)
-						playbackMod.SetPluginModule(adapter)
-						log.Printf("✅ Connected plugin module to playback module via adapter")
-					}
-				}
-			}
-		}
-
-		// Connect enrichment module to scanner
-		if module.ID() == "system.enrichment" {
-			if enrichmentModule, ok := module.(*enrichmentmodule.Module); ok {
-				// Find scanner module and register enrichment module as hook
-				for _, scannerMod := range modules {
-					if scannerMod.ID() == "system.scanner" {
-						if scannerModule, ok := scannerMod.(*scannermodule.Module); ok {
-							manager := scannerModule.GetScannerManager()
-							if manager != nil {
-								manager.RegisterEnrichmentHook(enrichmentModule)
-								log.Printf("✅ Registered enrichment module as scanner hook")
-							}
-						}
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// Plugin module connectivity for playback is now handled via service registry
-	// The playback module registers its service and other modules access it through the registry
-	log.Printf("✅ Plugin connectivity for playback handled via service registry")
-
-	return nil
-}
 
 // startModules performs post-initialization startup for modules that need it
 func startModules() error {
 	modules := modulemanager.ListModules()
 	for _, module := range modules {
-		// Start scanner module and perform orphaned job recovery
-		if module.ID() == "system.scanner" {
+		switch module.ID() {
+		case "system.scanner":
+			// Start scanner module and perform orphaned job recovery
 			if scannerModule, ok := module.(*scannermodule.Module); ok {
 				log.Printf("🔄 Starting scanner module and performing orphaned job recovery...")
 				if err := scannerModule.Start(); err != nil {
@@ -334,6 +154,13 @@ func startModules() error {
 					return err
 				}
 				log.Printf("✅ Scanner module started successfully")
+			}
+		case "system.plugins":
+			// Initialize plugin handlers for legacy compatibility
+			if pm, ok := module.(*pluginmodule.PluginModule); ok {
+				setGlobalPluginModule(pm)
+				handlers.InitializePluginManager(pm)
+				log.Printf("✅ Plugin handlers initialized")
 			}
 		}
 	}
@@ -448,6 +275,11 @@ func GetPluginDirectory() string {
 	return cfg.Plugins.PluginDir
 }
 
+// setGlobalPluginModule sets the global plugin module instance
+func setGlobalPluginModule(pm *pluginmodule.PluginModule) {
+	pluginModule = pm
+}
+
 // GetPluginModule returns the plugin module instance
 func GetPluginModule() *pluginmodule.PluginModule {
 	return pluginModule
@@ -479,3 +311,5 @@ func ShutdownEventBus() error {
 	defer cancel()
 	return systemEventBus.Stop(ctx)
 }
+
+

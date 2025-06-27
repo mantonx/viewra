@@ -8,8 +8,6 @@ import { cn } from '@/utils/cn';
 import '@/styles/player-theme.css';
 import { PlaybackSessionTracker } from '@/utils/analytics';
 import { getDeviceProfile } from '@/utils/deviceProfile';
-import { initializeDashWithFixes } from '@/utils/player/dashCompatibility';
-import { getOptimalSource } from '@/utils/videoPlayerConfig';
 
 import {
   playerStateAtom,
@@ -33,6 +31,9 @@ import { QualityIndicator } from './components/QualityIndicator';
 import { getBufferedRanges } from '@/utils/video';
 import type { MediaPlayerProps } from './MediaPlayer.types';
 import { VidstackControls } from './VidstackControls';
+import { API_ENDPOINTS, buildApiUrl } from '@/constants/api';
+import type { PlaybackDecision } from './types';
+import { TestDashPlayer } from './TestDashPlayer/TestDashPlayer';
 
 export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const { className, autoplay = true, onBack, ...mediaType } = props;
@@ -48,7 +49,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const [config] = useAtom(configAtom);
 
   // Hooks
-  const { mediaId, handleBack, loadingState: navLoadingState } = useMediaNavigation(mediaType);
+  const { mediaId, handleBack, loadingState: navLoadingState, mediaFile } = useMediaNavigation(mediaType);
   const { stopTranscodingSession, stopAllSessions } = useSessionManager();
   const { requestSeekAhead, isSeekAheadNeeded, seekAheadState } = useSeekAhead();
   const { toggleFullscreen } = useFullscreenManager();
@@ -86,6 +87,26 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   const buffering = vidstackStore?.buffering ?? false;
   const quality = vidstackStore?.quality ?? null;
   const fullscreen = vidstackStore?.fullscreen ?? false;
+  
+  // Debug duration issues
+  useEffect(() => {
+    if (duration < 1 && vidstackStore && mediaFile?.duration && mediaFile.duration > 1) {
+      console.log('🔴 Duration issue detected:', {
+        duration,
+        currentTime,
+        vidstackStore,
+        mediaFile: mediaFile?.duration,
+        playbackDecision
+      });
+      
+      // Try to manually set duration if we have it from mediaFile
+      if (vidstackRemote && mediaFile.duration > 1) {
+        console.log('🔧 Attempting to fix duration using mediaFile duration:', mediaFile.duration);
+        // Force a re-render by seeking to current position
+        vidstackRemote.seek(currentTime);
+      }
+    }
+  }, [duration, currentTime, vidstackStore, mediaFile, playbackDecision, vidstackRemote]);
   
   // Session tracking
   const [sessionTracker, setSessionTracker] = useState<PlaybackSessionTracker | null>(null);
@@ -150,39 +171,28 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
 
   // Update local player state from Vidstack state
   useEffect(() => {
-    setPlayerState(prev => ({
-      ...prev,
-      isPlaying: playing,
-      duration: duration,
-      currentTime: currentTime,
-      volume: volume,
-      isMuted: muted,
-      isBuffering: buffering,
-      currentQuality: quality,
-    }));
-  }, [playing, duration, currentTime, volume, muted, buffering, quality, setPlayerState]);
+    setPlayerState(prev => {
+      // When paused, only update currentTime if the change is significant (> 0.1s)
+      // This prevents small fluctuations from moving the scrubber
+      const shouldUpdateTime = !paused || Math.abs(currentTime - prev.currentTime) > 0.1;
+      
+      // Use mediaFile duration as fallback if Vidstack duration is invalid
+      const validDuration = duration > 1 ? duration : (mediaFile?.duration || duration);
+      
+      return {
+        ...prev,
+        isPlaying: playing,
+        duration: validDuration,
+        currentTime: shouldUpdateTime ? currentTime : prev.currentTime,
+        volume: volume,
+        isMuted: muted,
+        isBuffering: buffering,
+        currentQuality: quality,
+      };
+    });
+  }, [playing, duration, currentTime, volume, muted, buffering, quality, setPlayerState, paused, mediaFile]);
   
-  // Monitor video element events for debugging
-  useEffect(() => {
-    if (playerRef.current) {
-      const video = playerRef.current.el?.querySelector('video');
-      if (video) {
-        const handlePlay = () => console.log('🎵 VIDEO ELEMENT: play event');
-        const handlePause = () => console.log('⏸️ VIDEO ELEMENT: pause event');
-        const handlePlaying = () => console.log('▶️ VIDEO ELEMENT: playing event');
-        
-        video.addEventListener('play', handlePlay);
-        video.addEventListener('pause', handlePause);
-        video.addEventListener('playing', handlePlaying);
-        
-        return () => {
-          video.removeEventListener('play', handlePlay);
-          video.removeEventListener('pause', handlePause);
-          video.removeEventListener('playing', handlePlaying);
-        };
-      }
-    }
-  }, []);
+
 
   // Save position periodically
   useEffect(() => {
@@ -287,9 +297,8 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
   };
 
   const handlePause = useCallback(() => {
-    // Log pause event but don't stop transcoding session
+    // Don't stop transcoding session on pause
     // Stopping the session causes the player to reset
-    console.log('Video paused');
   }, []);
 
   // Vidstack has built-in keyboard shortcuts:
@@ -336,21 +345,111 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
     };
   }, [loadingState.error, stopAllSessions, sessionTracker]);
   
-  // Get the stream URL with format preference - must be before conditional returns
-  const streamUrl = playbackDecision?.manifest_url || playbackDecision?.stream_url || '';
+  // Device detection utility
+  const detectDevice = () => {
+    const userAgent = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
+    const isMobile = /Mobi|Android/i.test(userAgent) || isIOS;
+    
+    return {
+      type: isMobile ? 'mobile' : 'desktop',
+      isIOS,
+      isSafari,
+    };
+  };
+  
+  // Get the stream URL with content-addressable storage support
+  const getStreamUrl = (decision: PlaybackDecision | null): string => {
+    if (!decision) return '';
+    
+    // If we have a content hash, use the content-addressable storage URL
+    if (decision.content_hash) {
+      // Determine the format based on transcode params
+      const isHLS = decision.transcode_params?.target_container === 'hls';
+      if (isHLS) {
+        // Add timestamp to force cache bust
+        const url = buildApiUrl(API_ENDPOINTS.CONTENT.HLS_MANIFEST.path(decision.content_hash));
+        return `${url}?t=${Date.now()}`;
+      } else {
+        // Default to DASH for content-addressable storage
+        const url = buildApiUrl(API_ENDPOINTS.CONTENT.MANIFEST.path(decision.content_hash));
+        return `${url}?t=${Date.now()}`;
+      }
+    }
+    
+    // Fall back to legacy URLs
+    return decision.manifest_url || decision.stream_url || '';
+  };
+  
+  const streamUrl = getStreamUrl(playbackDecision);
   
   // Get optimal source configuration with device-specific optimizations
-  const mediaSource = getOptimalSource(streamUrl);
+  const getOptimalSource = (url: string) => {
+    const device = detectDevice();
+    
+    // Use HLS for iOS devices and Safari
+    const preferHLS = device.isIOS || device.isSafari;
+    const isHLS = url.includes('.m3u8') || preferHLS;
+    
+    // Ensure absolute URL for better compatibility with DASH.js
+    const absoluteUrl = url.startsWith('http') ? url : 
+      (url.startsWith('/') ? window.location.origin + url : url);
+    
+    console.log('📺 Media source:', {
+      original: url,
+      absolute: absoluteUrl,
+      format: isHLS ? 'hls' : 'dash',
+      device: device.type,
+      windowOrigin: window.location.origin
+    });
+    
+    return {
+      src: absoluteUrl,
+      type: isHLS ? 'application/vnd.apple.mpegurl' : 'application/dash+xml',
+    };
+  };
   
-  // Apply DASH.js compatibility fixes for DASH content - MUST be before any conditional returns
+  const mediaSource = getOptimalSource(streamUrl);
+  const [delayedSource, setDelayedSource] = useState<{ src: string; type: string } | null>(null);
+  const [useTestPlayer, setUseTestPlayer] = useState(false);
+  
+  // Delay setting source to ensure manifest is ready
   useEffect(() => {
-    if (streamUrl && streamUrl.includes('.mpd')) {
-      console.log('🔧 Applying DASH.js compatibility enhancements');
-      initializeDashWithFixes(() => {
-        console.log('✅ DASH.js compatibility enhancements applied');
+    if (mediaSource && mediaSource.src) {
+      // Small delay to ensure backend is ready
+      const timer = setTimeout(() => {
+        setDelayedSource(mediaSource);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [mediaSource.src, mediaSource.type]);
+  
+  // Debug: Log media source
+  useEffect(() => {
+    if (mediaSource && streamUrl) {
+      console.log('🎬 Media source:', {
+        mediaSource,
+        streamUrl,
+        playbackDecision,
+        mediaFile,
+        contentHash: playbackDecision?.content_hash,
+        isUsingContentStore: !!playbackDecision?.content_hash
       });
     }
-  }, [streamUrl]);
+  }, [mediaSource, streamUrl, playbackDecision, mediaFile]);
+  
+  // Log when DASH source is ready
+  useEffect(() => {
+    if (delayedSource && delayedSource.type === 'application/dash+xml' && delayedSource.src) {
+      console.log('🔍 DASH source ready:', {
+        url: delayedSource.src,
+        type: delayedSource.type
+      });
+    }
+  }, [delayedSource]);
+  
+  // Vidstack handles DASH.js internally, no compatibility patches needed
 
   if ((loadingState.isLoading || navLoadingState.isLoading) && !playbackDecision) {
     return (
@@ -404,8 +503,21 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
       >
         <ArrowLeft className="w-6 h-6" />
       </button>
+      
+      {/* Test player toggle - TEMPORARY */}
+      {mediaSource.type === 'application/dash+xml' && (
+        <button
+          onClick={() => setUseTestPlayer(!useTestPlayer)}
+          className="absolute top-4 right-4 z-50 p-2 rounded text-white bg-red-600 hover:bg-red-700"
+        >
+          {useTestPlayer ? 'Use Vidstack' : 'Test DASH.js'}
+        </button>
+      )}
 
-      {/* Vidstack Media Player */}
+      {/* Conditionally render test player or Vidstack */}
+      {useTestPlayer && mediaSource.type === 'application/dash+xml' ? (
+        <TestDashPlayer src={mediaSource.src} />
+      ) : (
       <VidstackPlayer
         className="w-full h-full"
         style={{
@@ -414,19 +526,71 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
           '--media-accent-color-hover': 'rgb(var(--player-accent-400))',
         }}
         title={currentMedia?.title || 'Video Player'}
-        src={{
-          src: mediaSource.src,
-          type: mediaSource.type,
-        }}
+        src={delayedSource?.src || ''}
+        type={delayedSource?.type}
         autoPlay={autoplay && config.autoplay}
         crossOrigin="anonymous"
         playsInline
         onPause={handlePause}
+        onLoadedMetadata={(event: any) => {
+          console.log('📹 Video metadata loaded');
+          console.log('📹 Metadata details:', {
+            duration: playerRef.current?.duration,
+            width: playerRef.current?.videoWidth,
+            height: playerRef.current?.videoHeight,
+            readyState: playerRef.current?.readyState,
+            src: playerRef.current?.src
+          });
+        }}
+        onLoadStart={(event: any) => {
+          console.log('🎬 Load start:', {
+            src: mediaSource.src,
+            type: mediaSource.type,
+            event
+          });
+        }}
+        onCanPlay={() => {
+          console.log('▶️ Can play event fired');
+        }}
+        onDurationChange={(event: any) => {
+          console.log('⏱️ Duration changed:', event?.detail);
+        }}
+        onError={(event: any) => {
+          console.error('❌ Video error:', event);
+          // Log detailed error information
+          if (event?.detail) {
+            console.error('❌ Video error details:', {
+              error: event.detail,
+              src: mediaSource.src,
+              type: mediaSource.type,
+              streamUrl,
+              contentHash: playbackDecision?.content_hash
+            });
+          }
+        }}
         ref={playerRef}
         // Ensure DASH provider is loaded
         load="eager"
-        onProviderSetup={(event) => {
+        onProviderChange={(event: any) => {
+          console.log('🎬 Provider changed:', {
+            provider: event?.detail,
+            loader: event?.detail?.loader,
+            type: event?.detail?.type
+          });
+        }}
+        onProviderSetup={(event: any) => {
           // Provider is ready
+          console.log('🎞️ Provider setup:', event);
+          console.log('🎞️ Provider details:', {
+            provider: event?.detail?.provider,
+            type: event?.detail?.type,
+            src: mediaSource.src
+          });
+          
+          // Check if DASH provider is loaded
+          if (event?.detail?.provider?.name === 'dash' || event?.detail?.type === 'dash') {
+            console.log('✅ DASH provider loaded successfully');
+          }
         }}
       >
         <MediaProvider />
@@ -477,6 +641,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
           />
         ))}
       </VidstackPlayer>
+      )}
 
       {/* Status overlays */}
       <StatusOverlay
@@ -514,8 +679,8 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = (props) => {
       >
         <VideoControls
           isPlaying={playerState.isPlaying}
-          currentTime={playerState.currentTime}
-          duration={playerState.duration}
+          currentTime={Math.min(playerState.currentTime, playerState.duration || 0)}
+          duration={Math.max(playerState.duration, mediaFile?.duration || 0)}
           volume={playerState.volume}
           isMuted={playerState.isMuted}
           isFullscreen={playerState.isFullscreen}

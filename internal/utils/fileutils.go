@@ -1,3 +1,6 @@
+// Package utils provides file system utilities and media file handling functions.
+// This package contains optimized file operations, hashing utilities, and media type detection
+// designed for high-performance media scanning and processing.
 package utils
 
 import (
@@ -15,7 +18,9 @@ import (
 	"time"
 )
 
-// MediaExtensions contains supported media file extensions
+// MediaExtensions contains supported media file extensions.
+// This map is used by IsMediaFile to quickly determine if a file should be processed.
+// The map includes common video and audio formats that Viewra can handle.
 var MediaExtensions = map[string]bool{
 	// Video formats
 	".mp4":  true,
@@ -41,8 +46,10 @@ var MediaExtensions = map[string]bool{
 	".aiff": true,
 }
 
-// SkippedExtensions contains file extensions that should never be processed
+// SkippedExtensions contains file extensions that should never be processed.
 // These are typically system files, previews, thumbnails, or other non-media files
+// that media servers generate but should not be scanned as actual media content.
+// This helps avoid duplicate processing and improves scanning performance.
 var SkippedExtensions = map[string]bool{
 	// Trickplay and preview files (Plex, Jellyfin, Emby, etc.)
 	".bif":        true, // Roku/Plex trickplay files
@@ -141,7 +148,9 @@ var SkippedExtensions = map[string]bool{
 	".iso":  true, // Disk images (unless specifically for media)
 }
 
-// CalculateFileHash calculates SHA1 hash of a file
+// CalculateFileHash calculates SHA1 hash of a file.
+// This function reads the entire file to compute the hash, which can be slow for large files.
+// For better performance with large media files, consider using CalculateFileHashFast or CalculateFileHashSampled.
 func CalculateFileHash(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -157,8 +166,10 @@ func CalculateFileHash(filePath string) (string, error) {
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
-// CalculateFileHashIfNeeded calculates SHA1 hash only if the file has changed
-// Returns the existing hash if file hasn't changed based on size and modification time
+// CalculateFileHashIfNeeded calculates SHA1 hash only if the file has changed.
+// Returns the existing hash if file hasn't changed based on size and modification time.
+// This optimization avoids rehashing files that haven't been modified, significantly
+// improving scan performance for large media libraries.
 func CalculateFileHashIfNeeded(filePath string, existingHash string, existingSize int64, existingModTime time.Time) (string, error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
@@ -174,7 +185,9 @@ func CalculateFileHashIfNeeded(filePath string, existingHash string, existingSiz
 	return CalculateFileHash(filePath)
 }
 
-// CalculateFileHashFast calculates SHA1 hash using a larger buffer for better performance
+// CalculateFileHashFast calculates SHA1 hash using a larger buffer for better performance.
+// Uses a 64KB buffer instead of the default 32KB, which improves I/O efficiency
+// for sequential reads on modern storage systems.
 func CalculateFileHashFast(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -202,8 +215,14 @@ func CalculateFileHashFast(filePath string) (string, error) {
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
-// CalculateFileHashUltraFast calculates a hash optimized for very large files (10GB+)
-// Uses minimal sampling for maximum speed on large media files
+// CalculateFileHashUltraFast calculates a hash optimized for very large files (10GB+).
+// Uses minimal sampling for maximum speed on large media files.
+//
+// The function samples strategic positions (start, 25%, 75%) to create a unique
+// fingerprint while minimizing I/O. This is suitable when speed is critical
+// and perfect hash accuracy is not required.
+//
+// Includes NFS retry logic for network storage reliability.
 func CalculateFileHashUltraFast(filePath string, fileSize int64) (string, error) {
 	// OPTIMIZATION 13: NFS retry logic for network storage reliability
 	var file *os.File
@@ -277,8 +296,12 @@ func CalculateFileHashUltraFast(filePath string, fileSize int64) (string, error)
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// CalculateFileHashSampled calculates a hash by sampling parts of large files
-// This is much faster for large files while still providing good uniqueness
+// CalculateFileHashSampled calculates a hash by sampling parts of large files.
+// This is much faster for large files while still providing good uniqueness.
+//
+// Samples the beginning, middle, and end of the file (1MB each) to create
+// a fingerprint that balances speed and uniqueness. The file size is also
+// included in the hash to differentiate files of different sizes.
 func CalculateFileHashSampled(filePath string, fileSize int64) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -339,7 +362,9 @@ func CalculateFileHashSampled(filePath string, fileSize int64) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// IsMediaFile checks if a file has a supported media extension
+// IsMediaFile checks if a file has a supported media extension.
+// Returns true if the file extension is in the MediaExtensions map.
+// This function includes debug output for troubleshooting scanning issues.
 func IsMediaFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	result := MediaExtensions[ext]
@@ -348,14 +373,20 @@ func IsMediaFile(filePath string) bool {
 }
 
 // IsSkippedFile returns true if a file should be skipped during scanning
-// based on its extension being in the SkippedExtensions list
+// based on its extension being in the SkippedExtensions list.
+// This helps avoid scanning trickplay files, thumbnails, metadata, and other
+// non-media files generated by media servers.
 func IsSkippedFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	return SkippedExtensions[ext]
 }
 
-// IsMediaFileOptimized returns true if a file is a supported media file and should be processed
-// This also checks that the file is not in the skipped extensions list
+// IsMediaFileOptimized returns true if a file is a supported media file and should be processed.
+// This also checks that the file is not in the skipped extensions list.
+//
+// Performance optimized version that avoids string allocations and uses
+// inline lowercase conversion. Falls back to a switch statement for
+// extensions not in the main maps.
 func IsMediaFileOptimized(path string) bool {
 	// Get extension without allocating new string
 	lastDot := strings.LastIndexByte(path, '.')
@@ -389,7 +420,9 @@ func IsMediaFileOptimized(path string) bool {
 	}
 }
 
-// GetContentType returns the appropriate content type for a file extension
+// GetContentType returns the appropriate MIME content type for a file extension.
+// Used for HTTP responses when serving media files. Returns "application/octet-stream"
+// for unknown file types.
 func GetContentType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 
@@ -428,18 +461,25 @@ func getBasicContentType(ext string) string {
 	return ""
 }
 
-// NewFastHash returns a new FNV-1a 64-bit hash
+// NewFastHash returns a new FNV-1a 64-bit hash.
+// FNV (Fowler-Noll-Vo) is a fast, non-cryptographic hash function
+// suitable for hash tables and checksums where speed is important.
 func NewFastHash() hash.Hash64 {
 	return fnv.New64a()
 }
 
-// SumString returns the hex string of the hash
+// SumString returns the hex string representation of the hash.
+// Converts the 64-bit hash value to a hexadecimal string.
 func SumString(h hash.Hash64) string {
 	return fmt.Sprintf("%x", h.Sum64())
 }
 
-// IsTrickplayFile returns true if a file appears to be a trickplay, preview, or thumbnail file
-// This includes both extension-based and filename pattern-based detection
+// IsTrickplayFile returns true if a file appears to be a trickplay, preview, or thumbnail file.
+// This includes both extension-based and filename pattern-based detection.
+//
+// Trickplay files are generated by media servers (Plex, Jellyfin, Emby) for
+// video scrubbing previews. These should be excluded from media scanning
+// to avoid duplicate entries and improve performance.
 func IsTrickplayFile(filePath string) bool {
 	// First check extension
 	if IsSkippedFile(filePath) {
@@ -464,7 +504,9 @@ func IsTrickplayFile(filePath string) bool {
 	return false
 }
 
-// IsTrickplayDirectory returns true if a directory appears to contain trickplay files
+// IsTrickplayDirectory returns true if a directory appears to contain trickplay files.
+// Checks common directory naming patterns used by media servers for storing
+// generated content like thumbnails, previews, and metadata.
 func IsTrickplayDirectory(dirPath string) bool {
 	dirName := strings.ToLower(filepath.Base(dirPath))
 	trickplayDirPatterns := []string{
@@ -483,7 +525,9 @@ func IsTrickplayDirectory(dirPath string) bool {
 	return false
 }
 
-// GetTrickplayDetectionStats analyzes a directory path and returns statistics about trickplay files
+// TrickplayStats contains statistics about trickplay files found during directory analysis.
+// Used for debugging and optimizing scan performance by identifying directories
+// with high concentrations of non-media files.
 type TrickplayStats struct {
 	TrickplayFiles       int   `json:"trickplay_files"`
 	TrickplayDirectories int   `json:"trickplay_directories"`
@@ -492,7 +536,12 @@ type TrickplayStats struct {
 	SkippedBytes         int64 `json:"skipped_bytes"`
 }
 
-// AnalyzeTrickplayInDirectory scans a directory and returns statistics about trickplay content
+// AnalyzeTrickplayInDirectory scans a directory and returns statistics about trickplay content.
+// This function is useful for analyzing media libraries to understand the volume
+// of generated content and optimize scanning strategies.
+//
+// The function continues on errors to provide best-effort statistics even
+// when some files or directories cannot be accessed.
 func AnalyzeTrickplayInDirectory(dirPath string) (*TrickplayStats, error) {
 	stats := &TrickplayStats{}
 

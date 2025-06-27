@@ -298,24 +298,24 @@ func (p *TVStructureCorePlugin) parseDateBasedEpisode(filename string) *TVShowIn
 // parseSxxExx parses the SxxExx format from filename
 func (p *TVStructureCorePlugin) parseSxxExx(filename, dirPath string) *TVShowInfo {
 	fmt.Printf("DEBUG: Attempting to parse SxxExx from filename: %s\n", filename)
-	
+
 	// Enhanced regex patterns for SxxExx format with better debugging
 	patterns := []string{
 		// Pattern 1: Most common S##E## format with optional show name and episode title
 		`(?i)^(.+?)\s*[.\-\s]*s(\d{1,2})e(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
-		
+
 		// Pattern 2: Season/episode with words
 		`(?i)^(.+?)\s*[.\-\s]*season\s*(\d{1,2})\s*episode\s*(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
-		
+
 		// Pattern 3: XxYY format (e.g., 1x01)
 		`(?i)^(.+?)\s*[.\-\s]*(\d{1,2})x(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
-		
+
 		// Pattern 4: With year in parentheses
 		`(?i)^(.+?)\s*\(\d{4}\)\s*[.\-\s]*s(\d{1,2})e(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
-		
-		// Pattern 5: Spaced S## E## format  
+
+		// Pattern 5: Spaced S## E## format
 		`(?i)^(.+?)\s*[.\-\s]*s(\d{1,2})\s*e(\d{1,2})(?:[.\-\s]*(.+?))?(?:\s*\[.*?\]|\s*$)`,
-		
+
 		// Pattern 6: Dotted format (Show.Name.S##E##.Episode.Title)
 		`(?i)^(.+?)\.s(\d{1,2})e(\d{1,2})(?:\.(.+?))?(?:\.[^.]*$|\s*$)`,
 	}
@@ -329,22 +329,22 @@ func (p *TVStructureCorePlugin) parseSxxExx(filename, dirPath string) *TVShowInf
 			showName := strings.TrimSpace(matches[1])
 			seasonStr := matches[2]
 			episodeStr := matches[3]
-			
-			fmt.Printf("DEBUG: Pattern %d matched - raw values: show='%s', season='%s', episode='%s'\n", 
+
+			fmt.Printf("DEBUG: Pattern %d matched - raw values: show='%s', season='%s', episode='%s'\n",
 				patternIndex+1, showName, seasonStr, episodeStr)
-				
+
 			seasonNum, err1 := strconv.Atoi(seasonStr)
 			episodeNum, err2 := strconv.Atoi(episodeStr)
 
 			// Validate extraction was successful and numbers are reasonable
 			if err1 != nil || err2 != nil {
-				fmt.Printf("DEBUG: Pattern %d failed int conversion: season error=%v, episode error=%v\n", 
+				fmt.Printf("DEBUG: Pattern %d failed int conversion: season error=%v, episode error=%v\n",
 					patternIndex+1, err1, err2)
 				continue
 			}
-			
+
 			if seasonNum < 1 || seasonNum > 50 || episodeNum < 1 || episodeNum > 999 {
-				fmt.Printf("DEBUG: Pattern %d failed range validation: season=%d, episode=%d\n", 
+				fmt.Printf("DEBUG: Pattern %d failed range validation: season=%d, episode=%d\n",
 					patternIndex+1, seasonNum, episodeNum)
 				continue
 			}
@@ -378,15 +378,15 @@ func (p *TVStructureCorePlugin) parseSxxExx(filename, dirPath string) *TVShowInf
 
 	// If no pattern matched, try a more aggressive fallback approach
 	fmt.Printf("DEBUG: No regex patterns matched, trying fallback approach for: %s\n", filename)
-	
+
 	// Look for any S##E## pattern anywhere in the filename
 	fallbackRegex := regexp.MustCompile(`(?i)s(\d{1,2})e(\d{1,2})`)
 	if matches := fallbackRegex.FindStringSubmatch(filename); len(matches) >= 3 {
 		seasonNum, err1 := strconv.Atoi(matches[1])
 		episodeNum, err2 := strconv.Atoi(matches[2])
-		
+
 		fmt.Printf("DEBUG: Fallback regex found S%dE%d, errors: %v, %v\n", seasonNum, episodeNum, err1, err2)
-		
+
 		if err1 == nil && err2 == nil && seasonNum >= 1 && seasonNum <= 50 && episodeNum >= 1 && episodeNum <= 999 {
 			// Extract show name as everything before the S##E## pattern
 			seIndex := strings.Index(strings.ToLower(filename), strings.ToLower(matches[0]))
@@ -396,7 +396,7 @@ func (p *TVStructureCorePlugin) parseSxxExx(filename, dirPath string) *TVShowInf
 				if showName != "" {
 					fmt.Printf("DEBUG: Fallback extraction successful: show='%s', S%02dE%02d\n",
 						showName, seasonNum, episodeNum)
-					
+
 					return &TVShowInfo{
 						ShowName:      showName,
 						SeasonNumber:  seasonNum,
@@ -669,36 +669,36 @@ func (p *TVStructureCorePlugin) createTVShowStructure(db *gorm.DB, mediaFile *da
 func (p *TVStructureCorePlugin) createOrGetTVShow(db *gorm.DB, showInfo *TVShowInfo) (*database.TVShow, error) {
 	// ENHANCED DUPLICATE PREVENTION: Check for existing TV show by multiple criteria
 	var existingShow database.TVShow
-	
+
 	// First priority: Try to find existing TV show by exact title match (case insensitive)
 	if err := db.Where("LOWER(title) = LOWER(?)", showInfo.ShowName).First(&existingShow).Error; err == nil {
 		// Update the existing show with any new information we have
 		updated := false
-		
+
 		// Update first air date if we have year info and existing record doesn't have it
 		if showInfo.Year > 0 && existingShow.FirstAirDate == nil {
 			firstAirDate := time.Date(showInfo.Year, 1, 1, 0, 0, 0, 0, time.UTC)
 			existingShow.FirstAirDate = &firstAirDate
 			updated = true
 		}
-		
+
 		if updated {
 			existingShow.UpdatedAt = time.Now()
 			if err := db.Save(&existingShow).Error; err != nil {
 				return nil, fmt.Errorf("failed to update existing TV show: %w", err)
 			}
 		}
-		
+
 		return &existingShow, nil
 	}
-	
+
 	// Second priority: Check for similar titles that might be the same show
 	// Look for titles that are very similar (helps with slight variations in naming)
 	var similarShows []database.TVShow
 	if err := db.Where("LOWER(title) LIKE ?", "%"+strings.ToLower(showInfo.ShowName)+"%").
 		Or("LOWER(title) LIKE ?", "%"+strings.ToLower(strings.ReplaceAll(showInfo.ShowName, " ", ""))+"%").
 		Limit(5).Find(&similarShows).Error; err == nil {
-		
+
 		// Check for exact matches after normalization
 		normalizedTitle := strings.ToLower(strings.ReplaceAll(showInfo.ShowName, " ", ""))
 		for _, show := range similarShows {
@@ -709,7 +709,7 @@ func (p *TVStructureCorePlugin) createOrGetTVShow(db *gorm.DB, showInfo *TVShowI
 			}
 		}
 	}
-	
+
 	// Third priority: Create new TV show only if no existing record found
 	tvShow := &database.TVShow{
 		ID:        utils.GenerateUUID(),

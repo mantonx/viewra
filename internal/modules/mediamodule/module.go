@@ -9,30 +9,25 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/services"
-
+	"github.com/mantonx/viewra/internal/types"
 	"gorm.io/gorm"
 )
 
 // Module represents the Media Management module
 type Module struct {
-	id           string
-	name         string
-	version      string
-	core         bool
-	initialized  bool
-	db           *gorm.DB
-	eventBus     events.EventBus
-	pluginModule *pluginmodule.PluginModule
+	id          string
+	name        string
+	version     string
+	core        bool
+	initialized bool
+	db          *gorm.DB
+	eventBus    events.EventBus
 
 	// Media management components
 	libraryManager  *LibraryManager
 	fileProcessor   *FileProcessor
 	metadataManager *MetadataManager
-
-	// Playback integration for intelligent streaming
-	playbackIntegration *PlaybackIntegration
 }
 
 // Auto-register the module when imported
@@ -146,6 +141,13 @@ func (m *Module) Init() error {
 		return fmt.Errorf("failed to initialize media components: %w", err)
 	}
 
+	// Register media service with the service registry
+	mediaService := NewServiceAdapter(m)
+	if err := services.Register("media", mediaService); err != nil {
+		return fmt.Errorf("failed to register media service: %w", err)
+	}
+	log.Println("INFO: MediaService registered with service registry")
+
 	m.initialized = true
 
 	// Publish initialization event
@@ -172,35 +174,21 @@ func (m *Module) initializeComponents() error {
 	log.Println("INFO: Library manager initialized successfully")
 
 	log.Println("INFO: Initializing media file processor")
-	m.fileProcessor = NewFileProcessor(m.db, m.eventBus, m.pluginModule)
+	m.fileProcessor = NewFileProcessor(m.db, m.eventBus, nil)
 	if err := m.fileProcessor.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize file processor: %w", err)
 	}
-	if m.pluginModule != nil {
-		log.Println("INFO: File processor initialized with plugin module support")
-	} else {
-		log.Println("INFO: File processor initialized without plugin module (limited functionality)")
-	}
+	log.Println("INFO: File processor initialized - will use plugin service registry")
 
 	log.Println("INFO: Initializing metadata manager")
-	m.metadataManager = NewMetadataManager(m.db, m.eventBus, m.pluginModule)
+	m.metadataManager = NewMetadataManager(m.db, m.eventBus, nil)
 	if err := m.metadataManager.Initialize(); err != nil {
 		return fmt.Errorf("failed to initialize metadata manager: %w", err)
 	}
-	if m.pluginModule != nil {
-		log.Println("INFO: Metadata manager initialized with plugin module support")
-	} else {
-		log.Println("INFO: Metadata manager initialized without plugin module (limited functionality)")
-	}
+	log.Println("INFO: Metadata manager initialized - will use plugin service registry")
 
-	// Initialize playback integration using service registry
-	if playbackService, err := services.GetService[services.PlaybackService]("playback"); err == nil {
-		m.playbackIntegration = NewPlaybackIntegration(m.db, playbackService)
-		log.Println("✅ Playback integration initialized using service registry")
-	} else {
-		log.Printf("WARN: ⚠️ PlaybackService not available in service registry: %v", err)
-		log.Println("ℹ️ Playback integration disabled - service not registered")
-	}
+	// Note: Playback functionality is now handled entirely by the playback module
+	log.Println("ℹ️ Playback functionality delegated to playback module")
 
 	return nil
 }
@@ -223,19 +211,11 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 		mediaGroup.GET("/files/:id", m.getFile)
 		mediaGroup.DELETE("/files/:id", m.deleteFile)
 
-		// Modern DASH/HLS streaming - use new PlaybackModule workflow exclusively
-		if m.playbackIntegration != nil {
-			mediaGroup.POST("/files/:id/playback-decision", m.playbackIntegration.HandlePlaybackDecision)
-			mediaGroup.GET("/files/:id/stream", m.playbackIntegration.HandleIntelligentStream)
-			mediaGroup.HEAD("/files/:id/stream", m.playbackIntegration.HandleIntelligentStreamHead)
-			log.Println("INFO: ✅ Registered DASH/HLS intelligent streaming routes")
-		} else {
-			// If no playback integration, redirect to use PlaybackModule directly
-			mediaGroup.POST("/files/:id/playback-decision", m.redirectToPlaybackModule)
-			mediaGroup.GET("/files/:id/stream", m.redirectToPlaybackModule)
-			mediaGroup.HEAD("/files/:id/stream", m.redirectToPlaybackModule)
-			log.Println("WARN: ⚠️ Playback integration unavailable - requests will redirect to PlaybackModule API")
-		}
+		// Modern DASH/HLS streaming - redirect to PlaybackModule API
+		mediaGroup.POST("/files/:id/playback-decision", m.redirectToPlaybackModule)
+		mediaGroup.GET("/files/:id/stream", m.redirectToPlaybackModule)
+		mediaGroup.HEAD("/files/:id/stream", m.redirectToPlaybackModule)
+		log.Println("INFO: ✅ Streaming routes redirect to PlaybackModule API")
 
 		// File metadata and management
 		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
@@ -309,31 +289,20 @@ func (m *Module) GetMetadataManager() *MetadataManager {
 
 // Upload handler functionality has been removed
 
-// SetPluginModule sets the plugin module for media operations
-func (m *Module) SetPluginModule(pluginModule *pluginmodule.PluginModule) {
-	m.pluginModule = pluginModule
-
-	// Re-initialize components if module is already initialized
-	if m.initialized && pluginModule != nil {
-		log.Printf("INFO: Updating media module components with plugin module")
-
-		// Update file processor
-		if m.fileProcessor != nil {
-			m.fileProcessor = NewFileProcessor(m.db, m.eventBus, pluginModule)
-			m.fileProcessor.Initialize()
-		}
-
-		// Update metadata manager
-		if m.metadataManager != nil {
-			m.metadataManager = NewMetadataManager(m.db, m.eventBus, pluginModule)
-			m.metadataManager.Initialize()
-		}
-
-		// PlaybackService integration is already set up during module initialization
-		// No need to recreate it when plugins are updated
-		log.Printf("✅ Plugin module updated - playback integration uses service registry")
-
-		log.Printf("✅ Media module components updated with plugin module")
+// GetBasicMediaInfo is a helper method for the service adapter
+func (m *Module) GetBasicMediaInfo(filePath string) (*types.MediaInfo, error) {
+	if m.fileProcessor != nil {
+		return m.fileProcessor.GetBasicMediaInfo(filePath)
 	}
+	return nil, fmt.Errorf("file processor not initialized")
 }
 
+// ProvidedServices returns the services provided by this module
+func (m *Module) ProvidedServices() []string {
+	return []string{"media", "library-manager", "file-processor", "metadata-manager"}
+}
+
+// Dependencies returns the module dependencies
+func (m *Module) Dependencies() []string {
+	return []string{"system.database", "system.events", "system.plugins"}
+}

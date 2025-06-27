@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mantonx/viewra/sdk/proto"
-	"github.com/mantonx/viewra/sdk/transcoding/types"
+	"github.com/mantonx/viewra/sdk/transcoding"
 	"google.golang.org/grpc"
 )
 
@@ -593,15 +593,15 @@ func (s *TranscodingProviderServer) StartTranscode(ctx context.Context, req *pro
 		// For now, just use predefined resolutions
 		switch req.Request.Resolution {
 		case "480p":
-			transcodeReq.Resolution = &types.Resolution{Width: 640, Height: 480}
+		transcodeReq.Resolution = &transcoding.Resolution{Width: 640, Height: 480}
 		case "720p":
-			transcodeReq.Resolution = &types.Resolution{Width: 1280, Height: 720}
+		transcodeReq.Resolution = &transcoding.Resolution{Width: 1280, Height: 720}
 		case "1080p":
-			transcodeReq.Resolution = &types.Resolution{Width: 1920, Height: 1080}
+		transcodeReq.Resolution = &transcoding.Resolution{Width: 1920, Height: 1080}
 		case "1440p":
-			transcodeReq.Resolution = &types.Resolution{Width: 2560, Height: 1440}
+		transcodeReq.Resolution = &transcoding.Resolution{Width: 2560, Height: 1440}
 		case "4k", "2160p":
-			transcodeReq.Resolution = &types.Resolution{Width: 3840, Height: 2160}
+		transcodeReq.Resolution = &transcoding.Resolution{Width: 3840, Height: 2160}
 		}
 	}
 
@@ -701,15 +701,15 @@ func (s *TranscodingProviderServer) StartStream(ctx context.Context, req *proto.
 		// For now, just use predefined resolutions
 		switch req.Request.Resolution {
 		case "480p":
-			transcodeReq.Resolution = &types.Resolution{Width: 640, Height: 480}
+			transcodeReq.Resolution = &transcoding.Resolution{Width: 640, Height: 480}
 		case "720p":
-			transcodeReq.Resolution = &types.Resolution{Width: 1280, Height: 720}
+			transcodeReq.Resolution = &transcoding.Resolution{Width: 1280, Height: 720}
 		case "1080p":
-			transcodeReq.Resolution = &types.Resolution{Width: 1920, Height: 1080}
+			transcodeReq.Resolution = &transcoding.Resolution{Width: 1920, Height: 1080}
 		case "1440p":
-			transcodeReq.Resolution = &types.Resolution{Width: 2560, Height: 1440}
+			transcodeReq.Resolution = &transcoding.Resolution{Width: 2560, Height: 1440}
 		case "4k", "2160p":
-			transcodeReq.Resolution = &types.Resolution{Width: 3840, Height: 2160}
+			transcodeReq.Resolution = &transcoding.Resolution{Width: 3840, Height: 2160}
 		}
 	}
 

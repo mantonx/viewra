@@ -78,6 +78,14 @@ RUN cd /tmp && \
     # Clean up build dependencies to reduce image size
     apk del build-base yasm nasm cmake pkgconf
 
+# Install Shaka Packager for DASH/HLS packaging
+RUN cd /tmp && \
+    wget https://github.com/shaka-project/shaka-packager/releases/download/v3.2.0/packager-linux-x64 && \
+    mv packager-linux-x64 /usr/local/bin/shaka-packager && \
+    chmod +x /usr/local/bin/shaka-packager && \
+    # Create symlink for easier access
+    ln -s /usr/local/bin/shaka-packager /usr/local/bin/packager
+
 # Create non-root user
 RUN addgroup -g 1000 viewra && \
     adduser -D -u 1000 -G viewra viewra

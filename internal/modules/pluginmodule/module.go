@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/services"
 	"gorm.io/gorm"
 )
 
@@ -119,6 +120,9 @@ func (pm *PluginModule) Init() error {
 	if err := pm.Initialize(ctx, pm.db); err != nil {
 		return fmt.Errorf("failed to initialize plugin module: %w", err)
 	}
+
+	// Service registration is now done in RegisterServices() phase
+	// No need to register again here
 
 	return nil
 }
@@ -802,20 +806,20 @@ func NewPluginModule(db *gorm.DB, config *PluginModuleConfig) *PluginModule {
 // This is part of the self-healing system to avoid manual plugin management
 func (pm *PluginModule) autoEnableTranscodingPlugins() {
 	pm.logger.Info("Starting auto-enable for transcoding plugins")
-	
+
 	// Wait a bit for plugin discovery to complete
 	time.Sleep(2 * time.Second)
-	
+
 	// Get all external plugins
 	plugins := pm.externalManager.ListPlugins()
 	pm.logger.Info("Found external plugins for auto-enable", "count", len(plugins))
-	
+
 	enabledCount := 0
 	for _, plugin := range plugins {
 		// Check if it's a transcoding plugin
 		if plugin.Type == "transcoder" || plugin.Type == "transcoding" {
 			pm.logger.Info("Found transcoding plugin", "id", plugin.ID, "name", plugin.Name, "enabled", plugin.Enabled)
-			
+
 			// Enable it if not already enabled
 			if !plugin.Enabled {
 				pm.logger.Info("Auto-enabling transcoding plugin", "id", plugin.ID)
@@ -824,7 +828,7 @@ func (pm *PluginModule) autoEnableTranscodingPlugins() {
 				} else {
 					enabledCount++
 					pm.logger.Info("Successfully auto-enabled transcoding plugin", "id", plugin.ID)
-					
+
 					// Also start the plugin if not running
 					ctx := context.Background()
 					if err := pm.LoadExternalPlugin(ctx, plugin.ID); err != nil {
@@ -836,6 +840,40 @@ func (pm *PluginModule) autoEnableTranscodingPlugins() {
 			}
 		}
 	}
-	
+
 	pm.logger.Info("Auto-enable transcoding plugins completed", "enabled_count", enabledCount)
+}
+
+// ProvidedServices returns the services provided by this module
+func (pm *PluginModule) ProvidedServices() []string {
+	return []string{"plugins", "plugin-manager"}
+}
+
+// Dependencies returns the module dependencies
+func (pm *PluginModule) Dependencies() []string {
+	return []string{"system.database"}
+}
+
+// registerServices registers plugin services with the service registry
+func (pm *PluginModule) registerServices() error {
+	// Create and register the service adapter
+	serviceAdapter := NewServiceAdapter(pm)
+	if err := services.Register("plugin", serviceAdapter); err != nil {
+		return fmt.Errorf("failed to register plugin service: %w", err)
+	}
+
+	pm.logger.Info("Plugin service registered with service registry")
+	return nil
+}
+
+// RegisterServices implements the ServiceRegistrar interface
+// This is called early in the module lifecycle to register services
+func (pm *PluginModule) RegisterServices() error {
+	// Initialize components that are needed for service registration
+	if pm.externalManager == nil {
+		pm.externalManager = NewExternalPluginManager(pm.db, pm.logger)
+	}
+	
+	// Register the plugin service early so other modules can use it
+	return pm.registerServices()
 }

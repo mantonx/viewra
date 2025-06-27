@@ -127,7 +127,7 @@ func (m *Manager) SaveAsset(request *AssetRequest) (*AssetResponse, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to unset other preferred assets: %w", err)
 		}
-		log.Printf("INFO: Unset existing preferred assets for entity %s/%s type %s", 
+		log.Printf("INFO: Unset existing preferred assets for entity %s/%s type %s",
 			request.EntityType, request.EntityID, request.Type)
 	}
 
@@ -346,7 +346,7 @@ func (m *Manager) updateExistingAsset(existing *MediaAsset, request *AssetReques
 		if err != nil {
 			return nil, fmt.Errorf("failed to unset other preferred assets: %w", err)
 		}
-		log.Printf("INFO: Unset existing preferred assets for entity %s/%s type %s", 
+		log.Printf("INFO: Unset existing preferred assets for entity %s/%s type %s",
 			existing.EntityType, existing.EntityID, existing.Type)
 	}
 

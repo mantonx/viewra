@@ -1,0 +1,86 @@
+graph TB
+    %% Main Pipeline Flow
+    subgraph Input
+        MF[Media File<br/>movie.mp4]
+    end
+
+    subgraph "1. Encoding Stage"
+        SE[StreamEncoder]
+        FFM[FFmpeg Process]
+        
+        SE --> |"Spawns"| FFM
+        FFM --> |"Generates"| SEG1[segment_000.mp4]
+        FFM --> |"Generates"| SEG2[segment_001.mp4]
+        FFM --> |"Generates"| SEGN[segment_n.mp4]
+    end
+
+    subgraph "2. Packaging Stage"
+        SP[StreamPackager]
+        SHAKA[Shaka Packager]
+        
+        SP --> |"Controls"| SHAKA
+        SEG1 --> SHAKA
+        SEG2 --> SHAKA
+        SEGN --> SHAKA
+        
+        SHAKA --> |"Creates"| INIT[init.mp4]
+        SHAKA --> |"Creates"| VSEG[video/*.mp4]
+        SHAKA --> |"Creates"| ASEG[audio/*.mp4]
+        SHAKA --> |"Updates"| MPD[manifest.mpd]
+        SHAKA --> |"Updates"| HLS[master.m3u8]
+    end
+
+    subgraph "3. Storage Stage"
+        CS[ContentStore]
+        HASH[SHA256 Hash]
+        
+        VSEG --> CS
+        ASEG --> CS
+        MPD --> CS
+        HLS --> CS
+        
+        CS --> |"Calculates"| HASH
+        HASH --> |"Creates"| DIR[/content/{hash}/]
+    end
+
+    subgraph "4. Serving Stage"
+        API[Content API]
+        CDN[CDN/Cache]
+        
+        DIR --> API
+        API --> |"Serves"| CDN
+    end
+
+    subgraph "5. Client"
+        PLAYER[Video Player]
+        DASH[DASH.js/Shaka]
+        
+        CDN --> PLAYER
+        PLAYER --> DASH
+    end
+
+    %% Event Flow
+    subgraph "Event Bus"
+        EB[Global Event Bus]
+        
+        SE -.-> |"SegmentReady"| EB
+        SP -.-> |"ManifestUpdated"| EB
+        CS -.-> |"ContentStored"| EB
+        EB -.-> |"Events"| MON[Health Monitor]
+    end
+
+    %% Flow connections
+    MF --> SE
+    
+    %% Styling
+    classDef input fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef process fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef storage fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef output fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef event fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    
+    class MF input
+    class SE,SP,FFM,SHAKA process
+    class CS,HASH,DIR storage
+    class API,CDN,PLAYER output
+    class EB,MON event

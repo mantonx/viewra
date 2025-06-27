@@ -21,6 +21,20 @@ export const VidstackControls: React.FC<VidstackControlsProps> = ({
 
   useEffect(() => {
     if (store) {
+      // Debug: Log store state when duration is suspiciously low
+      if (store.duration < 1) {
+        console.log('🎬 Vidstack store state (low duration):', {
+          duration: store.duration,
+          currentTime: store.currentTime,
+          playing: store.playing,
+          paused: store.paused,
+          ended: store.ended,
+          canPlay: store.canPlay,
+          buffered: store.buffered,
+          seekableStart: store.seekableStart,
+          seekableEnd: store.seekableEnd,
+        });
+      }
       onStoreUpdate(store);
     }
   }, [store, onStoreUpdate]);

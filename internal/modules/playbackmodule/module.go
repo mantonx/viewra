@@ -9,7 +9,6 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/services"
 	"gorm.io/gorm"
 )
 
@@ -26,23 +25,21 @@ const (
 	ModuleName = "Playback Manager"
 
 	// ModuleVersion is the version of the playback module
-	ModuleVersion = "2.0.0"
+	ModuleVersion = "1.0.0"
 )
 
 // Module implements the playback functionality as a module
 type Module struct {
-	manager      *Manager
-	db           *gorm.DB
-	eventBus     events.EventBus
-	pluginModule PluginManagerInterface
+	manager  *Manager
+	db       *gorm.DB
+	eventBus events.EventBus
 }
 
 // NewModule creates a new playback module
-func NewModule(db *gorm.DB, eventBus events.EventBus, pluginModule PluginManagerInterface) *Module {
+func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
 	return &Module{
-		db:           db,
-		eventBus:     eventBus,
-		pluginModule: pluginModule,
+		db:       db,
+		eventBus: eventBus,
 	}
 }
 
@@ -110,7 +107,7 @@ func (m *Module) Init() error {
 
 	// Create manager with default configuration
 	// Configuration can be overridden via environment variables
-	m.manager = NewManager(m.db, m.eventBus, m.pluginModule, nil)
+	m.manager = NewManager(m.db, m.eventBus, nil)
 
 	if m.manager == nil {
 		logger.Error("Failed to create playback manager")
@@ -123,10 +120,20 @@ func (m *Module) Init() error {
 		return fmt.Errorf("failed to initialize playback manager: %w", err)
 	}
 
+	// Note: Providers are now managed by the transcoding module itself
+	// The playback module no longer registers providers directly
+	logger.Info("Provider registration is now handled by transcoding module")
+
 	// Register the PlaybackService with the service registry
-	playbackService := NewPlaybackServiceImpl(m.manager)
-	services.RegisterService("playback", playbackService)
+	if err := m.RegisterService(); err != nil {
+		logger.Error("Failed to register PlaybackService", "error", err)
+		return fmt.Errorf("failed to register playback service: %w", err)
+	}
 	logger.Info("PlaybackService registered with service registry")
+
+	// Content store is now managed by the transcoding module
+	// The content API handler will be created with minimal functionality
+	// for session-based serving only
 
 	logger.Info("Playback module initialized successfully with manager: %v", m.manager)
 
@@ -145,8 +152,15 @@ func (m *Module) RegisterRoutes(router *gin.Engine) {
 	// Create API handler instance
 	handler := NewAPIHandler(m.manager)
 
+	// Create simple session handler for playback module
+	// The transcoding module will handle content-addressable storage
+	sessionHandler := NewSessionHandler(m.manager.GetSessionStore())
+
 	// Register all routes from routes.go
-	RegisterRoutes(router, handler)
+	RegisterRoutes(router, handler, sessionHandler)
+
+	// Content routes are now handled by the transcoding module
+	// The playback module only handles session-based routes
 
 	logger.Info("Playback module routes registered successfully")
 }
@@ -190,19 +204,13 @@ func (m *Module) GetManager() *Manager {
 			return nil
 		}
 
-		m.manager = NewManager(m.db, m.eventBus, m.pluginModule, nil)
+		m.manager = NewManager(m.db, m.eventBus, nil)
 		logger.Info("Re-initialized playback manager: %v", m.manager)
 
 		// Initialize it
 		if m.manager != nil {
 			if err := m.manager.Initialize(); err != nil {
 				logger.Error("Failed to initialize re-created manager: %v", err)
-			} else {
-				// CRITICAL: Ensure plugin discovery runs on fallback manager
-				if m.pluginModule != nil {
-					m.manager.SetPluginManager(m.pluginModule)
-					logger.Info("Plugin discovery completed for fallback manager")
-				}
 			}
 		}
 
@@ -216,17 +224,21 @@ func (m *Module) GetManager() *Manager {
 	return m.manager
 }
 
-// SetPluginModule sets the plugin module for the playback system
-func (m *Module) SetPluginModule(pluginModule PluginManagerInterface) {
-	logger.Info("SetPluginModule called", "pluginModule_nil", pluginModule == nil)
-	m.pluginModule = pluginModule
+// ProvidedServices returns the list of services this module provides
+func (m *Module) ProvidedServices() []string {
+	return []string{"playback"}
+}
 
-	// Update manager if it exists
-	if m.manager != nil {
-		logger.Info("Updating manager with plugin module")
-		m.manager.SetPluginManager(pluginModule)
-	} else {
-		logger.Warn("Manager is nil when setting plugin module")
+// RequiredServices returns the list of service names this module requires
+func (m *Module) RequiredServices() []string {
+	return []string{"transcoding", "plugin"} // Playback requires transcoding and plugin services
+}
+
+// Dependencies returns the list of module IDs this module depends on
+func (m *Module) Dependencies() []string {
+	return []string{
+		"system.database", // For session storage
+		"system.events",   // For event notifications
 	}
 }
 
@@ -237,17 +249,4 @@ func Register() {
 		eventBus: nil, // Will be set during Init
 	}
 	modulemanager.Register(playbackModule)
-}
-
-// Legacy compatibility methods for external code that might use these
-
-// GetPlaybackCore returns the core playback manager (legacy compatibility)
-func (m *Module) GetPlaybackCore() interface{} {
-	return m.manager
-}
-
-// SetPlaybackCore sets the core playback manager (legacy compatibility)
-func (m *Module) SetPlaybackCore(core interface{}) {
-	// This is a no-op now since we manage our own manager
-	logger.Warn("SetPlaybackCore called - this is deprecated and has no effect")
 }

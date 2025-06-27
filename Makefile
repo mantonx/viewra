@@ -9,9 +9,13 @@ GO = go
 GREEN = \033[0;32m
 YELLOW = \033[1;33m
 RED = \033[0;31m
+CYAN = \033[0;36m
 NC = \033[0m # No Color
 
-.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds plugins build-plugins-docker build-plugins-host build-plugin-% setup-plugins dev-plugins logs-plugins plugin-dev plugin-setup plugin-build plugin-reload plugin-test plugin-watch plugin-fast plugin-cache refresh-plugins
+# Go tools
+GOLANGCI_LINT_VERSION = v1.62.2
+
+.PHONY: help build-plugin build-plugins clean-binaries clean-plugins migrate-db check-db restart-backend logs check-env dev-setup rebuild-troublesome db-web db-web-stop db-web-restart db-web-logs enforce-docker-builds plugins build-plugins-docker build-plugins-host build-plugin-% setup-plugins dev-plugins logs-plugins plugin-dev plugin-setup plugin-build plugin-reload plugin-test plugin-watch plugin-fast plugin-cache refresh-plugins lint lint-fix lint-install lint-docker test test-coverage build fmt vet
 
 help: ## Show this help message
 	@echo "Viewra Development Commands:"
@@ -294,3 +298,106 @@ refresh-playback: ## Refresh playback/transcoding plugins only
 
 plugin-status: ## Show plugin status
 	@./scripts/refresh-plugins.sh status
+
+##@ Code Quality
+
+lint-install: ## Install golangci-lint locally
+	@echo "$(GREEN)Installing golangci-lint $(GOLANGCI_LINT_VERSION)...$(NC)"
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
+	else \
+		echo "golangci-lint already installed: $(golangci-lint --version)"; \
+	fi
+
+lint: ## Run Go linter on all code
+	@echo "$(GREEN)Running Go linter...$(NC)"
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./... --timeout=10m; \
+	else \
+		echo "$(YELLOW)golangci-lint not installed. Run 'make lint-install' first or use 'make lint-docker'$(NC)"; \
+		exit 1; \
+	fi
+
+lint-fix: ## Run Go linter with auto-fix
+	@echo "$(GREEN)Running Go linter with auto-fix...$(NC)"
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./... --fix --timeout=10m; \
+	else \
+		echo "$(YELLOW)golangci-lint not installed. Run 'make lint-install' first$(NC)"; \
+		exit 1; \
+	fi
+
+lint-docker: ## Run Go linter using Docker (no local install needed)
+	@echo "$(GREEN)Running Go linter in Docker...$(NC)"
+	@docker run --rm -v "$(shell pwd):/app" -w /app golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) golangci-lint run ./... --timeout=10m
+
+lint-plugins: ## Lint all plugins
+	@echo "$(GREEN)Linting plugins...$(NC)"
+	@for plugin in $(find $(PLUGINS_DIR) -maxdepth 1 -type d -name "*_*" -printf "%f\n" 2>/dev/null); do \
+		echo "$(CYAN)Linting plugin: $plugin$(NC)"; \
+		if [ -f "$(PLUGINS_DIR)/$plugin/go.mod" ]; then \
+			cd "$(PLUGINS_DIR)/$plugin" && golangci-lint run . --timeout=5m || true; \
+		fi; \
+	done
+
+lint-ci: ## Run linter in CI mode (strict)
+	@echo "$(GREEN)Running Go linter in CI mode...$(NC)"
+	@golangci-lint run ./... --timeout=10m --out-format=github-actions
+
+##@ Testing & Building
+
+test: ## Run all tests
+	@echo "$(GREEN)Running tests...$(NC)"
+	@go test -v ./...
+
+test-coverage: ## Run tests with coverage report
+	@echo "$(GREEN)Running tests with coverage...$(NC)"
+	@go test -v -race -coverprofile=coverage.out ./...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "$(CYAN)Coverage report generated: coverage.html$(NC)"
+
+test-short: ## Run short tests only
+	@echo "$(GREEN)Running short tests...$(NC)"
+	@go test -v -short ./...
+
+build: ## Build the main application
+	@echo "$(GREEN)Building Viewra...$(NC)"
+	@go build -v -o bin/viewra ./cmd/viewra
+	@echo "$(GREEN)✅ Build complete: bin/viewra$(NC)"
+
+build-race: ## Build with race detector
+	@echo "$(GREEN)Building with race detector...$(NC)"
+	@go build -race -v -o bin/viewra-race ./cmd/viewra
+
+fmt: ## Format Go code
+	@echo "$(GREEN)Formatting Go code...$(NC)"
+	@go fmt ./...
+	@echo "$(GREEN)✅ Code formatted$(NC)"
+
+vet: ## Run go vet
+	@echo "$(GREEN)Running go vet...$(NC)"
+	@go vet ./...
+	@echo "$(GREEN)✅ Vet complete$(NC)"
+
+mod-tidy: ## Tidy go modules
+	@echo "$(GREEN)Tidying Go modules...$(NC)"
+	@go mod tidy
+	@echo "$(GREEN)✅ Modules tidied$(NC)"
+
+mod-verify: ## Verify go modules
+	@echo "$(GREEN)Verifying Go modules...$(NC)"
+	@go mod verify
+	@echo "$(GREEN)✅ Modules verified$(NC)"
+
+clean: clean-binaries ## Clean build artifacts
+	@echo "$(GREEN)Cleaning build artifacts...$(NC)"
+	@rm -rf bin/ coverage.* 
+	@echo "$(GREEN)✅ Clean complete$(NC)"
+
+##@ Quick Commands
+
+check: fmt vet lint test ## Run all checks (format, vet, lint, test)
+	@echo "$(GREEN)✅ All checks passed!$(NC)"
+
+ci: mod-verify lint-ci test-coverage ## Run CI checks
+	@echo "$(GREEN)✅ CI checks complete!$(NC)"

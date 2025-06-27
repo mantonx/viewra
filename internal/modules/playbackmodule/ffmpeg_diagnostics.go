@@ -129,17 +129,17 @@ func (h *APIHandler) HandleFFmpegTest(c *gin.Context) {
 
 	// Capture output
 	output, err := cmd.CombinedOutput()
-	
+
 	result := gin.H{
-		"test_file":   request.InputFile,
-		"duration":    request.Duration,
-		"output_dir":  testDir,
+		"test_file":     request.InputFile,
+		"duration":      request.Duration,
+		"output_dir":    testDir,
 		"ffmpeg_output": string(output),
 	}
 
 	if err != nil {
 		result["error"] = err.Error()
-		
+
 		// Check if it was killed by signal
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
@@ -149,7 +149,7 @@ func (h *APIHandler) HandleFFmpegTest(c *gin.Context) {
 				result["exit_code"] = status.ExitStatus()
 			}
 		}
-		
+
 		c.JSON(500, result)
 		return
 	}
@@ -166,7 +166,7 @@ func getFFmpegVersion() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	lines := strings.Split(string(output), "\n")
 	if len(lines) > 0 {
 		return lines[0], nil
@@ -177,7 +177,7 @@ func getFFmpegVersion() (string, error) {
 func getSystemInfo() SystemInfo {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	return SystemInfo{
 		CPUs:           runtime.NumCPU(),
 		MemoryMB:       m.Sys / 1024 / 1024,
@@ -190,35 +190,35 @@ func getSystemInfo() SystemInfo {
 
 func getProcessLimits() map[string]uint64 {
 	limits := make(map[string]uint64)
-	
+
 	var rlimit syscall.Rlimit
-	
+
 	// Memory limit
 	if err := syscall.Getrlimit(syscall.RLIMIT_AS, &rlimit); err == nil {
 		limits["memory_limit"] = rlimit.Cur
 	}
-	
+
 	// CPU limit
 	if err := syscall.Getrlimit(syscall.RLIMIT_CPU, &rlimit); err == nil {
 		limits["cpu_limit"] = rlimit.Cur
 	}
-	
+
 	// File descriptors
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit); err == nil {
 		limits["file_descriptors"] = rlimit.Cur
 	}
-	
+
 	// Stack size limit
 	if err := syscall.Getrlimit(syscall.RLIMIT_STACK, &rlimit); err == nil {
 		limits["stack_size"] = rlimit.Cur
 	}
-	
+
 	return limits
 }
 
 func runDiagnosticTests() []TestResult {
 	tests := []TestResult{}
-	
+
 	// Test 1: FFmpeg executable
 	ffmpegPath := findExecutable("ffmpeg")
 	tests = append(tests, TestResult{
@@ -227,7 +227,7 @@ func runDiagnosticTests() []TestResult {
 		Message: ffmpegPath,
 		Time:    time.Now().Format(time.RFC3339),
 	})
-	
+
 	// Test 2: Write permissions
 	testFile := "/app/viewra-data/transcoding/test_write.txt"
 	err := os.WriteFile(testFile, []byte("test"), 0644)
@@ -238,7 +238,7 @@ func runDiagnosticTests() []TestResult {
 		Time:    time.Now().Format(time.RFC3339),
 	})
 	os.Remove(testFile)
-	
+
 	// Test 3: Plugin directory
 	if _, err := os.Stat("/app/data/plugins"); err == nil {
 		tests = append(tests, TestResult{
@@ -255,7 +255,7 @@ func runDiagnosticTests() []TestResult {
 			Time:    time.Now().Format(time.RFC3339),
 		})
 	}
-	
+
 	// Test 4: Memory available
 	var si syscall.Sysinfo_t
 	if err := syscall.Sysinfo(&si); err == nil {
@@ -267,7 +267,7 @@ func runDiagnosticTests() []TestResult {
 			Time:    time.Now().Format(time.RFC3339),
 		})
 	}
-	
+
 	return tests
 }
 

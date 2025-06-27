@@ -8,8 +8,8 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
+	"github.com/mantonx/viewra/internal/services"
 	"gorm.io/gorm"
 )
 
@@ -31,15 +31,13 @@ type Module struct {
 	scannerManager *scanner.Manager
 	db             *gorm.DB
 	eventBus       events.EventBus
-	pluginModule   *pluginmodule.PluginModule
 }
 
 // NewModule creates a new scanner module
-func NewModule(db *gorm.DB, eventBus events.EventBus, pluginModule *pluginmodule.PluginModule) *Module {
+func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
 	return &Module{
-		db:           db,
-		eventBus:     eventBus,
-		pluginModule: pluginModule,
+		db:       db,
+		eventBus: eventBus,
 	}
 }
 
@@ -86,8 +84,8 @@ func (m *Module) Init() error {
 		m.eventBus = events.GetGlobalEventBus()
 	}
 
-	// Create scanner manager with plugin module
-	m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginModule, &scanner.ManagerOptions{
+	// Create scanner manager - it will get plugin service from registry
+	m.scannerManager = scanner.NewManager(m.db, m.eventBus, nil, &scanner.ManagerOptions{
 		Workers:      runtime.NumCPU(),
 		CleanupHours: 24,
 	})
@@ -98,6 +96,13 @@ func (m *Module) Init() error {
 	}
 
 	logger.Info("Scanner module initialized successfully with manager: %v", m.scannerManager)
+
+	// Register the scanner service with the service registry
+	if err := m.RegisterService(); err != nil {
+		logger.Error("Failed to register scanner service", "error", err)
+		return fmt.Errorf("failed to register scanner service: %w", err)
+	}
+	logger.Info("ScannerService registered with service registry")
 
 	return nil
 }
@@ -188,7 +193,7 @@ func (m *Module) GetScannerManager() *scanner.Manager {
 			return nil
 		}
 
-		m.scannerManager = scanner.NewManager(m.db, m.eventBus, m.pluginModule, &scanner.ManagerOptions{
+		m.scannerManager = scanner.NewManager(m.db, m.eventBus, nil, &scanner.ManagerOptions{
 			Workers:      runtime.NumCPU(),
 			CleanupHours: 24,
 		})
@@ -204,15 +209,20 @@ func (m *Module) GetScannerManager() *scanner.Manager {
 	return m.scannerManager
 }
 
-// SetPluginModule sets the plugin module for the scanner
-func (m *Module) SetPluginModule(pluginModule *pluginmodule.PluginModule) {
-	logger.Info("Setting plugin module for scanner")
-	m.pluginModule = pluginModule
+// RegisterService registers the scanner service with the service registry
+func (m *Module) RegisterService() error {
+	adapter := NewServiceAdapter(m)
+	return services.Register("scanner", adapter)
+}
 
-	// Update scanner manager if it exists
-	if m.scannerManager != nil {
-		m.scannerManager.SetPluginModule(pluginModule)
-	}
+// ProvidedServices returns the list of services this module provides
+func (m *Module) ProvidedServices() []string {
+	return []string{"scanner"}
+}
+
+// RequiredServices returns the list of service names this module requires
+func (m *Module) RequiredServices() []string {
+	return []string{"plugin"} // Scanner requires plugin service
 }
 
 // Register registers the scanner module with the module system

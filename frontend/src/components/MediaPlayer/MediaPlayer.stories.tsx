@@ -25,9 +25,12 @@ The MediaPlayer is a modern video player built with Vidstack and designed for Vi
 
 ## Real Implementation Features:
 - **Adaptive Streaming**: Supports both DASH (desktop) and HLS (iOS/Safari) with automatic format selection
-- **Session Tracking**: Built-in analytics and session tracking
-- **Device Profiles**: Automatic device capability detection
+- **Content-Addressable Storage**: Efficient CDN-friendly content delivery with SHA256 content hashing
+- **Session Tracking**: Built-in analytics and session tracking with telemetry
+- **Device Profiles**: Automatic device capability detection for optimal transcoding
 - **Backend Integration**: Media metadata and transcoding session management
+- **Seek-Ahead**: Intelligent seek-ahead for buffering optimization
+- **Two-Stage Pipeline**: FFmpeg encoding → Shaka Packager for proper VOD manifests
 
 ## Design Tokens:
 - CSS custom properties for consistent theming

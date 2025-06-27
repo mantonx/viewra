@@ -62,15 +62,29 @@ export const API_ENDPOINTS = {
       method: 'POST' as const,
       description: 'Request seek-ahead transcoding',
     },
-    STREAM_MANIFEST: {
-      path: (sessionId: string) => `/playback/stream/${sessionId}/manifest.mpd`,
+  },
+
+  // Content-addressable storage endpoints (v1)
+  CONTENT: {
+    MANIFEST: {
+      path: (contentHash: string) => `/v1/content/${contentHash}/manifest.mpd`,
       method: 'GET' as const,
-      description: 'Get DASH manifest for session',
+      description: 'Get DASH manifest from content store',
     },
-    STREAM_SEGMENT: {
-      path: (sessionId: string, segmentPath: string) => `/playback/stream/${sessionId}/${segmentPath}`,
+    HLS_MANIFEST: {
+      path: (contentHash: string) => `/v1/content/${contentHash}/playlist.m3u8`,
       method: 'GET' as const,
-      description: 'Get stream segment',
+      description: 'Get HLS playlist from content store',
+    },
+    FILE: {
+      path: (contentHash: string, filename: string) => `/v1/content/${contentHash}/${filename}`,
+      method: 'GET' as const,
+      description: 'Get content file (segments, init files, etc.)',
+    },
+    INFO: {
+      path: (contentHash: string) => `/v1/content/${contentHash}/info`,
+      method: 'GET' as const,
+      description: 'Get content metadata and status',
     },
   },
 

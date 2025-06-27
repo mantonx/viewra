@@ -15,8 +15,8 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
-	"github.com/mantonx/viewra/internal/modules/pluginmodule"
 	"github.com/mantonx/viewra/internal/modules/scannermodule/scanner"
+	"github.com/mantonx/viewra/internal/services"
 	// enrichmentpb "github.com/mantonx/viewra/sdk/grpc"
 	"github.com/mantonx/viewra/sdk/proto"
 	"google.golang.org/grpc"
@@ -51,13 +51,7 @@ type Module struct {
 	grpcServer  *grpc.Server
 	grpcPort    int
 	initialized bool
-	
-	// External plugin integration
-	externalPluginManager interface{} // Will be *pluginmodule.ExternalPluginManager but kept as interface to avoid circular imports
-	
-	// Asset manager reference for asset operations
-	assetManager interface{} // Will be *assetmodule.Manager but kept as interface to avoid circular imports
-	
+
 	// Validation and deduplication systems
 	tvShowValidator    *TVShowValidator
 	duplicationManager *DuplicationManager
@@ -132,7 +126,17 @@ func (m *Module) Init() error {
 	}
 
 	m.initialized = true
-	
+
+	// Register the enrichment service with the service registry
+	if err := m.RegisterService(); err != nil {
+		log.Printf("ERROR: Failed to register enrichment service: %v", err)
+		return fmt.Errorf("failed to register enrichment service: %w", err)
+	}
+	log.Printf("INFO: EnrichmentService registered with service registry")
+
+	// Subscribe to media scanned events
+	m.subscribeToEvents()
+
 	log.Printf("INFO: Enrichment module initialized with validation and deduplication systems")
 	return nil
 }
@@ -147,7 +151,7 @@ func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
 		eventBus: eventBus,
 		enabled:  true,
 		grpcPort: 50052, // Default gRPC port for enrichment
-		
+
 		// Initialize validation and deduplication systems
 		tvShowValidator:    NewTVShowValidator(db),
 		duplicationManager: NewDuplicationManager(db),
@@ -182,20 +186,20 @@ func (m *Module) Start() error {
 		grpc.MaxSendMsgSize(16 * 1024 * 1024), // 16MB
 	}
 	m.grpcServer = grpc.NewServer(opts...)
-	
+
 	// Create logger for gRPC services
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "enrichment-grpc",
 		Level: hclog.Debug,
 	})
-	
+
 	// Get current config
 	cfg := config.Get()
-	
+
 	// Register asset gRPC server
 	assetServer := NewAssetGRPCServer(logger, cfg, m.db)
 	proto.RegisterAssetServiceServer(m.grpcServer, assetServer)
-	
+
 	// TODO: Fix enrichment gRPC server - protobuf path issues
 	// enrichmentServer := NewGRPCServer(m, m.db, logger.Named("enrichment-grpc"))
 	// enrichmentpb.RegisterEnrichmentServiceServer(m.grpcServer, enrichmentServer)
@@ -380,7 +384,7 @@ func (m *Module) RegisterEnrichmentData(mediaFileID, sourceName string, enrichme
 			log.Printf("WARN: TV show enrichment validation failed for %s from %s: %v", mediaFileID, sourceName, err)
 			// Don't fail completely, but reduce confidence
 			confidence *= 0.5
-			
+
 			// Add validation warning to enrichments
 			if enrichments["validation_warnings"] == nil {
 				enrichments["validation_warnings"] = []string{}
@@ -516,7 +520,7 @@ func (m *Module) startEnrichmentWorker() {
 // processEnrichmentJobs processes pending enrichment application jobs
 func (m *Module) processEnrichmentJobs() {
 	log.Printf("DEBUG: Starting enrichment job processing cycle")
-	
+
 	var jobs []EnrichmentJob
 	if err := m.db.Where("status = ?", "pending").Limit(10).Find(&jobs).Error; err != nil {
 		log.Printf("ERROR: Failed to fetch enrichment jobs: %v", err)
@@ -532,7 +536,7 @@ func (m *Module) processEnrichmentJobs() {
 
 	for i, job := range jobs {
 		log.Printf("DEBUG: Processing enrichment job %d/%d - ID: %d, MediaFileID: %s", i+1, len(jobs), job.ID, job.MediaFileID)
-		
+
 		if err := m.processEnrichmentJob(&job); err != nil {
 			log.Printf("ERROR: Failed to process enrichment job %d: %v", job.ID, err)
 
@@ -548,7 +552,7 @@ func (m *Module) processEnrichmentJobs() {
 			log.Printf("DEBUG: Successfully processed enrichment job %d", job.ID)
 		}
 	}
-	
+
 	log.Printf("DEBUG: Completed enrichment job processing cycle")
 }
 
@@ -569,34 +573,34 @@ func (m *Module) processEnrichmentJob(job *EnrichmentJob) error {
 			// MediaFile was likely deleted/recreated during scanning
 			// Try to find by looking up enrichments that reference this media_file_id
 			log.Printf("WARN: MediaFile ID %s not found, attempting recovery via enrichments", job.MediaFileID)
-			
+
 			// Look for any enrichments that were created for this media_file_id
 			var enrichments []database.MediaEnrichment
 			if err := m.db.Where("media_id IN (SELECT media_id FROM media_enrichments WHERE media_id != '' AND media_id IS NOT NULL)").
 				Find(&enrichments).Error; err == nil && len(enrichments) > 0 {
-				
+
 				// Try to find a MediaFile with the same media_id
 				for _, enrichment := range enrichments {
 					var alternativeFile database.MediaFile
 					if err := m.db.Where("media_id = ? AND media_type = ?", enrichment.MediaID, enrichment.MediaType).
 						First(&alternativeFile).Error; err == nil {
-						log.Printf("INFO: Found alternative MediaFile %s for media_id %s (original ID: %s)", 
+						log.Printf("INFO: Found alternative MediaFile %s for media_id %s (original ID: %s)",
 							alternativeFile.ID, enrichment.MediaID, job.MediaFileID)
 						mediaFile = alternativeFile
 						goto processEnrichments
 					}
 				}
 			}
-			
+
 			// Still couldn't find MediaFile - mark job as failed gracefully
 			job.Status = "failed"
 			job.Error = fmt.Sprintf("MediaFile %s not found (likely deleted/recreated during scan)", job.MediaFileID)
 			job.UpdatedAt = time.Now()
-			
+
 			if saveErr := m.db.Save(job).Error; saveErr != nil {
 				log.Printf("ERROR: Failed to save failed job status: %v", saveErr)
 			}
-			
+
 			log.Printf("INFO: Marked enrichment job as failed due to missing MediaFile: %s", job.MediaFileID)
 			return nil // Return nil to avoid crashing the worker
 		}
@@ -972,12 +976,6 @@ func (m *Module) IntegrateWithScanner() {
 	// the integration between scanning and enrichment
 }
 
-// SetExternalPluginManager sets the external plugin manager for scan notifications
-func (m *Module) SetExternalPluginManager(externalPluginManager interface{}) {
-	m.externalPluginManager = externalPluginManager
-	log.Printf("INFO: External plugin manager connected to enrichment module")
-}
-
 // OnMediaFileScanned is called by the scanner when a media file is scanned
 // This integrates with the existing scanner plugin hook system
 func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata interface{}) error {
@@ -988,52 +986,43 @@ func (m *Module) OnMediaFileScanned(mediaFile *database.MediaFile, metadata inte
 
 	log.Printf("INFO: Enrichment module processing scanned file: %s", mediaFile.Path)
 
-	// DEBUG: Enhanced external plugin manager diagnostics
-	log.Printf("DEBUG: External plugin manager status - exists: %v", m.externalPluginManager != nil)
-	
-	// Notify external plugins about the scanned file
-	if m.externalPluginManager != nil {
-		log.Printf("DEBUG: External plugin manager found, attempting type assertion")
-		if extMgr, ok := m.externalPluginManager.(*pluginmodule.ExternalPluginManager); ok {
-			log.Printf("DEBUG: Type assertion successful, external plugin manager ready")
-			
-			// Convert metadata to map[string]string for external plugins
-			var metadataMap map[string]string
-			if metadata != nil {
-				switch v := metadata.(type) {
-				case map[string]string:
-					metadataMap = v
-				case map[string]interface{}:
-					// Convert map[string]interface{} to map[string]string
-					metadataMap = make(map[string]string)
-					for key, value := range v {
-						if str, ok := value.(string); ok {
-							metadataMap[key] = str
-						} else {
-							metadataMap[key] = fmt.Sprintf("%v", value)
-						}
-					}
-				default:
-					// For other types, create empty map and log
-					metadataMap = make(map[string]string)
-					log.Printf("DEBUG: Unsupported metadata type %T for file %s", metadata, mediaFile.Path)
-				}
-			} else {
-				metadataMap = make(map[string]string)
-			}
-			
-			// DEBUG: Log the actual metadata being passed to external plugins
-			log.Printf("DEBUG: Metadata being passed to external plugins for file %s: %+v", mediaFile.Path, metadataMap)
-			
-			// Notify external plugins
-			log.Printf("DEBUG: Notifying external plugins about scanned file: %s", mediaFile.Path)
-			extMgr.NotifyMediaFileScanned(mediaFile.ID, mediaFile.Path, metadataMap)
-			log.Printf("DEBUG: External plugin notification completed for file: %s", mediaFile.Path)
-		} else {
-			log.Printf("ERROR: External plugin manager type assertion failed - wrong type: %T", m.externalPluginManager)
-		}
+	// Get plugin service from registry to notify enrichment plugins
+	pluginService, err := services.GetPluginService()
+	if err != nil {
+		log.Printf("WARN: Plugin service not available - enrichment plugins will not be notified: %v", err)
 	} else {
-		log.Printf("WARN: External plugin manager is nil - external plugins will not be notified for file: %s", mediaFile.Path)
+		// Convert metadata to map[string]string for plugins
+		var metadataMap map[string]string
+		if metadata != nil {
+			switch v := metadata.(type) {
+			case map[string]string:
+				metadataMap = v
+			case map[string]interface{}:
+				// Convert map[string]interface{} to map[string]string
+				metadataMap = make(map[string]string)
+				for key, value := range v {
+					if str, ok := value.(string); ok {
+						metadataMap[key] = str
+					} else {
+						metadataMap[key] = fmt.Sprintf("%v", value)
+					}
+				}
+			default:
+				// For other types, create empty map and log
+				metadataMap = make(map[string]string)
+				log.Printf("DEBUG: Unsupported metadata type %T for file %s", metadata, mediaFile.Path)
+			}
+		} else {
+			metadataMap = make(map[string]string)
+		}
+
+		// Get enrichment services and notify them
+		enrichmentServices := pluginService.GetEnrichmentServices()
+		for _, enricher := range enrichmentServices {
+			// TODO: Use enrichment service interface to notify about scanned file
+			log.Printf("DEBUG: Would notify enrichment service about file: %s", mediaFile.Path)
+			_ = enricher // Suppress unused warning
+		}
 	}
 
 	// For now, just queue an enrichment job to apply any existing enrichments
@@ -1075,6 +1064,106 @@ func (m *Module) OnScanCompleted(libraryID uint, stats scanner.ScanStats) error 
 	// This could queue enrichment jobs for all files in the library
 
 	return nil
+}
+
+// RegisterService registers the enrichment service with the service registry
+func (m *Module) RegisterService() error {
+	adapter := NewServiceAdapter(m)
+	return services.Register("enrichment", adapter)
+}
+
+// ProvidedServices returns the list of services this module provides
+func (m *Module) ProvidedServices() []string {
+	return []string{"enrichment"}
+}
+
+// RequiredServices returns the list of service names this module requires
+func (m *Module) RequiredServices() []string {
+	return []string{"plugin", "asset"} // Enrichment requires plugin and asset services
+}
+
+// subscribeToEvents subscribes to relevant events for cross-module communication
+func (m *Module) subscribeToEvents() {
+	eventHandler := modulemanager.GetModuleEventHandler()
+
+	// Subscribe to media scanned events
+	_, err := eventHandler.SubscribeModule(ModuleID, events.EventFilter{
+		Types: []events.EventType{events.EventMediaScanned},
+	}, func(event events.Event) error {
+		// Extract media file ID
+		mediaFileID, ok := event.Data["media_file_id"].(string)
+		if !ok {
+			log.Printf("ERROR: Invalid media_file_id in media scanned event")
+			return fmt.Errorf("invalid media_file_id")
+		}
+
+		// Get media file from database
+		var mediaFile database.MediaFile
+		if err := m.db.Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
+			log.Printf("ERROR: Failed to get media file %s: %v", mediaFileID, err)
+			return err
+		}
+
+		// Extract metadata if provided
+		metadata, _ := event.Data["metadata"].(map[string]interface{})
+
+		log.Printf("INFO: Enrichment module received media scanned event for file: %s", mediaFile.Path)
+
+		// Process the scanned file
+		if err := m.OnMediaFileScanned(&mediaFile, metadata); err != nil {
+			log.Printf("ERROR: Failed to process scanned file %s: %v", mediaFile.Path, err)
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("ERROR: Failed to subscribe to media scanned events: %v", err)
+		// Don't fail initialization if event subscription fails
+	}
+
+	// Subscribe to enrichment ready events from plugins
+	_, err = eventHandler.SubscribeModule(ModuleID, events.EventFilter{
+		Types: []events.EventType{events.EventMediaEnrichmentReady},
+	}, func(event events.Event) error {
+		// Extract enrichment data
+		mediaFileID, ok := event.Data["media_file_id"].(string)
+		if !ok {
+			log.Printf("ERROR: Invalid media_file_id in enrichment ready event")
+			return fmt.Errorf("invalid media_file_id")
+		}
+
+		enrichments, ok := event.Data["enrichments"].(map[string]interface{})
+		if !ok {
+			log.Printf("ERROR: Invalid enrichments data in enrichment ready event")
+			return fmt.Errorf("invalid enrichments data")
+		}
+
+		sourceName := event.Source
+		if strings.HasPrefix(sourceName, "module:") {
+			sourceName = strings.TrimPrefix(sourceName, "module:")
+		}
+
+		confidence := 0.8 // Default confidence
+		if conf, ok := event.Data["confidence"].(float64); ok {
+			confidence = conf
+		}
+
+		log.Printf("INFO: Received enrichment data for file %s from %s", mediaFileID, sourceName)
+
+		// Register the enrichment data
+		if err := m.RegisterEnrichmentData(mediaFileID, sourceName, enrichments, confidence); err != nil {
+			log.Printf("ERROR: Failed to register enrichment data: %v", err)
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("ERROR: Failed to subscribe to enrichment ready events: %v", err)
+	}
 }
 
 // ListEnrichmentSources returns all enrichment sources
@@ -1217,12 +1306,12 @@ func (m *Module) AutoMergeSafeTVShows(confidenceThreshold float64) ([]MergeResul
 // RunDataQualityCheck runs a comprehensive data quality check for TV shows
 func (m *Module) RunDataQualityCheck() (*DataQualityReport, error) {
 	report := &DataQualityReport{
-		Timestamp:      time.Now(),
-		TotalShows:     0,
-		ValidShows:     0,
-		InvalidShows:   0,
+		Timestamp:       time.Now(),
+		TotalShows:      0,
+		ValidShows:      0,
+		InvalidShows:    0,
 		DuplicateGroups: 0,
-		Issues:         []DataQualityIssue{},
+		Issues:          []DataQualityIssue{},
 		Recommendations: []string{},
 	}
 
@@ -1237,12 +1326,12 @@ func (m *Module) RunDataQualityCheck() (*DataQualityReport, error) {
 	// Validate each show
 	for _, show := range allShows {
 		validation := m.ValidateTVShowMetadata(show.Title, show.TmdbID, show.Description, "")
-		
+
 		if validation.Valid && validation.Score > 0.5 {
 			report.ValidShows++
 		} else {
 			report.InvalidShows++
-			
+
 			issue := DataQualityIssue{
 				ShowID:      show.ID,
 				ShowTitle:   show.Title,
@@ -1252,11 +1341,11 @@ func (m *Module) RunDataQualityCheck() (*DataQualityReport, error) {
 				Warnings:    validation.Warnings,
 				Errors:      validation.Errors,
 			}
-			
+
 			if len(validation.Errors) > 0 {
 				issue.Severity = "error"
 			}
-			
+
 			report.Issues = append(report.Issues, issue)
 		}
 	}
@@ -1267,19 +1356,19 @@ func (m *Module) RunDataQualityCheck() (*DataQualityReport, error) {
 		log.Printf("WARN: Failed to detect duplicates: %v", err)
 	} else {
 		report.DuplicateGroups = len(duplicates)
-		
+
 		for _, group := range duplicates {
 			for i, show := range group.Shows {
 				if i == 0 {
 					continue // Skip first (primary) show
 				}
-				
+
 				issue := DataQualityIssue{
-					ShowID:      show.ID,
-					ShowTitle:   show.Title,
-					IssueType:   "potential_duplicate",
-					Severity:    "warning",
-					Description: fmt.Sprintf("Potentially duplicate of: %s (similarity: %.2f)", group.Shows[0].Title, group.SimilarityScore),
+					ShowID:          show.ID,
+					ShowTitle:       show.Title,
+					IssueType:       "potential_duplicate",
+					Severity:        "warning",
+					Description:     fmt.Sprintf("Potentially duplicate of: %s (similarity: %.2f)", group.Shows[0].Title, group.SimilarityScore),
 					Recommendations: group.Recommendations,
 				}
 				report.Issues = append(report.Issues, issue)
@@ -1289,17 +1378,17 @@ func (m *Module) RunDataQualityCheck() (*DataQualityReport, error) {
 
 	// Generate recommendations
 	if report.InvalidShows > 0 {
-		report.Recommendations = append(report.Recommendations, 
+		report.Recommendations = append(report.Recommendations,
 			fmt.Sprintf("Found %d invalid TV shows that need attention", report.InvalidShows))
 	}
-	
+
 	if report.DuplicateGroups > 0 {
-		report.Recommendations = append(report.Recommendations, 
+		report.Recommendations = append(report.Recommendations,
 			fmt.Sprintf("Found %d potential duplicate groups that could be merged", report.DuplicateGroups))
 	}
 
 	if float64(report.ValidShows)/float64(report.TotalShows) < 0.8 {
-		report.Recommendations = append(report.Recommendations, 
+		report.Recommendations = append(report.Recommendations,
 			"Data quality is below 80% - consider running a cleanup scan")
 	}
 
@@ -1308,21 +1397,21 @@ func (m *Module) RunDataQualityCheck() (*DataQualityReport, error) {
 
 // DataQualityReport represents a comprehensive data quality report
 type DataQualityReport struct {
-	Timestamp       time.Time           `json:"timestamp"`
-	TotalShows      int                 `json:"total_shows"`
-	ValidShows      int                 `json:"valid_shows"`
-	InvalidShows    int                 `json:"invalid_shows"`
-	DuplicateGroups int                 `json:"duplicate_groups"`
-	Issues          []DataQualityIssue  `json:"issues"`
-	Recommendations []string            `json:"recommendations"`
+	Timestamp       time.Time          `json:"timestamp"`
+	TotalShows      int                `json:"total_shows"`
+	ValidShows      int                `json:"valid_shows"`
+	InvalidShows    int                `json:"invalid_shows"`
+	DuplicateGroups int                `json:"duplicate_groups"`
+	Issues          []DataQualityIssue `json:"issues"`
+	Recommendations []string           `json:"recommendations"`
 }
 
 // DataQualityIssue represents a specific data quality issue
 type DataQualityIssue struct {
 	ShowID          string   `json:"show_id"`
 	ShowTitle       string   `json:"show_title"`
-	IssueType       string   `json:"issue_type"`       // validation_failed, potential_duplicate, etc.
-	Severity        string   `json:"severity"`         // error, warning, info
+	IssueType       string   `json:"issue_type"` // validation_failed, potential_duplicate, etc.
+	Severity        string   `json:"severity"`   // error, warning, info
 	Description     string   `json:"description"`
 	Warnings        []string `json:"warnings,omitempty"`
 	Errors          []string `json:"errors,omitempty"`

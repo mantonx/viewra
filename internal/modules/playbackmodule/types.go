@@ -26,8 +26,10 @@ type DeviceProfile struct {
 type PlaybackDecision struct {
 	ShouldTranscode bool                      `json:"should_transcode"`
 	DirectPlayURL   string                    `json:"direct_play_url,omitempty"`
-	StreamURL       string                    `json:"stream_url,omitempty"`        // URL for streaming (either direct or transcoded)
-	ManifestURL     string                    `json:"manifest_url,omitempty"`      // URL for DASH/HLS manifest
+	StreamURL       string                    `json:"stream_url,omitempty"`   // URL for streaming (either direct or transcoded)
+	ManifestURL     string                    `json:"manifest_url,omitempty"` // URL for DASH/HLS manifest
+	ContentHash     string                    `json:"content_hash,omitempty"` // Content-addressable storage hash
+	ContentURL      string                    `json:"content_url,omitempty"`  // CDN-friendly content URL
 	TranscodeParams *plugins.TranscodeRequest `json:"transcode_params,omitempty"`
 	Reason          string                    `json:"reason"`
 	SessionID       string                    `json:"session_id,omitempty"` // Transcoding session ID if applicable
@@ -57,23 +59,7 @@ type PluginManagerInterface interface {
 	GetRunningPlugins() []PluginInfo
 }
 
-// TranscodingService interface for managing transcoding operations
-type TranscodingService interface {
-	// StartTranscode starts a new transcoding session
-	StartTranscode(ctx context.Context, req *plugins.TranscodeRequest) (*database.TranscodeSession, error)
-
-	// GetSession retrieves a transcoding session
-	GetSession(sessionID string) (*database.TranscodeSession, error)
-
-	// StopTranscode stops a transcoding session
-	StopTranscode(sessionID string) error
-
-	// GetProviders returns available transcoding providers
-	GetProviders() []plugins.ProviderInfo
-
-	// RegisterProvider registers a transcoding provider
-	RegisterProvider(provider plugins.TranscodingProvider) error
-}
+// TranscodingService is removed - use transcodingmodule.TranscodingService instead
 
 // TranscodingStats represents overall transcoding statistics
 type TranscodingStats struct {

@@ -81,7 +81,7 @@ type PluginManagerInterface interface {
 
 // CreateTestModule creates a test playback module using the new architecture
 func CreateTestModule(db *gorm.DB, pluginManager playbackmodule.PluginManagerInterface) *playbackmodule.Module {
-	return playbackmodule.NewModule(db, nil, pluginManager)
+	return playbackmodule.NewModule(db, nil)
 }
 
 // PluginManagerAdapter adapts test PluginManagerInterface to playbackmodule.PluginManagerInterface

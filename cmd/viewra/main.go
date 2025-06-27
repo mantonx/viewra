@@ -21,6 +21,7 @@ import (
 	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
 	_ "github.com/mantonx/viewra/internal/modules/playbackmodule"
 	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
+	_ "github.com/mantonx/viewra/internal/modules/transcodingmodule"
 )
 
 func main() {

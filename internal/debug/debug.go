@@ -24,48 +24,48 @@ type DebugService struct {
 	metricsRouter *gin.Engine
 	eventBus      events.EventBus
 	mu            sync.RWMutex
-	
+
 	// Debug state
 	startTime     time.Time
 	debugSessions map[string]*DebugSession
-	
+
 	// Configuration
 	config *DebugConfig
 }
 
 // DebugConfig configuration for debug service
 type DebugConfig struct {
-	Enabled           bool   `json:"enabled"`
-	PprofAddr         string `json:"pprof_addr"`
-	MetricsAddr       string `json:"metrics_addr"`
-	EnableProfiling   bool   `json:"enable_profiling"`
-	EnableTracing     bool   `json:"enable_tracing"`
-	LogLevel          string `json:"log_level"`
-	EnableStackTrace  bool   `json:"enable_stack_trace"`
-	MaxDebugSessions  int    `json:"max_debug_sessions"`
+	Enabled          bool   `json:"enabled"`
+	PprofAddr        string `json:"pprof_addr"`
+	MetricsAddr      string `json:"metrics_addr"`
+	EnableProfiling  bool   `json:"enable_profiling"`
+	EnableTracing    bool   `json:"enable_tracing"`
+	LogLevel         string `json:"log_level"`
+	EnableStackTrace bool   `json:"enable_stack_trace"`
+	MaxDebugSessions int    `json:"max_debug_sessions"`
 }
 
 // DebugSession represents an active debugging session
 type DebugSession struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	StartTime   time.Time         `json:"start_time"`
-	EndTime     *time.Time        `json:"end_time,omitempty"`
-	Data        map[string]interface{} `json:"data"`
-	Events      []events.Event    `json:"events"`
-	Metrics     *SessionMetrics   `json:"metrics"`
-	Active      bool              `json:"active"`
+	ID        string                 `json:"id"`
+	Type      string                 `json:"type"`
+	StartTime time.Time              `json:"start_time"`
+	EndTime   *time.Time             `json:"end_time,omitempty"`
+	Data      map[string]interface{} `json:"data"`
+	Events    []events.Event         `json:"events"`
+	Metrics   *SessionMetrics        `json:"metrics"`
+	Active    bool                   `json:"active"`
 }
 
 // SessionMetrics tracks metrics for a debug session
 type SessionMetrics struct {
-	GoroutineCount    int     `json:"goroutine_count"`
-	MemoryUsage       uint64  `json:"memory_usage"`
-	CPUUsage          float64 `json:"cpu_usage"`
-	EventCount        int     `json:"event_count"`
-	Duration          time.Duration `json:"duration"`
-	RequestCount      int     `json:"request_count"`
-	ErrorCount        int     `json:"error_count"`
+	GoroutineCount int           `json:"goroutine_count"`
+	MemoryUsage    uint64        `json:"memory_usage"`
+	CPUUsage       float64       `json:"cpu_usage"`
+	EventCount     int           `json:"event_count"`
+	Duration       time.Duration `json:"duration"`
+	RequestCount   int           `json:"request_count"`
+	ErrorCount     int           `json:"error_count"`
 }
 
 // DefaultDebugConfig returns default debug configuration
@@ -73,7 +73,7 @@ func DefaultDebugConfig() *DebugConfig {
 	return &DebugConfig{
 		Enabled:          true,
 		PprofAddr:        ":6060",
-		MetricsAddr:      ":6061", 
+		MetricsAddr:      ":6061",
 		EnableProfiling:  true,
 		EnableTracing:    false,
 		LogLevel:         "debug",
@@ -104,7 +104,7 @@ func (ds *DebugService) Start(ctx context.Context) error {
 		return nil
 	}
 
-	logger.Info("Starting debug service", 
+	logger.Info("Starting debug service",
 		"pprof_addr", ds.config.PprofAddr,
 		"metrics_addr", ds.config.MetricsAddr)
 
@@ -171,7 +171,7 @@ func (ds *DebugService) Stop(ctx context.Context) error {
 // startPprofServer starts the pprof HTTP server
 func (ds *DebugService) startPprofServer() error {
 	mux := http.NewServeMux()
-	
+
 	// Register pprof handlers
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -203,18 +203,18 @@ func (ds *DebugService) startPprofServer() error {
 func (ds *DebugService) startMetricsServer() error {
 	ds.metricsRouter = gin.New()
 	ds.metricsRouter.Use(gin.Recovery())
-	
+
 	// Add CORS for development
 	ds.metricsRouter.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
 		}
-		
+
 		c.Next()
 	})
 
@@ -269,7 +269,7 @@ func (ds *DebugService) subscribeToEvents(ctx context.Context) {
 	filter := events.EventFilter{
 		Types: []events.EventType{
 			"debug.*",
-			"error.*", 
+			"error.*",
 			"plugin.*",
 			"hot_reload.*",
 		},
@@ -293,7 +293,7 @@ func (ds *DebugService) handleDebugEvent(event events.Event) error {
 		if session.Active {
 			session.Events = append(session.Events, event)
 			session.Metrics.EventCount++
-			
+
 			// Keep only last 100 events per session
 			if len(session.Events) > 100 {
 				session.Events = session.Events[1:]
@@ -314,15 +314,15 @@ func (ds *DebugService) handleDebugStatus(c *gin.Context) {
 	runtime.ReadMemStats(&memStats)
 
 	status := gin.H{
-		"enabled":           ds.enabled,
-		"uptime":           time.Since(ds.startTime).String(),
-		"goroutines":       runtime.NumGoroutine(),
-		"memory_alloc":     memStats.Alloc,
-		"memory_sys":       memStats.Sys,
-		"gc_cycles":        memStats.NumGC,
-		"active_sessions":  len(ds.debugSessions),
-		"pprof_enabled":    ds.config.EnableProfiling,
-		"tracing_enabled":  ds.config.EnableTracing,
+		"enabled":         ds.enabled,
+		"uptime":          time.Since(ds.startTime).String(),
+		"goroutines":      runtime.NumGoroutine(),
+		"memory_alloc":    memStats.Alloc,
+		"memory_sys":      memStats.Sys,
+		"gc_cycles":       memStats.NumGC,
+		"active_sessions": len(ds.debugSessions),
+		"pprof_enabled":   ds.config.EnableProfiling,
+		"tracing_enabled": ds.config.EnableTracing,
 		"config":          ds.config,
 	}
 
@@ -332,11 +332,11 @@ func (ds *DebugService) handleDebugStatus(c *gin.Context) {
 func (ds *DebugService) handleRuntimeInfo(c *gin.Context) {
 	info := gin.H{
 		"go_version":    runtime.Version(),
-		"goos":         runtime.GOOS,
-		"goarch":       runtime.GOARCH,
-		"num_cpu":      runtime.NumCPU(),
+		"goos":          runtime.GOOS,
+		"goarch":        runtime.GOARCH,
+		"num_cpu":       runtime.NumCPU(),
 		"num_goroutine": runtime.NumGoroutine(),
-		"compiler":     runtime.Compiler,
+		"compiler":      runtime.Compiler,
 	}
 
 	c.JSON(http.StatusOK, info)
@@ -345,7 +345,7 @@ func (ds *DebugService) handleRuntimeInfo(c *gin.Context) {
 func (ds *DebugService) handleGoroutineInfo(c *gin.Context) {
 	buf := make([]byte, 1<<20) // 1MB buffer
 	n := runtime.Stack(buf, true)
-	
+
 	c.Header("Content-Type", "text/plain")
 	c.String(http.StatusOK, string(buf[:n]))
 }
@@ -355,8 +355,8 @@ func (ds *DebugService) handleMemoryInfo(c *gin.Context) {
 	runtime.ReadMemStats(&memStats)
 
 	info := gin.H{
-		"alloc":           memStats.Alloc,
-		"total_alloc":     memStats.TotalAlloc,
+		"alloc":          memStats.Alloc,
+		"total_alloc":    memStats.TotalAlloc,
 		"sys":            memStats.Sys,
 		"lookups":        memStats.Lookups,
 		"mallocs":        memStats.Mallocs,
@@ -387,12 +387,12 @@ func (ds *DebugService) handleGCInfo(c *gin.Context) {
 	runtime.ReadMemStats(&memStats)
 
 	gcInfo := gin.H{
-		"num_gc":         memStats.NumGC,
-		"num_forced_gc":  memStats.NumForcedGC,
+		"num_gc":          memStats.NumGC,
+		"num_forced_gc":   memStats.NumForcedGC,
 		"gc_cpu_fraction": memStats.GCCPUFraction,
-		"pause_total_ns": memStats.PauseTotalNs,
-		"last_gc":        time.Unix(0, int64(memStats.LastGC)),
-		"next_gc":        memStats.NextGC,
+		"pause_total_ns":  memStats.PauseTotalNs,
+		"last_gc":         time.Unix(0, int64(memStats.LastGC)),
+		"next_gc":         memStats.NextGC,
 	}
 
 	c.JSON(http.StatusOK, gcInfo)
@@ -422,7 +422,7 @@ func (ds *DebugService) handleListSessions(c *gin.Context) {
 
 func (ds *DebugService) handleCreateSession(c *gin.Context) {
 	var req struct {
-		Type string `json:"type"`
+		Type string                 `json:"type"`
 		Data map[string]interface{} `json:"data"`
 	}
 
@@ -462,7 +462,7 @@ func (ds *DebugService) handleCreateSession(c *gin.Context) {
 
 func (ds *DebugService) handleGetSession(c *gin.Context) {
 	sessionID := c.Param("id")
-	
+
 	ds.mu.RLock()
 	session, exists := ds.debugSessions[sessionID]
 	ds.mu.RUnlock()
@@ -479,7 +479,7 @@ func (ds *DebugService) handleGetSession(c *gin.Context) {
 
 func (ds *DebugService) handleDeleteSession(c *gin.Context) {
 	sessionID := c.Param("id")
-	
+
 	ds.mu.Lock()
 	session, exists := ds.debugSessions[sessionID]
 	if exists {
@@ -540,7 +540,7 @@ func (ds *DebugService) handleStackTrace(c *gin.Context) {
 
 	buf := make([]byte, 1<<16) // 64KB buffer
 	n := runtime.Stack(buf, false)
-	
+
 	c.Header("Content-Type", "text/plain")
 	c.String(http.StatusOK, string(buf[:n]))
 }

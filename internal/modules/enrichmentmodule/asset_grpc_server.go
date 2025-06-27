@@ -48,9 +48,9 @@ func NewAssetGRPCServer(logger hclog.Logger, config *config.Config, db *gorm.DB)
 
 // SaveAsset saves an asset file (artwork, etc.) through the proper asset management system
 func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetRequest) (*proto.SaveAssetResponse, error) {
-	log.Printf("DEBUG: AssetGRPCServer.SaveAsset called - media_file_id=%s, asset_type=%s, subtype=%s, data_size=%d", 
+	log.Printf("DEBUG: AssetGRPCServer.SaveAsset called - media_file_id=%s, asset_type=%s, subtype=%s, data_size=%d",
 		req.MediaFileId, req.AssetType, req.Subtype, len(req.Data))
-	
+
 	if req.MediaFileId == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "media_file_id is required")
 	}
@@ -75,16 +75,16 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 
 	// Find the media file to get the associated album
 	var mediaFile struct {
-		ID       string
-		MediaID  string
+		ID        string
+		MediaID   string
 		MediaType string
 	}
-	
+
 	err := s.db.Table("media_files").
 		Select("id, media_id, media_type").
 		Where("id = ?", req.MediaFileId).
 		First(&mediaFile).Error
-	
+
 	if err != nil {
 		s.logger.Error("Failed to find media file", "media_file_id", req.MediaFileId, "error", err)
 		return &proto.SaveAssetResponse{
@@ -131,7 +131,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 				Select("album_id").
 				Where("id = ?", mediaFile.MediaID).
 				First(&track).Error
-			
+
 			if err == nil && track.AlbumID != uuid.Nil {
 				entityID = track.AlbumID
 			}
@@ -155,7 +155,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 				Select("season_id").
 				Where("id = ?", mediaFile.MediaID).
 				First(&episode).Error
-			
+
 			if err != nil {
 				s.logger.Error("Failed to find episode for asset check", "episode_id", mediaFile.MediaID, "error", err)
 				return &proto.SaveAssetResponse{
@@ -163,7 +163,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 					Error:   fmt.Sprintf("failed to find episode: %v", err),
 				}, nil
 			}
-			
+
 			var season struct {
 				TVShowID string `gorm:"column:tv_show_id"`
 			}
@@ -171,7 +171,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 				Select("tv_show_id").
 				Where("id = ?", episode.SeasonID).
 				First(&season).Error
-			
+
 			if err != nil {
 				s.logger.Error("Failed to find season for asset check", "season_id", episode.SeasonID, "error", err)
 				return &proto.SaveAssetResponse{
@@ -179,10 +179,10 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 					Error:   fmt.Sprintf("failed to find season: %v", err),
 				}, nil
 			}
-			
+
 			if parsedID, err := uuid.Parse(season.TVShowID); err == nil {
 				entityID = parsedID
-				s.logger.Debug("Mapped episode to TV show for asset", 
+				s.logger.Debug("Mapped episode to TV show for asset",
 					"episode_id", mediaFile.MediaID,
 					"season_id", episode.SeasonID,
 					"tv_show_id", season.TVShowID,
@@ -221,7 +221,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 					Select("album_id").
 					Where("id = ?", mediaFile.MediaID).
 					First(&track).Error
-				
+
 				if err == nil && track.AlbumID != uuid.Nil {
 					entityID = track.AlbumID
 				}
@@ -236,8 +236,8 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 			case "track":
 				entityType = assetmodule.EntityTypeAlbum
 			default:
-				s.logger.Warn("Unknown asset category and media type", 
-					"category", req.Category, 
+				s.logger.Warn("Unknown asset category and media type",
+					"category", req.Category,
 					"media_type", mediaFile.MediaType,
 					"media_file_id", req.MediaFileId)
 				entityType = assetmodule.EntityType(req.Category) // Fallback to original behavior
@@ -290,7 +290,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 		Language:   "",   // Could be extracted from metadata if needed
 	}
 
-	s.logger.Debug("Saving asset via asset manager", 
+	s.logger.Debug("Saving asset via asset manager",
 		"entity_type", entityType,
 		"entity_id", entityID,
 		"asset_type", assetType,
@@ -309,7 +309,7 @@ func (s *AssetGRPCServer) SaveAsset(ctx context.Context, req *proto.SaveAssetReq
 		}, nil
 	}
 
-	s.logger.Info("Successfully saved asset via asset manager", 
+	s.logger.Info("Successfully saved asset via asset manager",
 		"asset_id", response.ID,
 		"entity_type", response.EntityType,
 		"entity_id", response.EntityID,
@@ -356,16 +356,16 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 
 	// Find the media file to get the associated entity
 	var mediaFile struct {
-		ID       string
-		MediaID  string
+		ID        string
+		MediaID   string
 		MediaType string
 	}
-	
+
 	err := s.db.Table("media_files").
 		Select("id, media_id, media_type").
 		Where("id = ?", req.MediaFileId).
 		First(&mediaFile).Error
-	
+
 	if err != nil {
 		s.logger.Debug("Media file not found for asset existence check", "media_file_id", req.MediaFileId)
 		return &proto.AssetExistsResponse{
@@ -405,7 +405,7 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 				Select("album_id").
 				Where("id = ?", mediaFile.MediaID).
 				First(&track).Error
-			
+
 			if err == nil && track.AlbumID != uuid.Nil {
 				entityID = track.AlbumID
 			}
@@ -429,7 +429,7 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 				Select("season_id").
 				Where("id = ?", mediaFile.MediaID).
 				First(&episode).Error
-			
+
 			if err != nil {
 				s.logger.Error("Failed to find episode for asset check", "episode_id", mediaFile.MediaID, "error", err)
 				return &proto.AssetExistsResponse{
@@ -438,7 +438,7 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 					RelativePath: "",
 				}, nil
 			}
-			
+
 			var season struct {
 				TVShowID string `gorm:"column:tv_show_id"`
 			}
@@ -446,7 +446,7 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 				Select("tv_show_id").
 				Where("id = ?", episode.SeasonID).
 				First(&season).Error
-			
+
 			if err != nil {
 				s.logger.Error("Failed to find season for asset check", "season_id", episode.SeasonID, "error", err)
 				return &proto.AssetExistsResponse{
@@ -455,7 +455,7 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 					RelativePath: "",
 				}, nil
 			}
-			
+
 			if parsedID, err := uuid.Parse(season.TVShowID); err == nil {
 				entityID = parsedID
 			} else {
@@ -523,7 +523,7 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 	})
 
 	if err != nil || len(assets) == 0 {
-		s.logger.Debug("No existing assets found", 
+		s.logger.Debug("No existing assets found",
 			"entity_type", entityType,
 			"entity_id", entityID,
 			"asset_type", assetType)
@@ -536,7 +536,7 @@ func (s *AssetGRPCServer) AssetExists(ctx context.Context, req *proto.AssetExist
 
 	// Return the first asset found
 	asset := assets[0]
-	s.logger.Debug("Found existing asset", 
+	s.logger.Debug("Found existing asset",
 		"asset_id", asset.ID,
 		"path", asset.Path)
 
@@ -575,4 +575,4 @@ func (s *AssetGRPCServer) RemoveAsset(ctx context.Context, req *proto.RemoveAsse
 		Success: false,
 		Error:   "asset removal by ID not implemented in UUID-based system",
 	}, nil
-} 
+}

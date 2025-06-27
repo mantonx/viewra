@@ -112,7 +112,7 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 
 	// Get capable providers
 	candidates := pm.getCapableProviders(req)
-	
+
 	pm.logger.Debug("DEBUG: SelectProvider after getCapableProviders",
 		"candidates_count", len(candidates),
 		"requested_container", req.Container)
@@ -122,14 +122,14 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 			"total_providers", len(pm.providers),
 			"requested_container", req.Container,
 			"container_empty", req.Container == "")
-		
+
 		// Enhanced debugging for the root cause
 		if req.Container == "" {
 			pm.logger.Error("CRITICAL: Container field is empty in TranscodeRequest - this indicates a bug in request construction",
 				"input_path", req.InputPath,
 				"session_id", req.SessionID)
 		}
-		
+
 		// If no providers are found, this might be a timing issue with plugin discovery
 		// This is a safeguard to ensure the system is self-healing
 		if len(pm.providers) == 0 {
@@ -140,7 +140,7 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 				pm.logger.Warn("Providers are available but none support the requested format",
 					"requested_format", req.Container,
 					"available_providers", len(pm.providers))
-				
+
 				// Log what formats each provider supports
 				for providerID, provider := range pm.providers {
 					formats := provider.GetSupportedFormats()
@@ -154,7 +154,7 @@ func (pm *ProviderManager) SelectProvider(ctx context.Context, req *plugins.Tran
 				}
 			}
 		}
-		
+
 		return nil, fmt.Errorf("no capable providers found for format: %s", req.Container)
 	}
 
@@ -185,19 +185,19 @@ func (pm *ProviderManager) getCapableProviders(req *plugins.TranscodeRequest) []
 		pm.logger.Debug("DEBUG: checking provider",
 			"provider_id", providerID,
 			"provider_name", info.Name)
-		
+
 		// Check if provider supports the requested format
 		formats := provider.GetSupportedFormats()
 		pm.logger.Debug("DEBUG: provider formats",
 			"provider_id", providerID,
 			"format_count", len(formats))
-		
+
 		for _, format := range formats {
 			pm.logger.Debug("DEBUG: checking format",
 				"provider_id", providerID,
 				"format", format.Format,
 				"requested", req.Container)
-			
+
 			if format.Format == req.Container {
 				pm.logger.Debug("DEBUG: provider supports format",
 					"provider_id", providerID,

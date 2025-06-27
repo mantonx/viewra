@@ -24,7 +24,7 @@ func Register() {
 	assetModule := &Module{
 		id:      "system.media.assets",
 		name:    "Media Asset Manager",
-		version: "2.0.0",
+		version: "1.0.0",
 		core:    true,
 	}
 	modulemanager.Register(assetModule)
@@ -47,7 +47,7 @@ func NewModule() *Module {
 	return &Module{
 		id:      "system.media.assets",
 		name:    "Media Asset Manager",
-		version: "2.0.0",
+		version: "1.0.0",
 		core:    true,
 	}
 }

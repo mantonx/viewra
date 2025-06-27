@@ -11,6 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
+	"github.com/mantonx/viewra/internal/services"
 	plugins "github.com/mantonx/viewra/sdk"
 	"gorm.io/gorm"
 )
@@ -24,16 +25,11 @@ type Manager struct {
 	cancel   context.CancelFunc
 
 	// Core services
-	planner         PlaybackPlanner
-	transcodingService *core.TranscodeService
-	cleanupService  *core.CleanupService
-	fileManager     *core.FileManager
-	sessionStore    *core.SessionStore
-	errorRecovery   *ErrorRecoveryManager
-	mediaValidator  MediaValidator
-
-	// Plugin integration
-	pluginManager PluginManagerInterface
+	planner            PlaybackPlanner
+	transcodingService services.TranscodingService // Use interface from services package
+	sessionStore       *core.SessionStore
+	errorRecovery      *ErrorRecoveryManager
+	mediaValidator     MediaValidator
 
 	// Configuration
 	config      config.TranscodingConfig
@@ -42,7 +38,7 @@ type Manager struct {
 }
 
 // NewManager creates a new playback manager
-func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManagerInterface, _ interface{}) *Manager {
+func NewManager(db *gorm.DB, eventBus events.EventBus, _ interface{}) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Get global config
@@ -55,26 +51,9 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManag
 
 	// Create core services
 	sessionStore := core.NewSessionStore(db, logger.Named("session-store"))
-	fileManager := core.NewFileManager(cfg.Transcoding.DataDir, logger.Named("file-manager"))
 
-	// Create transcoding service
-	transcodingService, err := core.NewTranscodeService(cfg.Transcoding, db, logger.Named("transcode-service"))
-	if err != nil {
-		logger.Error("failed to create transcoding service", "error", err)
-		// Continue without transcoding service for now
-	}
-
-	// Create cleanup config
-	cleanupConfig := core.CleanupConfig{
-		BaseDirectory:      cfg.Transcoding.DataDir,
-		RetentionHours:     cfg.Transcoding.RetentionHours,
-		ExtendedHours:      cfg.Transcoding.ExtendedHours,
-		MaxTotalSizeGB:     cfg.Transcoding.MaxDiskUsageGB,
-		CleanupInterval:    cfg.Transcoding.CleanupInterval,
-		LargeFileThreshold: cfg.Transcoding.LargeFileThreshold * 1024 * 1024,
-	}
-
-	cleanupService := core.NewCleanupService(cleanupConfig, sessionStore, fileManager, logger.Named("cleanup-service"))
+	// Note: Transcoding service will be retrieved from service registry during initialization
+	// Cleanup service is now managed by the transcoding module
 
 	// Create error recovery manager
 	errorRecovery := NewErrorRecoveryManager(logger.Named("error-recovery"))
@@ -92,17 +71,12 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager PluginManag
 		enabled:     true,
 		initialized: false,
 
-		// Core services  
+		// Core services
 		planner:            NewPlaybackPlanner(NewFFProbeMediaAnalyzer()),
-		transcodingService: transcodingService,
-		cleanupService:     cleanupService,
-		fileManager:        fileManager,
+		transcodingService: nil, // Will be set from service registry
 		sessionStore:       sessionStore,
 		errorRecovery:      errorRecovery,
 		mediaValidator:     mediaValidator,
-
-		// Plugin integration
-		pluginManager: pluginManager,
 	}
 }
 
@@ -114,9 +88,18 @@ func (m *Manager) Initialize() error {
 		return nil
 	}
 
-	// Start the cleanup service
-	go m.cleanupService.Run(m.ctx)
+	// Get transcoding service from service registry using lazy loading
+	// This prevents circular dependency issues during module initialization
+	transcodingService, err := services.GetTranscodingServiceLazy()
+	if err != nil {
+		logger.Warn("Transcoding service not available yet, will retry on demand", "error", err)
+		// Don't fail initialization - the service will be loaded on first use
+	} else {
+		m.transcodingService = transcodingService
+		logger.Info("Successfully obtained transcoding service from registry")
+	}
 
+	// Cleanup is now handled by the transcoding module
 	// Start process registry cleanup on a regular interval
 	go m.runProcessRegistryCleanup()
 
@@ -167,12 +150,12 @@ func (m *Manager) DecidePlayback(mediaPath string, deviceProfile *DeviceProfile)
 
 	// First, validate the media file
 	m.logger.Debug("Validating media file before playback decision", "path", mediaPath)
-	
+
 	validation, err := m.mediaValidator.QuickValidate(mediaPath)
 	if err != nil {
 		return nil, fmt.Errorf("media validation failed: %w", err)
 	}
-	
+
 	if !validation.IsValid {
 		return nil, NewMediaValidationError(
 			mediaPath,
@@ -180,9 +163,9 @@ func (m *Manager) DecidePlayback(mediaPath string, deviceProfile *DeviceProfile)
 			fmt.Errorf("file failed validation"),
 		)
 	}
-	
+
 	if len(validation.Warnings) > 0 {
-		m.logger.Warn("Media file has validation warnings", 
+		m.logger.Warn("Media file has validation warnings",
 			"path", mediaPath,
 			"warnings", validation.Warnings)
 	}
@@ -200,23 +183,29 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 		return nil, fmt.Errorf("playback manager is disabled")
 	}
 
+	// Try to get transcoding service again if not available (lazy loading)
 	if m.transcodingService == nil {
-		return nil, fmt.Errorf("transcoding service not available")
+		transcodingService, err := services.GetTranscodingServiceLazy()
+		if err != nil {
+			return nil, fmt.Errorf("transcoding service not available: %w", err)
+		}
+		m.transcodingService = transcodingService
+		m.logger.Info("Successfully obtained transcoding service via lazy loading")
 	}
 
 	m.logger.Info("TRACE: Manager.StartTranscode called",
 		"transcoding_service_instance", fmt.Sprintf("%p", m.transcodingService),
 		"request_container", request.Container,
 		"request_input_path", request.InputPath)
-	
+
 	// Comprehensive media validation before transcoding
 	m.logger.Debug("Performing comprehensive media validation", "input_path", request.InputPath)
-	
+
 	validation, err := m.mediaValidator.ValidateMedia(context.Background(), request.InputPath)
 	if err != nil {
 		return nil, fmt.Errorf("media validation failed: %w", err)
 	}
-	
+
 	if !validation.IsValid {
 		return nil, NewMediaValidationError(
 			request.InputPath,
@@ -224,7 +213,7 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 			fmt.Errorf("file failed comprehensive validation"),
 		)
 	}
-	
+
 	if validation.IsCorrupted {
 		return nil, NewMediaValidationError(
 			request.InputPath,
@@ -232,60 +221,64 @@ func (m *Manager) StartTranscode(request *plugins.TranscodeRequest) (*database.T
 			fmt.Errorf("corruption detected"),
 		)
 	}
-	
+
 	if len(validation.Warnings) > 0 {
-		m.logger.Warn("Media file has validation warnings", 
+		m.logger.Warn("Media file has validation warnings",
 			"input_path", request.InputPath,
 			"warnings", validation.Warnings)
 	}
-	
-	m.logger.Info("Media validation passed", 
+
+	m.logger.Info("Media validation passed",
 		"input_path", request.InputPath,
 		"size_bytes", validation.SizeBytes,
 		"format", validation.FileFormat,
 		"has_video", validation.HasVideoTrack,
 		"has_audio", validation.HasAudioTrack,
 		"duration", validation.Duration)
-	
+
 	// Ensure plugins are available before starting transcode
 	if !m.hasTranscodingProviders() {
 		m.logger.Warn("No providers available, waiting for plugins")
-		
+
 		// Use our waitForPlugins method with a shorter timeout for responsiveness
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		
+
 		if err := m.waitForPlugins(ctx); err != nil {
 			m.logger.Error("Failed to find transcoding providers", "error", err)
 			return nil, fmt.Errorf("no transcoding providers available: %w", err)
 		}
 	}
-	
+
 	// Execute transcoding with error recovery and fallback
 	var session *database.TranscodeSession
-	
+
 	fallbackErr := m.errorRecovery.ExecuteWithFallback(
 		context.Background(),
 		request,
 		func(ctx context.Context, req *plugins.TranscodeRequest) error {
-			var err error
-			session, err = m.transcodingService.StartTranscode(ctx, req)
-			return err
+			var transcodeErr error
+			session, transcodeErr = m.transcodingService.StartTranscode(ctx, req)
+			return transcodeErr
 		},
 	)
-	
+
 	if fallbackErr != nil {
 		m.logger.Error("Transcoding failed after all recovery attempts", "error", fallbackErr)
 		return nil, fmt.Errorf("transcoding failed: %w", fallbackErr)
 	}
-	
+
+	if session == nil {
+		return nil, fmt.Errorf("no session returned from transcoding service")
+	}
+
 	return session, nil
 }
 
 // StartTranscodeFromMediaFile initiates a new transcoding session from a media file ID using intelligent decisions
 func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container string, seekSeconds float64, enableABR bool, deviceProfile *DeviceProfile) (*database.TranscodeSession, error) {
 	m.logger.Info("StartTranscodeFromMediaFile called", "media_file_id", mediaFileID, "container", container, "enable_abr", enableABR)
-	
+
 	if !m.initialized {
 		return nil, fmt.Errorf("playback manager not initialized")
 	}
@@ -348,11 +341,17 @@ func (m *Manager) StopSession(sessionID string) error {
 		return fmt.Errorf("playback manager not initialized")
 	}
 
+	// Try to get transcoding service again if not available (lazy loading)
 	if m.transcodingService == nil {
-		return fmt.Errorf("transcoding service not available")
+		transcodingService, err := services.GetTranscodingServiceLazy()
+		if err != nil {
+			return fmt.Errorf("transcoding service not available: %w", err)
+		}
+		m.transcodingService = transcodingService
+		m.logger.Info("Successfully obtained transcoding service via lazy loading")
 	}
 
-	return m.transcodingService.StopTranscode(sessionID)
+	return m.transcodingService.StopSession(sessionID)
 }
 
 // GetSession retrieves session information
@@ -432,18 +431,8 @@ func (m *Manager) GetPlanner() PlaybackPlanner {
 }
 
 // GetTranscodeService returns the transcode service
-func (m *Manager) GetTranscodeService() *core.TranscodeService {
+func (m *Manager) GetTranscodeService() services.TranscodingService {
 	return m.transcodingService
-}
-
-// GetCleanupService returns the cleanup service
-func (m *Manager) GetCleanupService() *core.CleanupService {
-	return m.cleanupService
-}
-
-// GetFileManager returns the file manager
-func (m *Manager) GetFileManager() *core.FileManager {
-	return m.fileManager
 }
 
 // IsEnabled returns whether the manager is enabled
@@ -467,66 +456,9 @@ func (m *Manager) SetEnabled(enabled bool) {
 	}
 }
 
-// SetPluginManager sets the plugin manager (used for late binding)
-func (m *Manager) SetPluginManager(pluginManager PluginManagerInterface) {
-	logger.Info("Manager.SetPluginManager called", "pluginManager_nil", pluginManager == nil)
-	m.pluginManager = pluginManager
-
-	// Discover plugins immediately
-	if pluginManager != nil {
-		if err := m.discoverTranscodingPlugins(); err != nil {
-			m.logger.Warn("failed to discover plugins after setting plugin manager", "error", err)
-		}
-	}
-}
-
-// discoverTranscodingPlugins discovers and registers transcoding providers from plugins
+// discoverTranscodingPlugins is now a no-op since the transcoding module manages its own providers
 func (m *Manager) discoverTranscodingPlugins() error {
-	m.logger.Info("discovering transcoding plugins")
-
-	if m.pluginManager == nil {
-		m.logger.Debug("no plugin manager available")
-		return nil
-	}
-
-	runningPlugins := m.pluginManager.GetRunningPlugins()
-	m.logger.Info("found plugins", "count", len(runningPlugins))
-
-	discoveredCount := 0
-
-	for _, pluginInfo := range runningPlugins {
-		if pluginInfo.Type != "transcoder" {
-			continue
-		}
-
-		pluginInterface, exists := m.pluginManager.GetRunningPluginInterface(pluginInfo.ID)
-		if !exists {
-			m.logger.Error("plugin interface not found", "plugin_id", pluginInfo.ID)
-			continue
-		}
-
-		// Check if plugin provides transcoding
-		if pluginImpl, ok := pluginInterface.(interface {
-			TranscodingProvider() plugins.TranscodingProvider
-		}); ok {
-			provider := pluginImpl.TranscodingProvider()
-			if provider != nil {
-				// Register only with transcoding service
-				if m.transcodingService != nil {
-					if err := m.transcodingService.RegisterProvider(provider); err != nil {
-						m.logger.Error("failed to register provider", "plugin_id", pluginInfo.ID, "error", err)
-						continue
-					}
-					discoveredCount++
-					m.logger.Info("registered provider", "plugin_id", pluginInfo.ID, "name", pluginInfo.Name)
-				} else {
-					m.logger.Error("transcoding service not available for provider registration", "plugin_id", pluginInfo.ID)
-				}
-			}
-		}
-	}
-
-	m.logger.Info("plugin discovery completed", "count", discoveredCount)
+	m.logger.Info("plugin discovery is now handled by transcoding module")
 	return nil
 }
 
@@ -534,27 +466,25 @@ func (m *Manager) discoverTranscodingPlugins() error {
 func (m *Manager) waitForPlugins(ctx context.Context) error {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	m.logger.Info("Waiting for transcoding plugins to be available")
 	attempts := 0
-	
+
 	for {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("timeout waiting for plugins: %w", ctx.Err())
 		case <-ticker.C:
 			attempts++
-			if m.pluginManager != nil {
-				// Try to discover plugins
-				if err := m.discoverTranscodingPlugins(); err != nil {
-					m.logger.Debug("Plugin discovery attempt failed", "attempt", attempts, "error", err)
-				}
-				
-				// Check if we have providers now
-				if m.hasTranscodingProviders() {
-					m.logger.Info("Transcoding plugins are now available", "attempts", attempts)
-					return nil
-				}
+			// Try to discover plugins via service registry
+			if err := m.discoverTranscodingPlugins(); err != nil {
+				m.logger.Debug("Plugin discovery attempt failed", "attempt", attempts, "error", err)
+			}
+
+			// Check if we have providers now
+			if m.hasTranscodingProviders() {
+				m.logger.Info("Transcoding plugins are now available", "attempts", attempts)
+				return nil
 			}
 			m.logger.Debug("Still waiting for transcoding plugins", "attempt", attempts)
 		}
@@ -563,11 +493,17 @@ func (m *Manager) waitForPlugins(ctx context.Context) error {
 
 // hasTranscodingProviders checks if any transcoding providers are registered
 func (m *Manager) hasTranscodingProviders() bool {
+	// Try to get transcoding service if not available (lazy loading)
 	if m.transcodingService == nil {
-		return false
+		transcodingService, err := services.GetTranscodingServiceLazy()
+		if err != nil {
+			return false
+		}
+		m.transcodingService = transcodingService
 	}
-	providerManager := m.transcodingService.GetProviderManager()
-	return providerManager != nil && len(providerManager.GetProviders()) > 0
+	// Check if there are any providers available
+	providers := m.transcodingService.GetProviders()
+	return len(providers) > 0
 }
 
 // runProcessRegistryCleanup runs periodic cleanup of the process registry
@@ -605,8 +541,7 @@ func (m *Manager) KillZombieProcesses() (int, error) {
 	processRegistry := core.GetProcessRegistry(m.logger)
 	registryKilled := processRegistry.CleanupOrphaned()
 
-	// Then run cleanup service orphan detection
-	m.cleanupService.CleanupOrphanedProcesses()
+	// Cleanup service orphan detection is now handled by transcoding module
 
 	m.logger.Info("zombie process cleanup completed", "killed_count", registryKilled)
 	return registryKilled, nil
@@ -619,7 +554,7 @@ func (m *Manager) GetErrorRecoveryStats() map[string]interface{} {
 			"error": "error recovery manager not available",
 		}
 	}
-	
+
 	return m.errorRecovery.GetStats()
 }
 
@@ -628,15 +563,45 @@ func (m *Manager) ValidateMediaFile(ctx context.Context, mediaPath string, quick
 	if !m.initialized {
 		return nil, fmt.Errorf("playback manager not initialized")
 	}
-	
+
 	if m.mediaValidator == nil {
 		return nil, fmt.Errorf("media validator not available")
 	}
-	
+
 	if quick {
 		return m.mediaValidator.QuickValidate(mediaPath)
 	}
-	
+
 	return m.mediaValidator.ValidateMedia(ctx, mediaPath)
 }
 
+// GetContentStore returns the content store interface
+func (m *Manager) GetContentStore() interface{} {
+	// Content store is now managed by transcoding module
+	// We'll remove this method and update the module to handle it differently
+	return nil
+}
+
+// GetURLGenerator returns the URL generator interface
+func (m *Manager) GetURLGenerator() interface{} {
+	// URL generator is now managed by transcoding module
+	// We'll remove this method and update the module to handle it differently
+	return nil
+}
+
+// GetMediaFilePath resolves a media file ID to its file path
+func (m *Manager) GetMediaFilePath(mediaFileID string) (string, error) {
+	if !m.initialized {
+		return "", fmt.Errorf("playback manager not initialized")
+	}
+
+	// Look up media file from database
+	var mediaFile database.MediaFile
+	if err := m.db.Where("id = ?", mediaFileID).First(&mediaFile).Error; err != nil {
+		m.logger.Error("failed to find media file", "media_file_id", mediaFileID, "error", err)
+		return "", fmt.Errorf("media file not found: %w", err)
+	}
+
+	m.logger.Info("resolved media file path", "media_file_id", mediaFileID, "path", mediaFile.Path)
+	return mediaFile.Path, nil
+}

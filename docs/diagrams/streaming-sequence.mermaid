@@ -1,0 +1,89 @@
+sequenceDiagram
+    participant C as Client
+    participant API as Playback API
+    participant PM as PlaybackModule
+    participant TM as TranscodingModule
+    participant SP as StreamingPipeline
+    participant SE as StreamEncoder
+    participant SPK as StreamPackager
+    participant CS as ContentStore
+    participant EB as EventBus
+
+    %% Initial Request
+    C->>API: POST /api/v1/playback/transcode
+    API->>PM: StartTranscodeFromMediaFile()
+    PM->>PM: DecidePlayback()
+    PM->>TM: StartTranscode()
+    
+    %% Session Creation
+    TM->>TM: CreateSession()
+    TM->>SP: StartStreaming()
+    SP->>SE: StartEncoding()
+    SP->>SPK: StartPackaging()
+    
+    %% Return URLs immediately
+    SP-->>TM: TranscodeHandle
+    TM-->>PM: TranscodeSession
+    PM-->>API: Session Response
+    API-->>C: {manifest_url, content_hash}
+
+    %% Client starts playback
+    C->>C: Initialize Player
+    C->>API: GET /content/{hash}/manifest.mpd
+    API-->>C: 404 (not ready yet)
+    
+    %% Encoding begins in background
+    SE->>SE: FFmpeg: encode segment 0
+    SE->>SP: onSegmentReady(0)
+    SP->>EB: PublishSegmentReady
+    SP->>SPK: QueueSegment(0)
+    
+    %% Packaging
+    SPK->>SPK: Shaka: package segment 0
+    SPK->>SPK: Update manifest.mpd
+    SPK->>SP: onManifestUpdate()
+    SP->>EB: PublishManifestUpdated
+    
+    %% First segment ready
+    Note over C,CS: First segment ready (~2-4 seconds)
+    
+    C->>API: GET /content/{hash}/manifest.mpd (retry)
+    API->>CS: Get manifest
+    CS-->>API: manifest.mpd
+    API-->>C: 200 OK manifest.mpd
+    
+    %% Playback starts
+    C->>C: Parse manifest
+    C->>API: GET /content/{hash}/video/segment_000.mp4
+    API->>CS: Get segment
+    CS-->>API: segment data
+    API-->>C: 200 OK segment
+    C->>C: Start playback!
+    
+    %% Continuous encoding
+    loop For each segment
+        SE->>SE: Encode segment N
+        SE->>SP: onSegmentReady(N)
+        SP->>EB: PublishSegmentReady
+        SP->>SPK: QueueSegment(N)
+        SPK->>SPK: Package & update manifest
+        SPK->>SP: onManifestUpdate()
+        SP->>EB: PublishManifestUpdated
+    end
+    
+    %% Client fetches segments
+    loop During playback
+        C->>API: GET /content/{hash}/video/segment_N.mp4
+        API->>CS: Get segment
+        CS-->>API: segment data
+        API-->>C: 200 OK segment
+        C->>C: Buffer & play segment
+    end
+    
+    %% Completion
+    SE->>SP: Encoding complete
+    SP->>CS: Store final content
+    CS->>CS: Calculate hash, deduplicate
+    SP->>EB: PublishTranscodeCompleted
+    SP->>TM: Session completed
+    TM->>PM: Update session status

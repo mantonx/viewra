@@ -226,6 +226,16 @@ func (m *Module) Health() error {
 	return nil
 }
 
+// ProvidedServices returns the list of services this module provides
+func (m *Module) ProvidedServices() []string {
+	return []string{"database", "migrations", "transactions"}
+}
+
+// Dependencies returns the list of module IDs this module depends on
+func (m *Module) Dependencies() []string {
+	return []string{} // Database module has no dependencies
+}
+
 // Register registers this module with the module system
 func Register() {
 	// Create module without database connection - it will be initialized later

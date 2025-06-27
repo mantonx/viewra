@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/mantonx/viewra/internal/config"
 	"github.com/mantonx/viewra/internal/database"
 	plugins "github.com/mantonx/viewra/sdk"
+
 	"gorm.io/gorm"
 )
 
@@ -121,7 +124,7 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 		// Check if this is a "no providers" error - if so, this might be a timing issue
 		// where plugin discovery hasn't run yet. This is a safeguard for robustness.
 		if strings.Contains(err.Error(), "no capable providers found") {
-			ts.logger.Warn("No providers found - this suggests plugin discovery timing issue", 
+			ts.logger.Warn("No providers found - this suggests plugin discovery timing issue",
 				"error", err.Error(),
 				"transcode_service_instance", fmt.Sprintf("%p", ts))
 		}
@@ -195,10 +198,10 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 		if req.Container == "hls" {
 			manifestFile = "playlist.m3u8"
 		}
-		
+
 		manifestPath := fmt.Sprintf("%s/%s", dirPath, manifestFile)
 		ts.logger.Info("waiting for manifest file", "path", manifestPath, "session_id", session.ID)
-		
+
 		// Wait up to 5 seconds for manifest to appear
 		manifestFound := false
 		for i := 0; i < 50; i++ { // 50 * 100ms = 5 seconds
@@ -209,7 +212,7 @@ func (ts *TranscodeService) StartTranscode(ctx context.Context, req *plugins.Tra
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		
+
 		if !manifestFound {
 			ts.logger.Warn("manifest file not generated in time", "path", manifestPath)
 			// Don't fail - the frontend will also retry
@@ -265,12 +268,69 @@ func (ts *TranscodeService) completeSession(sessionID string, handle *plugins.Tr
 	// Get directory size for stats
 	dirSize, _ := ts.fileManager.GetDirectorySize(handle.Directory)
 
+	// Extract content hash from private data if available
+	contentHash := ""
+	if handle.PrivateData != nil {
+		// Check if this contains a content hash string
+		if hashStr, ok := handle.PrivateData.(string); ok {
+			contentHash = hashStr
+			ts.logger.Info("extracted content hash from handle private data",
+				"session_id", sessionID,
+				"content_hash", contentHash)
+		}
+	}
+
+	// If no content hash from pipeline, generate one based on session parameters
+	if contentHash == "" {
+		// Get session to access request parameters
+		session, err := ts.sessionStore.GetSession(sessionID)
+		if err == nil && session != nil {
+			if req, err := session.GetRequest(); err == nil && req != nil {
+				// Generate a proper SHA256 hash based on input path and transcoding parameters
+				hashInput := fmt.Sprintf("%s_%s_%s_%s_%d_%d",
+					req.InputPath,
+					req.Container,
+					req.VideoCodec,
+					req.AudioCodec,
+					req.Quality,
+					req.SpeedPriority)
+				hash := sha256.Sum256([]byte(hashInput))
+				contentHash = hex.EncodeToString(hash[:]) // Full 64-char SHA256 hash
+				ts.logger.Info("generated content hash for non-pipeline provider",
+					"session_id", sessionID,
+					"content_hash", contentHash)
+			}
+		}
+	}
+
+	// Build manifest URL - always use content-addressable URL
+	manifestURL := ""
+	if contentHash != "" {
+		manifestURL = fmt.Sprintf("/api/v1/content/%s/manifest.mpd", contentHash)
+	} else {
+		ts.logger.Error("failed to generate content hash", "session_id", sessionID)
+		// Still need to set a manifest URL for the result
+		manifestURL = fmt.Sprintf("/api/v1/content/error_%s/manifest.mpd", sessionID)
+	}
+
 	result := &plugins.TranscodeResult{
 		Success:      true,
 		OutputPath:   handle.Directory,
-		ManifestURL:  fmt.Sprintf("/api/playback/stream/%s/manifest", sessionID),
+		ManifestURL:  manifestURL,
 		FileSize:     dirSize,
 		BytesWritten: dirSize,
+	}
+
+	// Update session with content hash if available
+	if contentHash != "" {
+		if err := ts.db.Model(&database.TranscodeSession{}).
+			Where("id = ?", sessionID).
+			Update("content_hash", contentHash).Error; err != nil {
+			ts.logger.Error("failed to update session content hash",
+				"error", err,
+				"session_id", sessionID,
+				"content_hash", contentHash)
+		}
 	}
 
 	ts.sessionStore.CompleteSession(sessionID, result)

@@ -11,7 +11,6 @@ import {
 } from '../../atoms/mediaPlayer';
 import { MediaService } from '../../services/MediaService';
 import { useSessionManager } from './useSessionManager';
-import { useMediaPlayer } from '../player/useMediaPlayer';
 
 export const useSeekAhead = () => {
   const [playbackDecision, setPlaybackDecision] = useAtom(playbackDecisionAtom);
@@ -23,7 +22,6 @@ export const useSeekAhead = () => {
   const [config] = useAtom(configAtom);
 
   const { stopTranscodingSession, addSession } = useSessionManager();
-  const { loadNewManifest } = useMediaPlayer();
 
   const seekOffsetRef = useRef(0);
 
@@ -36,13 +34,9 @@ export const useSeekAhead = () => {
     try {
       console.log('🚀 Requesting seek-ahead to time:', seekTime);
       
-      let sessionId = playbackDecision.session_id;
-      if (!sessionId && playbackDecision.manifest_url) {
-        const urlMatch = playbackDecision.manifest_url.match(/\/stream\/([^/]+)\//);
-        if (urlMatch) {
-          sessionId = urlMatch[1];
-        }
-      }
+      const sessionId = playbackDecision.session_id;
+      // Session ID must be present in the playback decision
+      // No longer support extracting from deprecated URL patterns
 
       if (!sessionId) {
         console.warn('⚠️ No session ID available for seek-ahead');
@@ -83,7 +77,7 @@ export const useSeekAhead = () => {
           session_id: seekResponse.session_id,
         }));
 
-        await loadNewManifest(seekResponse.manifest_url);
+        // Vidstack will handle the manifest update through the playbackDecision change
         
         if (videoElement) {
           const setupEventListeners = () => {
@@ -158,7 +152,7 @@ export const useSeekAhead = () => {
     setPlaybackDecision,
     addSession,
     stopTranscodingSession,
-    loadNewManifest,
+
     videoElement,
   ]);
 

@@ -3,7 +3,7 @@ import { render } from '@/test/simple-utils';
 import { useAtom } from 'jotai';
 import { MediaPlayer } from './MediaPlayer';
 import type { MediaIdentifier } from './MediaPlayer.types';
-import { loadingStateAtom } from '@/atoms/mediaPlayer';
+import { loadingStateAtom, playbackDecisionAtom } from '@/atoms/mediaPlayer';
 
 // Mock Vidstack React components
 vi.mock('@vidstack/react', () => ({
@@ -125,45 +125,6 @@ vi.mock('jotai', () => ({
 }));
 
 // Mock hooks
-vi.mock('@/hooks/player/useMediaPlayer', () => ({
-  useMediaPlayer: () => ({
-    initializePlayer: vi.fn(),
-    play: vi.fn(),
-    pause: vi.fn(),
-    seek: vi.fn(),
-    setVolume: vi.fn(),
-    toggleMute: vi.fn(),
-    toggleFullscreen: vi.fn(),
-    destroy: vi.fn(),
-  }),
-}));
-
-vi.mock('@/hooks/player/useVideoControls', () => ({
-  useVideoControls: () => ({
-    togglePlayPause: vi.fn(),
-    play: vi.fn(),
-    pause: vi.fn(),
-    stop: vi.fn(),
-    restartFromBeginning: vi.fn(),
-    seek: vi.fn(),
-    seekByProgress: vi.fn(),
-    skipBackward: vi.fn(),
-    skipForward: vi.fn(),
-    setVolume: vi.fn(),
-    toggleMute: vi.fn(),
-    mute: vi.fn(),
-    unmute: vi.fn(),
-    toggleFullscreen: vi.fn(),
-    enterFullscreen: vi.fn(),
-    exitFullscreen: vi.fn(),
-    isPlaying: false,
-    volume: 1,
-    isMuted: false,
-    isFullscreen: false,
-    duration: 0,
-    currentTime: 0,
-  }),
-}));
 
 vi.mock('@/hooks/ui/useControlsVisibility', () => ({
   useControlsVisibility: () => ({
@@ -223,6 +184,21 @@ vi.mock('@/hooks/media/useMediaNavigation', () => ({
     previousEpisode: null,
     handleNextEpisode: vi.fn(),
     handlePreviousEpisode: vi.fn(),
+    mediaFile: {
+      id: 'file-123',
+      path: '/test/video.mp4',
+      duration: 120,
+    },
+    currentMedia: {
+      title: 'Test Video',
+      poster: null,
+      subtitles: [],
+    },
+    loadMediaData: vi.fn(),
+    getSavedPosition: vi.fn(() => 0),
+    savePosition: vi.fn(),
+    clearSavedPosition: vi.fn(),
+    getStartPosition: vi.fn(() => 0),
   }),
 }));
 
@@ -247,6 +223,21 @@ describe('MediaPlayer', () => {
         previousEpisode: null,
         handleNextEpisode: vi.fn(),
         handlePreviousEpisode: vi.fn(),
+        mediaFile: {
+          id: 'file-123',
+          path: '/test/video.mp4',
+          duration: 120,
+        },
+        currentMedia: {
+          title: 'Test Video',
+          poster: null,
+          subtitles: [],
+        },
+        loadMediaData: vi.fn(),
+        getSavedPosition: vi.fn(() => 0),
+        savePosition: vi.fn(),
+        clearSavedPosition: vi.fn(),
+        getStartPosition: vi.fn(() => 0),
       }),
     }));
   });
@@ -417,5 +408,92 @@ describe('MediaPlayer', () => {
     // The onBack prop is passed to the useMediaNavigation hook
     // which handles the back button functionality
     expect(onBackMock).toBeInstanceOf(Function);
+  });
+
+  it('handles content-addressable storage URLs correctly', () => {
+    // Mock playback decision with content hash
+    vi.mocked(useAtom).mockImplementation((atom: any) => {
+      if (atom?.init !== undefined && atom === playbackDecisionAtom) {
+        return [{
+          should_transcode: true,
+          reason: 'requires transcoding',
+          manifest_url: '/api/v1/content/abc123def456/manifest.mpd',
+          stream_url: '/api/v1/content/abc123def456/manifest.mpd',
+          content_hash: 'abc123def456',
+          content_url: '/api/v1/content/abc123def456/',
+          transcode_params: {
+            target_container: 'dash',
+            target_codec: 'h264',
+          },
+        }, vi.fn()];
+      }
+      return [atom?.init || null, vi.fn()];
+    });
+
+    const { container } = render(<MediaPlayer {...defaultProps} />);
+    const vidstackPlayer = container.querySelector('[data-testid="vidstack-player"]');
+    
+    expect(vidstackPlayer).toBeTruthy();
+    // The source URL should be using content-addressable storage
+    expect(vidstackPlayer?.getAttribute('src')).toContain('/api/v1/content/');
+  });
+
+  it('handles HLS content-addressable storage URLs', () => {
+    // Mock playback decision with content hash for HLS
+    vi.mocked(useAtom).mockImplementation((atom: any) => {
+      if (atom?.init !== undefined && atom === playbackDecisionAtom) {
+        return [{
+          should_transcode: true,
+          reason: 'requires transcoding',
+          manifest_url: '/api/v1/content/abc123def456/playlist.m3u8',
+          stream_url: '/api/v1/content/abc123def456/playlist.m3u8',
+          content_hash: 'abc123def456',
+          content_url: '/api/v1/content/abc123def456/',
+          transcode_params: {
+            target_container: 'hls',
+            target_codec: 'h264',
+          },
+        }, vi.fn()];
+      }
+      return [atom?.init || null, vi.fn()];
+    });
+
+    const { container } = render(<MediaPlayer {...defaultProps} />);
+    const vidstackPlayer = container.querySelector('[data-testid="vidstack-player"]');
+    
+    expect(vidstackPlayer).toBeTruthy();
+    // The source URL should be using content-addressable storage for HLS
+    expect(vidstackPlayer?.getAttribute('src')).toContain('/api/v1/content/');
+    expect(vidstackPlayer?.getAttribute('src')).toContain('.m3u8');
+  });
+
+  it('always uses content-addressable storage URLs', () => {
+    // Mock playback decision with content hash (new architecture always provides this)
+    vi.mocked(useAtom).mockImplementation((atom: any) => {
+      if (atom?.init !== undefined && atom === playbackDecisionAtom) {
+        return [{
+          should_transcode: true,
+          reason: 'requires transcoding',
+          manifest_url: '/api/v1/content/def456ghi789/manifest.mpd',
+          stream_url: '/api/v1/content/def456ghi789/manifest.mpd',
+          content_hash: 'def456ghi789',
+          content_url: '/api/v1/content/def456ghi789/',
+          session_id: 'session-123',
+          transcode_params: {
+            target_container: 'dash',
+            target_codec: 'h264',
+          },
+        }, vi.fn()];
+      }
+      return [atom?.init || null, vi.fn()];
+    });
+
+    const { container } = render(<MediaPlayer {...defaultProps} />);
+    const vidstackPlayer = container.querySelector('[data-testid="vidstack-player"]');
+    
+    expect(vidstackPlayer).toBeTruthy();
+    // Should always use content-addressable storage URLs
+    expect(vidstackPlayer?.getAttribute('src')).toContain('/api/v1/content/');
+    expect(vidstackPlayer?.getAttribute('src')).not.toContain('/api/playback/stream/');
   });
 });

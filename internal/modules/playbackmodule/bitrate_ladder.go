@@ -23,12 +23,12 @@ type BitrateProfile struct {
 // BitrateRung represents a single rung in the adaptive bitrate ladder
 type BitrateRung struct {
 	Resolution   plugins.Resolution
-	VideoBitrate int     // kbps
-	AudioBitrate int     // kbps
-	Profile      string  // codec profile
-	Level        string  // codec level
-	CRF          int     // quality factor
-	Label        string  // e.g., "360p", "720p", "1080p"
+	VideoBitrate int    // kbps
+	AudioBitrate int    // kbps
+	Profile      string // codec profile
+	Level        string // codec level
+	CRF          int    // quality factor
+	Label        string // e.g., "360p", "720p", "1080p"
 }
 
 // BitrateAdaptationSet represents a complete ABR ladder
@@ -39,10 +39,10 @@ type BitrateAdaptationSet struct {
 // GetOptimizedBitrateLadder returns an optimized bitrate ladder based on content and target quality
 func GetOptimizedBitrateLadder(sourceWidth, sourceHeight int, maxQuality int) *BitrateAdaptationSet {
 	ladder := &BitrateAdaptationSet{}
-	
+
 	// Calculate source aspect ratio
 	aspectRatio := float64(sourceWidth) / float64(sourceHeight)
-	
+
 	// Define standard resolutions with optimized bitrates
 	// These are based on industry best practices and VMAF optimization
 	standardRungs := []struct {
@@ -70,23 +70,23 @@ func GetOptimizedBitrateLadder(sourceWidth, sourceHeight int, maxQuality int) *B
 		// 4K
 		{2160, 12000, 25000, 320, "high", "5.1", 20, "2160p"},
 	}
-	
+
 	// Only include rungs up to source resolution
 	for _, rung := range standardRungs {
 		if rung.height > sourceHeight {
 			break
 		}
-		
+
 		// Calculate width maintaining aspect ratio
 		width := int(float64(rung.height) * aspectRatio)
 		// Round to even number for codec compatibility
 		if width%2 != 0 {
 			width++
 		}
-		
+
 		// Adjust bitrate based on quality setting
 		bitrate := rung.minBitrate + (rung.maxBitrate-rung.minBitrate)*maxQuality/100
-		
+
 		ladder.Rungs = append(ladder.Rungs, BitrateRung{
 			Resolution: plugins.Resolution{
 				Width:  width,
@@ -100,7 +100,7 @@ func GetOptimizedBitrateLadder(sourceWidth, sourceHeight int, maxQuality int) *B
 			Label:        rung.label,
 		})
 	}
-	
+
 	// Always include at least the lowest quality rung for robustness
 	if len(ladder.Rungs) == 0 {
 		width := int(float64(240) * aspectRatio)
@@ -120,7 +120,7 @@ func GetOptimizedBitrateLadder(sourceWidth, sourceHeight int, maxQuality int) *B
 			Label:        "240p",
 		})
 	}
-	
+
 	return ladder
 }
 
@@ -128,7 +128,7 @@ func GetOptimizedBitrateLadder(sourceWidth, sourceHeight int, maxQuality int) *B
 // This is a simplified version - full per-title encoding would require content analysis
 func GetPerTitleOptimizedLadder(contentType string, complexity float64, sourceWidth, sourceHeight int) *BitrateAdaptationSet {
 	baseLadder := GetOptimizedBitrateLadder(sourceWidth, sourceHeight, 80)
-	
+
 	// Adjust bitrates based on content type and complexity
 	complexityMultiplier := 1.0
 	switch contentType {
@@ -147,23 +147,23 @@ func GetPerTitleOptimizedLadder(contentType string, complexity float64, sourceWi
 			complexityMultiplier = 0.8 + (complexity * 0.4) // Range from 0.8 to 1.2
 		}
 	}
-	
+
 	// Apply complexity multiplier to bitrates
 	for i := range baseLadder.Rungs {
 		baseLadder.Rungs[i].VideoBitrate = int(float64(baseLadder.Rungs[i].VideoBitrate) * complexityMultiplier)
 	}
-	
+
 	return baseLadder
 }
 
 // GenerateFFmpegCommandsForLadder generates FFmpeg commands for each rung in the ladder
 func GenerateFFmpegCommandsForLadder(ladder *BitrateAdaptationSet, baseArgs []string) [][]string {
 	var commands [][]string
-	
+
 	for i, rung := range ladder.Rungs {
 		args := make([]string, len(baseArgs))
 		copy(args, baseArgs)
-		
+
 		// Add resolution-specific arguments
 		args = append(args,
 			"-vf", fmt.Sprintf("scale=%d:%d:flags=lanczos", rung.Resolution.Width, rung.Resolution.Height),
@@ -175,15 +175,15 @@ func GenerateFFmpegCommandsForLadder(ladder *BitrateAdaptationSet, baseArgs []st
 			"-crf", fmt.Sprintf("%d", rung.CRF),
 			"-b:a", fmt.Sprintf("%dk", rung.AudioBitrate),
 		)
-		
+
 		// Add stream mapping for adaptive streaming
 		args = append(args,
 			"-adaptation_sets", fmt.Sprintf("id=%d,streams=v id=%d,streams=a", i, i+len(ladder.Rungs)),
 		)
-		
+
 		commands = append(commands, args)
 	}
-	
+
 	return commands
 }
 
@@ -197,19 +197,19 @@ func SortLadderByBitrate(ladder *BitrateAdaptationSet) {
 // FilterLadderByBandwidth returns only rungs that fit within bandwidth constraints
 func FilterLadderByBandwidth(ladder *BitrateAdaptationSet, maxBandwidth int) *BitrateAdaptationSet {
 	filtered := &BitrateAdaptationSet{}
-	
+
 	for _, rung := range ladder.Rungs {
 		totalBitrate := rung.VideoBitrate + rung.AudioBitrate
 		if totalBitrate <= maxBandwidth {
 			filtered.Rungs = append(filtered.Rungs, rung)
 		}
 	}
-	
+
 	// Always keep at least the lowest bitrate rung
 	if len(filtered.Rungs) == 0 && len(ladder.Rungs) > 0 {
 		filtered.Rungs = append(filtered.Rungs, ladder.Rungs[0])
 	}
-	
+
 	return filtered
 }
 
@@ -218,19 +218,19 @@ func GetLadderManifestInfo(ladder *BitrateAdaptationSet) map[string]interface{} 
 	info := map[string]interface{}{
 		"adaptationSets": []map[string]interface{}{},
 	}
-	
+
 	videoSet := map[string]interface{}{
 		"mimeType":        "video/mp4",
 		"contentType":     "video",
 		"representations": []map[string]interface{}{},
 	}
-	
+
 	audioSet := map[string]interface{}{
 		"mimeType":        "audio/mp4",
 		"contentType":     "audio",
 		"representations": []map[string]interface{}{},
 	}
-	
+
 	for i, rung := range ladder.Rungs {
 		// Video representation
 		videoRep := map[string]interface{}{
@@ -242,19 +242,19 @@ func GetLadderManifestInfo(ladder *BitrateAdaptationSet) map[string]interface{} 
 			"label":     rung.Label,
 		}
 		videoSet["representations"] = append(videoSet["representations"].([]map[string]interface{}), videoRep)
-		
+
 		// Audio representation
 		audioRep := map[string]interface{}{
-			"id":        fmt.Sprintf("audio_%d", i),
-			"bandwidth": rung.AudioBitrate * 1000, // Convert to bps
-			"codecs":    "mp4a.40.2",              // AAC-LC
+			"id":                fmt.Sprintf("audio_%d", i),
+			"bandwidth":         rung.AudioBitrate * 1000, // Convert to bps
+			"codecs":            "mp4a.40.2",              // AAC-LC
 			"audioSamplingRate": 48000,
 		}
 		audioSet["representations"] = append(audioSet["representations"].([]map[string]interface{}), audioRep)
 	}
-	
+
 	info["adaptationSets"] = append(info["adaptationSets"].([]map[string]interface{}), videoSet, audioSet)
-	
+
 	return info
 }
 
@@ -266,7 +266,7 @@ func getAVCCodecString(profile, level string) string {
 		"main":     "4D",
 		"high":     "64",
 	}
-	
+
 	levelMap := map[string]string{
 		"3.0": "1E",
 		"3.1": "1F",
@@ -275,17 +275,17 @@ func getAVCCodecString(profile, level string) string {
 		"5.0": "32",
 		"5.1": "33",
 	}
-	
+
 	profileHex := profileMap[profile]
 	if profileHex == "" {
 		profileHex = "42" // Default to baseline
 	}
-	
+
 	levelHex := levelMap[level]
 	if levelHex == "" {
 		levelHex = "1E" // Default to 3.0
 	}
-	
+
 	// Format: avc1.PPCCLL where PP=profile, CC=constraints, LL=level
 	return fmt.Sprintf("%sE0%s", profileHex, levelHex)
 }

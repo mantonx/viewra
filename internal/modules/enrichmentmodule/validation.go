@@ -344,4 +344,4 @@ func (v *TVShowValidator) SuggestCorrections(title, tmdbID, description string) 
 	}
 
 	return suggestions
-} 
+}

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -51,6 +53,10 @@ func (s *SessionStore) CreateSession(provider string, req *plugins.TranscodeRequ
 	}
 	session.DirectoryPath = s.generateSessionDirectory(container, provider, session.ID)
 
+	// Generate content hash based on transcoding parameters
+	// This ensures content-addressable URLs are available immediately
+	session.ContentHash = s.generateContentHash(req)
+
 	if err := s.db.Create(session).Error; err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -58,7 +64,8 @@ func (s *SessionStore) CreateSession(provider string, req *plugins.TranscodeRequ
 	s.logger.Info("created transcoding session",
 		"session_id", session.ID,
 		"provider", provider,
-		"directory", session.DirectoryPath)
+		"directory", session.DirectoryPath,
+		"content_hash", session.ContentHash)
 
 	return session, nil
 }
@@ -73,7 +80,47 @@ func (s *SessionStore) generateSessionDirectory(container, provider, sessionID s
 	// Format: [container]_[provider]_[sessionID]
 	// This is just the directory name, not the full path
 	// The actual path will be set when the directory is created
-	return ""
+	return fmt.Sprintf("%s_%s_%s", container, provider, sessionID)
+}
+
+// generateContentHash generates a deterministic content hash based on transcoding parameters
+func (s *SessionStore) generateContentHash(req *plugins.TranscodeRequest) string {
+	// Create a deterministic hash based on transcoding parameters
+	// This ensures the same content parameters always generate the same hash
+	// for content deduplication and CDN caching
+
+	// Build hash input with all relevant parameters that affect output
+	hashInput := fmt.Sprintf("%s_%s_%s_%s_%d_%d",
+		req.MediaID,       // Media identifier
+		req.Container,     // Output format (dash, hls, mp4)
+		req.VideoCodec,    // Video codec
+		req.AudioCodec,    // Audio codec
+		req.Quality,       // Quality level
+		req.SpeedPriority, // Speed/quality tradeoff
+	)
+
+	// Add resolution if specified
+	if req.Resolution != nil {
+		hashInput += fmt.Sprintf("_%dx%d", req.Resolution.Width, req.Resolution.Height)
+	}
+
+	// Add ABR flag
+	if req.EnableABR {
+		hashInput += "_abr"
+	}
+
+	// Add bitrate constraints if specified
+	if req.VideoBitrate > 0 {
+		hashInput += fmt.Sprintf("_vb%d", req.VideoBitrate)
+	}
+	if req.AudioBitrate > 0 {
+		hashInput += fmt.Sprintf("_ab%d", req.AudioBitrate)
+	}
+
+	// Generate SHA256 hash
+	hash := sha256.Sum256([]byte(hashInput))
+	// Return full 64-character SHA256 hash for content-addressable storage
+	return hex.EncodeToString(hash[:])
 }
 
 // GetSession retrieves a session by ID
@@ -243,17 +290,17 @@ func (s *SessionStore) CleanupExpiredSessions(policy RetentionPolicy) (int, erro
 		sessionIDs := make([]string, len(sessions))
 		for i, session := range sessions {
 			sessionIDs[i] = session.ID
-			
+
 			// Also remove the directory if it exists
 			if session.DirectoryPath != "" {
 				if err := os.RemoveAll(session.DirectoryPath); err != nil {
-					s.logger.Warn("failed to remove session directory", 
-						"session_id", session.ID, 
-						"path", session.DirectoryPath, 
+					s.logger.Warn("failed to remove session directory",
+						"session_id", session.ID,
+						"path", session.DirectoryPath,
 						"error", err)
 				} else {
-					s.logger.Debug("removed session directory", 
-						"session_id", session.ID, 
+					s.logger.Debug("removed session directory",
+						"session_id", session.ID,
 						"path", session.DirectoryPath)
 				}
 			}
@@ -264,10 +311,10 @@ func (s *SessionStore) CleanupExpiredSessions(policy RetentionPolicy) (int, erro
 		}
 
 		s.logger.Info("cleaned up expired sessions", "count", len(sessions))
-		
+
 		// Log details about what was cleaned
 		for _, session := range sessions {
-			s.logger.Debug("cleaned session details", 
+			s.logger.Debug("cleaned session details",
 				"session_id", session.ID,
 				"status", session.Status,
 				"directory_path", session.DirectoryPath,
@@ -281,60 +328,60 @@ func (s *SessionStore) CleanupExpiredSessions(policy RetentionPolicy) (int, erro
 // CleanupStaleSessions marks running/queued sessions as failed if they've been stuck for too long
 func (s *SessionStore) CleanupStaleSessions(maxAge time.Duration) (int, error) {
 	cutoffTime := time.Now().Add(-maxAge)
-	
+
 	// Find stale running/queued sessions
 	var staleSessions []*database.TranscodeSession
 	if err := s.db.Where("last_accessed < ? AND status IN ?", cutoffTime, []string{"running", "queued"}).
 		Find(&staleSessions).Error; err != nil {
 		return 0, fmt.Errorf("failed to find stale sessions: %w", err)
 	}
-	
+
 	// Mark them as failed
 	if len(staleSessions) > 0 {
 		sessionIDs := make([]string, len(staleSessions))
 		for i, session := range staleSessions {
 			sessionIDs[i] = session.ID
 		}
-		
+
 		// Update status to failed with explanation
 		updates := map[string]interface{}{
-			"status": "failed",
-			"result": `{"error": "Session timed out - no activity for too long"}`,
+			"status":   "failed",
+			"result":   `{"error": "Session timed out - no activity for too long"}`,
 			"end_time": time.Now(),
 		}
-		
+
 		if err := s.db.Model(&database.TranscodeSession{}).
 			Where("id IN ?", sessionIDs).
 			Updates(updates).Error; err != nil {
 			return 0, fmt.Errorf("failed to update stale sessions: %w", err)
 		}
-		
+
 		s.logger.Warn("marked stale sessions as failed", "count", len(staleSessions), "max_age", maxAge)
 	}
-	
+
 	return len(staleSessions), nil
 }
 
 // UpdateSessionStatus updates the status of a session
 func (s *SessionStore) UpdateSessionStatus(sessionID, status, result string) error {
 	updates := map[string]interface{}{
-		"status": status,
+		"status":        status,
 		"last_accessed": time.Now(),
 		"updated_at":    time.Now(),
 	}
-	
+
 	// Only set result and end_time if result is provided
 	if result != "" {
 		updates["result"] = result
 		updates["end_time"] = time.Now()
 	}
-	
+
 	if err := s.db.Model(&database.TranscodeSession{}).
 		Where("id = ?", sessionID).
 		Updates(updates).Error; err != nil {
 		return fmt.Errorf("failed to update session status: %w", err)
 	}
-	
+
 	s.logger.Info("updated session status", "session_id", sessionID, "status", status)
 	return nil
 }
@@ -356,6 +403,18 @@ func (s *SessionStore) GetActiveSessions() ([]*database.TranscodeSession, error)
 		Order("start_time DESC").
 		Find(&sessions).Error; err != nil {
 		return nil, fmt.Errorf("failed to get active sessions: %w", err)
+	}
+
+	return sessions, nil
+}
+
+// ListActiveSessionsByContentHash returns active sessions with the specified content hash
+func (s *SessionStore) ListActiveSessionsByContentHash(contentHash string) ([]*database.TranscodeSession, error) {
+	var sessions []*database.TranscodeSession
+	if err := s.db.Where("content_hash = ? AND status IN ?", contentHash, []string{"queued", "running"}).
+		Order("start_time DESC").
+		Find(&sessions).Error; err != nil {
+		return nil, fmt.Errorf("failed to get active sessions by content hash: %w", err)
 	}
 
 	return sessions, nil

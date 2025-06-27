@@ -1,0 +1,192 @@
+graph TB
+    %% Client Layer
+    subgraph "Client Layer"
+        WEB[Web Browser]
+        MOBILE[Mobile App]
+        TV[TV App]
+        
+        WEB --> VP[Video Player]
+        MOBILE --> VP
+        TV --> VP
+    end
+
+    %% API Gateway
+    subgraph "API Gateway"
+        GW[Gin Router]
+        AUTH[Authentication]
+        RATE[Rate Limiting]
+        
+        VP --> GW
+        GW --> AUTH
+        GW --> RATE
+    end
+
+    %% Module Layer
+    subgraph "Playback Module"
+        PM[Playback Manager]
+        PBP[Playback Planner]
+        MV[Media Validator]
+        ER[Error Recovery]
+        
+        PM --> PBP
+        PM --> MV
+        PM --> ER
+    end
+
+    subgraph "Transcoding Module"
+        TM[Transcoding Manager]
+        SP[Streaming Pipeline]
+        SE[Stream Encoder]
+        SPK[Stream Packager]
+        CS[Content Store]
+        HM[Health Monitor]
+        
+        TM --> SP
+        SP --> SE
+        SP --> SPK
+        SP --> CS
+        SP --> HM
+    end
+
+    subgraph "Media Module"
+        MM[Media Manager]
+        MDB[Media Database]
+        FP[File Processor]
+        
+        MM --> MDB
+        MM --> FP
+    end
+
+    subgraph "Scanner Module"
+        SM[Scanner Manager]
+        LS[Library Scanner]
+        FM[File Monitor]
+        
+        SM --> LS
+        SM --> FM
+    end
+
+    subgraph "Plugin Module"
+        PLM[Plugin Manager]
+        EP[External Plugins]
+        PP[Plugin Proxy]
+        
+        PLM --> EP
+        PLM --> PP
+    end
+
+    %% Service Layer
+    subgraph "Service Registry"
+        SR[Service Registry]
+        LL[Lazy Loader]
+        SI[Service Interfaces]
+        
+        SR --> LL
+        SR --> SI
+    end
+
+    %% Event System
+    subgraph "Event Bus"
+        EB[Global Event Bus]
+        EH[Event Handlers]
+        ES[Event Storage]
+        
+        EB --> EH
+        EB --> ES
+    end
+
+    %% Core Infrastructure
+    subgraph "Core Infrastructure"
+        DB[Database<br/>(SQLite/PostgreSQL)]
+        FS[File System]
+        CFG[Configuration]
+        LOG[Logging]
+        
+        DB --> GORM[GORM ORM]
+        FS --> VOL[Docker Volumes]
+        CFG --> YAML[YAML Config]
+        LOG --> HCLOG[HashiCorp Logger]
+    end
+
+    %% External Dependencies
+    subgraph "External Tools"
+        FFMPEG[FFmpeg]
+        SHAKA[Shaka Packager]
+        FFPROBE[FFProbe]
+        
+        SE --> FFMPEG
+        SPK --> SHAKA
+        MV --> FFPROBE
+    end
+
+    %% Plugin Ecosystem
+    subgraph "Plugin Ecosystem"
+        subgraph "Transcoding Plugins"
+            SOFT[Software FFmpeg]
+            NVENC[NVIDIA NVENC]
+            QSV[Intel QSV]
+            VAAPI[VAAPI]
+        end
+        
+        subgraph "Enrichment Plugins"
+            TMDB[TMDB Enricher]
+            MB[MusicBrainz]
+            LOCAL[Local Metadata]
+        end
+        
+        subgraph "Scanner Plugins"
+            FS_SCAN[Filesystem Scanner]
+            NET_SCAN[Network Scanner]
+        end
+    end
+
+    %% Connections
+    RATE --> PM
+    PM --> TM
+    PM --> MM
+    
+    TM --> SR
+    PM --> SR
+    MM --> SR
+    SM --> SR
+    PLM --> SR
+    
+    PM --> EB
+    TM --> EB
+    SM --> EB
+    MM --> EB
+    
+    SE --> SOFT
+    SE --> NVENC
+    SE --> QSV
+    SE --> VAAPI
+    
+    SM --> TMDB
+    SM --> MB
+    SM --> LOCAL
+    
+    LS --> FS_SCAN
+    LS --> NET_SCAN
+    
+    TM --> DB
+    PM --> DB
+    MM --> DB
+    SM --> DB
+    PLM --> DB
+
+    %% Styling
+    classDef client fill:#e3f2fd,stroke:#0277bd,stroke-width:2px
+    classDef api fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef module fill:#f1f8e9,stroke:#558b2f,stroke-width:2px
+    classDef service fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef infra fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef external fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+    classDef plugin fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    
+    class WEB,MOBILE,TV,VP client
+    class GW,AUTH,RATE api
+    class PM,TM,MM,SM,PLM,SP,SE,SPK,CS module
+    class SR,LL,SI,EB,EH,ES service
+    class DB,FS,CFG,LOG,GORM,VOL,YAML,HCLOG infra
+    class FFMPEG,SHAKA,FFPROBE external
+    class SOFT,NVENC,QSV,VAAPI,TMDB,MB,LOCAL,FS_SCAN,NET_SCAN plugin

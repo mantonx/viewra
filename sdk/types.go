@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/mantonx/viewra/sdk/transcoding"
 )
 
 // PluginManagerInterface defines proper types for plugin managers
@@ -195,4 +197,68 @@ func (mm *MetadataMap) AsInterface() map[string]interface{} {
 		result[k] = v
 	}
 	return result
+}
+
+// Transcoding type aliases - these reference the transcoding package types
+type TranscodeRequest = transcoding.TranscodeRequest
+type TranscodeHandle = transcoding.TranscodeHandle
+type TranscodingProgress = transcoding.TranscodingProgress
+type StreamHandle = transcoding.StreamHandle
+type Resolution = transcoding.Resolution
+type SpeedPriority = transcoding.SpeedPriority
+type TranscodeStatus = transcoding.TranscodeStatus
+type HardwareType = transcoding.HardwareType
+
+// Speed priority constants
+const (
+	SpeedPriorityBalanced = transcoding.SpeedPriorityBalanced
+	SpeedPriorityQuality  = transcoding.SpeedPriorityQuality
+	SpeedPriorityFastest  = transcoding.SpeedPriorityFastest
+)
+
+// Transcode status constants
+const (
+	TranscodeStatusStarting  = transcoding.TranscodeStatusStarting
+	TranscodeStatusRunning   = transcoding.TranscodeStatusRunning
+	TranscodeStatusCompleted = transcoding.TranscodeStatusCompleted
+	TranscodeStatusFailed    = transcoding.TranscodeStatusFailed
+	TranscodeStatusCancelled = transcoding.TranscodeStatusCancelled
+)
+
+// Hardware type constants
+const (
+	HardwareTypeNone        = transcoding.HardwareTypeNone
+	HardwareTypeNVIDIA      = transcoding.HardwareTypeNVIDIA
+	HardwareTypeVAAPI       = transcoding.HardwareTypeVAAPI
+	HardwareTypeQSV         = transcoding.HardwareTypeQSV
+	HardwareTypeVideoToolbox = transcoding.HardwareTypeVideoToolbox
+)
+
+// ABRVariant represents an Adaptive Bitrate encoding variant
+type ABRVariant struct {
+	Name         string      `json:"name"`          // "1080p", "720p", etc.
+	Resolution   *Resolution `json:"resolution"`     // Video resolution
+	VideoBitrate int         `json:"video_bitrate"` // kbps
+	AudioBitrate int         `json:"audio_bitrate"` // kbps
+	FrameRate    int         `json:"frame_rate"`    // fps
+	Preset       string      `json:"preset"`        // FFmpeg preset (ultrafast, fast, medium, slow, etc.)
+	Profile      string      `json:"profile"`       // H.264 profile (baseline, main, high)
+	Level        string      `json:"level"`         // H.264 level (3.0, 3.1, 4.0, etc.)
+}
+
+// TranscodeResult represents the result of a transcoding operation
+type TranscodeResult struct {
+	Success      bool   `json:"success"`       // Whether transcoding succeeded
+	OutputPath   string `json:"output_path"`   // Path to output directory
+	ManifestURL  string `json:"manifest_url"`  // URL to manifest file
+	FileSize     int64  `json:"file_size"`     // Total size of output files
+	BytesWritten int64  `json:"bytes_written"` // Bytes written during transcoding
+	Error        string `json:"error,omitempty"` // Error message if failed
+}
+
+// HardwareInfo represents information about hardware acceleration
+type HardwareInfo struct {
+	Available bool              `json:"available"`
+	Type      string            `json:"type"`
+	Encoders  map[string][]string `json:"encoders"`
 }

@@ -61,9 +61,9 @@ func setupTestDatabase(t *testing.T) *gorm.DB {
 
 func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *playbackmodule.Module {
 	t.Helper()
-	mockPluginManager := &MockPluginManager{}
-	adapter := &PluginManagerAdapter{pluginManager: mockPluginManager}
-	module := playbackmodule.NewModule(db, nil, adapter)
+	// mockPluginManager := &MockPluginManager{}
+	// adapter := &PluginManagerAdapter{pluginManager: mockPluginManager}
+	module := playbackmodule.NewModule(db, nil)
 	if err := module.Init(); err != nil {
 		t.Fatalf("Failed to initialize module: %v", err)
 	}

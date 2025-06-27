@@ -43,7 +43,7 @@ type mockDirEntry struct {
 	mockFileInfo // Embed mockFileInfo
 }
 
-func (mde mockDirEntry) Type() fs.FileMode { return mde.mode.Type() }
+func (mde mockDirEntry) Type() fs.FileMode          { return mde.mode.Type() }
 func (mde mockDirEntry) Info() (fs.FileInfo, error) { return mde.mockFileInfo, nil }
 
 // Store the original execCommand to restore it after tests
@@ -57,7 +57,7 @@ func mockExecCommandOutput(t *testing.T, expectedCommand string, expectedArgs []
 		assert.Equal(t, expectedCommand, command, "execCommand command mismatch")
 		// Not asserting all args for now, just the presence of the file path
 		// This can be made more strict if needed.
-		
+
 		cs := []string{"-test.run=TestHelperProcess", "--", command}
 		cs = append(cs, args...)
 		cmd := exec.Command(os.Args[0], cs...)
@@ -87,7 +87,7 @@ func TestHelperProcess(t *testing.T) {
 	fmt.Fprint(os.Stdout, os.Getenv("GO_HELPER_PROCESS_STDOUT"))
 	if errMsg := os.Getenv("GO_HELPER_PROCESS_ERR"); errMsg != "" {
 		fmt.Fprint(os.Stderr, errMsg) // Should cause cmd.Output() to return an error
-		os.Exit(1) // Indicate error to the calling process
+		os.Exit(1)                    // Indicate error to the calling process
 	}
 }
 
@@ -95,18 +95,18 @@ func TestNewLibraryScanner(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	
+
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
 	require.NoError(t, err)
-	
+
 	jobID := uint32(123)
 	eventBus := (events.EventBus)(nil) // Use nil since we're not testing event bus functionality
 	pluginModule := &pluginmodule.PluginModule{}
 	enrichmentHook := new(mockScannerPluginHook)
-	
+
 	// Test NewLibraryScanner
 	scanner := NewLibraryScanner(gormDB, jobID, eventBus, pluginModule, enrichmentHook)
-	
+
 	// Verify initialization
 	assert.NotNil(t, scanner, "NewLibraryScanner should return non-nil scanner")
 	assert.Equal(t, gormDB, scanner.db, "Database should be set correctly")
@@ -114,7 +114,7 @@ func TestNewLibraryScanner(t *testing.T) {
 	assert.Equal(t, eventBus, scanner.eventBus, "Event bus should be set correctly")
 	assert.Equal(t, pluginModule, scanner.pluginModule, "Plugin module should be set correctly")
 	assert.Equal(t, enrichmentHook, scanner.enrichmentHook, "Enrichment hook should be set correctly")
-	
+
 	// Verify default values
 	assert.Equal(t, runtime.NumCPU(), scanner.workers, "Workers should default to CPU count")
 	assert.Equal(t, 100, scanner.batchSize, "Batch size should default to 100")
@@ -123,7 +123,7 @@ func TestNewLibraryScanner(t *testing.T) {
 	assert.NotNil(t, scanner.adaptiveThrottler, "Adaptive throttler should be initialized")
 	assert.NotNil(t, scanner.ctx, "Context should be initialized")
 	assert.NotNil(t, scanner.cancel, "Cancel function should be initialized")
-	
+
 	// Verify atomic counters are initialized to 0
 	assert.Equal(t, int64(0), scanner.filesProcessed.Load(), "Files processed should start at 0")
 	assert.Equal(t, int64(0), scanner.filesFound.Load(), "Files found should start at 0")
@@ -131,7 +131,7 @@ func TestNewLibraryScanner(t *testing.T) {
 	assert.Equal(t, int64(0), scanner.bytesProcessed.Load(), "Bytes processed should start at 0")
 	assert.Equal(t, int64(0), scanner.bytesFound.Load(), "Bytes found should start at 0")
 	assert.Equal(t, int64(0), scanner.errorsCount.Load(), "Errors count should start at 0")
-	
+
 	// Verify initial state
 	assert.False(t, scanner.running.Load(), "Scanner should not be running initially")
 	assert.False(t, scanner.paused.Load(), "Scanner should not be paused initially")
@@ -209,7 +209,7 @@ func TestDetermineMediaType(t *testing.T) {
 		{"Music Library - MP3", "music", ".mp3", database.MediaTypeTrack},
 		{"Music Library - FLAC", "music", ".flac", database.MediaTypeTrack},
 		{"Music Library - MKV (Music Video)", "music", ".mkv", database.MediaTypeMovie}, // Videos in music lib are movies
-		{"Music Library - JPG (Album Art)", "music", ".jpg", database.MediaTypeImage}, // Images are always images
+		{"Music Library - JPG (Album Art)", "music", ".jpg", database.MediaTypeImage},   // Images are always images
 		{"Music Library - Unknown Audio-like", "music", ".aac", database.MediaTypeTrack},
 		{"Music Library - Unknown Video-like", "music", ".avi", database.MediaTypeMovie},
 		{"Music Library - Gibberish", "music", ".xyz", database.MediaTypeTrack}, // Fallback for music
@@ -240,8 +240,8 @@ func TestDetermineMediaType(t *testing.T) {
 
 		// Case Insensitivity
 		{"Music Library - Uppercase MP3", "music", ".MP3", database.MediaTypeTrack}, // Fix: Should trigger unsupported warning and fallback to track
-		{"Movie Library - Uppercase MKV", "movie", ".MKV", database.MediaTypeMovie}, // Fix: Should trigger unsupported warning and fallback to movie  
-		{"TV Library - Uppercase JPG", "tv", ".JPG", database.MediaTypeEpisode}, // Fix: Should trigger unsupported warning and fallback to episode
+		{"Movie Library - Uppercase MKV", "movie", ".MKV", database.MediaTypeMovie}, // Fix: Should trigger unsupported warning and fallback to movie
+		{"TV Library - Uppercase JPG", "tv", ".JPG", database.MediaTypeEpisode},     // Fix: Should trigger unsupported warning and fallback to episode
 	}
 
 	for _, tc := range testCases {
@@ -308,8 +308,8 @@ func TestExtractTechnicalMetadata_Video(t *testing.T) {
 	err := ls.extractTechnicalMetadata(mediaFile)
 	require.NoError(t, err)
 
-	assert.Equal(t, 123, mediaFile.Duration)         // Duration is int
-	assert.Equal(t, 2500, mediaFile.BitrateKbps)    // Bitrate in Kbps
+	assert.Equal(t, 123, mediaFile.Duration)     // Duration is int
+	assert.Equal(t, 2500, mediaFile.BitrateKbps) // Bitrate in Kbps
 	assert.Equal(t, "h264", mediaFile.VideoCodec)
 	assert.Equal(t, 1920, mediaFile.VideoWidth)
 	assert.Equal(t, 1080, mediaFile.VideoHeight)
@@ -393,7 +393,7 @@ func TestExtractTechnicalMetadata_MissingData(t *testing.T) {
 	assert.Equal(t, 0, mediaFile.VideoWidth) // Should be zero value
 	assert.Equal(t, 0, mediaFile.VideoHeight)
 	assert.Empty(t, mediaFile.Resolution)
-	assert.Empty(t, mediaFile.AudioCodec)   // No audio stream
+	assert.Empty(t, mediaFile.AudioCodec)     // No audio stream
 	assert.Equal(t, 0, mediaFile.BitrateKbps) // Missing in format
 }
 
@@ -523,7 +523,7 @@ func TestExtractDirectMetadata_NoTags(t *testing.T) {
 	metadata := ls.extractDirectMetadata(filePath)
 	require.NotNil(t, metadata) // Should return a map, possibly empty of parsed tags but with duration/bitrate
 	assert.Equal(t, 10, metadata["duration"])
-	assert.Nil(t, metadata["title"]) // No title tag
+	assert.Nil(t, metadata["title"])                                               // No title tag
 	assert.True(t, len(metadata) == 1, "Expected only duration, got %v", metadata) // or 0 if duration isn't set when no tags
 }
 
@@ -565,7 +565,7 @@ func newMockDb(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	require.NoError(t, err)
 
 	dialector := postgres.New(postgres.Config{
-		Conn:       sqlDB,
+		Conn:                 sqlDB,
 		PreferSimpleProtocol: true, // Avoids issues with prepared statements in mock
 	})
 	db, err := gorm.Open(dialector, &gorm.Config{})
@@ -593,7 +593,7 @@ func TestGetMetadataForEnrichment_TrackFromDB(t *testing.T) {
 		MediaID:   "track-uuid-1", // Linked to a track
 		Container: "mp3",
 		SizeBytes: 5000000,
-		Duration: 180,
+		Duration:  180,
 	}
 
 	// Expected DB queries - GORM .First() adds LIMIT clause automatically
@@ -670,9 +670,9 @@ func TestGetMetadataForEnrichment_DirectExtractionForTrack(t *testing.T) {
 	// Note: From debug logs, we see that empty strings from DB don't get overwritten
 	// The logic is: if metadata[key] == nil && value != nil && value != ""
 	// So empty string from DB blocks the ffprobe value
-	assert.Equal(t, "", metadata["title"]) // Fix: Empty string from DB blocks ffprobe value
+	assert.Equal(t, "", metadata["title"])                // Fix: Empty string from DB blocks ffprobe value
 	assert.Equal(t, "FFprobe Artist", metadata["artist"]) // This should work as artist was nil in DB
-	assert.Equal(t, "FFprobe Album", metadata["album"]) // This should work as album was nil in DB
+	assert.Equal(t, "FFprobe Album", metadata["album"])   // This should work as album was nil in DB
 	assert.Equal(t, 190, metadata["duration"])
 
 	require.NoError(t, mock.ExpectationsWereMet(), "SQL mock expectations not met")
@@ -751,18 +751,18 @@ func mockFilepathWalkDir(t *testing.T, itemsToWalk map[string]fs.DirEntry, walkE
 
 func TestScanDirectory_BasicOperations(t *testing.T) {
 	ls, _ := newLibraryScannerWithMockDb(t) // DB not used directly by scanDirectory, but scanner needs it
-	ls.fileQueue = make(chan string, 10)      // Ensure queue has buffer
+	ls.fileQueue = make(chan string, 10)    // Ensure queue has buffer
 	defer close(ls.fileQueue)
 
 	basePath := "/library/movies"
 	libraryID := uint(1)
 
 	items := map[string]fs.DirEntry{
-		filepath.Join(basePath, "Movie1.mkv"): mockDirEntry{mockFileInfo{name: "Movie1.mkv", isDir: false, size: 1000}},
-		filepath.Join(basePath, "Movie1-poster.jpg"): mockDirEntry{mockFileInfo{name: "Movie1-poster.jpg", isDir: false, size: 100}},
-		filepath.Join(basePath, "SubFolder"):         mockDirEntry{mockFileInfo{name: "SubFolder", isDir: true, size: 0}},
+		filepath.Join(basePath, "Movie1.mkv"):              mockDirEntry{mockFileInfo{name: "Movie1.mkv", isDir: false, size: 1000}},
+		filepath.Join(basePath, "Movie1-poster.jpg"):       mockDirEntry{mockFileInfo{name: "Movie1-poster.jpg", isDir: false, size: 100}},
+		filepath.Join(basePath, "SubFolder"):               mockDirEntry{mockFileInfo{name: "SubFolder", isDir: true, size: 0}},
 		filepath.Join(basePath, "SubFolder", "Track1.mp3"): mockDirEntry{mockFileInfo{name: "Track1.mp3", isDir: false, size: 200}},
-		filepath.Join(basePath, ".DS_Store"): mockDirEntry{mockFileInfo{name: ".DS_Store", isDir: false, size: 50}},
+		filepath.Join(basePath, ".DS_Store"):               mockDirEntry{mockFileInfo{name: ".DS_Store", isDir: false, size: 50}},
 	}
 
 	mockFilepathWalkDir(t, items, nil, nil)
@@ -796,7 +796,7 @@ loop:
 	// Movie1-poster.jpg, .DS_Store, SubFolder (as a dir implicitly skipped by file check)
 	// The current logic in scanDirectory for d.IsDir() means it doesn't add to filesSkipped for dirs
 	// Artwork and system files are explicitly skipped.
-	assert.Equal(t, int64(2), ls.filesSkipped.Load(), "filesSkipped count mismatch") 
+	assert.Equal(t, int64(2), ls.filesSkipped.Load(), "filesSkipped count mismatch")
 	assert.Equal(t, int64(0), ls.errorsCount.Load(), "errorsCount mismatch")
 }
 
@@ -857,7 +857,7 @@ func TestScanDirectory_EntryError(t *testing.T) {
 
 	pathWithErr := filepath.Join(basePath, "NoAccessFile.mkv")
 	items := map[string]fs.DirEntry{
-		pathWithErr: mockDirEntry{mockFileInfo{name: "NoAccessFile.mkv", isDir: false, size: 100}},
+		pathWithErr:                             mockDirEntry{mockFileInfo{name: "NoAccessFile.mkv", isDir: false, size: 100}},
 		filepath.Join(basePath, "GoodFile.mp3"): mockDirEntry{mockFileInfo{name: "GoodFile.mp3", isDir: false, size: 200}},
 	}
 
@@ -896,7 +896,9 @@ loop:
 		case <-timeout:
 			break loop // Avoid test hanging if no file is queued
 		}
-		if queuedCount >= 1 { break loop }
+		if queuedCount >= 1 {
+			break loop
+		}
 	}
 
 	assert.Equal(t, 1, queuedCount, "Expected GoodFile.mp3 to be queued")
@@ -1058,7 +1060,7 @@ func TestProcessFile_NewVideoFile(t *testing.T) {
 
 	// 4. DB: Create(mediaFile) is successful
 	dbMock.ExpectBegin()
-	dbMock.ExpectExec(`INSERT INTO "media_files"`). 
+	dbMock.ExpectExec(`INSERT INTO "media_files"`).
 		// The INSERT statement is complex, so we'll just match the table name and accept any args
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	dbMock.ExpectCommit()
@@ -1095,7 +1097,7 @@ func TestProcessFile_NewVideoFile(t *testing.T) {
 func TestLibraryScanner_Start(t *testing.T) {
 	ls, dbMock, hookMock := newLibraryScannerWithMocks(t)
 	libraryID := uint32(1)
-	
+
 	// Create empty temp directory to avoid file processing complications
 	tempDir := createTempDir(t, "start_test")
 	defer os.RemoveAll(tempDir)
@@ -1121,13 +1123,13 @@ func TestLibraryScanner_Start(t *testing.T) {
 
 	// Give it time to start up
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Verify scanner is running
 	assert.True(t, ls.running.Load(), "Scanner should be running")
 
 	// Stop the scanner
 	ls.cancel()
-	
+
 	// Wait for completion or timeout
 	select {
 	case err := <-done:
@@ -1297,7 +1299,7 @@ func TestLibraryScanner_GetWorkerStats(t *testing.T) {
 	ls.workers = 4
 
 	active, min, max, queueLen := ls.GetWorkerStats()
-	
+
 	assert.Equal(t, 4, active, "Active workers should match ls.workers")
 	assert.Equal(t, 1, min, "Minimum workers should be 1")
 	assert.Equal(t, 8, max, "Maximum workers should be 2x active")
@@ -1308,16 +1310,16 @@ func TestLibraryScanner_GetWorkerStats(t *testing.T) {
 
 func TestLibraryScanner_ExtractMetadata_WithoutPlugins(t *testing.T) {
 	ls, _, _ := newLibraryScannerWithMocks(t)
-	
+
 	// Create a temp file for testing
 	tempDir := createTempDir(t, "extract_metadata_test")
 	defer os.RemoveAll(tempDir)
 	filePath := createTempFile(t, tempDir, "test.mp3", []byte("fake audio"))
-	
+
 	mediaFile := &database.MediaFile{
 		Path: filePath,
 	}
-	
+
 	// Test with nil pluginModule (our mock setup)
 	// This should panic since the function doesn't check for nil
 	assert.Panics(t, func() {
@@ -1333,7 +1335,7 @@ func TestLibraryScanner_ExtractMetadata_WithoutPlugins(t *testing.T) {
 
 func TestDefaultScanConfig(t *testing.T) {
 	config := DefaultScanConfig()
-	
+
 	assert.NotNil(t, config, "DefaultScanConfig should return non-nil config")
 	assert.True(t, config.ParallelScanningEnabled, "Parallel scanning should be enabled by default")
 	assert.Equal(t, 0, config.WorkerCount, "Default worker count should be 0 (use CPU count)")
@@ -1346,7 +1348,7 @@ func TestDefaultScanConfig(t *testing.T) {
 
 func TestConservativeScanConfig(t *testing.T) {
 	config := ConservativeScanConfig()
-	
+
 	assert.NotNil(t, config, "ConservativeScanConfig should return non-nil config")
 	assert.True(t, config.ParallelScanningEnabled, "Parallel scanning should be enabled")
 	assert.Equal(t, 2, config.WorkerCount, "Conservative worker count should be 2")
@@ -1359,7 +1361,7 @@ func TestConservativeScanConfig(t *testing.T) {
 
 func TestAggressiveScanConfig(t *testing.T) {
 	config := AggressiveScanConfig()
-	
+
 	assert.NotNil(t, config, "AggressiveScanConfig should return non-nil config")
 	assert.True(t, config.ParallelScanningEnabled, "Parallel scanning should be enabled")
 	assert.Equal(t, 8, config.WorkerCount, "Aggressive worker count should be 8")
@@ -1372,7 +1374,7 @@ func TestAggressiveScanConfig(t *testing.T) {
 
 func TestUltraAggressiveScanConfig(t *testing.T) {
 	config := UltraAggressiveScanConfig()
-	
+
 	assert.NotNil(t, config, "UltraAggressiveScanConfig should return non-nil config")
 	assert.True(t, config.ParallelScanningEnabled, "Parallel scanning should be enabled")
 	assert.Equal(t, 16, config.WorkerCount, "Ultra aggressive worker count should be 16")
@@ -1415,7 +1417,7 @@ func TestGetMapKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			keys := getMapKeys(tc.input)
-			
+
 			// Sort both slices for comparison since map iteration order is not guaranteed
 			assert.ElementsMatch(t, tc.expected, keys, "Keys should match expected values")
 		})
@@ -1519,44 +1521,44 @@ func TestNewEnhancedPluginRouter(t *testing.T) {
 
 func TestAdaptiveThrottlerStub(t *testing.T) {
 	throttler := &AdaptiveThrottlerStub{}
-	
+
 	// Test GetCurrentLimits
 	limits := throttler.GetCurrentLimits()
 	assert.False(t, limits.Enabled, "Stub should return disabled limits")
 	assert.Equal(t, 100, limits.BatchSize, "Stub should return 100 batch size")
 	assert.Equal(t, time.Duration(0), limits.ProcessingDelay, "Stub should return no delay")
-	
+
 	// Test GetSystemMetrics (all zeros in the stub)
 	metrics := throttler.GetSystemMetrics()
 	assert.Equal(t, 0.0, metrics.CPUPercent, "Stub should return 0% CPU")
 	assert.Equal(t, 0.0, metrics.MemoryPercent, "Stub should return 0% memory")
 	assert.Equal(t, 0.0, metrics.MemoryUsedMB, "Stub should return 0MB memory usage")
 	assert.Equal(t, 0.0, metrics.LoadAverage, "Stub should return 0 load average")
-	
+
 	// Test GetNetworkStats (all zeros except IsHealthy)
 	networkStats := throttler.GetNetworkStats()
 	assert.Equal(t, 0.0, networkStats.DNSLatencyMs, "Stub should return 0ms DNS latency")
 	assert.Equal(t, 0.0, networkStats.NetworkLatencyMs, "Stub should return 0ms network latency")
 	assert.Equal(t, 0.0, networkStats.PacketLossPercent, "Stub should return 0% packet loss")
 	assert.True(t, networkStats.IsHealthy, "Stub should report healthy network")
-	
+
 	// Test GetThrottleConfig
 	config := throttler.GetThrottleConfig()
 	assert.Equal(t, 70.0, config.TargetCPUPercent, "Stub should return 70% target CPU")
 	assert.Equal(t, 90.0, config.MaxCPUPercent, "Stub should return 90% max CPU")
 	assert.Equal(t, 80.0, config.TargetMemoryPercent, "Stub should return 80% target memory")
 	assert.Equal(t, 95.0, config.MaxMemoryPercent, "Stub should return 95% max memory")
-	
+
 	// Test ShouldThrottle
 	shouldThrottle, delay := throttler.ShouldThrottle()
 	assert.False(t, shouldThrottle, "Stub should not throttle")
 	assert.Equal(t, time.Duration(0), delay, "Stub should return no delay")
-	
+
 	// Test DisableThrottling (should not panic)
 	assert.NotPanics(t, func() {
 		throttler.DisableThrottling()
 	}, "DisableThrottling should not panic")
-	
+
 	// Test EnableThrottling (should not panic)
 	assert.NotPanics(t, func() {
 		throttler.EnableThrottling()
@@ -1565,13 +1567,13 @@ func TestAdaptiveThrottlerStub(t *testing.T) {
 
 func TestProgressEstimatorStub(t *testing.T) {
 	estimator := &ProgressEstimatorStub{}
-	
+
 	// Test GetEstimate
 	progress, eta, rate := estimator.GetEstimate()
 	assert.Equal(t, 0.0, progress, "Stub should return 0% progress")
 	assert.False(t, eta.IsZero(), "Stub should return current time (non-zero) for ETA")
 	assert.Equal(t, 0.0, rate, "Stub should return 0 rate")
-	
+
 	// Test GetTotalBytes
 	totalBytes := estimator.GetTotalBytes()
 	assert.Equal(t, int64(0), totalBytes, "Stub should return 0 total bytes")
@@ -1581,28 +1583,28 @@ func TestProgressEstimatorStub(t *testing.T) {
 
 func TestLibraryScanner_Pause_WithStatus(t *testing.T) {
 	ls, dbMock, _ := newLibraryScannerWithMocks(t)
-	
+
 	// Set up scanner as running first
 	ls.running.Store(true)
 	ls.paused.Store(false)
-	
+
 	// Create a cancel function
 	ctx, cancel := context.WithCancel(context.Background())
 	ls.cancel = cancel
 	ls.ctx = ctx
-	
+
 	// Mock the database update for pause status
 	dbMock.ExpectBegin()
 	dbMock.ExpectExec(`UPDATE "scan_jobs" SET .+ WHERE id = \$\d+`).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	dbMock.ExpectCommit()
-	
+
 	// Call Pause
 	ls.Pause()
-	
+
 	// Verify scanner is paused
 	assert.True(t, ls.paused.Load(), "Scanner should be paused")
-	
+
 	// Verify context was cancelled
 	select {
 	case <-ctx.Done():
@@ -1610,44 +1612,44 @@ func TestLibraryScanner_Pause_WithStatus(t *testing.T) {
 	default:
 		t.Error("Context should have been cancelled")
 	}
-	
+
 	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestLibraryScanner_ProgressUpdater(t *testing.T) {
 	ls, _, _ := newLibraryScannerWithMocks(t) // Don't use dbMock since we won't enforce expectations
-	
+
 	// Set up some progress data
 	ls.filesFound.Store(50)
 	ls.filesProcessed.Store(25)
 	ls.bytesProcessed.Store(2048)
 	ls.errorsCount.Store(1)
-	
+
 	// Create a short-lived context for the test
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	ls.ctx = ctx
-	
+
 	// Set up WaitGroup for the progressUpdater
 	ls.wg.Add(1)
-	
+
 	// Start progress updater in a goroutine
 	go ls.progressUpdater()
-	
+
 	// Wait for the context to timeout and progress updater to exit
 	ls.wg.Wait()
-	
+
 	// Since the progress updater may not run within the short timeout,
 	// just verify the test completes without hanging
 	// The real value is in testing that progressUpdater can start/stop cleanly
-	
+
 	// Verify we can read the progress timestamp (even if not updated)
 	ls.progressMutex.RLock()
 	lastUpdate := ls.lastProgressUpdate
 	ls.progressMutex.RUnlock()
-	
+
 	// Just verify we got a timestamp (might be zero time if not updated)
 	assert.NotNil(t, lastUpdate, "Last update timestamp should be accessible")
-	
+
 	// The test passes if progressUpdater starts and stops without hanging
-} 
+}

@@ -12,13 +12,13 @@ import (
 // RegisterMonitoringRoutes registers FFmpeg monitoring endpoints
 func RegisterMonitoringRoutes(api *gin.RouterGroup, handler *APIHandler) {
 	monitor := api.Group("/monitor")
-	
+
 	// Add middleware to inject handler into context
 	monitor.Use(func(c *gin.Context) {
 		c.Set("handler", handler)
 		c.Next()
 	})
-	
+
 	{
 		monitor.GET("/ffmpeg-processes", handleGetFFmpegProcesses)
 		monitor.POST("/kill-zombies", handleKillZombies)
@@ -79,7 +79,7 @@ func handleKillZombies(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"killed": killed,
+		"killed":  killed,
 		"message": fmt.Sprintf("Killed %d zombie processes", killed),
 	})
 }
@@ -88,10 +88,10 @@ func handleKillZombies(c *gin.Context) {
 func handleEmergencyCleanup(c *gin.Context) {
 	// Kill all FFmpeg processes
 	exec.Command("pkill", "-9", "-f", "ffmpeg").Run()
-	
+
 	// Kill plugin processes to clean zombies
 	exec.Command("pkill", "-9", "-f", "ffmpeg_software").Run()
-	
+
 	c.JSON(200, gin.H{
 		"message": "Emergency cleanup completed",
 	})
@@ -108,7 +108,7 @@ func getFFmpegProcesses() ([]ProcessInfo, error) {
 
 	var processes []ProcessInfo
 	lines := strings.Split(string(output), "\n")
-	
+
 	for _, line := range lines[1:] { // Skip header
 		if !strings.Contains(line, "ffmpeg") || strings.Contains(line, "grep") {
 			continue
@@ -120,10 +120,10 @@ func getFFmpegProcesses() ([]ProcessInfo, error) {
 		}
 
 		pid, _ := strconv.Atoi(fields[1])
-		
+
 		// Check if zombie
 		isZombie := strings.Contains(line, "<defunct>") || strings.Contains(fields[7], "Z")
-		
+
 		// Get parent PID
 		ppidCmd := exec.Command("ps", "-p", fields[1], "-o", "ppid=")
 		ppidOut, _ := ppidCmd.Output()

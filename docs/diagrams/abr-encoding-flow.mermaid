@@ -1,0 +1,78 @@
+graph LR
+    %% Input
+    subgraph "Source Media"
+        INPUT[Original Video<br/>1920x1080<br/>10 Mbps]
+    end
+
+    %% Device Profile Analysis
+    subgraph "Device Profile"
+        DP[Device Analyzer]
+        DP --> MOBILE[Mobile Profile<br/>Max: 720p]
+        DP --> DESKTOP[Desktop Profile<br/>Max: 1080p]
+        DP --> TV[TV Profile<br/>Max: 4K]
+    end
+
+    %% Encoding Profiles
+    subgraph "ABR Encoding"
+        INPUT --> ENC1[1080p Encoder<br/>4 Mbps, CRF 23]
+        INPUT --> ENC2[720p Encoder<br/>2.5 Mbps, CRF 23]
+        INPUT --> ENC3[480p Encoder<br/>1.2 Mbps, CRF 23]
+        INPUT --> ENC4[360p Encoder<br/>0.8 Mbps, CRF 25]
+        INPUT --> AENC[Audio Encoder<br/>128 kbps AAC]
+    end
+
+    %% Segment Generation
+    subgraph "Segmentation"
+        ENC1 --> SEG1[1080p Segments<br/>segment_1080p_*.mp4]
+        ENC2 --> SEG2[720p Segments<br/>segment_720p_*.mp4]
+        ENC3 --> SEG3[480p Segments<br/>segment_480p_*.mp4]
+        ENC4 --> SEG4[360p Segments<br/>segment_360p_*.mp4]
+        AENC --> ASEG[Audio Segments<br/>segment_audio_*.mp4]
+    end
+
+    %% Packaging
+    subgraph "Adaptive Packaging"
+        SEG1 --> PACK[Shaka Packager]
+        SEG2 --> PACK
+        SEG3 --> PACK
+        SEG4 --> PACK
+        ASEG --> PACK
+        
+        PACK --> DASH[DASH Manifest<br/>manifest.mpd]
+        PACK --> HLS[HLS Playlist<br/>master.m3u8]
+    end
+
+    %% Client Adaptation
+    subgraph "Client Playback"
+        DASH --> PLAYER[Adaptive Player]
+        HLS --> PLAYER
+        
+        PLAYER --> NET[Network Monitor]
+        NET --> |"High Bandwidth"| P1080[Play 1080p]
+        NET --> |"Medium Bandwidth"| P720[Play 720p]
+        NET --> |"Low Bandwidth"| P480[Play 480p]
+        NET --> |"Poor Network"| P360[Play 360p]
+    end
+
+    %% Manifest Structure
+    subgraph "Manifest Contents"
+        MANIFEST[manifest.mpd<br/>Contains:]
+        MANIFEST --> R1[Representation 1080p<br/>bandwidth=4000000]
+        MANIFEST --> R2[Representation 720p<br/>bandwidth=2500000]
+        MANIFEST --> R3[Representation 480p<br/>bandwidth=1200000]
+        MANIFEST --> R4[Representation 360p<br/>bandwidth=800000]
+        MANIFEST --> RA[Audio Track<br/>bandwidth=128000]
+    end
+
+    %% Styling
+    classDef source fill:#bbdefb,stroke:#1565c0,stroke-width:2px
+    classDef encoder fill:#ffccbc,stroke:#bf360c,stroke-width:2px
+    classDef segment fill:#c5e1a5,stroke:#33691e,stroke-width:2px
+    classDef package fill:#ffcdd2,stroke:#b71c1c,stroke-width:2px
+    classDef client fill:#d1c4e9,stroke:#4527a0,stroke-width:2px
+    
+    class INPUT source
+    class ENC1,ENC2,ENC3,ENC4,AENC encoder
+    class SEG1,SEG2,SEG3,SEG4,ASEG segment
+    class PACK,DASH,HLS package
+    class PLAYER,NET,P1080,P720,P480,P360 client

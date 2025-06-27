@@ -223,7 +223,7 @@ func (hrm *HotReloadManager) addWatches() error {
 	watchedCount := 0
 	for _, entry := range entries {
 		hrm.logger.Debug("checking entry", "name", entry.Name(), "is_dir", entry.IsDir())
-		
+
 		if !entry.IsDir() {
 			continue
 		}
@@ -254,7 +254,7 @@ func (hrm *HotReloadManager) addWatches() error {
 func (hrm *HotReloadManager) shouldWatchPlugin(dirName string) bool {
 	// Smart detection: check if directory contains a plugin binary or plugin.cue
 	pluginPath := filepath.Join(hrm.pluginDir, dirName)
-	
+
 	// Check if directory contains an executable with the same name as the directory
 	binaryPath := filepath.Join(pluginPath, dirName)
 	if info, err := os.Stat(binaryPath); err == nil && !info.IsDir() {
@@ -264,14 +264,14 @@ func (hrm *HotReloadManager) shouldWatchPlugin(dirName string) bool {
 			return true
 		}
 	}
-	
+
 	// Check if directory contains plugin.cue (indicates it's a plugin directory)
 	cuePath := filepath.Join(pluginPath, "plugin.cue")
 	if _, err := os.Stat(cuePath); err == nil {
 		hrm.logger.Debug("found plugin.cue", "directory", dirName)
 		return true
 	}
-	
+
 	// Fallback to pattern matching if configured
 	for _, pattern := range []string{"*_transcoder", "*_enricher", "*_scanner", "*_provider", "ffmpeg_*", "*_plugin"} {
 		if matched, _ := filepath.Match(pattern, dirName); matched {
@@ -500,7 +500,7 @@ func (hrm *HotReloadManager) performReload(pluginID, reason string) {
 			hrm.logger.Warn("failed to auto-enable plugin after reload", "plugin_id", pluginID, "error", err)
 		} else {
 			hrm.logger.Info("auto-enabled plugin after reload", "plugin_id", pluginID)
-			
+
 			// Load the plugin
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -508,7 +508,7 @@ func (hrm *HotReloadManager) performReload(pluginID, reason string) {
 				hrm.logger.Warn("failed to auto-load plugin after reload", "plugin_id", pluginID, "error", err)
 			} else {
 				hrm.logger.Info("auto-loaded plugin after reload", "plugin_id", pluginID)
-				
+
 				// Step 7: Trigger plugin refresh in all modules that use plugins
 				hrm.triggerModulePluginRefresh()
 			}
@@ -647,13 +647,13 @@ func (hrm *HotReloadManager) GetReloadStatus() map[string]interface{} {
 // triggerModulePluginRefresh triggers plugin refresh in all modules
 func (hrm *HotReloadManager) triggerModulePluginRefresh() {
 	hrm.logger.Info("triggering plugin refresh in all modules")
-	
+
 	// For now, use a simple HTTP call to trigger refresh
 	// In the future, we should use the event bus for this
 	go func() {
 		// Small delay to ensure plugin is fully loaded
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Call the playback refresh endpoint
 		resp, err := http.Post("http://localhost:8080/api/playback/plugins/refresh", "application/json", nil)
 		if err != nil {
@@ -661,7 +661,7 @@ func (hrm *HotReloadManager) triggerModulePluginRefresh() {
 			return
 		}
 		defer resp.Body.Close()
-		
+
 		if resp.StatusCode == http.StatusOK {
 			hrm.logger.Info("successfully triggered playback module plugin refresh")
 		} else {

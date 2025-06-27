@@ -123,10 +123,10 @@ func setupPluginEnabledEnvironment(t *testing.T, db *gorm.DB) *playbackmodule.Mo
 	t.Helper()
 
 	// Create mock plugin manager
-	adapter := &PluginManagerAdapter{mockPluginManager: &MockPluginManager{}}
+	// adapter := &PluginManagerAdapter{mockPluginManager: &MockPluginManager{}}
 
 	// Create module
-	module := playbackmodule.NewModule(db, nil, adapter)
+	module := playbackmodule.NewModule(db, nil)
 	err := module.Init()
 	require.NoError(t, err)
 

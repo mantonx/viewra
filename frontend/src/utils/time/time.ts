@@ -1,5 +1,9 @@
 /**
- * Time formatting utilities for media player
+ * Time formatting utilities for media player.
+ * 
+ * This module provides a comprehensive set of time-related utilities for media playback,
+ * including formatting durations, calculating progress, parsing time strings, and
+ * handling edge cases like invalid or infinite values.
  */
 
 /**
@@ -95,7 +99,15 @@ export const getRemainingTime = (currentTime: number, duration: number): number 
  * @returns Formatted remaining time string (e.g., "-1:23")
  */
 export const formatRemainingTime = (currentTime: number, duration: number): string => {
-  const remaining = getRemainingTime(currentTime, duration);
+  // Handle invalid inputs
+  if (!isFinite(currentTime) || !isFinite(duration) || duration <= 0) {
+    return '--:--';
+  }
+  
+  // Ensure currentTime doesn't exceed duration to prevent negative display
+  const clampedTime = Math.min(currentTime, duration);
+  const remaining = Math.max(0, duration - clampedTime);
+  
   return `-${formatTime(remaining)}`;
 };
 

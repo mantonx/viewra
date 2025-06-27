@@ -3,6 +3,7 @@ import type { DeviceProfile } from '../utils/deviceProfile';
 import { getDeviceProfile } from '../utils/deviceProfile';
 import { isValidSessionId } from '../utils/mediaValidation';
 import { API_ENDPOINTS, buildApiUrl, buildApiUrlWithParams } from '../constants/api';
+import { ViewraError, ErrorCode, fetchWithErrorHandling, retryWithBackoff, logError } from '../utils/errors/errorHandler';
 
 export class MediaService {
 
@@ -10,24 +11,26 @@ export class MediaService {
     try {
       // First try to get the file directly by file ID
       const url = buildApiUrl(API_ENDPOINTS.MEDIA.FILE_BY_ID.path(mediaId));
-      const response = await fetch(url, {
+      const response = await fetchWithErrorHandling(url, {
         method: 'GET',
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        const mediaFile = data.media_file;
-        
-        // Verify the media type matches what we expect
-        if (mediaFile && mediaFile.media_type === mediaType) {
-          return mediaFile;
-        }
-        return null;
-      } else if (response.status === 404) {
+      const data = await response.json();
+      const mediaFile = data.media_file;
+      
+      // Verify the media type matches what we expect
+      if (mediaFile && mediaFile.media_type === mediaType) {
+        return mediaFile;
+      }
+      return null;
+    } catch (error) {
+      if (error instanceof ViewraError && error.code === ErrorCode.NOT_FOUND) {
         // If not found by file ID, search by media ID (episode metadata ID)
         console.log('🔍 MediaService: File ID not found, searching by media ID...');
-        const searchResponse = await fetch(buildApiUrlWithParams('/media/', { limit: 50000 }));
-        if (searchResponse.ok) {
+        try {
+          const searchResponse = await fetchWithErrorHandling(
+            buildApiUrlWithParams('/media/', { limit: 50000 })
+          );
           const searchData = await searchResponse.json();
           const foundFile = searchData.media?.find(
             (file: any) => file.media_id === mediaId && file.media_type === mediaType
@@ -36,13 +39,13 @@ export class MediaService {
             console.log('✅ MediaService: Found episode by media ID, file ID:', foundFile.id);
             return foundFile;
           }
+        } catch (searchError) {
+          logError(searchError as Error, { context: 'media file search', mediaId, mediaType });
         }
         return null; // Not found by either method
-      } else {
-        throw new Error(`Failed to fetch media file: ${response.statusText}`);
       }
-    } catch (error) {
-      console.error('Failed to get media file:', error);
+      
+      logError(error as Error, { context: 'getMediaFiles', mediaId, mediaType });
       throw error;
     }
   }
@@ -50,15 +53,9 @@ export class MediaService {
   static async getMediaMetadata(mediaId: string, mediaFileId: string): Promise<MediaItem | null> {
     try {
       const url = buildApiUrl(API_ENDPOINTS.MEDIA.FILE_METADATA.path(mediaFileId));
-      const response = await fetch(url, {
+      const response = await fetchWithErrorHandling(url, {
         method: API_ENDPOINTS.MEDIA.FILE_METADATA.method,
       });
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null;
-        }
-        throw new Error(`Failed to fetch media metadata: ${response.statusText}`);
-      }
       
       const data = await response.json();
       
@@ -78,7 +75,11 @@ export class MediaService {
       // Fallback to direct structure
       return data.episode || data.movie || null;
     } catch (error) {
-      console.error('Failed to get media metadata:', error);
+      if (error instanceof ViewraError && error.code === ErrorCode.NOT_FOUND) {
+        return null;
+      }
+      
+      logError(error as Error, { context: 'getMediaMetadata', mediaId, mediaFileId });
       throw error;
     }
   }
@@ -97,7 +98,7 @@ export class MediaService {
       });
 
       const url = buildApiUrl(API_ENDPOINTS.PLAYBACK.DECIDE.path);
-      const response = await fetch(url, {
+      const response = await fetchWithErrorHandling(url, {
         method: API_ENDPOINTS.PLAYBACK.DECIDE.method,
         headers: {
           'Content-Type': 'application/json',
@@ -136,13 +137,9 @@ export class MediaService {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Playback decision failed: ${response.statusText}`);
-      }
-
       return await response.json();
     } catch (error) {
-      console.error('Failed to get playback decision:', error);
+      logError(error as Error, { context: 'getPlaybackDecision', mediaPath, fileId });
       throw error;
     }
   }
@@ -156,75 +153,86 @@ export class MediaService {
     speedPriority: string = 'balanced',
     deviceProfile?: DeviceProfile
   ): Promise<TranscodingSession> {
-    try {
-      const url = buildApiUrl(API_ENDPOINTS.PLAYBACK.START.path);
-      
-      // Get device profile if not provided
-      const profile = deviceProfile || await getDeviceProfile();
-      
-      // Check if this looks like a media file ID (UUID format)
-      const isMediaFileId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaFileIdOrPath);
-      
-      const body = isMediaFileId ? {
-        media_file_id: mediaFileIdOrPath,
-        container,
-        seek_position: 0,
-        enable_abr: true,
-        device_profile: {
-          user_agent: profile.userAgent,
-          supported_codecs: profile.supportedCodecs,
-          max_resolution: profile.maxResolution,
-          max_bitrate: profile.maxBitrate,
-          supports_hevc: profile.supportsHEVC,
-          supports_av1: profile.capabilities.videoCodecs.av1,
-          supports_hdr: profile.capabilities.supportsHDR,
-          client_ip: profile.capabilities.location?.ipAddress || '',
-        },
-      } : {
-        input_path: mediaFileIdOrPath,
-        container,
-        video_codec: videoCodec,
-        audio_codec: audioCodec,
-        quality,
-        speed_priority: speedPriority,
-        seek: 0,
-        enable_abr: true,
-      };
-      
-      const response = await fetch(url, {
-        method: API_ENDPOINTS.PLAYBACK.START.method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
+    // Use retry logic for transient failures
+    return retryWithBackoff(async () => {
+      try {
+        const url = buildApiUrl(API_ENDPOINTS.PLAYBACK.START.path);
+        
+        // Get device profile if not provided
+        const profile = deviceProfile || await getDeviceProfile();
+        
+        // Check if this looks like a media file ID (UUID format)
+        const isMediaFileId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaFileIdOrPath);
+        
+        const body = isMediaFileId ? {
+          media_file_id: mediaFileIdOrPath,
+          container,
+          seek_position: 0,
+          enable_abr: true,
+          device_profile: {
+            user_agent: profile.userAgent,
+            supported_codecs: profile.supportedCodecs,
+            max_resolution: profile.maxResolution,
+            max_bitrate: profile.maxBitrate,
+            supports_hevc: profile.supportsHEVC,
+            supports_av1: profile.capabilities.videoCodecs.av1,
+            supports_hdr: profile.capabilities.supportsHDR,
+            client_ip: profile.capabilities.location?.ipAddress || '',
+          },
+        } : {
+          input_path: mediaFileIdOrPath,
+          container,
+          video_codec: videoCodec,
+          audio_codec: audioCodec,
+          quality,
+          speed_priority: speedPriority,
+          seek: 0,
+          enable_abr: true,
+        };
+        
+        const response = await fetchWithErrorHandling(url, {
+          method: API_ENDPOINTS.PLAYBACK.START.method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
 
-      if (!response.ok) {
-        throw new Error(`Session start failed: ${response.statusText}`);
+        return await response.json();
+      } catch (error) {
+        logError(error as Error, { 
+          context: 'startTranscodingSession', 
+          mediaFileIdOrPath,
+          container,
+          videoCodec,
+          audioCodec 
+        });
+        throw error;
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Failed to start transcoding session:', error);
-      throw error;
-    }
+    }, 3, (error, attempt) => {
+      console.log(`⚠️ Transcoding start failed (attempt ${attempt}/3):`, error.getUserMessage());
+    });
   }
 
   static async stopTranscodingSession(sessionId: string): Promise<void> {
     try {
       const url = buildApiUrl(API_ENDPOINTS.PLAYBACK.SESSION.path(sessionId));
-      const response = await fetch(url, {
+      const response = await fetchWithErrorHandling(url, {
         method: API_ENDPOINTS.PLAYBACK.SESSION.method,
         headers: {
           'Content-Type': 'application/json',
         },
       });
-
-      if (!response.ok && response.status !== 404) {
-        throw new Error(`Failed to stop session: ${response.statusText}`);
-      }
+      
+      // Success - no response body expected
     } catch (error) {
-      console.error('Failed to stop transcoding session:', error);
+      // Ignore NOT_FOUND errors when stopping sessions
+      if (error instanceof ViewraError && (error.code === ErrorCode.SESSION_NOT_FOUND || error.code === ErrorCode.NOT_FOUND)) {
+        console.log('Session already stopped or not found:', sessionId);
+        return;
+      }
+      
+      logError(error as Error, { context: 'stopTranscodingSession', sessionId });
       throw error;
     }
   }
@@ -232,7 +240,7 @@ export class MediaService {
   static async requestSeekAhead(request: SeekAheadRequest): Promise<SeekAheadResponse> {
     try {
       const url = buildApiUrl(API_ENDPOINTS.PLAYBACK.SEEK_AHEAD.path);
-      const response = await fetch(url, {
+      const response = await fetchWithErrorHandling(url, {
         method: API_ENDPOINTS.PLAYBACK.SEEK_AHEAD.method,
         headers: {
           'Content-Type': 'application/json',
@@ -240,13 +248,9 @@ export class MediaService {
         body: JSON.stringify(request),
       });
 
-      if (!response.ok) {
-        throw new Error(`Seek-ahead request failed: ${response.statusText}`);
-      }
-
       return await response.json();
     } catch (error) {
-      console.error('Failed to request seek-ahead:', error);
+      logError(error as Error, { context: 'requestSeekAhead', request });
       throw error;
     }
   }
@@ -329,7 +333,7 @@ export class MediaService {
         await new Promise(resolve => setTimeout(resolve, checkInterval));
         
       } catch (error) {
-        console.log(`❌ Attempt ${attempt}: Network error -`, error.message);
+        console.log(`❌ Attempt ${attempt}: Network error -`, (error as Error).message);
         
         if (attempt >= maxAttempts) {
           break;
@@ -340,7 +344,13 @@ export class MediaService {
     }
     
     const totalTime = Math.round((maxAttempts * checkInterval) / 1000);
-    throw new Error(`Manifest not ready after ${maxAttempts} attempts (${totalTime}s). URL: ${url}`);
+    throw new ViewraError({
+      code: ErrorCode.TRANSCODING_TIMEOUT,
+      message: `Manifest not ready after ${maxAttempts} attempts (${totalTime}s)`,
+      user_message: 'Video is taking longer than expected to load. Please try again.',
+      retryable: true,
+      context: { url, maxAttempts, totalTime }
+    });
   }
 
   static async checkVideoSegmentExists(manifestUrl: string, manifestContent: string): Promise<boolean> {
@@ -463,13 +473,22 @@ export class MediaService {
           }
           
           if (session?.Status === 'failed' || session?.Status === 'cancelled') {
-            throw new Error(`Transcoding failed with status: ${session.Status}`);
+            throw new ViewraError({
+              code: ErrorCode.TRANSCODING_FAILED,
+              message: `Transcoding failed with status: ${session.Status}`,
+              user_message: 'Failed to process the video. Please try again.',
+              retryable: true,
+              context: { sessionId, status: session.Status }
+            });
           }
         }
         
         // Use configured interval for faster startup
         await new Promise(resolve => setTimeout(resolve, checkInterval));
       } catch (error) {
+        if (error instanceof ViewraError) {
+          throw error;
+        }
         console.warn(`Attempt ${attempt}: Error checking transcoding status:`, error);
         await new Promise(resolve => setTimeout(resolve, checkInterval));
       }
@@ -482,19 +501,19 @@ export class MediaService {
   static async stopAllSessions(): Promise<void> {
     try {
       const url = buildApiUrl('/playback/sessions/all');
-      const response = await fetch(url, {
+      const response = await fetchWithErrorHandling(url, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-
-      if (!response.ok && response.status !== 404) {
-        throw new Error(`Failed to stop all sessions: ${response.statusText}`);
-      }
+      
+      // Success - response may contain count of stopped sessions
+      const result = await response.json();
+      console.log('Stopped all sessions:', result);
     } catch (error) {
-      console.error('Failed to stop all sessions:', error);
-      throw error;
+      // Ignore errors when stopping all sessions
+      console.warn('Error stopping all sessions:', error);
     }
   }
 

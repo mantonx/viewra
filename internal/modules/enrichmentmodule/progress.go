@@ -45,27 +45,27 @@ type MediaBreakdown struct {
 
 // CategoryProgress tracks progress for a specific media category
 type CategoryProgress struct {
-	Total           int                        `json:"total"`
-	WithMetadata    int                        `json:"with_metadata"`
-	WithArtwork     int                        `json:"with_artwork"`
-	FullyEnriched   int                        `json:"fully_enriched"`
-	PendingJobs     int                        `json:"pending_jobs"`
-	FailedJobs      int                        `json:"failed_jobs"`
-	MetadataFields  map[string]FieldProgress   `json:"metadata_fields"`
-	ArtworkTypes    map[string]ArtworkProgress `json:"artwork_types"`
-	QualityScore    float64                    `json:"quality_score"`
-	LastEnrichment  *time.Time                 `json:"last_enrichment,omitempty"`
-	EstimatedTime   *time.Duration             `json:"estimated_time,omitempty"`
+	Total          int                        `json:"total"`
+	WithMetadata   int                        `json:"with_metadata"`
+	WithArtwork    int                        `json:"with_artwork"`
+	FullyEnriched  int                        `json:"fully_enriched"`
+	PendingJobs    int                        `json:"pending_jobs"`
+	FailedJobs     int                        `json:"failed_jobs"`
+	MetadataFields map[string]FieldProgress   `json:"metadata_fields"`
+	ArtworkTypes   map[string]ArtworkProgress `json:"artwork_types"`
+	QualityScore   float64                    `json:"quality_score"`
+	LastEnrichment *time.Time                 `json:"last_enrichment,omitempty"`
+	EstimatedTime  *time.Duration             `json:"estimated_time,omitempty"`
 }
 
 // FieldProgress tracks completion for specific metadata fields
 type FieldProgress struct {
-	FieldName   string  `json:"field_name"`
-	Total       int     `json:"total"`
-	Populated   int     `json:"populated"`
-	Percentage  float64 `json:"percentage"`
-	Quality     string  `json:"quality"` // "excellent", "good", "poor", "missing"
-	Sources     []string `json:"sources"` // TMDB, MusicBrainz, etc.
+	FieldName  string   `json:"field_name"`
+	Total      int      `json:"total"`
+	Populated  int      `json:"populated"`
+	Percentage float64  `json:"percentage"`
+	Quality    string   `json:"quality"` // "excellent", "good", "poor", "missing"
+	Sources    []string `json:"sources"` // TMDB, MusicBrainz, etc.
 }
 
 // ArtworkProgress tracks completion for specific artwork types
@@ -79,14 +79,14 @@ type ArtworkProgress struct {
 
 // EnrichmentItem represents a recently enriched item
 type EnrichmentItem struct {
-	MediaID     string    `json:"media_id"`
-	MediaType   string    `json:"media_type"`
-	Title       string    `json:"title"`
-	Source      string    `json:"source"`      // TMDB, MusicBrainz, etc.
-	Action      string    `json:"action"`      // "metadata_added", "artwork_downloaded", etc.
-	Timestamp   time.Time `json:"timestamp"`
-	Fields      []string  `json:"fields"`      // Fields that were enriched
-	Quality     string    `json:"quality"`     // "high", "medium", "low"
+	MediaID   string    `json:"media_id"`
+	MediaType string    `json:"media_type"`
+	Title     string    `json:"title"`
+	Source    string    `json:"source"` // TMDB, MusicBrainz, etc.
+	Action    string    `json:"action"` // "metadata_added", "artwork_downloaded", etc.
+	Timestamp time.Time `json:"timestamp"`
+	Fields    []string  `json:"fields"`  // Fields that were enriched
+	Quality   string    `json:"quality"` // "high", "medium", "low"
 }
 
 // GetOverallProgress returns enrichment progress across all media types
@@ -344,7 +344,7 @@ func (epm *EnrichmentProgressManager) getMusicProgress() (*CategoryProgress, err
 	return progress, nil
 }
 
-// getEpisodeProgress calculates episode enrichment progress  
+// getEpisodeProgress calculates episode enrichment progress
 func (epm *EnrichmentProgressManager) getEpisodeProgress() (*CategoryProgress, error) {
 	progress := &CategoryProgress{
 		MetadataFields: make(map[string]FieldProgress),
@@ -375,7 +375,7 @@ func (epm *EnrichmentProgressManager) getFieldProgress(model interface{}, fieldN
 
 	// Count total records
 	epm.db.Model(model).Count(&total)
-	
+
 	// Count populated records
 	if whereClause != "" {
 		epm.db.Model(model).Where(whereClause).Count(&populated)
@@ -410,7 +410,7 @@ func (epm *EnrichmentProgressManager) getArtworkProgress(model interface{}, fiel
 
 	// Count total records
 	epm.db.Model(model).Count(&total)
-	
+
 	// Count available records
 	if whereClause != "" {
 		epm.db.Model(model).Where(whereClause).Count(&available)
@@ -512,7 +512,7 @@ func (epm *EnrichmentProgressManager) getRecentActivityForType(mediaType string,
 func (epm *EnrichmentProgressManager) calculateEnrichmentRate() float64 {
 	// Look at completed jobs from the last 24 hours
 	since := time.Now().Add(-24 * time.Hour)
-	
+
 	var count int64
 	epm.db.Model(&EnrichmentJob{}).
 		Where("status = 'completed' AND updated_at > ?", since).
@@ -527,7 +527,7 @@ func (epm *EnrichmentProgressManager) calculateEnrichmentRate() float64 {
 // calculateEnrichmentRateForType calculates the enrichment rate for a specific media type
 func (epm *EnrichmentProgressManager) calculateEnrichmentRateForType(mediaType string) float64 {
 	since := time.Now().Add(-24 * time.Hour)
-	
+
 	var count int64
 	epm.db.Model(&EnrichmentJob{}).
 		Joins("JOIN media_files ON media_files.id = enrichment_jobs.media_file_id").
@@ -538,4 +538,4 @@ func (epm *EnrichmentProgressManager) calculateEnrichmentRateForType(mediaType s
 		return float64(count) / 24.0 // items per hour
 	}
 	return 0
-} 
+}

@@ -46,8 +46,8 @@ type PluginManagerInterface interface {
 
 func createModuleWithPluginManager(db *gorm.DB, pluginManager PluginManagerInterface) *playbackmodule.Module {
 	// Create an adapter to convert our test interface to the real plugin manager
-	adapter := &PluginManagerAdapter{pluginManager: pluginManager}
-	module := playbackmodule.NewModule(db, nil, adapter)
+	// adapter := &PluginManagerAdapter{pluginManager: pluginManager}
+	module := playbackmodule.NewModule(db, nil)
 	if err := module.Init(); err != nil {
 		panic(fmt.Sprintf("Failed to initialize module: %v", err))
 	}
@@ -55,7 +55,7 @@ func createModuleWithPluginManager(db *gorm.DB, pluginManager PluginManagerInter
 }
 
 func createSimpleModule(db *gorm.DB) *playbackmodule.Module {
-	module := playbackmodule.NewModule(db, nil, nil)
+	module := playbackmodule.NewModule(db, nil)
 	if err := module.Init(); err != nil {
 		panic(fmt.Sprintf("Failed to initialize module: %v", err))
 	}

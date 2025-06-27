@@ -1,3 +1,4 @@
+// Package services provides a service registry for decoupled module communication
 package services
 
 import (
@@ -5,74 +6,165 @@ import (
 	"sync"
 )
 
-// ServiceRegistry provides a clean architectural pattern for inter-module communication
-//
-// This pattern should be used by all modules to expose their functionality:
-//
-// 1. Define a clean interface for your module's public API
-// 2. Register your service implementation during module initialization  
-// 3. Other modules access your service through the registry, not direct imports
-//
-// Benefits:
-// - Clean separation of concerns
-// - Testable with interface mocking
-// - No circular dependencies
-// - Clear API boundaries
-// - Consistent pattern across all modules
-type ServiceRegistry struct {
-	mu       sync.RWMutex
+// Registry manages service registrations and lookups
+type Registry struct {
 	services map[string]interface{}
+	mu       sync.RWMutex
 }
 
-var globalRegistry = &ServiceRegistry{
+// Global registry instance
+var globalRegistry = &Registry{
 	services: make(map[string]interface{}),
 }
 
-// RegisterService registers a service with the given name
-func RegisterService[T any](name string, service T) {
+// Register registers a service with the given name
+func Register(name string, service interface{}) error {
 	globalRegistry.mu.Lock()
 	defer globalRegistry.mu.Unlock()
-	
+
+	if _, exists := globalRegistry.services[name]; exists {
+		return fmt.Errorf("service %s already registered", name)
+	}
+
 	globalRegistry.services[name] = service
+	return nil
 }
 
-// GetService retrieves a service by name with type safety
-func GetService[T any](name string) (T, error) {
+// Get retrieves a service by name
+func Get(name string) (interface{}, error) {
 	globalRegistry.mu.RLock()
 	defer globalRegistry.mu.RUnlock()
-	
-	var zero T
-	
+
 	service, exists := globalRegistry.services[name]
 	if !exists {
-		return zero, fmt.Errorf("service '%s' not found", name)
+		return nil, fmt.Errorf("service %s not found", name)
 	}
-	
-	typedService, ok := service.(T)
-	if !ok {
-		return zero, fmt.Errorf("service '%s' has wrong type", name)
-	}
-	
-	return typedService, nil
+
+	return service, nil
 }
 
-// MustGetService retrieves a service and panics if not found (for initialization)
-func MustGetService[T any](name string) T {
-	service, err := GetService[T](name)
+// GetPlaybackService retrieves the playback service
+func GetPlaybackService() (PlaybackService, error) {
+	service, err := Get("playback")
 	if err != nil {
-		panic(fmt.Sprintf("Required service not available: %v", err))
+		return nil, err
 	}
-	return service
+
+	ps, ok := service.(PlaybackService)
+	if !ok {
+		return nil, fmt.Errorf("service playback does not implement PlaybackService interface")
+	}
+
+	return ps, nil
 }
 
-// ListServices returns all registered service names
-func ListServices() []string {
+// GetTranscodingService retrieves the transcoding service
+func GetTranscodingService() (TranscodingService, error) {
+	service, err := Get("transcoding")
+	if err != nil {
+		return nil, err
+	}
+
+	ts, ok := service.(TranscodingService)
+	if !ok {
+		return nil, fmt.Errorf("service transcoding does not implement TranscodingService interface")
+	}
+
+	return ts, nil
+}
+
+// GetPluginService retrieves the plugin service
+func GetPluginService() (PluginService, error) {
+	service, err := Get("plugin")
+	if err != nil {
+		return nil, err
+	}
+
+	ps, ok := service.(PluginService)
+	if !ok {
+		return nil, fmt.Errorf("service plugin does not implement PluginService interface")
+	}
+
+	return ps, nil
+}
+
+// GetMediaService retrieves the media service
+func GetMediaService() (MediaService, error) {
+	service, err := Get("media")
+	if err != nil {
+		return nil, err
+	}
+
+	ms, ok := service.(MediaService)
+	if !ok {
+		return nil, fmt.Errorf("service media does not implement MediaService interface")
+	}
+
+	return ms, nil
+}
+
+// GetScannerService retrieves the scanner service
+func GetScannerService() (ScannerService, error) {
+	service, err := Get("scanner")
+	if err != nil {
+		return nil, err
+	}
+
+	ss, ok := service.(ScannerService)
+	if !ok {
+		return nil, fmt.Errorf("service scanner does not implement ScannerService interface")
+	}
+
+	return ss, nil
+}
+
+// GetAssetService retrieves the asset service
+func GetAssetService() (AssetService, error) {
+	service, err := Get("asset")
+	if err != nil {
+		return nil, err
+	}
+
+	as, ok := service.(AssetService)
+	if !ok {
+		return nil, fmt.Errorf("service asset does not implement AssetService interface")
+	}
+
+	return as, nil
+}
+
+// GetEnrichmentService retrieves the enrichment service
+func GetEnrichmentService() (EnrichmentService, error) {
+	service, err := Get("enrichment")
+	if err != nil {
+		return nil, err
+	}
+
+	es, ok := service.(EnrichmentService)
+	if !ok {
+		return nil, fmt.Errorf("service enrichment does not implement EnrichmentService interface")
+	}
+
+	return es, nil
+}
+
+// List returns all registered service names
+func List() []string {
 	globalRegistry.mu.RLock()
 	defer globalRegistry.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(globalRegistry.services))
 	for name := range globalRegistry.services {
 		names = append(names, name)
 	}
+
 	return names
+}
+
+// Clear removes all registered services (mainly for testing)
+func Clear() {
+	globalRegistry.mu.Lock()
+	defer globalRegistry.mu.Unlock()
+
+	globalRegistry.services = make(map[string]interface{})
 }
