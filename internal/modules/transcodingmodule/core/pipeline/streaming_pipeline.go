@@ -51,6 +51,7 @@ type StreamingConfig struct {
 	ManifestUpdateInterval time.Duration
 	EnableABR              bool
 	ABRProfiles            []EncodingProfile
+	UseShakaPackager       bool // Enable Shaka Packager for low-latency VOD
 }
 
 // StreamingSession represents an active streaming transcoding session
@@ -76,9 +77,10 @@ type StreamingSession struct {
 	Progress         float64
 
 	// Components
-	encoder    *StreamEncoder
-	packager   *StreamPackager
-	prefetcher *SegmentPrefetcher
+	encoder      *StreamEncoder
+	shakaEncoder *ShakaStreamEncoder // Alternative Shaka-based encoder
+	packager     *StreamPackager
+	prefetcher   *SegmentPrefetcher
 	// Remove pipeline field - using encoder directly
 
 	// Control
@@ -160,6 +162,42 @@ func (p *StreamingPipeline) StartStreaming(ctx context.Context, req plugins.Tran
 		cancel:      cancel,
 		prefetcher:  p.prefetcher,
 	}
+	
+	// Initialize encoders based on configuration
+	if p.config.UseShakaPackager {
+		// Create Shaka encoder for low-latency VOD
+		session.shakaEncoder = NewShakaStreamEncoder(outputDir, p.config.SegmentDuration)
+		session.shakaEncoder.SetCallbacks(
+			func(segmentPath string, index int) {
+				p.onSegmentReady(session.ID, SegmentInfo{
+					Path:  segmentPath,
+					Index: index,
+					Type:  "video",
+				})
+			},
+			func(err error) {
+				p.handleError(session, err)
+			},
+		)
+		session.shakaEncoder.SetManifestCallback(func(manifestPath string) {
+			p.onManifestUpdate(session.ID, manifestPath)
+		})
+	} else {
+		// Create standard stream encoder
+		session.encoder = NewStreamEncoder(outputDir, p.config.SegmentDuration)
+		session.encoder.SetCallbacks(
+			func(segmentPath string, index int) {
+				p.onSegmentReady(session.ID, SegmentInfo{
+					Path:  segmentPath,
+					Index: index,
+					Type:  "video",
+				})
+			},
+			func(err error) {
+				p.handleError(session, err)
+			},
+		)
+	}
 
 	// Determine manifest path
 	switch req.Container {
@@ -207,73 +245,130 @@ func (p *StreamingPipeline) runStreamingPipeline(session *StreamingSession) {
 		}}
 	}
 
-	// Create encoder only - FFmpeg DASH muxer handles everything
-	session.encoder = NewStreamEncoder(session.OutputDir, p.config.SegmentDuration)
-	
-	// Set encoder callbacks
-	session.encoder.SetCallbacks(
-		func(segmentPath string, index int) {
-			// Handle segment ready
-			p.handleSegmentReady(session, segmentPath, index)
-		},
-		func(err error) {
-			p.handleEncodingError(session, err)
-		},
-	)
-	
-	// Set progress callback to track manifest updates
-	session.encoder.SetProgressCallback(func(progress FFmpegProgress) {
-		// Check if manifest exists and update
-		manifestPath := filepath.Join(session.OutputDir, "manifest.mpd")
-		if _, err := os.Stat(manifestPath); err == nil {
-			// Update manifest path if not set
-			if session.ManifestPath == "" {
-				session.ManifestPath = manifestPath
-			}
-			// Notify manifest update
+	// Create encoder - use Shaka if enabled for low-latency VOD
+	if p.config.UseShakaPackager {
+		p.logger.Info("Using Shaka Packager for low-latency VOD streaming")
+		session.shakaEncoder = NewShakaStreamEncoder(session.OutputDir, p.config.SegmentDuration)
+		
+		// Set Shaka encoder callbacks
+		session.shakaEncoder.SetCallbacks(
+			func(segmentPath string, index int) {
+				// Handle segment ready
+				p.handleSegmentReady(session, segmentPath, index)
+			},
+			func(err error) {
+				p.handleEncodingError(session, err)
+			},
+		)
+		
+		// Set manifest callback
+		session.shakaEncoder.SetManifestCallback(func(manifestPath string) {
+			session.ManifestPath = manifestPath
 			p.handleManifestUpdate(session, manifestPath)
+		})
+		
+		// Set progress callback
+		session.shakaEncoder.SetProgressCallback(func(progress FFmpegProgress) {
+			// Update progress
+			if progress.Progress == "end" {
+				session.Progress = 1.0
+			} else if progress.Time > 0 {
+				session.Progress = 0.5
+			}
+		})
+		
+		// Set completion callback for proper finalization
+		session.shakaEncoder.SetCompletionCallback(func(done func(error)) {
+			// Signal completion
+			done(nil)
+		})
+		
+		// Set event bus integration if available
+		// TODO: Add event bus integration when available
+	} else {
+		// Use standard FFmpeg DASH encoder
+		session.encoder = NewStreamEncoder(session.OutputDir, p.config.SegmentDuration)
+		
+		// Set encoder callbacks
+		session.encoder.SetCallbacks(
+			func(segmentPath string, index int) {
+				// Handle segment ready
+				p.handleSegmentReady(session, segmentPath, index)
+			},
+			func(err error) {
+				p.handleEncodingError(session, err)
+			},
+		)
+		
+		// Set progress callback to track manifest updates
+		session.encoder.SetProgressCallback(func(progress FFmpegProgress) {
+			// Check if manifest exists and update
+			manifestPath := filepath.Join(session.OutputDir, "manifest.mpd")
+			if _, err := os.Stat(manifestPath); err == nil {
+				// Update manifest path if not set
+				if session.ManifestPath == "" {
+					session.ManifestPath = manifestPath
+				}
+				// Notify manifest update
+				p.handleManifestUpdate(session, manifestPath)
+			}
+			
+			// Update progress
+			if progress.Progress == "end" {
+				session.Progress = 1.0
+			} else if progress.Time > 0 {
+				// Calculate progress based on time (assuming we know duration)
+				// For now, just track that we're making progress
+				session.Progress = 0.5
+			}
+		})
+		
+		// Set event bus integration if available
+		// TODO: Add event bus integration when available
+	}
+	
+
+	
+	// Start encoding with appropriate encoder
+	if session.shakaEncoder != nil {
+		// Start Shaka-based encoding
+		if err := session.shakaEncoder.StartEncoding(session.ctx, session.Request.InputPath, profiles); err != nil {
+			p.handleError(session, fmt.Errorf("failed to start Shaka encoding: %w", err))
+			return
 		}
 		
-		// Update progress
-		if progress.Progress == "end" {
-			session.Progress = 1.0
-		} else if progress.Time > 0 {
-			// Calculate progress based on time (assuming we know duration)
-			// For now, just track that we're making progress
-			session.Progress = 0.5
+		// Wait for context cancellation (Shaka monitors itself internally)
+		<-session.ctx.Done()
+		p.logger.Info("Shaka session context done", "sessionID", session.ID)
+	} else {
+		// Start standard FFmpeg encoding
+		if err := session.encoder.StartEncoding(session.ctx, session.Request.InputPath, profiles); err != nil {
+			p.handleError(session, fmt.Errorf("failed to start encoding: %w", err))
+			return
 		}
-	})
-	
-	// Set event bus integration if available
-	// Note: healthMonitor doesn't expose eventBus directly
-	
-	// Track completion
-	completeChan := make(chan error, 1)
-	
-	// Start encoding with DASH output
-	if err := session.encoder.StartEncoding(session.ctx, session.Request.InputPath, profiles); err != nil {
-		p.handleError(session, fmt.Errorf("failed to start encoding: %w", err))
-		return
-	}
-	
-	// Set completion callback
-	if session.encoder.onComplete != nil {
-		session.encoder.onComplete(func(err error) {
-			completeChan <- err
-		})
-	}
-
-	// Wait for completion or cancellation
-	select {
-	case <-session.ctx.Done():
-		// Context cancelled (user stopped)
-		p.logger.Info("Session cancelled", "sessionID", session.ID)
-	case err := <-completeChan:
-		// FFmpeg completed
-		if err != nil {
-			p.logger.Error("FFmpeg completed with error", "sessionID", session.ID, "error", err)
-		} else {
-			p.logger.Info("FFmpeg completed successfully", "sessionID", session.ID)
+		
+		// Track completion for standard encoder
+		completeChan := make(chan error, 1)
+		
+		// Set completion callback
+		if session.encoder.onComplete != nil {
+			session.encoder.onComplete(func(err error) {
+				completeChan <- err
+			})
+		}
+		
+		// Wait for completion or cancellation
+		select {
+		case <-session.ctx.Done():
+			// Context cancelled (user stopped)
+			p.logger.Info("Session cancelled", "sessionID", session.ID)
+		case err := <-completeChan:
+			// FFmpeg completed
+			if err != nil {
+				p.logger.Error("FFmpeg completed with error", "sessionID", session.ID, "error", err)
+			} else {
+				p.logger.Info("FFmpeg completed successfully", "sessionID", session.ID)
+			}
 		}
 	}
 
@@ -477,7 +572,11 @@ func (p *StreamingPipeline) finalizeSession(session *StreamingSession) {
 		"segmentsReady", session.SegmentsReady)
 
 	// Stop encoder
-	if session.encoder != nil {
+	if session.shakaEncoder != nil {
+		if err := session.shakaEncoder.StopEncoding(); err != nil {
+			p.logger.Warn("Error stopping Shaka encoder", "error", err)
+		}
+	} else if session.encoder != nil {
 		if err := session.encoder.StopEncoding(); err != nil {
 			p.logger.Warn("Error stopping encoder", "error", err)
 		}
@@ -490,8 +589,18 @@ func (p *StreamingPipeline) finalizeSession(session *StreamingSession) {
 
 		// Store in content store if available
 		if p.contentStore != nil && session.ContentHash != "" {
+			// IMPORTANT: Ensure MediaID is not empty to prevent hash collisions
+			mediaID := session.Request.MediaID
+			if mediaID == "" {
+				// Log warning but don't fail - use session ID as fallback
+				p.logger.Warn("Empty MediaID detected, using session ID as fallback",
+					"sessionID", session.ID,
+					"contentHash", session.ContentHash)
+				mediaID = fmt.Sprintf("session-%s", session.ID)
+			}
+			
 			metadata := storage.ContentMetadata{
-				MediaID:       session.Request.MediaID,
+				MediaID:       mediaID,
 				Format:        session.Request.Container,
 				ManifestURL:   fmt.Sprintf("/api/v1/content/%s/manifest.%s", session.ContentHash, session.Request.Container),
 				RetentionDays: 30,

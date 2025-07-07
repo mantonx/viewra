@@ -71,12 +71,11 @@ func (p *Provider) Initialize(sessionStore *session.SessionStore, contentStore *
 		SegmentDuration:        4,  // 4 second segments for balance between latency and efficiency
 		BufferAhead:            12, // 12 seconds of buffer
 		ManifestUpdateInterval: 2 * time.Second,
-		EnableABR:              true,
+		EnableABR:              false, // Disable ABR for now with Shaka (single quality first)
 		ABRProfiles: []EncodingProfile{
-			{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, Quality: 28},
 			{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2500, Quality: 25},
-			{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, Quality: 23},
 		},
+		UseShakaPackager: true, // Enable Shaka Packager for low-latency VOD
 	}
 
 	p.pipeline = NewStreamingPipeline(p.logger, sessionStore, contentStore, config)

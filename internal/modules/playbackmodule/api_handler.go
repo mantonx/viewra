@@ -108,18 +108,56 @@ func (h *APIHandler) HandleStartTranscode(c *gin.Context) {
 	// Try to parse as media file request first
 	var mediaRequest struct {
 		MediaFileID   string         `json:"media_file_id"`
+		MediaID       string         `json:"media_id"` // Support both field names
 		Container     string         `json:"container"`
 		SeekPosition  float64        `json:"seek_position,omitempty"`
 		EnableABR     bool           `json:"enable_abr,omitempty"`
 		DeviceProfile *DeviceProfile `json:"device_profile,omitempty"`
+		Settings      *struct {      // Support nested settings
+			Container  string `json:"container"`
+			VideoCodec string `json:"video_codec"`
+			AudioCodec string `json:"audio_codec"`
+			Quality    int    `json:"quality"`
+			EnableABR  bool   `json:"enable_abr"`
+		} `json:"settings,omitempty"`
 	}
 
 	parseErr := json.Unmarshal(bodyBytes, &mediaRequest)
-	logger.Info("media request parse result", "error", parseErr, "media_file_id", mediaRequest.MediaFileID, "container", mediaRequest.Container)
+	
+	// Support both media_id and media_file_id
+	if mediaRequest.MediaID != "" && mediaRequest.MediaFileID == "" {
+		mediaRequest.MediaFileID = mediaRequest.MediaID
+	}
+	
+	// Extract settings if provided in nested format
+	if mediaRequest.Settings != nil {
+		if mediaRequest.Container == "" {
+			mediaRequest.Container = mediaRequest.Settings.Container
+		}
+		if !mediaRequest.EnableABR {
+			mediaRequest.EnableABR = mediaRequest.Settings.EnableABR
+		}
+	}
+	
+	logger.Info("media request parse result", "error", parseErr, "media_file_id", mediaRequest.MediaFileID, "media_id", mediaRequest.MediaID, "container", mediaRequest.Container)
 
 	if parseErr == nil && mediaRequest.MediaFileID != "" {
 		// Handle media file based request
-		session, err := h.handleMediaFileTranscode(c, mediaRequest)
+		// Create a request struct that matches what handleMediaFileTranscode expects
+		mediaFileRequest := struct {
+			MediaFileID   string         `json:"media_file_id"`
+			Container     string         `json:"container"`
+			SeekPosition  float64        `json:"seek_position,omitempty"`
+			EnableABR     bool           `json:"enable_abr,omitempty"`
+			DeviceProfile *DeviceProfile `json:"device_profile,omitempty"`
+		}{
+			MediaFileID:   mediaRequest.MediaFileID,
+			Container:     mediaRequest.Container,
+			SeekPosition:  mediaRequest.SeekPosition,
+			EnableABR:     mediaRequest.EnableABR,
+			DeviceProfile: mediaRequest.DeviceProfile,
+		}
+		session, err := h.handleMediaFileTranscode(c, mediaFileRequest)
 		if err != nil {
 			// Error already handled by handleMediaFileTranscode
 			return

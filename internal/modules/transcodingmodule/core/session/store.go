@@ -92,8 +92,17 @@ func (s *SessionStore) generateContentHash(req *plugins.TranscodeRequest) string
 	// for content deduplication and CDN caching
 
 	// Build hash input with all relevant parameters that affect output
+	// IMPORTANT: Include input path if MediaID is empty to ensure uniqueness
+	mediaIdentifier := req.MediaID
+	if mediaIdentifier == "" {
+		// Use input path as fallback to ensure uniqueness
+		mediaIdentifier = req.InputPath
+		s.logger.Warn("Empty MediaID in transcode request, using input path for hash",
+			"inputPath", req.InputPath)
+	}
+	
 	hashInput := fmt.Sprintf("%s_%s_%s_%s_%d_%s",
-		req.MediaID,       // Media identifier
+		mediaIdentifier,   // Media identifier (ID or path)
 		req.Container,     // Output format (dash, hls, mp4)
 		req.VideoCodec,    // Video codec
 		req.AudioCodec,    // Audio codec

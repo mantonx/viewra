@@ -302,14 +302,63 @@ func (h *ContentAPIHandler) trySessionFallback(contentHash, fileName string) (st
 	var sessionDir string
 	if session.DirectoryPath != "" {
 		// DirectoryPath is just the directory name, not the full path
-		// Construct full path
-		sessionDir = filepath.Join("/app/viewra-data/transcoding", session.DirectoryPath)
+		// First try the sessions subdirectory (new structure)
+		sessionDir = filepath.Join("/app/viewra-data/transcoding/sessions", session.ID)
+		if _, err := os.Stat(filepath.Join(sessionDir, fileName)); err != nil {
+			// Fallback to legacy path structure
+			sessionDir = filepath.Join("/app/viewra-data/transcoding", session.DirectoryPath)
+		}
 	} else {
-		// Fallback: construct expected path based on container and provider
-		// Format: {container}_{provider}_{sessionID}
-		sessionDir = filepath.Join("/app/viewra-data/transcoding", fmt.Sprintf("dash_streaming_pipeline_%s", session.ID))
+		// Fallback: try sessions directory first
+		sessionDir = filepath.Join("/app/viewra-data/transcoding/sessions", session.ID)
 	}
-	filePath := filepath.Join(sessionDir, fileName)
+	
+	// Determine file path based on file type
+	var filePath string
+	switch {
+	case strings.HasSuffix(fileName, ".mpd") || strings.HasSuffix(fileName, ".m3u8"):
+		// Manifest files - try root first (Shaka creates it there), then manifests subdirectory
+		rootPath := filepath.Join(sessionDir, fileName)
+		if _, err := os.Stat(rootPath); err == nil {
+			filePath = rootPath
+		} else {
+			filePath = filepath.Join(sessionDir, "manifests", fileName)
+		}
+	case strings.Contains(fileName, "init-"):
+		// Init segments - check both video and audio directories
+		videoPath := filepath.Join(sessionDir, "video", fileName)
+		if _, err := os.Stat(videoPath); err == nil {
+			filePath = videoPath
+		} else {
+			filePath = filepath.Join(sessionDir, "audio", fileName)
+		}
+	case strings.Contains(fileName, "segment-") && strings.HasSuffix(fileName, ".m4s"):
+		// Segments - try to determine if video or audio based on filename
+		if strings.Contains(fileName, "video") {
+			filePath = filepath.Join(sessionDir, "video", fileName)
+		} else if strings.Contains(fileName, "audio") {
+			filePath = filepath.Join(sessionDir, "audio", fileName)
+		} else {
+			// Try video first, then audio
+			videoPath := filepath.Join(sessionDir, "video", fileName)
+			if _, err := os.Stat(videoPath); err == nil {
+				filePath = videoPath
+			} else {
+				filePath = filepath.Join(sessionDir, "audio", fileName)
+			}
+		}
+	case strings.HasSuffix(fileName, ".m4s") || strings.HasSuffix(fileName, ".ts"):
+		// Try video directory first, then audio
+		videoPath := filepath.Join(sessionDir, "video", fileName)
+		if _, err := os.Stat(videoPath); err == nil {
+			filePath = videoPath
+		} else {
+			filePath = filepath.Join(sessionDir, "audio", fileName)
+		}
+	default:
+		// Default to root of session directory
+		filePath = filepath.Join(sessionDir, fileName)
+	}
 	
 	logger.Info("Checking file", "path", filePath)
 	

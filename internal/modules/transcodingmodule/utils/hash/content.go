@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"time"
 )
 
 // Resolution represents video resolution
@@ -19,6 +20,13 @@ type Resolution struct {
 // The hash is based on media ID, container format, quality settings, and resolution.
 // Returns a full 64-character SHA256 hash for content-addressable storage.
 func GenerateContentHash(mediaID, container string, quality int, resolution *Resolution) string {
+	// IMPORTANT: mediaID must not be empty to ensure uniqueness
+	if mediaID == "" {
+		// Generate a random component to ensure uniqueness when mediaID is missing
+		// This prevents hash collisions between different media files
+		mediaID = fmt.Sprintf("unknown-%d", time.Now().UnixNano())
+	}
+	
 	// Build hash input from all relevant parameters
 	hashInput := fmt.Sprintf("%s-%s-%d", mediaID, container, quality)
 

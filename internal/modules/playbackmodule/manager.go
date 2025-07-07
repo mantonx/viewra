@@ -311,6 +311,9 @@ func (m *Manager) StartTranscodeFromMediaFile(mediaFileID string, container stri
 		return nil, fmt.Errorf("no transcoding parameters in decision")
 	}
 
+	// IMPORTANT: Set MediaID to prevent content hash collisions
+	request.MediaID = mediaFileID
+
 	// Apply user-specified overrides where appropriate
 	if container != "" {
 		request.Container = container
