@@ -40,80 +40,40 @@ export const API_ENDPOINTS = {
     },
   },
 
-  // Playback endpoints
+  // Playback endpoints - match actual backend implementation
   PLAYBACK: {
     DECIDE: {
       path: '/playback/decide',
       method: 'POST' as const,
       description: 'Get playback decision for media',
     },
-    START: {
-      path: '/playback/start',
+    START_SESSION: {
+      path: '/playback/session/start',
       method: 'POST' as const,
       description: 'Start transcoding session',
     },
-    SESSION: {
+    STOP_SESSION: {
       path: (sessionId: string) => `/playback/session/${sessionId}`,
       method: 'DELETE' as const,
       description: 'Stop transcoding session',
     },
-    SEEK_AHEAD: {
-      path: '/playback/seek-ahead',
+    STOP_ALL_SESSIONS: {
+      path: '/playback/sessions/all',
+      method: 'DELETE' as const,
+      description: 'Stop all transcoding sessions',
+    },
+    ANALYTICS: {
+      path: '/analytics/session',
       method: 'POST' as const,
-      description: 'Request seek-ahead transcoding',
+      description: 'Track playback analytics',
+    },
+    COMPATIBILITY: {
+      path: '/playback/compatibility',
+      method: 'POST' as const,
+      description: 'Get playback compatibility data',
     },
   },
 
-  // Content-addressable storage endpoints (v1)
-  CONTENT: {
-    MANIFEST: {
-      path: (contentHash: string) => `/v1/content/${contentHash}/manifest.mpd`,
-      method: 'GET' as const,
-      description: 'Get DASH manifest from content store',
-    },
-    HLS_MANIFEST: {
-      path: (contentHash: string) => `/v1/content/${contentHash}/playlist.m3u8`,
-      method: 'GET' as const,
-      description: 'Get HLS playlist from content store',
-    },
-    FILE: {
-      path: (contentHash: string, filename: string) => `/v1/content/${contentHash}/${filename}`,
-      method: 'GET' as const,
-      description: 'Get content file (segments, init files, etc.)',
-    },
-    INFO: {
-      path: (contentHash: string) => `/v1/content/${contentHash}/info`,
-      method: 'GET' as const,
-      description: 'Get content metadata and status',
-    },
-  },
-
-  // Asset endpoints (v1)
-  ASSETS_V1: {
-    ASSET_DATA: {
-      path: (assetId: string) => `/v1/assets/${assetId}/data`,
-      method: 'GET' as const,
-      description: 'Get asset data by ID',
-    },
-    ENTITY_PREFERRED: {
-      path: (entityType: string, entityId: string, assetType: string) => 
-        `/v1/assets/entity/${entityType}/${entityId}/preferred/${assetType}`,
-      method: 'GET' as const,
-      description: 'Get preferred asset for entity',
-    },
-    ENTITY_PREFERRED_DATA: {
-      path: (entityType: string, entityId: string, assetType: string) => 
-        `/v1/assets/entity/${entityType}/${entityId}/preferred/${assetType}/data`,
-      method: 'GET' as const,
-      description: 'Get preferred asset data for entity',
-    },
-    ENTITY_ASSETS: {
-      path: (entityType: string, entityId: string) => 
-        `/v1/assets/entity/${entityType}/${entityId}`,
-      method: 'GET' as const,
-      description: 'Get all assets for entity',
-    },
-  },
 
   // TV Show endpoints
   TV: {

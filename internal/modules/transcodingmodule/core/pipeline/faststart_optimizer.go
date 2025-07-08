@@ -215,10 +215,14 @@ func (fso *FastStartOptimizer) parseKeyframeOutput(output string) ([]KeyframeInf
 		keyframeIndex++
 	}
 
-	fso.logger.Debug("Extracted keyframes",
-		"count", len(keyframes),
-		"duration", keyframes[len(keyframes)-1].Timestamp,
-	)
+	if len(keyframes) > 0 {
+		fso.logger.Debug("Extracted keyframes",
+			"count", len(keyframes),
+			"duration", keyframes[len(keyframes)-1].Timestamp,
+		)
+	} else {
+		fso.logger.Debug("No keyframes found")
+	}
 
 	return keyframes, nil
 }

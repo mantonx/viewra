@@ -7,8 +7,9 @@ import (
 
 // MediaFilter defines criteria for filtering media files
 type MediaFilter struct {
-	LibraryID   uint32            `json:"library_id,omitempty"`
+	LibraryID   *uint32           `json:"library_id,omitempty"`
 	MediaType   string            `json:"media_type,omitempty"`
+	Search      string            `json:"search,omitempty"`
 	Tags        []string          `json:"tags,omitempty"`
 	MinSize     int64             `json:"min_size,omitempty"`
 	MaxSize     int64             `json:"max_size,omitempty"`
@@ -19,6 +20,14 @@ type MediaFilter struct {
 	Offset      int               `json:"offset,omitempty"`
 	SortBy      string            `json:"sort_by,omitempty"`
 	SortOrder   string            `json:"sort_order,omitempty"`
+	SortDesc    bool              `json:"sort_desc,omitempty"`
+	
+	// Media format filters
+	VideoCodec      string `json:"video_codec,omitempty"`
+	AudioCodec      string `json:"audio_codec,omitempty"`
+	Container       string `json:"container,omitempty"`
+	Resolution      string `json:"resolution,omitempty"`
+	PlaybackMethod  string `json:"playback_method,omitempty"` // "direct", "remux", "transcode"
 }
 
 // PluginStatus represents the current status of a plugin

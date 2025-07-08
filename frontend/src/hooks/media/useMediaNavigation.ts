@@ -10,8 +10,7 @@ import {
   loadingStateAtom,
   progressStateAtom,
 } from '@/atoms/mediaPlayer';
-import { MediaService } from '@/services/MediaService';
-import { buildApiUrl } from '@/constants/api';
+import { MediaPlaybackService } from '@/services/MediaPlaybackService';
 import { useSessionManager } from '../session/useSessionManager';
 import type { MediaIdentifier } from '@/components/MediaPlayer';
 
@@ -44,13 +43,16 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
     try {
       // Clean up any existing sessions first
       console.log('🧹 Cleaning up existing sessions before loading new media...');
-      await stopAllSessions();
+      await MediaPlaybackService.stopAllSessions();
       
       setLoadingState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const mediaFile = await MediaService.getMediaFiles(mediaId, mediaType);
-      if (!mediaFile) {
-        throw new Error(`No media file found for this ${mediaType}`);
+      const mediaFile = await MediaPlaybackService.getMediaFile(mediaId);
+      if (!mediaFile || mediaFile.media_type !== mediaType) {
+        const errorMsg = `No media file found for this ${mediaType}. ID: ${mediaId}`;
+        console.error('❌ useMediaNavigation:', errorMsg);
+        setLoadingState(prev => ({ ...prev, isLoading: false, error: errorMsg }));
+        return;
       }
 
       setMediaFile(mediaFile);
@@ -62,64 +64,47 @@ export const useMediaNavigation = (mediaIdentifier: MediaIdentifier) => {
         }));
       }
 
-      const deviceProfile = MediaService.getDefaultDeviceProfile();
-      
       const [decision, metadata] = await Promise.all([
-        MediaService.getPlaybackDecision(mediaFile.path, mediaFile.id, deviceProfile),
-        MediaService.getMediaMetadata(mediaId, mediaFile.id),
+        MediaPlaybackService.getPlaybackDecision(mediaFile.path, mediaFile.id),
+        MediaPlaybackService.getMediaMetadata(mediaFile.id),
       ]);
 
       if (metadata) {
         setCurrentMedia(metadata);
       }
 
-      if (decision.should_transcode) {
-        console.log('🎬 Starting transcoding session for:', mediaFile.path);
+      // Check if remuxing or transcoding is needed
+      const needsRemux = decision.method === 'remux';
+      const needsTranscode = decision.method === 'transcode' || needsRemux;
+      
+      if (needsTranscode) {
+        console.log('🎬 Processing required for:', mediaFile.path);
+        console.log('📋 Reason:', decision.reason);
+        console.log('🚧 Transcoding/remuxing implementation is pending');
         
-        const sessionData = await MediaService.startTranscodingSession(
-          mediaFile.id,  // Use media file ID instead of path
-          decision.transcode_params?.target_container || 'dash',
-          decision.transcode_params?.target_codec || 'h264'
-        );
-
-        console.log('✅ Transcoding session started:', sessionData.id);
-
-        // Update decision with transcoding session info
-        // Use content-addressable URLs if available
-        let manifestUrl = sessionData.manifest_url;
-        let streamUrl = sessionData.manifest_url;
+        // For now, show an error since transcoding/remuxing isn't implemented
+        const processType = needsRemux ? 'remuxing' : 'transcoding';
+        const errorMsg = `This media requires ${processType} (${decision.reason}), which is not yet implemented.`;
+        setLoadingState(prev => ({ ...prev, isLoading: false, error: errorMsg }));
+        return;
         
-        if (sessionData.content_hash) {
-          // Use content-addressable storage URLs
-          const container = decision.transcode_params?.target_container || 'dash';
-          if (container === 'hls') {
-            manifestUrl = buildApiUrl(`/v1/content/${sessionData.content_hash}/playlist.m3u8`);
-          } else {
-            manifestUrl = buildApiUrl(`/v1/content/${sessionData.content_hash}/manifest.mpd`);
-          }
-          streamUrl = manifestUrl;
-        } else if (!manifestUrl) {
-          // Fallback for sessions without manifest URL
-          console.warn('Session has no manifest URL and no content hash, this should not happen');
-          manifestUrl = '';
-          streamUrl = '';
-        }
-        
-        const updatedDecision = {
-          ...decision,
-          session_id: sessionData.id,
-          manifest_url: manifestUrl,
-          stream_url: streamUrl,
-          content_hash: sessionData.content_hash,
-          content_url: sessionData.content_url,
-        };
-        
-        setPlaybackDecision(updatedDecision);
+        // TODO: Uncomment when transcoding is implemented
+        // const sessionData = await MediaPlaybackService.startTranscodingSession(
+        //   mediaFile.id,
+        //   decision.transcode_params?.target_container || 'mp4',
+        //   mediaFile.path
+        // );
+        // const updatedDecision = {
+        //   ...decision,
+        //   session_id: sessionData.id,
+        //   stream_url: sessionData.stream_url || sessionData.manifest_url,
+        // };
+        // setPlaybackDecision(updatedDecision);
       } else {
-        // For direct play, ensure stream_url is set
+        // For direct play, use direct stream URL
         const updatedDecision = {
           ...decision,
-          stream_url: decision.direct_play_url || decision.stream_url || mediaFile.path,
+          stream_url: MediaPlaybackService.getStreamUrl(mediaFile.id),
         };
         setPlaybackDecision(updatedDecision);
       }

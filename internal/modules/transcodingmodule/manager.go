@@ -4,7 +4,9 @@ package transcodingmodule
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -14,6 +16,8 @@ import (
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/cleanup"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/migration"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/pipeline"
+	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/registry"
+	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/resource"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/session"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/storage"
 
@@ -21,45 +25,40 @@ import (
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/utils/filemanager"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/utils/paths"
 	"github.com/mantonx/viewra/internal/services"
+	tErrors "github.com/mantonx/viewra/internal/modules/transcodingmodule/errors"
 	plugins "github.com/mantonx/viewra/sdk"
 	"gorm.io/gorm"
 )
 
 // Manager coordinates all transcoding operations within the module.
+// It provides a clean interface for transcoding operations while delegating
+// to specialized components for session management, storage, and resource control.
 type Manager struct {
 	db            *gorm.DB
 	eventBus      events.EventBus
 	pluginManager types.PluginManagerInterface
 	config        *types.Config
 
-	// Provider management
-	providers      map[string]plugins.TranscodingProvider
-	providersMutex sync.RWMutex
+	// Provider management - centralized registry
+	providerRegistry *registry.ProviderRegistry
 
-	// Session management
-	sessions       map[string]*types.SessionInfo
-	sessionHandles map[string]*plugins.TranscodeHandle
-	sessionsMutex  sync.RWMutex
-	sessionStore   *session.SessionStore
+	// Core services - each handles its own domain
+	sessionStore     *session.SessionStore     // Database-backed session persistence
+	contentStore     *storage.ContentStore     // Content-addressable file storage
+	resourceManager  *resource.Manager         // Concurrent session and resource limits
+	cleanupService   *cleanup.Service          // Cleanup of old sessions and files
+	migrationService *migration.ContentMigrationService // Content hash migration
+	fileManager      *filemanager.FileManager  // File operations
 
-	// Pipeline provider (built-in streaming provider)
-	pipelineProvider plugins.TranscodingProvider
+	// Logging and error reporting
+	logger        hclog.Logger
+	errorReporter tErrors.ErrorReporter
 
-	// Content store
-	contentStore *storage.ContentStore
-
-	// Services
-	cleanupService   *cleanup.Service
-	fileManager      *filemanager.FileManager
-	migrationService *migration.ContentMigrationService
-	logger           hclog.Logger
-
-	// Lifecycle
+	// Lifecycle management
 	initialized bool
-	shutdownCh  chan struct{}
-	wg          sync.WaitGroup
 	ctx         context.Context
 	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 // NewManager creates a new transcoding manager
@@ -80,6 +79,9 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager types.Plugi
 		Name:  "transcoding-manager",
 		Level: hclog.Info,
 	})
+	
+	// Create error reporter
+	errorReporter := tErrors.NewErrorReporter(hclogger.Named("error-reporter"))
 
 	// Create session store
 	sessionStore := session.NewSessionStore(db, hclogger.Named("session-store"))
@@ -91,11 +93,21 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager types.Plugi
 	contentStore, err := storage.NewContentStore(config.TranscodingDir, hclogger.Named("content-store"))
 	if err != nil {
 		cancel() // Clean up context
-		return nil, fmt.Errorf("failed to create content store: %w", err)
+		return nil, tErrors.StorageError("create_content_store", err).
+			WithDetail("dir", config.TranscodingDir)
 	}
 
 	// Create content migration service
 	migrationService := migration.NewContentMigrationService(db)
+
+	// Create resource manager
+	resourceConfig := &resource.Config{
+		MaxConcurrentSessions: config.MaxConcurrentSessions,
+		SessionTimeout:        config.SessionTimeout,
+		MaxQueueSize:          20,
+		QueueTimeout:          10 * time.Minute,
+	}
+	resourceManager := resource.NewManager(resourceConfig, hclogger.Named("resource"))
 
 	// Create cleanup service
 	cleanupConfig := cleanup.Config{
@@ -108,21 +120,23 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager types.Plugi
 	}
 	cleanupService := cleanup.NewService(cleanupConfig, sessionStore, fileManager, hclogger.Named("cleanup"))
 
+	// Create provider registry
+	providerRegistry := registry.NewProviderRegistry(hclogger.Named("provider-registry"))
+
 	return &Manager{
 		db:               db,
 		eventBus:         eventBus,
 		pluginManager:    pluginManager,
 		config:           config,
-		providers:        make(map[string]plugins.TranscodingProvider),
-		sessions:         make(map[string]*types.SessionInfo),
-		sessionHandles:   make(map[string]*plugins.TranscodeHandle),
+		providerRegistry: providerRegistry,
 		sessionStore:     sessionStore,
-		fileManager:      fileManager,
 		contentStore:     contentStore,
+		resourceManager:  resourceManager,
 		cleanupService:   cleanupService,
 		migrationService: migrationService,
+		fileManager:      fileManager,
 		logger:           hclogger,
-		shutdownCh:       make(chan struct{}),
+		errorReporter:    errorReporter,
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -138,86 +152,128 @@ func (m *Manager) Initialize() error {
 
 	// Create transcoding directory if it doesn't exist
 	if err := paths.CreateSessionDirectories(m.config.TranscodingDir); err != nil {
-		return fmt.Errorf("failed to create transcoding directory: %w", err)
+		return tErrors.InternalError("create_directories", err).
+			WithDetail("dir", m.config.TranscodingDir)
 	}
 
-	// Register built-in providers
-	m.registerBuiltinProviders()
-
-	// Discover plugin providers
-	if err := m.DiscoverProviders(); err != nil {
-		logger.Error("Failed to discover providers: %v", err)
+	// Register all providers (built-in and plugins)
+	if err := m.setupProviders(); err != nil {
+		logger.Error("Failed to setup providers: %v", err)
 		// Not fatal - continue with available providers
 	}
 
-	// Start cleanup service
+	// Start cleanup service with safe goroutine
 	m.wg.Add(1)
-	go func() {
+	tErrors.SafeGoContext(m.ctx, m.errorReporter, m.logger, "cleanup-service", func(ctx context.Context) error {
 		defer m.wg.Done()
-		m.cleanupService.Run(m.ctx)
-	}()
+		m.cleanupService.Run(ctx)
+		return nil
+	})
 
 	m.initialized = true
-	logger.Info("Transcoding manager initialized with %d providers", len(m.providers))
+	logger.Info("Transcoding manager initialized with %d providers", m.providerRegistry.Count())
 
 	return nil
 }
 
-// registerBuiltinProviders registers the built-in transcoding providers
-func (m *Manager) registerBuiltinProviders() {
-	m.providersMutex.Lock()
-	defer m.providersMutex.Unlock()
+// setupProviders registers all available transcoding providers.
+// This includes both built-in providers and plugin providers.
+func (m *Manager) setupProviders() error {
+	// Register built-in file pipeline provider
+	pipelineProvider := pipeline.NewProvider(
+		m.config.TranscodingDir,
+		m.sessionStore,
+		m.contentStore,
+		m.logger.Named("pipeline-provider"),
+	)
+	m.providerRegistry.Register(pipelineProvider)
 
-	// Register streaming pipeline provider with content hash callback
-	contentHashCallback := m.migrationService.CreateContentMigrationCallback()
-	pipelineProvider := pipeline.NewProviderWithCallback(m.config.TranscodingDir, contentHashCallback)
+	// Register plugin providers if available
+	if m.pluginManager != nil {
+		pluginProviders := m.pluginManager.GetTranscodingProviders()
+		for _, provider := range pluginProviders {
+			m.providerRegistry.Register(provider)
+		}
+	}
 
-	// Initialize the provider with required services
-	pipelineProvider.Initialize(m.sessionStore, m.contentStore)
-
-	m.pipelineProvider = pipelineProvider
-
-	logger.Info("Registered built-in streaming provider")
+	return nil
 }
 
-// DiscoverProviders finds all available transcoding providers
+// DiscoverProviders re-discovers all available plugin providers.
+// This is called when the plugin manager is updated.
 func (m *Manager) DiscoverProviders() error {
 	if m.pluginManager == nil {
-		return fmt.Errorf("plugin manager not available")
+		return tErrors.InternalError("discover_providers", tErrors.ErrProviderNotAvailable).
+			WithDetail("reason", "plugin_manager_nil")
 	}
 
+	// Register new plugin providers
 	providers := m.pluginManager.GetTranscodingProviders()
-
-	m.providersMutex.Lock()
-	defer m.providersMutex.Unlock()
-
 	for _, provider := range providers {
-		info := provider.GetInfo()
-		m.providers[info.ID] = provider
-		logger.Info("Registered transcoding provider", "id", info.ID, "name", info.Name)
+		m.providerRegistry.Register(provider)
 	}
 
 	return nil
 }
 
-// StartTranscode initiates a new transcoding session
+// StartTranscode initiates a new transcoding session with resource management.
+// If resource limits are exceeded, the request will be queued.
 func (m *Manager) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
+	logger.Info("Manager.StartTranscode called",
+		"container", req.Container,
+		"inputPath", req.InputPath,
+		"mediaID", req.MediaID,
+		"sessionID", req.SessionID)
+
+	// Check if there's already an active session for this content
+	contentHash := m.sessionStore.GenerateContentHash(req.InputPath, req.MediaID, req.Container)
+	logger.Info("Checking for existing sessions", "contentHash", contentHash)
+	
+	// Get active sessions for this content hash
+	activeSessions, err := m.sessionStore.ListActiveSessionsByContentHash(contentHash)
+	if err == nil && len(activeSessions) > 0 {
+		// Check for a usable session
+		for _, session := range activeSessions {
+			if session.Status == "running" || session.Status == "completed" {
+				logger.Info("Found existing active session, reusing it",
+					"sessionID", session.ID,
+					"status", session.Status,
+					"contentHash", contentHash)
+				
+				// Recreate handle for existing session
+				handle := &plugins.TranscodeHandle{
+					SessionID:  session.ID,
+					Provider:   session.Provider,
+					StartTime:  session.CreatedAt,
+					Status:     plugins.TranscodeStatus(session.Status),
+					Directory:  filepath.Join(m.config.TranscodingDir, "sessions", session.ID),
+					Context:    ctx,
+				}
+				
+				return handle, nil
+			}
+		}
+	}
+
+	// Use resource manager to handle the transcoding request
+	return m.resourceManager.StartTranscode(ctx, req, m.executeTranscode)
+}
+
+// executeTranscode is the actual transcoding execution function called by the resource manager
+func (m *Manager) executeTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
 	// Select provider based on request
 	provider, err := m.selectProvider(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to select provider: %w", err)
-	}
-
-	// Generate session ID if not provided
-	if req.SessionID == "" {
-		req.SessionID = generateSessionID()
+		return nil, tErrors.Wrap(err, tErrors.ErrorTypeProvider, "select_provider")
 	}
 
 	// Create session in database first
 	providerInfo := provider.GetInfo()
 	dbSession, err := m.sessionStore.CreateSession(providerInfo.ID, &req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create session in database: %w", err)
+		return nil, tErrors.SessionError("create_session", err).
+			WithDetail("provider", providerInfo.ID).
+			WithDetail("media_id", req.MediaID)
 	}
 
 	// Update request with database-generated session ID
@@ -228,27 +284,15 @@ func (m *Manager) StartTranscode(ctx context.Context, req plugins.TranscodeReque
 	if err != nil {
 		// Mark session as failed if provider fails to start
 		m.sessionStore.FailSession(dbSession.ID, err)
-		return nil, fmt.Errorf("provider failed to start transcode: %w", err)
+		return nil, tErrors.TranscodeError("start_transcode", err).
+			WithSession(dbSession.ID).
+			WithDetail("provider", providerInfo.ID)
 	}
 
-	// Create session info
-	info := &types.SessionInfo{
-		SessionID:   req.SessionID,
-		MediaID:     req.MediaID,
-		Provider:    handle.Provider,
-		Container:   req.Container,
-		Status:      handle.Status,
-		Progress:    0,
-		StartTime:   handle.StartTime,
-		Directory:   handle.Directory,
-		ContentHash: dbSession.ContentHash,
+	// Update database session status to running
+	if err := m.sessionStore.UpdateSessionStatus(req.SessionID, "running", ""); err != nil {
+		m.logger.Warn("failed to update session status", "sessionID", req.SessionID, "error", err)
 	}
-
-	// Store session
-	m.sessionsMutex.Lock()
-	m.sessions[req.SessionID] = info
-	m.sessionHandles[req.SessionID] = handle
-	m.sessionsMutex.Unlock()
 
 	// Emit event
 	if m.eventBus != nil {
@@ -266,99 +310,57 @@ func (m *Manager) StartTranscode(ctx context.Context, req plugins.TranscodeReque
 		m.eventBus.PublishAsync(event)
 	}
 
-	// Start progress monitoring
-	go m.monitorProgress(req.SessionID, handle, provider)
+	// Start progress monitoring with safe goroutine
+	tErrors.SafeGoContext(m.ctx, m.errorReporter, m.logger, "progress-monitor", func(ctx context.Context) error {
+		m.monitorProgress(ctx, req.SessionID, handle, provider)
+		return nil
+	})
 
 	return handle, nil
 }
 
-// selectProvider chooses the best provider for the request
+// selectProvider chooses the best provider for the request.
+// It delegates to the provider registry for selection logic.
 func (m *Manager) selectProvider(req plugins.TranscodeRequest) (plugins.TranscodingProvider, error) {
-	m.providersMutex.RLock()
-	defer m.providersMutex.RUnlock()
-
-	// Streaming-first architecture: only support DASH/HLS through pipeline provider
-	if req.Container == "dash" || req.Container == "hls" {
-		if m.pipelineProvider != nil {
-			return m.pipelineProvider, nil
-		}
-		return nil, fmt.Errorf("streaming pipeline provider not available")
-	}
-
-	// Check external plugin providers for other formats
-	var candidates []plugins.TranscodingProvider
-	for _, provider := range m.providers {
-		formats := provider.GetSupportedFormats()
-		for _, format := range formats {
-			if format.Format == req.Container {
-				candidates = append(candidates, provider)
-				break
-			}
-		}
-	}
-
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no provider supports format: %s - only streaming formats (dash/hls) are supported natively", req.Container)
-	}
-
-	// Select provider with highest priority
-	var selected plugins.TranscodingProvider
-	highestPriority := -1
-
-	for _, provider := range candidates {
-		info := provider.GetInfo()
-		if info.Priority > highestPriority {
-			selected = provider
-			highestPriority = info.Priority
-		}
-	}
-
-	return selected, nil
+	return m.providerRegistry.SelectProvider(req)
 }
 
-// GetProgress returns the progress of a transcoding session
+// GetProgress returns the progress of a transcoding session.
+// It retrieves the session from the database and queries the provider for current progress.
 func (m *Manager) GetProgress(sessionID string) (*plugins.TranscodingProgress, error) {
-	m.sessionsMutex.RLock()
-	handle, exists := m.sessionHandles[sessionID]
-	info := m.sessions[sessionID]
-	m.sessionsMutex.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+	// Get session from database
+	session, err := m.sessionStore.GetSession(sessionID)
+	if err != nil {
+		return nil, tErrors.SessionError("get_progress", err).
+			WithSession(sessionID)
 	}
 
 	// Get provider
-	provider, err := m.GetProvider(info.Provider)
+	provider, err := m.GetProvider(session.Provider)
 	if err != nil {
-		return nil, fmt.Errorf("provider not found: %s", info.Provider)
+		return nil, tErrors.ProviderError("get_progress", err).
+			WithSession(sessionID).
+			WithDetail("provider_id", session.Provider)
+	}
+
+	// Recreate handle for progress query
+	handle := &plugins.TranscodeHandle{
+		SessionID: sessionID,
+		Provider:  session.Provider,
+		Status:    plugins.TranscodeStatus(session.Status),
 	}
 
 	return provider.GetProgress(handle)
 }
 
-// GetProvider returns a specific provider by ID
+// GetProvider returns a specific provider by ID.
 func (m *Manager) GetProvider(providerID string) (plugins.TranscodingProvider, error) {
-	m.providersMutex.RLock()
-	defer m.providersMutex.RUnlock()
-
-	// Check pipeline provider first
-	if m.pipelineProvider != nil {
-		info := m.pipelineProvider.GetInfo()
-		if info.ID == providerID {
-			return m.pipelineProvider, nil
-		}
-	}
-
-	provider, exists := m.providers[providerID]
-	if !exists {
-		return nil, fmt.Errorf("provider not found: %s", providerID)
-	}
-
-	return provider, nil
+	return m.providerRegistry.GetProvider(providerID)
 }
 
-// monitorProgress monitors the progress of a transcoding session
-func (m *Manager) monitorProgress(sessionID string, handle *plugins.TranscodeHandle, provider plugins.TranscodingProvider) {
+// monitorProgress monitors the progress of a transcoding session.
+// It periodically queries the provider for progress and updates the database.
+func (m *Manager) monitorProgress(ctx context.Context, sessionID string, handle *plugins.TranscodeHandle, provider plugins.TranscodingProvider) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -367,27 +369,47 @@ func (m *Manager) monitorProgress(sessionID string, handle *plugins.TranscodeHan
 		case <-ticker.C:
 			progress, err := provider.GetProgress(handle)
 			if err != nil {
-				logger.Warn("Failed to get progress", "sessionId", sessionID, "error", err)
+				// Report error but continue monitoring
+				tErr := tErrors.TranscodeError("get_progress", err).
+					WithSession(sessionID)
+				m.errorReporter.ReportError(ctx, tErr)
 				continue
 			}
 
-			// Update session info
-			m.sessionsMutex.Lock()
-			if info, exists := m.sessions[sessionID]; exists {
-				info.Progress = progress.PercentComplete
-				info.Status = handle.Status
+			// Update progress in database
+			if err := m.sessionStore.UpdateProgress(sessionID, progress); err != nil {
+				tErr := tErrors.SessionError("update_progress", err).
+					WithSession(sessionID)
+				m.errorReporter.ReportError(ctx, tErr)
 			}
-			m.sessionsMutex.Unlock()
+
+			// Update resource manager with current status
+			if m.resourceManager != nil {
+				m.resourceManager.UpdateSessionStatus(sessionID, handle.Status)
+			}
 
 			// Check if completed
 			if handle.Status == plugins.TranscodeStatusCompleted ||
 				handle.Status == plugins.TranscodeStatusFailed ||
 				handle.Status == plugins.TranscodeStatusCancelled {
+				
+				// Update final status in database
+				switch handle.Status {
+				case plugins.TranscodeStatusCompleted:
+					// Create a success result
+					result := &plugins.TranscodeResult{
+						Success: true,
+					}
+					m.sessionStore.CompleteSession(sessionID, result)
+				case plugins.TranscodeStatusFailed:
+					m.sessionStore.FailSession(sessionID, fmt.Errorf("transcoding failed"))
+				}
+				
 				return
 			}
 
-		case <-m.shutdownCh:
-			return
+		case <-ctx.Done():
+		return
 		}
 	}
 }
@@ -419,140 +441,186 @@ func (m *Manager) GetMigrationService() *migration.ContentMigrationService {
 	return m.migrationService
 }
 
-// Shutdown gracefully shuts down the manager
-func (m *Manager) Shutdown() error {
-	logger.Info("Shutting down transcoding manager")
+// GetResourceUsage returns current resource usage statistics
+func (m *Manager) GetResourceUsage() *resource.ResourceUsage {
+	if m.resourceManager == nil {
+		return nil
+	}
+	return m.resourceManager.GetResourceUsage()
+}
 
-	// Signal shutdown
+// Shutdown gracefully shuts down the manager and all its components.
+func (m *Manager) Shutdown() error {
+	m.logger.Info("shutting down transcoding manager")
+
+	// Signal shutdown to all goroutines
 	if m.cancel != nil {
 		m.cancel()
 	}
 
-	// Only close shutdownCh if it hasn't been closed already
-	select {
-	case <-m.shutdownCh:
-		// Already closed
-	default:
-		close(m.shutdownCh)
+	// Shutdown components in order
+	if m.resourceManager != nil {
+		m.resourceManager.Shutdown()
 	}
 
-	// Wait for routines to finish
+	// Wait for all goroutines to finish
 	m.wg.Wait()
 
+	m.logger.Info("transcoding manager shutdown complete")
 	return nil
 }
 
-// generateSessionID creates a unique session ID
-func generateSessionID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
 
-// StopTranscode stops an active transcoding session
+// StopTranscode stops an active transcoding session.
 func (m *Manager) StopTranscode(sessionID string) error {
-	m.sessionsMutex.RLock()
-	handle, exists := m.sessionHandles[sessionID]
-	info := m.sessions[sessionID]
-	m.sessionsMutex.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("session not found: %s", sessionID)
+	// Get session from database
+	session, err := m.sessionStore.GetSession(sessionID)
+	if err != nil {
+		return tErrors.SessionError("stop_transcode", err).
+			WithSession(sessionID)
 	}
 
 	// Get provider
-	provider, err := m.GetProvider(info.Provider)
+	provider, err := m.GetProvider(session.Provider)
 	if err != nil {
-		return fmt.Errorf("provider not found: %s", info.Provider)
+		return tErrors.ProviderError("stop_transcode", err).
+			WithSession(sessionID).
+			WithDetail("provider_id", session.Provider)
+	}
+
+	// Recreate handle for stop operation
+	handle := &plugins.TranscodeHandle{
+		SessionID: sessionID,
+		Provider:  session.Provider,
+		Status:    plugins.TranscodeStatus(session.Status),
 	}
 
 	// Stop transcoding
 	if err := provider.StopTranscode(handle); err != nil {
-		return fmt.Errorf("failed to stop transcode: %w", err)
+		return tErrors.TranscodeError("stop_transcode", err).
+			WithSession(sessionID).
+			WithDetail("provider", session.Provider)
 	}
 
-	// Update session status
-	m.sessionsMutex.Lock()
-	if session, exists := m.sessions[sessionID]; exists {
-		session.Status = plugins.TranscodeStatusCancelled
+	// Update session status in database
+	if err := m.sessionStore.UpdateSessionStatus(sessionID, "cancelled", "User cancelled"); err != nil {
+		// Log but don't fail - transcoding was stopped
+		tErr := tErrors.SessionError("update_session_status", err).
+			WithSession(sessionID)
+		m.logger.Warn("failed to update session status", 
+			"error", tErr,
+			"sessionID", sessionID)
 	}
-	m.sessionsMutex.Unlock()
+
+	// Remove from resource manager
+	if m.resourceManager != nil {
+		m.resourceManager.RemoveSession(sessionID)
+	}
 
 	// Emit event
 	if m.eventBus != nil {
-		event := events.NewEvent(
+		event := events.NewEventWithData(
 			events.EventInfo,
 			"transcoding",
 			"Transcoding Stopped",
 			fmt.Sprintf("Transcoding stopped for session %s", sessionID),
+			map[string]interface{}{
+				"sessionId": sessionID,
+			},
 		)
-		event.Data["sessionId"] = sessionID
 		m.eventBus.PublishAsync(event)
 	}
 
 	return nil
 }
 
-// GetProviders returns information about all available providers
+// GetProviders returns information about all available providers.
 func (m *Manager) GetProviders() []plugins.ProviderInfo {
-	m.providersMutex.RLock()
-	defer m.providersMutex.RUnlock()
-
-	providers := make([]plugins.ProviderInfo, 0, len(m.providers))
-	for _, provider := range m.providers {
-		providers = append(providers, provider.GetInfo())
-	}
-
-	// Add pipeline provider if available
-	if m.pipelineProvider != nil {
-		providers = append(providers, m.pipelineProvider.GetInfo())
-	}
-
-	return providers
+	return m.providerRegistry.GetProviders()
 }
 
-// GetSession returns information about a specific session
+// GetSession returns information about a specific session.
 func (m *Manager) GetSession(sessionID string) (*types.SessionInfo, error) {
-	m.sessionsMutex.RLock()
-	defer m.sessionsMutex.RUnlock()
+	session, err := m.sessionStore.GetSession(sessionID)
+	if err != nil {
+		return nil, tErrors.SessionError("get_session", err).
+			WithSession(sessionID)
+	}
 
-	info, exists := m.sessions[sessionID]
-	if !exists {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+	// Convert database session to SessionInfo
+	info := &types.SessionInfo{
+		SessionID:   session.ID,
+		Provider:    session.Provider,
+		Status:      plugins.TranscodeStatus(session.Status),
+		StartTime:   session.StartTime,
+		ContentHash: session.ContentHash,
+		Directory:   session.DirectoryPath,
+	}
+
+	// Parse request to get additional info
+	var req plugins.TranscodeRequest
+	if err := json.Unmarshal([]byte(session.Request), &req); err == nil {
+		info.MediaID = req.MediaID
+		info.Container = req.Container
 	}
 
 	return info, nil
 }
 
-// GetAllSessions returns all active sessions
+// GetAllSessions returns all active sessions.
 func (m *Manager) GetAllSessions() []*types.SessionInfo {
-	m.sessionsMutex.RLock()
-	defer m.sessionsMutex.RUnlock()
-
-	sessions := make([]*types.SessionInfo, 0, len(m.sessions))
-	for _, session := range m.sessions {
-		sessions = append(sessions, session)
+	sessions, err := m.sessionStore.GetActiveSessions()
+	if err != nil {
+		m.logger.Error("failed to get active sessions", "error", err)
+		return []*types.SessionInfo{}
 	}
 
-	return sessions
+	result := make([]*types.SessionInfo, 0, len(sessions))
+	for _, session := range sessions {
+		info := &types.SessionInfo{
+			SessionID:   session.ID,
+			Provider:    session.Provider,
+			Status:      plugins.TranscodeStatus(session.Status),
+			StartTime:   session.StartTime,
+			ContentHash: session.ContentHash,
+			Directory:   session.DirectoryPath,
+		}
+
+		// Parse request to get additional info
+		var req plugins.TranscodeRequest
+		if err := json.Unmarshal([]byte(session.Request), &req); err == nil {
+			info.MediaID = req.MediaID
+			info.Container = req.Container
+		}
+
+		result = append(result, info)
+	}
+
+	return result
 }
 
-// GetPipelineStatus returns the status of the pipeline provider
+// GetPipelineStatus returns the status of the pipeline provider.
+// This provides statistics about the file-based transcoding provider.
 func (m *Manager) GetPipelineStatus() *types.PipelineStatus {
+	// Find the file pipeline provider using registry
+	_, err := m.providerRegistry.GetProvider("file_pipeline")
+
 	status := &types.PipelineStatus{
-		Available:        m.pipelineProvider != nil,
-		SupportedFormats: []string{"dash", "hls"},
+		Available:        err == nil,
+		SupportedFormats: []string{"mp4", "mkv"},
 		ActiveJobs:       0,
 		CompletedJobs:    0,
 		FailedJobs:       0,
 	}
 
-	if m.pipelineProvider == nil {
+	if err != nil {
 		return status
 	}
 
-	// Count active, completed, and failed jobs from sessions
-	m.sessionsMutex.RLock()
-	for _, session := range m.sessions {
-		if session.Provider == "streaming_pipeline" {
+	// Count jobs from active sessions
+	sessions := m.GetAllSessions()
+	for _, session := range sessions {
+		if session.Provider == "file_pipeline" {
 			switch session.Status {
 			case plugins.TranscodeStatusRunning, plugins.TranscodeStatusStarting:
 				status.ActiveJobs++
@@ -563,7 +631,6 @@ func (m *Manager) GetPipelineStatus() *types.PipelineStatus {
 			}
 		}
 	}
-	m.sessionsMutex.RUnlock()
 
 	return status
 }

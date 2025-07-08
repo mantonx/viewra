@@ -1,3 +1,6 @@
+// Package system provides system information and resource monitoring utilities.
+// It detects available CPU cores, memory, and other system capabilities to help
+// optimize transcoding performance.
 package system
 
 import (

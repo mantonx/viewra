@@ -1,408 +1,370 @@
-# Playback Module - Clean Architecture
+# Playback Module
+
+The Playback Module is responsible for intelligent media playback decisions, progressive download support, session management, and user behavior tracking. It provides a clean, modern approach to media streaming without complex legacy protocols.
 
 ## Overview
 
-The Playback Module has been completely refactored to follow a clean architecture pattern, providing dynamic discovery and use of transcoding plugins. This provides a scalable, extensible architecture for video transcoding and streaming.
+This module handles the core playback functionality for Viewra's media management platform, supporting both video and audio content with device-aware streaming capabilities.
+
+### Key Features
+
+- **Intelligent Playback Decisions**: Automatically chooses between direct play, remux, or transcode based on device capabilities
+- **Progressive Download**: HTTP range-based streaming with resume support
+- **Session Management**: Comprehensive playback session tracking and analytics
+- **Device Compatibility**: Support for browsers, native apps, TVs, and streaming devices
+- **Music-Aware Logic**: Specialized handling for audio content with different completion criteria
+- **Deduplication**: Smart transcode caching to avoid redundant processing
+- **Future-Ready**: Designed for easy integration with recommendation engines
 
 ## Architecture
 
-### Module Structure
-
-The playback module follows a clean separation of concerns:
-
-1. **module.go** - Module lifecycle management (Init, Migrate, RegisterRoutes, Shutdown)
-2. **manager.go** - Business logic and service management
-3. **api_handler.go** - HTTP request handling
-4. **routes.go** - Route registration
-5. **transcode_manager.go** - Transcoding session management
-6. **planner.go** - Playback decision logic
-7. **types.go** - Shared type definitions
-8. **plugin_adapter.go** - Plugin system integration
-
 ### Core Components
 
-1. **Manager** - Central business logic coordinator
-   - Owns the TranscodeManager and Planner
-   - Manages background services (cleanup)
-   - Handles configuration
-
-2. **PlaybackPlanner** - Analyzes media and device capabilities to decide between direct play and transcoding
-
-3. **TranscodeManager** - Plugin-aware transcoding session manager
-
-4. **APIHandler** - HTTP endpoint handlers
-
-### Plugin Integration Flow
-
 ```
-[Client Request] 
-    ↓
-[APIHandler] 
-    ↓
-[Manager] 
-    ↓
-[TranscodeManager] 
-    ↓
-[Plugin Discovery] → [Available Transcoding Plugins]
-    ↓
-[Best Plugin Selection] 
-    ↓
-[Transcoding Session] → [FFmpeg/Other Transcoder]
-    ↓
-[Streaming Response]
+playbackmodule_new/
+├── api/                    # HTTP API handlers
+├── core/                   # Core business logic
+│   ├── decision_engine.go  # Playback method decisions
+│   ├── progressive_handler.go  # Range request handling
+│   ├── session_manager.go  # Session lifecycle
+│   ├── cleanup_manager.go  # Resource cleanup
+│   ├── history_manager.go  # User history coordination
+│   ├── media_history.go    # Media-aware history tracking
+│   ├── session_tracker.go  # Session event tracking
+│   ├── recommendation_tracker.go  # User interaction tracking
+│   └── transcode_deduplicator.go  # Transcode optimization
+├── models/                 # Database models
+├── service/                # Service layer implementation
+├── types/                  # Type definitions
+└── utils/                  # Module-specific utilities
 ```
 
-## Key Features
+### Service Dependencies
 
-### 🔍 **Automatic Plugin Discovery**
-- Scans running plugins for transcoding services
-- Dynamically registers available transcoders
-- Supports hot-reloading of plugins
+- **MediaService**: Media file information and metadata
+- **TranscodingService**: On-demand transcoding capabilities
+- **DatabaseModule**: Persistent storage for sessions and history
 
-### 🎯 **Intelligent Backend Selection**
-- Evaluates plugins based on:
-  - Codec support (H.264, HEVC, VP8, VP9, AV1)
-  - Resolution capabilities
-  - Container format support
-  - Priority and current load
-- Automatically selects the best available transcoder
+## How It Works
 
-### 📊 **Comprehensive Session Management**
-- Real-time session tracking
-- Concurrent session limits
-- Automatic cleanup of expired sessions
-- Detailed statistics and monitoring
+### 1. Playback Decision Engine
 
-### 🔄 **Streaming Optimization**
-- Direct streaming from transcoder output
-- Real-time progress monitoring
-- Efficient memory usage with streaming pipes
+The decision engine analyzes media files and device capabilities to determine the optimal playback method:
+
+```go
+decision, err := playbackService.DecidePlayback(mediaPath, deviceProfile)
+```
+
+**Decision Logic:**
+- **Direct Play**: Native format support, no processing needed
+- **Remux**: Container change needed, no re-encoding  
+- **Transcode**: Full re-encoding required for compatibility
+
+### 2. Progressive Download
+
+Supports HTTP range requests for efficient streaming:
+
+```go
+// Handles partial content requests
+Range: bytes=0-1023
+Content-Range: bytes 0-1023/2048
+```
+
+**Features:**
+- Resume support for interrupted downloads
+- Efficient seeking in large media files
+- Bandwidth-aware streaming
+
+### 3. Session Management
+
+Tracks comprehensive playback sessions:
+
+```go
+session, err := playbackService.StartPlaybackSession(mediaFileID, userID, deviceID, method)
+```
+
+**Session Data:**
+- Playback position and duration
+- Device information and capabilities
+- Quality settings and bandwidth
+- User interactions and events
+
+### 4. Music-Aware History
+
+Different completion criteria for different media types:
+
+**Audio Content (Music/Podcasts):**
+- 70% completion OR
+- 30 seconds + 50% completion OR  
+- 90 seconds minimum
+
+**Video Content:**
+- Traditional 90% completion rule
 
 ## API Endpoints
 
-### Playback Decision
+### Playback Control
+
 ```http
 POST /api/playback/decide
+POST /api/playback/session/start
+PUT  /api/playback/session/{id}
+POST /api/playback/session/{id}/end
+GET  /api/playback/session/{id}
 ```
-**Request:**
-```json
-{
-  "media_path": "/path/to/video.mkv",
-  "device_profile": {
-    "user_agent": "Mozilla/5.0...",
-    "supported_codecs": ["h264", "aac"],
-    "max_resolution": "1080p",
-    "max_bitrate": 6000,
-    "supports_hevc": false,
-    "client_ip": "192.168.1.100"
-  }
+
+### Streaming
+
+```http
+GET /api/playback/stream/direct/{id}
+GET /api/playback/stream/remux/{id}
+GET /api/playback/stream/transcode/{id}
+```
+
+### History & Analytics
+
+```http
+GET /api/playback/history/{userID}
+GET /api/playback/recently-played/{userID}
+GET /api/playback/incomplete/{userID}
+GET /api/playback/stats/{userID}
+```
+
+## Database Models
+
+### Core Models
+
+- **PlaybackSession**: Active playback sessions with real-time state
+- **PlaybackHistory**: Denormalized history for quick queries
+- **UserMediaProgress**: Resume positions and completion tracking
+- **SessionEvent**: Granular playback events (play, pause, seek, etc.)
+
+### Analytics Models
+
+- **PlaybackAnalytics**: Aggregated daily statistics
+- **UserPlaybackStats**: User-specific aggregated metrics
+- **MediaInteraction**: Detailed user interaction tracking
+
+### Recommendation-Ready Models
+
+- **UserPreferences**: Learned user preferences
+- **MediaFeatures**: Extracted content features
+- **UserVector**: User preference vectors for ML
+- **RecommendationCache**: Pre-calculated recommendations
+
+### Optimization Models
+
+- **TranscodeCache**: Deduplication and caching
+- **TranscodeCleanupTask**: Resource management
+
+## Usage Examples
+
+### Basic Playback Flow
+
+```go
+// 1. Decide playback method
+decision, err := playbackService.DecidePlayback("/path/to/video.mkv", deviceProfile)
+
+// 2. Start session
+session, err := playbackService.StartPlaybackSession(mediaFileID, userID, deviceID, decision.Method)
+
+// 3. Get streaming URL
+streamURL, err := playbackService.PrepareStreamURL(decision, baseURL)
+
+// 4. Update session during playback
+updates := map[string]interface{}{
+    "position": 1800, // 30 minutes
+    "state": "playing",
+}
+err = playbackService.UpdatePlaybackSession(session.ID, updates)
+
+// 5. End session
+err = playbackService.EndPlaybackSession(session.ID)
+```
+
+### Device Profile Examples
+
+```go
+// Browser
+browserProfile := &types.DeviceProfile{
+    SupportedCodecs: []string{"h264", "vp9"},
+    MaxResolution: "1080p",
+    SupportsHEVC: false,
+}
+
+// Apple TV
+appleTVProfile := &types.DeviceProfile{
+    SupportedCodecs: []string{"h264", "hevc"},
+    MaxResolution: "4K",
+    SupportsHEVC: true,
+    SupportsHDR: true,
 }
 ```
 
-**Response:**
-```json
-{
-  "should_transcode": true,
-  "transcode_params": {
-    "target_codec": "h264",
-    "target_container": "mp4",
-    "resolution": "1080p",
-    "bitrate": 3000
-  },
-  "reason": "Transcoding required: container change: mkv -> mp4"
-}
+### History Queries
+
+```go
+// Get recent playback history
+history, err := playbackService.GetUserPlaybackHistory(userID, "video", 20)
+
+// Get incomplete videos for resume
+incomplete, err := historyManager.GetIncompleteVideos(userID, 10)
+
+// Get most played music
+music, err := historyManager.GetMostPlayedMusic(userID, 50)
 ```
 
-### Start Transcoding
-```http
-POST /api/playback/start
-```
-**Request:**
-```json
-{
-  "input_path": "/path/to/video.mkv",
-  "target_codec": "h264",
-  "target_container": "mp4",
-  "resolution": "1080p",
-  "bitrate": 3000,
-  "audio_codec": "aac",
-  "quality": 23,
-  "preset": "fast"
-}
+## Integration with Other Modules
+
+### Media Module Integration
+
+```go
+// Get media file information
+mediaInfo, err := playbackService.GetMediaInfo(mediaPath)
+
+// Validate playback compatibility  
+err = playbackService.ValidatePlayback(mediaPath, deviceProfile)
 ```
 
-**Response:**
-```json
-{
-  "id": "uuid-session-id",
-  "status": "running",
-  "start_time": "2024-01-01T12:00:00Z",
-  "backend": "ffmpeg_transcoder",
-  "progress": 0.0
-}
+### Transcoding Module Integration
+
+```go
+// Get recommended transcode parameters
+params, err := playbackService.GetRecommendedTranscodeParams(mediaPath, deviceProfile)
+
+// Start transcode session
+session, err := transcodingService.StartTranscode(ctx, params)
 ```
 
-### Stream Transcoded Video
-```http
-GET /api/playback/stream/:sessionId
-```
-**Response:** Direct video stream with appropriate headers
+### Future Recommendation Engine
 
-### Session Management
-```http
-GET    /api/playback/session/:sessionId      # Get session info
-DELETE /api/playback/session/:sessionId      # Stop session
-GET    /api/playback/sessions                # List active sessions
-GET    /api/playback/stats                   # Get statistics
-```
+The module is designed for easy integration with recommendation engines:
 
-### Cleanup Management
-```http
-POST   /api/playback/cleanup/run             # Run manual cleanup
-GET    /api/playback/cleanup/stats           # Get cleanup statistics
+```go
+// Register for playback events
+playbackService.RegisterEventHandler(recommendationEngine)
+
+// Access user behavior data
+preferences, err := playbackService.GetUserPreferences(userID)
+interactions, err := playbackService.GetUserInteractionHistory(userID, 500)
 ```
 
 ## Configuration
 
-### Module Configuration
-```go
-type Config struct {
-    MaxConcurrentSessions    int
-    SessionTimeoutMinutes    int
-    EnableHardwareAccel      bool
-    DefaultQuality           int
-    DefaultPreset            string
-    TranscodingTimeout       time.Duration
-    BufferSize               int
-    CleanupIntervalMinutes   int
-    CleanupRetentionMinutes  int
-    EnableDebugLogging       bool
-}
+### Environment Variables
+
+```env
+PLAYBACK_CLEANUP_INTERVAL=1h
+PLAYBACK_SESSION_TIMEOUT=24h
+PLAYBACK_TRANSCODE_CACHE_SIZE=1000
+PLAYBACK_CACHE_MAX_AGE=24h
 ```
 
-Configuration can be set via environment variables:
-- `PLAYBACK_MAX_CONCURRENT_SESSIONS` (default: 3)
-- `PLAYBACK_SESSION_TIMEOUT_MINUTES` (default: 120)
-- `PLAYBACK_CLEANUP_INTERVAL_MINUTES` (default: 30)
-- etc.
-
-### Plugin Configuration (FFmpeg Example)
-Located in `backend/data/plugins/ffmpeg_transcoder/plugin.cue`:
-
-```cue
-plugin: {
-    id:          "ffmpeg_transcoder"
-    name:        "FFmpeg Transcoder"
-    type:        "transcoder"
-    priority:    50
-}
-
-ffmpeg: {
-    path:    "ffmpeg"
-    preset:  "fast"
-    threads: 0
-}
-
-quality: {
-    crf_h264: 23.0
-    crf_hevc: 28.0
-}
-
-performance: {
-    max_concurrent_jobs: 3
-    timeout_seconds:     1800
-}
-```
-
-## Integration Example
-
-### Basic Setup
-```go
-package main
-
-import (
-    "github.com/mantonx/viewra/internal/database"
-    "github.com/mantonx/viewra/internal/events"
-    "github.com/mantonx/viewra/internal/modules/playbackmodule"
-    "github.com/mantonx/viewra/internal/modules/pluginmodule"
-    "gorm.io/gorm"
-)
-
-func setupPlaybackModule(db *gorm.DB) error {
-    // 1. Create external plugin manager
-    logger := hclog.NewNullLogger()
-    externalPluginManager := pluginmodule.NewExternalPluginManager(db, logger)
-    
-    // 2. Initialize with plugin directory
-    pluginDir := "/path/to/plugins"
-    hostServices := &pluginmodule.HostServices{}
-    
-    err := externalPluginManager.Initialize(ctx, pluginDir, hostServices)
-    if err != nil {
-        return err
-    }
-
-    // 3. Create adapter and module
-    adapter := playbackmodule.NewExternalPluginManagerAdapter(externalPluginManager)
-    module := playbackmodule.NewModule(db, nil, adapter)
-    
-    // 4. Initialize module
-    return module.Init()
-}
-```
-
-### Usage Example
-```go
-// Get the manager from the module
-manager := module.GetManager()
-if manager == nil {
-    return fmt.Errorf("playback manager not available")
-}
-
-// Get playback decision
-deviceProfile := &playbackmodule.DeviceProfile{
-    UserAgent:       "Chrome/Browser",
-    SupportedCodecs: []string{"h264", "aac"},
-    MaxResolution:   "1080p",
-    MaxBitrate:      6000,
-}
-
-planner := manager.GetPlanner()
-decision, err := planner.DecidePlayback(mediaPath, deviceProfile)
-if err != nil {
-    return err
-}
-
-// Start transcoding if needed
-if decision.ShouldTranscode {
-    transcodeManager := manager.GetTranscodeManager()
-    session, err := transcodeManager.StartTranscode(decision.TranscodeParams)
-    if err != nil {
-        return err
-    }
-    
-    // Get the transcoding stream
-    stream, err := transcodeManager.GetStream(session.ID)
-    if err != nil {
-        return err
-    }
-    defer stream.Close()
-    
-    // Use stream for HTTP response...
-}
-```
-
-## Plugin Development
-
-### Implementing a Transcoding Plugin
-
-1. **Implement the `plugins.Implementation` interface**
-2. **Provide `TranscodingProvider()` method**
-3. **Implement `plugins.TranscodingProvider` interface**
+### Cleanup Configuration
 
 ```go
-type MyTranscoderPlugin struct {
-    // Plugin fields
-}
-
-func (p *MyTranscoderPlugin) TranscodingProvider() plugins.TranscodingProvider {
-    return p.transcodingProvider
-}
-
-func (p *MyTranscoderPlugin) Initialize(ctx *plugins.PluginContext) error {
-    // Initialize transcoding provider
-    return nil
+type CleanupConfig struct {
+    SessionTimeout    time.Duration // 24 hours
+    TranscodeTimeout  time.Duration // 1 hour  
+    CleanupInterval   time.Duration // 1 hour
+    MaxCacheSize      int           // 1000 entries
+    CacheMaxAge       time.Duration // 24 hours
 }
 ```
 
-### Transcoding Provider Implementation
+## Monitoring & Observability
+
+### Metrics
+
+- **playback_sessions_active**: Current active sessions
+- **playback_decisions_total**: Playback decisions by method
+- **playback_completion_rate**: Content completion rates
+- **transcode_deduplication_ratio**: Cache hit ratio
+- **cleanup_operations_total**: Resource cleanup operations
+
+### Logging
 
 ```go
-func (p *MyProvider) GetInfo() plugins.ProviderInfo {
-    return plugins.ProviderInfo{
-        ID:          "my-transcoder",
-        Name:        "My Transcoder",
-        Description: "Custom transcoding provider",
-        Version:     "1.0.0",
-        Author:      "My Company",
-        Priority:    75, // Higher = preferred
-    }
-}
-
-func (p *MyProvider) GetSupportedFormats() []plugins.ContainerFormat {
-    return []plugins.ContainerFormat{
-        {Format: "mp4", MimeType: "video/mp4", Extensions: []string{".mp4"}},
-        {Format: "webm", MimeType: "video/webm", Extensions: []string{".webm"}},
-    }
-}
-
-func (p *MyProvider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
-    // Implement transcoding logic
-}
+logger.Info("Playback decision made",
+    "method", decision.Method,
+    "mediaType", mediaType,
+    "deviceType", deviceProfile.Type,
+    "reason", decision.Reason)
 ```
 
-## Monitoring and Statistics
+### Health Checks
 
-### Real-time Statistics
-```go
-manager := module.GetManager()
-stats, err := manager.GetTranscodeManager().GetStats()
+- Database connectivity
+- Cleanup manager status  
+- Active session count
+- Cache hit ratios
 
-// Access backend information
-for backendID, backend := range stats.Backends {
-    fmt.Printf("Backend: %s (Priority: %d, Active: %d)\n", 
-        backend.Name, backend.Priority, backend.ActiveSessions)
-}
+## Development
 
-// Access recent sessions
-for _, session := range stats.RecentSessions {
-    fmt.Printf("Session %s: %s (%s)\n", 
-        session.ID, session.Status, session.Provider)
-}
+### Running Tests
+
+```bash
+# Unit tests
+go test ./internal/modules/playbackmodule_new/...
+
+# Integration tests  
+go test -tags=integration ./internal/modules/playbackmodule_new/...
+
+# With coverage
+go test -cover ./internal/modules/playbackmodule_new/...
 ```
 
-### Health Monitoring
-- Automatic session cleanup
-- Plugin health checks
-- Performance metrics
-- Error tracking and recovery
+### Adding New Device Profiles
 
-## Benefits
+1. Define device capabilities in `types/device_profile.go`
+2. Update decision logic in `core/decision_engine.go`
+3. Add device-specific tests
+4. Update API documentation
 
-### 🚀 **Scalability**
-- Add new transcoding backends without code changes
-- Horizontal scaling with multiple plugin instances
-- Load balancing across available transcoders
+### Adding New Media Types
 
-### 🔧 **Flexibility**
-- Support for multiple transcoding engines (FFmpeg, hardware encoders, cloud services)
-- Runtime plugin discovery and registration
-- Configurable quality and performance settings
+1. Update completion logic in `core/media_history.go`
+2. Add quality assessment in `utils/media.go`
+3. Update database models if needed
+4. Add media-type-specific tests
 
-### 📈 **Performance**
-- Intelligent backend selection
-- Real-time streaming without temporary files
-- Concurrent session management
-- Resource optimization
+## Utilities
 
-### 🛠 **Maintainability**
-- Clean separation of concerns
-- Plugin-based architecture
-- Comprehensive error handling
-- Extensive logging and monitoring
+### Module-Specific Utilities (`utils/`)
 
-## Current Plugin Support
+- **HTTP Range Handling**: Parse and format HTTP range headers
+- **Media Analysis**: Audio/video detection, codec identification
+- **Quality Assessment**: Bitrate recommendations, format optimization
+- **Resolution Handling**: Parse and format resolution strings
 
-### FFmpeg Transcoder Plugin
-- **Location**: `backend/data/plugins/ffmpeg_transcoder/`
-- **Codecs**: H.264, HEVC, VP8, VP9, AV1
-- **Features**: Subtitle burn-in, multi-audio, streaming output
-- **Priority**: 50 (configurable)
-- **Status**: ✅ Complete implementation
+### Shared Utilities (`/internal/utils`)
 
-### Future Plugin Opportunities
-- **Hardware Transcoders**: NVENC, VAAPI, QuickSync
-- **Cloud Transcoders**: AWS Elemental, Google Transcoder API
-- **Specialized Encoders**: x265, SVT-AV1, rav1e
+- **UUID Generation**: Session and request IDs
+- **Content Type Detection**: MIME type identification
+- **Media File Validation**: Supported format checking
 
- // Updated: Sat Jun 21 07:45:54 PM EDT 2025
+## Security Considerations
+
+- **Path Validation**: Prevent directory traversal attacks
+- **Range Request Limits**: Prevent abuse of partial content requests
+- **Session Isolation**: User sessions are properly isolated
+- **Input Sanitization**: All user inputs are validated and sanitized
+
+## Performance Optimization
+
+- **Transcode Deduplication**: Avoid redundant processing
+- **Database Indexing**: Optimized queries for user history
+- **Connection Pooling**: Efficient database connections
+- **Memory Management**: Cleanup of expired sessions and cache entries
+
+## Future Enhancements
+
+- **Adaptive Bitrate Streaming**: Quality switching based on bandwidth
+- **Recommendation Integration**: ML-based content suggestions
+- **Advanced Analytics**: User behavior insights and reporting
+- **Multi-CDN Support**: Geographic content distribution
+- **Live Streaming**: Real-time content streaming capabilities
+
+---
+
+This module provides a solid foundation for media playback while maintaining flexibility for future enhancements and integrations.

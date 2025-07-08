@@ -17,7 +17,7 @@ export { default as ScanProgressCard } from './media/ScanProgressCard';
 export { default as EnrichmentProgressCard } from './media/EnrichmentProgressCard';
 
 // Audio Components
-export { default as AudioPlayer } from './audio/AudioPlayer';
+export { MusicPlayer } from './MusicPlayer';
 export { default as AlbumArtwork } from './audio/AlbumArtwork';
 
 // System Components

@@ -1,15 +1,14 @@
-// Package pipeline provides a streaming-first transcoding provider implementation.
-// This provider implements the TranscodingProvider interface and uses the StreamingPipeline
-// for real-time segment-based transcoding.
+// Package pipeline provides a file-based transcoding provider implementation.
+// The provider manages file transcoding operations using FFmpeg, offering
+// a straightforward approach to media processing without the complexity
+// of real-time streaming pipelines.
 package pipeline
 
 import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/session"
@@ -17,120 +16,161 @@ import (
 	plugins "github.com/mantonx/viewra/sdk"
 )
 
-// Provider implements the TranscodingProvider interface with streaming-first architecture
+// Provider implements the TranscodingProvider interface with file-based transcoding.
+// It manages transcoding sessions, handles content-addressable storage, and
+// provides a clean interface for the transcoding module to use.
+//
+// The provider focuses on reliability and simplicity:
+//   - Complete file transcoding (no streaming complexity)
+//   - Content deduplication via SHA256 hashes
+//   - Session management with database persistence
+//   - Progress tracking for long-running operations
 type Provider struct {
 	baseDir      string
 	logger       hclog.Logger
-	pipeline     *StreamingPipeline
+	pipeline     *FilePipeline
 	sessionStore *session.SessionStore
 	contentStore *storage.ContentStore
-
-	// Callbacks
-	contentHashCallback func(sessionID, contentHash string) error
 
 	// Active handles mapped by session ID
 	handles      map[string]*plugins.TranscodeHandle
 	handlesMutex sync.RWMutex
 }
 
-// NewProvider creates a new streaming pipeline provider
-func NewProvider(baseDir string) *Provider {
-	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "streaming-provider",
-		Level: hclog.Info,
-	})
+// NewProvider creates a new file pipeline provider with all required dependencies.
+//
+// Parameters:
+//   - baseDir: Base directory for temporary transcoding files and output
+//   - sessionStore: Manages transcoding session persistence
+//   - contentStore: Handles content-addressable storage
+//   - logger: Logger instance for this provider
+//
+// The provider will create necessary subdirectories under baseDir:
+//   - sessions/: Temporary files during transcoding
+//   - content/: Content-addressable storage for completed files
+func NewProvider(baseDir string, sessionStore *session.SessionStore, contentStore *storage.ContentStore, logger hclog.Logger) *Provider {
+	// Create file pipeline immediately with all dependencies
+	pipeline := NewFilePipeline(logger.Named("pipeline"), sessionStore, contentStore, baseDir)
 
 	return &Provider{
-		baseDir: baseDir,
-		logger:  logger,
-		handles: make(map[string]*plugins.TranscodeHandle),
+		baseDir:      baseDir,
+		logger:       logger.Named("file-provider"),
+		pipeline:     pipeline,
+		sessionStore: sessionStore,
+		contentStore: contentStore,
+		handles:      make(map[string]*plugins.TranscodeHandle),
 	}
 }
 
-// NewProviderWithCallback creates a provider with a content hash callback
-func NewProviderWithCallback(baseDir string, callback func(string, string, string)) *Provider {
-	p := NewProvider(baseDir)
-	// Wrap the callback to match our internal signature
-	p.contentHashCallback = func(sessionID, contentHash string) error {
-		// Generate content URL
-		contentURL := fmt.Sprintf("/api/v1/content/%s/", contentHash)
-		callback(sessionID, contentHash, contentURL)
-		return nil
-	}
-	return p
-}
 
-// Initialize sets up the provider with required services
-func (p *Provider) Initialize(sessionStore *session.SessionStore, contentStore *storage.ContentStore) {
-	p.sessionStore = sessionStore
-	p.contentStore = contentStore
 
-	// Create streaming pipeline with configuration
-	config := &StreamingConfig{
-		BaseDir:                p.baseDir,
-		SegmentDuration:        4,  // 4 second segments for balance between latency and efficiency
-		BufferAhead:            12, // 12 seconds of buffer
-		ManifestUpdateInterval: 2 * time.Second,
-		EnableABR:              false, // Disable ABR for now with Shaka (single quality first)
-		ABRProfiles: []EncodingProfile{
-			{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2500, Quality: 25},
-		},
-		UseShakaPackager: true, // Enable Shaka Packager for low-latency VOD
-	}
 
-	p.pipeline = NewStreamingPipeline(p.logger, sessionStore, contentStore, config)
 
-	// Set callbacks for pipeline events
-	p.pipeline.SetCallbacks(
-		p.onSegmentReady,
-		p.onManifestUpdate,
-		p.onContentComplete,
-	)
-}
-
-// GetInfo returns provider information
+// GetInfo returns provider information for display and selection.
+// The provider has high priority (100) as it's the primary built-in
+// transcoding mechanism.
 func (p *Provider) GetInfo() plugins.ProviderInfo {
 	return plugins.ProviderInfo{
-		ID:          "streaming_pipeline",
-		Name:        "Streaming Pipeline Provider",
-		Description: "Real-time segment-based transcoding with instant playback",
-		Version:     "2.0.0",
+		ID:          "file_pipeline",
+		Name:        "File Pipeline Provider",
+		Description: "File-based transcoding for complete media files",
+		Version:     "1.0.0",
 		Author:      "Viewra Team",
-		Priority:    100, // High priority for streaming formats
+		Priority:    100,
 	}
 }
 
-// GetSupportedFormats returns supported container formats
+// GetSupportedFormats returns supported output formats for this provider.
+// The file pipeline supports both MP4 and MKV containers with various codecs.
 func (p *Provider) GetSupportedFormats() []plugins.ContainerFormat {
 	return []plugins.ContainerFormat{
 		{
-			Format:      "dash",
-			MimeType:    "application/dash+xml",
-			Extensions:  []string{".mpd"},
-			Description: "MPEG-DASH streaming with real-time segments",
-			Adaptive:    true,
+			Format:       "mp4",
+			MimeType:     "video/mp4",
+			Extensions:   []string{".mp4"},
+			Description:  "MP4 container with H.264/H.265 video and AAC audio",
+			Adaptive:     false,
+			Intermediate: true,
 		},
 		{
-			Format:      "hls",
-			MimeType:    "application/vnd.apple.mpegurl",
-			Extensions:  []string{".m3u8"},
-			Description: "HLS streaming with real-time segments",
-			Adaptive:    true,
+			Format:       "mkv",
+			MimeType:     "video/x-matroska",
+			Extensions:   []string{".mkv"},
+			Description:  "Matroska container with various codecs",
+			Adaptive:     false,
+			Intermediate: true,
 		},
 	}
 }
 
-// StartTranscode starts a new transcoding operation
-func (p *Provider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
-	// Validate request
-	if req.Container != "dash" && req.Container != "hls" {
-		return nil, fmt.Errorf("unsupported container for streaming: %s", req.Container)
-	}
+// GetHardwareAccelerators returns available hardware acceleration options.
+// Currently returns an empty slice as this provider uses software encoding.
+func (p *Provider) GetHardwareAccelerators() []plugins.HardwareAccelerator {
+	return []plugins.HardwareAccelerator{}
+}
 
-	// Start streaming pipeline
-	handle, err := p.pipeline.StartStreaming(ctx, req)
+// GetQualityPresets returns available quality presets.
+func (p *Provider) GetQualityPresets() []plugins.QualityPreset {
+	return []plugins.QualityPreset{
+		{
+			ID:          "fast",
+			Name:        "Fast",
+			Description: "Fast encoding with good quality",
+			Quality:     75,
+			SpeedRating: 8,
+			SizeRating:  6,
+		},
+		{
+			ID:          "balanced",
+			Name:        "Balanced",
+			Description: "Balanced encoding speed and quality",
+			Quality:     85,
+			SpeedRating: 6,
+			SizeRating:  7,
+		},
+		{
+			ID:          "quality",
+			Name:        "High Quality",
+			Description: "Slow encoding with high quality",
+			Quality:     95,
+			SpeedRating: 3,
+			SizeRating:  9,
+		},
+	}
+}
+
+// IsAvailable checks if the provider is available for use.
+//
+// TODO: Implement actual FFmpeg availability check by:
+//   1. Checking if ffmpeg binary exists in PATH
+//   2. Verifying minimum version requirements
+//   3. Testing basic functionality
+//
+// For now, this always returns true assuming FFmpeg is installed.
+func (p *Provider) IsAvailable() bool {
+	// Check if FFmpeg is available
+	return true // For now, assume it's available
+}
+
+// Transcode starts a new transcoding session using the file pipeline.
+//
+// The method:
+//   1. Delegates to FilePipeline for actual transcoding
+//   2. Stores the handle for later retrieval
+//   3. Returns immediately while transcoding runs in background
+//
+// Parameters:
+//   - ctx: Context for cancellation (passed to FFmpeg)
+//   - req: Transcoding parameters including input path, codecs, etc.
+//
+// Returns:
+//   - TranscodeHandle for progress tracking and control
+//   - Error if request invalid
+func (p *Provider) Transcode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
+	// Use the file pipeline (always initialized in constructor)
+	handle, err := p.pipeline.Transcode(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start streaming: %w", err)
+		return nil, err
 	}
 
 	// Store handle
@@ -141,88 +181,136 @@ func (p *Provider) StartTranscode(ctx context.Context, req plugins.TranscodeRequ
 	return handle, nil
 }
 
-// GetProgress returns the progress of a transcoding operation
+// GetProgress returns the current progress of a transcoding session.
+//
+// For file-based transcoding, progress is estimated based on status:
+//   - completed: 100%
+//   - running: 50% (estimate until real progress parsing is implemented)
+//   - other states: 0%
+//
+// Parameters:
+//   - handle: The transcoding handle to query
+//
+// Returns:
+//   - Progress information including percentage and timestamps
+//   - Error if session not found
 func (p *Provider) GetProgress(handle *plugins.TranscodeHandle) (*plugins.TranscodingProgress, error) {
 	return p.pipeline.GetProgress(handle.SessionID)
 }
 
-// StopTranscode stops a transcoding operation
-func (p *Provider) StopTranscode(handle *plugins.TranscodeHandle) error {
-	err := p.pipeline.StopStreaming(handle.SessionID)
-
+// Stop stops an active transcoding session.
+//
+// This method:
+//   1. Removes the session handle from memory
+//   2. Delegates to FilePipeline to stop FFmpeg process
+//   3. Updates session status in database
+//
+// Parameters:
+//   - sessionID: The session to stop
+//
+// Returns:
+//   - Error if session not found or stop failed
+//
+// Note: Temporary files are cleaned up by the cleanup service.
+func (p *Provider) Stop(sessionID string) error {
 	// Remove handle
 	p.handlesMutex.Lock()
-	delete(p.handles, handle.SessionID)
+	delete(p.handles, sessionID)
 	p.handlesMutex.Unlock()
 
-	return err
+	return p.pipeline.Stop(sessionID)
 }
 
-// StartStream starts a streaming session
+// Cleanup cleans up provider resources.
+//
+// For the file pipeline provider, cleanup is handled by:
+//   - Individual session cleanup on completion
+//   - Global cleanup service for orphaned files
+//   - Content store expiration policies
+//
+// This method is a no-op but exists to satisfy the interface.
+func (p *Provider) Cleanup() error {
+	// Nothing to clean up for file pipeline
+	return nil
+}
+
+// GetHandle returns a transcoding handle by session ID.
+// This is used internally to retrieve handles for active sessions.
+//
+// Parameters:
+//   - sessionID: The session handle to retrieve
+//
+// Returns:
+//   - The transcoding handle if found
+//   - Boolean indicating if handle exists
+func (p *Provider) GetHandle(sessionID string) (*plugins.TranscodeHandle, bool) {
+	p.handlesMutex.RLock()
+	defer p.handlesMutex.RUnlock()
+	
+	handle, exists := p.handles[sessionID]
+	return handle, exists
+}
+
+// Required interface methods for TranscodingProvider
+
+// SupportsIntermediateOutput indicates if the provider outputs intermediate files
+func (p *Provider) SupportsIntermediateOutput() bool {
+	return true
+}
+
+// GetIntermediateOutputPath returns the path to intermediate output file
+func (p *Provider) GetIntermediateOutputPath(handle *plugins.TranscodeHandle) (string, error) {
+	sess, err := p.sessionStore.GetSession(handle.SessionID)
+	if err != nil {
+		return "", err
+	}
+	
+	return sess.DirectoryPath, nil
+}
+
+// GetABRVariants returns ABR encoding variants (not used by file pipeline)
+func (p *Provider) GetABRVariants(req plugins.TranscodeRequest) ([]plugins.ABRVariant, error) {
+	return []plugins.ABRVariant{}, nil
+}
+
+// StartTranscode starts a new transcoding operation
+func (p *Provider) StartTranscode(ctx context.Context, req plugins.TranscodeRequest) (*plugins.TranscodeHandle, error) {
+	return p.Transcode(ctx, req)
+}
+
+// GetProgressBySessionID returns progress for a session ID (internal method)
+func (p *Provider) GetProgressBySessionID(sessionID string) (*plugins.TranscodingProgress, error) {
+	return p.pipeline.GetProgress(sessionID)
+}
+
+// StopTranscode stops a transcoding operation
+func (p *Provider) StopTranscode(handle *plugins.TranscodeHandle) error {
+	return p.Stop(handle.SessionID)
+}
+
+// StartStream starts a streaming session (not implemented for file pipeline)
 func (p *Provider) StartStream(ctx context.Context, req plugins.TranscodeRequest) (*plugins.StreamHandle, error) {
-	// For this provider, streaming is the default mode
-	// Convert TranscodeHandle to StreamHandle
-	handle, err := p.StartTranscode(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &plugins.StreamHandle{
-		SessionID:   handle.SessionID,
-		Provider:    handle.Provider,
-		StartTime:   handle.StartTime,
-		Context:     handle.Context,
-		CancelFunc:  handle.CancelFunc,
-		PrivateData: handle.PrivateData,
-		Status:      handle.Status,
-		Error:       handle.Error,
-	}, nil
+	return nil, fmt.Errorf("streaming not supported by file pipeline")
 }
 
-// GetStream returns a stream reader
+// GetStream returns a stream reader (not implemented for file pipeline)
 func (p *Provider) GetStream(handle *plugins.StreamHandle) (io.ReadCloser, error) {
-	// Get streaming status to find manifest path
-	status, err := p.pipeline.GetStreamingStatus(handle.SessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	// For streaming, we return the manifest file
-	manifestPath := filepath.Join(p.baseDir, "sessions", handle.SessionID,
-		fmt.Sprintf("stream.%s", getManifestExtension(status.ManifestURL)))
-
-	return &streamReader{
-		manifestPath: manifestPath,
-		sessionID:    handle.SessionID,
-		pipeline:     p.pipeline,
-	}, nil
+	return nil, fmt.Errorf("streaming not supported by file pipeline")
 }
 
-// StopStream stops a streaming session
+// StopStream stops a streaming session (not implemented for file pipeline)
 func (p *Provider) StopStream(handle *plugins.StreamHandle) error {
-	return p.pipeline.StopStreaming(handle.SessionID)
+	return fmt.Errorf("streaming not supported by file pipeline")
 }
 
 // GetDashboardSections returns dashboard sections for this provider
 func (p *Provider) GetDashboardSections() []plugins.DashboardSection {
 	return []plugins.DashboardSection{
 		{
-			ID:          "streaming-overview",
-			Title:       "Streaming Pipeline Overview",
-			Type:        "stats",
-			Description: "Real-time streaming statistics and performance",
-		},
-		{
-			ID:          "active-streams",
-			Title:       "Active Streams",
-			Type:        "table",
-			Description: "Currently active streaming sessions",
-		},
-		{
-			ID:          "buffer-health",
-			Title:       "Buffer Health",
-			Type:        "chart",
-			Description: "Streaming buffer health across sessions",
+			ID:          "file_pipeline_status",
+			Title:       "File Pipeline Status",
+			Type:        "status",
+			Description: "Current status of file-based transcoding",
 		},
 	}
 }
@@ -230,12 +318,11 @@ func (p *Provider) GetDashboardSections() []plugins.DashboardSection {
 // GetDashboardData returns data for a dashboard section
 func (p *Provider) GetDashboardData(sectionID string) (interface{}, error) {
 	switch sectionID {
-	case "streaming-overview":
-		return p.getStreamingOverview()
-	case "active-streams":
-		return p.getActiveStreams()
-	case "buffer-health":
-		return p.getBufferHealth()
+	case "file_pipeline_status":
+		return map[string]interface{}{
+			"active_sessions": len(p.handles),
+			"provider_status": "active",
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown section: %s", sectionID)
 	}
@@ -243,212 +330,5 @@ func (p *Provider) GetDashboardData(sectionID string) (interface{}, error) {
 
 // ExecuteDashboardAction executes a dashboard action
 func (p *Provider) ExecuteDashboardAction(actionID string, params map[string]interface{}) error {
-	switch actionID {
-	case "stop-stream":
-		sessionID, ok := params["sessionID"].(string)
-		if !ok {
-			return fmt.Errorf("sessionID required")
-		}
-		return p.pipeline.StopStreaming(sessionID)
-	default:
-		return fmt.Errorf("unknown action: %s", actionID)
-	}
-}
-
-// GetABRVariants returns the ABR encoding variants for a request
-func (p *Provider) GetABRVariants(req plugins.TranscodeRequest) ([]plugins.ABRVariant, error) {
-	// Return the configured ABR profiles as variants
-	if p.pipeline == nil {
-		return nil, fmt.Errorf("pipeline not initialized")
-	}
-
-	return []plugins.ABRVariant{
-		{
-			Name:         "360p",
-			Resolution:   &plugins.Resolution{Width: 640, Height: 360},
-			VideoBitrate: 800,
-			AudioBitrate: 96,
-			FrameRate:    30,
-			Preset:       "fast",
-			Profile:      "baseline",
-			Level:        "3.0",
-		},
-		{
-			Name:         "720p",
-			Resolution:   &plugins.Resolution{Width: 1280, Height: 720},
-			VideoBitrate: 2500,
-			AudioBitrate: 128,
-			FrameRate:    30,
-			Preset:       "fast",
-			Profile:      "main",
-			Level:        "3.1",
-		},
-		{
-			Name:         "1080p",
-			Resolution:   &plugins.Resolution{Width: 1920, Height: 1080},
-			VideoBitrate: 5000,
-			AudioBitrate: 192,
-			FrameRate:    30,
-			Preset:       "fast",
-			Profile:      "high",
-			Level:        "4.0",
-		},
-	}, nil
-}
-
-// GetContentStore returns the content store used by this provider
-func (p *Provider) GetContentStore() *storage.ContentStore {
-	return p.contentStore
-}
-
-// GetHardwareAccelerators returns available hardware accelerators
-func (p *Provider) GetHardwareAccelerators() []plugins.HardwareAccelerator {
-	// Streaming pipeline doesn't use hardware acceleration directly
-	// It relies on the underlying FFmpeg configuration
-	return []plugins.HardwareAccelerator{} // No hardware accelerators
-}
-
-// GetQualityPresets returns available quality presets
-func (p *Provider) GetQualityPresets() []plugins.QualityPreset {
-	return []plugins.QualityPreset{
-		{ID: "low", Name: "Low", Description: "Low quality, fast encoding", Quality: 50, SpeedRating: 9},
-		{ID: "medium", Name: "Medium", Description: "Medium quality, balanced", Quality: 75, SpeedRating: 6},
-		{ID: "high", Name: "High", Description: "High quality, slower encoding", Quality: 90, SpeedRating: 3},
-	}
-}
-
-// SupportsIntermediateOutput returns if the provider outputs intermediate files
-func (p *Provider) SupportsIntermediateOutput() bool {
-	// Streaming pipeline doesn't produce intermediate files
-	return false
-}
-
-// GetIntermediateOutputPath returns the path to intermediate output
-func (p *Provider) GetIntermediateOutputPath(handle *plugins.TranscodeHandle) (string, error) {
-	// Streaming pipeline doesn't produce intermediate files
-	return "", fmt.Errorf("streaming pipeline does not produce intermediate files")
-}
-
-// Callback handlers
-
-func (p *Provider) onSegmentReady(sessionID string, segment SegmentInfo) {
-	p.logger.Debug("Segment ready callback",
-		"sessionID", sessionID,
-		"segment", segment.Index)
-}
-
-func (p *Provider) onManifestUpdate(sessionID string, manifestPath string) {
-	p.logger.Debug("Manifest update callback",
-		"sessionID", sessionID,
-		"path", manifestPath)
-}
-
-func (p *Provider) onContentComplete(sessionID string, contentHash string) {
-	p.logger.Info("Content complete callback",
-		"sessionID", sessionID,
-		"contentHash", contentHash)
-
-	// Call content hash callback if set
-	if p.contentHashCallback != nil {
-		if err := p.contentHashCallback(sessionID, contentHash); err != nil {
-			p.logger.Error("Content hash callback failed",
-				"sessionID", sessionID,
-				"error", err)
-		}
-	}
-}
-
-// Dashboard data helpers
-
-func (p *Provider) getStreamingOverview() (interface{}, error) {
-	p.handlesMutex.RLock()
-	activeCount := len(p.handles)
-	p.handlesMutex.RUnlock()
-
-	return map[string]interface{}{
-		"active_sessions":  activeCount,
-		"segment_duration": 4,
-		"buffer_ahead":     12,
-		"abr_enabled":      true,
-		"profiles":         []string{"360p", "720p", "1080p"},
-	}, nil
-}
-
-func (p *Provider) getActiveStreams() (interface{}, error) {
-	streams := []map[string]interface{}{}
-
-	p.handlesMutex.RLock()
-	for sessionID := range p.handles {
-		if status, err := p.pipeline.GetStreamingStatus(sessionID); err == nil {
-			streams = append(streams, map[string]interface{}{
-				"session_id":     sessionID,
-				"status":         status.Status,
-				"segments_ready": status.SegmentsReady,
-				"buffer_health":  status.BufferHealth,
-				"startup_time":   status.StartupTime.Seconds(),
-			})
-		}
-	}
-	p.handlesMutex.RUnlock()
-
-	return streams, nil
-}
-
-func (p *Provider) getBufferHealth() (interface{}, error) {
-	healthData := map[string]int{
-		"excellent": 0,
-		"good":      0,
-		"fair":      0,
-		"poor":      0,
-	}
-
-	p.handlesMutex.RLock()
-	for sessionID := range p.handles {
-		if status, err := p.pipeline.GetStreamingStatus(sessionID); err == nil {
-			healthData[status.BufferHealth]++
-		}
-	}
-	p.handlesMutex.RUnlock()
-
-	return healthData, nil
-}
-
-// streamReader implements io.ReadCloser for streaming manifests
-type streamReader struct {
-	manifestPath string
-	sessionID    string
-	pipeline     *StreamingPipeline
-	file         io.ReadCloser
-}
-
-func (r *streamReader) Read(p []byte) (n int, err error) {
-	// Lazy open
-	if r.file == nil {
-		// Wait briefly for manifest to be available
-		time.Sleep(100 * time.Millisecond)
-		// TODO: Implement proper file watching
-		r.file = nil // Placeholder
-	}
-
-	if r.file != nil {
-		return r.file.Read(p)
-	}
-
-	return 0, io.EOF
-}
-
-func (r *streamReader) Close() error {
-	if r.file != nil {
-		return r.file.Close()
-	}
-	return nil
-}
-
-// Helper functions
-
-func getManifestExtension(url string) string {
-	if filepath.Ext(url) == ".mpd" {
-		return "mpd"
-	}
-	return "m3u8"
+	return fmt.Errorf("no actions supported")
 }

@@ -1,15 +1,15 @@
-// Package storage provides content-addressable storage for streaming media.
+// Package storage provides content-addressable storage for transcoded media files.
 // This file provides a wrapper to adapt the concrete ContentStore to the services interface.
 package storage
 
 import (
 	"fmt"
 
-	"github.com/mantonx/viewra/internal/modules/transcodingmodule/types"
 	"github.com/mantonx/viewra/internal/services"
+	"github.com/mantonx/viewra/internal/utils"
 )
 
-// ContentStoreWrapper adapts the concrete streaming ContentStore to the services.ContentStore interface
+// ContentStoreWrapper adapts the concrete ContentStore to the services.ContentStore interface
 type ContentStoreWrapper struct {
 	store *ContentStore
 }
@@ -65,19 +65,15 @@ func (w *ContentStoreWrapper) Exists(contentHash string) bool {
 
 // GenerateContentHash creates a hash for content
 func (w *ContentStoreWrapper) GenerateContentHash(mediaID string, profiles interface{}, formats interface{}) string {
-	// Convert profiles to the expected type
-	var encodingProfiles []types.EncodingProfile
-	if p, ok := profiles.([]types.EncodingProfile); ok {
-		encodingProfiles = p
+	// For now, use a simple hash based on media ID and first format
+	// This can be extended later to include encoding profiles
+	container := "mp4" // default
+	if formatList, ok := formats.([]string); ok && len(formatList) > 0 {
+		container = formatList[0]
 	}
-
-	// Convert formats to the expected type
-	var streamingFormats []types.StreamingFormat
-	if f, ok := formats.([]types.StreamingFormat); ok {
-		streamingFormats = f
-	}
-
-	return w.store.GenerateContentHash(mediaID, encodingProfiles, streamingFormats)
+	
+	// Use the centralized hash utility
+	return utils.GenerateContentHash(mediaID, container, 0, nil)
 }
 
 // GetStats returns storage statistics

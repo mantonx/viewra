@@ -32,7 +32,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/abr"
+	// Removed ABR package - simplified transcoding approach
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/types"
 )
 
@@ -435,8 +435,7 @@ func (b *FFmpegArgsBuilder) getHLSABRArgs(req types.TranscodeRequest, outputPath
 	}
 
 	// Generate bitrate ladder
-	abrGen := abr.NewGenerator(b.logger)
-	ladder := abrGen.GenerateLadder(sourceWidth, sourceHeight, req.Quality)
+	ladder := b.generateBitrateLadder(sourceWidth, sourceHeight, req.Quality)
 	outputDir := filepath.Dir(outputPath)
 
 	// Add optimized encoding settings for ABR before mapping
@@ -572,4 +571,106 @@ func (b *FFmpegArgsBuilder) getMP4ABRArgs(req types.TranscodeRequest, outputPath
 	// Return single quality MP4 encoding for now
 	// The pipeline manager will call this multiple times with different settings
 	return b.getMP4IntermediateArgs(req, outputPath)
+}
+
+// ABRRung represents a single quality level in an adaptive bitrate ladder
+type ABRRung struct {
+	Label         string
+	Width         int
+	Height        int
+	VideoBitrate  int // kbps
+	AudioBitrate  int // kbps
+	Profile       string
+	Level         string
+}
+
+// generateBitrateLadder creates a bitrate ladder for adaptive streaming
+func (b *FFmpegArgsBuilder) generateBitrateLadder(sourceWidth, sourceHeight, quality int) []ABRRung {
+	// Create a standard 3-rung ladder based on source resolution
+	var ladder []ABRRung
+
+	// High quality (source or 1080p max)
+	highWidth := sourceWidth
+	highHeight := sourceHeight
+	if sourceWidth > 1920 {
+		highWidth = 1920
+		highHeight = 1080
+	}
+
+	// Medium quality (720p)
+	medWidth := 1280
+	medHeight := 720
+	if sourceWidth < 1280 {
+		medWidth = sourceWidth
+		medHeight = sourceHeight
+	}
+
+	// Low quality (480p)
+	lowWidth := 854
+	lowHeight := 480
+	if sourceWidth < 854 {
+		lowWidth = sourceWidth
+		lowHeight = sourceHeight
+	}
+
+	// Calculate bitrates based on resolution and quality setting
+	qualityMultiplier := float64(quality) / 100.0
+	if qualityMultiplier < 0.3 {
+		qualityMultiplier = 0.3
+	}
+
+	// High quality rung
+	highBitrate := int(float64(calculateVideoBitrate(highWidth, highHeight)) * qualityMultiplier)
+	ladder = append(ladder, ABRRung{
+		Label:        "1080p",
+		Width:        highWidth,
+		Height:       highHeight,
+		VideoBitrate: highBitrate,
+		AudioBitrate: 128,
+		Profile:      "high",
+		Level:        "4.1",
+	})
+
+	// Medium quality rung
+	medBitrate := int(float64(calculateVideoBitrate(medWidth, medHeight)) * qualityMultiplier * 0.7)
+	ladder = append(ladder, ABRRung{
+		Label:        "720p",
+		Width:        medWidth,
+		Height:       medHeight,
+		VideoBitrate: medBitrate,
+		AudioBitrate: 96,
+		Profile:      "high",
+		Level:        "3.2",
+	})
+
+	// Low quality rung
+	lowBitrate := int(float64(calculateVideoBitrate(lowWidth, lowHeight)) * qualityMultiplier * 0.5)
+	ladder = append(ladder, ABRRung{
+		Label:        "480p",
+		Width:        lowWidth,
+		Height:       lowHeight,
+		VideoBitrate: lowBitrate,
+		AudioBitrate: 64,
+		Profile:      "main",
+		Level:        "3.1",
+	})
+
+	return ladder
+}
+
+// calculateVideoBitrate estimates appropriate video bitrate for resolution
+func calculateVideoBitrate(width, height int) int {
+	pixels := width * height
+
+	// Base bitrate estimation (kbps)
+	switch {
+	case pixels >= 1920*1080: // 1080p+
+		return 5000
+	case pixels >= 1280*720: // 720p
+		return 2500
+	case pixels >= 854*480: // 480p
+		return 1000
+	default: // Lower resolutions
+		return 500
+	}
 }

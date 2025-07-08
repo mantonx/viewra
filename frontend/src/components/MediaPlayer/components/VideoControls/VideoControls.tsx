@@ -4,7 +4,6 @@ import { cn } from '@/utils/cn';
 import { formatTime, formatRemainingTime } from '@/utils/time';
 import { ProgressBar } from '../ProgressBar';
 import { VolumeControl } from '../VolumeControl';
-import { QualitySelector } from '../QualitySelector';
 import type { VideoControlsProps } from './VideoControls.types';
 
 export const VideoControls: React.FC<VideoControlsProps> = ({
@@ -140,9 +139,6 @@ export const VideoControls: React.FC<VideoControlsProps> = ({
         </div>
 
         <div className="flex items-center space-x-4">
-          {/* Quality Selector */}
-          <QualitySelector className="mr-2" />
-          
           {/* Fullscreen */}
           {showFullscreenButton && (
             <button

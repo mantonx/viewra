@@ -3,6 +3,17 @@ import { useMediaState, useMediaRemote } from '@vidstack/react';
 import { Check, Settings } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
+/**
+ * Quality selector for adaptive bitrate streaming (HLS/DASH).
+ * 
+ * NOTE: This component is currently not used because we're using direct MP4 streaming
+ * which doesn't support multiple quality levels. It's kept for future use when we
+ * implement HLS/DASH streaming with transcoding.
+ * 
+ * When using this component, it must be rendered inside the <MediaPlayer> component
+ * or passed a playerRef to avoid the "useMediaState requires RefObject" warning.
+ */
+
 interface QualitySelectorProps {
   className?: string;
 }

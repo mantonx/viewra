@@ -3,306 +3,154 @@ package mediamodule
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
+	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/mediamodule/api"
+	"github.com/mantonx/viewra/internal/modules/mediamodule/core/library"
+	"github.com/mantonx/viewra/internal/modules/mediamodule/core/metadata"
+
+	"github.com/mantonx/viewra/internal/modules/mediamodule/service"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/services"
-	"github.com/mantonx/viewra/internal/types"
 	"gorm.io/gorm"
 )
-
-// Module represents the Media Management module
-type Module struct {
-	id          string
-	name        string
-	version     string
-	core        bool
-	initialized bool
-	db          *gorm.DB
-	eventBus    events.EventBus
-
-	// Media management components
-	libraryManager  *LibraryManager
-	fileProcessor   *FileProcessor
-	metadataManager *MetadataManager
-}
 
 // Auto-register the module when imported
 func init() {
 	Register()
 }
 
-// Register registers this module with the module system
+const (
+	// ModuleID is the unique identifier for the media module
+	ModuleID = "system.media"
+
+	// ModuleName is the display name for the media module
+	ModuleName = "Media Manager"
+
+	// ModuleVersion is the version of the media module
+	ModuleVersion = "1.0.0"
+)
+
+// Module implements the media functionality as a module
+type Module struct {
+	db          *gorm.DB
+	eventBus    events.EventBus
+	
+	// Core components
+	libraryManager  *library.Manager
+	metadataManager *metadata.Manager
+	
+	// Service implementation
+	service services.MediaService
+}
+
+// Register registers the media module with the module system
 func Register() {
-	// Create module without database connection - it will be initialized later
-	mediaModule := &Module{
-		id:      "system.media",
-		name:    "Media Manager",
-		version: "1.0.0",
-		core:    true,
-	}
+	mediaModule := &Module{}
 	modulemanager.Register(mediaModule)
 }
 
-// ID returns the module ID
+// ID returns the unique module identifier
 func (m *Module) ID() string {
-	return m.id
+	return ModuleID
 }
 
-// Name returns the module name
+// Name returns the module display name
 func (m *Module) Name() string {
-	return m.name
-}
-
-// GetVersion returns the module version
-func (m *Module) GetVersion() string {
-	return m.version
+	return ModuleName
 }
 
 // Core returns whether this is a core module
 func (m *Module) Core() bool {
-	return m.core
+	return true
 }
 
-// IsInitialized returns whether the module is initialized
-func (m *Module) IsInitialized() bool {
-	return m.initialized
-}
-
-// Initialize sets up the media module
-func (m *Module) Initialize() error {
-	log.Println("INFO: Migrating media module schema")
-
-	// Auto-migrate media-related models
-	err := m.db.AutoMigrate(
-		&database.MediaLibrary{},
-		&database.MediaFile{},
-		&database.MediaAsset{},
-		&database.People{},
-		&database.Roles{},
-		&database.Artist{},
-		&database.Album{},
-		&database.Track{},
-		&database.Movie{},
-		&database.TVShow{},
-		&database.Season{},
-		&database.Episode{},
-		&database.MediaExternalIDs{},
-		&database.MediaEnrichment{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to migrate media schema: %w", err)
-	}
-
-	return nil
-}
-
-// Migrate performs any pending migrations
+// Migrate performs database migrations
 func (m *Module) Migrate(db *gorm.DB) error {
-	log.Println("INFO: Migrating media module schema")
-
-	// Auto-migrate media-related models
-	err := db.AutoMigrate(
+	logger.Info("Migrating media database schema")
+	
+	// Migrate media models
+	if err := db.AutoMigrate(
 		&database.MediaLibrary{},
 		&database.MediaFile{},
-		&database.MediaAsset{},
-		&database.People{},
-		&database.Roles{},
-		&database.Artist{},
-		&database.Album{},
-		&database.Track{},
 		&database.Movie{},
 		&database.TVShow{},
 		&database.Season{},
 		&database.Episode{},
-		&database.MediaExternalIDs{},
-		&database.MediaEnrichment{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to migrate media schema: %w", err)
+		&database.Album{},
+		&database.Track{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate media models: %w", err)
 	}
-
+	
 	return nil
 }
 
-// Init initializes the media module components
+// Init initializes the media module
 func (m *Module) Init() error {
-	log.Println("INFO: Initializing media module")
-
-	// Get the database connection and event bus from the global system
-	m.db = database.GetDB()
-	m.eventBus = events.GetGlobalEventBus()
-
-	// Initialize media management components
-	if err := m.initializeComponents(); err != nil {
-		return fmt.Errorf("failed to initialize media components: %w", err)
+	logger.Info("Initializing media module")
+	
+	// Get database if not set
+	if m.db == nil {
+		m.db = database.GetDB()
 	}
-
-	// Register media service with the service registry
-	mediaService := NewServiceAdapter(m)
-	if err := services.Register("media", mediaService); err != nil {
+	
+	// Get event bus if not set
+	if m.eventBus == nil {
+		m.eventBus = events.GetGlobalEventBus()
+	}
+	
+	// Initialize core components
+	m.libraryManager = library.NewManager(m.db)
+	m.metadataManager = metadata.NewManager(m.db)
+	
+	// Create and register the media service
+	m.service = service.NewMediaService(m.db, m.libraryManager, m.metadataManager)
+	if err := services.Register("media", m.service); err != nil {
 		return fmt.Errorf("failed to register media service: %w", err)
 	}
-	log.Println("INFO: MediaService registered with service registry")
-
-	m.initialized = true
-
-	// Publish initialization event
-	if m.eventBus != nil {
-		initEvent := events.NewSystemEvent(
-			"media.module.initialized",
-			"Media Module Initialized",
-			"Media module has been successfully initialized",
-		)
-		m.eventBus.PublishAsync(initEvent)
-	}
-
-	log.Println("INFO: Media module initialized successfully")
+	
+	logger.Info("Media service registered with service registry")
+	
 	return nil
 }
 
-// initializeComponents initializes all media management components
-func (m *Module) initializeComponents() error {
-	log.Println("INFO: Initializing media library manager")
-	m.libraryManager = NewLibraryManager(m.db, m.eventBus)
-	if err := m.libraryManager.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize library manager: %w", err)
-	}
-	log.Println("INFO: Library manager initialized successfully")
-
-	log.Println("INFO: Initializing media file processor")
-	m.fileProcessor = NewFileProcessor(m.db, m.eventBus, nil)
-	if err := m.fileProcessor.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize file processor: %w", err)
-	}
-	log.Println("INFO: File processor initialized - will use plugin service registry")
-
-	log.Println("INFO: Initializing metadata manager")
-	m.metadataManager = NewMetadataManager(m.db, m.eventBus, nil)
-	if err := m.metadataManager.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize metadata manager: %w", err)
-	}
-	log.Println("INFO: Metadata manager initialized - will use plugin service registry")
-
-	// Note: Playback functionality is now handled entirely by the playback module
-	log.Println("ℹ️ Playback functionality delegated to playback module")
-
-	return nil
-}
-
-// RegisterRoutes registers the media module API routes
+// RegisterRoutes registers HTTP routes
 func (m *Module) RegisterRoutes(router *gin.Engine) {
-	log.Printf("INFO: Registering media module routes (initialized: %v, db: %v)", m.initialized, m.db != nil)
-
-	mediaGroup := router.Group("/api/media")
-	{
-		// Library management endpoints
-		mediaGroup.GET("/libraries", m.getLibraries)
-		mediaGroup.POST("/libraries", m.createLibrary)
-		mediaGroup.DELETE("/libraries/:id", m.deleteLibrary)
-		mediaGroup.GET("/libraries/:id/stats", m.getLibraryStats)
-		mediaGroup.GET("/libraries/:id/files", m.getLibraryFiles)
-
-		// File management endpoints
-		mediaGroup.GET("/files", m.getFiles)
-		mediaGroup.GET("/files/:id", m.getFile)
-		mediaGroup.DELETE("/files/:id", m.deleteFile)
-
-		// Modern DASH/HLS streaming - redirect to PlaybackModule API
-		mediaGroup.POST("/files/:id/playback-decision", m.redirectToPlaybackModule)
-		mediaGroup.GET("/files/:id/stream", m.redirectToPlaybackModule)
-		mediaGroup.HEAD("/files/:id/stream", m.redirectToPlaybackModule)
-		log.Println("INFO: ✅ Streaming routes redirect to PlaybackModule API")
-
-		// File metadata and management
-		mediaGroup.GET("/files/:id/metadata", m.getFileMetadata)
-		mediaGroup.GET("/files/:id/album-id", m.getFileAlbumId)
-		mediaGroup.GET("/files/:id/album-artwork", m.getFileAlbumArtwork)
-
-		// TV Shows endpoints
-		mediaGroup.GET("/tv-shows", m.getTVShows)
-
-		// Metadata endpoints
-		mediaGroup.POST("/files/:id/metadata/extract", m.extractMetadata)
-		mediaGroup.PUT("/files/:id/metadata", m.updateMetadata)
-
-		// Processing endpoints
-		mediaGroup.POST("/files/:id/process", m.processFile)
-		mediaGroup.GET("/processing/status", m.getProcessingStatus)
-
-		// Module status endpoints
-		mediaGroup.GET("/health", m.getHealth)
-		mediaGroup.GET("/status", m.getStatus)
-		mediaGroup.GET("/stats", m.getStats)
-	}
-
-	log.Println("INFO: 🎬 Media module configured for DASH/HLS-first streaming workflow")
+	logger.Info("Registering media module routes")
+	
+	// Create API handler
+	handler := api.NewHandler(m.service, m.libraryManager)
+	
+	// Register routes
+	api.RegisterRoutes(router, handler)
+	
+	logger.Info("Media module routes registered successfully")
 }
 
-// Shutdown gracefully shuts down the media module
+// Shutdown gracefully shuts down the module
 func (m *Module) Shutdown(ctx context.Context) error {
-	log.Println("INFO: Shutting down media module")
-
-	// Shutdown components in reverse order
-	// Upload handler shutdown code removed
-
-	if m.metadataManager != nil {
-		if err := m.metadataManager.Shutdown(ctx); err != nil {
-			log.Printf("ERROR: Failed to shutdown metadata manager: %v", err)
-		}
-	}
-
-	if m.fileProcessor != nil {
-		if err := m.fileProcessor.Shutdown(ctx); err != nil {
-			log.Printf("ERROR: Failed to shutdown file processor: %v", err)
-		}
-	}
-
-	if m.libraryManager != nil {
-		if err := m.libraryManager.Shutdown(ctx); err != nil {
-			log.Printf("ERROR: Failed to shutdown library manager: %v", err)
-		}
-	}
-
-	m.initialized = false
-	log.Println("INFO: Media module shutdown complete")
+	logger.Info("Shutting down media module")
+	
+	// Cleanup if needed
+	
+	logger.Info("Media module shut down successfully")
 	return nil
 }
 
-// GetLibraryManager returns the library manager
-func (m *Module) GetLibraryManager() *LibraryManager {
-	return m.libraryManager
-}
-
-// GetFileProcessor returns the file processor
-func (m *Module) GetFileProcessor() *FileProcessor {
-	return m.fileProcessor
-}
-
-// GetMetadataManager returns the metadata manager
-func (m *Module) GetMetadataManager() *MetadataManager {
-	return m.metadataManager
-}
-
-// Upload handler functionality has been removed
-
-// GetBasicMediaInfo is a helper method for the service adapter
-func (m *Module) GetBasicMediaInfo(filePath string) (*types.MediaInfo, error) {
-	if m.fileProcessor != nil {
-		return m.fileProcessor.GetBasicMediaInfo(filePath)
-	}
-	return nil, fmt.Errorf("file processor not initialized")
-}
-
-// ProvidedServices returns the services provided by this module
-func (m *Module) ProvidedServices() []string {
-	return []string{"media", "library-manager", "file-processor", "metadata-manager"}
-}
-
-// Dependencies returns the module dependencies
+// Dependencies returns module dependencies
 func (m *Module) Dependencies() []string {
-	return []string{"system.database", "system.events", "system.plugins"}
+	return []string{
+		"system.database",
+		"system.events",
+		"system.scanner", // We use scanner service for library scanning
+	}
+}
+
+// RequiredServices returns services this module requires
+func (m *Module) RequiredServices() []string {
+	return []string{"scanner"} // Need scanner service for ScanLibrary
 }

@@ -1,17 +1,15 @@
 import { useCallback, useEffect } from 'react';
 import { useAtom } from 'jotai';
 import { activeSessionsAtom, sessionStateAtom, playbackDecisionAtom } from '../../atoms/mediaPlayer';
-import { MediaService } from '../../services/MediaService';
+import { MediaPlaybackService } from '../../services/MediaPlaybackService';
 import { API_ENDPOINTS, buildApiUrl } from '../../constants/api';
+import { isValidSessionId } from '../../utils/mediaValidation';
 
 export const useSessionManager = () => {
   const [activeSessions, setActiveSessions] = useAtom(activeSessionsAtom);
   const [sessionState, setSessionState] = useAtom(sessionStateAtom);
   const [playbackDecision] = useAtom(playbackDecisionAtom);
 
-  const isValidSessionId = useCallback((sessionId: string) => {
-    return MediaService.isValidSessionId(sessionId);
-  }, []);
 
   const stopTranscodingSession = useCallback(async (sessionId: string) => {
     if (!sessionId || sessionState.isStoppingSession) return;
@@ -30,7 +28,7 @@ export const useSessionManager = () => {
     console.log('🛑 Stopping transcoding session (UUID-based):', sessionId);
     
     try {
-      await MediaService.stopTranscodingSession(sessionId);
+      await MediaPlaybackService.stopSession(sessionId);
       console.log('✅ Successfully stopped transcoding session:', sessionId);
       setActiveSessions(prev => {
         const newSet = new Set(prev);

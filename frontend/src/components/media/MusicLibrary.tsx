@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MediaCard from './MediaCard';
-import AudioPlayer from '@/components/audio/AudioPlayer';
+import { MusicPlayer } from '@/components/MusicPlayer';
 import type { MusicFile, GroupedMusicFile, SortField, SortDirection } from '@/types/music.types';
 import type { ApiResponse } from '@/types/api.types';
 import { buildArtworkUrl } from '@/utils/api';

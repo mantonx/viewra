@@ -3,7 +3,6 @@ package integration_tests
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -113,6 +112,8 @@ func TestFastStartOptimization(t *testing.T) {
 	t.Log("✅ Fast-start optimization test completed")
 }
 
+// TestStreamEncoderOptimization tests optimization features (disabled - streaming encoder removed)
+/*
 func TestStreamEncoderOptimization(t *testing.T) {
 	testVideo := "/home/fictional/Projects/viewra/viewra-data/test-video.mp4"
 	tempDir := t.TempDir()
@@ -237,6 +238,7 @@ func TestStreamEncoderOptimization(t *testing.T) {
 
 	t.Log("✅ Stream encoder optimization test completed")
 }
+*/
 
 func TestKeyframeAlignment(t *testing.T) {
 	testVideo := "/home/fictional/Projects/viewra/viewra-data/test-video.mp4"

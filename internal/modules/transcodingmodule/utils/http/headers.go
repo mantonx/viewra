@@ -1,3 +1,6 @@
+// Package http provides HTTP-related utilities for the transcoding module.
+// It includes helpers for handling HTTP headers, CORS configuration, and
+// media type detection.
 package http
 
 import (

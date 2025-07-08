@@ -87,7 +87,7 @@ func setupRoutesWithEventHandlers(r *gin.Engine, pluginMgr *pluginmodule.PluginM
 
 		// Setup all routes with event-enabled handlers (now the standard)
 		// Pass systemEventBus, handlers should be robust if it's nil or this block guarded by systemEventBus != nil
-		setupMediaRoutesWithEvents(api, systemEventBus)
+		// setupMediaRoutesWithEvents(api, systemEventBus) // Disabled: Media routes handled by media module
 		setupUserRoutesWithEvents(api, systemEventBus)
 		setupAdminRoutesWithEvents(api, systemEventBus)
 
@@ -165,8 +165,8 @@ func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 	mediaHandler := handlers.NewMediaHandler(eventBus) // Assumes eventBus can be nil if handlers support it
 	media := api.Group("/media")
 	{
-		media.GET("/", mediaHandler.GetMedia)
-		apiroutes.Register(media.BasePath()+"/", "GET", "List all media items.")
+		// media.GET("/", mediaHandler.GetMedia) // Disabled: Route handled by media module
+		// apiroutes.Register(media.BasePath()+"/", "GET", "List all media items.") // Disabled: Route handled by media module
 
 		media.GET("/:id", mediaHandler.GetMediaByID)
 		apiroutes.Register(media.BasePath()+"/:id", "GET", "Get a specific media item by ID.")
@@ -180,8 +180,8 @@ func setupMediaRoutesWithEvents(api *gin.RouterGroup, eventBus events.EventBus) 
 		media.GET("/:id/metadata", musicHandler.GetMusicMetadata)
 		apiroutes.Register(media.BasePath()+"/:id/metadata", "GET", "Get metadata for a music item.")
 
-		media.GET("/music", musicHandler.GetMusicFiles)
-		apiroutes.Register(media.BasePath()+"/music", "GET", "List all music files.")
+		// media.GET("/music", musicHandler.GetMusicFiles) // Disabled: Route handled by media module
+		// apiroutes.Register(media.BasePath()+"/music", "GET", "List all music files.") // Disabled: Route handled by media module
 
 		// Media files endpoints are registered by mediamodule
 

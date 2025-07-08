@@ -14,14 +14,8 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/server"
 
-	// Force module inclusion by importing directly in main
-	"github.com/mantonx/viewra/internal/modules/assetmodule"
-	_ "github.com/mantonx/viewra/internal/modules/databasemodule"
-	_ "github.com/mantonx/viewra/internal/modules/eventsmodule"
-	_ "github.com/mantonx/viewra/internal/modules/mediamodule"
-	_ "github.com/mantonx/viewra/internal/modules/playbackmodule"
-	_ "github.com/mantonx/viewra/internal/modules/scannermodule"
-	_ "github.com/mantonx/viewra/internal/modules/transcodingmodule"
+	// Module system is now handled by server.SetupRouter()
+	// All modules are auto-registered via their init() functions
 )
 
 func main() {
@@ -67,9 +61,7 @@ func main() {
 		log.Fatal("Failed to initialize database")
 	}
 
-	// Force assetmodule inclusion by calling a function from it
-	// This prevents the Go linker from optimizing it away
-	_ = assetmodule.GetAssetManager()
+	// Module system initialization is now handled by server.SetupRouter()
 
 	// Setup router with plugins and modules
 	r := server.SetupRouter()

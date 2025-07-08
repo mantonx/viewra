@@ -5,6 +5,7 @@ package api
 
 import (
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/migration"
+	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/resource"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/types"
 	plugins "github.com/mantonx/viewra/sdk"
 )
@@ -20,4 +21,5 @@ type TranscodingAPIService interface {
 	GetProvider(providerID string) (plugins.TranscodingProvider, error)
 	GetPipelineStatus() *types.PipelineStatus
 	GetMigrationService() *migration.ContentMigrationService
+	GetResourceUsage() *resource.ResourceUsage
 }

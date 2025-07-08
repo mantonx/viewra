@@ -1,51 +1,15 @@
-# golangci-lint configuration for Viewra project
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
 
 run:
   # Timeout for analysis
-  timeout: 10m
+  timeout: 5m
   
-  # Exit code when at least one issue was found
-  issues-exit-code: 1
+  # Go version compatibility
+  go: '1.23'
   
   # Include test files
   tests: true
-  
-  # List of build tags to use
-  build-tags:
-    - integration
-  
-  # Which dirs to skip
-  skip-dirs:
-    - vendor
-    - viewra-data
-    - bin
-    - scripts
-    - docs
-    - frontend
-    - .git
-    - .github
-    
-  # Which files to skip
-  skip-files:
-    - ".*\\.pb\\.go$"
-    - ".*\\.gen\\.go$"
-    - mock_.*\.go
-
-output:
-  # Colored output
-  color: true
-  
-  # Print lines of code with issue
-  print-issued-lines: true
-  
-  # Print linter name in the end of issue text
-  print-linter-name: true
-  
-  # Make issues output unique by line
-  uniq-by-line: true
-  
-  # Sort results by: filepath, line and column
-  sort-results: true
 
 linters:
   enable:
@@ -59,210 +23,147 @@ linters:
     - unused
     
     # Additional linters
-    - bodyclose
-    - dupl
-    - errorlint
-    - exhaustive
-    - exportloopref
-    - gci
-    - gocognit
-    - goconst
-    - gocritic
-    - gocyclo
-    - godot
     - gofmt
     - goimports
-    - goprintffuncname
-    - gosec
-    - lll
     - misspell
-    - nakedret
-    - noctx
-    - nolintlint
-    - prealloc
-    - revive
-    - stylecheck
-    - thelper
     - unconvert
     - unparam
+    - nakedret
+    - prealloc
+    - scopelint
+    - gocritic
+    - gochecknoinits
     - whitespace
+    - gosec
+    - gocyclo
+    - gocognit
+    - bodyclose
+    - dupl
     
   disable:
-    # Deprecated linters
-    - deadcode
-    - golint
-    - ifshort
-    - interfacer
+    # Disable deprecated linters
     - maligned
-    - nosnakecase
-    - scopelint
-    - structcheck
-    - varcheck
+    - interfacer
+    - golint
     
-    # Too strict or noisy
-    - exhaustivestruct
-    - exhaustruct
-    - gochecknoglobals
-    - gochecknoinits
-    - godox
-    - goerr113
-    - gomnd
-    - nestif
-    - nlreturn
-    - testpackage
-    - wrapcheck
+    # Disable overly strict linters
     - wsl
+    - godox
+    - funlen
+    - gomnd
+    - lll
+    - gochecknoglobals
+    - godot
+    - nestif
+    - testpackage
+    - goerr113
+    - exhaustive
+    - nlreturn
+    - wrapcheck
+    - errorlint
+    - makezero
+    - tparallel
 
 linters-settings:
-  dupl:
-    threshold: 100
+  errcheck:
+    # Report about not checking of errors in type assertions
+    check-type-assertions: true
     
-  errorlint:
-    # Check whether fmt.Errorf uses the %w verb for formatting errors
-    errorf: true
-    
-  exhaustive:
-    # Check switch statements in generated files also
-    check-generated: false
-    # Indicates that switch statements are to be considered exhaustive if a
-    # 'default' case is present, even if all enum members aren't listed
-    default-signifies-exhaustive: true
-    
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/mantonx/viewra)
-      
-  gocognit:
-    # Minimal code complexity to report
-    min-complexity: 30
-    
-  goconst:
-    # Minimal length of string constant
-    min-len: 3
-    # Minimum occurrences of constant string count to trigger issue
-    min-occurrences: 3
-    
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-      - style
-    disabled-checks:
-      - commentedOutCode
-      - whyNoLint
-      
-  gocyclo:
-    # Minimal code complexity to report
-    min-complexity: 30
-    
-  godot:
-    # Check all top-level comments, not only declarations
-    check-all: false
+  govet:
+    # Enable shadow check
+    enable:
+      - shadow
     
   gofmt:
     # Simplify code
     simplify: true
     
   goimports:
-    # Put imports beginning with prefix after 3rd-party packages
+    # Put local imports after 3rd party packages
     local-prefixes: github.com/mantonx/viewra
     
-  gosec:
-    # Exclude generated files
-    exclude-generated: true
+  gocyclo:
+    # Minimal cyclomatic complexity
+    min-complexity: 15
     
-  govet:
-    # Report about shadowed variables
-    check-shadowing: true
-    enable-all: true
-    
-  lll:
-    # Max line length, lines longer will be reported
-    line-length: 120
-    # Tab width in spaces
-    tab-width: 4
+  gocognit:
+    # Minimal cognitive complexity
+    min-complexity: 20
     
   misspell:
     # Locale to use
     locale: US
     
+  unused:
+    # Treat exported fields as used
+    check-exported: false
+    
+  unparam:
+    # Inspect exported functions
+    check-exported: false
+    
   nakedret:
-    # Make an issue if func has more lines of code than this setting
+    # Max length of function to check for naked returns
     max-func-lines: 30
     
-  nolintlint:
-    # Enable to ensure that nolint directives are all used
-    allow-unused: false
-    # Require an explanation of nonzero length after each nolint directive
-    require-explanation: true
-    # Require nolint directives to mention the specific linter being suppressed
-    require-specific: true
-    
   prealloc:
-    # Report preallocation suggestions only on simple loops
+    # Use prealloc with for loops
     simple: true
-    # Report preallocation suggestions on range loops
     range-loops: true
-    # Report preallocation suggestions on for loops
     for-loops: true
     
-  revive:
-    # Sets the default failure confidence. This means that linting errors
-    # with less than 0.8 confidence will be ignored.
-    confidence: 0.8
-    
-  stylecheck:
-    # Check whether comments end in a period
-    dot-import-whitelist:
-      - fmt
-      
-  unparam:
-    # Report unused function parameters
-    check-exported: false
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
+      - opinionated
+    disabled-checks:
+      - whyNoLint
+      - commentedOutCode
+      - dupImport
 
 issues:
-  # List of regexps of issue texts to exclude
-  exclude:
-    # Exclude error checks on fmt.Printf family
-    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
-        
-  # Exclude some linters from running on test files
+  # Exclude directories
+  exclude-dirs:
+    - vendor
+    - third_party
+    - testdata
+    - examples
+    - generated
+    - .git
+    - node_modules
+    
+  # Maximum issues count per one linter
+  max-issues-per-linter: 50
+  
+  # Maximum count of issues with the same text
+  max-same-issues: 10
+  
+  # Exclude known issues
   exclude-rules:
+    # Exclude error checks in tests
     - path: _test\.go
+      linters:
+        - errcheck
+        - dupl
+        - gosec
+        
+    # Exclude certain linters for generated files
+    - path: generated
       linters:
         - gocyclo
         - errcheck
         - dupl
         - gosec
-        - goconst
         
-  # Independently from option `exclude` we use default exclude patterns,
-  # it can be disabled by this option
-  exclude-use-default: false
-  
-  # Maximum issues count per one linter. Set to 0 to disable
-  max-issues-per-linter: 0
-  
-  # Maximum count of issues with the same text. Set to 0 to disable
-  max-same-issues: 0
-  
-  # Fix found issues (if it's supported by the linter)
-  fix: false
-
-severity:
-  # Set the default severity for issues
-  default-severity: error
-  
-  # If set to true severity-rules regular expressions become case sensitive
-  case-sensitive: false
-  
-  # When a list of severity rules are provided, severity information will be added to lint issues
-  rules:
-    - linters:
-        - dupl
-      severity: info
-    - linters:
-        - goconst
-      severity: warning
+    # Allow init functions in main packages
+    - path: cmd/.*/main\.go
+      linters:
+        - gochecknoinits
+        
+    # Allow global variables in main packages
+    - path: cmd/.*/main\.go
+      linters:
+        - gochecknoglobals

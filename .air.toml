@@ -11,7 +11,7 @@ args_bin = []
 # Watch these file extensions
 include_ext = ["go", "tpl", "tmpl", "html", "cue"]
 # Exclude these directories
-exclude_dir = ["assets", "tmp", "vendor", "frontend", "node_modules", ".git", "viewra-data/transcoding", "viewra-data/plugins"]
+exclude_dir = ["assets", "tmp", "vendor", "frontend", "node_modules", ".git", "viewra-data", "data", "logs", "plugins"]
 # Watch these directories
 include_dir = ["internal", "cmd", "sdk"]
 # Exclude files matching these patterns

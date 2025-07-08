@@ -48,24 +48,24 @@ func RegisterRoutes(router *gin.Engine, handler *APIHandler, contentHandler *Con
 		v1.GET("/content/sessions-without-hash", handler.ListSessionsWithoutContentHash)
 		v1.POST("/content/migrate/:sessionId", handler.MigrateSessionToContentHash)
 		v1.POST("/content/cleanup", handler.CleanupOldSessions)
+
+		// Resource management
+		v1.GET("/resources", handler.GetResourceUsage)
 	}
 
 	// Content-addressable storage routes
 	if contentHandler != nil {
 		contentGroup := router.Group("/api/v1/content")
 		{
-			// Serve content files
-			contentGroup.GET("/:hash/:file", contentHandler.ServeContent)
-			contentGroup.HEAD("/:hash/:file", contentHandler.ServeContent)
-
-			// Content metadata
-			contentGroup.GET("/:hash/info", contentHandler.GetContentInfo)
-
+			// Storage statistics (specific routes first)
+			contentGroup.GET("/stats", contentHandler.GetContentStats)
+			
 			// List content by media ID
 			contentGroup.GET("/by-media/:mediaId", contentHandler.ListContentByMediaID)
-
-			// Storage statistics
-			contentGroup.GET("/stats", contentHandler.GetContentStats)
+			
+			// Single handler for all content requests - it will distinguish between info and file requests
+			contentGroup.GET("/:hash/*filepath", contentHandler.HandleContentRequest)
+			contentGroup.HEAD("/:hash/*filepath", contentHandler.HandleContentRequest)
 		}
 		// Import logger at top of file if needed
 		logger := hclog.New(&hclog.LoggerOptions{Name: "transcoding-api"})

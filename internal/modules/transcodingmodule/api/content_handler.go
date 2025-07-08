@@ -9,32 +9,62 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/storage"
+
 	httputil "github.com/mantonx/viewra/internal/modules/transcodingmodule/utils/http"
 	"github.com/mantonx/viewra/internal/services"
 )
 
-// ContentAPIHandler handles content-addressable storage API endpoints
+// ContentAPIHandler handles content-addressable storage API endpoints.
+// It provides HTTP access to transcoded media files using content hashes,
+// enabling efficient caching and deduplication.
+//
+// The handler supports:
+//   - Content-addressable file serving (permanent URLs)
+//   - Session-based file serving (temporary URLs)
+//   - HTTP range requests for progressive download
+//   - Proper MIME types and cache headers
 type ContentAPIHandler struct {
 	contentStore services.ContentStore
 	sessionStore services.SessionStore
-	urlGenerator *storage.URLGenerator
 }
 
-// NewContentAPIHandler creates a new content API handler
+// NewContentAPIHandler creates a new content API handler.
+//
+// Parameters:
+//   - contentStore: Storage backend for content-addressable files
+//   - sessionStore: Storage for transcoding session information
+//
+// The handler uses these stores to locate and serve transcoded content.
 func NewContentAPIHandler(contentStore services.ContentStore, sessionStore services.SessionStore) *ContentAPIHandler {
 	return &ContentAPIHandler{
 		contentStore: contentStore,
 		sessionStore: sessionStore,
-		urlGenerator: storage.NewURLGenerator("/api/v1", false, ""),
 	}
 }
 
-// ServeContent serves content files using content-addressable URLs
+// ServeContent serves transcoded files using content-addressable URLs.
 // GET /api/v1/content/:hash/:file
+//
+// URL parameters:
+//   - hash: Content hash (SHA256) identifying the transcoded version
+//   - file: Filename to serve (e.g., "video.mp4", "audio.m4a")
+//
+// Features:
+//   - Supports HTTP range requests for progressive download
+//   - Sets appropriate cache headers (permanent content cached forever)
+//   - Handles proper MIME types based on file extension
+//   - Returns 404 if content not found
+//   - Returns 206 for partial content requests
 func (h *ContentAPIHandler) ServeContent(c *gin.Context) {
 	contentHash := c.Param("hash")
 	fileName := c.Param("file")
+	
+	if fileName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "File name is required",
+		})
+		return
+	}
 
 	logger.Info("ContentAPIHandler.ServeContent called")
 	logger.Info("Request details", 
@@ -72,18 +102,8 @@ func (h *ContentAPIHandler) ServeContent(c *gin.Context) {
 		// This handles the case where content was stored but metadata wasn't saved
 		contentPath = h.getContentPath(contentHash)
 		
-		// Determine the correct subdirectory based on file type
-		var directPath string
-		switch {
-		case strings.HasSuffix(fileName, ".mpd") || strings.HasSuffix(fileName, ".m3u8"):
-			directPath = filepath.Join(contentPath, "manifests", fileName)
-		case strings.Contains(fileName, "init-"):
-			directPath = filepath.Join(contentPath, "init", fileName)
-		case strings.Contains(fileName, "segment-") && strings.HasSuffix(fileName, ".m4s"):
-			directPath = filepath.Join(contentPath, "video", fileName)
-		default:
-			directPath = filepath.Join(contentPath, fileName)
-		}
+		// Check for the transcoded file (e.g., "output.mp4")
+		directPath := filepath.Join(contentPath, fileName)
 		
 		logger.Info("Checking for content without metadata", "path", directPath)
 		
@@ -123,30 +143,8 @@ func (h *ContentAPIHandler) ServeContent(c *gin.Context) {
 		return
 	}
 
-	// Determine the correct subdirectory based on file type
-	var filePath string
-	switch {
-	case strings.HasSuffix(fileName, ".mpd") || strings.HasSuffix(fileName, ".m3u8"):
-		// Manifest files
-		filePath = filepath.Join(contentPath, "manifests", fileName)
-	case strings.Contains(fileName, "init-"):
-		// Init segments
-		filePath = filepath.Join(contentPath, "init", fileName)
-	case strings.Contains(fileName, "segment-") && strings.HasSuffix(fileName, ".m4s"):
-		// Video segments
-		filePath = filepath.Join(contentPath, "video", fileName)
-	case strings.HasSuffix(fileName, ".m4s") || strings.HasSuffix(fileName, ".ts"):
-		// Try video directory first, then audio
-		videoPath := filepath.Join(contentPath, "video", fileName)
-		if _, err := os.Stat(videoPath); err == nil {
-			filePath = videoPath
-		} else {
-			filePath = filepath.Join(contentPath, "audio", fileName)
-		}
-	default:
-		// Default to root
-		filePath = filepath.Join(contentPath, fileName)
-	}
+	// Build the full file path
+	filePath := filepath.Join(contentPath, fileName)
 
 	logger.Info("Attempting to serve file from content store", "filePath", filePath)
 
@@ -298,67 +296,11 @@ func (h *ContentAPIHandler) trySessionFallback(contentHash, fileName string) (st
 	session := sessions[0]
 	logger.Info("Using session", "sessionID", session.ID, "status", session.Status, "contentHash", session.ContentHash, "directoryPath", session.DirectoryPath)
 	
-	// Use the actual directory path from the session
-	var sessionDir string
-	if session.DirectoryPath != "" {
-		// DirectoryPath is just the directory name, not the full path
-		// First try the sessions subdirectory (new structure)
-		sessionDir = filepath.Join("/app/viewra-data/transcoding/sessions", session.ID)
-		if _, err := os.Stat(filepath.Join(sessionDir, fileName)); err != nil {
-			// Fallback to legacy path structure
-			sessionDir = filepath.Join("/app/viewra-data/transcoding", session.DirectoryPath)
-		}
-	} else {
-		// Fallback: try sessions directory first
-		sessionDir = filepath.Join("/app/viewra-data/transcoding/sessions", session.ID)
-	}
+	// Always use the modern session directory structure
+	sessionDir := filepath.Join("/app/viewra-data/transcoding/sessions", session.ID)
 	
-	// Determine file path based on file type
-	var filePath string
-	switch {
-	case strings.HasSuffix(fileName, ".mpd") || strings.HasSuffix(fileName, ".m3u8"):
-		// Manifest files - try root first (Shaka creates it there), then manifests subdirectory
-		rootPath := filepath.Join(sessionDir, fileName)
-		if _, err := os.Stat(rootPath); err == nil {
-			filePath = rootPath
-		} else {
-			filePath = filepath.Join(sessionDir, "manifests", fileName)
-		}
-	case strings.Contains(fileName, "init-"):
-		// Init segments - check both video and audio directories
-		videoPath := filepath.Join(sessionDir, "video", fileName)
-		if _, err := os.Stat(videoPath); err == nil {
-			filePath = videoPath
-		} else {
-			filePath = filepath.Join(sessionDir, "audio", fileName)
-		}
-	case strings.Contains(fileName, "segment-") && strings.HasSuffix(fileName, ".m4s"):
-		// Segments - try to determine if video or audio based on filename
-		if strings.Contains(fileName, "video") {
-			filePath = filepath.Join(sessionDir, "video", fileName)
-		} else if strings.Contains(fileName, "audio") {
-			filePath = filepath.Join(sessionDir, "audio", fileName)
-		} else {
-			// Try video first, then audio
-			videoPath := filepath.Join(sessionDir, "video", fileName)
-			if _, err := os.Stat(videoPath); err == nil {
-				filePath = videoPath
-			} else {
-				filePath = filepath.Join(sessionDir, "audio", fileName)
-			}
-		}
-	case strings.HasSuffix(fileName, ".m4s") || strings.HasSuffix(fileName, ".ts"):
-		// Try video directory first, then audio
-		videoPath := filepath.Join(sessionDir, "video", fileName)
-		if _, err := os.Stat(videoPath); err == nil {
-			filePath = videoPath
-		} else {
-			filePath = filepath.Join(sessionDir, "audio", fileName)
-		}
-	default:
-		// Default to root of session directory
-		filePath = filepath.Join(sessionDir, fileName)
-	}
+	// Build file path in session directory
+	filePath := filepath.Join(sessionDir, fileName)
 	
 	logger.Info("Checking file", "path", filePath)
 	
@@ -370,4 +312,134 @@ func (h *ContentAPIHandler) trySessionFallback(contentHash, fileName string) (st
 	
 	logger.Info("File found in session", "path", filePath)
 	return filePath, nil
+}
+
+// HandleContentRequest handles both info requests and file requests
+// GET /api/v1/content/:hash/*filepath
+func (h *ContentAPIHandler) HandleContentRequest(c *gin.Context) {
+	contentHash := c.Param("hash")
+	filePath := c.Param("filepath")
+	fileName := strings.TrimPrefix(filePath, "/")
+
+	logger.Info("ContentAPIHandler.HandleContentRequest called")
+	logger.Info("Request details", 
+		"hash", contentHash, 
+		"filePath", filePath,
+		"fileName", fileName,
+		"path", c.Request.URL.Path)
+
+	// Check if this is an info request
+	if fileName == "info" {
+		h.GetContentInfo(c)
+		return
+	}
+
+	// Otherwise, serve the file
+	h.ServeContentByPath(c)
+}
+
+// ServeContentByPath serves content files with full path using content-addressable URLs
+// GET /api/v1/content/:hash/*filepath
+func (h *ContentAPIHandler) ServeContentByPath(c *gin.Context) {
+	contentHash := c.Param("hash")
+	filePath := c.Param("filepath")
+	fileName := strings.TrimPrefix(filePath, "/")
+
+	logger.Info("ContentAPIHandler.ServeContentByPath called")
+	logger.Info("Request details", 
+		"hash", contentHash, 
+		"filePath", filePath,
+		"fileName", fileName,
+		"path", c.Request.URL.Path)
+
+	// Validate content hash format (SHA256 = 64 chars)
+	if len(contentHash) != 64 {
+		logger.Warn("Invalid content hash length", "hash", contentHash, "length", len(contentHash))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid content hash format",
+		})
+		return
+	}
+
+	// Check if content store is available
+	if h.contentStore == nil {
+		logger.Warn("Content store not available")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Content store not available",
+		})
+		return
+	}
+
+	// Try to get content metadata and path from storage
+	logger.Info("Attempting to get content from store", "hash", contentHash)
+	_, contentPath, err := h.contentStore.Get(contentHash)
+	logger.Info("Content store result", "hash", contentHash, "contentPath", contentPath, "error", err)
+	if err != nil {
+		// Check if content files exist even without metadata
+		contentPath = h.getContentPath(contentHash)
+		directPath := filepath.Join(contentPath, fileName)
+		
+		logger.Info("Checking for content without metadata", "path", directPath)
+		
+		if _, statErr := os.Stat(directPath); statErr == nil {
+			logger.Info("Found content files without metadata, serving directly")
+			// Set headers for content
+			httputil.SetContentHeaders(c, fileName)
+			httputil.SetCacheHeaders(c, true, contentHash)
+			c.File(directPath)
+			return
+		}
+		// Content not in storage yet, try to serve from active session
+		if h.sessionStore != nil {
+			sessionPath, fallbackErr := h.trySessionFallback(contentHash, fileName)
+			if fallbackErr == nil {
+				logger.Info("Serving content from active session", "hash", contentHash, "file", fileName, "sessionPath", sessionPath)
+				// Set headers for content (shorter cache time)
+				httputil.SetContentHeaders(c, fileName)
+				httputil.SetCacheHeaders(c, false, "") // Don't cache session content
+				c.File(sessionPath)
+				return
+			} else {
+				logger.Warn("Session fallback failed", "hash", contentHash, "error", fallbackErr)
+			}
+		}
+		
+		logger.Warn("Content not found", "hash", contentHash, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Content not found",
+		})
+		return
+	}
+
+	// With the new structure, fileName already includes the subdirectory
+	fullPath := filepath.Join(contentPath, fileName)
+
+	logger.Info("Attempting to serve file from content store", "filePath", fullPath)
+
+	// Check if file exists
+	if _, err := os.Stat(fullPath); err != nil {
+		logger.Warn("File not found in content store", "filePath", fullPath, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "File not found",
+		})
+		return
+	}
+
+	// Security check: ensure file is within content directory
+	if !strings.HasPrefix(filePath, contentPath) {
+		logger.Warn("Path traversal attempt", "hash", contentHash, "file", fileName)
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Access denied",
+		})
+		return
+	}
+
+	// Set appropriate headers based on file type
+	httputil.SetContentHeaders(c, filepath.Base(fileName))
+
+	// Content-addressable storage can be cached forever
+	httputil.SetCacheHeaders(c, true, contentHash)
+
+	// Serve the file
+	c.File(filePath)
 }

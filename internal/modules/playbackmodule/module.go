@@ -1,252 +1,281 @@
+// Package playbackmodule provides video playback functionality.
+// It handles playback decisions, progressive download, and session management.
 package playbackmodule
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/modules/modulemanager"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/api"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/models"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/service"
+	"github.com/mantonx/viewra/internal/services"
 	"gorm.io/gorm"
 )
 
-// Auto-register the module when imported
-func init() {
-	Register()
-}
-
-const (
-	// ModuleID is the unique identifier for the playback module
-	ModuleID = "system.playback"
-
-	// ModuleName is the display name for the playback module
-	ModuleName = "Playback Manager"
-
-	// ModuleVersion is the version of the playback module
-	ModuleVersion = "1.0.0"
-)
-
-// Module implements the playback functionality as a module
+// Module represents the playback module.
+// It provides playback decision making, progressive download,
+// and session management capabilities.
 type Module struct {
-	manager  *Manager
-	db       *gorm.DB
-	eventBus events.EventBus
+	db *gorm.DB
+
+	// Core components
+	decisionEngine        *core.DecisionEngine
+	progressHandler       *core.ProgressiveHandler
+	sessionManager        *core.SessionManager
+	cleanupManager        *core.CleanupManager
+	historyManager        *core.HistoryManager
+	transcodeDeduplicator *core.TranscodeDeduplicator
+
+	// Service layer
+	playbackService services.PlaybackService
+
+	// Dependencies
+	mediaService       services.MediaService
+	transcodingService services.TranscodingService
+
+	logger hclog.Logger
 }
 
-// NewModule creates a new playback module
-func NewModule(db *gorm.DB, eventBus events.EventBus) *Module {
-	return &Module{
-		db:       db,
-		eventBus: eventBus,
-	}
-}
-
-// ID returns the unique module identifier
+// ID returns the module identifier
 func (m *Module) ID() string {
-	return ModuleID
+	return "playback"
 }
 
-// Name returns the module display name
+// Name returns the human-readable module name
 func (m *Module) Name() string {
-	return ModuleName
+	return "Playback Module"
 }
 
-// GetVersion returns the module version
-func (m *Module) GetVersion() string {
-	return ModuleVersion
+// Version returns the module version
+func (m *Module) Version() string {
+	return "1.0.0"
 }
 
 // Core returns whether this is a core module
 func (m *Module) Core() bool {
-	return true // Playback is a core module
+	return true
 }
 
-// IsInitialized returns whether the module is initialized
-func (m *Module) IsInitialized() bool {
-	return m.manager != nil && m.manager.initialized
-}
-
-// Migrate performs any necessary database migrations
+// Migrate performs database migrations for the module
 func (m *Module) Migrate(db *gorm.DB) error {
-	logger.Info("Migrating playback database schema")
-
-	// Migrate transcode session models
-	if err := db.AutoMigrate(&database.TranscodeSession{}); err != nil {
-		return fmt.Errorf("failed to migrate TranscodeSession: %w", err)
+	// Import models package
+	models := []interface{}{
+		&models.PlaybackSession{},
+		&models.UserMediaProgress{},
+		&models.PlaybackAnalytics{},
+		&models.TranscodeCleanupTask{},
+		&models.SessionEvent{},
+		&models.PlaybackHistory{},
+		&models.UserPlaybackStats{},
+		&models.UserPreferences{},
+		&models.MediaInteraction{},
+		&models.MediaFeatures{},
+		&models.UserVector{},
+		&models.RecommendationCache{},
+		&models.TranscodeCache{},
 	}
 
-	// Any other playback-related models
+	// Run migrations
+	for _, model := range models {
+		if err := db.AutoMigrate(model); err != nil {
+			return fmt.Errorf("failed to migrate %T: %w", model, err)
+		}
+	}
 
+	// Create indexes for better performance
+	if err := m.createIndexes(db); err != nil {
+		return fmt.Errorf("failed to create indexes: %w", err)
+	}
+
+	logger.Info("Playback module migrations completed")
 	return nil
 }
 
-// Initialize sets up the playback module
-func (m *Module) Initialize() error {
-	logger.Info("Initializing playback module")
-
-	// This is called early before dependencies are ready
-	// Just mark that we're ready to be initialized
-	return nil
-}
-
-// Init initializes the playback module with dependencies
-func (m *Module) Init() error {
-	logger.Info("Initializing playback module components")
-
-	if m.db == nil {
-		logger.Error("Playback module db is nil")
-		m.db = database.GetDB()
-	}
-
-	if m.eventBus == nil {
-		logger.Error("Playback module eventBus is nil")
-		m.eventBus = events.GetGlobalEventBus()
-	}
-
-	// Create manager with default configuration
-	// Configuration can be overridden via environment variables
-	m.manager = NewManager(m.db, m.eventBus, nil)
-
-	if m.manager == nil {
-		logger.Error("Failed to create playback manager")
-		return fmt.Errorf("failed to create playback manager")
-	}
-
-	// Initialize the manager
-	if err := m.manager.Initialize(); err != nil {
-		logger.Error("Failed to initialize playback manager: %v", err)
-		return fmt.Errorf("failed to initialize playback manager: %w", err)
-	}
-
-	// Note: Providers are now managed by the transcoding module itself
-	// The playback module no longer registers providers directly
-	logger.Info("Provider registration is now handled by transcoding module")
-
-	// Register the PlaybackService with the service registry
-	if err := m.RegisterService(); err != nil {
-		logger.Error("Failed to register PlaybackService", "error", err)
-		return fmt.Errorf("failed to register playback service: %w", err)
-	}
-	logger.Info("PlaybackService registered with service registry")
-
-	// Content store is now managed by the transcoding module
-	// The content API handler will be created with minimal functionality
-	// for session-based serving only
-
-	logger.Info("Playback module initialized successfully with manager: %v", m.manager)
-
-	return nil
-}
-
-// RegisterRoutes registers all playback module HTTP routes
-func (m *Module) RegisterRoutes(router *gin.Engine) {
-	logger.Info("Registering playback module routes")
-
-	if m.manager == nil {
-		logger.Error("Cannot register routes: playback manager is nil")
-		return
-	}
-
-	// Create API handler instance
-	handler := NewAPIHandler(m.manager)
-
-	// Create simple session handler for playback module
-	// The transcoding module will handle content-addressable storage
-	sessionHandler := NewSessionHandler(m.manager.GetSessionStore())
-
-	// Register all routes from routes.go
-	RegisterRoutes(router, handler, sessionHandler)
-
-	// Content routes are now handled by the transcoding module
-	// The playback module only handles session-based routes
-
-	logger.Info("Playback module routes registered successfully")
-}
-
-// Shutdown gracefully shuts down the module
-func (m *Module) Shutdown(ctx context.Context) error {
-	logger.Info("Shutting down playback module")
-
-	if m.manager == nil {
-		return nil
-	}
-
-	// Shutdown the manager
-	if err := m.manager.Shutdown(); err != nil {
-		logger.Error("Error shutting down playback manager: %v", err)
+// createIndexes creates additional indexes for performance
+func (m *Module) createIndexes(db *gorm.DB) error {
+	// Composite index for user history queries
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_playback_sessions_user_time ON playback_sessions(user_id, start_time DESC)").Error; err != nil {
 		return err
 	}
 
-	logger.Info("Playback module shut down successfully")
+	// Index for active session queries
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_playback_sessions_active ON playback_sessions(state, last_activity) WHERE state IN ('playing', 'paused')").Error; err != nil {
+		return err
+	}
+
+	// Index for playback history queries
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_playback_history_user_recent ON playback_histories(user_id, played_at DESC)").Error; err != nil {
+		return err
+	}
+
+	// Index for recommendation queries
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_media_interactions_user_recent ON media_interactions(user_id, interaction_time DESC)").Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 
-// GetManager returns the underlying playback manager
-func (m *Module) GetManager() *Manager {
-	if m.manager == nil {
-		logger.Error("Manager is nil in GetManager()")
+// Init initializes the module and registers its services
+func (m *Module) Init() error {
+	logger.Info("Initializing playback module")
 
-		// Try to re-initialize
-		if m.db == nil {
-			logger.Error("Module database is nil, getting from global database")
-			m.db = database.GetDB()
-		}
+	// Get required services
+	mediaService, err := services.Get("media")
+	if err != nil {
+		return fmt.Errorf("media service not available: %w", err)
+	}
+	m.mediaService = mediaService.(services.MediaService)
 
-		if m.eventBus == nil {
-			logger.Error("Module eventBus is nil, getting from global event bus")
-			m.eventBus = events.GetGlobalEventBus()
-		}
+	transcodingService, err := services.Get("transcoding")
+	if err != nil {
+		return fmt.Errorf("transcoding service not available: %w", err)
+	}
+	m.transcodingService = transcodingService.(services.TranscodingService)
 
-		if m.db == nil {
-			logger.Error("CRITICAL: Cannot create playback manager - database connection is nil")
-			return nil
-		}
+	// Set database connection
+	m.db = database.GetDB()
 
-		m.manager = NewManager(m.db, m.eventBus, nil)
-		logger.Info("Re-initialized playback manager: %v", m.manager)
+	// Create logger
+	m.logger = hclog.New(&hclog.LoggerOptions{
+		Name:  "playback-module",
+		Level: hclog.Info,
+	})
 
-		// Initialize it
-		if m.manager != nil {
-			if err := m.manager.Initialize(); err != nil {
-				logger.Error("Failed to initialize re-created manager: %v", err)
-			}
-		}
+	// Initialize core components
+	m.decisionEngine = core.NewDecisionEngine(m.logger.Named("decision-engine"), m.mediaService)
+	m.progressHandler = core.NewProgressiveHandler(m.logger.Named("progressive-handler"))
+	m.sessionManager = core.NewSessionManager(m.logger.Named("session-manager"), m.db)
+	m.historyManager = core.NewHistoryManager(m.logger.Named("history-manager"), m.db)
+	m.transcodeDeduplicator = core.NewTranscodeDeduplicator(m.logger.Named("deduplicator"), m.db)
 
-		// Double-check that the manager was created properly
-		if m.manager == nil {
-			logger.Error("CRITICAL: Failed to create playback manager")
-			return nil
+	// Initialize cleanup manager
+	cleanupConfig := core.DefaultCleanupConfig()
+	m.cleanupManager = core.NewCleanupManager(
+		m.logger.Named("cleanup-manager"),
+		m.db,
+		cleanupConfig,
+		m.transcodingService,
+	)
+
+	// Start cleanup routine
+	if err := m.cleanupManager.Start(); err != nil {
+		return fmt.Errorf("failed to start cleanup manager: %w", err)
+	}
+
+	// Create and register the playback service
+	m.playbackService = service.NewPlaybackService(
+		m.logger.Named("service"),
+		m.decisionEngine,
+		m.progressHandler,
+		m.sessionManager,
+		m.historyManager,
+		m.mediaService,
+		m.transcodingService,
+	)
+
+	if err := services.Register("playback", m.playbackService); err != nil {
+		return fmt.Errorf("failed to register playback service: %w", err)
+	}
+
+	logger.Info("Playback module initialized successfully")
+	return nil
+}
+
+// RegisterRoutes registers HTTP routes for the playback module
+func (m *Module) RegisterRoutes(router *gin.Engine) {
+	logger.Info("Registering playback module routes")
+	
+	// Create API handler
+	handler := m.CreateAPIHandler()
+	
+	// Register routes under /api/playback
+	playbackGroup := router.Group("/api/playback")
+	api.RegisterRoutes(playbackGroup, handler)
+	
+	// Register analytics endpoint directly on main router
+	analyticsGroup := router.Group("/api/analytics")
+	{
+		analyticsGroup.POST("/session", handler.AnalyticsSession)
+	}
+	
+	logger.Info("Playback module routes registered successfully")
+}
+
+// SetDB sets the database connection
+func (m *Module) SetDB(db *gorm.DB) {
+	m.db = db
+}
+
+// GetDecisionEngine returns the decision engine for API handlers
+func (m *Module) GetDecisionEngine() *core.DecisionEngine {
+	return m.decisionEngine
+}
+
+// GetProgressiveHandler returns the progressive handler for API handlers
+func (m *Module) GetProgressiveHandler() *core.ProgressiveHandler {
+	return m.progressHandler
+}
+
+// GetSessionManager returns the session manager for API handlers
+func (m *Module) GetSessionManager() *core.SessionManager {
+	return m.sessionManager
+}
+
+// CreateAPIHandler creates the API handler for this module
+func (m *Module) CreateAPIHandler() *api.Handler {
+	return api.NewHandler(m.playbackService, m.mediaService, m.progressHandler, m.sessionManager, m.logger.Named("api"))
+}
+
+// Shutdown gracefully shuts down the module
+func (m *Module) Shutdown() error {
+	logger.Info("Shutting down playback module")
+
+	// Stop cleanup manager
+	if m.cleanupManager != nil {
+		if err := m.cleanupManager.Stop(); err != nil {
+			logger.Error("Failed to stop cleanup manager", "error", err)
 		}
 	}
 
-	return m.manager
+	// Clean up active sessions
+	if m.sessionManager != nil {
+		m.sessionManager.CleanupSessions()
+	}
+
+	return nil
 }
 
-// ProvidedServices returns the list of services this module provides
-func (m *Module) ProvidedServices() []string {
-	return []string{"playback"}
+// GetHistoryManager returns the history manager for API handlers
+func (m *Module) GetHistoryManager() *core.HistoryManager {
+	return m.historyManager
 }
 
-// RequiredServices returns the list of service names this module requires
-func (m *Module) RequiredServices() []string {
-	return []string{"transcoding", "plugin"} // Playback requires transcoding and plugin services
+// GetCleanupManager returns the cleanup manager for API handlers
+func (m *Module) GetCleanupManager() *core.CleanupManager {
+	return m.cleanupManager
 }
 
-// Dependencies returns the list of module IDs this module depends on
+// GetTranscodeDeduplicator returns the transcode deduplicator for API handlers
+func (m *Module) GetTranscodeDeduplicator() *core.TranscodeDeduplicator {
+	return m.transcodeDeduplicator
+}
+
+// Dependencies returns module dependencies
 func (m *Module) Dependencies() []string {
 	return []string{
-		"system.database", // For session storage
-		"system.events",   // For event notifications
+		"system.database",
+		"system.media",
+		"system.transcoding",
 	}
 }
 
-// Register registers the playback module with the module system
-func Register() {
-	playbackModule := &Module{
-		db:       nil, // Will be set during Init
-		eventBus: nil, // Will be set during Init
-	}
-	modulemanager.Register(playbackModule)
+// RequiredServices returns services this module requires
+func (m *Module) RequiredServices() []string {
+	return []string{"media", "transcoding"}
 }

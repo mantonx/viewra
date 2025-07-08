@@ -1,3 +1,6 @@
+// Package api provides HTTP handlers and routes for the transcoding module.
+// It implements the REST API endpoints for transcoding operations, session management,
+// and content delivery.
 package api
 
 import (
@@ -9,12 +12,20 @@ import (
 	plugins "github.com/mantonx/viewra/sdk"
 )
 
-// APIHandler handles HTTP requests for the transcoding module
+// APIHandler handles HTTP requests for the transcoding module.
+// It provides RESTful endpoints for managing transcoding operations,
+// including starting sessions, checking progress, and accessing content.
 type APIHandler struct {
 	service TranscodingAPIService
 }
 
-// NewAPIHandler creates a new API handler
+// NewAPIHandler creates a new API handler.
+//
+// Parameters:
+//   - service: The transcoding service that handles business logic
+//
+// The handler translates HTTP requests into service calls and
+// formats responses for API consumers.
 func NewAPIHandler(service TranscodingAPIService) *APIHandler {
 	return &APIHandler{
 		service: service,
@@ -22,7 +33,22 @@ func NewAPIHandler(service TranscodingAPIService) *APIHandler {
 }
 
 // StartTranscode handles POST /api/v1/transcoding/transcode
-// Initiates a new transcoding session
+//
+// Request body:
+//   {
+//     "mediaId": "string",      // Required: ID of the media to transcode
+//     "container": "string",    // Required: Target container format (mp4, mkv)
+//     "inputPath": "string",    // Required: Path to source media file
+//     "outputPath": "string",   // Optional: Desired output location
+//     "encodingOptions": {...}  // Optional: Encoding parameters
+//   }
+//
+// Response:
+//   {
+//     "sessionId": "string",    // Unique session identifier
+//     "status": "string",       // Current status (queued, running, etc.)
+//     "provider": "string"      // Provider handling the transcode
+//   }
 func (h *APIHandler) StartTranscode(c *gin.Context) {
 	var req plugins.TranscodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -282,7 +308,34 @@ func (h *APIHandler) CleanupOldSessions(c *gin.Context) {
 	})
 }
 
-// parseIntParam is a utility function to parse integer parameters from strings
+// GetResourceUsage handles GET /api/v1/transcoding/resources
+//
+// Returns current resource usage statistics including:
+//   - Active transcoding sessions
+//   - Queued sessions waiting for resources
+//   - Resource limits and capacity
+//   - Memory and CPU usage (if available)
+//
+// Response:
+//   {
+//     "activeSessions": 2,
+//     "queuedSessions": 1,
+//     "maxConcurrent": 4,
+//     "memoryUsageMB": 512,
+//     "cpuUsagePercent": 45.5
+//   }
+func (h *APIHandler) GetResourceUsage(c *gin.Context) {
+	usage := h.service.GetResourceUsage()
+	if usage == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Resource management not available"})
+		return
+	}
+
+	c.JSON(http.StatusOK, usage)
+}
+
+// parseIntParam is a utility function to parse integer parameters from strings.
+// It's used to safely convert query parameters to integers with error handling.
 func parseIntParam(s string) (int, error) {
 	return strconv.Atoi(s)
 }

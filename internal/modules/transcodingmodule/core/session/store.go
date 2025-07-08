@@ -1,8 +1,8 @@
+// Package session provides database-backed session management for transcoding operations.
+// It implements session persistence, status tracking, and cleanup operations.
 package session
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/cleanup"
+	"github.com/mantonx/viewra/internal/utils"
 	plugins "github.com/mantonx/viewra/sdk"
 	"gorm.io/gorm"
 )
@@ -57,7 +58,7 @@ func (s *SessionStore) CreateSession(provider string, req *plugins.TranscodeRequ
 
 	// Generate content hash based on transcoding parameters
 	// This ensures content-addressable URLs are available immediately
-	session.ContentHash = s.generateContentHash(req)
+	session.ContentHash = s.GenerateContentHash(req.InputPath, req.MediaID, req.Container)
 
 	if err := s.db.Create(session).Error; err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -79,59 +80,26 @@ func (s *SessionStore) generateSessionID() string {
 
 // generateSessionDirectory creates the directory path for a session
 func (s *SessionStore) generateSessionDirectory(container, provider, sessionID string) string {
-	// Format: [container]_[provider]_[sessionID]
-	// This is just the directory name, not the full path
-	// The actual path will be set when the directory is created
-	return fmt.Sprintf("%s_%s_%s", container, provider, sessionID)
+	// Modern path: just use the session ID
+	// The full path will be /app/viewra-data/transcoding/sessions/{sessionID}
+	return sessionID
 }
 
-// generateContentHash generates a deterministic content hash based on transcoding parameters
-func (s *SessionStore) generateContentHash(req *plugins.TranscodeRequest) string {
-	// Create a deterministic hash based on transcoding parameters
-	// This ensures the same content parameters always generate the same hash
-	// for content deduplication and CDN caching
-
-	// Build hash input with all relevant parameters that affect output
+// GenerateContentHash generates a deterministic content hash based on transcoding parameters
+func (s *SessionStore) GenerateContentHash(inputPath, mediaID, container string) string {
 	// IMPORTANT: Include input path if MediaID is empty to ensure uniqueness
-	mediaIdentifier := req.MediaID
+	mediaIdentifier := mediaID
 	if mediaIdentifier == "" {
 		// Use input path as fallback to ensure uniqueness
-		mediaIdentifier = req.InputPath
+		mediaIdentifier = inputPath
 		s.logger.Warn("Empty MediaID in transcode request, using input path for hash",
-			"inputPath", req.InputPath)
+			"inputPath", inputPath)
 	}
 	
-	hashInput := fmt.Sprintf("%s_%s_%s_%s_%d_%s",
-		mediaIdentifier,   // Media identifier (ID or path)
-		req.Container,     // Output format (dash, hls, mp4)
-		req.VideoCodec,    // Video codec
-		req.AudioCodec,    // Audio codec
-		req.Quality,       // Quality level
-		req.SpeedPriority, // Speed/quality tradeoff
-	)
-
-	// Add resolution if specified
-	if req.Resolution != nil {
-		hashInput += fmt.Sprintf("_%dx%d", req.Resolution.Width, req.Resolution.Height)
-	}
-
-	// Add ABR flag
-	if req.EnableABR {
-		hashInput += "_abr"
-	}
-
-	// Add bitrate constraints if specified
-	if req.VideoBitrate > 0 {
-		hashInput += fmt.Sprintf("_vb%d", req.VideoBitrate)
-	}
-	if req.AudioBitrate > 0 {
-		hashInput += fmt.Sprintf("_ab%d", req.AudioBitrate)
-	}
-
-	// Generate SHA256 hash
-	hash := sha256.Sum256([]byte(hashInput))
-	// Return full 64-character SHA256 hash for content-addressable storage
-	return hex.EncodeToString(hash[:])
+	// Use the centralized hash utility
+	// Note: For simple file-based transcoding, we don't have quality/resolution parameters yet
+	// These could be added later when the request includes them
+	return utils.GenerateContentHash(mediaIdentifier, container, 0, nil)
 }
 
 // GetSession retrieves a session by ID

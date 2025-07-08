@@ -1,3 +1,6 @@
+// Package cleanup provides automated cleanup services for the transcoding module.
+// It manages temporary file removal, orphaned session cleanup, and storage space
+// management to prevent disk space exhaustion.
 package cleanup
 
 import (

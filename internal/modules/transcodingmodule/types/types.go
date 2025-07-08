@@ -1,5 +1,7 @@
 // Package types provides types and interfaces for the transcoding module.
-// This includes all types needed for Shaka packaging and other transcoding operations.
+// This includes all types needed for file-based transcoding operations.
+// Package types defines common types and interfaces used throughout the transcoding module.
+// It provides configuration structures, session information, and plugin interfaces.
 package types
 
 import (
@@ -101,64 +103,7 @@ type PipelineConfig struct {
 	MaxConcurrentPackaging int
 }
 
-// StreamingFormat represents a streaming format
-type StreamingFormat string
 
-const (
-	FormatDASH StreamingFormat = "dash"
-	FormatHLS  StreamingFormat = "hls"
-)
-
-// MediaType represents a media stream type
-type MediaType string
-
-const (
-	MediaTypeVideo MediaType = "video"
-	MediaTypeAudio MediaType = "audio"
-)
-
-// PackageRequest represents a request to package encoded files into streaming formats
-type PackageRequest struct {
-	Inputs             []PackageInput    `json:"inputs"`
-	OutputDir          string            `json:"output_dir"`
-	Formats            []StreamingFormat `json:"formats"`
-	SegmentDuration    int               `json:"segment_duration"` // in seconds
-	EnableDebugLogging bool              `json:"enable_debug_logging"`
-}
-
-// PackageInput represents a single input file for packaging
-type PackageInput struct {
-	Path     string    `json:"path"`
-	Type     MediaType `json:"type"`
-	Label    string    `json:"label"`
-	Language string    `json:"language,omitempty"`
-	Bitrate  int       `json:"bitrate,omitempty"` // in bps
-}
-
-// PackageResult represents the result of a packaging operation
-type PackageResult struct {
-	ManifestPaths map[StreamingFormat]string `json:"manifest_paths"`
-	SegmentPaths  []string                   `json:"segment_paths"`
-	Duration      time.Duration              `json:"duration"`
-	Stats         PackagingStats             `json:"stats"`
-}
-
-// PackagingStats contains statistics about the packaging operation
-type PackagingStats struct {
-	StartTime    time.Time `json:"start_time"`
-	EndTime      time.Time `json:"end_time"`
-	OutputSize   int64     `json:"output_size"` // Total size in bytes
-	SegmentCount int       `json:"segment_count"`
-}
-
-// PackagerCapabilities describes what a packager implementation supports
-type PackagerCapabilities struct {
-	SupportedFormats      []StreamingFormat `json:"supported_formats"`
-	MaxInputStreams       int               `json:"max_input_streams"`
-	SupportsDRM           bool              `json:"supports_drm"`
-	SupportsLiveStreaming bool              `json:"supports_live_streaming"`
-	RequiredBinaryPath    string            `json:"required_binary_path"`
-}
 
 // ValidationError represents a validation error with field context
 type ValidationError struct {
@@ -269,6 +214,5 @@ type PipelineStatus struct {
 	CompletedJobs    int      `json:"completedJobs"`
 	FailedJobs       int      `json:"failedJobs"`
 	FFmpegVersion    string   `json:"ffmpegVersion"`
-	ShakaVersion     string   `json:"shakaVersion"`
 	SupportedFormats []string `json:"supportedFormats"`
 }

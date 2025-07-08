@@ -43,12 +43,4 @@ services:
     # Disable restart in dev for easier debugging
     restart: "no"
     # Install debugging tools
-    entrypoint: |
-      sh -c "
-        # Install debugging tools
-        apk add --no-cache strace tcpdump htop iotop
-        # Install air for hot-reload if not present
-        which air || go install github.com/air-verse/air@latest
-        # Use the .air.toml from the project
-        exec air -c .air.toml
-      "
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache strace tcpdump htop iotop && (which air || go install github.com/air-verse/air@latest) && exec air -c .air.toml"]

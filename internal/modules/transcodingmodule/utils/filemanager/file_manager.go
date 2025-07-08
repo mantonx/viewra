@@ -1,3 +1,5 @@
+// Package filemanager provides file and directory management utilities for the transcoding module.
+// It handles directory creation, size calculations, and safe file operations.
 package filemanager
 
 import (

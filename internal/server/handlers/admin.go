@@ -10,7 +10,7 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/modules/mediamodule"
+	"github.com/mantonx/viewra/internal/services"
 )
 
 // AdminHandler handles administrative API endpoints
@@ -117,45 +117,71 @@ func (h *AdminHandler) DeleteMediaLibrary(c *gin.Context) {
 
 	logger.Info("Admin deleting library", "library_id", libraryID)
 
-	// Import the deletion service from mediamodule
-	db := database.GetDB()
-
-	// Use the comprehensive deletion service
-	deletionService := mediamodule.NewLibraryDeletionService(db, h.eventBus)
-
-	// Get scanner manager for proper cleanup
-	scannerManager, err := getScannerManager()
-	if err == nil && scannerManager != nil {
-		deletionService.SetScannerManager(scannerManager)
-	} else {
-		logger.Warn("Scanner manager not available for cleanup", "error", err)
-	}
-
-	// Perform comprehensive deletion
-	result := deletionService.DeleteLibrary(uint32(libraryID))
-
-	if !result.Success {
-		logger.Error("Admin library deletion failed", "library_id", libraryID, "error", result.Error)
-		if result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   result.Message,
-				"details": result.Error.Error(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": result.Message,
-			})
-		}
+	// Get media service from service registry
+	mediaService, err := services.GetMediaService()
+	if err != nil {
+		logger.Error("Failed to get media service", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Media service unavailable",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	logger.Info("Admin library deletion completed successfully", "library_id", libraryID, "duration", result.Duration)
+	// Use context for the operation
+	ctx := c.Request.Context()
+
+	// Get the library first to check if it exists
+	library, err := mediaService.GetLibrary(ctx, uint32(libraryID))
+	if err != nil {
+		logger.Error("Library not found", "library_id", libraryID, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "Library not found",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// TODO: Add comprehensive cleanup logic here
+	// For now, we'll do a simple database deletion
+	// In the future, this should:
+	// 1. Stop any active scan jobs for this library
+	// 2. Clean up associated media files records
+	// 3. Clean up transcoding sessions
+	// 4. Remove cached data
+
+	// Simple deletion using database directly for now
+	db := database.GetDB()
+	result := db.Where("id = ?", libraryID).Delete(&database.MediaLibrary{})
+	if result.Error != nil {
+		logger.Error("Failed to delete library", "library_id", libraryID, "error", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete library",
+			"details": result.Error.Error(),
+		})
+		return
+	}
+
+	// Publish deletion event
+	if h.eventBus != nil {
+		deleteEvent := events.NewSystemEvent(
+			events.EventInfo,
+			"Media Library Deleted",
+			fmt.Sprintf("Media library '%s' at path '%s' has been deleted", library.Type, library.Path),
+		)
+		deleteEvent.Data = map[string]interface{}{
+			"libraryId": libraryID,
+			"path":      library.Path,
+			"type":      library.Type,
+		}
+		h.eventBus.PublishAsync(deleteEvent)
+	}
+
+	logger.Info("Library deletion completed successfully", "library_id", libraryID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":       result.Message,
-		"library_id":    result.LibraryID,
-		"cleanup_stats": result.CleanupStats,
-		"duration":      result.Duration.String(),
+		"message":    "Library deleted successfully",
+		"library_id": libraryID,
 	})
 }
 

@@ -7,9 +7,14 @@ export interface MediaFile {
   video_codec?: string;
   audio_codec?: string;
   resolution?: string;
-  bitrate?: number;
+  bitrate_kbps?: number;
   duration?: number;
   size_bytes: number;
+  video_width?: number;
+  video_height?: number;
+  video_framerate?: string;
+  // Legacy fields for backward compatibility
+  bitrate?: number;
   width?: number;
   height?: number;
   framerate?: number;
