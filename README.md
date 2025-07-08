@@ -8,7 +8,7 @@ Viewra is a flexible and extensible media management platform designed to help y
 - **Content-Addressable Storage**: Automatic deduplication of transcoded content with CDN-friendly URLs
 - **Adaptive Bitrate Streaming**: Support for both DASH and HLS with multiple quality levels
 - **Hardware Acceleration**: NVIDIA NVENC support through plugin architecture
-- **Extensible Plugin System**: Customize and extend Viewra's functionality with powerful plugins (See [Plugin Documentation](docs/PLUGINS.md))
+- **Extensible Plugin System**: Customize and extend Viewra's functionality with powerful plugins (See [Plugin Development Guide](docs/PLUGIN_DEVELOPMENT_GUIDE.md))
 - **Efficient Media Scanning**: Fast and reliable scanning of your media libraries
 - **Metadata Enrichment**: Leverage plugins (like MusicBrainz) to enrich your media files with detailed metadata
 - **Modern Web Interface**: A clean and responsive interface built with React and TypeScript
@@ -175,12 +175,31 @@ go test ./internal/modules/playbackmodule -tags=integration
 
 ## Documentation
 
+### Core Documentation
 - [Architecture Overview](docs/ARCHITECTURE.md) - System design and component interaction
-- [API Reference](docs/API_REFERENCE.md) - Complete API documentation
-- [Plugin Development](docs/PLUGINS.md) - Creating custom plugins
-- [Component Guide](docs/COMPONENTS.md) - Detailed component documentation
-- [Quick Start Guide](docs/QUICKSTART.md) - Get up and running quickly
+- [Module Architecture](docs/MODULE_ARCHITECTURE.md) - Clean architecture patterns and module structure
+- [API Reference](docs/API.md) - Complete API documentation
+- [Database Schema](docs/DATABASE.md) - Database structure and models
+
+### Development Guides
+- [Quick Start](docs/QUICKSTART.md) - Get up and running quickly
+- [Plugin Development](docs/PLUGIN_DEVELOPMENT_GUIDE.md) - Creating custom plugins
+- [Transcoding Guide](docs/TRANSCODING_GUIDE.md) - Using the transcoding system
+- [Debugging Guide](docs/DEBUGGING_GUIDE.md) - Troubleshooting common issues
+
+### Deployment & Configuration
 - [Deployment Guide](docs/DEPLOYMENT.md) - Production deployment procedures
+- [MCP Setup](docs/MCP_SETUP.md) - Configure AI assistant tools
+
+### Architecture Decisions
+- [ADR Index](docs/adr/README.md) - Architecture Decision Records
+- [Module Separation](docs/adr/0001-module-separation.md)
+- [Service Registry](docs/adr/0002-service-registry-pattern.md)
+- [Clean Architecture](docs/adr/0004-clean-module-architecture.md)
+
+### Additional Resources
+- [Frontend Components](docs/COMPONENTS.md) - React component documentation
+- [Development with Claude](CLAUDE.md) - AI-assisted development guidelines
 
 ## Contributing
 

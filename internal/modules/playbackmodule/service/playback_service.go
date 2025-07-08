@@ -17,9 +17,9 @@ import (
 	plugins "github.com/mantonx/viewra/sdk"
 )
 
-// PlaybackService implements the PlaybackService interface.
+// playbackServiceImpl implements the PlaybackService interface.
 // It coordinates playback decisions, transcoding, and session management.
-type PlaybackService struct {
+type playbackServiceImpl struct {
 	logger             hclog.Logger
 	decisionEngine     *playback.DecisionEngine
 	progressHandler    *streaming.ProgressiveHandler
@@ -47,7 +47,7 @@ func NewPlaybackService(
 	mediaService services.MediaService,
 	transcodingService services.TranscodingService,
 ) services.PlaybackService {
-	return &PlaybackService{
+	return &playbackServiceImpl{
 		logger:             logger,
 		decisionEngine:     decisionEngine,
 		progressHandler:    progressHandler,
@@ -61,7 +61,7 @@ func NewPlaybackService(
 
 // DecidePlayback determines whether to direct play or transcode based on
 // media file characteristics and device capabilities.
-func (ps *PlaybackService) DecidePlayback(mediaPath string, deviceProfile *types.DeviceProfile) (*types.PlaybackDecision, error) {
+func (ps *playbackServiceImpl) DecidePlayback(mediaPath string, deviceProfile *types.DeviceProfile) (*types.PlaybackDecision, error) {
 	ctx := context.Background()
 
 	// Convert to our extended device profile
@@ -130,13 +130,13 @@ func (ps *PlaybackService) DecidePlayback(mediaPath string, deviceProfile *types
 
 // RegisterEventHandler allows other modules to register for playback events
 // This enables future recommendation engines to receive real-time playback data
-func (ps *PlaybackService) RegisterEventHandler(handler PlaybackEventHandler) {
+func (ps *playbackServiceImpl) RegisterEventHandler(handler PlaybackEventHandler) {
 	ps.eventHandlers = append(ps.eventHandlers, handler)
 	ps.logger.Info("Registered playback event handler")
 }
 
 // publishEvent sends events to all registered handlers
-func (ps *PlaybackService) publishEvent(eventType string, data map[string]interface{}) {
+func (ps *playbackServiceImpl) publishEvent(eventType string, data map[string]interface{}) {
 	for _, handler := range ps.eventHandlers {
 		go func(h PlaybackEventHandler) {
 			if err := h.HandlePlaybackEvent(eventType, data); err != nil {
@@ -147,7 +147,7 @@ func (ps *PlaybackService) publishEvent(eventType string, data map[string]interf
 }
 
 // GetUserPlaybackHistory provides access to user behavior data for recommendations
-func (ps *PlaybackService) GetUserPlaybackHistory(userID string, mediaType string, limit int) (interface{}, error) {
+func (ps *playbackServiceImpl) GetUserPlaybackHistory(userID string, mediaType string, limit int) (interface{}, error) {
 	if ps.historyManager == nil {
 		return nil, fmt.Errorf("history manager not available")
 	}
@@ -162,7 +162,7 @@ func (ps *PlaybackService) GetUserPlaybackHistory(userID string, mediaType strin
 }
 
 // GetUserPreferences provides access to user preferences for recommendations
-func (ps *PlaybackService) GetUserPreferences(userID string) (interface{}, error) {
+func (ps *playbackServiceImpl) GetUserPreferences(userID string) (interface{}, error) {
 	if ps.historyManager == nil {
 		return nil, fmt.Errorf("history manager not available")
 	}
@@ -176,7 +176,7 @@ func (ps *PlaybackService) GetUserPreferences(userID string) (interface{}, error
 }
 
 // RecordPlaybackInteraction allows recording user interactions for recommendations
-func (ps *PlaybackService) RecordPlaybackInteraction(userID, mediaFileID, interactionType string, score float64, context map[string]interface{}) error {
+func (ps *playbackServiceImpl) RecordPlaybackInteraction(userID, mediaFileID, interactionType string, score float64, context map[string]interface{}) error {
 	if ps.historyManager == nil {
 		return fmt.Errorf("history manager not available")
 	}
@@ -202,7 +202,7 @@ func (ps *PlaybackService) RecordPlaybackInteraction(userID, mediaFileID, intera
 }
 
 // GetMediaInfo analyzes a media file and returns its characteristics.
-func (ps *PlaybackService) GetMediaInfo(mediaPath string) (*types.MediaInfo, error) {
+func (ps *playbackServiceImpl) GetMediaInfo(mediaPath string) (*types.MediaInfo, error) {
 	ctx := context.Background()
 
 	ps.logger.Debug("Getting media info", "path", mediaPath)
@@ -217,7 +217,7 @@ func (ps *PlaybackService) GetMediaInfo(mediaPath string) (*types.MediaInfo, err
 }
 
 // ValidatePlayback checks if a media file can be played on the given device.
-func (ps *PlaybackService) ValidatePlayback(mediaPath string, deviceProfile *types.DeviceProfile) error {
+func (ps *playbackServiceImpl) ValidatePlayback(mediaPath string, deviceProfile *types.DeviceProfile) error {
 	ctx := context.Background()
 
 	// Convert to our extended device profile
@@ -254,7 +254,7 @@ func (ps *PlaybackService) ValidatePlayback(mediaPath string, deviceProfile *typ
 }
 
 // GetSupportedFormats returns formats supported for direct playback.
-func (ps *PlaybackService) GetSupportedFormats(deviceProfile *types.DeviceProfile) []string {
+func (ps *playbackServiceImpl) GetSupportedFormats(deviceProfile *types.DeviceProfile) []string {
 	// Convert to our extended device profile
 	extendedProfile := &playbacktypes.DeviceProfile{
 		DeviceProfile:       deviceProfile,
@@ -273,7 +273,7 @@ func (ps *PlaybackService) GetSupportedFormats(deviceProfile *types.DeviceProfil
 }
 
 // GetRecommendedTranscodeParams returns optimal transcoding parameters if needed.
-func (ps *PlaybackService) GetRecommendedTranscodeParams(mediaPath string, deviceProfile *types.DeviceProfile) (*plugins.TranscodeRequest, error) {
+func (ps *playbackServiceImpl) GetRecommendedTranscodeParams(mediaPath string, deviceProfile *types.DeviceProfile) (*plugins.TranscodeRequest, error) {
 	ctx := context.Background()
 
 	// Convert to our extended device profile
@@ -323,7 +323,7 @@ func (ps *PlaybackService) GetRecommendedTranscodeParams(mediaPath string, devic
 }
 
 // StartPlaybackSession starts a new playback session for tracking.
-func (ps *PlaybackService) StartPlaybackSession(mediaFileID, userID, deviceID, method string) (*session.PlaybackSession, error) {
+func (ps *playbackServiceImpl) StartPlaybackSession(mediaFileID, userID, deviceID, method string) (*session.PlaybackSession, error) {
 	ps.logger.Info("Starting playback session",
 		"mediaFileID", mediaFileID,
 		"method", method)
@@ -337,7 +337,7 @@ func (ps *PlaybackService) StartPlaybackSession(mediaFileID, userID, deviceID, m
 }
 
 // UpdatePlaybackSession updates an existing playback session.
-func (ps *PlaybackService) UpdatePlaybackSession(sessionID string, updates map[string]interface{}) error {
+func (ps *playbackServiceImpl) UpdatePlaybackSession(sessionID string, updates map[string]interface{}) error {
 	ps.logger.Debug("Updating playback session", "sessionID", sessionID)
 
 	err := ps.sessionManager.UpdateSession(sessionID, updates)
@@ -349,7 +349,7 @@ func (ps *PlaybackService) UpdatePlaybackSession(sessionID string, updates map[s
 }
 
 // EndPlaybackSession ends a playback session.
-func (ps *PlaybackService) EndPlaybackSession(sessionID string) error {
+func (ps *playbackServiceImpl) EndPlaybackSession(sessionID string) error {
 	ps.logger.Info("Ending playback session", "sessionID", sessionID)
 
 	err := ps.sessionManager.EndSession(sessionID)
@@ -361,7 +361,7 @@ func (ps *PlaybackService) EndPlaybackSession(sessionID string) error {
 }
 
 // GetPlaybackSession retrieves a playback session by ID.
-func (ps *PlaybackService) GetPlaybackSession(sessionID string) (*session.PlaybackSession, error) {
+func (ps *playbackServiceImpl) GetPlaybackSession(sessionID string) (*session.PlaybackSession, error) {
 	session, err := ps.sessionManager.GetSession(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("session not found: %w", err)
@@ -371,12 +371,12 @@ func (ps *PlaybackService) GetPlaybackSession(sessionID string) (*session.Playba
 }
 
 // GetActiveSessions returns all active playback sessions.
-func (ps *PlaybackService) GetActiveSessions() []*session.PlaybackSession {
+func (ps *playbackServiceImpl) GetActiveSessions() []*session.PlaybackSession {
 	return ps.sessionManager.GetActiveSessions()
 }
 
 // PrepareStreamURL prepares a streaming URL based on the playback decision.
-func (ps *PlaybackService) PrepareStreamURL(decision *types.PlaybackDecision, baseURL string) (string, error) {
+func (ps *playbackServiceImpl) PrepareStreamURL(decision *types.PlaybackDecision, baseURL string) (string, error) {
 	// Get method from decision
 	method := string(decision.Method)
 

@@ -1,343 +1,227 @@
-# Viewra Architecture Documentation
+# Viewra Architecture
 
 ## Overview
 
-Viewra is a modern media management platform that uses a two-stage transcoding pipeline with content-addressable storage for efficient, CDN-friendly media delivery.
+Viewra is a modular media management platform built with clean architecture principles. It provides media library management, intelligent playback decisions, and extensible transcoding capabilities.
 
-## Key Architectural Changes
+## System Architecture
 
-### From Single-Stage to Two-Stage Pipeline
-
-**Previous Architecture:**
-- FFmpeg directly generated DASH/HLS manifests
-- DASH manifests incorrectly marked as `type="dynamic"` for VOD content
-- Session-based URLs: `/api/playback/stream/{session_id}/`
-- No content deduplication
-
-**New Architecture:**
-- Stage 1: FFmpeg encodes to intermediate MP4 files
-- Stage 2: Shaka Packager creates proper VOD manifests (`type="static"`)
-- Content-addressable URLs: `/api/v1/content/{hash}/`
-- Automatic content deduplication
-
-## Core Components
-
-### 1. Pipeline Manager (`sdk/transcoding/pipeline/`)
-
-The Pipeline Manager coordinates the two-stage transcoding process:
-
-```go
-type Manager struct {
-    encoder      Encoder      // FFmpeg for video/audio encoding
-    packager     Packager     // Shaka Packager for manifest generation
-    storage      Storage      // Job directory management
-    contentStore *ContentStore // Content-addressable storage
-}
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend (React)                       │
+│                   Responsive Web Interface                    │
+└─────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      API Gateway (Gin)                        │
+│                    RESTful API Endpoints                      │
+└─────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────┬─────────────────┬─────────────────────────┐
+│  Media Module   │ Playback Module │ Transcoding Module      │
+├─────────────────┼─────────────────┼─────────────────────────┤
+│ • Libraries     │ • Decisions     │ • Session Management    │
+│ • Scanning      │ • Sessions      │ • Provider Selection    │
+│ • Metadata      │ • Streaming     │ • Content Storage       │
+└─────────────────┴─────────────────┴─────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Service Registry                           │
+│              Inter-module Communication                       │
+└─────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────┬─────────────────┬─────────────────────────┐
+│    Database     │  File System    │    Plugin System        │
+│   (SQLite/PG)   │  Media Storage  │   External Plugins      │
+└─────────────────┴─────────────────┴─────────────────────────┘
 ```
 
-**Key Features:**
-- Manages job lifecycle (create, execute, cleanup)
-- Coordinates data flow between stages
-- Handles error recovery and retries
-- Generates content hashes for deduplication
+## Core Modules
 
-### 2. Content-Addressable Storage (`sdk/transcoding/storage/`)
+### 1. Media Module
+Manages media libraries and metadata.
 
-Implements efficient content storage with SHA256-based addressing:
+**Responsibilities:**
+- Library management (create, scan, update)
+- Media file tracking and metadata
+- Search and filtering capabilities
+- Integration with scanner services
 
-```go
-type ContentStore struct {
-    basePath string
-    urlGen   *URLGenerator
-    mutex    sync.RWMutex
-}
+**Key Components:**
+- `LibraryManager`: Handles library operations
+- `MetadataManager`: Manages media metadata
+- `MediaService`: Service layer interface
+
+### 2. Playback Module
+Makes intelligent playback decisions based on media format and device capabilities.
+
+**Responsibilities:**
+- Analyze media file compatibility
+- Determine optimal playback method
+- Manage playback sessions
+- Track viewing history
+
+**Key Components:**
+- `DecisionEngine`: Analyzes and decides playback strategy
+- `SessionManager`: Tracks active playback sessions
+- `StreamingManager`: Handles streaming operations
+
+### 3. Transcoding Module
+Manages media transcoding through various providers.
+
+**Responsibilities:**
+- Provider management and selection
+- Transcoding session lifecycle
+- Content-addressable storage
+- Progress tracking
+
+**Key Components:**
+- `TranscodingManager`: Orchestrates transcoding operations
+- `ProviderRegistry`: Manages available providers
+- `ContentStore`: Handles transcoded content storage
+
+## Clean Architecture Pattern
+
+Each module follows a consistent structure:
+
+```
+module/
+├── api/           # HTTP handlers
+├── core/          # Business logic
+├── service/       # Service interface
+├── repository/    # Data access
+├── models/        # Database models
+├── types/         # Shared types
+├── errors/        # Error handling
+└── module.go      # Module registration
 ```
 
-**Features:**
-- Deterministic hash generation
-- Directory sharding (first 4 chars of hash)
-- Atomic operations for concurrent access
-- CDN-friendly URL structure
+**Principles:**
+- Dependencies flow inward (API → Service → Core)
+- Business logic isolated in core layer
+- Clear interfaces between layers
+- Module independence
 
-**Hash Generation:**
-```go
-// Hash is based on:
-// - Media ID + Codec + Resolution + Container
-// Example: "file123-h264-aac-1080p-dash" → "abc123def456..."
+## Plugin Architecture
+
+Viewra uses HashiCorp's go-plugin for extensibility:
+
+```
+┌─────────────────┐     gRPC      ┌─────────────────┐
+│   Viewra Core   │◄─────────────►│  Plugin Process │
+│                 │               │                 │
+│ Plugin Manager  │               │ Implementation  │
+└─────────────────┘               └─────────────────┘
 ```
 
-### 3. FFmpeg Plugin System (`plugins/transcoding/`)
-
-Hardware-accelerated encoding plugins:
-
-- `ffmpeg_software`: CPU-based encoding
-- `ffmpeg_nvidia`: NVIDIA GPU acceleration
-- `ffmpeg_qsv`: Intel Quick Sync Video
-- `ffmpeg_vaapi`: VA-API acceleration
-
-Each plugin implements the pipeline-aware interface:
-
-```go
-type TranscodingProvider interface {
-    StartTranscode(request *TranscodeRequest) (*TranscodeHandle, error)
-    GetProgress(handle *TranscodeHandle) (*TranscodeProgress, error)
-    StopTranscode(handle *TranscodeHandle) error
-    // Pipeline support
-    SupportsFeature(feature string) bool
-}
-```
-
-### 4. Shaka Packager Integration (`sdk/transcoding/shaka/`)
-
-Handles manifest generation and segmentation:
-
-```go
-type Packager struct {
-    binaryPath string
-    logger     Logger
-}
-
-func (p *Packager) Package(inputs []string, output string, options PackageOptions) error {
-    // Generates DASH/HLS manifests with proper VOD settings
-}
-```
-
-**Key Options:**
-- `--generate_static_live_mpd=false` for proper VOD manifests
-- Multi-bitrate support for ABR
-- Segment duration configuration
-
-### 5. Playback Module (`internal/modules/playbackmodule/`)
-
-Manages transcoding sessions and playback decisions:
-
-```go
-type Manager struct {
-    transcodingService *TranscodingService
-    sessionStore       *SessionStore
-    contentStore       storage.ContentStoreInterface
-    playbackPlanner    *PlaybackPlanner
-}
-```
-
-**Intelligent Playback Decisions:**
-- Analyzes device capabilities
-- Determines if transcoding is needed
-- Reuses existing content when available
-- Optimizes encoding parameters
-
-### 6. Frontend Integration
-
-**MediaPlayer Component:**
-- Vidstack player with ABR support
-- Content-addressable URL handling
-- Seek-ahead functionality
-- Progress saving/restoration
-
-**URL Building:**
-```typescript
-// Old approach
-const manifestUrl = `/api/playback/stream/${sessionId}/manifest.mpd`;
-
-// New approach
-const manifestUrl = `/api/v1/content/${contentHash}/manifest.mpd`;
-```
+**Plugin Types:**
+- **Transcoding Providers**: FFmpeg variants, hardware acceleration
+- **Metadata Scrapers**: Extract metadata from files
+- **Enrichment Services**: External metadata sources (TMDB, MusicBrainz)
 
 ## Data Flow
 
+### Media Playback Flow
+
+1. **Client Request**: User selects media to play
+2. **Playback Decision**: 
+   - Media module provides file information
+   - Playback module analyzes compatibility
+   - Decision: Direct play or transcode
+3. **Direct Play**: Stream original file
+4. **Transcode Path**:
+   - Select optimal provider
+   - Start transcoding session
+   - Stream transcoded content
+
 ### Transcoding Flow
 
-```
-1. Client Request
-   POST /api/playback/start
-   {media_file_id, container, device_profile}
-   
-2. Playback Decision
-   - Analyze media file properties
-   - Check device capabilities
-   - Determine optimal encoding parameters
-   
-3. Content Hash Check
-   - Generate hash from parameters
-   - Check if content already exists
-   - Return immediately if found
-   
-4. Pipeline Execution
-   a. Encoding Stage (FFmpeg)
-      - Transcode to H.264/HEVC
-      - Output intermediate MP4s
-      - Apply quality settings
-      
-   b. Packaging Stage (Shaka)
-      - Generate DASH/HLS manifest
-      - Create media segments
-      - Set VOD properties
-      
-5. Content Storage
-   - Store in content-addressable structure
-   - Update database with content hash
-   - Return CDN-friendly URLs
-```
+1. **Request**: Playback module requests transcoding
+2. **Provider Selection**: Based on format support and availability
+3. **Processing**: Provider transcodes media
+4. **Storage**: Content stored with hash-based addressing
+5. **Delivery**: Stream URL provided to client
 
-### Seek-Ahead Flow
+## Storage Architecture
 
-```
-1. User seeks beyond buffered content
-2. Frontend detects seek-ahead need
-3. POST /api/playback/seek-ahead
-4. New session starts from seek position
-5. Frontend switches to new manifest
-6. Original session continues for buffer
+### Media Storage
+- Original media files remain in configured library paths
+- Database tracks file locations and metadata
+- No modification of source files
+
+### Transcoded Content
+- Content-addressable storage using SHA256 hashes
+- Automatic deduplication
+- Directory sharding for scalability
+- Structure: `/content/{hash[0:2]}/{hash[2:4]}/{full_hash}/`
+
+## Communication Patterns
+
+### Service Registry
+Modules communicate through registered services:
+
+```go
+// Registration
+services.Register("media", mediaService)
+
+// Usage
+mediaService, _ := services.Get("media")
 ```
 
-## Database Schema
-
-### Key Tables
-
-**transcode_sessions:**
-```sql
-CREATE TABLE transcode_sessions (
-    id            VARCHAR(36) PRIMARY KEY,
-    status        VARCHAR(20),
-    provider      VARCHAR(50),
-    content_hash  VARCHAR(64) INDEX,  -- New field
-    request       TEXT,
-    created_at    TIMESTAMP,
-    updated_at    TIMESTAMP
-);
-```
-
-**media_files:**
-```sql
-CREATE TABLE media_files (
-    id         VARCHAR(36) PRIMARY KEY,
-    path       TEXT,
-    media_type VARCHAR(20),
-    metadata   JSON,
-    duration   INTEGER,
-    file_size  BIGINT
-);
-```
+### Event System
+Asynchronous communication via event bus:
+- Library scan completion
+- Transcoding progress
+- Session state changes
 
 ## Configuration
 
-### Environment Variables
+### Module Configuration
+Each module can be configured independently:
+- Database connections
+- Storage paths
+- Feature flags
 
-```bash
-# Content Storage
-CONTENT_STORE_PATH=/app/viewra-data/content-store
-CONTENT_BASE_URL=/api/v1/content
-
-# Pipeline Settings
-PIPELINE_ENCODER_TIMEOUT=3600
-PIPELINE_PACKAGER_TIMEOUT=600
-PIPELINE_MAX_RETRIES=3
-
-# Transcoding
-TRANSCODE_MAX_CONCURRENT=4
-TRANSCODE_QUALITY_PRESET=medium
-TRANSCODE_ENABLE_ABR=true
-```
-
-### Plugin Configuration (CUE)
-
+### Plugin Configuration
+Plugins use CueLang for type-safe configuration:
 ```cue
-plugin_name: "ffmpeg_nvidia"
-plugin_type: "transcoding"
-version: "1.0.0"
-
-config: {
-    nvidia_gpu: 0
-    max_concurrent: 2
-    hardware_accel: true
-    
-    quality_presets: {
-        low: {crf: 28, preset: "fast"}
-        medium: {crf: 23, preset: "medium"}
-        high: {crf: 18, preset: "slow"}
-    }
+enabled: true
+priority: 50
+capabilities: {
+    formats: ["mp4", "mkv"]
+    codecs: ["h264", "hevc"]
 }
 ```
 
+## Security Considerations
+
+- Input validation at API layer
+- Path traversal prevention
+- Session authentication (planned)
+- Resource limits on transcoding
+
 ## Performance Optimizations
 
-### Content Deduplication
-- Same content encoded once, served many times
-- Hash-based identification
-- Reduces storage by 60-80% for popular content
+- Database query optimization with indexes
+- Concurrent media scanning
+- Provider load balancing
+- Content caching strategies
 
-### CDN Integration
-- Static, immutable content paths
-- Aggressive caching headers
-- Edge server compatibility
+## Monitoring & Observability
 
-### Hardware Acceleration
-- NVIDIA NVENC for 10x faster encoding
-- Intel QSV for integrated graphics
-- Automatic fallback to software encoding
-
-### Parallel Processing
-- Concurrent encoding jobs
-- Pipeline stage parallelism
-- Resource-aware scheduling
-
-## Monitoring and Debugging
-
-### Metrics
-- Content store hit/miss rates
-- Pipeline stage timings
-- Storage utilization
-- Transcoding queue depth
-
-### Logging
 - Structured logging with context
-- Debug mode for FFmpeg commands
-- Pipeline stage transitions
-- Content hash generation
-
-### Health Checks
-- `/api/health` - Overall system health
-- `/api/playback/stats` - Transcoding statistics
-- Plugin availability status
-
-## Migration Guide
-
-### From Session-Based to Content-Addressable URLs
-
-1. **Backend Changes:**
-   - Sessions now include `content_hash` field
-   - APIs return both legacy and new URLs
-   - Automatic redirects for old endpoints
-
-2. **Frontend Changes:**
-   ```typescript
-   // Check for content hash first
-   if (response.content_hash) {
-     url = `/api/v1/content/${response.content_hash}/manifest.mpd`;
-   } else {
-     // Fallback to legacy
-     url = response.manifest_url;
-   }
-   ```
-
-3. **Database Migration:**
-   ```sql
-   ALTER TABLE transcode_sessions 
-   ADD COLUMN content_hash VARCHAR(64);
-   CREATE INDEX idx_content_hash ON transcode_sessions(content_hash);
-   ```
+- Health check endpoints
+- Metrics collection (planned)
+- Error tracking and reporting
 
 ## Future Enhancements
 
-### Planned Features
-1. **Content Prewarming** - Proactive transcoding of popular content
-2. **Multi-CDN Support** - Route to nearest CDN endpoint
-3. **Live Streaming** - Extend pipeline for live content
-4. **Quality Analytics** - Track playback quality metrics
-5. **Bandwidth Optimization** - Adaptive quality switching
-
-### Architecture Evolution
-- Distributed transcoding across multiple nodes
-- Cloud storage backend support (S3, GCS)
-- WebRTC for ultra-low latency streaming
-- AI-based quality optimization
+1. **Authentication & Authorization**: User management and access control
+2. **Distributed Transcoding**: Multi-node transcoding support
+3. **Cloud Storage**: S3 and cloud provider integration
+4. **Advanced Analytics**: Viewing patterns and recommendations
+5. **Mobile Apps**: Native mobile applications

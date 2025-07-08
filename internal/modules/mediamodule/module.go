@@ -62,6 +62,11 @@ func (m *Module) Name() string {
 	return ModuleName
 }
 
+// GetVersion returns the module version
+func (m *Module) GetVersion() string {
+	return ModuleVersion
+}
+
 // Core returns whether this is a core module
 func (m *Module) Core() bool {
 	return true

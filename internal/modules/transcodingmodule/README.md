@@ -1,6 +1,6 @@
 # Transcoding Module
 
-The transcoding module provides file-based media transcoding functionality for Viewra. It implements a simplified, reliable approach focused on complete file transcoding rather than complex real-time streaming.
+The transcoding module provides video and audio transcoding capabilities for Viewra. It manages file-based transcoding operations with content-addressable storage, session persistence, and resource management.
 
 ## Overview
 
@@ -14,69 +14,89 @@ The transcoding module is responsible for:
 
 ## Architecture
 
-### Core Components
+### Clean Architecture Design
 
 ```
-TranscodingModule
-├── Manager                 # Central coordinator
-├── TranscodingService     # Public service interface
-├── API Handlers           # HTTP endpoints
-├── Core Components:
-│   ├── Pipeline/          # File-based transcoding implementation
-│   ├── Session/           # Session management and persistence
-│   ├── Storage/           # Content-addressable storage
-│   ├── Cleanup/           # Resource management
-│   └── FFmpeg/            # FFmpeg integration
-└── Utilities/             # Helper components
+transcodingmodule/
+├── api/                    # HTTP handlers (presentation layer)
+│   ├── handlers.go        # Main API handlers
+│   ├── content_handler.go # Content serving endpoints
+│   ├── interfaces.go      # API interfaces
+│   └── routes.go          # Route registration
+├── core/                   # Business logic (domain layer)
+│   ├── transcoding/       # Main transcoding orchestration
+│   │   ├── manager.go     # Central coordinator
+│   │   ├── provider_registry.go # Provider management
+│   │   ├── process/       # Process management
+│   │   └── resource/      # Resource management
+│   ├── session/           # Session management
+│   ├── storage/           # Content-addressable storage
+│   ├── pipeline/          # Transcoding pipeline
+│   ├── cleanup/           # Cleanup services
+│   └── repository/        # Data access layer
+├── service/               # Service interface implementation
+│   └── transcoding_service.go # Thin wrapper implementing TranscodingService
+├── types/                 # All type definitions
+│   ├── config.go         # Configuration types
+│   ├── request.go        # Request types
+│   ├── result.go         # Result types
+│   ├── session.go        # Session types
+│   ├── status.go         # Status types
+│   ├── profile.go        # Encoding profiles
+│   ├── errors.go         # Error types
+│   └── interfaces.go     # Module interfaces
+├── utils/                 # Utility functions
+│   ├── ffmpeg/           # FFmpeg integration
+│   ├── hardware/         # Hardware detection
+│   ├── progress/         # Progress parsing
+│   ├── system/           # System utilities
+│   └── validation/       # Input validation
+└── errors/               # Error handling
+    └── errors.go         # Centralized error types
 ```
 
 ### Service Architecture
 
 ```
-Media Module
-    ↓ (requests transcoding)
-TranscodingService (interface)
-    ↓ (implemented by)
-TranscodingModule
-    ↓ (manages)
-File Pipeline Provider
-    ↓ (uses)
-[FFmpeg, Session Store, Content Store]
+External Consumers (Playback Module, Frontend)
+    ↓
+Service Registry (services.TranscodingService interface)
+    ↓
+TranscodingService Implementation (thin wrapper)
+    ↓
+Transcoding Manager (orchestrates operations)
+    ↓
+Core Components:
+├── Provider Registry (provider selection)
+├── Session Store (persistence)
+├── Content Store (file storage)
+├── Resource Manager (concurrency)
+└── Cleanup Service (maintenance)
+    ↓
+FFmpeg Process (actual transcoding)
 ```
 
 ## Core Concepts
 
 ### File-Based Transcoding
-
-The module uses a straightforward file-based approach:
-
-1. **Input**: Source media file (MP4, MKV, AVI, etc.)
-2. **Processing**: FFmpeg transcoding with specified parameters
-3. **Output**: Complete transcoded file(s) in target format
-4. **Storage**: Content-addressable storage using SHA256 hashes
+The module uses a complete file transcoding approach rather than real-time streaming:
+- **Reliability**: Complete files before serving
+- **Simplicity**: No complex streaming protocols
+- **Quality**: Consistent output quality
+- **Compatibility**: Works with any HTTP client
 
 ### Content-Addressable Storage
-
-All transcoded content is stored using SHA256 hashes for automatic deduplication:
-
-```
-/app/viewra-data/transcoding/
-├── content/
-│   └── {sha256_hash}/     # Content-addressable storage
-│       ├── output.mp4     # Transcoded file
-│       └── metadata.json  # Content metadata
-└── sessions/
-    └── {session_id}/      # Temporary session files
-```
+Transcoded files are stored using content hashes:
+- **Deduplication**: Same content = same hash
+- **Efficiency**: Avoid re-transcoding identical content
+- **Organization**: Clean directory structure by hash
 
 ### Session Management
-
-Each transcoding operation creates a persistent session:
-
-- **Database tracking**: Status, progress, metadata
-- **Temporary workspace**: Isolated session directory
-- **Content deduplication**: Reuse existing transcodes
-- **Cleanup**: Automatic removal of old sessions
+Every transcoding operation is tracked as a session:
+- **Persistence**: Sessions stored in database
+- **Progress**: Real-time progress updates
+- **History**: Complete audit trail
+- **Cleanup**: Automatic resource management
 
 ## API Endpoints
 
@@ -84,330 +104,183 @@ Each transcoding operation creates a persistent session:
 
 #### Start Transcoding
 ```http
-POST /api/v1/transcoding/transcode
-Content-Type: application/json
-
-{
-    "input_path": "/media/movies/source.mkv",
-    "media_id": "movie_12345",
-    "container": "mp4",
-    "video_codec": "h264",
-    "audio_codec": "aac",
-    "resolution": {"width": 1920, "height": 1080},
-    "video_bitrate": 5000000,
-    "audio_bitrate": 128000
-}
+POST /api/v1/transcode
 ```
 
-Response:
+Request Body:
 ```json
 {
-    "session_id": "uuid-session-id",
-    "status": "running",
-    "content_hash": "sha256-hash"
+  "mediaId": "file-123",
+  "container": "mp4",
+  "videoCodec": "h264",
+  "audioCodec": "aac",
+  "resolution": {"width": 1920, "height": 1080},
+  "quality": 23,
+  "enableABR": false
 }
 ```
 
-#### Get Session Status
+#### Get Session Info
 ```http
-GET /api/v1/transcoding/session/{session_id}
+GET /api/v1/transcode/sessions/{sessionId}
 ```
 
-Response:
-```json
-{
-    "session_id": "uuid-session-id",
-    "status": "running",
-    "progress": {
-        "percent_complete": 45.5,
-        "time_elapsed": "00:02:30",
-        "time_remaining": "00:03:15"
-    },
-    "created_at": "2023-01-01T12:00:00Z"
-}
+#### Get Progress
+```http
+GET /api/v1/transcode/sessions/{sessionId}/progress
 ```
 
 #### Stop Transcoding
 ```http
-POST /api/v1/transcoding/session/{session_id}/stop
+DELETE /api/v1/transcode/sessions/{sessionId}
 ```
 
-### Content Access
+### Content Serving
 
-#### Serve Transcoded Content
+#### Get Content by Hash
 ```http
-GET /api/v1/content/{content_hash}/{filename}
-```
-
-#### Get Content Metadata
-```http
-GET /api/v1/content/{content_hash}/info
+GET /api/v1/content/{contentHash}
+GET /api/v1/content/{contentHash}/manifest.mpd
+GET /api/v1/content/{contentHash}/{filename}
 ```
 
 ### Management
 
+#### List Providers
+```http
+GET /api/v1/transcode/providers
+```
+
 #### Get Statistics
 ```http
-GET /api/v1/transcoding/stats
-```
-
-#### List Active Sessions
-```http
-GET /api/v1/transcoding/sessions
-```
-
-#### Get Resource Usage
-```http
-GET /api/v1/transcoding/resources
-```
-
-Response:
-```json
-{
-    "active_sessions": 2,
-    "max_sessions": 4,
-    "queued_requests": 1,
-    "max_queue_size": 20,
-    "total_memory_mb": 850,
-    "session_details": [
-        {
-            "session_id": "uuid-session-id",
-            "media_id": "movie_12345",
-            "provider": "streaming_pipeline",
-            "status": "running",
-            "duration": "00:02:30",
-            "estimated_memory_mb": 450
-        }
-    ]
-}
-```
-
-## Configuration
-
-### Environment Variables
-
-```bash
-# Base directories
-VIEWRA_DATA_DIR=/app/viewra-data
-VIEWRA_TRANSCODE_DIR=/app/viewra-data/transcoding
-
-# FFmpeg settings
-FFMPEG_PATH=/usr/bin/ffmpeg
-FFMPEG_PRESET=fast
-
-# Cleanup settings
-TRANSCODING_CLEANUP_ENABLED=true
-TRANSCODING_CLEANUP_INTERVAL=1h
-TRANSCODING_RETENTION_COMPLETED=24h
-TRANSCODING_RETENTION_FAILED=6h
-TRANSCODING_RETENTION_STALE=2h
-
-# Session limits and resource management
-MAX_CONCURRENT_SESSIONS=4
-SESSION_TIMEOUT=30m
-MAX_QUEUE_SIZE=20
-QUEUE_TIMEOUT=10m
-```
-
-### Database Configuration
-
-The module automatically creates required database tables:
-- `transcode_sessions`: Session tracking and metadata
-- Indexes for efficient querying and cleanup
-
-## Usage Examples
-
-### Basic Transcoding
-
-```go
-// Get transcoding service
-transcodingService := services.GetService[services.TranscodingService]("transcoding")
-
-// Create transcode request
-request := &plugins.TranscodeRequest{
-    InputPath:    "/media/source.mkv",
-    MediaID:      "movie_123",
-    Container:    "mp4",
-    VideoCodec:   "h264",
-    AudioCodec:   "aac",
-    Resolution:   &plugins.Resolution{Width: 1920, Height: 1080},
-    VideoBitrate: 5000000,
-    AudioBitrate: 128000,
-}
-
-// Start transcoding
-session, err := transcodingService.StartTranscode(ctx, request)
-if err != nil {
-    return fmt.Errorf("failed to start transcode: %w", err)
-}
-
-log.Printf("Started transcoding session: %s", session.SessionID)
-```
-
-### Progress Monitoring
-
-```go
-// Monitor progress
-for {
-    progress, err := transcodingService.GetProgress(session.SessionID)
-    if err != nil {
-        break
-    }
-    
-    log.Printf("Progress: %.1f%%", progress.PercentComplete)
-    
-    if progress.PercentComplete >= 100.0 {
-        log.Printf("Transcoding completed")
-        break
-    }
-    
-    time.Sleep(5 * time.Second)
-}
-```
-
-### Content Access
-
-```go
-// Get content information
-contentInfo, err := transcodingService.GetContentInfo(session.ContentHash)
-if err != nil {
-    return err
-}
-
-// Content is now available at:
-// /api/v1/content/{content_hash}/output.mp4
-contentURL := fmt.Sprintf("/api/v1/content/%s/output.mp4", session.ContentHash)
+GET /api/v1/transcode/stats
 ```
 
 ## Implementation Details
 
-### File Pipeline Provider
+### Clean Architecture Benefits
 
-The core transcoding engine (`core/pipeline/file_pipeline.go`):
+1. **Separation of Concerns**:
+   - API handlers only handle HTTP concerns
+   - Business logic isolated in core package
+   - Service is a thin adapter layer
 
-- **Session Creation**: Generates unique session IDs and workspaces
-- **Content Deduplication**: Checks existing content before transcoding
-- **FFmpeg Execution**: Runs FFmpeg with optimized parameters
-- **Progress Tracking**: Estimates progress based on session status
-- **Content Storage**: Moves completed files to content-addressable storage
-- **Cleanup**: Removes temporary files after completion
+2. **Testability**:
+   - Core logic can be tested without HTTP
+   - Mock providers for unit tests
+   - Clear interfaces for all components
 
-### Session Store
+3. **Extensibility**:
+   - Easy to add new providers
+   - Plugin-based architecture
+   - Clear extension points
 
-Database-backed session management (`core/session/store.go`):
+### Key Components
 
-- **Persistence**: All sessions stored in database
-- **Content Hashing**: Deterministic hashes for deduplication
-- **Status Tracking**: Real-time status updates
-- **Cleanup Integration**: Automatic cleanup of expired sessions
+#### Transcoding Manager (core/transcoding/manager.go)
+Orchestrates all transcoding operations:
+- Provider selection and management
+- Session lifecycle management
+- Resource allocation
+- Progress monitoring
 
-### Content Store
+#### Session Store (core/session/store.go)
+Handles session persistence:
+- Database operations
+- Session state management
+- Content hash tracking
 
-Content-addressable storage system (`core/storage/content_store.go`):
+#### Content Store (core/storage/content_store.go)
+Manages transcoded files:
+- Content-addressable storage
+- File organization
+- Metadata management
 
-- **SHA256 Hashing**: Unique content identification
-- **Metadata Storage**: File information and transcoding parameters
-- **Efficient Serving**: Direct file serving with proper HTTP headers
-- **Deduplication**: Automatic reuse of existing content
+#### File Pipeline (core/pipeline/file_pipeline.go)
+Implements actual transcoding:
+- FFmpeg process management
+- Progress parsing
+- Error handling
 
-### Cleanup Service
+## Usage Examples
 
-Automatic resource management (`core/cleanup/cleanup_service.go`):
+### Starting a Transcode
 
-- **Session Cleanup**: Removes old completed/failed sessions
-- **File Cleanup**: Deletes temporary and expired files
-- **Process Cleanup**: Terminates orphaned FFmpeg processes
-- **Configurable Retention**: Different retention policies by status
-
-## Error Handling
-
-The module provides comprehensive error handling:
-
-### Common Error Types
-
-- **Validation Errors**: Invalid input parameters
-- **File Errors**: Missing input files, permission issues
-- **Process Errors**: FFmpeg execution failures
-- **Resource Errors**: Disk space, memory limitations
-- **Timeout Errors**: Long-running session timeouts
-
-### Error Response Format
-
-```json
-{
-    "error": "transcoding_failed",
-    "message": "FFmpeg process failed with exit code 1",
-    "details": {
-        "session_id": "uuid",
-        "exit_code": 1,
-        "stderr": "FFmpeg error output"
-    }
+```go
+req := &plugins.TranscodeRequest{
+    MediaID:    "movie-123",
+    Container:  "mp4",
+    VideoCodec: "h264",
+    AudioCodec: "aac",
+    Quality:    23,
 }
+
+handle, err := transcodingService.StartTranscode(ctx, req)
+```
+
+### Monitoring Progress
+
+```go
+progress, err := transcodingService.GetProgress(handle.SessionID)
+fmt.Printf("Progress: %.2f%%\n", progress.PercentComplete)
+```
+
+### Serving Content
+
+```go
+// Get content URL from session
+session, err := transcodingService.GetSession(sessionID)
+contentURL := fmt.Sprintf("/api/v1/content/%s", session.ContentHash)
 ```
 
 ## Performance Considerations
 
 ### Resource Management
+- Configurable concurrent session limits
+- Process priority management
+- Memory usage monitoring
+- Disk space management
 
-- **Concurrent Sessions**: Configurable limit to prevent resource exhaustion
-- **Request Queuing**: Automatic queuing when session limits are exceeded
-- **Memory Estimation**: Tracks estimated memory usage per session
-- **Session Monitoring**: Automatic cleanup of completed/failed sessions
-- **Queue Management**: Configurable queue size and timeout handling
-- **Disk Space**: Automatic cleanup of old files
-- **CPU Usage**: Process priority and nice values
+### Optimization Strategies
+- Content deduplication
+- Hardware acceleration support
+- Efficient progress parsing
+- Batch cleanup operations
 
-### Optimization
+## Configuration
 
-- **Content Deduplication**: Avoid redundant transcoding
-- **Fast Start**: MP4 faststart optimization for web playback
-- **Efficient Codecs**: H.264/H.265 with optimized presets
-- **Parallel Processing**: Multiple concurrent sessions
+The module uses configuration for tuning:
+
+```go
+type Config struct {
+    TranscodingDir        string        // Base directory for files
+    MaxConcurrentSessions int          // Concurrent limit
+    SessionTimeout        time.Duration // Max session duration
+    CleanupInterval       time.Duration // Cleanup frequency
+    RetentionPeriod       time.Duration // File retention
+}
+```
+
+Environment variables:
+```bash
+VIEWRA_TRANSCODING_DIR=/app/viewra-data/transcoding
+TRANSCODING_MAX_CONCURRENT=5
+TRANSCODING_SESSION_TIMEOUT=2h
+TRANSCODING_CLEANUP_INTERVAL=30m
+```
 
 ## Testing
 
 ### Unit Tests
-
 ```bash
-# Run all transcoding module tests
-cd internal/modules/transcodingmodule
-go test ./...
-
-# Run with coverage
-go test -cover ./...
-
-# Run specific test suites
-go test ./core/pipeline/
-go test ./core/session/
-go test ./core/storage/
+go test ./core/...           # Test business logic
+go test ./core/pipeline/     # Test pipeline
+go test ./core/storage/      # Test storage
 ```
 
 ### Integration Tests
-
 ```bash
-# Run integration tests with real media files
-go test ./integration_tests/
-
-# Test specific scenarios
-go test -run TestFilePipeline ./integration_tests/
-go test -run TestContentStore ./integration_tests/
-```
-
-### Manual Testing
-
-```bash
-# Start development environment
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-# Test transcoding endpoint
-curl -X POST http://localhost:8080/api/v1/transcoding/transcode \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input_path": "/app/test-media/sample.mp4",
-    "media_id": "test_video",
-    "container": "mp4",
-    "video_codec": "h264"
-  }'
+go test ./integration_tests/ # Full integration tests
 ```
 
 ## Troubleshooting
@@ -415,47 +288,31 @@ curl -X POST http://localhost:8080/api/v1/transcoding/transcode \
 ### Common Issues
 
 1. **FFmpeg Not Found**
-   - Ensure FFmpeg is installed in the container
-   - Check `FFMPEG_PATH` environment variable
+   - Ensure FFmpeg is installed in container
+   - Check PATH environment variable
 
 2. **Permission Errors**
-   - Verify file permissions on input media
-   - Check write permissions on transcoding directory
+   - Check directory permissions
+   - Ensure write access to transcoding directory
 
-3. **Session Timeouts**
-   - Monitor long-running sessions
-   - Adjust `SESSION_TIMEOUT` for large files
+3. **Resource Exhaustion**
+   - Monitor concurrent sessions
+   - Check disk space
+   - Review memory usage
 
-4. **Disk Space Issues**
-   - Enable cleanup service
-   - Monitor available disk space
-   - Adjust retention policies
-
-### Debug Mode
+### Debug Logging
 
 Enable debug logging:
-
 ```bash
-export LOG_LEVEL=debug
-export TRANSCODING_DEBUG=true
+LOG_LEVEL=debug
+TRANSCODING_DEBUG=true
 ```
-
-### Monitoring
-
-Key metrics to monitor:
-- Active session count
-- Average transcoding duration
-- Error rates by type
-- Disk space usage
-- FFmpeg process memory usage
 
 ## Future Enhancements
 
-Planned improvements:
-- **Hardware Acceleration**: NVIDIA NVENC, Intel QSV support
-- **Priority Queuing**: High/low priority transcoding queues
-- **Resume Capability**: Resume interrupted transcoding sessions
-- **Distributed Processing**: Multi-node transcoding support
-- **Advanced Quality**: CRF-based quality control
-- **Format Support**: Additional codecs and containers
-- **Real-time Progress**: FFmpeg stderr parsing for accurate progress
+- GPU acceleration support
+- Distributed transcoding
+- Advanced quality presets
+- Streaming protocol support (DASH/HLS)
+- Transcoding queue management
+- Priority-based scheduling

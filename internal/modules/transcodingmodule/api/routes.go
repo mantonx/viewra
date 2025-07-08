@@ -11,46 +11,45 @@ import (
 // API Structure:
 //
 //	/api/v1/transcoding
+//	├── /health         - Health check
 //	├── /transcode      - Transcoding operations
 //	├── /providers      - Provider management
 //	├── /sessions       - Session management
-//	└── /progress       - Progress tracking
+//	├── /stats          - Statistics and monitoring
+//	└── /resources      - Resource usage
 //
 //	/api/v1/content
-//	├── /:hash/:file    - Serve content files
-//	├── /:hash/info     - Get content metadata
-//	└── /stats          - Content storage statistics
+//	├── /:hash/*file    - Serve content files
+//	├── /stats          - Content storage statistics
+//	└── /by-media/:id   - List content by media ID
 func RegisterRoutes(router *gin.Engine, handler *APIHandler, contentHandler *ContentAPIHandler) {
 	// API v1 group
 	v1 := router.Group("/api/v1/transcoding")
 	{
+		// Health check
+		v1.GET("/health", handler.HealthCheck)
+
 		// Transcoding operations
 		v1.POST("/transcode", handler.StartTranscode)
-		v1.DELETE("/transcode/:sessionId", handler.StopTranscode)
-
-		// Progress tracking
-		v1.GET("/progress/:sessionId", handler.GetProgress)
 
 		// Session management
 		v1.GET("/sessions", handler.ListSessions)
-		v1.GET("/sessions/:sessionId", handler.GetSession)
+		v1.GET("/sessions/:id", handler.GetSession)
+		v1.GET("/sessions/:id/progress", handler.GetProgress)
+		v1.DELETE("/sessions/:id", handler.StopTranscode)
 
 		// Provider management
-		v1.GET("/providers", handler.ListProviders)
-		v1.GET("/providers/:providerId", handler.GetProvider)
-		v1.GET("/providers/:providerId/formats", handler.GetProviderFormats)
+		v1.GET("/providers", handler.GetProviders)
+		v1.GET("/providers/:id", handler.GetProvider)
 
-		// Pipeline status (for pipeline provider)
+		// Statistics and monitoring
+		v1.GET("/stats", handler.GetStats)
 		v1.GET("/pipeline/status", handler.GetPipelineStatus)
-
-		// Content migration
-		v1.GET("/content/stats", handler.GetContentHashStats)
-		v1.GET("/content/sessions-without-hash", handler.ListSessionsWithoutContentHash)
-		v1.POST("/content/migrate/:sessionId", handler.MigrateSessionToContentHash)
-		v1.POST("/content/cleanup", handler.CleanupOldSessions)
-
-		// Resource management
 		v1.GET("/resources", handler.GetResourceUsage)
+
+		// Content hash migration
+		v1.GET("/content-hash/stats", handler.GetContentHashStats)
+		v1.POST("/content-hash/migrate", handler.MigrateContentHashes)
 	}
 
 	// Content-addressable storage routes
@@ -67,7 +66,7 @@ func RegisterRoutes(router *gin.Engine, handler *APIHandler, contentHandler *Con
 			contentGroup.GET("/:hash/*filepath", contentHandler.HandleContentRequest)
 			contentGroup.HEAD("/:hash/*filepath", contentHandler.HandleContentRequest)
 		}
-		// Import logger at top of file if needed
+		// Log successful registration
 		logger := hclog.New(&hclog.LoggerOptions{Name: "transcoding-api"})
 		logger.Info("Content routes registered successfully")
 	} else {

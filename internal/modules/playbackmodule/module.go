@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/logger"
+	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/api"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/cleanup"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/history"
@@ -19,6 +20,22 @@ import (
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/service"
 	"github.com/mantonx/viewra/internal/services"
 	"gorm.io/gorm"
+)
+
+// Auto-register the module when imported
+func init() {
+	Register()
+}
+
+const (
+	// ModuleID is the unique identifier for the playback module
+	ModuleID = "system.playback"
+
+	// ModuleName is the display name for the playback module
+	ModuleName = "Playback Manager"
+
+	// ModuleVersion is the version of the playback module
+	ModuleVersion = "1.0.0"
 )
 
 // Module represents the playback module.
@@ -46,17 +63,17 @@ type Module struct {
 
 // ID returns the module identifier
 func (m *Module) ID() string {
-	return "playback"
+	return ModuleID
 }
 
 // Name returns the human-readable module name
 func (m *Module) Name() string {
-	return "Playback Module"
+	return ModuleName
 }
 
-// Version returns the module version
-func (m *Module) Version() string {
-	return "1.0.0"
+// GetVersion returns the module version
+func (m *Module) GetVersion() string {
+	return ModuleVersion
 }
 
 // Core returns whether this is a core module
@@ -280,4 +297,10 @@ func (m *Module) Dependencies() []string {
 // RequiredServices returns services this module requires
 func (m *Module) RequiredServices() []string {
 	return []string{"media", "transcoding"}
+}
+
+// Register registers the playback module with the module system
+func Register() {
+	playbackModule := &Module{}
+	modulemanager.Register(playbackModule)
 }

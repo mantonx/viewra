@@ -1,370 +1,395 @@
 # Playback Module
 
-The Playback Module is responsible for intelligent media playback decisions, progressive download support, session management, and user behavior tracking. It provides a clean, modern approach to media streaming without complex legacy protocols.
+The playback module provides intelligent media playback decisions, progressive download support, session management, and user behavior tracking for Viewra. It orchestrates the streaming experience with device-aware logic and comprehensive analytics.
 
 ## Overview
 
-This module handles the core playback functionality for Viewra's media management platform, supporting both video and audio content with device-aware streaming capabilities.
-
-### Key Features
-
-- **Intelligent Playback Decisions**: Automatically chooses between direct play, remux, or transcode based on device capabilities
-- **Progressive Download**: HTTP range-based streaming with resume support
-- **Session Management**: Comprehensive playback session tracking and analytics
-- **Device Compatibility**: Support for browsers, native apps, TVs, and streaming devices
-- **Music-Aware Logic**: Specialized handling for audio content with different completion criteria
-- **Deduplication**: Smart transcode caching to avoid redundant processing
-- **Future-Ready**: Designed for easy integration with recommendation engines
+The playback module is responsible for:
+- Making intelligent playback decisions (direct play, remux, or transcode)
+- Managing progressive download with HTTP range support
+- Tracking playback sessions and user interactions
+- Providing device-specific compatibility checking
+- Managing watch history and progress tracking
+- Coordinating with transcoding for incompatible media
+- Cleaning up resources and managing transcode cache
 
 ## Architecture
 
-### Core Components
+### Clean Architecture Design
 
 ```
-playbackmodule_new/
-├── api/                    # HTTP API handlers
-├── core/                   # Core business logic
-│   ├── decision_engine.go  # Playback method decisions
-│   ├── progressive_handler.go  # Range request handling
-│   ├── session_manager.go  # Session lifecycle
-│   ├── cleanup_manager.go  # Resource cleanup
-│   ├── history_manager.go  # User history coordination
-│   ├── media_history.go    # Media-aware history tracking
-│   ├── session_tracker.go  # Session event tracking
-│   ├── recommendation_tracker.go  # User interaction tracking
-│   └── transcode_deduplicator.go  # Transcode optimization
-├── models/                 # Database models
-├── service/                # Service layer implementation
-├── types/                  # Type definitions
-└── utils/                  # Module-specific utilities
+playbackmodule/
+├── api/                    # HTTP handlers (presentation layer)
+│   ├── handlers.go        # Base handler struct
+│   ├── decision_handlers.go    # Playback decision endpoints
+│   ├── session_handlers.go     # Session management
+│   ├── streaming_handlers.go   # Progressive download
+│   ├── analytics_handlers.go   # Analytics endpoints
+│   └── routes.go              # Route registration
+├── core/                   # Business logic (domain layer)
+│   ├── playback/          # Playback orchestration
+│   │   ├── manager.go     # Main coordinator
+│   │   ├── decision_engine.go      # Playback decisions
+│   │   ├── device_detector.go      # Device capabilities
+│   │   ├── recommendation_tracker.go # User interactions
+│   │   └── transcode_deduplicator.go # Cache management
+│   ├── session/           # Session management
+│   │   ├── manager.go     # Session lifecycle
+│   │   └── tracker.go     # Event tracking
+│   ├── streaming/         # Progressive download
+│   │   ├── manager.go     # Streaming coordinator
+│   │   └── progressive_handler.go  # Range requests
+│   ├── history/           # Watch history
+│   │   ├── manager.go     # History coordinator
+│   │   └── media_history.go # Media-aware tracking
+│   ├── cleanup/           # Resource management
+│   │   └── manager.go     # Cleanup operations
+│   └── repository/        # Data access layer
+│       ├── session_repository.go
+│       └── history_repository.go
+├── service/               # Service interface implementation
+│   └── playback_service.go # Thin wrapper implementing PlaybackService
+├── models/                # Database models
+│   └── models.go         # All playback-related models
+├── types/                 # Type definitions
+│   ├── playback.go       # Playback types
+│   └── analytics.go      # Analytics types
+└── utils/                 # Utility functions
+    └── compatibility.go   # Codec compatibility checks
 ```
 
-### Service Dependencies
+### Service Architecture
 
-- **MediaService**: Media file information and metadata
-- **TranscodingService**: On-demand transcoding capabilities
-- **DatabaseModule**: Persistent storage for sessions and history
-
-## How It Works
-
-### 1. Playback Decision Engine
-
-The decision engine analyzes media files and device capabilities to determine the optimal playback method:
-
-```go
-decision, err := playbackService.DecidePlayback(mediaPath, deviceProfile)
+```
+External Consumers (Frontend, Apps)
+    ↓
+Service Registry (services.PlaybackService interface)
+    ↓
+PlaybackService Implementation (thin wrapper)
+    ↓
+Core Managers (orchestrate operations)
+    ↓
+Domain Components:
+├── Decision Engine (playback logic)
+├── Session Manager (lifecycle)
+├── Progressive Handler (streaming)
+├── History Manager (tracking)
+└── Cleanup Manager (maintenance)
+    ↓
+Dependencies:
+├── Media Service (file info)
+└── Transcoding Service (conversions)
 ```
 
-**Decision Logic:**
-- **Direct Play**: Native format support, no processing needed
-- **Remux**: Container change needed, no re-encoding  
-- **Transcode**: Full re-encoding required for compatibility
+## Core Concepts
 
-### 2. Progressive Download
+### Playback Decision Engine
+Determines the optimal playback method based on:
+- **Device Capabilities**: Browser, app, TV support
+- **Media Format**: Container, codecs, resolution
+- **Network Conditions**: Bandwidth considerations
+- **User Preferences**: Quality settings
 
-Supports HTTP range requests for efficient streaming:
+Decision outcomes:
+- **Direct Play**: File compatible with device
+- **Remux**: Only container needs changing
+- **Transcode**: Full conversion required
 
-```go
-// Handles partial content requests
-Range: bytes=0-1023
-Content-Range: bytes 0-1023/2048
-```
+### Progressive Download
+HTTP-based streaming without complex protocols:
+- **Range Requests**: Byte-range support for seeking
+- **Resume Support**: Continue interrupted downloads
+- **Bandwidth Efficiency**: Stream while downloading
+- **Universal Compatibility**: Works with any HTTP client
 
-**Features:**
-- Resume support for interrupted downloads
-- Efficient seeking in large media files
-- Bandwidth-aware streaming
+### Session Management
+Comprehensive tracking of playback sessions:
+- **Lifecycle Events**: Start, pause, resume, stop
+- **Progress Tracking**: Automatic position saving
+- **Analytics**: Duration, completion rates
+- **Multi-device**: Resume across devices
 
-### 3. Session Management
-
-Tracks comprehensive playback sessions:
-
-```go
-session, err := playbackService.StartPlaybackSession(mediaFileID, userID, deviceID, method)
-```
-
-**Session Data:**
-- Playback position and duration
-- Device information and capabilities
-- Quality settings and bandwidth
-- User interactions and events
-
-### 4. Music-Aware History
-
-Different completion criteria for different media types:
-
-**Audio Content (Music/Podcasts):**
-- 70% completion OR
-- 30 seconds + 50% completion OR  
-- 90 seconds minimum
-
-**Video Content:**
-- Traditional 90% completion rule
+### History & Analytics
+Smart tracking with media-aware logic:
+- **Watch Progress**: Per-media position tracking
+- **Completion Logic**: Different for movies vs episodes
+- **User Patterns**: Viewing habits and preferences
+- **Recommendations**: Data for future ML integration
 
 ## API Endpoints
 
-### Playback Control
+### Playback Decisions
 
+#### Get Playback Decision
 ```http
-POST /api/playback/decide
-POST /api/playback/session/start
-PUT  /api/playback/session/{id}
-POST /api/playback/session/{id}/end
-GET  /api/playback/session/{id}
+POST /api/playback/decision
 ```
 
-### Streaming
-
-```http
-GET /api/playback/stream/direct/{id}
-GET /api/playback/stream/remux/{id}
-GET /api/playback/stream/transcode/{id}
+Request Body:
+```json
+{
+  "mediaFileId": "file-123",
+  "deviceProfile": {
+    "type": "browser",
+    "supportedVideoCodecs": ["h264"],
+    "supportedAudioCodecs": ["aac", "mp3"],
+    "supportedContainers": ["mp4", "webm"],
+    "maxResolution": {"width": 1920, "height": 1080}
+  }
+}
 ```
 
-### History & Analytics
-
-```http
-GET /api/playback/history/{userID}
-GET /api/playback/recently-played/{userID}
-GET /api/playback/incomplete/{userID}
-GET /api/playback/stats/{userID}
+Response:
+```json
+{
+  "method": "transcode",
+  "reason": "incompatible video codec: hevc",
+  "transcodeRequest": {
+    "container": "mp4",
+    "videoCodec": "h264",
+    "audioCodec": "aac"
+  }
+}
 ```
 
-## Database Models
+### Session Management
 
-### Core Models
+#### Start Playback Session
+```http
+POST /api/playback/sessions/start
+```
 
-- **PlaybackSession**: Active playback sessions with real-time state
-- **PlaybackHistory**: Denormalized history for quick queries
-- **UserMediaProgress**: Resume positions and completion tracking
-- **SessionEvent**: Granular playback events (play, pause, seek, etc.)
+#### Update Progress
+```http
+POST /api/playback/sessions/{sessionId}/progress
+```
 
-### Analytics Models
+#### End Session
+```http
+POST /api/playback/sessions/{sessionId}/end
+```
 
-- **PlaybackAnalytics**: Aggregated daily statistics
-- **UserPlaybackStats**: User-specific aggregated metrics
-- **MediaInteraction**: Detailed user interaction tracking
+#### Get Active Sessions
+```http
+GET /api/playback/sessions/active
+```
 
-### Recommendation-Ready Models
+### Progressive Download
 
-- **UserPreferences**: Learned user preferences
-- **MediaFeatures**: Extracted content features
-- **UserVector**: User preference vectors for ML
-- **RecommendationCache**: Pre-calculated recommendations
+#### Stream Content
+```http
+GET /api/playback/progressive/{contentId}
+```
 
-### Optimization Models
+Headers:
+- `Range: bytes=0-1048575` - Request specific byte range
+- Returns `206 Partial Content` with requested range
 
-- **TranscodeCache**: Deduplication and caching
-- **TranscodeCleanupTask**: Resource management
+### Analytics
+
+#### Submit Analytics Event
+```http
+POST /api/analytics/session
+```
+
+Request Body:
+```json
+{
+  "sessionId": "session-123",
+  "events": [{
+    "type": "buffer",
+    "timestamp": "2024-01-01T12:00:00Z",
+    "data": {"duration": 2.5}
+  }]
+}
+```
+
+### History
+
+#### Get Watch History
+```http
+GET /api/playback/history
+```
+
+Query Parameters:
+- `user_id`: User identifier
+- `media_type`: Filter by type
+- `limit`, `offset`: Pagination
+
+## Implementation Details
+
+### Clean Architecture Benefits
+
+1. **Separation of Concerns**:
+   - Each manager handles specific domain
+   - Clear boundaries between layers
+   - Service layer is just an adapter
+
+2. **Testability**:
+   - Business logic testable without HTTP
+   - Mock dependencies easily
+   - Domain logic isolated
+
+3. **Flexibility**:
+   - Easy to add new device types
+   - Extensible decision logic
+   - Plugin points for ML/recommendations
+
+### Key Components
+
+#### Decision Engine (core/playback/decision_engine.go)
+Makes intelligent playback decisions:
+- Analyzes media compatibility
+- Considers device capabilities
+- Optimizes for user experience
+- Provides detailed reasoning
+
+#### Progressive Handler (core/streaming/progressive_handler.go)
+Implements HTTP range streaming:
+- Handles byte-range requests
+- Manages file access
+- Provides resume support
+- Optimizes read buffers
+
+#### Session Manager (core/session/manager.go)
+Manages playback session lifecycle:
+- Creates and tracks sessions
+- Handles state transitions
+- Persists progress
+- Manages cleanup
+
+#### History Manager (core/history/manager.go)
+Tracks viewing history:
+- Records watch progress
+- Implements completion logic
+- Aggregates statistics
+- Provides history queries
 
 ## Usage Examples
 
-### Basic Playback Flow
+### Making a Playback Decision
 
 ```go
-// 1. Decide playback method
-decision, err := playbackService.DecidePlayback("/path/to/video.mkv", deviceProfile)
+decision, err := playbackService.MakeDecision(ctx, &types.DecisionRequest{
+    MediaFileID: "movie-123",
+    DeviceProfile: &types.DeviceProfile{
+        Type: "browser",
+        SupportedVideoCodecs: []string{"h264"},
+        SupportedAudioCodecs: []string{"aac"},
+    },
+})
 
-// 2. Start session
-session, err := playbackService.StartPlaybackSession(mediaFileID, userID, deviceID, decision.Method)
-
-// 3. Get streaming URL
-streamURL, err := playbackService.PrepareStreamURL(decision, baseURL)
-
-// 4. Update session during playback
-updates := map[string]interface{}{
-    "position": 1800, // 30 minutes
-    "state": "playing",
-}
-err = playbackService.UpdatePlaybackSession(session.ID, updates)
-
-// 5. End session
-err = playbackService.EndPlaybackSession(session.ID)
-```
-
-### Device Profile Examples
-
-```go
-// Browser
-browserProfile := &types.DeviceProfile{
-    SupportedCodecs: []string{"h264", "vp9"},
-    MaxResolution: "1080p",
-    SupportsHEVC: false,
-}
-
-// Apple TV
-appleTVProfile := &types.DeviceProfile{
-    SupportedCodecs: []string{"h264", "hevc"},
-    MaxResolution: "4K",
-    SupportsHEVC: true,
-    SupportsHDR: true,
+switch decision.Method {
+case "direct":
+    // Serve file directly
+case "transcode":
+    // Start transcoding with decision.TranscodeRequest
 }
 ```
 
-### History Queries
+### Progressive Streaming
 
 ```go
-// Get recent playback history
-history, err := playbackService.GetUserPlaybackHistory(userID, "video", 20)
-
-// Get incomplete videos for resume
-incomplete, err := historyManager.GetIncompleteVideos(userID, 10)
-
-// Get most played music
-music, err := historyManager.GetMostPlayedMusic(userID, 50)
+// Client requests with Range header
+rangeHeader := "bytes=1048576-2097151"
+response := progressiveHandler.ServeContent(
+    mediaFile,
+    rangeHeader,
+    responseWriter,
+)
 ```
 
-## Integration with Other Modules
-
-### Media Module Integration
+### Session Tracking
 
 ```go
-// Get media file information
-mediaInfo, err := playbackService.GetMediaInfo(mediaPath)
+// Start session
+session, err := sessionManager.StartSession(ctx, &models.PlaybackSession{
+    UserID:      "user-123",
+    MediaFileID: "file-456",
+    DeviceID:    "device-789",
+})
 
-// Validate playback compatibility  
-err = playbackService.ValidatePlayback(mediaPath, deviceProfile)
+// Update progress
+err = sessionManager.UpdateProgress(ctx, session.ID, 120.5, 0.25)
 ```
 
-### Transcoding Module Integration
+## Performance Considerations
 
-```go
-// Get recommended transcode parameters
-params, err := playbackService.GetRecommendedTranscodeParams(mediaPath, deviceProfile)
+### Decision Caching
+- Cache compatibility checks
+- Reuse device profiles
+- Minimize repeated analysis
 
-// Start transcode session
-session, err := transcodingService.StartTranscode(ctx, params)
-```
+### Streaming Optimization
+- Configurable buffer sizes
+- Efficient file reading
+- Connection pooling
 
-### Future Recommendation Engine
-
-The module is designed for easy integration with recommendation engines:
-
-```go
-// Register for playback events
-playbackService.RegisterEventHandler(recommendationEngine)
-
-// Access user behavior data
-preferences, err := playbackService.GetUserPreferences(userID)
-interactions, err := playbackService.GetUserInteractionHistory(userID, 500)
-```
+### Session Management
+- Batch progress updates
+- Efficient queries
+- Periodic cleanup
 
 ## Configuration
 
-### Environment Variables
-
-```env
-PLAYBACK_CLEANUP_INTERVAL=1h
-PLAYBACK_SESSION_TIMEOUT=24h
-PLAYBACK_TRANSCODE_CACHE_SIZE=1000
-PLAYBACK_CACHE_MAX_AGE=24h
-```
-
-### Cleanup Configuration
-
-```go
-type CleanupConfig struct {
-    SessionTimeout    time.Duration // 24 hours
-    TranscodeTimeout  time.Duration // 1 hour  
-    CleanupInterval   time.Duration // 1 hour
-    MaxCacheSize      int           // 1000 entries
-    CacheMaxAge       time.Duration // 24 hours
-}
-```
-
-## Monitoring & Observability
-
-### Metrics
-
-- **playback_sessions_active**: Current active sessions
-- **playback_decisions_total**: Playback decisions by method
-- **playback_completion_rate**: Content completion rates
-- **transcode_deduplication_ratio**: Cache hit ratio
-- **cleanup_operations_total**: Resource cleanup operations
-
-### Logging
-
-```go
-logger.Info("Playback decision made",
-    "method", decision.Method,
-    "mediaType", mediaType,
-    "deviceType", deviceProfile.Type,
-    "reason", decision.Reason)
-```
-
-### Health Checks
-
-- Database connectivity
-- Cleanup manager status  
-- Active session count
-- Cache hit ratios
-
-## Development
-
-### Running Tests
-
+Environment variables:
 ```bash
-# Unit tests
-go test ./internal/modules/playbackmodule_new/...
+# Session Management
+PLAYBACK_SESSION_TIMEOUT=6h
+PLAYBACK_PROGRESS_INTERVAL=30s
 
-# Integration tests  
-go test -tags=integration ./internal/modules/playbackmodule_new/...
+# Cleanup
+PLAYBACK_CLEANUP_INTERVAL=1h
+PLAYBACK_CLEANUP_MAX_AGE=7d
 
-# With coverage
-go test -cover ./internal/modules/playbackmodule_new/...
+# Streaming
+PLAYBACK_BUFFER_SIZE=4MB
+PLAYBACK_MAX_CONNECTIONS=100
+
+# Analytics
+PLAYBACK_ANALYTICS_BATCH_SIZE=100
+PLAYBACK_ANALYTICS_FLUSH_INTERVAL=5m
 ```
 
-### Adding New Device Profiles
+## Testing
 
-1. Define device capabilities in `types/device_profile.go`
-2. Update decision logic in `core/decision_engine.go`
-3. Add device-specific tests
-4. Update API documentation
+### Unit Tests
+```bash
+go test ./core/...              # Test business logic
+go test ./core/playback/        # Test decision engine
+go test ./core/streaming/       # Test progressive handler
+```
 
-### Adding New Media Types
+### Integration Tests
+```bash
+go test ./tests/                # Full integration tests
+```
 
-1. Update completion logic in `core/media_history.go`
-2. Add quality assessment in `utils/media.go`
-3. Update database models if needed
-4. Add media-type-specific tests
+## Media Type Awareness
 
-## Utilities
+The module handles different media types intelligently:
 
-### Module-Specific Utilities (`utils/`)
+### Movies
+- Single progress tracking
+- 90% watched = complete
+- Simple history entries
 
-- **HTTP Range Handling**: Parse and format HTTP range headers
-- **Media Analysis**: Audio/video detection, codec identification
-- **Quality Assessment**: Bitrate recommendations, format optimization
-- **Resolution Handling**: Parse and format resolution strings
+### TV Episodes  
+- Per-episode tracking
+- Series progress aggregation
+- Next episode suggestions
 
-### Shared Utilities (`/internal/utils`)
-
-- **UUID Generation**: Session and request IDs
-- **Content Type Detection**: MIME type identification
-- **Media File Validation**: Supported format checking
-
-## Security Considerations
-
-- **Path Validation**: Prevent directory traversal attacks
-- **Range Request Limits**: Prevent abuse of partial content requests
-- **Session Isolation**: User sessions are properly isolated
-- **Input Sanitization**: All user inputs are validated and sanitized
-
-## Performance Optimization
-
-- **Transcode Deduplication**: Avoid redundant processing
-- **Database Indexing**: Optimized queries for user history
-- **Connection Pooling**: Efficient database connections
-- **Memory Management**: Cleanup of expired sessions and cache entries
+### Music
+- Different completion criteria
+- Playlist support
+- Repeat tracking
 
 ## Future Enhancements
 
-- **Adaptive Bitrate Streaming**: Quality switching based on bandwidth
-- **Recommendation Integration**: ML-based content suggestions
-- **Advanced Analytics**: User behavior insights and reporting
-- **Multi-CDN Support**: Geographic content distribution
-- **Live Streaming**: Real-time content streaming capabilities
-
----
-
-This module provides a solid foundation for media playback while maintaining flexibility for future enhancements and integrations.
+- Machine learning recommendations
+- Adaptive bitrate support
+- Multi-user session coordination
+- Advanced analytics dashboard
+- Bandwidth prediction
+- Offline download management
+- Social viewing features
