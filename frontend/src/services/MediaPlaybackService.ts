@@ -184,8 +184,8 @@ export class MediaPlaybackService {
     try {
       console.log('🎬 MediaPlaybackService: Starting transcoding session for:', mediaFileId);
 
-      // For transcoding, we need to use the transcoding module's API
-      const url = '/api/v1/transcoding/transcode';
+      // Use the playback module's transcode endpoint which proxies to the transcoding service
+      const url = buildApiUrl('/playback/transcode');
       const response = await fetchWithErrorHandling(url, {
         method: 'POST',
         headers: {
@@ -238,8 +238,8 @@ export class MediaPlaybackService {
     try {
       console.log('🛑 MediaPlaybackService: Stopping session:', sessionId);
 
-      // Use transcoding module's API to stop session
-      const url = `/api/v1/transcoding/transcode/${sessionId}`;
+      // Use playback module's API to stop session
+      const url = buildApiUrl(`/playback/transcode/${sessionId}`);
       await fetchWithErrorHandling(url, {
         method: 'DELETE',
       });

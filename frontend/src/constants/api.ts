@@ -24,7 +24,7 @@ export const API_ENDPOINTS = {
       description: 'Get metadata for a media file',
     },
     FILE_STREAM: {
-      path: (id: string) => `/media/files/${id}/stream`,
+      path: (id: string) => `/playback/stream/file/${id}`,
       method: 'GET' as const,
       description: 'Stream media file',
     },
