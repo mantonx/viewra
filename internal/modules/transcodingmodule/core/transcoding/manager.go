@@ -1,6 +1,6 @@
-// Package transcodingmodule provides video transcoding functionality.
+// Package transcoding provides video transcoding functionality.
 // This is the main manager that coordinates all transcoding operations.
-package transcodingmodule
+package transcoding
 
 import (
 	"context"
@@ -14,12 +14,10 @@ import (
 	"github.com/mantonx/viewra/internal/events"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/cleanup"
-	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/migration"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/pipeline"
-	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/registry"
-	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/resource"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/session"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/storage"
+	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/transcoding/resource"
 
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/types"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/utils/filemanager"
@@ -40,14 +38,14 @@ type Manager struct {
 	config        *types.Config
 
 	// Provider management - centralized registry
-	providerRegistry *registry.ProviderRegistry
+	providerRegistry *ProviderRegistry
 
 	// Core services - each handles its own domain
 	sessionStore     *session.SessionStore     // Database-backed session persistence
 	contentStore     *storage.ContentStore     // Content-addressable file storage
 	resourceManager  *resource.Manager         // Concurrent session and resource limits
 	cleanupService   *cleanup.Service          // Cleanup of old sessions and files
-	migrationService *migration.ContentMigrationService // Content hash migration
+	migrationService *storage.ContentMigrationService // Content hash migration
 	fileManager      *filemanager.FileManager  // File operations
 
 	// Logging and error reporting
@@ -98,7 +96,7 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager types.Plugi
 	}
 
 	// Create content migration service
-	migrationService := migration.NewContentMigrationService(db)
+	migrationService := storage.NewContentMigrationService(db)
 
 	// Create resource manager
 	resourceConfig := &resource.Config{
@@ -121,7 +119,7 @@ func NewManager(db *gorm.DB, eventBus events.EventBus, pluginManager types.Plugi
 	cleanupService := cleanup.NewService(cleanupConfig, sessionStore, fileManager, hclogger.Named("cleanup"))
 
 	// Create provider registry
-	providerRegistry := registry.NewProviderRegistry(hclogger.Named("provider-registry"))
+	providerRegistry := NewProviderRegistry(hclogger.Named("provider-registry"))
 
 	return &Manager{
 		db:               db,
@@ -437,7 +435,7 @@ func (m *Manager) SetPluginManager(pluginManager types.PluginManagerInterface) {
 }
 
 // GetMigrationService returns the content migration service
-func (m *Manager) GetMigrationService() *migration.ContentMigrationService {
+func (m *Manager) GetMigrationService() *storage.ContentMigrationService {
 	return m.migrationService
 }
 

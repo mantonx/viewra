@@ -16,7 +16,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mantonx/viewra/internal/database"
-	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/process"
+	"github.com/mantonx/viewra/internal/modules/transcodingmodule/core/transcoding/process"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/utils/filemanager"
 	plugins "github.com/mantonx/viewra/sdk"
 )

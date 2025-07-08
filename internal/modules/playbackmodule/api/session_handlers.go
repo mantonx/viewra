@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/logger"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/session"
 	playbacktypes "github.com/mantonx/viewra/internal/modules/playbackmodule/types"
 	"github.com/mantonx/viewra/internal/services"
 	plugins "github.com/mantonx/viewra/sdk"
@@ -45,7 +45,7 @@ func (h *Handler) StartSession(c *gin.Context) {
 	}
 
 	// Start session
-	var session *core.PlaybackSession
+	var session *session.PlaybackSession
 	var err error
 
 	if req.Analytics != nil {

@@ -1,5 +1,5 @@
 // Package core provides transcode deduplication functionality.
-package core
+package playback
 
 import (
 	"crypto/sha256"

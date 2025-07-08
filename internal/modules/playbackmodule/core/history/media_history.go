@@ -1,5 +1,5 @@
 // Package core provides media-aware history functionality for video and audio playback.
-package core
+package history
 
 import (
 	"encoding/json"

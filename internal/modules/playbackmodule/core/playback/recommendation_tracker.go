@@ -1,5 +1,5 @@
 // Package core provides recommendation tracking functionality for the playback module.
-package core
+package playback
 
 import (
 	"encoding/json"

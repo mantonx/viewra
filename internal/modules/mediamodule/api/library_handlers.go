@@ -315,12 +315,12 @@ func (h *Handler) getLibraryStats(db *gorm.DB, libraryID uint) gin.H {
 	db.Model(&database.MediaFile{}).
 		Where("library_id = ?", libraryID).
 		Count(&fileCount)
-	
+
 	db.Model(&database.MediaFile{}).
 		Where("library_id = ?", libraryID).
 		Select("COALESCE(SUM(size_bytes), 0)").
 		Scan(&totalSize)
-	
+
 	// Get counts by media type
 	var typeCounts []struct {
 		MediaType string
@@ -360,7 +360,7 @@ func (h *Handler) getDetailedLibraryStats(db *gorm.DB, libraryID uint) gin.H {
 		Select("video_codec, audio_codec, COUNT(*) as count").
 		Group("video_codec, audio_codec").
 		Scan(&codecStats)
-	
+
 	// Add resolution statistics
 	var resolutionStats []struct {
 		Resolution string
@@ -371,7 +371,7 @@ func (h *Handler) getDetailedLibraryStats(db *gorm.DB, libraryID uint) gin.H {
 		Select("resolution, COUNT(*) as count").
 		Group("resolution").
 		Scan(&resolutionStats)
-	
+
 	// Add container statistics
 	var containerStats []struct {
 		Container string
@@ -382,7 +382,7 @@ func (h *Handler) getDetailedLibraryStats(db *gorm.DB, libraryID uint) gin.H {
 		Select("container, COUNT(*) as count").
 		Group("container").
 		Scan(&containerStats)
-	
+
 	// Add recent additions
 	var recentFiles []database.MediaFile
 	db.Where("library_id = ?", libraryID).

@@ -31,6 +31,8 @@ import (
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/api"
+	transcoding "github.com/mantonx/viewra/internal/modules/transcodingmodule/core/transcoding"
+	"github.com/mantonx/viewra/internal/modules/transcodingmodule/service"
 	"github.com/mantonx/viewra/internal/modules/transcodingmodule/types"
 	"github.com/mantonx/viewra/internal/services"
 	plugins "github.com/mantonx/viewra/sdk"
@@ -55,7 +57,7 @@ const (
 
 // Module implements the transcoding functionality as a module
 type Module struct {
-	manager      *Manager
+	manager      *transcoding.Manager
 	db           *gorm.DB
 	eventBus     events.EventBus
 	pluginModule types.PluginManagerInterface
@@ -138,7 +140,7 @@ func (m *Module) Init() error {
 
 	// Create manager with default configuration
 	logger.Info("Creating transcoding manager", "pluginModule_nil", m.pluginModule == nil)
-	manager, err := NewManager(m.db, m.eventBus, m.pluginModule, nil)
+	manager, err := transcoding.NewManager(m.db, m.eventBus, m.pluginModule, nil)
 	if err != nil {
 		logger.Error("Failed to create transcoding manager: %v", err)
 		return fmt.Errorf("failed to create transcoding manager: %w", err)
@@ -157,7 +159,7 @@ func (m *Module) Init() error {
 	}
 
 	// Register the TranscodingService with the service registry
-	transcodingService := NewTranscodingServiceImpl(m.manager)
+	transcodingService := service.NewTranscodingService(m.manager)
 	services.Register("transcoding", transcodingService)
 	logger.Info("TranscodingService registered with service registry")
 

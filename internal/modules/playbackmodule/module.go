@@ -10,7 +10,11 @@ import (
 	"github.com/mantonx/viewra/internal/database"
 	"github.com/mantonx/viewra/internal/logger"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/api"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/cleanup"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/history"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/playback"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/session"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/streaming"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/models"
 	"github.com/mantonx/viewra/internal/modules/playbackmodule/service"
 	"github.com/mantonx/viewra/internal/services"
@@ -24,12 +28,11 @@ type Module struct {
 	db *gorm.DB
 
 	// Core components
-	decisionEngine        *core.DecisionEngine
-	progressHandler       *core.ProgressiveHandler
-	sessionManager        *core.SessionManager
-	cleanupManager        *core.CleanupManager
-	historyManager        *core.HistoryManager
-	transcodeDeduplicator *core.TranscodeDeduplicator
+	playbackManager  *playback.Manager
+	streamingManager *streaming.Manager
+	sessionManager   *session.SessionManager
+	cleanupManager   *cleanup.CleanupManager
+	historyManager   *history.HistoryManager
 
 	// Service layer
 	playbackService services.PlaybackService
@@ -148,16 +151,15 @@ func (m *Module) Init() error {
 	})
 
 	// Initialize core components
-	m.decisionEngine = core.NewDecisionEngine(m.logger.Named("decision-engine"), m.mediaService)
-	m.progressHandler = core.NewProgressiveHandler(m.logger.Named("progressive-handler"))
-	m.sessionManager = core.NewSessionManager(m.logger.Named("session-manager"), m.db)
-	m.historyManager = core.NewHistoryManager(m.logger.Named("history-manager"), m.db)
-	m.transcodeDeduplicator = core.NewTranscodeDeduplicator(m.logger.Named("deduplicator"), m.db)
+	m.playbackManager = playback.NewManager(m.logger.Named("playback"), m.db, m.mediaService, m.transcodingService)
+	m.streamingManager = streaming.NewManager(m.logger.Named("streaming"))
+	m.sessionManager = session.NewSessionManager(m.logger.Named("session"), m.db)
+	m.historyManager = history.NewHistoryManager(m.logger.Named("history"), m.db)
 
 	// Initialize cleanup manager
-	cleanupConfig := core.DefaultCleanupConfig()
-	m.cleanupManager = core.NewCleanupManager(
-		m.logger.Named("cleanup-manager"),
+	cleanupConfig := cleanup.DefaultCleanupConfig()
+	m.cleanupManager = cleanup.NewCleanupManager(
+		m.logger.Named("cleanup"),
 		m.db,
 		cleanupConfig,
 		m.transcodingService,
@@ -171,8 +173,8 @@ func (m *Module) Init() error {
 	// Create and register the playback service
 	m.playbackService = service.NewPlaybackService(
 		m.logger.Named("service"),
-		m.decisionEngine,
-		m.progressHandler,
+		m.playbackManager.GetDecisionEngine(),
+		m.streamingManager.GetProgressiveHandler(),
 		m.sessionManager,
 		m.historyManager,
 		m.mediaService,
@@ -213,23 +215,23 @@ func (m *Module) SetDB(db *gorm.DB) {
 }
 
 // GetDecisionEngine returns the decision engine for API handlers
-func (m *Module) GetDecisionEngine() *core.DecisionEngine {
-	return m.decisionEngine
+func (m *Module) GetDecisionEngine() *playback.DecisionEngine {
+	return m.playbackManager.GetDecisionEngine()
 }
 
 // GetProgressiveHandler returns the progressive handler for API handlers
-func (m *Module) GetProgressiveHandler() *core.ProgressiveHandler {
-	return m.progressHandler
+func (m *Module) GetProgressiveHandler() *streaming.ProgressiveHandler {
+	return m.streamingManager.GetProgressiveHandler()
 }
 
 // GetSessionManager returns the session manager for API handlers
-func (m *Module) GetSessionManager() *core.SessionManager {
+func (m *Module) GetSessionManager() *session.SessionManager {
 	return m.sessionManager
 }
 
 // CreateAPIHandler creates the API handler for this module
 func (m *Module) CreateAPIHandler() *api.Handler {
-	return api.NewHandler(m.playbackService, m.mediaService, m.progressHandler, m.sessionManager, m.logger.Named("api"))
+	return api.NewHandler(m.playbackService, m.mediaService, m.streamingManager.GetProgressiveHandler(), m.sessionManager, m.logger.Named("api"))
 }
 
 // Shutdown gracefully shuts down the module
@@ -252,18 +254,18 @@ func (m *Module) Shutdown() error {
 }
 
 // GetHistoryManager returns the history manager for API handlers
-func (m *Module) GetHistoryManager() *core.HistoryManager {
+func (m *Module) GetHistoryManager() *history.HistoryManager {
 	return m.historyManager
 }
 
 // GetCleanupManager returns the cleanup manager for API handlers
-func (m *Module) GetCleanupManager() *core.CleanupManager {
+func (m *Module) GetCleanupManager() *cleanup.CleanupManager {
 	return m.cleanupManager
 }
 
 // GetTranscodeDeduplicator returns the transcode deduplicator for API handlers
-func (m *Module) GetTranscodeDeduplicator() *core.TranscodeDeduplicator {
-	return m.transcodeDeduplicator
+func (m *Module) GetTranscodeDeduplicator() *playback.TranscodeDeduplicator {
+	return m.playbackManager.GetTranscodeDeduplicator()
 }
 
 // Dependencies returns module dependencies

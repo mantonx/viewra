@@ -1,5 +1,5 @@
 // Package core provides the core functionality for the playback module.
-package core
+package cleanup
 
 import (
 	"context"

@@ -1,6 +1,6 @@
-// Package migration provides services for migrating between session-based URLs
+// Package storage provides services for migrating between session-based URLs
 // and content-addressable URLs based on content hashes.
-package migration
+package storage
 
 import (
 	"fmt"

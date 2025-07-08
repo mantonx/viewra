@@ -1,6 +1,6 @@
-// Package registry provides a centralized provider management system for the transcoding module.
+// Package transcoding provides a centralized provider management system for the transcoding module.
 // It encapsulates provider registration, discovery, and selection logic.
-package registry
+package transcoding
 
 import (
 	"sync"

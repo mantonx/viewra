@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/history"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/playback"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/session"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/streaming"
 	playbacktypes "github.com/mantonx/viewra/internal/modules/playbackmodule/types"
 	"github.com/mantonx/viewra/internal/services"
 	"github.com/mantonx/viewra/internal/types"
@@ -18,10 +21,10 @@ import (
 // It coordinates playback decisions, transcoding, and session management.
 type PlaybackService struct {
 	logger             hclog.Logger
-	decisionEngine     *core.DecisionEngine
-	progressHandler    *core.ProgressiveHandler
-	sessionManager     *core.SessionManager
-	historyManager     *core.HistoryManager
+	decisionEngine     *playback.DecisionEngine
+	progressHandler    *streaming.ProgressiveHandler
+	sessionManager     *session.SessionManager
+	historyManager     *history.HistoryManager
 	mediaService       services.MediaService
 	transcodingService services.TranscodingService
 
@@ -37,10 +40,10 @@ type PlaybackEventHandler interface {
 
 func NewPlaybackService(
 	logger hclog.Logger,
-	decisionEngine *core.DecisionEngine,
-	progressHandler *core.ProgressiveHandler,
-	sessionManager *core.SessionManager,
-	historyManager *core.HistoryManager,
+	decisionEngine *playback.DecisionEngine,
+	progressHandler *streaming.ProgressiveHandler,
+	sessionManager *session.SessionManager,
+	historyManager *history.HistoryManager,
 	mediaService services.MediaService,
 	transcodingService services.TranscodingService,
 ) services.PlaybackService {
@@ -320,7 +323,7 @@ func (ps *PlaybackService) GetRecommendedTranscodeParams(mediaPath string, devic
 }
 
 // StartPlaybackSession starts a new playback session for tracking.
-func (ps *PlaybackService) StartPlaybackSession(mediaFileID, userID, deviceID, method string) (*core.PlaybackSession, error) {
+func (ps *PlaybackService) StartPlaybackSession(mediaFileID, userID, deviceID, method string) (*session.PlaybackSession, error) {
 	ps.logger.Info("Starting playback session",
 		"mediaFileID", mediaFileID,
 		"method", method)
@@ -358,7 +361,7 @@ func (ps *PlaybackService) EndPlaybackSession(sessionID string) error {
 }
 
 // GetPlaybackSession retrieves a playback session by ID.
-func (ps *PlaybackService) GetPlaybackSession(sessionID string) (*core.PlaybackSession, error) {
+func (ps *PlaybackService) GetPlaybackSession(sessionID string) (*session.PlaybackSession, error) {
 	session, err := ps.sessionManager.GetSession(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("session not found: %w", err)
@@ -368,7 +371,7 @@ func (ps *PlaybackService) GetPlaybackSession(sessionID string) (*core.PlaybackS
 }
 
 // GetActiveSessions returns all active playback sessions.
-func (ps *PlaybackService) GetActiveSessions() []*core.PlaybackSession {
+func (ps *PlaybackService) GetActiveSessions() []*session.PlaybackSession {
 	return ps.sessionManager.GetActiveSessions()
 }
 

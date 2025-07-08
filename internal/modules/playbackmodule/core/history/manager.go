@@ -1,10 +1,12 @@
 // Package core provides the core functionality for the playback module.
-package core
+package history
 
 import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/playback"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/session"
 	"gorm.io/gorm"
 )
 
@@ -12,9 +14,9 @@ import (
 type HistoryManager struct {
 	logger                hclog.Logger
 	db                    *gorm.DB
-	sessionTracker        *SessionTracker
+	sessionTracker        *session.SessionTracker
 	mediaHistoryManager   *MediaHistoryManager // Replaces watchHistoryManager for better music support
-	recommendationTracker *RecommendationTracker
+	recommendationTracker *playback.RecommendationTracker
 }
 
 // NewHistoryManager creates a new history manager
@@ -22,14 +24,14 @@ func NewHistoryManager(logger hclog.Logger, db *gorm.DB) *HistoryManager {
 	return &HistoryManager{
 		logger:                logger,
 		db:                    db,
-		sessionTracker:        NewSessionTracker(logger.Named("session-tracker"), db),
+		sessionTracker:        session.NewSessionTracker(logger.Named("session-tracker"), db),
 		mediaHistoryManager:   NewMediaHistoryManager(logger.Named("media-history"), db),
-		recommendationTracker: NewRecommendationTracker(logger.Named("recommendation-tracker"), db),
+		recommendationTracker: playback.NewRecommendationTracker(logger.Named("recommendation-tracker"), db),
 	}
 }
 
 // RecordSessionStart records the start of a playback session
-func (hm *HistoryManager) RecordSessionStart(session *PlaybackSession) error {
+func (hm *HistoryManager) RecordSessionStart(session *session.PlaybackSession) error {
 	if err := hm.sessionTracker.RecordSessionStart(session); err != nil {
 		return fmt.Errorf("failed to record session start: %w", err)
 	}
@@ -103,7 +105,7 @@ func (hm *HistoryManager) TrackInteraction(userID, mediaFileID, interactionType 
 }
 
 // GetSessionTracker returns the session tracker component
-func (hm *HistoryManager) GetSessionTracker() *SessionTracker {
+func (hm *HistoryManager) GetSessionTracker() *session.SessionTracker {
 	return hm.sessionTracker
 }
 
@@ -113,6 +115,6 @@ func (hm *HistoryManager) GetMediaHistoryManager() *MediaHistoryManager {
 }
 
 // GetRecommendationTracker returns the recommendation tracker component
-func (hm *HistoryManager) GetRecommendationTracker() *RecommendationTracker {
+func (hm *HistoryManager) GetRecommendationTracker() *playback.RecommendationTracker {
 	return hm.recommendationTracker
 }

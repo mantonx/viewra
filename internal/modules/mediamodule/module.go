@@ -11,7 +11,6 @@ import (
 	"github.com/mantonx/viewra/internal/modules/mediamodule/api"
 	"github.com/mantonx/viewra/internal/modules/mediamodule/core/library"
 	"github.com/mantonx/viewra/internal/modules/mediamodule/core/metadata"
-
 	"github.com/mantonx/viewra/internal/modules/mediamodule/service"
 	"github.com/mantonx/viewra/internal/modules/modulemanager"
 	"github.com/mantonx/viewra/internal/services"
@@ -69,10 +68,13 @@ func (m *Module) Core() bool {
 }
 
 // Migrate performs database migrations
+// NOTE: Currently using shared database models to avoid conflicts.
+// TODO: Migrate to module-specific models in models/ directory in the future
+// when service layer is implemented across all modules.
 func (m *Module) Migrate(db *gorm.DB) error {
 	logger.Info("Migrating media database schema")
 	
-	// Migrate media models
+	// Using shared database models for now to avoid conflicts
 	if err := db.AutoMigrate(
 		&database.MediaLibrary{},
 		&database.MediaFile{},

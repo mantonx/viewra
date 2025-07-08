@@ -1,5 +1,5 @@
 // Package core provides session tracking functionality for the playback module.
-package core
+package session
 
 import (
 	"encoding/json"

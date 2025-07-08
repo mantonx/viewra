@@ -9,7 +9,8 @@ package api
 
 import (
 	"github.com/hashicorp/go-hclog"
-	"github.com/mantonx/viewra/internal/modules/playbackmodule/core"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/session"
+	"github.com/mantonx/viewra/internal/modules/playbackmodule/core/streaming"
 	"github.com/mantonx/viewra/internal/services"
 )
 
@@ -18,8 +19,8 @@ import (
 type Handler struct {
 	playbackService services.PlaybackService
 	mediaService    services.MediaService
-	progressHandler *core.ProgressiveHandler
-	sessionManager  *core.SessionManager
+	progressHandler *streaming.ProgressiveHandler
+	sessionManager  *session.SessionManager
 	logger          hclog.Logger
 }
 
@@ -33,8 +34,8 @@ type Handler struct {
 func NewHandler(
 	playbackService services.PlaybackService,
 	mediaService services.MediaService,
-	progressHandler *core.ProgressiveHandler,
-	sessionManager *core.SessionManager,
+	progressHandler *streaming.ProgressiveHandler,
+	sessionManager *session.SessionManager,
 	logger hclog.Logger,
 ) *Handler {
 	return &Handler{
