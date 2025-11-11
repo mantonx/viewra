@@ -3,12 +3,9 @@
  * Handles base URL, error handling, and request/response transformation
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+import type { ErrorResponse, CustomInstanceConfig } from './custom-instance.types';
 
-export interface ErrorResponse {
-  error: string;
-  message?: string;
-}
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 export class APIError extends Error {
   status: number;
@@ -30,7 +27,7 @@ export class APIError extends Error {
  * Custom fetch instance with error handling
  */
 export const customInstance = async <T>(
-  config: RequestInit & { url: string; params?: Record<string, unknown> }
+  config: CustomInstanceConfig
 ): Promise<T> => {
   const { url, params, ...fetchConfig } = config;
 
@@ -83,5 +80,3 @@ export const customInstance = async <T>(
   // For non-JSON responses (like streaming endpoints)
   return response as unknown as T;
 };
-
-export default customInstance;
