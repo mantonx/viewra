@@ -18,12 +18,13 @@ This is a **media server application** that:
 - Provides a web UI similar to Plex
 
 **Key Technical Decisions:**
-- **Backend**: Go 1.21+ with Gin framework, SQLite database, Domain-Driven Design (DDD)
+- **Backend**: Go 1.21+ with Gin framework, **SQLite (default) or PostgreSQL**, Domain-Driven Design (DDD)
 - **Frontend**: React 19 + TypeScript + TanStack Router/Query + Shadcn UI
 - **Media**: FFmpeg for transcoding, Shaka Player for adaptive streaming
 - **Architecture**: Clean/DDD with layers: Domain → Application → Infrastructure → Interfaces
 - **Database**: Hybrid schema (base `media` table + type-specific tables for movies/TV/music)
 - **Plugins**: Extensible plugin system with gRPC/HTTP communication
+- **⚠️ IMPORTANT**: All features must work on BOTH SQLite and PostgreSQL
 
 **Current Phase**: Phase 0 - Project Setup  
 **Next Phase**: Phase 1 - Core Foundation (libraries, scanning, basic streaming)
@@ -357,7 +358,11 @@ LOG_LEVEL=info
 ### Backend
 - **Language**: Go 1.21+
 - **HTTP Framework**: Gin
-- **Database**: SQLite (production-ready for PostgreSQL)
+- **Databases**: 
+  - **SQLite** (default) - Zero-config, perfect for home/personal use
+  - **PostgreSQL** - Production deployments, better multi-user performance
+  - Selectable via `DB_DRIVER` environment variable
+  - **All SQL must be compatible with both databases**
 - **Migrations**: golang-migrate/migrate
 - **SQL**: sqlc (compile-time type-safe queries)
 - **API Docs**: Swagger/swaggo
@@ -394,7 +399,6 @@ LOG_LEVEL=info
 ## Known Limitations (Current Phase)
 
 - Single-user only (multi-user in Phase 5)
-- SQLite only (PostgreSQL support Phase 8)
 - Basic filename parsing (complex patterns in Phase 3)
 - CPU transcoding only (hardware acceleration future)
 - No mobile apps (web-responsive only)
@@ -444,6 +448,8 @@ ViewRA is open-source software, free to use, modify, and distribute.
 - Place utilities in `internal/pkg/<category>/` (shared) or domain package (domain-specific)
 - Use sqlc for all database queries (type-safe)
 - Follow import order: stdlib → external → internal
+- **Write SQL that works on BOTH SQLite and PostgreSQL**
+- **Test features on BOTH databases before committing**
 
 ### Common Patterns:
 ```go
