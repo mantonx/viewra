@@ -62,6 +62,9 @@
 - **API Client**: Auto-generated with Orval from Swagger (type-safe)
 - **Code Quality**: Biome for formatting + linting (fast, all-in-one)
 - **Frontend Testing**: Vitest + React Testing Library + MSW
+- **Error Handling**: Toast notifications (Sonner) + Error boundaries
+- **Theming**: Light + Dark mode support with system preference
+- **Responsive**: Mobile-first (2/3/4/6 column grids), touch-friendly
 
 ### 🤔 Questions / Open Items
 - None yet

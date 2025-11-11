@@ -1945,6 +1945,269 @@ export { MediaDetail } from './MediaDetail'
 import { MediaCard, MediaGrid } from '@/features/media/components'
 ```
 
+### Error Handling & User Feedback
+
+#### Toast Notifications (Sonner)
+
+```typescript
+// lib/queryClient.ts
+import { toast } from 'sonner'
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      staleTime: 5 * 60 * 1000,
+      onError: (error: Error) => {
+        toast.error(error.message || 'Something went wrong')
+      },
+    },
+    mutations: {
+      onError: (error: Error) => {
+        toast.error(error.message || 'Failed to save changes')
+      },
+      onSuccess: () => {
+        toast.success('Changes saved successfully')
+      },
+    },
+  },
+})
+```
+
+#### Error Boundaries
+
+```typescript
+// shared/components/ErrorBoundary.tsx
+import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary'
+
+function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <h2>Something went wrong</h2>
+      <pre className="text-sm text-red-500">{error.message}</pre>
+      <Button onClick={resetErrorBoundary}>Try again</Button>
+    </div>
+  )
+}
+
+export function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  return (
+    <ReactErrorBoundary FallbackComponent={ErrorFallback}>
+      {children}
+    </ReactErrorBoundary>
+  )
+}
+```
+
+#### Loading States
+
+```typescript
+// Use Skeleton loaders, not spinners
+function MediaGrid() {
+  const { data, isLoading } = useMediaList()
+  
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-[2/3] rounded-lg" />
+        ))}
+      </div>
+    )
+  }
+  
+  return <div>{/* Render media cards */}</div>
+}
+```
+
+#### Empty States
+
+```typescript
+function EmptyLibrary() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px]">
+      <FilmIcon className="w-16 h-16 text-muted-foreground mb-4" />
+      <h3 className="text-xl font-semibold mb-2">No media found</h3>
+      <p className="text-muted-foreground mb-6">
+        Scan your library to add media files
+      </p>
+      <Button onClick={handleScan}>Scan Library</Button>
+    </div>
+  )
+}
+```
+
+### Theming & Dark Mode
+
+#### Light + Dark Mode Support
+
+```typescript
+// features/settings/stores/themeStore.ts
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+interface ThemeState {
+  mode: 'light' | 'dark' | 'system'
+  setMode: (mode: 'light' | 'dark' | 'system') => void
+}
+
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set) => ({
+      mode: 'system',
+      setMode: (mode) => {
+        set({ mode })
+        // Update document class
+        if (mode === 'system') {
+          const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+          document.documentElement.classList.toggle('dark', isDark)
+        } else {
+          document.documentElement.classList.toggle('dark', mode === 'dark')
+        }
+      },
+    }),
+    { name: 'theme' }
+  )
+)
+```
+
+#### Tailwind Configuration
+
+```typescript
+// tailwind.config.js
+export default {
+  darkMode: 'class', // Enable class-based dark mode
+  theme: {
+    extend: {
+      colors: {
+        // Custom color palette for both themes
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: 'hsl(var(--primary))',
+        // ... more colors
+      },
+    },
+  },
+}
+```
+
+#### CSS Variables
+
+```css
+/* index.css */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    /* ... light mode colors */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    /* ... dark mode colors */
+  }
+}
+```
+
+### Mobile Responsiveness
+
+#### Mobile-First Strategy
+
+Build mobile layouts first, then enhance for larger screens:
+
+```typescript
+// Mobile: < 640px (sm)
+// Tablet: 640-1024px (md, lg)
+// Desktop: > 1024px (xl, 2xl)
+
+function MediaGrid({ media }: MediaGridProps) {
+  return (
+    <div className="
+      grid gap-4
+      grid-cols-2          /* Mobile: 2 columns */
+      md:grid-cols-3       /* Tablet: 3 columns */
+      lg:grid-cols-4       /* Desktop: 4 columns */
+      xl:grid-cols-6       /* Large: 6 columns */
+    ">
+      {media.map((item) => (
+        <MediaCard key={item.id} media={item} />
+      ))}
+    </div>
+  )
+}
+```
+
+#### Touch-Friendly Interactions
+
+```typescript
+// Larger tap targets for mobile
+function MediaCard({ media }: MediaCardProps) {
+  return (
+    <button
+      className="
+        w-full aspect-[2/3] rounded-lg
+        min-h-[44px]  /* iOS minimum tap target */
+        focus:ring-2 focus:ring-primary
+        active:scale-95 transition-transform
+      "
+    >
+      {/* Card content */}
+    </button>
+  )
+}
+```
+
+#### Responsive Navigation
+
+```typescript
+// Mobile: Bottom nav or hamburger menu
+// Desktop: Sidebar
+
+function Layout() {
+  return (
+    <div className="flex flex-col md:flex-row h-screen">
+      {/* Desktop sidebar */}
+      <Sidebar className="hidden md:flex" />
+      
+      {/* Main content */}
+      <main className="flex-1 overflow-auto pb-16 md:pb-0">
+        <Outlet />
+      </main>
+      
+      {/* Mobile bottom nav */}
+      <BottomNav className="md:hidden" />
+    </div>
+  )
+}
+```
+
+#### Responsive Player
+
+```typescript
+// Different player layouts for different screens
+function VideoPlayer({ mediaId }: VideoPlayerProps) {
+  return (
+    <div className="
+      /* Mobile: Fullscreen */
+      fixed inset-0 z-50
+      
+      /* Desktop: Aspect ratio container */
+      md:relative md:aspect-video md:z-auto
+    ">
+      <ShakaPlayer mediaId={mediaId} />
+      
+      {/* Controls adapt to screen size */}
+      <PlayerControls
+        layout={isMobile ? 'compact' : 'full'}
+      />
+    </div>
+  )
+}
+```
+
 ### Performance Optimizations
 
 #### Code Splitting
