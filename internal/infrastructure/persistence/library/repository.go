@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/viewra/viewra/internal/domain/library"
 	"github.com/viewra/viewra/internal/infrastructure/database/sqlc"
+	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository implements the library.Repository interface using sqlc
@@ -35,8 +35,8 @@ func (r *Repository) Create(ctx context.Context, lib *library.Library) error {
 
 	// Update the library with generated values
 	lib.ID = result.ID
-	lib.CreatedAt = parseTime(result.CreatedAt)
-	lib.UpdatedAt = parseTime(result.UpdatedAt)
+	lib.CreatedAt = common.ParseTimeInterface(result.CreatedAt)
+	lib.UpdatedAt = common.ParseTimeInterface(result.UpdatedAt)
 
 	return nil
 }
@@ -56,8 +56,8 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*library.Library, e
 		Name:      result.Name,
 		Path:      result.Path,
 		Type:      library.LibraryType(result.Type),
-		CreatedAt: parseTime(result.CreatedAt),
-		UpdatedAt: parseTime(result.UpdatedAt),
+		CreatedAt: common.ParseTimeInterface(result.CreatedAt),
+		UpdatedAt: common.ParseTimeInterface(result.UpdatedAt),
 	}, nil
 }
 
@@ -76,8 +76,8 @@ func (r *Repository) GetByPath(ctx context.Context, path string) (*library.Libra
 		Name:      result.Name,
 		Path:      result.Path,
 		Type:      library.LibraryType(result.Type),
-		CreatedAt: parseTime(result.CreatedAt),
-		UpdatedAt: parseTime(result.UpdatedAt),
+		CreatedAt: common.ParseTimeInterface(result.CreatedAt),
+		UpdatedAt: common.ParseTimeInterface(result.UpdatedAt),
 	}, nil
 }
 
@@ -95,8 +95,8 @@ func (r *Repository) List(ctx context.Context) ([]*library.Library, error) {
 			Name:      result.Name,
 			Path:      result.Path,
 			Type:      library.LibraryType(result.Type),
-			CreatedAt: parseTime(result.CreatedAt),
-			UpdatedAt: parseTime(result.UpdatedAt),
+			CreatedAt: common.ParseTimeInterface(result.CreatedAt),
+			UpdatedAt: common.ParseTimeInterface(result.UpdatedAt),
 		}
 	}
 
@@ -119,7 +119,7 @@ func (r *Repository) Update(ctx context.Context, lib *library.Library) error {
 	}
 
 	// Update timestamps
-	lib.UpdatedAt = parseTime(result.UpdatedAt)
+	lib.UpdatedAt = common.ParseTimeInterface(result.UpdatedAt)
 
 	return nil
 }
@@ -136,26 +136,4 @@ func (r *Repository) Exists(ctx context.Context, path string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
-}
-
-// parseTime parses SQLite datetime string to time.Time
-// SQLite stores DATETIME as string, need to parse it
-func parseTime(t interface{}) time.Time {
-	switch v := t.(type) {
-	case time.Time:
-		return v
-	case string:
-		// Try to parse common SQLite datetime formats
-		layouts := []string{
-			"2006-01-02 15:04:05",
-			"2006-01-02T15:04:05Z",
-			time.RFC3339,
-		}
-		for _, layout := range layouts {
-			if parsed, err := time.Parse(layout, v); err == nil {
-				return parsed
-			}
-		}
-	}
-	return time.Now()
 }

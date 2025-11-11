@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/viewra/viewra/internal/domain/media"
 	"github.com/viewra/viewra/internal/infrastructure/database/sqlc"
+	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository implements media.Repository using sqlc-generated queries
@@ -30,15 +30,9 @@ func (r *Repository) Create(ctx context.Context, m *media.Media) error {
 		LibraryID: m.LibraryID,
 		Title:     m.Title,
 		FilePath:  m.FilePath,
-		FileSize: sql.NullInt64{
-			Int64: m.FileSize,
-			Valid: m.FileSize > 0,
-		},
-		Duration: sql.NullFloat64{
-			Float64: float64(m.Duration),
-			Valid:   m.Duration > 0,
-		},
-		Type: string(media.MediaTypeMovie), // Default for now
+		FileSize:  common.NullInt64(m.FileSize),
+		Duration:  common.NullFloat64(float64(m.Duration)),
+		Type:      string(media.MediaTypeMovie), // Default for now
 	})
 	if err != nil {
 		return err
@@ -46,8 +40,8 @@ func (r *Repository) Create(ctx context.Context, m *media.Media) error {
 
 	// Update the media with generated values
 	m.ID = result.ID
-	m.CreatedAt = parseTime(result.CreatedAt)
-	m.UpdatedAt = parseTime(result.UpdatedAt)
+	m.CreatedAt = common.ParseNullTime(result.CreatedAt)
+	m.UpdatedAt = common.ParseNullTime(result.UpdatedAt)
 
 	return nil
 }
@@ -120,23 +114,17 @@ func (r *Repository) Update(ctx context.Context, m *media.Media) error {
 		LibraryID: m.LibraryID,
 		Title:     m.Title,
 		FilePath:  m.FilePath,
-		FileSize: sql.NullInt64{
-			Int64: m.FileSize,
-			Valid: m.FileSize > 0,
-		},
-		Duration: sql.NullFloat64{
-			Float64: float64(m.Duration),
-			Valid:   m.Duration > 0,
-		},
-		Type: string(media.MediaTypeMovie), // Preserve type
-		ID:   m.ID,
+		FileSize:  common.NullInt64(m.FileSize),
+		Duration:  common.NullFloat64(float64(m.Duration)),
+		Type:      string(media.MediaTypeMovie), // Preserve type
+		ID:        m.ID,
 	})
 	if err != nil {
 		return err
 	}
 
 	// Update timestamps
-	m.UpdatedAt = parseTime(result.UpdatedAt)
+	m.UpdatedAt = common.ParseNullTime(result.UpdatedAt)
 
 	return nil
 }
@@ -181,15 +169,7 @@ func toMedia(m sqlc.Medium) *media.Media {
 		FilePath:  m.FilePath,
 		FileSize:  m.FileSize.Int64,
 		Duration:  int(m.Duration.Float64),
-		CreatedAt: parseTime(m.CreatedAt),
-		UpdatedAt: parseTime(m.UpdatedAt),
+		CreatedAt: common.ParseNullTime(m.CreatedAt),
+		UpdatedAt: common.ParseNullTime(m.UpdatedAt),
 	}
-}
-
-// parseTime parses SQLite datetime string to time.Time
-func parseTime(t sql.NullTime) time.Time {
-	if t.Valid {
-		return t.Time
-	}
-	return time.Time{}
 }
