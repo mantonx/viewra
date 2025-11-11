@@ -41,7 +41,7 @@ func TestRepository_Create(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	lib := &library.Library{
@@ -89,7 +89,7 @@ func TestRepository_GetByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -126,7 +126,7 @@ func TestRepository_GetByPath(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -160,7 +160,7 @@ func TestRepository_List(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create multiple libraries
@@ -193,7 +193,7 @@ func TestRepository_Update(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -236,7 +236,7 @@ func TestRepository_Delete(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first
@@ -270,7 +270,7 @@ func TestRepository_Exists(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a library first

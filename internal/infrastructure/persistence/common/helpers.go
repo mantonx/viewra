@@ -5,6 +5,18 @@ import (
 	"time"
 )
 
+// IsPostgres checks if the driver string indicates PostgreSQL.
+// Supports: "postgres", "postgresql"
+func IsPostgres(driver string) bool {
+	return driver == "postgres" || driver == "postgresql"
+}
+
+// IsSQLite checks if the driver string indicates SQLite.
+// Supports: "sqlite", "sqlite3", or empty (defaults to SQLite)
+func IsSQLite(driver string) bool {
+	return driver == "sqlite" || driver == "sqlite3" || driver == ""
+}
+
 // ParseNullTime converts sql.NullTime to time.Time
 // Returns zero time if the value is NULL
 func ParseNullTime(t sql.NullTime) time.Time {

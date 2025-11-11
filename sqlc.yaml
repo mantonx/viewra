@@ -1,12 +1,29 @@
 version: "2"
 sql:
+  # SQLite queries
   - engine: "sqlite"
-    queries: "internal/infrastructure/database/queries"
+    queries:
+      - "internal/infrastructure/database/queries/sqlite/"
     schema: "migrations"
     gen:
       go:
-        package: "sqlc"
-        out: "internal/infrastructure/database/sqlc"
+        package: "sqlc_sqlite"
+        out: "internal/infrastructure/database/sqlc_sqlite"
+        emit_json_tags: true
+        emit_prepared_queries: false
+        emit_interface: true
+        emit_exact_table_names: false
+        emit_empty_slices: true
+
+  # PostgreSQL queries
+  - engine: "postgresql"
+    queries:
+      - "internal/infrastructure/database/queries/postgres/"
+    schema: "migrations/postgres/000001_init.up.sql"
+    gen:
+      go:
+        package: "sqlc_postgres"
+        out: "internal/infrastructure/database/sqlc_postgres"
         emit_json_tags: true
         emit_prepared_queries: false
         emit_interface: true

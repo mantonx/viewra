@@ -72,7 +72,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 	}
 
 	// Insert test library
-	if _, err := db.Exec("INSERT INTO libraries (name, path, type) VALUES ('Test Library', '/test/path', 'movies')"); err != nil {
+	insertLib := "INSERT INTO libraries (name, path, type) VALUES ('Test Library', '/test/path', 'movies')"
+	if _, err := db.Exec(insertLib); err != nil {
 		t.Fatalf("Failed to insert test library: %v", err)
 	}
 
@@ -83,7 +84,7 @@ func TestRepository_Create(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	m := &media.Media{
@@ -129,7 +130,7 @@ func TestRepository_GetByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a media item first
@@ -168,7 +169,7 @@ func TestRepository_GetByFilePath(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a media item first
@@ -204,7 +205,7 @@ func TestRepository_ListByLibrary(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create multiple media items
@@ -237,7 +238,7 @@ func TestRepository_Update(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a media item first
@@ -283,7 +284,7 @@ func TestRepository_Delete(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a media item first
@@ -319,7 +320,7 @@ func TestRepository_ExistsInLibrary(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Create a media item first
@@ -357,7 +358,7 @@ func TestRepository_Count(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(db, "sqlite")
 	ctx := context.Background()
 
 	// Initially should be 0

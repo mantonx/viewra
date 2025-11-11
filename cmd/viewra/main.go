@@ -40,7 +40,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+	}()
 
 	log.Printf("Database connection established (driver: %s)", dbConfig.Driver)
 
@@ -68,20 +72,18 @@ func main() {
 
 	// API routes group
 	api := router.Group("/api")
-	{
-		// Placeholder endpoints
-		api.GET("/libraries", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
-				"message": "Libraries endpoint - coming soon",
-			})
+	// Placeholder endpoints
+	api.GET("/libraries", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Libraries endpoint - coming soon",
 		})
+	})
 
-		api.GET("/media", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
-				"message": "Media endpoint - coming soon",
-			})
+	api.GET("/media", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Media endpoint - coming soon",
 		})
-	}
+	})
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")
@@ -92,7 +94,5 @@ func main() {
 	// Start server
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("Starting ViewRA server on %s", addr)
-	if err := router.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	log.Fatalf("Server stopped: %v", router.Run(addr))
 }

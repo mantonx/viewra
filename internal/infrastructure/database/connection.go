@@ -56,7 +56,7 @@ func Connect(config *Config) (*sql.DB, error) {
 	case "sqlite", "sqlite3":
 		// Ensure the data directory exists
 		dir := filepath.Dir(config.DBName)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("failed to create database directory: %w", err)
 		}
 
@@ -98,7 +98,7 @@ func Connect(config *Config) (*sql.DB, error) {
 
 	// Test the connection
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 

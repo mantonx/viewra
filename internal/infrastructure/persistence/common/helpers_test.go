@@ -6,6 +6,50 @@ import (
 	"time"
 )
 
+func TestIsPostgres(t *testing.T) {
+	tests := []struct {
+		driver string
+		want   bool
+	}{
+		{"postgres", true},
+		{"postgresql", true},
+		{"sqlite", false},
+		{"sqlite3", false},
+		{"", false},
+		{"mysql", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.driver, func(t *testing.T) {
+			if got := IsPostgres(tt.driver); got != tt.want {
+				t.Errorf("IsPostgres(%q) = %v, want %v", tt.driver, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsSQLite(t *testing.T) {
+	tests := []struct {
+		driver string
+		want   bool
+	}{
+		{"sqlite", true},
+		{"sqlite3", true},
+		{"", true}, // Empty defaults to SQLite
+		{"postgres", false},
+		{"postgresql", false},
+		{"mysql", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.driver, func(t *testing.T) {
+			if got := IsSQLite(tt.driver); got != tt.want {
+				t.Errorf("IsSQLite(%q) = %v, want %v", tt.driver, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseNullTime(t *testing.T) {
 	now := time.Now()
 

@@ -73,7 +73,7 @@ CREATE TABLE movies (
     release_date DATE,
     genre TEXT,
     director TEXT,
-    cast TEXT,
+    "cast" TEXT,  -- quoted because 'cast' is a reserved keyword in PostgreSQL
     content_rating TEXT,
     maturity_rating INTEGER,
     content_advisories TEXT,

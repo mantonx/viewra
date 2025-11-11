@@ -1,0 +1,7 @@
+dist
+node_modules
+coverage
+.vite
+src/api/generated
+*.min.js
+*.min.css

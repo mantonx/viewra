@@ -26,11 +26,7 @@ func (l *Library) IsValid() error {
 		return err
 	}
 
-	if err := l.validateType(); err != nil {
-		return err
-	}
-
-	return nil
+	return l.validateType()
 }
 
 // validateName checks if the library name is valid
