@@ -323,11 +323,95 @@ This decision makes it easier to:
 - Switch primary DB - update default in config
 - Test database compatibility - swap querier in tests
 
-### Alternative Future: Database-Agnostic ORM
+### How the Go Ecosystem Handles Multi-Database Support
+
+**1. Database-Agnostic ORMs (Most Common Approach)**
+
+**GORM** (Most Popular ORM):
+- Automatically handles SQLite, PostgreSQL, MySQL, SQL Server
+- Uses dialect system: `gorm.Open(postgres.Open(dsn))` or `gorm.Open(sqlite.Open(dsn))`
+- Schema migrations handled by library
+- **Tradeoff:** Less control, can't use advanced DB features, ~10-20% performance overhead
+
+**Ent** (Facebook's Type-Safe ORM):
+- Code generation like sqlc, but ORM-style
+- Multi-database support via dialects: `ent.Open("postgres", dsn)` or `ent.Open("sqlite3", dsn)`
+- Handles type differences internally
+- **Tradeoff:** Opinionated schema, learning curve, less SQL control
+
+**Bun** (Lightweight ORM):
+- Modern, minimal ORM with multi-DB support
+- Similar to GORM but more explicit
+- **Tradeoff:** Smaller ecosystem, less mature
+
+**2. Query Builders (Middle Ground)**
+
+**Squirrel, goqu:**
+- Build SQL programmatically instead of writing strings
+- Can target different databases
+- **Tradeoff:** Harder to review complex queries, less type safety than sqlc
+
+**3. sqlc + Wrapper Pattern (Our Approach)**
+
+**Projects using this:**
+- **Grafana**: Uses sqlc with database-specific SQL files
+- **GitLab** (parts): Custom query layer per database
+- **PocketBase**: Single DB (SQLite) but extensible architecture
+
+**Why this is less common:**
+- Most projects pick ONE database and stick with it
+- OR use an ORM and accept the tradeoffs
+- Very few Go projects truly need production-grade multi-database support
+
+**4. Standard Practice in Similar Projects**
+
+**Plex-like media servers in Go:**
+- **Jellyfin**: C# with Entity Framework (ORM handles multi-DB)
+- **Navidrome**: Go with SQLite only (simpler)
+- **PhotoPrism**: Go with MySQL/MariaDB only
+
+**Multi-tenant SaaS (needs multi-DB):**
+- Usually pick ORM (GORM/Ent) for maintainability
+- Accept performance tradeoff
+
+### Why We're Not Using an ORM
+
+**Reasons for sqlc over ORM:**
+1. **Performance:** Direct SQL, no reflection overhead
+2. **Type Safety:** Compile-time checks, not runtime
+3. **Control:** Can optimize queries for each DB
+4. **Transparency:** See exact SQL being executed
+5. **Learning:** Team already familiar with SQL
+
+**Our unique position:**
+- Need multi-database (requirement)
+- Want type safety (compile-time)
+- Small team (can't afford complex ORM learning curve)
+- Performance matters (media streaming)
+
+### Industry Verdict
+
+**For 80% of projects:** Use GORM or Ent
+- Faster development
+- Handles edge cases automatically
+- Large community
+
+**For our project:** sqlc + wrapper pattern
+- We need both databases (requirement)
+- We value type safety (sqlc's strength)
+- Wrapper pattern keeps code simple
+- ~100 lines of wrapper code < learning full ORM
+
+**Alternative Future: Database-Agnostic ORM**
 
 If requirements change significantly, we could:
-- Switch to Ent, GORM, or similar ORM
+- Switch to Ent (closest to sqlc philosophy - code generation)
+- GORM if we need rapid feature development
 - They handle multi-database internally
-- Trade-off: Less control, more abstraction
+- Trade-off: Less control, more abstraction, learning curve
 
-But for now, sqlc + thin wrappers gives us the best balance of type safety, control, and maintainability.
+But for now, sqlc + thin wrappers gives us:
+- ✅ Best balance of type safety and maintainability
+- ✅ Full control over SQL optimization
+- ✅ Clear understanding of database layer
+- ✅ Minimal abstraction (easy to debug)
