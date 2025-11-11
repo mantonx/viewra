@@ -79,13 +79,15 @@ This document breaks down the ViewRA media server implementation into manageable
 - [x] Create `MediaService` with business logic
 - [x] Add file validation logic
 
-#### 1.3 Infrastructure - Database Repositories
-- [ ] Implement `LibraryRepository` with sqlc
-- [ ] Write SQL queries for libraries (queries/library.sql)
-- [ ] Generate sqlc code
-- [ ] Implement `MediaRepository` with sqlc
-- [ ] Write SQL queries for media (queries/media.sql)
-- [ ] Test repository implementations
+#### 1.3 Infrastructure - Database Repositories ✅ **COMPLETED**
+- [x] Implement `LibraryRepository` with sqlc
+- [x] Write SQL queries for libraries (queries/library.sql)
+- [x] Generate sqlc code
+- [x] Implement `MediaRepository` with sqlc
+- [x] Write SQL queries for media (queries/media.sql)
+- [x] Test repository implementations
+
+**Summary**: Phase 1.3 complete with 65 tests passing (domain + infrastructure). LibraryRepository (7 tests) and MediaRepository (8 tests) fully tested with in-memory SQLite. Clean architecture maintained.
 
 #### 1.4 Infrastructure - FFmpeg Integration
 - [ ] Create FFmpeg client wrapper (internal/infrastructure/ffmpeg/client.go)
