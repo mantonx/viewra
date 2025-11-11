@@ -1,5 +1,4 @@
 package database
-package database
 
 import (
 	"database/sql"
@@ -54,7 +53,7 @@ func Connect(config *Config) (*sql.DB, error) {
 	var dsn string
 
 	switch config.Driver {
-	case "sqlite":
+	case "sqlite", "sqlite3":
 		// Ensure the data directory exists
 		dir := filepath.Dir(config.DBName)
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -65,7 +64,7 @@ func Connect(config *Config) (*sql.DB, error) {
 		dsn = fmt.Sprintf("%s?_journal_mode=WAL&_timeout=5000&_fk=true", config.DBName)
 		log.Printf("Connecting to SQLite database: %s", config.DBName)
 
-	case "postgres":
+	case "postgres", "postgresql":
 		// PostgreSQL connection string
 		dsn = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
@@ -83,8 +82,16 @@ func Connect(config *Config) (*sql.DB, error) {
 		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
 	}
 
-	// Open database connection
-	db, err := sql.Open(config.Driver, dsn)
+	// Open database connection (use "sqlite3" for the sql.Open driver name)
+	driverName := config.Driver
+	if driverName == "sqlite" {
+		driverName = "sqlite3"
+	}
+	if driverName == "postgresql" {
+		driverName = "postgres"
+	}
+
+	db, err := sql.Open(driverName, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
