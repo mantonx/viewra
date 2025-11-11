@@ -50,6 +50,36 @@
 - [ ] Set up VS Code workspace settings
 - [ ] Configure linters (golangci-lint, ESLint)
 
+### ✅ Session 3: Frontend Architecture Deep Dive
+**Major Decisions:**
+
+1. **State Management**: Zustand (UI state) + TanStack Query v5 (server state)
+2. **Routing**: TanStack Router with file-based routing
+3. **Component Library**: Shadcn/ui (copy/paste) + Radix UI primitives
+4. **API Client Generation**: Orval (OpenAPI → React Query hooks)
+5. **Code Quality Tools**: Biome (formatter + linter, 25x faster than ESLint)
+6. **Testing**: Vitest + React Testing Library + MSW
+7. **Error Handling**: Sonner (toast notifications) + React Error Boundaries
+8. **Theming**: Light + Dark mode with system preference detection
+9. **Responsive Strategy**: Mobile-first with Tailwind breakpoints
+10. **Image Optimization**: WebP format + lazy loading + responsive images + blur placeholders
+11. **Accessibility**: Basic now (semantic HTML, ARIA), enhanced in Phase 5 (WCAG AA audit)
+12. **PWA & Offline Support**: Skip PWA, local network only - no offline features needed
+13. **Performance Monitoring**: Skip initially, add in Phase 6 if needed - basic logging sufficient
+
+**Files Updated:**
+- docs/TECH_STACK.md - Added detailed frontend stack sections
+- docs/ARCHITECTURE.md - Added comprehensive frontend architecture (500+ lines)
+- NOTES.md - This decision log
+
+**Git Commits:**
+- "Add documentation guidelines to .agent.md"
+- "Add comprehensive frontend architecture documentation"
+- "Add final frontend architecture decisions"
+- "Confirm accessibility approach: basic now, Phase 5 enhancements"
+- "Skip PWA: local network streaming only"
+
+
 ### 💡 Decisions Made
 - **Database**: Start with SQLite (easier development), PostgreSQL support in Phase 8
 - **Architecture**: DDD with clean layers (Domain → Application → Infrastructure → Interfaces)

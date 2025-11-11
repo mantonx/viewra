@@ -2269,6 +2269,30 @@ No Progressive Web App features needed. This is a local media server accessed ov
 - Reduces complexity and maintenance burden
 - Can reconsider in Phase 5 if users request installable app features
 
+#### Performance Monitoring
+
+**Decision: Skip Initially, Add in Phase 6 if Needed** ✅
+
+Basic logging is sufficient for personal/home media server use. Extensive monitoring can be added later if needed.
+
+**Phase 1-5 Approach:**
+- Structured logging (JSON format)
+- Log to stdout (Docker-friendly)
+- Basic error tracking in logs
+- Simple request/response timing logs
+
+**Phase 6+ (if performance issues arise):**
+- Prometheus metrics (request rate, latency, errors)
+- OpenTelemetry tracing
+- Grafana dashboards
+- Database query performance monitoring
+
+**Rationale:**
+- Personal/home use doesn't require production-grade observability
+- Premature optimization adds unnecessary complexity
+- Can add metrics incrementally when needed
+- Focus on core features first
+
 ---
 
 ## Security Considerations
