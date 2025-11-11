@@ -7,9 +7,22 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/viewra/viewra/internal/infrastructure/database"
 )
 
 func main() {
+	// Load database configuration
+	dbConfig := database.LoadConfigFromEnv()
+
+	// Connect to database
+	db, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	log.Printf("Database connection established (driver: %s)", dbConfig.Driver)
+
 	// Set up Gin router
 	router := gin.Default()
 
@@ -19,6 +32,7 @@ func main() {
 			"status":  "ok",
 			"service": "viewra",
 			"version": "0.0.1",
+			"database": dbConfig.Driver,
 		})
 	})
 
