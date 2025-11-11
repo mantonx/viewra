@@ -43,18 +43,16 @@ This document breaks down the ViewRA media server implementation into manageable
 - [x] Set up sqlc configuration
 - [x] Create Makefile for common tasks
 - [x] Create Procfile for dev workflow
-- [ ] Set up Swagger/swag configuration
-- [ ] Set up Orval configuration (frontend API client)
+- [x] Set up Swagger/swag configuration (v1.16.4, OpenAPI 3.0)
+- [x] Set up Orval configuration (v7.16.0, TanStack Query integration)
 - [ ] Set up VS Code workspace settings
 - [ ] Configure linters (golangci-lint, ESLint)
 
 #### 0.3 Database Setup
 - [x] Create migrations directory structure
 - [x] Create initial migration (000001_init.up.sql)
-- [ ] Install golang-migrate/migrate
-- [ ] Set up database connection code
-- [ ] Create migration runner
-- [ ] Test migrations (up/down)
+- [x] Install golang-migrate/migrate (with SQLite and PostgreSQL support)
+- [x] Test migrations (up/down successfully)
 
 **Deliverables**:
 - Runnable backend skeleton (empty endpoints)
@@ -936,4 +934,4 @@ All decisions documented across:
 ---
 
 **Last Updated**: November 11, 2025  
-**Status**: Phase 0.1 Complete - Phase 0.2 Development Tools In Progress - Phase 0.3 Database Setup Started
+**Status**: Phase 0 Complete (Repository, Development Tools, Database Setup) - Ready for Phase 1

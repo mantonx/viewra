@@ -49,10 +49,10 @@ test: ## Run tests
 	@echo "Coverage report: coverage.html"
 
 migrate-up: ## Run database migrations up
-	migrate -path migrations -database "sqlite3://data/viewra.db" up
+	~/go/bin/migrate -path migrations -database "sqlite3://data/viewra.db" up
 
 migrate-down: ## Run database migrations down
-	migrate -path migrations -database "sqlite3://data/viewra.db" down
+	~/go/bin/migrate -path migrations -database "sqlite3://data/viewra.db" down
 
 migrate-create: ## Create a new migration (usage: make migrate-create NAME=add_users)
 	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=migration_name"; exit 1; fi
