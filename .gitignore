@@ -1,0 +1,121 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+build/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage/
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.sqlite
+
+# Backup files
+*.backup
+backups/
+
+# Logs
+*.log
+logs/
+
+# Thumbnails and cached images
+data/thumbnails/
+data/images/
+data/cache/
+
+# Transcoded media
+data/transcoded/
+data/dash/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Frontend build output
+web/dist/
+web/build/
+web/.vite/
+
+# Test data (media files)
+test-data/
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.flac
+*.mp3
+*.m4a
+# Keep README files in test-data
+!test-data/README.md
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+.directory
+.Trash-*
+
+# FFmpeg output
+ffmpeg*.log
+ffprobe*.log
+
+# Generated API documentation
+docs/swagger/
+
+# Generated API clients
+web/src/api/generated/
+
+# sqlc generated code
+internal/infrastructure/database/sqlc/
+
+# Air tmp directory
+tmp/
