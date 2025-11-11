@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	
+
 	_ "github.com/viewra/viewra/docs/swagger" // Import generated docs
 	"github.com/viewra/viewra/internal/infrastructure/database"
 )
@@ -59,9 +59,9 @@ func main() {
 	// @Router       /health [get]
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"service": "viewra",
-			"version": "0.0.1",
+			"status":   "ok",
+			"service":  "viewra",
+			"version":  "0.0.1",
 			"database": dbConfig.Driver,
 		})
 	})
