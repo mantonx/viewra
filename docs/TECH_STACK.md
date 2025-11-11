@@ -47,8 +47,35 @@ ViewRA is a modern, self-hosted media server similar to Plex, Jellyfin, and Emby
 - **Dev Server Port**: 5173
 
 ### Routing & State
-- **Router**: TanStack Router (type-safe routing)
-- **Data Fetching**: TanStack Query v5
+- **Router**: TanStack Router (file-based routing, type-safe params)
+- **Server State**: TanStack Query v5 (caching, mutations, invalidation)
+- **UI State**: Zustand (theme, player state, UI preferences)
+- **Why not Redux?**: TanStack Query handles 90% of state; Zustand is lighter for UI state
+
+### UI & Styling
+- **Component Library**: Shadcn/ui (copy/paste, full ownership)
+- **Primitives**: Radix UI (accessible, unstyled)
+- **Styling**: Tailwind CSS (utility-first)
+- **Icons**: Lucide React
+- **Why Shadcn?**: Media apps need custom styling; only bundle what we use
+
+### API Integration
+- **Client Generation**: Orval (auto-generate from OpenAPI/Swagger)
+- **Generated Output**: TypeScript types + TanStack Query hooks
+- **Workflow**: Backend updates Swagger → run `npm run generate:api` → type-safe client ready
+
+### Code Quality
+- **Formatter & Linter**: Biome (25x faster than ESLint, all-in-one tool)
+- **Type Checking**: TypeScript strict mode
+- **Git Hooks**: Husky + lint-staged (format on commit)
+
+### Testing
+- **Unit/Integration**: Vitest + React Testing Library
+- **API Mocking**: MSW (Mock Service Worker)
+- **E2E**: Playwright (Phase 5+, critical user paths only)
+- **Coverage Target**: 70% overall, 80%+ for critical features
+
+### UI Components
 - **HTTP Client**: Native Fetch API
 - **API Client**: Orval-generated (from Swagger spec)
 

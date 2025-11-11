@@ -6,7 +6,7 @@
 
 ## 2025-11-11 - Project Kickoff
 
-### ✅ Today's Progress
+### ✅ Session 1: Planning & Documentation
 - [x] Created comprehensive documentation
   - ARCHITECTURE.md - DDD design complete
   - DATABASE_SCHEMA.md - All tables defined (including missing People, Credits, Collections, Genres)
@@ -16,17 +16,52 @@
   - PROJECT_PLAN.md - 8-phase roadmap
 - [x] Created README.md (Claude-friendly)
 - [x] Created NOTES.md (this file!)
+- [x] Created .agent.md with AI assistant guidelines
 
-### 🎯 Next Session
-- [ ] Phase 0.1: Initialize Go module
-- [ ] Phase 0.1: Create directory structure
-- [ ] Phase 0.1: Set up .gitignore
+### ✅ Session 2: Phase 0.1 - Repository & Structure Complete
+- [x] Initialized Git repository with main branch
+- [x] Created comprehensive .gitignore for Go/Node.js/SQLite
+- [x] Set up project directory structure
+  - cmd/viewra/ - Go application entry point
+  - internal/ - Domain, Application, Infrastructure, Interfaces layers
+  - migrations/ - Database migrations
+  - web/ - React frontend
+  - scripts/, data/, test-data/ directories
+- [x] Initialized Go module (github.com/viewra/viewra)
+- [x] Set up Vite + React + TypeScript frontend
+- [x] Configured Air for Go hot reload (.air.toml)
+- [x] Configured sqlc for type-safe SQL (sqlc.yaml)
+- [x] Created Makefile with common development tasks
+- [x] Created Procfile for concurrent backend/frontend dev
+- [x] Created initial database migration (000001_init.up.sql)
+  - Core tables: libraries, media, movies, tv_shows, tv_seasons, tv_episodes, music_tracks
+  - Progress tables: watch_progress, transcode_jobs
+- [x] Created basic Go HTTP server skeleton with Gin
+- [x] Installed Gin web framework dependency
+- [x] Updated .agent.md with documentation guidelines
+  - ❌ Never create redundant/superfluous docs
+  - ✅ Always update existing documentation
+- [x] Made initial git commit
+
+### 🎯 Next Session: Phase 0.2 - Development Tools
+- [ ] Install golang-migrate/migrate
+- [ ] Set up Swagger/swag configuration  
+- [ ] Set up Orval configuration (frontend API client)
+- [ ] Set up VS Code workspace settings
+- [ ] Configure linters (golangci-lint, ESLint)
 
 ### 💡 Decisions Made
 - **Database**: Start with SQLite (easier development), PostgreSQL support in Phase 8
 - **Architecture**: DDD with clean layers (Domain → Application → Infrastructure → Interfaces)
 - **Real-time Updates**: SSE instead of WebSockets (simpler, good enough)
 - **Frontend Embedding**: Embedded in production binary (single binary deployment)
+- **Frontend State Management**: Zustand + TanStack Query (not Redux)
+- **Frontend Organization**: Feature-based (mirrors backend DDD)
+- **Frontend Routing**: File-based routing with TanStack Router
+- **Frontend UI**: Shadcn/ui + Tailwind CSS (custom styling, no bloat)
+- **API Client**: Auto-generated with Orval from Swagger (type-safe)
+- **Code Quality**: Biome for formatting + linting (fast, all-in-one)
+- **Frontend Testing**: Vitest + React Testing Library + MSW
 
 ### 🤔 Questions / Open Items
 - None yet

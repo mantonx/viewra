@@ -1521,5 +1521,479 @@ api := r.Group("/api/v1")
 
 ---
 
+## Frontend Architecture
+
+### Overview
+
+The frontend follows a **feature-based architecture** that mirrors the backend's domain-driven approach. State is split between server state (TanStack Query) and UI state (Zustand).
+
+### Technology Stack
+
+**Core**:
+- React 19 + TypeScript
+- Vite 5 (build tool)
+- TanStack Router (file-based routing)
+- TanStack Query v5 (server state)
+- Zustand (UI state)
+
+**UI**:
+- Shadcn/ui + Radix UI (components)
+- Tailwind CSS (styling)
+- Lucide React (icons)
+
+**Code Quality**:
+- Biome (formatting + linting)
+- Vitest + React Testing Library
+- TypeScript strict mode
+
+### Directory Structure
+
+```
+web/
+├── src/
+│   ├── features/              # Feature-based organization
+│   │   ├── library/
+│   │   │   ├── components/    # Library-specific components
+│   │   │   ├── hooks/         # useLibraries, useLibraryMutation
+│   │   │   ├── stores/        # Zustand stores (if needed)
+│   │   │   ├── types.ts       # TypeScript types
+│   │   │   └── utils.ts       # Feature utilities
+│   │   ├── media/
+│   │   │   ├── components/
+│   │   │   │   ├── MediaCard.tsx
+│   │   │   │   ├── MediaGrid.tsx
+│   │   │   │   └── MediaDetail.tsx
+│   │   │   ├── hooks/
+│   │   │   │   ├── useMedia.ts
+│   │   │   │   └── useMediaQuery.ts
+│   │   │   └── types.ts
+│   │   ├── player/
+│   │   │   ├── components/
+│   │   │   │   ├── VideoPlayer.tsx
+│   │   │   │   ├── PlayerControls.tsx
+│   │   │   │   └── QualitySelector.tsx
+│   │   │   ├── hooks/
+│   │   │   │   ├── usePlayer.ts
+│   │   │   │   └── useProgress.ts
+│   │   │   └── stores/
+│   │   │       └── playerStore.ts
+│   │   └── settings/
+│   │       ├── components/
+│   │       └── hooks/
+│   ├── shared/                # Shared across features
+│   │   ├── components/
+│   │   │   ├── ui/            # Shadcn components
+│   │   │   ├── Layout.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   └── ErrorBoundary.tsx
+│   │   ├── hooks/
+│   │   │   ├── useDebounce.ts
+│   │   │   └── useLocalStorage.ts
+│   │   └── utils/
+│   │       ├── cn.ts          # Class name utility
+│   │       └── format.ts      # Formatting utilities
+│   ├── lib/                   # Third-party configuration
+│   │   ├── api/               # Generated API client (Orval)
+│   │   │   ├── generated/     # Auto-generated (gitignored)
+│   │   │   └── client.ts      # API client setup
+│   │   ├── queryClient.ts     # TanStack Query config
+│   │   └── router.ts          # TanStack Router config
+│   ├── routes/                # File-based routing
+│   │   ├── __root.tsx         # Root layout
+│   │   ├── index.tsx          # Home page (/)
+│   │   ├── libraries/
+│   │   │   ├── index.tsx      # /libraries
+│   │   │   └── $libraryId.tsx # /libraries/:libraryId
+│   │   ├── media/
+│   │   │   ├── index.tsx      # /media
+│   │   │   └── $mediaId.tsx   # /media/:mediaId
+│   │   ├── player/
+│   │   │   └── $mediaId.tsx   # /player/:mediaId
+│   │   └── settings/
+│   │       └── index.tsx      # /settings
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── index.css
+├── public/
+├── tests/
+│   ├── setup.ts
+│   └── mocks/
+│       └── handlers.ts        # MSW handlers
+├── orval.config.ts            # API client generation config
+├── tailwind.config.js
+├── tsconfig.json
+├── vite.config.ts
+└── package.json
+```
+
+### State Management Strategy
+
+#### Server State (TanStack Query)
+
+**All backend data** flows through TanStack Query:
+
+```typescript
+// features/media/hooks/useMedia.ts
+import { useQuery } from '@tanstack/react-query'
+import { mediaApi } from '@/lib/api/generated'
+
+export function useMedia(id: string) {
+  return useQuery({
+    queryKey: ['media', id],
+    queryFn: () => mediaApi.getMedia(id),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+export function useMediaList(libraryId?: string) {
+  return useQuery({
+    queryKey: ['media', 'list', libraryId],
+    queryFn: () => mediaApi.listMedia({ libraryId }),
+  })
+}
+```
+
+**Mutations** with automatic invalidation:
+
+```typescript
+// features/media/hooks/useMediaMutation.ts
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { mediaApi } from '@/lib/api/generated'
+
+export function useDeleteMedia() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (id: string) => mediaApi.deleteMedia(id),
+    onSuccess: () => {
+      // Invalidate and refetch media list
+      queryClient.invalidateQueries({ queryKey: ['media', 'list'] })
+    },
+  })
+}
+```
+
+#### UI State (Zustand)
+
+**For global UI state** that doesn't come from the server:
+
+```typescript
+// features/player/stores/playerStore.ts
+import { create } from 'zustand'
+
+interface PlayerState {
+  isPlaying: boolean
+  volume: number
+  isMuted: boolean
+  currentTime: number
+  
+  play: () => void
+  pause: () => void
+  setVolume: (volume: number) => void
+  toggleMute: () => void
+  seek: (time: number) => void
+}
+
+export const usePlayerStore = create<PlayerState>((set) => ({
+  isPlaying: false,
+  volume: 1,
+  isMuted: false,
+  currentTime: 0,
+  
+  play: () => set({ isPlaying: true }),
+  pause: () => set({ isPlaying: false }),
+  setVolume: (volume) => set({ volume, isMuted: volume === 0 }),
+  toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
+  seek: (currentTime) => set({ currentTime }),
+}))
+```
+
+**Usage in components**:
+
+```typescript
+function VideoPlayer({ mediaId }: { mediaId: string }) {
+  const { isPlaying, volume, play, pause } = usePlayerStore()
+  const { data: media } = useMedia(mediaId)
+  
+  return (
+    <video
+      src={media?.streamUrl}
+      volume={volume}
+      onPlay={play}
+      onPause={pause}
+    />
+  )
+}
+```
+
+### Routing Pattern (File-based)
+
+Routes automatically map to URLs:
+
+```
+routes/
+  __root.tsx           → Layout wrapper
+  index.tsx            → /
+  libraries/
+    index.tsx          → /libraries
+    $libraryId.tsx     → /libraries/:libraryId
+  media/
+    index.tsx          → /media
+    $mediaId.tsx       → /media/:mediaId
+  player/
+    $mediaId.tsx       → /player/:mediaId
+```
+
+**Type-safe params**:
+
+```typescript
+// routes/media/$mediaId.tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/media/$mediaId')({
+  component: MediaDetail,
+})
+
+function MediaDetail() {
+  const { mediaId } = Route.useParams() // TypeScript knows mediaId exists!
+  const { data: media } = useMedia(mediaId)
+  
+  return <div>{media?.title}</div>
+}
+```
+
+### API Client Generation (Orval)
+
+**Automatic generation** from backend Swagger:
+
+```typescript
+// orval.config.ts
+export default {
+  viewra: {
+    input: '../docs/swagger/swagger.json', // Backend generates this
+    output: {
+      mode: 'tags-split',
+      target: 'src/lib/api/generated/endpoints.ts',
+      client: 'react-query',
+      mock: true,
+    },
+    hooks: {
+      afterAllFilesWrite: 'prettier --write',
+    },
+  },
+}
+```
+
+**Generated hooks** ready to use:
+
+```typescript
+// Auto-generated by Orval
+export function useGetMedia(id: string) {
+  return useQuery({
+    queryKey: getGetMediaQueryKey(id),
+    queryFn: () => getMedia(id),
+  })
+}
+
+export function useCreateLibrary() {
+  return useMutation({
+    mutationFn: (data: CreateLibraryDto) => createLibrary(data),
+  })
+}
+```
+
+### Component Patterns
+
+#### Feature Components
+
+Co-locate everything for a feature:
+
+```typescript
+// features/media/components/MediaCard.tsx
+import { Card } from '@/shared/components/ui/card'
+import { useMedia } from '../hooks/useMedia'
+import { MediaType } from '../types'
+
+interface MediaCardProps {
+  mediaId: string
+  onClick?: () => void
+}
+
+export function MediaCard({ mediaId, onClick }: MediaCardProps) {
+  const { data: media, isLoading } = useMedia(mediaId)
+  
+  if (isLoading) return <Skeleton />
+  if (!media) return null
+  
+  return (
+    <Card onClick={onClick}>
+      <img src={media.thumbnailUrl} alt={media.title} />
+      <h3>{media.title}</h3>
+      <p>{media.year}</p>
+    </Card>
+  )
+}
+```
+
+#### Shared Components
+
+Components used across multiple features:
+
+```typescript
+// shared/components/Layout.tsx
+import { Sidebar } from './Sidebar'
+import { Outlet } from '@tanstack/react-router'
+
+export function Layout() {
+  return (
+    <div className="flex h-screen">
+      <Sidebar />
+      <main className="flex-1 overflow-auto">
+        <Outlet /> {/* Renders child routes */}
+      </main>
+    </div>
+  )
+}
+```
+
+### Testing Strategy
+
+#### Component Tests (Vitest + Testing Library)
+
+```typescript
+// features/media/components/MediaCard.test.tsx
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MediaCard } from './MediaCard'
+
+describe('MediaCard', () => {
+  it('renders media information', async () => {
+    const queryClient = new QueryClient()
+    
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MediaCard mediaId="123" />
+      </QueryClientProvider>
+    )
+    
+    expect(await screen.findByText('The Matrix')).toBeInTheDocument()
+    expect(screen.getByText('1999')).toBeInTheDocument()
+  })
+})
+```
+
+#### API Mocking (MSW)
+
+```typescript
+// tests/mocks/handlers.ts
+import { http, HttpResponse } from 'msw'
+
+export const handlers = [
+  http.get('/api/media/:id', ({ params }) => {
+    return HttpResponse.json({
+      id: params.id,
+      title: 'The Matrix',
+      year: 1999,
+      thumbnailUrl: '/thumbnails/123.jpg',
+    })
+  }),
+  
+  http.get('/api/libraries', () => {
+    return HttpResponse.json([
+      { id: '1', name: 'Movies', type: 'movies' },
+      { id: '2', name: 'TV Shows', type: 'tv' },
+    ])
+  }),
+]
+```
+
+### Code Organization Rules
+
+**File naming**:
+- Components: PascalCase (`MediaCard.tsx`)
+- Hooks: camelCase with `use` prefix (`useMedia.ts`)
+- Utilities: camelCase (`formatDuration.ts`)
+- Types: PascalCase for interfaces/types (`MediaType.ts`)
+
+**Import order** (enforced by Biome):
+```typescript
+// 1. React
+import { useState, useEffect } from 'react'
+
+// 2. External libraries
+import { useQuery } from '@tanstack/react-query'
+
+// 3. Internal absolute imports (@/)
+import { Button } from '@/shared/components/ui/button'
+import { useMedia } from '@/features/media/hooks/useMedia'
+
+// 4. Relative imports
+import { MediaCard } from './MediaCard'
+import type { MediaType } from '../types'
+```
+
+**Barrel exports** (index.ts) for cleaner imports:
+
+```typescript
+// features/media/components/index.ts
+export { MediaCard } from './MediaCard'
+export { MediaGrid } from './MediaGrid'
+export { MediaDetail } from './MediaDetail'
+
+// Usage:
+import { MediaCard, MediaGrid } from '@/features/media/components'
+```
+
+### Performance Optimizations
+
+#### Code Splitting
+
+Route-based automatic code splitting via TanStack Router:
+
+```typescript
+// Each route file is automatically code-split
+// routes/media/$mediaId.tsx only loads when visiting /media/:id
+```
+
+#### Query Optimization
+
+```typescript
+// Prefetch on hover for instant navigation
+function MediaCard({ mediaId }: MediaCardProps) {
+  const queryClient = useQueryClient()
+  
+  const prefetchMedia = () => {
+    queryClient.prefetchQuery({
+      queryKey: ['media', mediaId],
+      queryFn: () => mediaApi.getMedia(mediaId),
+    })
+  }
+  
+  return (
+    <Card
+      onMouseEnter={prefetchMedia}
+      onClick={() => navigate(`/media/${mediaId}`)}
+    >
+      {/* ... */}
+    </Card>
+  )
+}
+```
+
+#### Image Optimization
+
+```typescript
+// Lazy load images with native loading
+<img
+  src={media.thumbnailUrl}
+  alt={media.title}
+  loading="lazy"
+  decoding="async"
+/>
+```
+
+---
+
 ## Security Considerations
 - HTTPS enforcement
