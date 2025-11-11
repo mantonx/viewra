@@ -51,7 +51,7 @@ func (l *Library) validateName() error {
 // validatePath validates the library path field
 func (l *Library) validatePath() error {
 	path := strings.TrimSpace(l.Path)
-	
+
 	if path == "" {
 		return ErrEmptyPath
 	}
