@@ -135,35 +135,3 @@ func TestLibraryType_IsValid(t *testing.T) {
 		})
 	}
 }
-
-func TestSanitizeName(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "normal name",
-			input: "My Movies",
-			want:  "My Movies",
-		},
-		{
-			name:  "name with whitespace",
-			input: "  My Movies  ",
-			want:  "My Movies",
-		},
-		{
-			name:  "name too long",
-			input: string(make([]byte, 150)),
-			want:  string(make([]byte, 100)),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := library.SanitizeName(tt.input); got != tt.want {
-				t.Errorf("SanitizeName() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}

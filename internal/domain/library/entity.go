@@ -1,9 +1,10 @@
 package library
 
 import (
-	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/viewra/viewra/internal/pkg/validator"
 )
 
 // Library represents a media library containing movies, TV shows, or music
@@ -50,21 +51,19 @@ func (l *Library) validateName() error {
 
 // validatePath checks if the library path is valid
 func (l *Library) validatePath() error {
-	if l.Path == "" {
-		return ErrInvalidPath
-	}
-
-	// Path must be absolute
-	if !filepath.IsAbs(l.Path) {
-		return ErrPathNotAbsolute
-	}
-
-	// Clean path to normalize and check for traversal
-	cleanPath := filepath.Clean(l.Path)
-	
-	// Check for path traversal attempts (.. after cleaning)
-	if strings.Contains(cleanPath, "..") {
-		return ErrPathTraversal
+	cleanPath, err := validator.ValidateLibraryPath(l.Path)
+	if err != nil {
+		// Map validator errors to domain errors
+		switch err {
+		case validator.ErrInvalidPath:
+			return ErrInvalidPath
+		case validator.ErrPathNotAbsolute:
+			return ErrPathNotAbsolute
+		case validator.ErrPathTraversal:
+			return ErrPathTraversal
+		default:
+			return err
+		}
 	}
 
 	l.Path = cleanPath
@@ -79,13 +78,4 @@ func (l *Library) validateType() error {
 	default:
 		return ErrInvalidType
 	}
-}
-
-// SanitizeName cleans and trims the library name
-func SanitizeName(name string) string {
-	name = strings.TrimSpace(name)
-	if len(name) > 100 {
-		name = name[:100]
-	}
-	return name
 }
