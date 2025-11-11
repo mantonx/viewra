@@ -73,11 +73,11 @@ This document breaks down the ViewRA media server implementation into manageable
 - [x] Define domain errors
 
 #### 1.2 Domain Layer - Media
-- [ ] Create `Media` base entity (internal/domain/media/entity.go)
-- [ ] Create `Movie`, `TVEpisode`, `MusicTrack` entities
-- [ ] Create `MediaRepository` interface
-- [ ] Create `MediaService` with business logic
-- [ ] Add file validation logic
+- [x] Create `Media` base entity (internal/domain/media/entity.go)
+- [x] Create `Movie`, `TVEpisode`, `MusicTrack` entities
+- [x] Create `MediaRepository` interface
+- [x] Create `MediaService` with business logic
+- [x] Add file validation logic
 
 #### 1.3 Infrastructure - Database Repositories
 - [ ] Implement `LibraryRepository` with sqlc
