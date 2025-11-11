@@ -66,11 +66,11 @@ This document breaks down the ViewRA media server implementation into manageable
 **Goal**: Basic library and media management without transcoding
 
 #### 1.1 Domain Layer - Libraries
-- [ ] Create `Library` entity (internal/domain/library/entity.go)
-- [ ] Create `LibraryRepository` interface
-- [ ] Create `LibraryService` with business logic
-- [ ] Add validation rules (path exists, no duplicates)
-- [ ] Define domain errors
+- [x] Create `Library` entity (internal/domain/library/entity.go)
+- [x] Create `LibraryRepository` interface
+- [x] Create `LibraryService` with business logic
+- [x] Add validation rules (path exists, no duplicates)
+- [x] Define domain errors
 
 #### 1.2 Domain Layer - Media
 - [ ] Create `Media` base entity (internal/domain/media/entity.go)
