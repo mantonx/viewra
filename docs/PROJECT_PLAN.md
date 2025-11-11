@@ -138,11 +138,87 @@ See [ADR 001](decisions/001-dual-database-support.md) for detailed rationale and
 - ✅ Test Coverage: 15 comprehensive tests including error cases and integration tests
 
 #### 1.5 Infrastructure - File System Scanner
-- [ ] Create directory scanner (internal/infrastructure/filesystem/scanner.go)
-- [ ] Implement filename parser for movies
-- [ ] Implement filename parser for TV shows (S01E01 format)
-- [ ] Implement filename parser for music (ID3 tags)
-- [ ] Add duplicate detection (file hash)
+
+**Phase 1.5.1: Basic File Discovery** ✅ **COMPLETED**
+
+- [x] Create domain/scanner package (types, errors, interfaces)
+- [x] Create filesystem/walker.go for directory traversal
+- [x] Create filesystem/filter.go for file filtering
+- [x] Write comprehensive tests (95.4% coverage)
+
+**Summary**: Phase 1.5.1 complete with basic file discovery implementation. Created domain layer with clean interfaces and infrastructure layer with walker and filter implementations following project conventions.
+
+**Implementation Highlights:**
+
+- ✅ Domain Types: ScanJob, FileInfo, MediaType, Progress, ScanStatus
+- ✅ Domain Interfaces: FileWalker, FileFilter, WalkFunc callback
+- ✅ Domain Errors: ErrNotFound, ErrInvalidPath, ErrPathNotExist, ErrAlreadyRunning, etc.
+- ✅ Walker: Directory traversal using filepath.WalkDir with context cancellation
+- ✅ Filter: Smart file filtering (artwork, metadata, system files, hidden files)
+- ✅ Media Detection: Extension-based detection for video (20+ formats) and audio (15+ formats)
+- ✅ Test Coverage: 95.4% coverage with table-driven tests and integration tests
+- ✅ Testability: Dependency injection for testing (walkDirFunc, FileSystem interface)
+
+See [ADR 002](decisions/002-filesystem-scanner-design.md) for design decisions and implementation strategy.
+
+**Phase 1.5.2: Filename Parsing** ✅ **COMPLETED**
+
+- [x] Implement filename parser for movies
+- [x] Implement filename parser for TV shows (S01E01 format)
+- [x] Write comprehensive tests with real filenames
+- [ ] Implement filename parser for music (ID3 tags) - Deferred to Phase 1.5.3
+
+**Summary**: Phase 1.5.2 complete with movie and TV show parsers. Tested against real library filenames with 100% pattern matching success.
+
+**Implementation Highlights:**
+
+- ✅ Movie Parser: Extracts title, year, resolution, quality from standardized format
+- ✅ TV Parser: Extracts show name, year, season, episode, episode title
+- ✅ Regex-based parsing with compiled patterns for performance
+- ✅ 88.2% test coverage with 33 test cases
+- ✅ Tested with actual filenames from 2,523 movies and 18,208+ TV episodes
+- ✅ Handles edge cases: numbers at start, parentheses, special characters
+- ✅ Validates year ranges (1900-2099) and episode ranges
+
+**Phase 1.5.3: Music Parser** ✅ **COMPLETED**
+
+- [x] Implement music filename parser with ID3 tag support (github.com/dhowden/tag)
+- [ ] Add duplicate detection (file hash) - Deferred to Phase 1.5.4
+- [ ] Implement worker pool for concurrent file processing - Deferred to Phase 1.5.4
+- [ ] Add progress tracking with atomic counters - Deferred to Phase 1.5.4
+
+**Summary**: Phase 1.5.3 complete with music parser implementation. Added ID3 tag reading as primary metadata source with filename fallback parsing.
+
+**Implementation Highlights:**
+
+- ✅ Music Parser: Priority system (ID3 tags → filename parsing → title fallback)
+- ✅ ID3 Tag Support: Using `github.com/dhowden/tag` library for MP3, FLAC, OGG, MP4
+- ✅ Filename Fallback: Parses "Artist - Album - TrackNum - Title.ext" pattern
+- ✅ 82.7% test coverage with 9 comprehensive test cases
+- ✅ Tested with real Arcade Fire filenames including special characters (accents, #, parentheses)
+- ✅ Graceful degradation when ID3 tags missing or files unreadable
+- ✅ Handles multiple fallback patterns (full format, simple format, title-only)
+
+**Phase 1.5.4: Worker Pool & Progress** ✅ **COMPLETED**
+
+- [x] Implement worker pool for concurrent file processing
+- [x] Add progress tracking with atomic counters
+- [x] Add duplicate detection (file hash)
+- [x] Database persistence for scan jobs
+
+**Summary**: Phase 1.5.4 complete with full scanner coordinator implementation. Implemented concurrent worker pool (configurable workers), atomic progress tracking, partial file hashing for duplicate detection (first 64KB + last 64KB), and full database persistence with dual-database support.
+
+**Implementation Highlights:**
+
+- ✅ Coordinator: 234 lines with Scan(), GetProgress(), IsRunning(), worker pool management
+- ✅ Hasher: 86 lines with partial hash strategy (same as Plex/Jellyfin) for fast duplicate detection
+- ✅ ScanJobRepository: Full CRUD with dual-database support (SQLite + PostgreSQL)
+- ✅ Database Migrations: Added scan_jobs table with proper indexes for both databases
+- ✅ Progress Tracking: Atomic counters for thread-safe progress updates
+- ✅ Worker Pool: Configurable concurrent processing (default 4 workers)
+- ✅ Context Cancellation: Proper cleanup and graceful shutdown
+- ✅ Demo Program: Enhanced scanner-demo with real-time progress, duplicate detection, and statistics
+- ✅ Test Coverage: Hasher tests with 100% coverage (4 test cases)
 
 #### 1.6 Application Layer - Use Cases
 - [ ] Create library use cases (create, update, delete, list)
@@ -976,5 +1052,5 @@ All decisions documented across:
 
 ---
 
-**Last Updated**: November 11, 2025  
-**Status**: Phase 0 Complete (Repository, Development Tools, Database Setup) - Ready for Phase 1
+**Last Updated**: November 11, 2025
+**Status**: Phase 1.5.4 Complete (Worker Pool & Progress) - Scanner fully implemented with concurrent processing and database persistence ready for Phase 1.6 (Application Layer)
