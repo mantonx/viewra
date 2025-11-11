@@ -7,8 +7,29 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	
+	_ "github.com/viewra/viewra/docs/swagger" // Import generated docs
 	"github.com/viewra/viewra/internal/infrastructure/database"
 )
+
+// @title           ViewRA Media Server API
+// @version         0.0.1
+// @description     Self-hosted media server for movies, TV shows, and music
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   ViewRA Support
+// @contact.url    http://www.swagger.io/support
+// @contact.email  support@swagger.io
+
+// @license.name  MIT
+// @license.url   https://opensource.org/licenses/MIT
+
+// @host      localhost:8080
+// @BasePath  /api
+
+// @schemes http https
 
 func main() {
 	// Load database configuration
@@ -26,7 +47,16 @@ func main() {
 	// Set up Gin router
 	router := gin.Default()
 
+	// Swagger documentation endpoint
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// Health check endpoint
+	// @Summary      Health check
+	// @Description  Check if the server is running
+	// @Tags         health
+	// @Produce      json
+	// @Success      200  {object}  map[string]interface{}
+	// @Router       /health [get]
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",

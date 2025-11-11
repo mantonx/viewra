@@ -62,7 +62,7 @@ sqlc-gen: ## Generate sqlc code from queries
 	sqlc generate
 
 swagger-gen: ## Generate Swagger documentation
-	swag init -g cmd/viewra/main.go -o docs/swagger
+	~/go/bin/swag init -g cmd/viewra/main.go -o docs/swagger --parseDependency --parseInternal
 
 lint: ## Run linters
 	golangci-lint run
