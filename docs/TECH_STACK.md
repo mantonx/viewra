@@ -8,7 +8,11 @@ ViewRA is a modern, self-hosted media server similar to Plex, Jellyfin, and Emby
 ### Core
 - **Language**: Go 1.21+
 - **HTTP Router**: Gin
-- **Database**: SQLite (production-ready for PostgreSQL/MySQL)
+- **Databases**: 
+  - **SQLite** (default): Zero-config, perfect for home/personal use
+  - **PostgreSQL**: Production-ready for multi-user deployments
+  - Environment-based selection via `DB_DRIVER`
+  - **IMPORTANT**: All SQL must be compatible with both databases
 - **Database Migrations**: golang-migrate/migrate (auto-run on startup)
 - **Query Builder**: sqlc (compile-time type-safe SQL)
 
@@ -97,6 +101,42 @@ ViewRA is a modern, self-hosted media server similar to Plex, Jellyfin, and Emby
 - **Notifications**: Toast notifications + status page
 
 ## Architecture Patterns
+
+### Database Strategy
+
+**Dual Database Support**:
+- Default: SQLite (zero configuration, file-based)
+- Production: PostgreSQL (multi-user, better performance under load)
+- Configuration: Environment variable `DB_DRIVER=sqlite|postgres`
+
+**Development Practices**:
+- Write database-agnostic SQL when possible
+- Maintain separate migration files for each database
+  - SQLite: `migrations/*.sql`
+  - PostgreSQL: `migrations/postgres/*.sql`
+- Test all features on BOTH databases
+- Document any database-specific behavior
+
+**SQL Compatibility**:
+```sql
+-- SQLite                          -- PostgreSQL
+INTEGER PRIMARY KEY AUTOINCREMENT  SERIAL PRIMARY KEY
+DATETIME DEFAULT CURRENT_TIMESTAMP TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+REAL                               DOUBLE PRECISION
+```
+
+**When to Use Each**:
+- **SQLite**: 
+  - Development
+  - Home/personal servers (1-5 users)
+  - Single-user deployments
+  - Docker containers (simple setup)
+  
+- **PostgreSQL**:
+  - Multi-user deployments (5+ concurrent users)
+  - Production environments
+  - When advanced indexing needed
+  - Better concurrent write performance
 
 ### Backend Architecture
 - **Pattern**: Domain-Driven Design (DDD)

@@ -2,6 +2,54 @@
 
 ViewRA supports both SQLite (default) and PostgreSQL databases.
 
+## CRITICAL: Database Compatibility
+
+**All features must work on BOTH SQLite and PostgreSQL.**
+
+### Development Requirements
+
+1. **Test on both databases** before committing changes
+2. **Write portable SQL** - avoid database-specific syntax when possible
+3. **Maintain parallel migrations** - one for SQLite, one for PostgreSQL
+4. **Document differences** - note any unavoidable database-specific behavior
+
+### SQL Compatibility Guidelines
+
+**Data Types**:
+```sql
+-- SQLite              PostgreSQL
+INTEGER               INTEGER
+TEXT                  TEXT
+REAL                  DOUBLE PRECISION
+DATETIME              TIMESTAMP
+BOOLEAN (0/1)         BOOLEAN (true/false)
+```
+
+**Auto-Increment**:
+```sql
+-- SQLite
+id INTEGER PRIMARY KEY AUTOINCREMENT
+
+-- PostgreSQL  
+id SERIAL PRIMARY KEY
+```
+
+**Timestamps**:
+```sql
+-- SQLite
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+-- PostgreSQL
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+```
+
+**Checks and Constraints**:
+- Both support `CHECK` constraints
+- Both support `UNIQUE` constraints
+- Both support foreign keys (SQLite requires `PRAGMA foreign_keys = ON`)
+
+---
+
 ## SQLite (Default)
 
 SQLite is used by default for easier development and single-user deployments.
