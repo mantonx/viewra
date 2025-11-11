@@ -361,25 +361,103 @@ Beatles, The/Abbey Road/01 - Come Together.mp3
 
 ## Frontend Files
 
+### Core Pattern
+
+**All frontend files follow this structure**:
+
+```
+<name>/
+├── <name>.ts           # Implementation
+├── <name>.types.ts     # TypeScript types/interfaces
+├── <name>.test.ts      # Unit tests
+└── index.ts            # Barrel export
+```
+
+For React components, use `.tsx` instead of `.ts`:
+
+```
+<ComponentName>/
+├── <ComponentName>.tsx        # Component implementation
+├── <ComponentName>.types.ts   # Props, state, types
+├── <ComponentName>.test.tsx   # Component tests
+└── index.ts                   # Barrel export
+```
+
 ### React Components (`web/src/components/`)
 
-**Pattern**: `PascalCase.tsx`
+**Pattern**: `PascalCase` directory with matching component file
 
 ```
 web/src/components/
-├── MediaCard.tsx       # Single component per file
-├── LibraryGrid.tsx
-├── VideoPlayer.tsx
-├── Sidebar.tsx
-└── ui/                 # Shadcn components
+├── MediaCard/
+│   ├── MediaCard.tsx          # Component
+│   ├── MediaCard.types.ts     # Props & types
+│   ├── MediaCard.test.tsx     # Tests
+│   └── index.ts               # export { MediaCard } from './MediaCard'
+├── LibraryGrid/
+│   ├── LibraryGrid.tsx
+│   ├── LibraryGrid.types.ts
+│   ├── LibraryGrid.test.tsx
+│   └── index.ts
+├── VideoPlayer/
+│   ├── VideoPlayer.tsx
+│   ├── VideoPlayer.types.ts
+│   ├── VideoPlayer.test.tsx
+│   └── index.ts
+└── ui/                        # Shadcn components (exception: flat structure)
     ├── button.tsx
     ├── card.tsx
     └── input.tsx
 ```
 
+**Example Component Structure**:
+
+```typescript
+// MediaCard/MediaCard.types.ts
+export interface MediaCardProps {
+  title: string;
+  thumbnailUrl?: string;
+  onPlay: () => void;
+}
+
+// MediaCard/MediaCard.tsx
+import type { MediaCardProps } from './MediaCard.types';
+
+export const MediaCard = ({ title, thumbnailUrl, onPlay }: MediaCardProps) => {
+  // Component implementation
+};
+
+// MediaCard/index.ts
+export { MediaCard } from './MediaCard';
+export type { MediaCardProps } from './MediaCard.types';
+```
+
+### Hooks (`web/src/hooks/`)
+
+**Pattern**: `use<Name>` directory structure
+
+```
+web/src/hooks/
+├── useMediaPlayer/
+│   ├── useMediaPlayer.ts      # Hook implementation
+│   ├── useMediaPlayer.types.ts # Return types, params
+│   ├── useMediaPlayer.test.ts  # Hook tests
+│   └── index.ts
+├── useWatchProgress/
+│   ├── useWatchProgress.ts
+│   ├── useWatchProgress.types.ts
+│   ├── useWatchProgress.test.ts
+│   └── index.ts
+└── useLibraries/
+    ├── useLibraries.ts
+    ├── useLibraries.types.ts
+    ├── useLibraries.test.ts
+    └── index.ts
+```
+
 ### Routes (`web/src/routes/`)
 
-**Pattern**: TanStack Router file-based routing
+**Pattern**: TanStack Router file-based routing (exception: flat files)
 
 ```
 web/src/routes/
@@ -394,14 +472,133 @@ web/src/routes/
     └── $id.tsx         # /media/:id
 ```
 
-### Utilities & Libraries (`web/src/lib/`)
+**Note**: Routes follow TanStack Router conventions and don't use the directory pattern.
+
+### Utilities & Helpers (`web/src/lib/`)
+
+**Pattern**: Directory per utility module
 
 ```
 web/src/lib/
-├── api.ts              # API client (Orval generated)
-├── utils.ts            # General utilities
-├── constants.ts        # App constants
-└── types.ts            # Shared TypeScript types
+├── api/
+│   ├── generated/          # Orval generated (gitignored)
+│   └── mutator/
+│       ├── custom-instance.ts
+│       ├── custom-instance.types.ts
+│       ├── custom-instance.test.ts
+│       └── index.ts
+├── utils/
+│   ├── formatters/
+│   │   ├── formatters.ts        # Date, time, file size formatting
+│   │   ├── formatters.types.ts
+│   │   ├── formatters.test.ts
+│   │   └── index.ts
+│   ├── validators/
+│   │   ├── validators.ts        # Input validation helpers
+│   │   ├── validators.types.ts
+│   │   ├── validators.test.ts
+│   │   └── index.ts
+│   └── index.ts                 # Re-export all utils
+├── constants/
+│   ├── constants.ts             # App constants
+│   ├── constants.types.ts
+│   └── index.ts
+└── types/
+    ├── common.types.ts          # Shared types
+    ├── media.types.ts           # Media-related types
+    └── index.ts
+```
+
+### Pages/Features (`web/src/features/`)
+
+**Pattern**: Feature-based organization
+
+```
+web/src/features/
+├── libraries/
+│   ├── components/
+│   │   ├── LibraryCard/
+│   │   │   ├── LibraryCard.tsx
+│   │   │   ├── LibraryCard.types.ts
+│   │   │   ├── LibraryCard.test.tsx
+│   │   │   └── index.ts
+│   │   └── ScanButton/
+│   │       ├── ScanButton.tsx
+│   │       ├── ScanButton.types.ts
+│   │       ├── ScanButton.test.tsx
+│   │       └── index.ts
+│   └── hooks/
+│       └── useLibraryScanner/
+│           ├── useLibraryScanner.ts
+│           ├── useLibraryScanner.types.ts
+│           ├── useLibraryScanner.test.ts
+│           └── index.ts
+└── media/
+    ├── components/
+    │   └── MediaGrid/
+    │       ├── MediaGrid.tsx
+    │       ├── MediaGrid.types.ts
+    │       ├── MediaGrid.test.tsx
+    │       └── index.ts
+    └── hooks/
+        └── useMediaFilters/
+            ├── useMediaFilters.ts
+            ├── useMediaFilters.types.ts
+            ├── useMediaFilters.test.ts
+            └── index.ts
+```
+
+### Context Providers (`web/src/context/`)
+
+**Pattern**: `<Name>Provider` directory
+
+```
+web/src/context/
+├── ThemeProvider/
+│   ├── ThemeProvider.tsx
+│   ├── ThemeProvider.types.ts
+│   ├── ThemeProvider.test.tsx
+│   └── index.ts
+└── AuthProvider/
+    ├── AuthProvider.tsx
+    ├── AuthProvider.types.ts
+    ├── AuthProvider.test.tsx
+    └── index.ts
+```
+
+### Naming Rules
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| **Components** | `PascalCase/` | `MediaCard/`, `VideoPlayer/` |
+| **Hooks** | `use<Name>/` | `useMediaPlayer/`, `useAuth/` |
+| **Utilities** | `camelCase/` | `formatters/`, `validators/` |
+| **Types** | `*.types.ts` | `MediaCard.types.ts` |
+| **Tests** | `*.test.ts(x)` | `MediaCard.test.tsx` |
+| **Barrel** | `index.ts` | Exports main functionality |
+
+### Import/Export Pattern
+
+**Barrel exports** (`index.ts`):
+
+```typescript
+// Good: Named exports
+export { MediaCard } from './MediaCard';
+export type { MediaCardProps } from './MediaCard.types';
+
+// Bad: Default export
+export { default } from './MediaCard';  // ❌ Avoid
+```
+
+**Component imports**:
+
+```typescript
+// Good: Import from directory
+import { MediaCard } from '@/components/MediaCard';
+import type { MediaCardProps } from '@/components/MediaCard';
+
+// Bad: Import from file directly
+import { MediaCard } from '@/components/MediaCard/MediaCard';  // ❌ Skip barrel
 ```
 
 ---
