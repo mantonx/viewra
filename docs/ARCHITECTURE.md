@@ -2256,6 +2256,19 @@ function MediaCard({ mediaId }: MediaCardProps) {
 />
 ```
 
+#### PWA & Offline Support
+
+**Decision: Skip PWA, Local Network Only** ✅
+
+No Progressive Web App features needed. This is a local media server accessed over LAN, not a cloud service.
+
+**Rationale:**
+- Users need network connection to stream media from server
+- Offline support provides no value for local media streaming
+- PWA mainly benefits cloud apps with intermittent connectivity
+- Reduces complexity and maintenance burden
+- Can reconsider in Phase 5 if users request installable app features
+
 ---
 
 ## Security Considerations
