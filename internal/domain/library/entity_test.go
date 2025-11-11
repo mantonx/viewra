@@ -46,7 +46,7 @@ func TestLibrary_IsValid(t *testing.T) {
 				Path: "",
 				Type: library.LibraryTypeMovies,
 			},
-			wantErr: library.ErrInvalidPath,
+			wantErr: library.ErrEmptyPath,
 		},
 		{
 			name: "relative path",
@@ -80,13 +80,13 @@ func TestLibrary_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.library.IsValid()
-			
+
 			if tt.wantErr != nil {
 				if err == nil {
 					t.Errorf("expected error %v, got nil", tt.wantErr)
 					return
 				}
-				
+
 				if err != tt.wantErr {
 					t.Errorf("expected error %v, got %v", tt.wantErr, err)
 				}
@@ -101,28 +101,28 @@ func TestLibrary_IsValid(t *testing.T) {
 
 func TestLibraryType_IsValid(t *testing.T) {
 	tests := []struct {
-		name       string
-		libType    library.LibraryType
+		name      string
+		libType   library.LibraryType
 		wantValid bool
 	}{
 		{
-			name:       "movies type",
-			libType:    library.LibraryTypeMovies,
+			name:      "movies type",
+			libType:   library.LibraryTypeMovies,
 			wantValid: true,
 		},
 		{
-			name:       "tv type",
-			libType:    library.LibraryTypeTV,
+			name:      "tv type",
+			libType:   library.LibraryTypeTV,
 			wantValid: true,
 		},
 		{
-			name:       "music type",
-			libType:    library.LibraryTypeMusic,
+			name:      "music type",
+			libType:   library.LibraryTypeMusic,
 			wantValid: true,
 		},
 		{
-			name:       "invalid type",
-			libType:    "invalid",
+			name:      "invalid type",
+			libType:   "invalid",
 			wantValid: false,
 		},
 	}

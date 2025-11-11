@@ -6,10 +6,10 @@ type LibraryType string
 const (
 	// LibraryTypeMovies represents a movie library
 	LibraryTypeMovies LibraryType = "movies"
-	
+
 	// LibraryTypeTV represents a TV show library
 	LibraryTypeTV LibraryType = "tv"
-	
+
 	// LibraryTypeMusic represents a music library
 	LibraryTypeMusic LibraryType = "music"
 )

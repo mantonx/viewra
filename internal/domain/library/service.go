@@ -3,8 +3,7 @@ package library
 import (
 	"context"
 	"fmt"
-
-	"github.com/viewra/viewra/internal/pkg/validator"
+	"os"
 )
 
 // Service handles library business logic
@@ -123,18 +122,31 @@ func (s *Service) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// validatePathExists checks if the path exists and is a directory
+// validatePathExists checks if a path exists and is an accessible directory
 func (s *Service) validatePathExists(path string) error {
-	if err := validator.ValidateDirectoryExists(path); err != nil {
-		// Map validator errors to domain errors
-		switch {
-		case err == validator.ErrPathNotDirectory:
-			return ErrPathNotDirectory
-		case err == validator.ErrPathNotReadable:
-			return ErrPathNotAccessible
-		default:
-			return err
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrPathNotFound
 		}
+		return ErrPathNotReadable
 	}
+
+	if !info.IsDir() {
+		return ErrPathNotDirectory
+	}
+
+	// Try to read directory to ensure it's accessible
+	f, err := os.Open(path)
+	if err != nil {
+		return ErrPathNotReadable
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1)
+	if err != nil && err.Error() != "EOF" {
+		return ErrPathNotReadable
+	}
+
 	return nil
 }

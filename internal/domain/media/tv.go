@@ -5,14 +5,14 @@ type TVEpisode struct {
 	Media // Embedded base media fields
 
 	// TV-specific fields
-	ShowTitle   string
-	Season      int
-	Episode     int
+	ShowTitle    string
+	Season       int
+	Episode      int
 	EpisodeTitle string // Different from Media.Title which is the filename
-	TVDbID      int
-	IMDbID      string
-	AirDate     string // YYYY-MM-DD format
-	Description string
+	TVDbID       int
+	IMDbID       string
+	AirDate      string // YYYY-MM-DD format
+	Description  string
 }
 
 // IsValid validates the TV episode entity including base media validation

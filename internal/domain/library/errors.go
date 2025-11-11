@@ -16,6 +16,9 @@ var (
 	// ErrInvalidPath is returned when the library path is invalid
 	ErrInvalidPath = errors.New("library path is invalid")
 
+	// ErrEmptyPath is returned when the library path is empty
+	ErrEmptyPath = errors.New("library path cannot be empty")
+
 	// ErrPathNotAbsolute is returned when the library path is not absolute
 	ErrPathNotAbsolute = errors.New("library path must be absolute")
 
@@ -30,6 +33,12 @@ var (
 
 	// ErrPathNotAccessible is returned when the library path cannot be accessed
 	ErrPathNotAccessible = errors.New("library path is not accessible")
+
+	// ErrPathNotReadable is returned when the library path cannot be read
+	ErrPathNotReadable = errors.New("library path is not readable")
+
+	// ErrPathNotFound is returned when the library path does not exist
+	ErrPathNotFound = errors.New("library path does not exist")
 
 	// ErrPathNotDirectory is returned when the library path is not a directory
 	ErrPathNotDirectory = errors.New("library path is not a directory")

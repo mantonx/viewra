@@ -47,7 +47,7 @@ func (m *Media) IsValid() error {
 // validateTitle validates the media title field.
 func (m *Media) validateTitle() error {
 	title := strings.TrimSpace(m.Title)
-	
+
 	if title == "" {
 		return ErrEmptyTitle
 	}
