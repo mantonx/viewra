@@ -205,22 +205,22 @@ func TestRepository_Update(t *testing.T) {
 	if err := repo.Create(ctx, lib); err != nil {
 		t.Fatalf("Failed to create library: %v", err)
 	}
-	
+
 	// Update the library
 	lib.Name = "Updated Name"
 	lib.Path = "/updated/path"
-	
+
 	if err := repo.Update(ctx, lib); err != nil {
 		t.Fatalf("Failed to update library: %v", err)
 	}
-	
+
 	if lib.Name != "Updated Name" {
 		t.Errorf("Expected name 'Updated Name', got %s", lib.Name)
 	}
 	if lib.Path != "/updated/path" {
 		t.Errorf("Expected path '/updated/path', got %s", lib.Path)
 	}
-	
+
 	// Verify persistence
 	found, err := repo.GetByID(ctx, lib.ID)
 	if err != nil {
