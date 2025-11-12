@@ -86,18 +86,17 @@ viewra2/
 │   │   ├── ffmpeg/       # FFmpeg wrapper, transcoding
 │   │   ├── filesystem/   # File scanner, watcher
 │   │   └── queue/        # Background job queue
-│   ├── interfaces/       # HTTP API, handlers
-│   │   └── http/
-│   │       ├── server.go
-│   │       ├── router.go
-│   │       ├── middleware/
-│   │       └── handlers/
-│   │           ├── library/
-│   │           │   ├── handler.go
-│   │           │   ├── routes.go
-│   │           │   └── dto.go
-│   │           ├── media/
-│   │           └── health/
+│   ├── api/              # HTTP REST API (Phase 1.8 ✅)
+│   │   ├── server.go     # Gin server, lifecycle
+│   │   ├── handlers/     # HTTP request handlers
+│   │   │   ├── library.go  # Library endpoints
+│   │   │   ├── media.go    # Media endpoints (read-only)
+│   │   │   ├── stream.go   # Streaming with range support
+│   │   │   └── errors.go   # Error mapping
+│   │   └── routes/       # Route registration
+│   │       ├── library.go  # Library routes
+│   │       ├── media.go    # Media routes
+│   │       └── stream.go   # Streaming route
 │   ├── pkg/              # Shared utilities (project-specific)
 │   │   ├── config/       # Configuration loading
 │   │   ├── logger/       # Structured logging

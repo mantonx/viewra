@@ -137,54 +137,70 @@ internal/infrastructure/
     └── transcode_queue.go     # Transcoding queue
 ```
 
-### 4. Interface Layer (`internal/interfaces/`)
+### 4. API Layer (`internal/api/`)
 
-**Purpose**: External interfaces (HTTP, CLI, etc.)
+**Purpose**: HTTP REST API (renamed from `internal/interfaces/` for Go-idiomatic naming)
 
 **Responsibilities**:
 - HTTP handlers
 - Request/response mapping
-- Middleware
+- Route registration
+- Error handling and HTTP status mapping
 - Swagger annotations
-- SSE endpoints
 
 **Rules**:
-- ✅ Uses application layer
-- ✅ Framework-specific (Gin)
-- ✅ API documentation
-- ❌ No business logic
 
-**Structure**:
+- ✅ Uses application layer use cases directly
+- ✅ Framework-specific (Gin)
+- ✅ API documentation with Swagger
+- ❌ No business logic
+- ❌ No adapter/wrapper layers (handlers call use cases directly)
+
+**Current Structure** (Phase 1.8):
+
+```text
+internal/api/
+├── server.go                  # Gin server setup, lifecycle, health check
+├── handlers/                  # HTTP request handlers
+│   ├── library.go             # Library handler (6 methods)
+│   ├── media.go               # Media handler (2 methods, read-only)
+│   ├── stream.go              # Streaming handler with range support ✅
+│   └── errors.go              # Domain error → HTTP status mapping
+└── routes/                    # Route registration (scalable organization)
+    ├── library.go             # Library routes (6 endpoints)
+    ├── media.go               # Media routes (2 endpoints)
+    └── stream.go              # Streaming route (1 endpoint) ✅
 ```
-internal/interfaces/
-├── http/
-│   ├── server.go              # Gin server setup
-│   ├── router.go              # Route definitions
-│   ├── middleware/
-│   │   ├── cors.go
-│   │   ├── logging.go
-│   │   ├── recovery.go
-│   │   └── validator.go
-│   ├── handlers/
-│   │   ├── library/
-│   │   │   ├── handler.go     # Library endpoints
-│   │   │   ├── routes.go      # Route registration
-│   │   │   └── dto.go         # API DTOs
-│   │   ├── media/
-│   │   │   ├── handler.go     # Media endpoints
-│   │   │   ├── stream.go      # Streaming handler
-│   │   │   ├── thumbnail.go   # Thumbnail handler
-│   │   │   └── routes.go
-│   │   ├── scan/
-│   │   │   ├── handler.go     # Scan endpoints
-│   │   │   └── sse.go         # SSE progress
-│   │   └── health/
-│   │       └── handler.go     # Health check
-│   └── docs/
-│       └── swagger.go         # Swagger config
-└── cli/
-    └── commands/              # Future CLI commands
+
+**Future Expansion**:
+
+```text
+internal/api/
+├── server.go
+├── handlers/
+│   ├── library.go
+│   ├── media.go
+│   ├── stream.go              # ✅ Phase 1.8
+│   ├── thumbnail.go           # Thumbnail handler (Phase 2)
+│   ├── errors.go
+│   └── sse.go                 # SSE progress updates (Phase 2)
+├── routes/
+│   ├── library.go
+│   ├── media.go
+│   ├── stream.go              # ✅ Phase 1.8
+│   └── thumbnail.go           # Thumbnail routes (Phase 2)
+└── middleware/                # Future middleware (Phase 2)
+    ├── cors.go
+    ├── logging.go
+    └── recovery.go
 ```
+
+**Design Principles**:
+
+1. **No Adapters**: Handlers hold individual use case pointers and call them directly (see Rule 5 in `.agent.md`)
+2. **Route Organization**: Routes live in separate files for scalability
+3. **Error Mapping**: Centralized domain error → HTTP status code mapping in `handlers/errors.go`
+4. **Type Safety**: All DTOs defined in application layer, validated at handler level
 
 ### 5. Shared Package (`internal/pkg/`)
 

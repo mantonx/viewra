@@ -1,4 +1,4 @@
-.PHONY: help dev build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen install-tools
+.PHONY: help dev build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -63,6 +63,10 @@ sqlc-gen: ## Generate sqlc code from queries
 
 swagger-gen: ## Generate Swagger documentation
 	~/go/bin/swag init -g cmd/viewra/main.go -o docs/swagger --parseDependency --parseInternal
+
+api-client-gen: swagger-gen ## Generate TypeScript API client from Swagger
+	cd web && npm run generate:api
+	@echo "API client generated successfully in web/src/lib/api/generated/"
 
 lint: ## Run linters
 	golangci-lint run
