@@ -86,6 +86,24 @@ type SearchMediaRequest struct {
 	LibraryID int64  `json:"library_id"`
 }
 
+// GetMediaRequest represents the input for getting a single media item
+type GetMediaRequest struct {
+	ID int64 `json:"id" validate:"required"`
+}
+
+// GetMediaResponse represents the output for getting a single media item
+type GetMediaResponse struct {
+	Media MediaResponse `json:"media"`
+}
+
+// ListMediaRequest represents the input for listing media items
+type ListMediaRequest struct {
+	LibraryID *int64  `json:"library_id,omitempty"`
+	MediaType *string `json:"media_type,omitempty"`
+	Limit     int     `json:"limit" validate:"min=1,max=1000"`
+	Offset    int     `json:"offset" validate:"min=0"`
+}
+
 // ToMediaResponse converts a domain media entity to a DTO
 func ToMediaResponse(m *media.Media) MediaResponse {
 	return MediaResponse{

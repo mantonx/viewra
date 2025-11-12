@@ -25,6 +25,7 @@ type CreateLibraryResponse struct {
 
 // UpdateLibraryRequest represents the input for updating a library
 type UpdateLibraryRequest struct {
+	ID   int64  `json:"id" validate:"required"`
 	Name string `json:"name" validate:"omitempty,min=1,max=100"`
 	Path string `json:"path" validate:"omitempty"`
 	Type string `json:"type" validate:"omitempty,oneof=movies tv music"`
@@ -54,6 +55,34 @@ type LibraryResponse struct {
 type ListLibrariesResponse struct {
 	Libraries []LibraryResponse `json:"libraries"`
 	Total     int               `json:"total"`
+}
+
+// GetLibraryRequest represents the input for getting a single library
+type GetLibraryRequest struct {
+	ID int64 `json:"id" validate:"required"`
+}
+
+// GetLibraryResponse represents the output for getting a single library
+type GetLibraryResponse struct {
+	Library LibraryResponse `json:"library"`
+}
+
+// DeleteLibraryRequest represents the input for deleting a library
+type DeleteLibraryRequest struct {
+	ID int64 `json:"id" validate:"required"`
+}
+
+// ScanLibraryRequest represents the input for scanning a library
+type ScanLibraryRequest struct {
+	LibraryID int64 `json:"library_id" validate:"required"`
+}
+
+// ScanLibraryResponse represents the output after initiating a library scan
+type ScanLibraryResponse struct {
+	JobID     int64  `json:"job_id"`
+	LibraryID int64  `json:"library_id"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
 }
 
 // ToLibraryResponse converts a domain library entity to a DTO
