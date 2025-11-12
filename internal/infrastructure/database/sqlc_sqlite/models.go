@@ -102,6 +102,22 @@ type MusicTrack struct {
 	SortTitle           sql.NullString `json:"sort_title"`
 }
 
+type ScanJob struct {
+	ID             int64           `json:"id"`
+	LibraryID      int64           `json:"library_id"`
+	Status         string          `json:"status"`
+	Progress       sql.NullFloat64 `json:"progress"`
+	FilesFound     sql.NullInt64   `json:"files_found"`
+	FilesProcessed sql.NullInt64   `json:"files_processed"`
+	BytesProcessed sql.NullInt64   `json:"bytes_processed"`
+	ErrorCount     sql.NullInt64   `json:"error_count"`
+	StartedAt      sql.NullTime    `json:"started_at"`
+	CompletedAt    sql.NullTime    `json:"completed_at"`
+	ErrorMessage   sql.NullString  `json:"error_message"`
+	CreatedAt      sql.NullTime    `json:"created_at"`
+	UpdatedAt      sql.NullTime    `json:"updated_at"`
+}
+
 type TranscodeJob struct {
 	ID          int64          `json:"id"`
 	MediaID     int64          `json:"media_id"`

@@ -393,3 +393,175 @@ func TestRepository_Count(t *testing.T) {
 		t.Errorf("Expected count 3, got %d", count)
 	}
 }
+
+func TestRepository_ListByType(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewRepository(db, "sqlite")
+	ctx := context.Background()
+
+	// Create media items of different types
+	// Note: The Create method currently hardcodes type as "movie", so we'll directly insert for testing
+	insertMovie := `
+		INSERT INTO media (library_id, title, file_path, type, file_size, duration)
+		VALUES (1, 'Test Movie', '/movies/movie.mp4', 'movie', 1024000, 7200)
+	`
+	insertTV := `
+		INSERT INTO media (library_id, title, file_path, type, file_size, duration)
+		VALUES (1, 'Test Episode', '/tv/episode.mp4', 'tv_episode', 512000, 2700)
+	`
+	insertMusic := `
+		INSERT INTO media (library_id, title, file_path, type, file_size, duration)
+		VALUES (1, 'Test Track', '/music/track.mp3', 'music_track', 256000, 180)
+	`
+
+	if _, err := db.Exec(insertMovie); err != nil {
+		t.Fatalf("Failed to insert movie: %v", err)
+	}
+	if _, err := db.Exec(insertTV); err != nil {
+		t.Fatalf("Failed to insert TV episode: %v", err)
+	}
+	if _, err := db.Exec(insertMusic); err != nil {
+		t.Fatalf("Failed to insert music track: %v", err)
+	}
+
+	// Test listing movies
+	movies, err := repo.ListByType(ctx, 1, media.MediaTypeMovie)
+	if err != nil {
+		t.Fatalf("Failed to list movies: %v", err)
+	}
+	if len(movies) != 1 {
+		t.Errorf("Expected 1 movie, got %d", len(movies))
+	}
+	if len(movies) > 0 && movies[0].Title != "Test Movie" {
+		t.Errorf("Expected movie title 'Test Movie', got %s", movies[0].Title)
+	}
+
+	// Test listing TV episodes
+	// Note: Using "tv_episode" as media type since that's what's in DB,
+	// though domain uses MediaTypeTV ("tv")
+	tvEpisodes, err := repo.ListByType(ctx, 1, "tv_episode")
+	if err != nil {
+		t.Fatalf("Failed to list TV episodes: %v", err)
+	}
+	if len(tvEpisodes) != 1 {
+		t.Errorf("Expected 1 TV episode, got %d", len(tvEpisodes))
+	}
+
+	// Test listing music tracks
+	musicTracks, err := repo.ListByType(ctx, 1, "music_track")
+	if err != nil {
+		t.Fatalf("Failed to list music tracks: %v", err)
+	}
+	if len(musicTracks) != 1 {
+		t.Errorf("Expected 1 music track, got %d", len(musicTracks))
+	}
+
+	// Test empty result for non-existent library
+	empty, err := repo.ListByType(ctx, 999, media.MediaTypeMovie)
+	if err != nil {
+		t.Fatalf("Failed to list media for non-existent library: %v", err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("Expected 0 media items for non-existent library, got %d", len(empty))
+	}
+}
+
+func TestRepository_CountByType(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewRepository(db, "sqlite")
+	ctx := context.Background()
+
+	// Create media items of different types
+	insertMovie1 := `
+		INSERT INTO media (library_id, title, file_path, type, file_size, duration)
+		VALUES (1, 'Movie 1', '/movies/movie1.mp4', 'movie', 1024000, 7200)
+	`
+	insertMovie2 := `
+		INSERT INTO media (library_id, title, file_path, type, file_size, duration)
+		VALUES (1, 'Movie 2', '/movies/movie2.mp4', 'movie', 2048000, 5400)
+	`
+	insertTV := `
+		INSERT INTO media (library_id, title, file_path, type, file_size, duration)
+		VALUES (1, 'Episode 1', '/tv/episode1.mp4', 'tv_episode', 512000, 2700)
+	`
+
+	if _, err := db.Exec(insertMovie1); err != nil {
+		t.Fatalf("Failed to insert movie 1: %v", err)
+	}
+	if _, err := db.Exec(insertMovie2); err != nil {
+		t.Fatalf("Failed to insert movie 2: %v", err)
+	}
+	if _, err := db.Exec(insertTV); err != nil {
+		t.Fatalf("Failed to insert TV episode: %v", err)
+	}
+
+	// Test counting movies
+	movieCount, err := repo.CountByType(ctx, 1, media.MediaTypeMovie)
+	if err != nil {
+		t.Fatalf("Failed to count movies: %v", err)
+	}
+	if movieCount != 2 {
+		t.Errorf("Expected 2 movies, got %d", movieCount)
+	}
+
+	// Test counting TV episodes
+	tvCount, err := repo.CountByType(ctx, 1, "tv_episode")
+	if err != nil {
+		t.Fatalf("Failed to count TV episodes: %v", err)
+	}
+	if tvCount != 1 {
+		t.Errorf("Expected 1 TV episode, got %d", tvCount)
+	}
+
+	// Test counting music tracks (should be 0)
+	musicCount, err := repo.CountByType(ctx, 1, "music_track")
+	if err != nil {
+		t.Fatalf("Failed to count music tracks: %v", err)
+	}
+	if musicCount != 0 {
+		t.Errorf("Expected 0 music tracks, got %d", musicCount)
+	}
+
+	// Test non-existent library
+	emptyCount, err := repo.CountByType(ctx, 999, media.MediaTypeMovie)
+	if err != nil {
+		t.Fatalf("Failed to count for non-existent library: %v", err)
+	}
+	if emptyCount != 0 {
+		t.Errorf("Expected 0 for non-existent library, got %d", emptyCount)
+	}
+}
+
+func TestRepository_PostgresDriver(t *testing.T) {
+	// Test that NewRepository properly sets up for different driver names
+	db := setupTestDB(t)
+	defer db.Close()
+
+	// Test with different SQLite driver names
+	sqliteRepo := NewRepository(db, "sqlite")
+	if sqliteRepo == nil {
+		t.Error("Expected non-nil repository for sqlite driver")
+	}
+
+	sqlite3Repo := NewRepository(db, "sqlite3")
+	if sqlite3Repo == nil {
+		t.Error("Expected non-nil repository for sqlite3 driver")
+	}
+
+	// Note: We can't test actual Postgres without a Postgres instance,
+	// but we can verify the repository is created
+	// This tests the postgres detection logic in NewRepository
+	postgresRepo := NewRepository(db, "postgres")
+	if postgresRepo == nil {
+		t.Error("Expected non-nil repository for postgres driver")
+	}
+
+	postgresqlRepo := NewRepository(db, "postgresql")
+	if postgresqlRepo == nil {
+		t.Error("Expected non-nil repository for postgresql driver")
+	}
+}

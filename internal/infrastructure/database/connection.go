@@ -33,7 +33,7 @@ func LoadConfigFromEnv() *Config {
 		Driver: driver,
 	}
 
-	if driver == "postgres" {
+	if driver == "postgres" || driver == "postgresql" {
 		config.Host = getEnvOrDefault("DB_HOST", "localhost")
 		config.Port = getEnvOrDefault("DB_PORT", "5432")
 		config.User = getEnvOrDefault("DB_USER", "viewra")
@@ -46,6 +46,51 @@ func LoadConfigFromEnv() *Config {
 	}
 
 	return config
+}
+
+// Validate checks if the configuration is valid
+func (c *Config) Validate() error {
+	// Validate driver
+	switch c.Driver {
+	case "sqlite", "sqlite3":
+		if c.DBName == "" {
+			return fmt.Errorf("DB_PATH cannot be empty for SQLite")
+		}
+		// Check if path is absolute or relative
+		if !filepath.IsAbs(c.DBName) && c.DBName[0] != '.' {
+			// Ensure it's treated as relative to current directory
+			c.DBName = filepath.Clean(c.DBName)
+		}
+
+	case "postgres", "postgresql":
+		if c.Host == "" {
+			return fmt.Errorf("DB_HOST cannot be empty for PostgreSQL")
+		}
+		if c.Port == "" {
+			return fmt.Errorf("DB_PORT cannot be empty for PostgreSQL")
+		}
+		if c.User == "" {
+			return fmt.Errorf("DB_USER cannot be empty for PostgreSQL")
+		}
+		if c.DBName == "" {
+			return fmt.Errorf("DB_NAME cannot be empty for PostgreSQL")
+		}
+		// Validate SSL mode
+		validSSLModes := map[string]bool{
+			"disable":     true,
+			"require":     true,
+			"verify-ca":   true,
+			"verify-full": true,
+		}
+		if !validSSLModes[c.SSLMode] {
+			return fmt.Errorf("invalid DB_SSL_MODE: %s (must be disable, require, verify-ca, or verify-full)", c.SSLMode)
+		}
+
+	default:
+		return fmt.Errorf("unsupported database driver: %s (must be sqlite or postgres)", c.Driver)
+	}
+
+	return nil
 }
 
 // Connect establishes a database connection based on the configuration

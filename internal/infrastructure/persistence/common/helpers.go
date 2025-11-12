@@ -76,3 +76,42 @@ func NullString(value string) sql.NullString {
 		Valid:  value != "",
 	}
 }
+
+// ParseNullString converts sql.NullString to string
+// Returns empty string if the value is NULL
+func ParseNullString(s sql.NullString) string {
+	if s.Valid {
+		return s.String
+	}
+	return ""
+}
+
+// NullTime creates a sql.NullTime from a time.Time value
+// Valid is true if time is not zero
+func NullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{
+		Time:  t,
+		Valid: !t.IsZero(),
+	}
+}
+
+// NullTimePtr creates a sql.NullTime from a *time.Time value
+// Valid is true if pointer is not nil and time is not zero
+func NullTimePtr(t *time.Time) sql.NullTime {
+	if t != nil && !t.IsZero() {
+		return sql.NullTime{
+			Time:  *t,
+			Valid: true,
+		}
+	}
+	return sql.NullTime{Valid: false}
+}
+
+// ParseNullTimePtr converts sql.NullTime to *time.Time
+// Returns nil if the value is NULL or zero
+func ParseNullTimePtr(t sql.NullTime) *time.Time {
+	if t.Valid && !t.Time.IsZero() {
+		return &t.Time
+	}
+	return nil
+}

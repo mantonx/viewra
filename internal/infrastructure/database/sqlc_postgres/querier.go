@@ -9,29 +9,42 @@ import (
 )
 
 type Querier interface {
+	CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error
 	CountLibraries(ctx context.Context) (int64, error)
 	CountLibrariesByType(ctx context.Context, type_ string) (int64, error)
 	CountMediaByType(ctx context.Context, arg CountMediaByTypeParams) (int64, error)
 	CountMediaInLibrary(ctx context.Context, libraryID int32) (int64, error)
+	CountScanJobsByLibrary(ctx context.Context, libraryID int32) (int64, error)
 	// Library queries for PostgreSQL
 	CreateLibrary(ctx context.Context, arg CreateLibraryParams) (Library, error)
 	// Media queries for PostgreSQL
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
+	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
 	DeleteLibrary(ctx context.Context, id int32) error
 	DeleteMedia(ctx context.Context, id int32) error
+	// sqlc.arg(retention_days): the number of days to retain completed/failed jobs
+	DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error
+	DeleteScanJob(ctx context.Context, id int32) error
+	GetLatestScanJobByLibrary(ctx context.Context, libraryID int32) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int32) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
 	GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePathParams) (Medium, error)
 	GetMediaByID(ctx context.Context, id int32) (Medium, error)
+	GetScanJob(ctx context.Context, id int32) (ScanJob, error)
+	GetScanJobStats(ctx context.Context, libraryID int32) (GetScanJobStatsRow, error)
 	LibraryExistsByID(ctx context.Context, id int32) (bool, error)
 	LibraryExistsByPath(ctx context.Context, path string) (bool, error)
 	ListLibraries(ctx context.Context) ([]Library, error)
 	ListLibrariesByType(ctx context.Context, type_ string) ([]Library, error)
 	ListMediaByLibrary(ctx context.Context, libraryID int32) ([]Medium, error)
 	ListMediaByType(ctx context.Context, arg ListMediaByTypeParams) ([]Medium, error)
+	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
+	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
 	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (bool, error)
 	UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (Library, error)
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)
+	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
+	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
 }
 
 var _ Querier = (*Queries)(nil)
