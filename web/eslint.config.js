@@ -42,6 +42,10 @@ export default defineConfig([
       'curly': ['error', 'all'],
       'no-throw-literal': 'error',
       'prefer-template': 'warn',
+
+      // Function style - prefer arrow functions
+      'prefer-arrow-callback': 'error',
+      'func-style': ['error', 'expression', { allowArrowFunctions: true }],
     },
   },
 ])
