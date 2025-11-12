@@ -1,68 +1,46 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    /* Light theme (default) */
+    --color-bg-primary: 250 250 250; /* neutral-50 */
+    --color-bg-secondary: 245 245 245; /* neutral-100 */
+    --color-bg-tertiary: 229 229 229; /* neutral-200 */
+
+    --color-text-primary: 23 23 23; /* neutral-900 */
+    --color-text-secondary: 82 82 82; /* neutral-600 */
+    --color-text-tertiary: 115 115 115; /* neutral-500 */
+
+    --color-border-primary: 229 229 229; /* neutral-200 */
+    --color-border-secondary: 212 212 212; /* neutral-300 */
   }
-  a:hover {
-    color: #747bff;
+
+  .dark {
+    /* Dark theme */
+    --color-bg-primary: 10 10 10; /* neutral-950 */
+    --color-bg-secondary: 23 23 23; /* neutral-900 */
+    --color-bg-tertiary: 38 38 38; /* neutral-800 */
+
+    --color-text-primary: 250 250 250; /* neutral-50 */
+    --color-text-secondary: 163 163 163; /* neutral-400 */
+    --color-text-tertiary: 115 115 115; /* neutral-500 */
+
+    --color-border-primary: 38 38 38; /* neutral-800 */
+    --color-border-secondary: 64 64 64; /* neutral-700 */
   }
-  button {
-    background-color: #f9f9f9;
+
+  * {
+    @apply border-neutral-200 dark:border-neutral-800;
+  }
+
+  body {
+    @apply bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-50;
+    @apply font-sans;
+    margin: 0;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }

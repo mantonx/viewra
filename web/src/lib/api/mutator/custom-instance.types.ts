@@ -3,11 +3,11 @@
  */
 
 export interface ErrorResponse {
-  error: string;
-  message?: string;
+  error: string
+  message?: string
 }
 
 export interface CustomInstanceConfig extends RequestInit {
-  url: string;
-  params?: Record<string, unknown>;
+  url: string
+  params?: Record<string, unknown>
 }
