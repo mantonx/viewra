@@ -17,6 +17,7 @@
     "clsx": "^2.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "shaka-player": "^4.16.9",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
