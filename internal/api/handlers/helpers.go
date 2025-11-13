@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -48,4 +49,13 @@ func parsePaginationParams(c *gin.Context) paginationParams {
 // getCurrentUserID returns the current user ID (hardcoded to 1 for single-user mode).
 func getCurrentUserID() int64 {
 	return 1
+}
+
+// formatTime formats a time.Time to RFC3339 string.
+// Returns empty string if time is zero.
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339)
 }
