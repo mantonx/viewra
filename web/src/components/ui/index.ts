@@ -10,4 +10,5 @@ export { Card, CardHeader, CardContent, CardFooter, type CardProps } from './Car
 export { Input, type InputProps } from './Input'
 export { Loading, type LoadingProps } from './Loading'
 export { Modal, ModalContent, ModalFooter, type ModalProps } from './Modal'
+export { Progress, type ProgressProps } from './Progress'
 export { Select, type SelectProps, type SelectOption } from './Select'

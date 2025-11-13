@@ -30,40 +30,46 @@
 
 ---
 
-## Phase 2: Watch Progress & Transcoding (NEXT)
+## Phase 2: Watch Progress & Transcoding (IN PROGRESS)
 
 **Goal**: Track viewing progress and enable adaptive streaming
 
-**Status**: Not Started
+**Status**: 75% Complete (Phase 2.1 Complete, Phase 2.2 In Progress)
+**Started**: November 12, 2025
 **Estimated Effort**: 2-3 weeks
 
 ### Key Features
 
-#### Watch Progress Tracking
-- Per-user progress tracking (resume from last position)
-- Auto-mark as watched at 90% completion
-- Watch history and recently watched views
-- Progress indicators on media cards
+#### Phase 2.1: Watch Progress Tracking ✅ COMPLETE (Nov 13, 2025)
+- ✅ Per-user progress tracking (resume from last position)
+- ✅ Auto-mark as watched at 90% completion
+- ✅ Watch history and recently watched views
+- ✅ Progress indicators on media cards
+- ✅ Continue Watching section on home page
+- ✅ Full video player with progress tracking
 
-**Database**:
-- `watch_progress` table (user_id, media_id, position, duration, last_watched)
-- Domain: `WatchProgress` entity + repository interface
-- Application: Update/get progress use cases
-- API: `GET /api/progress`, `PUT /api/progress`, `POST /api/progress/mark-watched`
-- Frontend: Progress bars, resume buttons, watch history page
+**Database**: ✅ Complete
+- ✅ `watch_progress` table (in 000001_init.up.sql migration)
+- ✅ Domain: `WatchProgress` entity + repository interface
+- ✅ Application: Update/get progress use cases with tests
+- ✅ Infrastructure: Repository with dual database support
+- ✅ API: All progress endpoints (GET, PUT, POST, DELETE)
+- ✅ Frontend: Progress bars, resume buttons, video player, Continue Watching section
 
-#### DASH Transcoding
-- Background transcoding queue (channel-based worker pool)
-- Multi-quality transcoding (360p fast, 720p/1080p background)
-- DASH manifest generation for adaptive streaming
-- Real-time transcode progress (SSE)
+#### Phase 2.2: DASH Transcoding 🚧 IN PROGRESS (25% Complete)
+- ⏳ Background transcoding queue (channel-based worker pool)
+- ⏳ Multi-quality transcoding (360p fast, 720p/1080p background)
+- ⏳ DASH manifest generation for adaptive streaming
+- ⏳ Real-time transcode progress (SSE)
 
-**Components**:
-- `transcode_jobs` table and repository
-- FFmpeg DASH transcoding service
-- Job queue with worker pool
-- API: `POST /api/media/:id/transcode`, `GET /api/media/:id/manifest.mpd`, `GET /api/media/:id/transcode/status`
-- Frontend: Shaka Player with adaptive streaming, quality selector, buffering indicators
+**Components**: 25% Complete
+- ✅ `transcode_jobs` table schema (migration 000006 - staged)
+- ✅ Database queries for transcode jobs (staged)
+- ⏳ Transcode job repository implementation
+- ⏳ FFmpeg DASH transcoding service
+- ⏳ Job queue with worker pool
+- ⏳ API: `POST /api/media/:id/transcode`, `GET /api/media/:id/manifest.mpd`, `GET /api/media/:id/transcode/status`
+- ⏳ Frontend: Shaka Player with adaptive streaming, quality selector, buffering indicators
 
 ### Success Criteria
 - ✅ Can resume videos from last watched position
@@ -73,11 +79,23 @@
 - ✅ Player adapts quality based on available bandwidth
 - ✅ Transcode progress updates in real-time via SSE
 
-### Implementation Notes
-- Watch progress already has domain entities and application layer (from gap analysis)
-- Need to implement infrastructure (repository, migrations)
-- Frontend player needs upgrade from basic HTML5 to Shaka Player
-- Transcoding queue should use Go channels and worker pools for concurrency
+### Implementation Status
+
+**Phase 2.1 - Watch Progress**: ✅ COMPLETE
+- All backend layers implemented (Domain, Application, Infrastructure, API)
+- Full frontend implementation with VideoPlayer and ContinueWatching
+- Ready for integration testing
+
+**Phase 2.2 - DASH Transcoding**: 🚧 IN PROGRESS
+- Database schema ready (staged, not committed)
+- Next: Implement transcoding service and job queue
+- Next: Upgrade to Shaka Player
+- Transcoding queue will use Go channels and worker pools for concurrency
+
+**Unstaged Work** (needs commit):
+- Modified: MediaCard.tsx, MediaDetailsModal.tsx, routes/index.tsx
+- New: VideoPlayer/, ContinueWatching.tsx, Progress/ component
+- New: transcode_jobs migrations and queries
 
 ---
 
@@ -247,12 +265,17 @@
 
 ## Next Steps
 
-### Immediate (Phase 2 - Watch Progress)
-1. Implement `watch_progress` table and migration
-2. Implement WatchProgressRepository with dual database support
-3. Create API endpoints for progress tracking
-4. Add progress bars and resume functionality to frontend
-5. Test end-to-end progress tracking
+### Immediate (Phase 2.2 - DASH Transcoding)
+1. ✅ ~~Implement `watch_progress` table and migration~~ COMPLETE
+2. ✅ ~~Implement WatchProgressRepository with dual database support~~ COMPLETE
+3. ✅ ~~Create API endpoints for progress tracking~~ COMPLETE
+4. ✅ ~~Add progress bars and resume functionality to frontend~~ COMPLETE
+5. ⏳ Test end-to-end progress tracking (in progress)
+6. Commit staged transcode infrastructure work
+7. Implement TranscodeJobRepository
+8. Create FFmpeg DASH transcoding service
+9. Implement job queue with worker pool
+10. Add transcode API endpoints and SSE support
 
 ### Short Term (Phase 2 - Transcoding)
 1. Implement transcode job queue (channel-based)
@@ -272,4 +295,4 @@
 
 **For Detailed Implementation History**: See [ROADMAP.md](./ROADMAP.md)
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2025-11-13 (Status Update: Phase 2.1 Complete, Phase 2.2 In Progress)

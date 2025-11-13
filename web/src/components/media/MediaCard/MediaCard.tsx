@@ -63,19 +63,29 @@ const MediaCard = ({ media, onClick }: MediaCardProps) => {
               </span>
             )}
           </div>
-        </div>
 
-        {/* Progress bar */}
-        {progress && getProgressPercentage(progress) > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-30">
-            <div
-              className={`h-full transition-all ${
-                progress.is_watched ? 'bg-green-500' : 'bg-blue-500'
-              }`}
-              style={{ width: `${Math.min(getProgressPercentage(progress), 100)}%` }}
-            />
-          </div>
-        )}
+          {/* Progress bar - overlaid at bottom of thumbnail */}
+          {progress && getProgressPercentage(progress) > 0 && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-30">
+              <div
+                className={`h-full transition-all ${
+                  progress.is_watched ? 'bg-green-500' : 'bg-blue-500'
+                }`}
+                style={{ width: `${Math.min(getProgressPercentage(progress), 100)}%` }}
+              />
+            </div>
+          )}
+
+          {/* Watched badge overlay */}
+          {progress?.is_watched && (
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              <div className="bg-green-500 text-white px-3 py-2 rounded-full font-semibold text-sm shadow-lg flex items-center gap-1">
+                <span>✓</span>
+                <span>Watched</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Info */}

@@ -1,12 +1,16 @@
+import { useState } from 'react'
 import { Modal, ModalContent, ModalFooter, Button } from '@/components/ui'
 import { formatFileSize, formatDuration, DEFAULT_USER_ID, getProgressPercentage, getProgressSeconds, getDurationSeconds, hasProgress } from '@/lib/utils'
 import type { MediaDetailsModalProps } from './MediaDetailsModal.types'
 import { useMediaProgress, useMarkWatched, useMarkUnwatched } from '@/lib/hooks/useProgress'
+import { VideoPlayer } from '../VideoPlayer'
 
 const MediaDetailsModal = ({ media, onClose }: MediaDetailsModalProps) => {
   const { data: progress } = useMediaProgress(media.id)
   const markWatched = useMarkWatched()
   const markUnwatched = useMarkUnwatched()
+  const [showPlayer, setShowPlayer] = useState(false)
+  const [playFromStart, setPlayFromStart] = useState(false)
 
   const handleToggleWatched = () => {
     if (progress?.is_watched) {
@@ -16,17 +20,32 @@ const MediaDetailsModal = ({ media, onClose }: MediaDetailsModalProps) => {
     }
   }
 
-  // Build stream URL with resume timestamp if available
-  const getStreamUrl = () => {
-    const baseUrl = `http://localhost:8080/api/stream/${media.id}`
-    const progressSecs = getProgressSeconds(progress)
-    if (progress && progressSecs > 0 && !progress.is_watched) {
-      return `${baseUrl}#t=${progressSecs}`
-    }
-    return baseUrl
+  const handlePlay = (fromStart: boolean = false) => {
+    setPlayFromStart(fromStart)
+    setShowPlayer(true)
   }
 
+  const handleClosePlayer = () => {
+    setShowPlayer(false)
+  }
+
+  const streamUrl = `http://localhost:8080/api/stream/${media.id}`
+  const progressSecs = getProgressSeconds(progress)
   const showProgress = hasProgress(progress)
+  const canResume = showProgress && progressSecs > 0 && !progress?.is_watched
+
+  // If video player is showing, render it instead of modal
+  if (showPlayer) {
+    return (
+      <VideoPlayer
+        mediaId={media.id || 0}
+        streamUrl={streamUrl}
+        initialPosition={playFromStart ? 0 : progressSecs}
+        duration={media.duration}
+        onClose={handleClosePlayer}
+      />
+    )
+  }
 
   return (
     <Modal isOpen={true} onClose={onClose} title={media.title} size="md">
@@ -73,17 +92,34 @@ const MediaDetailsModal = ({ media, onClose }: MediaDetailsModalProps) => {
         </div>
       </ModalContent>
       <ModalFooter>
-        <div className="flex gap-2 w-full">
-          <a
-            href={getStreamUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 transition-colors"
-          >
-            {showProgress && !progress?.is_watched ? '▶ Resume' : '▶ Play'}
-          </a>
+        <div className="flex gap-2 w-full flex-wrap">
+          {canResume ? (
+            <>
+              <Button
+                variant="primary"
+                onClick={() => handlePlay(false)}
+                className="flex-1"
+              >
+                Resume from {formatDuration(progressSecs)}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handlePlay(true)}
+              >
+                Play from Start
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={() => handlePlay(true)}
+              className="flex-1"
+            >
+              Play
+            </Button>
+          )}
           <Button
-            variant={progress?.is_watched ? 'secondary' : 'primary'}
+            variant={progress?.is_watched ? 'secondary' : 'ghost'}
             onClick={handleToggleWatched}
             disabled={markWatched.isPending || markUnwatched.isPending}
           >
