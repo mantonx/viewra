@@ -29,9 +29,9 @@ type QueueConfig struct {
 // DefaultQueueConfig returns default queue configuration.
 func DefaultQueueConfig() *QueueConfig {
 	return &QueueConfig{
-		WorkerCount:   2,                // 2 concurrent transcodes by default
-		PollInterval:  10 * time.Second, // Check for new jobs every 10 seconds
-		OutputBaseDir: "./data/dash",    // Default output directory
+		WorkerCount:   2,                                       // 2 concurrent transcodes by default
+		PollInterval:  10 * time.Second,                       // Check for new jobs every 10 seconds
+		OutputBaseDir: transcoding.GetDefaultOutputDir(),      // /data/dash or ./data/dash
 	}
 }
 

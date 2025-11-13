@@ -1,5 +1,9 @@
 package transcoding
 
+import (
+	"os"
+)
+
 // HardwareAccel represents hardware acceleration type.
 type HardwareAccel string
 
@@ -25,6 +29,14 @@ type TranscodeConfig struct {
 	// HardwareAccel specifies which hardware acceleration to use
 	HardwareAccel HardwareAccel
 
+	// OutputBaseDir is the base directory for DASH outputs
+	// Environment variable: TRANSCODE_OUTPUT_DIR
+	// Default: /data/dash (or ./data/dash if /data doesn't exist)
+	OutputBaseDir string
+
+	// MinFreeDiskGB is the minimum free disk space required to start a transcode (in GB)
+	MinFreeDiskGB int64
+
 	// MaxCPUPercent limits CPU usage (0 = unlimited, 100 = 1 core, 200 = 2 cores)
 	// Uses nice/cpulimit on Linux
 	MaxCPUPercent int
@@ -40,9 +52,28 @@ type TranscodeConfig struct {
 // DefaultTranscodeConfig returns sensible defaults.
 func DefaultTranscodeConfig() *TranscodeConfig {
 	return &TranscodeConfig{
-		HardwareAccel:    AccelNone,  // Safe default, detect and configure in production
-		MaxCPUPercent:    0,           // Unlimited by default
-		MaxMemoryMB:      0,           // Unlimited by default
-		ProcessGroupKill: true,        // Always kill process group
+		HardwareAccel:    AccelNone,           // Safe default, detect and configure in production
+		OutputBaseDir:    GetDefaultOutputDir(), // /data/dash or ./data/dash
+		MinFreeDiskGB:    10,                   // Require 10GB free space
+		MaxCPUPercent:    0,                    // Unlimited by default
+		MaxMemoryMB:      0,                    // Unlimited by default
+		ProcessGroupKill: true,                 // Always kill process group
 	}
+}
+
+// GetDefaultOutputDir returns the default transcode output directory.
+// Prefers /data/dash (absolute), falls back to ./data/dash (relative) if /data doesn't exist.
+func GetDefaultOutputDir() string {
+	// Check environment variable first
+	if dir := os.Getenv("TRANSCODE_OUTPUT_DIR"); dir != "" {
+		return dir
+	}
+
+	// Try absolute /data/dash (same root as DB in production)
+	if _, err := os.Stat("/data"); err == nil {
+		return "/data/dash"
+	}
+
+	// Fall back to relative ./data/dash (development)
+	return "./data/dash"
 }

@@ -84,6 +84,12 @@ func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJ
 	// Build output directory path: <outputBaseDir>/<mediaID>/<quality>/
 	outputDir := s.buildOutputPath(outputBaseDir, job.MediaID, job.Quality)
 
+	// Check disk space before starting transcode
+	// Use service config for min free disk space (default 10GB from TranscodeConfig)
+	if err := CheckDiskSpace(outputDir, 10); err != nil {
+		return s.failJob(ctx, job, fmt.Errorf("storage check failed: %w", err))
+	}
+
 	// Log transcode start
 	s.logger.Info("starting transcode",
 		slog.Int64("job_id", job.ID),
