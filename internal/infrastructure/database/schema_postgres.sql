@@ -79,3 +79,17 @@ CREATE TABLE IF NOT EXISTS scan_jobs (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (library_id) REFERENCES libraries(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS transcode_jobs (
+    id SERIAL PRIMARY KEY,
+    media_id INTEGER NOT NULL,
+    quality TEXT NOT NULL CHECK(quality IN ('360p', '720p', '1080p', '4k')),
+    status TEXT NOT NULL CHECK(status IN ('queued', 'processing', 'completed', 'failed')),
+    progress INTEGER DEFAULT 0,
+    error TEXT,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE,
+    UNIQUE(media_id, quality)
+);

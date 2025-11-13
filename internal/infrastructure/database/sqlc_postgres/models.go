@@ -71,6 +71,18 @@ type ScanJob struct {
 	UpdatedAt      sql.NullTime    `json:"updated_at"`
 }
 
+type TranscodeJob struct {
+	ID          int32          `json:"id"`
+	MediaID     int32          `json:"media_id"`
+	Quality     string         `json:"quality"`
+	Status      string         `json:"status"`
+	Progress    sql.NullInt32  `json:"progress"`
+	Error       sql.NullString `json:"error"`
+	StartedAt   sql.NullTime   `json:"started_at"`
+	CompletedAt sql.NullTime   `json:"completed_at"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+}
+
 type WatchProgress struct {
 	ID          int32           `json:"id"`
 	MediaID     int32           `json:"media_id"`
