@@ -52,12 +52,12 @@ type TranscodeConfig struct {
 // DefaultTranscodeConfig returns sensible defaults.
 func DefaultTranscodeConfig() *TranscodeConfig {
 	return &TranscodeConfig{
-		HardwareAccel:    AccelNone,           // Safe default, detect and configure in production
+		HardwareAccel:    AccelNone,             // Safe default, detect and configure in production
 		OutputBaseDir:    GetDefaultOutputDir(), // /data/dash or ./data/dash
-		MinFreeDiskGB:    10,                   // Require 10GB free space
-		MaxCPUPercent:    0,                    // Unlimited by default
-		MaxMemoryMB:      0,                    // Unlimited by default
-		ProcessGroupKill: true,                 // Always kill process group
+		MinFreeDiskGB:    10,                    // Require 10GB free space
+		MaxCPUPercent:    0,                     // Unlimited by default
+		MaxMemoryMB:      0,                     // Unlimited by default
+		ProcessGroupKill: true,                  // Always kill process group
 	}
 }
 
@@ -67,11 +67,6 @@ func GetDefaultOutputDir() string {
 	// Check environment variable first
 	if dir := os.Getenv("TRANSCODE_OUTPUT_DIR"); dir != "" {
 		return dir
-	}
-
-	// Try absolute /data/dash (same root as DB in production)
-	if _, err := os.Stat("/data"); err == nil {
-		return "/data/dash"
 	}
 
 	// Fall back to relative ./data/dash (development)

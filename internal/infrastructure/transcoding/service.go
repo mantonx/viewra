@@ -70,11 +70,6 @@ func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJ
 		return fmt.Errorf("job must be in queued or processing status, got: %s", job.Status)
 	}
 
-	// Validate input file
-	if err := ValidateInputFile(inputPath); err != nil {
-		return s.failJob(ctx, job, fmt.Errorf("invalid input file: %w", err))
-	}
-
 	// Get quality profile
 	profile, err := GetQualityProfile(job.Quality)
 	if err != nil {
@@ -84,10 +79,10 @@ func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJ
 	// Build output directory path: <outputBaseDir>/<mediaID>/<quality>/
 	outputDir := s.buildOutputPath(outputBaseDir, job.MediaID, job.Quality)
 
-	// Check disk space before starting transcode
-	// Use service config for min free disk space (default 10GB from TranscodeConfig)
-	if err := CheckDiskSpace(outputDir, 10); err != nil {
-		return s.failJob(ctx, job, fmt.Errorf("storage check failed: %w", err))
+	// Comprehensive validation: path security, file checks, disk space, and codec analysis
+	// This validates the input path, checks disk space, and determines if transcoding is actually needed
+	if err := ValidateTranscodeRequest(inputPath, outputDir, profile, nil); err != nil {
+		return s.failJob(ctx, job, fmt.Errorf("validation failed: %w", err))
 	}
 
 	// Log transcode start
