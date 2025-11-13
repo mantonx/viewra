@@ -16,19 +16,32 @@ import (
 
 // ffmpegExecutor handles FFmpeg command execution with progress tracking.
 type ffmpegExecutor struct {
-	ffmpegPath string
+	ffmpegPath     string
+	config         *TranscodeConfig
+	processManager *ProcessManager
 }
 
 // newFFmpegExecutor creates a new FFmpeg executor.
 // It verifies that FFmpeg is available in the system PATH.
 func newFFmpegExecutor() (*ffmpegExecutor, error) {
+	return newFFmpegExecutorWithConfig(DefaultTranscodeConfig())
+}
+
+// newFFmpegExecutorWithConfig creates a new FFmpeg executor with custom config.
+func newFFmpegExecutorWithConfig(config *TranscodeConfig) (*ffmpegExecutor, error) {
 	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg executable not found in system PATH: %w", err)
 	}
 
+	if config == nil {
+		config = DefaultTranscodeConfig()
+	}
+
 	return &ffmpegExecutor{
-		ffmpegPath: ffmpegPath,
+		ffmpegPath:     ffmpegPath,
+		config:         config,
+		processManager: NewProcessManager(config),
 	}, nil
 }
 
@@ -51,8 +64,8 @@ func (e *ffmpegExecutor) Transcode(ctx context.Context, opts TranscodeOptions) e
 	// Build FFmpeg command arguments
 	args := e.buildFFmpegArgs(opts)
 
-	// Create the command
-	cmd := exec.CommandContext(ctx, e.ffmpegPath, args...)
+	// Create the command with proper process group management
+	cmd := e.processManager.PrepareCommand(ctx, e.ffmpegPath, args)
 
 	// Get stderr pipe for progress monitoring
 	stderr, err := cmd.StderrPipe()
@@ -77,15 +90,11 @@ func (e *ffmpegExecutor) Transcode(ctx context.Context, opts TranscodeOptions) e
 	progressDone := make(chan struct{})
 	go e.monitorProgress(stderr, duration, opts.ProgressHandler, progressDone)
 
-	// Wait for command to complete
-	err = cmd.Wait()
+	// Wait for command to complete with proper cleanup on cancellation
+	err = e.processManager.WaitWithCleanup(ctx, cmd)
 	<-progressDone // Wait for progress monitoring to finish
 
 	if err != nil {
-		// Check if context was cancelled
-		if ctx.Err() != nil {
-			return fmt.Errorf("transcode cancelled: %w", ctx.Err())
-		}
 		return fmt.Errorf("ffmpeg transcoding failed: %w", err)
 	}
 
@@ -103,38 +112,62 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	p := opts.Profile
 	outputManifest := filepath.Join(opts.OutputDir, "manifest.mpd")
 
-	args := []string{
-		// Input file
-		"-i", opts.InputPath,
+	args := []string{}
 
-		// Video encoding settings
-		"-c:v", "libx264",           // H.264 codec
-		"-preset", "medium",         // Encoding speed/quality tradeoff
+	// Add hardware acceleration flags BEFORE input
+	args = append(args, e.getHardwareAccelArgs()...)
+
+	// Input file
+	args = append(args, "-i", opts.InputPath)
+
+	// Video encoding settings (codec varies by hardware acceleration)
+	videoCodec, videoPreset := e.getVideoCodecAndPreset()
+	args = append(args,
+		"-c:v", videoCodec,
+	)
+
+	// Add preset if using software encoding
+	if videoPreset != "" {
+		args = append(args, "-preset", videoPreset)
+	}
+
+	// Common video settings
+	args = append(args,
 		"-profile:v", "high",        // H.264 profile
 		"-level", "4.1",             // H.264 level (compatible with most devices)
 		"-pix_fmt", "yuv420p",       // Pixel format (widely compatible)
+	)
 
-		// Video bitrate control
+	// Video bitrate control
+	args = append(args,
 		"-b:v", p.VideoBitrate,
 		"-maxrate", p.VideoMaxRate,
 		"-bufsize", p.VideoBufSize,
+	)
 
-		// Video resolution
+	// Video resolution
+	args = append(args,
 		"-vf", fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2",
 			p.Width, p.Height, p.Width, p.Height),
+	)
 
-		// GOP structure for DASH
+	// GOP structure for DASH
+	args = append(args,
 		"-g", strconv.Itoa(p.GOPSize),           // GOP size (keyframe interval)
 		"-keyint_min", strconv.Itoa(p.GOPSize),  // Minimum GOP size
 		"-sc_threshold", "0",                     // Disable scene change detection
+	)
 
-		// Audio encoding settings
+	// Audio encoding settings
+	args = append(args,
 		"-c:a", "aac",                           // AAC audio codec
 		"-b:a", p.AudioBitrate,
 		"-ac", strconv.Itoa(p.AudioChannels),
 		"-ar", strconv.Itoa(p.AudioSampleRate),
+	)
 
-		// DASH-specific settings
+	// DASH-specific settings
+	args = append(args,
 		"-f", "dash",                                    // DASH format
 		"-seg_duration", strconv.Itoa(p.SegmentDuration), // Segment duration
 		"-use_template", "1",                            // Use template-based segments
@@ -142,17 +175,19 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		"-init_seg_name", "init_$RepresentationID$.m4s", // Init segment naming
 		"-media_seg_name", "segment_$RepresentationID$_$Number$.m4s", // Media segment naming
 		"-adaptation_sets", "id=0,streams=v id=1,streams=a", // Separate video and audio adaptation sets
+	)
 
-		// Progress reporting
+	// Progress reporting
+	args = append(args,
 		"-progress", "pipe:2", // Output progress to stderr
 		"-stats",              // Show encoding statistics
+	)
 
-		// Overwrite output files without asking
-		"-y",
+	// Overwrite output files without asking
+	args = append(args, "-y")
 
-		// Output manifest
-		outputManifest,
-	}
+	// Output manifest
+	args = append(args, outputManifest)
 
 	return args
 }
@@ -278,4 +313,52 @@ func CleanupOutputDir(outputDir string) error {
 
 	// Remove the entire directory and its contents
 	return os.RemoveAll(outputDir)
+}
+
+// getHardwareAccelArgs returns FFmpeg arguments for hardware acceleration.
+// These args must come BEFORE the input file (-i).
+func (e *ffmpegExecutor) getHardwareAccelArgs() []string {
+	switch e.config.HardwareAccel {
+	case AccelVAAPI:
+		return []string{
+			"-hwaccel", "vaapi",
+			"-hwaccel_device", "/dev/dri/renderD128",
+			"-hwaccel_output_format", "vaapi",
+		}
+	case AccelNVENC:
+		return []string{
+			"-hwaccel", "cuda",
+			"-hwaccel_output_format", "cuda",
+		}
+	case AccelQSV:
+		return []string{
+			"-hwaccel", "qsv",
+			"-hwaccel_output_format", "qsv",
+		}
+	case AccelVideoToolbox:
+		return []string{
+			"-hwaccel", "videotoolbox",
+		}
+	default:
+		// No hardware acceleration
+		return []string{}
+	}
+}
+
+// getVideoCodecAndPreset returns the appropriate video codec and preset based on hardware acceleration.
+// Returns (codec, preset). Preset is empty for hardware encoders.
+func (e *ffmpegExecutor) getVideoCodecAndPreset() (string, string) {
+	switch e.config.HardwareAccel {
+	case AccelVAAPI:
+		return "h264_vaapi", ""
+	case AccelNVENC:
+		return "h264_nvenc", ""
+	case AccelQSV:
+		return "h264_qsv", ""
+	case AccelVideoToolbox:
+		return "h264_videotoolbox", ""
+	default:
+		// Software encoding with preset
+		return "libx264", "medium"
+	}
 }
