@@ -27,12 +27,20 @@ func (m *mockGetMediaExecutor) Execute(ctx context.Context, id int64) (media.Med
 }
 
 type mockListMediaExecutor struct {
-	executeFunc func(ctx context.Context, libraryID int64) (media.ListMediaResponse, error)
+	executeFunc    func(ctx context.Context, libraryID int64) (media.ListMediaResponse, error)
+	executeAllFunc func(ctx context.Context) (media.ListMediaResponse, error)
 }
 
 func (m *mockListMediaExecutor) Execute(ctx context.Context, libraryID int64) (media.ListMediaResponse, error) {
 	if m.executeFunc != nil {
 		return m.executeFunc(ctx, libraryID)
+	}
+	return media.ListMediaResponse{}, nil
+}
+
+func (m *mockListMediaExecutor) ExecuteAll(ctx context.Context) (media.ListMediaResponse, error) {
+	if m.executeAllFunc != nil {
+		return m.executeAllFunc(ctx)
 	}
 	return media.ListMediaResponse{}, nil
 }
@@ -77,11 +85,31 @@ func TestMediaHandler_List(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "missing library_id parameter",
-			libraryID:      "",
-			mockResponse:   media.ListMediaResponse{},
+			name:      "missing library_id parameter - lists all media",
+			libraryID: "",
+			mockResponse: media.ListMediaResponse{
+				Media: []media.MediaResponse{
+					{
+						ID:        1,
+						LibraryID: 1,
+						Title:     "Movie from Library 1",
+						FilePath:  "/movies/movie1.mp4",
+						CreatedAt: now,
+						UpdatedAt: now,
+					},
+					{
+						ID:        2,
+						LibraryID: 2,
+						Title:     "Movie from Library 2",
+						FilePath:  "/other/movie2.mp4",
+						CreatedAt: now,
+						UpdatedAt: now,
+					},
+				},
+				Total: 2,
+			},
 			mockError:      nil,
-			expectedStatus: http.StatusBadRequest,
+			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "invalid library_id parameter",
@@ -110,6 +138,9 @@ func TestMediaHandler_List(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockList := &mockListMediaExecutor{
 				executeFunc: func(_ context.Context, _ int64) (media.ListMediaResponse, error) {
+					return tt.mockResponse, tt.mockError
+				},
+				executeAllFunc: func(_ context.Context) (media.ListMediaResponse, error) {
 					return tt.mockResponse, tt.mockError
 				},
 			}
@@ -141,17 +172,6 @@ func TestMediaHandler_List(t *testing.T) {
 
 				if len(responseBody.Media) != len(tt.mockResponse.Media) {
 					t.Errorf("Expected %d media items, got %d", len(tt.mockResponse.Media), len(responseBody.Media))
-				}
-			}
-
-			if tt.expectedStatus == http.StatusBadRequest && tt.libraryID == "" {
-				var responseBody ErrorResponse
-				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
-					t.Fatalf("Failed to parse error response: %v", err)
-				}
-
-				if responseBody.Error != "Missing library_id" {
-					t.Errorf("Expected error 'Missing library_id', got '%s'", responseBody.Error)
 				}
 			}
 		})

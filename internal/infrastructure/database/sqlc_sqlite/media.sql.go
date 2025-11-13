@@ -43,18 +43,18 @@ const createMedia = `-- name: CreateMedia :one
 INSERT INTO media (
     library_id, title, file_path, file_size, file_hash,
     container_format, duration, width, height, aspect_ratio,
-    codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
+    codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
     color_space, color_primaries, thumbnail_path, type, source_type,
     resolution_label, quality_score, is_3d, stereo_mode, has_dash,
-    dash_manifest_path, transcoding_status
+    dash_manifest_path, transcoding_status, is_extra
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?
-) RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at
+    ?, ?, ?
+) RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec
 `
 
 type CreateMediaParams struct {
@@ -69,6 +69,7 @@ type CreateMediaParams struct {
 	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
 	CodecProfile      sql.NullString  `json:"codec_profile"`
 	BitRate           sql.NullInt64   `json:"bit_rate"`
 	FrameRate         sql.NullFloat64 `json:"frame_rate"`
@@ -86,6 +87,7 @@ type CreateMediaParams struct {
 	HasDash           sql.NullBool    `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           bool            `json:"is_extra"`
 }
 
 func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error) {
@@ -101,6 +103,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		arg.Height,
 		arg.AspectRatio,
 		arg.Codec,
+		arg.AudioCodec,
 		arg.CodecProfile,
 		arg.BitRate,
 		arg.FrameRate,
@@ -118,6 +121,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		arg.HasDash,
 		arg.DashManifestPath,
 		arg.TranscodingStatus,
+		arg.IsExtra,
 	)
 	var i Medium
 	err := row.Scan(
@@ -154,6 +158,8 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		&i.DateModified,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsExtra,
+		&i.AudioCodec,
 	)
 	return i, err
 }
@@ -169,7 +175,7 @@ func (q *Queries) DeleteMedia(ctx context.Context, id int64) error {
 }
 
 const getMediaByFilePath = `-- name: GetMediaByFilePath :one
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec FROM media
 WHERE library_id = ? AND file_path = ?
 `
 
@@ -215,12 +221,14 @@ func (q *Queries) GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePath
 		&i.DateModified,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsExtra,
+		&i.AudioCodec,
 	)
 	return i, err
 }
 
 const getMediaByID = `-- name: GetMediaByID :one
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec FROM media
 WHERE id = ?
 `
 
@@ -261,12 +269,78 @@ func (q *Queries) GetMediaByID(ctx context.Context, id int64) (Medium, error) {
 		&i.DateModified,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsExtra,
+		&i.AudioCodec,
 	)
 	return i, err
 }
 
+const listAllMedia = `-- name: ListAllMedia :many
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec FROM media
+ORDER BY title
+`
+
+func (q *Queries) ListAllMedia(ctx context.Context) ([]Medium, error) {
+	rows, err := q.db.QueryContext(ctx, listAllMedia)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Medium{}
+	for rows.Next() {
+		var i Medium
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsExtra,
+			&i.AudioCodec,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMediaByLibrary = `-- name: ListMediaByLibrary :many
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec FROM media
 WHERE library_id = ?
 ORDER BY title
 `
@@ -314,6 +388,8 @@ func (q *Queries) ListMediaByLibrary(ctx context.Context, libraryID int64) ([]Me
 			&i.DateModified,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsExtra,
+			&i.AudioCodec,
 		); err != nil {
 			return nil, err
 		}
@@ -329,7 +405,7 @@ func (q *Queries) ListMediaByLibrary(ctx context.Context, libraryID int64) ([]Me
 }
 
 const listMediaByType = `-- name: ListMediaByType :many
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec FROM media
 WHERE library_id = ? AND type = ?
 ORDER BY title
 `
@@ -382,6 +458,8 @@ func (q *Queries) ListMediaByType(ctx context.Context, arg ListMediaByTypeParams
 			&i.DateModified,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsExtra,
+			&i.AudioCodec,
 		); err != nil {
 			return nil, err
 		}
@@ -426,6 +504,7 @@ SET library_id = ?,
     height = ?,
     aspect_ratio = ?,
     codec = ?,
+    audio_codec = ?,
     codec_profile = ?,
     bit_rate = ?,
     frame_rate = ?,
@@ -443,10 +522,11 @@ SET library_id = ?,
     has_dash = ?,
     dash_manifest_path = ?,
     transcoding_status = ?,
+    is_extra = ?,
     date_modified = CURRENT_TIMESTAMP,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
-RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at
+RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec
 `
 
 type UpdateMediaParams struct {
@@ -461,6 +541,7 @@ type UpdateMediaParams struct {
 	Height            sql.NullInt64   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
 	CodecProfile      sql.NullString  `json:"codec_profile"`
 	BitRate           sql.NullInt64   `json:"bit_rate"`
 	FrameRate         sql.NullFloat64 `json:"frame_rate"`
@@ -478,6 +559,7 @@ type UpdateMediaParams struct {
 	HasDash           sql.NullBool    `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           bool            `json:"is_extra"`
 	ID                int64           `json:"id"`
 }
 
@@ -494,6 +576,7 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		arg.Height,
 		arg.AspectRatio,
 		arg.Codec,
+		arg.AudioCodec,
 		arg.CodecProfile,
 		arg.BitRate,
 		arg.FrameRate,
@@ -511,6 +594,7 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		arg.HasDash,
 		arg.DashManifestPath,
 		arg.TranscodingStatus,
+		arg.IsExtra,
 		arg.ID,
 	)
 	var i Medium
@@ -548,6 +632,8 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		&i.DateModified,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsExtra,
+		&i.AudioCodec,
 	)
 	return i, err
 }

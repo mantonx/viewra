@@ -7,6 +7,7 @@
 export * from './generated/libraries/libraries'
 export * from './generated/media/media'
 export * from './generated/streaming/streaming'
+export * from './generated/filesystem/filesystem'
 export * from './generated/models'
 
 // Export custom instance for direct API calls if needed

@@ -42,4 +42,18 @@ var (
 
 	// ErrPathNotDirectory is returned when the library path is not a directory
 	ErrPathNotDirectory = errors.New("library path is not a directory")
+
+	// Path browsing errors
+
+	// ErrSystemDirectory is returned when attempting to access system directories
+	ErrSystemDirectory = errors.New("access to system directory denied")
+
+	// ErrOutsideAllowed is returned when a path is outside allowed directories
+	ErrOutsideAllowed = errors.New("path outside allowed directories")
+
+	// ErrPermissionDenied is returned when insufficient permissions to access path
+	ErrPermissionDenied = errors.New("insufficient permissions")
+
+	// ErrDirectoryNotFound is returned when a directory does not exist
+	ErrDirectoryNotFound = errors.New("directory not found")
 )

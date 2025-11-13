@@ -41,27 +41,29 @@ func (r *Repository) Create(ctx context.Context, m *media.Media) error {
 				FilePath:          m.FilePath,
 				FileSize:          common.NullInt64(m.FileSize),
 				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              "movie", // Default for now
-				FileHash:          sql.NullString{},
-				ContainerFormat:   sql.NullString{},
-				Width:             sql.NullInt32{},
-				Height:            sql.NullInt32{},
-				AspectRatio:       sql.NullString{},
-				Codec:             sql.NullString{},
-				CodecProfile:      sql.NullString{},
-				BitRate:           sql.NullInt64{},
-				FrameRate:         sql.NullFloat64{},
-				ScanType:          sql.NullString{},
-				HdrFormat:         sql.NullString{},
-				ColorSpace:        sql.NullString{},
-				ColorPrimaries:    sql.NullString{},
-				ThumbnailPath:     sql.NullString{},
-				SourceType:        sql.NullString{},
-				ResolutionLabel:   sql.NullString{},
-				QualityScore:      sql.NullInt32{},
-				Is3d:              sql.NullBool{},
-				StereoMode:        sql.NullString{},
-				HasDash:           sql.NullBool{},
+				Type:              m.Type,
+				IsExtra:           m.IsExtra,
+				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
+				ContainerFormat:   common.NullString(m.ContainerFormat),
+				Width:             common.NullInt32(int32(m.Width)),
+				Height:            common.NullInt32(int32(m.Height)),
+				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
+				Codec:             common.NullString(m.VideoCodec),
+				AudioCodec:        common.NullString(m.AudioCodec),
+				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
+				BitRate:           common.NullInt64(m.Bitrate),
+				FrameRate:         common.NullFloat64(m.FrameRate),
+				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
+				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
+				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
+				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
+				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
+				QualityScore:      sql.NullInt32{},    // TODO: Calculate heuristic
+				Is3d:              sql.NullBool{},     // TODO: Detect from filename
+				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
+				HasDash:           common.NullBool(false),
 				DashManifestPath:  sql.NullString{},
 				TranscodingStatus: sql.NullString{},
 			})
@@ -73,27 +75,29 @@ func (r *Repository) Create(ctx context.Context, m *media.Media) error {
 				FilePath:          m.FilePath,
 				FileSize:          common.NullInt64(m.FileSize),
 				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              "movie", // Default for now
-				FileHash:          sql.NullString{},
-				ContainerFormat:   sql.NullString{},
-				Width:             sql.NullInt64{},
-				Height:            sql.NullInt64{},
-				AspectRatio:       sql.NullString{},
-				Codec:             sql.NullString{},
-				CodecProfile:      sql.NullString{},
-				BitRate:           sql.NullInt64{},
-				FrameRate:         sql.NullFloat64{},
-				ScanType:          sql.NullString{},
-				HdrFormat:         sql.NullString{},
-				ColorSpace:        sql.NullString{},
-				ColorPrimaries:    sql.NullString{},
-				ThumbnailPath:     sql.NullString{},
-				SourceType:        sql.NullString{},
-				ResolutionLabel:   sql.NullString{},
-				QualityScore:      sql.NullInt64{},
-				Is3d:              sql.NullBool{},
-				StereoMode:        sql.NullString{},
-				HasDash:           sql.NullBool{},
+				Type:              m.Type,
+				IsExtra:           m.IsExtra,
+				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
+				ContainerFormat:   common.NullString(m.ContainerFormat),
+				Width:             common.NullInt64(int64(m.Width)),
+				Height:            common.NullInt64(int64(m.Height)),
+				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
+				Codec:             common.NullString(m.VideoCodec),
+				AudioCodec:        common.NullString(m.AudioCodec),
+				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
+				BitRate:           common.NullInt64(m.Bitrate),
+				FrameRate:         common.NullFloat64(m.FrameRate),
+				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
+				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
+				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
+				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
+				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
+				QualityScore:      sql.NullInt64{},    // TODO: Calculate heuristic
+				Is3d:              sql.NullBool{},     // TODO: Detect from filename
+				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
+				HasDash:           common.NullBool(false),
 				DashManifestPath:  sql.NullString{},
 				TranscodingStatus: sql.NullString{},
 			})
@@ -140,27 +144,45 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*media.Media, error
 	if r.router.IsPostgresDB() {
 		pgResult := result.(sqlc_postgres.Medium)
 		return &media.Media{
-			ID:        int64(pgResult.ID),
-			LibraryID: int64(pgResult.LibraryID),
-			Title:     pgResult.Title,
-			FilePath:  pgResult.FilePath,
-			FileSize:  pgResult.FileSize.Int64,
-			Duration:  int(pgResult.Duration.Float64),
-			CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
+			ID:              int64(pgResult.ID),
+			LibraryID:       int64(pgResult.LibraryID),
+			Title:           pgResult.Title,
+			Type:            pgResult.Type,
+			FilePath:        pgResult.FilePath,
+			FileSize:        pgResult.FileSize.Int64,
+			Duration:        int(pgResult.Duration.Float64),
+			IsExtra:         pgResult.IsExtra,
+			Width:           int(pgResult.Width.Int32),
+			Height:          int(pgResult.Height.Int32),
+			VideoCodec:      pgResult.Codec.String,
+			AudioCodec:      pgResult.AudioCodec.String,
+			Bitrate:         pgResult.BitRate.Int64,
+			FrameRate:       pgResult.FrameRate.Float64,
+			ContainerFormat: pgResult.ContainerFormat.String,
+			CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
 		}, nil
 	}
 
 	sqResult := result.(sqlc_sqlite.Medium)
 	return &media.Media{
-		ID:        sqResult.ID,
-		LibraryID: sqResult.LibraryID,
-		Title:     sqResult.Title,
-		FilePath:  sqResult.FilePath,
-		FileSize:  sqResult.FileSize.Int64,
-		Duration:  int(sqResult.Duration.Float64),
-		CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-		UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
+		ID:              sqResult.ID,
+		LibraryID:       sqResult.LibraryID,
+		Title:           sqResult.Title,
+		Type:            sqResult.Type,
+		FilePath:        sqResult.FilePath,
+		FileSize:        sqResult.FileSize.Int64,
+		Duration:        int(sqResult.Duration.Float64),
+		IsExtra:         sqResult.IsExtra,
+		Width:           int(sqResult.Width.Int64),
+		Height:          int(sqResult.Height.Int64),
+		VideoCodec:      sqResult.Codec.String,
+		AudioCodec:      sqResult.AudioCodec.String,
+		Bitrate:         sqResult.BitRate.Int64,
+		FrameRate:       sqResult.FrameRate.Float64,
+		ContainerFormat: sqResult.ContainerFormat.String,
+		CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
+		UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
 	}, nil
 }
 
@@ -191,28 +213,114 @@ func (r *Repository) GetByFilePath(ctx context.Context, libraryID int64, filePat
 	if r.router.IsPostgresDB() {
 		pgResult := result.(sqlc_postgres.Medium)
 		return &media.Media{
-			ID:        int64(pgResult.ID),
-			LibraryID: int64(pgResult.LibraryID),
-			Title:     pgResult.Title,
-			FilePath:  pgResult.FilePath,
-			FileSize:  pgResult.FileSize.Int64,
-			Duration:  int(pgResult.Duration.Float64),
-			CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
+			ID:              int64(pgResult.ID),
+			LibraryID:       int64(pgResult.LibraryID),
+			Title:           pgResult.Title,
+			Type:            pgResult.Type,
+			FilePath:        pgResult.FilePath,
+			FileSize:        pgResult.FileSize.Int64,
+			Duration:        int(pgResult.Duration.Float64),
+			IsExtra:         pgResult.IsExtra,
+			Width:           int(pgResult.Width.Int32),
+			Height:          int(pgResult.Height.Int32),
+			VideoCodec:      pgResult.Codec.String,
+			AudioCodec:      pgResult.AudioCodec.String,
+			Bitrate:         pgResult.BitRate.Int64,
+			FrameRate:       pgResult.FrameRate.Float64,
+			ContainerFormat: pgResult.ContainerFormat.String,
+			CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
 		}, nil
 	}
 
 	sqResult := result.(sqlc_sqlite.Medium)
 	return &media.Media{
-		ID:        sqResult.ID,
-		LibraryID: sqResult.LibraryID,
-		Title:     sqResult.Title,
-		FilePath:  sqResult.FilePath,
-		FileSize:  sqResult.FileSize.Int64,
-		Duration:  int(sqResult.Duration.Float64),
-		CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-		UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
+		ID:              sqResult.ID,
+		LibraryID:       sqResult.LibraryID,
+		Title:           sqResult.Title,
+		Type:            sqResult.Type,
+		FilePath:        sqResult.FilePath,
+		FileSize:        sqResult.FileSize.Int64,
+		Duration:        int(sqResult.Duration.Float64),
+		IsExtra:         sqResult.IsExtra,
+		Width:           int(sqResult.Width.Int64),
+		Height:          int(sqResult.Height.Int64),
+		VideoCodec:      sqResult.Codec.String,
+		AudioCodec:      sqResult.AudioCodec.String,
+		Bitrate:         sqResult.BitRate.Int64,
+		FrameRate:       sqResult.FrameRate.Float64,
+		ContainerFormat: sqResult.ContainerFormat.String,
+		CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
+		UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
 	}, nil
+}
+
+// ListAll retrieves all media items across all libraries
+func (r *Repository) ListAll(ctx context.Context) ([]*media.Media, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.ListAllMedia(ctx)
+		},
+		func() (any, error) {
+			return r.sqlite.ListAllMedia(ctx)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to domain media
+	if r.router.IsPostgresDB() {
+		pgResults := result.([]sqlc_postgres.Medium)
+		mediaList := make([]*media.Media, len(pgResults))
+		for i, pgResult := range pgResults {
+			mediaList[i] = &media.Media{
+				ID:              int64(pgResult.ID),
+				LibraryID:       int64(pgResult.LibraryID),
+				Title:           pgResult.Title,
+				Type:            pgResult.Type,
+				FilePath:        pgResult.FilePath,
+				FileSize:        pgResult.FileSize.Int64,
+				Duration:        int(pgResult.Duration.Float64),
+				IsExtra:         pgResult.IsExtra,
+				Width:           int(pgResult.Width.Int32),
+				Height:          int(pgResult.Height.Int32),
+				VideoCodec:      pgResult.Codec.String,
+				AudioCodec:      "",
+				Bitrate:         pgResult.BitRate.Int64,
+				FrameRate:       pgResult.FrameRate.Float64,
+				ContainerFormat: pgResult.ContainerFormat.String,
+				CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
+				UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
+			}
+		}
+		return mediaList, nil
+	}
+
+	sqResults := result.([]sqlc_sqlite.Medium)
+	mediaList := make([]*media.Media, len(sqResults))
+	for i, sqResult := range sqResults {
+		mediaList[i] = &media.Media{
+			ID:              sqResult.ID,
+			LibraryID:       sqResult.LibraryID,
+			Title:           sqResult.Title,
+			Type:            sqResult.Type,
+			FilePath:        sqResult.FilePath,
+			FileSize:        sqResult.FileSize.Int64,
+			Duration:        int(sqResult.Duration.Float64),
+			IsExtra:         sqResult.IsExtra,
+			Width:           int(sqResult.Width.Int64),
+			Height:          int(sqResult.Height.Int64),
+			VideoCodec:      sqResult.Codec.String,
+			AudioCodec:      "",
+			Bitrate:         sqResult.BitRate.Int64,
+			FrameRate:       sqResult.FrameRate.Float64,
+			ContainerFormat: sqResult.ContainerFormat.String,
+			CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
+		}
+	}
+	return mediaList, nil
 }
 
 // ListByLibrary retrieves all media items in a specific library
@@ -235,14 +343,23 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*med
 		mediaList := make([]*media.Media, len(pgResults))
 		for i, pgResult := range pgResults {
 			mediaList[i] = &media.Media{
-				ID:        int64(pgResult.ID),
-				LibraryID: int64(pgResult.LibraryID),
-				Title:     pgResult.Title,
-				FilePath:  pgResult.FilePath,
-				FileSize:  pgResult.FileSize.Int64,
-				Duration:  int(pgResult.Duration.Float64),
-				CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-				UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
+				ID:              int64(pgResult.ID),
+				LibraryID:       int64(pgResult.LibraryID),
+				Title:           pgResult.Title,
+				Type:            pgResult.Type,
+				FilePath:        pgResult.FilePath,
+				FileSize:        pgResult.FileSize.Int64,
+				Duration:        int(pgResult.Duration.Float64),
+				IsExtra:         pgResult.IsExtra,
+				Width:           int(pgResult.Width.Int32),
+				Height:          int(pgResult.Height.Int32),
+				VideoCodec:      pgResult.Codec.String,
+				AudioCodec:      "",
+				Bitrate:         pgResult.BitRate.Int64,
+				FrameRate:       pgResult.FrameRate.Float64,
+				ContainerFormat: pgResult.ContainerFormat.String,
+				CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
+				UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
 			}
 		}
 		return mediaList, nil
@@ -252,14 +369,23 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*med
 	mediaList := make([]*media.Media, len(sqResults))
 	for i, sqResult := range sqResults {
 		mediaList[i] = &media.Media{
-			ID:        sqResult.ID,
-			LibraryID: sqResult.LibraryID,
-			Title:     sqResult.Title,
-			FilePath:  sqResult.FilePath,
-			FileSize:  sqResult.FileSize.Int64,
-			Duration:  int(sqResult.Duration.Float64),
-			CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
+			ID:              sqResult.ID,
+			LibraryID:       sqResult.LibraryID,
+			Title:           sqResult.Title,
+			Type:            sqResult.Type,
+			FilePath:        sqResult.FilePath,
+			FileSize:        sqResult.FileSize.Int64,
+			Duration:        int(sqResult.Duration.Float64),
+			IsExtra:         sqResult.IsExtra,
+			Width:           int(sqResult.Width.Int64),
+			Height:          int(sqResult.Height.Int64),
+			VideoCodec:      sqResult.Codec.String,
+			AudioCodec:      "",
+			Bitrate:         sqResult.BitRate.Int64,
+			FrameRate:       sqResult.FrameRate.Float64,
+			ContainerFormat: sqResult.ContainerFormat.String,
+			CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
 		}
 	}
 	return mediaList, nil
@@ -295,14 +421,23 @@ func (r *Repository) ListByType(
 		mediaList := make([]*media.Media, len(pgResults))
 		for i, pgResult := range pgResults {
 			mediaList[i] = &media.Media{
-				ID:        int64(pgResult.ID),
-				LibraryID: int64(pgResult.LibraryID),
-				Title:     pgResult.Title,
-				FilePath:  pgResult.FilePath,
-				FileSize:  pgResult.FileSize.Int64,
-				Duration:  int(pgResult.Duration.Float64),
-				CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
-				UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
+				ID:              int64(pgResult.ID),
+				LibraryID:       int64(pgResult.LibraryID),
+				Title:           pgResult.Title,
+				Type:            pgResult.Type,
+				FilePath:        pgResult.FilePath,
+				FileSize:        pgResult.FileSize.Int64,
+				Duration:        int(pgResult.Duration.Float64),
+				IsExtra:         pgResult.IsExtra,
+				Width:           int(pgResult.Width.Int32),
+				Height:          int(pgResult.Height.Int32),
+				VideoCodec:      pgResult.Codec.String,
+				AudioCodec:      "",
+				Bitrate:         pgResult.BitRate.Int64,
+				FrameRate:       pgResult.FrameRate.Float64,
+				ContainerFormat: pgResult.ContainerFormat.String,
+				CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
+				UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
 			}
 		}
 		return mediaList, nil
@@ -312,14 +447,23 @@ func (r *Repository) ListByType(
 	mediaList := make([]*media.Media, len(sqResults))
 	for i, sqResult := range sqResults {
 		mediaList[i] = &media.Media{
-			ID:        sqResult.ID,
-			LibraryID: sqResult.LibraryID,
-			Title:     sqResult.Title,
-			FilePath:  sqResult.FilePath,
-			FileSize:  sqResult.FileSize.Int64,
-			Duration:  int(sqResult.Duration.Float64),
-			CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
-			UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
+			ID:              sqResult.ID,
+			LibraryID:       sqResult.LibraryID,
+			Title:           sqResult.Title,
+			Type:            sqResult.Type,
+			FilePath:        sqResult.FilePath,
+			FileSize:        sqResult.FileSize.Int64,
+			Duration:        int(sqResult.Duration.Float64),
+			IsExtra:         sqResult.IsExtra,
+			Width:           int(sqResult.Width.Int64),
+			Height:          int(sqResult.Height.Int64),
+			VideoCodec:      sqResult.Codec.String,
+			AudioCodec:      "",
+			Bitrate:         sqResult.BitRate.Int64,
+			FrameRate:       sqResult.FrameRate.Float64,
+			ContainerFormat: sqResult.ContainerFormat.String,
+			CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
+			UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
 		}
 	}
 	return mediaList, nil
@@ -335,27 +479,29 @@ func (r *Repository) Update(ctx context.Context, m *media.Media) error {
 				FilePath:          m.FilePath,
 				FileSize:          common.NullInt64(m.FileSize),
 				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              "movie", // Preserve type
-				FileHash:          sql.NullString{},
-				ContainerFormat:   sql.NullString{},
-				Width:             sql.NullInt32{},
-				Height:            sql.NullInt32{},
-				AspectRatio:       sql.NullString{},
-				Codec:             sql.NullString{},
-				CodecProfile:      sql.NullString{},
-				BitRate:           sql.NullInt64{},
-				FrameRate:         sql.NullFloat64{},
-				ScanType:          sql.NullString{},
-				HdrFormat:         sql.NullString{},
-				ColorSpace:        sql.NullString{},
-				ColorPrimaries:    sql.NullString{},
-				ThumbnailPath:     sql.NullString{},
-				SourceType:        sql.NullString{},
-				ResolutionLabel:   sql.NullString{},
-				QualityScore:      sql.NullInt32{},
-				Is3d:              sql.NullBool{},
-				StereoMode:        sql.NullString{},
-				HasDash:           sql.NullBool{},
+				Type:              m.Type,
+				IsExtra:           m.IsExtra,
+				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
+				ContainerFormat:   common.NullString(m.ContainerFormat),
+				Width:             common.NullInt32(int32(m.Width)),
+				Height:            common.NullInt32(int32(m.Height)),
+				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
+				Codec:             common.NullString(m.VideoCodec),
+				AudioCodec:        common.NullString(m.AudioCodec),
+				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
+				BitRate:           common.NullInt64(m.Bitrate),
+				FrameRate:         common.NullFloat64(m.FrameRate),
+				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
+				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
+				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
+				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
+				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
+				QualityScore:      sql.NullInt32{},    // TODO: Calculate heuristic
+				Is3d:              sql.NullBool{},     // TODO: Detect from filename
+				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
+				HasDash:           common.NullBool(false),
 				DashManifestPath:  sql.NullString{},
 				TranscodingStatus: sql.NullString{},
 				ID:                int32(m.ID),
@@ -368,27 +514,29 @@ func (r *Repository) Update(ctx context.Context, m *media.Media) error {
 				FilePath:          m.FilePath,
 				FileSize:          common.NullInt64(m.FileSize),
 				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              "movie", // Preserve type
-				FileHash:          sql.NullString{},
-				ContainerFormat:   sql.NullString{},
-				Width:             sql.NullInt64{},
-				Height:            sql.NullInt64{},
-				AspectRatio:       sql.NullString{},
-				Codec:             sql.NullString{},
-				CodecProfile:      sql.NullString{},
-				BitRate:           sql.NullInt64{},
-				FrameRate:         sql.NullFloat64{},
-				ScanType:          sql.NullString{},
-				HdrFormat:         sql.NullString{},
-				ColorSpace:        sql.NullString{},
-				ColorPrimaries:    sql.NullString{},
-				ThumbnailPath:     sql.NullString{},
-				SourceType:        sql.NullString{},
-				ResolutionLabel:   sql.NullString{},
-				QualityScore:      sql.NullInt64{},
-				Is3d:              sql.NullBool{},
-				StereoMode:        sql.NullString{},
-				HasDash:           sql.NullBool{},
+				Type:              m.Type,
+				IsExtra:           m.IsExtra,
+				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
+				ContainerFormat:   common.NullString(m.ContainerFormat),
+				Width:             common.NullInt64(int64(m.Width)),
+				Height:            common.NullInt64(int64(m.Height)),
+				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
+				Codec:             common.NullString(m.VideoCodec),
+				AudioCodec:        common.NullString(m.AudioCodec),
+				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
+				BitRate:           common.NullInt64(m.Bitrate),
+				FrameRate:         common.NullFloat64(m.FrameRate),
+				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
+				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
+				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
+				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
+				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
+				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
+				QualityScore:      sql.NullInt64{},    // TODO: Calculate heuristic
+				Is3d:              sql.NullBool{},     // TODO: Detect from filename
+				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
+				HasDash:           common.NullBool(false),
 				DashManifestPath:  sql.NullString{},
 				TranscodingStatus: sql.NullString{},
 				ID:                m.ID,

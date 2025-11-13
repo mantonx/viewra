@@ -15,6 +15,9 @@ type Repository interface {
 	// GetByFilePath retrieves a media item by its file path within a library
 	GetByFilePath(ctx context.Context, libraryID int64, filePath string) (*Media, error)
 
+	// ListAll retrieves all media items across all libraries
+	ListAll(ctx context.Context) ([]*Media, error)
+
 	// ListByLibrary retrieves all media items in a specific library
 	ListByLibrary(ctx context.Context, libraryID int64) ([]*Media, error)
 

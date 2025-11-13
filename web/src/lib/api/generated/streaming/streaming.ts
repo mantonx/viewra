@@ -27,6 +27,8 @@ import type {
 import { customInstance } from '../../mutator/index';
 
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 
 
 /**
@@ -102,16 +104,16 @@ export const getGetApiStreamIdQueryKey = (id?: number,) => {
     }
 
     
-export const getGetApiStreamIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, }
+export const getGetApiStreamIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetApiStreamIdQueryKey(id);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiStreamId>>> = ({ signal }) => getApiStreamId(id, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiStreamId>>> = ({ signal }) => getApiStreamId(id, { signal, ...requestOptions });
 
       
 
@@ -131,7 +133,7 @@ export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStream
           TError,
           Awaited<ReturnType<typeof getApiStreamId>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(
@@ -141,11 +143,11 @@ export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStream
           TError,
           Awaited<ReturnType<typeof getApiStreamId>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, }
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -153,7 +155,7 @@ export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStream
  */
 
 export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, }
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 

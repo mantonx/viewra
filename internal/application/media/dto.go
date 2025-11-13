@@ -11,9 +11,21 @@ type MediaResponse struct {
 	ID        int64     `json:"id"`
 	LibraryID int64     `json:"library_id"`
 	Title     string    `json:"title"`
+	Type      string    `json:"type"` // 'movie', 'tv_episode', 'music_track'
 	FilePath  string    `json:"file_path"`
 	FileSize  int64     `json:"file_size"`
 	Duration  int       `json:"duration"`
+	IsExtra   bool      `json:"is_extra"` // True for trailers, deleted scenes, etc.
+
+	// Technical video metadata
+	Width           int     `json:"width,omitempty"`             // Video width in pixels
+	Height          int     `json:"height,omitempty"`            // Video height in pixels
+	VideoCodec      string  `json:"video_codec,omitempty"`       // h264, hevc, etc.
+	AudioCodec      string  `json:"audio_codec,omitempty"`       // aac, mp3, etc.
+	Bitrate         int64   `json:"bitrate,omitempty"`           // bits per second
+	FrameRate       float64 `json:"frame_rate,omitempty"`        // frames per second
+	ContainerFormat string  `json:"container_format,omitempty"`  // mkv, mp4, etc.
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -107,14 +119,23 @@ type ListMediaRequest struct {
 // ToMediaResponse converts a domain media entity to a DTO
 func ToMediaResponse(m *media.Media) MediaResponse {
 	return MediaResponse{
-		ID:        m.ID,
-		LibraryID: m.LibraryID,
-		Title:     m.Title,
-		FilePath:  m.FilePath,
-		FileSize:  m.FileSize,
-		Duration:  m.Duration,
-		CreatedAt: m.CreatedAt,
-		UpdatedAt: m.UpdatedAt,
+		ID:              m.ID,
+		LibraryID:       m.LibraryID,
+		Title:           m.Title,
+		Type:            m.Type,
+		FilePath:        m.FilePath,
+		FileSize:        m.FileSize,
+		Duration:        m.Duration,
+		IsExtra:         m.IsExtra,
+		Width:           m.Width,
+		Height:          m.Height,
+		VideoCodec:      m.VideoCodec,
+		AudioCodec:      m.AudioCodec,
+		Bitrate:         m.Bitrate,
+		FrameRate:       m.FrameRate,
+		ContainerFormat: m.ContainerFormat,
+		CreatedAt:       m.CreatedAt,
+		UpdatedAt:       m.UpdatedAt,
 	}
 }
 

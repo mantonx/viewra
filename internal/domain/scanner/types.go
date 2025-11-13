@@ -66,6 +66,16 @@ type ScanResult struct {
 	Hash           string
 	Error          error
 	BytesProcessed int64
+
+	// Technical video metadata (from FFmpeg)
+	FileSize        int64
+	Width           int
+	Height          int
+	VideoCodec      string
+	AudioCodec      string
+	Bitrate         int64
+	FrameRate       float64
+	ContainerFormat string
 }
 
 // Progress tracks scanning progress with thread-safe counters

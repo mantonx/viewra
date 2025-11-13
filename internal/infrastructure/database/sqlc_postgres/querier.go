@@ -20,11 +20,14 @@ type Querier interface {
 	// Media queries for PostgreSQL
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
+	CreateWatchProgress(ctx context.Context, arg CreateWatchProgressParams) (WatchProgress, error)
 	DeleteLibrary(ctx context.Context, id int32) error
 	DeleteMedia(ctx context.Context, id int32) error
 	// sqlc.arg(retention_days): the number of days to retain completed/failed jobs
 	DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error
 	DeleteScanJob(ctx context.Context, id int32) error
+	DeleteWatchProgress(ctx context.Context, id int32) error
+	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int32) error
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int32) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int32) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
@@ -32,19 +35,28 @@ type Querier interface {
 	GetMediaByID(ctx context.Context, id int32) (Medium, error)
 	GetScanJob(ctx context.Context, id int32) (ScanJob, error)
 	GetScanJobStats(ctx context.Context, libraryID int32) (GetScanJobStatsRow, error)
+	GetWatchProgressByID(ctx context.Context, id int32) (WatchProgress, error)
+	GetWatchProgressByMediaID(ctx context.Context, mediaID int32) (WatchProgress, error)
+	GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg GetWatchProgressByMediaIDAndUserIDParams) (WatchProgress, error)
 	LibraryExistsByID(ctx context.Context, id int32) (bool, error)
 	LibraryExistsByPath(ctx context.Context, path string) (bool, error)
+	ListAllMedia(ctx context.Context) ([]Medium, error)
+	ListInProgressByUserID(ctx context.Context, arg ListInProgressByUserIDParams) ([]WatchProgress, error)
 	ListLibraries(ctx context.Context) ([]Library, error)
 	ListLibrariesByType(ctx context.Context, type_ string) ([]Library, error)
 	ListMediaByLibrary(ctx context.Context, libraryID int32) ([]Medium, error)
 	ListMediaByType(ctx context.Context, arg ListMediaByTypeParams) ([]Medium, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
+	ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error)
+	ListWatchedByUserID(ctx context.Context, arg ListWatchedByUserIDParams) ([]WatchProgress, error)
 	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (bool, error)
 	UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (Library, error)
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
 	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
+	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
+	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error)
 }
 
 var _ Querier = (*Queries)(nil)

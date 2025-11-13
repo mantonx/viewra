@@ -8,7 +8,7 @@
 
 export type GetApiMediaParams = {
 /**
- * Filter by library ID
+ * Filter by library ID (omit to list all media)
  */
 library_id?: number;
 /**

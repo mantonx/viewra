@@ -3,7 +3,7 @@
  * Handles base URL, error handling, and request/response transformation
  */
 
-import type { ErrorResponse, CustomInstanceConfig } from './custom-instance.types'
+import type { ErrorResponse } from './custom-instance.types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
@@ -21,43 +21,35 @@ export class APIError extends Error {
 
 /**
  * Custom fetch instance with error handling
+ * This signature matches orval's default generated code: (url: string, options: RequestInit)
  */
-export const customInstance = async <T>(config: CustomInstanceConfig): Promise<T> => {
-  const { url, params, ...fetchConfig } = config
-
-  // Build URL with query parameters
-  let fullUrl = `${API_BASE_URL}${url}`
-  if (params) {
-    const searchParams = new URLSearchParams()
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.append(key, String(value))
-      }
-    })
-    const queryString = searchParams.toString()
-    if (queryString) {
-      fullUrl += `?${queryString}`
-    }
-  }
+export const customInstance = async <T>(url: string, options?: RequestInit): Promise<T> => {
+  // Build full URL
+  const fullUrl = `${API_BASE_URL}${url}`
 
   // Make request
   const response = await fetch(fullUrl, {
-    ...fetchConfig,
+    ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...fetchConfig.headers,
+      ...options?.headers,
     },
   })
 
+  // Parse response data
+  const contentType = response.headers.get('content-type')
+  let data: unknown
+
+  if (contentType?.includes('application/json')) {
+    data = await response.json()
+  } else {
+    // For non-JSON responses (like streaming endpoints)
+    data = response
+  }
+
   // Handle non-OK responses
   if (!response.ok) {
-    let errorData: ErrorResponse | undefined
-    try {
-      errorData = await response.json()
-    } catch {
-      // Response might not be JSON
-    }
-
+    const errorData = data as ErrorResponse | undefined
     throw new APIError(
       errorData?.message || errorData?.error || `HTTP ${response.status}`,
       response.status,
@@ -65,12 +57,10 @@ export const customInstance = async <T>(config: CustomInstanceConfig): Promise<T
     )
   }
 
-  // Parse response
-  const contentType = response.headers.get('content-type')
-  if (contentType?.includes('application/json')) {
-    return response.json()
-  }
-
-  // For non-JSON responses (like streaming endpoints)
-  return response as unknown as T
+  // Return response in orval format: { data, status, headers }
+  return {
+    data,
+    status: response.status,
+    headers: response.headers,
+  } as T
 }

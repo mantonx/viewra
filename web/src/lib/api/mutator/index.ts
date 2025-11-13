@@ -4,7 +4,7 @@ import type { QueryClient } from '@tanstack/react-query'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 export interface CustomInstanceOptions extends RequestInit {
-  url: string
+  url?: string
 }
 
 export interface ErrorResponse {
@@ -15,8 +15,27 @@ export interface ErrorResponse {
 /**
  * Custom fetch instance for API calls
  * This is used by Orval-generated API client
+ * Supports both signatures: customInstance(url, options) and customInstance({ url, ...options })
  */
-export const customInstance = async <T>({ url, ...config }: CustomInstanceOptions): Promise<T> => {
+export const customInstance = async <T>(
+  urlOrConfig: string | CustomInstanceOptions,
+  maybeConfig?: RequestInit
+): Promise<T> => {
+  // Handle both call signatures
+  let url: string
+  let config: RequestInit
+
+  if (typeof urlOrConfig === 'string') {
+    // Called as customInstance(url, options)
+    url = urlOrConfig
+    config = maybeConfig || {}
+  } else {
+    // Called as customInstance({ url, ...options })
+    const { url: extractedUrl, ...rest } = urlOrConfig
+    url = extractedUrl!
+    config = rest
+  }
+
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`
 
   const response = await fetch(fullUrl, {

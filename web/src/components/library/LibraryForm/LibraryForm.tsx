@@ -1,17 +1,27 @@
 import { useState } from 'react'
-import { useLibrariesServicePostApiLibraries } from '@/lib/api'
+import { usePostApiLibraries } from '@/lib/api'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { Button, Input, Select, Alert } from '@/components/ui'
+import { FilesystemBrowser } from '@/components/library/FilesystemBrowser'
 import type { LibraryFormProps } from './LibraryForm.types'
 
 const LibraryForm = ({ onCancel, onSuccess }: LibraryFormProps) => {
   const invalidateLibraries = useInvalidateLibraries()
   const [name, setName] = useState('')
   const [path, setPath] = useState('')
-  const [type, setType] = useState<'movie' | 'tv' | 'music'>('movie')
+  const [type, setType] = useState<'movies' | 'tv' | 'music'>('movies')
   const [error, setError] = useState<string | null>(null)
+  const [isBrowserOpen, setIsBrowserOpen] = useState(false)
 
-  const createMutation = useLibrariesServicePostApiLibraries()
+  const createMutation = usePostApiLibraries()
+
+  const handleBrowseClick = () => {
+    setIsBrowserOpen(true)
+  }
+
+  const handlePathSelect = (selectedPath: string) => {
+    setPath(selectedPath)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,7 +41,7 @@ const LibraryForm = ({ onCancel, onSuccess }: LibraryFormProps) => {
       // Reset form
       setName('')
       setPath('')
-      setType('movie')
+      setType('movies')
 
       // Close form
       onSuccess()
@@ -54,22 +64,39 @@ const LibraryForm = ({ onCancel, onSuccess }: LibraryFormProps) => {
         disabled={createMutation.isPending}
       />
 
-      <Input
-        label="Folder Path"
-        value={path}
-        onChange={(e) => setPath(e.target.value)}
-        placeholder="/media/movies"
-        helperText="Full path to the folder containing your media files"
-        required
-        disabled={createMutation.isPending}
-      />
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Folder Path
+        </label>
+        <div className="flex gap-2">
+          <Input
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            placeholder="/media/movies"
+            required
+            disabled={createMutation.isPending}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleBrowseClick}
+            disabled={createMutation.isPending}
+          >
+            Browse...
+          </Button>
+        </div>
+        <p className="mt-1 text-sm text-gray-500">
+          Full path to the folder containing your media files
+        </p>
+      </div>
 
       <Select
         label="Library Type"
         value={type}
-        onChange={(e) => setType(e.target.value as 'movie' | 'tv' | 'music')}
+        onChange={(e) => setType(e.target.value as 'movies' | 'tv' | 'music')}
         options={[
-          { value: 'movie', label: 'Movies' },
+          { value: 'movies', label: 'Movies' },
           { value: 'tv', label: 'TV Shows' },
           { value: 'music', label: 'Music' },
         ]}
@@ -89,6 +116,13 @@ const LibraryForm = ({ onCancel, onSuccess }: LibraryFormProps) => {
           Create Library
         </Button>
       </div>
+
+      <FilesystemBrowser
+        isOpen={isBrowserOpen}
+        onClose={() => setIsBrowserOpen(false)}
+        onSelect={handlePathSelect}
+        initialPath={path || undefined}
+      />
     </form>
   )
 }

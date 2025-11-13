@@ -44,18 +44,18 @@ const createMedia = `-- name: CreateMedia :one
 INSERT INTO media (
     library_id, title, file_path, file_size, file_hash,
     container_format, duration, width, height, aspect_ratio,
-    codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
+    codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
     color_space, color_primaries, thumbnail_path, type, source_type,
     resolution_label, quality_score, is_3d, stereo_mode, has_dash,
-    dash_manifest_path, transcoding_status
+    dash_manifest_path, transcoding_status, is_extra
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21,
-    $22, $23, $24, $25, $26,
-    $27, $28
-) RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at
+    $11, $12, $13, $14, $15, $16, $17,
+    $18, $19, $20, $21, $22,
+    $23, $24, $25, $26, $27,
+    $28, $29, $30
+) RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, is_extra, date_added, date_modified, created_at, updated_at
 `
 
 type CreateMediaParams struct {
@@ -70,6 +70,7 @@ type CreateMediaParams struct {
 	Height            sql.NullInt32   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
 	CodecProfile      sql.NullString  `json:"codec_profile"`
 	BitRate           sql.NullInt64   `json:"bit_rate"`
 	FrameRate         sql.NullFloat64 `json:"frame_rate"`
@@ -87,6 +88,7 @@ type CreateMediaParams struct {
 	HasDash           sql.NullBool    `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           bool            `json:"is_extra"`
 }
 
 // Media queries for PostgreSQL
@@ -103,6 +105,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		arg.Height,
 		arg.AspectRatio,
 		arg.Codec,
+		arg.AudioCodec,
 		arg.CodecProfile,
 		arg.BitRate,
 		arg.FrameRate,
@@ -120,6 +123,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		arg.HasDash,
 		arg.DashManifestPath,
 		arg.TranscodingStatus,
+		arg.IsExtra,
 	)
 	var i Medium
 	err := row.Scan(
@@ -135,6 +139,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		&i.Height,
 		&i.AspectRatio,
 		&i.Codec,
+		&i.AudioCodec,
 		&i.CodecProfile,
 		&i.BitRate,
 		&i.FrameRate,
@@ -152,6 +157,7 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 		&i.HasDash,
 		&i.DashManifestPath,
 		&i.TranscodingStatus,
+		&i.IsExtra,
 		&i.DateAdded,
 		&i.DateModified,
 		&i.CreatedAt,
@@ -171,7 +177,7 @@ func (q *Queries) DeleteMedia(ctx context.Context, id int32) error {
 }
 
 const getMediaByFilePath = `-- name: GetMediaByFilePath :one
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, is_extra, date_added, date_modified, created_at, updated_at FROM media
 WHERE library_id = $1 AND file_path = $2
 `
 
@@ -196,6 +202,7 @@ func (q *Queries) GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePath
 		&i.Height,
 		&i.AspectRatio,
 		&i.Codec,
+		&i.AudioCodec,
 		&i.CodecProfile,
 		&i.BitRate,
 		&i.FrameRate,
@@ -213,6 +220,7 @@ func (q *Queries) GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePath
 		&i.HasDash,
 		&i.DashManifestPath,
 		&i.TranscodingStatus,
+		&i.IsExtra,
 		&i.DateAdded,
 		&i.DateModified,
 		&i.CreatedAt,
@@ -222,7 +230,7 @@ func (q *Queries) GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePath
 }
 
 const getMediaByID = `-- name: GetMediaByID :one
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, is_extra, date_added, date_modified, created_at, updated_at FROM media
 WHERE id = $1
 `
 
@@ -242,6 +250,7 @@ func (q *Queries) GetMediaByID(ctx context.Context, id int32) (Medium, error) {
 		&i.Height,
 		&i.AspectRatio,
 		&i.Codec,
+		&i.AudioCodec,
 		&i.CodecProfile,
 		&i.BitRate,
 		&i.FrameRate,
@@ -259,6 +268,7 @@ func (q *Queries) GetMediaByID(ctx context.Context, id int32) (Medium, error) {
 		&i.HasDash,
 		&i.DashManifestPath,
 		&i.TranscodingStatus,
+		&i.IsExtra,
 		&i.DateAdded,
 		&i.DateModified,
 		&i.CreatedAt,
@@ -267,8 +277,72 @@ func (q *Queries) GetMediaByID(ctx context.Context, id int32) (Medium, error) {
 	return i, err
 }
 
+const listAllMedia = `-- name: ListAllMedia :many
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, is_extra, date_added, date_modified, created_at, updated_at FROM media
+ORDER BY title
+`
+
+func (q *Queries) ListAllMedia(ctx context.Context) ([]Medium, error) {
+	rows, err := q.db.QueryContext(ctx, listAllMedia)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Medium{}
+	for rows.Next() {
+		var i Medium
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMediaByLibrary = `-- name: ListMediaByLibrary :many
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, is_extra, date_added, date_modified, created_at, updated_at FROM media
 WHERE library_id = $1
 ORDER BY title
 `
@@ -295,6 +369,7 @@ func (q *Queries) ListMediaByLibrary(ctx context.Context, libraryID int32) ([]Me
 			&i.Height,
 			&i.AspectRatio,
 			&i.Codec,
+			&i.AudioCodec,
 			&i.CodecProfile,
 			&i.BitRate,
 			&i.FrameRate,
@@ -312,6 +387,7 @@ func (q *Queries) ListMediaByLibrary(ctx context.Context, libraryID int32) ([]Me
 			&i.HasDash,
 			&i.DashManifestPath,
 			&i.TranscodingStatus,
+			&i.IsExtra,
 			&i.DateAdded,
 			&i.DateModified,
 			&i.CreatedAt,
@@ -331,7 +407,7 @@ func (q *Queries) ListMediaByLibrary(ctx context.Context, libraryID int32) ([]Me
 }
 
 const listMediaByType = `-- name: ListMediaByType :many
-SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at FROM media
+SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, is_extra, date_added, date_modified, created_at, updated_at FROM media
 WHERE library_id = $1 AND type = $2
 ORDER BY title
 `
@@ -363,6 +439,7 @@ func (q *Queries) ListMediaByType(ctx context.Context, arg ListMediaByTypeParams
 			&i.Height,
 			&i.AspectRatio,
 			&i.Codec,
+			&i.AudioCodec,
 			&i.CodecProfile,
 			&i.BitRate,
 			&i.FrameRate,
@@ -380,6 +457,7 @@ func (q *Queries) ListMediaByType(ctx context.Context, arg ListMediaByTypeParams
 			&i.HasDash,
 			&i.DashManifestPath,
 			&i.TranscodingStatus,
+			&i.IsExtra,
 			&i.DateAdded,
 			&i.DateModified,
 			&i.CreatedAt,
@@ -428,27 +506,29 @@ SET library_id = $1,
     height = $9,
     aspect_ratio = $10,
     codec = $11,
-    codec_profile = $12,
-    bit_rate = $13,
-    frame_rate = $14,
-    scan_type = $15,
-    hdr_format = $16,
-    color_space = $17,
-    color_primaries = $18,
-    thumbnail_path = $19,
-    type = $20,
-    source_type = $21,
-    resolution_label = $22,
-    quality_score = $23,
-    is_3d = $24,
-    stereo_mode = $25,
-    has_dash = $26,
-    dash_manifest_path = $27,
-    transcoding_status = $28,
+    audio_codec = $12,
+    codec_profile = $13,
+    bit_rate = $14,
+    frame_rate = $15,
+    scan_type = $16,
+    hdr_format = $17,
+    color_space = $18,
+    color_primaries = $19,
+    thumbnail_path = $20,
+    type = $21,
+    source_type = $22,
+    resolution_label = $23,
+    quality_score = $24,
+    is_3d = $25,
+    stereo_mode = $26,
+    has_dash = $27,
+    dash_manifest_path = $28,
+    transcoding_status = $29,
+    is_extra = $30,
     date_modified = CURRENT_TIMESTAMP,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $29
-RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at
+WHERE id = $31
+RETURNING id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, is_extra, date_added, date_modified, created_at, updated_at
 `
 
 type UpdateMediaParams struct {
@@ -463,6 +543,7 @@ type UpdateMediaParams struct {
 	Height            sql.NullInt32   `json:"height"`
 	AspectRatio       sql.NullString  `json:"aspect_ratio"`
 	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
 	CodecProfile      sql.NullString  `json:"codec_profile"`
 	BitRate           sql.NullInt64   `json:"bit_rate"`
 	FrameRate         sql.NullFloat64 `json:"frame_rate"`
@@ -480,6 +561,7 @@ type UpdateMediaParams struct {
 	HasDash           sql.NullBool    `json:"has_dash"`
 	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
 	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           bool            `json:"is_extra"`
 	ID                int32           `json:"id"`
 }
 
@@ -496,6 +578,7 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		arg.Height,
 		arg.AspectRatio,
 		arg.Codec,
+		arg.AudioCodec,
 		arg.CodecProfile,
 		arg.BitRate,
 		arg.FrameRate,
@@ -513,6 +596,7 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		arg.HasDash,
 		arg.DashManifestPath,
 		arg.TranscodingStatus,
+		arg.IsExtra,
 		arg.ID,
 	)
 	var i Medium
@@ -529,6 +613,7 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		&i.Height,
 		&i.AspectRatio,
 		&i.Codec,
+		&i.AudioCodec,
 		&i.CodecProfile,
 		&i.BitRate,
 		&i.FrameRate,
@@ -546,6 +631,7 @@ func (q *Queries) UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Mediu
 		&i.HasDash,
 		&i.DashManifestPath,
 		&i.TranscodingStatus,
+		&i.IsExtra,
 		&i.DateAdded,
 		&i.DateModified,
 		&i.CreatedAt,

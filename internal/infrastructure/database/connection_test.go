@@ -159,22 +159,131 @@ func TestConfig_Validate(t *testing.T) {
 }
 
 func TestLoadConfigFromEnv(t *testing.T) {
-	// Simple test - just verify it returns a config without panicking
-	// Actual env var testing would require os.Setenv which affects global state
-	config := LoadConfigFromEnv()
+	// Save original env vars and restore after test
+	originalDriver := getEnvOrDefault("DB_DRIVER", "")
+	t.Cleanup(func() {
+		if originalDriver != "" {
+			t.Setenv("DB_DRIVER", originalDriver)
+		}
+	})
 
-	if config == nil {
-		t.Fatal("LoadConfigFromEnv() returned nil")
+	// Test 1: Default SQLite configuration
+	t.Run("default SQLite config", func(t *testing.T) {
+		config := LoadConfigFromEnv()
+		if config == nil {
+			t.Fatal("LoadConfigFromEnv() returned nil")
+		}
+		if config.Driver != "sqlite" {
+			t.Errorf("Expected default driver 'sqlite', got %s", config.Driver)
+		}
+		if config.DBName == "" {
+			t.Error("LoadConfigFromEnv() DBName is empty")
+		}
+	})
+
+	// Test 2: PostgreSQL configuration
+	t.Run("postgres config from env", func(t *testing.T) {
+		t.Setenv("DB_DRIVER", "postgres")
+		t.Setenv("DB_HOST", "testhost")
+		t.Setenv("DB_PORT", "5433")
+		t.Setenv("DB_USER", "testuser")
+		t.Setenv("DB_PASSWORD", "testpass")
+		t.Setenv("DB_NAME", "testdb")
+		t.Setenv("DB_SSL_MODE", "require")
+
+		config := LoadConfigFromEnv()
+		if config.Driver != "postgres" {
+			t.Errorf("Expected driver 'postgres', got %s", config.Driver)
+		}
+		if config.Host != "testhost" {
+			t.Errorf("Expected host 'testhost', got %s", config.Host)
+		}
+		if config.Port != "5433" {
+			t.Errorf("Expected port '5433', got %s", config.Port)
+		}
+		if config.User != "testuser" {
+			t.Errorf("Expected user 'testuser', got %s", config.User)
+		}
+		if config.Password != "testpass" {
+			t.Errorf("Expected password 'testpass', got %s", config.Password)
+		}
+		if config.DBName != "testdb" {
+			t.Errorf("Expected dbname 'testdb', got %s", config.DBName)
+		}
+		if config.SSLMode != "require" {
+			t.Errorf("Expected sslmode 'require', got %s", config.SSLMode)
+		}
+	})
+}
+
+func TestConnect_SQLite(t *testing.T) {
+	// Test SQLite connection with in-memory database
+	config := &Config{
+		Driver: "sqlite",
+		DBName: ":memory:",
 	}
 
-	// Should have a driver (either from env or default)
-	if config.Driver == "" {
-		t.Error("LoadConfigFromEnv() driver is empty")
+	db, err := Connect(config)
+	if err != nil {
+		t.Fatalf("Connect() failed: %v", err)
+	}
+	defer db.Close()
+
+	// Verify connection works
+	if err := db.Ping(); err != nil {
+		t.Errorf("Ping() failed: %v", err)
+	}
+}
+
+func TestConnect_InvalidDriver(t *testing.T) {
+	config := &Config{
+		Driver: "mysql",
+		DBName: "test.db",
 	}
 
-	// Should have a DBName (either from env or default)
-	if config.DBName == "" {
-		t.Error("LoadConfigFromEnv() DBName is empty")
+	_, err := Connect(config)
+	if err == nil {
+		t.Error("Connect() expected error for invalid driver, got nil")
+	}
+	if !contains(err.Error(), "unsupported database driver") {
+		t.Errorf("Connect() error = %v, want error containing 'unsupported database driver'", err)
+	}
+}
+
+func TestGetEnvOrDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue string
+		envValue     string
+		want         string
+	}{
+		{
+			name:         "env var set",
+			key:          "TEST_VAR",
+			defaultValue: "default",
+			envValue:     "custom",
+			want:         "custom",
+		},
+		{
+			name:         "env var not set",
+			key:          "NONEXISTENT_VAR",
+			defaultValue: "default",
+			envValue:     "",
+			want:         "default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv(tt.key, tt.envValue)
+			}
+			got := getEnvOrDefault(tt.key, tt.defaultValue)
+			if got != tt.want {
+				t.Errorf("getEnvOrDefault() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

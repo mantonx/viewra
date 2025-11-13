@@ -4,7 +4,7 @@ const useInvalidateLibraries = () => {
   const queryClient = useQueryClient()
 
   return () => {
-    queryClient.invalidateQueries({ queryKey: ['LibrariesService', 'getApiLibraries'] })
+    queryClient.invalidateQueries({ queryKey: ['/api/libraries'] })
   }
 }
 

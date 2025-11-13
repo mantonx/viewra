@@ -52,6 +52,14 @@ func (m *mockMediaRepository) GetByFilePath(ctx context.Context, libraryID int64
 	return nil, media.ErrMediaNotFound
 }
 
+func (m *mockMediaRepository) ListAll(ctx context.Context) ([]*media.Media, error) {
+	result := make([]*media.Media, 0, len(m.media))
+	for _, med := range m.media {
+		result = append(result, med)
+	}
+	return result, nil
+}
+
 func (m *mockMediaRepository) ListByLibrary(ctx context.Context, libraryID int64) ([]*media.Media, error) {
 	var result []*media.Media
 	for _, med := range m.media {

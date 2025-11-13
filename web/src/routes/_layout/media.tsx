@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useMediaServiceGetApiMedia, useLibrariesServiceGetApiLibraries } from '@/lib/api'
+import { getGetApiMediaQueryOptions, getGetApiLibrariesQueryOptions } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Card, CardContent, Input, Select, Alert, Loading } from '@/components/ui'
 import { MediaCard } from '@/components/media'
@@ -13,14 +14,14 @@ const Media = () => {
     data: mediaData,
     isLoading: isLoadingMedia,
     error: mediaError,
-  } = useMediaServiceGetApiMedia()
-  const { data: librariesData } = useLibrariesServiceGetApiLibraries()
+  } = useQuery(getGetApiMediaQueryOptions())
+  const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
 
-  const libraries = librariesData?.libraries || []
-  const allMedia = mediaData?.media || []
+  const libraries = (librariesData && 'data' in librariesData && librariesData.data && 'libraries' in librariesData.data ? librariesData.data.libraries : []) || []
+  const allMedia = (mediaData && 'data' in mediaData && mediaData.data && 'media' in mediaData.data ? mediaData.data.media : []) || []
 
   // Filter media by selected library and search query
-  const filteredMedia = allMedia.filter((item) => {
+  const filteredMedia = allMedia.filter((item: any) => {
     const matchesLibrary = selectedLibrary === 'all' || item.library_id === selectedLibrary
     const matchesSearch =
       searchQuery === '' || item.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -63,7 +64,7 @@ const Media = () => {
               onChange={(e) => setSelectedLibrary(e.target.value)}
               options={[
                 { value: 'all', label: 'All Libraries' },
-                ...libraries.map((lib) => ({
+                ...libraries.map((lib: any) => ({
                   value: String(lib.id),
                   label: lib.name || '',
                 })),
@@ -90,7 +91,7 @@ const Media = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {filteredMedia.map((item) => (
+          {filteredMedia.map((item: any) => (
             <MediaCard key={item.id} media={item} />
           ))}
         </div>

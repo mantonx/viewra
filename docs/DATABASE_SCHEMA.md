@@ -69,6 +69,11 @@ CREATE INDEX idx_libraries_path ON libraries(path);
 
 Common fields for all media types.
 
+**Migration History**:
+- Base schema: Migration 000001
+- `is_extra` column: Added in migration 000003
+- `audio_codec` column: Added in migration 000004
+
 ```sql
 CREATE TABLE media (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,6 +88,7 @@ CREATE TABLE media (
     height INTEGER,
     aspect_ratio TEXT,
     codec TEXT,
+    audio_codec TEXT,
     codec_profile TEXT,
     bit_rate INTEGER,
     frame_rate REAL,
@@ -100,6 +106,7 @@ CREATE TABLE media (
     has_dash BOOLEAN DEFAULT FALSE,
     dash_manifest_path TEXT,
     transcoding_status TEXT CHECK(transcoding_status IN ('pending', 'processing', 'completed', 'failed', NULL)),
+    is_extra BOOLEAN DEFAULT 0 NOT NULL,
     date_added DATETIME DEFAULT CURRENT_TIMESTAMP,
     date_modified DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -129,7 +136,8 @@ CREATE INDEX idx_media_date_added ON media(date_added);
 - `duration` - Duration in seconds
 - `width` / `height` - Video dimensions in pixels
 - `aspect_ratio` - Display aspect ratio (16:9, 2.35:1, 4:3, etc.)
-- `codec` - Video/audio codec (H.264, HEVC, AAC, etc.)
+- `codec` - Video codec (H.264, HEVC, VP9, AV1, etc.)
+- `audio_codec` - Audio codec (AAC, AC3, DTS, TrueHD, FLAC, etc.)
 - `codec_profile` - Codec profile (High, Main, Baseline)
 - `bit_rate` - Bitrate in bits per second
 - `frame_rate` - FPS for video
@@ -145,6 +153,7 @@ CREATE INDEX idx_media_date_added ON media(date_added);
 - `is_3d` - Whether this is 3D content
 - `stereo_mode` - 3D format: sbs (side-by-side), tab (top-and-bottom), mvc
 - `has_dash` - Whether DASH version exists
+- `is_extra` - Whether this is an extra/bonus content (behind-the-scenes, deleted scenes, etc.)
 - `dash_manifest_path` - Path to .mpd manifest
 - `transcoding_status` - Current transcode state
 - `date_added` - When file was first scanned/added
@@ -576,6 +585,62 @@ CREATE INDEX idx_transcode_jobs_created_at ON transcode_jobs(created_at);
 - `media_id` - Get all jobs for media
 - `status` - Find queued/processing jobs
 - `created_at` - FIFO queue ordering
+
+---
+
+### Scan Jobs Table
+
+Tracks library scan operations and their progress.
+
+**Migration History**: Added in migration 000002
+
+```sql
+CREATE TABLE scan_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    library_id INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'paused', 'completed', 'failed')),
+    progress REAL DEFAULT 0.0,
+    files_found INTEGER DEFAULT 0,
+    files_processed INTEGER DEFAULT 0,
+    bytes_processed INTEGER DEFAULT 0,
+    error_count INTEGER DEFAULT 0,
+    started_at DATETIME,
+    completed_at DATETIME,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (library_id) REFERENCES libraries(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_scan_jobs_library_id ON scan_jobs(library_id);
+CREATE INDEX idx_scan_jobs_status ON scan_jobs(status);
+CREATE INDEX idx_scan_jobs_created_at ON scan_jobs(created_at);
+CREATE INDEX idx_scan_jobs_started_at ON scan_jobs(started_at);
+```
+
+**Fields**:
+- `id` - Primary key
+- `library_id` - Reference to library being scanned
+- `status` - Scan status (pending, running, paused, completed, failed)
+- `progress` - Percentage complete (0.0-100.0)
+- `files_found` - Total media files discovered
+- `files_processed` - Number of files scanned so far
+- `bytes_processed` - Total bytes processed
+- `error_count` - Number of errors encountered
+- `started_at` - When scan began
+- `completed_at` - When scan finished
+- `error_message` - Error details if failed
+- `created_at` - When scan was queued
+- `updated_at` - Last progress update
+
+**Constraints**:
+- Foreign key to `libraries` with CASCADE delete
+
+**Indexes**:
+- `library_id` - Find scans for a library
+- `status` - Query active/failed scans
+- `created_at` - Scan history chronology
+- `started_at` - Currently running scans
 
 ---
 

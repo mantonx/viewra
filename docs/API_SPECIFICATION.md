@@ -104,6 +104,8 @@ Authorization: Bearer <token>
 | `SCAN_IN_PROGRESS` | Library scan already running |
 | `TRANSCODE_FAILED` | Transcoding job failed |
 | `FILE_NOT_FOUND` | Media file not found on disk |
+| `ACCESS_DENIED` | Access to path is denied (outside allowed directories) |
+| `PERMISSION_DENIED` | Insufficient filesystem permissions |
 
 ---
 
@@ -348,6 +350,108 @@ data: {"scan_id":"uuid-1234","status":"completed","files_added":45,"files_update
 event: error
 data: {"scan_id":"uuid-1234","status":"failed","error":"Permission denied"}
 ```
+
+---
+
+## Filesystem
+
+### Browse Filesystem
+
+#### GET /api/filesystem/browse
+
+Browse server filesystem directories for library path selection.
+
+**Security**: Only returns directories. System directories are restricted. Path traversal is prevented.
+
+**Query Parameters**:
+- `path` (optional) - Directory path to browse (default: server-configured base path or user home)
+
+**Response**: `200 OK`
+
+```json
+{
+  "current_path": "/media/movies",
+  "parent": "/media",
+  "is_root": false,
+  "directories": [
+    {
+      "name": "action",
+      "path": "/media/movies/action",
+      "readable": true,
+      "writable": false,
+      "modified_at": "2024-11-11T10:30:00Z"
+    },
+    {
+      "name": "comedy",
+      "path": "/media/movies/comedy",
+      "readable": true,
+      "writable": false,
+      "modified_at": "2024-11-10T15:20:00Z"
+    }
+  ]
+}
+```
+
+**Response Fields**:
+- `current_path` - Absolute path of current directory
+- `parent` - Parent directory path (null if at root/base path)
+- `is_root` - Whether at the root of allowed browsing area
+- `directories` - Array of subdirectories (files are excluded)
+  - `name` - Directory name
+  - `path` - Absolute path
+  - `readable` - Whether directory is readable
+  - `writable` - Whether directory is writable (for library validation)
+  - `modified_at` - Last modification time
+
+**Errors**:
+- `400` - Invalid path (path traversal attempt, malformed path)
+- `403` - Access denied (outside allowed directories, system directory)
+- `404` - Directory not found
+
+**Error Examples**:
+
+```json
+{
+  "error": {
+    "code": "INVALID_PATH",
+    "message": "Path contains invalid sequences (..)"
+  }
+}
+```
+
+```json
+{
+  "error": {
+    "code": "ACCESS_DENIED",
+    "message": "Path is outside allowed directories"
+  }
+}
+```
+
+```json
+{
+  "error": {
+    "code": "PERMISSION_DENIED",
+    "message": "Insufficient permissions to read directory"
+  }
+}
+```
+
+**Security Considerations**:
+- Only directories within configured allowed base paths are accessible
+- Path traversal attempts (`..`, symlinks) are blocked
+- System directories (`/etc`, `/sys`, `/proc`, etc.) are blocked
+- Hidden directories (starting with `.`) are excluded from results
+- Permissions are checked before listing directory contents
+- Empty path defaults to safe base directory (not root)
+
+**Allowed Base Paths** (server configuration):
+- Default: User home directory
+- Common media paths: `/media`, `/mnt`, `/home/*/Videos`, `/home/*/Movies`
+- Configurable via server config file or environment variables
+
+**Use Case**:
+This endpoint powers the folder browser dialog in the library creation/edit form, allowing users to visually navigate the filesystem instead of manually typing paths.
 
 ---
 
@@ -916,42 +1020,160 @@ Get all music tracks.
 Get watch progress for all media.
 
 **Query Parameters**:
-- `watched` (optional) - Filter: `true`, `false`
+- `limit` (optional) - Results per page (default: 50)
+- `offset` (optional) - Results offset (default: 0)
 - `media_type` (optional) - Filter: `movie`, `tv_episode`, `music_track`
 
 **Response**: `200 OK`
 
 ```json
-[
-  {
-    "id": 1,
-    "media_id": 1,
-    "media_title": "The Matrix",
-    "media_type": "movie",
-    "position": 3600,
-    "duration": 8160,
-    "watched": false,
-    "progress_percent": 44,
-    "last_watched": "2024-11-11T20:00:00Z"
-  }
-]
+{
+  "items": [
+    {
+      "id": 1,
+      "media_id": 1,
+      "media_title": "The Matrix",
+      "media_type": "movie",
+      "position": 3600,
+      "duration": 8160,
+      "watched": false,
+      "progress_percent": 44,
+      "last_watched": "2024-11-11T20:00:00Z"
+    }
+  ],
+  "total": 100,
+  "limit": 50,
+  "offset": 0
+}
 ```
+
+---
+
+### Get Watched Media
+
+#### GET /api/progress/watched
+
+Get all media marked as watched.
+
+**Query Parameters**:
+- `limit` (optional) - Results per page (default: 50)
+- `offset` (optional) - Results offset (default: 0)
+- `media_type` (optional) - Filter: `movie`, `tv_episode`, `music_track`
+
+**Response**: `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "media_id": 1,
+      "media_title": "The Matrix",
+      "media_type": "movie",
+      "position": 8160,
+      "duration": 8160,
+      "watched": true,
+      "progress_percent": 100,
+      "last_watched": "2024-11-11T20:00:00Z"
+    }
+  ],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+### Get In-Progress Media
+
+#### GET /api/progress/in-progress
+
+Get all media that is partially watched (not completed).
+
+**Query Parameters**:
+- `limit` (optional) - Results per page (default: 50)
+- `offset` (optional) - Results offset (default: 0)
+- `media_type` (optional) - Filter: `movie`, `tv_episode`, `music_track`
+
+**Response**: `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "media_id": 1,
+      "media_title": "The Matrix",
+      "media_type": "movie",
+      "position": 3600,
+      "duration": 8160,
+      "watched": false,
+      "progress_percent": 44,
+      "last_watched": "2024-11-11T20:00:00Z"
+    }
+  ],
+  "total": 12,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+### Get Progress for Specific Media
+
+#### GET /api/progress/:media_id
+
+Get watch progress for a specific media item.
+
+**Path Parameters**:
+- `media_id` (required) - Media ID
+
+**Response**: `200 OK`
+
+```json
+{
+  "id": 1,
+  "media_id": 1,
+  "media_title": "The Matrix",
+  "media_type": "movie",
+  "position": 3600,
+  "duration": 8160,
+  "watched": false,
+  "progress_percent": 44,
+  "last_watched": "2024-11-11T20:00:00Z"
+}
+```
+
+**Response**: `404 NOT FOUND` - No progress found for this media
+
+---
+
+### Delete Progress
+
+#### DELETE /api/progress/:media_id
+
+Delete watch progress for a media item.
+
+**Path Parameters**:
+- `media_id` (required) - Media ID
+
+**Response**: `204 NO CONTENT`
 
 ---
 
 ### Update Watch Progress
 
-#### PUT /api/progress/:media_id
+#### PUT /api/progress
 
 Update watch progress for a media item.
-
-**Path Parameters**:
-- `media_id` (required) - Media ID
 
 **Request Body**:
 
 ```json
 {
+  "media_id": 1,
   "position": 3600,
   "duration": 8160
 }
@@ -977,12 +1199,17 @@ Update watch progress for a media item.
 
 ### Mark as Watched
 
-#### POST /api/progress/:media_id/watched
+#### POST /api/progress/mark-watched
 
 Mark media as watched.
 
-**Path Parameters**:
-- `media_id` (required) - Media ID
+**Request Body**:
+
+```json
+{
+  "media_id": 1
+}
+```
 
 **Response**: `200 OK`
 
@@ -999,12 +1226,17 @@ Mark media as watched.
 
 ### Mark as Unwatched
 
-#### DELETE /api/progress/:media_id/watched
+#### POST /api/progress/mark-unwatched
 
 Mark media as unwatched and reset position.
 
-**Path Parameters**:
-- `media_id` (required) - Media ID
+**Request Body**:
+
+```json
+{
+  "media_id": 1
+}
+```
 
 **Response**: `200 OK`
 

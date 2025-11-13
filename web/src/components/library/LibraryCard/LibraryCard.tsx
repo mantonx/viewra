@@ -1,15 +1,12 @@
-import {
-  useLibrariesServiceDeleteApiLibrariesId,
-  useLibrariesServicePostApiLibrariesIdScan,
-} from '@/lib/api'
+import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan } from '@/lib/api'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { Button } from '@/components/ui'
 import type { LibraryCardProps } from './LibraryCard.types'
 
 const LibraryCard = ({ library }: LibraryCardProps) => {
   const invalidateLibraries = useInvalidateLibraries()
-  const deleteMutation = useLibrariesServiceDeleteApiLibrariesId()
-  const scanMutation = useLibrariesServicePostApiLibrariesIdScan()
+  const deleteMutation = useDeleteApiLibrariesId()
+  const scanMutation = usePostApiLibrariesIdScan()
 
   const handleDelete = async () => {
     if (!library.id || !library.name) {

@@ -4,35 +4,35 @@
 
 This document outlines ViewRA's testing strategy, current coverage, and improvement roadmap.
 
-## Current Test Coverage: 37.8%
+## Current Test Coverage: 44.1%
 
-### Coverage by Layer
+### Coverage by Package
 
-#### Domain Layer (Business Logic) - 88.9% average ✅
-- **library**: 89.0% - Excellent
-- **media**: 91.9% - Excellent ⭐ (improved from 54.1%)
-- **scanner**: 85.7% - Excellent
-
-#### Application Layer (Use Cases) - 62.5% average ⚠️
-- **common**: 67.9% - Good
-- **library**: 32.0% - Needs significant improvement
-- **media**: 87.5% - Excellent
-
-#### Infrastructure Layer - 72.5% average ✅
-- **persistence/common**: 100.0% - Perfect ⭐ (improved from 47.1%)
-- **streaming**: 93.8% - Excellent
-- **ffmpeg**: 89.0% - Excellent
-- **filesystem**: 76.7% - Good
-- **persistence/media**: 64.9% - Good (improved from 52.3%)
-- **persistence/library**: 63.5% - Good
-- **persistence/adapters**: 59.1% - Fair
-- **persistence/scanjob**: 0% - New package, no tests
-- **database (sqlc)**: 0% - Generated code, typically not tested
-
-#### API Layer - 13.2% ⚠️
-- **api/handlers**: 13.2% - Tests for error handling and helper functions
-- **api**: 0% - No tests
-- **api/routes**: 0% - No tests
+| Package | Coverage | Priority | Status |
+|---------|----------|----------|--------|
+| **High Coverage (>80%)** | | | |
+| internal/infrastructure/persistence/common | 100.0% | - | ✅ Complete |
+| internal/infrastructure/streaming | 93.8% | Medium | Good |
+| internal/domain/media | 91.9% | - | ✅ Complete |
+| internal/domain/library | 89.0% | - | ✅ Complete |
+| internal/infrastructure/ffmpeg | 89.0% | Medium | Good |
+| internal/application/media | 87.5% | Medium | Good |
+| internal/domain/scanner | 85.7% | Medium | Good |
+| **Medium Coverage (60-80%)** | | | |
+| internal/infrastructure/filesystem | 76.7% | Medium | Good |
+| internal/application/common | 67.9% | Medium | Good |
+| internal/infrastructure/persistence/media | 64.9% | Medium | Good |
+| internal/infrastructure/persistence/library | 63.5% | Medium | Good |
+| internal/application/library | 62.1% | High | Recently Improved |
+| **Low Coverage (<60%)** | | | |
+| internal/infrastructure/persistence/adapters | 59.1% | High | Needs Work |
+| internal/api/handlers | 13.2% | **Critical** | Urgent |
+| **No Coverage (0%)** | | | |
+| internal/infrastructure/persistence/scanjob | 0.0% | **Critical** | Urgent |
+| internal/infrastructure/persistence/progress | 0.0% | High | Needs Tests |
+| internal/api/handlers/progress | 0.0% | High | Needs Tests |
+| internal/api/routes | 0.0% | Low | Not Critical |
+| internal/api | 0.0% | Low | Not Critical |
 
 ## Testing Principles
 
@@ -52,7 +52,9 @@ This document outlines ViewRA's testing strategy, current coverage, and improvem
 - ❌ Simple getters/setters
 
 ### 3. Test Structure
-Follow Go best practices:
+
+Follow Go best practices with table-driven tests:
+
 ```go
 func TestFunctionName(t *testing.T) {
     tests := []struct {
@@ -61,12 +63,32 @@ func TestFunctionName(t *testing.T) {
         want    Type
         wantErr bool
     }{
-        // Test cases
+        {
+            name: "happy path",
+            input: validInput,
+            want: expectedOutput,
+            wantErr: false,
+        },
+        {
+            name: "error case",
+            input: invalidInput,
+            wantErr: true,
+        },
     }
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            // Arrange, Act, Assert
+            // Arrange
+            // Act
+            got, err := FunctionName(tt.input)
+
+            // Assert
+            if tt.wantErr {
+                require.Error(t, err)
+                return
+            }
+            require.NoError(t, err)
+            require.Equal(t, tt.want, got)
         })
     }
 }
@@ -74,165 +96,163 @@ func TestFunctionName(t *testing.T) {
 
 ## Priority Improvements
 
-### Phase 1: Critical Gaps (Target: 50% overall)
-1. **Application/Library Use Cases** (32% → 70%)
-   - CreateLibraryUseCase tests
-   - UpdateLibraryUseCase tests
-   - DeleteLibraryUseCase tests
-   - ScanLibraryUseCase tests
+### Phase 1: Critical Infrastructure (Target: +15% overall)
 
-2. **Domain/Media** (54% → 80%)
-   - Complete media entity tests
-   - Media validation tests
-   - Media error cases
+#### 1.1 Scan Job Repository (0% → 80%+)
+**Package**: `internal/infrastructure/persistence/scanjob`
+**Impact**: Very High - Critical for scan functionality
+**Estimated Effort**: 2-3 days
+**Target**: 80%+ coverage
 
-3. **Persistence/Common** (47% → 70%)
-   - Database helper tests
-   - Transaction tests
-   - Error mapping tests
+**Test Strategy**:
+- Integration tests with both SQLite and PostgreSQL
+- Test all CRUD operations
+- Test error handling (sql.ErrNoRows, connection errors)
+- Test data conversion between domain and persistence layers
 
-### Phase 2: API Layer (Target: 60% overall)
-4. **API Handlers** (0% → 70%)
-   - LibraryHandler integration tests
-   - MediaHandler integration tests
-   - StreamHandler integration tests
-   - Error response tests
+**Test Cases Needed**:
+1. Create scan job (SQLite and Postgres)
+2. GetByID - existing and non-existent
+3. GetLatestByLibrary - with and without jobs
+4. ListByLibrary - with limits, empty results
+5. ListRunning - filter by status
+6. UpdateProgress - valid and invalid IDs
+7. UpdateStatus - valid and invalid IDs
+8. Complete - success and error paths
+9. Delete - valid and invalid IDs
+10. DeleteOld - various retention periods
+11. convertToScanJob - both database types
 
-5. **API Routes** (0% → 100%)
-   - Route registration tests
-   - Middleware tests (future)
+#### 1.2 Progress Feature Repository & Handlers (0% → 80%+)
+**Packages**:
+- `internal/infrastructure/persistence/progress`
+- `internal/api/handlers/progress`
 
-### Phase 3: Infrastructure Completeness (Target: 70% overall)
-6. **Persistence/ScanJob** (0% → 80%)
-   - Repository tests
-   - Query tests
+**Impact**: High - User-facing watch progress tracking
+**Estimated Effort**: 2-3 days
+**Target**: 80%+ coverage
 
-7. **Remaining Persistence** (50-65% → 80%)
-   - Improve media persistence tests
-   - Improve adapter tests
+**What Exists**:
+- ✅ Domain tests: entity_test.go (comprehensive)
+- ✅ Application tests: update_progress_test.go, get_progress_test.go, mark_watched_test.go
+- ❌ Repository tests: Missing
+- ❌ API handler tests: Missing
 
-## Test Examples
+**Test Cases Needed**:
+1. Repository integration tests with dual DB support
+2. HTTP handler tests for all 8 endpoints
+3. Request validation tests
+4. Error response tests
+5. Pagination tests
 
-### Excellent Test Coverage Example: Streaming
+#### 1.3 API Handlers (13.2% → 70%+)
+**Package**: `internal/api/handlers`
+**Impact**: High - User-facing functionality
+**Estimated Effort**: 3-4 days
+**Target**: 70%+ coverage
 
-The `internal/infrastructure/streaming` package demonstrates our testing standards:
+**Files to Test**:
+- `library.go` - Library CRUD and scan endpoints (0% coverage)
+- `media.go` - Media list and get endpoints (0% coverage)
+- `stream.go` - Streaming endpoint (0% coverage)
+- `errors.go` - Already at 100% ✅
+- `helpers.go` - Already at 100% ✅
 
-**Coverage**: 93.8%
-**Test Files**: 3 (content_type_test.go, range_test.go, service_test.go)
-**Test Lines**: 559 lines
-**Features Tested**:
-- All 22 video/audio MIME types
-- All HTTP range formats (normal, suffix, open-ended)
-- File operations with real I/O
-- Error conditions (11 different error cases)
-- Edge cases (single byte, beyond file size, etc.)
+**Test Strategy**:
+- Use httptest for HTTP handler testing
+- Mock all use cases
+- Test request parsing and validation
+- Test response serialization
+- Test error handling and status codes
 
-### Pattern to Follow
+### Phase 2: Medium Priority (Target: +10% overall)
 
-```go
-// Example from streaming tests
-func TestService_PrepareStream(t *testing.T) {
-    // Setup: Create test fixtures
-    tmpDir := t.TempDir()
-    testFile := filepath.Join(tmpDir, "test.mp4")
-    testContent := make([]byte, 1000)
-    os.WriteFile(testFile, testContent, 0644)
+#### 2.1 Persistence Adapters (59.1% → 80%+)
+**Package**: `internal/infrastructure/persistence/adapters`
+**Estimated Effort**: 1-2 days
 
-    service := NewService()
+#### 2.2 Application/Library (62.1% → 80%+)
+**Package**: `internal/application/library`
+**Estimated Effort**: 1-2 days
+**Note**: Recently improved from 32% to 62.1%
 
-    t.Run("Full file without range", func(t *testing.T) {
-        // Arrange
-        req := StreamRequest{FilePath: testFile}
-
-        // Act
-        resp, err := service.PrepareStream(req)
-
-        // Assert
-        if err != nil {
-            t.Fatalf("unexpected error: %v", err)
-        }
-        defer resp.Close()
-
-        if resp.FileSize != 1000 {
-            t.Errorf("FileSize = %d, want 1000", resp.FileSize)
-        }
-    })
-
-    // More test cases...
-}
-```
+### Phase 3: Nice-to-Have (Future)
+- API routes (currently 0% but low priority - simple registration)
+- Additional edge cases for well-covered packages
+- Performance benchmarks
+- E2E integration tests
 
 ## Running Tests
 
-### All Tests
-```bash
-go test ./...
-```
+### Quick Commands
 
-### With Coverage
 ```bash
-go test ./... -cover
-```
+# Run all tests
+make test
 
-### Coverage Report
-```bash
-go test ./... -coverprofile=coverage.out
+# Run tests with coverage
+go test -v -coverprofile=coverage.out ./...
+
+# View coverage report
 go tool cover -html=coverage.out
+
+# Coverage summary
+go tool cover -func=coverage.out | grep total
+
+# Run specific package tests
+go test -v ./internal/domain/media/...
+
+# Run tests in short mode (skip integration tests)
+go test -short ./...
 ```
 
-### Specific Package
-```bash
-go test ./internal/domain/library/... -v
-```
+### Coverage Targets
 
-### Short Tests (Skip Integration)
-```bash
-go test ./... -short
-```
+- **Domain Layer**: Maintain >85% (currently 88.9%)
+- **Application Layer**: Improve to >70% (currently 62.5%)
+- **Infrastructure Layer**: Improve to >75% (currently 72.5%)
+- **API Layer**: Improve to >60% (currently 13.2%)
 
-## Test Organization
+**Overall Target**: 60% coverage within 2-3 weeks
+
+## Test Conventions
 
 ### File Naming
-- Test files: `*_test.go`
-- Same package: `package mypackage`
-- Black-box testing: `package mypackage_test`
+- Test files: `*_test.go` in same package
+- Integration tests: Use build tag `// +build integration` if needed
+- Mock files: `mock_*.go` (if using mockgen)
 
-### Test Naming
-- Functions: `TestFunctionName`
-- Methods: `TestTypeName_MethodName`
-- Subtests: Descriptive names in natural language
+### Test Data
+- Use test fixtures in `testdata/` directories
+- Keep test data minimal and focused
+- Use table-driven tests for multiple scenarios
 
-### Test Fixtures
-- Use `t.TempDir()` for temporary directories
-- Clean up with `defer` statements
-- Create reusable test helpers in `testdata/` or `testing.go` files
+### Assertions
+- Use `testify/require` for assertions that should stop test execution
+- Use `testify/assert` for non-critical assertions
+- Always include meaningful error messages
 
-## Coverage Goals
-
-- **Critical Paths**: 90%+ (domain, core use cases)
-- **Infrastructure**: 70%+ (persistence, adapters)
-- **API Layer**: 70%+ (handlers, routes)
-- **Overall Project**: 70%+
+### Database Tests
+- Use in-memory SQLite for fast tests
+- Use test containers for PostgreSQL integration tests
+- Clean up database state after each test
+- Use transactions for test isolation when possible
 
 ## Continuous Improvement
 
-1. **PR Requirements**:
-   - New code must have tests
-   - Coverage should not decrease
-   - Tests must pass in CI
+### Weekly Goals
+- Add 2-3% coverage per week
+- Focus on one package at a time
+- Review and update this document monthly
 
-2. **Monthly Review**:
-   - Check coverage trends
-   - Identify gaps
-   - Prioritize improvements
+### Automated Checks
+- CI runs all tests on every PR
+- Coverage report generated and tracked
+- Fail PR if coverage decreases by >2%
 
-3. **Quality Metrics**:
-   - Test execution time
-   - Flaky test rate
-   - Coverage by layer
+### Documentation
+- Update test counts in this document after major additions
+- Document complex test scenarios
+- Link to ADRs for testing decisions
 
-## Resources
-
-- [Go Testing Best Practices](https://go.dev/doc/effective_go#testing)
-- [Table-Driven Tests](https://dave.cheney.net/2019/05/07/prefer-table-driven-tests)
-- [Test Fixtures](https://dave.cheney.net/2016/05/10/test-fixtures-in-go)
+**Last Updated**: 2025-11-12

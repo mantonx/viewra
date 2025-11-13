@@ -19,6 +19,16 @@ func NewListMediaUseCase(repo media.Repository) *ListMediaUseCase {
 	}
 }
 
+// ExecuteAll retrieves all media items across all libraries
+func (uc *ListMediaUseCase) ExecuteAll(ctx context.Context) (ListMediaResponse, error) {
+	mediaList, err := uc.repo.ListAll(ctx)
+	if err != nil {
+		return ListMediaResponse{}, fmt.Errorf("failed to list all media: %w", err)
+	}
+
+	return ToListMediaResponse(mediaList), nil
+}
+
 // Execute retrieves all media items in a library
 func (uc *ListMediaUseCase) Execute(ctx context.Context, libraryID int64) (ListMediaResponse, error) {
 	mediaList, err := uc.repo.ListByLibrary(ctx, libraryID)

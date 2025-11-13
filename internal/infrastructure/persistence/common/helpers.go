@@ -50,12 +50,21 @@ func ParseTimeInterface(t interface{}) time.Time {
 	return time.Time{}
 }
 
+// NullInt32 creates a sql.NullInt32 from an int32 value
+// Valid is true if value is non-zero
+func NullInt32(value int32) sql.NullInt32 {
+	return sql.NullInt32{
+		Int32: value,
+		Valid: value != 0,
+	}
+}
+
 // NullInt64 creates a sql.NullInt64 from an int64 value
 // Valid is true if value is non-zero
 func NullInt64(value int64) sql.NullInt64 {
 	return sql.NullInt64{
 		Int64: value,
-		Valid: value > 0,
+		Valid: value != 0,
 	}
 }
 
@@ -64,7 +73,7 @@ func NullInt64(value int64) sql.NullInt64 {
 func NullFloat64(value float64) sql.NullFloat64 {
 	return sql.NullFloat64{
 		Float64: value,
-		Valid:   value > 0,
+		Valid:   value != 0,
 	}
 }
 
@@ -114,4 +123,109 @@ func ParseNullTimePtr(t sql.NullTime) *time.Time {
 		return &t.Time
 	}
 	return nil
+}
+
+// NullBool creates a sql.NullBool from a bool value
+// Always valid
+func NullBool(value bool) sql.NullBool {
+	return sql.NullBool{
+		Bool:  value,
+		Valid: true,
+	}
+}
+
+// Conversion helpers for watch progress repository
+
+// Int64ToNullInt64 converts int64 to sql.NullInt64
+func Int64ToNullInt64(value int64) sql.NullInt64 {
+	return sql.NullInt64{
+		Int64: value,
+		Valid: value != 0,
+	}
+}
+
+// Int64ToNullInt32 converts int64 to sql.NullInt32
+func Int64ToNullInt32(value int64) sql.NullInt32 {
+	return sql.NullInt32{
+		Int32: int32(value),
+		Valid: value != 0,
+	}
+}
+
+// Float64ToNullFloat64 converts float64 to sql.NullFloat64
+func Float64ToNullFloat64(value float64) sql.NullFloat64 {
+	return sql.NullFloat64{
+		Float64: value,
+		Valid:   value != 0,
+	}
+}
+
+// BoolToNullBool converts bool to sql.NullBool
+func BoolToNullBool(value bool) sql.NullBool {
+	return sql.NullBool{
+		Bool:  value,
+		Valid: true,
+	}
+}
+
+// TimeToNullTime converts time.Time to sql.NullTime
+func TimeToNullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{
+		Time:  t,
+		Valid: !t.IsZero(),
+	}
+}
+
+// NullInt64ToInt64 converts sql.NullInt64 to int64
+func NullInt64ToInt64(value sql.NullInt64) int64 {
+	if value.Valid {
+		return value.Int64
+	}
+	return 0
+}
+
+// NullInt32ToInt64 converts sql.NullInt32 to int64
+func NullInt32ToInt64(value sql.NullInt32) int64 {
+	if value.Valid {
+		return int64(value.Int32)
+	}
+	return 0
+}
+
+// NullFloat64ToFloat64 converts sql.NullFloat64 to float64
+func NullFloat64ToFloat64(value sql.NullFloat64) float64 {
+	if value.Valid {
+		return value.Float64
+	}
+	return 0
+}
+
+// NullBoolToBool converts sql.NullBool to bool
+func NullBoolToBool(value sql.NullBool) bool {
+	if value.Valid {
+		return value.Bool
+	}
+	return false
+}
+
+// NullTimeToTime converts sql.NullTime to time.Time
+func NullTimeToTime(value sql.NullTime) time.Time {
+	if value.Valid {
+		return value.Time
+	}
+	return time.Time{}
+}
+
+// IsUniqueConstraintError checks if an error is a unique constraint violation
+func IsUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// SQLite
+	if sql.ErrNoRows != err && (err.Error() == "UNIQUE constraint failed" || err.Error() == "constraint failed") {
+		return true
+	}
+	// PostgreSQL
+	return errStr == "pq: duplicate key value violates unique constraint"
 }

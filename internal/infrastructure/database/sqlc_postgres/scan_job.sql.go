@@ -77,7 +77,7 @@ INSERT INTO scan_jobs (
     created_at,
     updated_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at
+RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, error_message, started_at, completed_at, created_at, updated_at
 `
 
 type CreateScanJobParams struct {
@@ -112,9 +112,9 @@ func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (S
 		&i.FilesProcessed,
 		&i.BytesProcessed,
 		&i.ErrorCount,
+		&i.ErrorMessage,
 		&i.StartedAt,
 		&i.CompletedAt,
-		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -150,7 +150,7 @@ func (q *Queries) DeleteScanJob(ctx context.Context, id int32) error {
 }
 
 const getLatestScanJobByLibrary = `-- name: GetLatestScanJobByLibrary :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, error_message, started_at, completed_at, created_at, updated_at FROM scan_jobs
 WHERE library_id = $1
 ORDER BY created_at DESC
 LIMIT 1
@@ -168,9 +168,9 @@ func (q *Queries) GetLatestScanJobByLibrary(ctx context.Context, libraryID int32
 		&i.FilesProcessed,
 		&i.BytesProcessed,
 		&i.ErrorCount,
+		&i.ErrorMessage,
 		&i.StartedAt,
 		&i.CompletedAt,
-		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -178,7 +178,7 @@ func (q *Queries) GetLatestScanJobByLibrary(ctx context.Context, libraryID int32
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, error_message, started_at, completed_at, created_at, updated_at FROM scan_jobs
 WHERE id = $1
 `
 
@@ -194,9 +194,9 @@ func (q *Queries) GetScanJob(ctx context.Context, id int32) (ScanJob, error) {
 		&i.FilesProcessed,
 		&i.BytesProcessed,
 		&i.ErrorCount,
+		&i.ErrorMessage,
 		&i.StartedAt,
 		&i.CompletedAt,
-		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -239,7 +239,7 @@ func (q *Queries) GetScanJobStats(ctx context.Context, libraryID int32) (GetScan
 }
 
 const listRunningScanJobs = `-- name: ListRunningScanJobs :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, error_message, started_at, completed_at, created_at, updated_at FROM scan_jobs
 WHERE status = 'running'
 ORDER BY started_at ASC
 `
@@ -262,9 +262,9 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 			&i.FilesProcessed,
 			&i.BytesProcessed,
 			&i.ErrorCount,
+			&i.ErrorMessage,
 			&i.StartedAt,
 			&i.CompletedAt,
-			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -282,7 +282,7 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 }
 
 const listScanJobsByLibrary = `-- name: ListScanJobsByLibrary :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, error_message, started_at, completed_at, created_at, updated_at FROM scan_jobs
 WHERE library_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -311,9 +311,9 @@ func (q *Queries) ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByL
 			&i.FilesProcessed,
 			&i.BytesProcessed,
 			&i.ErrorCount,
+			&i.ErrorMessage,
 			&i.StartedAt,
 			&i.CompletedAt,
-			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

@@ -11,9 +11,21 @@ type Media struct {
 	ID        int64
 	LibraryID int64
 	Title     string
+	Type      string // Type of media: 'movie', 'tv_episode', 'music_track'
 	FilePath  string // Relative path from library root
 	FileSize  int64  // In bytes
 	Duration  int    // In seconds
+	IsExtra   bool   // True for extras (trailers, deleted scenes, featurettes)
+
+	// Technical video metadata
+	Width           int     // Video width in pixels
+	Height          int     // Video height in pixels
+	VideoCodec      string  // Video codec (h264, hevc, etc.)
+	AudioCodec      string  // Audio codec (aac, mp3, etc.)
+	Bitrate         int64   // Overall bitrate in bits per second
+	FrameRate       float64 // Frames per second
+	ContainerFormat string  // File container format (mkv, mp4, etc.)
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

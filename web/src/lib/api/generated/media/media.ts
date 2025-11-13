@@ -30,6 +30,8 @@ import type {
 import { customInstance } from '../../mutator/index';
 
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 
 
 /**
@@ -97,16 +99,16 @@ export const getGetApiMediaQueryKey = (params?: GetApiMediaParams,) => {
     }
 
     
-export const getGetApiMediaQueryOptions = <TData = Awaited<ReturnType<typeof getApiMedia>>, TError = InternalApiHandlersErrorResponse>(params?: GetApiMediaParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMedia>>, TError, TData>>, }
+export const getGetApiMediaQueryOptions = <TData = Awaited<ReturnType<typeof getApiMedia>>, TError = InternalApiHandlersErrorResponse>(params?: GetApiMediaParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMedia>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetApiMediaQueryKey(params);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMedia>>> = ({ signal }) => getApiMedia(params, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMedia>>> = ({ signal }) => getApiMedia(params, { signal, ...requestOptions });
 
       
 
@@ -126,7 +128,7 @@ export function useGetApiMedia<TData = Awaited<ReturnType<typeof getApiMedia>>, 
           TError,
           Awaited<ReturnType<typeof getApiMedia>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMedia<TData = Awaited<ReturnType<typeof getApiMedia>>, TError = InternalApiHandlersErrorResponse>(
@@ -136,11 +138,11 @@ export function useGetApiMedia<TData = Awaited<ReturnType<typeof getApiMedia>>, 
           TError,
           Awaited<ReturnType<typeof getApiMedia>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMedia<TData = Awaited<ReturnType<typeof getApiMedia>>, TError = InternalApiHandlersErrorResponse>(
- params?: GetApiMediaParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMedia>>, TError, TData>>, }
+ params?: GetApiMediaParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMedia>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -148,7 +150,7 @@ export function useGetApiMedia<TData = Awaited<ReturnType<typeof getApiMedia>>, 
  */
 
 export function useGetApiMedia<TData = Awaited<ReturnType<typeof getApiMedia>>, TError = InternalApiHandlersErrorResponse>(
- params?: GetApiMediaParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMedia>>, TError, TData>>, }
+ params?: GetApiMediaParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMedia>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -227,16 +229,16 @@ export const getGetApiMediaIdQueryKey = (id?: number,) => {
     }
 
     
-export const getGetApiMediaIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiMediaId>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaId>>, TError, TData>>, }
+export const getGetApiMediaIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiMediaId>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetApiMediaIdQueryKey(id);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaId>>> = ({ signal }) => getApiMediaId(id, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaId>>> = ({ signal }) => getApiMediaId(id, { signal, ...requestOptions });
 
       
 
@@ -256,7 +258,7 @@ export function useGetApiMediaId<TData = Awaited<ReturnType<typeof getApiMediaId
           TError,
           Awaited<ReturnType<typeof getApiMediaId>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaId<TData = Awaited<ReturnType<typeof getApiMediaId>>, TError = InternalApiHandlersErrorResponse>(
@@ -266,11 +268,11 @@ export function useGetApiMediaId<TData = Awaited<ReturnType<typeof getApiMediaId
           TError,
           Awaited<ReturnType<typeof getApiMediaId>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaId<TData = Awaited<ReturnType<typeof getApiMediaId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaId>>, TError, TData>>, }
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -278,7 +280,7 @@ export function useGetApiMediaId<TData = Awaited<ReturnType<typeof getApiMediaId
  */
 
 export function useGetApiMediaId<TData = Awaited<ReturnType<typeof getApiMediaId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaId>>, TError, TData>>, }
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 

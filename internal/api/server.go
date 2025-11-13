@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,12 +20,15 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	router         *gin.Engine
-	healthHandler  *handlers.HealthHandler
-	libraryHandler *handlers.LibraryHandler
-	mediaHandler   *handlers.MediaHandler
-	streamHandler  *handlers.StreamHandler
-	server         *http.Server
+	router          *gin.Engine
+	healthHandler   *handlers.HealthHandler
+	libraryHandler  *handlers.LibraryHandler
+	mediaHandler    *handlers.MediaHandler
+	streamHandler   *handlers.StreamHandler
+	browserHandler  *handlers.BrowserHandler
+	scanJobHandler  *handlers.ScanJobHandler
+	progressHandler *handlers.ProgressHandler
+	server          *http.Server
 }
 
 // ServerConfig holds server configuration
@@ -32,15 +37,39 @@ type ServerConfig struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
+	Browser         BrowserConfig
+}
+
+// BrowserConfig holds filesystem browser configuration
+type BrowserConfig struct {
+	AllowedBasePaths []string
+	DefaultBasePath  string
 }
 
 // DefaultServerConfig returns sensible defaults
 func DefaultServerConfig() ServerConfig {
+	homeDir, _ := os.UserHomeDir()
+	if homeDir == "" {
+		homeDir = "/home"
+	}
+
 	return ServerConfig{
 		Port:            8080,
 		ReadTimeout:     10 * time.Second,
 		WriteTimeout:    10 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
+		Browser: BrowserConfig{
+			AllowedBasePaths: []string{
+				homeDir, // Allow home directory as starting point
+				"/media",
+				"/mnt",
+				"/cifs",
+				filepath.Join(homeDir, "Videos"),
+				filepath.Join(homeDir, "Movies"),
+				filepath.Join(homeDir, "Music"),
+			},
+			DefaultBasePath: homeDir,
+		},
 	}
 }
 
@@ -49,6 +78,9 @@ func NewServer(
 	config ServerConfig,
 	logger *slog.Logger,
 	healthHandler *handlers.HealthHandler,
+	browserHandler *handlers.BrowserHandler,
+	scanJobHandler *handlers.ScanJobHandler,
+	progressHandler *handlers.ProgressHandler,
 	// Library use cases
 	createLibrary *library.CreateLibraryUseCase,
 	updateLibrary *library.UpdateLibraryUseCase,
@@ -68,6 +100,9 @@ func NewServer(
 
 	// Add recovery middleware (panic recovery)
 	router.Use(gin.Recovery())
+
+	// Add CORS middleware (for frontend development)
+	router.Use(middleware.CORS())
 
 	// Add our custom logging middleware
 	router.Use(middleware.Logger(logger))
@@ -94,6 +129,9 @@ func NewServer(
 		libraryHandler: libraryHandler,
 		mediaHandler:   mediaHandler,
 		streamHandler:  streamHandler,
+		browserHandler: browserHandler,
+		scanJobHandler: scanJobHandler,
+		progressHandler: progressHandler,
 	}
 
 	// Setup routes
@@ -119,9 +157,11 @@ func (s *Server) setupRoutes() {
 	api := s.router.Group("/api")
 
 	// Register route groups
-	routes.RegisterLibraryRoutes(api, s.libraryHandler)
+	routes.RegisterLibraryRoutes(api, s.libraryHandler, s.scanJobHandler)
 	routes.RegisterMediaRoutes(api, s.mediaHandler)
 	routes.RegisterStreamRoutes(api, s.streamHandler)
+	routes.RegisterBrowserRoutes(api, s.browserHandler)
+	routes.RegisterProgressRoutes(api, s.progressHandler)
 }
 
 // Start starts the HTTP server

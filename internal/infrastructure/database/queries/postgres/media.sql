@@ -4,17 +4,17 @@
 INSERT INTO media (
     library_id, title, file_path, file_size, file_hash,
     container_format, duration, width, height, aspect_ratio,
-    codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
+    codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
     color_space, color_primaries, thumbnail_path, type, source_type,
     resolution_label, quality_score, is_3d, stereo_mode, has_dash,
-    dash_manifest_path, transcoding_status
+    dash_manifest_path, transcoding_status, is_extra
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21,
-    $22, $23, $24, $25, $26,
-    $27, $28
+    $11, $12, $13, $14, $15, $16, $17,
+    $18, $19, $20, $21, $22,
+    $23, $24, $25, $26, $27,
+    $28, $29, $30
 ) RETURNING *;
 
 -- name: GetMediaByID :one
@@ -24,6 +24,10 @@ WHERE id = $1;
 -- name: GetMediaByFilePath :one
 SELECT * FROM media
 WHERE library_id = $1 AND file_path = $2;
+
+-- name: ListAllMedia :many
+SELECT * FROM media
+ORDER BY title;
 
 -- name: ListMediaByLibrary :many
 SELECT * FROM media
@@ -48,26 +52,28 @@ SET library_id = $1,
     height = $9,
     aspect_ratio = $10,
     codec = $11,
-    codec_profile = $12,
-    bit_rate = $13,
-    frame_rate = $14,
-    scan_type = $15,
-    hdr_format = $16,
-    color_space = $17,
-    color_primaries = $18,
-    thumbnail_path = $19,
-    type = $20,
-    source_type = $21,
-    resolution_label = $22,
-    quality_score = $23,
-    is_3d = $24,
-    stereo_mode = $25,
-    has_dash = $26,
-    dash_manifest_path = $27,
-    transcoding_status = $28,
+    audio_codec = $12,
+    codec_profile = $13,
+    bit_rate = $14,
+    frame_rate = $15,
+    scan_type = $16,
+    hdr_format = $17,
+    color_space = $18,
+    color_primaries = $19,
+    thumbnail_path = $20,
+    type = $21,
+    source_type = $22,
+    resolution_label = $23,
+    quality_score = $24,
+    is_3d = $25,
+    stereo_mode = $26,
+    has_dash = $27,
+    dash_manifest_path = $28,
+    transcoding_status = $29,
+    is_extra = $30,
     date_modified = CURRENT_TIMESTAMP,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $29
+WHERE id = $31
 RETURNING *;
 
 -- name: DeleteMedia :exec

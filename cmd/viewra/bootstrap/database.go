@@ -1,0 +1,43 @@
+package bootstrap
+
+import (
+	"database/sql"
+	"fmt"
+	"log/slog"
+
+	"github.com/viewra/viewra/internal/infrastructure/database"
+)
+
+// DatabaseConnection holds the database connection and metadata
+type DatabaseConnection struct {
+	DB     *sql.DB
+	Driver string
+}
+
+// InitializeDatabase connects to the database and validates configuration
+func InitializeDatabase(cfg *database.Config, logger *slog.Logger) (*DatabaseConnection, error) {
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid database configuration: %w", err)
+	}
+
+	// Connect to database
+	db, err := database.Connect(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	logger.Info("Database connection established", "driver", cfg.Driver)
+
+	return &DatabaseConnection{
+		DB:     db,
+		Driver: cfg.Driver,
+	}, nil
+}
+
+// Close safely closes the database connection
+func (dc *DatabaseConnection) Close(logger *slog.Logger) {
+	if err := dc.DB.Close(); err != nil {
+		logger.Error("Error closing database", "error", err)
+	}
+}

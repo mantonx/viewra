@@ -22,7 +22,7 @@ dev: ## Run development servers (backend + frontend)
 	@which overmind > /dev/null 2>&1 && overmind start || (which foreman > /dev/null 2>&1 && foreman start || echo "Please install overmind or foreman to run dev servers")
 
 dev-backend: ## Run backend with hot reload
-	air
+	~/go/bin/air
 
 dev-frontend: ## Run frontend dev server
 	cd web && npm run dev
@@ -91,3 +91,11 @@ docker-build: ## Build Docker image
 
 docker-run: ## Run Docker container
 	docker run -p 8080:8080 -v $(PWD)/data:/app/data viewra:latest
+
+audit: ## Run incomplete implementation audit
+	@./scripts/audit-incomplete.sh
+
+audit-fix: ## Update INCOMPLETE_IMPLEMENTATIONS.md after fixes
+	@./scripts/audit-incomplete.sh || true
+	@echo ""
+	@echo "Update docs/INCOMPLETE_IMPLEMENTATIONS.md with current status"

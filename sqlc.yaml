@@ -19,7 +19,7 @@ sql:
   - engine: "postgresql"
     queries:
       - "internal/infrastructure/database/queries/postgres/"
-    schema: "migrations/postgres/000001_init.up.sql"
+    schema: "internal/infrastructure/database/schema_postgres.sql"
     gen:
       go:
         package: "sqlc_postgres"

@@ -2,8 +2,8 @@
 
 > A Plex/Jellyfin alternative built with Go + React, focusing on performance and clean architecture.
 
-**Status**: 🚧 Active Development - Phase 0 (Planning Complete)  
-**Developer**: Solo project  
+**Status**: 🚧 Active Development - Phase 1 Complete, Phase 2 Next
+**Developer**: Solo project evolving to open source
 **Started**: November 2025
 
 ---
@@ -126,7 +126,11 @@ viewra2/
 │   ├── API_SPECIFICATION.md # REST API endpoints
 │   ├── PLUGIN_ARCHITECTURE.md # Plugin system design
 │   ├── TECH_STACK.md     # Technology choices
-│   └── PROJECT_PLAN.md   # 8-phase implementation roadmap
+│   ├── PROJECT_PLAN.md   # 8-phase implementation roadmap
+│   ├── RECOMMENDATIONS.md # Agent recommendations & tracking
+│   ├── QUICK_REFERENCE.md # Development workflow cheat sheet
+│   ├── TESTING.md        # Testing strategy & coverage
+│   └── CONVENTIONS.md    # Code style & file naming
 ├── configs/              # Configuration files
 ├── .agent.md             # AI assistant guidelines
 ├── NOTES.md              # Development journal
@@ -199,7 +203,9 @@ When working with this codebase, refer to:
 2. **`docs/DATABASE_SCHEMA.md`** - All tables, relationships, queries (comprehensive!)
 3. **`docs/API_SPECIFICATION.md`** - REST endpoints, request/response formats
 4. **`docs/PROJECT_PLAN.md`** - 8-phase roadmap with task breakdowns
-5. **`docs/PLUGIN_ARCHITECTURE.md`** - Plugin system design and SDK
+5. **`docs/RECOMMENDATIONS.md`** - Agent recommendations & implementation tracking
+6. **`docs/QUICK_REFERENCE.md`** - Development workflow cheat sheet
+7. **`docs/CONVENTIONS.md`** - Code style, file naming, best practices
 
 ---
 
@@ -327,28 +333,40 @@ LOG_LEVEL=info
 
 ## Current Status & Next Steps
 
-### ✅ Completed
+### ✅ Completed (Phase 0 & 1)
 - [x] Architecture design (DDD with clean layers)
 - [x] Database schema (comprehensive, all tables defined)
 - [x] API specification (all endpoints documented)
-- [x] Plugin architecture (complete design)
-- [x] Tech stack decisions
-- [x] 8-phase project plan
+- [x] Tech stack decisions & tooling setup
+- [x] Domain entities (Library, Media, Scanner)
+- [x] Dual database support (SQLite + PostgreSQL)
+- [x] Repository implementations with sqlc
+- [x] FFmpeg wrapper for metadata extraction
+- [x] File scanner with extras support
+- [x] REST API endpoints with streaming
+- [x] React UI with TanStack Query/Router
+- [x] Watch progress tracking (backend complete)
+- [x] Auto-migration system
+- [x] **Lines of Code**: ~15,000+ (Backend: ~8,000 | Frontend: ~7,000)
+- [x] **Test Coverage**: 44.1% overall
 
-### 🚧 In Progress (Phase 0)
-- [ ] Initialize Go module
-- [ ] Create directory structure
-- [ ] Set up database migrations
-- [ ] Configure development tools (Air, sqlc, Swagger, Orval)
-- [ ] Create initial migration (core tables)
+### 🚧 In Progress (Phase 2 - Watch Progress & Transcoding)
+- [x] Watch Progress domain & application layer (complete)
+- [ ] Watch Progress frontend integration
+- [ ] DASH transcoding service
+- [ ] Background transcode queue
+- [ ] Shaka Player integration
+- [ ] Real-time transcode progress (SSE)
 
-### 📋 Next (Phase 1 - Weeks 2-4)
-- [ ] Implement domain entities (Library, Media)
-- [ ] Create repository implementations with sqlc
-- [ ] Build FFmpeg wrapper for metadata extraction
-- [ ] Implement file scanner
-- [ ] Create REST API endpoints
-- [ ] Build basic React UI
+### 📋 Before Public Launch (P0 Priority)
+- [ ] Remove/resolve all TODO comments
+- [ ] Implement or delete no-op repositories
+- [ ] Replace fmt.Printf with structured logging
+- [ ] Add panic recovery to background goroutines
+- [ ] Implement graceful shutdown
+- [ ] Boost API test coverage to 70%+
+
+See **[RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md)** for detailed tracking.
 
 ---
 
@@ -409,8 +427,11 @@ LOG_LEVEL=info
 
 - **Documentation**: All in `docs/` directory
 - **Project Plan**: `docs/PROJECT_PLAN.md` (8 phases, 26 weeks)
+- **Recommendations**: `docs/RECOMMENDATIONS.md` (agent assessment & tracking)
+- **Quick Reference**: `docs/QUICK_REFERENCE.md` (development workflow)
 - **Database Schema**: `docs/DATABASE_SCHEMA.md` (all tables, queries)
 - **API Spec**: `docs/API_SPECIFICATION.md` (all endpoints)
+- **Testing**: `docs/TESTING.md` (strategy & coverage)
 
 ---
 

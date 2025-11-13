@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/viewra/viewra/internal/domain/library"
@@ -133,6 +134,36 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	}
 }
 
+// isExtra determines if a file is an extra (trailer, deleted scene, featurette, etc.)
+// based on common filename patterns
+func isExtra(filepath string) bool {
+	lower := strings.ToLower(filepath)
+	extraPatterns := []string{
+		"-trailer.",
+		"_trailer.",
+		".trailer.",
+		"-deleted",
+		"_deleted",
+		".deleted",
+		"-featurette",
+		"_featurette",
+		".featurette",
+		"-extra.",
+		"_extra.",
+		".extra.",
+		"-bonus.",
+		"_bonus.",
+		".bonus.",
+	}
+
+	for _, pattern := range extraPatterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
 // processResults processes scan results and creates/updates media entries
 func (uc *ScanLibraryUseCase) processResults(ctx context.Context, jobID int64, libraryID int64, libraryType library.LibraryType, resultChan <-chan scanner.ScanResult) {
 	updateTicker := time.NewTicker(2 * time.Second)
@@ -185,12 +216,21 @@ func (uc *ScanLibraryUseCase) processResults(ctx context.Context, jobID int64, l
 func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64, result *scanner.ScanResult) {
 	movie := &media.Movie{
 		Media: media.Media{
-			LibraryID: libraryID,
-			Title:     result.Title,
-			FilePath:  result.FilePath,
-			Duration:  int(result.Duration),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			LibraryID:       libraryID,
+			Title:           result.Title,
+			FilePath:        result.FilePath,
+			FileSize:        result.FileSize,
+			Duration:        int(result.Duration),
+			IsExtra:         isExtra(result.FilePath),
+			Width:           result.Width,
+			Height:          result.Height,
+			VideoCodec:      result.VideoCodec,
+			AudioCodec:      result.AudioCodec,
+			Bitrate:         result.Bitrate,
+			FrameRate:       result.FrameRate,
+			ContainerFormat: result.ContainerFormat,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		},
 	}
 
@@ -203,15 +243,26 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 	if err == nil && existing != nil {
 		// Update existing entry
 		movie.Media.ID = existing.ID
+		movie.Media.Type = "movie"
+		if err := uc.mediaRepo.Update(ctx, &movie.Media); err != nil {
+			fmt.Printf("failed to update media %s: %v\n", result.FilePath, err)
+		}
 		if err := uc.movieRepo.UpdateMovie(ctx, movie); err != nil {
-			fmt.Printf("failed to update movie %s: %v\n", result.FilePath, err)
+			fmt.Printf("failed to update movie metadata %s: %v\n", result.FilePath, err)
 		}
 		return
 	}
 
-	// Create new entry
+	// Create new entry - save base media record FIRST
+	movie.Media.Type = "movie"
+	if err := uc.mediaRepo.Create(ctx, &movie.Media); err != nil {
+		fmt.Printf("failed to create media %s: %v\n", result.FilePath, err)
+		return
+	}
+
+	// THEN save type-specific metadata (currently no-op, will be real in Phase 3)
 	if err := uc.movieRepo.CreateMovie(ctx, movie); err != nil {
-		fmt.Printf("failed to create movie %s: %v\n", result.FilePath, err)
+		fmt.Printf("failed to create movie metadata %s: %v\n", result.FilePath, err)
 	}
 }
 
@@ -219,12 +270,21 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID int64, result *scanner.ScanResult) {
 	episode := &media.TVEpisode{
 		Media: media.Media{
-			LibraryID: libraryID,
-			Title:     result.Title,
-			FilePath:  result.FilePath,
-			Duration:  int(result.Duration),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			LibraryID:       libraryID,
+			Title:           result.Title,
+			FilePath:        result.FilePath,
+			FileSize:        result.FileSize,
+			Duration:        int(result.Duration),
+			IsExtra:         isExtra(result.FilePath),
+			Width:           result.Width,
+			Height:          result.Height,
+			VideoCodec:      result.VideoCodec,
+			AudioCodec:      result.AudioCodec,
+			Bitrate:         result.Bitrate,
+			FrameRate:       result.FrameRate,
+			ContainerFormat: result.ContainerFormat,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		},
 	}
 
@@ -240,15 +300,26 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 	if err == nil && existing != nil {
 		// Update existing entry
 		episode.Media.ID = existing.ID
+		episode.Media.Type = "tv_episode"
+		if err := uc.mediaRepo.Update(ctx, &episode.Media); err != nil {
+			fmt.Printf("failed to update media %s: %v\n", result.FilePath, err)
+		}
 		if err := uc.tvRepo.UpdateTVEpisode(ctx, episode); err != nil {
-			fmt.Printf("failed to update TV episode %s: %v\n", result.FilePath, err)
+			fmt.Printf("failed to update TV episode metadata %s: %v\n", result.FilePath, err)
 		}
 		return
 	}
 
-	// Create new entry
+	// Create new entry - save base media record FIRST
+	episode.Media.Type = "tv_episode"
+	if err := uc.mediaRepo.Create(ctx, &episode.Media); err != nil {
+		fmt.Printf("failed to create media %s: %v\n", result.FilePath, err)
+		return
+	}
+
+	// THEN save type-specific metadata (currently no-op, will be real in Phase 3)
 	if err := uc.tvRepo.CreateTVEpisode(ctx, episode); err != nil {
-		fmt.Printf("failed to create TV episode %s: %v\n", result.FilePath, err)
+		fmt.Printf("failed to create TV episode metadata %s: %v\n", result.FilePath, err)
 	}
 }
 
@@ -256,12 +327,21 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID int64, result *scanner.ScanResult) {
 	track := &media.MusicTrack{
 		Media: media.Media{
-			LibraryID: libraryID,
-			Title:     result.Title,
-			FilePath:  result.FilePath,
-			Duration:  int(result.Duration),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			LibraryID:       libraryID,
+			Title:           result.Title,
+			FilePath:        result.FilePath,
+			FileSize:        result.FileSize,
+			Duration:        int(result.Duration),
+			IsExtra:         isExtra(result.FilePath),
+			Width:           result.Width,
+			Height:          result.Height,
+			VideoCodec:      result.VideoCodec,
+			AudioCodec:      result.AudioCodec,
+			Bitrate:         result.Bitrate,
+			FrameRate:       result.FrameRate,
+			ContainerFormat: result.ContainerFormat,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		},
 		Artist: result.Artist,
 		Album:  result.Album,
@@ -279,15 +359,26 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 	if err == nil && existing != nil {
 		// Update existing entry
 		track.Media.ID = existing.ID
+		track.Media.Type = "music_track"
+		if err := uc.mediaRepo.Update(ctx, &track.Media); err != nil {
+			fmt.Printf("failed to update media %s: %v\n", result.FilePath, err)
+		}
 		if err := uc.musicRepo.UpdateMusicTrack(ctx, track); err != nil {
-			fmt.Printf("failed to update music track %s: %v\n", result.FilePath, err)
+			fmt.Printf("failed to update music track metadata %s: %v\n", result.FilePath, err)
 		}
 		return
 	}
 
-	// Create new entry
+	// Create new entry - save base media record FIRST
+	track.Media.Type = "music_track"
+	if err := uc.mediaRepo.Create(ctx, &track.Media); err != nil {
+		fmt.Printf("failed to create media %s: %v\n", result.FilePath, err)
+		return
+	}
+
+	// THEN save type-specific metadata (currently no-op, will be real in Phase 3)
 	if err := uc.musicRepo.CreateMusicTrack(ctx, track); err != nil {
-		fmt.Printf("failed to create music track %s: %v\n", result.FilePath, err)
+		fmt.Printf("failed to create music track metadata %s: %v\n", result.FilePath, err)
 	}
 }
 

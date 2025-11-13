@@ -59,6 +59,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 		has_dash BOOLEAN DEFAULT FALSE,
 		dash_manifest_path TEXT,
 		transcoding_status TEXT CHECK(transcoding_status IN ('pending', 'processing', 'completed', 'failed', NULL)),
+		is_extra BOOLEAN DEFAULT 0 NOT NULL,
+		audio_codec TEXT,
 		date_added DATETIME DEFAULT CURRENT_TIMESTAMP,
 		date_modified DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -89,6 +91,7 @@ func TestRepository_Create(t *testing.T) {
 
 	m := &media.Media{
 		LibraryID: 1,
+		Type:      "movie",
 		Title:     "Test Movie",
 		FilePath:  "/movies/test.mp4",
 		FileSize:  1024000,
@@ -116,6 +119,7 @@ func TestRepository_Create(t *testing.T) {
 	// Test duplicate path error
 	m2 := &media.Media{
 		LibraryID: 1,
+		Type:      "movie",
 		Title:     "Another Movie",
 		FilePath:  "/movies/test.mp4", // Duplicate path
 		FileSize:  2048000,
@@ -136,6 +140,7 @@ func TestRepository_GetByID(t *testing.T) {
 	// Create a media item first
 	m := &media.Media{
 		LibraryID: 1,
+		Type:      "movie",
 		Title:     "Test Movie",
 		FilePath:  "/movies/test.mp4",
 		FileSize:  1024000,
@@ -175,6 +180,7 @@ func TestRepository_GetByFilePath(t *testing.T) {
 	// Create a media item first
 	m := &media.Media{
 		LibraryID: 1,
+		Type:      "movie",
 		Title:     "Test Movie",
 		FilePath:  "/movies/test.mp4",
 		FileSize:  1024000,
@@ -209,9 +215,9 @@ func TestRepository_ListByLibrary(t *testing.T) {
 	ctx := context.Background()
 
 	// Create multiple media items
-	m1 := &media.Media{LibraryID: 1, Title: "Movie A", FilePath: "/movies/a.mp4", FileSize: 1024, Duration: 3600}
-	m2 := &media.Media{LibraryID: 1, Title: "Movie B", FilePath: "/movies/b.mp4", FileSize: 2048, Duration: 7200}
-	m3 := &media.Media{LibraryID: 1, Title: "Movie C", FilePath: "/movies/c.mp4", FileSize: 4096, Duration: 5400}
+	m1 := &media.Media{LibraryID: 1, Type: "movie", Title: "Movie A", FilePath: "/movies/a.mp4", FileSize: 1024, Duration: 3600}
+	m2 := &media.Media{LibraryID: 1, Type: "movie", Title: "Movie B", FilePath: "/movies/b.mp4", FileSize: 2048, Duration: 7200}
+	m3 := &media.Media{LibraryID: 1, Type: "movie", Title: "Movie C", FilePath: "/movies/c.mp4", FileSize: 4096, Duration: 5400}
 
 	if err := repo.Create(ctx, m1); err != nil {
 		t.Fatalf("Failed to create media 1: %v", err)
@@ -244,6 +250,7 @@ func TestRepository_Update(t *testing.T) {
 	// Create a media item first
 	m := &media.Media{
 		LibraryID: 1,
+		Type:      "movie",
 		Title:     "Original Title",
 		FilePath:  "/movies/test.mp4",
 		FileSize:  1024000,
@@ -290,6 +297,7 @@ func TestRepository_Delete(t *testing.T) {
 	// Create a media item first
 	m := &media.Media{
 		LibraryID: 1,
+		Type:      "movie",
 		Title:     "Test Movie",
 		FilePath:  "/movies/test.mp4",
 		FileSize:  1024000,
@@ -326,6 +334,7 @@ func TestRepository_ExistsInLibrary(t *testing.T) {
 	// Create a media item first
 	m := &media.Media{
 		LibraryID: 1,
+		Type:      "movie",
 		Title:     "Test Movie",
 		FilePath:  "/movies/test.mp4",
 		FileSize:  1024000,
@@ -375,6 +384,7 @@ func TestRepository_Count(t *testing.T) {
 		m := &media.Media{
 			LibraryID: 1,
 			Title:     "Movie",
+			Type:      "movie",
 			FilePath:  "/movies/" + string(rune('a'+i)) + ".mp4",
 			FileSize:  1024000,
 			Duration:  7200,

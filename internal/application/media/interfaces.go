@@ -9,5 +9,6 @@ type GetMediaExecutor interface {
 
 // ListMediaExecutor defines the interface for listing media
 type ListMediaExecutor interface {
+	ExecuteAll(ctx context.Context) (ListMediaResponse, error)
 	Execute(ctx context.Context, libraryID int64) (ListMediaResponse, error)
 }

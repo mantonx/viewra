@@ -2,17 +2,17 @@
 INSERT INTO media (
     library_id, title, file_path, file_size, file_hash,
     container_format, duration, width, height, aspect_ratio,
-    codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
+    codec, audio_codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format,
     color_space, color_primaries, thumbnail_path, type, source_type,
     resolution_label, quality_score, is_3d, stereo_mode, has_dash,
-    dash_manifest_path, transcoding_status
+    dash_manifest_path, transcoding_status, is_extra
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?
+    ?, ?, ?
 ) RETURNING *;
 
 -- name: GetMediaByID :one
@@ -22,6 +22,10 @@ WHERE id = ?;
 -- name: GetMediaByFilePath :one
 SELECT * FROM media
 WHERE library_id = ? AND file_path = ?;
+
+-- name: ListAllMedia :many
+SELECT * FROM media
+ORDER BY title;
 
 -- name: ListMediaByLibrary :many
 SELECT * FROM media
@@ -46,6 +50,7 @@ SET library_id = ?,
     height = ?,
     aspect_ratio = ?,
     codec = ?,
+    audio_codec = ?,
     codec_profile = ?,
     bit_rate = ?,
     frame_rate = ?,
@@ -63,6 +68,7 @@ SET library_id = ?,
     has_dash = ?,
     dash_manifest_path = ?,
     transcoding_status = ?,
+    is_extra = ?,
     date_modified = CURRENT_TIMESTAMP,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?

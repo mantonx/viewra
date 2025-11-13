@@ -42,4 +42,22 @@ const formatDuration = (seconds: number): string => {
   return `${minutes}m`
 }
 
-export { formatFileSize, formatDuration }
+/**
+ * Format date to human-readable format
+ * @param date - Date string or Date object
+ * @returns Formatted string like "Jan 12, 2024, 2:30 PM"
+ * @example
+ * formatDate("2024-01-12T14:30:00Z") // "Jan 12, 2024, 2:30 PM"
+ */
+const formatDate = (date: string | Date): string => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dateObj)
+}
+
+export { formatFileSize, formatDuration, formatDate }

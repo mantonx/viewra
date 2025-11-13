@@ -51,6 +51,8 @@ type Medium struct {
 	DateModified      sql.NullTime    `json:"date_modified"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
+	IsExtra           bool            `json:"is_extra"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
 }
 
 type Movie struct {

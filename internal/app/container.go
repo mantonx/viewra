@@ -9,8 +9,10 @@ import (
 	"github.com/viewra/viewra/internal/app/noop"
 	"github.com/viewra/viewra/internal/application/library"
 	"github.com/viewra/viewra/internal/application/media"
+	"github.com/viewra/viewra/internal/infrastructure/pathbrowser"
 	libraryRepo "github.com/viewra/viewra/internal/infrastructure/persistence/library"
 	mediaRepo "github.com/viewra/viewra/internal/infrastructure/persistence/media"
+	progressRepo "github.com/viewra/viewra/internal/infrastructure/persistence/progress"
 	scanJobRepo "github.com/viewra/viewra/internal/infrastructure/persistence/scanjob"
 )
 
@@ -25,6 +27,7 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	// Initialize repositories
 	libraryRepository := libraryRepo.NewRepository(db, dbDriver)
 	mediaRepository := mediaRepo.NewRepository(db, dbDriver)
+	progressRepository := progressRepo.NewRepository(db, dbDriver)
 	scanJobRepository := scanJobRepo.NewRepository(db, dbDriver)
 
 	// Initialize library use cases (they use repositories directly)
@@ -50,14 +53,26 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	getMedia := media.NewGetMediaUseCase(mediaRepository)
 	listMedia := media.NewListMediaUseCase(mediaRepository)
 
+	// Initialize path browser service
+	browserService := pathbrowser.NewService(
+		config.Browser.AllowedBasePaths,
+		config.Browser.DefaultBasePath,
+	)
+
 	// Create handlers
 	healthHandler := handlers.NewHealthHandler(db)
+	browserHandler := handlers.NewBrowserHandler(browserService)
+	scanJobHandler := handlers.NewScanJobHandler(scanJobRepository)
+	progressHandler := handlers.NewProgressHandler(progressRepository)
 
 	// Create HTTP server
 	server := api.NewServer(
 		config,
 		logger,
 		healthHandler,
+		browserHandler,
+		scanJobHandler,
+		progressHandler,
 		createLibrary,
 		updateLibrary,
 		deleteLibrary,

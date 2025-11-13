@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/viewra/viewra/internal/infrastructure/ffmpeg"
 )
 
 // CoordinatorConfig holds configuration for the scanner coordinator
@@ -44,11 +45,12 @@ func DefaultCoordinatorConfig() CoordinatorConfig {
 
 // Coordinator orchestrates the scanning process with worker pool
 type Coordinator struct {
-	config CoordinatorConfig
-	walker scanner.FileWalker
-	filter scanner.FileFilter
-	parser *Parser
-	hasher *Hasher
+	config      CoordinatorConfig
+	walker      scanner.FileWalker
+	filter      scanner.FileFilter
+	parser      *Parser
+	hasher      *Hasher
+	ffmpegClient *ffmpeg.Client
 
 	// Progress tracking (atomic)
 	filesFound     atomic.Int64
@@ -65,13 +67,20 @@ type Coordinator struct {
 
 // NewCoordinator creates a new scanner coordinator
 func NewCoordinator(config CoordinatorConfig) *Coordinator {
+	ffmpegClient, err := ffmpeg.NewClient()
+	if err != nil {
+		// Log warning but don't fail - metadata extraction will be skipped
+		fmt.Printf("Warning: FFmpeg not available, technical metadata extraction disabled: %v\n", err)
+	}
+
 	return &Coordinator{
-		config:  config,
-		walker:  NewWalker(),
-		filter:  NewFilter(),
-		parser:  NewParser(),
-		hasher:  NewHasher(),
-		sizeMap: make(map[int64]int),
+		config:       config,
+		walker:       NewWalker(),
+		filter:       NewFilter(),
+		parser:       NewParser(),
+		hasher:       NewHasher(),
+		ffmpegClient: ffmpegClient,
+		sizeMap:      make(map[int64]int),
 	}
 }
 
@@ -300,6 +309,29 @@ func (c *Coordinator) processFile(ctx context.Context, fileInfo scanner.FileInfo
 			if musicInfo.Year > 0 {
 				result.Year = &musicInfo.Year
 			}
+		}
+	}
+
+	// Extract technical metadata using FFmpeg (for video/audio files)
+	if c.ffmpegClient != nil && (mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode) {
+		metadata, err := c.ffmpegClient.ExtractMetadata(ctx, fileInfo.Path)
+		if err != nil {
+			// Log warning but don't fail the entire scan
+			// Some files might be corrupted or in unsupported formats
+			fmt.Printf("Warning: Failed to extract FFmpeg metadata for %s: %v\n", fileInfo.Path, err)
+		} else {
+			// Populate result with technical metadata
+			result.FileSize = metadata.FileSize
+			result.Width = metadata.Width
+			result.Height = metadata.Height
+			result.VideoCodec = metadata.VideoCodec
+			result.AudioCodec = metadata.AudioCodec
+			result.Bitrate = metadata.Bitrate
+			result.FrameRate = metadata.FrameRate
+			result.Duration = int64(metadata.Duration.Seconds())
+
+			// Determine container format from file extension
+			result.ContainerFormat = fileInfo.Extension
 		}
 	}
 
