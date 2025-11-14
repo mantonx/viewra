@@ -11,35 +11,35 @@ import (
 	"github.com/viewra/viewra/internal/domain/transcode"
 )
 
-// Service provides video transcoding functionality for DASH streaming.
+// Service provides video transcoding functionality for HLS streaming.
 type Service interface {
-	// TranscodeToDASH transcodes a video file to DASH format at the specified quality level.
+	// TranscodeToHLS transcodes a video file to HLS format at the specified quality level.
 	// It updates the transcode job in the repository throughout the process.
 	//
 	// Parameters:
 	//   - ctx: Context for cancellation and timeout control
 	//   - job: The transcode job to execute (must be in queued status)
 	//   - inputPath: Absolute path to the input video file
-	//   - outputBaseDir: Base directory where DASH output will be stored
+	//   - outputBaseDir: Base directory where HLS output will be stored
 	//
 	// The output structure will be:
 	//   outputBaseDir/
-	//     <mediaID>/
-	//       <quality>/
-	//         manifest.mpd
-	//         init_*.m4s
-	//         segment_*.m4s
+	//     hls/
+	//       <mediaID>/
+	//         <quality>/
+	//           playlist.m3u8
+	//           segment_*.ts
 	//
 	// Returns an error if transcoding fails at any stage.
-	TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
+	TranscodeToHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
 
-	// RemuxToDASH remuxes a video to DASH format by copying streams without re-encoding (2-5 min).
+	// RemuxToHLS remuxes a video to HLS format by copying streams without re-encoding (2-5 min).
 	// Used when video is already H.264 and audio is stereo, but container is incompatible.
-	RemuxToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
+	RemuxToHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
 
-	// RemuxWithAudioDownmix remuxes video to DASH while copying video and downmixing multi-channel audio (5-10 min).
+	// RemuxWithAudioDownmixHLS remuxes video to HLS while copying video and downmixing multi-channel audio (5-10 min).
 	// Used when video is H.264 compatible but audio has too many channels for browser playback.
-	RemuxWithAudioDownmix(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
+	RemuxWithAudioDownmixHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
 }
 
 // service implements the Service interface.
@@ -68,19 +68,19 @@ func NewService(repo transcode.Repository, logger *slog.Logger) (Service, error)
 	}, nil
 }
 
-// TranscodeToDASH implements the Service interface.
-func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
-	return s.executeJob(ctx, job, inputPath, outputBaseDir, "transcode", s.executor.Transcode)
+// TranscodeToHLS implements the Service interface.
+func (s *service) TranscodeToHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
+	return s.executeJob(ctx, job, inputPath, outputBaseDir, "transcode", s.executor.TranscodeToHLS)
 }
 
-// RemuxToDASH implements the Service interface for remuxing operations.
-func (s *service) RemuxToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
-	return s.executeJob(ctx, job, inputPath, outputBaseDir, "remux", s.executor.RemuxToDASH)
+// RemuxToHLS implements the Service interface for remuxing operations.
+func (s *service) RemuxToHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
+	return s.executeJob(ctx, job, inputPath, outputBaseDir, "remux", s.executor.RemuxToHLS)
 }
 
-// RemuxWithAudioDownmix implements the Service interface for remux with audio downmix operations.
-func (s *service) RemuxWithAudioDownmix(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
-	return s.executeJob(ctx, job, inputPath, outputBaseDir, "remux with audio downmix", s.executor.RemuxWithAudioDownmix)
+// RemuxWithAudioDownmixHLS implements the Service interface for remux with audio downmix operations.
+func (s *service) RemuxWithAudioDownmixHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
+	return s.executeJob(ctx, job, inputPath, outputBaseDir, "remux with audio downmix", s.executor.RemuxWithAudioDownmixHLS)
 }
 
 // executeJob is a helper method that executes any type of transcoding/remuxing job.
@@ -101,7 +101,7 @@ func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, i
 		return s.failJob(ctx, job, fmt.Errorf("invalid quality profile: %w", err))
 	}
 
-	// Build output directory path: <outputBaseDir>/dash/<mediaID>/<quality>/
+	// Build output directory path: <outputBaseDir>/hls/<mediaID>/<quality>/
 	outputDir := s.buildOutputPath(outputBaseDir, job.MediaID, job.Quality)
 
 	// Create output directory before validation so disk space check works
@@ -252,26 +252,26 @@ func (s *service) failJob(ctx context.Context, job *transcode.TranscodeJob, err 
 	return err
 }
 
-// buildOutputPath constructs the output directory path for DASH files.
-// Format: <baseDir>/dash/<mediaID>/<quality>/
+// buildOutputPath constructs the output directory path for HLS files.
+// Format: <baseDir>/hls/<mediaID>/<quality>/
 func (s *service) buildOutputPath(baseDir string, mediaID int64, quality string) string {
 	return filepath.Join(
 		baseDir,
-		"dash",
+		"hls",
 		fmt.Sprintf("%d", mediaID),
 		strings.ToLower(quality),
 	)
 }
 
-// GetManifestPath returns the path to the DASH manifest file for a given media and quality.
+// GetManifestPath returns the path to the HLS playlist file for a given media and quality.
 // This is a utility function for consumers of the transcoding service.
 func GetManifestPath(baseDir string, mediaID int64, quality string) string {
 	return filepath.Join(
 		baseDir,
-		"dash",
+		"hls",
 		fmt.Sprintf("%d", mediaID),
 		strings.ToLower(quality),
-		"manifest.mpd",
+		"playlist.m3u8",
 	)
 }
 
@@ -280,7 +280,7 @@ func GetManifestPath(baseDir string, mediaID int64, quality string) string {
 func GetOutputDirectory(baseDir string, mediaID int64, quality string) string {
 	return filepath.Join(
 		baseDir,
-		"dash",
+		"hls",
 		fmt.Sprintf("%d", mediaID),
 		strings.ToLower(quality),
 	)

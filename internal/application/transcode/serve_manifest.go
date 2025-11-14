@@ -12,7 +12,7 @@ import (
 	"github.com/viewra/viewra/internal/infrastructure/transcoding"
 )
 
-// ServeManifestRequest represents a request to serve a DASH manifest.
+// ServeManifestRequest represents a request to serve an HLS playlist.
 type ServeManifestRequest struct {
 	MediaID   int64
 	Quality   string
@@ -54,7 +54,7 @@ const (
 	StrategyTranscode
 )
 
-// ServeManifestUseCase handles serving DASH manifests with on-demand transcoding.
+// ServeManifestUseCase handles serving HLS playlists with on-demand transcoding.
 type ServeManifestUseCase struct {
 	transcodeRepo transcode.Repository
 	mediaRepo     media.Repository
@@ -77,15 +77,15 @@ func NewServeManifestUseCase(
 	}
 }
 
-// Execute handles the manifest serving logic with on-demand transcoding.
+// Execute handles the playlist serving logic with on-demand transcoding.
 func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRequest) (*ServeManifestResponse, error) {
-	// Step 1: Check if manifest exists (even for in-progress jobs)
-	manifestPath := filepath.Join(req.OutputDir, "dash", fmt.Sprintf("%d", req.MediaID), req.Quality, "manifest.mpd")
+	// Step 1: Check if playlist exists (even for in-progress jobs)
+	manifestPath := filepath.Join(req.OutputDir, "hls", fmt.Sprintf("%d", req.MediaID), req.Quality, "playlist.m3u8")
 	if _, err := os.Stat(manifestPath); err == nil {
-		// Manifest exists - check if we have enough segments for playback
-		// With streaming DASH, segments are generated progressively
+		// Playlist exists - check if we have enough segments for playback
+		// With streaming HLS, segments are generated progressively
 		segmentDir := filepath.Dir(manifestPath)
-		segmentPattern := filepath.Join(segmentDir, "segment_*.m4s")
+		segmentPattern := filepath.Join(segmentDir, "segment_*.ts")
 		segments, err := filepath.Glob(segmentPattern)
 		if err != nil {
 			// If glob fails, assume no segments yet
@@ -93,7 +93,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		}
 
 		// If we have at least 2 segments, we can start playback
-		// The manifest will update as more segments are generated
+		// The playlist will update as more segments are generated
 		if len(segments) >= 2 {
 			return &ServeManifestResponse{
 				Strategy:     StrategyServe,
@@ -101,7 +101,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 			}, nil
 		}
 
-		// Manifest exists but not enough segments yet (initializing)
+		// Playlist exists but not enough segments yet (initializing)
 		// Check if there's a job in progress
 		existingJob, err := GetJobForMedia(ctx, uc.transcodeRepo, req.MediaID, req.Quality)
 		if err == nil && existingJob != nil && existingJob.IsProcessing() {
@@ -137,7 +137,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	case transcoding.DirectPlay:
 		return &ServeManifestResponse{
 			Strategy:      StrategyDirectPlay,
-			DirectPlayURL: fmt.Sprintf("/api/media/%d/stream", req.MediaID),
+			DirectPlayURL: fmt.Sprintf("/api/stream/%d", req.MediaID),
 			Reason:        reason,
 		}, nil
 
@@ -167,7 +167,7 @@ func (uc *ServeManifestUseCase) createOrGetJob(
 	// Check if job already exists
 	existingJob, err := GetJobForMedia(ctx, uc.transcodeRepo, mediaID, quality)
 	if err == nil && existingJob != nil {
-		// Handle inconsistent state: completed job but no manifest
+		// Handle inconsistent state: completed job but no playlist
 		if existingJob.IsCompleted() {
 			uc.requeueCompletedJob(ctx, existingJob)
 		}

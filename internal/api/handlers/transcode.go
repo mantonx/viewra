@@ -175,23 +175,23 @@ type OnDemandResponse struct {
 	EstimatedTime string `json:"estimated_time,omitempty"` // Estimated completion time
 }
 
-// ServeManifest serves the DASH manifest file for a transcoded media item with on-demand transcoding support.
+// ServePlaylist serves the HLS playlist file for a transcoded media item with on-demand transcoding support.
 //
-// @Summary Serve DASH manifest (with on-demand transcoding)
-// @Description Serves the DASH manifest (.mpd) file for adaptive streaming. If manifest doesn't exist, analyzes video
-// @Description and either returns direct playback URL or creates a transcode job.
+// @Summary Serve HLS playlist (with on-demand transcoding)
+// @Description Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video
+// @Description and either redirects to direct stream or creates a transcode job.
 // @Tags transcode
-// @Produce application/dash+xml,application/json
+// @Produce application/vnd.apple.mpegurl,application/json
 // @Param media_id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
-// @Success 200 {file} file "DASH manifest file (if exists)"
-// @Success 200 {object} OnDemandResponse "Direct playback URL (for compatible files)"
+// @Success 200 {file} file "HLS playlist file (if exists)"
+// @Success 302 "Redirect to direct stream (for compatible files)"
 // @Success 202 {object} OnDemandResponse "Job created (for files needing processing)"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/dash/{quality}/manifest.mpd [get]
-func (h *TranscodeHandler) ServeManifest(c *gin.Context) {
+// @Router /api/media/{media_id}/hls/{quality}/playlist.m3u8 [get]
+func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
 
@@ -215,17 +215,15 @@ func (h *TranscodeHandler) ServeManifest(c *gin.Context) {
 	// Handle response based on strategy
 	switch response.Strategy {
 	case transcode.StrategyServe:
-		// Manifest exists - serve it directly
-		c.Header("Content-Type", "application/dash+xml")
-		c.Header("Access-Control-Allow-Origin", "*") // CORS for DASH
+		// Playlist exists - serve it directly
+		c.Header("Content-Type", "application/vnd.apple.mpegurl")
+		c.Header("Access-Control-Allow-Origin", "*") // CORS for HLS
 		c.File(response.ManifestPath)
 
 	case transcode.StrategyDirectPlay:
-		// Video is compatible - return direct play URL
-		c.JSON(http.StatusOK, OnDemandResponse{
-			Strategy: "direct_play",
-			URL:      response.DirectPlayURL,
-		})
+		// Video is compatible - redirect to direct stream
+		// Frontend expects 302 redirect for direct play
+		c.Redirect(http.StatusFound, response.DirectPlayURL)
 
 	case transcode.StrategyTranscode:
 		// Transcode needed - return job information
@@ -239,19 +237,19 @@ func (h *TranscodeHandler) ServeManifest(c *gin.Context) {
 	}
 }
 
-// ServeDASHSegment serves DASH segment files (init and media segments).
+// ServeHLSSegment serves HLS segment files (MPEG-TS segments).
 //
-// @Summary Serve DASH segment
-// @Description Serves DASH segment files (.m4s) for adaptive streaming
+// @Summary Serve HLS segment
+// @Description Serves HLS segment files (.ts) for adaptive streaming
 // @Tags transcode
-// @Produce application/octet-stream
+// @Produce video/mp2t
 // @Param media_id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
 // @Param filename path string true "Segment filename"
-// @Success 200 {file} file "DASH segment file"
+// @Success 200 {file} file "HLS segment file"
 // @Failure 404 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/dash/{quality}/{filename} [get]
-func (h *TranscodeHandler) ServeDASHSegment(c *gin.Context) {
+// @Router /api/media/{media_id}/hls/{quality}/{filename} [get]
+func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
 	filename := c.Param("filename")
@@ -262,12 +260,12 @@ func (h *TranscodeHandler) ServeDASHSegment(c *gin.Context) {
 		h.queue.RecordAccess(mediaID, quality)
 	}
 
-	// Build segment path with dash/ subdirectory
-	segmentPath := filepath.Join(h.outputDir, "dash", mediaIDStr, quality, filename)
+	// Build segment path with hls/ subdirectory
+	segmentPath := filepath.Join(h.outputDir, "hls", mediaIDStr, quality, filename)
 
 	// Serve the file
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Access-Control-Allow-Origin", "*") // CORS for DASH
+	c.Header("Content-Type", "video/mp2t")
+	c.Header("Access-Control-Allow-Origin", "*") // CORS for HLS
 	c.File(segmentPath)
 }
 

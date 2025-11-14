@@ -266,29 +266,38 @@ func DetermineStreamStrategy(videoInfo *VideoInfo) (StreamStrategy, string) {
 		strings.Contains(containerLower, "webm") ||
 		strings.Contains(containerLower, "mov"))
 
+	// Check audio codec compatibility (browsers support: AAC, MP3, Opus, Vorbis)
+	// Incompatible: TrueHD, DTS, DTS-HD, EAC3, FLAC, PCM, etc.
+	audioCodecLower := strings.ToLower(videoInfo.AudioCodec)
+	isWebAudioCodec := audioCodecLower == "aac" ||
+		audioCodecLower == "mp3" ||
+		audioCodecLower == "opus" ||
+		audioCodecLower == "vorbis" ||
+		strings.Contains(audioCodecLower, "mp4a") // AAC variants
+
 	// Check audio compatibility (stereo or mono is web-compatible, 5.1/7.1 is not)
 	isStereoOrLess := videoInfo.AudioChannels <= 2
 	hasMultiChannelAudio := videoInfo.AudioChannels > 2
 
-	// Tier 1: Direct Play - H.264 + stereo audio + web container
+	// Tier 1: Direct Play - H.264 + web-compatible audio codec + stereo + web container
 	// This is instant, no processing needed
-	if isH264 && isStereoOrLess && isWebContainer {
-		return DirectPlay, fmt.Sprintf("H.264 video with %d-channel audio in %s container - direct playback",
-			videoInfo.AudioChannels, videoInfo.ContainerFormat)
+	if isH264 && isWebAudioCodec && isStereoOrLess && isWebContainer {
+		return DirectPlay, fmt.Sprintf("H.264 video with %s %d-channel audio in %s container - direct playback",
+			videoInfo.AudioCodec, videoInfo.AudioChannels, videoInfo.ContainerFormat)
 	}
 
-	// Tier 2: Remux - H.264 + stereo audio but wrong container (e.g., MKV)
+	// Tier 2: Remux - H.264 + web-compatible audio + stereo but wrong container (e.g., MKV)
 	// Copy streams to DASH without re-encoding (2-5 minutes)
-	if isH264 && isStereoOrLess {
-		return Remux, fmt.Sprintf("H.264 video with %d-channel audio needs container remux from %s to DASH",
-			videoInfo.AudioChannels, videoInfo.ContainerFormat)
+	if isH264 && isWebAudioCodec && isStereoOrLess {
+		return Remux, fmt.Sprintf("H.264 video with %s %d-channel audio needs container remux from %s to HLS",
+			videoInfo.AudioCodec, videoInfo.AudioChannels, videoInfo.ContainerFormat)
 	}
 
-	// Tier 3: Remux with Audio Downmix - H.264 video but multi-channel audio
-	// Copy video stream, downmix audio from 5.1/7.1 to stereo (5-10 minutes)
-	if isH264 && hasMultiChannelAudio {
-		return RemuxWithAudioDownmix, fmt.Sprintf("H.264 video compatible, but %d-channel audio needs downmix to stereo",
-			videoInfo.AudioChannels)
+	// Tier 3: Remux with Audio Transcode - H.264 video but incompatible audio codec OR multi-channel
+	// Copy video stream, transcode/downmix audio to AAC stereo (5-10 minutes)
+	if isH264 && (hasMultiChannelAudio || !isWebAudioCodec) {
+		return RemuxWithAudioDownmix, fmt.Sprintf("H.264 video compatible, but %s %d-channel audio needs transcode to AAC stereo",
+			videoInfo.AudioCodec, videoInfo.AudioChannels)
 	}
 
 	// Tier 4: Full Transcode - Incompatible video codec or other issues

@@ -16,4 +16,6 @@ export interface InternalApiHandlersTranscodeJobResponse {
   quality?: string;
   started_at?: string;
   status?: string;
+  /** Job type: remux, remux_audio, or transcode */
+  type?: string;
 }

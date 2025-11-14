@@ -1,15 +1,11 @@
-import { useState } from 'react'
-import { MediaDetailsModal } from './MediaDetailsModal'
 import type { MediaCardProps } from './MediaCard.types'
 import { useMediaProgress } from '../../../lib/hooks/useProgress'
 import { getProgressPercentage } from '../../../lib/utils'
 
 const MediaCard = ({ media, onClick }: MediaCardProps) => {
-  const [showDetails, setShowDetails] = useState(false)
   const { data: progress } = useMediaProgress(media.id, true)
 
   const handleClick = () => {
-    setShowDetails(true)
     onClick?.()
   }
 
@@ -34,58 +30,56 @@ const MediaCard = ({ media, onClick }: MediaCardProps) => {
   const resolution = getResolutionLabel()
 
   return (
-    <>
-      <div
-        className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-        onClick={handleClick}
-      >
-        {/* Thumbnail with badges */}
-        <div className="aspect-[2/3] bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-4xl relative">
-          🎬
+    <div
+      className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+      onClick={handleClick}
+    >
+      {/* Thumbnail with badges */}
+      <div className="aspect-[2/3] bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-4xl relative">
+        🎬
 
-          {/* Badges overlay */}
-          <div className="absolute top-2 left-2 right-2 flex justify-between">
-            <div className="flex gap-1">
-              {media.is_extra && (
-                <span className="px-2 py-1 text-xs font-semibold bg-yellow-500 text-black rounded">
-                  EXTRA
-                </span>
-              )}
-              {resolution && (
-                <span className="px-2 py-1 text-xs font-semibold bg-black bg-opacity-75 text-white rounded">
-                  {resolution}
-                </span>
-              )}
-            </div>
-            {media.video_codec && (
-              <span className={`px-2 py-1 text-xs font-semibold text-white rounded ${getCodecBadgeColor(media.video_codec)}`}>
-                {media.video_codec.toUpperCase()}
+        {/* Badges overlay */}
+        <div className="absolute top-2 left-2 right-2 flex justify-between">
+          <div className="flex gap-1">
+            {media.is_extra && (
+              <span className="px-2 py-1 text-xs font-semibold bg-yellow-500 text-black rounded">
+                EXTRA
+              </span>
+            )}
+            {resolution && (
+              <span className="px-2 py-1 text-xs font-semibold bg-black bg-opacity-75 text-white rounded">
+                {resolution}
               </span>
             )}
           </div>
-
-          {/* Progress bar - overlaid at bottom of thumbnail */}
-          {progress && getProgressPercentage(progress) > 0 && (
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-30">
-              <div
-                className={`h-full transition-all ${
-                  progress.is_watched ? 'bg-green-500' : 'bg-blue-500'
-                }`}
-                style={{ width: `${Math.min(getProgressPercentage(progress), 100)}%` }}
-              />
-            </div>
-          )}
-
-          {/* Watched badge overlay */}
-          {progress?.is_watched && (
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-              <div className="bg-green-500 text-white px-3 py-2 rounded-full font-semibold text-sm shadow-lg flex items-center gap-1">
-                <span>✓</span>
-                <span>Watched</span>
-              </div>
-            </div>
+          {media.video_codec && (
+            <span className={`px-2 py-1 text-xs font-semibold text-white rounded ${getCodecBadgeColor(media.video_codec)}`}>
+              {media.video_codec.toUpperCase()}
+            </span>
           )}
         </div>
+
+        {/* Progress bar - overlaid at bottom of thumbnail */}
+        {progress && getProgressPercentage(progress) > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-30">
+            <div
+              className={`h-full transition-all ${
+                progress.is_watched ? 'bg-green-500' : 'bg-blue-500'
+              }`}
+              style={{ width: `${Math.min(getProgressPercentage(progress), 100)}%` }}
+            />
+          </div>
+        )}
+
+        {/* Watched badge overlay */}
+        {progress?.is_watched && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="bg-green-500 text-white px-3 py-2 rounded-full font-semibold text-sm shadow-lg flex items-center gap-1">
+              <span>✓</span>
+              <span>Watched</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Info */}
@@ -109,10 +103,7 @@ const MediaCard = ({ media, onClick }: MediaCardProps) => {
           )}
         </div>
       </div>
-
-      {/* Modal */}
-      {showDetails && <MediaDetailsModal media={media} onClose={() => setShowDetails(false)} />}
-    </>
+    </div>
   )
 }
 

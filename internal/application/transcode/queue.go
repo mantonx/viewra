@@ -23,7 +23,7 @@ type QueueConfig struct {
 	// Set to 0 to disable idle timeout. Recommended: 5 minutes
 	IdleTimeout time.Duration
 
-	// OutputBaseDir is the base directory for DASH output files
+	// OutputBaseDir is the base directory for HLS output files
 	OutputBaseDir string
 
 	// MediaFileGetter is a function to get the file path for a media ID
@@ -36,7 +36,7 @@ func DefaultQueueConfig() *QueueConfig {
 		WorkerCount:   2,                                 // 2 concurrent transcodes by default
 		PollInterval:  10 * time.Second,                  // Check for new jobs every 10 seconds
 		IdleTimeout:   5 * time.Minute,                   // Cancel transcode after 5 minutes of no activity
-		OutputBaseDir: transcoding.GetDefaultOutputDir(), // /data/dash or ./data/dash
+		OutputBaseDir: transcoding.GetDefaultOutputDir(), // /data/hls or ./data/hls
 	}
 }
 
@@ -314,17 +314,17 @@ func (q *Queue) processJob(workerID int, job *transcode.TranscodeJob) {
 	switch job.Type {
 	case transcode.TypeRemux:
 		operationName = "remux"
-		err = q.service.RemuxToDASH(ctx, job, inputPath, q.config.OutputBaseDir)
+		err = q.service.RemuxToHLS(ctx, job, inputPath, q.config.OutputBaseDir)
 	case transcode.TypeRemuxAudio:
 		operationName = "remux with audio downmix"
-		err = q.service.RemuxWithAudioDownmix(ctx, job, inputPath, q.config.OutputBaseDir)
+		err = q.service.RemuxWithAudioDownmixHLS(ctx, job, inputPath, q.config.OutputBaseDir)
 	case transcode.TypeTranscode:
 		operationName = "transcode"
-		err = q.service.TranscodeToDASH(ctx, job, inputPath, q.config.OutputBaseDir)
+		err = q.service.TranscodeToHLS(ctx, job, inputPath, q.config.OutputBaseDir)
 	default:
 		// Default to transcode for backward compatibility or unknown types
 		operationName = "transcode (default)"
-		err = q.service.TranscodeToDASH(ctx, job, inputPath, q.config.OutputBaseDir)
+		err = q.service.TranscodeToHLS(ctx, job, inputPath, q.config.OutputBaseDir)
 	}
 
 	duration := time.Since(startTime)

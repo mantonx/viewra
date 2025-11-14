@@ -87,6 +87,7 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 		queueConfig := &transcode.QueueConfig{
 			WorkerCount:   2, // TODO: Make configurable
 			PollInterval:  10 * time.Second,
+			IdleTimeout:   5 * time.Minute, // Cancel transcodes after 5 minutes of no segment requests
 			OutputBaseDir: transcodeOutputDir,
 			MediaFileGetter: func(ctx context.Context, mediaID int64) (string, error) {
 				// Get media entity to get file path

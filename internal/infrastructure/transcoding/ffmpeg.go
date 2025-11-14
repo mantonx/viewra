@@ -53,9 +53,9 @@ type TranscodeOptions struct {
 	ProgressHandler func(progress int)
 }
 
-// Transcode executes FFmpeg to transcode a video file to DASH format.
+// TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.
 // It monitors progress and calls the progress handler with percentage updates.
-func (e *ffmpegExecutor) Transcode(ctx context.Context, opts TranscodeOptions) error {
+func (e *ffmpegExecutor) TranscodeToHLS(ctx context.Context, opts TranscodeOptions) error {
 	// Ensure output directory exists
 	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -99,18 +99,18 @@ func (e *ffmpegExecutor) Transcode(ctx context.Context, opts TranscodeOptions) e
 	}
 
 	// Verify output files were created
-	manifestPath := filepath.Join(opts.OutputDir, "manifest.mpd")
-	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
-		return fmt.Errorf("manifest file was not created: %s", manifestPath)
+	playlistPath := filepath.Join(opts.OutputDir, "playlist.m3u8")
+	if _, err := os.Stat(playlistPath); os.IsNotExist(err) {
+		return fmt.Errorf("playlist file was not created: %s", playlistPath)
 	}
 
 	return nil
 }
 
-// RemuxToDASH remuxes a video to DASH format by copying streams without re-encoding.
+// RemuxToHLS remuxes a video to HLS format by copying streams without re-encoding.
 // This is much faster than transcoding (2-5 minutes vs 20-60 minutes) and should be used
 // when the video is already H.264 and audio is stereo, but the container format is incompatible.
-func (e *ffmpegExecutor) RemuxToDASH(ctx context.Context, opts TranscodeOptions) error {
+func (e *ffmpegExecutor) RemuxToHLS(ctx context.Context, opts TranscodeOptions) error {
 	// Ensure output directory exists
 	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -152,18 +152,18 @@ func (e *ffmpegExecutor) RemuxToDASH(ctx context.Context, opts TranscodeOptions)
 	}
 
 	// Verify output files were created
-	manifestPath := filepath.Join(opts.OutputDir, "manifest.mpd")
-	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
-		return fmt.Errorf("manifest file was not created: %s", manifestPath)
+	playlistPath := filepath.Join(opts.OutputDir, "playlist.m3u8")
+	if _, err := os.Stat(playlistPath); os.IsNotExist(err) {
+		return fmt.Errorf("playlist file was not created: %s", playlistPath)
 	}
 
 	return nil
 }
 
-// RemuxWithAudioDownmix remuxes video to DASH while copying video stream and downmixing multi-channel audio to stereo.
+// RemuxWithAudioDownmixHLS remuxes video to HLS while copying video stream and downmixing multi-channel audio to stereo.
 // This is used when video is H.264 compatible but audio has too many channels (5.1, 7.1) for browser playback.
 // Processing time: 5-10 minutes (faster than full transcode since video is copied).
-func (e *ffmpegExecutor) RemuxWithAudioDownmix(ctx context.Context, opts TranscodeOptions) error {
+func (e *ffmpegExecutor) RemuxWithAudioDownmixHLS(ctx context.Context, opts TranscodeOptions) error {
 	// Ensure output directory exists
 	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -205,18 +205,19 @@ func (e *ffmpegExecutor) RemuxWithAudioDownmix(ctx context.Context, opts Transco
 	}
 
 	// Verify output files were created
-	manifestPath := filepath.Join(opts.OutputDir, "manifest.mpd")
-	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
-		return fmt.Errorf("manifest file was not created: %s", manifestPath)
+	playlistPath := filepath.Join(opts.OutputDir, "playlist.m3u8")
+	if _, err := os.Stat(playlistPath); os.IsNotExist(err) {
+		return fmt.Errorf("playlist file was not created: %s", playlistPath)
 	}
 
 	return nil
 }
 
-// buildFFmpegArgs constructs the FFmpeg command line arguments for DASH transcoding.
+// buildFFmpegArgs constructs the FFmpeg command line arguments for HLS transcoding.
 func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	p := opts.Profile
-	outputManifest := filepath.Join(opts.OutputDir, "manifest.mpd")
+	outputPlaylist := filepath.Join(opts.OutputDir, "playlist.m3u8")
+	segmentPath := filepath.Join(opts.OutputDir, "segment_%03d.ts")
 
 	args := []string{}
 
@@ -258,7 +259,7 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 			p.Width, p.Height, p.Width, p.Height),
 	)
 
-	// GOP structure for DASH
+	// GOP structure for HLS
 	args = append(args,
 		"-g", strconv.Itoa(p.GOPSize),           // GOP size (keyframe interval)
 		"-keyint_min", strconv.Itoa(p.GOPSize),  // Minimum GOP size
@@ -273,20 +274,15 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		"-ar", strconv.Itoa(p.AudioSampleRate),
 	)
 
-	// DASH-specific settings with low-latency streaming support
+	// HLS-specific settings
 	args = append(args,
-		"-f", "dash",                                    // DASH format
-		"-seg_duration", strconv.Itoa(p.SegmentDuration), // Segment duration
-		"-use_template", "1",                            // Use template-based segments
-		"-use_timeline", "1",                            // Use timeline in manifest
-		"-init_seg_name", "init_$RepresentationID$.m4s", // Init segment naming
-		"-media_seg_name", "segment_$RepresentationID$_$Number$.m4s", // Media segment naming
-		"-adaptation_sets", "id=0,streams=v id=1,streams=a", // Separate video and audio adaptation sets
-		"-streaming", "1",                               // Enable streaming mode for progressive playback
-		"-ldash", "1",                                   // Low-latency DASH
-		"-window_size", "5",                             // Keep last 5 segments in manifest (live-like)
-		"-extra_window_size", "10",                      // Buffer 10 extra segments
-		"-remove_at_exit", "0",                          // Don't remove segments when done
+		"-f", "hls",                                      // HLS format
+		"-hls_time", strconv.Itoa(p.SegmentDuration),    // Segment duration (4 seconds)
+		"-hls_playlist_type", "event",                   // Event type - updates playlist as segments are created
+		"-hls_segment_filename", segmentPath,            // Segment filename pattern
+		"-hls_segment_type", "mpegts",                   // MPEG-TS segments
+		"-hls_flags", "independent_segments",            // Each segment can be decoded independently
+		"-start_number", "0",                            // Start segment numbering at 0
 	)
 
 	// Progress reporting
@@ -298,17 +294,18 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	// Overwrite output files without asking
 	args = append(args, "-y")
 
-	// Output manifest
-	args = append(args, outputManifest)
+	// Output playlist
+	args = append(args, outputPlaylist)
 
 	return args
 }
 
-// buildRemuxArgs constructs FFmpeg arguments for remuxing to DASH (copying streams without re-encoding).
+// buildRemuxArgs constructs FFmpeg arguments for remuxing to HLS (copying streams without re-encoding).
 // This is used when video is already H.264 and audio is stereo, but container format needs conversion.
 func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 	p := opts.Profile
-	outputManifest := filepath.Join(opts.OutputDir, "manifest.mpd")
+	outputPlaylist := filepath.Join(opts.OutputDir, "playlist.m3u8")
+	segmentPath := filepath.Join(opts.OutputDir, "segment_%03d.ts")
 
 	args := []string{}
 
@@ -321,20 +318,15 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 		"-c:a", "copy", // Copy audio stream
 	)
 
-	// DASH-specific settings with low-latency streaming support
+	// HLS-specific settings
 	args = append(args,
-		"-f", "dash",                                    // DASH format
-		"-seg_duration", strconv.Itoa(p.SegmentDuration), // Segment duration
-		"-use_template", "1",                            // Use template-based segments
-		"-use_timeline", "1",                            // Use timeline in manifest
-		"-init_seg_name", "init_$RepresentationID$.m4s", // Init segment naming
-		"-media_seg_name", "segment_$RepresentationID$_$Number$.m4s", // Media segment naming
-		"-adaptation_sets", "id=0,streams=v id=1,streams=a", // Separate video and audio adaptation sets
-		"-streaming", "1",                               // Enable streaming mode for progressive playback
-		"-ldash", "1",                                   // Low-latency DASH
-		"-window_size", "5",                             // Keep last 5 segments in manifest (live-like)
-		"-extra_window_size", "10",                      // Buffer 10 extra segments
-		"-remove_at_exit", "0",                          // Don't remove segments when done
+		"-f", "hls",                                      // HLS format
+		"-hls_time", strconv.Itoa(p.SegmentDuration),    // Segment duration (4 seconds)
+		"-hls_playlist_type", "event",                   // Event type - updates playlist as segments are created
+		"-hls_segment_filename", segmentPath,            // Segment filename pattern
+		"-hls_segment_type", "mpegts",                   // MPEG-TS segments
+		"-hls_flags", "independent_segments",            // Each segment can be decoded independently
+		"-start_number", "0",                            // Start segment numbering at 0
 	)
 
 	// Progress reporting
@@ -346,8 +338,8 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 	// Overwrite output files without asking
 	args = append(args, "-y")
 
-	// Output manifest
-	args = append(args, outputManifest)
+	// Output playlist
+	args = append(args, outputPlaylist)
 
 	return args
 }
@@ -356,7 +348,8 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 // This copies the video stream but re-encodes multi-channel audio to stereo for browser compatibility.
 func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) []string {
 	p := opts.Profile
-	outputManifest := filepath.Join(opts.OutputDir, "manifest.mpd")
+	outputPlaylist := filepath.Join(opts.OutputDir, "playlist.m3u8")
+	segmentPath := filepath.Join(opts.OutputDir, "segment_%03d.ts")
 
 	args := []string{}
 
@@ -367,34 +360,23 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 	args = append(args, "-c:v", "copy")
 
 	// Audio encoding with downmix to stereo
-	// Use pan filter for flexible downmixing from any multi-channel layout
+	// FFmpeg will automatically downmix from any multi-channel layout (TrueHD, DTS, etc.) to stereo
 	args = append(args,
-		"-c:a", "aac",      // AAC audio codec
+		"-c:a", "aac",      // AAC audio codec (web-compatible)
 		"-b:a", p.AudioBitrate,
-		"-ac", "2",         // Force stereo output (2 channels)
+		"-ac", "2",         // Force stereo output (2 channels) - FFmpeg auto-downmixes
 		"-ar", strconv.Itoa(p.AudioSampleRate),
 	)
 
-	// Add audio filter for intelligent downmixing
-	// This handles 5.1, 7.1, and other multi-channel formats automatically
+	// HLS-specific settings
 	args = append(args,
-		"-af", "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR",
-	)
-
-	// DASH-specific settings with low-latency streaming support
-	args = append(args,
-		"-f", "dash",                                    // DASH format
-		"-seg_duration", strconv.Itoa(p.SegmentDuration), // Segment duration
-		"-use_template", "1",                            // Use template-based segments
-		"-use_timeline", "1",                            // Use timeline in manifest
-		"-init_seg_name", "init_$RepresentationID$.m4s", // Init segment naming
-		"-media_seg_name", "segment_$RepresentationID$_$Number$.m4s", // Media segment naming
-		"-adaptation_sets", "id=0,streams=v id=1,streams=a", // Separate video and audio adaptation sets
-		"-streaming", "1",                               // Enable streaming mode for progressive playback
-		"-ldash", "1",                                   // Low-latency DASH
-		"-window_size", "5",                             // Keep last 5 segments in manifest (live-like)
-		"-extra_window_size", "10",                      // Buffer 10 extra segments
-		"-remove_at_exit", "0",                          // Don't remove segments when done
+		"-f", "hls",                                      // HLS format
+		"-hls_time", strconv.Itoa(p.SegmentDuration),    // Segment duration (4 seconds)
+		"-hls_playlist_type", "event",                   // Event type - updates playlist as segments are created
+		"-hls_segment_filename", segmentPath,            // Segment filename pattern
+		"-hls_segment_type", "mpegts",                   // MPEG-TS segments
+		"-hls_flags", "independent_segments",            // Each segment can be decoded independently
+		"-start_number", "0",                            // Start segment numbering at 0
 	)
 
 	// Progress reporting
@@ -406,8 +388,8 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 	// Overwrite output files without asking
 	args = append(args, "-y")
 
-	// Output manifest
-	args = append(args, outputManifest)
+	// Output playlist
+	args = append(args, outputPlaylist)
 
 	return args
 }
