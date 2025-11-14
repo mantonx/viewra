@@ -41,16 +41,20 @@ var (
 
 // TranscodeJob represents a transcoding job in the system.
 type TranscodeJob struct {
-	ID          int64
-	MediaID     int64
-	Quality     string
-	Type        string    // Job type: remux, remux_audio, or transcode
-	Status      string
-	Progress    int       // 0-100
-	Error       string    // Error message if failed
-	StartedAt   time.Time
-	CompletedAt time.Time
-	CreatedAt   time.Time
+	ID             int64
+	MediaID        int64
+	Quality        string
+	Type           string    // Job type: remux, remux_audio, or transcode
+	Status         string
+	Progress       int       // 0-100
+	Error          string    // Error message if failed
+	StartedAt      time.Time
+	CompletedAt    time.Time
+	CreatedAt      time.Time
+	FilePath       string    // Path to transcode output directory
+	FileSizeBytes  int64     // Total size of transcode output
+	LastAccessedAt time.Time // Last time this transcode was served
+	AccessCount    int       // Number of times this transcode was accessed
 }
 
 // NewTranscodeJob creates a new transcode job for a media item.

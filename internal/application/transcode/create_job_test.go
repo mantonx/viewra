@@ -131,6 +131,34 @@ func (m *MockRepository) CountByStatus(ctx context.Context, status string) (int6
 	return count, nil
 }
 
+func (m *MockRepository) GetTotalSize(ctx context.Context) (int64, error) {
+	return int64(len(m.jobs)), nil
+}
+
+func (m *MockRepository) ListAll(ctx context.Context) ([]*transcode.TranscodeJob, error) {
+	var result []*transcode.TranscodeJob
+	for _, job := range m.jobs {
+		result = append(result, job)
+	}
+	return result, nil
+}
+
+func (m *MockRepository) ListByLRU(ctx context.Context, limit int) ([]*transcode.TranscodeJob, error) {
+	var result []*transcode.TranscodeJob
+	for _, job := range m.jobs {
+		result = append(result, job)
+		if len(result) >= limit {
+			break
+		}
+	}
+	return result, nil
+}
+
+func (m *MockRepository) UpdateAccess(ctx context.Context, id int64, quality string) error {
+	// Mock implementation - just return nil
+	return nil
+}
+
 func TestCreateJob(t *testing.T) {
 	tests := []struct {
 		name        string

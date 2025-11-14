@@ -57,3 +57,31 @@ WHERE media_id = $1;
 -- name: CountTranscodeJobsByStatus :one
 SELECT COUNT(*) FROM transcode_jobs
 WHERE status = $1;
+
+-- name: ListAllTranscodeJobs :many
+SELECT * FROM transcode_jobs
+ORDER BY created_at DESC;
+
+-- name: UpdateTranscodeJobAccess :exec
+UPDATE transcode_jobs
+SET last_accessed_at = $2,
+    access_count = access_count + 1
+WHERE id = $1;
+
+-- name: UpdateTranscodeJobAccessByMediaAndQuality :exec
+UPDATE transcode_jobs
+SET last_accessed_at = $3,
+    access_count = access_count + 1
+WHERE media_id = $1 AND quality = $2;
+
+-- name: ListTranscodeJobsByLRU :many
+SELECT * FROM transcode_jobs
+WHERE status = 'completed'
+  AND last_accessed_at IS NOT NULL
+ORDER BY last_accessed_at ASC
+LIMIT $1;
+
+-- name: GetTotalTranscodeSize :one
+SELECT COALESCE(SUM(file_size_bytes), 0) as total_size
+FROM transcode_jobs
+WHERE status = 'completed';

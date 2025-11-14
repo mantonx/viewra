@@ -121,15 +121,20 @@ type ScanJob struct {
 }
 
 type TranscodeJob struct {
-	ID          int64          `json:"id"`
-	MediaID     int64          `json:"media_id"`
-	Quality     string         `json:"quality"`
-	Status      string         `json:"status"`
-	Progress    sql.NullInt64  `json:"progress"`
-	Error       sql.NullString `json:"error"`
-	StartedAt   sql.NullTime   `json:"started_at"`
-	CompletedAt sql.NullTime   `json:"completed_at"`
-	CreatedAt   sql.NullTime   `json:"created_at"`
+	ID             int64          `json:"id"`
+	MediaID        int64          `json:"media_id"`
+	Quality        string         `json:"quality"`
+	Status         string         `json:"status"`
+	Progress       sql.NullInt64  `json:"progress"`
+	Error          sql.NullString `json:"error"`
+	StartedAt      sql.NullTime   `json:"started_at"`
+	CompletedAt    sql.NullTime   `json:"completed_at"`
+	CreatedAt      sql.NullTime   `json:"created_at"`
+	Type           string         `json:"type"`
+	FilePath       sql.NullString `json:"file_path"`
+	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
+	LastAccessedAt sql.NullTime   `json:"last_accessed_at"`
+	AccessCount    sql.NullInt64  `json:"access_count"`
 }
 
 type TvEpisode struct {

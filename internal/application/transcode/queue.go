@@ -432,11 +432,29 @@ func (q *Queue) CancelJob(ctx context.Context, mediaID int64, quality string) er
 // RecordAccess updates the last access time for a transcode job.
 // Call this whenever a segment is requested to prevent idle timeout.
 func (q *Queue) RecordAccess(mediaID int64, quality string) {
+	// Update in-memory tracking (synchronous)
 	key := fmt.Sprintf("%d:%s", mediaID, quality)
 
 	q.lastAccessTimeMu.Lock()
 	q.lastAccessTime[key] = time.Now()
 	q.lastAccessTimeMu.Unlock()
+
+	// Persist to database (best effort, non-blocking)
+	go q.persistAccess(mediaID, quality)
+}
+
+// persistAccess persists access tracking to the database (extracted for testability).
+func (q *Queue) persistAccess(mediaID int64, quality string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := q.repo.UpdateAccess(ctx, mediaID, quality); err != nil {
+		q.logger.Debug("failed to persist access tracking",
+			slog.Int64("media_id", mediaID),
+			slog.String("quality", quality),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // idleMonitor periodically checks for idle transcode jobs and cancels them.

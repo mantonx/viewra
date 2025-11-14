@@ -50,8 +50,8 @@ func (r *Repository) Create(ctx context.Context, job *transcode.TranscodeJob) er
 			MediaID:   job.MediaID,
 			Quality:   job.Quality,
 			Status:    job.Status,
-			Progress:  common.Int64ToNullInt64(int64(job.Progress)),
-			CreatedAt: common.TimeToNullTime(job.CreatedAt),
+			Progress:  common.NullInt64(int64(job.Progress)),
+			CreatedAt: common.NullTime(job.CreatedAt),
 		})
 		if err != nil {
 			if common.IsUniqueConstraintError(err) {
@@ -69,8 +69,8 @@ func (r *Repository) Create(ctx context.Context, job *transcode.TranscodeJob) er
 		MediaID:   int32(job.MediaID),
 		Quality:   job.Quality,
 		Status:    job.Status,
-		Progress:  common.Int64ToNullInt32(int64(job.Progress)),
-		CreatedAt: common.TimeToNullTime(job.CreatedAt),
+		Progress:  common.NullInt32FromInt64(int64(job.Progress)),
+		CreatedAt: common.NullTime(job.CreatedAt),
 	})
 	if err != nil {
 		if common.IsUniqueConstraintError(err) {
@@ -91,12 +91,14 @@ func (r *Repository) Update(ctx context.Context, job *transcode.TranscodeJob) er
 
 	if r.dbType == "sqlite" {
 		err := r.sqliteQuerier.UpdateTranscodeJob(ctx, sqlc_sqlite.UpdateTranscodeJobParams{
-			ID:          job.ID,
-			Status:      job.Status,
-			Progress:    common.Int64ToNullInt64(int64(job.Progress)),
-			Error:       common.NullString(job.Error),
-			StartedAt:   common.TimeToNullTime(job.StartedAt),
-			CompletedAt: common.TimeToNullTime(job.CompletedAt),
+			ID:            job.ID,
+			Status:        job.Status,
+			Progress:      common.NullInt64(int64(job.Progress)),
+			Error:         common.NullString(job.Error),
+			StartedAt:     common.NullTime(job.StartedAt),
+			CompletedAt:   common.NullTime(job.CompletedAt),
+			FilePath:      common.NullString(job.FilePath),
+			FileSizeBytes: common.NullInt64(job.FileSizeBytes),
 		})
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -111,10 +113,10 @@ func (r *Repository) Update(ctx context.Context, job *transcode.TranscodeJob) er
 	err := r.postgresQuerier.UpdateTranscodeJob(ctx, sqlc_postgres.UpdateTranscodeJobParams{
 		ID:          int32(job.ID),
 		Status:      job.Status,
-		Progress:    common.Int64ToNullInt32(int64(job.Progress)),
+		Progress:    common.NullInt32FromInt64(int64(job.Progress)),
 		Error:       common.NullString(job.Error),
-		StartedAt:   common.TimeToNullTime(job.StartedAt),
-		CompletedAt: common.TimeToNullTime(job.CompletedAt),
+		StartedAt:   common.NullTime(job.StartedAt),
+		CompletedAt: common.NullTime(job.CompletedAt),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -313,18 +315,74 @@ func (r *Repository) DeleteByMediaID(ctx context.Context, mediaID int64) error {
 	return nil
 }
 
+// ListAll retrieves all transcode jobs (for cleanup operations).
+func (r *Repository) ListAll(ctx context.Context) ([]*transcode.TranscodeJob, error) {
+	// SQLite only for now
+	results, err := r.sqliteQuerier.ListAllTranscodeJobs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]*transcode.TranscodeJob, len(results))
+	for i, result := range results {
+		jobs[i] = r.sqliteModelToDomain(result)
+	}
+	return jobs, nil
+}
+
+// UpdateAccess updates the last accessed time and increments access count.
+func (r *Repository) UpdateAccess(ctx context.Context, mediaID int64, quality string) error {
+	now := time.Now()
+	err := r.sqliteQuerier.UpdateTranscodeJobAccessByMediaAndQuality(ctx, sqlc_sqlite.UpdateTranscodeJobAccessByMediaAndQualityParams{
+		LastAccessedAt: common.NullTime(now),
+		MediaID:        mediaID,
+		Quality:        quality,
+	})
+	return err
+}
+
+// GetTotalSize returns the total size of all completed transcodes.
+func (r *Repository) GetTotalSize(ctx context.Context) (int64, error) {
+	totalSize, err := r.sqliteQuerier.GetTotalTranscodeSize(ctx)
+	if err != nil {
+		return 0, err
+	}
+	// totalSize is an interface{}, need to convert to int64
+	if size, ok := totalSize.(int64); ok {
+		return size, nil
+	}
+	return 0, nil
+}
+
+// ListByLRU lists transcode jobs ordered by least recently used.
+func (r *Repository) ListByLRU(ctx context.Context, limit int) ([]*transcode.TranscodeJob, error) {
+	results, err := r.sqliteQuerier.ListTranscodeJobsByLRU(ctx, int64(limit))
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]*transcode.TranscodeJob, len(results))
+	for i, result := range results {
+		jobs[i] = r.sqliteModelToDomain(result)
+	}
+	return jobs, nil
+}
+
 // sqliteModelToDomain converts a SQLite model to a domain entity.
 func (r *Repository) sqliteModelToDomain(model sqlc_sqlite.TranscodeJob) *transcode.TranscodeJob {
 	return &transcode.TranscodeJob{
-		ID:          model.ID,
-		MediaID:     model.MediaID,
-		Quality:     model.Quality,
-		Status:      model.Status,
-		Progress:    int(common.NullInt64ToInt64(model.Progress)),
-		Error:       common.ParseNullString(model.Error),
-		StartedAt:   common.NullTimeToTime(model.StartedAt),
-		CompletedAt: common.NullTimeToTime(model.CompletedAt),
-		CreatedAt:   common.NullTimeToTime(model.CreatedAt),
+		ID:             model.ID,
+		MediaID:        model.MediaID,
+		Quality:        model.Quality,
+		Type:           model.Type,
+		Status:         model.Status,
+		Progress:       int(common.ParseNullInt64(model.Progress)),
+		Error:          common.ParseNullString(model.Error),
+		StartedAt:      common.ParseNullTime(model.StartedAt),
+		CompletedAt:    common.ParseNullTime(model.CompletedAt),
+		CreatedAt:      common.ParseNullTime(model.CreatedAt),
+		FilePath:       common.ParseNullString(model.FilePath),
+		FileSizeBytes:  common.ParseNullInt64(model.FileSizeBytes),
+		LastAccessedAt: common.ParseNullTime(model.LastAccessedAt),
+		AccessCount:    int(common.ParseNullInt64(model.AccessCount)),
 	}
 }
 
@@ -335,10 +393,10 @@ func (r *Repository) postgresModelToDomain(model sqlc_postgres.TranscodeJob) *tr
 		MediaID:     int64(model.MediaID),
 		Quality:     model.Quality,
 		Status:      model.Status,
-		Progress:    int(common.NullInt32ToInt64(model.Progress)),
+		Progress:    int(common.ParseNullInt32(model.Progress)),
 		Error:       common.ParseNullString(model.Error),
-		StartedAt:   common.NullTimeToTime(model.StartedAt),
-		CompletedAt: common.NullTimeToTime(model.CompletedAt),
-		CreatedAt:   common.NullTimeToTime(model.CreatedAt),
+		StartedAt:   common.ParseNullTime(model.StartedAt),
+		CompletedAt: common.ParseNullTime(model.CompletedAt),
+		CreatedAt:   common.ParseNullTime(model.CreatedAt),
 	}
 }

@@ -29,4 +29,10 @@ func RegisterTranscodeRoutes(router *gin.RouterGroup, handler *handlers.Transcod
 
 	// POST /api/media/:id/transcode/:quality/cancel - Cancel transcode job
 	router.POST("/media/:id/transcode/:quality/cancel", handler.CancelTranscodeJob)
+
+	// GET /api/transcode/disk-usage - Get disk usage statistics
+	router.GET("/transcode/disk-usage", handler.GetDiskUsage)
+
+	// POST /api/transcode/cleanup - Cleanup transcode files
+	router.POST("/transcode/cleanup", handler.CleanupTranscodes)
 }

@@ -3,19 +3,23 @@ package handlers
 import (
 	"net/http"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/viewra/viewra/internal/application/transcode"
 	transcodeDomain "github.com/viewra/viewra/internal/domain/transcode"
+	"github.com/viewra/viewra/internal/infrastructure/transcoding"
+	"github.com/viewra/viewra/internal/pkg/format"
 )
 
 // TranscodeHandler handles transcode-related HTTP requests.
 type TranscodeHandler struct {
-	createJobUseCase   *transcode.CreateJobUseCase
-	getStatusUseCase   *transcode.GetJobStatusUseCase
+	createJobUseCase     *transcode.CreateJobUseCase
+	getStatusUseCase     *transcode.GetJobStatusUseCase
 	serveManifestUseCase *transcode.ServeManifestUseCase
-	queue              *transcode.Queue
-	outputDir          string
+	queue                *transcode.Queue
+	cleanupService       *transcode.CleanupService
+	outputDir            string
 }
 
 // NewTranscodeHandler creates a new transcode handler.
@@ -24,14 +28,16 @@ func NewTranscodeHandler(
 	getStatusUseCase *transcode.GetJobStatusUseCase,
 	serveManifestUseCase *transcode.ServeManifestUseCase,
 	queue *transcode.Queue,
+	cleanupService *transcode.CleanupService,
 	outputDir string,
 ) *TranscodeHandler {
 	return &TranscodeHandler{
-		createJobUseCase:   createJobUseCase,
-		getStatusUseCase:   getStatusUseCase,
+		createJobUseCase:     createJobUseCase,
+		getStatusUseCase:     getStatusUseCase,
 		serveManifestUseCase: serveManifestUseCase,
-		queue:              queue,
-		outputDir:          outputDir,
+		queue:                queue,
+		cleanupService:       cleanupService,
+		outputDir:            outputDir,
 	}
 }
 
@@ -260,8 +266,8 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 		h.queue.RecordAccess(mediaID, quality)
 	}
 
-	// Build segment path with hls/ subdirectory
-	segmentPath := filepath.Join(h.outputDir, "hls", mediaIDStr, quality, filename)
+	// Build segment path using centralized path construction
+	segmentPath := filepath.Join(transcoding.GetHLSOutputPath(h.outputDir, mediaID, quality), filename)
 
 	// Serve the file
 	c.Header("Content-Type", "video/mp2t")
@@ -326,3 +332,135 @@ func (h *TranscodeHandler) CancelTranscodeJob(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Transcode job cancelled successfully"})
 }
+
+// CleanupRequest represents a transcode cleanup request
+type CleanupRequest struct {
+	MediaID     *int64  `json:"media_id"`
+	Quality     *string `json:"quality"`
+	Failed      bool    `json:"failed"`
+	Orphans     bool    `json:"orphans"`
+	OlderThanHours *int `json:"older_than_hours"`
+	DryRun      bool    `json:"dry_run"`
+}
+
+// CleanupResponse represents cleanup operation results
+type CleanupResponse struct {
+	DeletedCount     int                `json:"deleted_count"`
+	DeletedSizeBytes int64              `json:"deleted_size_bytes"`
+	DeletedSizeHuman string             `json:"deleted_size_human"`
+	FailedCount      int                `json:"failed_count"`
+	Errors           []string           `json:"errors,omitempty"`
+	DryRun           bool               `json:"dry_run"`
+}
+
+// DiskUsageResponse represents disk usage statistics
+type DiskUsageResponse struct {
+	OutputDir        string `json:"output_dir"`
+	TotalSizeBytes   int64  `json:"total_size_bytes"`
+	TotalSizeHuman   string `json:"total_size_human"`
+	FileCount        int    `json:"file_count"`
+	TotalJobs        int    `json:"total_jobs"`
+	CompletedCount   int    `json:"completed_count"`
+	FailedCount      int    `json:"failed_count"`
+	QueuedCount      int    `json:"queued_count"`
+	ProcessingCount  int    `json:"processing_count"`
+}
+
+// GetDiskUsage returns transcode disk usage statistics.
+//
+// @Summary Get disk usage
+// @Description Returns current disk usage statistics for transcode files
+// @Tags transcode
+// @Produce json
+// @Success 200 {object} DiskUsageResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/transcode/disk-usage [get]
+func (h *TranscodeHandler) GetDiskUsage(c *gin.Context) {
+	usage, err := h.cleanupService.GetDiskUsage(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, DiskUsageResponse{
+		OutputDir:        usage.OutputDir,
+		TotalSizeBytes:   usage.TotalSizeBytes,
+		TotalSizeHuman:   format.Bytes(usage.TotalSizeBytes),
+		FileCount:        usage.FileCount,
+		TotalJobs:        usage.TotalJobs,
+		CompletedCount:   usage.CompletedCount,
+		FailedCount:      usage.FailedCount,
+		QueuedCount:      usage.QueuedCount,
+		ProcessingCount:  usage.ProcessingCount,
+	})
+}
+
+// CleanupTranscodes performs cleanup of transcode files.
+//
+// @Summary Cleanup transcodes
+// @Description Cleans up transcode files based on specified criteria
+// @Tags transcode
+// @Accept json
+// @Produce json
+// @Param request body CleanupRequest true "Cleanup criteria"
+// @Success 200 {object} CleanupResponse
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/transcode/cleanup [post]
+func (h *TranscodeHandler) CleanupTranscodes(c *gin.Context) {
+	var req CleanupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	var result *transcode.CleanupResult
+	var err error
+
+	if req.Orphans {
+		result, err = h.cleanupService.CleanOrphans(c.Request.Context(), req.DryRun)
+	} else if req.Failed {
+		olderThan := 24 * time.Hour
+		if req.OlderThanHours != nil {
+			olderThan = time.Duration(*req.OlderThanHours) * time.Hour
+		}
+		result, err = h.cleanupService.CleanFailed(c.Request.Context(), olderThan, req.DryRun)
+	} else if req.MediaID != nil {
+		result, err = h.cleanupService.CleanByMediaID(c.Request.Context(), *req.MediaID, req.DryRun)
+	} else if req.OlderThanHours != nil {
+		olderThan := time.Duration(*req.OlderThanHours) * time.Hour
+		result, err = h.cleanupService.CleanOld(c.Request.Context(), olderThan, req.DryRun)
+	} else {
+		// Custom filter
+		filter := transcode.CleanupFilter{
+			IncludeCompleted: true,
+			IncludeFailed:    req.Failed,
+			DryRun:           req.DryRun,
+		}
+		if req.Quality != nil {
+			filter.Quality = req.Quality
+		}
+		result, err = h.cleanupService.Clean(c.Request.Context(), filter)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	// Convert errors to strings
+	errorStrings := make([]string, len(result.Errors))
+	for i, e := range result.Errors {
+		errorStrings[i] = e.Error()
+	}
+
+	c.JSON(http.StatusOK, CleanupResponse{
+		DeletedCount:     result.DeletedCount,
+		DeletedSizeBytes: result.DeletedSizeBytes,
+		DeletedSizeHuman: format.Bytes(result.DeletedSizeBytes),
+		FailedCount:      result.FailedCount,
+		Errors:           errorStrings,
+		DryRun:           req.DryRun,
+	})
+}
+

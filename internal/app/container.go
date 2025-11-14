@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -26,6 +27,9 @@ import (
 type Container struct {
 	// HTTP Server
 	Server *api.Server
+
+	// Background services
+	CleanupScheduler *transcode.CleanupScheduler
 }
 
 // NewContainer creates and wires up all application dependencies
@@ -125,13 +129,29 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 			libraryRepository,
 			createJobUseCase,
 		)
+		cleanupService := transcode.NewCleanupService(transcodeRepository, transcodeOutputDir)
 
 		transcodeHandler = handlers.NewTranscodeHandler(
 			createJobUseCase,
 			getStatusUseCase,
 			serveManifestUseCase,
 			transcodeQueue,
+			cleanupService,
 			transcodeOutputDir,
+		)
+	}
+
+	// Create cleanup scheduler with configuration from environment
+	var cleanupScheduler *transcode.CleanupScheduler
+	if transcodeRepository != nil {
+		cleanupConfig := getCleanupConfig()
+		cleanupService := transcode.NewCleanupService(transcodeRepository, transcodeOutputDir)
+		cleanupScheduler = transcode.NewCleanupScheduler(
+			cleanupConfig,
+			cleanupService,
+			transcodeRepository,
+			transcodeOutputDir,
+			logger,
 		)
 	}
 
@@ -155,8 +175,78 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	)
 
 	return &Container{
-		Server: server,
+		Server:           server,
+		CleanupScheduler: cleanupScheduler,
 	}
+}
+
+// getCleanupConfig reads cleanup configuration from environment variables.
+func getCleanupConfig() *transcode.CleanupSchedulerConfig {
+	config := transcode.DefaultCleanupSchedulerConfig()
+
+	// Read environment variables with fallback to defaults
+	if val := os.Getenv("TRANSCODE_CLEANUP_ENABLED"); val != "" {
+		config.Enabled = val == "true" || val == "1"
+	}
+	if val := os.Getenv("TRANSCODE_CLEANUP_INTERVAL_HOURS"); val != "" {
+		if hours, err := time.ParseDuration(val + "h"); err == nil {
+			config.Interval = hours
+		}
+	}
+	if val := os.Getenv("TRANSCODE_CLEANUP_DISK_THRESHOLD"); val != "" {
+		if threshold, err := parseInt(val); err == nil {
+			config.DiskThresholdPercent = threshold
+		}
+	}
+	if val := os.Getenv("TRANSCODE_CLEANUP_DISK_WARNING"); val != "" {
+		if warning, err := parseInt(val); err == nil {
+			config.DiskWarningPercent = warning
+		}
+	}
+	if val := os.Getenv("TRANSCODE_MIN_FREE_SPACE_GB"); val != "" {
+		if gb, err := parseInt64(val); err == nil {
+			config.MinFreeSpaceGB = gb
+		}
+	}
+	if val := os.Getenv("TRANSCODE_MAX_AGE_DAYS"); val != "" {
+		if days, err := parseInt(val); err == nil {
+			config.MaxAgeHours = days * 24
+		}
+	}
+	if val := os.Getenv("TRANSCODE_MAX_IDLE_DAYS"); val != "" {
+		if days, err := parseInt(val); err == nil {
+			config.MaxIdleHours = days * 24
+		}
+	}
+	if val := os.Getenv("TRANSCODE_MAX_STORAGE_GB"); val != "" {
+		if gb, err := parseInt64(val); err == nil {
+			config.MaxStorageGB = gb
+		}
+	}
+	if val := os.Getenv("TRANSCODE_CLEANUP_BATCH_SIZE"); val != "" {
+		if size, err := parseInt(val); err == nil {
+			config.CleanupBatchSize = size
+		}
+	}
+	if val := os.Getenv("TRANSCODE_KEEP_FAILED_HOURS"); val != "" {
+		if hours, err := parseInt(val); err == nil {
+			config.KeepFailedHours = hours
+		}
+	}
+
+	return config
+}
+
+func parseInt(s string) (int, error) {
+	var v int
+	_, err := fmt.Sscanf(s, "%d", &v)
+	return v, err
+}
+
+func parseInt64(s string) (int64, error) {
+	var v int64
+	_, err := fmt.Sscanf(s, "%d", &v)
+	return v, err
 }
 
 // ensureDirectory creates a directory if it doesn't exist.

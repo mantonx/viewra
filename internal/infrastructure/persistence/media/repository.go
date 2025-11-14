@@ -35,72 +35,10 @@ func NewRepository(db *sql.DB, driver string) *Repository {
 func (r *Repository) Create(ctx context.Context, m *media.Media) error {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.CreateMedia(ctx, sqlc_postgres.CreateMediaParams{
-				LibraryID:         int32(m.LibraryID),
-				Title:             m.Title,
-				FilePath:          m.FilePath,
-				FileSize:          common.NullInt64(m.FileSize),
-				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              m.Type,
-				IsExtra:           m.IsExtra,
-				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
-				ContainerFormat:   common.NullString(m.ContainerFormat),
-				Width:             common.NullInt32(int32(m.Width)),
-				Height:            common.NullInt32(int32(m.Height)),
-				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
-				Codec:             common.NullString(m.VideoCodec),
-				AudioCodec:        common.NullString(m.AudioCodec),
-				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
-				BitRate:           common.NullInt64(m.Bitrate),
-				FrameRate:         common.NullFloat64(m.FrameRate),
-				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
-				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
-				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
-				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
-				QualityScore:      sql.NullInt32{},    // TODO: Calculate heuristic
-				Is3d:              sql.NullBool{},     // TODO: Detect from filename
-				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
-				HasDash:           common.NullBool(false),
-				DashManifestPath:  sql.NullString{},
-				TranscodingStatus: sql.NullString{},
-			})
+			return r.postgres.CreateMedia(ctx, buildPostgresCreateParams(m))
 		},
 		func() (any, error) {
-			return r.sqlite.CreateMedia(ctx, sqlc_sqlite.CreateMediaParams{
-				LibraryID:         m.LibraryID,
-				Title:             m.Title,
-				FilePath:          m.FilePath,
-				FileSize:          common.NullInt64(m.FileSize),
-				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              m.Type,
-				IsExtra:           m.IsExtra,
-				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
-				ContainerFormat:   common.NullString(m.ContainerFormat),
-				Width:             common.NullInt64(int64(m.Width)),
-				Height:            common.NullInt64(int64(m.Height)),
-				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
-				Codec:             common.NullString(m.VideoCodec),
-				AudioCodec:        common.NullString(m.AudioCodec),
-				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
-				BitRate:           common.NullInt64(m.Bitrate),
-				FrameRate:         common.NullFloat64(m.FrameRate),
-				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
-				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
-				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
-				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
-				QualityScore:      sql.NullInt64{},    // TODO: Calculate heuristic
-				Is3d:              sql.NullBool{},     // TODO: Detect from filename
-				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
-				HasDash:           common.NullBool(false),
-				DashManifestPath:  sql.NullString{},
-				TranscodingStatus: sql.NullString{},
-			})
+			return r.sqlite.CreateMedia(ctx, buildSQLiteCreateParams(m))
 		},
 	)
 	if err != nil {
@@ -142,48 +80,9 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*media.Media, error
 
 	// Convert to domain media
 	if r.router.IsPostgresDB() {
-		pgResult := result.(sqlc_postgres.Medium)
-		return &media.Media{
-			ID:              int64(pgResult.ID),
-			LibraryID:       int64(pgResult.LibraryID),
-			Title:           pgResult.Title,
-			Type:            pgResult.Type,
-			FilePath:        pgResult.FilePath,
-			FileSize:        pgResult.FileSize.Int64,
-			Duration:        int(pgResult.Duration.Float64),
-			IsExtra:         pgResult.IsExtra,
-			Width:           int(pgResult.Width.Int32),
-			Height:          int(pgResult.Height.Int32),
-			VideoCodec:      pgResult.Codec.String,
-			AudioCodec:      pgResult.AudioCodec.String,
-			Bitrate:         pgResult.BitRate.Int64,
-			FrameRate:       pgResult.FrameRate.Float64,
-			ContainerFormat: pgResult.ContainerFormat.String,
-			CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
-			UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
-		}, nil
+		return pgMediumToDomain(result.(sqlc_postgres.Medium)), nil
 	}
-
-	sqResult := result.(sqlc_sqlite.Medium)
-	return &media.Media{
-		ID:              sqResult.ID,
-		LibraryID:       sqResult.LibraryID,
-		Title:           sqResult.Title,
-		Type:            sqResult.Type,
-		FilePath:        sqResult.FilePath,
-		FileSize:        sqResult.FileSize.Int64,
-		Duration:        int(sqResult.Duration.Float64),
-		IsExtra:         sqResult.IsExtra,
-		Width:           int(sqResult.Width.Int64),
-		Height:          int(sqResult.Height.Int64),
-		VideoCodec:      sqResult.Codec.String,
-		AudioCodec:      sqResult.AudioCodec.String,
-		Bitrate:         sqResult.BitRate.Int64,
-		FrameRate:       sqResult.FrameRate.Float64,
-		ContainerFormat: sqResult.ContainerFormat.String,
-		CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
-		UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
-	}, nil
+	return sqliteMediumToDomain(result.(sqlc_sqlite.Medium)), nil
 }
 
 // GetByFilePath retrieves a media item by its file path within a library
@@ -211,48 +110,9 @@ func (r *Repository) GetByFilePath(ctx context.Context, libraryID int64, filePat
 
 	// Convert to domain media
 	if r.router.IsPostgresDB() {
-		pgResult := result.(sqlc_postgres.Medium)
-		return &media.Media{
-			ID:              int64(pgResult.ID),
-			LibraryID:       int64(pgResult.LibraryID),
-			Title:           pgResult.Title,
-			Type:            pgResult.Type,
-			FilePath:        pgResult.FilePath,
-			FileSize:        pgResult.FileSize.Int64,
-			Duration:        int(pgResult.Duration.Float64),
-			IsExtra:         pgResult.IsExtra,
-			Width:           int(pgResult.Width.Int32),
-			Height:          int(pgResult.Height.Int32),
-			VideoCodec:      pgResult.Codec.String,
-			AudioCodec:      pgResult.AudioCodec.String,
-			Bitrate:         pgResult.BitRate.Int64,
-			FrameRate:       pgResult.FrameRate.Float64,
-			ContainerFormat: pgResult.ContainerFormat.String,
-			CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
-			UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
-		}, nil
+		return pgMediumToDomain(result.(sqlc_postgres.Medium)), nil
 	}
-
-	sqResult := result.(sqlc_sqlite.Medium)
-	return &media.Media{
-		ID:              sqResult.ID,
-		LibraryID:       sqResult.LibraryID,
-		Title:           sqResult.Title,
-		Type:            sqResult.Type,
-		FilePath:        sqResult.FilePath,
-		FileSize:        sqResult.FileSize.Int64,
-		Duration:        int(sqResult.Duration.Float64),
-		IsExtra:         sqResult.IsExtra,
-		Width:           int(sqResult.Width.Int64),
-		Height:          int(sqResult.Height.Int64),
-		VideoCodec:      sqResult.Codec.String,
-		AudioCodec:      sqResult.AudioCodec.String,
-		Bitrate:         sqResult.BitRate.Int64,
-		FrameRate:       sqResult.FrameRate.Float64,
-		ContainerFormat: sqResult.ContainerFormat.String,
-		CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
-		UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
-	}, nil
+	return sqliteMediumToDomain(result.(sqlc_sqlite.Medium)), nil
 }
 
 // ListAll retrieves all media items across all libraries
@@ -274,25 +134,7 @@ func (r *Repository) ListAll(ctx context.Context) ([]*media.Media, error) {
 		pgResults := result.([]sqlc_postgres.Medium)
 		mediaList := make([]*media.Media, len(pgResults))
 		for i, pgResult := range pgResults {
-			mediaList[i] = &media.Media{
-				ID:              int64(pgResult.ID),
-				LibraryID:       int64(pgResult.LibraryID),
-				Title:           pgResult.Title,
-				Type:            pgResult.Type,
-				FilePath:        pgResult.FilePath,
-				FileSize:        pgResult.FileSize.Int64,
-				Duration:        int(pgResult.Duration.Float64),
-				IsExtra:         pgResult.IsExtra,
-				Width:           int(pgResult.Width.Int32),
-				Height:          int(pgResult.Height.Int32),
-				VideoCodec:      pgResult.Codec.String,
-				AudioCodec:      "",
-				Bitrate:         pgResult.BitRate.Int64,
-				FrameRate:       pgResult.FrameRate.Float64,
-				ContainerFormat: pgResult.ContainerFormat.String,
-				CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
-				UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
-			}
+			mediaList[i] = pgMediumToDomain(pgResult)
 		}
 		return mediaList, nil
 	}
@@ -300,25 +142,7 @@ func (r *Repository) ListAll(ctx context.Context) ([]*media.Media, error) {
 	sqResults := result.([]sqlc_sqlite.Medium)
 	mediaList := make([]*media.Media, len(sqResults))
 	for i, sqResult := range sqResults {
-		mediaList[i] = &media.Media{
-			ID:              sqResult.ID,
-			LibraryID:       sqResult.LibraryID,
-			Title:           sqResult.Title,
-			Type:            sqResult.Type,
-			FilePath:        sqResult.FilePath,
-			FileSize:        sqResult.FileSize.Int64,
-			Duration:        int(sqResult.Duration.Float64),
-			IsExtra:         sqResult.IsExtra,
-			Width:           int(sqResult.Width.Int64),
-			Height:          int(sqResult.Height.Int64),
-			VideoCodec:      sqResult.Codec.String,
-			AudioCodec:      "",
-			Bitrate:         sqResult.BitRate.Int64,
-			FrameRate:       sqResult.FrameRate.Float64,
-			ContainerFormat: sqResult.ContainerFormat.String,
-			CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
-			UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
-		}
+		mediaList[i] = sqliteMediumToDomain(sqResult)
 	}
 	return mediaList, nil
 }
@@ -342,25 +166,7 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*med
 		pgResults := result.([]sqlc_postgres.Medium)
 		mediaList := make([]*media.Media, len(pgResults))
 		for i, pgResult := range pgResults {
-			mediaList[i] = &media.Media{
-				ID:              int64(pgResult.ID),
-				LibraryID:       int64(pgResult.LibraryID),
-				Title:           pgResult.Title,
-				Type:            pgResult.Type,
-				FilePath:        pgResult.FilePath,
-				FileSize:        pgResult.FileSize.Int64,
-				Duration:        int(pgResult.Duration.Float64),
-				IsExtra:         pgResult.IsExtra,
-				Width:           int(pgResult.Width.Int32),
-				Height:          int(pgResult.Height.Int32),
-				VideoCodec:      pgResult.Codec.String,
-				AudioCodec:      "",
-				Bitrate:         pgResult.BitRate.Int64,
-				FrameRate:       pgResult.FrameRate.Float64,
-				ContainerFormat: pgResult.ContainerFormat.String,
-				CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
-				UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
-			}
+			mediaList[i] = pgMediumToDomain(pgResult)
 		}
 		return mediaList, nil
 	}
@@ -368,25 +174,7 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*med
 	sqResults := result.([]sqlc_sqlite.Medium)
 	mediaList := make([]*media.Media, len(sqResults))
 	for i, sqResult := range sqResults {
-		mediaList[i] = &media.Media{
-			ID:              sqResult.ID,
-			LibraryID:       sqResult.LibraryID,
-			Title:           sqResult.Title,
-			Type:            sqResult.Type,
-			FilePath:        sqResult.FilePath,
-			FileSize:        sqResult.FileSize.Int64,
-			Duration:        int(sqResult.Duration.Float64),
-			IsExtra:         sqResult.IsExtra,
-			Width:           int(sqResult.Width.Int64),
-			Height:          int(sqResult.Height.Int64),
-			VideoCodec:      sqResult.Codec.String,
-			AudioCodec:      "",
-			Bitrate:         sqResult.BitRate.Int64,
-			FrameRate:       sqResult.FrameRate.Float64,
-			ContainerFormat: sqResult.ContainerFormat.String,
-			CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
-			UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
-		}
+		mediaList[i] = sqliteMediumToDomain(sqResult)
 	}
 	return mediaList, nil
 }
@@ -420,25 +208,7 @@ func (r *Repository) ListByType(
 		pgResults := result.([]sqlc_postgres.Medium)
 		mediaList := make([]*media.Media, len(pgResults))
 		for i, pgResult := range pgResults {
-			mediaList[i] = &media.Media{
-				ID:              int64(pgResult.ID),
-				LibraryID:       int64(pgResult.LibraryID),
-				Title:           pgResult.Title,
-				Type:            pgResult.Type,
-				FilePath:        pgResult.FilePath,
-				FileSize:        pgResult.FileSize.Int64,
-				Duration:        int(pgResult.Duration.Float64),
-				IsExtra:         pgResult.IsExtra,
-				Width:           int(pgResult.Width.Int32),
-				Height:          int(pgResult.Height.Int32),
-				VideoCodec:      pgResult.Codec.String,
-				AudioCodec:      "",
-				Bitrate:         pgResult.BitRate.Int64,
-				FrameRate:       pgResult.FrameRate.Float64,
-				ContainerFormat: pgResult.ContainerFormat.String,
-				CreatedAt:       common.ParseNullTime(pgResult.CreatedAt),
-				UpdatedAt:       common.ParseNullTime(pgResult.UpdatedAt),
-			}
+			mediaList[i] = pgMediumToDomain(pgResult)
 		}
 		return mediaList, nil
 	}
@@ -446,25 +216,7 @@ func (r *Repository) ListByType(
 	sqResults := result.([]sqlc_sqlite.Medium)
 	mediaList := make([]*media.Media, len(sqResults))
 	for i, sqResult := range sqResults {
-		mediaList[i] = &media.Media{
-			ID:              sqResult.ID,
-			LibraryID:       sqResult.LibraryID,
-			Title:           sqResult.Title,
-			Type:            sqResult.Type,
-			FilePath:        sqResult.FilePath,
-			FileSize:        sqResult.FileSize.Int64,
-			Duration:        int(sqResult.Duration.Float64),
-			IsExtra:         sqResult.IsExtra,
-			Width:           int(sqResult.Width.Int64),
-			Height:          int(sqResult.Height.Int64),
-			VideoCodec:      sqResult.Codec.String,
-			AudioCodec:      "",
-			Bitrate:         sqResult.BitRate.Int64,
-			FrameRate:       sqResult.FrameRate.Float64,
-			ContainerFormat: sqResult.ContainerFormat.String,
-			CreatedAt:       common.ParseNullTime(sqResult.CreatedAt),
-			UpdatedAt:       common.ParseNullTime(sqResult.UpdatedAt),
-		}
+		mediaList[i] = sqliteMediumToDomain(sqResult)
 	}
 	return mediaList, nil
 }
@@ -473,74 +225,10 @@ func (r *Repository) ListByType(
 func (r *Repository) Update(ctx context.Context, m *media.Media) error {
 	result, err := r.router.Route(
 		func() (any, error) {
-			return r.postgres.UpdateMedia(ctx, sqlc_postgres.UpdateMediaParams{
-				LibraryID:         int32(m.LibraryID),
-				Title:             m.Title,
-				FilePath:          m.FilePath,
-				FileSize:          common.NullInt64(m.FileSize),
-				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              m.Type,
-				IsExtra:           m.IsExtra,
-				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
-				ContainerFormat:   common.NullString(m.ContainerFormat),
-				Width:             common.NullInt32(int32(m.Width)),
-				Height:            common.NullInt32(int32(m.Height)),
-				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
-				Codec:             common.NullString(m.VideoCodec),
-				AudioCodec:        common.NullString(m.AudioCodec),
-				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
-				BitRate:           common.NullInt64(m.Bitrate),
-				FrameRate:         common.NullFloat64(m.FrameRate),
-				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
-				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
-				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
-				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
-				QualityScore:      sql.NullInt32{},    // TODO: Calculate heuristic
-				Is3d:              sql.NullBool{},     // TODO: Detect from filename
-				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
-				HasDash:           common.NullBool(false),
-				DashManifestPath:  sql.NullString{},
-				TranscodingStatus: sql.NullString{},
-				ID:                int32(m.ID),
-			})
+			return r.postgres.UpdateMedia(ctx, buildPostgresUpdateParams(m))
 		},
 		func() (any, error) {
-			return r.sqlite.UpdateMedia(ctx, sqlc_sqlite.UpdateMediaParams{
-				LibraryID:         m.LibraryID,
-				Title:             m.Title,
-				FilePath:          m.FilePath,
-				FileSize:          common.NullInt64(m.FileSize),
-				Duration:          common.NullFloat64(float64(m.Duration)),
-				Type:              m.Type,
-				IsExtra:           m.IsExtra,
-				FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
-				ContainerFormat:   common.NullString(m.ContainerFormat),
-				Width:             common.NullInt64(int64(m.Width)),
-				Height:            common.NullInt64(int64(m.Height)),
-				AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
-				Codec:             common.NullString(m.VideoCodec),
-				AudioCodec:        common.NullString(m.AudioCodec),
-				CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
-				BitRate:           common.NullInt64(m.Bitrate),
-				FrameRate:         common.NullFloat64(m.FrameRate),
-				ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
-				HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
-				ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
-				ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
-				SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-				ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
-				QualityScore:      sql.NullInt64{},    // TODO: Calculate heuristic
-				Is3d:              sql.NullBool{},     // TODO: Detect from filename
-				StereoMode:        sql.NullString{},   // TODO: Detect if 3D
-				HasDash:           common.NullBool(false),
-				DashManifestPath:  sql.NullString{},
-				TranscodingStatus: sql.NullString{},
-				ID:                m.ID,
-			})
+			return r.sqlite.UpdateMedia(ctx, buildSQLiteUpdateParams(m))
 		},
 	)
 	if err != nil {

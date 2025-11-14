@@ -182,8 +182,17 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
 
     // Handle video loaded metadata to get actual duration
     const handleLoadedMetadata = () => {
+      // For HLS streams being progressively transcoded, the video duration starts small
+      // and increments as more segments are created. Prefer the database duration if available.
+      // Only use video.duration if we don't have a duration prop or if it's larger (more accurate)
       if (video.duration && !isNaN(video.duration)) {
-        setVideoDuration(video.duration)
+        if (duration && duration > 0) {
+          // We have a duration from the database - use it instead of the HLS reported duration
+          setVideoDuration(duration)
+        } else {
+          // No database duration - use what the video reports
+          setVideoDuration(video.duration)
+        }
       }
 
       // Ensure video is unmuted when metadata loads
@@ -248,7 +257,7 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
         progressUpdaterRef.current.stopTracking()
       }
     }
-  }, [videoDuration, isPlaying])
+  }, [videoDuration, isPlaying, duration])
 
   // Note: We don't need to recreate the progress updater when duration changes
   // The hook is already called at the top level with the initial duration

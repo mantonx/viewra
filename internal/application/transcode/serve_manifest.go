@@ -80,7 +80,7 @@ func NewServeManifestUseCase(
 // Execute handles the playlist serving logic with on-demand transcoding.
 func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRequest) (*ServeManifestResponse, error) {
 	// Step 1: Check if playlist exists (even for in-progress jobs)
-	manifestPath := filepath.Join(req.OutputDir, "hls", fmt.Sprintf("%d", req.MediaID), req.Quality, "playlist.m3u8")
+	manifestPath := transcoding.GetHLSManifestPath(req.OutputDir, req.MediaID, req.Quality)
 	if _, err := os.Stat(manifestPath); err == nil {
 		// Playlist exists - check if we have enough segments for playback
 		// With streaming HLS, segments are generated progressively

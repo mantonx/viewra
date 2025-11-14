@@ -12,9 +12,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/viewra/viewra/internal/application/transcode"
-	transcodeDomain "github.com/viewra/viewra/internal/domain/transcode"
 	"github.com/viewra/viewra/internal/domain/library"
 	"github.com/viewra/viewra/internal/domain/media"
+	transcodeDomain "github.com/viewra/viewra/internal/domain/transcode"
 )
 
 // MockTranscodeRepository implements transcode.Repository for testing
@@ -130,6 +130,15 @@ func (m *MockTranscodeRepository) CountByStatus(ctx context.Context, status stri
 	return count, nil
 }
 
+func (m *MockTranscodeRepository) GetTotalSize(ctx context.Context) (int64, error) {
+	var totalSize int64
+	// TODO: OutputSize field doesn't exist on TranscodeJob
+	// for _, job := range m.jobs {
+	// 	totalSize += job.OutputSize
+	// }
+	return totalSize, nil
+}
+
 // MockMediaRepository for testing
 type MockMediaRepository struct {
 	mediaItems map[int64]*media.Media
@@ -228,7 +237,7 @@ func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository
 
 	// Create a minimal queue for testing
 	queueConfig := &transcode.QueueConfig{
-		WorkerCount:  1,
+		WorkerCount:   1,
 		OutputBaseDir: t.TempDir(),
 	}
 	queue := transcode.NewQueue(queueConfig, repo, nil, nil)
@@ -243,6 +252,7 @@ func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository
 		getStatusUC,
 		serveManifestUC,
 		queue,
+		nil, // CleanupService not needed for these tests
 		t.TempDir(),
 	)
 
@@ -291,9 +301,9 @@ func TestCreateTranscodeJob(t *testing.T) {
 			expectJobID:    false,
 		},
 		{
-			name:    "Missing quality in request",
-			mediaID: "123",
-			requestBody: map[string]interface{}{},
+			name:           "Missing quality in request",
+			mediaID:        "123",
+			requestBody:    map[string]interface{}{},
 			setupRepo:      func(r *MockTranscodeRepository) {},
 			expectedStatus: http.StatusBadRequest,
 			expectJobID:    false,
@@ -545,9 +555,9 @@ func TestServeManifest(t *testing.T) {
 			expectJSON:     false,
 		},
 		{
-			name:    "Invalid media ID",
-			mediaID: "invalid",
-			quality: "720p",
+			name:           "Invalid media ID",
+			mediaID:        "invalid",
+			quality:        "720p",
 			setupEnv:       func(t *testing.T, outputDir string) {},
 			expectedStatus: http.StatusBadRequest,
 			expectFile:     false,
@@ -608,16 +618,16 @@ func TestCancelTranscodeJob(t *testing.T) {
 		expectedStatus int
 	}{
 		{
-			name:    "Invalid media ID",
-			mediaID: "invalid",
-			quality: "720p",
+			name:           "Invalid media ID",
+			mediaID:        "invalid",
+			quality:        "720p",
 			setupRepo:      func(r *MockTranscodeRepository) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:    "Job not found",
-			mediaID: "123",
-			quality: "720p",
+			name:           "Job not found",
+			mediaID:        "123",
+			quality:        "720p",
 			setupRepo:      func(r *MockTranscodeRepository) {},
 			expectedStatus: http.StatusBadRequest,
 		},

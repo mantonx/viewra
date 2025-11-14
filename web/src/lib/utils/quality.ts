@@ -82,3 +82,52 @@ export const getQualityLabel = (quality: QualityLevel): string => {
 export const isValidQuality = (quality: string): quality is QualityLevel => {
   return ['360p', '720p', '1080p', '4k'].includes(quality);
 }
+
+/**
+ * Formats a video height into a resolution label (e.g., "4K", "1080p", "720p").
+ * Consolidated function used across MediaCard, VideoPlayer, and other components.
+ *
+ * @param height - Video height in pixels (can be undefined)
+ * @param includeAuto - If true and height is 0, returns "Auto" instead of null
+ * @returns Resolution label string or null if height is undefined/invalid
+ *
+ * @example
+ * formatResolutionLabel(2160) // "4K"
+ * formatResolutionLabel(1080) // "1080p"
+ * formatResolutionLabel(0, true) // "Auto"
+ * formatResolutionLabel(undefined) // null
+ */
+export function formatResolutionLabel(
+  height: number | undefined,
+  includeAuto = false
+): string | null {
+  if (height === undefined) {
+    return null
+  }
+
+  if (includeAuto && height === 0) {
+    return 'Auto'
+  }
+
+  if (height >= 2160) {
+    return '4K'
+  }
+
+  if (height >= 1080) {
+    return '1080p'
+  }
+
+  if (height >= 720) {
+    return '720p'
+  }
+
+  if (height >= 480) {
+    return '480p'
+  }
+
+  if (height === 0) {
+    return null
+  }
+
+  return `${height}p`
+}

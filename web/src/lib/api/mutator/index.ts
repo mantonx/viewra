@@ -1,7 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-
-// Base API URL - can be overridden by environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+import { API_BASE_URL } from '@/lib/config'
 
 export interface CustomInstanceOptions extends RequestInit {
   url?: string

@@ -33,4 +33,16 @@ type Repository interface {
 
 	// DeleteByMediaID deletes all transcode jobs for a media item.
 	DeleteByMediaID(ctx context.Context, mediaID int64) error
+
+	// ListAll retrieves all transcode jobs (for cleanup operations).
+	ListAll(ctx context.Context) ([]*TranscodeJob, error)
+
+	// UpdateAccess updates the last accessed time and increments access count.
+	UpdateAccess(ctx context.Context, mediaID int64, quality string) error
+
+	// GetTotalSize returns the total size of all completed transcodes.
+	GetTotalSize(ctx context.Context) (int64, error)
+
+	// ListByLRU lists transcode jobs ordered by least recently used.
+	ListByLRU(ctx context.Context, limit int) ([]*TranscodeJob, error)
 }

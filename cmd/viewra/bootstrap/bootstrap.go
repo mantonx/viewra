@@ -18,10 +18,11 @@ import (
 
 // Application holds all application dependencies
 type Application struct {
-	Config   *Config
-	Logger   *slog.Logger
-	Database *DatabaseConnection
-	Server   *api.Server
+	Config           *Config
+	Logger           *slog.Logger
+	Database         *DatabaseConnection
+	Server           *api.Server
+	Container        *app.Container
 }
 
 // Initialize sets up the application with all dependencies
@@ -53,10 +54,11 @@ func Initialize() (*Application, error) {
 	container.Server.Router().GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return &Application{
-		Config:   cfg,
-		Logger:   logger,
-		Database: dbConn,
-		Server:   container.Server,
+		Config:    cfg,
+		Logger:    logger,
+		Database:  dbConn,
+		Server:    container.Server,
+		Container: container,
 	}, nil
 }
 
@@ -64,6 +66,13 @@ func Initialize() (*Application, error) {
 func (a *Application) Run() error {
 	// Ensure database is closed on exit
 	defer a.Database.Close(a.Logger)
+
+	// Start cleanup scheduler if available
+	if a.Container.CleanupScheduler != nil {
+		ctx := context.Background()
+		a.Container.CleanupScheduler.Start(ctx)
+		defer a.Container.CleanupScheduler.Stop()
+	}
 
 	// Start server in goroutine
 	go func() {

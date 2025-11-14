@@ -361,9 +361,62 @@ viewra/
 
 ---
 
-For detailed examples, see:
-- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Development workflow
-- **[TESTING.md](./TESTING.md)** - Testing guidelines
-- **[INCOMPLETE_IMPLEMENTATIONS.md](./INCOMPLETE_IMPLEMENTATIONS.md)** - Current issues
+## Development Best Practices
 
-**Last Updated**: 2025-11-12
+### The Vertical Slice Approach
+
+Always build features vertically through all layers, not horizontally layer-by-layer.
+
+**❌ DON'T** (Horizontal):
+```
+Week 1: All domain models ✓
+Week 2: All repositories (half done)
+Week 3: All APIs (not started)
+Result: Nothing works
+```
+
+**✅ DO** (Vertical):
+```
+Week 1: Library CRUD (all layers) ✓
+Week 2: Media scanning (all layers) ✓
+Week 3: Watch progress (all layers) ✓
+Result: Each feature works completely
+```
+
+**Why**: This ensures each feature is fully functional before moving on, preventing incomplete implementations.
+
+### Definition of Done Checklist
+
+Use this checklist before considering any feature complete:
+
+**Database Layer**:
+- [ ] Migration created (up/down)
+- [ ] sqlc queries written
+- [ ] `make sqlc` successful
+
+**Repository Layer**:
+- [ ] ALL domain fields mapped in Create
+- [ ] ALL domain fields mapped in Update
+- [ ] No empty `sql.Null{}`
+- [ ] Both Postgres & SQLite supported
+
+**Testing**:
+- [ ] Integration test exists
+- [ ] Test verifies ALL fields
+- [ ] `make test` passes
+
+**Verification**:
+- [ ] Manual test with real data
+- [ ] `make audit` shows improvement
+- [ ] No TODO comments in production code
+
+**The Golden Rule**: A feature isn't done until data flows correctly through ALL layers and an integration test proves it.
+
+---
+
+For detailed examples, see:
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Command cheat sheet
+- **[TESTING.md](./TESTING.md)** - Testing guidelines
+- **[RECOMMENDATIONS.md](./RECOMMENDATIONS.md)** - Open source readiness recommendations
+
+**Last Updated**: 2025-11-13

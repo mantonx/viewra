@@ -30,7 +30,7 @@ INSERT INTO transcode_jobs (
     progress,
     created_at
 ) VALUES (?, ?, ?, ?, ?)
-RETURNING id, media_id, quality, status, progress, error, started_at, completed_at, created_at
+RETURNING id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count
 `
 
 type CreateTranscodeJobParams struct {
@@ -60,6 +60,11 @@ func (q *Queries) CreateTranscodeJob(ctx context.Context, arg CreateTranscodeJob
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.Type,
+		&i.FilePath,
+		&i.FileSizeBytes,
+		&i.LastAccessedAt,
+		&i.AccessCount,
 	)
 	return i, err
 }
@@ -84,8 +89,21 @@ func (q *Queries) DeleteTranscodeJobsByMediaID(ctx context.Context, mediaID int6
 	return err
 }
 
+const getTotalTranscodeSize = `-- name: GetTotalTranscodeSize :one
+SELECT COALESCE(SUM(file_size_bytes), 0) as total_size
+FROM transcode_jobs
+WHERE status = 'completed'
+`
+
+func (q *Queries) GetTotalTranscodeSize(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getTotalTranscodeSize)
+	var total_size interface{}
+	err := row.Scan(&total_size)
+	return total_size, err
+}
+
 const getTranscodeJobByID = `-- name: GetTranscodeJobByID :one
-SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at FROM transcode_jobs
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
 WHERE id = ?
 `
 
@@ -102,12 +120,17 @@ func (q *Queries) GetTranscodeJobByID(ctx context.Context, id int64) (TranscodeJ
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.Type,
+		&i.FilePath,
+		&i.FileSizeBytes,
+		&i.LastAccessedAt,
+		&i.AccessCount,
 	)
 	return i, err
 }
 
 const getTranscodeJobByMediaIDAndQuality = `-- name: GetTranscodeJobByMediaIDAndQuality :one
-SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at FROM transcode_jobs
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
 WHERE media_id = ? AND quality = ?
 `
 
@@ -129,12 +152,60 @@ func (q *Queries) GetTranscodeJobByMediaIDAndQuality(ctx context.Context, arg Ge
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.Type,
+		&i.FilePath,
+		&i.FileSizeBytes,
+		&i.LastAccessedAt,
+		&i.AccessCount,
 	)
 	return i, err
 }
 
+const listAllTranscodeJobs = `-- name: ListAllTranscodeJobs :many
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListAllTranscodeJobs(ctx context.Context) ([]TranscodeJob, error) {
+	rows, err := q.db.QueryContext(ctx, listAllTranscodeJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TranscodeJob{}
+	for rows.Next() {
+		var i TranscodeJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.MediaID,
+			&i.Quality,
+			&i.Status,
+			&i.Progress,
+			&i.Error,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.Type,
+			&i.FilePath,
+			&i.FileSizeBytes,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProcessingTranscodeJobs = `-- name: ListProcessingTranscodeJobs :many
-SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at FROM transcode_jobs
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
 WHERE status = 'processing'
 ORDER BY started_at ASC
 `
@@ -158,6 +229,11 @@ func (q *Queries) ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJ
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.Type,
+			&i.FilePath,
+			&i.FileSizeBytes,
+			&i.LastAccessedAt,
+			&i.AccessCount,
 		); err != nil {
 			return nil, err
 		}
@@ -173,7 +249,7 @@ func (q *Queries) ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJ
 }
 
 const listQueuedTranscodeJobs = `-- name: ListQueuedTranscodeJobs :many
-SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at FROM transcode_jobs
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
 WHERE status = 'queued'
 ORDER BY created_at ASC
 LIMIT ?
@@ -198,6 +274,57 @@ func (q *Queries) ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]T
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.Type,
+			&i.FilePath,
+			&i.FileSizeBytes,
+			&i.LastAccessedAt,
+			&i.AccessCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscodeJobsByLRU = `-- name: ListTranscodeJobsByLRU :many
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
+WHERE status = 'completed'
+  AND last_accessed_at IS NOT NULL
+ORDER BY last_accessed_at ASC
+LIMIT ?
+`
+
+func (q *Queries) ListTranscodeJobsByLRU(ctx context.Context, limit int64) ([]TranscodeJob, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscodeJobsByLRU, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TranscodeJob{}
+	for rows.Next() {
+		var i TranscodeJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.MediaID,
+			&i.Quality,
+			&i.Status,
+			&i.Progress,
+			&i.Error,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.Type,
+			&i.FilePath,
+			&i.FileSizeBytes,
+			&i.LastAccessedAt,
+			&i.AccessCount,
 		); err != nil {
 			return nil, err
 		}
@@ -213,7 +340,7 @@ func (q *Queries) ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]T
 }
 
 const listTranscodeJobsByMediaID = `-- name: ListTranscodeJobsByMediaID :many
-SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at FROM transcode_jobs
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
 WHERE media_id = ?
 ORDER BY created_at DESC
 `
@@ -237,6 +364,11 @@ func (q *Queries) ListTranscodeJobsByMediaID(ctx context.Context, mediaID int64)
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.Type,
+			&i.FilePath,
+			&i.FileSizeBytes,
+			&i.LastAccessedAt,
+			&i.AccessCount,
 		); err != nil {
 			return nil, err
 		}
@@ -252,7 +384,7 @@ func (q *Queries) ListTranscodeJobsByMediaID(ctx context.Context, mediaID int64)
 }
 
 const listTranscodeJobsByStatus = `-- name: ListTranscodeJobsByStatus :many
-SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at FROM transcode_jobs
+SELECT id, media_id, quality, status, progress, error, started_at, completed_at, created_at, type, file_path, file_size_bytes, last_accessed_at, access_count FROM transcode_jobs
 WHERE status = ?
 ORDER BY created_at ASC
 `
@@ -276,6 +408,11 @@ func (q *Queries) ListTranscodeJobsByStatus(ctx context.Context, status string) 
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.Type,
+			&i.FilePath,
+			&i.FileSizeBytes,
+			&i.LastAccessedAt,
+			&i.AccessCount,
 		); err != nil {
 			return nil, err
 		}
@@ -296,17 +433,21 @@ SET status = ?,
     progress = ?,
     error = ?,
     started_at = ?,
-    completed_at = ?
+    completed_at = ?,
+    file_path = ?,
+    file_size_bytes = ?
 WHERE id = ?
 `
 
 type UpdateTranscodeJobParams struct {
-	Status      string         `json:"status"`
-	Progress    sql.NullInt64  `json:"progress"`
-	Error       sql.NullString `json:"error"`
-	StartedAt   sql.NullTime   `json:"started_at"`
-	CompletedAt sql.NullTime   `json:"completed_at"`
-	ID          int64          `json:"id"`
+	Status        string         `json:"status"`
+	Progress      sql.NullInt64  `json:"progress"`
+	Error         sql.NullString `json:"error"`
+	StartedAt     sql.NullTime   `json:"started_at"`
+	CompletedAt   sql.NullTime   `json:"completed_at"`
+	FilePath      sql.NullString `json:"file_path"`
+	FileSizeBytes sql.NullInt64  `json:"file_size_bytes"`
+	ID            int64          `json:"id"`
 }
 
 func (q *Queries) UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJobParams) error {
@@ -316,7 +457,44 @@ func (q *Queries) UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJob
 		arg.Error,
 		arg.StartedAt,
 		arg.CompletedAt,
+		arg.FilePath,
+		arg.FileSizeBytes,
 		arg.ID,
 	)
+	return err
+}
+
+const updateTranscodeJobAccess = `-- name: UpdateTranscodeJobAccess :exec
+UPDATE transcode_jobs
+SET last_accessed_at = ?,
+    access_count = access_count + 1
+WHERE id = ?
+`
+
+type UpdateTranscodeJobAccessParams struct {
+	LastAccessedAt sql.NullTime `json:"last_accessed_at"`
+	ID             int64        `json:"id"`
+}
+
+func (q *Queries) UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error {
+	_, err := q.db.ExecContext(ctx, updateTranscodeJobAccess, arg.LastAccessedAt, arg.ID)
+	return err
+}
+
+const updateTranscodeJobAccessByMediaAndQuality = `-- name: UpdateTranscodeJobAccessByMediaAndQuality :exec
+UPDATE transcode_jobs
+SET last_accessed_at = ?,
+    access_count = access_count + 1
+WHERE media_id = ? AND quality = ?
+`
+
+type UpdateTranscodeJobAccessByMediaAndQualityParams struct {
+	LastAccessedAt sql.NullTime `json:"last_accessed_at"`
+	MediaID        int64        `json:"media_id"`
+	Quality        string       `json:"quality"`
+}
+
+func (q *Queries) UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error {
+	_, err := q.db.ExecContext(ctx, updateTranscodeJobAccessByMediaAndQuality, arg.LastAccessedAt, arg.MediaID, arg.Quality)
 	return err
 }

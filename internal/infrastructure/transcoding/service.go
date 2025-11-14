@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/viewra/viewra/internal/domain/transcode"
+	"github.com/viewra/viewra/internal/infrastructure/filesystem"
 )
 
 // Service provides video transcoding functionality for HLS streaming.
@@ -161,8 +162,19 @@ func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, i
 		return s.failJob(ctx, job, fmt.Errorf("%s failed: %w", operationName, err))
 	}
 
-	// Mark job as completed
+	// Calculate file size
+	fileSize, err := filesystem.CalculateDirSize(outputDir)
+	if err != nil {
+		s.logger.Warn("failed to calculate output size",
+			slog.Int64("job_id", job.ID),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	// Mark job as completed with file metadata
 	job.MarkAsCompleted()
+	job.FilePath = outputDir
+	job.FileSizeBytes = fileSize
 	if err := s.repo.Update(ctx, job); err != nil {
 		s.logger.Error("failed to mark job as completed",
 			slog.Int64("job_id", job.ID),
@@ -285,3 +297,4 @@ func GetOutputDirectory(baseDir string, mediaID int64, quality string) string {
 		strings.ToLower(quality),
 	)
 }
+

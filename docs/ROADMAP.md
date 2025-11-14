@@ -11,7 +11,8 @@ This document provides a high-level overview of completed development phases. Fo
 **Project Start**: November 11, 2025
 **Phase 0 Complete**: November 11, 2025 (1 day)
 **Phase 1 Complete**: November 12, 2025 (1 day)
-**Current Phase**: Phase 2 (Watch Progress & Transcoding)
+**Phase 2 Complete**: November 13, 2025 (2 days)
+**Current Phase**: Phase 3 (TV Shows & Music Support)
 
 ---
 
@@ -517,10 +518,74 @@ These items were intentionally deferred to later phases:
 
 ---
 
-## Next: Phase 2 (Watch Progress & Transcoding)
+## Phase 2: Watch Progress & Transcoding ✅ Complete (Nov 13, 2025)
+
+**Duration**: 2 days (Nov 12-13, 2025)
+**Goal**: Enable video playback with progress tracking and on-demand transcoding
+
+### What Was Built
+
+#### Phase 2.1: Watch Progress Tracking
+- Database: `watch_progress` table with per-user tracking
+- Domain: `WatchProgress` entity with business logic
+- Repository: Dual database support (SQLite + PostgreSQL)
+- API: 4 endpoints (GET, PUT, POST, DELETE progress)
+- Frontend: VideoPlayer component with Shaka Player, progress bars, resume buttons
+- Continue Watching section on home page
+- Auto-mark watched at 90% completion
+
+#### Phase 2.2: On-Demand Transcoding
+- Database: `transcode_jobs` table with access tracking (migration 000006)
+- 4-tier streaming strategy:
+  - Direct Play (instant for compatible files)
+  - Remux (2-5 min, container conversion only)
+  - Remux + Audio Downmix (5-10 min, stereo conversion)
+  - Full Transcode (20-60 min, full re-encode)
+- Worker pool with configurable concurrency
+- HLS progressive streaming (playback starts immediately)
+- Idle timeout to cancel abandoned transcodes
+- Access tracking (last_accessed_at, access_count) for LRU cleanup
+
+#### Phase 2.3: Transcode Cleanup System
+- CLI tool: `cmd/transcode-cleanup` with dry-run mode
+- API endpoints: disk usage stats + cleanup operations
+- Automated background scheduler (runs every 6 hours)
+- Policy-based cleanup (age, idle, failed jobs, orphans)
+- Threshold-based LRU cleanup when disk > 85%
+- 10+ configurable environment variables
+
+### Key Files Created
+- `internal/application/transcode/queue.go` - Worker pool
+- `internal/application/transcode/cleanup.go` - Cleanup service
+- `internal/application/transcode/cleanup_scheduler.go` - Background scheduler
+- `internal/infrastructure/transcoding/service.go` - FFmpeg executors
+- `internal/infrastructure/transcoding/validation.go` - Strategy selection
+- `cmd/transcode-cleanup/main.go` - CLI tool
+- `web/src/components/media/VideoPlayer/` - Shaka Player integration
+- `migrations/000006_add_transcode_tracking.up.sql` - Access tracking
+
+### Implementation Highlights
+- **Smart Strategy Selection**: Detects audio channels and codecs to choose optimal approach
+- **Progressive Streaming**: Like Plex/Jellyfin, playback starts immediately when transcoding begins
+- **Worker Pool**: Channel-based concurrency with idle timeout
+- **Disk Management**: Automated cleanup with LRU eviction and configurable policies
+- **Documentation**: Consolidated 30 docs to 20, merged redundant content
+
+### Success Metrics
+- ✅ Resume playback from last position
+- ✅ Auto-mark watched at 90%
+- ✅ Remux completes in < 5 minutes (10x realtime speed)
+- ✅ 4-tier intelligent strategy selection
+- ✅ Progressive streaming starts immediately
+- ✅ Automated cleanup prevents disk exhaustion
+- ✅ LRU cleanup preserves frequently-used transcodes
+
+---
+
+## Next: Phase 3 (TV Shows & Music Support)
 
 See [PROJECT_PLAN.md](./PROJECT_PLAN.md) for current project status and upcoming phases.
 
 **Detailed Implementation**: Refer to git commit history for file-by-file changes and implementation notes.
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2025-11-13

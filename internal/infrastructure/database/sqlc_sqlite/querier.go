@@ -37,6 +37,7 @@ type Querier interface {
 	GetMediaByID(ctx context.Context, id int64) (Medium, error)
 	GetScanJob(ctx context.Context, id int64) (ScanJob, error)
 	GetScanJobStats(ctx context.Context, libraryID int64) (GetScanJobStatsRow, error)
+	GetTotalTranscodeSize(ctx context.Context) (interface{}, error)
 	GetTranscodeJobByID(ctx context.Context, id int64) (TranscodeJob, error)
 	GetTranscodeJobByMediaIDAndQuality(ctx context.Context, arg GetTranscodeJobByMediaIDAndQualityParams) (TranscodeJob, error)
 	GetWatchProgressByID(ctx context.Context, id int64) (WatchProgress, error)
@@ -45,6 +46,7 @@ type Querier interface {
 	LibraryExistsByID(ctx context.Context, id int64) (int64, error)
 	LibraryExistsByPath(ctx context.Context, path string) (int64, error)
 	ListAllMedia(ctx context.Context) ([]Medium, error)
+	ListAllTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListInProgressByUserID(ctx context.Context, arg ListInProgressByUserIDParams) ([]WatchProgress, error)
 	ListLibraries(ctx context.Context) ([]Library, error)
 	ListLibrariesByType(ctx context.Context, type_ string) ([]Library, error)
@@ -54,6 +56,7 @@ type Querier interface {
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
+	ListTranscodeJobsByLRU(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByMediaID(ctx context.Context, mediaID int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByStatus(ctx context.Context, status string) ([]TranscodeJob, error)
 	ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error)
@@ -64,6 +67,8 @@ type Querier interface {
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
 	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
 	UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJobParams) error
+	UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error
+	UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error)
 }

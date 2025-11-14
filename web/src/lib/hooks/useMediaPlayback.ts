@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { selectBestQuality } from '../utils/quality'
 import { getProgressSeconds } from '../utils'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+import { API_BASE_URL } from '@/lib/config'
 
 type TranscodeState = 'idle' | 'checking' | 'transcoding' | 'ready' | 'direct'
 
