@@ -7,7 +7,9 @@ import (
 )
 
 // GetProgressByMediaID retrieves watch progress for a specific media item.
-func GetProgressByMediaID(ctx context.Context, repo progress.Repository, mediaID int64) (*WatchProgressResponse, error) {
+func GetProgressByMediaID(
+	ctx context.Context, repo progress.Repository, mediaID int64,
+) (*WatchProgressResponse, error) {
 	prog, err := repo.GetByMediaID(ctx, mediaID)
 	if err != nil {
 		return nil, err

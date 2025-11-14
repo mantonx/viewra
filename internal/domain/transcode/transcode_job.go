@@ -13,6 +13,13 @@ const (
 	Quality4K    = "4k"
 )
 
+// Job types for different streaming strategies
+const (
+	TypeRemux      = "remux"       // Copy streams to DASH container (2-5 min)
+	TypeRemuxAudio = "remux_audio" // Copy video, downmix audio to stereo (5-10 min)
+	TypeTranscode  = "transcode"   // Full re-encode (20-60 min)
+)
+
 // Job status values
 const (
 	StatusQueued     = "queued"
@@ -29,6 +36,7 @@ var (
 	ErrInvalidStatus       = errors.New("invalid status")
 	ErrInvalidMediaID      = errors.New("invalid media ID")
 	ErrInvalidProgress     = errors.New("progress must be between 0 and 100")
+	ErrInvalidType         = errors.New("invalid job type")
 )
 
 // TranscodeJob represents a transcoding job in the system.
@@ -36,6 +44,7 @@ type TranscodeJob struct {
 	ID          int64
 	MediaID     int64
 	Quality     string
+	Type        string    // Job type: remux, remux_audio, or transcode
 	Status      string
 	Progress    int       // 0-100
 	Error       string    // Error message if failed
@@ -45,10 +54,11 @@ type TranscodeJob struct {
 }
 
 // NewTranscodeJob creates a new transcode job for a media item.
-func NewTranscodeJob(mediaID int64, quality string) (*TranscodeJob, error) {
+func NewTranscodeJob(mediaID int64, quality string, jobType string) (*TranscodeJob, error) {
 	job := &TranscodeJob{
 		MediaID:   mediaID,
 		Quality:   quality,
+		Type:      jobType,
 		Status:    StatusQueued,
 		Progress:  0,
 		CreatedAt: time.Now(),
@@ -69,6 +79,10 @@ func (j *TranscodeJob) IsValid() error {
 
 	if !isValidQuality(j.Quality) {
 		return ErrInvalidQuality
+	}
+
+	if !isValidType(j.Type) {
+		return ErrInvalidType
 	}
 
 	if !isValidStatus(j.Status) {
@@ -142,6 +156,16 @@ func (j *TranscodeJob) IsFinished() bool {
 func isValidQuality(quality string) bool {
 	switch quality {
 	case Quality360p, Quality720p, Quality1080p, Quality4K:
+		return true
+	default:
+		return false
+	}
+}
+
+// isValidType checks if the job type is valid.
+func isValidType(jobType string) bool {
+	switch jobType {
+	case TypeRemux, TypeRemuxAudio, TypeTranscode:
 		return true
 	default:
 		return false

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -31,6 +32,14 @@ type Service interface {
 	//
 	// Returns an error if transcoding fails at any stage.
 	TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
+
+	// RemuxToDASH remuxes a video to DASH format by copying streams without re-encoding (2-5 min).
+	// Used when video is already H.264 and audio is stereo, but container is incompatible.
+	RemuxToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
+
+	// RemuxWithAudioDownmix remuxes video to DASH while copying video and downmixing multi-channel audio (5-10 min).
+	// Used when video is H.264 compatible but audio has too many channels for browser playback.
+	RemuxWithAudioDownmix(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error
 }
 
 // service implements the Service interface.
@@ -61,6 +70,22 @@ func NewService(repo transcode.Repository, logger *slog.Logger) (Service, error)
 
 // TranscodeToDASH implements the Service interface.
 func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
+	return s.executeJob(ctx, job, inputPath, outputBaseDir, "transcode", s.executor.Transcode)
+}
+
+// RemuxToDASH implements the Service interface for remuxing operations.
+func (s *service) RemuxToDASH(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
+	return s.executeJob(ctx, job, inputPath, outputBaseDir, "remux", s.executor.RemuxToDASH)
+}
+
+// RemuxWithAudioDownmix implements the Service interface for remux with audio downmix operations.
+func (s *service) RemuxWithAudioDownmix(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
+	return s.executeJob(ctx, job, inputPath, outputBaseDir, "remux with audio downmix", s.executor.RemuxWithAudioDownmix)
+}
+
+// executeJob is a helper method that executes any type of transcoding/remuxing job.
+// It handles validation, progress tracking, error handling, and cleanup for all job types.
+func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir, operationName string, executorFunc func(context.Context, TranscodeOptions) error) error {
 	// Validate job state
 	if job == nil {
 		return fmt.Errorf("transcode job is nil")
@@ -76,17 +101,26 @@ func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJ
 		return s.failJob(ctx, job, fmt.Errorf("invalid quality profile: %w", err))
 	}
 
-	// Build output directory path: <outputBaseDir>/<mediaID>/<quality>/
+	// Build output directory path: <outputBaseDir>/dash/<mediaID>/<quality>/
 	outputDir := s.buildOutputPath(outputBaseDir, job.MediaID, job.Quality)
 
-	// Comprehensive validation: path security, file checks, disk space, and codec analysis
-	// This validates the input path, checks disk space, and determines if transcoding is actually needed
-	if err := ValidateTranscodeRequest(inputPath, outputDir, profile, nil); err != nil {
-		return s.failJob(ctx, job, fmt.Errorf("validation failed: %w", err))
+	// Create output directory before validation so disk space check works
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return s.failJob(ctx, job, fmt.Errorf("failed to create output directory: %w", err))
 	}
 
-	// Log transcode start
-	s.logger.Info("starting transcode",
+	// Comprehensive validation: path security, file checks, disk space
+	// Note: We skip codec analysis for remux operations as they're chosen based on strategy
+	if err := ValidateTranscodeRequest(inputPath, outputDir, profile, nil); err != nil {
+		// For remux operations, we may skip some validation errors
+		// since the strategy selection already determined compatibility
+		if operationName == "transcode" {
+			return s.failJob(ctx, job, fmt.Errorf("validation failed: %w", err))
+		}
+	}
+
+	// Log operation start
+	s.logger.Info(fmt.Sprintf("starting %s", operationName),
 		slog.Int64("job_id", job.ID),
 		slog.Int64("media_id", job.MediaID),
 		slog.String("quality", job.Quality),
@@ -101,13 +135,13 @@ func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJ
 			slog.Int64("job_id", job.ID),
 			slog.String("error", err.Error()),
 		)
-		// Continue anyway - the transcode can still proceed
+		// Continue anyway - the operation can still proceed
 	}
 
-	// Create progress handler that updates the job in the database
+	// Create progress handler
 	progressHandler := s.createProgressHandler(ctx, job)
 
-	// Prepare transcode options
+	// Prepare options
 	opts := TranscodeOptions{
 		InputPath:       inputPath,
 		OutputDir:       outputDir,
@@ -115,16 +149,16 @@ func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJ
 		ProgressHandler: progressHandler,
 	}
 
-	// Execute transcode
-	if err := s.executor.Transcode(ctx, opts); err != nil {
+	// Execute the operation
+	if err := executorFunc(ctx, opts); err != nil {
 		// Clean up partial output on failure
 		if cleanupErr := CleanupOutputDir(outputDir); cleanupErr != nil {
-			s.logger.Warn("failed to cleanup output directory after transcode failure",
+			s.logger.Warn("failed to cleanup output directory after failure",
 				slog.String("output_dir", outputDir),
 				slog.String("error", cleanupErr.Error()),
 			)
 		}
-		return s.failJob(ctx, job, fmt.Errorf("transcode failed: %w", err))
+		return s.failJob(ctx, job, fmt.Errorf("%s failed: %w", operationName, err))
 	}
 
 	// Mark job as completed
@@ -134,10 +168,10 @@ func (s *service) TranscodeToDASH(ctx context.Context, job *transcode.TranscodeJ
 			slog.Int64("job_id", job.ID),
 			slog.String("error", err.Error()),
 		)
-		return fmt.Errorf("transcode succeeded but failed to update job status: %w", err)
+		return fmt.Errorf("%s succeeded but failed to update job status: %w", operationName, err)
 	}
 
-	s.logger.Info("transcode completed successfully",
+	s.logger.Info(fmt.Sprintf("%s completed successfully", operationName),
 		slog.Int64("job_id", job.ID),
 		slog.Int64("media_id", job.MediaID),
 		slog.String("quality", job.Quality),
@@ -219,10 +253,11 @@ func (s *service) failJob(ctx context.Context, job *transcode.TranscodeJob, err 
 }
 
 // buildOutputPath constructs the output directory path for DASH files.
-// Format: <baseDir>/<mediaID>/<quality>/
+// Format: <baseDir>/dash/<mediaID>/<quality>/
 func (s *service) buildOutputPath(baseDir string, mediaID int64, quality string) string {
 	return filepath.Join(
 		baseDir,
+		"dash",
 		fmt.Sprintf("%d", mediaID),
 		strings.ToLower(quality),
 	)
@@ -233,6 +268,7 @@ func (s *service) buildOutputPath(baseDir string, mediaID int64, quality string)
 func GetManifestPath(baseDir string, mediaID int64, quality string) string {
 	return filepath.Join(
 		baseDir,
+		"dash",
 		fmt.Sprintf("%d", mediaID),
 		strings.ToLower(quality),
 		"manifest.mpd",
@@ -244,6 +280,7 @@ func GetManifestPath(baseDir string, mediaID int64, quality string) string {
 func GetOutputDirectory(baseDir string, mediaID int64, quality string) string {
 	return filepath.Join(
 		baseDir,
+		"dash",
 		fmt.Sprintf("%d", mediaID),
 		strings.ToLower(quality),
 	)

@@ -11,17 +11,27 @@ import (
 
 // TranscodeHandler handles transcode-related HTTP requests.
 type TranscodeHandler struct {
-	repo      transcodeDomain.Repository
-	queue     *transcode.Queue
-	outputDir string
+	createJobUseCase   *transcode.CreateJobUseCase
+	getStatusUseCase   *transcode.GetJobStatusUseCase
+	serveManifestUseCase *transcode.ServeManifestUseCase
+	queue              *transcode.Queue
+	outputDir          string
 }
 
 // NewTranscodeHandler creates a new transcode handler.
-func NewTranscodeHandler(repo transcodeDomain.Repository, queue *transcode.Queue, outputDir string) *TranscodeHandler {
+func NewTranscodeHandler(
+	createJobUseCase *transcode.CreateJobUseCase,
+	getStatusUseCase *transcode.GetJobStatusUseCase,
+	serveManifestUseCase *transcode.ServeManifestUseCase,
+	queue *transcode.Queue,
+	outputDir string,
+) *TranscodeHandler {
 	return &TranscodeHandler{
-		repo:      repo,
-		queue:     queue,
-		outputDir: outputDir,
+		createJobUseCase:   createJobUseCase,
+		getStatusUseCase:   getStatusUseCase,
+		serveManifestUseCase: serveManifestUseCase,
+		queue:              queue,
+		outputDir:          outputDir,
 	}
 }
 
@@ -35,6 +45,7 @@ type TranscodeJobResponse struct {
 	ID          int64  `json:"id"`
 	MediaID     int64  `json:"media_id"`
 	Quality     string `json:"quality"`
+	Type        string `json:"type"` // Job type: remux, remux_audio, or transcode
 	Status      string `json:"status"`
 	Progress    int    `json:"progress"`
 	Error       string `json:"error,omitempty"`
@@ -58,7 +69,7 @@ type TranscodeJobResponse struct {
 // @Failure 500 {object} handlers.ErrorResponse
 // @Router /api/media/{media_id}/transcode [post]
 func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
@@ -71,8 +82,8 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 		return
 	}
 
-	// Create the job
-	job, err := transcode.CreateJob(c.Request.Context(), h.repo, transcode.CreateJobRequest{
+	// Use the create job use case
+	job, err := h.createJobUseCase.Execute(c.Request.Context(), transcode.CreateJobRequest{
 		MediaID: mediaID,
 		Quality: req.Quality,
 	})
@@ -86,14 +97,6 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create transcode job"})
 		}
 		return
-	}
-
-	// Enqueue the job for processing
-	if h.queue != nil {
-		if err := h.queue.EnqueueJob(job); err != nil {
-			// Job created but failed to enqueue - it will be picked up by the poller
-			// Log the error but don't fail the request
-		}
 	}
 
 	c.JSON(http.StatusCreated, toTranscodeJobResponse(job))
@@ -112,7 +115,7 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 // @Failure 500 {object} handlers.ErrorResponse
 // @Router /api/media/{media_id}/transcode/{quality} [get]
 func (h *TranscodeHandler) GetTranscodeStatus(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
@@ -121,7 +124,11 @@ func (h *TranscodeHandler) GetTranscodeStatus(c *gin.Context) {
 
 	quality := c.Param("quality")
 
-	job, err := transcode.GetJobForMedia(c.Request.Context(), h.repo, mediaID, quality)
+	// Use the get status use case
+	job, err := h.getStatusUseCase.Execute(c.Request.Context(), transcode.GetJobStatusRequest{
+		MediaID: mediaID,
+		Quality: quality,
+	})
 	if err != nil {
 		if err == transcodeDomain.ErrJobNotFound {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Transcode job not found"})
@@ -132,41 +139,6 @@ func (h *TranscodeHandler) GetTranscodeStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, toTranscodeJobResponse(job))
-}
-
-// ListTranscodeJobs lists all transcode jobs for a media item.
-//
-// @Summary List transcode jobs for media
-// @Description Gets all transcode jobs for a specific media item
-// @Tags transcode
-// @Produce json
-// @Param media_id path int true "Media ID"
-// @Success 200 {array} TranscodeJobResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/transcode [get]
-func (h *TranscodeHandler) ListTranscodeJobs(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
-	mediaID, err := parseID(mediaIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
-		return
-	}
-
-	// Get jobs for all qualities for this media
-	var allJobs []*transcodeDomain.TranscodeJob
-	for _, quality := range transcodeDomain.GetAllQualities() {
-		job, err := transcode.GetJobForMedia(c.Request.Context(), h.repo, mediaID, quality)
-		if err == nil && job != nil {
-			allJobs = append(allJobs, job)
-		}
-	}
-
-	responses := make([]TranscodeJobResponse, len(allJobs))
-	for i, job := range allJobs {
-		responses[i] = toTranscodeJobResponse(job)
-	}
-
-	c.JSON(http.StatusOK, responses)
 }
 
 // GetQueueStats gets statistics about the transcode queue.
@@ -193,28 +165,78 @@ func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-// ServeManifest serves the DASH manifest file for a transcoded media item.
+// OnDemandResponse represents the response for on-demand transcoding requests.
+type OnDemandResponse struct {
+	Strategy      string `json:"strategy"`                 // direct_play, remux, remux_audio, or transcode
+	URL           string `json:"url,omitempty"`            // For direct_play
+	JobID         int64  `json:"job_id,omitempty"`         // For processing strategies
+	Status        string `json:"status,omitempty"`         // Job status
+	Progress      int    `json:"progress,omitempty"`       // Job progress (0-100)
+	EstimatedTime string `json:"estimated_time,omitempty"` // Estimated completion time
+}
+
+// ServeManifest serves the DASH manifest file for a transcoded media item with on-demand transcoding support.
 //
-// @Summary Serve DASH manifest
-// @Description Serves the DASH manifest (.mpd) file for adaptive streaming
+// @Summary Serve DASH manifest (with on-demand transcoding)
+// @Description Serves the DASH manifest (.mpd) file for adaptive streaming. If manifest doesn't exist, analyzes video
+// @Description and either returns direct playback URL or creates a transcode job.
 // @Tags transcode
-// @Produce application/dash+xml
+// @Produce application/dash+xml,application/json
 // @Param media_id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
-// @Success 200 {file} file "DASH manifest file"
+// @Success 200 {file} file "DASH manifest file (if exists)"
+// @Success 200 {object} OnDemandResponse "Direct playback URL (for compatible files)"
+// @Success 202 {object} OnDemandResponse "Job created (for files needing processing)"
+// @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
 // @Router /api/media/{media_id}/dash/{quality}/manifest.mpd [get]
 func (h *TranscodeHandler) ServeManifest(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
 
-	// Build manifest path
-	manifestPath := filepath.Join(h.outputDir, mediaIDStr, quality, "manifest.mpd")
+	mediaID, err := parseID(mediaIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		return
+	}
 
-	// Serve the file
-	c.Header("Content-Type", "application/dash+xml")
-	c.Header("Access-Control-Allow-Origin", "*") // CORS for DASH
-	c.File(manifestPath)
+	// Use the serve manifest use case
+	response, err := h.serveManifestUseCase.Execute(c.Request.Context(), transcode.ServeManifestRequest{
+		MediaID:   mediaID,
+		Quality:   quality,
+		OutputDir: h.outputDir,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	// Handle response based on strategy
+	switch response.Strategy {
+	case transcode.StrategyServe:
+		// Manifest exists - serve it directly
+		c.Header("Content-Type", "application/dash+xml")
+		c.Header("Access-Control-Allow-Origin", "*") // CORS for DASH
+		c.File(response.ManifestPath)
+
+	case transcode.StrategyDirectPlay:
+		// Video is compatible - return direct play URL
+		c.JSON(http.StatusOK, OnDemandResponse{
+			Strategy: "direct_play",
+			URL:      response.DirectPlayURL,
+		})
+
+	case transcode.StrategyTranscode:
+		// Transcode needed - return job information
+		c.JSON(http.StatusAccepted, OnDemandResponse{
+			Strategy:      response.Job.Type,
+			JobID:         response.Job.ID,
+			Status:        response.Job.Status,
+			Progress:      response.Job.Progress,
+			EstimatedTime: response.EstimatedTime,
+		})
+	}
 }
 
 // ServeDASHSegment serves DASH segment files (init and media segments).
@@ -230,12 +252,18 @@ func (h *TranscodeHandler) ServeManifest(c *gin.Context) {
 // @Failure 404 {object} handlers.ErrorResponse
 // @Router /api/media/{media_id}/dash/{quality}/{filename} [get]
 func (h *TranscodeHandler) ServeDASHSegment(c *gin.Context) {
-	mediaIDStr := c.Param("media_id")
+	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
 	filename := c.Param("filename")
 
-	// Build segment path
-	segmentPath := filepath.Join(h.outputDir, mediaIDStr, quality, filename)
+	// Record access to prevent idle timeout
+	mediaID, err := parseID(mediaIDStr)
+	if err == nil {
+		h.queue.RecordAccess(mediaID, quality)
+	}
+
+	// Build segment path with dash/ subdirectory
+	segmentPath := filepath.Join(h.outputDir, "dash", mediaIDStr, quality, filename)
 
 	// Serve the file
 	c.Header("Content-Type", "application/octet-stream")
@@ -249,6 +277,7 @@ func toTranscodeJobResponse(job *transcodeDomain.TranscodeJob) TranscodeJobRespo
 		ID:        job.ID,
 		MediaID:   job.MediaID,
 		Quality:   job.Quality,
+		Type:      job.Type,
 		Status:    job.Status,
 		Progress:  job.Progress,
 		CreatedAt: formatTime(job.CreatedAt),
@@ -267,4 +296,35 @@ func toTranscodeJobResponse(job *transcodeDomain.TranscodeJob) TranscodeJobRespo
 	}
 
 	return response
+}
+
+// CancelTranscodeJob cancels an actively processing transcode job.
+//
+// @Summary Cancel transcode job
+// @Description Cancels an actively transcoding job (called when user pauses/stops video)
+// @Tags transcode
+// @Param media_id path int true "Media ID"
+// @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 404 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/media/{media_id}/transcode/{quality}/cancel [post]
+func (h *TranscodeHandler) CancelTranscodeJob(c *gin.Context) {
+	mediaIDStr := c.Param("id")
+	mediaID, err := parseID(mediaIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		return
+	}
+
+	quality := c.Param("quality")
+
+	// Cancel the job via the queue
+	if err := h.queue.CancelJob(c.Request.Context(), mediaID, quality); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Transcode job cancelled successfully"})
 }

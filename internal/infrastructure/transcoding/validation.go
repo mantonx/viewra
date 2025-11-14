@@ -1,23 +1,24 @@
 package transcoding
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 )
 
 // VideoInfo contains metadata about a video file extracted via ffprobe.
 type VideoInfo struct {
-	Codec          string
-	Width          int
-	Height         int
-	Bitrate        int64
-	Duration       float64
-	AudioCodec     string
-	AudioBitrate   int64
+	Codec           string
+	Width           int
+	Height          int
+	Bitrate         int64
+	Duration        float64
+	AudioCodec      string
+	AudioBitrate    int64
+	AudioChannels   int    // Number of audio channels (1=mono, 2=stereo, 6=5.1, 8=7.1)
 	ContainerFormat string
 }
 
@@ -70,6 +71,23 @@ func ValidateAndSanitizePath(path string, allowedBasePaths []string) (string, er
 	return "", fmt.Errorf("path is outside allowed directories: %s", absPath)
 }
 
+// ffprobeOutput represents the JSON structure returned by ffprobe
+type ffprobeOutput struct {
+	Streams []struct {
+		CodecName string `json:"codec_name"`
+		CodecType string `json:"codec_type"`
+		Width     int    `json:"width"`
+		Height    int    `json:"height"`
+		Channels  int    `json:"channels"`
+		BitRate   string `json:"bit_rate"`
+	} `json:"streams"`
+	Format struct {
+		FormatName string `json:"format_name"`
+		Duration   string `json:"duration"`
+		BitRate    string `json:"bit_rate"`
+	} `json:"format"`
+}
+
 // GetVideoInfo extracts video metadata using ffprobe.
 func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 	ffprobePath, err := exec.LookPath("ffprobe")
@@ -91,34 +109,37 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 		return nil, fmt.Errorf("ffprobe failed: %w", err)
 	}
 
-	// Parse the JSON output manually (simple parsing for key fields)
+	// Parse JSON output properly
+	var ffprobe ffprobeOutput
+	if err := json.Unmarshal(output, &ffprobe); err != nil {
+		return nil, fmt.Errorf("failed to parse ffprobe output: %w", err)
+	}
+
 	info := &VideoInfo{}
-	outputStr := string(output)
 
-	// Extract video stream info
-	if videoMatch := regexp.MustCompile(`"codec_name":\s*"([^"]+)"`).FindStringSubmatch(outputStr); len(videoMatch) > 1 {
-		info.Codec = videoMatch[1]
-	}
-
-	if widthMatch := regexp.MustCompile(`"width":\s*(\d+)`).FindStringSubmatch(outputStr); len(widthMatch) > 1 {
-		info.Width, _ = strconv.Atoi(widthMatch[1])
-	}
-
-	if heightMatch := regexp.MustCompile(`"height":\s*(\d+)`).FindStringSubmatch(outputStr); len(heightMatch) > 1 {
-		info.Height, _ = strconv.Atoi(heightMatch[1])
+	// Extract video stream info (first video stream)
+	for _, stream := range ffprobe.Streams {
+		if stream.CodecType == "video" && info.Codec == "" {
+			info.Codec = stream.CodecName
+			info.Width = stream.Width
+			info.Height = stream.Height
+		}
+		if stream.CodecType == "audio" && info.AudioCodec == "" {
+			info.AudioCodec = stream.CodecName
+			info.AudioChannels = stream.Channels
+			if stream.BitRate != "" {
+				info.AudioBitrate, _ = strconv.ParseInt(stream.BitRate, 10, 64)
+			}
+		}
 	}
 
 	// Extract format info
-	if durationMatch := regexp.MustCompile(`"duration":\s*"([^"]+)"`).FindStringSubmatch(outputStr); len(durationMatch) > 1 {
-		info.Duration, _ = strconv.ParseFloat(durationMatch[1], 64)
+	info.ContainerFormat = ffprobe.Format.FormatName
+	if ffprobe.Format.Duration != "" {
+		info.Duration, _ = strconv.ParseFloat(ffprobe.Format.Duration, 64)
 	}
-
-	if bitrateMatch := regexp.MustCompile(`"bit_rate":\s*"(\d+)"`).FindStringSubmatch(outputStr); len(bitrateMatch) > 1 {
-		info.Bitrate, _ = strconv.ParseInt(bitrateMatch[1], 10, 64)
-	}
-
-	if formatMatch := regexp.MustCompile(`"format_name":\s*"([^"]+)"`).FindStringSubmatch(outputStr); len(formatMatch) > 1 {
-		info.ContainerFormat = formatMatch[1]
+	if ffprobe.Format.BitRate != "" {
+		info.Bitrate, _ = strconv.ParseInt(ffprobe.Format.BitRate, 10, 64)
 	}
 
 	return info, nil
@@ -209,6 +230,71 @@ func ValidateTranscodeRequest(inputPath string, outputDir string, profile *Quali
 	}
 
 	return nil
+}
+
+// StreamStrategy represents the type of streaming operation needed
+type StreamStrategy string
+
+const (
+	// DirectPlay serves the file directly without any processing (instant)
+	DirectPlay StreamStrategy = "direct_play"
+	// Remux copies streams to DASH container without re-encoding (2-5 min)
+	Remux StreamStrategy = "remux"
+	// RemuxWithAudioDownmix copies video and downmixes multi-channel audio to stereo (5-10 min)
+	RemuxWithAudioDownmix StreamStrategy = "remux_audio"
+	// Transcode re-encodes incompatible video/audio (20-60 min)
+	Transcode StreamStrategy = "transcode"
+)
+
+// DetermineStreamStrategy analyzes video metadata and determines the optimal streaming strategy.
+// Returns the strategy and a human-readable reason for the decision.
+func DetermineStreamStrategy(videoInfo *VideoInfo) (StreamStrategy, string) {
+	// Safety check
+	if videoInfo == nil {
+		return Transcode, "no video info available, defaulting to transcode"
+	}
+
+	// Check video codec compatibility (H.264 is web-compatible)
+	isH264 := videoInfo.Codec == "h264" || videoInfo.Codec == "H264" || videoInfo.Codec == "avc1"
+
+	// Check container format compatibility (MP4, WebM, MOV are web-compatible)
+	// Note: ffprobe returns formats like "mov,mp4,m4a,3gp,3g2,mj2" or "matroska,webm"
+	// We need to check if it contains the web format but exclude matroska
+	containerLower := strings.ToLower(videoInfo.ContainerFormat)
+	isWebContainer := !strings.Contains(containerLower, "matroska") && (
+		strings.Contains(containerLower, "mp4") ||
+		strings.Contains(containerLower, "webm") ||
+		strings.Contains(containerLower, "mov"))
+
+	// Check audio compatibility (stereo or mono is web-compatible, 5.1/7.1 is not)
+	isStereoOrLess := videoInfo.AudioChannels <= 2
+	hasMultiChannelAudio := videoInfo.AudioChannels > 2
+
+	// Tier 1: Direct Play - H.264 + stereo audio + web container
+	// This is instant, no processing needed
+	if isH264 && isStereoOrLess && isWebContainer {
+		return DirectPlay, fmt.Sprintf("H.264 video with %d-channel audio in %s container - direct playback",
+			videoInfo.AudioChannels, videoInfo.ContainerFormat)
+	}
+
+	// Tier 2: Remux - H.264 + stereo audio but wrong container (e.g., MKV)
+	// Copy streams to DASH without re-encoding (2-5 minutes)
+	if isH264 && isStereoOrLess {
+		return Remux, fmt.Sprintf("H.264 video with %d-channel audio needs container remux from %s to DASH",
+			videoInfo.AudioChannels, videoInfo.ContainerFormat)
+	}
+
+	// Tier 3: Remux with Audio Downmix - H.264 video but multi-channel audio
+	// Copy video stream, downmix audio from 5.1/7.1 to stereo (5-10 minutes)
+	if isH264 && hasMultiChannelAudio {
+		return RemuxWithAudioDownmix, fmt.Sprintf("H.264 video compatible, but %d-channel audio needs downmix to stereo",
+			videoInfo.AudioChannels)
+	}
+
+	// Tier 4: Full Transcode - Incompatible video codec or other issues
+	// Re-encode both video and audio (20-60 minutes)
+	return Transcode, fmt.Sprintf("video codec %s incompatible, needs full transcode to H.264",
+		videoInfo.Codec)
 }
 
 // SanitizeFilename sanitizes a filename by removing dangerous characters.

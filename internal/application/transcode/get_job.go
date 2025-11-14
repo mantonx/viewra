@@ -12,12 +12,16 @@ func GetJob(ctx context.Context, repo transcode.Repository, jobID int64) (*trans
 }
 
 // GetJobForMedia retrieves a transcode job for a specific media and quality.
-func GetJobForMedia(ctx context.Context, repo transcode.Repository, mediaID int64, quality string) (*transcode.TranscodeJob, error) {
+func GetJobForMedia(
+	ctx context.Context, repo transcode.Repository, mediaID int64, quality string,
+) (*transcode.TranscodeJob, error) {
 	return repo.GetByMediaIDAndQuality(ctx, mediaID, quality)
 }
 
 // ListJobsByStatus retrieves all transcode jobs with a specific status.
-func ListJobsByStatus(ctx context.Context, repo transcode.Repository, status string) ([]*transcode.TranscodeJob, error) {
+func ListJobsByStatus(
+	ctx context.Context, repo transcode.Repository, status string,
+) ([]*transcode.TranscodeJob, error) {
 	return repo.ListByStatus(ctx, status)
 }
 

@@ -29,8 +29,10 @@ export * from './githubComViewraViewraInternalApplicationProgressListProgressRes
 export * from './githubComViewraViewraInternalApplicationProgressMarkWatchedRequest';
 export * from './githubComViewraViewraInternalApplicationProgressUpdateProgressRequest';
 export * from './githubComViewraViewraInternalApplicationProgressWatchProgressResponse';
+export * from './githubComViewraViewraInternalApplicationTranscodeQueueStats';
 export * from './githubComViewraViewraInternalDomainLibraryBrowseResult';
 export * from './githubComViewraViewraInternalDomainLibraryDirectory';
+export * from './internalApiHandlersCreateTranscodeJobRequest';
 export * from './internalApiHandlersDatabaseHealth';
 export * from './internalApiHandlersErrorResponse';
 export * from './internalApiHandlersHealthResponse';
@@ -38,3 +40,4 @@ export * from './internalApiHandlersHealthResponseChecks';
 export * from './internalApiHandlersScanHistoryItem';
 export * from './internalApiHandlersScanHistoryResponse';
 export * from './internalApiHandlersScanStatusResponse';
+export * from './internalApiHandlersTranscodeJobResponse';

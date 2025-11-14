@@ -107,6 +107,112 @@ func (e *ffmpegExecutor) Transcode(ctx context.Context, opts TranscodeOptions) e
 	return nil
 }
 
+// RemuxToDASH remuxes a video to DASH format by copying streams without re-encoding.
+// This is much faster than transcoding (2-5 minutes vs 20-60 minutes) and should be used
+// when the video is already H.264 and audio is stereo, but the container format is incompatible.
+func (e *ffmpegExecutor) RemuxToDASH(ctx context.Context, opts TranscodeOptions) error {
+	// Ensure output directory exists
+	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Build FFmpeg command arguments for remuxing
+	args := e.buildRemuxArgs(opts)
+
+	// Create the command with proper process group management
+	cmd := e.processManager.PrepareCommand(ctx, e.ffmpegPath, args)
+
+	// Get stderr pipe for progress monitoring
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start ffmpeg: %w", err)
+	}
+
+	// Get video duration for progress calculation
+	duration, err := e.getVideoDuration(opts.InputPath)
+	if err != nil {
+		duration = 0
+	}
+
+	// Monitor progress in a goroutine
+	progressDone := make(chan struct{})
+	go e.monitorProgress(stderr, duration, opts.ProgressHandler, progressDone)
+
+	// Wait for command to complete with proper cleanup on cancellation
+	err = e.processManager.WaitWithCleanup(ctx, cmd)
+	<-progressDone // Wait for progress monitoring to finish
+
+	if err != nil {
+		return fmt.Errorf("ffmpeg remuxing failed: %w", err)
+	}
+
+	// Verify output files were created
+	manifestPath := filepath.Join(opts.OutputDir, "manifest.mpd")
+	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		return fmt.Errorf("manifest file was not created: %s", manifestPath)
+	}
+
+	return nil
+}
+
+// RemuxWithAudioDownmix remuxes video to DASH while copying video stream and downmixing multi-channel audio to stereo.
+// This is used when video is H.264 compatible but audio has too many channels (5.1, 7.1) for browser playback.
+// Processing time: 5-10 minutes (faster than full transcode since video is copied).
+func (e *ffmpegExecutor) RemuxWithAudioDownmix(ctx context.Context, opts TranscodeOptions) error {
+	// Ensure output directory exists
+	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Build FFmpeg command arguments for remux with audio downmix
+	args := e.buildRemuxWithAudioDownmixArgs(opts)
+
+	// Create the command with proper process group management
+	cmd := e.processManager.PrepareCommand(ctx, e.ffmpegPath, args)
+
+	// Get stderr pipe for progress monitoring
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start ffmpeg: %w", err)
+	}
+
+	// Get video duration for progress calculation
+	duration, err := e.getVideoDuration(opts.InputPath)
+	if err != nil {
+		duration = 0
+	}
+
+	// Monitor progress in a goroutine
+	progressDone := make(chan struct{})
+	go e.monitorProgress(stderr, duration, opts.ProgressHandler, progressDone)
+
+	// Wait for command to complete with proper cleanup on cancellation
+	err = e.processManager.WaitWithCleanup(ctx, cmd)
+	<-progressDone // Wait for progress monitoring to finish
+
+	if err != nil {
+		return fmt.Errorf("ffmpeg remux with audio downmix failed: %w", err)
+	}
+
+	// Verify output files were created
+	manifestPath := filepath.Join(opts.OutputDir, "manifest.mpd")
+	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		return fmt.Errorf("manifest file was not created: %s", manifestPath)
+	}
+
+	return nil
+}
+
 // buildFFmpegArgs constructs the FFmpeg command line arguments for DASH transcoding.
 func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	p := opts.Profile
@@ -145,9 +251,10 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		"-bufsize", p.VideoBufSize,
 	)
 
-	// Video resolution
+	// Video resolution with pixel format conversion for 10-bit sources
+	// format=yuv420p ensures 10-bit HDR sources are converted to 8-bit before NVENC encoding
 	args = append(args,
-		"-vf", fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2",
+		"-vf", fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
 			p.Width, p.Height, p.Width, p.Height),
 	)
 
@@ -166,7 +273,7 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		"-ar", strconv.Itoa(p.AudioSampleRate),
 	)
 
-	// DASH-specific settings
+	// DASH-specific settings with low-latency streaming support
 	args = append(args,
 		"-f", "dash",                                    // DASH format
 		"-seg_duration", strconv.Itoa(p.SegmentDuration), // Segment duration
@@ -175,6 +282,119 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		"-init_seg_name", "init_$RepresentationID$.m4s", // Init segment naming
 		"-media_seg_name", "segment_$RepresentationID$_$Number$.m4s", // Media segment naming
 		"-adaptation_sets", "id=0,streams=v id=1,streams=a", // Separate video and audio adaptation sets
+		"-streaming", "1",                               // Enable streaming mode for progressive playback
+		"-ldash", "1",                                   // Low-latency DASH
+		"-window_size", "5",                             // Keep last 5 segments in manifest (live-like)
+		"-extra_window_size", "10",                      // Buffer 10 extra segments
+		"-remove_at_exit", "0",                          // Don't remove segments when done
+	)
+
+	// Progress reporting
+	args = append(args,
+		"-progress", "pipe:2", // Output progress to stderr
+		"-stats",              // Show encoding statistics
+	)
+
+	// Overwrite output files without asking
+	args = append(args, "-y")
+
+	// Output manifest
+	args = append(args, outputManifest)
+
+	return args
+}
+
+// buildRemuxArgs constructs FFmpeg arguments for remuxing to DASH (copying streams without re-encoding).
+// This is used when video is already H.264 and audio is stereo, but container format needs conversion.
+func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
+	p := opts.Profile
+	outputManifest := filepath.Join(opts.OutputDir, "manifest.mpd")
+
+	args := []string{}
+
+	// Input file
+	args = append(args, "-i", opts.InputPath)
+
+	// Copy video and audio streams without re-encoding
+	args = append(args,
+		"-c:v", "copy", // Copy video stream
+		"-c:a", "copy", // Copy audio stream
+	)
+
+	// DASH-specific settings with low-latency streaming support
+	args = append(args,
+		"-f", "dash",                                    // DASH format
+		"-seg_duration", strconv.Itoa(p.SegmentDuration), // Segment duration
+		"-use_template", "1",                            // Use template-based segments
+		"-use_timeline", "1",                            // Use timeline in manifest
+		"-init_seg_name", "init_$RepresentationID$.m4s", // Init segment naming
+		"-media_seg_name", "segment_$RepresentationID$_$Number$.m4s", // Media segment naming
+		"-adaptation_sets", "id=0,streams=v id=1,streams=a", // Separate video and audio adaptation sets
+		"-streaming", "1",                               // Enable streaming mode for progressive playback
+		"-ldash", "1",                                   // Low-latency DASH
+		"-window_size", "5",                             // Keep last 5 segments in manifest (live-like)
+		"-extra_window_size", "10",                      // Buffer 10 extra segments
+		"-remove_at_exit", "0",                          // Don't remove segments when done
+	)
+
+	// Progress reporting
+	args = append(args,
+		"-progress", "pipe:2", // Output progress to stderr
+		"-stats",              // Show encoding statistics
+	)
+
+	// Overwrite output files without asking
+	args = append(args, "-y")
+
+	// Output manifest
+	args = append(args, outputManifest)
+
+	return args
+}
+
+// buildRemuxWithAudioDownmixArgs constructs FFmpeg arguments for remuxing with audio downmix.
+// This copies the video stream but re-encodes multi-channel audio to stereo for browser compatibility.
+func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) []string {
+	p := opts.Profile
+	outputManifest := filepath.Join(opts.OutputDir, "manifest.mpd")
+
+	args := []string{}
+
+	// Input file
+	args = append(args, "-i", opts.InputPath)
+
+	// Copy video stream without re-encoding
+	args = append(args, "-c:v", "copy")
+
+	// Audio encoding with downmix to stereo
+	// Use pan filter for flexible downmixing from any multi-channel layout
+	args = append(args,
+		"-c:a", "aac",      // AAC audio codec
+		"-b:a", p.AudioBitrate,
+		"-ac", "2",         // Force stereo output (2 channels)
+		"-ar", strconv.Itoa(p.AudioSampleRate),
+	)
+
+	// Add audio filter for intelligent downmixing
+	// This handles 5.1, 7.1, and other multi-channel formats automatically
+	args = append(args,
+		"-af", "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR",
+	)
+
+	// DASH-specific settings with low-latency streaming support
+	args = append(args,
+		"-f", "dash",                                    // DASH format
+		"-seg_duration", strconv.Itoa(p.SegmentDuration), // Segment duration
+		"-use_template", "1",                            // Use template-based segments
+		"-use_timeline", "1",                            // Use timeline in manifest
+		"-init_seg_name", "init_$RepresentationID$.m4s", // Init segment naming
+		"-media_seg_name", "segment_$RepresentationID$_$Number$.m4s", // Media segment naming
+		"-adaptation_sets", "id=0,streams=v id=1,streams=a", // Separate video and audio adaptation sets
+		"-streaming", "1",                               // Enable streaming mode for progressive playback
+		"-ldash", "1",                                   // Low-latency DASH
+		"-window_size", "5",                             // Keep last 5 segments in manifest (live-like)
+		"-extra_window_size", "10",                      // Buffer 10 extra segments
+		"-remove_at_exit", "0",                          // Don't remove segments when done
 	)
 
 	// Progress reporting
@@ -326,10 +546,9 @@ func (e *ffmpegExecutor) getHardwareAccelArgs() []string {
 			"-hwaccel_output_format", "vaapi",
 		}
 	case AccelNVENC:
-		return []string{
-			"-hwaccel", "cuda",
-			"-hwaccel_output_format", "cuda",
-		}
+		// For NVENC, we don't need to hardware accelerate the input decoding
+		// Just use the GPU encoder. This is more reliable.
+		return []string{}
 	case AccelQSV:
 		return []string{
 			"-hwaccel", "qsv",

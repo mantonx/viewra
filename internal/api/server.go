@@ -20,15 +20,16 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	router          *gin.Engine
-	healthHandler   *handlers.HealthHandler
-	libraryHandler  *handlers.LibraryHandler
-	mediaHandler    *handlers.MediaHandler
-	streamHandler   *handlers.StreamHandler
-	browserHandler  *handlers.BrowserHandler
-	scanJobHandler  *handlers.ScanJobHandler
-	progressHandler *handlers.ProgressHandler
-	server          *http.Server
+	router           *gin.Engine
+	healthHandler    *handlers.HealthHandler
+	libraryHandler   *handlers.LibraryHandler
+	mediaHandler     *handlers.MediaHandler
+	streamHandler    *handlers.StreamHandler
+	browserHandler   *handlers.BrowserHandler
+	scanJobHandler   *handlers.ScanJobHandler
+	progressHandler  *handlers.ProgressHandler
+	transcodeHandler *handlers.TranscodeHandler
+	server           *http.Server
 }
 
 // ServerConfig holds server configuration
@@ -81,6 +82,7 @@ func NewServer(
 	browserHandler *handlers.BrowserHandler,
 	scanJobHandler *handlers.ScanJobHandler,
 	progressHandler *handlers.ProgressHandler,
+	transcodeHandler *handlers.TranscodeHandler,
 	// Library use cases
 	createLibrary *library.CreateLibraryUseCase,
 	updateLibrary *library.UpdateLibraryUseCase,
@@ -124,14 +126,15 @@ func NewServer(
 	streamHandler := handlers.NewStreamHandler(getMedia, streamService)
 
 	server := &Server{
-		router:         router,
-		healthHandler:  healthHandler,
-		libraryHandler: libraryHandler,
-		mediaHandler:   mediaHandler,
-		streamHandler:  streamHandler,
-		browserHandler: browserHandler,
-		scanJobHandler: scanJobHandler,
-		progressHandler: progressHandler,
+		router:           router,
+		healthHandler:    healthHandler,
+		libraryHandler:   libraryHandler,
+		mediaHandler:     mediaHandler,
+		streamHandler:    streamHandler,
+		browserHandler:   browserHandler,
+		scanJobHandler:   scanJobHandler,
+		progressHandler:  progressHandler,
+		transcodeHandler: transcodeHandler,
 	}
 
 	// Setup routes
@@ -162,6 +165,7 @@ func (s *Server) setupRoutes() {
 	routes.RegisterStreamRoutes(api, s.streamHandler)
 	routes.RegisterBrowserRoutes(api, s.browserHandler)
 	routes.RegisterProgressRoutes(api, s.progressHandler)
+	routes.RegisterTranscodeRoutes(api, s.transcodeHandler)
 }
 
 // Start starts the HTTP server

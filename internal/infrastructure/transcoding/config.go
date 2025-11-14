@@ -1,7 +1,9 @@
 package transcoding
 
 import (
+	"bytes"
 	"os"
+	"os/exec"
 )
 
 // HardwareAccel represents hardware acceleration type.
@@ -51,14 +53,64 @@ type TranscodeConfig struct {
 
 // DefaultTranscodeConfig returns sensible defaults.
 func DefaultTranscodeConfig() *TranscodeConfig {
+	// Try to detect hardware acceleration
+	hwaccel := detectHardwareAccel()
+
 	return &TranscodeConfig{
-		HardwareAccel:    AccelNone,             // Safe default, detect and configure in production
+		HardwareAccel:    hwaccel,
 		OutputBaseDir:    GetDefaultOutputDir(), // /data/dash or ./data/dash
 		MinFreeDiskGB:    10,                    // Require 10GB free space
 		MaxCPUPercent:    0,                     // Unlimited by default
 		MaxMemoryMB:      0,                     // Unlimited by default
 		ProcessGroupKill: true,                  // Always kill process group
 	}
+}
+
+// detectHardwareAccel attempts to detect available hardware acceleration.
+// Priority: NVENC > QSV > VAAPI > VideoToolbox > None
+func detectHardwareAccel() HardwareAccel {
+	// Check for environment variable override
+	if accel := os.Getenv("HARDWARE_ACCEL"); accel != "" {
+		switch HardwareAccel(accel) {
+		case AccelNVENC, AccelVAAPI, AccelQSV, AccelVideoToolbox, AccelNone:
+			return HardwareAccel(accel)
+		}
+	}
+
+	// Detect NVIDIA GPU (nvenc)
+	if _, err := exec.LookPath("nvidia-smi"); err == nil {
+		// Verify FFmpeg has nvenc support
+		if checkFFmpegEncoder("h264_nvenc") {
+			return AccelNVENC
+		}
+	}
+
+	// Detect Intel Quick Sync (qsv)
+	if _, err := os.Stat("/dev/dri/renderD128"); err == nil {
+		if checkFFmpegEncoder("h264_qsv") {
+			return AccelQSV
+		}
+	}
+
+	// Detect VAAPI (Intel/AMD on Linux)
+	if _, err := os.Stat("/dev/dri/renderD128"); err == nil {
+		if checkFFmpegEncoder("h264_vaapi") {
+			return AccelVAAPI
+		}
+	}
+
+	// Default to software encoding
+	return AccelNone
+}
+
+// checkFFmpegEncoder checks if FFmpeg has a specific encoder available.
+func checkFFmpegEncoder(encoder string) bool {
+	cmd := exec.Command("ffmpeg", "-hide_banner", "-encoders")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return bytes.Contains(output, []byte(encoder))
 }
 
 // GetDefaultOutputDir returns the default transcode output directory.

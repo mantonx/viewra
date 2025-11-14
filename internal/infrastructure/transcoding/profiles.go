@@ -12,16 +12,16 @@ type QualityProfile struct {
 	Quality string
 
 	// Video parameters
-	Width         int    // Target video width in pixels
-	Height        int    // Target video height in pixels
-	VideoBitrate  string // Video bitrate (e.g., "800k", "2500k")
-	VideoMaxRate  string // Maximum video bitrate for buffer control
-	VideoBufSize  string // Video buffer size
+	Width        int    // Target video width in pixels
+	Height       int    // Target video height in pixels
+	VideoBitrate string // Video bitrate (e.g., "800k", "2500k")
+	VideoMaxRate string // Maximum video bitrate for buffer control
+	VideoBufSize string // Video buffer size
 
 	// Audio parameters
-	AudioBitrate  string // Audio bitrate (e.g., "96k", "128k")
-	AudioChannels int    // Number of audio channels (1=mono, 2=stereo)
-	AudioSampleRate int  // Audio sample rate in Hz (typically 44100 or 48000)
+	AudioBitrate    string // Audio bitrate (e.g., "96k", "128k")
+	AudioChannels   int    // Number of audio channels (1=mono, 2=stereo)
+	AudioSampleRate int    // Audio sample rate in Hz (typically 44100 or 48000)
 
 	// DASH parameters
 	SegmentDuration int // Segment duration in seconds
@@ -55,13 +55,13 @@ var qualityProfiles = map[string]*QualityProfile{
 		Width:           640,
 		Height:          360,
 		VideoBitrate:    "800k",
-		VideoMaxRate:    "880k",   // 110% of target bitrate
-		VideoBufSize:    "1600k",  // 2x target bitrate
+		VideoMaxRate:    "880k",  // 110% of target bitrate
+		VideoBufSize:    "1600k", // 2x target bitrate
 		AudioBitrate:    "96k",
 		AudioChannels:   2,
 		AudioSampleRate: 44100,
-		SegmentDuration: 4,
-		GOPSize:         48, // 2 seconds at 24fps, allows seeking every 2 segments
+		SegmentDuration: 2,  // 2-second segments for faster progressive streaming startup
+		GOPSize:         48, // 2 seconds at 24fps, aligns with segment boundaries
 	},
 	transcode.Quality720p: {
 		Quality:         transcode.Quality720p,
@@ -73,7 +73,7 @@ var qualityProfiles = map[string]*QualityProfile{
 		AudioBitrate:    "128k",
 		AudioChannels:   2,
 		AudioSampleRate: 48000,
-		SegmentDuration: 4,
+		SegmentDuration: 2, // 2-second segments for faster progressive streaming startup
 		GOPSize:         48,
 	},
 	transcode.Quality1080p: {
@@ -86,7 +86,7 @@ var qualityProfiles = map[string]*QualityProfile{
 		AudioBitrate:    "192k",
 		AudioChannels:   2,
 		AudioSampleRate: 48000,
-		SegmentDuration: 4,
+		SegmentDuration: 2, // 2-second segments for faster progressive streaming startup
 		GOPSize:         48,
 	},
 	transcode.Quality4K: {
@@ -99,7 +99,7 @@ var qualityProfiles = map[string]*QualityProfile{
 		AudioBitrate:    "256k",
 		AudioChannels:   2,
 		AudioSampleRate: 48000,
-		SegmentDuration: 4,
+		SegmentDuration: 2, // 2-second segments for faster progressive streaming startup
 		GOPSize:         48,
 	},
 }

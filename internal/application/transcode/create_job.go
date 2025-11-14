@@ -11,6 +11,7 @@ import (
 type CreateJobRequest struct {
 	MediaID int64
 	Quality string
+	Type    string // Optional: remux, remux_audio, or transcode (defaults to transcode)
 }
 
 // CreateJob creates a new transcode job for the specified media and quality.
@@ -25,11 +26,10 @@ func CreateJob(ctx context.Context, repo transcode.Repository, req CreateJobRequ
 	existingJob, err := repo.GetByMediaIDAndQuality(ctx, req.MediaID, req.Quality)
 	if err == nil && existingJob != nil {
 		// Job exists - check its status
-		if existingJob.IsQueued() || existingJob.IsProcessing() {
-			return nil, fmt.Errorf("transcode job already in progress for media %d at quality %s", req.MediaID, req.Quality)
-		}
-		if existingJob.IsCompleted() {
-			return nil, fmt.Errorf("transcode job already completed for media %d at quality %s", req.MediaID, req.Quality)
+		if existingJob.IsQueued() ||
+			existingJob.IsProcessing() ||
+			existingJob.IsCompleted() {
+			return nil, transcode.ErrJobAlreadyExists
 		}
 		// If failed, allow recreation by deleting old job
 		if err := repo.Delete(ctx, existingJob.ID); err != nil {
@@ -37,8 +37,14 @@ func CreateJob(ctx context.Context, repo transcode.Repository, req CreateJobRequ
 		}
 	}
 
+	// Determine job type - default to transcode if not specified
+	jobType := req.Type
+	if jobType == "" {
+		jobType = transcode.TypeTranscode
+	}
+
 	// Create new job
-	job, err := transcode.NewTranscodeJob(req.MediaID, req.Quality)
+	job, err := transcode.NewTranscodeJob(req.MediaID, req.Quality, jobType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcode job: %w", err)
 	}
