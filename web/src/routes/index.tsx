@@ -23,10 +23,23 @@ const Index = () => {
             Manage Libraries
           </Link>
           <Link
-            to="/media"
+            to="/movies"
+            search={{ id: undefined }}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
           >
-            Browse Media
+            Browse Movies
+          </Link>
+          <Link
+            to="/tv"
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+          >
+            Browse TV Shows
+          </Link>
+          <Link
+            to="/music"
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+          >
+            Browse Music
           </Link>
         </div>
       </section>
