@@ -43,6 +43,7 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
           mediaId={movie.id}
           alt={movie.title}
           className="w-full h-full absolute inset-0"
+          preset="medium"
         />
         {/* Top badges */}
         <div className="absolute top-2 left-2 right-2 flex justify-between">

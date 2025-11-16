@@ -17,6 +17,7 @@ import (
 	"github.com/viewra/viewra/internal/application/music"
 	"github.com/viewra/viewra/internal/application/transcode"
 	"github.com/viewra/viewra/internal/application/tv"
+	infraimages "github.com/viewra/viewra/internal/infrastructure/images"
 	"github.com/viewra/viewra/internal/infrastructure/pathbrowser"
 	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
 	imageRepo "github.com/viewra/viewra/internal/infrastructure/persistence/image"
@@ -69,10 +70,20 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	// Initialize image repository (used by scanner and API handlers)
 	imageRepository := imageRepo.NewRepository(baseRepo)
 
+	// Initialize image cache service (needed for image extraction)
+	imageCacheDir := "./data/cache/images"
+	if err := ensureDirectory(imageCacheDir); err != nil {
+		logger.Error("Failed to create image cache directory", "error", err, "path", imageCacheDir)
+	}
+	imageCacheService := infraimages.NewCacheService(imageCacheDir)
+
+	// Initialize image transformer (needed for WebP conversion during scan)
+	imageTransformer := infraimages.NewTransformer(imageCacheService)
+
 	// Initialize image extraction use cases (needed for scanner)
-	extractMovieImages := images.NewExtractMovieImagesUseCase(imageRepository)
-	extractEpisodeImages := images.NewExtractTVEpisodeImagesUseCase(imageRepository)
-	extractMusicImages := images.NewExtractMusicAlbumImagesUseCase(imageRepository)
+	extractMovieImages := images.NewExtractMovieImagesUseCase(imageRepository, imageCacheService, imageTransformer)
+	extractEpisodeImages := images.NewExtractTVEpisodeImagesUseCase(imageRepository, imageCacheService, imageTransformer)
+	extractMusicImages := images.NewExtractMusicAlbumImagesUseCase(imageRepository, imageCacheService, imageTransformer)
 
 	// Initialize media use cases
 	getMedia := media.NewGetMediaUseCase(mediaRepository)
@@ -102,11 +113,7 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	getMediaImages := images.NewGetMediaImagesUseCase(imageRepository)
 	getEntityImages := images.NewGetEntityImagesUseCase(imageRepository)
 
-	// Initialize image cleanup use case
-	imageCacheDir := "./data/cache/images"
-	if err := ensureDirectory(imageCacheDir); err != nil {
-		logger.Error("Failed to create image cache directory", "error", err, "path", imageCacheDir)
-	}
+	// Initialize image cleanup use case (reuses imageCacheService from above)
 	imageCleanup := images.NewCleanupUseCase(imageRepository, imageCacheDir, logger)
 
 	// Initialize media use cases (with image cleanup)
@@ -190,8 +197,8 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	scanJobHandler := handlers.NewScanJobHandler(scanJobRepository)
 	progressHandler := handlers.NewProgressHandler(progressRepository)
 
-	// Image handler
-	imagesHandler := handlers.NewImagesHandler(getImage, getMediaImages, getEntityImages)
+	// Image handler (with caching and transformation support)
+	imagesHandler := handlers.NewImagesHandler(getImage, getMediaImages, getEntityImages, imageTransformer, imageCacheService)
 
 	var transcodeHandler *handlers.TranscodeHandler
 	if transcodeQueue != nil {

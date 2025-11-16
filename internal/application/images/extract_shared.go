@@ -14,6 +14,8 @@ func ProcessAndSaveImages(
 	ctx context.Context,
 	repo images.Repository,
 	metadataExtractor *infraImages.MetadataExtractor,
+	cacheService *infraImages.CacheService,
+	transformer *infraImages.Transformer,
 	extractedImages *infraImages.ExtractedImages,
 	mediaType images.MediaType,
 	entityID int,
@@ -34,26 +36,58 @@ func ProcessAndSaveImages(
 			continue
 		}
 
+		// Generate all preset size variants during scan (Phase 4.1+ implementation)
+		// Cache format: data/cache/images/{first2}/{next2}/{hash}_{preset_name}.webp
+		// Example presets: thumb, medium, large, xlarge (based on image type)
+		var localCachePath *string
+		cachedMimeType := metadata.MimeType // Default to original if caching fails
+		if transformer != nil && metadata.FileHash != nil {
+			// Generate all preset sizes for this image type
+			presetPaths, err := transformer.TransformAllPresets(imgInfo.Path, *metadata.FileHash, imgInfo.Type)
+			if err != nil {
+				slog.Warn("Failed to generate image presets",
+					"path", imgInfo.Path,
+					"image_type", imgInfo.Type,
+					"error", err)
+				// Continue without cache - we'll serve from original path
+			} else if len(presetPaths) > 0 {
+				// Store the "medium" preset path as the default cache path
+				// API can construct other preset paths using the file hash
+				mediumPath, hasMedium := presetPaths["medium"]
+				if hasMedium {
+					localCachePath = &mediumPath
+				} else {
+					// Fallback to any available preset
+					for _, path := range presetPaths {
+						localCachePath = &path
+						break
+					}
+				}
+				webpMime := "image/webp"
+				cachedMimeType = &webpMime // All presets are WebP
+				slog.Debug("Image presets generated",
+					"path", imgInfo.Path,
+					"image_type", imgInfo.Type,
+					"preset_count", len(presetPaths))
+			}
+		}
+
 		// Create domain image
-		// NOTE: LocalCachePath is NOT populated in Phase 4.1
-		// Current approach: Catalog images by reference only, serve from original paths
-		// Future (Phase 4.3): Populate cache at data/cache/images/{hash}_original.{ext}
-		// See docs/PHASE_4_1_GAP_ANALYSIS.md for details
 		img := &images.Image{
-			MediaID:       mediaID,
-			MediaType:     mediaType,
-			EntityID:      entityID,
-			ImageType:     imgInfo.Type,
-			SourceType:    images.SourceTypeLocal,
-			FilePath:      imgInfo.Path, // Original file path in user's media directory
-			// LocalCachePath: nil,       // Cache not populated yet (Phase 4.3)
-			Width:         metadata.Width,
-			Height:        metadata.Height,
-			FileSizeBytes: metadata.FileSizeBytes,
-			MimeType:      metadata.MimeType,
-			FileHash:      metadata.FileHash, // SHA256 for future deduplication
-			Language:      imgInfo.Language,
-			Priority:      imgInfo.Priority,
+			MediaID:        mediaID,
+			MediaType:      mediaType,
+			EntityID:       entityID,
+			ImageType:      imgInfo.Type,
+			SourceType:     images.SourceTypeLocal,
+			FilePath:       imgInfo.Path,      // Original file path in user's media directory
+			LocalCachePath: localCachePath,    // Cache path populated during scan
+			Width:          metadata.Width,
+			Height:         metadata.Height,
+			FileSizeBytes:  metadata.FileSizeBytes,
+			MimeType:       cachedMimeType,    // WebP if cached, original if not
+			FileHash:       metadata.FileHash, // SHA256 for deduplication
+			Language:       imgInfo.Language,
+			Priority:       imgInfo.Priority,
 		}
 
 		// Validate

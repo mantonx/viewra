@@ -337,6 +337,13 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 		if err := uc.movieRepo.UpdateMovie(ctx, movie); err != nil {
 			fmt.Printf("failed to update movie metadata %s: %v\n", result.FilePath, err)
 		}
+		// Extract and catalog images (even for existing movies to populate cache)
+		if uc.extractMovieImages != nil {
+			mediaID := int(movie.Media.ID)
+			if err := uc.extractMovieImages.Execute(ctx, result.FilePath, images.MediaTypeMovie, mediaID, &mediaID); err != nil {
+				fmt.Printf("failed to extract images for movie %s: %v\n", result.FilePath, err)
+			}
+		}
 		return
 	}
 
@@ -458,6 +465,13 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		}
 		if err := uc.tvRepo.UpdateTVEpisode(ctx, episode); err != nil {
 			fmt.Printf("failed to update TV episode metadata %s: %v\n", result.FilePath, err)
+		}
+		// Extract and catalog images (even for existing episodes to populate cache)
+		if uc.extractEpisodeImages != nil {
+			mediaID := int(episode.Media.ID)
+			if err := uc.extractEpisodeImages.Execute(ctx, result.FilePath, images.MediaTypeTVEpisode, mediaID, &mediaID); err != nil {
+				fmt.Printf("failed to extract images for episode %s: %v\n", result.FilePath, err)
+			}
 		}
 		return
 	}

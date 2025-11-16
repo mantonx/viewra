@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { useMovieImages } from '@/lib/hooks/useMediaImages'
-import { getPosterImage, getImageUrl } from '@/lib/types/images'
+import { getPosterImage, getImageUrl, type ImagePreset } from '@/lib/types/images'
 
 export interface MediaPosterProps {
   /**
@@ -27,6 +27,12 @@ export interface MediaPosterProps {
    * Fallback emoji/icon to show when no poster is available
    */
   fallbackIcon?: string
+
+  /**
+   * Image preset size (thumb, medium, large, xlarge)
+   * Defaults to 'medium'
+   */
+  preset?: ImagePreset
 }
 
 export const MediaPoster = ({
@@ -34,13 +40,14 @@ export const MediaPoster = ({
   alt,
   className = '',
   fallbackIcon = '🎬',
+  preset = 'medium',
 }: MediaPosterProps) => {
   const { data: imagesData, isLoading } = useMovieImages(mediaId)
   const [imageError, setImageError] = useState(false)
 
   // Get poster image
   const poster = imagesData?.images ? getPosterImage(imagesData.images) : null
-  const posterUrl = poster ? getImageUrl(poster.id) : null
+  const posterUrl = poster ? getImageUrl(poster.id, preset) : null
 
   // Show loading state
   if (isLoading) {

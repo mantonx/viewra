@@ -13,14 +13,18 @@ type ExtractMovieImagesUseCase struct {
 	repo              images.Repository
 	extractor         *infraImages.Extractor
 	metadataExtractor *infraImages.MetadataExtractor
+	cacheService      *infraImages.CacheService
+	transformer       *infraImages.Transformer
 }
 
 // NewExtractMovieImagesUseCase creates a new instance
-func NewExtractMovieImagesUseCase(repo images.Repository) *ExtractMovieImagesUseCase {
+func NewExtractMovieImagesUseCase(repo images.Repository, cacheService *infraImages.CacheService, transformer *infraImages.Transformer) *ExtractMovieImagesUseCase {
 	return &ExtractMovieImagesUseCase{
 		repo:              repo,
 		extractor:         infraImages.NewExtractor(),
 		metadataExtractor: infraImages.NewMetadataExtractor(),
+		cacheService:      cacheService,
+		transformer:       transformer,
 	}
 }
 
@@ -33,7 +37,7 @@ func (uc *ExtractMovieImagesUseCase) Execute(ctx context.Context, movieFilePath 
 	}
 
 	// Process and save all extracted images
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, extracted, mediaType, entityID, mediaID)
+	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, mediaID)
 }
 
 // ExtractTVEpisodeImagesUseCase handles extracting and cataloging TV episode images
@@ -41,14 +45,18 @@ type ExtractTVEpisodeImagesUseCase struct {
 	repo              images.Repository
 	extractor         *infraImages.Extractor
 	metadataExtractor *infraImages.MetadataExtractor
+	cacheService      *infraImages.CacheService
+	transformer       *infraImages.Transformer
 }
 
 // NewExtractTVEpisodeImagesUseCase creates a new instance
-func NewExtractTVEpisodeImagesUseCase(repo images.Repository) *ExtractTVEpisodeImagesUseCase {
+func NewExtractTVEpisodeImagesUseCase(repo images.Repository, cacheService *infraImages.CacheService, transformer *infraImages.Transformer) *ExtractTVEpisodeImagesUseCase {
 	return &ExtractTVEpisodeImagesUseCase{
 		repo:              repo,
 		extractor:         infraImages.NewExtractor(),
 		metadataExtractor: infraImages.NewMetadataExtractor(),
+		cacheService:      cacheService,
+		transformer:       transformer,
 	}
 }
 
@@ -61,7 +69,7 @@ func (uc *ExtractTVEpisodeImagesUseCase) Execute(ctx context.Context, episodeFil
 	}
 
 	// Process and save all extracted images
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, extracted, mediaType, entityID, mediaID)
+	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, mediaID)
 }
 
 // ExtractMusicAlbumImagesUseCase handles extracting and cataloging music album images
@@ -69,14 +77,18 @@ type ExtractMusicAlbumImagesUseCase struct {
 	repo              images.Repository
 	extractor         *infraImages.Extractor
 	metadataExtractor *infraImages.MetadataExtractor
+	cacheService      *infraImages.CacheService
+	transformer       *infraImages.Transformer
 }
 
 // NewExtractMusicAlbumImagesUseCase creates a new instance
-func NewExtractMusicAlbumImagesUseCase(repo images.Repository) *ExtractMusicAlbumImagesUseCase {
+func NewExtractMusicAlbumImagesUseCase(repo images.Repository, cacheService *infraImages.CacheService, transformer *infraImages.Transformer) *ExtractMusicAlbumImagesUseCase {
 	return &ExtractMusicAlbumImagesUseCase{
 		repo:              repo,
 		extractor:         infraImages.NewExtractor(),
 		metadataExtractor: infraImages.NewMetadataExtractor(),
+		cacheService:      cacheService,
+		transformer:       transformer,
 	}
 }
 
@@ -89,5 +101,5 @@ func (uc *ExtractMusicAlbumImagesUseCase) Execute(ctx context.Context, albumDir 
 	}
 
 	// Process and save all extracted images (albums don't have media_id, so pass nil)
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, extracted, mediaType, entityID, nil)
+	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
 }

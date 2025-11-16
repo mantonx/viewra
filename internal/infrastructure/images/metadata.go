@@ -45,9 +45,6 @@ func (e *MetadataExtractor) ExtractMetadata(imagePath string) (*ImageInfo, error
 		return nil, fmt.Errorf("failed to decode image config: %w", err)
 	}
 
-	width := img.Width
-	height := img.Height
-
 	// Get MIME type from format
 	mimeType := getMimeType(format)
 
@@ -62,12 +59,25 @@ func (e *MetadataExtractor) ExtractMetadata(imagePath string) (*ImageInfo, error
 
 	return &ImageInfo{
 		Path:          imagePath,
-		Width:         &width,
-		Height:        &height,
-		FileSizeBytes: &fileSize,
-		MimeType:      &mimeType,
-		FileHash:      &fileHash,
+		Width:         intPtr(img.Width),
+		Height:        intPtr(img.Height),
+		FileSizeBytes: int64Ptr(fileSize),
+		MimeType:      stringPtr(mimeType),
+		FileHash:      stringPtr(fileHash),
 	}, nil
+}
+
+// Helper functions to create pointers to values
+func intPtr(v int) *int {
+	return &v
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
+}
+
+func stringPtr(v string) *string {
+	return &v
 }
 
 // getMimeType converts Go image format to MIME type

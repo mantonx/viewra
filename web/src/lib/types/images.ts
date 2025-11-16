@@ -52,13 +52,24 @@ export interface ListImagesResponse {
 }
 
 /**
- * Helper to get the URL to serve an image file
+ * Image preset sizes available from the backend
  */
-export function getImageUrl(imageId: number): string {
+export type ImagePreset = 'thumb' | 'medium' | 'large' | 'xlarge'
+
+/**
+ * Helper to get the URL to serve an image file
+ * @param imageId - The image ID
+ * @param preset - Optional preset size (thumb, medium, large, xlarge). Defaults to medium.
+ */
+export function getImageUrl(imageId: number, preset?: ImagePreset): string {
+  if (preset) {
+    return `/api/images/${imageId}/file?preset=${preset}`
+  }
   return `/api/images/${imageId}/file`
 }
 
 /**
+ * @deprecated Use getImageUrl(imageId, preset) instead. Backend only supports preset sizes, not arbitrary dimensions.
  * Helper to get the URL to serve an image file with resize parameters
  */
 export function getImageUrlWithSize(imageId: number, width?: number, height?: number): string {
