@@ -8,6 +8,7 @@ import (
 
 // ArtistSummary represents an artist with aggregated metadata (for list view)
 type ArtistSummary struct {
+	ID         int64            `json:"id"`         // Representative media_id (first track)
 	Name       string           `json:"name"`
 	AlbumCount int              `json:"album_count"`
 	TrackCount int              `json:"track_count"`
@@ -16,6 +17,7 @@ type ArtistSummary struct {
 
 // AlbumSummary represents an album with aggregated metadata (for list view)
 type AlbumSummary struct {
+	ID         int64  `json:"id"`         // Representative media_id (first track)
 	Album      string `json:"album"`
 	Artist     string `json:"artist"`
 	Year       int    `json:"year,omitempty"`

@@ -9,27 +9,27 @@ import (
 
 // MusicHandler handles HTTP requests for music
 type MusicHandler struct {
-	listArtists  music.ListArtistsExecutor
-	listAlbums   music.ListAlbumsExecutor
-	listTracks   music.ListTracksExecutor
-	getTrack     music.GetTrackExecutor
-	searchTracks music.SearchTracksExecutor
+	listArtists          music.ListArtistsExecutor
+	listAlbumsByArtistID music.ListAlbumsByArtistIDExecutor
+	listTracksByAlbumID  music.ListTracksByAlbumIDExecutor
+	getTrack             music.GetTrackExecutor
+	searchTracks         music.SearchTracksExecutor
 }
 
 // NewMusicHandler creates a new music handler
 func NewMusicHandler(
 	listArtists music.ListArtistsExecutor,
-	listAlbums music.ListAlbumsExecutor,
-	listTracks music.ListTracksExecutor,
+	listAlbumsByArtistID music.ListAlbumsByArtistIDExecutor,
+	listTracksByAlbumID music.ListTracksByAlbumIDExecutor,
 	getTrack music.GetTrackExecutor,
 	searchTracks music.SearchTracksExecutor,
 ) *MusicHandler {
 	return &MusicHandler{
-		listArtists:  listArtists,
-		listAlbums:   listAlbums,
-		listTracks:   listTracks,
-		getTrack:     getTrack,
-		searchTracks: searchTracks,
+		listArtists:          listArtists,
+		listAlbumsByArtistID: listAlbumsByArtistID,
+		listTracksByAlbumID:  listTracksByAlbumID,
+		getTrack:             getTrack,
+		searchTracks:         searchTracks,
 	}
 }
 
@@ -63,104 +63,6 @@ func (h *MusicHandler) ListArtists(c *gin.Context) {
 	}
 
 	resp, err := h.listArtists.Execute(c.Request.Context(), libraryID)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, resp)
-}
-
-// ListAlbumsByArtist handles GET /api/music/artists/:artist/albums
-// @Summary List albums for an artist
-// @Description Returns all albums for a specific artist with track counts
-// @Tags music
-// @Produce json
-// @Param artist path string true "Artist name"
-// @Param library_id query int true "Library ID"
-// @Success 200 {object} music.ListAlbumsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/music/artists/{artist}/albums [get]
-func (h *MusicHandler) ListAlbumsByArtist(c *gin.Context) {
-	artist := c.Param("artist")
-	if artist == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing artist name",
-			Message: "artist path parameter is required",
-		})
-		return
-	}
-
-	libraryIDStr := c.Query("library_id")
-	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
-		return
-	}
-
-	libraryID, err := parseID(libraryIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	resp, err := h.listAlbums.ExecuteByArtist(c.Request.Context(), libraryID, artist)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, resp)
-}
-
-// ListTracksByAlbum handles GET /api/music/albums/:album/tracks
-// @Summary List tracks for an album
-// @Description Returns all tracks for a specific album
-// @Tags music
-// @Produce json
-// @Param album path string true "Album name"
-// @Param library_id query int true "Library ID"
-// @Success 200 {object} music.ListTracksResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/music/albums/{album}/tracks [get]
-func (h *MusicHandler) ListTracksByAlbum(c *gin.Context) {
-	album := c.Param("album")
-	if album == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing album name",
-			Message: "album path parameter is required",
-		})
-		return
-	}
-
-	libraryIDStr := c.Query("library_id")
-	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
-		return
-	}
-
-	libraryID, err := parseID(libraryIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	resp, err := h.listTracks.ExecuteByAlbum(c.Request.Context(), libraryID, album)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -239,6 +141,66 @@ func (h *MusicHandler) Search(c *gin.Context) {
 	}
 
 	resp, err := h.searchTracks.Execute(c.Request.Context(), libraryID, query)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ListAlbumsByArtistID handles GET /api/music/artists/:id/albums
+// @Summary List albums for an artist by ID
+// @Description Returns all albums for an artist identified by a representative track ID
+// @Tags music
+// @Produce json
+// @Param id path int true "Artist representative track ID"
+// @Success 200 {object} music.ListAlbumsResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/music/artists/{id}/albums [get]
+func (h *MusicHandler) ListAlbumsByArtistID(c *gin.Context) {
+	id, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid artist ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.listAlbumsByArtistID.Execute(c.Request.Context(), id)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ListTracksByAlbumID handles GET /api/music/albums/:id/tracks
+// @Summary List tracks for an album by ID
+// @Description Returns all tracks for an album identified by a representative track ID
+// @Tags music
+// @Produce json
+// @Param id path int true "Album representative track ID"
+// @Success 200 {object} music.ListTracksResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/music/albums/{id}/tracks [get]
+func (h *MusicHandler) ListTracksByAlbumID(c *gin.Context) {
+	id, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid album ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.listTracksByAlbumID.Execute(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return

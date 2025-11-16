@@ -1,37 +1,30 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Card, CardContent, Select, Button } from '@/components/ui'
+import { Card, CardContent, Button } from '@/components/ui'
 import { TrackList } from '@/components/music'
 import { EmptyState, LoadingPage, ErrorPage } from '@/components/common'
-import { extractLibraries, getLibraryId, filterLibrariesByType } from '@/lib/utils/api'
+import { extractLibraries } from '@/lib/utils/api'
 import { musicApi } from '@/lib/api/music'
 import { useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import type { MusicTrackResponse } from '@/lib/types/music'
 
 const AlbumDetail = () => {
   const navigate = useNavigate()
-  const { artist, album } = Route.useParams()
-  const [selectedLibrary, setSelectedLibrary] = useState<string>('all')
+  const { albumId } = Route.useParams()
+  const albumIdNum = parseInt(albumId, 10)
   const { playTrack, playQueue, currentTrack } = useAudioPlayer()
 
   const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
   const libraries = extractLibraries(librariesData)
-  
-  // Filter to only music libraries
-  const musicLibraries = filterLibrariesByType(libraries, 'music')
-
-  // Get the library ID (defaults to first music library when 'all' is selected)
-  const libraryId = getLibraryId(selectedLibrary, libraries, 'music')
 
   const {
     data: tracksData,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['music-tracks', libraryId, album],
-    queryFn: () => musicApi.listTracksByAlbum(libraryId, album),
+    queryKey: ['music-tracks-by-album-id', albumIdNum],
+    queryFn: () => musicApi.listTracksByAlbumID(albumIdNum),
   })
 
   const tracks = tracksData?.tracks || []
@@ -51,6 +44,8 @@ const AlbumDetail = () => {
 
   // Get album metadata from first track
   const albumMetadata = tracks[0] || null
+  const albumName = albumMetadata?.album || 'Album'
+  const artistName = albumMetadata?.album_artist || albumMetadata?.artist || 'Unknown Artist'
 
   // Handle clicking on a track
   const handleTrackClick = (track: MusicTrackResponse) => {
@@ -64,9 +59,15 @@ const AlbumDetail = () => {
     }
   }
 
-  // Handle back to artist
-  const handleBackToArtist = () => {
-    navigate({ to: `/music/${artist}` })
+  // Handle back - navigate to artist detail if we have artist info
+  const handleBack = () => {
+    if (albumMetadata) {
+      // Try to navigate to artist using the first track's ID as artist ID
+      // This is a bit of a hack but works since we need an artist track ID
+      navigate({ to: '/music' })
+    } else {
+      navigate({ to: '/music' })
+    }
   }
 
   if (isLoading) {
@@ -81,9 +82,9 @@ const AlbumDetail = () => {
     <div className="p-8">
       {/* Back button */}
       <div className="mb-4">
-        <Button onClick={handleBackToArtist} variant="secondary">
+        <Button onClick={handleBack} variant="secondary">
           <span className="mr-2">←</span>
-          Back to {decodeURIComponent(artist)}
+          Back to Music
         </Button>
       </div>
 
@@ -99,38 +100,20 @@ const AlbumDetail = () => {
 
           {/* Album info */}
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {decodeURIComponent(album)}
-            </h1>
-            <p className="text-lg text-gray-600 mb-2">{decodeURIComponent(artist)}</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{albumName}</h1>
+            <p className="text-lg text-gray-600 mb-2">{artistName}</p>
             {albumMetadata && (
               <div className="flex items-center gap-4 text-sm text-gray-500">
                 {albumMetadata.year && <span>{albumMetadata.year}</span>}
-                <span>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</span>
+                <span>
+                  {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
+                </span>
                 {albumMetadata.genre && <span>{albumMetadata.genre}</span>}
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* Library filter */}
-      <Card className="mb-6">
-        <CardContent>
-          <Select
-            label="Library"
-            value={selectedLibrary}
-            onChange={(e) => setSelectedLibrary(e.target.value)}
-            options={[
-              { value: 'all', label: 'All Music Libraries' },
-              ...musicLibraries.map((lib) => ({
-                value: String(lib.id),
-                label: lib.name || '',
-              })),
-            ]}
-          />
-        </CardContent>
-      </Card>
 
       {/* Track List */}
       {tracks.length === 0 ? (
@@ -139,7 +122,7 @@ const AlbumDetail = () => {
             <EmptyState
               icon="🎵"
               title="No tracks found"
-              description="This album has no tracks in the selected library."
+              description="This album has no tracks."
             />
           </CardContent>
         </Card>
@@ -159,6 +142,6 @@ const AlbumDetail = () => {
   )
 }
 
-export const Route = createFileRoute('/_layout/music/$artist/$album')({
+export const Route = createFileRoute('/_layout/music/albums/$albumId')({
   component: AlbumDetail,
 })

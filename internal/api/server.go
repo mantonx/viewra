@@ -115,8 +115,8 @@ func NewServer(
 	searchTVEpisodes *tv.SearchTVEpisodesUseCase,
 	// Music use cases
 	listArtists *music.ListArtistsUseCase,
-	listAlbums *music.ListAlbumsUseCase,
-	listTracks *music.ListTracksUseCase,
+	listAlbumsByArtistID *music.ListAlbumsByArtistIDUseCase,
+	listTracksByAlbumID *music.ListTracksByAlbumIDUseCase,
 	getTrack *music.GetTrackUseCase,
 	searchTracks *music.SearchTracksUseCase,
 ) *Server {
@@ -166,8 +166,8 @@ func NewServer(
 	)
 	musicHandler := handlers.NewMusicHandler(
 		listArtists,
-		listAlbums,
-		listTracks,
+		listAlbumsByArtistID,
+		listTracksByAlbumID,
 		getTrack,
 		searchTracks,
 	)

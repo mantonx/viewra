@@ -1,41 +1,37 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Card, CardContent, Select, Button } from '@/components/ui'
+import { Card, CardContent, Button } from '@/components/ui'
 import { AlbumCard } from '@/components/music'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
-import { extractLibraries, getLibraryId, filterLibrariesByType } from '@/lib/utils/api'
+import { extractLibraries } from '@/lib/utils/api'
 import { musicApi } from '@/lib/api/music'
 
 const ArtistDetail = () => {
   const navigate = useNavigate()
-  const { artist } = Route.useParams()
-  const [selectedLibrary, setSelectedLibrary] = useState<string>('all')
+  const { artistId } = Route.useParams()
+  const artistIdNum = parseInt(artistId, 10)
 
   const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
   const libraries = extractLibraries(librariesData)
-  
-  // Filter to only music libraries
-  const musicLibraries = filterLibrariesByType(libraries, 'music')
-
-  // Get the library ID (defaults to first music library when 'all' is selected)
-  const libraryId = getLibraryId(selectedLibrary, libraries, 'music')
 
   const {
     data: albumsData,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['music-albums', libraryId, artist],
-    queryFn: () => musicApi.listAlbumsByArtist(libraryId, artist),
+    queryKey: ['music-albums-by-artist-id', artistIdNum],
+    queryFn: () => musicApi.listAlbumsByArtistID(artistIdNum),
   })
 
   const albums = albumsData?.albums || []
 
+  // Get artist name from first album
+  const artistName = albums.length > 0 ? albums[0].artist : 'Artist'
+
   // Handle clicking on an album card
-  const handleAlbumClick = (albumName: string) => {
-    navigate({ to: `/music/${artist}/${albumName}` })
+  const handleAlbumClick = (albumId: number) => {
+    navigate({ to: `/music/albums/${albumId}` })
   }
 
   // Handle back to artists
@@ -62,27 +58,9 @@ const ArtistDetail = () => {
       </div>
 
       <PageHeader
-        title={decodeURIComponent(artist)}
+        title={artistName}
         description={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}
       />
-
-      {/* Library filter */}
-      <Card className="mb-6">
-        <CardContent>
-          <Select
-            label="Library"
-            value={selectedLibrary}
-            onChange={(e) => setSelectedLibrary(e.target.value)}
-            options={[
-              { value: 'all', label: 'All Music Libraries' },
-              ...musicLibraries.map((lib) => ({
-                value: String(lib.id),
-                label: lib.name || '',
-              })),
-            ]}
-          />
-        </CardContent>
-      </Card>
 
       {/* Albums Grid */}
       {albums.length === 0 ? (
@@ -91,7 +69,7 @@ const ArtistDetail = () => {
             <EmptyState
               icon="💿"
               title="No albums found"
-              description="This artist has no albums in the selected library."
+              description="This artist has no albums."
             />
           </CardContent>
         </Card>
@@ -99,9 +77,9 @@ const ArtistDetail = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {albums.map((album) => (
             <AlbumCard
-              key={album.album}
+              key={album.id}
               album={album}
-              onClick={() => handleAlbumClick(album.album)}
+              onClick={() => handleAlbumClick(album.id)}
             />
           ))}
         </div>
@@ -114,6 +92,6 @@ const ArtistDetail = () => {
   )
 }
 
-export const Route = createFileRoute('/_layout/music/$artist')({
+export const Route = createFileRoute('/_layout/music/artists/$artistId')({
   component: ArtistDetail,
 })

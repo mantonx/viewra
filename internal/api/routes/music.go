@@ -10,16 +10,16 @@ func RegisterMusicRoutes(rg *gin.RouterGroup, handler *handlers.MusicHandler) {
 	music := rg.Group("/music")
 	{
 		// Artists
-		music.GET("/artists", handler.ListArtists)                       // GET /api/music/artists?library_id=1
-		music.GET("/artists/:artist/albums", handler.ListAlbumsByArtist) // GET /api/music/artists/Beatles/albums?library_id=1
+		music.GET("/artists", handler.ListArtists)                     // GET /api/music/artists?library_id=1
+		music.GET("/artists/:id/albums", handler.ListAlbumsByArtistID) // GET /api/music/artists/123/albums
 
 		// Albums
-		music.GET("/albums/:album/tracks", handler.ListTracksByAlbum)  // GET /api/music/albums/Abbey%20Road/tracks?library_id=1
+		music.GET("/albums/:id/tracks", handler.ListTracksByAlbumID) // GET /api/music/albums/123/tracks
 
 		// Tracks
-		music.GET("/tracks/:id", handler.GetTrack)  // GET /api/music/tracks/123
+		music.GET("/tracks/:id", handler.GetTrack) // GET /api/music/tracks/123
 
 		// Search
-		music.GET("/search", handler.Search)  // GET /api/music/search?library_id=1&q=imagine
+		music.GET("/search", handler.Search) // GET /api/music/search?library_id=1&q=imagine
 	}
 }

@@ -7,15 +7,14 @@ type ListArtistsExecutor interface {
 	Execute(ctx context.Context, libraryID int64) (ListArtistsResponse, error)
 }
 
-// ListAlbumsExecutor defines the interface for listing music albums
-type ListAlbumsExecutor interface {
-	ExecuteByArtist(ctx context.Context, libraryID int64, artist string) (ListAlbumsResponse, error)
+// ListAlbumsByArtistIDExecutor defines the interface for listing albums by artist ID
+type ListAlbumsByArtistIDExecutor interface {
+	Execute(ctx context.Context, artistTrackID int64) (ListAlbumsResponse, error)
 }
 
-// ListTracksExecutor defines the interface for listing music tracks
-type ListTracksExecutor interface {
-	ExecuteByAlbum(ctx context.Context, libraryID int64, album string) (ListTracksResponse, error)
-	ExecuteByLibrary(ctx context.Context, libraryID int64) (ListTracksResponse, error)
+// ListTracksByAlbumIDExecutor defines the interface for listing tracks by album ID
+type ListTracksByAlbumIDExecutor interface {
+	Execute(ctx context.Context, albumTrackID int64) (ListTracksResponse, error)
 }
 
 // GetTrackExecutor defines the interface for getting a single music track

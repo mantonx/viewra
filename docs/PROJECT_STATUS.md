@@ -499,6 +499,93 @@ TRANSCODE_KEEP_FAILED_HOURS=24              # Keep failed for 24h
 **Documentation**
 - [ADR 007: Unified Task Scheduler](./decisions/007-unified-task-scheduler.md)
 
+### Phase 4.3: Image Caching & Transformations 📋 (Planned)
+
+**Goal**: Complete the image handling system with caching, transformations, and optimization
+
+**Status**: Planned 📋
+**Estimated Effort**: 6-8 hours
+
+**Scope**
+Based on ADR 006, Phase 4.1 implemented image cataloging (discovery, metadata extraction, serving from original paths). Phase 4.3 completes the remaining features:
+
+**Planned Implementation**
+- 📋 **Image Cache Service**: Copy images to `data/cache/images/` directory
+  - Hash-based filenames: `{hash}_original.{ext}`
+  - Populate `local_cache_path` field in database
+  - Graceful fallback to original path if cache unavailable
+
+- 📋 **Hash-Based Deduplication**: Single storage for identical images
+  - Check file hash before caching
+  - Multiple database records can reference same cached file
+  - Significant storage savings for duplicate posters/covers
+
+- 📋 **On-Demand Image Transformations**: Resize and format conversion
+  - Query parameters: `?width=300&height=450&format=webp&quality=85`
+  - Generate transformed versions on first request
+  - Cache generated variants: `{hash}_300x450.webp`
+  - WebP conversion for smaller file sizes
+
+- 📋 **LRU Cache Eviction**: Disk space management
+  - Track cache usage and access times
+  - Evict least-recently-used transformed images when disk threshold exceeded
+  - Keep original cached files (regenerate transforms on demand)
+  - Configurable size limits
+
+**Architecture**
+```
+Current (Phase 4.1):
+User Request → API → Database → Serve from Original FilePath
+
+Planned (Phase 4.3):
+User Request → API → Check local_cache_path
+                  ↓
+            Cache exists? → Serve cached file
+                  ↓
+            Cache miss? → Copy original to cache → Update DB → Serve
+                  ↓
+            Transform requested? → Check cache → Generate if needed → Serve
+```
+
+**Migration Path**
+1. Implement `CacheService` with `CopyToCache()` and `GetCachedPath()` methods
+2. Background task to populate cache from existing `file_path` entries
+3. Update `ServeImage` handler to prefer `local_cache_path` with fallback
+4. Add transformation logic with caching
+5. Implement LRU eviction scheduler task
+
+**Key Files** (To Be Created)
+- Backend:
+  - `internal/infrastructure/images/cache_service.go` - Cache management
+  - `internal/infrastructure/images/transformer.go` - Image resizing/conversion
+  - `internal/infrastructure/images/lru_evictor.go` - Cache eviction
+  - Update `internal/api/handlers/images.go` - Add transformation support
+
+**Success Criteria**
+- 📋 Images copied to cache on library scan
+- 📋 Deduplication reduces storage for identical images
+- 📋 Query parameters enable resizing: `?width=300&format=webp`
+- 📋 Transformed images cached and reused
+- 📋 LRU eviction keeps cache size under threshold
+- 📋 Graceful fallback to original paths if cache unavailable
+
+**Why Deferred from Phase 4.1**
+- Phase 4.1 delivers working functionality (images display correctly)
+- No production users yet (can refactor freely)
+- Schema already supports caching (additive change)
+- Browser caching provides acceptable performance
+- Incremental value delivery
+
+**Triggers for Implementation**
+- Need responsive images (different sizes for different contexts)
+- Want WebP conversion for bandwidth savings
+- Storage deduplication becomes valuable
+- Multiple users requesting optimized images
+- Performance optimization becomes priority
+
+**Documentation**
+- [ADR 006: Image Handling Strategy](./decisions/006-image-handling-strategy.md) - Complete specification
+
 ### Phase 5: User Management (Weeks 14-16)
 
 **Goal**: Multi-user support with permissions

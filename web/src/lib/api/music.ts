@@ -22,20 +22,20 @@ export const musicApi = {
     }),
 
   /**
-   * List all albums by a specific artist
+   * List all albums by a specific artist (using artist representative track ID)
    */
-  listAlbumsByArtist: (libraryId: number, artist: string) =>
+  listAlbumsByArtistID: (artistId: number) =>
     customInstance<ListAlbumsResponse>({
-      url: `/api/music/artists/${encodeURIComponent(artist)}/albums?library_id=${libraryId}`,
+      url: `/api/music/artists/${artistId}/albums`,
       method: 'GET',
     }),
 
   /**
-   * List all tracks in a specific album
+   * List all tracks in a specific album (using album representative track ID)
    */
-  listTracksByAlbum: (libraryId: number, album: string) =>
+  listTracksByAlbumID: (albumId: number) =>
     customInstance<ListTracksResponse>({
-      url: `/api/music/albums/${encodeURIComponent(album)}/tracks?library_id=${libraryId}`,
+      url: `/api/music/albums/${albumId}/tracks`,
       method: 'GET',
     }),
 

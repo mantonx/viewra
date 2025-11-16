@@ -41,8 +41,8 @@ const Music = () => {
   })
 
   // Handle clicking on an artist card
-  const handleArtistClick = (artistName: string) => {
-    navigate({ to: `/music/${artistName}` })
+  const handleArtistClick = (artistId: number) => {
+    navigate({ to: `/music/artists/${artistId}` })
   }
 
   if (isLoading) {
@@ -102,9 +102,9 @@ const Music = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {filteredArtists.map((artist) => (
             <ArtistCard
-              key={artist.name}
+              key={artist.id}
               artist={artist}
-              onClick={() => handleArtistClick(artist.name)}
+              onClick={() => handleArtistClick(artist.id)}
             />
           ))}
         </div>

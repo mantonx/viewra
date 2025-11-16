@@ -42,6 +42,7 @@ func (uc *ListArtistsUseCase) Execute(ctx context.Context, libraryID int64) (Lis
 
 		if _, exists := artistMap[artistName]; !exists {
 			artistMap[artistName] = &ArtistSummary{
+				ID:         track.ID, // Use first track's media_id as representative ID
 				Name:       artistName,
 				Albums:     make(map[string]bool),
 				TrackCount: 0,

@@ -4,12 +4,14 @@
  */
 
 export interface ArtistSummary {
+  id: number // Representative media_id (first track)
   name: string
   album_count: number
   track_count: number
 }
 
 export interface AlbumSummary {
+  id: number // Representative media_id (first track)
   album: string
   artist: string
   year?: number

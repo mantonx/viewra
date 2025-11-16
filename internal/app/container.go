@@ -103,8 +103,8 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 
 	// Initialize music use cases
 	listArtists := music.NewListArtistsUseCase(musicRepository)
-	listAlbums := music.NewListAlbumsUseCase(musicRepository)
-	listTracks := music.NewListTracksUseCase(musicRepository)
+	listAlbumsByArtistID := music.NewListAlbumsByArtistIDUseCase(musicRepository)
+	listTracksByAlbumID := music.NewListTracksByAlbumIDUseCase(musicRepository)
 	getTrack := music.NewGetTrackUseCase(musicRepository)
 	searchTracks := music.NewSearchTracksUseCase(musicRepository)
 
@@ -301,8 +301,8 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 		getTVEpisode,
 		searchTVEpisodes,
 		listArtists,
-		listAlbums,
-		listTracks,
+		listAlbumsByArtistID,
+		listTracksByAlbumID,
 		getTrack,
 		searchTracks,
 	)
