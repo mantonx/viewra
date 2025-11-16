@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react'
-import { useMovieImages } from '@/lib/hooks/useMediaImages'
+import { useMediaImages } from '@/lib/hooks/useMediaImages'
 import { getPosterImage, getImageUrl, type ImagePreset } from '@/lib/types/images'
 
 export interface MediaPosterProps {
@@ -42,7 +42,7 @@ export const MediaPoster = ({
   fallbackIcon = '🎬',
   preset = 'medium',
 }: MediaPosterProps) => {
-  const { data: imagesData, isLoading } = useMovieImages(mediaId)
+  const { data: imagesData, isLoading } = useMediaImages(mediaId)
   const [imageError, setImageError] = useState(false)
 
   // Get poster image
