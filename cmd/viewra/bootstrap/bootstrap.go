@@ -74,6 +74,18 @@ func (a *Application) Run() error {
 		defer a.Container.CleanupScheduler.Stop()
 	}
 
+	// Start unified task scheduler if available
+	if a.Container.Scheduler != nil {
+		ctx := context.Background()
+		go func() {
+			if err := a.Container.Scheduler.Start(ctx); err != nil {
+				a.Logger.Error("Scheduler error", "error", err)
+			}
+		}()
+		defer a.Container.Scheduler.Stop()
+		a.Logger.Info("Unified task scheduler started")
+	}
+
 	// Start server in goroutine
 	go func() {
 		a.Logger.Info("HTTP server starting",

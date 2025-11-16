@@ -340,3 +340,357 @@ func TestCoordinatorGetProgress(t *testing.T) {
 }
 
 // Note: Counting tests removed - progressive counting is now integrated into the scan process
+
+func TestUpdateFileCache(t *testing.T) {
+	config := CoordinatorConfig{
+		NumWorkers:               2,
+		ResultBufferSize:         10,
+		EnableDuplicateDetection: false,
+		EnableIncrementalScan:    true,
+		FileCache:                make(map[string]*scanner.FileCacheEntry),
+	}
+	coordinator := NewCoordinator(config)
+
+	// Create test data
+	fileInfo := scanner.FileInfo{
+		Path:      "/test/movie.mkv",
+		Size:      1024,
+		Extension: ".mkv",
+	}
+
+	year := 2020
+	result := scanner.ScanResult{
+		FilePath:   "/test/movie.mkv",
+		MediaType:  scanner.MediaTypeMovie,
+		Title:      "Test Movie",
+		Year:       &year,
+		Hash:       "abc123",
+		FileSize:   1024,
+		Duration:   7200,
+		VideoCodec: "h264",
+	}
+
+	// Call updateFileCache
+	coordinator.updateFileCache(fileInfo, &result)
+
+	// Verify cache entry was created
+	coordinator.mu.Lock()
+	entry, exists := coordinator.config.FileCache[fileInfo.Path]
+	coordinator.mu.Unlock()
+
+	if !exists {
+		t.Fatal("Expected cache entry to exist")
+	}
+
+	// Verify all fields are correct
+	if entry.Path != fileInfo.Path {
+		t.Errorf("Expected Path=%s, got %s", fileInfo.Path, entry.Path)
+	}
+	if entry.Size != fileInfo.Size {
+		t.Errorf("Expected Size=%d, got %d", fileInfo.Size, entry.Size)
+	}
+	if entry.Hash != result.Hash {
+		t.Errorf("Expected Hash=%s, got %s", result.Hash, entry.Hash)
+	}
+	if entry.MediaType != result.MediaType {
+		t.Errorf("Expected MediaType=%s, got %s", result.MediaType, entry.MediaType)
+	}
+	if entry.Title != result.Title {
+		t.Errorf("Expected Title=%s, got %s", result.Title, entry.Title)
+	}
+	if entry.Year == nil || *entry.Year != 2020 {
+		t.Errorf("Expected Year=2020, got %v", entry.Year)
+	}
+}
+
+func TestUpdateFileCacheMultipleEntries(t *testing.T) {
+	config := CoordinatorConfig{
+		NumWorkers:               2,
+		ResultBufferSize:         10,
+		EnableDuplicateDetection: false,
+		EnableIncrementalScan:    true,
+		FileCache:                make(map[string]*scanner.FileCacheEntry),
+	}
+	coordinator := NewCoordinator(config)
+
+	// Create multiple test entries
+	entries := []struct {
+		path  string
+		title string
+		year  int
+	}{
+		{"/movies/Movie1.mkv", "Movie 1", 2020},
+		{"/movies/Movie2.mkv", "Movie 2", 2021},
+		{"/tv/Show1.mkv", "Show 1 Episode 1", 2019},
+	}
+
+	for _, e := range entries {
+		fileInfo := scanner.FileInfo{
+			Path: e.path,
+			Size: 1024,
+		}
+
+		year := e.year
+		result := scanner.ScanResult{
+			FilePath:  e.path,
+			Title:     e.title,
+			Year:      &year,
+			MediaType: scanner.MediaTypeMovie,
+			Hash:      "hash_" + e.path,
+		}
+
+		coordinator.updateFileCache(fileInfo, &result)
+	}
+
+	// Verify all entries exist
+	coordinator.mu.Lock()
+	if len(coordinator.config.FileCache) != 3 {
+		t.Errorf("Expected 3 cache entries, got %d", len(coordinator.config.FileCache))
+	}
+
+	for _, e := range entries {
+		entry, exists := coordinator.config.FileCache[e.path]
+		if !exists {
+			t.Errorf("Expected cache entry for %s to exist", e.path)
+			continue
+		}
+		if entry.Title != e.title {
+			t.Errorf("Expected title %s, got %s", e.title, entry.Title)
+		}
+		if entry.Year == nil || *entry.Year != e.year {
+			t.Errorf("Expected year %d, got %v", e.year, entry.Year)
+		}
+	}
+	coordinator.mu.Unlock()
+}
+
+func TestUpdateFileCacheWithMusicMetadata(t *testing.T) {
+	config := CoordinatorConfig{
+		NumWorkers:               2,
+		ResultBufferSize:         10,
+		EnableDuplicateDetection: false,
+		EnableIncrementalScan:    true,
+		FileCache:                make(map[string]*scanner.FileCacheEntry),
+	}
+	coordinator := NewCoordinator(config)
+
+	fileInfo := scanner.FileInfo{
+		Path:      "/music/Artist/Album/Track.mp3",
+		Size:      5242880, // 5MB
+		Extension: ".mp3",
+	}
+
+	year := 2019
+	trackNum := 3
+	result := scanner.ScanResult{
+		FilePath:    "/music/Artist/Album/Track.mp3",
+		MediaType:   scanner.MediaTypeTrack,
+		Title:       "Song Title",
+		Artist:      "Artist Name",
+		Album:       "Album Name",
+		Year:        &year,
+		TrackNumber: &trackNum,
+		Hash:        "music123",
+		FileSize:    5242880,
+		Duration:    180,
+		AudioCodec:  "mp3",
+	}
+
+	coordinator.updateFileCache(fileInfo, &result)
+
+	coordinator.mu.Lock()
+	entry := coordinator.config.FileCache[fileInfo.Path]
+	coordinator.mu.Unlock()
+
+	if entry == nil {
+		t.Fatal("Expected cache entry to exist")
+	}
+
+	if entry.Artist != "Artist Name" {
+		t.Errorf("Expected Artist='Artist Name', got %s", entry.Artist)
+	}
+	if entry.Album != "Album Name" {
+		t.Errorf("Expected Album='Album Name', got %s", entry.Album)
+	}
+	if entry.TrackNumber == nil || *entry.TrackNumber != 3 {
+		t.Errorf("Expected TrackNumber=3, got %v", entry.TrackNumber)
+	}
+}
+
+func TestUpdateFileCacheWithTVMetadata(t *testing.T) {
+	config := CoordinatorConfig{
+		NumWorkers:               2,
+		ResultBufferSize:         10,
+		EnableDuplicateDetection: false,
+		EnableIncrementalScan:    true,
+		FileCache:                make(map[string]*scanner.FileCacheEntry),
+	}
+	coordinator := NewCoordinator(config)
+
+	fileInfo := scanner.FileInfo{
+		Path:      "/tv/Show/Season 1/S01E05.mkv",
+		Size:      2147483648, // 2GB
+		Extension: ".mkv",
+	}
+
+	season := 1
+	episode := 5
+	result := scanner.ScanResult{
+		FilePath:      "/tv/Show/Season 1/S01E05.mkv",
+		MediaType:     scanner.MediaTypeEpisode,
+		Title:         "Episode Title",
+		SeasonNumber:  &season,
+		EpisodeNumber: &episode,
+		Hash:          "tv123",
+		FileSize:      2147483648,
+		Duration:      2700,
+		VideoCodec:    "h264",
+		AudioCodec:    "aac",
+	}
+
+	coordinator.updateFileCache(fileInfo, &result)
+
+	coordinator.mu.Lock()
+	entry := coordinator.config.FileCache[fileInfo.Path]
+	coordinator.mu.Unlock()
+
+	if entry == nil {
+		t.Fatal("Expected cache entry to exist")
+	}
+
+	if entry.SeasonNumber == nil || *entry.SeasonNumber != 1 {
+		t.Errorf("Expected SeasonNumber=1, got %v", entry.SeasonNumber)
+	}
+	if entry.EpisodeNumber == nil || *entry.EpisodeNumber != 5 {
+		t.Errorf("Expected EpisodeNumber=5, got %v", entry.EpisodeNumber)
+	}
+	if entry.MediaType != scanner.MediaTypeEpisode {
+		t.Errorf("Expected MediaType=episode, got %s", entry.MediaType)
+	}
+}
+
+func TestUpdateFileCacheOverwrite(t *testing.T) {
+	config := CoordinatorConfig{
+		NumWorkers:               2,
+		ResultBufferSize:         10,
+		EnableDuplicateDetection: false,
+		EnableIncrementalScan:    true,
+		FileCache:                make(map[string]*scanner.FileCacheEntry),
+	}
+	coordinator := NewCoordinator(config)
+
+	path := "/test/movie.mkv"
+	fileInfo := scanner.FileInfo{
+		Path: path,
+		Size: 1024,
+	}
+
+	// First update
+	year1 := 2020
+	result1 := scanner.ScanResult{
+		FilePath:  path,
+		Title:     "Original Title",
+		Year:      &year1,
+		MediaType: scanner.MediaTypeMovie,
+		Hash:      "hash1",
+	}
+	coordinator.updateFileCache(fileInfo, &result1)
+
+	// Second update (overwrites first)
+	year2 := 2021
+	result2 := scanner.ScanResult{
+		FilePath:  path,
+		Title:     "Updated Title",
+		Year:      &year2,
+		MediaType: scanner.MediaTypeMovie,
+		Hash:      "hash2",
+	}
+	coordinator.updateFileCache(fileInfo, &result2)
+
+	// Verify the latest entry is stored
+	coordinator.mu.Lock()
+	entry := coordinator.config.FileCache[path]
+	coordinator.mu.Unlock()
+
+	if entry.Title != "Updated Title" {
+		t.Errorf("Expected Title='Updated Title', got %s", entry.Title)
+	}
+	if entry.Year == nil || *entry.Year != 2021 {
+		t.Errorf("Expected Year=2021, got %v", entry.Year)
+	}
+	if entry.Hash != "hash2" {
+		t.Errorf("Expected Hash='hash2', got %s", entry.Hash)
+	}
+
+	// Verify only one entry exists for this path
+	coordinator.mu.Lock()
+	count := 0
+	for k := range coordinator.config.FileCache {
+		if k == path {
+			count++
+		}
+	}
+	coordinator.mu.Unlock()
+
+	if count != 1 {
+		t.Errorf("Expected 1 cache entry for path, got %d", count)
+	}
+}
+
+func TestUpdateFileCacheThreadSafety(t *testing.T) {
+	config := CoordinatorConfig{
+		NumWorkers:               4,
+		ResultBufferSize:         10,
+		EnableDuplicateDetection: false,
+		EnableIncrementalScan:    true,
+		FileCache:                make(map[string]*scanner.FileCacheEntry),
+	}
+	coordinator := NewCoordinator(config)
+
+	// Simulate concurrent updates from multiple workers
+	const numGoroutines = 10
+	const updatesPerGoroutine = 100
+
+	done := make(chan bool, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(workerID int) {
+			for j := 0; j < updatesPerGoroutine; j++ {
+				path := filepath.Join("/test", "worker", string(rune('0'+workerID)), "file", string(rune('0'+j%10))+".mkv")
+				fileInfo := scanner.FileInfo{
+					Path: path,
+					Size: int64(workerID * 1000 + j),
+				}
+
+				year := 2020 + workerID
+				result := scanner.ScanResult{
+					FilePath:  path,
+					Title:     "Title",
+					Year:      &year,
+					MediaType: scanner.MediaTypeMovie,
+					Hash:      "hash",
+				}
+
+				coordinator.updateFileCache(fileInfo, &result)
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Verify cache integrity (no panics, all entries accessible)
+	coordinator.mu.Lock()
+	cacheSize := len(coordinator.config.FileCache)
+	coordinator.mu.Unlock()
+
+	// We expect multiple entries (exact number depends on path collisions)
+	if cacheSize == 0 {
+		t.Error("Expected cache to contain entries after concurrent updates")
+	}
+
+	t.Logf("Cache contains %d entries after concurrent updates", cacheSize)
+}

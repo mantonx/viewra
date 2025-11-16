@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getGetApiMediaQueryOptions } from '@/lib/api'
 import { MediaCard } from '@/components/media'
 import { Loading } from '@/components/ui'
+import { extractMedia } from '@/lib/utils/api'
 import type { GithubComViewraViewraInternalApplicationMediaMediaResponse } from '@/lib/api/generated/models'
 
 export const ContinueWatching = () => {
@@ -12,7 +13,7 @@ export const ContinueWatching = () => {
   const isLoading = isLoadingProgress || isLoadingMedia
 
   // Extract media items from API response
-  const allMedia = (mediaData && 'data' in mediaData && mediaData.data && 'media' in mediaData.data ? mediaData.data.media : []) || []
+  const allMedia = extractMedia(mediaData)
 
   // Get in-progress items
   const inProgressItems = progressData?.progress || []
@@ -20,10 +21,12 @@ export const ContinueWatching = () => {
   // Filter media to only include items that have progress
   const inProgressMedia = inProgressItems
     .map((progressItem) => {
-      const mediaItem = allMedia.find((m: any) => m.id === progressItem.media_id)
+      const mediaItem = allMedia.find((m) => m.id === progressItem.media_id)
       return mediaItem
     })
-    .filter(Boolean) as GithubComViewraViewraInternalApplicationMediaMediaResponse[]
+    .filter((item): item is GithubComViewraViewraInternalApplicationMediaMediaResponse =>
+      Boolean(item)
+    )
 
   // Sort by last watched date (most recent first)
   const sortedMedia = [...inProgressMedia].sort((a, b) => {

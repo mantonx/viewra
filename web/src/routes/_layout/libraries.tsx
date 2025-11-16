@@ -2,31 +2,24 @@ import { createFileRoute } from '@tanstack/react-router'
 import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Button, Card, CardHeader, CardContent, Alert, Loading } from '@/components/ui'
+import { Button, Card, CardHeader, CardContent } from '@/components/ui'
 import { LibraryCard, LibraryForm } from '@/components/library'
-import { PageHeader, EmptyState } from '@/components/common'
+import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
+import { extractLibraries } from '@/lib/utils/api'
 
 const Libraries = () => {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const { data: libraries, isLoading, error } = useQuery(getGetApiLibrariesQueryOptions())
 
   if (isLoading) {
-    return (
-      <div className="p-8">
-        <Loading size="lg" text="Loading libraries..." />
-      </div>
-    )
+    return <LoadingPage text="Loading libraries..." />
   }
 
   if (error) {
-    return (
-      <div className="p-8">
-        <Alert variant="error">Error loading libraries: {error.message}</Alert>
-      </div>
-    )
+    return <ErrorPage error={error} context="libraries" />
   }
 
-  const libraryList = (libraries && 'data' in libraries && libraries.data && 'libraries' in libraries.data ? libraries.data.libraries : []) || []
+  const libraryList = extractLibraries(libraries)
 
   return (
     <div className="p-8">
@@ -63,7 +56,7 @@ const Libraries = () => {
           </CardContent>
         ) : (
           <div className="divide-y">
-            {libraryList.map((library: any) => (
+            {libraryList.map((library) => (
               <LibraryCard key={library.id} library={library} />
             ))}
           </div>

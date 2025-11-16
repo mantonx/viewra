@@ -3,6 +3,7 @@ import { API_BASE_URL } from '@/lib/config'
 
 export interface CustomInstanceOptions extends RequestInit {
   url?: string
+  data?: unknown
 }
 
 export interface ErrorResponse {
@@ -21,7 +22,7 @@ export const customInstance = async <T>(
 ): Promise<T> => {
   // Handle both call signatures
   let url: string
-  let config: RequestInit
+  let config: RequestInit & { data?: unknown }
 
   if (typeof urlOrConfig === 'string') {
     // Called as customInstance(url, options)
@@ -29,20 +30,29 @@ export const customInstance = async <T>(
     config = maybeConfig || {}
   } else {
     // Called as customInstance({ url, ...options })
-    const { url: extractedUrl, ...rest } = urlOrConfig
+    const { url: extractedUrl, data, ...rest } = urlOrConfig
     url = extractedUrl!
-    config = rest
+    config = { ...rest, data }
   }
 
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`
 
-  const response = await fetch(fullUrl, {
-    ...config,
+  // Extract data and convert to body
+  const { data, ...fetchConfig } = config
+  const requestInit: RequestInit = {
+    ...fetchConfig,
     headers: {
       'Content-Type': 'application/json',
-      ...config.headers,
+      ...fetchConfig.headers,
     },
-  })
+  }
+
+  // Add body if data is provided
+  if (data !== undefined) {
+    requestInit.body = JSON.stringify(data)
+  }
+
+  const response = await fetch(fullUrl, requestInit)
 
   if (!response.ok) {
     let errorMessage = 'An error occurred'

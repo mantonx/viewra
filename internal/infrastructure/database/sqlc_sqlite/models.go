@@ -6,6 +6,7 @@ package sqlc_sqlite
 
 import (
 	"database/sql"
+	"time"
 )
 
 type Library struct {
@@ -15,6 +16,27 @@ type Library struct {
 	Type      string       `json:"type"`
 	CreatedAt sql.NullTime `json:"created_at"`
 	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
+type MediaImage struct {
+	ID             int64          `json:"id"`
+	MediaID        sql.NullInt64  `json:"media_id"`
+	MediaType      string         `json:"media_type"`
+	EntityID       int64          `json:"entity_id"`
+	ImageType      string         `json:"image_type"`
+	SourceType     string         `json:"source_type"`
+	FilePath       sql.NullString `json:"file_path"`
+	ExternalUrl    sql.NullString `json:"external_url"`
+	LocalCachePath sql.NullString `json:"local_cache_path"`
+	Width          sql.NullInt64  `json:"width"`
+	Height         sql.NullInt64  `json:"height"`
+	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
+	MimeType       sql.NullString `json:"mime_type"`
+	FileHash       sql.NullString `json:"file_hash"`
+	Language       sql.NullString `json:"language"`
+	Priority       sql.NullInt64  `json:"priority"`
+	CreatedAt      sql.NullTime   `json:"created_at"`
+	UpdatedAt      sql.NullTime   `json:"updated_at"`
 }
 
 type Medium struct {
@@ -118,6 +140,17 @@ type ScanJob struct {
 	ErrorMessage   sql.NullString  `json:"error_message"`
 	CreatedAt      sql.NullTime    `json:"created_at"`
 	UpdatedAt      sql.NullTime    `json:"updated_at"`
+}
+
+type TaskExecution struct {
+	ID         int64          `json:"id"`
+	TaskID     string         `json:"task_id"`
+	StartedAt  time.Time      `json:"started_at"`
+	EndedAt    time.Time      `json:"ended_at"`
+	DurationMs int64          `json:"duration_ms"`
+	Success    bool           `json:"success"`
+	Error      sql.NullString `json:"error"`
+	CreatedAt  time.Time      `json:"created_at"`
 }
 
 type TranscodeJob struct {

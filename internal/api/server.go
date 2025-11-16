@@ -15,6 +15,9 @@ import (
 	"github.com/viewra/viewra/internal/api/routes"
 	"github.com/viewra/viewra/internal/application/library"
 	"github.com/viewra/viewra/internal/application/media"
+	"github.com/viewra/viewra/internal/application/movies"
+	"github.com/viewra/viewra/internal/application/music"
+	"github.com/viewra/viewra/internal/application/tv"
 	"github.com/viewra/viewra/internal/infrastructure/streaming"
 )
 
@@ -29,6 +32,11 @@ type Server struct {
 	scanJobHandler   *handlers.ScanJobHandler
 	progressHandler  *handlers.ProgressHandler
 	transcodeHandler *handlers.TranscodeHandler
+	moviesHandler    *handlers.MoviesHandler
+	tvHandler        *handlers.TVHandler
+	musicHandler     *handlers.MusicHandler
+	imagesHandler    *handlers.ImagesHandler
+	schedulerHandler *handlers.SchedulerHandler
 	server           *http.Server
 }
 
@@ -83,6 +91,8 @@ func NewServer(
 	scanJobHandler *handlers.ScanJobHandler,
 	progressHandler *handlers.ProgressHandler,
 	transcodeHandler *handlers.TranscodeHandler,
+	imagesHandler *handlers.ImagesHandler,
+	schedulerHandler *handlers.SchedulerHandler,
 	// Library use cases
 	createLibrary *library.CreateLibraryUseCase,
 	updateLibrary *library.UpdateLibraryUseCase,
@@ -93,6 +103,22 @@ func NewServer(
 	// Media use cases
 	getMedia *media.GetMediaUseCase,
 	listMedia *media.ListMediaUseCase,
+	// Movie use cases
+	listMovies *movies.ListMoviesUseCase,
+	getMovie *movies.GetMovieUseCase,
+	searchMovies *movies.SearchMoviesUseCase,
+	// TV use cases
+	listTVShows *tv.ListTVShowsUseCase,
+	getTVShow *tv.GetTVShowUseCase,
+	listTVEpisodes *tv.ListTVEpisodesUseCase,
+	getTVEpisode *tv.GetTVEpisodeUseCase,
+	searchTVEpisodes *tv.SearchTVEpisodesUseCase,
+	// Music use cases
+	listArtists *music.ListArtistsUseCase,
+	listAlbums *music.ListAlbumsUseCase,
+	listTracks *music.ListTracksUseCase,
+	getTrack *music.GetTrackUseCase,
+	searchTracks *music.SearchTracksUseCase,
 ) *Server {
 	// Set Gin to release mode in production
 	// gin.SetMode(gin.ReleaseMode)
@@ -125,6 +151,27 @@ func NewServer(
 	streamService := streaming.NewService()
 	streamHandler := handlers.NewStreamHandler(getMedia, streamService)
 
+	// Create media-type specific handlers
+	moviesHandler := handlers.NewMoviesHandler(
+		listMovies,
+		getMovie,
+		searchMovies,
+	)
+	tvHandler := handlers.NewTVHandler(
+		listTVShows,
+		getTVShow,
+		listTVEpisodes,
+		getTVEpisode,
+		searchTVEpisodes,
+	)
+	musicHandler := handlers.NewMusicHandler(
+		listArtists,
+		listAlbums,
+		listTracks,
+		getTrack,
+		searchTracks,
+	)
+
 	server := &Server{
 		router:           router,
 		healthHandler:    healthHandler,
@@ -135,6 +182,11 @@ func NewServer(
 		scanJobHandler:   scanJobHandler,
 		progressHandler:  progressHandler,
 		transcodeHandler: transcodeHandler,
+		moviesHandler:    moviesHandler,
+		tvHandler:        tvHandler,
+		musicHandler:     musicHandler,
+		imagesHandler:    imagesHandler,
+		schedulerHandler: schedulerHandler,
 	}
 
 	// Setup routes
@@ -166,6 +218,18 @@ func (s *Server) setupRoutes() {
 	routes.RegisterBrowserRoutes(api, s.browserHandler)
 	routes.RegisterProgressRoutes(api, s.progressHandler)
 	routes.RegisterTranscodeRoutes(api, s.transcodeHandler)
+
+	// Register media-type specific routes
+	routes.RegisterMoviesRoutes(api, s.moviesHandler)
+	routes.RegisterTVRoutes(api, s.tvHandler)
+	routes.RegisterMusicRoutes(api, s.musicHandler)
+
+	// Register image routes
+	routes.RegisterImageRoutes(s.router, s.imagesHandler)
+
+	// Register admin routes
+	admin := api.Group("/admin")
+	routes.RegisterSchedulerRoutes(admin, s.schedulerHandler)
 }
 
 // Start starts the HTTP server

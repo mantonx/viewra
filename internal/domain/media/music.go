@@ -7,7 +7,9 @@ type MusicTrack struct {
 	// Music-specific fields
 	Artist      string
 	Album       string
+	AlbumArtist string
 	TrackNumber int
+	DiscNumber  int
 	Year        int
 	Genre       string
 	Composer    string

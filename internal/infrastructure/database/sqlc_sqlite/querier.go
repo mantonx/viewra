@@ -6,66 +6,149 @@ package sqlc_sqlite
 
 import (
 	"context"
+	"database/sql"
+	"time"
 )
 
 type Querier interface {
 	CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error
+	CountImagesByEntity(ctx context.Context, arg CountImagesByEntityParams) (int64, error)
+	CountImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) (int64, error)
 	CountLibraries(ctx context.Context) (int64, error)
 	CountLibrariesByType(ctx context.Context, type_ string) (int64, error)
 	CountMediaByType(ctx context.Context, arg CountMediaByTypeParams) (int64, error)
 	CountMediaInLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountScanJobsByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountTranscodeJobsByStatus(ctx context.Context, status string) (int64, error)
+	CreateImage(ctx context.Context, arg CreateImageParams) (MediaImage, error)
 	// Library queries for SQLite
 	CreateLibrary(ctx context.Context, arg CreateLibraryParams) (Library, error)
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
+	CreateMovie(ctx context.Context, arg CreateMovieParams) error
+	CreateMusicTrack(ctx context.Context, arg CreateMusicTrackParams) error
 	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
+	// ============================================================================
+	// TV Episodes
+	// ============================================================================
+	CreateTVEpisode(ctx context.Context, arg CreateTVEpisodeParams) error
+	// ============================================================================
+	// TV Seasons
+	// ============================================================================
+	CreateTVSeason(ctx context.Context, arg CreateTVSeasonParams) (TvSeason, error)
+	// ============================================================================
+	// TV Shows
+	// ============================================================================
+	CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvShow, error)
 	CreateTranscodeJob(ctx context.Context, arg CreateTranscodeJobParams) (TranscodeJob, error)
 	CreateWatchProgress(ctx context.Context, arg CreateWatchProgressParams) (WatchProgress, error)
+	DeleteImage(ctx context.Context, id int64) error
+	DeleteImagesByEntity(ctx context.Context, arg DeleteImagesByEntityParams) error
+	DeleteImagesByHash(ctx context.Context, fileHash sql.NullString) error
+	DeleteImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) error
 	DeleteLibrary(ctx context.Context, id int64) error
 	DeleteMedia(ctx context.Context, id int64) error
+	DeleteMovie(ctx context.Context, mediaID int64) error
+	DeleteMusicTrack(ctx context.Context, mediaID int64) error
 	DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error
+	DeleteOldTaskExecutions(ctx context.Context, startedAt time.Time) error
 	DeleteScanJob(ctx context.Context, id int64) error
+	DeleteTVEpisode(ctx context.Context, mediaID int64) error
+	DeleteTVSeason(ctx context.Context, id int64) error
+	DeleteTVShow(ctx context.Context, id int64) error
 	DeleteTranscodeJob(ctx context.Context, id int64) error
 	DeleteTranscodeJobsByMediaID(ctx context.Context, mediaID int64) error
 	DeleteWatchProgress(ctx context.Context, id int64) error
 	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error
+	GetAllFileHashes(ctx context.Context) ([]sql.NullString, error)
+	GetAllRecentExecutions(ctx context.Context, limit int64) ([]TaskExecution, error)
+	GetImageByFilePath(ctx context.Context, filePath sql.NullString) (MediaImage, error)
+	GetImageByID(ctx context.Context, id int64) (MediaImage, error)
+	GetImageByTypeAndEntity(ctx context.Context, arg GetImageByTypeAndEntityParams) (MediaImage, error)
+	GetImageByTypeAndMediaID(ctx context.Context, arg GetImageByTypeAndMediaIDParams) (MediaImage, error)
+	GetImagesByHash(ctx context.Context, fileHash sql.NullString) ([]MediaImage, error)
+	GetLastTaskExecution(ctx context.Context, taskID string) (TaskExecution, error)
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int64) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int64) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
 	GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePathParams) (Medium, error)
 	GetMediaByID(ctx context.Context, id int64) (Medium, error)
+	GetMovieByMediaID(ctx context.Context, mediaID int64) (GetMovieByMediaIDRow, error)
+	GetMusicTrackByMediaID(ctx context.Context, mediaID int64) (GetMusicTrackByMediaIDRow, error)
 	GetScanJob(ctx context.Context, id int64) (ScanJob, error)
 	GetScanJobStats(ctx context.Context, libraryID int64) (GetScanJobStatsRow, error)
+	GetTVEpisodeByMediaID(ctx context.Context, mediaID int64) (GetTVEpisodeByMediaIDRow, error)
+	GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg GetTVEpisodeByShowSeasonEpisodeParams) (GetTVEpisodeByShowSeasonEpisodeRow, error)
+	GetTVSeasonByID(ctx context.Context, id int64) (TvSeason, error)
+	GetTVSeasonByShowAndNumber(ctx context.Context, arg GetTVSeasonByShowAndNumberParams) (TvSeason, error)
+	GetTVShowByID(ctx context.Context, id int64) (TvShow, error)
+	GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitleParams) (TvShow, error)
+	// ============================================================================
+	// Aggregation Queries for API
+	// ============================================================================
+	GetTVShowsWithCountsByLibrary(ctx context.Context, libraryID int64) ([]GetTVShowsWithCountsByLibraryRow, error)
+	GetTaskExecutionHistory(ctx context.Context, arg GetTaskExecutionHistoryParams) ([]TaskExecution, error)
+	GetTaskExecutionStats(ctx context.Context, taskID string) (GetTaskExecutionStatsRow, error)
 	GetTotalTranscodeSize(ctx context.Context) (interface{}, error)
 	GetTranscodeJobByID(ctx context.Context, id int64) (TranscodeJob, error)
 	GetTranscodeJobByMediaIDAndQuality(ctx context.Context, arg GetTranscodeJobByMediaIDAndQualityParams) (TranscodeJob, error)
 	GetWatchProgressByID(ctx context.Context, id int64) (WatchProgress, error)
 	GetWatchProgressByMediaID(ctx context.Context, mediaID int64) (WatchProgress, error)
 	GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg GetWatchProgressByMediaIDAndUserIDParams) (WatchProgress, error)
+	IncrementSeasonEpisodeCount(ctx context.Context, id int64) error
 	LibraryExistsByID(ctx context.Context, id int64) (int64, error)
 	LibraryExistsByPath(ctx context.Context, path string) (int64, error)
+	ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]ListAlbumsByLibraryRow, error)
 	ListAllMedia(ctx context.Context) ([]Medium, error)
 	ListAllTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
+	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]ListArtistsByLibraryRow, error)
+	ListImagesByEntity(ctx context.Context, arg ListImagesByEntityParams) ([]MediaImage, error)
+	ListImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaImage, error)
+	ListImagesBySource(ctx context.Context, sourceType string) ([]MediaImage, error)
 	ListInProgressByUserID(ctx context.Context, arg ListInProgressByUserIDParams) ([]WatchProgress, error)
 	ListLibraries(ctx context.Context) ([]Library, error)
 	ListLibrariesByType(ctx context.Context, type_ string) ([]Library, error)
 	ListMediaByLibrary(ctx context.Context, libraryID int64) ([]Medium, error)
 	ListMediaByType(ctx context.Context, arg ListMediaByTypeParams) ([]Medium, error)
+	ListMoviesByGenre(ctx context.Context, arg ListMoviesByGenreParams) ([]ListMoviesByGenreRow, error)
+	ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]ListMoviesByLibraryRow, error)
+	ListMoviesByYear(ctx context.Context, arg ListMoviesByYearParams) ([]ListMoviesByYearRow, error)
+	ListMusicTracksByAlbum(ctx context.Context, arg ListMusicTracksByAlbumParams) ([]ListMusicTracksByAlbumRow, error)
+	ListMusicTracksByAlbumArtist(ctx context.Context, arg ListMusicTracksByAlbumArtistParams) ([]ListMusicTracksByAlbumArtistRow, error)
+	ListMusicTracksByArtist(ctx context.Context, arg ListMusicTracksByArtistParams) ([]ListMusicTracksByArtistRow, error)
+	ListMusicTracksByLibrary(ctx context.Context, libraryID int64) ([]ListMusicTracksByLibraryRow, error)
+	// This query returns all images for validation in application code
+	// The application will check if files actually exist
+	ListOrphanImages(ctx context.Context) ([]MediaImage, error)
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
+	ListTVEpisodesByLibrary(ctx context.Context, libraryID int64) ([]ListTVEpisodesByLibraryRow, error)
+	ListTVEpisodesBySeason(ctx context.Context, seasonID int64) ([]ListTVEpisodesBySeasonRow, error)
+	ListTVEpisodesByShow(ctx context.Context, showID int64) ([]ListTVEpisodesByShowRow, error)
+	ListTVSeasonsByShow(ctx context.Context, showID int64) ([]TvSeason, error)
+	ListTVShowsByLibrary(ctx context.Context, libraryID int64) ([]TvShow, error)
 	ListTranscodeJobsByLRU(ctx context.Context, limit int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByMediaID(ctx context.Context, mediaID int64) ([]TranscodeJob, error)
 	ListTranscodeJobsByStatus(ctx context.Context, status string) ([]TranscodeJob, error)
 	ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error)
 	ListWatchedByUserID(ctx context.Context, arg ListWatchedByUserIDParams) ([]WatchProgress, error)
+	LogTaskExecution(ctx context.Context, arg LogTaskExecutionParams) (TaskExecution, error)
 	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (int64, error)
+	SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTitleParams) ([]SearchMoviesByTitleRow, error)
+	SearchMusicTracks(ctx context.Context, arg SearchMusicTracksParams) ([]SearchMusicTracksRow, error)
+	SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpisodesByTitleParams) ([]SearchTVEpisodesByTitleRow, error)
+	SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByTitleParams) ([]TvShow, error)
+	UpdateImage(ctx context.Context, arg UpdateImageParams) error
 	UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (Library, error)
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)
+	UpdateMovie(ctx context.Context, arg UpdateMovieParams) error
+	UpdateMusicTrack(ctx context.Context, arg UpdateMusicTrackParams) error
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
 	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
+	UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams) error
+	UpdateTVSeason(ctx context.Context, arg UpdateTVSeasonParams) error
+	UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) error
 	UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJobParams) error
 	UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error
 	UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error

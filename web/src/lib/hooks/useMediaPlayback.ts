@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { selectBestQuality } from '../utils/quality'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
+import { logger } from '@/lib/utils/logger'
 
 type TranscodeState = 'idle' | 'checking' | 'transcoding' | 'ready' | 'direct'
 
@@ -34,22 +35,22 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       return
     }
 
-    console.log('⏰ Starting manifest polling every 2 seconds')
+    logger.debug('⏰ Starting manifest polling every 2 seconds')
     const pollInterval = setInterval(async () => {
       try {
         const manifestUrl = `${API_BASE_URL}/api/media/${mediaId}/hls/${selectedQuality}/playlist.m3u8`
-        console.log('🔄 Polling manifest:', manifestUrl)
+        logger.debug('🔄 Polling manifest:', manifestUrl)
 
         // Use GET instead of HEAD to properly handle 202 responses
         const response = await fetch(manifestUrl, {
           redirect: 'manual', // Don't follow redirects
         })
 
-        console.log('📊 Poll response:', response.status)
+        logger.debug('📊 Poll response:', response.status)
 
         // If we get 200, manifest is ready
         if (response.status === 200) {
-          console.log('✅ Manifest ready, starting playback')
+          logger.debug('✅ Manifest ready, starting playback')
           setStreamUrl(manifestUrl)
           setTranscodeState('ready')
           if (timeoutRef.current) {
@@ -61,11 +62,11 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
         // 202 means still transcoding, keep polling
         else if (response.status === 202) {
           const body = await response.json()
-          console.log('⏳ Still transcoding:', body)
+          logger.debug('⏳ Still transcoding:', body)
 
           // Check if job failed - immediately fall back to direct stream
           if (body.status === 'failed') {
-            console.error('❌ Transcode failed, falling back to direct stream')
+            logger.error('❌ Transcode failed, falling back to direct stream')
             const directUrl = `${API_BASE_URL}/api/stream/${mediaId}`
             setStreamUrl(directUrl)
             setTranscodeState('direct')
@@ -79,7 +80,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
         }
         // 302 would mean direct play (shouldn't happen in polling, but handle it)
         else if (response.status === 302 || response.type === 'opaqueredirect') {
-          console.log('🔀 Got redirect during polling, switching to direct stream')
+          logger.debug('🔀 Got redirect during polling, switching to direct stream')
           const directUrl = `${API_BASE_URL}/api/stream/${mediaId}`
           setStreamUrl(directUrl)
           setTranscodeState('direct')
@@ -91,10 +92,10 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
         }
         // Any other status, log it but continue polling
         else {
-          console.warn('⚠️ Unexpected poll status:', response.status)
+          logger.warn('⚠️ Unexpected poll status:', response.status)
         }
       } catch (error) {
-        console.error('❌ Error polling manifest:', error)
+        logger.error('❌ Error polling manifest:', error)
         // Continue polling on error
       }
     }, 2000)
@@ -119,7 +120,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
   }
 
   const playMedia = async (id: number, media: any) => {
-    console.log('🎬 playMedia called with ID:', id, 'media:', media)
+    logger.debug('🎬 playMedia called with ID:', id, 'media:', media)
     setMediaId(id)
     setTranscodeState('checking')
 
@@ -130,9 +131,9 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       const progressSecs = progressData ? getProgressSeconds(progressData) : 0
       const shouldResume = progressSecs > 0 && !progressData?.is_watched
       setInitialPosition(shouldResume ? progressSecs : 0)
-      console.log('📍 Initial position:', shouldResume ? progressSecs : 0)
+      logger.debug('📍 Initial position:', shouldResume ? progressSecs : 0)
     } catch (error) {
-      console.error('Error fetching progress:', error)
+      logger.error('Error fetching progress:', error)
       setInitialPosition(0)
     }
 
@@ -140,17 +141,17 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       // Select best quality based on media and screen
       const quality = selectBestQuality(media)
       setSelectedQuality(quality)
-      console.log('🎞️  Selected quality:', quality)
+      logger.debug('🎞️  Selected quality:', quality)
 
       // Build HLS manifest URL
       const manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/${quality}/playlist.m3u8`
-      console.log('📡 Fetching manifest:', manifestUrl)
+      logger.debug('📡 Fetching manifest:', manifestUrl)
 
       // Fetch manifest with manual redirect handling
       const response = await fetch(manifestUrl, {
         redirect: 'manual',
       })
-      console.log('📨 Manifest response status:', response.status, 'type:', response.type)
+      logger.debug('📨 Manifest response status:', response.status, 'type:', response.type)
 
       // Handle Direct Play (302 redirect)
       if (response.status === 302 || response.type === 'opaqueredirect') {
@@ -173,11 +174,11 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       if (response.status === 202) {
         // Parse the response body to get job info
         const body = await response.json()
-        console.log('Got 202 response with job info:', body)
+        logger.debug('Got 202 response with job info:', body)
 
         // If job already failed, immediately use direct stream
         if (body.status === 'failed') {
-          console.error('❌ Transcode job already failed, using direct stream:', body.error)
+          logger.error('❌ Transcode job already failed, using direct stream:', body.error)
           fallbackToDirectStream(id)
           return
         }
@@ -197,7 +198,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
         // Safety timeout to fallback if transcode doesn't complete (3 seconds)
         // If segments aren't ready within 3 seconds, just use direct stream
         timeoutRef.current = setTimeout(() => {
-          console.warn('⏱️ Transcoding taking too long (>3s), falling back to direct stream')
+          logger.warn('⏱️ Transcoding taking too long (>3s), falling back to direct stream')
           const directUrl = `${API_BASE_URL}/api/stream/${id}`
           setStreamUrl(directUrl)
           setTranscodeState('direct')
@@ -208,7 +209,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       // Handle errors - fall back to direct stream
       fallbackToDirectStream(id)
     } catch (error) {
-      console.error('Error checking manifest:', error)
+      logger.error('Error checking manifest:', error)
       fallbackToDirectStream(id)
     }
   }

@@ -69,8 +69,11 @@ type TVRepository interface {
 	// ListTVEpisodesByLibrary retrieves all TV episodes in a specific library
 	ListTVEpisodesByLibrary(ctx context.Context, libraryID int64) ([]*TVEpisode, error)
 
-	// ListTVEpisodesByShow retrieves all episodes of a specific show
+	// ListTVEpisodesByShow retrieves all episodes of a specific show by title
 	ListTVEpisodesByShow(ctx context.Context, libraryID int64, showTitle string) ([]*TVEpisode, error)
+
+	// ListTVEpisodesByShowID retrieves all episodes of a specific show by ID
+	ListTVEpisodesByShowID(ctx context.Context, showID int64) ([]*TVEpisode, error)
 
 	// UpdateTVEpisode modifies an existing TV episode
 	UpdateTVEpisode(ctx context.Context, episode *TVEpisode) error

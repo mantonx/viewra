@@ -31,15 +31,16 @@ type MediaResponse struct {
 }
 
 // MovieResponse represents a movie media item with all metadata
+// DEPRECATED: Use movies.MovieResponse instead for full movie metadata
 type MovieResponse struct {
 	MediaResponse
-	Year        int      `json:"year,omitempty"`
-	IMDbID      string   `json:"imdb_id,omitempty"`
-	TMDbID      int      `json:"tmdb_id,omitempty"`
-	Director    string   `json:"director,omitempty"`
-	Rating      float32  `json:"rating,omitempty"`
-	Genres      []string `json:"genres,omitempty"`
-	Description string   `json:"description,omitempty"`
+	Year             int      `json:"year,omitempty"`
+	IMDbID           string   `json:"imdb_id,omitempty"`
+	TMDbID           int      `json:"tmdb_id,omitempty"`
+	Director         string   `json:"director,omitempty"`
+	Cast             []string `json:"cast,omitempty"`
+	Genre            []string `json:"genre,omitempty"`
+	Plot             string   `json:"plot,omitempty"`
 }
 
 // TVEpisodeResponse represents a TV episode media item with all metadata
@@ -140,6 +141,7 @@ func ToMediaResponse(m *media.Media) MediaResponse {
 }
 
 // ToMovieResponse converts a domain movie entity to a DTO
+// DEPRECATED: Use movies.ToMovieResponse instead for full movie metadata
 func ToMovieResponse(m *media.Movie) MovieResponse {
 	return MovieResponse{
 		MediaResponse: ToMediaResponse(&m.Media),
@@ -147,9 +149,9 @@ func ToMovieResponse(m *media.Movie) MovieResponse {
 		IMDbID:        m.IMDbID,
 		TMDbID:        m.TMDbID,
 		Director:      m.Director,
-		Rating:        m.Rating,
-		Genres:        m.Genres,
-		Description:   m.Description,
+		Cast:          m.Cast,
+		Genre:         m.Genre,
+		Plot:          m.Plot,
 	}
 }
 

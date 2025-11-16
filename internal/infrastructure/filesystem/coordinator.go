@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/viewra/viewra/internal/domain/scanner/parsers"
 	"github.com/viewra/viewra/internal/infrastructure/ffmpeg"
+	"github.com/viewra/viewra/internal/infrastructure/metadata/music"
 )
 
 // CoordinatorConfig holds configuration for the scanner coordinator
@@ -45,11 +47,11 @@ func DefaultCoordinatorConfig() CoordinatorConfig {
 
 // Coordinator orchestrates the scanning process with worker pool
 type Coordinator struct {
-	config      CoordinatorConfig
-	walker      scanner.FileWalker
-	filter      scanner.FileFilter
-	parser      *Parser
-	hasher      *Hasher
+	config       CoordinatorConfig
+	walker       scanner.FileWalker
+	filter       scanner.FileFilter
+	parser       scanner.FilenameParser
+	hasher       *Hasher
 	ffmpegClient *ffmpeg.Client
 
 	// Progress tracking (atomic)
@@ -73,11 +75,14 @@ func NewCoordinator(config CoordinatorConfig) *Coordinator {
 		fmt.Printf("Warning: FFmpeg not available, technical metadata extraction disabled: %v\n", err)
 	}
 
+	// Create metadata extractor for music files
+	metadataExtractor := music.NewExtractor()
+
 	return &Coordinator{
 		config:       config,
 		walker:       NewWalker(),
 		filter:       NewFilter(),
-		parser:       NewParser(),
+		parser:       parsers.NewDefaultParserWithMetadata(metadataExtractor),
 		hasher:       NewHasher(),
 		ffmpegClient: ffmpegClient,
 		sizeMap:      make(map[int64]int),

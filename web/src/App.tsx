@@ -1,6 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
+import { ToastProvider, useToastState } from '@/lib/hooks/useToast'
+import { ConfirmProvider, useConfirmState } from '@/lib/hooks/useConfirm'
+import { ToastContainer, ConfirmDialog } from '@/components/ui'
 
 // Create a new query client instance
 const queryClient = new QueryClient({
@@ -29,10 +32,36 @@ declare module '@tanstack/react-router' {
   }
 }
 
+const AppProviders = ({ children }: { children: React.ReactNode }) => {
+  const toastState = useToastState()
+  const confirmState = useConfirmState()
+
+  return (
+    <ToastProvider value={toastState}>
+      <ConfirmProvider value={confirmState}>
+        {children}
+        <ToastContainer toasts={toastState.toasts} onDismiss={toastState.removeToast} />
+        <ConfirmDialog
+          isOpen={confirmState.confirmState.isOpen}
+          title={confirmState.confirmState.title}
+          message={confirmState.confirmState.message}
+          confirmText={confirmState.confirmState.confirmText}
+          cancelText={confirmState.confirmState.cancelText}
+          variant={confirmState.confirmState.variant}
+          onConfirm={confirmState.handleConfirm}
+          onCancel={confirmState.handleCancel}
+        />
+      </ConfirmProvider>
+    </ToastProvider>
+  )
+}
+
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AppProviders>
+        <RouterProvider router={router} />
+      </AppProviders>
     </QueryClientProvider>
   )
 }

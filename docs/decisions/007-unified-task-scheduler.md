@@ -330,21 +330,84 @@ func (uc *CleanupUseCase) CleanOrphanedImages(ctx context.Context) error {
 
 ## Implementation Plan
 
-### Phase 4.1 (Current)
-- Create unified scheduler infrastructure
-- Register transcode cleanup task
-- Register image cache cleanup task
-- Basic admin API (list tasks, manual trigger)
+**UPDATED 2025-11-16**: Revised phasing based on plugin architecture decision
 
-### Phase 4.2
-- Database-backed configuration
-- Admin UI for task management
-- Task execution history/logs
+### Phase 4.2: Core Scheduler Implementation (Week 1)
+**Status**: In Progress
 
-### Phase 4.3
-- Additional tasks: library health, DB vacuum, log rotation
+**Scope**: Build unified task scheduler without external API dependencies
+
+1. **Scheduler Infrastructure** (2 days)
+   - Implement `Scheduler` using `robfig/cron/v3`
+   - Task registration system
+   - Thread-safe task management
+   - Graceful shutdown handling
+
+2. **Database Schema** (0.5 days)
+   - Migration for `scheduled_tasks` table (execution history)
+   - Migration for `task_executions` table (logs)
+   - SQLC queries for task CRUD
+
+3. **Admin API Endpoints** (1 day)
+   - `GET /api/admin/scheduler/tasks` - List registered tasks
+   - `POST /api/admin/scheduler/tasks/:id/trigger` - Manual trigger
+   - `GET /api/admin/scheduler/tasks/:id/history` - Execution history
+
+4. **Frontend UI** (1 day)
+   - Route: `/settings/scheduler`
+   - Task list table (name, schedule, last run, status)
+   - "Run Now" buttons
+   - Simple execution history view
+
+5. **Integration** (0.5 days)
+   - Register existing cleanup tasks (transcode, image)
+   - Wire into application container
+   - Update startup sequence
+
+**Estimated Timeline**: 3-5 days
+
+**Success Criteria**:
+- Scheduler starts with application
+- Tasks execute on schedule
+- Manual triggers work via API and UI
+- Execution history persists and displays
+- Graceful shutdown (tasks complete before exit)
+
+### Phase 4.3: Image Cache & Transformations
+**Deferred**: Image caching implementation (see ADR 006)
+
+When implemented, image cache cleanup task will register with existing scheduler:
+```go
+scheduler.RegisterTask(Task{
+    ID:          "image-cache-cleanup",
+    Name:        "Image Cache Cleanup",
+    Description: "Remove orphaned image cache files",
+    Schedule:    "0 3 * * *",
+    Handler:     imageCleanupUC.Execute,
+})
+```
+
+### Phase 7: Plugin System
+**Deferred**: External API integrations (TMDb, MusicBrainz) as plugins
+
+Plugins will register their own scheduled tasks:
+```go
+// Example: TMDb metadata refresh plugin
+scheduler.RegisterTask(Task{
+    ID:          "tmdb-metadata-refresh",
+    Name:        "TMDb Metadata Refresh",
+    Description: "Update movie metadata from TMDb",
+    Schedule:    "0 2 * * 0", // Weekly
+    Handler:     tmdbPlugin.RefreshMetadata,
+})
+```
+
+### Future Enhancements
+- Database-backed task configuration (edit schedules via UI)
 - Task dependencies (run B after A completes)
 - Email/webhook notifications on failure
+- Retry logic for failed tasks
+- Additional maintenance tasks: library health, DB vacuum, log rotation
 
 ## References
 

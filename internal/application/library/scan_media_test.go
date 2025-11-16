@@ -462,7 +462,7 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 			name:      "create new TV episode",
 			libraryID: 2,
 			result: &scanner.ScanResult{
-				FilePath:      "/tv/show/s01e05.mp4",
+				FilePath:      "/tv/The Show/Season 01/The Show - S01E05 - Episode Title.mp4",
 				Title:         "Episode Title",
 				SeasonNumber:  &season1,
 				EpisodeNumber: &episode5,
@@ -491,7 +491,7 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 			name:      "update existing TV episode",
 			libraryID: 2,
 			result: &scanner.ScanResult{
-				FilePath:      "/tv/existing.mp4",
+				FilePath:      "/tv/My Show/Season 01/My Show - S01E05 - Updated Episode.mp4",
 				Title:         "Updated Episode",
 				SeasonNumber:  &season1,
 				EpisodeNumber: &episode5,
@@ -501,18 +501,18 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 				mediaRepo.media[70] = &media.Media{
 					ID:        70,
 					LibraryID: 2,
-					FilePath:  "/tv/existing.mp4",
+					FilePath:  "/tv/My Show/Season 01/My Show - S01E05 - Updated Episode.mp4",
 					Title:     "Old Title",
 				}
 				tvRepo.episodes[70] = &media.TVEpisode{
 					Media: media.Media{
 						ID:        70,
 						LibraryID: 2,
-						FilePath:  "/tv/existing.mp4",
+						FilePath:  "/tv/My Show/Season 01/My Show - S01E05 - Updated Episode.mp4",
 						Title:     "Old Title",
 					},
 					Season:  1,
-					Episode: 1,
+					Episode: 5,
 				}
 			},
 			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
@@ -533,10 +533,10 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 			name:      "episode with nil season/episode numbers",
 			libraryID: 2,
 			result: &scanner.ScanResult{
-				FilePath:      "/tv/no-numbers.mp4",
+				FilePath:      "/tv/Another Show/Season 1/Another Show - S01E01 - No Numbers.mp4",
 				Title:         "No Numbers",
-				SeasonNumber:  nil,
-				EpisodeNumber: nil,
+				SeasonNumber:  nil, // Will be parsed from filename
+				EpisodeNumber: nil, // Will be parsed from filename
 				Duration:      2700,
 			},
 			setupRepo: func(mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
@@ -546,11 +546,12 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 					t.Errorf("Expected 1 episode created, got %d", len(tvRepo.episodes))
 				}
 				for _, ep := range tvRepo.episodes {
-					if ep.Season != 0 {
-						t.Errorf("Season = %v, want 0 (default)", ep.Season)
+					// Parser will extract S01E01 from filename
+					if ep.Season != 1 {
+						t.Errorf("Season = %v, want 1 (parsed from filename)", ep.Season)
 					}
-					if ep.Episode != 0 {
-						t.Errorf("Episode = %v, want 0 (default)", ep.Episode)
+					if ep.Episode != 1 {
+						t.Errorf("Episode = %v, want 1 (parsed from filename)", ep.Episode)
 					}
 				}
 			},

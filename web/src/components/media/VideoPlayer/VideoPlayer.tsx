@@ -2,7 +2,43 @@ import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { useProgressUpdater } from '@/lib/hooks/useProgress'
 import { Button } from '@/components/ui'
+import { logger } from '@/lib/utils/logger'
+import { formatResolutionLabel } from '@/lib/utils/quality'
 import type { VideoPlayerProps } from './VideoPlayer.types'
+
+// HLS configuration constants
+const HLS_CONFIG = {
+  MAX_BUFFER_LENGTH: 30,
+  MAX_MAX_BUFFER_LENGTH: 60,
+  ENABLE_WORKER: true,
+  LOW_LATENCY_MODE: false,
+} as const
+
+// Helper functions for video element manipulation
+const ensureVideoUnmuted = (video: HTMLVideoElement) => {
+  video.muted = false
+  video.volume = 1.0
+}
+
+const setInitialPosition = (
+  video: HTMLVideoElement,
+  position: number,
+  waitForMetadata = false
+) => {
+  if (position <= 0) {
+    return
+  }
+
+  if (waitForMetadata) {
+    const setTime = () => {
+      video.currentTime = position
+      video.removeEventListener('loadedmetadata', setTime)
+    }
+    video.addEventListener('loadedmetadata', setTime)
+  } else {
+    video.currentTime = position
+  }
+}
 
 export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration = 0, onClose }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -33,14 +69,15 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
     // For direct streams, use native HTML5 video
     if (!isHlsStream) {
       video.src = streamUrl
-
-      // Ensure video is unmuted for direct streams
-      video.muted = false
-      video.volume = 1.0
-
-      if (initialPosition > 0) {
-        video.currentTime = initialPosition
-      }
+      setInitialPosition(video, initialPosition)
+      // Start muted to allow autoplay, unmute immediately after play starts
+      video.muted = true
+      video.play().then(() => {
+        video.muted = false
+        video.volume = 1.0
+      }).catch(() => {
+        // Autoplay blocked, user will need to click play
+      })
       return
     }
 
@@ -50,19 +87,15 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
     if (canPlayHls) {
       // Native HLS support - just set the source
       video.src = streamUrl
-
-      // Ensure video is unmuted
-      video.muted = false
-      video.volume = 1.0
-
-      if (initialPosition > 0) {
-        // For native HLS, set initial time after loadedmetadata
-        const setInitialTime = () => {
-          video.currentTime = initialPosition
-          video.removeEventListener('loadedmetadata', setInitialTime)
-        }
-        video.addEventListener('loadedmetadata', setInitialTime)
-      }
+      setInitialPosition(video, initialPosition, true)
+      // Start muted to allow autoplay, unmute after play starts
+      video.muted = true
+      video.play().then(() => {
+        video.muted = false
+        video.volume = 1.0
+      }).catch(() => {
+        // Autoplay blocked
+      })
       return
     }
 
@@ -74,10 +107,10 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
 
     // Create hls.js instance
     const hls = new Hls({
-      maxBufferLength: 30,
-      maxMaxBufferLength: 60,
-      enableWorker: true,
-      lowLatencyMode: false,
+      maxBufferLength: HLS_CONFIG.MAX_BUFFER_LENGTH,
+      maxMaxBufferLength: HLS_CONFIG.MAX_MAX_BUFFER_LENGTH,
+      enableWorker: HLS_CONFIG.ENABLE_WORKER,
+      lowLatencyMode: HLS_CONFIG.LOW_LATENCY_MODE,
     })
     hlsRef.current = hls
 
@@ -106,19 +139,19 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
         setAvailableQualities(uniqueQualities)
       }
 
-      // Ensure video is unmuted when manifest is ready
-      video.muted = false
-      video.volume = 1.0
+      // Set initial position
+      setInitialPosition(video, initialPosition)
 
-      // Set initial position after manifest is loaded
-      if (initialPosition > 0) {
-        video.currentTime = initialPosition
-      }
-
-      // Try to play with sound
-      video.play().catch((err) => {
-        console.warn('Autoplay with sound blocked:', err)
-        // If autoplay with sound is blocked, the user will need to click play
+      // Start muted to allow autoplay, will unmute on first play event
+      video.muted = true
+      video.play().then(() => {
+        // Successfully started - unmute immediately
+        video.muted = false
+        video.volume = 1.0
+        logger.debug('Video started with audio')
+      }).catch((err) => {
+        logger.warn('Autoplay blocked:', err)
+        // If even muted autoplay is blocked, user will need to click play
       })
     })
 
@@ -139,7 +172,7 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
 
     // Error handling
     hls.on(Hls.Events.ERROR, (_event, data) => {
-      console.error('HLS.js error:', data)
+      logger.error('HLS.js error:', data)
 
       if (data.fatal) {
         switch (data.type) {
@@ -171,7 +204,7 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
         hlsRef.current = null
       }
     }
-  }, [streamUrl, initialPosition, isHlsStream])
+  }, [streamUrl, initialPosition, isHlsStream, error])
 
   // Set up video event handlers for progress tracking
   useEffect(() => {
@@ -195,18 +228,13 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
         }
       }
 
-      // Ensure video is unmuted when metadata loads
-      video.muted = false
-      video.volume = 1.0
+      ensureVideoUnmuted(video)
     }
 
     // Handle play event
     const handlePlay = () => {
       setIsPlaying(true)
-
-      // Ensure video is unmuted when playback starts
-      video.muted = false
-      video.volume = 1.0
+      ensureVideoUnmuted(video)
 
       if (progressUpdaterRef.current && videoDuration > 0) {
         progressUpdaterRef.current.startTracking(video.currentTime)
@@ -284,25 +312,6 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
     }
   }
 
-  const formatQualityLabel = (height: number): string => {
-    if (height === 0) {
-      return 'Auto'
-    }
-    if (height >= 2160) {
-      return '4K'
-    }
-    if (height >= 1080) {
-      return '1080p'
-    }
-    if (height >= 720) {
-      return '720p'
-    }
-    if (height >= 480) {
-      return '480p'
-    }
-    return `${height}p`
-  }
-
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       {/* Header bar */}
@@ -322,7 +331,7 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
                   <option value={0}>Auto</option>
                   {availableQualities.map((quality) => (
                     <option key={quality.height} value={quality.height}>
-                      {formatQualityLabel(quality.height)}
+                      {formatResolutionLabel(quality.height, true)}
                     </option>
                   ))}
                 </select>
@@ -369,7 +378,7 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
             <p className="opacity-75">Resumed from {Math.floor(initialPosition / 60)}m {Math.floor(initialPosition % 60)}s</p>
           )}
           {currentQuality && currentQuality > 0 && (
-            <p className="opacity-75 mt-1">Playing at {formatQualityLabel(currentQuality)}</p>
+            <p className="opacity-75 mt-1">Playing at {formatResolutionLabel(currentQuality, true)}</p>
           )}
         </div>
       </div>

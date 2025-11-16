@@ -10,16 +10,25 @@ import (
 
 	"github.com/viewra/viewra/internal/api"
 	"github.com/viewra/viewra/internal/api/handlers"
-	"github.com/viewra/viewra/internal/app/noop"
+	"github.com/viewra/viewra/internal/application/images"
 	"github.com/viewra/viewra/internal/application/library"
 	"github.com/viewra/viewra/internal/application/media"
+	"github.com/viewra/viewra/internal/application/movies"
+	"github.com/viewra/viewra/internal/application/music"
 	"github.com/viewra/viewra/internal/application/transcode"
+	"github.com/viewra/viewra/internal/application/tv"
 	"github.com/viewra/viewra/internal/infrastructure/pathbrowser"
+	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
+	imageRepo "github.com/viewra/viewra/internal/infrastructure/persistence/image"
 	libraryRepo "github.com/viewra/viewra/internal/infrastructure/persistence/library"
 	mediaRepo "github.com/viewra/viewra/internal/infrastructure/persistence/media"
+	movieRepo "github.com/viewra/viewra/internal/infrastructure/persistence/movie"
+	musicRepo "github.com/viewra/viewra/internal/infrastructure/persistence/music"
 	progressRepo "github.com/viewra/viewra/internal/infrastructure/persistence/progress"
 	scanJobRepo "github.com/viewra/viewra/internal/infrastructure/persistence/scanjob"
 	transcodeRepo "github.com/viewra/viewra/internal/infrastructure/persistence/transcode"
+	tvRepo "github.com/viewra/viewra/internal/infrastructure/persistence/tvshow"
+	"github.com/viewra/viewra/internal/infrastructure/scheduler"
 	"github.com/viewra/viewra/internal/infrastructure/transcoding"
 )
 
@@ -30,10 +39,14 @@ type Container struct {
 
 	// Background services
 	CleanupScheduler *transcode.CleanupScheduler
+	Scheduler        *scheduler.Scheduler
 }
 
 // NewContainer creates and wires up all application dependencies
 func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *slog.Logger) *Container {
+	// Initialize base repository for dual-database support
+	baseRepo := common.NewBaseRepository(db, dbDriver)
+
 	// Initialize repositories
 	libraryRepository := libraryRepo.NewRepository(db, dbDriver)
 	mediaRepository := mediaRepo.NewRepository(db, dbDriver)
@@ -41,28 +54,87 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	scanJobRepository := scanJobRepo.NewRepository(db, dbDriver)
 	transcodeRepository := transcodeRepo.NewRepository(db, dbDriver)
 
+	// Initialize media-type specific repositories
+	// Pass mediaRepository for proper dependency injection
+	movieRepository := movieRepo.NewRepository(baseRepo, mediaRepository)
+	tvRepository := tvRepo.NewRepository(baseRepo, mediaRepository)
+	musicRepository := musicRepo.NewRepository(baseRepo, mediaRepository)
+
 	// Initialize library use cases (they use repositories directly)
 	createLibrary := library.NewCreateLibraryUseCase(libraryRepository)
 	updateLibrary := library.NewUpdateLibraryUseCase(libraryRepository)
-	deleteLibrary := library.NewDeleteLibraryUseCase(libraryRepository)
 	getLibrary := library.NewGetLibraryUseCase(libraryRepository)
 	listLibraries := library.NewListLibrariesUseCase(libraryRepository)
 
-	// Initialize scan library use case
-	// NOTE: Movie/TV/Music-specific repositories (Phase 3) not yet implemented.
-	// Using no-op implementations to prevent nil pointer panics during scanning.
-	scanLibrary := library.NewScanLibraryUseCase(
-		libraryRepository,
-		mediaRepository,
-		noop.NewMovieRepository(), // Phase 3 - no-op for now
-		noop.NewTVRepository(),    // Phase 3 - no-op for now
-		noop.NewMusicRepository(), // Phase 3 - no-op for now
-		scanJobRepository,
-	)
+	// Initialize image repository (used by scanner and API handlers)
+	imageRepository := imageRepo.NewRepository(baseRepo)
+
+	// Initialize image extraction use cases (needed for scanner)
+	extractMovieImages := images.NewExtractMovieImagesUseCase(imageRepository)
+	extractEpisodeImages := images.NewExtractTVEpisodeImagesUseCase(imageRepository)
+	extractMusicImages := images.NewExtractMusicAlbumImagesUseCase(imageRepository)
 
 	// Initialize media use cases
 	getMedia := media.NewGetMediaUseCase(mediaRepository)
 	listMedia := media.NewListMediaUseCase(mediaRepository)
+
+	// Initialize movie use cases
+	listMovies := movies.NewListMoviesUseCase(movieRepository)
+	getMovie := movies.NewGetMovieUseCase(movieRepository)
+	searchMovies := movies.NewSearchMoviesUseCase(movieRepository)
+
+	// Initialize TV use cases
+	listTVShows := tv.NewListTVShowsUseCase(tvRepository)
+	getTVShow := tv.NewGetTVShowUseCase(tvRepository)
+	listTVEpisodes := tv.NewListTVEpisodesUseCase(tvRepository)
+	getTVEpisode := tv.NewGetTVEpisodeUseCase(tvRepository)
+	searchTVEpisodes := tv.NewSearchTVEpisodesUseCase(tvRepository)
+
+	// Initialize music use cases
+	listArtists := music.NewListArtistsUseCase(musicRepository)
+	listAlbums := music.NewListAlbumsUseCase(musicRepository)
+	listTracks := music.NewListTracksUseCase(musicRepository)
+	getTrack := music.NewGetTrackUseCase(musicRepository)
+	searchTracks := music.NewSearchTracksUseCase(musicRepository)
+
+	// Initialize image query use cases (for API handlers)
+	getImage := images.NewGetImageUseCase(imageRepository)
+	getMediaImages := images.NewGetMediaImagesUseCase(imageRepository)
+	getEntityImages := images.NewGetEntityImagesUseCase(imageRepository)
+
+	// Initialize image cleanup use case
+	imageCacheDir := "./data/cache/images"
+	if err := ensureDirectory(imageCacheDir); err != nil {
+		logger.Error("Failed to create image cache directory", "error", err, "path", imageCacheDir)
+	}
+	imageCleanup := images.NewCleanupUseCase(imageRepository, imageCacheDir, logger)
+
+	// Initialize media use cases (with image cleanup)
+	// NOTE: deleteMedia is available but not yet wired to API endpoints
+	// It will be used when we add DELETE /api/media/:id or during library re-scans
+	deleteMedia := media.NewDeleteMediaUseCase(mediaRepository, imageRepository, imageCleanup)
+	_ = deleteMedia // Prevent unused variable error until API endpoint is added
+
+	// Initialize library deletion with image cleanup
+	deleteLibrary := library.NewDeleteLibraryUseCase(libraryRepository, imageRepository, imageCleanup)
+
+	// Initialize scan library use case with image cleanup
+	scanLibrary := library.NewScanLibraryUseCase(
+		libraryRepository,
+		mediaRepository,
+		movieRepository,
+		tvRepository,
+		musicRepository,
+		scanJobRepository,
+		extractMovieImages,
+		extractEpisodeImages,
+		extractMusicImages,
+		imageRepository,
+		imageCleanup,
+	)
+
+	// Note: Image cleanup task will be registered with unified scheduler after it's created
+	// See scheduler registration section below
 
 	// Initialize path browser service
 	browserService := pathbrowser.NewService(
@@ -79,7 +151,7 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	}
 
 	// Transcode output directory
-	transcodeOutputDir := "./data/transcode"
+	transcodeOutputDir := "./data/cache/transcodes"
 
 	// Ensure transcode output directory exists
 	if err := ensureDirectory(transcodeOutputDir); err != nil {
@@ -118,6 +190,9 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	scanJobHandler := handlers.NewScanJobHandler(scanJobRepository)
 	progressHandler := handlers.NewProgressHandler(progressRepository)
 
+	// Image handler
+	imagesHandler := handlers.NewImagesHandler(getImage, getMediaImages, getEntityImages)
+
 	var transcodeHandler *handlers.TranscodeHandler
 	if transcodeQueue != nil {
 		// Create use cases
@@ -155,6 +230,42 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 		)
 	}
 
+	// Create unified task scheduler
+	execLogger := scheduler.NewDBExecutionLogger(db, logger)
+	taskScheduler, err := scheduler.New(
+		scheduler.DefaultConfig(),
+		logger,
+		execLogger,
+	)
+	if err != nil {
+		logger.Error("Failed to create task scheduler", "error", err)
+		// Continue without scheduler rather than crashing
+	}
+
+	// Register scheduled tasks with unified scheduler
+	if taskScheduler != nil {
+		// Register image cache cleanup task
+		err := taskScheduler.RegisterTask(scheduler.Task{
+			ID:          "image-cache-cleanup",
+			Name:        "Image Cache Cleanup",
+			Description: "Remove orphaned image cache files that are no longer referenced in the database",
+			Schedule:    "0 3 * * *", // Daily at 3 AM
+			Enabled:     true,
+			Handler: func(ctx context.Context) error {
+				_, err := imageCleanup.CleanOrphanedImages(ctx)
+				return err
+			},
+		})
+		if err != nil {
+			logger.Error("Failed to register image cleanup task", "error", err)
+		} else {
+			logger.Info("Registered image cleanup task with scheduler")
+		}
+	}
+
+	// Create scheduler handler
+	schedulerHandler := handlers.NewSchedulerHandler(taskScheduler)
+
 	// Create HTTP server
 	server := api.NewServer(
 		config,
@@ -164,6 +275,8 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 		scanJobHandler,
 		progressHandler,
 		transcodeHandler,
+		imagesHandler,
+		schedulerHandler,
 		createLibrary,
 		updateLibrary,
 		deleteLibrary,
@@ -172,11 +285,25 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 		scanLibrary,
 		getMedia,
 		listMedia,
+		listMovies,
+		getMovie,
+		searchMovies,
+		listTVShows,
+		getTVShow,
+		listTVEpisodes,
+		getTVEpisode,
+		searchTVEpisodes,
+		listArtists,
+		listAlbums,
+		listTracks,
+		getTrack,
+		searchTracks,
 	)
 
 	return &Container{
 		Server:           server,
 		CleanupScheduler: cleanupScheduler,
+		Scheduler:        taskScheduler,
 	}
 }
 

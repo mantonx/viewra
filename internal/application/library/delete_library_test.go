@@ -45,7 +45,8 @@ func TestDeleteLibraryUseCase_Execute(t *testing.T) {
 				tt.setup(repo)
 			}
 
-			uc := NewDeleteLibraryUseCase(repo)
+			// Create mock image repo and cleanup - can be nil for these tests
+			uc := NewDeleteLibraryUseCase(repo, nil, nil)
 
 			err := uc.Execute(context.Background(), tt.libraryID)
 

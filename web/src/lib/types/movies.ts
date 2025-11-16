@@ -7,7 +7,6 @@ export interface Movie {
   id: number
   library_id: number
   title: string
-  year?: number
   file_path: string
   file_size: number
   duration: number
@@ -22,16 +21,27 @@ export interface Movie {
   frame_rate?: number
   container_format?: string
 
-  // Enhanced metadata (Phase 4 - will be null for now)
-  director?: string
-  cast?: string
-  plot?: string
-  poster_url?: string
-  backdrop_url?: string
-  rating?: number
-  genres?: string
-  tmdb_id?: number
+  // Movie-specific metadata
+  year?: number
+  release_date?: string
+  original_title?: string
+  sort_title?: string
+  runtime_minutes?: number
   imdb_id?: string
+  tmdb_id?: number
+  director?: string
+  cast?: string[]
+  genre?: string[]
+  plot?: string
+  tagline?: string
+  content_rating?: string
+  maturity_rating?: number
+  content_advisories?: string[]
+  budget?: number
+  revenue?: number
+  original_language?: string
+  country_of_origin?: string
+  awards_summary?: string
 
   // Timestamps
   created_at: string

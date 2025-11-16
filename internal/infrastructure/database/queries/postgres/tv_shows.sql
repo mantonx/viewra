@@ -1,0 +1,403 @@
+-- ============================================================================
+-- TV Shows
+-- ============================================================================
+
+-- name: CreateTVShow :one
+INSERT INTO tv_shows (
+    library_id, title, original_title, sort_title, year, first_air_date,
+    last_air_date, genre, plot, status, content_rating, maturity_rating,
+    network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11, $12,
+    $13, $14, $15, $16, $17, $18
+) RETURNING *;
+
+-- name: GetTVShowByID :one
+SELECT * FROM tv_shows
+WHERE id = $1;
+
+-- name: GetTVShowByTitle :one
+SELECT * FROM tv_shows
+WHERE library_id = $1 AND title = $2
+LIMIT 1;
+
+-- name: ListTVShowsByLibrary :many
+SELECT * FROM tv_shows
+WHERE library_id = $1
+ORDER BY sort_title, title;
+
+-- name: UpdateTVShow :exec
+UPDATE tv_shows
+SET title = $1,
+    original_title = $2,
+    sort_title = $3,
+    year = $4,
+    first_air_date = $5,
+    last_air_date = $6,
+    genre = $7,
+    plot = $8,
+    status = $9,
+    content_rating = $10,
+    maturity_rating = $11,
+    network = $12,
+    original_language = $13,
+    country_of_origin = $14,
+    imdb_id = $15,
+    tmdb_id = $16,
+    tvdb_id = $17,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $18;
+
+-- name: DeleteTVShow :exec
+DELETE FROM tv_shows
+WHERE id = $1;
+
+-- name: SearchTVShowsByTitle :many
+SELECT * FROM tv_shows
+WHERE library_id = $1
+  AND (title ILIKE $2 OR original_title ILIKE $3)
+ORDER BY sort_title, title;
+
+-- ============================================================================
+-- TV Seasons
+-- ============================================================================
+
+-- name: CreateTVSeason :one
+INSERT INTO tv_seasons (
+    show_id, season_number, name, overview, air_date, poster_path, episode_count
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING *;
+
+-- name: GetTVSeasonByID :one
+SELECT * FROM tv_seasons
+WHERE id = $1;
+
+-- name: GetTVSeasonByShowAndNumber :one
+SELECT * FROM tv_seasons
+WHERE show_id = $1 AND season_number = $2
+LIMIT 1;
+
+-- name: ListTVSeasonsByShow :many
+SELECT * FROM tv_seasons
+WHERE show_id = $1
+ORDER BY season_number;
+
+-- name: UpdateTVSeason :exec
+UPDATE tv_seasons
+SET name = $1,
+    overview = $2,
+    air_date = $3,
+    poster_path = $4,
+    episode_count = $5,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $6;
+
+-- name: DeleteTVSeason :exec
+DELETE FROM tv_seasons
+WHERE id = $1;
+
+-- name: IncrementSeasonEpisodeCount :exec
+UPDATE tv_seasons
+SET episode_count = episode_count + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
+
+-- ============================================================================
+-- TV Episodes
+-- ============================================================================
+
+-- name: CreateTVEpisode :exec
+INSERT INTO tv_episodes (
+    media_id, show_id, season_id, season_number, episode_number,
+    absolute_number, dvd_season, dvd_episode, episode_title, original_title,
+    air_date, plot, content_rating, maturity_rating, imdb_id, tmdb_id, tvdb_id
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10,
+    $11, $12, $13, $14, $15, $16, $17
+);
+
+-- name: GetTVEpisodeByMediaID :one
+SELECT
+    e.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+WHERE e.media_id = $1;
+
+-- name: ListTVEpisodesByLibrary :many
+SELECT
+    e.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY e.show_id, e.season_number, e.episode_number;
+
+-- name: ListTVEpisodesByShow :many
+SELECT
+    e.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+WHERE e.show_id = $1
+ORDER BY e.season_number, e.episode_number;
+
+-- name: ListTVEpisodesBySeason :many
+SELECT
+    e.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+WHERE e.season_id = $1
+ORDER BY e.episode_number;
+
+-- name: GetTVEpisodeByShowSeasonEpisode :one
+SELECT
+    e.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+WHERE e.show_id = $1 AND e.season_number = $2 AND e.episode_number = $3
+LIMIT 1;
+
+-- name: UpdateTVEpisode :exec
+UPDATE tv_episodes
+SET show_id = $1,
+    season_id = $2,
+    season_number = $3,
+    episode_number = $4,
+    absolute_number = $5,
+    dvd_season = $6,
+    dvd_episode = $7,
+    episode_title = $8,
+    original_title = $9,
+    air_date = $10,
+    plot = $11,
+    content_rating = $12,
+    maturity_rating = $13,
+    imdb_id = $14,
+    tmdb_id = $15,
+    tvdb_id = $16
+WHERE media_id = $17;
+
+-- name: DeleteTVEpisode :exec
+DELETE FROM tv_episodes
+WHERE media_id = $1;
+
+-- name: SearchTVEpisodesByTitle :many
+SELECT
+    e.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM tv_episodes e
+JOIN media med ON e.media_id = med.id
+JOIN tv_shows s ON e.show_id = s.id
+WHERE med.library_id = $1
+  AND (e.episode_title ILIKE $2 OR s.title ILIKE $3)
+ORDER BY s.sort_title, e.season_number, e.episode_number;

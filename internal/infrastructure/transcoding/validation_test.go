@@ -74,7 +74,7 @@ func TestDetermineStreamStrategy(t *testing.T) {
 				ContainerFormat: "mp4",
 			},
 			expectedStrategy: RemuxWithAudioDownmix,
-			expectedReason:   "audio needs downmix",
+			expectedReason:   "audio needs transcode",
 		},
 		{
 			name: "Remux with Audio Downmix - H.264 + 7.1 + MKV",
@@ -87,7 +87,7 @@ func TestDetermineStreamStrategy(t *testing.T) {
 				ContainerFormat: "matroska,webm",
 			},
 			expectedStrategy: RemuxWithAudioDownmix,
-			expectedReason:   "audio needs downmix",
+			expectedReason:   "audio needs transcode",
 		},
 		{
 			name: "Transcode - HEVC + stereo + MP4",

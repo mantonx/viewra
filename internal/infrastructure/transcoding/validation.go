@@ -9,6 +9,17 @@ import (
 	"strings"
 )
 
+// AudioTrack represents a single audio track in a video file
+type AudioTrack struct {
+	Index        int    // Stream index in the file
+	Codec        string // Audio codec (aac, ac3, dts, etc.)
+	Channels     int    // Number of channels (1=mono, 2=stereo, 6=5.1, etc.)
+	Bitrate      int64  // Audio bitrate in bits per second
+	Language     string // Track language (eng, jpn, etc.)
+	Title        string // Track title/description
+	IsCommentary bool   // True if this is a commentary track
+}
+
 // VideoInfo contains metadata about a video file extracted via ffprobe.
 type VideoInfo struct {
 	Codec           string
@@ -16,9 +27,11 @@ type VideoInfo struct {
 	Height          int
 	Bitrate         int64
 	Duration        float64
-	AudioCodec      string
-	AudioBitrate    int64
-	AudioChannels   int    // Number of audio channels (1=mono, 2=stereo, 6=5.1, 8=7.1)
+	AudioCodec      string       // Codec of the best/selected audio track
+	AudioBitrate    int64        // Bitrate of the best/selected audio track
+	AudioChannels   int          // Number of audio channels (1=mono, 2=stereo, 6=5.1, 8=7.1)
+	AudioTracks     []AudioTrack // All available audio tracks
+	SelectedAudioTrackIndex int  // Index of the selected audio track (for FFmpeg -map)
 	ContainerFormat string
 }
 
@@ -74,12 +87,17 @@ func ValidateAndSanitizePath(path string, allowedBasePaths []string) (string, er
 // ffprobeOutput represents the JSON structure returned by ffprobe
 type ffprobeOutput struct {
 	Streams []struct {
+		Index     int    `json:"index"`
 		CodecName string `json:"codec_name"`
 		CodecType string `json:"codec_type"`
 		Width     int    `json:"width"`
 		Height    int    `json:"height"`
 		Channels  int    `json:"channels"`
 		BitRate   string `json:"bit_rate"`
+		Tags      struct {
+			Language string `json:"language"`
+			Title    string `json:"title"`
+		} `json:"tags"`
 	} `json:"streams"`
 	Format struct {
 		FormatName string `json:"format_name"`
@@ -115,7 +133,9 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 		return nil, fmt.Errorf("failed to parse ffprobe output: %w", err)
 	}
 
-	info := &VideoInfo{}
+	info := &VideoInfo{
+		AudioTracks: []AudioTrack{},
+	}
 
 	// Extract video stream info (first video stream)
 	for _, stream := range ffprobe.Streams {
@@ -124,13 +144,41 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 			info.Width = stream.Width
 			info.Height = stream.Height
 		}
-		if stream.CodecType == "audio" && info.AudioCodec == "" {
-			info.AudioCodec = stream.CodecName
-			info.AudioChannels = stream.Channels
-			if stream.BitRate != "" {
-				info.AudioBitrate, _ = strconv.ParseInt(stream.BitRate, 10, 64)
+		if stream.CodecType == "audio" {
+			// Collect ALL audio tracks
+			bitrate, _ := strconv.ParseInt(stream.BitRate, 10, 64)
+
+			// Check if this is a commentary track
+			titleLower := strings.ToLower(stream.Tags.Title)
+			isCommentary := strings.Contains(titleLower, "commentary") ||
+				strings.Contains(titleLower, "comment")
+
+			track := AudioTrack{
+				Index:        stream.Index,
+				Codec:        stream.CodecName,
+				Channels:     stream.Channels,
+				Bitrate:      bitrate,
+				Language:     stream.Tags.Language,
+				Title:        stream.Tags.Title,
+				IsCommentary: isCommentary,
 			}
+			info.AudioTracks = append(info.AudioTracks, track)
 		}
+	}
+
+	// Select the best audio track (non-commentary, web-compatible, prefer stereo)
+	bestTrack := selectBestAudioTrack(info.AudioTracks)
+	if bestTrack != nil {
+		info.AudioCodec = bestTrack.Codec
+		info.AudioChannels = bestTrack.Channels
+		info.AudioBitrate = bestTrack.Bitrate
+		info.SelectedAudioTrackIndex = bestTrack.Index
+	} else if len(info.AudioTracks) > 0 {
+		// Fallback to first track if no best track found
+		info.AudioCodec = info.AudioTracks[0].Codec
+		info.AudioChannels = info.AudioTracks[0].Channels
+		info.AudioBitrate = info.AudioTracks[0].Bitrate
+		info.SelectedAudioTrackIndex = info.AudioTracks[0].Index
 	}
 
 	// Extract format info
@@ -145,8 +193,70 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 	return info, nil
 }
 
+// selectBestAudioTrack chooses the most suitable audio track from available options.
+// Selection priority:
+// 1. Non-commentary tracks only
+// 2. Web-compatible codecs (AAC, MP3, Opus) in stereo
+// 3. Web-compatible codecs in multi-channel (will need downmix)
+// 4. Stereo tracks (even if incompatible codec - faster to transcode)
+// 5. Multi-channel tracks (slower to transcode)
+func selectBestAudioTrack(tracks []AudioTrack) *AudioTrack {
+	if len(tracks) == 0 {
+		return nil
+	}
+
+	// Filter out commentary tracks
+	nonCommentary := []AudioTrack{}
+	for _, track := range tracks {
+		if !track.IsCommentary {
+			nonCommentary = append(nonCommentary, track)
+		}
+	}
+
+	// If all tracks are commentary, use first track
+	if len(nonCommentary) == 0 {
+		return &tracks[0]
+	}
+
+	// Helper function to check if codec is web-compatible
+	isWebCodec := func(codec string) bool {
+		codecLower := strings.ToLower(codec)
+		return codecLower == "aac" ||
+			codecLower == "mp3" ||
+			codecLower == "opus" ||
+			codecLower == "vorbis" ||
+			strings.Contains(codecLower, "mp4a") // AAC variants
+	}
+
+	// Priority 1: Web-compatible codec in stereo (perfect - no processing needed)
+	for _, track := range nonCommentary {
+		if isWebCodec(track.Codec) && track.Channels <= 2 {
+			return &track
+		}
+	}
+
+	// Priority 2: Web-compatible codec in multi-channel (needs downmix only)
+	for _, track := range nonCommentary {
+		if isWebCodec(track.Codec) && track.Channels > 2 {
+			return &track
+		}
+	}
+
+	// Priority 3: Stereo track with any codec (faster transcode - no downmix)
+	for _, track := range nonCommentary {
+		if track.Channels <= 2 {
+			return &track
+		}
+	}
+
+	// Priority 4: Multi-channel track (slowest - needs codec transcode + downmix)
+	// Just return the first non-commentary multi-channel track
+	return &nonCommentary[0]
+}
+
 // ShouldTranscode determines if transcoding is necessary based on current codec/resolution vs target.
 // Returns true if transcoding is needed, false if source already matches target.
+// This function checks VIDEO transcoding needs only - audio is handled separately by DetermineStreamStrategy.
 func ShouldTranscode(videoInfo *VideoInfo, profile *QualityProfile) (bool, string) {
 	// Always transcode if we can't determine source codec/resolution
 	if videoInfo == nil || videoInfo.Codec == "" {
@@ -157,6 +267,23 @@ func ShouldTranscode(videoInfo *VideoInfo, profile *QualityProfile) (bool, strin
 	isH264 := videoInfo.Codec == "h264" || videoInfo.Codec == "H264" || videoInfo.Codec == "avc1"
 	if !isH264 {
 		return true, fmt.Sprintf("source codec %s needs transcoding to H.264", videoInfo.Codec)
+	}
+
+	// Check audio codec compatibility - if audio needs transcoding, we need to process the file
+	audioCodecLower := strings.ToLower(videoInfo.AudioCodec)
+	isWebAudioCodec := audioCodecLower == "aac" ||
+		audioCodecLower == "mp3" ||
+		audioCodecLower == "opus" ||
+		audioCodecLower == "vorbis" ||
+		strings.Contains(audioCodecLower, "mp4a") // AAC variants
+
+	// Check if audio needs downmixing (more than stereo)
+	hasMultiChannelAudio := videoInfo.AudioChannels > 2
+
+	// If H.264 video but incompatible or multi-channel audio, we need to process (remux with audio transcode)
+	if !isWebAudioCodec || hasMultiChannelAudio {
+		return true, fmt.Sprintf("H.264 video compatible, but %s %d-channel audio needs processing to AAC stereo",
+			videoInfo.AudioCodec, videoInfo.AudioChannels)
 	}
 
 	// Check if resolution matches or exceeds target

@@ -50,6 +50,19 @@ const Layout = () => {
             >
               🎵 Music
             </Link>
+
+            <div className="mt-8 pt-4 border-t border-gray-700">
+              <p className="px-4 text-xs text-gray-500 uppercase tracking-wider mb-2">
+                Settings
+              </p>
+              <Link
+                to="/settings/scheduler"
+                className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
+                activeProps={{ className: 'bg-gray-800' }}
+              >
+                ⏰ Scheduler
+              </Link>
+            </div>
           </nav>
 
           <div className="p-4 border-t border-gray-700">

@@ -12,3 +12,10 @@ export * from './generated/models'
 
 // Export custom instance for direct API calls if needed
 export { customInstance } from './mutator/index'
+
+// Export manual API clients (not auto-generated)
+export { moviesApi } from './movies'
+export { imagesApi } from './images'
+export { musicApi } from './music'
+export { tvApi } from './tv'
+export { schedulerApi } from './scheduler'

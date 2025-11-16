@@ -11,14 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as LayoutTvRouteImport } from './routes/_layout/tv'
-import { Route as LayoutMusicRouteImport } from './routes/_layout/music'
-import { Route as LayoutMoviesRouteImport } from './routes/_layout/movies'
 import { Route as LayoutLibrariesRouteImport } from './routes/_layout/libraries'
-import { Route as LayoutTvShowTitleRouteImport } from './routes/_layout/tv.$showTitle'
+import { Route as LayoutTvIndexRouteImport } from './routes/_layout/tv.index'
+import { Route as LayoutMusicIndexRouteImport } from './routes/_layout/music.index'
+import { Route as LayoutMoviesIndexRouteImport } from './routes/_layout/movies.index'
+import { Route as LayoutSettingsSchedulerRouteImport } from './routes/_layout/settings.scheduler'
 import { Route as LayoutMusicArtistRouteImport } from './routes/_layout/music.$artist'
+import { Route as LayoutTvShowIdIndexRouteImport } from './routes/_layout/tv.$showId.index'
 import { Route as LayoutMusicArtistAlbumRouteImport } from './routes/_layout/music.$artist.$album'
-import { Route as LayoutTvShowTitleSeasonSeasonNumberRouteImport } from './routes/_layout/tv.$showTitle.season.$seasonNumber'
+import { Route as LayoutTvShowIdSeasonSeasonNumberRouteImport } from './routes/_layout/tv.$showId.season.$seasonNumber'
 
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
@@ -29,118 +30,129 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LayoutTvRoute = LayoutTvRouteImport.update({
-  id: '/tv',
-  path: '/tv',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutMusicRoute = LayoutMusicRouteImport.update({
-  id: '/music',
-  path: '/music',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutMoviesRoute = LayoutMoviesRouteImport.update({
-  id: '/movies',
-  path: '/movies',
-  getParentRoute: () => LayoutRoute,
-} as any)
 const LayoutLibrariesRoute = LayoutLibrariesRouteImport.update({
   id: '/libraries',
   path: '/libraries',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutTvShowTitleRoute = LayoutTvShowTitleRouteImport.update({
-  id: '/$showTitle',
-  path: '/$showTitle',
-  getParentRoute: () => LayoutTvRoute,
+const LayoutTvIndexRoute = LayoutTvIndexRouteImport.update({
+  id: '/tv/',
+  path: '/tv/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutMusicIndexRoute = LayoutMusicIndexRouteImport.update({
+  id: '/music/',
+  path: '/music/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutMoviesIndexRoute = LayoutMoviesIndexRouteImport.update({
+  id: '/movies/',
+  path: '/movies/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSettingsSchedulerRoute = LayoutSettingsSchedulerRouteImport.update({
+  id: '/settings/scheduler',
+  path: '/settings/scheduler',
+  getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutMusicArtistRoute = LayoutMusicArtistRouteImport.update({
-  id: '/$artist',
-  path: '/$artist',
-  getParentRoute: () => LayoutMusicRoute,
+  id: '/music/$artist',
+  path: '/music/$artist',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutTvShowIdIndexRoute = LayoutTvShowIdIndexRouteImport.update({
+  id: '/tv/$showId/',
+  path: '/tv/$showId/',
+  getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutMusicArtistAlbumRoute = LayoutMusicArtistAlbumRouteImport.update({
   id: '/$album',
   path: '/$album',
   getParentRoute: () => LayoutMusicArtistRoute,
 } as any)
-const LayoutTvShowTitleSeasonSeasonNumberRoute =
-  LayoutTvShowTitleSeasonSeasonNumberRouteImport.update({
-    id: '/season/$seasonNumber',
-    path: '/season/$seasonNumber',
-    getParentRoute: () => LayoutTvShowTitleRoute,
+const LayoutTvShowIdSeasonSeasonNumberRoute =
+  LayoutTvShowIdSeasonSeasonNumberRouteImport.update({
+    id: '/tv/$showId/season/$seasonNumber',
+    path: '/tv/$showId/season/$seasonNumber',
+    getParentRoute: () => LayoutRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/libraries': typeof LayoutLibrariesRoute
-  '/movies': typeof LayoutMoviesRoute
-  '/music': typeof LayoutMusicRouteWithChildren
-  '/tv': typeof LayoutTvRouteWithChildren
   '/music/$artist': typeof LayoutMusicArtistRouteWithChildren
-  '/tv/$showTitle': typeof LayoutTvShowTitleRouteWithChildren
+  '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/movies': typeof LayoutMoviesIndexRoute
+  '/music': typeof LayoutMusicIndexRoute
+  '/tv': typeof LayoutTvIndexRoute
   '/music/$artist/$album': typeof LayoutMusicArtistAlbumRoute
-  '/tv/$showTitle/season/$seasonNumber': typeof LayoutTvShowTitleSeasonSeasonNumberRoute
+  '/tv/$showId': typeof LayoutTvShowIdIndexRoute
+  '/tv/$showId/season/$seasonNumber': typeof LayoutTvShowIdSeasonSeasonNumberRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/libraries': typeof LayoutLibrariesRoute
-  '/movies': typeof LayoutMoviesRoute
-  '/music': typeof LayoutMusicRouteWithChildren
-  '/tv': typeof LayoutTvRouteWithChildren
   '/music/$artist': typeof LayoutMusicArtistRouteWithChildren
-  '/tv/$showTitle': typeof LayoutTvShowTitleRouteWithChildren
+  '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/movies': typeof LayoutMoviesIndexRoute
+  '/music': typeof LayoutMusicIndexRoute
+  '/tv': typeof LayoutTvIndexRoute
   '/music/$artist/$album': typeof LayoutMusicArtistAlbumRoute
-  '/tv/$showTitle/season/$seasonNumber': typeof LayoutTvShowTitleSeasonSeasonNumberRoute
+  '/tv/$showId': typeof LayoutTvShowIdIndexRoute
+  '/tv/$showId/season/$seasonNumber': typeof LayoutTvShowIdSeasonSeasonNumberRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_layout': typeof LayoutRouteWithChildren
   '/_layout/libraries': typeof LayoutLibrariesRoute
-  '/_layout/movies': typeof LayoutMoviesRoute
-  '/_layout/music': typeof LayoutMusicRouteWithChildren
-  '/_layout/tv': typeof LayoutTvRouteWithChildren
   '/_layout/music/$artist': typeof LayoutMusicArtistRouteWithChildren
-  '/_layout/tv/$showTitle': typeof LayoutTvShowTitleRouteWithChildren
+  '/_layout/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/_layout/movies/': typeof LayoutMoviesIndexRoute
+  '/_layout/music/': typeof LayoutMusicIndexRoute
+  '/_layout/tv/': typeof LayoutTvIndexRoute
   '/_layout/music/$artist/$album': typeof LayoutMusicArtistAlbumRoute
-  '/_layout/tv/$showTitle/season/$seasonNumber': typeof LayoutTvShowTitleSeasonSeasonNumberRoute
+  '/_layout/tv/$showId/': typeof LayoutTvShowIdIndexRoute
+  '/_layout/tv/$showId/season/$seasonNumber': typeof LayoutTvShowIdSeasonSeasonNumberRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/libraries'
+    | '/music/$artist'
+    | '/settings/scheduler'
     | '/movies'
     | '/music'
     | '/tv'
-    | '/music/$artist'
-    | '/tv/$showTitle'
     | '/music/$artist/$album'
-    | '/tv/$showTitle/season/$seasonNumber'
+    | '/tv/$showId'
+    | '/tv/$showId/season/$seasonNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/libraries'
+    | '/music/$artist'
+    | '/settings/scheduler'
     | '/movies'
     | '/music'
     | '/tv'
-    | '/music/$artist'
-    | '/tv/$showTitle'
     | '/music/$artist/$album'
-    | '/tv/$showTitle/season/$seasonNumber'
+    | '/tv/$showId'
+    | '/tv/$showId/season/$seasonNumber'
   id:
     | '__root__'
     | '/'
     | '/_layout'
     | '/_layout/libraries'
-    | '/_layout/movies'
-    | '/_layout/music'
-    | '/_layout/tv'
     | '/_layout/music/$artist'
-    | '/_layout/tv/$showTitle'
+    | '/_layout/settings/scheduler'
+    | '/_layout/movies/'
+    | '/_layout/music/'
+    | '/_layout/tv/'
     | '/_layout/music/$artist/$album'
-    | '/_layout/tv/$showTitle/season/$seasonNumber'
+    | '/_layout/tv/$showId/'
+    | '/_layout/tv/$showId/season/$seasonNumber'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -164,27 +176,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_layout/tv': {
-      id: '/_layout/tv'
-      path: '/tv'
-      fullPath: '/tv'
-      preLoaderRoute: typeof LayoutTvRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/music': {
-      id: '/_layout/music'
-      path: '/music'
-      fullPath: '/music'
-      preLoaderRoute: typeof LayoutMusicRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/movies': {
-      id: '/_layout/movies'
-      path: '/movies'
-      fullPath: '/movies'
-      preLoaderRoute: typeof LayoutMoviesRouteImport
-      parentRoute: typeof LayoutRoute
-    }
     '/_layout/libraries': {
       id: '/_layout/libraries'
       path: '/libraries'
@@ -192,19 +183,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutLibrariesRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/tv/$showTitle': {
-      id: '/_layout/tv/$showTitle'
-      path: '/$showTitle'
-      fullPath: '/tv/$showTitle'
-      preLoaderRoute: typeof LayoutTvShowTitleRouteImport
-      parentRoute: typeof LayoutTvRoute
+    '/_layout/tv/': {
+      id: '/_layout/tv/'
+      path: '/tv'
+      fullPath: '/tv'
+      preLoaderRoute: typeof LayoutTvIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/music/': {
+      id: '/_layout/music/'
+      path: '/music'
+      fullPath: '/music'
+      preLoaderRoute: typeof LayoutMusicIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/movies/': {
+      id: '/_layout/movies/'
+      path: '/movies'
+      fullPath: '/movies'
+      preLoaderRoute: typeof LayoutMoviesIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/settings/scheduler': {
+      id: '/_layout/settings/scheduler'
+      path: '/settings/scheduler'
+      fullPath: '/settings/scheduler'
+      preLoaderRoute: typeof LayoutSettingsSchedulerRouteImport
+      parentRoute: typeof LayoutRoute
     }
     '/_layout/music/$artist': {
       id: '/_layout/music/$artist'
-      path: '/$artist'
+      path: '/music/$artist'
       fullPath: '/music/$artist'
       preLoaderRoute: typeof LayoutMusicArtistRouteImport
-      parentRoute: typeof LayoutMusicRoute
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/tv/$showId/': {
+      id: '/_layout/tv/$showId/'
+      path: '/tv/$showId'
+      fullPath: '/tv/$showId'
+      preLoaderRoute: typeof LayoutTvShowIdIndexRouteImport
+      parentRoute: typeof LayoutRoute
     }
     '/_layout/music/$artist/$album': {
       id: '/_layout/music/$artist/$album'
@@ -213,12 +232,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutMusicArtistAlbumRouteImport
       parentRoute: typeof LayoutMusicArtistRoute
     }
-    '/_layout/tv/$showTitle/season/$seasonNumber': {
-      id: '/_layout/tv/$showTitle/season/$seasonNumber'
-      path: '/season/$seasonNumber'
-      fullPath: '/tv/$showTitle/season/$seasonNumber'
-      preLoaderRoute: typeof LayoutTvShowTitleSeasonSeasonNumberRouteImport
-      parentRoute: typeof LayoutTvShowTitleRoute
+    '/_layout/tv/$showId/season/$seasonNumber': {
+      id: '/_layout/tv/$showId/season/$seasonNumber'
+      path: '/tv/$showId/season/$seasonNumber'
+      fullPath: '/tv/$showId/season/$seasonNumber'
+      preLoaderRoute: typeof LayoutTvShowIdSeasonSeasonNumberRouteImport
+      parentRoute: typeof LayoutRoute
     }
   }
 }
@@ -234,54 +253,26 @@ const LayoutMusicArtistRouteChildren: LayoutMusicArtistRouteChildren = {
 const LayoutMusicArtistRouteWithChildren =
   LayoutMusicArtistRoute._addFileChildren(LayoutMusicArtistRouteChildren)
 
-interface LayoutMusicRouteChildren {
-  LayoutMusicArtistRoute: typeof LayoutMusicArtistRouteWithChildren
-}
-
-const LayoutMusicRouteChildren: LayoutMusicRouteChildren = {
-  LayoutMusicArtistRoute: LayoutMusicArtistRouteWithChildren,
-}
-
-const LayoutMusicRouteWithChildren = LayoutMusicRoute._addFileChildren(
-  LayoutMusicRouteChildren,
-)
-
-interface LayoutTvShowTitleRouteChildren {
-  LayoutTvShowTitleSeasonSeasonNumberRoute: typeof LayoutTvShowTitleSeasonSeasonNumberRoute
-}
-
-const LayoutTvShowTitleRouteChildren: LayoutTvShowTitleRouteChildren = {
-  LayoutTvShowTitleSeasonSeasonNumberRoute:
-    LayoutTvShowTitleSeasonSeasonNumberRoute,
-}
-
-const LayoutTvShowTitleRouteWithChildren =
-  LayoutTvShowTitleRoute._addFileChildren(LayoutTvShowTitleRouteChildren)
-
-interface LayoutTvRouteChildren {
-  LayoutTvShowTitleRoute: typeof LayoutTvShowTitleRouteWithChildren
-}
-
-const LayoutTvRouteChildren: LayoutTvRouteChildren = {
-  LayoutTvShowTitleRoute: LayoutTvShowTitleRouteWithChildren,
-}
-
-const LayoutTvRouteWithChildren = LayoutTvRoute._addFileChildren(
-  LayoutTvRouteChildren,
-)
-
 interface LayoutRouteChildren {
   LayoutLibrariesRoute: typeof LayoutLibrariesRoute
-  LayoutMoviesRoute: typeof LayoutMoviesRoute
-  LayoutMusicRoute: typeof LayoutMusicRouteWithChildren
-  LayoutTvRoute: typeof LayoutTvRouteWithChildren
+  LayoutMusicArtistRoute: typeof LayoutMusicArtistRouteWithChildren
+  LayoutSettingsSchedulerRoute: typeof LayoutSettingsSchedulerRoute
+  LayoutMoviesIndexRoute: typeof LayoutMoviesIndexRoute
+  LayoutMusicIndexRoute: typeof LayoutMusicIndexRoute
+  LayoutTvIndexRoute: typeof LayoutTvIndexRoute
+  LayoutTvShowIdIndexRoute: typeof LayoutTvShowIdIndexRoute
+  LayoutTvShowIdSeasonSeasonNumberRoute: typeof LayoutTvShowIdSeasonSeasonNumberRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutLibrariesRoute: LayoutLibrariesRoute,
-  LayoutMoviesRoute: LayoutMoviesRoute,
-  LayoutMusicRoute: LayoutMusicRouteWithChildren,
-  LayoutTvRoute: LayoutTvRouteWithChildren,
+  LayoutMusicArtistRoute: LayoutMusicArtistRouteWithChildren,
+  LayoutSettingsSchedulerRoute: LayoutSettingsSchedulerRoute,
+  LayoutMoviesIndexRoute: LayoutMoviesIndexRoute,
+  LayoutMusicIndexRoute: LayoutMusicIndexRoute,
+  LayoutTvIndexRoute: LayoutTvIndexRoute,
+  LayoutTvShowIdIndexRoute: LayoutTvShowIdIndexRoute,
+  LayoutTvShowIdSeasonSeasonNumberRoute: LayoutTvShowIdSeasonSeasonNumberRoute,
 }
 
 const LayoutRouteWithChildren =

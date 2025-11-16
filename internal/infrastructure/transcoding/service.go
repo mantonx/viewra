@@ -139,6 +139,15 @@ func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, i
 		// Continue anyway - the operation can still proceed
 	}
 
+	// Get video info to select best audio track
+	videoInfo, err := GetVideoInfo(inputPath)
+	if err != nil {
+		s.logger.Warn("failed to get video info for audio track selection, using defaults",
+			slog.Int64("job_id", job.ID),
+			slog.String("error", err.Error()),
+		)
+	}
+
 	// Create progress handler
 	progressHandler := s.createProgressHandler(ctx, job)
 
@@ -148,6 +157,19 @@ func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, i
 		OutputDir:       outputDir,
 		Profile:         profile,
 		ProgressHandler: progressHandler,
+	}
+
+	// If we have video info with selected audio track, use it
+	if videoInfo != nil && videoInfo.SelectedAudioTrackIndex > 0 {
+		opts.UseSpecificAudioTrack = true
+		opts.AudioTrackIndex = videoInfo.SelectedAudioTrackIndex
+
+		s.logger.Info("using selected audio track",
+			slog.Int64("job_id", job.ID),
+			slog.Int("track_index", videoInfo.SelectedAudioTrackIndex),
+			slog.String("codec", videoInfo.AudioCodec),
+			slog.Int("channels", videoInfo.AudioChannels),
+		)
 	}
 
 	// Execute the operation

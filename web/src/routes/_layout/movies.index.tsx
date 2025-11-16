@@ -3,11 +3,11 @@ import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Card, CardContent, Input, Select } from '@/components/ui'
-import { MediaCard } from '@/components/media'
+import { MovieCard } from '@/components/media'
 import { VideoPlayer } from '@/components/media/VideoPlayer'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
 import { useMediaPlayback } from '@/lib/hooks/useMediaPlayback'
-import { extractLibraries } from '@/lib/utils/api'
+import { extractLibraries, getLibraryId, filterLibrariesByType } from '@/lib/utils/api'
 import { moviesApi } from '@/lib/api/movies'
 import { logger } from '@/lib/utils/logger'
 
@@ -24,13 +24,11 @@ const Movies = () => {
   const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
   const libraries = extractLibraries(librariesData)
 
-  // Get the first library ID or use 1 as default
-  const libraryId =
-    selectedLibrary === 'all'
-      ? libraries.length > 0
-        ? libraries[0].id || 1
-        : 1
-      : parseInt(selectedLibrary, 10)
+  // Filter to only movie libraries
+  const movieLibraries = filterLibrariesByType(libraries, 'movies')
+
+  // Get the library ID (defaults to first movie library when 'all' is selected)
+  const libraryId = getLibraryId(selectedLibrary, libraries, 'movies')
 
   const {
     data: moviesData,
@@ -129,8 +127,8 @@ const Movies = () => {
               value={selectedLibrary}
               onChange={(e) => setSelectedLibrary(e.target.value)}
               options={[
-                { value: 'all', label: 'All Libraries' },
-                ...libraries.map((lib) => ({
+                { value: 'all', label: 'All Movie Libraries' },
+                ...movieLibraries.map((lib) => ({
                   value: String(lib.id),
                   label: lib.name || '',
                 })),
@@ -158,31 +156,10 @@ const Movies = () => {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {filteredMovies.map((movie) => {
-            // Convert Movie to Media format for MediaCard
-            const mediaItem = {
-              id: movie.id,
-              library_id: movie.library_id,
-              title: movie.title,
-              file_path: movie.file_path,
-              file_size: movie.file_size,
-              duration: movie.duration,
-              is_extra: movie.is_extra,
-              width: movie.width,
-              height: movie.height,
-              video_codec: movie.video_codec,
-              audio_codec: movie.audio_codec,
-              bitrate: movie.bitrate,
-              frame_rate: movie.frame_rate,
-              container_format: movie.container_format,
-              created_at: movie.created_at,
-              updated_at: movie.updated_at,
-              type: 'movie' as const,
-            }
-
             return (
-              <MediaCard
+              <MovieCard
                 key={movie.id}
-                media={mediaItem}
+                movie={movie}
                 onClick={() => handlePlayMovie(movie.id)}
               />
             )
@@ -197,7 +174,7 @@ const Movies = () => {
   )
 }
 
-export const Route = createFileRoute('/_layout/movies')({
+export const Route = createFileRoute('/_layout/movies/')({
   component: Movies,
   validateSearch: (search: Record<string, unknown>) => {
     const id = search.id

@@ -876,26 +876,25 @@ See [PHASE_4_1_GAP_ANALYSIS.md](../PHASE_4_1_GAP_ANALYSIS.md) for detailed analy
 
 **Implementation Detail**: Images are cataloged in database with metadata but served directly from original file paths. The `LocalCachePath` field is reserved for Phase 4.3.
 
-### Phase 4.2: External Enrichment & Scheduler (Week 2)
+### Phase 4.2: Unified Task Scheduler (Week 2)
+
+**UPDATED 2025-11-16**: External APIs (TMDb, MusicBrainz) deferred to Phase 7 (Plugin System)
+
+**Scope**: Build scheduler infrastructure only
 
 1. **Unified Task Scheduler** (ADR 007)
    - Cron-based task scheduler with admin API
-   - Register image cleanup task (3 AM daily)
-   - Task management UI
+   - Register existing cleanup tasks (transcode, image)
+   - Task management UI at `/settings/scheduler`
+   - Manual trigger capability
+   - Execution history logging
 
-2. **TMDb Integration**
-   - Search and match movies/TV shows
-   - Download posters, backdrops, logos
-   - Store metadata in database with source tracking
+**Estimated Timeline**: 3-5 days
 
-3. **MusicBrainz Integration**
-   - Search and match artists/albums
-   - Download cover art metadata
-
-4. **Manual Management**
-   - API endpoints to upload custom images
-   - Priority system for multiple images per type
-   - UI to manage/delete images
+**Deferred to Phase 7 (Plugins)**:
+- TMDb Integration → TMDb Plugin
+- MusicBrainz Integration → MusicBrainz Plugin
+- Manual Image Upload → Not needed until external sources exist
 
 ### Phase 4.3: Image Caching & Transformations (Week 3)
 
@@ -985,11 +984,12 @@ See [PHASE_4_1_GAP_ANALYSIS.md](../PHASE_4_1_GAP_ANALYSIS.md) for detailed analy
 
 ### Phase 4.2 📋
 
-- 📋 TMDb can download missing movie posters
-- 📋 MusicBrainz can download missing album art
-- 📋 Unified scheduler runs image cleanup daily
-- 📋 Manual image upload works
-- 📋 Priority system for multiple images
+- 📋 Unified scheduler starts with application
+- 📋 Tasks can be manually triggered via API
+- 📋 Scheduler UI displays task status at `/settings/scheduler`
+- 📋 Execution history persists and displays
+- 📋 Image cleanup task registered (ready for Phase 4.3)
+- 📋 Transcode cleanup task migrated to scheduler
 
 ### Phase 4.3 📋
 

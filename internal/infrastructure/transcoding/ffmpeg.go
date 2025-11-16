@@ -47,10 +47,12 @@ func newFFmpegExecutorWithConfig(config *TranscodeConfig) (*ffmpegExecutor, erro
 
 // TranscodeOptions contains options for the transcode operation.
 type TranscodeOptions struct {
-	InputPath       string
-	OutputDir       string
-	Profile         *QualityProfile
-	ProgressHandler func(progress int)
+	InputPath            string
+	OutputDir            string
+	Profile              *QualityProfile
+	ProgressHandler      func(progress int)
+	AudioTrackIndex      int  // Specific audio track to use (for -map 0:a:N)
+	UseSpecificAudioTrack bool // If true, use AudioTrackIndex; if false, use default (first)
 }
 
 // TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.
@@ -227,6 +229,16 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	// Input file
 	args = append(args, "-i", opts.InputPath)
 
+	// Stream mapping - select specific video and audio streams
+	args = append(args, "-map", "0:v:0") // Use first video stream
+	if opts.UseSpecificAudioTrack {
+		// Use specific audio track by stream index
+		args = append(args, "-map", fmt.Sprintf("0:%d", opts.AudioTrackIndex))
+	} else {
+		// Use default (first audio stream)
+		args = append(args, "-map", "0:a:0")
+	}
+
 	// Video encoding settings (codec varies by hardware acceleration)
 	videoCodec, videoPreset := e.getVideoCodecAndPreset()
 	args = append(args,
@@ -312,6 +324,16 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 	// Input file
 	args = append(args, "-i", opts.InputPath)
 
+	// Stream mapping - select specific video and audio streams
+	args = append(args, "-map", "0:v:0") // Use first video stream
+	if opts.UseSpecificAudioTrack {
+		// Use specific audio track by stream index
+		args = append(args, "-map", fmt.Sprintf("0:%d", opts.AudioTrackIndex))
+	} else {
+		// Use default (first audio stream)
+		args = append(args, "-map", "0:a:0")
+	}
+
 	// Copy video and audio streams without re-encoding
 	args = append(args,
 		"-c:v", "copy", // Copy video stream
@@ -355,6 +377,16 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 
 	// Input file
 	args = append(args, "-i", opts.InputPath)
+
+	// Stream mapping - select specific video and audio streams
+	args = append(args, "-map", "0:v:0") // Use first video stream
+	if opts.UseSpecificAudioTrack {
+		// Use specific audio track by stream index
+		args = append(args, "-map", fmt.Sprintf("0:%d", opts.AudioTrackIndex))
+	} else {
+		// Use default (first audio stream)
+		args = append(args, "-map", "0:a:0")
+	}
 
 	// Copy video stream without re-encoding
 	args = append(args, "-c:v", "copy")

@@ -1,5 +1,8 @@
 import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan } from '@/lib/api'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
+import { useToast } from '@/lib/hooks/useToast'
+import { useConfirm } from '@/lib/hooks/useConfirm'
+import { getErrorMessage } from '@/lib/utils/error'
 import { Button } from '@/components/ui'
 import type { LibraryCardProps } from './LibraryCard.types'
 
@@ -7,21 +10,32 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const invalidateLibraries = useInvalidateLibraries()
   const deleteMutation = useDeleteApiLibrariesId()
   const scanMutation = usePostApiLibrariesIdScan()
+  const toast = useToast()
+  const { confirm } = useConfirm()
 
   const handleDelete = async () => {
     if (!library.id || !library.name) {
       return
     }
-    if (!confirm(`Delete library "${library.name}"?`)) {
+
+    const confirmed = await confirm({
+      title: 'Delete Library',
+      message: `Are you sure you want to delete "${library.name}"? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
       return
     }
 
     try {
       await deleteMutation.mutateAsync({ id: library.id })
       invalidateLibraries()
+      toast.success('Library deleted successfully')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      alert(`Failed to delete library: ${message}`)
+      toast.error(getErrorMessage(error, 'Failed to delete library'))
     }
   }
 
@@ -31,11 +45,10 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
     }
     try {
       await scanMutation.mutateAsync({ id: library.id })
-      alert('Scan started successfully! The library will be updated shortly.')
+      toast.success('Scan started successfully! The library will be updated shortly.')
       invalidateLibraries()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      alert(`Failed to start scan: ${message}`)
+      toast.error(getErrorMessage(error, 'Failed to start scan'))
     }
   }
 

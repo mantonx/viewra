@@ -270,7 +270,9 @@ See [PHASE_4_1_GAP_ANALYSIS.md](./PHASE_4_1_GAP_ANALYSIS.md) for detailed analys
 
 **Deferred to Phase 4.2** 📋:
 - 📋 **Scheduler Integration**: Register cleanup task with unified scheduler
-- 📋 **External APIs**: TMDb/MusicBrainz image downloads
+
+**Deferred to Phase 7** 📋:
+- 📋 **External APIs**: TMDb/MusicBrainz image downloads (via plugins)
 - 📋 **Unit Tests**: Image extraction and cleanup logic
 
 **Asset Survey Results**:
@@ -279,26 +281,39 @@ See [PHASE_4_1_GAP_ANALYSIS.md](./PHASE_4_1_GAP_ANALYSIS.md) for detailed analys
 - Music: 5,653+ album covers, disc art, artist fanart
 - **Total**: ~36,000+ existing image assets ready to catalog
 
-#### Phase 4.2: Task Scheduler & External APIs 📋 (Week 2)
+#### Phase 4.2: Unified Task Scheduler 📋 IN PROGRESS (Nov 16, 2025)
 
-**Scheduler System** (ADR 007):
-- 📋 **Unified Scheduler**: Cron-based task scheduler with admin API
-- 📋 **Image Cache Cleanup**: Daily orphan detection and removal (3 AM default)
-- 📋 **Transcode Cleanup**: Migrate existing cleanup to unified scheduler
-- 📋 **Future Tasks**: DB vacuum, library health checks, log rotation
-- 📋 **Admin UI**: Task management, manual triggers, execution history
+**Status**: Implementing scheduler infrastructure only (External APIs deferred to Phase 7)
 
-**External API Integration**:
-- 📋 **TMDb Integration**: Movie/TV search and details, poster/backdrop downloads, cast and crew information
-- 📋 **MusicBrainz Integration**: Artist/album search, track matching, cover art fetching
-- 📋 **Image Download**: Fetch missing images from external sources, cache locally
-- 📋 **Manual Management**: Upload custom images, set priorities, override matches
+**UPDATED 2025-11-16**: Revised scope - TMDb/MusicBrainz deferred to plugin system
 
-#### Phase 4.3: Advanced Features 📋 (Optional)
-- 📋 **Plugin System**: Plugin registry, plugin manager, loading/unloading, configuration storage, plugin SDK interfaces
-- 📋 **Rich Metadata**: Collections support (MCU, Star Wars), people/credits entities, manual metadata matching UI
-- 📋 **Image Transformations**: On-demand resizing, format conversion (WebP), quality control
-- 📋 **Image Cleanup**: LRU eviction for downloaded images, orphan detection
+**Deliverables**:
+- 📋 **Scheduler Core**: Cron-based task scheduler using `robfig/cron/v3`
+- 📋 **Task Registration**: Register existing cleanup tasks (transcode, image)
+- 📋 **Database Schema**: Execution history and task status tracking
+- 📋 **Admin API**: List tasks, manual triggers, execution history endpoints
+- 📋 **Frontend UI**: Simple task management at `/settings/scheduler`
+- 📋 **Graceful Shutdown**: Tasks complete before application exit
+
+**Estimated Timeline**: 3-5 days
+
+See [ADR 007: Unified Task Scheduler](./decisions/007-unified-task-scheduler.md) for detailed specification.
+
+#### Phase 4.3: Image Caching & Transformations 📋 (Future)
+
+**Scope**: Implement hash-based cache per ADR 006 specification
+
+**Deliverables**:
+- 📋 **Cache Service**: Copy images to `data/cache/images/` with hash-based filenames
+- 📋 **Cache Population**: Background job to populate cache for existing images
+- 📋 **Image Deduplication**: Share cache files across identical images (by hash)
+- 📋 **Image Transformations**: On-demand resizing (`?width=300`), WebP conversion (`?format=webp`)
+- 📋 **LRU Eviction**: Disk space monitoring and cache eviction
+- 📋 **Serving Updates**: Prefer cache over original, fallback gracefully
+
+**Estimated Timeline**: 6-8 hours
+
+See [PHASE_4_1_GAP_ANALYSIS.md](./PHASE_4_1_GAP_ANALYSIS.md) for implementation details.
 
 ### Success Criteria
 
@@ -320,13 +335,13 @@ See [PHASE_4_1_GAP_ANALYSIS.md](./PHASE_4_1_GAP_ANALYSIS.md) for detailed analys
 - 📋 Image resizing and WebP conversion (deferred to Phase 4.3)
 - 📋 Hash-based cache deduplication (deferred to Phase 4.3)
 
-**External Enrichment** 📋
-- 📋 TMDb correctly identifies movies by title + year
-- 📋 TMDb posters and backdrops download successfully for missing images
-- 📋 MusicBrainz cover art downloads for albums without local artwork
+**External Enrichment** 📋 (Deferred to Phase 7 - Plugin System)
+- 📋 TMDb plugin correctly identifies movies by title + year
+- 📋 TMDb plugin downloads posters and backdrops for missing images
+- 📋 MusicBrainz plugin downloads cover art for albums without local artwork
 - 📋 Cast and crew display on media detail pages
 - 📋 Collections group related movies
-- 📋 Can manually override incorrect matches and upload custom images
+- 📋 Can manually override incorrect matches via plugin UI
 
 ---
 

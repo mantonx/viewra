@@ -1,17 +1,40 @@
 package media
 
+import "time"
+
 // Movie represents a movie media item with movie-specific metadata
 type Movie struct {
 	Media // Embedded base media fields
 
-	// Movie-specific fields
-	Year        int
-	IMDbID      string
-	TMDbID      int
-	Director    string
-	Rating      float32 // e.g., 7.5
-	Genres      []string
-	Description string
+	// Basic movie information
+	Year             int
+	ReleaseDate      time.Time
+	OriginalTitle    string
+	SortTitle        string
+	RuntimeMinutes   int
+
+	// External IDs
+	IMDbID string
+	TMDbID int
+
+	// People
+	Director string
+	Cast     []string
+
+	// Content information
+	Genre              []string
+	Plot               string
+	Tagline            string
+	ContentRating      string // e.g., "PG-13", "R"
+	MaturityRating     int    // Numeric rating 0-10
+	ContentAdvisories  []string
+
+	// Production details
+	Budget            int64
+	Revenue           int64
+	OriginalLanguage  string
+	CountryOfOrigin   string
+	AwardsSummary     string
 }
 
 // IsValid validates the movie entity including base media validation
@@ -28,10 +51,14 @@ func (m *Movie) IsValid() error {
 		}
 	}
 
-	if m.Rating < 0 || m.Rating > 10 {
-		if m.Rating != 0 { // 0 is acceptable for no rating
+	if m.MaturityRating < 0 || m.MaturityRating > 10 {
+		if m.MaturityRating != 0 { // 0 is acceptable for no rating
 			return ErrInvalidRating
 		}
+	}
+
+	if m.RuntimeMinutes < 0 {
+		return ErrInvalidDuration
 	}
 
 	return nil

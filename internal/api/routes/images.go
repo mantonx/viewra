@@ -1,0 +1,21 @@
+package routes
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/viewra/viewra/internal/api/handlers"
+)
+
+// RegisterImageRoutes registers all image-related routes
+func RegisterImageRoutes(r *gin.Engine, h *handlers.ImagesHandler) {
+	// Image metadata and serving
+	images := r.Group("/api/images")
+	{
+		images.GET("/:id", h.GetImage)           // Get image metadata
+		images.GET("/:id/file", h.ServeImage)    // Serve actual image file
+	}
+
+	// Media-specific image endpoints
+	r.GET("/api/media/:id/images", h.GetMediaImages)
+	r.GET("/api/movies/:id/images", h.GetMovieImages)
+	r.GET("/api/tv/episodes/:id/images", h.GetEpisodeImages)
+}
