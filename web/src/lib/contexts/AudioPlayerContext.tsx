@@ -259,8 +259,26 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }
 
   const toggleShuffle = () => {
-    setIsShuffle(!isShuffle)
-    // TODO: Implement shuffle queue reordering
+    const newShuffleState = !isShuffle
+    setIsShuffle(newShuffleState)
+
+    if (newShuffleState && queue.length > 1) {
+      // Shuffle the queue while keeping the current track at the front
+      const currentTrackInQueue = queue[currentIndex]
+      const remainingTracks = queue.filter((_, idx) => idx !== currentIndex)
+
+      // Fisher-Yates shuffle algorithm
+      const shuffled = [...remainingTracks]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+
+      // Put current track at the beginning
+      const newQueue = [currentTrackInQueue, ...shuffled]
+      setQueue(newQueue)
+      setCurrentIndex(0)
+    }
   }
 
   const toggleRepeat = () => {
