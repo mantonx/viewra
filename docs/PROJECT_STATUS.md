@@ -1,10 +1,10 @@
 # ViewRA Project Status
 
-**Last Updated**: November 15, 2025
+**Last Updated**: November 16, 2025
 
-## Current Phase: Phase 4 Complete (Backend & Frontend) ✅
+## Current Phase: Phase 4.2 Complete - Unified Task Scheduler ✅
 
-**Overall Progress**: Phase 4 - Enhanced Metadata (NFO/ID3 complete, External APIs pending)
+**Overall Progress**: Phase 4 - Enhanced Metadata + Task Scheduler (NFO/ID3 complete, Scheduler complete, External APIs pending)
 **Next Phase**: Phase 4 continuation - External metadata APIs (TMDb, MusicBrainz)
 
 ---
@@ -13,22 +13,23 @@
 
 ### Recently Completed ✅
 
+- **Unified Task Scheduler** (Nov 16) - Complete scheduler management UI with user-friendly controls
+- **Schedule Editor** (Nov 16) - Visual schedule editor with daily/weekly/monthly presets and time picker
+- **Scheduler API** (Nov 16) - Full REST API for task management (trigger, enable/disable, update schedules)
 - **Audio Codec Compatibility Fix** (Nov 15) - Fixed AC3/DTS/TrueHD/FLAC transcoding detection
 - **Music UI Enhancement** (Nov 15) - Album cards and track listings display ID3 metadata (year, genre, bitrate)
 - **TV Episode UI Enhancement** (Nov 15) - Episode cards display air dates, descriptions, IMDb/TVDb IDs
 - **Movie UI Enhancement** (Nov 15) - Movie cards display plot, director, genre, year, content rating
 - **NFO Integration** (Nov 15) - Movie and TV episode NFO parsing integrated into scanner
-- **Phase 3: TV Shows & Music** (Nov 15) - Movie/TV/Music repositories with full metadata support
-- **Architecture Refactoring** (Nov 15) - Eliminated ID3 parser duplication, clean architecture compliance
-- **Test Fixes** (Nov 15) - Fixed all broken tests, build verified
 
 ### Current Work 🚧
 
-- 🎉 Phase 4 NFO & ID3 Integration - COMPLETE
-- ✅ NFO file parsing for movies and TV shows
-- ✅ Music ID3 tag extraction integration
-- ✅ Frontend enhanced to display rich metadata across all media types
-- ✅ Audio codec compatibility fix (AC3, DTS, TrueHD, FLAC, multi-channel)
+- 🎉 Phase 4.2 Unified Task Scheduler - COMPLETE
+- ✅ Scheduler backend with cron-based task execution
+- ✅ Scheduler management UI with user-friendly controls
+- ✅ Visual schedule editor with time picker and frequency presets
+- ✅ Task history and execution tracking
+- ✅ Image cache cleanup task integrated
 - 📋 External API integration (TMDb, MusicBrainz) - NEXT UP
 
 ### Key Metrics
@@ -406,6 +407,97 @@ TRANSCODE_KEEP_FAILED_HOURS=24              # Keep failed for 24h
 - ✅ Frontend displays year, genre, bitrate for music tracks
 - 📋 TMDb API integration for missing metadata
 - 📋 MusicBrainz API for artist/album metadata
+
+### Phase 4.2: Unified Task Scheduler ✅ (Nov 16, 2025)
+
+**Goal**: Centralized task scheduler for automated maintenance and background jobs
+
+**Status**: Complete ✅
+**Actual Effort**: 1 day
+
+**Implementation Complete**
+- ✅ **Backend Scheduler Infrastructure**: Cron-based task execution with gorilla/cron
+  - Task registration with ID, name, description, schedule
+  - Enable/disable task functionality
+  - Manual task triggering
+  - Execution history tracking with success/failure status
+  - Next run time calculation
+  - Database persistence for execution logs
+
+- ✅ **Scheduler API**: Full REST API for task management
+  - `GET /api/admin/scheduler/tasks` - List all tasks
+  - `GET /api/admin/scheduler/tasks/:id` - Get task status
+  - `POST /api/admin/scheduler/tasks/:id/trigger` - Manual trigger
+  - `GET /api/admin/scheduler/tasks/:id/history` - Execution history
+  - `POST /api/admin/scheduler/tasks/:id/enable` - Enable task
+  - `POST /api/admin/scheduler/tasks/:id/disable` - Disable task
+  - `PUT /api/admin/scheduler/tasks/:id/schedule` - Update schedule
+
+- ✅ **User-Friendly Schedule Editor**: Visual schedule management UI
+  - **Simple Mode**: Daily/Weekly/Monthly frequency selector
+  - **Time Picker**: react-datepicker with 15-minute intervals
+  - **Day Selector**: Dropdown for weekly (day of week) and monthly (day of month)
+  - **Advanced Mode**: Raw cron expression editor for power users
+  - **Live Preview**: Real-time human-readable schedule display
+  - **Cron Utilities**: Conversion between human-readable and cron formats
+
+- ✅ **Scheduler Management UI**: Complete task management interface
+  - Task list with real-time status updates (refreshes every 10 seconds)
+  - Visual states for enabled/disabled tasks
+  - Execution history modal with sortable table
+  - Toast notifications for all operations
+  - Human-readable schedule display (e.g., "Every Monday at 9:00 AM")
+  - Prominent green "Enable Task" button for disabled tasks
+
+- ✅ **Image Cache Cleanup Task**: Automated maintenance
+  - Scheduled task to remove orphaned image files
+  - Default schedule: Daily at 3:00 AM
+  - Configurable via UI schedule editor
+
+**Key Features**
+- Manual task triggering with instant feedback
+- Enable/disable tasks with visual state changes
+- View execution history with duration and status
+- Update schedules using friendly UI or raw cron expressions
+- Real-time schedule preview and validation
+- Human-readable schedule display throughout UI
+
+**Architecture Highlights**
+- Clean separation: Domain (scheduler logic) → Infrastructure (cron execution) → API (handlers) → Frontend (UI)
+- Database persistence for execution history
+- Type-safe cron utilities with validation
+- Graceful error handling and user feedback
+- API client with proper `data` field to JSON body conversion
+
+**Key Files**
+- Backend:
+  - [scheduler.go](../internal/infrastructure/scheduler/scheduler.go) - Core scheduler with cron execution
+  - [execution_logger.go](../internal/infrastructure/scheduler/execution_logger.go) - Database logging
+  - [scheduler.go](../internal/api/handlers/scheduler.go) - API handlers
+  - [scheduler.go](../internal/api/routes/scheduler.go) - Route registration
+  - [scheduler.sql](../internal/infrastructure/database/queries/sqlite/scheduler.sql) - Database queries
+  - [000008_add_scheduler_tables.up.sql](../migrations/000008_add_scheduler_tables.up.sql) - Migration
+
+- Frontend:
+  - [settings.scheduler.tsx](../web/src/routes/_layout/settings.scheduler.tsx) - Main scheduler UI
+  - [ScheduleEditor.tsx](../web/src/components/scheduler/ScheduleEditor.tsx) - Schedule editor modal
+  - [cron.ts](../web/src/lib/utils/cron.ts) - Cron conversion utilities
+  - [scheduler.ts](../web/src/lib/api/scheduler.ts) - API client
+  - [scheduler.ts](../web/src/lib/types/scheduler.ts) - TypeScript types
+  - [mutator/index.ts](../web/src/lib/api/mutator/index.ts) - Fixed data to body conversion
+
+**Success Criteria** (All Met ✅)
+- ✅ Tasks execute automatically on cron schedule
+- ✅ Users can trigger tasks manually via UI
+- ✅ Users can enable/disable tasks with visual feedback
+- ✅ Users can view execution history with success/failure status
+- ✅ Users can update schedules using friendly time picker interface
+- ✅ Advanced users can edit raw cron expressions
+- ✅ Image cache cleanup runs automatically on schedule
+- ✅ All operations provide toast notification feedback
+
+**Documentation**
+- [ADR 007: Unified Task Scheduler](./decisions/007-unified-task-scheduler.md)
 
 ### Phase 5: User Management (Weeks 14-16)
 
