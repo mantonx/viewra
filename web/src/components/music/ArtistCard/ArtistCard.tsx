@@ -1,3 +1,4 @@
+import { MediaPoster } from '@/components/media/MediaPoster'
 import type { ArtistCardProps } from './ArtistCard.types'
 
 const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
@@ -10,11 +11,15 @@ const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
       className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
       onClick={handleClick}
     >
-      {/* Thumbnail with artist icon */}
-      <div className="aspect-square bg-linear-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white text-5xl relative">
-        <span role="img" aria-label="Artist">
-          🎤
-        </span>
+      {/* Thumbnail */}
+      <div className="aspect-square relative">
+        <MediaPoster
+          mediaId={artist.id}
+          alt={artist.name}
+          className="w-full h-full absolute inset-0"
+          preset="medium"
+          fallbackIcon="🎤"
+        />
         {/* Badge overlay */}
         <div className="absolute top-2 left-2 right-2">
           <span className="px-2 py-1 text-xs font-semibold bg-black bg-opacity-75 text-white rounded">

@@ -1,3 +1,4 @@
+import { MediaPoster } from '@/components/media/MediaPoster'
 import type { AlbumCardProps } from './AlbumCard.types'
 
 const AlbumCard = ({ album, onClick }: AlbumCardProps) => {
@@ -10,11 +11,15 @@ const AlbumCard = ({ album, onClick }: AlbumCardProps) => {
       className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-xl hover:scale-105 transition-all"
       onClick={handleClick}
     >
-      {/* Album art placeholder */}
-      <div className="aspect-square bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-5xl relative">
-        <span role="img" aria-label="Album">
-          💿
-        </span>
+      {/* Album art */}
+      <div className="aspect-square relative">
+        <MediaPoster
+          mediaId={album.id}
+          alt={album.album}
+          className="w-full h-full absolute inset-0"
+          preset="medium"
+          fallbackIcon="💿"
+        />
         {/* Badge overlays */}
         <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
           <span className="px-2 py-1 text-xs font-semibold bg-black bg-opacity-75 text-white rounded">
