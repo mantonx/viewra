@@ -6,6 +6,7 @@ type TVEpisode struct {
 
 	// TV-specific fields
 	ShowTitle    string
+	SeasonID     int64 // Foreign key to tv_seasons
 	Season       int
 	Episode      int
 	EpisodeTitle string // Different from Media.Title which is the filename

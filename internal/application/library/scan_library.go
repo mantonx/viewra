@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/viewra/viewra/internal/domain/images"
@@ -27,9 +28,11 @@ type ScanLibraryUseCase struct {
 	scanJobRepo          scanner.ScanJobRepository
 	extractMovieImages   ExtractMovieImagesExecutor
 	extractEpisodeImages ExtractTVEpisodeImagesExecutor
+	extractShowImages    ExtractTVShowImagesExecutor
+	extractSeasonImages  ExtractTVSeasonImagesExecutor
 	extractMusicImages   ExtractMusicAlbumImagesExecutor
-	imageRepo    images.Repository
-	imageCleanup ImageCleanupExecutor
+	imageRepo            images.Repository
+	imageCleanup         ImageCleanupExecutor
 }
 
 // ExtractMovieImagesExecutor interface for movie image extraction
@@ -40,6 +43,16 @@ type ExtractMovieImagesExecutor interface {
 // ExtractTVEpisodeImagesExecutor interface for TV episode image extraction
 type ExtractTVEpisodeImagesExecutor interface {
 	Execute(ctx context.Context, episodeFilePath string, mediaType images.MediaType, entityID int, mediaID *int) error
+}
+
+// ExtractTVShowImagesExecutor interface for TV show image extraction
+type ExtractTVShowImagesExecutor interface {
+	Execute(ctx context.Context, showDir string, mediaType images.MediaType, entityID int) error
+}
+
+// ExtractTVSeasonImagesExecutor interface for TV season image extraction
+type ExtractTVSeasonImagesExecutor interface {
+	Execute(ctx context.Context, showDir string, seasonNumber int, mediaType images.MediaType, entityID int) error
 }
 
 // ExtractMusicAlbumImagesExecutor interface for music album image extraction
@@ -57,6 +70,8 @@ func NewScanLibraryUseCase(
 	scanJobRepo scanner.ScanJobRepository,
 	extractMovieImages ExtractMovieImagesExecutor,
 	extractEpisodeImages ExtractTVEpisodeImagesExecutor,
+	extractShowImages ExtractTVShowImagesExecutor,
+	extractSeasonImages ExtractTVSeasonImagesExecutor,
 	extractMusicImages ExtractMusicAlbumImagesExecutor,
 	imageRepo images.Repository,
 	imageCleanup ImageCleanupExecutor,
@@ -70,6 +85,8 @@ func NewScanLibraryUseCase(
 		scanJobRepo:          scanJobRepo,
 		extractMovieImages:   extractMovieImages,
 		extractEpisodeImages: extractEpisodeImages,
+		extractShowImages:    extractShowImages,
+		extractSeasonImages:  extractSeasonImages,
 		extractMusicImages:   extractMusicImages,
 		imageRepo:            imageRepo,
 		imageCleanup:         imageCleanup,
@@ -128,7 +145,22 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	resultChan := make(chan scanner.ScanResult, 100)
 
 	// Start result processor in separate goroutine
-	foundFilePaths := make(chan string, 100)
+	// Use unbuffered channel and drain in separate goroutine to avoid deadlock
+	foundFilePaths := make(chan string)
+	foundFiles := make(map[string]bool)
+	foundFilesMu := sync.Mutex{}
+
+	// Goroutine to collect found file paths
+	foundFilesCollectorDone := make(chan struct{})
+	go func() {
+		defer close(foundFilesCollectorDone)
+		for filePath := range foundFilePaths {
+			foundFilesMu.Lock()
+			foundFiles[filePath] = true
+			foundFilesMu.Unlock()
+		}
+	}()
+
 	processDone := make(chan struct{})
 	go func() {
 		defer close(processDone)
@@ -142,11 +174,8 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	// Wait for result processing to complete
 	<-processDone
 
-	// Collect all found file paths
-	foundFiles := make(map[string]bool)
-	for filePath := range foundFilePaths {
-		foundFiles[filePath] = true
-	}
+	// Wait for found files collector to finish
+	<-foundFilesCollectorDone
 
 	// Clean up stale media (files that exist in DB but not on disk)
 	if scanErr == nil && uc.imageRepo != nil && uc.imageCleanup != nil {
@@ -473,6 +502,10 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 				fmt.Printf("failed to extract images for episode %s: %v\n", result.FilePath, err)
 			}
 		}
+
+		// Extract and catalog images for the show and season
+		showDir := filepath.Dir(filepath.Dir(result.FilePath))
+		uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, season)
 		return
 	}
 
@@ -490,6 +523,11 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 			fmt.Printf("failed to extract images for episode %s: %v\n", result.FilePath, err)
 		}
 	}
+
+	// Extract and catalog images for the show and season
+	// Derive show directory from episode path: /path/to/show/Season XX/episode.mkv -> /path/to/show
+	showDir := filepath.Dir(filepath.Dir(result.FilePath))
+	uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, season)
 }
 
 // processMusicTrack creates or updates a music track entry
@@ -580,6 +618,14 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		if err := uc.musicRepo.UpdateMusicTrack(ctx, track); err != nil {
 			fmt.Printf("failed to update music track metadata %s: %v\n", result.FilePath, err)
 		}
+		// Extract album images (even for existing tracks to populate cache)
+		if uc.extractMusicImages != nil && track.Album != "" {
+			albumDir := filepath.Dir(result.FilePath)
+			entityID := int(track.Media.ID)
+			if err := uc.extractMusicImages.Execute(ctx, albumDir, images.MediaTypeMusicAlbum, entityID); err != nil {
+				fmt.Printf("failed to extract images for album %s: %v\n", track.Album, err)
+			}
+		}
 		return
 	}
 
@@ -590,11 +636,9 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		return
 	}
 
-	// Extract and catalog images for the album (if not already done)
-	// We extract album images from the directory containing the track
+	// Extract and catalog images for the album
 	if uc.extractMusicImages != nil && track.Album != "" {
 		albumDir := filepath.Dir(result.FilePath)
-		// Use track.Media.ID as entityID since we don't have a separate album entity yet
 		entityID := int(track.Media.ID)
 		if err := uc.extractMusicImages.Execute(ctx, albumDir, images.MediaTypeMusicAlbum, entityID); err != nil {
 			fmt.Printf("failed to extract images for album %s: %v\n", track.Album, err)
@@ -669,6 +713,38 @@ func (uc *ScanLibraryUseCase) cleanupStaleMedia(ctx context.Context, libraryID i
 	if uc.imageCleanup != nil && len(hashesToClean) > 0 {
 		if err := uc.imageCleanup.CleanCacheForHashes(ctx, hashesToClean); err != nil {
 			fmt.Printf("warning: failed to clean image cache during library scan: %v\n", err)
+		}
+	}
+}
+
+// extractTVShowAndSeasonImages extracts images for a TV show and season
+// This is a helper to avoid code duplication between create and update paths
+func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, showTitle string, libraryID int64, showDir string, seasonNumber int) {
+	// Get show ID by title (show was created/ensured by CreateTVEpisode)
+	show, err := uc.tvRepo.GetTVShowByTitle(ctx, libraryID, showTitle)
+	if err != nil {
+		fmt.Printf("failed to get TV show for image extraction: %v\n", err)
+		return
+	}
+
+	// Extract show images
+	if uc.extractShowImages != nil {
+		if err := uc.extractShowImages.Execute(ctx, showDir, images.MediaTypeTVShow, int(show.ID)); err != nil {
+			fmt.Printf("failed to extract images for show %s: %v\n", showTitle, err)
+		}
+	}
+
+	// Get season ID
+	season, err := uc.tvRepo.GetTVSeasonByShowAndNumber(ctx, show.ID, int64(seasonNumber))
+	if err != nil {
+		fmt.Printf("failed to get TV season for image extraction: %v\n", err)
+		return
+	}
+
+	// Extract season images
+	if uc.extractSeasonImages != nil {
+		if err := uc.extractSeasonImages.Execute(ctx, showDir, seasonNumber, images.MediaTypeTVSeason, int(season.ID)); err != nil {
+			fmt.Printf("failed to extract images for season %d: %v\n", seasonNumber, err)
 		}
 	}
 }

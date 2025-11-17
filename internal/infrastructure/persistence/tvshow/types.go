@@ -46,6 +46,7 @@ func sqliteEpisodeToDomain(row sqlc_sqlite.GetTVEpisodeByMediaIDRow) *media.TVEp
 			UpdatedAt:       common.ParseNullTime(row.UpdatedAt),
 		},
 		ShowTitle:    "", // Will be populated from show lookup if needed
+		SeasonID:     row.SeasonID,
 		Season:       int(row.SeasonNumber),
 		Episode:      int(row.EpisodeNumber),
 		EpisodeTitle: common.ParseNullString(row.EpisodeTitle),
@@ -110,6 +111,7 @@ func sqliteEpisodeRowToDomain(fields episodeFields) *media.TVEpisode {
 			UpdatedAt:       common.ParseNullTime(fields.UpdatedAt),
 		},
 		ShowTitle:    "", // Will be populated from show lookup if needed
+		SeasonID:     fields.SeasonID,
 		Season:       int(fields.SeasonNumber),
 		Episode:      int(fields.EpisodeNumber),
 		EpisodeTitle: common.ParseNullString(fields.EpisodeTitle),

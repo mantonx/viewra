@@ -83,6 +83,8 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 	// Initialize image extraction use cases (needed for scanner)
 	extractMovieImages := images.NewExtractMovieImagesUseCase(imageRepository, imageCacheService, imageTransformer)
 	extractEpisodeImages := images.NewExtractTVEpisodeImagesUseCase(imageRepository, imageCacheService, imageTransformer)
+	extractShowImages := images.NewExtractTVShowImagesUseCase(imageRepository, imageCacheService, imageTransformer)
+	extractSeasonImages := images.NewExtractTVSeasonImagesUseCase(imageRepository, imageCacheService, imageTransformer)
 	extractMusicImages := images.NewExtractMusicAlbumImagesUseCase(imageRepository, imageCacheService, imageTransformer)
 
 	// Initialize media use cases
@@ -135,6 +137,8 @@ func NewContainer(db *sql.DB, dbDriver string, config api.ServerConfig, logger *
 		scanJobRepository,
 		extractMovieImages,
 		extractEpisodeImages,
+		extractShowImages,
+		extractSeasonImages,
 		extractMusicImages,
 		imageRepository,
 		imageCleanup,

@@ -50,4 +50,7 @@ type Repository interface {
 
 	// GetByHash retrieves all images with a specific file hash (for deduplication checks)
 	GetByHash(ctx context.Context, hash string) ([]*Image, error)
+
+	// HasImagesForEntity checks if an entity has any images
+	HasImagesForEntity(ctx context.Context, mediaType MediaType, entityID int) (bool, error)
 }

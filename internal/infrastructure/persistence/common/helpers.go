@@ -2,6 +2,8 @@ package common
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -171,10 +173,19 @@ func IsUniqueConstraintError(err error) bool {
 		return false
 	}
 	errStr := err.Error()
-	// SQLite
-	if sql.ErrNoRows != err && (err.Error() == "UNIQUE constraint failed" || err.Error() == "constraint failed") {
-		return true
+	// SQLite - use Contains to match detailed constraint messages
+	isUnique := sql.ErrNoRows != err && (strings.Contains(errStr, "UNIQUE constraint failed") || strings.Contains(errStr, "constraint failed"))
+	if !isUnique {
+		// PostgreSQL
+		isUnique = strings.Contains(errStr, "duplicate key value violates unique constraint")
 	}
-	// PostgreSQL
-	return errStr == "pq: duplicate key value violates unique constraint"
+
+	// DEBUG: Log the check result
+	if isUnique {
+		fmt.Printf("[DEBUG] IsUniqueConstraintError: TRUE for error: %v\n", errStr)
+	} else if strings.Contains(errStr, "constraint") || strings.Contains(errStr, "UNIQUE") {
+		fmt.Printf("[DEBUG] IsUniqueConstraintError: FALSE for error: %v\n", errStr)
+	}
+
+	return isUnique
 }

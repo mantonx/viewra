@@ -40,6 +40,7 @@ export interface TVEpisodeResponse {
 
   // TV Episode-specific fields
   show_title: string
+  season_id: number
   season: number
   episode: number
   episode_title?: string // actual episode name
@@ -64,6 +65,7 @@ export interface ListTVEpisodesResponse {
 
 export interface SeasonGroup {
   season: number
+  season_id?: number
   episode_count: number
   episodes: TVEpisodeResponse[]
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/viewra/viewra/internal/application/images"
+	domainimages "github.com/viewra/viewra/internal/domain/images"
 	infraimages "github.com/viewra/viewra/internal/infrastructure/images"
 )
 
@@ -243,6 +244,102 @@ func (h *ImagesHandler) GetEpisodeImages(c *gin.Context) {
 	// Reuse GetMediaImages logic
 	c.Params = append(c.Params, gin.Param{Key: "mediaId", Value: c.Param("id")})
 	h.GetMediaImages(c)
+}
+
+// GetTVShowImages handles GET /api/tv/shows/:id/images
+// @Summary Get all images for a TV show
+// @Description Returns all images (poster, fanart, clearlogo, banner, etc.) for a specific TV show
+// @Tags tv,images
+// @Produce json
+// @Param id path int true "TV Show ID"
+// @Success 200 {object} images.ListImagesResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/tv/shows/{id}/images [get]
+func (h *ImagesHandler) GetTVShowImages(c *gin.Context) {
+	showID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid show ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.getEntityImages.Execute(c.Request.Context(), domainimages.MediaTypeTVShow, int(showID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to retrieve images",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// GetTVSeasonImages handles GET /api/tv/seasons/:id/images
+// @Summary Get all images for a TV season
+// @Description Returns all images (primarily season posters) for a specific TV season
+// @Tags tv,images
+// @Produce json
+// @Param id path int true "TV Season ID"
+// @Success 200 {object} images.ListImagesResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/tv/seasons/{id}/images [get]
+func (h *ImagesHandler) GetTVSeasonImages(c *gin.Context) {
+	seasonID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid season ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.getEntityImages.Execute(c.Request.Context(), domainimages.MediaTypeTVSeason, int(seasonID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to retrieve images",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// GetMusicAlbumImages handles GET /api/music/albums/:id/images
+// @Summary Get all images for a music album
+// @Description Returns all images (cover, discart, etc.) for a specific music album
+// @Tags music,images
+// @Produce json
+// @Param id path int true "Album entity ID (track media_id)"
+// @Success 200 {object} images.ListImagesResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/music/albums/{id}/images [get]
+func (h *ImagesHandler) GetMusicAlbumImages(c *gin.Context) {
+	albumID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid album ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.getEntityImages.Execute(c.Request.Context(), domainimages.MediaTypeMusicAlbum, int(albumID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to retrieve images",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // parseID is a helper to parse ID from string to int64

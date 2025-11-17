@@ -75,6 +75,72 @@ export function useEpisodeImages(
 }
 
 /**
+ * Hook to fetch images for a TV show
+ */
+export function useTVShowImages(
+  showId: number | undefined,
+  options: UseMediaImagesOptions = {}
+) {
+  const { enabled = true } = options
+
+  return useQuery({
+    queryKey: ['tv-show-images', showId],
+    queryFn: async () => {
+      if (!showId) {
+        return { images: [] }
+      }
+      return imagesApi.getTVShowImages(showId)
+    },
+    enabled: enabled && showId !== undefined,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}
+
+/**
+ * Hook to fetch images for a TV season
+ */
+export function useTVSeasonImages(
+  seasonId: number | undefined,
+  options: UseMediaImagesOptions = {}
+) {
+  const { enabled = true } = options
+
+  return useQuery({
+    queryKey: ['tv-season-images', seasonId],
+    queryFn: async () => {
+      if (!seasonId) {
+        return { images: [] }
+      }
+      return imagesApi.getTVSeasonImages(seasonId)
+    },
+    enabled: enabled && seasonId !== undefined,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}
+
+/**
+ * Hook to fetch images for a music album
+ */
+export function useMusicAlbumImages(
+  albumId: number | undefined,
+  options: UseMediaImagesOptions = {}
+) {
+  const { enabled = true } = options
+
+  return useQuery({
+    queryKey: ['music-album-images', albumId],
+    queryFn: async () => {
+      if (!albumId) {
+        return { images: [] }
+      }
+      return imagesApi.getMusicAlbumImages(albumId)
+    },
+    enabled: enabled && albumId !== undefined,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}
+
+/**
  * Helper hook to get poster image URL from media images
  */
 export function usePosterUrl(mediaId: number | undefined): string | null {

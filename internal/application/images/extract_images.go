@@ -103,3 +103,67 @@ func (uc *ExtractMusicAlbumImagesUseCase) Execute(ctx context.Context, albumDir 
 	// Process and save all extracted images (albums don't have media_id, so pass nil)
 	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
 }
+
+// ExtractTVShowImagesUseCase handles extracting and cataloging TV show images
+type ExtractTVShowImagesUseCase struct {
+	repo              images.Repository
+	extractor         *infraImages.Extractor
+	metadataExtractor *infraImages.MetadataExtractor
+	cacheService      *infraImages.CacheService
+	transformer       *infraImages.Transformer
+}
+
+// NewExtractTVShowImagesUseCase creates a new instance
+func NewExtractTVShowImagesUseCase(repo images.Repository, cacheService *infraImages.CacheService, transformer *infraImages.Transformer) *ExtractTVShowImagesUseCase {
+	return &ExtractTVShowImagesUseCase{
+		repo:              repo,
+		extractor:         infraImages.NewExtractor(),
+		metadataExtractor: infraImages.NewMetadataExtractor(),
+		cacheService:      cacheService,
+		transformer:       transformer,
+	}
+}
+
+// Execute extracts images for a TV show and stores them in the database
+func (uc *ExtractTVShowImagesUseCase) Execute(ctx context.Context, showDir string, mediaType images.MediaType, entityID int) error {
+	// Extract image paths
+	extracted, err := uc.extractor.ExtractTVShowImages(showDir)
+	if err != nil {
+		return fmt.Errorf("failed to extract show images: %w", err)
+	}
+
+	// Process and save all extracted images (shows don't have media_id, so pass nil)
+	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+}
+
+// ExtractTVSeasonImagesUseCase handles extracting and cataloging TV season images
+type ExtractTVSeasonImagesUseCase struct {
+	repo              images.Repository
+	extractor         *infraImages.Extractor
+	metadataExtractor *infraImages.MetadataExtractor
+	cacheService      *infraImages.CacheService
+	transformer       *infraImages.Transformer
+}
+
+// NewExtractTVSeasonImagesUseCase creates a new instance
+func NewExtractTVSeasonImagesUseCase(repo images.Repository, cacheService *infraImages.CacheService, transformer *infraImages.Transformer) *ExtractTVSeasonImagesUseCase {
+	return &ExtractTVSeasonImagesUseCase{
+		repo:              repo,
+		extractor:         infraImages.NewExtractor(),
+		metadataExtractor: infraImages.NewMetadataExtractor(),
+		cacheService:      cacheService,
+		transformer:       transformer,
+	}
+}
+
+// Execute extracts images for a TV season and stores them in the database
+func (uc *ExtractTVSeasonImagesUseCase) Execute(ctx context.Context, showDir string, seasonNumber int, mediaType images.MediaType, entityID int) error {
+	// Extract image paths
+	extracted, err := uc.extractor.ExtractTVSeasonImages(showDir, seasonNumber)
+	if err != nil {
+		return fmt.Errorf("failed to extract season images: %w", err)
+	}
+
+	// Process and save all extracted images (seasons don't have media_id, so pass nil)
+	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+}

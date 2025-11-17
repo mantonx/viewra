@@ -43,6 +43,7 @@ const ShowDetail = () => {
       if (!seasonMap.has(episode.season)) {
         seasonMap.set(episode.season, {
           season: episode.season,
+          season_id: episode.season_id, // Use season_id from first episode
           episode_count: 0,
           episodes: [],
         })

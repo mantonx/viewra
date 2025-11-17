@@ -15,6 +15,7 @@ const AlbumCard = ({ album, onClick }: AlbumCardProps) => {
       <div className="aspect-square relative">
         <MediaPoster
           mediaId={album.id}
+          mediaType="music-album"
           alt={album.album}
           className="w-full h-full absolute inset-0"
           preset="medium"

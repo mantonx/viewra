@@ -15,6 +15,7 @@ const TVShowCard = ({ show, onClick }: TVShowCardProps) => {
       <div className="aspect-2/3 relative">
         <MediaPoster
           mediaId={show.id}
+          mediaType="tv-show"
           alt={show.title}
           className="w-full h-full absolute inset-0"
           preset="medium"

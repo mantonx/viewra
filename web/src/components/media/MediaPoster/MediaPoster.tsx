@@ -4,8 +4,15 @@
  */
 
 import { useState } from 'react'
-import { useMediaImages } from '@/lib/hooks/useMediaImages'
+import {
+  useMediaImages,
+  useTVShowImages,
+  useTVSeasonImages,
+  useMusicAlbumImages,
+} from '@/lib/hooks/useMediaImages'
 import { getPosterImage, getImageUrl, type ImagePreset } from '@/lib/types/images'
+
+export type MediaType = 'media' | 'tv-show' | 'tv-season' | 'music-album'
 
 export interface MediaPosterProps {
   /**
@@ -17,6 +24,12 @@ export interface MediaPosterProps {
    * Alt text for the image
    */
   alt: string
+
+  /**
+   * Media type (media, tv-show, tv-season, music-album)
+   * Defaults to 'media'
+   */
+  mediaType?: MediaType
 
   /**
    * Additional CSS classes
@@ -38,11 +51,28 @@ export interface MediaPosterProps {
 export const MediaPoster = ({
   mediaId,
   alt,
+  mediaType = 'media',
   className = '',
   fallbackIcon = '🎬',
   preset = 'medium',
 }: MediaPosterProps) => {
-  const { data: imagesData, isLoading } = useMediaImages(mediaId)
+  // Use the appropriate hook based on media type
+  const mediaImagesQuery = useMediaImages(mediaId, { enabled: mediaType === 'media' })
+  const tvShowImagesQuery = useTVShowImages(mediaId, { enabled: mediaType === 'tv-show' })
+  const tvSeasonImagesQuery = useTVSeasonImages(mediaId, { enabled: mediaType === 'tv-season' })
+  const musicAlbumImagesQuery = useMusicAlbumImages(mediaId, {
+    enabled: mediaType === 'music-album',
+  })
+
+  // Select the active query based on media type
+  const { data: imagesData, isLoading } =
+    mediaType === 'tv-show'
+      ? tvShowImagesQuery
+      : mediaType === 'tv-season'
+        ? tvSeasonImagesQuery
+        : mediaType === 'music-album'
+          ? musicAlbumImagesQuery
+          : mediaImagesQuery
   const [imageError, setImageError] = useState(false)
 
   // Get poster image

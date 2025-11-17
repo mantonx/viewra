@@ -1,5 +1,5 @@
 -- name: CreateImage :one
-INSERT INTO media_images (
+INSERT OR REPLACE INTO media_images (
     media_id,
     media_type,
     entity_id,

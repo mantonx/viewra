@@ -18,4 +18,9 @@ func RegisterImageRoutes(r *gin.Engine, h *handlers.ImagesHandler) {
 	r.GET("/api/media/:id/images", h.GetMediaImages)
 	r.GET("/api/movies/:id/images", h.GetMovieImages)
 	r.GET("/api/tv/episodes/:id/images", h.GetEpisodeImages)
+
+	// Entity-specific image endpoints (TV shows, seasons, music albums)
+	r.GET("/api/tv/shows/:id/images", h.GetTVShowImages)
+	r.GET("/api/tv/seasons/:id/images", h.GetTVSeasonImages)
+	r.GET("/api/music/albums/:id/images", h.GetMusicAlbumImages)
 }

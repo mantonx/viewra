@@ -42,4 +42,31 @@ export const imagesApi = {
       url: `/api/tv/episodes/${episodeId}/images`,
       method: 'GET',
     }),
+
+  /**
+   * Get all images for a TV show
+   */
+  getTVShowImages: (showId: number) =>
+    customInstance<ListImagesResponse>({
+      url: `/api/tv/shows/${showId}/images`,
+      method: 'GET',
+    }),
+
+  /**
+   * Get all images for a TV season
+   */
+  getTVSeasonImages: (seasonId: number) =>
+    customInstance<ListImagesResponse>({
+      url: `/api/tv/seasons/${seasonId}/images`,
+      method: 'GET',
+    }),
+
+  /**
+   * Get all images for a music album
+   */
+  getMusicAlbumImages: (albumId: number) =>
+    customInstance<ListImagesResponse>({
+      url: `/api/music/albums/${albumId}/images`,
+      method: 'GET',
+    }),
 }

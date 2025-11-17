@@ -46,6 +46,7 @@ type TVEpisodeResponse struct {
 
 	// TV Episode-specific fields
 	ShowTitle    string `json:"show_title"`
+	SeasonID     int64  `json:"season_id"`
 	Season       int    `json:"season"`
 	Episode      int    `json:"episode"`
 	EpisodeTitle string `json:"episode_title,omitempty"` // actual episode name
@@ -88,6 +89,7 @@ func ToTVEpisodeResponse(ep *media.TVEpisode) TVEpisodeResponse {
 		FrameRate:       ep.FrameRate,
 		ContainerFormat: ep.ContainerFormat,
 		ShowTitle:       ep.ShowTitle,
+		SeasonID:        ep.SeasonID,
 		Season:          ep.Season,
 		Episode:         ep.Episode,
 		EpisodeTitle:    ep.EpisodeTitle,

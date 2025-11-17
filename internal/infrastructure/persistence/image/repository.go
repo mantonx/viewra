@@ -34,6 +34,10 @@ func (r *Repository) Create(ctx context.Context, image *images.Image) error {
 		},
 	)
 	if err != nil {
+		// If this is a UNIQUE constraint error, the image already exists - just skip it
+		if common.IsUniqueConstraintError(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to create image: %w", err)
 	}
 
@@ -556,4 +560,13 @@ func (r *Repository) GetByHash(ctx context.Context, hash string) ([]*images.Imag
 	}
 
 	return domainImages, nil
+}
+
+// HasImagesForEntity checks if an entity has any images
+func (r *Repository) HasImagesForEntity(ctx context.Context, mediaType images.MediaType, entityID int) (bool, error) {
+	imgs, err := r.GetByEntity(ctx, mediaType, entityID)
+	if err != nil {
+		return false, err
+	}
+	return len(imgs) > 0, nil
 }

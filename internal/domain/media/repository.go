@@ -80,6 +80,27 @@ type TVRepository interface {
 
 	// SearchTVEpisodes searches for TV episodes by show title or episode title
 	SearchTVEpisodes(ctx context.Context, libraryID int64, query string) ([]*TVEpisode, error)
+
+	// GetTVShowByTitle retrieves a TV show by library ID and title
+	GetTVShowByTitle(ctx context.Context, libraryID int64, title string) (TVShow, error)
+
+	// GetTVSeasonByShowAndNumber retrieves a TV season by show ID and season number
+	GetTVSeasonByShowAndNumber(ctx context.Context, showID int64, seasonNumber int64) (TVSeason, error)
+}
+
+// TVShow represents a TV show for use in repository operations
+type TVShow struct {
+	ID        int64
+	LibraryID int64
+	Title     string
+}
+
+// TVSeason represents a TV season for use in repository operations
+type TVSeason struct {
+	ID           int64
+	ShowID       int64
+	SeasonNumber int64
+	EpisodeCount int
 }
 
 // MusicRepository extends Repository with music-specific operations

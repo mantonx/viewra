@@ -227,28 +227,44 @@ func (r *Repository) SearchTVEpisodes(ctx context.Context, libraryID int64, quer
 // --- TV Show Methods ---
 
 // CreateTVShow adds a new TV show to the repository
-func (r *Repository) CreateTVShow(ctx context.Context, libraryID int64, title string) (TVShow, error) {
+func (r *Repository) CreateTVShow(ctx context.Context, libraryID int64, title string) (media.TVShow, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
-			return TVShow{}, r.PostgresNotImplemented()
+			return media.TVShow{}, r.PostgresNotImplemented()
 		},
 		func() (any, error) {
 			return r.SQLite().CreateTVShow(ctx, sqlc_sqlite.CreateTVShowParams{
-				LibraryID: libraryID,
-				Title:     title,
+				LibraryID:        libraryID,
+				Title:            title,
+				OriginalTitle:    sql.NullString{Valid: false},
+				SortTitle:        sql.NullString{Valid: false},
+				Year:             sql.NullInt64{Valid: false},
+				FirstAirDate:     sql.NullTime{Valid: false},
+				LastAirDate:      sql.NullTime{Valid: false},
+				Genre:            sql.NullString{Valid: false},
+				Plot:             sql.NullString{Valid: false},
+				Status:           sql.NullString{Valid: false},
+				ContentRating:    sql.NullString{Valid: false},
+				MaturityRating:   sql.NullInt64{Valid: false},
+				Network:          sql.NullString{Valid: false},
+				OriginalLanguage: sql.NullString{Valid: false},
+				CountryOfOrigin:  sql.NullString{Valid: false},
+				ImdbID:           sql.NullString{Valid: false},
+				TmdbID:           sql.NullInt64{Valid: false},
+				TvdbID:           sql.NullInt64{Valid: false},
 			})
 		},
 	)
 	if err != nil {
-		return TVShow{}, err
+		return media.TVShow{}, err
 	}
 
 	if r.Router().IsPostgresDB() {
-		return TVShow{}, r.PostgresNotImplemented()
+		return media.TVShow{}, r.PostgresNotImplemented()
 	}
 
 	sqShow := result.(sqlc_sqlite.TvShow)
-	return TVShow{
+	return media.TVShow{
 		ID:        sqShow.ID,
 		LibraryID: sqShow.LibraryID,
 		Title:     sqShow.Title,
@@ -256,7 +272,7 @@ func (r *Repository) CreateTVShow(ctx context.Context, libraryID int64, title st
 }
 
 // GetTVShowByID retrieves a TV show by its ID
-func (r *Repository) GetTVShowByID(ctx context.Context, id int64) (TVShow, error) {
+func (r *Repository) GetTVShowByID(ctx context.Context, id int64) (media.TVShow, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
 			return nil, r.PostgresNotImplemented()
@@ -266,15 +282,15 @@ func (r *Repository) GetTVShowByID(ctx context.Context, id int64) (TVShow, error
 		},
 	)
 	if err != nil {
-		return TVShow{}, r.ConvertNotFoundError(err)
+		return media.TVShow{}, r.ConvertNotFoundError(err)
 	}
 
 	if r.Router().IsPostgresDB() {
-		return TVShow{}, r.PostgresNotImplemented()
+		return media.TVShow{}, r.PostgresNotImplemented()
 	}
 
 	sqShow := result.(sqlc_sqlite.TvShow)
-	return TVShow{
+	return media.TVShow{
 		ID:        sqShow.ID,
 		LibraryID: sqShow.LibraryID,
 		Title:     sqShow.Title,
@@ -282,7 +298,7 @@ func (r *Repository) GetTVShowByID(ctx context.Context, id int64) (TVShow, error
 }
 
 // GetTVShowByTitle retrieves a TV show by its title in a library
-func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, title string) (TVShow, error) {
+func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, title string) (media.TVShow, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
 			return nil, r.PostgresNotImplemented()
@@ -295,15 +311,15 @@ func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, titl
 		},
 	)
 	if err != nil {
-		return TVShow{}, r.ConvertNotFoundError(err)
+		return media.TVShow{}, r.ConvertNotFoundError(err)
 	}
 
 	if r.Router().IsPostgresDB() {
-		return TVShow{}, r.PostgresNotImplemented()
+		return media.TVShow{}, r.PostgresNotImplemented()
 	}
 
 	sqShow := result.(sqlc_sqlite.TvShow)
-	return TVShow{
+	return media.TVShow{
 		ID:        sqShow.ID,
 		LibraryID: sqShow.LibraryID,
 		Title:     sqShow.Title,
@@ -311,7 +327,7 @@ func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, titl
 }
 
 // ListTVShowsByLibrary retrieves all TV shows in a library
-func (r *Repository) ListTVShowsByLibrary(ctx context.Context, libraryID int64) ([]TVShow, error) {
+func (r *Repository) ListTVShowsByLibrary(ctx context.Context, libraryID int64) ([]media.TVShow, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
 			return nil, r.PostgresNotImplemented()
@@ -329,9 +345,9 @@ func (r *Repository) ListTVShowsByLibrary(ctx context.Context, libraryID int64) 
 	}
 
 	sqShows := result.([]sqlc_sqlite.TvShow)
-	shows := make([]TVShow, len(sqShows))
+	shows := make([]media.TVShow, len(sqShows))
 	for i, sqShow := range sqShows {
-		shows[i] = TVShow{
+		shows[i] = media.TVShow{
 			ID:        sqShow.ID,
 			LibraryID: sqShow.LibraryID,
 			Title:     sqShow.Title,
@@ -343,10 +359,10 @@ func (r *Repository) ListTVShowsByLibrary(ctx context.Context, libraryID int64) 
 // --- TV Season Methods ---
 
 // CreateTVSeason adds a new TV season to the repository
-func (r *Repository) CreateTVSeason(ctx context.Context, showID, seasonNumber int64) (TVSeason, error) {
+func (r *Repository) CreateTVSeason(ctx context.Context, showID, seasonNumber int64) (media.TVSeason, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
-			return TVSeason{}, r.PostgresNotImplemented()
+			return media.TVSeason{}, r.PostgresNotImplemented()
 		},
 		func() (any, error) {
 			return r.SQLite().CreateTVSeason(ctx, sqlc_sqlite.CreateTVSeasonParams{
@@ -357,15 +373,15 @@ func (r *Repository) CreateTVSeason(ctx context.Context, showID, seasonNumber in
 		},
 	)
 	if err != nil {
-		return TVSeason{}, err
+		return media.TVSeason{}, err
 	}
 
 	if r.Router().IsPostgresDB() {
-		return TVSeason{}, r.PostgresNotImplemented()
+		return media.TVSeason{}, r.PostgresNotImplemented()
 	}
 
 	sqSeason := result.(sqlc_sqlite.TvSeason)
-	return TVSeason{
+	return media.TVSeason{
 		ID:           sqSeason.ID,
 		ShowID:       sqSeason.ShowID,
 		SeasonNumber: sqSeason.SeasonNumber,
@@ -374,7 +390,7 @@ func (r *Repository) CreateTVSeason(ctx context.Context, showID, seasonNumber in
 }
 
 // GetTVSeasonByShowAndNumber retrieves a TV season by show ID and season number
-func (r *Repository) GetTVSeasonByShowAndNumber(ctx context.Context, showID, seasonNumber int64) (TVSeason, error) {
+func (r *Repository) GetTVSeasonByShowAndNumber(ctx context.Context, showID, seasonNumber int64) (media.TVSeason, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
 			return nil, r.PostgresNotImplemented()
@@ -387,15 +403,15 @@ func (r *Repository) GetTVSeasonByShowAndNumber(ctx context.Context, showID, sea
 		},
 	)
 	if err != nil {
-		return TVSeason{}, r.ConvertNotFoundError(err)
+		return media.TVSeason{}, r.ConvertNotFoundError(err)
 	}
 
 	if r.Router().IsPostgresDB() {
-		return TVSeason{}, r.PostgresNotImplemented()
+		return media.TVSeason{}, r.PostgresNotImplemented()
 	}
 
 	sqSeason := result.(sqlc_sqlite.TvSeason)
-	return TVSeason{
+	return media.TVSeason{
 		ID:           sqSeason.ID,
 		ShowID:       sqSeason.ShowID,
 		SeasonNumber: sqSeason.SeasonNumber,
@@ -404,7 +420,7 @@ func (r *Repository) GetTVSeasonByShowAndNumber(ctx context.Context, showID, sea
 }
 
 // ListTVSeasonsByShow retrieves all seasons for a show
-func (r *Repository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]TVSeason, error) {
+func (r *Repository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]media.TVSeason, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
 			return nil, r.PostgresNotImplemented()
@@ -422,9 +438,9 @@ func (r *Repository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]T
 	}
 
 	sqSeasons := result.([]sqlc_sqlite.TvSeason)
-	seasons := make([]TVSeason, len(sqSeasons))
+	seasons := make([]media.TVSeason, len(sqSeasons))
 	for i, sqSeason := range sqSeasons {
-		seasons[i] = TVSeason{
+		seasons[i] = media.TVSeason{
 			ID:           sqSeason.ID,
 			ShowID:       sqSeason.ShowID,
 			SeasonNumber: sqSeason.SeasonNumber,
@@ -437,7 +453,7 @@ func (r *Repository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]T
 // --- Helper Methods ---
 
 // ensureTVShowExists creates a TV show if it doesn't exist, or returns the existing one
-func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEpisode) (TVShow, error) {
+func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEpisode) (media.TVShow, error) {
 	// Try to get existing show
 	show, err := r.GetTVShowByTitle(ctx, episode.LibraryID, episode.ShowTitle)
 	if err == nil {
@@ -449,11 +465,11 @@ func (r *Repository) ensureTVShowExists(ctx context.Context, episode *media.TVEp
 		return r.CreateTVShow(ctx, episode.LibraryID, episode.ShowTitle)
 	}
 
-	return TVShow{}, err
+	return media.TVShow{}, err
 }
 
 // ensureTVSeasonExists creates a TV season if it doesn't exist, or returns the existing one
-func (r *Repository) ensureTVSeasonExists(ctx context.Context, showID int64, episode *media.TVEpisode) (TVSeason, error) {
+func (r *Repository) ensureTVSeasonExists(ctx context.Context, showID int64, episode *media.TVEpisode) (media.TVSeason, error) {
 	// Try to get existing season
 	season, err := r.GetTVSeasonByShowAndNumber(ctx, showID, int64(episode.Season))
 	if err == nil {
@@ -465,7 +481,7 @@ func (r *Repository) ensureTVSeasonExists(ctx context.Context, showID int64, epi
 		return r.CreateTVSeason(ctx, showID, int64(episode.Season))
 	}
 
-	return TVSeason{}, err
+	return media.TVSeason{}, err
 }
 
 // incrementSeasonEpisodeCount increments the episode count for a season

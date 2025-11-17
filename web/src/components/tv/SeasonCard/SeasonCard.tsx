@@ -1,3 +1,4 @@
+import { MediaPoster } from '@/components/media/MediaPoster'
 import type { SeasonCardProps } from './SeasonCard.types'
 
 const SeasonCard = ({ season, showTitle, onClick }: SeasonCardProps) => {
@@ -13,11 +14,24 @@ const SeasonCard = ({ season, showTitle, onClick }: SeasonCardProps) => {
       onClick={handleClick}
     >
       {/* Thumbnail */}
-      <div className="aspect-video bg-linear-to-br from-blue-600 to-cyan-600 flex flex-col items-center justify-center text-white relative">
-        <div className="text-6xl mb-2">📁</div>
-        <div className="text-xl font-bold">{seasonLabel}</div>
+      <div className="aspect-[2/3] relative">
+        {season.season_id ? (
+          <MediaPoster
+            mediaId={season.season_id}
+            mediaType="tv-season"
+            alt={`${showTitle} ${seasonLabel}`}
+            className="w-full h-full absolute inset-0"
+            preset="medium"
+            fallbackIcon="📁"
+          />
+        ) : (
+          <div className="bg-gradient-to-br from-blue-600 to-cyan-600 flex flex-col items-center justify-center text-white h-full">
+            <div className="text-6xl mb-2">📁</div>
+            <div className="text-xl font-bold">{seasonLabel}</div>
+          </div>
+        )}
         {/* Episode count badge */}
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 z-10">
           <span className="px-3 py-1 text-sm font-semibold bg-black bg-opacity-75 text-white rounded-full">
             {season.episode_count} {season.episode_count === 1 ? 'Episode' : 'Episodes'}
           </span>
