@@ -505,14 +505,16 @@ export const VideoPlayer = ({
       {/* Buffering indicator */}
       {isBuffering && (
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              {/* Outer ring */}
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-white/10"></div>
-              {/* Spinning arc */}
-              <div className="absolute inset-0 animate-spin rounded-full h-16 w-16 border-4 border-transparent border-t-white"></div>
-            </div>
-          </div>
+          {/* Clean spinning arc with gradient fade - creates smooth loading effect */}
+          <div
+            className="w-16 h-16 rounded-full animate-spin"
+            style={{
+              border: '4px solid transparent',
+              borderTopColor: 'white',
+              borderRightColor: 'rgba(255, 255, 255, 0.3)',
+              borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+            }}
+          />
         </div>
       )}
 
