@@ -49,11 +49,17 @@ const SeasonDetail = () => {
       .sort((a, b) => a.episode - b.episode)
   }, [allEpisodes, seasonNumber])
 
-  // Find currently playing episode
-  const playingEpisode = useMemo(
-    () => seasonEpisodes.find((ep) => ep.id === playbackState.mediaId),
-    [seasonEpisodes, playbackState.mediaId]
-  )
+  // Find currently playing episode and enrich with show title and show_id
+  const playingEpisode = useMemo(() => {
+    const episode = seasonEpisodes.find((ep) => ep.id === playbackState.mediaId)
+    if (!episode) return undefined
+    // Enrich episode with show metadata for video player
+    return {
+      ...episode,
+      show_title: showTitle,
+      show_id: showIdNumber,
+    }
+  }, [seasonEpisodes, playbackState.mediaId, showTitle, showIdNumber])
 
   // Get next episode
   const nextEpisode = useMemo(() => {

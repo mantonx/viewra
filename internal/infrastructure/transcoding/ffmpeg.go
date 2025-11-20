@@ -53,6 +53,8 @@ type TranscodeOptions struct {
 	ProgressHandler      func(progress int)
 	AudioTrackIndex      int  // Specific audio track to use (for -map 0:a:N)
 	UseSpecificAudioTrack bool // If true, use AudioTrackIndex; if false, use default (first)
+	StartPosition         int  // Start position in seconds (for seek-based transcoding)
+	UseStartPosition      bool // If true, use StartPosition for seeking
 }
 
 // TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.
@@ -226,6 +228,12 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	// Add hardware acceleration flags BEFORE input
 	args = append(args, e.getHardwareAccelArgs()...)
 
+	// Add seek position BEFORE input for fast seeking (input seeking)
+	// This is much faster than output seeking but slightly less accurate
+	if opts.UseStartPosition && opts.StartPosition > 0 {
+		args = append(args, "-ss", strconv.Itoa(opts.StartPosition))
+	}
+
 	// Input file
 	args = append(args, "-i", opts.InputPath)
 
@@ -287,6 +295,13 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	)
 
 	// HLS-specific settings
+	// Calculate start segment number based on seek position
+	startSegmentNum := 0
+	if opts.UseStartPosition && opts.StartPosition > 0 {
+		// Each segment is p.SegmentDuration seconds
+		startSegmentNum = opts.StartPosition / p.SegmentDuration
+	}
+
 	args = append(args,
 		"-f", "hls",                                      // HLS format
 		"-hls_time", strconv.Itoa(p.SegmentDuration),    // Segment duration (4 seconds)
@@ -294,7 +309,7 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		"-hls_segment_filename", segmentPath,            // Segment filename pattern
 		"-hls_segment_type", "mpegts",                   // MPEG-TS segments
 		"-hls_flags", "independent_segments",            // Each segment can be decoded independently
-		"-start_number", "0",                            // Start segment numbering at 0
+		"-start_number", strconv.Itoa(startSegmentNum),  // Start segment numbering from seek position
 	)
 
 	// Progress reporting
@@ -321,6 +336,11 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 
 	args := []string{}
 
+	// Add seek position BEFORE input for fast seeking
+	if opts.UseStartPosition && opts.StartPosition > 0 {
+		args = append(args, "-ss", strconv.Itoa(opts.StartPosition))
+	}
+
 	// Input file
 	args = append(args, "-i", opts.InputPath)
 
@@ -341,6 +361,12 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 	)
 
 	// HLS-specific settings
+	// Calculate start segment number based on seek position
+	startSegmentNum := 0
+	if opts.UseStartPosition && opts.StartPosition > 0 {
+		startSegmentNum = opts.StartPosition / p.SegmentDuration
+	}
+
 	args = append(args,
 		"-f", "hls",                                      // HLS format
 		"-hls_time", strconv.Itoa(p.SegmentDuration),    // Segment duration (4 seconds)
@@ -348,7 +374,7 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 		"-hls_segment_filename", segmentPath,            // Segment filename pattern
 		"-hls_segment_type", "mpegts",                   // MPEG-TS segments
 		"-hls_flags", "independent_segments",            // Each segment can be decoded independently
-		"-start_number", "0",                            // Start segment numbering at 0
+		"-start_number", strconv.Itoa(startSegmentNum),  // Start segment numbering from seek position
 	)
 
 	// Progress reporting
@@ -374,6 +400,11 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 	segmentPath := filepath.Join(opts.OutputDir, "segment_%03d.ts")
 
 	args := []string{}
+
+	// Add seek position BEFORE input for fast seeking
+	if opts.UseStartPosition && opts.StartPosition > 0 {
+		args = append(args, "-ss", strconv.Itoa(opts.StartPosition))
+	}
 
 	// Input file
 	args = append(args, "-i", opts.InputPath)
@@ -401,6 +432,12 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 	)
 
 	// HLS-specific settings
+	// Calculate start segment number based on seek position
+	startSegmentNum := 0
+	if opts.UseStartPosition && opts.StartPosition > 0 {
+		startSegmentNum = opts.StartPosition / p.SegmentDuration
+	}
+
 	args = append(args,
 		"-f", "hls",                                      // HLS format
 		"-hls_time", strconv.Itoa(p.SegmentDuration),    // Segment duration (4 seconds)
@@ -408,7 +445,7 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 		"-hls_segment_filename", segmentPath,            // Segment filename pattern
 		"-hls_segment_type", "mpegts",                   // MPEG-TS segments
 		"-hls_flags", "independent_segments",            // Each segment can be decoded independently
-		"-start_number", "0",                            // Start segment numbering at 0
+		"-start_number", strconv.Itoa(startSegmentNum),  // Start segment numbering from seek position
 	)
 
 	// Progress reporting

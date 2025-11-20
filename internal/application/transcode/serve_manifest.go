@@ -14,9 +14,10 @@ import (
 
 // ServeManifestRequest represents a request to serve an HLS playlist.
 type ServeManifestRequest struct {
-	MediaID   int64
-	Quality   string
-	OutputDir string
+	MediaID       int64
+	Quality       string
+	OutputDir     string
+	StartPosition *int // Optional start position in seconds (for seek-based transcoding)
 }
 
 // ServeManifestResponse represents the result of a serve manifest request.
@@ -142,13 +143,13 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		}, nil
 
 	case transcoding.Remux:
-		return uc.createOrGetJob(ctx, req.MediaID, req.Quality, transcode.TypeRemux, reason, "2-5 minutes")
+		return uc.createOrGetJob(ctx, req.MediaID, req.Quality, transcode.TypeRemux, req.StartPosition, reason, "2-5 minutes")
 
 	case transcoding.RemuxWithAudioDownmix:
-		return uc.createOrGetJob(ctx, req.MediaID, req.Quality, transcode.TypeRemuxAudio, reason, "5-10 minutes")
+		return uc.createOrGetJob(ctx, req.MediaID, req.Quality, transcode.TypeRemuxAudio, req.StartPosition, reason, "5-10 minutes")
 
 	case transcoding.Transcode:
-		return uc.createOrGetJob(ctx, req.MediaID, req.Quality, transcode.TypeTranscode, reason, "20-60 minutes")
+		return uc.createOrGetJob(ctx, req.MediaID, req.Quality, transcode.TypeTranscode, req.StartPosition, reason, "20-60 minutes")
 
 	default:
 		return nil, fmt.Errorf("unknown streaming strategy: %v", strategy)
@@ -161,6 +162,7 @@ func (uc *ServeManifestUseCase) createOrGetJob(
 	mediaID int64,
 	quality string,
 	jobType string,
+	startPosition *int,
 	reason string,
 	estimatedTime string,
 ) (*ServeManifestResponse, error) {
@@ -180,11 +182,18 @@ func (uc *ServeManifestUseCase) createOrGetJob(
 		}, nil
 	}
 
+	// Determine start position (default to 0 if not provided)
+	startPos := 0
+	if startPosition != nil {
+		startPos = *startPosition
+	}
+
 	// Use CreateJobUseCase to create and enqueue the job (DRY principle)
 	job, err := uc.createJobUC.Execute(ctx, CreateJobRequest{
-		MediaID: mediaID,
-		Quality: quality,
-		Type:    jobType,
+		MediaID:       mediaID,
+		Quality:       quality,
+		Type:          jobType,
+		StartPosition: startPos,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job: %w", err)

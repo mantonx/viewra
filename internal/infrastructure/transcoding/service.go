@@ -172,6 +172,17 @@ func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, i
 		)
 	}
 
+	// Set start position if provided (for seek-based transcoding)
+	if job.StartPosition > 0 {
+		opts.UseStartPosition = true
+		opts.StartPosition = job.StartPosition
+
+		s.logger.Info("starting transcode from seek position",
+			slog.Int64("job_id", job.ID),
+			slog.Int("start_position", job.StartPosition),
+		)
+	}
+
 	// Execute the operation
 	if err := executorFunc(ctx, opts); err != nil {
 		// Clean up partial output on failure

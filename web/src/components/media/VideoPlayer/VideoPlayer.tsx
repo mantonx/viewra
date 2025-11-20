@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui'
 import { useProgressUpdater } from '@/lib/hooks/useProgress'
 import { logger } from '@/lib/utils/logger'
-import { formatResolutionLabel } from '@/lib/utils/quality'
 import Hls from 'hls.js'
 import { useEffect, useRef, useState } from 'react'
+import { VideoControls } from './VideoControls'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 
 // HLS configuration constants
@@ -41,6 +41,7 @@ export const VideoPlayer = ({
   streamUrl,
   initialPosition = 0,
   duration = 0,
+  metadata,
   onClose,
 }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -55,6 +56,10 @@ export const VideoPlayer = ({
   const [currentQuality, setCurrentQuality] = useState<number | null>(null)
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const [isBuffering, setIsBuffering] = useState<boolean>(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [volume, setVolume] = useState(1)
+  const [isMuted, setIsMuted] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const progressUpdaterRef = useRef<ReturnType<typeof useProgressUpdater> | null>(null)
   const lastTimeUpdateRef = useRef<number>(0)
 
@@ -278,9 +283,12 @@ export const VideoPlayer = ({
     // Throttle to once per second to reduce re-renders (timeupdate fires 4-15x per second)
     const handleTimeUpdate = () => {
       const currentSecond = Math.floor(video.currentTime)
-      if (currentSecond !== lastTimeUpdateRef.current && progressUpdaterRef.current && isPlaying) {
+      if (currentSecond !== lastTimeUpdateRef.current) {
         lastTimeUpdateRef.current = currentSecond
-        progressUpdaterRef.current.updateCurrentTime(video.currentTime)
+        setCurrentTime(video.currentTime)
+        if (progressUpdaterRef.current && isPlaying) {
+          progressUpdaterRef.current.updateCurrentTime(video.currentTime)
+        }
       }
     }
 
@@ -304,6 +312,17 @@ export const VideoPlayer = ({
       setIsBuffering(false)
     }
 
+    // Handle volume changes
+    const handleVolumeChange = () => {
+      setVolume(video.volume)
+      setIsMuted(video.muted)
+    }
+
+    // Handle fullscreen changes
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
     video.addEventListener('loadedmetadata', handleLoadedMetadata)
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
@@ -311,6 +330,8 @@ export const VideoPlayer = ({
     video.addEventListener('ended', handleEnded)
     video.addEventListener('waiting', handleWaiting)
     video.addEventListener('canplay', handleCanPlay)
+    video.addEventListener('volumechange', handleVolumeChange)
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
@@ -320,6 +341,8 @@ export const VideoPlayer = ({
       video.removeEventListener('ended', handleEnded)
       video.removeEventListener('waiting', handleWaiting)
       video.removeEventListener('canplay', handleCanPlay)
+      video.removeEventListener('volumechange', handleVolumeChange)
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
 
       // Stop tracking when component unmounts
       if (progressUpdaterRef.current) {
@@ -438,61 +461,71 @@ export const VideoPlayer = ({
     }
   }
 
+  // Control handlers for VideoControls component
+  const handlePlayPause = () => {
+    const video = videoRef.current
+    if (video) {
+      if (video.paused) {
+        video.play()
+      } else {
+        video.pause()
+      }
+    }
+  }
+
+  const handleSeek = (time: number) => {
+    const video = videoRef.current
+    if (video) {
+      video.currentTime = time
+    }
+  }
+
+  const handleVolumeChangeControl = (newVolume: number) => {
+    const video = videoRef.current
+    if (video) {
+      video.volume = newVolume
+      if (newVolume > 0 && video.muted) {
+        video.muted = false
+      }
+    }
+  }
+
+  const handleMuteToggle = () => {
+    const video = videoRef.current
+    if (video) {
+      video.muted = !video.muted
+    }
+  }
+
+  const handleFullscreenToggle = () => {
+    if (!document.fullscreenElement) {
+      videoContainerRef.current?.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
+  const handleSkip = (seconds: number) => {
+    const video = videoRef.current
+    if (video) {
+      video.currentTime = Math.max(0, Math.min(video.duration || videoDuration, video.currentTime + seconds))
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-white text-lg font-semibold">Now Playing</h2>
-          <div className="flex items-center gap-4">
-            {/* Quality selector */}
-            {availableQualities.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-white text-sm">Quality:</span>
-                <select
-                  value={currentQuality || 0}
-                  onChange={(e) => handleQualityChange(Number(e.target.value))}
-                  className="bg-white/20 text-white text-sm rounded px-3 py-2.5 min-h-11 border border-white/30 hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
-                >
-                  <option value={0}>Auto</option>
-                  {availableQualities.map((quality) => (
-                    <option key={quality.height} value={quality.height}>
-                      {formatResolutionLabel(quality.height, true)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {/* Playback speed selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-white text-sm">Speed:</span>
-              <select
-                value={playbackSpeed}
-                onChange={(e) => handlePlaybackSpeedChange(Number(e.target.value))}
-                className="bg-white/20 text-white text-sm rounded px-3 py-2.5 min-h-11 border border-white/30 hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
-              >
-                <option value={0.25}>0.25x</option>
-                <option value={0.5}>0.5x</option>
-                <option value={0.75}>0.75x</option>
-                <option value={1}>1x</option>
-                <option value={1.25}>1.25x</option>
-                <option value={1.5}>1.5x</option>
-                <option value={1.75}>1.75x</option>
-                <option value={2}>2x</option>
-              </select>
-            </div>
-            {onClose && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="text-white hover:bg-white/20"
-              >
-                Close
-              </Button>
-            )}
-          </div>
-        </div>
+      {/* Close button in top-right corner */}
+      <div className="absolute top-4 right-4 z-30">
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="text-white hover:bg-white/20"
+          >
+            Close
+          </Button>
+        )}
       </div>
 
       {/* Error display */}
@@ -519,35 +552,46 @@ export const VideoPlayer = ({
       )}
 
       {/* Video player */}
-      <div ref={videoContainerRef} className="flex-1 flex items-center justify-center bg-black">
+      <div
+        ref={videoContainerRef}
+        className="flex-1 flex items-center justify-center bg-black relative"
+      >
         <video
           ref={videoRef}
-          className="w-full h-full max-h-screen"
+          className="w-full h-full max-h-screen cursor-pointer"
           style={{ objectFit: 'contain' }}
-          controls
           autoPlay
           playsInline
+          onClick={handlePlayPause}
         >
           Your browser does not support the video tag.
         </video>
-      </div>
-      {/* Footer info */}
-      <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-4 pointer-events-none">
-        <div className="text-white text-sm">
-          {initialPosition > 0 && (
-            <p className="opacity-75">
-              Resumed from {Math.floor(initialPosition / 60)}m {Math.floor(initialPosition % 60)}s
-            </p>
-          )}
-          {currentQuality && currentQuality > 0 && (
-            <p className="opacity-75 mt-1">
-              Playing at {formatResolutionLabel(currentQuality, true)}
-            </p>
-          )}
-        </div>
+
+        {/* Custom video controls */}
+        <VideoControls
+          videoRef={videoRef}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={videoDuration}
+          volume={volume}
+          isMuted={isMuted}
+          isFullscreen={isFullscreen}
+          availableQualities={availableQualities}
+          currentQuality={currentQuality}
+          playbackSpeed={playbackSpeed}
+          metadata={metadata}
+          onPlayPause={handlePlayPause}
+          onSeek={handleSeek}
+          onVolumeChange={handleVolumeChangeControl}
+          onMuteToggle={handleMuteToggle}
+          onFullscreenToggle={handleFullscreenToggle}
+          onQualityChange={handleQualityChange}
+          onSpeedChange={handlePlaybackSpeedChange}
+          onSkip={handleSkip}
+        />
       </div>
     </div>
   )
 }
 
-export type { VideoPlayerProps }
+export type { VideoPlayerProps, MediaMetadata } from './VideoPlayer.types'

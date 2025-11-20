@@ -55,6 +55,7 @@ type TranscodeJob struct {
 	FileSizeBytes  int64     // Total size of transcode output
 	LastAccessedAt time.Time // Last time this transcode was served
 	AccessCount    int       // Number of times this transcode was accessed
+	StartPosition  int       // Start position in seconds (for seek-based transcoding, 0 = from beginning)
 }
 
 // NewTranscodeJob creates a new transcode job for a media item.

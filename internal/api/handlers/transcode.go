@@ -190,6 +190,7 @@ type OnDemandResponse struct {
 // @Produce application/vnd.apple.mpegurl,application/json
 // @Param media_id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
+// @Param start query int false "Start position in seconds (for seek-based transcoding)"
 // @Success 200 {file} file "HLS playlist file (if exists)"
 // @Success 302 "Redirect to direct stream (for compatible files)"
 // @Success 202 {object} OnDemandResponse "Job created (for files needing processing)"
@@ -200,6 +201,7 @@ type OnDemandResponse struct {
 func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
+	startPosStr := c.Query("start")
 
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
@@ -207,11 +209,24 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		return
 	}
 
+	// Parse optional start position
+	var startPosition *int
+	if startPosStr != "" {
+		pos, err := parseID(startPosStr)
+		if err != nil || pos < 0 {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid start position"})
+			return
+		}
+		startPosInt := int(pos)
+		startPosition = &startPosInt
+	}
+
 	// Use the serve manifest use case
 	response, err := h.serveManifestUseCase.Execute(c.Request.Context(), transcode.ServeManifestRequest{
-		MediaID:   mediaID,
-		Quality:   quality,
-		OutputDir: h.outputDir,
+		MediaID:       mediaID,
+		Quality:       quality,
+		OutputDir:     h.outputDir,
+		StartPosition: startPosition,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})

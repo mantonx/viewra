@@ -9,9 +9,10 @@ import (
 
 // CreateJobRequest represents a request to create a new transcode job.
 type CreateJobRequest struct {
-	MediaID int64
-	Quality string
-	Type    string // Optional: remux, remux_audio, or transcode (defaults to transcode)
+	MediaID       int64
+	Quality       string
+	Type          string // Optional: remux, remux_audio, or transcode (defaults to transcode)
+	StartPosition int    // Optional: start position in seconds (for seek-based transcoding, 0 = from beginning)
 }
 
 // CreateJob creates a new transcode job for the specified media and quality.
@@ -48,6 +49,9 @@ func CreateJob(ctx context.Context, repo transcode.Repository, req CreateJobRequ
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcode job: %w", err)
 	}
+
+	// Set start position if provided
+	job.StartPosition = req.StartPosition
 
 	// Save to repository
 	if err := repo.Create(ctx, job); err != nil {
