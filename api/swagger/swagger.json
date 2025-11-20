@@ -1,0 +1,3825 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Self-hosted media server for movies, TV shows, and music",
+        "title": "ViewRA Media Server API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "ViewRA Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "0.0.1"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/api/filesystem/browse": {
+            "get": {
+                "description": "Browse directories for library path selection",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "filesystem"
+                ],
+                "summary": "Browse server filesystem",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Directory path to browse",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_library.BrowseResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Access denied",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Directory not found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/images/batch": {
+            "post": {
+                "description": "Returns images for multiple media items (movies, episodes) or entities (TV shows, artists) in a single request to reduce N+1 queries",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "images"
+                ],
+                "summary": "Get images for multiple media items or entities",
+                "parameters": [
+                    {
+                        "description": "Batch request with either media_ids or (entity_ids + media_type)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "entity_ids": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "media_ids": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "media_type": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.BatchImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/images/{id}": {
+            "get": {
+                "description": "Returns metadata for a specific image",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "images"
+                ],
+                "summary": "Get image metadata by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Image ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/images/{id}/file": {
+            "get": {
+                "description": "Serves pre-generated image presets. All images are in WebP format with multiple sizes available.\nAvailable presets: thumb, medium, large, xlarge (depending on image type).\nIf no preset is specified, serves the medium size by default.",
+                "produces": [
+                    "image/webp"
+                ],
+                "tags": [
+                    "images"
+                ],
+                "summary": "Serve image file",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Image ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Preset name (thumb, medium, large, xlarge)",
+                        "name": "preset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries": {
+            "get": {
+                "description": "Returns a list of all libraries",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "libraries"
+                ],
+                "summary": "List all libraries",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.ListLibrariesResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new media library",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "libraries"
+                ],
+                "summary": "Create a new library",
+                "parameters": [
+                    {
+                        "description": "Library details",
+                        "name": "library",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.CreateLibraryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}": {
+            "get": {
+                "description": "Returns details of a specific library",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "libraries"
+                ],
+                "summary": "Get a library by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.GetLibraryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates an existing library",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "libraries"
+                ],
+                "summary": "Update a library",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Library details",
+                        "name": "library",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a library and all its media entries (does not delete files)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "libraries"
+                ],
+                "summary": "Delete a library",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/scan": {
+            "post": {
+                "description": "Scans a library for media files",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "libraries"
+                ],
+                "summary": "Scan a library",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.StartScanResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Library is already being scanned",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/scan/history": {
+            "get": {
+                "description": "Returns the last N scan jobs for a library, ordered by creation date (newest first)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Get scan history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of scan jobs to return (default 10, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scan history",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ScanHistoryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID or limit",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/scan/status": {
+            "get": {
+                "description": "Returns the current status of the most recent scan job for a library",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Get current scan status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scan status",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ScanStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "No scan jobs found for this library",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/libraries/{id}/scan/stream": {
+            "get": {
+                "description": "Streams real-time progress updates for an active scan job using Server-Sent Events",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "scans"
+                ],
+                "summary": "Stream scan progress",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream of progress updates",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid library ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "No active scan found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media": {
+            "get": {
+                "description": "Returns a list of media items with optional filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "media"
+                ],
+                "summary": "List media items",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Filter by library ID (omit to list all media)",
+                        "name": "library_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by media type (movie, episode, track)",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Limit number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.ListMediaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{id}": {
+            "get": {
+                "description": "Returns details of a specific media item",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "media"
+                ],
+                "summary": "Get a media item by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.GetMediaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{mediaId}/images": {
+            "get": {
+                "description": "Returns all images associated with a specific media item",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "images"
+                ],
+                "summary": "Get all images for a media item",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "mediaId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/hls/{quality}/playlist.m3u8": {
+            "get": {
+                "description": "Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video\nand either redirects to direct stream or creates a transcode job.",
+                "produces": [
+                    "application/vnd.apple.mpegurl",
+                    "application/json"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Serve HLS playlist (with on-demand transcoding)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Quality level (360p, 720p, 1080p, 4k)",
+                        "name": "quality",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HLS playlist file (if exists)",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "202": {
+                        "description": "Job created (for files needing processing)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.OnDemandResponse"
+                        }
+                    },
+                    "302": {
+                        "description": "Redirect to direct stream (for compatible files)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/hls/{quality}/{filename}": {
+            "get": {
+                "description": "Serves HLS segment files (.ts) for adaptive streaming",
+                "produces": [
+                    "video/mp2t"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Serve HLS segment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Quality level (360p, 720p, 1080p, 4k)",
+                        "name": "quality",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Segment filename",
+                        "name": "filename",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HLS segment file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/transcode": {
+            "post": {
+                "description": "Creates a new transcode job for the specified media and quality level",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Start transcoding",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transcode request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.CreateTranscodeJobRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.TranscodeJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Job already exists",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/transcode/{quality}": {
+            "get": {
+                "description": "Gets the status of a transcode job for specific media and quality",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Get transcode status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Quality level (360p, 720p, 1080p, 4k)",
+                        "name": "quality",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.TranscodeJobResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/media/{media_id}/transcode/{quality}/cancel": {
+            "post": {
+                "description": "Cancels an actively transcoding job (called when user pauses/stops video)",
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Cancel transcode job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Quality level (360p, 720p, 1080p, 4k)",
+                        "name": "quality",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/movies": {
+            "get": {
+                "description": "Returns a list of all movies in a specific library with optional pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "movies"
+                ],
+                "summary": "List movies",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to filter movies",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default: 50, max: 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: title_asc or title_desc (default: title_asc)",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/movies/search": {
+            "get": {
+                "description": "Searches for movies by title in a specific library with optional pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "movies"
+                ],
+                "summary": "Search movies",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to search in",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query (title)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default: 50, max: 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/movies/{id}": {
+            "get": {
+                "description": "Returns details of a specific movie including all metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "movies"
+                ],
+                "summary": "Get a movie by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Movie ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/movies/{id}/images": {
+            "get": {
+                "description": "Returns all images (poster, fanart, clearlogo, etc.) for a specific movie",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "movies",
+                    "images"
+                ],
+                "summary": "Get all images for a movie",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Movie media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/albums/{id}/images": {
+            "get": {
+                "description": "Returns all images (cover, discart, etc.) for a specific music album",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music",
+                    "images"
+                ],
+                "summary": "Get all images for a music album",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Album entity ID (track media_id)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/albums/{id}/tracks": {
+            "get": {
+                "description": "Returns all tracks for an album identified by a representative track ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music"
+                ],
+                "summary": "List tracks for an album by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Album representative track ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/artists": {
+            "get": {
+                "description": "Returns a list of all artists in a library with album and track counts and optional pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music"
+                ],
+                "summary": "List music artists",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to filter artists",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default: 50, max: 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListArtistsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/artists/{id}/albums": {
+            "get": {
+                "description": "Returns all albums for an artist identified by a representative track ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music"
+                ],
+                "summary": "List albums for an artist by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Artist representative track ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListAlbumsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/artists/{id}/images": {
+            "get": {
+                "description": "Returns all images (folder, fanart, banner, logo) for a specific music artist",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music",
+                    "images"
+                ],
+                "summary": "Get all images for a music artist",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Artist entity ID (first track's media_id)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/search": {
+            "get": {
+                "description": "Searches for music tracks by title, artist, or album in a specific library",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music"
+                ],
+                "summary": "Search music",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to search in",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query (title, artist, or album)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/music/tracks/{id}": {
+            "get": {
+                "description": "Returns details of a specific music track including all metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "music"
+                ],
+                "summary": "Get a music track by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Track ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/progress": {
+            "get": {
+                "description": "Gets all watch progress records for the current user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "List watch progress",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "Update watch progress",
+                "parameters": [
+                    {
+                        "description": "Update progress request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/progress/in-progress": {
+            "get": {
+                "description": "Gets all in-progress (partially watched) media items for the current user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "List in-progress items",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/progress/mark-unwatched": {
+            "post": {
+                "description": "Resets the watched status and progress for a media item",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "Mark as unwatched",
+                "parameters": [
+                    {
+                        "description": "Mark unwatched request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/progress/mark-watched": {
+            "post": {
+                "description": "Explicitly marks a media item as fully watched",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "Mark as watched",
+                "parameters": [
+                    {
+                        "description": "Mark watched request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/progress/watched": {
+            "get": {
+                "description": "Gets all watched media items for the current user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "List watched items",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/progress/{media_id}": {
+            "get": {
+                "description": "Gets watch progress for a specific media item",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "progress"
+                ],
+                "summary": "Get watch progress",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes watch progress for a specific media item",
+                "tags": [
+                    "progress"
+                ],
+                "summary": "Delete watch progress",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stream/{id}": {
+            "get": {
+                "description": "Streams a media file with HTTP range request support for seeking",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "streaming"
+                ],
+                "summary": "Stream media file",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP Range header (e.g., bytes=0-1023)",
+                        "name": "Range",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Full file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "206": {
+                        "description": "Partial content",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "416": {
+                        "description": "Range not satisfiable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/transcode/cleanup": {
+            "post": {
+                "description": "Cleans up transcode files based on specified criteria",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Cleanup transcodes",
+                "parameters": [
+                    {
+                        "description": "Cleanup criteria",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.CleanupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.CleanupResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/transcode/disk-usage": {
+            "get": {
+                "description": "Returns current disk usage statistics for transcode files",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Get disk usage",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.DiskUsageResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/transcode/stats": {
+            "get": {
+                "description": "Gets current statistics about the transcode job queue",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transcode"
+                ],
+                "summary": "Get transcode queue statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_transcode.QueueStats"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/episodes/{id}": {
+            "get": {
+                "description": "Returns details of a specific TV episode including all metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "Get a TV episode by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Episode ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/episodes/{id}/images": {
+            "get": {
+                "description": "Returns all images (primarily thumbnails) for a specific episode",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv",
+                    "images"
+                ],
+                "summary": "Get all images for a TV episode",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Episode media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/search": {
+            "get": {
+                "description": "Searches for TV shows and episodes by title in a specific library",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "Search TV shows and episodes",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to search in",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query (show title or episode title)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/seasons/{id}/images": {
+            "get": {
+                "description": "Returns all images (primarily season posters) for a specific TV season",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv",
+                    "images"
+                ],
+                "summary": "Get all images for a TV season",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "TV Season ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/shows": {
+            "get": {
+                "description": "Returns a list of all TV shows in a library with episode and season counts and optional pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "List TV shows",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Library ID to filter shows",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default: 50, max: 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/shows/{id}": {
+            "get": {
+                "description": "Returns details of a specific TV show including season and episode counts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "Get a TV show by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/shows/{id}/episodes": {
+            "get": {
+                "description": "Returns all episodes for a specific TV show using its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "List episodes for a TV show by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/shows/{id}/images": {
+            "get": {
+                "description": "Returns all images (poster, fanart, clearlogo, banner, etc.) for a specific TV show",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv",
+                    "images"
+                ],
+                "summary": "Get all images for a TV show",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "TV Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tv/shows/{showTitle}/episodes": {
+            "get": {
+                "description": "Returns all episodes for a specific TV show",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tv"
+                ],
+                "summary": "List episodes for a TV show",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Show title",
+                        "name": "showTitle",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Library ID",
+                        "name": "library_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Returns comprehensive health status of the application and its dependencies",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Health check endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.HealthResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.HealthResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_viewra_viewra_internal_application_images.BatchImagesResponse": {
+            "type": "object",
+            "properties": {
+                "media_images": {
+                    "description": "map[mediaID][]images",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_images.ImageResponse": {
+            "type": "object",
+            "properties": {
+                "aspect_ratio": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "entity_id": {
+                    "type": "integer"
+                },
+                "external_url": {
+                    "type": "string"
+                },
+                "file_hash": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size_bytes": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image_type": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "local_cache_path": {
+                    "type": "string"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "source_type": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_images.ListImagesResponse": {
+            "type": "object",
+            "properties": {
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_library.CreateLibraryRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "path",
+                "type"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "path": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "movies",
+                        "tv",
+                        "music"
+                    ]
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_library.GetLibraryResponse": {
+            "type": "object",
+            "properties": {
+                "library": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_library.LibraryResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_library.ListLibrariesResponse": {
+            "type": "object",
+            "properties": {
+                "libraries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_library.StartScanResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "integer"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "path": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "movies",
+                        "tv",
+                        "music"
+                    ]
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_media.GetMediaResponse": {
+            "type": "object",
+            "properties": {
+                "media": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_media.ListMediaResponse": {
+            "type": "object",
+            "properties": {
+                "media": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_media.MediaResponse": {
+            "type": "object",
+            "properties": {
+                "audio_codec": {
+                    "description": "aac, mp3, etc.",
+                    "type": "string"
+                },
+                "bitrate": {
+                    "description": "bits per second",
+                    "type": "integer"
+                },
+                "container_format": {
+                    "description": "mkv, mp4, etc.",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "frame_rate": {
+                    "description": "frames per second",
+                    "type": "number"
+                },
+                "height": {
+                    "description": "Video height in pixels",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_extra": {
+                    "description": "True for trailers, deleted scenes, etc.",
+                    "type": "boolean"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "'movie', 'tv_episode', 'music_track'",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "video_codec": {
+                    "description": "h264, hevc, etc.",
+                    "type": "string"
+                },
+                "width": {
+                    "description": "Technical video metadata",
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_movies.ListMoviesResponse": {
+            "type": "object",
+            "properties": {
+                "movies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_movies.MovieResponse": {
+            "type": "object",
+            "required": [
+                "file_path",
+                "id",
+                "library_id",
+                "title"
+            ],
+            "properties": {
+                "audio_codec": {
+                    "type": "string"
+                },
+                "awards_summary": {
+                    "type": "string"
+                },
+                "bitrate": {
+                    "type": "integer"
+                },
+                "budget": {
+                    "type": "integer"
+                },
+                "cast": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "container_format": {
+                    "type": "string"
+                },
+                "content_advisories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "content_rating": {
+                    "type": "string"
+                },
+                "country_of_origin": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "director": {
+                    "type": "string"
+                },
+                "duration": {
+                    "description": "in seconds",
+                    "type": "integer"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "frame_rate": {
+                    "type": "number"
+                },
+                "genre": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "Base Media fields",
+                    "type": "integer"
+                },
+                "imdb_id": {
+                    "type": "string"
+                },
+                "is_extra": {
+                    "type": "boolean"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "maturity_rating": {
+                    "type": "integer"
+                },
+                "original_language": {
+                    "type": "string"
+                },
+                "original_title": {
+                    "type": "string"
+                },
+                "plot": {
+                    "type": "string"
+                },
+                "release_date": {
+                    "type": "string"
+                },
+                "revenue": {
+                    "type": "integer"
+                },
+                "runtime_minutes": {
+                    "type": "integer"
+                },
+                "sort_title": {
+                    "type": "string"
+                },
+                "tagline": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "tmdb_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "video_codec": {
+                    "type": "string"
+                },
+                "width": {
+                    "description": "Technical metadata",
+                    "type": "integer"
+                },
+                "year": {
+                    "description": "Movie-specific fields",
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_music.AlbumSummary": {
+            "type": "object",
+            "properties": {
+                "album": {
+                    "type": "string"
+                },
+                "artist": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "Representative media_id (first track)",
+                    "type": "integer"
+                },
+                "track_count": {
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_music.ArtistSummary": {
+            "type": "object",
+            "required": [
+                "id",
+                "name"
+            ],
+            "properties": {
+                "album_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "Representative media_id (first track)",
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "track_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_music.ListAlbumsResponse": {
+            "type": "object",
+            "properties": {
+                "albums": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.AlbumSummary"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_music.ListArtistsResponse": {
+            "type": "object",
+            "properties": {
+                "artists": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.ArtistSummary"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_music.ListTracksResponse": {
+            "type": "object",
+            "properties": {
+                "pagination": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "tracks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse"
+                    }
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_music.MusicTrackResponse": {
+            "type": "object",
+            "properties": {
+                "album": {
+                    "type": "string"
+                },
+                "album_artist": {
+                    "type": "string"
+                },
+                "artist": {
+                    "description": "Music Track-specific fields",
+                    "type": "string"
+                },
+                "audio_codec": {
+                    "type": "string"
+                },
+                "bitrate": {
+                    "description": "Music-specific bitrate in kbps",
+                    "type": "integer"
+                },
+                "composer": {
+                    "type": "string"
+                },
+                "container_format": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "disc_number": {
+                    "type": "integer"
+                },
+                "duration": {
+                    "description": "in seconds",
+                    "type": "integer"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "frame_rate": {
+                    "type": "number"
+                },
+                "genre": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "Base Media fields",
+                    "type": "integer"
+                },
+                "is_extra": {
+                    "type": "boolean"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "media_bitrate": {
+                    "description": "From base media",
+                    "type": "integer"
+                },
+                "publisher": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "track_number": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "video_codec": {
+                    "type": "string"
+                },
+                "width": {
+                    "description": "Technical metadata",
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_progress.ListProgressResponse": {
+            "type": "object",
+            "properties": {
+                "progress": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest": {
+            "type": "object",
+            "properties": {
+                "media_id": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest": {
+            "type": "object",
+            "properties": {
+                "duration_seconds": {
+                    "type": "integer"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "progress_seconds": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_progress.WatchProgressResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_watched": {
+                    "type": "boolean"
+                },
+                "last_watched_at": {
+                    "type": "string"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "progress_percentage": {
+                    "type": "number"
+                },
+                "progress_seconds": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_transcode.QueueStats": {
+            "type": "object",
+            "properties": {
+                "completedJobs": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "failedJobs": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "processingJobs": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "queuedJobs": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "workerCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse": {
+            "type": "object",
+            "properties": {
+                "episodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse": {
+            "type": "object",
+            "properties": {
+                "pagination": {
+                    "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata"
+                },
+                "shows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowSummary"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse": {
+            "type": "object",
+            "properties": {
+                "air_date": {
+                    "type": "string"
+                },
+                "audio_codec": {
+                    "type": "string"
+                },
+                "bitrate": {
+                    "type": "integer"
+                },
+                "container_format": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "duration": {
+                    "description": "in seconds",
+                    "type": "integer"
+                },
+                "episode": {
+                    "type": "integer"
+                },
+                "episode_title": {
+                    "description": "actual episode name",
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "frame_rate": {
+                    "type": "number"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "Base Media fields",
+                    "type": "integer"
+                },
+                "imdb_id": {
+                    "type": "string"
+                },
+                "is_extra": {
+                    "type": "boolean"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "season": {
+                    "type": "integer"
+                },
+                "season_id": {
+                    "type": "integer"
+                },
+                "show_title": {
+                    "description": "TV Episode-specific fields",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "filename",
+                    "type": "string"
+                },
+                "tvdb_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "video_codec": {
+                    "type": "string"
+                },
+                "width": {
+                    "description": "Technical metadata",
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse": {
+            "type": "object",
+            "properties": {
+                "episode_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "season_count": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_application_tv.TVShowSummary": {
+            "type": "object",
+            "required": [
+                "id",
+                "library_id",
+                "title"
+            ],
+            "properties": {
+                "episode_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "library_id": {
+                    "type": "integer"
+                },
+                "season_count": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_domain_common.PaginationMetadata": {
+            "type": "object",
+            "properties": {
+                "hasMore": {
+                    "description": "Whether there are more items available",
+                    "type": "boolean"
+                },
+                "limit": {
+                    "description": "Number of items per page",
+                    "type": "integer"
+                },
+                "offset": {
+                    "description": "Number of items skipped",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "Total number of items across all pages",
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_domain_library.BrowseResult": {
+            "type": "object",
+            "properties": {
+                "current_path": {
+                    "type": "string"
+                },
+                "directories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_viewra_viewra_internal_domain_library.Directory"
+                    }
+                },
+                "is_root": {
+                    "type": "boolean"
+                },
+                "parent": {
+                    "description": "null if at root",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_viewra_viewra_internal_domain_library.Directory": {
+            "type": "object",
+            "properties": {
+                "modified_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "readable": {
+                    "type": "boolean"
+                },
+                "writable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_api_handlers.Check": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"pass\", \"fail\", \"warn\"",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.CleanupRequest": {
+            "type": "object",
+            "properties": {
+                "dry_run": {
+                    "type": "boolean"
+                },
+                "failed": {
+                    "type": "boolean"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "older_than_hours": {
+                    "type": "integer"
+                },
+                "orphans": {
+                    "type": "boolean"
+                },
+                "quality": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.CleanupResponse": {
+            "type": "object",
+            "properties": {
+                "deleted_count": {
+                    "type": "integer"
+                },
+                "deleted_size_bytes": {
+                    "type": "integer"
+                },
+                "deleted_size_human": {
+                    "type": "string"
+                },
+                "dry_run": {
+                    "type": "boolean"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.CreateTranscodeJobRequest": {
+            "type": "object",
+            "required": [
+                "quality"
+            ],
+            "properties": {
+                "quality": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.DiskUsageResponse": {
+            "type": "object",
+            "properties": {
+                "completed_count": {
+                    "type": "integer"
+                },
+                "failed_count": {
+                    "type": "integer"
+                },
+                "file_count": {
+                    "type": "integer"
+                },
+                "output_dir": {
+                    "type": "string"
+                },
+                "processing_count": {
+                    "type": "integer"
+                },
+                "queued_count": {
+                    "type": "integer"
+                },
+                "total_jobs": {
+                    "type": "integer"
+                },
+                "total_size_bytes": {
+                    "type": "integer"
+                },
+                "total_size_human": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/internal_api_handlers.Check"
+                    }
+                },
+                "status": {
+                    "description": "\"healthy\", \"degraded\", \"unhealthy\"",
+                    "type": "string"
+                },
+                "system": {
+                    "$ref": "#/definitions/internal_api_handlers.SystemInfo"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "uptime": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.OnDemandResponse": {
+            "type": "object",
+            "properties": {
+                "estimated_time": {
+                    "description": "Estimated completion time",
+                    "type": "string"
+                },
+                "job_id": {
+                    "description": "For processing strategies",
+                    "type": "integer"
+                },
+                "progress": {
+                    "description": "Job progress (0-100)",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "Job status",
+                    "type": "string"
+                },
+                "strategy": {
+                    "description": "direct_play, remux, remux_audio, or transcode",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "For direct_play",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ScanHistoryItem": {
+            "type": "object",
+            "properties": {
+                "bytes_processed": {
+                    "type": "integer"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "description": "Duration in seconds",
+                    "type": "integer"
+                },
+                "error_count": {
+                    "type": "integer"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "files_found": {
+                    "type": "integer"
+                },
+                "files_processed": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "progress": {
+                    "type": "number"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.ScanHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_handlers.ScanHistoryItem"
+                    }
+                }
+            }
+        },
+        "internal_api_handlers.ScanStatusResponse": {
+            "type": "object",
+            "properties": {
+                "bytes_processed": {
+                    "description": "Bytes processed",
+                    "type": "integer"
+                },
+                "completed_at": {
+                    "description": "ISO 8601 timestamp",
+                    "type": "string"
+                },
+                "error_count": {
+                    "description": "Number of errors encountered",
+                    "type": "integer"
+                },
+                "error_message": {
+                    "description": "Error message if failed",
+                    "type": "string"
+                },
+                "files_found": {
+                    "description": "Total files discovered",
+                    "type": "integer"
+                },
+                "files_processed": {
+                    "description": "Files processed so far",
+                    "type": "integer"
+                },
+                "progress": {
+                    "description": "0-100",
+                    "type": "number"
+                },
+                "started_at": {
+                    "description": "ISO 8601 timestamp",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "pending, running, paused, completed, failed",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.SystemInfo": {
+            "type": "object",
+            "properties": {
+                "memory_usage_mb": {
+                    "type": "integer"
+                },
+                "num_cpu": {
+                    "type": "integer"
+                },
+                "num_goroutines": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.TranscodeJobResponse": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "media_id": {
+                    "type": "integer"
+                },
+                "progress": {
+                    "type": "integer"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Job type: remux, remux_audio, or transcode",
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

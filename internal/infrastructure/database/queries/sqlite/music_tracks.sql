@@ -324,3 +324,167 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ? AND mt.album_artist IS NOT NULL AND mt.album_artist != ''
 GROUP BY mt.album_artist
 ORDER BY mt.album_artist;
+
+-- ============================================================================
+-- Pagination Support Queries
+-- ============================================================================
+
+-- name: CountArtistsByLibrary :one
+SELECT COUNT(DISTINCT mt.album_artist)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ? AND mt.album_artist IS NOT NULL AND mt.album_artist != '';
+
+-- name: ListArtistsByLibraryPaginated :many
+SELECT DISTINCT
+    MIN(mt.media_id) as representative_id,
+    mt.album_artist as artist,
+    COUNT(DISTINCT mt.album) as album_count,
+    COUNT(*) as track_count
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ? AND mt.album_artist IS NOT NULL AND mt.album_artist != ''
+GROUP BY mt.album_artist
+ORDER BY mt.album_artist COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListArtistsByLibraryPaginatedDesc :many
+SELECT DISTINCT
+    MIN(mt.media_id) as representative_id,
+    mt.album_artist as artist,
+    COUNT(DISTINCT mt.album) as album_count,
+    COUNT(*) as track_count
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ? AND mt.album_artist IS NOT NULL AND mt.album_artist != ''
+GROUP BY mt.album_artist
+ORDER BY mt.album_artist COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountAlbumsByLibrary :one
+SELECT COUNT(DISTINCT mt.album || mt.album_artist)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?;
+
+-- name: ListAlbumsByLibraryPaginated :many
+SELECT DISTINCT
+    mt.album,
+    mt.album_artist,
+    mt.year,
+    COUNT(*) as track_count,
+    SUM(med.duration) as total_duration
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.album, mt.album_artist, mt.year
+ORDER BY mt.album_artist COLLATE NOCASE ASC, mt.album COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListAlbumsByLibraryPaginatedDesc :many
+SELECT DISTINCT
+    mt.album,
+    mt.album_artist,
+    mt.year,
+    COUNT(*) as track_count,
+    SUM(med.duration) as total_duration
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.album, mt.album_artist, mt.year
+ORDER BY mt.album_artist COLLATE NOCASE DESC, mt.album COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountMusicTracksByLibrary :one
+SELECT COUNT(*)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?;
+
+-- name: ListMusicTracksByLibraryPaginated :many
+SELECT
+    mt.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(mt.sort_title, med.title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListMusicTracksByLibraryPaginatedDesc :many
+SELECT
+    mt.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(mt.sort_title, med.title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;

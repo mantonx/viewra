@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	domainCommon "github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
@@ -236,4 +237,149 @@ func (r *Repository) DeleteMovie(ctx context.Context, mediaID int64) error {
 	}
 
 	return nil
+}
+
+// CountMoviesByLibrary returns the total count of movies in a library
+func (r *Repository) CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CountMoviesByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return 0, r.PostgresNotImplemented()
+	}
+
+	return result.(int64), nil
+}
+
+// ListMoviesByLibraryPaginated retrieves movies in a library with pagination
+func (r *Repository) ListMoviesByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]*media.Movie, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Default to title_asc if not specified
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			if sortBy == "title_desc" {
+				return r.SQLite().ListMoviesByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListMoviesByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().ListMoviesByLibraryPaginated(ctx, sqlc_sqlite.ListMoviesByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	// Handle different row types based on sort order
+	var movies []*media.Movie
+	if sortBy == "title_desc" {
+		sqResults := result.([]sqlc_sqlite.ListMoviesByLibraryPaginatedDescRow)
+		movies = make([]*media.Movie, len(sqResults))
+		for i, descRow := range sqResults {
+			// Convert DescRow to regular Row (they have identical fields)
+			row := sqlc_sqlite.ListMoviesByLibraryRow(descRow)
+			movies[i] = sqliteListMovieToDomain(row)
+		}
+	} else {
+		sqResults := result.([]sqlc_sqlite.ListMoviesByLibraryPaginatedRow)
+		movies = make([]*media.Movie, len(sqResults))
+		for i, row := range sqResults {
+			movies[i] = sqliteListMovieToDomain(sqlc_sqlite.ListMoviesByLibraryRow(row))
+		}
+	}
+	return movies, nil
+}
+
+// CountSearchMoviesByTitle returns the count of movies matching a search query
+func (r *Repository) CountSearchMoviesByTitle(ctx context.Context, libraryID int64, query string) (int64, error) {
+	searchPattern := "%" + query + "%"
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CountSearchMoviesByTitle(ctx, sqlc_sqlite.CountSearchMoviesByTitleParams{
+				LibraryID:     libraryID,
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+			})
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return 0, r.PostgresNotImplemented()
+	}
+
+	return result.(int64), nil
+}
+
+// SearchMoviesByTitlePaginated searches for movies by title with pagination
+func (r *Repository) SearchMoviesByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *domainCommon.PaginationParams) ([]*media.Movie, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	searchPattern := "%" + query + "%"
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().SearchMoviesByTitlePaginated(ctx, sqlc_sqlite.SearchMoviesByTitlePaginatedParams{
+				LibraryID:     libraryID,
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+				Limit:         int64(pagination.Limit),
+				Offset:        int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	sqResults := result.([]sqlc_sqlite.SearchMoviesByTitlePaginatedRow)
+	movies := make([]*media.Movie, len(sqResults))
+	for i, row := range sqResults {
+		movies[i] = sqliteSearchMovieToDomain(sqlc_sqlite.SearchMoviesByTitleRow(row))
+	}
+	return movies, nil
 }

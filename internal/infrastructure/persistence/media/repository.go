@@ -325,3 +325,48 @@ func (r *Repository) CountByType(ctx context.Context, libraryID int64, mediaType
 
 	return result.(int64), nil
 }
+
+// DeleteWithTx removes a media item from the repository within a transaction
+func (r *Repository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	_, err := r.router.Route(
+		func() (any, error) {
+			return nil, r.postgres.WithTx(tx).DeleteMedia(ctx, int32(id))
+		},
+		func() (any, error) {
+			return nil, r.sqlite.WithTx(tx).DeleteMedia(ctx, id)
+		},
+	)
+	return err
+}
+
+// ListByLibraryWithTx retrieves all media items in a specific library within a transaction
+func (r *Repository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*media.Media, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.WithTx(tx).ListMediaByLibrary(ctx, int32(libraryID))
+		},
+		func() (any, error) {
+			return r.sqlite.WithTx(tx).ListMediaByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to domain media
+	if r.router.IsPostgresDB() {
+		pgResults := result.([]sqlc_postgres.Medium)
+		mediaList := make([]*media.Media, len(pgResults))
+		for i, pgResult := range pgResults {
+			mediaList[i] = pgMediumToDomain(pgResult)
+		}
+		return mediaList, nil
+	}
+
+	sqResults := result.([]sqlc_sqlite.Medium)
+	mediaList := make([]*media.Media, len(sqResults))
+	for i, sqResult := range sqResults {
+		mediaList[i] = sqliteMediumToDomain(sqResult)
+	}
+	return mediaList, nil
+}

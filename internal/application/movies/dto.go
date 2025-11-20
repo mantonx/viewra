@@ -3,16 +3,17 @@ package movies
 import (
 	"time"
 
+	"github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 )
 
 // MovieResponse represents a movie with all its metadata
 type MovieResponse struct {
 	// Base Media fields
-	ID        int64     `json:"id"`
-	LibraryID int64     `json:"library_id"`
-	Title     string    `json:"title"`
-	FilePath  string    `json:"file_path"`
+	ID        int64     `json:"id" binding:"required"`
+	LibraryID int64     `json:"library_id" binding:"required"`
+	Title     string    `json:"title" binding:"required"`
+	FilePath  string    `json:"file_path" binding:"required"`
 	FileSize  int64     `json:"file_size"`
 	Duration  int       `json:"duration"` // in seconds
 	IsExtra   bool      `json:"is_extra"`
@@ -54,8 +55,9 @@ type MovieResponse struct {
 
 // ListMoviesResponse represents a list of movies
 type ListMoviesResponse struct {
-	Movies []MovieResponse `json:"movies"`
-	Total  int             `json:"total"`
+	Movies     []MovieResponse              `json:"movies"`
+	Total      int                          `json:"total"`
+	Pagination *common.PaginationMetadata   `json:"pagination,omitempty"`
 }
 
 // ToMovieResponse converts a domain movie entity to a DTO
@@ -110,5 +112,19 @@ func ToListMoviesResponse(movies []*media.Movie) ListMoviesResponse {
 	return ListMoviesResponse{
 		Movies: responses,
 		Total:  len(responses),
+	}
+}
+
+// ToListMoviesResponseWithPagination converts a list of domain movies to list response DTO with pagination metadata
+func ToListMoviesResponseWithPagination(movies []*media.Movie, total int64, params *common.PaginationParams) ListMoviesResponse {
+	responses := make([]MovieResponse, len(movies))
+	for i, m := range movies {
+		responses[i] = ToMovieResponse(m)
+	}
+
+	return ListMoviesResponse{
+		Movies:     responses,
+		Total:      len(responses),
+		Pagination: common.NewPaginationMetadata(total, params),
 	}
 }

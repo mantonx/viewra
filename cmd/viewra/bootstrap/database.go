@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	appconfig "github.com/viewra/viewra/internal/app/config"
 	"github.com/viewra/viewra/internal/infrastructure/database"
 )
 
@@ -40,4 +41,36 @@ func (dc *DatabaseConnection) Close(logger *slog.Logger) {
 	if err := dc.DB.Close(); err != nil {
 		logger.Error("Error closing database", "error", err)
 	}
+}
+
+// InitializeDatabaseFromConfig connects to the database using the new config structure
+func InitializeDatabaseFromConfig(cfg *appconfig.DatabaseConfig, logger *slog.Logger) (*DatabaseConnection, error) {
+	// Convert to database.Config for connection
+	dbConfig := &database.Config{
+		Driver:   cfg.Driver,
+		Host:     cfg.Host,
+		Port:     cfg.Port,
+		User:     cfg.User,
+		Password: cfg.Password,
+		DBName:   cfg.DBName,
+		SSLMode:  cfg.SSLMode,
+	}
+
+	// Validate configuration
+	if err := dbConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid database configuration: %w", err)
+	}
+
+	// Connect to database
+	db, err := database.Connect(dbConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	logger.Info("Database connection established", "driver", cfg.Driver)
+
+	return &DatabaseConnection{
+		DB:     db,
+		Driver: cfg.Driver,
+	}, nil
 }

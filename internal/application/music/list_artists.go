@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 )
 
@@ -66,5 +67,41 @@ func (uc *ListArtistsUseCase) Execute(ctx context.Context, libraryID int64) (Lis
 	return ListArtistsResponse{
 		Artists: artists,
 		Total:   len(artists),
+	}, nil
+}
+
+// ExecuteWithPagination retrieves artists in a library with pagination
+func (uc *ListArtistsUseCase) ExecuteWithPagination(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListArtistsResponse, error) {
+	if pagination == nil {
+		pagination = common.DefaultPaginationParams()
+	}
+
+	// Get total count
+	total, err := uc.repo.CountArtistsByLibrary(ctx, libraryID)
+	if err != nil {
+		return ListArtistsResponse{}, fmt.Errorf("failed to count artists: %w", err)
+	}
+
+	// Get paginated results with counts
+	artists, err := uc.repo.ListArtistsByLibraryPaginated(ctx, libraryID, pagination)
+	if err != nil {
+		return ListArtistsResponse{}, fmt.Errorf("failed to list artists: %w", err)
+	}
+
+	// Convert to response
+	responses := make([]ArtistSummary, len(artists))
+	for i, artist := range artists {
+		responses[i] = ArtistSummary{
+			ID:         artist.RepresentativeID,
+			Name:       artist.Artist,
+			AlbumCount: int(artist.AlbumCount),
+			TrackCount: int(artist.TrackCount),
+		}
+	}
+
+	return ListArtistsResponse{
+		Artists:    responses,
+		Total:      len(responses),
+		Pagination: common.NewPaginationMetadata(total, pagination),
 	}, nil
 }

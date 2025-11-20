@@ -7,15 +7,15 @@
  */
 
 export interface InternalApiHandlersTranscodeJobResponse {
-  completed_at?: string;
-  created_at?: string;
-  error?: string;
-  id?: number;
-  media_id?: number;
-  progress?: number;
-  quality?: string;
-  started_at?: string;
-  status?: string;
+  completed_at?: string
+  created_at?: string
+  error?: string
+  id?: number
+  media_id?: number
+  progress?: number
+  quality?: string
+  started_at?: string
+  status?: string
   /** Job type: remux, remux_audio, or transcode */
-  type?: string;
+  type?: string
 }

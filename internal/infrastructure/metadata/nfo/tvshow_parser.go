@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	domainCommon "github.com/viewra/viewra/internal/domain/common"
 )
 
 // TVShowNFO represents a Kodi/Plex-compatible tvshow.nfo file structure
@@ -178,10 +180,19 @@ func ParseTVShowNFO(nfoPath string) (*TVShowMetadata, error) {
 	}
 
 	// Convert to our metadata format
+	// Use provided sort title if available, otherwise normalize the title
+	sortTitle := nfo.SortTitle
+	if sortTitle == "" {
+		sortTitle = domainCommon.NormalizeSortTitle(nfo.Title)
+	} else {
+		// Even if sort title is provided, normalize it for consistent sorting
+		sortTitle = domainCommon.NormalizeSortTitle(sortTitle)
+	}
+
 	metadata := &TVShowMetadata{
 		Title:            nfo.Title,
 		OriginalTitle:    nfo.OriginalTitle,
-		SortTitle:        nfo.SortTitle,
+		SortTitle:        sortTitle,
 		Year:             nfo.Year,
 		Plot:             nfo.Plot,
 		Tagline:          nfo.Tagline,

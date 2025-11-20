@@ -43,7 +43,7 @@ func NewLibraryHandler(
 // @Accept json
 // @Produce json
 // @Param library body library.CreateLibraryRequest true "Library details"
-// @Success 201 {object} library.CreateLibraryResponse
+// @Success 201 {object} library.LibraryResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/libraries [post]
@@ -122,7 +122,7 @@ func (h *LibraryHandler) Get(c *gin.Context) {
 // @Produce json
 // @Param id path int true "Library ID"
 // @Param library body library.UpdateLibraryRequest true "Library details"
-// @Success 200 {object} library.UpdateLibraryResponse
+// @Success 200 {object} library.LibraryResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse

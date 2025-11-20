@@ -7,9 +7,9 @@
  */
 
 export interface GithubComViewraViewraInternalDomainLibraryDirectory {
-  modified_at?: string;
-  name?: string;
-  path?: string;
-  readable?: boolean;
-  writable?: boolean;
+  modified_at?: string
+  name?: string
+  path?: string
+  readable?: boolean
+  writable?: boolean
 }

@@ -3,7 +3,9 @@ package music
 import (
 	"context"
 	"fmt"
+	"unsafe"
 
+	domainCommon "github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
@@ -204,135 +206,64 @@ type musicTrackRow interface {
 	sqlc_sqlite.ListMusicTracksByLibraryRow |
 		sqlc_sqlite.ListMusicTracksByAlbumRow |
 		sqlc_sqlite.ListMusicTracksByArtistRow |
-		sqlc_sqlite.SearchMusicTracksRow
+		sqlc_sqlite.SearchMusicTracksRow |
+		sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow |
+		sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescRow
 }
 
-// extractMusicTrackFields extracts common fields from any music track row type
+// extractMusicTrackFields extracts common fields from any music track row type.
+// All four row types have identical structures, so we consolidate the conversion logic
+// to eliminate duplication.
 func extractMusicTrackFields[T musicTrackRow](row T) musicTrackFields {
-	// Use type assertion to access fields that are common across all row types
-	var fields musicTrackFields
+	// All row types have identical structures, so we can convert to any one
+	// and use it. We convert to ListMusicTracksByLibraryRow arbitrarily.
+	var r sqlc_sqlite.ListMusicTracksByLibraryRow
 
-	// All row types have the same structure, so we can use type switch
-	switch r := any(row).(type) {
+	switch typed := any(row).(type) {
 	case sqlc_sqlite.ListMusicTracksByLibraryRow:
-		fields = musicTrackFields{
-			MediaID:         r.MediaID,
-			Artist:          r.Artist,
-			Album:           r.Album,
-			AlbumArtist:     r.AlbumArtist,
-			TrackNumber:     r.TrackNumber,
-			DiscNumber:      r.DiscNumber,
-			Genre:           r.Genre,
-			Year:            r.Year,
-			Composer:        r.Composer,
-			MediaID2:        r.MediaID_2,
-			LibraryID:       r.LibraryID,
-			Title:           r.Title,
-			FilePath:        r.FilePath,
-			FileSize:        r.FileSize,
-			Duration:        r.Duration,
-			Width:           r.Width,
-			Height:          r.Height,
-			Codec:           r.Codec,
-			AudioCodec:      r.AudioCodec,
-			BitRate:         r.BitRate,
-			FrameRate:       r.FrameRate,
-			ContainerFormat: r.ContainerFormat,
-			Type:            r.Type,
-			IsExtra:         r.IsExtra,
-			CreatedAt:       r.CreatedAt,
-			UpdatedAt:       r.UpdatedAt,
-		}
+		r = typed
 	case sqlc_sqlite.ListMusicTracksByAlbumRow:
-		fields = musicTrackFields{
-			MediaID:         r.MediaID,
-			Artist:          r.Artist,
-			Album:           r.Album,
-			AlbumArtist:     r.AlbumArtist,
-			TrackNumber:     r.TrackNumber,
-			DiscNumber:      r.DiscNumber,
-			Genre:           r.Genre,
-			Year:            r.Year,
-			Composer:        r.Composer,
-			MediaID2:        r.MediaID_2,
-			LibraryID:       r.LibraryID,
-			Title:           r.Title,
-			FilePath:        r.FilePath,
-			FileSize:        r.FileSize,
-			Duration:        r.Duration,
-			Width:           r.Width,
-			Height:          r.Height,
-			Codec:           r.Codec,
-			AudioCodec:      r.AudioCodec,
-			BitRate:         r.BitRate,
-			FrameRate:       r.FrameRate,
-			ContainerFormat: r.ContainerFormat,
-			Type:            r.Type,
-			IsExtra:         r.IsExtra,
-			CreatedAt:       r.CreatedAt,
-			UpdatedAt:       r.UpdatedAt,
-		}
+		// Cast via unsafe - safe because structures are identical
+		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
 	case sqlc_sqlite.ListMusicTracksByArtistRow:
-		fields = musicTrackFields{
-			MediaID:         r.MediaID,
-			Artist:          r.Artist,
-			Album:           r.Album,
-			AlbumArtist:     r.AlbumArtist,
-			TrackNumber:     r.TrackNumber,
-			DiscNumber:      r.DiscNumber,
-			Genre:           r.Genre,
-			Year:            r.Year,
-			Composer:        r.Composer,
-			MediaID2:        r.MediaID_2,
-			LibraryID:       r.LibraryID,
-			Title:           r.Title,
-			FilePath:        r.FilePath,
-			FileSize:        r.FileSize,
-			Duration:        r.Duration,
-			Width:           r.Width,
-			Height:          r.Height,
-			Codec:           r.Codec,
-			AudioCodec:      r.AudioCodec,
-			BitRate:         r.BitRate,
-			FrameRate:       r.FrameRate,
-			ContainerFormat: r.ContainerFormat,
-			Type:            r.Type,
-			IsExtra:         r.IsExtra,
-			CreatedAt:       r.CreatedAt,
-			UpdatedAt:       r.UpdatedAt,
-		}
+		// Cast via unsafe - safe because structures are identical
+		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
 	case sqlc_sqlite.SearchMusicTracksRow:
-		fields = musicTrackFields{
-			MediaID:         r.MediaID,
-			Artist:          r.Artist,
-			Album:           r.Album,
-			AlbumArtist:     r.AlbumArtist,
-			TrackNumber:     r.TrackNumber,
-			DiscNumber:      r.DiscNumber,
-			Genre:           r.Genre,
-			Year:            r.Year,
-			Composer:        r.Composer,
-			MediaID2:        r.MediaID_2,
-			LibraryID:       r.LibraryID,
-			Title:           r.Title,
-			FilePath:        r.FilePath,
-			FileSize:        r.FileSize,
-			Duration:        r.Duration,
-			Width:           r.Width,
-			Height:          r.Height,
-			Codec:           r.Codec,
-			AudioCodec:      r.AudioCodec,
-			BitRate:         r.BitRate,
-			FrameRate:       r.FrameRate,
-			ContainerFormat: r.ContainerFormat,
-			Type:            r.Type,
-			IsExtra:         r.IsExtra,
-			CreatedAt:       r.CreatedAt,
-			UpdatedAt:       r.UpdatedAt,
-		}
+		// Cast via unsafe - safe because structures are identical
+		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
+	case sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow:
+		// Cast via unsafe - safe because structures are identical
+		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
 	}
 
-	return fields
+	return musicTrackFields{
+		MediaID:         r.MediaID,
+		Artist:          r.Artist,
+		Album:           r.Album,
+		AlbumArtist:     r.AlbumArtist,
+		TrackNumber:     r.TrackNumber,
+		DiscNumber:      r.DiscNumber,
+		Genre:           r.Genre,
+		Year:            r.Year,
+		Composer:        r.Composer,
+		MediaID2:        r.MediaID_2,
+		LibraryID:       r.LibraryID,
+		Title:           r.Title,
+		FilePath:        r.FilePath,
+		FileSize:        r.FileSize,
+		Duration:        r.Duration,
+		Width:           r.Width,
+		Height:          r.Height,
+		Codec:           r.Codec,
+		AudioCodec:      r.AudioCodec,
+		BitRate:         r.BitRate,
+		FrameRate:       r.FrameRate,
+		ContainerFormat: r.ContainerFormat,
+		Type:            r.Type,
+		IsExtra:         r.IsExtra,
+		CreatedAt:       r.CreatedAt,
+		UpdatedAt:       r.UpdatedAt,
+	}
 }
 
 // convertRowsToMusicTracks converts a slice of any music track row type to domain MusicTrack entities
@@ -343,4 +274,270 @@ func convertRowsToMusicTracks[T musicTrackRow](rows []T) []*media.MusicTrack {
 		tracks[i] = sqliteMusicTrackRowToDomain(fields)
 	}
 	return tracks
+}
+
+// CountArtistsByLibrary returns the total count of unique artists in a library
+func (r *Repository) CountArtistsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CountArtistsByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return 0, r.PostgresNotImplemented()
+	}
+
+	return result.(int64), nil
+}
+
+// ListArtistsByLibraryPaginated retrieves unique artists in a library with pagination
+func (r *Repository) ListArtistsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]media.MusicArtist, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Default to title_asc if not specified
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			if sortBy == "title_desc" {
+				return r.SQLite().ListArtistsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListArtistsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().ListArtistsByLibraryPaginated(ctx, sqlc_sqlite.ListArtistsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	// Handle different row types based on sort order
+	var artists []media.MusicArtist
+	if sortBy == "title_desc" {
+		sqResults := result.([]sqlc_sqlite.ListArtistsByLibraryPaginatedDescRow)
+		artists = make([]media.MusicArtist, len(sqResults))
+		for i, row := range sqResults {
+			var repID int64
+			if row.RepresentativeID != nil {
+				switch v := row.RepresentativeID.(type) {
+				case int64:
+					repID = v
+				case int:
+					repID = int64(v)
+				}
+			}
+			artists[i] = media.MusicArtist{
+				RepresentativeID: repID,
+				Artist:           common.ParseNullString(row.Artist),
+				AlbumCount:       row.AlbumCount,
+				TrackCount:       row.TrackCount,
+			}
+		}
+	} else {
+		sqResults := result.([]sqlc_sqlite.ListArtistsByLibraryPaginatedRow)
+		artists = make([]media.MusicArtist, len(sqResults))
+		for i, row := range sqResults {
+			var repID int64
+			if row.RepresentativeID != nil {
+				switch v := row.RepresentativeID.(type) {
+				case int64:
+					repID = v
+				case int:
+					repID = int64(v)
+				}
+			}
+			artists[i] = media.MusicArtist{
+				RepresentativeID: repID,
+				Artist:           common.ParseNullString(row.Artist),
+				AlbumCount:       row.AlbumCount,
+				TrackCount:       row.TrackCount,
+			}
+		}
+	}
+	return artists, nil
+}
+
+// CountAlbumsByLibrary returns the total count of unique albums in a library
+func (r *Repository) CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CountAlbumsByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return 0, r.PostgresNotImplemented()
+	}
+
+	return result.(int64), nil
+}
+
+// ListAlbumsByLibraryPaginated retrieves unique albums in a library with pagination
+func (r *Repository) ListAlbumsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]media.MusicAlbum, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Default to title_asc if not specified
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			if sortBy == "title_desc" {
+				return r.SQLite().ListAlbumsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListAlbumsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().ListAlbumsByLibraryPaginated(ctx, sqlc_sqlite.ListAlbumsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	// Handle different row types based on sort order
+	var albums []media.MusicAlbum
+	if sortBy == "title_desc" {
+		sqResults := result.([]sqlc_sqlite.ListAlbumsByLibraryPaginatedDescRow)
+		albums = make([]media.MusicAlbum, len(sqResults))
+		for i, row := range sqResults {
+			albums[i] = media.MusicAlbum{
+				Album:       common.ParseNullString(row.Album),
+				AlbumArtist: common.ParseNullString(row.AlbumArtist),
+				Year:        common.ParseNullInt64(row.Year),
+				TrackCount:  row.TrackCount,
+				Duration:    int64(common.ParseNullFloat64(row.TotalDuration)),
+			}
+		}
+	} else {
+		sqResults := result.([]sqlc_sqlite.ListAlbumsByLibraryPaginatedRow)
+		albums = make([]media.MusicAlbum, len(sqResults))
+		for i, row := range sqResults {
+			albums[i] = media.MusicAlbum{
+				Album:       common.ParseNullString(row.Album),
+				AlbumArtist: common.ParseNullString(row.AlbumArtist),
+				Year:        common.ParseNullInt64(row.Year),
+				TrackCount:  row.TrackCount,
+				Duration:    int64(common.ParseNullFloat64(row.TotalDuration)),
+			}
+		}
+	}
+	return albums, nil
+}
+
+// CountMusicTracksByLibrary returns the total count of music tracks in a library
+func (r *Repository) CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CountMusicTracksByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return 0, r.PostgresNotImplemented()
+	}
+
+	return result.(int64), nil
+}
+
+// ListMusicTracksByLibraryPaginated retrieves music tracks in a library with pagination
+func (r *Repository) ListMusicTracksByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]*media.MusicTrack, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Default to title_asc if not specified
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			if sortBy == "title_desc" {
+				return r.SQLite().ListMusicTracksByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().ListMusicTracksByLibraryPaginated(ctx, sqlc_sqlite.ListMusicTracksByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	// Handle different row types based on sort order - both types are compatible with musicTrackRow interface
+	if sortBy == "title_desc" {
+		sqResults := result.([]sqlc_sqlite.ListMusicTracksByLibraryPaginatedDescRow)
+		return convertRowsToMusicTracks(sqResults), nil
+	}
+
+	sqResults := result.([]sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow)
+	return convertRowsToMusicTracks(sqResults), nil
 }

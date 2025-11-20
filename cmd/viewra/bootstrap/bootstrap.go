@@ -14,11 +14,13 @@ import (
 
 	"github.com/viewra/viewra/internal/api"
 	"github.com/viewra/viewra/internal/app"
+	appconfig "github.com/viewra/viewra/internal/app/config"
+	"github.com/viewra/viewra/internal/pkg/logger"
 )
 
 // Application holds all application dependencies
 type Application struct {
-	Config           *Config
+	Config           *appconfig.Config
 	Logger           *slog.Logger
 	Database         *DatabaseConnection
 	Server           *api.Server
@@ -27,35 +29,38 @@ type Application struct {
 
 // Initialize sets up the application with all dependencies
 func Initialize() (*Application, error) {
-	// Load configuration
-	cfg := LoadConfig()
+	// Load configuration from environment
+	cfg, err := appconfig.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
 
 	// Initialize logger
-	logger := NewLogger(cfg.Environment)
-	logger.Info("Starting ViewRA Media Server", "version", "0.0.1", "environment", cfg.Environment)
+	lgr := logger.New(cfg.Environment)
+	lgr.Info("Starting ViewRA Media Server", "version", "0.0.1", "environment", cfg.Environment)
 
 	// Initialize database
-	dbConn, err := InitializeDatabase(cfg.Database, logger)
+	dbConn, err := InitializeDatabaseFromConfig(&cfg.Database, lgr)
 	if err != nil {
 		return nil, err
 	}
 
 	// Run startup tasks
 	ctx := context.Background()
-	if err := RunStartupTasks(ctx, dbConn.DB, dbConn.Driver, cfg, logger); err != nil {
-		dbConn.Close(logger)
+	if err := RunStartupTasksFromConfig(ctx, dbConn.DB, dbConn.Driver, cfg, lgr); err != nil {
+		dbConn.Close(lgr)
 		return nil, err
 	}
 
 	// Initialize application container with all dependencies
-	container := app.NewContainer(dbConn.DB, dbConn.Driver, cfg.Server, logger)
+	container := app.NewContainer(dbConn.DB, dbConn.Driver, cfg, lgr)
 
 	// Add Swagger documentation endpoint
 	container.Server.Router().GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return &Application{
 		Config:    cfg,
-		Logger:    logger,
+		Logger:    lgr,
 		Database:  dbConn,
 		Server:    container.Server,
 		Container: container,
@@ -67,14 +72,18 @@ func (a *Application) Run() error {
 	// Ensure database is closed on exit
 	defer a.Database.Close(a.Logger)
 
-	// Start cleanup scheduler if available
-	if a.Container.CleanupScheduler != nil {
+	// Start transcode queue if available
+	if a.Container.TranscodeQueue != nil {
 		ctx := context.Background()
-		a.Container.CleanupScheduler.Start(ctx)
-		defer a.Container.CleanupScheduler.Stop()
+		if err := a.Container.TranscodeQueue.Start(ctx); err != nil {
+			a.Logger.Error("Failed to start transcode queue", "error", err)
+		} else {
+			a.Logger.Info("Transcode queue started")
+		}
 	}
 
 	// Start unified task scheduler if available
+	// (includes transcode cleanup and image cleanup tasks)
 	if a.Container.Scheduler != nil {
 		ctx := context.Background()
 		go func() {
@@ -82,7 +91,6 @@ func (a *Application) Run() error {
 				a.Logger.Error("Scheduler error", "error", err)
 			}
 		}()
-		defer a.Container.Scheduler.Stop()
 		a.Logger.Info("Unified task scheduler started")
 	}
 
@@ -107,11 +115,11 @@ func (a *Application) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := a.Server.Shutdown(ctx); err != nil {
-		a.Logger.Error("Server forced shutdown", "error", err)
+	if err := a.Container.Shutdown(ctx); err != nil {
+		a.Logger.Error("Container forced shutdown", "error", err)
 		return err
 	}
 
-	a.Logger.Info("Server stopped gracefully")
+	a.Logger.Info("Application stopped gracefully")
 	return nil
 }

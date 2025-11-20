@@ -7,20 +7,20 @@
  */
 
 export type GetApiMediaParams = {
-/**
- * Filter by library ID (omit to list all media)
- */
-library_id?: number;
-/**
- * Filter by media type (movie, episode, track)
- */
-type?: string;
-/**
- * Limit number of results
- */
-limit?: number;
-/**
- * Offset for pagination
- */
-offset?: number;
-};
+  /**
+   * Filter by library ID (omit to list all media)
+   */
+  library_id?: number
+  /**
+   * Filter by media type (movie, episode, track)
+   */
+  type?: string
+  /**
+   * Limit number of results
+   */
+  limit?: number
+  /**
+   * Offset for pagination
+   */
+  offset?: number
+}

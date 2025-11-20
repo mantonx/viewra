@@ -1,3 +1,6 @@
+import { MediaPoster } from '@/components/media/MediaPoster'
+import { ProgressBar } from '@/components/media/ProgressBar'
+import { WatchedBadge } from '@/components/media/WatchedBadge'
 import { useMediaProgress } from '@/lib/hooks/useProgress'
 import { getProgressPercentage } from '@/lib/utils'
 import { formatDuration } from '@/lib/utils/format'
@@ -36,10 +39,17 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
       onClick={handleClick}
     >
       {/* Thumbnail with badges */}
-      <div className="aspect-video bg-linear-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-4xl relative">
-        🎬
+      <div className="aspect-video relative">
+        <MediaPoster
+          mediaId={episode.id}
+          mediaType="tv-episode"
+          alt={episode.episode_title || episode.title}
+          className="w-full h-full absolute inset-0"
+          preset="medium"
+          fallbackIcon="🎬"
+        />
         {/* Badges overlay */}
-        <div className="absolute top-2 left-2 right-2 flex justify-between">
+        <div className="absolute top-2 left-2 right-2 flex justify-between z-10">
           <div className="flex gap-1">
             <span className="px-2 py-1 text-xs font-semibold bg-indigo-600 text-white rounded">
               {episodeNumber}
@@ -60,26 +70,8 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
             </span>
           )}
         </div>
-        {/* Progress bar - overlaid at bottom of thumbnail */}
-        {progress && getProgressPercentage(progress) > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-30">
-            <div
-              className={`h-full transition-all ${
-                progress.is_watched ? 'bg-green-500' : 'bg-blue-500'
-              }`}
-              style={{ width: `${Math.min(getProgressPercentage(progress), 100)}%` }}
-            />
-          </div>
-        )}
-        {/* Watched badge overlay */}
-        {progress?.is_watched && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="bg-green-500 text-white px-3 py-2 rounded-full font-semibold text-sm shadow-lg flex items-center gap-1">
-              <span>✓</span>
-              <span>Watched</span>
-            </div>
-          </div>
-        )}
+        <ProgressBar progress={progress} />
+        <WatchedBadge isWatched={progress?.is_watched} />
       </div>
 
       {/* Info */}

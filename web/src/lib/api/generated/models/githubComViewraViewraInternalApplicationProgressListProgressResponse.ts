@@ -5,9 +5,9 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import type { GithubComViewraViewraInternalApplicationProgressWatchProgressResponse } from './githubComViewraViewraInternalApplicationProgressWatchProgressResponse';
+import type { GithubComViewraViewraInternalApplicationProgressWatchProgressResponse } from './githubComViewraViewraInternalApplicationProgressWatchProgressResponse'
 
 export interface GithubComViewraViewraInternalApplicationProgressListProgressResponse {
-  progress?: GithubComViewraViewraInternalApplicationProgressWatchProgressResponse[];
-  total?: number;
+  progress?: GithubComViewraViewraInternalApplicationProgressWatchProgressResponse[]
+  total?: number
 }

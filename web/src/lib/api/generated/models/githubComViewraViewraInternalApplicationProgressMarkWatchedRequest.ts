@@ -7,6 +7,6 @@
  */
 
 export interface GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest {
-  media_id?: number;
-  user_id?: number;
+  media_id?: number
+  user_id?: number
 }

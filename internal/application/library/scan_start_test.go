@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -44,6 +45,23 @@ func (m *mockLibraryRepoForScan) GetByPath(ctx context.Context, path string) (*l
 
 func (m *mockLibraryRepoForScan) Exists(ctx context.Context, path string) (bool, error) {
 	return false, nil
+}
+
+// Transaction-aware methods (delegate to non-transactional versions for mock)
+func (m *mockLibraryRepoForScan) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.Library) error {
+	return m.Create(ctx, lib)
+}
+
+func (m *mockLibraryRepoForScan) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*library.Library, error) {
+	return m.GetByID(ctx, id)
+}
+
+func (m *mockLibraryRepoForScan) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	return m.Delete(ctx, id)
+}
+
+func (m *mockLibraryRepoForScan) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+	return m.Exists(ctx, path)
 }
 
 func TestScanLibraryUseCase_StartScan(t *testing.T) {

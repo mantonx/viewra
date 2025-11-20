@@ -3,14 +3,15 @@ package tv
 import (
 	"time"
 
+	"github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 )
 
 // TVShowSummary represents a TV show with aggregated metadata (for list view)
 type TVShowSummary struct {
-	ID           int64  `json:"id"`
-	LibraryID    int64  `json:"library_id"`
-	Title        string `json:"title"`
+	ID           int64  `json:"id" binding:"required"`
+	LibraryID    int64  `json:"library_id" binding:"required"`
+	Title        string `json:"title" binding:"required"`
 	SeasonCount  int    `json:"season_count"`
 	EpisodeCount int    `json:"episode_count"`
 }
@@ -61,14 +62,16 @@ type TVEpisodeResponse struct {
 
 // ListTVShowsResponse represents a list of TV shows with summary data
 type ListTVShowsResponse struct {
-	Shows []TVShowSummary `json:"shows"`
-	Total int             `json:"total"`
+	Shows      []TVShowSummary            `json:"shows"`
+	Total      int                        `json:"total"`
+	Pagination *common.PaginationMetadata `json:"pagination,omitempty"`
 }
 
 // ListTVEpisodesResponse represents a list of TV episodes
 type ListTVEpisodesResponse struct {
-	Episodes []TVEpisodeResponse `json:"episodes"`
-	Total    int                 `json:"total"`
+	Episodes   []TVEpisodeResponse        `json:"episodes"`
+	Total      int                        `json:"total"`
+	Pagination *common.PaginationMetadata `json:"pagination,omitempty"`
 }
 
 // ToTVEpisodeResponse converts a domain TV episode entity to a DTO

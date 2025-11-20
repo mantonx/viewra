@@ -13,32 +13,12 @@ type CreateLibraryRequest struct {
 	Type string `json:"type" validate:"required,oneof=movies tv music"`
 }
 
-// CreateLibraryResponse represents the output after creating a library
-type CreateLibraryResponse struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	Type      string    `json:"type"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
 // UpdateLibraryRequest represents the input for updating a library
 type UpdateLibraryRequest struct {
 	ID   int64  `json:"id" validate:"required"`
 	Name string `json:"name" validate:"omitempty,min=1,max=100"`
 	Path string `json:"path" validate:"omitempty"`
 	Type string `json:"type" validate:"omitempty,oneof=movies tv music"`
-}
-
-// UpdateLibraryResponse represents the output after updating a library
-type UpdateLibraryResponse struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	Type      string    `json:"type"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // LibraryResponse represents a single library in responses
@@ -86,32 +66,10 @@ type ScanLibraryResponse struct {
 }
 
 // ToLibraryResponse converts a domain library entity to a DTO
+// This single converter replaces ToCreateLibraryResponse and ToUpdateLibraryResponse
+// which were identical duplicates
 func ToLibraryResponse(lib *library.Library) LibraryResponse {
 	return LibraryResponse{
-		ID:        lib.ID,
-		Name:      lib.Name,
-		Path:      lib.Path,
-		Type:      string(lib.Type),
-		CreatedAt: lib.CreatedAt,
-		UpdatedAt: lib.UpdatedAt,
-	}
-}
-
-// ToCreateLibraryResponse converts a domain library to create response DTO
-func ToCreateLibraryResponse(lib *library.Library) CreateLibraryResponse {
-	return CreateLibraryResponse{
-		ID:        lib.ID,
-		Name:      lib.Name,
-		Path:      lib.Path,
-		Type:      string(lib.Type),
-		CreatedAt: lib.CreatedAt,
-		UpdatedAt: lib.UpdatedAt,
-	}
-}
-
-// ToUpdateLibraryResponse converts a domain library to update response DTO
-func ToUpdateLibraryResponse(lib *library.Library) UpdateLibraryResponse {
-	return UpdateLibraryResponse{
 		ID:        lib.ID,
 		Name:      lib.Name,
 		Path:      lib.Path,

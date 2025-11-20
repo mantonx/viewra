@@ -1,52 +1,82 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { getGetApiLibrariesQueryOptions } from '@/lib/api'
-import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Card, CardContent, Input, Select } from '@/components/ui'
+import { useEffect, useRef } from 'react'
 import { MovieCard } from '@/components/media'
 import { VideoPlayer } from '@/components/media/VideoPlayer'
-import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
-import { useMediaPlayback } from '@/lib/hooks/useMediaPlayback'
-import { extractLibraries, getLibraryId, filterLibrariesByType } from '@/lib/utils/api'
-import { moviesApi } from '@/lib/api/movies'
+import { MediaBrowsePage } from '@/components/common'
+import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider } from '@/lib/hooks'
 import { logger } from '@/lib/utils/logger'
 
 const Movies = () => {
   const navigate = useNavigate()
-  const search = Route.useSearch() as { id?: number }
+  const search = Route.useSearch() as {
+    id?: number
+    q?: string
+    sort?: string
+  }
   const urlMovieId = search.id
-  const [selectedLibrary, setSelectedLibrary] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState('')
+
+  // Use library filter to get the active library ID
+  const { libraryId } = useLibraryFilter('movies')
+
+  // URL state handlers
+  const handleSearchChange = (q: string) => {
+    navigate({
+      to: '/movies',
+      search: { id: undefined, q: q || undefined, sort: search.sort || undefined },
+      replace: true,
+    })
+  }
+
+  const handleSortChange = (sort: string) => {
+    navigate({
+      to: '/movies',
+      search: { id: undefined, q: search.q || undefined, sort: sort === 'title-asc' ? undefined : sort },
+      replace: true,
+    })
+  }
 
   // Use the playback hook
   const { playbackState, playMedia, stopPlayback } = useMediaPlayback()
 
-  const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
-  const libraries = extractLibraries(librariesData)
+  // Convert sort format from URL (title-asc) to API format (title_asc)
+  const apiSort = search.sort?.replace(/-/g, '_')
 
-  // Filter to only movie libraries
-  const movieLibraries = filterLibrariesByType(libraries, 'movies')
-
-  // Get the library ID (defaults to first movie library when 'all' is selected)
-  const libraryId = getLibraryId(selectedLibrary, libraries, 'movies')
-
+  // Use infinite scroll for movies
   const {
-    data: moviesData,
+    data,
     isLoading,
     error,
-  } = useQuery({
-    queryKey: ['movies', libraryId],
-    queryFn: () => moviesApi.listMovies(libraryId),
-  })
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteMovies({ libraryId, sort: apiSort })
 
-  const allMovies = moviesData?.movies || []
+  const allMovies = data ? flattenMovies(data.pages) : []
 
-  // Filter movies by search query
-  const filteredMovies = allMovies.filter((movie) => {
-    const matchesSearch =
-      searchQuery === '' || movie.title.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSearch
-  })
+  // Infinite scroll: Detect when user scrolls near bottom
+  const observerTarget = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    const currentTarget = observerTarget.current
+    if (currentTarget) {
+      observer.observe(currentTarget)
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget)
+      }
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
 
   // Find currently playing movie
   const playingMovie = allMovies.find((m) => m.id === playbackState.mediaId)
@@ -62,7 +92,7 @@ const Movies = () => {
     logger.debug('✅ Found movie:', movie.title)
 
     // Update URL with movie ID
-    navigate({ to: '/movies', search: { id: movieId } })
+    navigate({ to: '/movies', search: { id: movieId, q: undefined, sort: undefined } })
 
     // Convert Movie to the format expected by playMedia
     const mediaItem = {
@@ -83,7 +113,7 @@ const Movies = () => {
     stopPlayback()
     // Clear URL parameter if present
     if (urlMovieId) {
-      navigate({ to: '/movies', search: { id: undefined } })
+      navigate({ to: '/movies', search: { id: undefined, q: search.q || undefined, sort: search.sort || undefined } })
     }
   }
 
@@ -100,77 +130,42 @@ const Movies = () => {
     )
   }
 
-  if (isLoading) {
-    return <LoadingPage text="Loading movies..." />
-  }
-
-  if (error) {
-    return <ErrorPage error={error} context="movies" />
-  }
+  // Extract movie IDs for batch image loading
+  const movieIds = allMovies.map((m) => m.id)
 
   return (
-    <div className="p-8">
-      <PageHeader title="Movies" description="Browse your movie collection." />
-
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search movies..."
-            />
-            <Select
-              label="Library"
-              value={selectedLibrary}
-              onChange={(e) => setSelectedLibrary(e.target.value)}
-              options={[
-                { value: 'all', label: 'All Movie Libraries' },
-                ...movieLibraries.map((lib) => ({
-                  value: String(lib.id),
-                  label: lib.name || '',
-                })),
-              ]}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Movies Grid */}
-      {filteredMovies.length === 0 ? (
-        <Card>
-          <CardContent>
-            <EmptyState
-              icon="🎬"
-              title={allMovies.length === 0 ? 'No movies found' : 'No matches'}
-              description={
-                allMovies.length === 0
-                  ? 'Add a library with movies and scan it to see your movies here.'
-                  : 'No movies match your search. Try adjusting your query.'
-              }
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {filteredMovies.map((movie) => {
-            return (
-              <MovieCard
-                key={movie.id}
-                movie={movie}
-                onClick={() => handlePlayMovie(movie.id)}
-              />
-            )
-          })}
-        </div>
-      )}
-
-      <div className="mt-4 text-sm text-gray-500 text-center">
-        Showing {filteredMovies.length} of {allMovies.length} movies
+    <BatchImagesProvider mediaIds={movieIds}>
+      <MediaBrowsePage
+        type="movies"
+        title="Movies"
+        description="Browse your movie collection."
+        searchPlaceholder="Search movies..."
+        emptyIcon="🎬"
+        emptyTitle="No movies found"
+        emptyDescription="Add a library with movies and scan it to see your movies here."
+        data={allMovies}
+        isLoading={isLoading}
+        error={error}
+        renderItem={(movie) => (
+          <MovieCard
+            key={movie.id}
+            movie={movie}
+            onClick={() => handlePlayMovie(movie.id)}
+          />
+        )}
+        onItemSelect={(movie) => handlePlayMovie(movie.id)}
+        initialSearch={search.q || ''}
+        initialSort={search.sort || 'title-asc'}
+        onSearchChange={handleSearchChange}
+        onSortChange={handleSortChange}
+      />
+      {/* Infinite scroll observer target */}
+      <div ref={observerTarget} className="h-20 flex items-center justify-center">
+        {isFetchingNextPage && (
+          <div className="text-gray-400">Loading more movies...</div>
+        )}
       </div>
-    </div>
+    </BatchImagesProvider>
   )
 }
 
@@ -179,8 +174,13 @@ export const Route = createFileRoute('/_layout/movies/')({
   validateSearch: (search: Record<string, unknown>) => {
     const id = search.id
     const parsedId = typeof id === 'string' ? parseInt(id, 10) : typeof id === 'number' ? id : undefined
+    const q = typeof search.q === 'string' ? search.q : undefined
+    const sort = typeof search.sort === 'string' ? search.sort : undefined
+
     return {
       id: parsedId && !isNaN(parsedId) ? parsedId : undefined,
+      q,
+      sort,
     }
   },
 })

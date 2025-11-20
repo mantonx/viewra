@@ -26,7 +26,7 @@ export function useMediaImages(mediaId: number | undefined, options: UseMediaIma
       if (!mediaId) {
         return { images: [] }
       }
-      return imagesApi.getMediaImages(mediaId)
+      return (await imagesApi.getMediaImages(mediaId)).data
     },
     enabled: enabled && mediaId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -45,7 +45,7 @@ export function useMovieImages(movieId: number | undefined, options: UseMediaIma
       if (!movieId) {
         return { images: [] }
       }
-      return imagesApi.getMovieImages(movieId)
+      return (await imagesApi.getMovieImages(movieId)).data
     },
     enabled: enabled && movieId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -67,7 +67,7 @@ export function useEpisodeImages(
       if (!episodeId) {
         return { images: [] }
       }
-      return imagesApi.getEpisodeImages(episodeId)
+      return (await imagesApi.getEpisodeImages(episodeId)).data
     },
     enabled: enabled && episodeId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -89,7 +89,7 @@ export function useTVShowImages(
       if (!showId) {
         return { images: [] }
       }
-      return imagesApi.getTVShowImages(showId)
+      return (await imagesApi.getTVShowImages(showId)).data
     },
     enabled: enabled && showId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -111,7 +111,7 @@ export function useTVSeasonImages(
       if (!seasonId) {
         return { images: [] }
       }
-      return imagesApi.getTVSeasonImages(seasonId)
+      return (await imagesApi.getTVSeasonImages(seasonId)).data
     },
     enabled: enabled && seasonId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -133,9 +133,31 @@ export function useMusicAlbumImages(
       if (!albumId) {
         return { images: [] }
       }
-      return imagesApi.getMusicAlbumImages(albumId)
+      return (await imagesApi.getMusicAlbumImages(albumId)).data
     },
     enabled: enabled && albumId !== undefined,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}
+
+/**
+ * Hook to fetch all images for a music artist
+ */
+export function useMusicArtistImages(
+  artistId: number | undefined,
+  options: UseMediaImagesOptions = {}
+) {
+  const { enabled = true } = options
+
+  return useQuery({
+    queryKey: ['music-artist-images', artistId],
+    queryFn: async () => {
+      if (!artistId) {
+        return { images: [] }
+      }
+      return (await imagesApi.getMusicArtistImages(artistId)).data
+    },
+    enabled: enabled && artistId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
   })
 }

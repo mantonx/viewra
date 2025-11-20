@@ -1,59 +1,34 @@
 /**
  * Music API Client
- * Direct API calls for music endpoints
+ * Wrapper around generated API functions
  */
 
-import { customInstance } from './mutator'
-import type {
-  ListArtistsResponse,
-  ListAlbumsResponse,
-  ListTracksResponse,
-  MusicTrackResponse,
-} from '@/lib/types/music'
+import { getApiMusicArtists, getApiMusicArtistsIdAlbums, getApiMusicAlbumsIdTracks, getApiMusicTracksId, getApiMusicSearch } from './generated/music/music'
+import type { GetApiMusicArtistsParams, GetApiMusicSearchParams } from './generated/models'
 
 export const musicApi = {
   /**
-   * List all artists for a library
+   * List all artists for a library with optional pagination
    */
-  listArtists: (libraryId: number) =>
-    customInstance<ListArtistsResponse>({
-      url: `/api/music/artists?library_id=${libraryId}`,
-      method: 'GET',
-    }),
+  listArtists: (params: GetApiMusicArtistsParams) => getApiMusicArtists(params),
 
   /**
    * List all albums by a specific artist (using artist representative track ID)
    */
-  listAlbumsByArtistID: (artistId: number) =>
-    customInstance<ListAlbumsResponse>({
-      url: `/api/music/artists/${artistId}/albums`,
-      method: 'GET',
-    }),
+  listAlbumsByArtistID: (artistId: number) => getApiMusicArtistsIdAlbums(artistId),
 
   /**
    * List all tracks in a specific album (using album representative track ID)
    */
-  listTracksByAlbumID: (albumId: number) =>
-    customInstance<ListTracksResponse>({
-      url: `/api/music/albums/${albumId}/tracks`,
-      method: 'GET',
-    }),
+  listTracksByAlbumID: (albumId: number) => getApiMusicAlbumsIdTracks(albumId),
 
   /**
    * Get a specific track by ID
    */
-  getTrack: (id: number) =>
-    customInstance<MusicTrackResponse>({
-      url: `/api/music/tracks/${id}`,
-      method: 'GET',
-    }),
+  getTrack: (id: number) => getApiMusicTracksId(id),
 
   /**
-   * Search music tracks
+   * Search music tracks with optional pagination
    */
-  search: (libraryId: number, query: string) =>
-    customInstance<ListTracksResponse>({
-      url: `/api/music/search?library_id=${libraryId}&q=${encodeURIComponent(query)}`,
-      method: 'GET',
-    }),
+  search: (params: GetApiMusicSearchParams) => getApiMusicSearch(params),
 }

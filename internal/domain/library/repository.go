@@ -1,6 +1,9 @@
 package library
 
-import "context"
+import (
+	"context"
+	"database/sql"
+)
 
 // Repository defines the interface for library data access
 type Repository interface {
@@ -24,4 +27,10 @@ type Repository interface {
 
 	// Exists checks if a library with the given path exists
 	Exists(ctx context.Context, path string) (bool, error)
+
+	// Transaction-aware methods
+	CreateWithTx(ctx context.Context, tx *sql.Tx, library *Library) error
+	GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*Library, error)
+	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
+	ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error)
 }

@@ -7,5 +7,5 @@
  */
 
 export interface InternalApiHandlersCreateTranscodeJobRequest {
-  quality: string;
+  quality: string
 }

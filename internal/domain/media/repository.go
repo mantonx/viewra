@@ -1,6 +1,11 @@
 package media
 
-import "context"
+import (
+	"context"
+	"database/sql"
+
+	"github.com/viewra/viewra/internal/domain/common"
+)
 
 // Repository defines the interface for media data access operations.
 // This follows the Repository pattern from DDD, keeping domain logic
@@ -38,6 +43,10 @@ type Repository interface {
 
 	// CountByType returns the number of media items of a specific type in a library
 	CountByType(ctx context.Context, libraryID int64, mediaType MediaType) (int64, error)
+
+	// Transaction-aware methods
+	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
+	ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*Media, error)
 }
 
 // MovieRepository extends Repository with movie-specific operations
@@ -56,6 +65,19 @@ type MovieRepository interface {
 
 	// SearchMovies searches for movies by title
 	SearchMovies(ctx context.Context, libraryID int64, query string) ([]*Movie, error)
+
+	// Pagination support
+	// CountMoviesByLibrary returns the total count of movies in a library
+	CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error)
+
+	// ListMoviesByLibraryPaginated retrieves movies in a library with pagination
+	ListMoviesByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]*Movie, error)
+
+	// CountSearchMoviesByTitle returns the count of movies matching a search query
+	CountSearchMoviesByTitle(ctx context.Context, libraryID int64, query string) (int64, error)
+
+	// SearchMoviesByTitlePaginated searches for movies by title with pagination
+	SearchMoviesByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]*Movie, error)
 }
 
 // TVRepository extends Repository with TV-specific operations
@@ -86,6 +108,19 @@ type TVRepository interface {
 
 	// GetTVSeasonByShowAndNumber retrieves a TV season by show ID and season number
 	GetTVSeasonByShowAndNumber(ctx context.Context, showID int64, seasonNumber int64) (TVSeason, error)
+
+	// Pagination support for TV shows
+	// CountTVShowsByLibrary returns the total count of TV shows in a library
+	CountTVShowsByLibrary(ctx context.Context, libraryID int64) (int64, error)
+
+	// ListTVShowsByLibraryPaginated retrieves TV shows in a library with pagination
+	ListTVShowsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]TVShowWithCounts, error)
+
+	// CountSearchTVShowsByTitle returns the count of TV shows matching a search query
+	CountSearchTVShowsByTitle(ctx context.Context, libraryID int64, query string) (int64, error)
+
+	// SearchTVShowsByTitlePaginated searches for TV shows by title with pagination
+	SearchTVShowsByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]TVShow, error)
 }
 
 // TVShow represents a TV show for use in repository operations
@@ -93,6 +128,13 @@ type TVShow struct {
 	ID        int64
 	LibraryID int64
 	Title     string
+}
+
+// TVShowWithCounts represents a TV show with aggregated season and episode counts
+type TVShowWithCounts struct {
+	TVShow
+	SeasonCount  int64
+	EpisodeCount int64
 }
 
 // TVSeason represents a TV season for use in repository operations
@@ -125,4 +167,42 @@ type MusicRepository interface {
 
 	// SearchMusicTracks searches for music tracks by title, artist, or album
 	SearchMusicTracks(ctx context.Context, libraryID int64, query string) ([]*MusicTrack, error)
+
+	// Pagination support for artists
+	// CountArtistsByLibrary returns the total count of unique artists in a library
+	CountArtistsByLibrary(ctx context.Context, libraryID int64) (int64, error)
+
+	// ListArtistsByLibraryPaginated retrieves unique artists in a library with pagination
+	ListArtistsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]MusicArtist, error)
+
+	// Pagination support for albums
+	// CountAlbumsByLibrary returns the total count of unique albums in a library
+	CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error)
+
+	// ListAlbumsByLibraryPaginated retrieves unique albums in a library with pagination
+	ListAlbumsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]MusicAlbum, error)
+
+	// Pagination support for tracks
+	// CountMusicTracksByLibrary returns the total count of music tracks in a library
+	CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error)
+
+	// ListMusicTracksByLibraryPaginated retrieves music tracks in a library with pagination
+	ListMusicTracksByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]*MusicTrack, error)
+}
+
+// MusicArtist represents an artist with aggregated track and album counts
+type MusicArtist struct {
+	RepresentativeID int64
+	Artist           string
+	AlbumCount       int64
+	TrackCount       int64
+}
+
+// MusicAlbum represents an album with aggregated track information
+type MusicAlbum struct {
+	Album       string
+	AlbumArtist string
+	Year        int64
+	TrackCount  int64
+	Duration    int64 // Total duration in seconds
 }

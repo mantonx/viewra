@@ -30,10 +30,10 @@ const ShowDetail = () => {
     queryFn: () => tvApi.listEpisodesByShowId(showIdNumber),
   })
 
-  const allEpisodes = episodesData?.episodes || []
+  const allEpisodes = episodesData?.data?.episodes || []
   const isLoading = isLoadingShow || isLoadingEpisodes
   const error = showError || episodesError
-  const showTitle = showData?.title || ''
+  const showTitle = showData?.data?.title || ''
 
   // Group episodes by season
   const seasons = useMemo(() => {

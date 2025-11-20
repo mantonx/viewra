@@ -11,13 +11,15 @@ import (
 
 // Extractor discovers and catalogs image files for media items
 type Extractor struct {
-	metadataExtractor *MetadataExtractor
+	metadataExtractor  *MetadataExtractor
+	embeddedExtractor  *EmbeddedExtractor
 }
 
 // NewExtractor creates a new image extractor
 func NewExtractor() *Extractor {
 	return &Extractor{
 		metadataExtractor: NewMetadataExtractor(),
+		embeddedExtractor: NewEmbeddedExtractor(),
 	}
 }
 
@@ -198,9 +200,11 @@ func (e *Extractor) ExtractTVEpisodeImages(episodeFilePath string) (*ExtractedIm
 }
 
 // ExtractMusicArtistImages discovers artist-level images
+// Priority: Filesystem images first, then embedded artwork as fallback
 func (e *Extractor) ExtractMusicArtistImages(artistDir string) (*ExtractedImages, error) {
 	var imageInfos []ImageInfo
 
+	// 1. Try filesystem images first (highest priority - explicit user choice)
 	// Artist folder/poster
 	posterPatterns := []string{
 		"folder.jpg", "folder.png",
@@ -208,9 +212,14 @@ func (e *Extractor) ExtractMusicArtistImages(artistDir string) (*ExtractedImages
 	}
 	if img := e.findFirstMatchingImage(artistDir, posterPatterns, images.ImageTypeFolder, 0); img != nil {
 		imageInfos = append(imageInfos, *img)
+	} else {
+		// 2. Fallback to embedded artwork from first audio file in artist directory
+		if embeddedImg, err := e.embeddedExtractor.ExtractArtistArtFromFirstTrack(artistDir); err == nil && embeddedImg != nil {
+			imageInfos = append(imageInfos, *embeddedImg)
+		}
 	}
 
-	// Artist fanart
+	// Artist fanart (filesystem only - embedded tags don't typically have fanart)
 	fanartPatterns := []string{
 		"fanart.jpg", "fanart.png",
 	}
@@ -218,7 +227,7 @@ func (e *Extractor) ExtractMusicArtistImages(artistDir string) (*ExtractedImages
 		imageInfos = append(imageInfos, *img)
 	}
 
-	// Artist logo
+	// Artist logo (filesystem only - embedded tags don't typically have logos)
 	logoPatterns := []string{
 		"logo.png",
 		"clearlogo.png",
@@ -231,10 +240,11 @@ func (e *Extractor) ExtractMusicArtistImages(artistDir string) (*ExtractedImages
 }
 
 // ExtractMusicAlbumImages discovers album-level images
+// Priority: Filesystem images first, then embedded artwork as fallback
 func (e *Extractor) ExtractMusicAlbumImages(albumDir string) (*ExtractedImages, error) {
 	var imageInfos []ImageInfo
 
-	// Album cover (highest priority)
+	// 1. Try filesystem images first (highest priority - explicit user choice)
 	coverPatterns := []string{
 		"cover.jpg", "cover.png",
 		"folder.jpg", "folder.png",
@@ -243,9 +253,14 @@ func (e *Extractor) ExtractMusicAlbumImages(albumDir string) (*ExtractedImages, 
 	}
 	if img := e.findFirstMatchingImage(albumDir, coverPatterns, images.ImageTypeCover, 0); img != nil {
 		imageInfos = append(imageInfos, *img)
+	} else {
+		// 2. Fallback to embedded artwork from first audio file
+		if embeddedImg, err := e.embeddedExtractor.ExtractAlbumArtFromFirstTrack(albumDir); err == nil && embeddedImg != nil {
+			imageInfos = append(imageInfos, *embeddedImg)
+		}
 	}
 
-	// Disc art
+	// Disc art (filesystem only - embedded tags don't typically have disc art)
 	discArtPatterns := []string{
 		"discart.png",
 		"disc.png",

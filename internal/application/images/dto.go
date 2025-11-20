@@ -35,6 +35,11 @@ type ListImagesResponse struct {
 	Total  int             `json:"total"`
 }
 
+// BatchImagesResponse represents images for multiple media items
+type BatchImagesResponse struct {
+	MediaImages map[int][]ImageResponse `json:"media_images"` // map[mediaID][]images
+}
+
 // ToImageResponse converts a domain Image to an ImageResponse
 func ToImageResponse(img *images.Image) ImageResponse {
 	return ImageResponse{

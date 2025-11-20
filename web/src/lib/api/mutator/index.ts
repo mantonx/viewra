@@ -71,10 +71,21 @@ export const customInstance = async <T>(
 
   // Handle 204 No Content
   if (response.status === 204) {
-    return {} as T
+    return {
+      data: {} as any,
+      status: response.status,
+      headers: response.headers,
+    } as T
   }
 
-  return response.json()
+  const responseData = await response.json()
+
+  // Return the structure expected by Orval-generated code
+  return {
+    data: responseData,
+    status: response.status,
+    headers: response.headers,
+  } as T
 }
 
 /**

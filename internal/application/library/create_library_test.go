@@ -2,9 +2,12 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 
+	"github.com/viewra/viewra/internal/application/common"
+    _ "modernc.org/sqlite" // Import SQLite driver
 	"github.com/viewra/viewra/internal/domain/library"
 )
 
@@ -83,6 +86,23 @@ func (m *mockLibraryRepository) Delete(ctx context.Context, id int64) error {
 func (m *mockLibraryRepository) Exists(ctx context.Context, path string) (bool, error) {
 	_, ok := m.pathIndex[path]
 	return ok, nil
+}
+
+// Transaction-aware methods (delegate to non-transactional versions for mock)
+func (m *mockLibraryRepository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.Library) error {
+	return m.Create(ctx, lib)
+}
+
+func (m *mockLibraryRepository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*library.Library, error) {
+	return m.GetByID(ctx, id)
+}
+
+func (m *mockLibraryRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	return m.Delete(ctx, id)
+}
+
+func (m *mockLibraryRepository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+	return m.Exists(ctx, path)
 }
 
 func TestCreateLibraryUseCase_Execute(t *testing.T) {
@@ -189,7 +209,15 @@ func TestCreateLibraryUseCase_Execute(t *testing.T) {
 				tt.setup(repo)
 			}
 
-			uc := NewCreateLibraryUseCase(repo)
+			// Create an in-memory SQLite database for testing transactions
+			db, err := sql.Open("sqlite", ":memory:")
+			if err != nil {
+				t.Fatalf("Failed to open test database: %v", err)
+			}
+			defer db.Close()
+
+			txManager := common.NewTxManager(db)
+			uc := NewCreateLibraryUseCase(repo, txManager)
 
 			resp, err := uc.Execute(context.Background(), tt.req)
 

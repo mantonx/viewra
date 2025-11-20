@@ -1,19 +1,14 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, Button } from '@/components/ui'
 import { AlbumCard } from '@/components/music'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
-import { extractLibraries } from '@/lib/utils/api'
 import { musicApi } from '@/lib/api/music'
 
 const ArtistDetail = () => {
   const navigate = useNavigate()
   const { artistId } = Route.useParams()
   const artistIdNum = parseInt(artistId, 10)
-
-  const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
-  const libraries = extractLibraries(librariesData)
 
   const {
     data: albumsData,
@@ -24,7 +19,7 @@ const ArtistDetail = () => {
     queryFn: () => musicApi.listAlbumsByArtistID(artistIdNum),
   })
 
-  const albums = albumsData?.albums || []
+  const albums = albumsData?.data?.albums || []
 
   // Get artist name from first album
   const artistName = albums.length > 0 ? albums[0].artist : 'Artist'

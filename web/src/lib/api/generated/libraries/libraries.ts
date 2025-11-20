@@ -5,10 +5,7 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,26 +18,22 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
-} from '@tanstack/react-query';
+  UseQueryResult,
+} from '@tanstack/react-query'
 
 import type {
   GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest,
-  GithubComViewraViewraInternalApplicationLibraryCreateLibraryResponse,
   GithubComViewraViewraInternalApplicationLibraryGetLibraryResponse,
+  GithubComViewraViewraInternalApplicationLibraryLibraryResponse,
   GithubComViewraViewraInternalApplicationLibraryListLibrariesResponse,
   GithubComViewraViewraInternalApplicationLibraryStartScanResponse,
   GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest,
-  GithubComViewraViewraInternalApplicationLibraryUpdateLibraryResponse,
-  InternalApiHandlersErrorResponse
-} from '.././models';
+  InternalApiHandlersErrorResponse,
+} from '.././models'
 
-import { customInstance } from '../../mutator/index';
+import { customInstance } from '../../mutator/index'
 
-
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
  * Returns a list of all libraries
@@ -55,119 +48,132 @@ export type getApiLibrariesResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiLibrariesResponseSuccess = (getApiLibrariesResponse200) & {
-  headers: Headers;
-};
-export type getApiLibrariesResponseError = (getApiLibrariesResponse500) & {
-  headers: Headers;
-};
 
-export type getApiLibrariesResponse = (getApiLibrariesResponseSuccess | getApiLibrariesResponseError)
+export type getApiLibrariesResponseSuccess = getApiLibrariesResponse200 & {
+  headers: Headers
+}
+export type getApiLibrariesResponseError = getApiLibrariesResponse500 & {
+  headers: Headers
+}
+
+export type getApiLibrariesResponse = getApiLibrariesResponseSuccess | getApiLibrariesResponseError
 
 export const getGetApiLibrariesUrl = () => {
-
-
-  
-
   return `/api/libraries`
 }
 
-export const getApiLibraries = async ( options?: RequestInit): Promise<getApiLibrariesResponse> => {
-  
-  return customInstance<getApiLibrariesResponse>(getGetApiLibrariesUrl(),
-  {      
+export const getApiLibraries = async (options?: RequestInit): Promise<getApiLibrariesResponse> => {
+  return customInstance<getApiLibrariesResponse>(getGetApiLibrariesUrl(), {
     ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
+    method: 'GET',
+  })
+}
 
 export const getGetApiLibrariesQueryKey = () => {
-    return [
-    `/api/libraries`
-    ] as const;
-    }
+  return [`/api/libraries`] as const
+}
 
-    
-export const getGetApiLibrariesQueryOptions = <TData = Awaited<ReturnType<typeof getApiLibraries>>, TError = InternalApiHandlersErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
+export const getGetApiLibrariesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiLibraries>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
 
-const {query: queryOptions, request: requestOptions} = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetApiLibrariesQueryKey()
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiLibrariesQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibraries>>> = ({ signal }) =>
+    getApiLibraries({ signal, ...requestOptions })
 
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibraries>>> = ({ signal }) => getApiLibraries({ signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiLibraries>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type GetApiLibrariesQueryResult = NonNullable<Awaited<ReturnType<typeof getApiLibraries>>>
 export type GetApiLibrariesQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiLibraries<TData = Awaited<ReturnType<typeof getApiLibraries>>, TError = InternalApiHandlersErrorResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>> & Pick<
+export function useGetApiLibraries<
+  TData = Awaited<ReturnType<typeof getApiLibraries>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>> &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibraries>>,
           TError,
           Awaited<ReturnType<typeof getApiLibraries>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibraries<TData = Awaited<ReturnType<typeof getApiLibraries>>, TError = InternalApiHandlersErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibraries<
+  TData = Awaited<ReturnType<typeof getApiLibraries>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>> &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibraries>>,
           TError,
           Awaited<ReturnType<typeof getApiLibraries>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibraries<TData = Awaited<ReturnType<typeof getApiLibraries>>, TError = InternalApiHandlersErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibraries<
+  TData = Awaited<ReturnType<typeof getApiLibraries>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary List all libraries
  */
 
-export function useGetApiLibraries<TData = Awaited<ReturnType<typeof getApiLibraries>>, TError = InternalApiHandlersErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
+export function useGetApiLibraries<
+  TData = Awaited<ReturnType<typeof getApiLibraries>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibraries>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiLibrariesQueryOptions(options)
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey
 
-  return query;
+  return query
 }
-
-
-
 
 /**
  * Creates a new media library
  * @summary Create a new library
  */
 export type postApiLibrariesResponse201 = {
-  data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryResponse
+  data: GithubComViewraViewraInternalApplicationLibraryLibraryResponse
   status: 201
 }
 
@@ -180,85 +186,105 @@ export type postApiLibrariesResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type postApiLibrariesResponseSuccess = (postApiLibrariesResponse201) & {
-  headers: Headers;
-};
-export type postApiLibrariesResponseError = (postApiLibrariesResponse400 | postApiLibrariesResponse500) & {
-  headers: Headers;
-};
 
-export type postApiLibrariesResponse = (postApiLibrariesResponseSuccess | postApiLibrariesResponseError)
+export type postApiLibrariesResponseSuccess = postApiLibrariesResponse201 & {
+  headers: Headers
+}
+export type postApiLibrariesResponseError = (
+  | postApiLibrariesResponse400
+  | postApiLibrariesResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiLibrariesResponse =
+  | postApiLibrariesResponseSuccess
+  | postApiLibrariesResponseError
 
 export const getPostApiLibrariesUrl = () => {
-
-
-  
-
   return `/api/libraries`
 }
 
-export const postApiLibraries = async (githubComViewraViewraInternalApplicationLibraryCreateLibraryRequest: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest, options?: RequestInit): Promise<postApiLibrariesResponse> => {
-  
-  return customInstance<postApiLibrariesResponse>(getPostApiLibrariesUrl(),
-  {      
+export const postApiLibraries = async (
+  githubComViewraViewraInternalApplicationLibraryCreateLibraryRequest: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest,
+  options?: RequestInit
+): Promise<postApiLibrariesResponse> => {
+  return customInstance<postApiLibrariesResponse>(getPostApiLibrariesUrl(), {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      githubComViewraViewraInternalApplicationLibraryCreateLibraryRequest,)
+    body: JSON.stringify(githubComViewraViewraInternalApplicationLibraryCreateLibraryRequest),
+  })
+}
+
+export const getPostApiLibrariesMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiLibraries>>,
+    TError,
+    { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiLibraries>>,
+  TError,
+  { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiLibraries']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiLibraries>>,
+    { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiLibraries(data, requestOptions)
   }
-);}
 
+  return { mutationFn, ...mutationOptions }
+}
 
+export type PostApiLibrariesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiLibraries>>
+>
+export type PostApiLibrariesMutationBody =
+  GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest
+export type PostApiLibrariesMutationError = InternalApiHandlersErrorResponse
 
-
-export const getPostApiLibrariesMutationOptions = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiLibraries>>, TError,{data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof postApiLibraries>>, TError,{data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest}, TContext> => {
-
-const mutationKey = ['postApiLibraries'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiLibraries>>, {data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  postApiLibraries(data,requestOptions)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PostApiLibrariesMutationResult = NonNullable<Awaited<ReturnType<typeof postApiLibraries>>>
-    export type PostApiLibrariesMutationBody = GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest
-    export type PostApiLibrariesMutationError = InternalApiHandlersErrorResponse
-
-    /**
+/**
  * @summary Create a new library
  */
-export const usePostApiLibraries = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiLibraries>>, TError,{data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postApiLibraries>>,
-        TError,
-        {data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest},
-        TContext
-      > => {
+export const usePostApiLibraries = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiLibraries>>,
+      TError,
+      { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiLibraries>>,
+  TError,
+  { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiLibrariesMutationOptions(options)
 
-      const mutationOptions = getPostApiLibrariesMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient)
+}
+/**
  * Returns details of a specific library
  * @summary Get a library by ID
  */
@@ -281,119 +307,150 @@ export type getApiLibrariesIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiLibrariesIdResponseSuccess = (getApiLibrariesIdResponse200) & {
-  headers: Headers;
-};
-export type getApiLibrariesIdResponseError = (getApiLibrariesIdResponse400 | getApiLibrariesIdResponse404 | getApiLibrariesIdResponse500) & {
-  headers: Headers;
-};
 
-export type getApiLibrariesIdResponse = (getApiLibrariesIdResponseSuccess | getApiLibrariesIdResponseError)
+export type getApiLibrariesIdResponseSuccess = getApiLibrariesIdResponse200 & {
+  headers: Headers
+}
+export type getApiLibrariesIdResponseError = (
+  | getApiLibrariesIdResponse400
+  | getApiLibrariesIdResponse404
+  | getApiLibrariesIdResponse500
+) & {
+  headers: Headers
+}
 
-export const getGetApiLibrariesIdUrl = (id: number,) => {
+export type getApiLibrariesIdResponse =
+  | getApiLibrariesIdResponseSuccess
+  | getApiLibrariesIdResponseError
 
-
-  
-
+export const getGetApiLibrariesIdUrl = (id: number) => {
   return `/api/libraries/${id}`
 }
 
-export const getApiLibrariesId = async (id: number, options?: RequestInit): Promise<getApiLibrariesIdResponse> => {
-  
-  return customInstance<getApiLibrariesIdResponse>(getGetApiLibrariesIdUrl(id),
-  {      
+export const getApiLibrariesId = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiLibrariesIdResponse> => {
+  return customInstance<getApiLibrariesIdResponse>(getGetApiLibrariesIdUrl(id), {
     ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
-
-export const getGetApiLibrariesIdQueryKey = (id?: number,) => {
-    return [
-    `/api/libraries/${id}`
-    ] as const;
-    }
-
-    
-export const getGetApiLibrariesIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiLibrariesId>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiLibrariesIdQueryKey(id);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesId>>> = ({ signal }) => getApiLibrariesId(id, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+    method: 'GET',
+  })
 }
 
-export type GetApiLibrariesIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiLibrariesId>>>
+export const getGetApiLibrariesIdQueryKey = (id?: number) => {
+  return [`/api/libraries/${id}`] as const
+}
+
+export const getGetApiLibrariesIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiLibrariesIdQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesId>>> = ({ signal }) =>
+    getApiLibrariesId(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiLibrariesId>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiLibrariesIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiLibrariesId>>
+>
 export type GetApiLibrariesIdQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiLibrariesId<TData = Awaited<ReturnType<typeof getApiLibrariesId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>> & Pick<
+export function useGetApiLibrariesId<
+  TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>> &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesId>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesId<TData = Awaited<ReturnType<typeof getApiLibrariesId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesId<
+  TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>> &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesId>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesId<TData = Awaited<ReturnType<typeof getApiLibrariesId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesId<
+  TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get a library by ID
  */
 
-export function useGetApiLibrariesId<TData = Awaited<ReturnType<typeof getApiLibrariesId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetApiLibrariesId<
+  TData = Awaited<ReturnType<typeof getApiLibrariesId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesId>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiLibrariesIdQueryOptions(id, options)
 
-  const queryOptions = getGetApiLibrariesIdQueryOptions(id,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey
 
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
+  return query
 }
-
-
-
 
 /**
  * Updates an existing library
  * @summary Update a library
  */
 export type putApiLibrariesIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryResponse
+  data: GithubComViewraViewraInternalApplicationLibraryLibraryResponse
   status: 200
 }
 
@@ -411,86 +468,107 @@ export type putApiLibrariesIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type putApiLibrariesIdResponseSuccess = (putApiLibrariesIdResponse200) & {
-  headers: Headers;
-};
-export type putApiLibrariesIdResponseError = (putApiLibrariesIdResponse400 | putApiLibrariesIdResponse404 | putApiLibrariesIdResponse500) & {
-  headers: Headers;
-};
 
-export type putApiLibrariesIdResponse = (putApiLibrariesIdResponseSuccess | putApiLibrariesIdResponseError)
+export type putApiLibrariesIdResponseSuccess = putApiLibrariesIdResponse200 & {
+  headers: Headers
+}
+export type putApiLibrariesIdResponseError = (
+  | putApiLibrariesIdResponse400
+  | putApiLibrariesIdResponse404
+  | putApiLibrariesIdResponse500
+) & {
+  headers: Headers
+}
 
-export const getPutApiLibrariesIdUrl = (id: number,) => {
+export type putApiLibrariesIdResponse =
+  | putApiLibrariesIdResponseSuccess
+  | putApiLibrariesIdResponseError
 
-
-  
-
+export const getPutApiLibrariesIdUrl = (id: number) => {
   return `/api/libraries/${id}`
 }
 
-export const putApiLibrariesId = async (id: number,
-    githubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest, options?: RequestInit): Promise<putApiLibrariesIdResponse> => {
-  
-  return customInstance<putApiLibrariesIdResponse>(getPutApiLibrariesIdUrl(id),
-  {      
+export const putApiLibrariesId = async (
+  id: number,
+  githubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest,
+  options?: RequestInit
+): Promise<putApiLibrariesIdResponse> => {
+  return customInstance<putApiLibrariesIdResponse>(getPutApiLibrariesIdUrl(id), {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      githubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest,)
+    body: JSON.stringify(githubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest),
+  })
+}
+
+export const getPutApiLibrariesIdMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putApiLibrariesId>>,
+    TError,
+    { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putApiLibrariesId>>,
+  TError,
+  { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+  TContext
+> => {
+  const mutationKey = ['putApiLibrariesId']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putApiLibrariesId>>,
+    { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest }
+  > = (props) => {
+    const { id, data } = props ?? {}
+
+    return putApiLibrariesId(id, data, requestOptions)
   }
-);}
 
+  return { mutationFn, ...mutationOptions }
+}
 
+export type PutApiLibrariesIdMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putApiLibrariesId>>
+>
+export type PutApiLibrariesIdMutationBody =
+  GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest
+export type PutApiLibrariesIdMutationError = InternalApiHandlersErrorResponse
 
-
-export const getPutApiLibrariesIdMutationOptions = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiLibrariesId>>, TError,{id: number;data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof putApiLibrariesId>>, TError,{id: number;data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest}, TContext> => {
-
-const mutationKey = ['putApiLibrariesId'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putApiLibrariesId>>, {id: number;data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  putApiLibrariesId(id,data,requestOptions)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PutApiLibrariesIdMutationResult = NonNullable<Awaited<ReturnType<typeof putApiLibrariesId>>>
-    export type PutApiLibrariesIdMutationBody = GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest
-    export type PutApiLibrariesIdMutationError = InternalApiHandlersErrorResponse
-
-    /**
+/**
  * @summary Update a library
  */
-export const usePutApiLibrariesId = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiLibrariesId>>, TError,{id: number;data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof putApiLibrariesId>>,
-        TError,
-        {id: number;data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest},
-        TContext
-      > => {
+export const usePutApiLibrariesId = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putApiLibrariesId>>,
+      TError,
+      { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof putApiLibrariesId>>,
+  TError,
+  { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+  TContext
+> => {
+  const mutationOptions = getPutApiLibrariesIdMutationOptions(options)
 
-      const mutationOptions = getPutApiLibrariesIdMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient)
+}
+/**
  * Deletes a library and all its media entries (does not delete files)
  * @summary Delete a library
  */
@@ -513,84 +591,106 @@ export type deleteApiLibrariesIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type deleteApiLibrariesIdResponseSuccess = (deleteApiLibrariesIdResponse204) & {
-  headers: Headers;
-};
-export type deleteApiLibrariesIdResponseError = (deleteApiLibrariesIdResponse400 | deleteApiLibrariesIdResponse404 | deleteApiLibrariesIdResponse500) & {
-  headers: Headers;
-};
 
-export type deleteApiLibrariesIdResponse = (deleteApiLibrariesIdResponseSuccess | deleteApiLibrariesIdResponseError)
+export type deleteApiLibrariesIdResponseSuccess = deleteApiLibrariesIdResponse204 & {
+  headers: Headers
+}
+export type deleteApiLibrariesIdResponseError = (
+  | deleteApiLibrariesIdResponse400
+  | deleteApiLibrariesIdResponse404
+  | deleteApiLibrariesIdResponse500
+) & {
+  headers: Headers
+}
 
-export const getDeleteApiLibrariesIdUrl = (id: number,) => {
+export type deleteApiLibrariesIdResponse =
+  | deleteApiLibrariesIdResponseSuccess
+  | deleteApiLibrariesIdResponseError
 
-
-  
-
+export const getDeleteApiLibrariesIdUrl = (id: number) => {
   return `/api/libraries/${id}`
 }
 
-export const deleteApiLibrariesId = async (id: number, options?: RequestInit): Promise<deleteApiLibrariesIdResponse> => {
-  
-  return customInstance<deleteApiLibrariesIdResponse>(getDeleteApiLibrariesIdUrl(id),
-  {      
+export const deleteApiLibrariesId = async (
+  id: number,
+  options?: RequestInit
+): Promise<deleteApiLibrariesIdResponse> => {
+  return customInstance<deleteApiLibrariesIdResponse>(getDeleteApiLibrariesIdUrl(id), {
     ...options,
-    method: 'DELETE'
-    
-    
+    method: 'DELETE',
+  })
+}
+
+export const getDeleteApiLibrariesIdMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteApiLibrariesId>>,
+    TError,
+    { id: number },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteApiLibrariesId>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ['deleteApiLibrariesId']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteApiLibrariesId>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {}
+
+    return deleteApiLibrariesId(id, requestOptions)
   }
-);}
 
+  return { mutationFn, ...mutationOptions }
+}
 
+export type DeleteApiLibrariesIdMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiLibrariesId>>
+>
 
+export type DeleteApiLibrariesIdMutationError = InternalApiHandlersErrorResponse
 
-export const getDeleteApiLibrariesIdMutationOptions = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiLibrariesId>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteApiLibrariesId>>, TError,{id: number}, TContext> => {
-
-const mutationKey = ['deleteApiLibrariesId'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteApiLibrariesId>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
-
-          return  deleteApiLibrariesId(id,requestOptions)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteApiLibrariesIdMutationResult = NonNullable<Awaited<ReturnType<typeof deleteApiLibrariesId>>>
-    
-    export type DeleteApiLibrariesIdMutationError = InternalApiHandlersErrorResponse
-
-    /**
+/**
  * @summary Delete a library
  */
-export const useDeleteApiLibrariesId = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiLibrariesId>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteApiLibrariesId>>,
-        TError,
-        {id: number},
-        TContext
-      > => {
+export const useDeleteApiLibrariesId = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteApiLibrariesId>>,
+      TError,
+      { id: number },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteApiLibrariesId>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationOptions = getDeleteApiLibrariesIdMutationOptions(options)
 
-      const mutationOptions = getDeleteApiLibrariesIdMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient)
+}
+/**
  * Scans a library for media files
  * @summary Scan a library
  */
@@ -618,81 +718,103 @@ export type postApiLibrariesIdScanResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type postApiLibrariesIdScanResponseSuccess = (postApiLibrariesIdScanResponse202) & {
-  headers: Headers;
-};
-export type postApiLibrariesIdScanResponseError = (postApiLibrariesIdScanResponse400 | postApiLibrariesIdScanResponse404 | postApiLibrariesIdScanResponse409 | postApiLibrariesIdScanResponse500) & {
-  headers: Headers;
-};
 
-export type postApiLibrariesIdScanResponse = (postApiLibrariesIdScanResponseSuccess | postApiLibrariesIdScanResponseError)
+export type postApiLibrariesIdScanResponseSuccess = postApiLibrariesIdScanResponse202 & {
+  headers: Headers
+}
+export type postApiLibrariesIdScanResponseError = (
+  | postApiLibrariesIdScanResponse400
+  | postApiLibrariesIdScanResponse404
+  | postApiLibrariesIdScanResponse409
+  | postApiLibrariesIdScanResponse500
+) & {
+  headers: Headers
+}
 
-export const getPostApiLibrariesIdScanUrl = (id: number,) => {
+export type postApiLibrariesIdScanResponse =
+  | postApiLibrariesIdScanResponseSuccess
+  | postApiLibrariesIdScanResponseError
 
-
-  
-
+export const getPostApiLibrariesIdScanUrl = (id: number) => {
   return `/api/libraries/${id}/scan`
 }
 
-export const postApiLibrariesIdScan = async (id: number, options?: RequestInit): Promise<postApiLibrariesIdScanResponse> => {
-  
-  return customInstance<postApiLibrariesIdScanResponse>(getPostApiLibrariesIdScanUrl(id),
-  {      
+export const postApiLibrariesIdScan = async (
+  id: number,
+  options?: RequestInit
+): Promise<postApiLibrariesIdScanResponse> => {
+  return customInstance<postApiLibrariesIdScanResponse>(getPostApiLibrariesIdScanUrl(id), {
     ...options,
-    method: 'POST'
-    
-    
+    method: 'POST',
+  })
+}
+
+export const getPostApiLibrariesIdScanMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiLibrariesIdScan>>,
+    TError,
+    { id: number },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiLibrariesIdScan>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ['postApiLibrariesIdScan']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiLibrariesIdScan>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {}
+
+    return postApiLibrariesIdScan(id, requestOptions)
   }
-);}
 
+  return { mutationFn, ...mutationOptions }
+}
 
+export type PostApiLibrariesIdScanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiLibrariesIdScan>>
+>
 
+export type PostApiLibrariesIdScanMutationError = InternalApiHandlersErrorResponse
 
-export const getPostApiLibrariesIdScanMutationOptions = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiLibrariesIdScan>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof postApiLibrariesIdScan>>, TError,{id: number}, TContext> => {
-
-const mutationKey = ['postApiLibrariesIdScan'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiLibrariesIdScan>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
-
-          return  postApiLibrariesIdScan(id,requestOptions)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PostApiLibrariesIdScanMutationResult = NonNullable<Awaited<ReturnType<typeof postApiLibrariesIdScan>>>
-    
-    export type PostApiLibrariesIdScanMutationError = InternalApiHandlersErrorResponse
-
-    /**
+/**
  * @summary Scan a library
  */
-export const usePostApiLibrariesIdScan = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiLibrariesIdScan>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postApiLibrariesIdScan>>,
-        TError,
-        {id: number},
-        TContext
-      > => {
+export const usePostApiLibrariesIdScan = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiLibrariesIdScan>>,
+      TError,
+      { id: number },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiLibrariesIdScan>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationOptions = getPostApiLibrariesIdScanMutationOptions(options)
 
-      const mutationOptions = getPostApiLibrariesIdScanMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    
+  return useMutation(mutationOptions, queryClient)
+}

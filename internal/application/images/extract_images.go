@@ -167,3 +167,35 @@ func (uc *ExtractTVSeasonImagesUseCase) Execute(ctx context.Context, showDir str
 	// Process and save all extracted images (seasons don't have media_id, so pass nil)
 	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
 }
+
+// ExtractMusicArtistImagesUseCase handles extracting and cataloging music artist images
+type ExtractMusicArtistImagesUseCase struct {
+	repo              images.Repository
+	extractor         *infraImages.Extractor
+	metadataExtractor *infraImages.MetadataExtractor
+	cacheService      *infraImages.CacheService
+	transformer       *infraImages.Transformer
+}
+
+// NewExtractMusicArtistImagesUseCase creates a new instance
+func NewExtractMusicArtistImagesUseCase(repo images.Repository, cacheService *infraImages.CacheService, transformer *infraImages.Transformer) *ExtractMusicArtistImagesUseCase {
+	return &ExtractMusicArtistImagesUseCase{
+		repo:              repo,
+		extractor:         infraImages.NewExtractor(),
+		metadataExtractor: infraImages.NewMetadataExtractor(),
+		cacheService:      cacheService,
+		transformer:       transformer,
+	}
+}
+
+// Execute extracts images for a music artist and stores them in the database
+func (uc *ExtractMusicArtistImagesUseCase) Execute(ctx context.Context, artistDir string, mediaType images.MediaType, entityID int) error {
+	// Extract image paths
+	extracted, err := uc.extractor.ExtractMusicArtistImages(artistDir)
+	if err != nil {
+		return fmt.Errorf("failed to extract artist images: %w", err)
+	}
+
+	// Process and save all extracted images (artists don't have media_id, so pass nil)
+	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+}

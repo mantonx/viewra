@@ -35,3 +35,8 @@ type ExtractTVEpisodeImagesExecutor interface {
 type ExtractMusicAlbumImagesExecutor interface {
 	Execute(ctx context.Context, albumDir string, mediaType images.MediaType, entityID int) error
 }
+
+// GetBatchMediaImagesExecutor defines the interface for getting images for multiple media items or entities
+type GetBatchMediaImagesExecutor interface {
+	Execute(ctx context.Context, mediaIDs []int, mediaType string, entityIDs []int) (*BatchImagesResponse, error)
+}

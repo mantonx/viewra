@@ -5,9 +5,7 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import {
-  useQuery
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -17,19 +15,14 @@ import type {
   QueryKey,
   UndefinedInitialDataOptions,
   UseQueryOptions,
-  UseQueryResult
-} from '@tanstack/react-query';
+  UseQueryResult,
+} from '@tanstack/react-query'
 
-import type {
-  InternalApiHandlersErrorResponse
-} from '.././models';
+import type { InternalApiHandlersErrorResponse } from '.././models'
 
-import { customInstance } from '../../mutator/index';
+import { customInstance } from '../../mutator/index'
 
-
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
  * Streams a media file with HTTP range request support for seeking
@@ -64,110 +57,140 @@ export type getApiStreamIdResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiStreamIdResponseSuccess = (getApiStreamIdResponse200 | getApiStreamIdResponse206) & {
-  headers: Headers;
-};
-export type getApiStreamIdResponseError = (getApiStreamIdResponse400 | getApiStreamIdResponse404 | getApiStreamIdResponse416 | getApiStreamIdResponse500) & {
-  headers: Headers;
-};
 
-export type getApiStreamIdResponse = (getApiStreamIdResponseSuccess | getApiStreamIdResponseError)
+export type getApiStreamIdResponseSuccess = (
+  | getApiStreamIdResponse200
+  | getApiStreamIdResponse206
+) & {
+  headers: Headers
+}
+export type getApiStreamIdResponseError = (
+  | getApiStreamIdResponse400
+  | getApiStreamIdResponse404
+  | getApiStreamIdResponse416
+  | getApiStreamIdResponse500
+) & {
+  headers: Headers
+}
 
-export const getGetApiStreamIdUrl = (id: number,) => {
+export type getApiStreamIdResponse = getApiStreamIdResponseSuccess | getApiStreamIdResponseError
 
-
-  
-
+export const getGetApiStreamIdUrl = (id: number) => {
   return `/api/stream/${id}`
 }
 
-export const getApiStreamId = async (id: number, options?: RequestInit): Promise<getApiStreamIdResponse> => {
-  
-  return customInstance<getApiStreamIdResponse>(getGetApiStreamIdUrl(id),
-  {      
+export const getApiStreamId = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiStreamIdResponse> => {
+  return customInstance<getApiStreamIdResponse>(getGetApiStreamIdUrl(id), {
     ...options,
-    method: 'GET'
-    
-    
+    method: 'GET',
+  })
+}
+
+export const getGetApiStreamIdQueryKey = (id?: number) => {
+  return [`/api/stream/${id}`] as const
+}
+
+export const getGetApiStreamIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiStreamId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
   }
-);}
-
-
-
-
-
-export const getGetApiStreamIdQueryKey = (id?: number,) => {
-    return [
-    `/api/stream/${id}`
-    ] as const;
-    }
-
-    
-export const getGetApiStreamIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
 
-const {query: queryOptions, request: requestOptions} = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetApiStreamIdQueryKey(id)
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiStreamIdQueryKey(id);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiStreamId>>> = ({ signal }) =>
+    getApiStreamId(id, { signal, ...requestOptions })
 
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiStreamId>>> = ({ signal }) => getApiStreamId(id, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiStreamId>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type GetApiStreamIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiStreamId>>>
 export type GetApiStreamIdQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>> & Pick<
+export function useGetApiStreamId<
+  TData = Awaited<ReturnType<typeof getApiStreamId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>> &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiStreamId>>,
           TError,
           Awaited<ReturnType<typeof getApiStreamId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiStreamId<
+  TData = Awaited<ReturnType<typeof getApiStreamId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>> &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiStreamId>>,
           TError,
           Awaited<ReturnType<typeof getApiStreamId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiStreamId<
+  TData = Awaited<ReturnType<typeof getApiStreamId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Stream media file
  */
 
-export function useGetApiStreamId<TData = Awaited<ReturnType<typeof getApiStreamId>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetApiStreamId<
+  TData = Awaited<ReturnType<typeof getApiStreamId>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiStreamId>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiStreamIdQueryOptions(id, options)
 
-  const queryOptions = getGetApiStreamIdQueryOptions(id,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey
 
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
+  return query
 }
-
-
-
-

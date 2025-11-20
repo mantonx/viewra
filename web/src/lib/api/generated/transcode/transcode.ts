@@ -5,10 +5,7 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,304 +18,469 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
-} from '@tanstack/react-query';
+  UseQueryResult,
+} from '@tanstack/react-query'
 
 import type {
   GithubComViewraViewraInternalApplicationTranscodeQueueStats,
+  InternalApiHandlersCleanupRequest,
+  InternalApiHandlersCleanupResponse,
   InternalApiHandlersCreateTranscodeJobRequest,
+  InternalApiHandlersDiskUsageResponse,
   InternalApiHandlersErrorResponse,
   InternalApiHandlersOnDemandResponse,
   InternalApiHandlersTranscodeJobResponse,
-  PostApiMediaMediaIdTranscodeQualityCancel200
-} from '.././models';
+  PostApiMediaMediaIdTranscodeQualityCancel200,
+} from '.././models'
 
-import { customInstance } from '../../mutator/index';
+import { customInstance } from '../../mutator/index'
 
-
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
- * Serves the DASH manifest (.mpd) file for adaptive streaming. If manifest doesn't exist, analyzes video
-and either returns direct playback URL or creates a transcode job.
- * @summary Serve DASH manifest (with on-demand transcoding)
+ * Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video
+and either redirects to direct stream or creates a transcode job.
+ * @summary Serve HLS playlist (with on-demand transcoding)
  */
-export type getApiMediaMediaIdDashQualityManifestMpdResponse200 = {
-  data: InternalApiHandlersOnDemandResponse
-  status: 200
-}
-
-export type getApiMediaMediaIdDashQualityManifestMpdResponse202 = {
-  data: InternalApiHandlersOnDemandResponse
-  status: 202
-}
-
-export type getApiMediaMediaIdDashQualityManifestMpdResponse400 = {
-  data: InternalApiHandlersErrorResponse
-  status: 400
-}
-
-export type getApiMediaMediaIdDashQualityManifestMpdResponse404 = {
-  data: InternalApiHandlersErrorResponse
-  status: 404
-}
-
-export type getApiMediaMediaIdDashQualityManifestMpdResponse500 = {
-  data: InternalApiHandlersErrorResponse
-  status: 500
-}
-    
-export type getApiMediaMediaIdDashQualityManifestMpdResponseSuccess = (getApiMediaMediaIdDashQualityManifestMpdResponse200 | getApiMediaMediaIdDashQualityManifestMpdResponse202) & {
-  headers: Headers;
-};
-export type getApiMediaMediaIdDashQualityManifestMpdResponseError = (getApiMediaMediaIdDashQualityManifestMpdResponse400 | getApiMediaMediaIdDashQualityManifestMpdResponse404 | getApiMediaMediaIdDashQualityManifestMpdResponse500) & {
-  headers: Headers;
-};
-
-export type getApiMediaMediaIdDashQualityManifestMpdResponse = (getApiMediaMediaIdDashQualityManifestMpdResponseSuccess | getApiMediaMediaIdDashQualityManifestMpdResponseError)
-
-export const getGetApiMediaMediaIdDashQualityManifestMpdUrl = (mediaId: number,
-    quality: string,) => {
-
-
-  
-
-  return `/api/media/${mediaId}/dash/${quality}/manifest.mpd`
-}
-
-export const getApiMediaMediaIdDashQualityManifestMpd = async (mediaId: number,
-    quality: string, options?: RequestInit): Promise<getApiMediaMediaIdDashQualityManifestMpdResponse> => {
-  
-  return customInstance<getApiMediaMediaIdDashQualityManifestMpdResponse>(getGetApiMediaMediaIdDashQualityManifestMpdUrl(mediaId,quality),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
-
-export const getGetApiMediaMediaIdDashQualityManifestMpdQueryKey = (mediaId?: number,
-    quality?: string,) => {
-    return [
-    `/api/media/${mediaId}/dash/${quality}/manifest.mpd`
-    ] as const;
-    }
-
-    
-export const getGetApiMediaMediaIdDashQualityManifestMpdQueryOptions = <TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError = InternalApiHandlersErrorResponse>(mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiMediaMediaIdDashQualityManifestMpdQueryKey(mediaId,quality);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>> = ({ signal }) => getApiMediaMediaIdDashQualityManifestMpd(mediaId,quality, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(mediaId && quality), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetApiMediaMediaIdDashQualityManifestMpdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>>
-export type GetApiMediaMediaIdDashQualityManifestMpdQueryError = InternalApiHandlersErrorResponse
-
-
-export function useGetApiMediaMediaIdDashQualityManifestMpd<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>,
-          TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdDashQualityManifestMpd<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>,
-          TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdDashQualityManifestMpd<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Serve DASH manifest (with on-demand transcoding)
- */
-
-export function useGetApiMediaMediaIdDashQualityManifestMpd<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityManifestMpd>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getGetApiMediaMediaIdDashQualityManifestMpdQueryOptions(mediaId,quality,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
-}
-
-
-
-
-/**
- * Serves DASH segment files (.m4s) for adaptive streaming
- * @summary Serve DASH segment
- */
-export type getApiMediaMediaIdDashQualityFilenameResponse200 = {
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response200 = {
   data: Blob
   status: 200
 }
 
-export type getApiMediaMediaIdDashQualityFilenameResponse404 = {
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response202 = {
+  data: InternalApiHandlersOnDemandResponse
+  status: 202
+}
+
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response302 = {
+  data: void
+  status: 302
+}
+
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
 }
-    
-export type getApiMediaMediaIdDashQualityFilenameResponseSuccess = (getApiMediaMediaIdDashQualityFilenameResponse200) & {
-  headers: Headers;
-};
-export type getApiMediaMediaIdDashQualityFilenameResponseError = (getApiMediaMediaIdDashQualityFilenameResponse404) & {
-  headers: Headers;
-};
 
-export type getApiMediaMediaIdDashQualityFilenameResponse = (getApiMediaMediaIdDashQualityFilenameResponseSuccess | getApiMediaMediaIdDashQualityFilenameResponseError)
-
-export const getGetApiMediaMediaIdDashQualityFilenameUrl = (mediaId: number,
-    quality: string,
-    filename: string,) => {
-
-
-  
-
-  return `/api/media/${mediaId}/dash/${quality}/${filename}`
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
 }
 
-export const getApiMediaMediaIdDashQualityFilename = async (mediaId: number,
-    quality: string,
-    filename: string, options?: RequestInit): Promise<getApiMediaMediaIdDashQualityFilenameResponse> => {
-  
-  return customInstance<getApiMediaMediaIdDashQualityFilenameResponse>(getGetApiMediaMediaIdDashQualityFilenameUrl(mediaId,quality,filename),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseSuccess = (
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response200
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response202
+) & {
+  headers: Headers
+}
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseError = (
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response302
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response400
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response404
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response500
+) & {
+  headers: Headers
+}
 
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response =
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseSuccess
+  | getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseError
 
-
-
-
-export const getGetApiMediaMediaIdDashQualityFilenameQueryKey = (mediaId?: number,
-    quality?: string,
-    filename?: string,) => {
-    return [
-    `/api/media/${mediaId}/dash/${quality}/${filename}`
-    ] as const;
-    }
-
-    
-export const getGetApiMediaMediaIdDashQualityFilenameQueryOptions = <TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError = InternalApiHandlersErrorResponse>(mediaId: number,
-    quality: string,
-    filename: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getGetApiMediaMediaIdHlsQualityPlaylistM3u8Url = (
+  mediaId: number,
+  quality: string
 ) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiMediaMediaIdDashQualityFilenameQueryKey(mediaId,quality,filename);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>> = ({ signal }) => getApiMediaMediaIdDashQualityFilename(mediaId,quality,filename, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(mediaId && quality && filename), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  return `/api/media/${mediaId}/hls/${quality}/playlist.m3u8`
 }
 
-export type GetApiMediaMediaIdDashQualityFilenameQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>>
-export type GetApiMediaMediaIdDashQualityFilenameQueryError = InternalApiHandlersErrorResponse
+export const getApiMediaMediaIdHlsQualityPlaylistM3u8 = async (
+  mediaId: number,
+  quality: string,
+  options?: RequestInit
+): Promise<getApiMediaMediaIdHlsQualityPlaylistM3u8Response> => {
+  return customInstance<getApiMediaMediaIdHlsQualityPlaylistM3u8Response>(
+    getGetApiMediaMediaIdHlsQualityPlaylistM3u8Url(mediaId, quality),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
 
+export const getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryKey = (
+  mediaId?: number,
+  quality?: string
+) => {
+  return [`/api/media/${mediaId}/hls/${quality}/playlist.m3u8`] as const
+}
 
-export function useGetApiMediaMediaIdDashQualityFilename<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string,
-    filename: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError, TData>> & Pick<
+export const getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+  TError = void | InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryKey(mediaId, quality)
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
+  > = ({ signal }) =>
+    getApiMediaMediaIdHlsQualityPlaylistM3u8(mediaId, quality, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!(mediaId && quality), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaMediaIdHlsQualityPlaylistM3u8QueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
+>
+export type GetApiMediaMediaIdHlsQualityPlaylistM3u8QueryError =
+  void | InternalApiHandlersErrorResponse
+
+export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+  TError = void | InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>,
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdDashQualityFilename<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string,
-    filename: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError, TData>> & Pick<
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+  TError = void | InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>,
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
           TError,
-          Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdDashQualityFilename<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string,
-    filename: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+  TError = void | InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Serve DASH segment
+ * @summary Serve HLS playlist (with on-demand transcoding)
  */
 
-export function useGetApiMediaMediaIdDashQualityFilename<TData = Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string,
-    filename: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdDashQualityFilename>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+  TError = void | InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityPlaylistM3u8>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaMediaIdHlsQualityPlaylistM3u8QueryOptions(
+    mediaId,
+    quality,
+    options
+  )
 
-  const queryOptions = getGetApiMediaMediaIdDashQualityFilenameQueryOptions(mediaId,quality,filename,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey
 
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
+  return query
 }
 
+/**
+ * Serves HLS segment files (.ts) for adaptive streaming
+ * @summary Serve HLS segment
+ */
+export type getApiMediaMediaIdHlsQualityFilenameResponse200 = {
+  data: Blob
+  status: 200
+}
 
+export type getApiMediaMediaIdHlsQualityFilenameResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
 
+export type getApiMediaMediaIdHlsQualityFilenameResponseSuccess =
+  getApiMediaMediaIdHlsQualityFilenameResponse200 & {
+    headers: Headers
+  }
+export type getApiMediaMediaIdHlsQualityFilenameResponseError =
+  getApiMediaMediaIdHlsQualityFilenameResponse404 & {
+    headers: Headers
+  }
+
+export type getApiMediaMediaIdHlsQualityFilenameResponse =
+  | getApiMediaMediaIdHlsQualityFilenameResponseSuccess
+  | getApiMediaMediaIdHlsQualityFilenameResponseError
+
+export const getGetApiMediaMediaIdHlsQualityFilenameUrl = (
+  mediaId: number,
+  quality: string,
+  filename: string
+) => {
+  return `/api/media/${mediaId}/hls/${quality}/${filename}`
+}
+
+export const getApiMediaMediaIdHlsQualityFilename = async (
+  mediaId: number,
+  quality: string,
+  filename: string,
+  options?: RequestInit
+): Promise<getApiMediaMediaIdHlsQualityFilenameResponse> => {
+  return customInstance<getApiMediaMediaIdHlsQualityFilenameResponse>(
+    getGetApiMediaMediaIdHlsQualityFilenameUrl(mediaId, quality, filename),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiMediaMediaIdHlsQualityFilenameQueryKey = (
+  mediaId?: number,
+  quality?: string,
+  filename?: string
+) => {
+  return [`/api/media/${mediaId}/hls/${quality}/${filename}`] as const
+}
+
+export const getGetApiMediaMediaIdHlsQualityFilenameQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  filename: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetApiMediaMediaIdHlsQualityFilenameQueryKey(mediaId, quality, filename)
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
+  > = ({ signal }) =>
+    getApiMediaMediaIdHlsQualityFilename(mediaId, quality, filename, { signal, ...requestOptions })
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(mediaId && quality && filename),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaMediaIdHlsQualityFilenameQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
+>
+export type GetApiMediaMediaIdHlsQualityFilenameQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMediaMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  filename: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  filename: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  filename: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Serve HLS segment
+ */
+
+export function useGetApiMediaMediaIdHlsQualityFilename<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  filename: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaMediaIdHlsQualityFilename>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaMediaIdHlsQualityFilenameQueryOptions(
+    mediaId,
+    quality,
+    filename,
+    options
+  )
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
 
 /**
  * Creates a new transcode job for the specified media and quality level
@@ -343,86 +505,113 @@ export type postApiMediaMediaIdTranscodeResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type postApiMediaMediaIdTranscodeResponseSuccess = (postApiMediaMediaIdTranscodeResponse201) & {
-  headers: Headers;
-};
-export type postApiMediaMediaIdTranscodeResponseError = (postApiMediaMediaIdTranscodeResponse400 | postApiMediaMediaIdTranscodeResponse409 | postApiMediaMediaIdTranscodeResponse500) & {
-  headers: Headers;
-};
 
-export type postApiMediaMediaIdTranscodeResponse = (postApiMediaMediaIdTranscodeResponseSuccess | postApiMediaMediaIdTranscodeResponseError)
+export type postApiMediaMediaIdTranscodeResponseSuccess =
+  postApiMediaMediaIdTranscodeResponse201 & {
+    headers: Headers
+  }
+export type postApiMediaMediaIdTranscodeResponseError = (
+  | postApiMediaMediaIdTranscodeResponse400
+  | postApiMediaMediaIdTranscodeResponse409
+  | postApiMediaMediaIdTranscodeResponse500
+) & {
+  headers: Headers
+}
 
-export const getPostApiMediaMediaIdTranscodeUrl = (mediaId: number,) => {
+export type postApiMediaMediaIdTranscodeResponse =
+  | postApiMediaMediaIdTranscodeResponseSuccess
+  | postApiMediaMediaIdTranscodeResponseError
 
-
-  
-
+export const getPostApiMediaMediaIdTranscodeUrl = (mediaId: number) => {
   return `/api/media/${mediaId}/transcode`
 }
 
-export const postApiMediaMediaIdTranscode = async (mediaId: number,
-    internalApiHandlersCreateTranscodeJobRequest: InternalApiHandlersCreateTranscodeJobRequest, options?: RequestInit): Promise<postApiMediaMediaIdTranscodeResponse> => {
-  
-  return customInstance<postApiMediaMediaIdTranscodeResponse>(getPostApiMediaMediaIdTranscodeUrl(mediaId),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      internalApiHandlersCreateTranscodeJobRequest,)
+export const postApiMediaMediaIdTranscode = async (
+  mediaId: number,
+  internalApiHandlersCreateTranscodeJobRequest: InternalApiHandlersCreateTranscodeJobRequest,
+  options?: RequestInit
+): Promise<postApiMediaMediaIdTranscodeResponse> => {
+  return customInstance<postApiMediaMediaIdTranscodeResponse>(
+    getPostApiMediaMediaIdTranscodeUrl(mediaId),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(internalApiHandlersCreateTranscodeJobRequest),
+    }
+  )
+}
+
+export const getPostApiMediaMediaIdTranscodeMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+    TError,
+    { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+  TError,
+  { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiMediaMediaIdTranscode']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+    { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest }
+  > = (props) => {
+    const { mediaId, data } = props ?? {}
+
+    return postApiMediaMediaIdTranscode(mediaId, data, requestOptions)
   }
-);}
 
+  return { mutationFn, ...mutationOptions }
+}
 
+export type PostApiMediaMediaIdTranscodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>
+>
+export type PostApiMediaMediaIdTranscodeMutationBody = InternalApiHandlersCreateTranscodeJobRequest
+export type PostApiMediaMediaIdTranscodeMutationError = InternalApiHandlersErrorResponse
 
-
-export const getPostApiMediaMediaIdTranscodeMutationOptions = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>, TError,{mediaId: number;data: InternalApiHandlersCreateTranscodeJobRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>, TError,{mediaId: number;data: InternalApiHandlersCreateTranscodeJobRequest}, TContext> => {
-
-const mutationKey = ['postApiMediaMediaIdTranscode'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>, {mediaId: number;data: InternalApiHandlersCreateTranscodeJobRequest}> = (props) => {
-          const {mediaId,data} = props ?? {};
-
-          return  postApiMediaMediaIdTranscode(mediaId,data,requestOptions)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PostApiMediaMediaIdTranscodeMutationResult = NonNullable<Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>>
-    export type PostApiMediaMediaIdTranscodeMutationBody = InternalApiHandlersCreateTranscodeJobRequest
-    export type PostApiMediaMediaIdTranscodeMutationError = InternalApiHandlersErrorResponse
-
-    /**
+/**
  * @summary Start transcoding
  */
-export const usePostApiMediaMediaIdTranscode = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>, TError,{mediaId: number;data: InternalApiHandlersCreateTranscodeJobRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
-        TError,
-        {mediaId: number;data: InternalApiHandlersCreateTranscodeJobRequest},
-        TContext
-      > => {
+export const usePostApiMediaMediaIdTranscode = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+      TError,
+      { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiMediaMediaIdTranscode>>,
+  TError,
+  { mediaId: number; data: InternalApiHandlersCreateTranscodeJobRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiMediaMediaIdTranscodeMutationOptions(options)
 
-      const mutationOptions = getPostApiMediaMediaIdTranscodeMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient)
+}
+/**
  * Gets the status of a transcode job for specific media and quality
  * @summary Get transcode status
  */
@@ -440,120 +629,167 @@ export type getApiMediaMediaIdTranscodeQualityResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiMediaMediaIdTranscodeQualityResponseSuccess = (getApiMediaMediaIdTranscodeQualityResponse200) & {
-  headers: Headers;
-};
-export type getApiMediaMediaIdTranscodeQualityResponseError = (getApiMediaMediaIdTranscodeQualityResponse404 | getApiMediaMediaIdTranscodeQualityResponse500) & {
-  headers: Headers;
-};
 
-export type getApiMediaMediaIdTranscodeQualityResponse = (getApiMediaMediaIdTranscodeQualityResponseSuccess | getApiMediaMediaIdTranscodeQualityResponseError)
+export type getApiMediaMediaIdTranscodeQualityResponseSuccess =
+  getApiMediaMediaIdTranscodeQualityResponse200 & {
+    headers: Headers
+  }
+export type getApiMediaMediaIdTranscodeQualityResponseError = (
+  | getApiMediaMediaIdTranscodeQualityResponse404
+  | getApiMediaMediaIdTranscodeQualityResponse500
+) & {
+  headers: Headers
+}
 
-export const getGetApiMediaMediaIdTranscodeQualityUrl = (mediaId: number,
-    quality: string,) => {
+export type getApiMediaMediaIdTranscodeQualityResponse =
+  | getApiMediaMediaIdTranscodeQualityResponseSuccess
+  | getApiMediaMediaIdTranscodeQualityResponseError
 
-
-  
-
+export const getGetApiMediaMediaIdTranscodeQualityUrl = (mediaId: number, quality: string) => {
   return `/api/media/${mediaId}/transcode/${quality}`
 }
 
-export const getApiMediaMediaIdTranscodeQuality = async (mediaId: number,
-    quality: string, options?: RequestInit): Promise<getApiMediaMediaIdTranscodeQualityResponse> => {
-  
-  return customInstance<getApiMediaMediaIdTranscodeQualityResponse>(getGetApiMediaMediaIdTranscodeQualityUrl(mediaId,quality),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
-
-export const getGetApiMediaMediaIdTranscodeQualityQueryKey = (mediaId?: number,
-    quality?: string,) => {
-    return [
-    `/api/media/${mediaId}/transcode/${quality}`
-    ] as const;
+export const getApiMediaMediaIdTranscodeQuality = async (
+  mediaId: number,
+  quality: string,
+  options?: RequestInit
+): Promise<getApiMediaMediaIdTranscodeQualityResponse> => {
+  return customInstance<getApiMediaMediaIdTranscodeQualityResponse>(
+    getGetApiMediaMediaIdTranscodeQualityUrl(mediaId, quality),
+    {
+      ...options,
+      method: 'GET',
     }
-
-    
-export const getGetApiMediaMediaIdTranscodeQualityQueryOptions = <TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError = InternalApiHandlersErrorResponse>(mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiMediaMediaIdTranscodeQualityQueryKey(mediaId,quality);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>> = ({ signal }) => getApiMediaMediaIdTranscodeQuality(mediaId,quality, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(mediaId && quality), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  )
 }
 
-export type GetApiMediaMediaIdTranscodeQualityQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>>
+export const getGetApiMediaMediaIdTranscodeQualityQueryKey = (
+  mediaId?: number,
+  quality?: string
+) => {
+  return [`/api/media/${mediaId}/transcode/${quality}`] as const
+}
+
+export const getGetApiMediaMediaIdTranscodeQualityQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiMediaMediaIdTranscodeQualityQueryKey(mediaId, quality)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>> = ({
+    signal,
+  }) => getApiMediaMediaIdTranscodeQuality(mediaId, quality, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!(mediaId && quality), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaMediaIdTranscodeQualityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>
+>
 export type GetApiMediaMediaIdTranscodeQualityQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiMediaMediaIdTranscodeQuality<TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>> & Pick<
+export function useGetApiMediaMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
           TError,
           Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdTranscodeQuality<TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
           TError,
           Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiMediaMediaIdTranscodeQuality<TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get transcode status
  */
 
-export function useGetApiMediaMediaIdTranscodeQuality<TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError = InternalApiHandlersErrorResponse>(
- mediaId: number,
-    quality: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetApiMediaMediaIdTranscodeQuality<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  quality: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdTranscodeQuality>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaMediaIdTranscodeQualityQueryOptions(mediaId, quality, options)
 
-  const queryOptions = getGetApiMediaMediaIdTranscodeQualityQueryOptions(mediaId,quality,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey
 
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
+  return query
 }
-
-
-
 
 /**
  * Cancels an actively transcoding job (called when user pauses/stops video)
@@ -578,86 +814,383 @@ export type postApiMediaMediaIdTranscodeQualityCancelResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type postApiMediaMediaIdTranscodeQualityCancelResponseSuccess = (postApiMediaMediaIdTranscodeQualityCancelResponse200) & {
-  headers: Headers;
-};
-export type postApiMediaMediaIdTranscodeQualityCancelResponseError = (postApiMediaMediaIdTranscodeQualityCancelResponse400 | postApiMediaMediaIdTranscodeQualityCancelResponse404 | postApiMediaMediaIdTranscodeQualityCancelResponse500) & {
-  headers: Headers;
-};
 
-export type postApiMediaMediaIdTranscodeQualityCancelResponse = (postApiMediaMediaIdTranscodeQualityCancelResponseSuccess | postApiMediaMediaIdTranscodeQualityCancelResponseError)
+export type postApiMediaMediaIdTranscodeQualityCancelResponseSuccess =
+  postApiMediaMediaIdTranscodeQualityCancelResponse200 & {
+    headers: Headers
+  }
+export type postApiMediaMediaIdTranscodeQualityCancelResponseError = (
+  | postApiMediaMediaIdTranscodeQualityCancelResponse400
+  | postApiMediaMediaIdTranscodeQualityCancelResponse404
+  | postApiMediaMediaIdTranscodeQualityCancelResponse500
+) & {
+  headers: Headers
+}
 
-export const getPostApiMediaMediaIdTranscodeQualityCancelUrl = (mediaId: number,
-    quality: string,) => {
+export type postApiMediaMediaIdTranscodeQualityCancelResponse =
+  | postApiMediaMediaIdTranscodeQualityCancelResponseSuccess
+  | postApiMediaMediaIdTranscodeQualityCancelResponseError
 
-
-  
-
+export const getPostApiMediaMediaIdTranscodeQualityCancelUrl = (
+  mediaId: number,
+  quality: string
+) => {
   return `/api/media/${mediaId}/transcode/${quality}/cancel`
 }
 
-export const postApiMediaMediaIdTranscodeQualityCancel = async (mediaId: number,
-    quality: string, options?: RequestInit): Promise<postApiMediaMediaIdTranscodeQualityCancelResponse> => {
-  
-  return customInstance<postApiMediaMediaIdTranscodeQualityCancelResponse>(getPostApiMediaMediaIdTranscodeQualityCancelUrl(mediaId,quality),
-  {      
-    ...options,
-    method: 'POST'
-    
-    
+export const postApiMediaMediaIdTranscodeQualityCancel = async (
+  mediaId: number,
+  quality: string,
+  options?: RequestInit
+): Promise<postApiMediaMediaIdTranscodeQualityCancelResponse> => {
+  return customInstance<postApiMediaMediaIdTranscodeQualityCancelResponse>(
+    getPostApiMediaMediaIdTranscodeQualityCancelUrl(mediaId, quality),
+    {
+      ...options,
+      method: 'POST',
+    }
+  )
+}
+
+export const getPostApiMediaMediaIdTranscodeQualityCancelMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+    TError,
+    { mediaId: number; quality: string },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+  TError,
+  { mediaId: number; quality: string },
+  TContext
+> => {
+  const mutationKey = ['postApiMediaMediaIdTranscodeQualityCancel']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+    { mediaId: number; quality: string }
+  > = (props) => {
+    const { mediaId, quality } = props ?? {}
+
+    return postApiMediaMediaIdTranscodeQualityCancel(mediaId, quality, requestOptions)
   }
-);}
 
+  return { mutationFn, ...mutationOptions }
+}
 
+export type PostApiMediaMediaIdTranscodeQualityCancelMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>
+>
 
+export type PostApiMediaMediaIdTranscodeQualityCancelMutationError =
+  InternalApiHandlersErrorResponse
 
-export const getPostApiMediaMediaIdTranscodeQualityCancelMutationOptions = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>, TError,{mediaId: number;quality: string}, TContext>, request?: SecondParameter<typeof customInstance>}
-): UseMutationOptions<Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>, TError,{mediaId: number;quality: string}, TContext> => {
-
-const mutationKey = ['postApiMediaMediaIdTranscodeQualityCancel'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>, {mediaId: number;quality: string}> = (props) => {
-          const {mediaId,quality} = props ?? {};
-
-          return  postApiMediaMediaIdTranscodeQualityCancel(mediaId,quality,requestOptions)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PostApiMediaMediaIdTranscodeQualityCancelMutationResult = NonNullable<Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>>
-    
-    export type PostApiMediaMediaIdTranscodeQualityCancelMutationError = InternalApiHandlersErrorResponse
-
-    /**
+/**
  * @summary Cancel transcode job
  */
-export const usePostApiMediaMediaIdTranscodeQualityCancel = <TError = InternalApiHandlersErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>, TError,{mediaId: number;quality: string}, TContext>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
-        TError,
-        {mediaId: number;quality: string},
-        TContext
-      > => {
+export const usePostApiMediaMediaIdTranscodeQualityCancel = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+      TError,
+      { mediaId: number; quality: string },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiMediaMediaIdTranscodeQualityCancel>>,
+  TError,
+  { mediaId: number; quality: string },
+  TContext
+> => {
+  const mutationOptions = getPostApiMediaMediaIdTranscodeQualityCancelMutationOptions(options)
 
-      const mutationOptions = getPostApiMediaMediaIdTranscodeQualityCancelMutationOptions(options);
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Cleans up transcode files based on specified criteria
+ * @summary Cleanup transcodes
+ */
+export type postApiTranscodeCleanupResponse200 = {
+  data: InternalApiHandlersCleanupResponse
+  status: 200
+}
 
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+export type postApiTranscodeCleanupResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiTranscodeCleanupResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type postApiTranscodeCleanupResponseSuccess = postApiTranscodeCleanupResponse200 & {
+  headers: Headers
+}
+export type postApiTranscodeCleanupResponseError = (
+  | postApiTranscodeCleanupResponse400
+  | postApiTranscodeCleanupResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiTranscodeCleanupResponse =
+  | postApiTranscodeCleanupResponseSuccess
+  | postApiTranscodeCleanupResponseError
+
+export const getPostApiTranscodeCleanupUrl = () => {
+  return `/api/transcode/cleanup`
+}
+
+export const postApiTranscodeCleanup = async (
+  internalApiHandlersCleanupRequest: InternalApiHandlersCleanupRequest,
+  options?: RequestInit
+): Promise<postApiTranscodeCleanupResponse> => {
+  return customInstance<postApiTranscodeCleanupResponse>(getPostApiTranscodeCleanupUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(internalApiHandlersCleanupRequest),
+  })
+}
+
+export const getPostApiTranscodeCleanupMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiTranscodeCleanup>>,
+    TError,
+    { data: InternalApiHandlersCleanupRequest },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiTranscodeCleanup>>,
+  TError,
+  { data: InternalApiHandlersCleanupRequest },
+  TContext
+> => {
+  const mutationKey = ['postApiTranscodeCleanup']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiTranscodeCleanup>>,
+    { data: InternalApiHandlersCleanupRequest }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiTranscodeCleanup(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiTranscodeCleanupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiTranscodeCleanup>>
+>
+export type PostApiTranscodeCleanupMutationBody = InternalApiHandlersCleanupRequest
+export type PostApiTranscodeCleanupMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Cleanup transcodes
+ */
+export const usePostApiTranscodeCleanup = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiTranscodeCleanup>>,
+      TError,
+      { data: InternalApiHandlersCleanupRequest },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiTranscodeCleanup>>,
+  TError,
+  { data: InternalApiHandlersCleanupRequest },
+  TContext
+> => {
+  const mutationOptions = getPostApiTranscodeCleanupMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Returns current disk usage statistics for transcode files
+ * @summary Get disk usage
+ */
+export type getApiTranscodeDiskUsageResponse200 = {
+  data: InternalApiHandlersDiskUsageResponse
+  status: 200
+}
+
+export type getApiTranscodeDiskUsageResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiTranscodeDiskUsageResponseSuccess = getApiTranscodeDiskUsageResponse200 & {
+  headers: Headers
+}
+export type getApiTranscodeDiskUsageResponseError = getApiTranscodeDiskUsageResponse500 & {
+  headers: Headers
+}
+
+export type getApiTranscodeDiskUsageResponse =
+  | getApiTranscodeDiskUsageResponseSuccess
+  | getApiTranscodeDiskUsageResponseError
+
+export const getGetApiTranscodeDiskUsageUrl = () => {
+  return `/api/transcode/disk-usage`
+}
+
+export const getApiTranscodeDiskUsage = async (
+  options?: RequestInit
+): Promise<getApiTranscodeDiskUsageResponse> => {
+  return customInstance<getApiTranscodeDiskUsageResponse>(getGetApiTranscodeDiskUsageUrl(), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiTranscodeDiskUsageQueryKey = () => {
+  return [`/api/transcode/disk-usage`] as const
+}
+
+export const getGetApiTranscodeDiskUsageQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>, TError, TData>
+  >
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiTranscodeDiskUsageQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>> = ({
+    signal,
+  }) => getApiTranscodeDiskUsage({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiTranscodeDiskUsageQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>
+>
+export type GetApiTranscodeDiskUsageQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiTranscodeDiskUsage<
+  TData = Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTranscodeDiskUsage<
+  TData = Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTranscodeDiskUsage<
+  TData = Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get disk usage
+ */
+
+export function useGetApiTranscodeDiskUsage<
+  TData = Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeDiskUsage>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiTranscodeDiskUsageQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Gets current statistics about the transcode job queue
  * @summary Get transcode queue statistics
  */
@@ -670,110 +1203,136 @@ export type getApiTranscodeStatsResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiTranscodeStatsResponseSuccess = (getApiTranscodeStatsResponse200) & {
-  headers: Headers;
-};
-export type getApiTranscodeStatsResponseError = (getApiTranscodeStatsResponse500) & {
-  headers: Headers;
-};
 
-export type getApiTranscodeStatsResponse = (getApiTranscodeStatsResponseSuccess | getApiTranscodeStatsResponseError)
+export type getApiTranscodeStatsResponseSuccess = getApiTranscodeStatsResponse200 & {
+  headers: Headers
+}
+export type getApiTranscodeStatsResponseError = getApiTranscodeStatsResponse500 & {
+  headers: Headers
+}
+
+export type getApiTranscodeStatsResponse =
+  | getApiTranscodeStatsResponseSuccess
+  | getApiTranscodeStatsResponseError
 
 export const getGetApiTranscodeStatsUrl = () => {
-
-
-  
-
   return `/api/transcode/stats`
 }
 
-export const getApiTranscodeStats = async ( options?: RequestInit): Promise<getApiTranscodeStatsResponse> => {
-  
-  return customInstance<getApiTranscodeStatsResponse>(getGetApiTranscodeStatsUrl(),
-  {      
+export const getApiTranscodeStats = async (
+  options?: RequestInit
+): Promise<getApiTranscodeStatsResponse> => {
+  return customInstance<getApiTranscodeStatsResponse>(getGetApiTranscodeStatsUrl(), {
     ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
-
-export const getGetApiTranscodeStatsQueryKey = () => {
-    return [
-    `/api/transcode/stats`
-    ] as const;
-    }
-
-    
-export const getGetApiTranscodeStatsQueryOptions = <TData = Awaited<ReturnType<typeof getApiTranscodeStats>>, TError = InternalApiHandlersErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiTranscodeStatsQueryKey();
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiTranscodeStats>>> = ({ signal }) => getApiTranscodeStats({ signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+    method: 'GET',
+  })
 }
 
-export type GetApiTranscodeStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiTranscodeStats>>>
+export const getGetApiTranscodeStatsQueryKey = () => {
+  return [`/api/transcode/stats`] as const
+}
+
+export const getGetApiTranscodeStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiTranscodeStats>>,
+  TError = InternalApiHandlersErrorResponse,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>>
+  request?: SecondParameter<typeof customInstance>
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiTranscodeStatsQueryKey()
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiTranscodeStats>>> = ({ signal }) =>
+    getApiTranscodeStats({ signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiTranscodeStats>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiTranscodeStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiTranscodeStats>>
+>
 export type GetApiTranscodeStatsQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiTranscodeStats<TData = Awaited<ReturnType<typeof getApiTranscodeStats>>, TError = InternalApiHandlersErrorResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>> & Pick<
+export function useGetApiTranscodeStats<
+  TData = Awaited<ReturnType<typeof getApiTranscodeStats>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiTranscodeStats>>,
           TError,
           Awaited<ReturnType<typeof getApiTranscodeStats>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiTranscodeStats<TData = Awaited<ReturnType<typeof getApiTranscodeStats>>, TError = InternalApiHandlersErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTranscodeStats<
+  TData = Awaited<ReturnType<typeof getApiTranscodeStats>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiTranscodeStats>>,
           TError,
           Awaited<ReturnType<typeof getApiTranscodeStats>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiTranscodeStats<TData = Awaited<ReturnType<typeof getApiTranscodeStats>>, TError = InternalApiHandlersErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTranscodeStats<
+  TData = Awaited<ReturnType<typeof getApiTranscodeStats>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get transcode queue statistics
  */
 
-export function useGetApiTranscodeStats<TData = Awaited<ReturnType<typeof getApiTranscodeStats>>, TError = InternalApiHandlersErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
+export function useGetApiTranscodeStats<
+  TData = Awaited<ReturnType<typeof getApiTranscodeStats>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTranscodeStats>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiTranscodeStatsQueryOptions(options)
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey
 
-  return query;
+  return query
 }
-
-
-
-

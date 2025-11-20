@@ -1,10 +1,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { getGetApiLibrariesQueryOptions } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, Button } from '@/components/ui'
 import { TrackList } from '@/components/music'
 import { EmptyState, LoadingPage, ErrorPage } from '@/components/common'
-import { extractLibraries } from '@/lib/utils/api'
 import { musicApi } from '@/lib/api/music'
 import { useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import type { MusicTrackResponse } from '@/lib/types/music'
@@ -15,9 +13,6 @@ const AlbumDetail = () => {
   const albumIdNum = parseInt(albumId, 10)
   const { playTrack, playQueue, currentTrack } = useAudioPlayer()
 
-  const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
-  const libraries = extractLibraries(librariesData)
-
   const {
     data: tracksData,
     isLoading,
@@ -27,7 +22,7 @@ const AlbumDetail = () => {
     queryFn: () => musicApi.listTracksByAlbumID(albumIdNum),
   })
 
-  const tracks = tracksData?.tracks || []
+  const tracks = tracksData?.data?.tracks || []
 
   // Sort tracks by disc number and track number
   const sortedTracks = [...tracks].sort((a, b) => {

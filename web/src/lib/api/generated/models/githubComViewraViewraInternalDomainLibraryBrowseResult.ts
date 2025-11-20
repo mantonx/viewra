@@ -5,12 +5,12 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import type { GithubComViewraViewraInternalDomainLibraryDirectory } from './githubComViewraViewraInternalDomainLibraryDirectory';
+import type { GithubComViewraViewraInternalDomainLibraryDirectory } from './githubComViewraViewraInternalDomainLibraryDirectory'
 
 export interface GithubComViewraViewraInternalDomainLibraryBrowseResult {
-  current_path?: string;
-  directories?: GithubComViewraViewraInternalDomainLibraryDirectory[];
-  is_root?: boolean;
+  current_path?: string
+  directories?: GithubComViewraViewraInternalDomainLibraryDirectory[]
+  is_root?: boolean
   /** null if at root */
-  parent?: string;
+  parent?: string
 }

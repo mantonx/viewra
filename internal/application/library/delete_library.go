@@ -2,8 +2,10 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
+	"github.com/viewra/viewra/internal/application/common"
 	domainImages "github.com/viewra/viewra/internal/domain/images"
 	"github.com/viewra/viewra/internal/domain/library"
 )
@@ -13,6 +15,7 @@ type DeleteLibraryUseCase struct {
 	repo         library.Repository
 	imageRepo    domainImages.Repository
 	imageCleanup ImageCleanupExecutor
+	txManager    *common.TxManager
 }
 
 // NewDeleteLibraryUseCase creates a new instance of DeleteLibraryUseCase
@@ -20,11 +23,13 @@ func NewDeleteLibraryUseCase(
 	repo library.Repository,
 	imageRepo domainImages.Repository,
 	imageCleanup ImageCleanupExecutor,
+	txManager *common.TxManager,
 ) *DeleteLibraryUseCase {
 	return &DeleteLibraryUseCase{
 		repo:         repo,
 		imageRepo:    imageRepo,
 		imageCleanup: imageCleanup,
+		txManager:    txManager,
 	}
 }
 
@@ -44,21 +49,30 @@ func NewDeleteLibraryUseCase(
 // What is preserved:
 // - Original media files on disk (NEVER deleted)
 func (uc *DeleteLibraryUseCase) Execute(ctx context.Context, id int64) error {
-	// Verify library exists
-	_, err := uc.repo.GetByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("failed to get library: %w", err)
-	}
+	// Execute within transaction to ensure atomicity of check + delete
+	err := uc.txManager.WithTransaction(ctx, func(tx *sql.Tx) error {
+		// Verify library exists
+		_, err := uc.repo.GetByIDWithTx(ctx, tx, id)
+		if err != nil {
+			return fmt.Errorf("failed to get library: %w", err)
+		}
 
-	// Delete the library
-	// This cascades to media table, which cascades to media_images table (ON DELETE CASCADE)
-	// Database records will be deleted, but cache files will remain until cleanup runs
-	if err := uc.repo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete library: %w", err)
+		// Delete the library
+		// This cascades to media table, which cascades to media_images table (ON DELETE CASCADE)
+		if err := uc.repo.DeleteWithTx(ctx, tx, id); err != nil {
+			return fmt.Errorf("failed to delete library: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
 	}
 
 	// Trigger image cache cleanup to remove orphaned cache files immediately
 	// This is a "best effort" cleanup - failures won't prevent library deletion
+	// Runs AFTER transaction commits (outside transaction)
 	if uc.imageCleanup != nil {
 		if _, err := uc.imageCleanup.CleanOrphanedImages(ctx); err != nil {
 			// Log but don't fail - the scheduled cleanup will handle this later

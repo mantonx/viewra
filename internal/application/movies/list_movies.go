@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 )
 
@@ -27,4 +28,25 @@ func (uc *ListMoviesUseCase) Execute(ctx context.Context, libraryID int64) (List
 	}
 
 	return ToListMoviesResponse(movies), nil
+}
+
+// ExecuteWithPagination retrieves movies in a library with pagination
+func (uc *ListMoviesUseCase) ExecuteWithPagination(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListMoviesResponse, error) {
+	if pagination == nil {
+		pagination = common.DefaultPaginationParams()
+	}
+
+	// Get total count
+	total, err := uc.repo.CountMoviesByLibrary(ctx, libraryID)
+	if err != nil {
+		return ListMoviesResponse{}, fmt.Errorf("failed to count movies: %w", err)
+	}
+
+	// Get paginated results
+	movies, err := uc.repo.ListMoviesByLibraryPaginated(ctx, libraryID, pagination)
+	if err != nil {
+		return ListMoviesResponse{}, fmt.Errorf("failed to list movies: %w", err)
+	}
+
+	return ToListMoviesResponseWithPagination(movies, total, pagination), nil
 }

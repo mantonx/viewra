@@ -5,8 +5,8 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import type { GithubComViewraViewraInternalApplicationLibraryLibraryResponse } from './githubComViewraViewraInternalApplicationLibraryLibraryResponse';
+import type { GithubComViewraViewraInternalApplicationLibraryLibraryResponse } from './githubComViewraViewraInternalApplicationLibraryLibraryResponse'
 
 export interface GithubComViewraViewraInternalApplicationLibraryGetLibraryResponse {
-  library?: GithubComViewraViewraInternalApplicationLibraryLibraryResponse;
+  library?: GithubComViewraViewraInternalApplicationLibraryLibraryResponse
 }

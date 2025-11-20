@@ -7,8 +7,8 @@
  */
 
 export interface GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest {
-  duration_seconds?: number;
-  media_id?: number;
-  progress_seconds?: number;
-  user_id?: number;
+  duration_seconds?: number
+  media_id?: number
+  progress_seconds?: number
+  user_id?: number
 }

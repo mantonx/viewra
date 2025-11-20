@@ -7,6 +7,6 @@
  */
 
 export interface InternalApiHandlersErrorResponse {
-  error?: string;
-  message?: string;
+  error?: string
+  message?: string
 }

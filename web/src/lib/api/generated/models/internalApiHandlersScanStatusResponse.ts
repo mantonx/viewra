@@ -8,21 +8,21 @@
 
 export interface InternalApiHandlersScanStatusResponse {
   /** Bytes processed */
-  bytes_processed?: number;
+  bytes_processed?: number
   /** ISO 8601 timestamp */
-  completed_at?: string;
+  completed_at?: string
   /** Number of errors encountered */
-  error_count?: number;
+  error_count?: number
   /** Error message if failed */
-  error_message?: string;
+  error_message?: string
   /** Total files discovered */
-  files_found?: number;
+  files_found?: number
   /** Files processed so far */
-  files_processed?: number;
+  files_processed?: number
   /** 0-100 */
-  progress?: number;
+  progress?: number
   /** ISO 8601 timestamp */
-  started_at?: string;
+  started_at?: string
   /** pending, running, paused, completed, failed */
-  status?: string;
+  status?: string
 }

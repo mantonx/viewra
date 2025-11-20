@@ -6,12 +6,12 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequestType = typeof GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequestType[keyof typeof GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequestType];
-
+export type GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequestType =
+  (typeof GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequestType)[keyof typeof GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequestType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequestType = {
   movies: 'movies',
   tv: 'tv',
   music: 'music',
-} as const;
+} as const

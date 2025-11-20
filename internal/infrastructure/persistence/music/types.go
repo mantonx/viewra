@@ -3,6 +3,7 @@ package music
 import (
 	"database/sql"
 
+	domainCommon "github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
@@ -128,7 +129,7 @@ func buildSQLiteCreateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.CreateMu
 		MusicbrainzAlbumID:  sql.NullString{},
 		MusicbrainzArtistID: sql.NullString{},
 		OriginalTitle:       sql.NullString{},                             // TODO: Add OriginalTitle to domain.MusicTrack
-		SortTitle:           sql.NullString{},                             // TODO: Add SortTitle to domain.MusicTrack
+		SortTitle:           common.NullString(domainCommon.NormalizeSortTitle(t.Media.Title)),
 	}
 }
 

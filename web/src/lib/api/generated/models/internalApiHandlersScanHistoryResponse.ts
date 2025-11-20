@@ -5,8 +5,8 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import type { InternalApiHandlersScanHistoryItem } from './internalApiHandlersScanHistoryItem';
+import type { InternalApiHandlersScanHistoryItem } from './internalApiHandlersScanHistoryItem'
 
 export interface InternalApiHandlersScanHistoryResponse {
-  jobs?: InternalApiHandlersScanHistoryItem[];
+  jobs?: InternalApiHandlersScanHistoryItem[]
 }

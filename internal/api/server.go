@@ -42,11 +42,13 @@ type Server struct {
 
 // ServerConfig holds server configuration
 type ServerConfig struct {
-	Port            int
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	ShutdownTimeout time.Duration
-	Browser         BrowserConfig
+	Port                 int
+	ReadTimeout          time.Duration
+	WriteTimeout         time.Duration
+	ShutdownTimeout      time.Duration
+	Browser              BrowserConfig
+	CORSAllowedOrigins   []string
+	CORSAllowCredentials bool
 }
 
 // BrowserConfig holds filesystem browser configuration
@@ -129,8 +131,14 @@ func NewServer(
 	// Add recovery middleware (panic recovery)
 	router.Use(gin.Recovery())
 
-	// Add CORS middleware (for frontend development)
-	router.Use(middleware.CORS())
+	// Add request ID middleware (must be before logger to include ID in logs)
+	router.Use(middleware.RequestID(logger))
+
+	// Add CORS middleware with configuration
+	router.Use(middleware.CORS(middleware.CORSConfig{
+		AllowedOrigins:   config.CORSAllowedOrigins,
+		AllowCredentials: config.CORSAllowCredentials,
+	}))
 
 	// Add our custom logging middleware
 	router.Use(middleware.Logger(logger))

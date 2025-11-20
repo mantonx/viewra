@@ -7,10 +7,10 @@
  */
 
 export interface GithubComViewraViewraInternalApplicationLibraryLibraryResponse {
-  created_at?: string;
-  id?: number;
-  name?: string;
-  path?: string;
-  type?: string;
-  updated_at?: string;
+  created_at?: string
+  id?: number
+  name?: string
+  path?: string
+  type?: string
+  updated_at?: string
 }

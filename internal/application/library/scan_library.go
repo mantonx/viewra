@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
+	domainCommon "github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/images"
 	"github.com/viewra/viewra/internal/domain/library"
 	"github.com/viewra/viewra/internal/domain/media"
@@ -31,8 +33,14 @@ type ScanLibraryUseCase struct {
 	extractShowImages    ExtractTVShowImagesExecutor
 	extractSeasonImages  ExtractTVSeasonImagesExecutor
 	extractMusicImages   ExtractMusicAlbumImagesExecutor
+	extractArtistImages  ExtractMusicArtistImagesExecutor
 	imageRepo            images.Repository
 	imageCleanup         ImageCleanupExecutor
+	scanTimeout          time.Duration
+
+	// Artist deduplication tracking (per scan session)
+	// Using sync.Map for lock-free concurrent access (fixes race condition)
+	processedArtists sync.Map // string -> bool
 }
 
 // ExtractMovieImagesExecutor interface for movie image extraction
@@ -60,6 +68,11 @@ type ExtractMusicAlbumImagesExecutor interface {
 	Execute(ctx context.Context, albumDir string, mediaType images.MediaType, entityID int) error
 }
 
+// ExtractMusicArtistImagesExecutor interface for music artist image extraction
+type ExtractMusicArtistImagesExecutor interface {
+	Execute(ctx context.Context, artistDir string, mediaType images.MediaType, entityID int) error
+}
+
 // NewScanLibraryUseCase creates a new instance of ScanLibraryUseCase
 func NewScanLibraryUseCase(
 	libraryRepo library.Repository,
@@ -73,8 +86,10 @@ func NewScanLibraryUseCase(
 	extractShowImages ExtractTVShowImagesExecutor,
 	extractSeasonImages ExtractTVSeasonImagesExecutor,
 	extractMusicImages ExtractMusicAlbumImagesExecutor,
+	extractArtistImages ExtractMusicArtistImagesExecutor,
 	imageRepo images.Repository,
 	imageCleanup ImageCleanupExecutor,
+	scanTimeout time.Duration,
 ) *ScanLibraryUseCase {
 	return &ScanLibraryUseCase{
 		libraryRepo:          libraryRepo,
@@ -88,8 +103,10 @@ func NewScanLibraryUseCase(
 		extractShowImages:    extractShowImages,
 		extractSeasonImages:  extractSeasonImages,
 		extractMusicImages:   extractMusicImages,
+		extractArtistImages:  extractArtistImages,
 		imageRepo:            imageRepo,
 		imageCleanup:         imageCleanup,
+		scanTimeout:          scanTimeout,
 	}
 }
 
@@ -130,14 +147,50 @@ func (uc *ScanLibraryUseCase) StartScan(ctx context.Context, libraryID int64) (S
 		return StartScanResponse{}, fmt.Errorf("failed to create scan job: %w", err)
 	}
 
-	// Start background scan
-	go uc.runScan(context.Background(), job.ID, lib)
+	// Start background scan with timeout
+	// Use a new context with timeout (not derived from request context which may cancel early)
+	scanCtx, cancel := context.WithTimeout(context.Background(), uc.scanTimeout)
+
+	// Start the scan goroutine with proper cleanup and panic recovery
+	go func() {
+		defer cancel() // Always cancel to prevent context leak
+
+		// Recover from panics to prevent crashing the entire application
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("PANIC: scan goroutine panicked: %v\nStack trace:\n%s\n", r, string(debug.Stack()))
+
+				// Mark job as failed
+				failedJob := &scanner.ScanJob{
+					ID:           job.ID,
+					Status:       scanner.ScanStatusFailed,
+					ErrorMessage: fmt.Sprintf("scan panicked: %v", r),
+					CompletedAt:  &[]time.Time{time.Now()}[0],
+				}
+				if err := uc.scanJobRepo.Complete(context.Background(), failedJob); err != nil {
+					fmt.Printf("error: failed to mark panicked scan job as failed: %v\n", err)
+				}
+			}
+		}()
+
+		uc.runScan(scanCtx, job.ID, lib)
+	}()
+
+	// Monitor parent context cancellation (if user cancels the request, stop the scan)
+	go func() {
+		<-ctx.Done()
+		cancel() // Parent context cancelled, trigger scan cancellation
+	}()
 
 	return ToStartScanResponse(job), nil
 }
 
 // runScan executes the actual scan in the background
 func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *library.Library) {
+	// Initialize artist deduplication tracking for this scan session
+	// Clear any previous entries (sync.Map doesn't have a Clear method, so we replace it)
+	uc.processedArtists = sync.Map{}
+
 	// Create coordinator
 	coordinator := filesystem.NewCoordinator(filesystem.DefaultCoordinatorConfig())
 
@@ -174,13 +227,11 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	// Wait for result processing to complete
 	<-processDone
 
-	// Wait for found files collector to finish
+	// foundFilePaths channel is now closed by processResults
+	// Wait for found files collector to finish collecting all paths
 	<-foundFilesCollectorDone
 
-	// Clean up stale media (files that exist in DB but not on disk)
-	if scanErr == nil && uc.imageRepo != nil && uc.imageCleanup != nil {
-		uc.cleanupStaleMedia(ctx, lib.ID, foundFiles)
-	}
+	// Now it's safe to read foundFiles without a lock since collector is done
 
 	// Get final progress
 	progress := coordinator.GetProgress()
@@ -207,6 +258,21 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	if err := uc.scanJobRepo.Complete(ctx, job); err != nil {
 		// Log error but don't fail the scan
 		fmt.Printf("failed to complete scan job: %v\n", err)
+	}
+
+	// CRITICAL: Only cleanup stale media on COMPLETELY successful scan
+	// Prevents data corruption if scan partially fails (e.g., permission error on one directory)
+	// We only cleanup if:
+	// 1. No scan errors occurred
+	// 2. No processing errors occurred (ErrorCount == 0)
+	// 3. All found files were successfully processed (FilesProcessed == FilesFound)
+	if scanErr == nil && progress.ErrorCount == 0 && progress.FilesProcessed == progress.FilesFound {
+		if uc.imageRepo != nil && uc.imageCleanup != nil {
+			uc.cleanupStaleMedia(ctx, lib.ID, foundFiles)
+		}
+	} else {
+		fmt.Printf("info: skipping stale media cleanup due to scan errors (scanErr=%v, errorCount=%d, processed=%d, found=%d)\n",
+			scanErr, progress.ErrorCount, progress.FilesProcessed, progress.FilesFound)
 	}
 }
 
@@ -262,8 +328,14 @@ func (uc *ScanLibraryUseCase) processResults(ctx context.Context, jobID int64, l
 			continue
 		}
 
-		// Track this file as found
-		foundFilePaths <- result.FilePath
+		// Track this file as found (use select to prevent deadlock if context is cancelled)
+		select {
+		case foundFilePaths <- result.FilePath:
+			// Successfully sent
+		case <-ctx.Done():
+			// Context cancelled, stop processing
+			return
+		}
 
 		// Create media entry based on library type
 		switch libraryType {
@@ -354,6 +426,11 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 		}
 	}
 
+	// Ensure SortTitle is always set with normalized value
+	if movie.SortTitle == "" {
+		movie.SortTitle = domainCommon.NormalizeSortTitle(movie.Media.Title)
+	}
+
 	// Check if movie already exists
 	existing, err := uc.mediaRepo.GetByFilePath(ctx, libraryID, result.FilePath)
 	if err == nil && existing != nil {
@@ -367,12 +444,7 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 			fmt.Printf("failed to update movie metadata %s: %v\n", result.FilePath, err)
 		}
 		// Extract and catalog images (even for existing movies to populate cache)
-		if uc.extractMovieImages != nil {
-			mediaID := int(movie.Media.ID)
-			if err := uc.extractMovieImages.Execute(ctx, result.FilePath, images.MediaTypeMovie, mediaID, &mediaID); err != nil {
-				fmt.Printf("failed to extract images for movie %s: %v\n", result.FilePath, err)
-			}
-		}
+		uc.extractImagesForMovie(ctx, movie, result.FilePath)
 		return
 	}
 
@@ -384,12 +456,7 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 	}
 
 	// Extract and catalog images for the movie
-	if uc.extractMovieImages != nil {
-		mediaID := int(movie.Media.ID)
-		if err := uc.extractMovieImages.Execute(ctx, result.FilePath, images.MediaTypeMovie, mediaID, &mediaID); err != nil {
-			fmt.Printf("failed to extract images for movie %s: %v\n", result.FilePath, err)
-		}
-	}
+	uc.extractImagesForMovie(ctx, movie, result.FilePath)
 }
 
 // processTVEpisode creates or updates a TV episode entry
@@ -397,7 +464,7 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 	// Coordinator already parsed season/episode/title, but we need show name which isn't in ScanResult
 	parser := parsers.NewDefaultParser()
 	tvInfo, err := parser.ParseTVEpisode(result.FilePath)
-	if err != nil {
+	if err != nil || tvInfo == nil {
 		fmt.Printf("failed to parse TV episode filename %s: %v\n", result.FilePath, err)
 		return // Can't create episode without show name
 	}
@@ -496,16 +563,7 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 			fmt.Printf("failed to update TV episode metadata %s: %v\n", result.FilePath, err)
 		}
 		// Extract and catalog images (even for existing episodes to populate cache)
-		if uc.extractEpisodeImages != nil {
-			mediaID := int(episode.Media.ID)
-			if err := uc.extractEpisodeImages.Execute(ctx, result.FilePath, images.MediaTypeTVEpisode, mediaID, &mediaID); err != nil {
-				fmt.Printf("failed to extract images for episode %s: %v\n", result.FilePath, err)
-			}
-		}
-
-		// Extract and catalog images for the show and season
-		showDir := filepath.Dir(filepath.Dir(result.FilePath))
-		uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, season)
+		uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
 		return
 	}
 
@@ -516,18 +574,8 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		return
 	}
 
-	// Extract and catalog images for the episode
-	if uc.extractEpisodeImages != nil {
-		mediaID := int(episode.Media.ID)
-		if err := uc.extractEpisodeImages.Execute(ctx, result.FilePath, images.MediaTypeTVEpisode, mediaID, &mediaID); err != nil {
-			fmt.Printf("failed to extract images for episode %s: %v\n", result.FilePath, err)
-		}
-	}
-
-	// Extract and catalog images for the show and season
-	// Derive show directory from episode path: /path/to/show/Season XX/episode.mkv -> /path/to/show
-	showDir := filepath.Dir(filepath.Dir(result.FilePath))
-	uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, season)
+	// Extract and catalog images for the episode, show, and season
+	uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
 }
 
 // processMusicTrack creates or updates a music track entry
@@ -618,14 +666,8 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		if err := uc.musicRepo.UpdateMusicTrack(ctx, track); err != nil {
 			fmt.Printf("failed to update music track metadata %s: %v\n", result.FilePath, err)
 		}
-		// Extract album images (even for existing tracks to populate cache)
-		if uc.extractMusicImages != nil && track.Album != "" {
-			albumDir := filepath.Dir(result.FilePath)
-			entityID := int(track.Media.ID)
-			if err := uc.extractMusicImages.Execute(ctx, albumDir, images.MediaTypeMusicAlbum, entityID); err != nil {
-				fmt.Printf("failed to extract images for album %s: %v\n", track.Album, err)
-			}
-		}
+		// Extract album and artist images (even for existing tracks to populate cache)
+		uc.extractImagesForTrack(ctx, track, result.FilePath)
 		return
 	}
 
@@ -636,14 +678,8 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		return
 	}
 
-	// Extract and catalog images for the album
-	if uc.extractMusicImages != nil && track.Album != "" {
-		albumDir := filepath.Dir(result.FilePath)
-		entityID := int(track.Media.ID)
-		if err := uc.extractMusicImages.Execute(ctx, albumDir, images.MediaTypeMusicAlbum, entityID); err != nil {
-			fmt.Printf("failed to extract images for album %s: %v\n", track.Album, err)
-		}
-	}
+	// Extract and catalog images for the album and artist
+	uc.extractImagesForTrack(ctx, track, result.FilePath)
 }
 
 // GetProgress retrieves the current progress of a scan job
@@ -687,6 +723,34 @@ func (uc *ScanLibraryUseCase) cleanupStaleMedia(ctx context.Context, libraryID i
 		fmt.Printf("warning: failed to list media for stale cleanup: %v\n", err)
 		return
 	}
+
+	// Count how many files would be marked as stale
+	staleCount := 0
+	for _, m := range allMedia {
+		if !foundFiles[m.FilePath] {
+			staleCount++
+		}
+	}
+
+	// SAFETY: Don't delete if >10% of library is "stale"
+	// This likely indicates scan failure (permission error, network issue, etc.), not actual deletions
+	// Better to leave stale records than accidentally delete valid media entries
+	if len(allMedia) > 0 {
+		stalePercent := float64(staleCount) / float64(len(allMedia)) * 100
+		if stalePercent > 10.0 {
+			fmt.Printf("error: refusing to cleanup - too many files marked stale (stale=%d, total=%d, percentage=%.1f%%). This likely indicates a scan failure, not actual file deletions.\n",
+				staleCount, len(allMedia), stalePercent)
+			return
+		}
+	}
+
+	if staleCount == 0 {
+		fmt.Printf("info: no stale media to cleanup\n")
+		return
+	}
+
+	fmt.Printf("info: cleaning up %d stale media records (%.1f%% of library)\n",
+		staleCount, float64(staleCount)/float64(len(allMedia))*100)
 
 	// Track hashes for cleanup
 	var hashesToClean []string
@@ -745,6 +809,70 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 	if uc.extractSeasonImages != nil {
 		if err := uc.extractSeasonImages.Execute(ctx, showDir, seasonNumber, images.MediaTypeTVSeason, int(season.ID)); err != nil {
 			fmt.Printf("failed to extract images for season %d: %v\n", seasonNumber, err)
+		}
+	}
+}
+
+// tryMarkArtistProcessed atomically checks if an artist has been processed and marks it as processed
+// Returns true if this is the first time the artist is being processed (caller should extract images)
+// Returns false if the artist was already processed (caller should skip extraction)
+// This uses LoadOrStore for atomic check-and-set to prevent race conditions
+func (uc *ScanLibraryUseCase) tryMarkArtistProcessed(artistName string) bool {
+	_, alreadyProcessed := uc.processedArtists.LoadOrStore(artistName, true)
+	return !alreadyProcessed // Return true if this is the first time
+}
+
+// extractImagesForMovie extracts and catalogs images for a movie
+// Shared helper to eliminate duplication between create and update paths
+func (uc *ScanLibraryUseCase) extractImagesForMovie(ctx context.Context, movie *media.Movie, filePath string) {
+	if uc.extractMovieImages == nil {
+		return
+	}
+
+	mediaID := int(movie.Media.ID)
+	if err := uc.extractMovieImages.Execute(ctx, filePath, images.MediaTypeMovie, mediaID, &mediaID); err != nil {
+		fmt.Printf("failed to extract images for movie %s: %v\n", filePath, err)
+	}
+}
+
+// extractImagesForEpisode extracts images for a TV episode, its show, and season
+// Shared helper to eliminate duplication between create and update paths
+func (uc *ScanLibraryUseCase) extractImagesForEpisode(ctx context.Context, episode *media.TVEpisode, filePath string, libraryID int64) {
+	// Extract episode images
+	if uc.extractEpisodeImages != nil {
+		mediaID := int(episode.Media.ID)
+		if err := uc.extractEpisodeImages.Execute(ctx, filePath, images.MediaTypeTVEpisode, mediaID, &mediaID); err != nil {
+			fmt.Printf("failed to extract images for episode %s: %v\n", filePath, err)
+		}
+	}
+
+	// Extract show and season images
+	showDir := filepath.Dir(filepath.Dir(filePath))
+	uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, episode.Season)
+}
+
+// extractImagesForTrack extracts images for a music track (album and artist)
+// Shared helper to eliminate duplication between create and update paths
+func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *media.MusicTrack, filePath string) {
+	// Extract album images
+	if uc.extractMusicImages != nil && track.Album != "" {
+		albumDir := filepath.Dir(filePath)
+		entityID := int(track.Media.ID)
+		if err := uc.extractMusicImages.Execute(ctx, albumDir, images.MediaTypeMusicAlbum, entityID); err != nil {
+			fmt.Printf("failed to extract images for album %s: %v\n", track.Album, err)
+		}
+	}
+
+	// Extract artist images (once per artist)
+	if uc.extractArtistImages != nil && track.Artist != "" {
+		artistDir := filepath.Dir(filepath.Dir(filePath)) // Parent of album dir
+		entityID := int(track.Media.ID)
+
+		// Atomically check and mark artist as processed (prevents race condition)
+		if uc.tryMarkArtistProcessed(track.Artist) {
+			if err := uc.extractArtistImages.Execute(ctx, artistDir, images.MediaTypeMusicArtist, entityID); err != nil {
+				fmt.Printf("failed to extract artist images for %s: %v\n", track.Artist, err)
+			}
 		}
 	}
 }

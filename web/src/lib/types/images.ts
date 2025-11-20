@@ -51,6 +51,10 @@ export interface ListImagesResponse {
   images: Image[]
 }
 
+export interface BatchImagesResponse {
+  media_images: Record<number, Image[]> // map[mediaID][]images
+}
+
 /**
  * Image preset sizes available from the backend
  */
@@ -114,4 +118,26 @@ export function getFanartImage(images: Image[]): Image | undefined {
  */
 export function getLogoImage(images: Image[]): Image | undefined {
   return findImageByType(images, 'clearlogo') || findImageByType(images, 'logo')
+}
+
+/**
+ * Helper to get the episode thumbnail from a list of images
+ */
+export function getEpisodeThumbnail(images: Image[]): Image | undefined {
+  return findImageByType(images, 'thumb')
+}
+
+/**
+ * Helper to get the album cover from a list of images
+ */
+export function getAlbumCover(images: Image[]): Image | undefined {
+  return findImageByType(images, 'cover')
+}
+
+/**
+ * Helper to get the artist image from a list of images
+ * Prefers folder image, falls back to fanart
+ */
+export function getArtistImage(images: Image[]): Image | undefined {
+  return findImageByType(images, 'folder') || findImageByType(images, 'fanart')
 }

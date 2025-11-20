@@ -10,6 +10,52 @@ import (
 	"database/sql"
 )
 
+const countAlbumsByLibrary = `-- name: CountAlbumsByLibrary :one
+SELECT COUNT(DISTINCT mt.album || mt.album_artist)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+`
+
+func (q *Queries) CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAlbumsByLibrary, libraryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countArtistsByLibrary = `-- name: CountArtistsByLibrary :one
+
+SELECT COUNT(DISTINCT mt.album_artist)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ? AND mt.album_artist IS NOT NULL AND mt.album_artist != ''
+`
+
+// ============================================================================
+// Pagination Support Queries
+// ============================================================================
+func (q *Queries) CountArtistsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countArtistsByLibrary, libraryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countMusicTracksByLibrary = `-- name: CountMusicTracksByLibrary :one
+SELECT COUNT(*)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+`
+
+func (q *Queries) CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countMusicTracksByLibrary, libraryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createMusicTrack = `-- name: CreateMusicTrack :exec
 INSERT INTO music_tracks (
     media_id, artist, album, album_artist, track_number, disc_number,
@@ -308,6 +354,122 @@ func (q *Queries) ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]L
 	return items, nil
 }
 
+const listAlbumsByLibraryPaginated = `-- name: ListAlbumsByLibraryPaginated :many
+SELECT DISTINCT
+    mt.album,
+    mt.album_artist,
+    mt.year,
+    COUNT(*) as track_count,
+    SUM(med.duration) as total_duration
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.album, mt.album_artist, mt.year
+ORDER BY mt.album_artist COLLATE NOCASE ASC, mt.album COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type ListAlbumsByLibraryPaginatedParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type ListAlbumsByLibraryPaginatedRow struct {
+	Album         sql.NullString  `json:"album"`
+	AlbumArtist   sql.NullString  `json:"album_artist"`
+	Year          sql.NullInt64   `json:"year"`
+	TrackCount    int64           `json:"track_count"`
+	TotalDuration sql.NullFloat64 `json:"total_duration"`
+}
+
+func (q *Queries) ListAlbumsByLibraryPaginated(ctx context.Context, arg ListAlbumsByLibraryPaginatedParams) ([]ListAlbumsByLibraryPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAlbumsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAlbumsByLibraryPaginatedRow{}
+	for rows.Next() {
+		var i ListAlbumsByLibraryPaginatedRow
+		if err := rows.Scan(
+			&i.Album,
+			&i.AlbumArtist,
+			&i.Year,
+			&i.TrackCount,
+			&i.TotalDuration,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAlbumsByLibraryPaginatedDesc = `-- name: ListAlbumsByLibraryPaginatedDesc :many
+SELECT DISTINCT
+    mt.album,
+    mt.album_artist,
+    mt.year,
+    COUNT(*) as track_count,
+    SUM(med.duration) as total_duration
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.album, mt.album_artist, mt.year
+ORDER BY mt.album_artist COLLATE NOCASE DESC, mt.album COLLATE NOCASE DESC
+LIMIT ? OFFSET ?
+`
+
+type ListAlbumsByLibraryPaginatedDescParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type ListAlbumsByLibraryPaginatedDescRow struct {
+	Album         sql.NullString  `json:"album"`
+	AlbumArtist   sql.NullString  `json:"album_artist"`
+	Year          sql.NullInt64   `json:"year"`
+	TrackCount    int64           `json:"track_count"`
+	TotalDuration sql.NullFloat64 `json:"total_duration"`
+}
+
+func (q *Queries) ListAlbumsByLibraryPaginatedDesc(ctx context.Context, arg ListAlbumsByLibraryPaginatedDescParams) ([]ListAlbumsByLibraryPaginatedDescRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAlbumsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAlbumsByLibraryPaginatedDescRow{}
+	for rows.Next() {
+		var i ListAlbumsByLibraryPaginatedDescRow
+		if err := rows.Scan(
+			&i.Album,
+			&i.AlbumArtist,
+			&i.Year,
+			&i.TrackCount,
+			&i.TotalDuration,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listArtistsByLibrary = `-- name: ListArtistsByLibrary :many
 SELECT DISTINCT
     mt.album_artist as artist,
@@ -336,6 +498,116 @@ func (q *Queries) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]
 	for rows.Next() {
 		var i ListArtistsByLibraryRow
 		if err := rows.Scan(&i.Artist, &i.AlbumCount, &i.TrackCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArtistsByLibraryPaginated = `-- name: ListArtistsByLibraryPaginated :many
+SELECT DISTINCT
+    MIN(mt.media_id) as representative_id,
+    mt.album_artist as artist,
+    COUNT(DISTINCT mt.album) as album_count,
+    COUNT(*) as track_count
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ? AND mt.album_artist IS NOT NULL AND mt.album_artist != ''
+GROUP BY mt.album_artist
+ORDER BY mt.album_artist COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type ListArtistsByLibraryPaginatedParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type ListArtistsByLibraryPaginatedRow struct {
+	RepresentativeID interface{}    `json:"representative_id"`
+	Artist           sql.NullString `json:"artist"`
+	AlbumCount       int64          `json:"album_count"`
+	TrackCount       int64          `json:"track_count"`
+}
+
+func (q *Queries) ListArtistsByLibraryPaginated(ctx context.Context, arg ListArtistsByLibraryPaginatedParams) ([]ListArtistsByLibraryPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, listArtistsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArtistsByLibraryPaginatedRow{}
+	for rows.Next() {
+		var i ListArtistsByLibraryPaginatedRow
+		if err := rows.Scan(
+			&i.RepresentativeID,
+			&i.Artist,
+			&i.AlbumCount,
+			&i.TrackCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArtistsByLibraryPaginatedDesc = `-- name: ListArtistsByLibraryPaginatedDesc :many
+SELECT DISTINCT
+    MIN(mt.media_id) as representative_id,
+    mt.album_artist as artist,
+    COUNT(DISTINCT mt.album) as album_count,
+    COUNT(*) as track_count
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ? AND mt.album_artist IS NOT NULL AND mt.album_artist != ''
+GROUP BY mt.album_artist
+ORDER BY mt.album_artist COLLATE NOCASE DESC
+LIMIT ? OFFSET ?
+`
+
+type ListArtistsByLibraryPaginatedDescParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type ListArtistsByLibraryPaginatedDescRow struct {
+	RepresentativeID interface{}    `json:"representative_id"`
+	Artist           sql.NullString `json:"artist"`
+	AlbumCount       int64          `json:"album_count"`
+	TrackCount       int64          `json:"track_count"`
+}
+
+func (q *Queries) ListArtistsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistsByLibraryPaginatedDescParams) ([]ListArtistsByLibraryPaginatedDescRow, error) {
+	rows, err := q.db.QueryContext(ctx, listArtistsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArtistsByLibraryPaginatedDescRow{}
+	for rows.Next() {
+		var i ListArtistsByLibraryPaginatedDescRow
+		if err := rows.Scan(
+			&i.RepresentativeID,
+			&i.Artist,
+			&i.AlbumCount,
+			&i.TrackCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1034,6 +1306,390 @@ func (q *Queries) ListMusicTracksByLibrary(ctx context.Context, libraryID int64)
 	items := []ListMusicTracksByLibraryRow{}
 	for rows.Next() {
 		var i ListMusicTracksByLibraryRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.Artist,
+			&i.Album,
+			&i.AlbumArtist,
+			&i.TrackNumber,
+			&i.DiscNumber,
+			&i.TotalTracks,
+			&i.TotalDiscs,
+			&i.Genre,
+			&i.Year,
+			&i.ReleaseDate,
+			&i.Composer,
+			&i.Lyricist,
+			&i.RecordLabel,
+			&i.Isrc,
+			&i.ReleaseType,
+			&i.Compilation,
+			&i.MusicbrainzTrackID,
+			&i.MusicbrainzAlbumID,
+			&i.MusicbrainzArtistID,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.MediaID_2,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMusicTracksByLibraryPaginated = `-- name: ListMusicTracksByLibraryPaginated :many
+SELECT
+    mt.media_id, mt.artist, mt.album, mt.album_artist, mt.track_number, mt.disc_number, mt.total_tracks, mt.total_discs, mt.genre, mt.year, mt.release_date, mt.composer, mt.lyricist, mt.record_label, mt.isrc, mt.release_type, mt.compilation, mt.musicbrainz_track_id, mt.musicbrainz_album_id, mt.musicbrainz_artist_id, mt.original_title, mt.sort_title,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(mt.sort_title, med.title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type ListMusicTracksByLibraryPaginatedParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type ListMusicTracksByLibraryPaginatedRow struct {
+	MediaID             int64           `json:"media_id"`
+	Artist              sql.NullString  `json:"artist"`
+	Album               sql.NullString  `json:"album"`
+	AlbumArtist         sql.NullString  `json:"album_artist"`
+	TrackNumber         sql.NullInt64   `json:"track_number"`
+	DiscNumber          sql.NullInt64   `json:"disc_number"`
+	TotalTracks         sql.NullInt64   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	Genre               sql.NullString  `json:"genre"`
+	Year                sql.NullInt64   `json:"year"`
+	ReleaseDate         sql.NullTime    `json:"release_date"`
+	Composer            sql.NullString  `json:"composer"`
+	Lyricist            sql.NullString  `json:"lyricist"`
+	RecordLabel         sql.NullString  `json:"record_label"`
+	Isrc                sql.NullString  `json:"isrc"`
+	ReleaseType         sql.NullString  `json:"release_type"`
+	Compilation         sql.NullBool    `json:"compilation"`
+	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
+	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
+	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
+	OriginalTitle       sql.NullString  `json:"original_title"`
+	SortTitle           sql.NullString  `json:"sort_title"`
+	MediaID_2           int64           `json:"media_id_2"`
+	LibraryID           int64           `json:"library_id"`
+	Title               string          `json:"title"`
+	FilePath            string          `json:"file_path"`
+	FileSize            sql.NullInt64   `json:"file_size"`
+	FileHash            sql.NullString  `json:"file_hash"`
+	ContainerFormat     sql.NullString  `json:"container_format"`
+	Duration            sql.NullFloat64 `json:"duration"`
+	Width               sql.NullInt64   `json:"width"`
+	Height              sql.NullInt64   `json:"height"`
+	AspectRatio         sql.NullString  `json:"aspect_ratio"`
+	Codec               sql.NullString  `json:"codec"`
+	AudioCodec          sql.NullString  `json:"audio_codec"`
+	CodecProfile        sql.NullString  `json:"codec_profile"`
+	BitRate             sql.NullInt64   `json:"bit_rate"`
+	FrameRate           sql.NullFloat64 `json:"frame_rate"`
+	ScanType            sql.NullString  `json:"scan_type"`
+	HdrFormat           sql.NullString  `json:"hdr_format"`
+	ColorSpace          sql.NullString  `json:"color_space"`
+	ColorPrimaries      sql.NullString  `json:"color_primaries"`
+	ThumbnailPath       sql.NullString  `json:"thumbnail_path"`
+	Type                string          `json:"type"`
+	SourceType          sql.NullString  `json:"source_type"`
+	ResolutionLabel     sql.NullString  `json:"resolution_label"`
+	QualityScore        sql.NullInt64   `json:"quality_score"`
+	Is3d                sql.NullBool    `json:"is_3d"`
+	StereoMode          sql.NullString  `json:"stereo_mode"`
+	HasDash             sql.NullBool    `json:"has_dash"`
+	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
+	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
+	IsExtra             bool            `json:"is_extra"`
+	DateAdded           sql.NullTime    `json:"date_added"`
+	DateModified        sql.NullTime    `json:"date_modified"`
+	CreatedAt           sql.NullTime    `json:"created_at"`
+	UpdatedAt           sql.NullTime    `json:"updated_at"`
+}
+
+func (q *Queries) ListMusicTracksByLibraryPaginated(ctx context.Context, arg ListMusicTracksByLibraryPaginatedParams) ([]ListMusicTracksByLibraryPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMusicTracksByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMusicTracksByLibraryPaginatedRow{}
+	for rows.Next() {
+		var i ListMusicTracksByLibraryPaginatedRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.Artist,
+			&i.Album,
+			&i.AlbumArtist,
+			&i.TrackNumber,
+			&i.DiscNumber,
+			&i.TotalTracks,
+			&i.TotalDiscs,
+			&i.Genre,
+			&i.Year,
+			&i.ReleaseDate,
+			&i.Composer,
+			&i.Lyricist,
+			&i.RecordLabel,
+			&i.Isrc,
+			&i.ReleaseType,
+			&i.Compilation,
+			&i.MusicbrainzTrackID,
+			&i.MusicbrainzAlbumID,
+			&i.MusicbrainzArtistID,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.MediaID_2,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMusicTracksByLibraryPaginatedDesc = `-- name: ListMusicTracksByLibraryPaginatedDesc :many
+SELECT
+    mt.media_id, mt.artist, mt.album, mt.album_artist, mt.track_number, mt.disc_number, mt.total_tracks, mt.total_discs, mt.genre, mt.year, mt.release_date, mt.composer, mt.lyricist, mt.record_label, mt.isrc, mt.release_type, mt.compilation, mt.musicbrainz_track_id, mt.musicbrainz_album_id, mt.musicbrainz_artist_id, mt.original_title, mt.sort_title,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(mt.sort_title, med.title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?
+`
+
+type ListMusicTracksByLibraryPaginatedDescParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type ListMusicTracksByLibraryPaginatedDescRow struct {
+	MediaID             int64           `json:"media_id"`
+	Artist              sql.NullString  `json:"artist"`
+	Album               sql.NullString  `json:"album"`
+	AlbumArtist         sql.NullString  `json:"album_artist"`
+	TrackNumber         sql.NullInt64   `json:"track_number"`
+	DiscNumber          sql.NullInt64   `json:"disc_number"`
+	TotalTracks         sql.NullInt64   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	Genre               sql.NullString  `json:"genre"`
+	Year                sql.NullInt64   `json:"year"`
+	ReleaseDate         sql.NullTime    `json:"release_date"`
+	Composer            sql.NullString  `json:"composer"`
+	Lyricist            sql.NullString  `json:"lyricist"`
+	RecordLabel         sql.NullString  `json:"record_label"`
+	Isrc                sql.NullString  `json:"isrc"`
+	ReleaseType         sql.NullString  `json:"release_type"`
+	Compilation         sql.NullBool    `json:"compilation"`
+	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
+	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
+	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
+	OriginalTitle       sql.NullString  `json:"original_title"`
+	SortTitle           sql.NullString  `json:"sort_title"`
+	MediaID_2           int64           `json:"media_id_2"`
+	LibraryID           int64           `json:"library_id"`
+	Title               string          `json:"title"`
+	FilePath            string          `json:"file_path"`
+	FileSize            sql.NullInt64   `json:"file_size"`
+	FileHash            sql.NullString  `json:"file_hash"`
+	ContainerFormat     sql.NullString  `json:"container_format"`
+	Duration            sql.NullFloat64 `json:"duration"`
+	Width               sql.NullInt64   `json:"width"`
+	Height              sql.NullInt64   `json:"height"`
+	AspectRatio         sql.NullString  `json:"aspect_ratio"`
+	Codec               sql.NullString  `json:"codec"`
+	AudioCodec          sql.NullString  `json:"audio_codec"`
+	CodecProfile        sql.NullString  `json:"codec_profile"`
+	BitRate             sql.NullInt64   `json:"bit_rate"`
+	FrameRate           sql.NullFloat64 `json:"frame_rate"`
+	ScanType            sql.NullString  `json:"scan_type"`
+	HdrFormat           sql.NullString  `json:"hdr_format"`
+	ColorSpace          sql.NullString  `json:"color_space"`
+	ColorPrimaries      sql.NullString  `json:"color_primaries"`
+	ThumbnailPath       sql.NullString  `json:"thumbnail_path"`
+	Type                string          `json:"type"`
+	SourceType          sql.NullString  `json:"source_type"`
+	ResolutionLabel     sql.NullString  `json:"resolution_label"`
+	QualityScore        sql.NullInt64   `json:"quality_score"`
+	Is3d                sql.NullBool    `json:"is_3d"`
+	StereoMode          sql.NullString  `json:"stereo_mode"`
+	HasDash             sql.NullBool    `json:"has_dash"`
+	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
+	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
+	IsExtra             bool            `json:"is_extra"`
+	DateAdded           sql.NullTime    `json:"date_added"`
+	DateModified        sql.NullTime    `json:"date_modified"`
+	CreatedAt           sql.NullTime    `json:"created_at"`
+	UpdatedAt           sql.NullTime    `json:"updated_at"`
+}
+
+func (q *Queries) ListMusicTracksByLibraryPaginatedDesc(ctx context.Context, arg ListMusicTracksByLibraryPaginatedDescParams) ([]ListMusicTracksByLibraryPaginatedDescRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMusicTracksByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMusicTracksByLibraryPaginatedDescRow{}
+	for rows.Next() {
+		var i ListMusicTracksByLibraryPaginatedDescRow
 		if err := rows.Scan(
 			&i.MediaID,
 			&i.Artist,

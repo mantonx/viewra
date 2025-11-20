@@ -1,7 +1,8 @@
 # ADR 007: Unified Task Scheduler System
 
-**Status**: Proposed
+**Status**: Partially Implemented
 **Date**: 2025-11-16
+**Updated**: 2025-11-17 (Added ADR 009 for transcode cleanup migration)
 **Author**: ViewRA Team
 
 ## Context
@@ -413,4 +414,19 @@ scheduler.RegisterTask(Task{
 
 - Cron Library: https://github.com/robfig/cron
 - Cron Expression Format: https://crontab.guru/
-- Related ADR: [006-image-handling-strategy.md](006-image-handling-strategy.md)
+- Related ADRs:
+  - [ADR 006: Image Handling Strategy](006-image-handling-strategy.md)
+  - [ADR 009: Migrate Transcode Cleanup to Unified Scheduler](009-migrate-transcode-cleanup-to-unified-scheduler.md)
+
+## Implementation Status
+
+**Completed** ✅:
+- Scheduler core infrastructure (`internal/infrastructure/scheduler/scheduler.go`)
+- Database schema for execution history
+- API endpoints for task management
+- Image cleanup task registration
+
+**Pending** 📋:
+- Transcode cleanup migration (see ADR 009)
+- Frontend UI for task management
+- Additional maintenance tasks (library health, DB vacuum, log rotation)

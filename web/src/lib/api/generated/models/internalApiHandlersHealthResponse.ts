@@ -5,12 +5,15 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import type { InternalApiHandlersHealthResponseChecks } from './internalApiHandlersHealthResponseChecks';
-import type { InternalApiHandlersDatabaseHealth } from './internalApiHandlersDatabaseHealth';
+import type { InternalApiHandlersHealthResponseComponents } from './internalApiHandlersHealthResponseComponents'
+import type { InternalApiHandlersSystemInfo } from './internalApiHandlersSystemInfo'
 
 export interface InternalApiHandlersHealthResponse {
-  checks?: InternalApiHandlersHealthResponseChecks;
-  database?: InternalApiHandlersDatabaseHealth;
-  status?: string;
-  time?: string;
+  components?: InternalApiHandlersHealthResponseComponents
+  /** "healthy", "degraded", "unhealthy" */
+  status?: string
+  system?: InternalApiHandlersSystemInfo
+  timestamp?: string
+  uptime?: string
+  version?: string
 }

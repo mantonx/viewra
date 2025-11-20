@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	domainCommon "github.com/viewra/viewra/internal/domain/common"
 )
 
 // MovieNFO represents a Kodi/Plex-compatible movie .nfo file structure
@@ -120,10 +122,19 @@ func ParseMovieNFO(nfoPath string) (*MovieMetadata, error) {
 	}
 
 	// Convert to our metadata format
+	// Use provided sort title if available, otherwise normalize the title
+	sortTitle := nfo.SortTitle
+	if sortTitle == "" {
+		sortTitle = domainCommon.NormalizeSortTitle(nfo.Title)
+	} else {
+		// Even if sort title is provided, normalize it for consistent sorting
+		sortTitle = domainCommon.NormalizeSortTitle(sortTitle)
+	}
+
 	metadata := &MovieMetadata{
 		Title:            nfo.Title,
 		OriginalTitle:    nfo.OriginalTitle,
-		SortTitle:        nfo.SortTitle,
+		SortTitle:        sortTitle,
 		Year:             nfo.Year,
 		Plot:             nfo.Plot,
 		Tagline:          nfo.Tagline,

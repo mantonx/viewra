@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -58,4 +59,63 @@ func formatTime(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.RFC3339)
+}
+
+// getRequiredQueryInt64 extracts a required int64 query parameter.
+// Returns the parsed value and true if successful.
+// Returns 0 and false if the parameter is missing or invalid, and sends an error response.
+func getRequiredQueryInt64(c *gin.Context, paramName string) (int64, bool) {
+	valueStr := c.Query(paramName)
+	if valueStr == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   fmt.Sprintf("Missing %s", paramName),
+			Message: fmt.Sprintf("%s query parameter is required", paramName),
+		})
+		return 0, false
+	}
+
+	value, err := parseID(valueStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   fmt.Sprintf("Invalid %s", paramName),
+			Message: err.Error(),
+		})
+		return 0, false
+	}
+
+	return value, true
+}
+
+// getOptionalQueryInt64 extracts an optional int64 query parameter.
+// Returns the parsed value and true if present and valid.
+// Returns 0 and false if the parameter is missing or invalid.
+// Does NOT send error responses - caller should handle validation.
+func getOptionalQueryInt64(c *gin.Context, paramName string) (int64, bool) {
+	valueStr := c.Query(paramName)
+	if valueStr == "" {
+		return 0, false
+	}
+
+	value, err := parseID(valueStr)
+	if err != nil {
+		return 0, false
+	}
+
+	return value, true
+}
+
+// getPathInt64 extracts an int64 path parameter.
+// Returns the parsed value and true if successful.
+// Returns 0 and false if invalid, and sends an error response.
+func getPathInt64(c *gin.Context, paramName string) (int64, bool) {
+	valueStr := c.Param(paramName)
+	value, err := parseID(valueStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   fmt.Sprintf("Invalid %s", paramName),
+			Message: fmt.Sprintf("Invalid %s parameter: %s", paramName, err.Error()),
+		})
+		return 0, false
+	}
+	return value, true
 }

@@ -2,6 +2,7 @@ package tvshow
 
 import (
 	"database/sql"
+	"unsafe"
 
 	"github.com/viewra/viewra/internal/domain/media"
 	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
@@ -122,101 +123,64 @@ func sqliteEpisodeRowToDomain(fields episodeFields) *media.TVEpisode {
 	}
 }
 
-// Helper functions to convert various row types to episodeFields
-
-func convertToEpisodeFields(row sqlc_sqlite.ListTVEpisodesByLibraryRow) episodeFields {
-	return episodeFields{
-		MediaID:        row.MediaID,
-		ShowID:         row.ShowID,
-		SeasonID:       row.SeasonID,
-		SeasonNumber:   row.SeasonNumber,
-		EpisodeNumber:  row.EpisodeNumber,
-		EpisodeTitle:   row.EpisodeTitle,
-		TvdbID:         row.TvdbID,
-		ImdbID:         row.ImdbID,
-		AirDate:        row.AirDate,
-		Plot:           row.Plot,
-		MediaID2:       row.MediaID_2,
-		LibraryID:      row.LibraryID,
-		Title:          row.Title,
-		FilePath:       row.FilePath,
-		FileSize:       row.FileSize,
-		Duration:       row.Duration,
-		Width:          row.Width,
-		Height:         row.Height,
-		Codec:          row.Codec,
-		AudioCodec:     row.AudioCodec,
-		BitRate:        row.BitRate,
-		FrameRate:      row.FrameRate,
-		ContainerFormat: row.ContainerFormat,
-		Type:           row.Type,
-		IsExtra:        row.IsExtra,
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
-	}
+// episodeRowLike is a constraint interface that describes the common fields
+// present in all TV episode query row types
+type episodeRowLike interface {
+	sqlc_sqlite.ListTVEpisodesByLibraryRow |
+		sqlc_sqlite.ListTVEpisodesByShowRow |
+		sqlc_sqlite.SearchTVEpisodesByTitleRow
 }
 
-func convertToEpisodeFieldsFromShow(row sqlc_sqlite.ListTVEpisodesByShowRow) episodeFields {
-	return episodeFields{
-		MediaID:        row.MediaID,
-		ShowID:         row.ShowID,
-		SeasonID:       row.SeasonID,
-		SeasonNumber:   row.SeasonNumber,
-		EpisodeNumber:  row.EpisodeNumber,
-		EpisodeTitle:   row.EpisodeTitle,
-		TvdbID:         row.TvdbID,
-		ImdbID:         row.ImdbID,
-		AirDate:        row.AirDate,
-		Plot:           row.Plot,
-		MediaID2:       row.MediaID_2,
-		LibraryID:      row.LibraryID,
-		Title:          row.Title,
-		FilePath:       row.FilePath,
-		FileSize:       row.FileSize,
-		Duration:       row.Duration,
-		Width:          row.Width,
-		Height:         row.Height,
-		Codec:          row.Codec,
-		AudioCodec:     row.AudioCodec,
-		BitRate:        row.BitRate,
-		FrameRate:      row.FrameRate,
-		ContainerFormat: row.ContainerFormat,
-		Type:           row.Type,
-		IsExtra:        row.IsExtra,
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
-	}
-}
+// convertToEpisodeFields is a generic function that converts any episode query row type
+// to the common episodeFields struct. This eliminates duplication across three separate
+// converter functions.
+//
+// Note: While we use a type constraint to ensure type safety, all three row types have
+// identical field structures, so we use a helper function to access fields uniformly.
+func convertToEpisodeFields[T episodeRowLike](row T) episodeFields {
+	// All three row types have identical structures, so we can convert to any one
+	// and use it. We convert to ListTVEpisodesByLibraryRow arbitrarily.
+	var r sqlc_sqlite.ListTVEpisodesByLibraryRow
 
-func convertToEpisodeFieldsFromSearch(row sqlc_sqlite.SearchTVEpisodesByTitleRow) episodeFields {
+	switch typed := any(row).(type) {
+	case sqlc_sqlite.ListTVEpisodesByLibraryRow:
+		r = typed
+	case sqlc_sqlite.ListTVEpisodesByShowRow:
+		// Cast via any - safe because structures are identical
+		r = *(*sqlc_sqlite.ListTVEpisodesByLibraryRow)(unsafe.Pointer(&typed))
+	case sqlc_sqlite.SearchTVEpisodesByTitleRow:
+		// Cast via any - safe because structures are identical
+		r = *(*sqlc_sqlite.ListTVEpisodesByLibraryRow)(unsafe.Pointer(&typed))
+	}
+
 	return episodeFields{
-		MediaID:        row.MediaID,
-		ShowID:         row.ShowID,
-		SeasonID:       row.SeasonID,
-		SeasonNumber:   row.SeasonNumber,
-		EpisodeNumber:  row.EpisodeNumber,
-		EpisodeTitle:   row.EpisodeTitle,
-		TvdbID:         row.TvdbID,
-		ImdbID:         row.ImdbID,
-		AirDate:        row.AirDate,
-		Plot:           row.Plot,
-		MediaID2:       row.MediaID_2,
-		LibraryID:      row.LibraryID,
-		Title:          row.Title,
-		FilePath:       row.FilePath,
-		FileSize:       row.FileSize,
-		Duration:       row.Duration,
-		Width:          row.Width,
-		Height:         row.Height,
-		Codec:          row.Codec,
-		AudioCodec:     row.AudioCodec,
-		BitRate:        row.BitRate,
-		FrameRate:      row.FrameRate,
-		ContainerFormat: row.ContainerFormat,
-		Type:           row.Type,
-		IsExtra:        row.IsExtra,
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
+		MediaID:         r.MediaID,
+		ShowID:          r.ShowID,
+		SeasonID:        r.SeasonID,
+		SeasonNumber:    r.SeasonNumber,
+		EpisodeNumber:   r.EpisodeNumber,
+		EpisodeTitle:    r.EpisodeTitle,
+		TvdbID:          r.TvdbID,
+		ImdbID:          r.ImdbID,
+		AirDate:         r.AirDate,
+		Plot:            r.Plot,
+		MediaID2:        r.MediaID_2,
+		LibraryID:       r.LibraryID,
+		Title:           r.Title,
+		FilePath:        r.FilePath,
+		FileSize:        r.FileSize,
+		Duration:        r.Duration,
+		Width:           r.Width,
+		Height:          r.Height,
+		Codec:           r.Codec,
+		AudioCodec:      r.AudioCodec,
+		BitRate:         r.BitRate,
+		FrameRate:       r.FrameRate,
+		ContainerFormat: r.ContainerFormat,
+		Type:            r.Type,
+		IsExtra:         r.IsExtra,
+		CreatedAt:       r.CreatedAt,
+		UpdatedAt:       r.UpdatedAt,
 	}
 }
 

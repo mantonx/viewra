@@ -7,16 +7,16 @@
  */
 
 export interface InternalApiHandlersScanHistoryItem {
-  bytes_processed?: number;
-  completed_at?: string;
+  bytes_processed?: number
+  completed_at?: string
   /** Duration in seconds */
-  duration_seconds?: number;
-  error_count?: number;
-  error_message?: string;
-  files_found?: number;
-  files_processed?: number;
-  id?: number;
-  progress?: number;
-  started_at?: string;
-  status?: string;
+  duration_seconds?: number
+  error_count?: number
+  error_message?: string
+  files_found?: number
+  files_processed?: number
+  id?: number
+  progress?: number
+  started_at?: string
+  status?: string
 }

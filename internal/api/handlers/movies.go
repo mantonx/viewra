@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/viewra/viewra/internal/application/movies"
+	"github.com/viewra/viewra/internal/domain/common"
 )
 
 // MoviesHandler handles HTTP requests for movies
@@ -29,33 +30,45 @@ func NewMoviesHandler(
 
 // List handles GET /api/movies
 // @Summary List movies
-// @Description Returns a list of all movies in a specific library
+// @Description Returns a list of all movies in a specific library with optional pagination
 // @Tags movies
 // @Produce json
 // @Param library_id query int true "Library ID to filter movies"
+// @Param limit query int false "Number of items per page (default: 50, max: 200)"
+// @Param offset query int false "Number of items to skip (default: 0)"
+// @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
 // @Success 200 {object} movies.ListMoviesResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/movies [get]
 func (h *MoviesHandler) List(c *gin.Context) {
-	libraryIDStr := c.Query("library_id")
-	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+	libraryID, ok := getRequiredQueryInt64(c, "library_id")
+	if !ok {
 		return
 	}
 
-	libraryID, err := parseID(libraryIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+	// Parse optional pagination parameters
+	pagination := parsePaginationParams(c)
+
+	// Parse optional sort parameter
+	sortBy := c.Query("sort")
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	// If pagination parameters were provided, use paginated endpoint
+	if c.Query("limit") != "" || c.Query("offset") != "" {
+		paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sortBy)
+		resp, err := h.listMovies.ExecuteWithPagination(c.Request.Context(), libraryID, paginationParams)
+		if err != nil {
+			handleError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, resp)
 		return
 	}
 
+	// Otherwise use non-paginated endpoint for backward compatibility
 	resp, err := h.listMovies.Execute(c.Request.Context(), libraryID)
 	if err != nil {
 		handleError(c, err)
@@ -97,31 +110,20 @@ func (h *MoviesHandler) Get(c *gin.Context) {
 
 // Search handles GET /api/movies/search
 // @Summary Search movies
-// @Description Searches for movies by title in a specific library
+// @Description Searches for movies by title in a specific library with optional pagination
 // @Tags movies
 // @Produce json
 // @Param library_id query int true "Library ID to search in"
 // @Param q query string true "Search query (title)"
+// @Param limit query int false "Number of items per page (default: 50, max: 200)"
+// @Param offset query int false "Number of items to skip (default: 0)"
 // @Success 200 {object} movies.ListMoviesResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/movies/search [get]
 func (h *MoviesHandler) Search(c *gin.Context) {
-	libraryIDStr := c.Query("library_id")
-	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
-		return
-	}
-
-	libraryID, err := parseID(libraryIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+	libraryID, ok := getRequiredQueryInt64(c, "library_id")
+	if !ok {
 		return
 	}
 
@@ -134,6 +136,22 @@ func (h *MoviesHandler) Search(c *gin.Context) {
 		return
 	}
 
+	// Parse optional pagination parameters
+	pagination := parsePaginationParams(c)
+
+	// If pagination parameters were provided, use paginated endpoint
+	if c.Query("limit") != "" || c.Query("offset") != "" {
+		paginationParams := common.NewPaginationParams(pagination.limit, pagination.offset)
+		resp, err := h.searchMovies.ExecuteWithPagination(c.Request.Context(), libraryID, query, paginationParams)
+		if err != nil {
+			handleError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+
+	// Otherwise use non-paginated endpoint for backward compatibility
 	resp, err := h.searchMovies.Execute(c.Request.Context(), libraryID, query)
 	if err != nil {
 		handleError(c, err)

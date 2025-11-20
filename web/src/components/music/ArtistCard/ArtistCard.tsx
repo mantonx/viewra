@@ -15,6 +15,7 @@ const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
       <div className="aspect-square relative">
         <MediaPoster
           mediaId={artist.id}
+          mediaType="music-artist"
           alt={artist.name}
           className="w-full h-full absolute inset-0"
           preset="medium"

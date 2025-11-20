@@ -15,11 +15,12 @@ import (
 
 // ImagesHandler handles HTTP requests for images
 type ImagesHandler struct {
-	getImage        images.GetImageExecutor
-	getMediaImages  images.GetMediaImagesExecutor
-	getEntityImages images.GetEntityImagesExecutor
-	transformer     *infraimages.Transformer
-	cacheService    *infraimages.CacheService
+	getImage           images.GetImageExecutor
+	getMediaImages     images.GetMediaImagesExecutor
+	getEntityImages    images.GetEntityImagesExecutor
+	getBatchImages     images.GetBatchMediaImagesExecutor
+	transformer        *infraimages.Transformer
+	cacheService       *infraimages.CacheService
 }
 
 // NewImagesHandler creates a new images handler
@@ -27,15 +28,17 @@ func NewImagesHandler(
 	getImage images.GetImageExecutor,
 	getMediaImages images.GetMediaImagesExecutor,
 	getEntityImages images.GetEntityImagesExecutor,
+	getBatchImages images.GetBatchMediaImagesExecutor,
 	transformer *infraimages.Transformer,
 	cacheService *infraimages.CacheService,
 ) *ImagesHandler {
 	return &ImagesHandler{
-		getImage:        getImage,
-		getMediaImages:  getMediaImages,
-		getEntityImages: getEntityImages,
-		transformer:     transformer,
-		cacheService:    cacheService,
+		getImage:           getImage,
+		getMediaImages:     getMediaImages,
+		getEntityImages:    getEntityImages,
+		getBatchImages:     getBatchImages,
+		transformer:        transformer,
+		cacheService:       cacheService,
 	}
 }
 
@@ -334,6 +337,119 @@ func (h *ImagesHandler) GetMusicAlbumImages(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "Failed to retrieve images",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// GetMusicArtistImages handles GET /api/music/artists/:id/images
+// @Summary Get all images for a music artist
+// @Description Returns all images (folder, fanart, banner, logo) for a specific music artist
+// @Tags music,images
+// @Produce json
+// @Param id path int true "Artist entity ID (first track's media_id)"
+// @Success 200 {object} images.ListImagesResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/music/artists/{id}/images [get]
+func (h *ImagesHandler) GetMusicArtistImages(c *gin.Context) {
+	artistID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid artist ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.getEntityImages.Execute(c.Request.Context(), domainimages.MediaTypeMusicArtist, int(artistID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to retrieve images",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// GetBatchMediaImages handles POST /api/images/batch
+// @Summary Get images for multiple media items or entities
+// @Description Returns images for multiple media items (movies, episodes) or entities (TV shows, artists) in a single request to reduce N+1 queries
+// @Tags images
+// @Accept json
+// @Produce json
+// @Param request body object{media_ids=[]int,entity_ids=[]int,media_type=string} true "Batch request with either media_ids or (entity_ids + media_type)"
+// @Success 200 {object} images.BatchImagesResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/images/batch [post]
+func (h *ImagesHandler) GetBatchMediaImages(c *gin.Context) {
+	var req struct {
+		MediaIDs  []int  `json:"media_ids"`
+		EntityIDs []int  `json:"entity_ids"`
+		MediaType string `json:"media_type"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid request",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Validate that we have either media_ids OR (entity_ids + media_type)
+	hasMediaIDs := len(req.MediaIDs) > 0
+	hasEntityIDs := len(req.EntityIDs) > 0 && req.MediaType != ""
+
+	if !hasMediaIDs && !hasEntityIDs {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid request",
+			Message: "Must provide either media_ids or both entity_ids and media_type",
+		})
+		return
+	}
+
+	if hasMediaIDs && hasEntityIDs {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid request",
+			Message: "Cannot provide both media_ids and entity_ids in the same request",
+		})
+		return
+	}
+
+	// Limit batch size to prevent abuse
+	batchSize := len(req.MediaIDs)
+	if hasEntityIDs {
+		batchSize = len(req.EntityIDs)
+	}
+	if batchSize > 200 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Batch size too large",
+			Message: "Maximum 200 IDs per request",
+		})
+		return
+	}
+
+	var resp *images.BatchImagesResponse
+	var err error
+
+	if hasMediaIDs {
+		// Media-based batch lookup (movies, episodes, tracks)
+		resp, err = h.getBatchImages.Execute(c.Request.Context(), req.MediaIDs, "", nil)
+	} else {
+		// Entity-based batch lookup (TV shows, music artists, etc.)
+		resp, err = h.getBatchImages.Execute(c.Request.Context(), nil, req.MediaType, req.EntityIDs)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to retrieve batch images",
 			Message: err.Error(),
 		})
 		return

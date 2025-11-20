@@ -7,9 +7,9 @@
  */
 
 export interface GithubComViewraViewraInternalApplicationTranscodeQueueStats {
-  completedJobs?: number;
-  failedJobs?: number;
-  processingJobs?: number;
-  queuedJobs?: number;
-  workerCount?: number;
+  completedJobs?: number
+  failedJobs?: number
+  processingJobs?: number
+  queuedJobs?: number
+  workerCount?: number
 }

@@ -7,8 +7,8 @@
  */
 
 export type GetApiFilesystemBrowseParams = {
-/**
- * Directory path to browse
- */
-path?: string;
-};
+  /**
+   * Directory path to browse
+   */
+  path?: string
+}

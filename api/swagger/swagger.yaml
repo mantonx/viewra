@@ -1,0 +1,2574 @@
+basePath: /
+definitions:
+  github_com_viewra_viewra_internal_application_images.BatchImagesResponse:
+    properties:
+      media_images:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse'
+          type: array
+        description: map[mediaID][]images
+        type: object
+    type: object
+  github_com_viewra_viewra_internal_application_images.ImageResponse:
+    properties:
+      aspect_ratio:
+        type: number
+      created_at:
+        type: string
+      entity_id:
+        type: integer
+      external_url:
+        type: string
+      file_hash:
+        type: string
+      file_path:
+        type: string
+      file_size_bytes:
+        type: integer
+      height:
+        type: integer
+      id:
+        type: integer
+      image_type:
+        type: string
+      language:
+        type: string
+      local_cache_path:
+        type: string
+      media_id:
+        type: integer
+      media_type:
+        type: string
+      mime_type:
+        type: string
+      priority:
+        type: integer
+      source_type:
+        type: string
+      updated_at:
+        type: string
+      width:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_images.ListImagesResponse:
+    properties:
+      images:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_library.CreateLibraryRequest:
+    properties:
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      path:
+        type: string
+      type:
+        enum:
+        - movies
+        - tv
+        - music
+        type: string
+    required:
+    - name
+    - path
+    - type
+    type: object
+  github_com_viewra_viewra_internal_application_library.GetLibraryResponse:
+    properties:
+      library:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+    type: object
+  github_com_viewra_viewra_internal_application_library.LibraryResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      path:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_viewra_viewra_internal_application_library.ListLibrariesResponse:
+    properties:
+      libraries:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_library.StartScanResponse:
+    properties:
+      job_id:
+        type: integer
+      library_id:
+        type: integer
+      started_at:
+        type: string
+      status:
+        type: string
+    type: object
+  github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest:
+    properties:
+      id:
+        type: integer
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      path:
+        type: string
+      type:
+        enum:
+        - movies
+        - tv
+        - music
+        type: string
+    required:
+    - id
+    type: object
+  github_com_viewra_viewra_internal_application_media.GetMediaResponse:
+    properties:
+      media:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse'
+    type: object
+  github_com_viewra_viewra_internal_application_media.ListMediaResponse:
+    properties:
+      media:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.MediaResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_media.MediaResponse:
+    properties:
+      audio_codec:
+        description: aac, mp3, etc.
+        type: string
+      bitrate:
+        description: bits per second
+        type: integer
+      container_format:
+        description: mkv, mp4, etc.
+        type: string
+      created_at:
+        type: string
+      duration:
+        type: integer
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      frame_rate:
+        description: frames per second
+        type: number
+      height:
+        description: Video height in pixels
+        type: integer
+      id:
+        type: integer
+      is_extra:
+        description: True for trailers, deleted scenes, etc.
+        type: boolean
+      library_id:
+        type: integer
+      title:
+        type: string
+      type:
+        description: '''movie'', ''tv_episode'', ''music_track'''
+        type: string
+      updated_at:
+        type: string
+      video_codec:
+        description: h264, hevc, etc.
+        type: string
+      width:
+        description: Technical video metadata
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_movies.ListMoviesResponse:
+    properties:
+      movies:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_movies.MovieResponse:
+    properties:
+      audio_codec:
+        type: string
+      awards_summary:
+        type: string
+      bitrate:
+        type: integer
+      budget:
+        type: integer
+      cast:
+        items:
+          type: string
+        type: array
+      container_format:
+        type: string
+      content_advisories:
+        items:
+          type: string
+        type: array
+      content_rating:
+        type: string
+      country_of_origin:
+        type: string
+      created_at:
+        type: string
+      director:
+        type: string
+      duration:
+        description: in seconds
+        type: integer
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      frame_rate:
+        type: number
+      genre:
+        items:
+          type: string
+        type: array
+      height:
+        type: integer
+      id:
+        description: Base Media fields
+        type: integer
+      imdb_id:
+        type: string
+      is_extra:
+        type: boolean
+      library_id:
+        type: integer
+      maturity_rating:
+        type: integer
+      original_language:
+        type: string
+      original_title:
+        type: string
+      plot:
+        type: string
+      release_date:
+        type: string
+      revenue:
+        type: integer
+      runtime_minutes:
+        type: integer
+      sort_title:
+        type: string
+      tagline:
+        type: string
+      title:
+        type: string
+      tmdb_id:
+        type: integer
+      updated_at:
+        type: string
+      video_codec:
+        type: string
+      width:
+        description: Technical metadata
+        type: integer
+      year:
+        description: Movie-specific fields
+        type: integer
+    required:
+    - file_path
+    - id
+    - library_id
+    - title
+    type: object
+  github_com_viewra_viewra_internal_application_music.AlbumSummary:
+    properties:
+      album:
+        type: string
+      artist:
+        type: string
+      id:
+        description: Representative media_id (first track)
+        type: integer
+      track_count:
+        type: integer
+      year:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_music.ArtistSummary:
+    properties:
+      album_count:
+        type: integer
+      id:
+        description: Representative media_id (first track)
+        type: integer
+      name:
+        type: string
+      track_count:
+        type: integer
+    required:
+    - id
+    - name
+    type: object
+  github_com_viewra_viewra_internal_application_music.ListAlbumsResponse:
+    properties:
+      albums:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.AlbumSummary'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_music.ListArtistsResponse:
+    properties:
+      artists:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ArtistSummary'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_music.ListTracksResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+      tracks:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse'
+        type: array
+    type: object
+  github_com_viewra_viewra_internal_application_music.MusicTrackResponse:
+    properties:
+      album:
+        type: string
+      album_artist:
+        type: string
+      artist:
+        description: Music Track-specific fields
+        type: string
+      audio_codec:
+        type: string
+      bitrate:
+        description: Music-specific bitrate in kbps
+        type: integer
+      composer:
+        type: string
+      container_format:
+        type: string
+      created_at:
+        type: string
+      disc_number:
+        type: integer
+      duration:
+        description: in seconds
+        type: integer
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      frame_rate:
+        type: number
+      genre:
+        type: string
+      height:
+        type: integer
+      id:
+        description: Base Media fields
+        type: integer
+      is_extra:
+        type: boolean
+      library_id:
+        type: integer
+      media_bitrate:
+        description: From base media
+        type: integer
+      publisher:
+        type: string
+      title:
+        type: string
+      track_number:
+        type: integer
+      updated_at:
+        type: string
+      video_codec:
+        type: string
+      width:
+        description: Technical metadata
+        type: integer
+      year:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_progress.ListProgressResponse:
+    properties:
+      progress:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest:
+    properties:
+      media_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest:
+    properties:
+      duration_seconds:
+        type: integer
+      media_id:
+        type: integer
+      progress_seconds:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_progress.WatchProgressResponse:
+    properties:
+      created_at:
+        type: string
+      duration_seconds:
+        type: integer
+      id:
+        type: integer
+      is_watched:
+        type: boolean
+      last_watched_at:
+        type: string
+      media_id:
+        type: integer
+      progress_percentage:
+        type: number
+      progress_seconds:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_transcode.QueueStats:
+    properties:
+      completedJobs:
+        format: int64
+        type: integer
+      failedJobs:
+        format: int64
+        type: integer
+      processingJobs:
+        format: int64
+        type: integer
+      queuedJobs:
+        format: int64
+        type: integer
+      workerCount:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse:
+    properties:
+      episodes:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/github_com_viewra_viewra_internal_domain_common.PaginationMetadata'
+      shows:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowSummary'
+        type: array
+      total:
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse:
+    properties:
+      air_date:
+        type: string
+      audio_codec:
+        type: string
+      bitrate:
+        type: integer
+      container_format:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      duration:
+        description: in seconds
+        type: integer
+      episode:
+        type: integer
+      episode_title:
+        description: actual episode name
+        type: string
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      frame_rate:
+        type: number
+      height:
+        type: integer
+      id:
+        description: Base Media fields
+        type: integer
+      imdb_id:
+        type: string
+      is_extra:
+        type: boolean
+      library_id:
+        type: integer
+      season:
+        type: integer
+      season_id:
+        type: integer
+      show_title:
+        description: TV Episode-specific fields
+        type: string
+      title:
+        description: filename
+        type: string
+      tvdb_id:
+        type: integer
+      updated_at:
+        type: string
+      video_codec:
+        type: string
+      width:
+        description: Technical metadata
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse:
+    properties:
+      episode_count:
+        type: integer
+      id:
+        type: integer
+      library_id:
+        type: integer
+      season_count:
+        type: integer
+      title:
+        type: string
+    type: object
+  github_com_viewra_viewra_internal_application_tv.TVShowSummary:
+    properties:
+      episode_count:
+        type: integer
+      id:
+        type: integer
+      library_id:
+        type: integer
+      season_count:
+        type: integer
+      title:
+        type: string
+    required:
+    - id
+    - library_id
+    - title
+    type: object
+  github_com_viewra_viewra_internal_domain_common.PaginationMetadata:
+    properties:
+      hasMore:
+        description: Whether there are more items available
+        type: boolean
+      limit:
+        description: Number of items per page
+        type: integer
+      offset:
+        description: Number of items skipped
+        type: integer
+      total:
+        description: Total number of items across all pages
+        type: integer
+    type: object
+  github_com_viewra_viewra_internal_domain_library.BrowseResult:
+    properties:
+      current_path:
+        type: string
+      directories:
+        items:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_domain_library.Directory'
+        type: array
+      is_root:
+        type: boolean
+      parent:
+        description: null if at root
+        type: string
+    type: object
+  github_com_viewra_viewra_internal_domain_library.Directory:
+    properties:
+      modified_at:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      readable:
+        type: boolean
+      writable:
+        type: boolean
+    type: object
+  internal_api_handlers.Check:
+    properties:
+      message:
+        type: string
+      status:
+        description: '"pass", "fail", "warn"'
+        type: string
+    type: object
+  internal_api_handlers.CleanupRequest:
+    properties:
+      dry_run:
+        type: boolean
+      failed:
+        type: boolean
+      media_id:
+        type: integer
+      older_than_hours:
+        type: integer
+      orphans:
+        type: boolean
+      quality:
+        type: string
+    type: object
+  internal_api_handlers.CleanupResponse:
+    properties:
+      deleted_count:
+        type: integer
+      deleted_size_bytes:
+        type: integer
+      deleted_size_human:
+        type: string
+      dry_run:
+        type: boolean
+      errors:
+        items:
+          type: string
+        type: array
+      failed_count:
+        type: integer
+    type: object
+  internal_api_handlers.CreateTranscodeJobRequest:
+    properties:
+      quality:
+        type: string
+    required:
+    - quality
+    type: object
+  internal_api_handlers.DiskUsageResponse:
+    properties:
+      completed_count:
+        type: integer
+      failed_count:
+        type: integer
+      file_count:
+        type: integer
+      output_dir:
+        type: string
+      processing_count:
+        type: integer
+      queued_count:
+        type: integer
+      total_jobs:
+        type: integer
+      total_size_bytes:
+        type: integer
+      total_size_human:
+        type: string
+    type: object
+  internal_api_handlers.ErrorResponse:
+    properties:
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  internal_api_handlers.HealthResponse:
+    properties:
+      components:
+        additionalProperties:
+          $ref: '#/definitions/internal_api_handlers.Check'
+        type: object
+      status:
+        description: '"healthy", "degraded", "unhealthy"'
+        type: string
+      system:
+        $ref: '#/definitions/internal_api_handlers.SystemInfo'
+      timestamp:
+        type: string
+      uptime:
+        type: string
+      version:
+        type: string
+    type: object
+  internal_api_handlers.OnDemandResponse:
+    properties:
+      estimated_time:
+        description: Estimated completion time
+        type: string
+      job_id:
+        description: For processing strategies
+        type: integer
+      progress:
+        description: Job progress (0-100)
+        type: integer
+      status:
+        description: Job status
+        type: string
+      strategy:
+        description: direct_play, remux, remux_audio, or transcode
+        type: string
+      url:
+        description: For direct_play
+        type: string
+    type: object
+  internal_api_handlers.ScanHistoryItem:
+    properties:
+      bytes_processed:
+        type: integer
+      completed_at:
+        type: string
+      duration_seconds:
+        description: Duration in seconds
+        type: integer
+      error_count:
+        type: integer
+      error_message:
+        type: string
+      files_found:
+        type: integer
+      files_processed:
+        type: integer
+      id:
+        type: integer
+      progress:
+        type: number
+      started_at:
+        type: string
+      status:
+        type: string
+    type: object
+  internal_api_handlers.ScanHistoryResponse:
+    properties:
+      jobs:
+        items:
+          $ref: '#/definitions/internal_api_handlers.ScanHistoryItem'
+        type: array
+    type: object
+  internal_api_handlers.ScanStatusResponse:
+    properties:
+      bytes_processed:
+        description: Bytes processed
+        type: integer
+      completed_at:
+        description: ISO 8601 timestamp
+        type: string
+      error_count:
+        description: Number of errors encountered
+        type: integer
+      error_message:
+        description: Error message if failed
+        type: string
+      files_found:
+        description: Total files discovered
+        type: integer
+      files_processed:
+        description: Files processed so far
+        type: integer
+      progress:
+        description: 0-100
+        type: number
+      started_at:
+        description: ISO 8601 timestamp
+        type: string
+      status:
+        description: pending, running, paused, completed, failed
+        type: string
+    type: object
+  internal_api_handlers.SystemInfo:
+    properties:
+      memory_usage_mb:
+        type: integer
+      num_cpu:
+        type: integer
+      num_goroutines:
+        type: integer
+    type: object
+  internal_api_handlers.TranscodeJobResponse:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      error:
+        type: string
+      id:
+        type: integer
+      media_id:
+        type: integer
+      progress:
+        type: integer
+      quality:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+      type:
+        description: 'Job type: remux, remux_audio, or transcode'
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: ViewRA Support
+    url: http://www.swagger.io/support
+  description: Self-hosted media server for movies, TV shows, and music
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: ViewRA Media Server API
+  version: 0.0.1
+paths:
+  /api/filesystem/browse:
+    get:
+      description: Browse directories for library path selection
+      parameters:
+      - description: Directory path to browse
+        in: query
+        name: path
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_domain_library.BrowseResult'
+        "400":
+          description: Invalid path
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Directory not found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Browse server filesystem
+      tags:
+      - filesystem
+  /api/images/{id}:
+    get:
+      description: Returns metadata for a specific image
+      parameters:
+      - description: Image ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ImageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get image metadata by ID
+      tags:
+      - images
+  /api/images/{id}/file:
+    get:
+      description: |-
+        Serves pre-generated image presets. All images are in WebP format with multiple sizes available.
+        Available presets: thumb, medium, large, xlarge (depending on image type).
+        If no preset is specified, serves the medium size by default.
+      parameters:
+      - description: Image ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Preset name (thumb, medium, large, xlarge)
+        in: query
+        name: preset
+        type: string
+      produces:
+      - image/webp
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Serve image file
+      tags:
+      - images
+  /api/images/batch:
+    post:
+      consumes:
+      - application/json
+      description: Returns images for multiple media items (movies, episodes) or entities
+        (TV shows, artists) in a single request to reduce N+1 queries
+      parameters:
+      - description: Batch request with either media_ids or (entity_ids + media_type)
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            entity_ids:
+              items:
+                type: integer
+              type: array
+            media_ids:
+              items:
+                type: integer
+              type: array
+            media_type:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.BatchImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get images for multiple media items or entities
+      tags:
+      - images
+  /api/libraries:
+    get:
+      description: Returns a list of all libraries
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.ListLibrariesResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List all libraries
+      tags:
+      - libraries
+    post:
+      consumes:
+      - application/json
+      description: Creates a new media library
+      parameters:
+      - description: Library details
+        in: body
+        name: library
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.CreateLibraryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Create a new library
+      tags:
+      - libraries
+  /api/libraries/{id}:
+    delete:
+      description: Deletes a library and all its media entries (does not delete files)
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Delete a library
+      tags:
+      - libraries
+    get:
+      description: Returns details of a specific library
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.GetLibraryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a library by ID
+      tags:
+      - libraries
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing library
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Library details
+        in: body
+        name: library
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.UpdateLibraryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.LibraryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Update a library
+      tags:
+      - libraries
+  /api/libraries/{id}/scan:
+    post:
+      description: Scans a library for media files
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_library.StartScanResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "409":
+          description: Library is already being scanned
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Scan a library
+      tags:
+      - libraries
+  /api/libraries/{id}/scan/history:
+    get:
+      consumes:
+      - application/json
+      description: Returns the last N scan jobs for a library, ordered by creation
+        date (newest first)
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 10
+        description: Number of scan jobs to return (default 10, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scan history
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ScanHistoryResponse'
+        "400":
+          description: Invalid library ID or limit
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get scan history
+      tags:
+      - scans
+  /api/libraries/{id}/scan/status:
+    get:
+      consumes:
+      - application/json
+      description: Returns the current status of the most recent scan job for a library
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scan status
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ScanStatusResponse'
+        "400":
+          description: Invalid library ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: No scan jobs found for this library
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get current scan status
+      tags:
+      - scans
+  /api/libraries/{id}/scan/stream:
+    get:
+      consumes:
+      - application/json
+      description: Streams real-time progress updates for an active scan job using
+        Server-Sent Events
+      parameters:
+      - description: Library ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE stream of progress updates
+          schema:
+            type: string
+        "400":
+          description: Invalid library ID
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: No active scan found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Stream scan progress
+      tags:
+      - scans
+  /api/media:
+    get:
+      description: Returns a list of media items with optional filtering
+      parameters:
+      - description: Filter by library ID (omit to list all media)
+        in: query
+        name: library_id
+        type: integer
+      - description: Filter by media type (movie, episode, track)
+        in: query
+        name: type
+        type: string
+      - default: 50
+        description: Limit number of results
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.ListMediaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List media items
+      tags:
+      - media
+  /api/media/{id}:
+    get:
+      description: Returns details of a specific media item
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_media.GetMediaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a media item by ID
+      tags:
+      - media
+  /api/media/{media_id}/hls/{quality}/{filename}:
+    get:
+      description: Serves HLS segment files (.ts) for adaptive streaming
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Quality level (360p, 720p, 1080p, 4k)
+        in: path
+        name: quality
+        required: true
+        type: string
+      - description: Segment filename
+        in: path
+        name: filename
+        required: true
+        type: string
+      produces:
+      - video/mp2t
+      responses:
+        "200":
+          description: HLS segment file
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Serve HLS segment
+      tags:
+      - transcode
+  /api/media/{media_id}/hls/{quality}/playlist.m3u8:
+    get:
+      description: |-
+        Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video
+        and either redirects to direct stream or creates a transcode job.
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Quality level (360p, 720p, 1080p, 4k)
+        in: path
+        name: quality
+        required: true
+        type: string
+      produces:
+      - application/vnd.apple.mpegurl
+      - application/json
+      responses:
+        "200":
+          description: HLS playlist file (if exists)
+          schema:
+            type: file
+        "202":
+          description: Job created (for files needing processing)
+          schema:
+            $ref: '#/definitions/internal_api_handlers.OnDemandResponse'
+        "302":
+          description: Redirect to direct stream (for compatible files)
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Serve HLS playlist (with on-demand transcoding)
+      tags:
+      - transcode
+  /api/media/{media_id}/transcode:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new transcode job for the specified media and quality
+        level
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Transcode request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.CreateTranscodeJobRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_handlers.TranscodeJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "409":
+          description: Job already exists
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Start transcoding
+      tags:
+      - transcode
+  /api/media/{media_id}/transcode/{quality}:
+    get:
+      description: Gets the status of a transcode job for specific media and quality
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Quality level (360p, 720p, 1080p, 4k)
+        in: path
+        name: quality
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.TranscodeJobResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get transcode status
+      tags:
+      - transcode
+  /api/media/{media_id}/transcode/{quality}/cancel:
+    post:
+      description: Cancels an actively transcoding job (called when user pauses/stops
+        video)
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      - description: Quality level (360p, 720p, 1080p, 4k)
+        in: path
+        name: quality
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Cancel transcode job
+      tags:
+      - transcode
+  /api/media/{mediaId}/images:
+    get:
+      description: Returns all images associated with a specific media item
+      parameters:
+      - description: Media ID
+        in: path
+        name: mediaId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all images for a media item
+      tags:
+      - images
+  /api/movies:
+    get:
+      description: Returns a list of all movies in a specific library with optional
+        pagination
+      parameters:
+      - description: Library ID to filter movies
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: 'Number of items per page (default: 50, max: 200)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of items to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      - description: 'Sort order: title_asc or title_desc (default: title_asc)'
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List movies
+      tags:
+      - movies
+  /api/movies/{id}:
+    get:
+      description: Returns details of a specific movie including all metadata
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.MovieResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a movie by ID
+      tags:
+      - movies
+  /api/movies/{id}/images:
+    get:
+      description: Returns all images (poster, fanart, clearlogo, etc.) for a specific
+        movie
+      parameters:
+      - description: Movie media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all images for a movie
+      tags:
+      - movies
+      - images
+  /api/movies/search:
+    get:
+      description: Searches for movies by title in a specific library with optional
+        pagination
+      parameters:
+      - description: Library ID to search in
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: Search query (title)
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: 'Number of items per page (default: 50, max: 200)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of items to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_movies.ListMoviesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Search movies
+      tags:
+      - movies
+  /api/music/albums/{id}/images:
+    get:
+      description: Returns all images (cover, discart, etc.) for a specific music
+        album
+      parameters:
+      - description: Album entity ID (track media_id)
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all images for a music album
+      tags:
+      - music
+      - images
+  /api/music/albums/{id}/tracks:
+    get:
+      description: Returns all tracks for an album identified by a representative
+        track ID
+      parameters:
+      - description: Album representative track ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List tracks for an album by ID
+      tags:
+      - music
+  /api/music/artists:
+    get:
+      description: Returns a list of all artists in a library with album and track
+        counts and optional pagination
+      parameters:
+      - description: Library ID to filter artists
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: 'Number of items per page (default: 50, max: 200)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of items to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListArtistsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List music artists
+      tags:
+      - music
+  /api/music/artists/{id}/albums:
+    get:
+      description: Returns all albums for an artist identified by a representative
+        track ID
+      parameters:
+      - description: Artist representative track ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListAlbumsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List albums for an artist by ID
+      tags:
+      - music
+  /api/music/artists/{id}/images:
+    get:
+      description: Returns all images (folder, fanart, banner, logo) for a specific
+        music artist
+      parameters:
+      - description: Artist entity ID (first track's media_id)
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all images for a music artist
+      tags:
+      - music
+      - images
+  /api/music/search:
+    get:
+      description: Searches for music tracks by title, artist, or album in a specific
+        library
+      parameters:
+      - description: Library ID to search in
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: Search query (title, artist, or album)
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.ListTracksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Search music
+      tags:
+      - music
+  /api/music/tracks/{id}:
+    get:
+      description: Returns details of a specific music track including all metadata
+      parameters:
+      - description: Track ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_music.MusicTrackResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a music track by ID
+      tags:
+      - music
+  /api/progress:
+    get:
+      description: Gets all watch progress records for the current user
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List watch progress
+      tags:
+      - progress
+    put:
+      consumes:
+      - application/json
+      description: Updates or creates watch progress for a media item. Automatically
+        marks as watched if progress exceeds 90%.
+      parameters:
+      - description: Update progress request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.UpdateProgressRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Update watch progress
+      tags:
+      - progress
+  /api/progress/{media_id}:
+    delete:
+      description: Deletes watch progress for a specific media item
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Delete watch progress
+      tags:
+      - progress
+    get:
+      description: Gets watch progress for a specific media item
+      parameters:
+      - description: Media ID
+        in: path
+        name: media_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get watch progress
+      tags:
+      - progress
+  /api/progress/in-progress:
+    get:
+      description: Gets all in-progress (partially watched) media items for the current
+        user
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List in-progress items
+      tags:
+      - progress
+  /api/progress/mark-unwatched:
+    post:
+      consumes:
+      - application/json
+      description: Resets the watched status and progress for a media item
+      parameters:
+      - description: Mark unwatched request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Mark as unwatched
+      tags:
+      - progress
+  /api/progress/mark-watched:
+    post:
+      consumes:
+      - application/json
+      description: Explicitly marks a media item as fully watched
+      parameters:
+      - description: Mark watched request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.MarkWatchedRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.WatchProgressResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Mark as watched
+      tags:
+      - progress
+  /api/progress/watched:
+    get:
+      description: Gets all watched media items for the current user
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_progress.ListProgressResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List watched items
+      tags:
+      - progress
+  /api/stream/{id}:
+    get:
+      description: Streams a media file with HTTP range request support for seeking
+      parameters:
+      - description: Media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: HTTP Range header (e.g., bytes=0-1023)
+        in: header
+        name: Range
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Full file
+          schema:
+            type: file
+        "206":
+          description: Partial content
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "416":
+          description: Range not satisfiable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Stream media file
+      tags:
+      - streaming
+  /api/transcode/cleanup:
+    post:
+      consumes:
+      - application/json
+      description: Cleans up transcode files based on specified criteria
+      parameters:
+      - description: Cleanup criteria
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.CleanupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.CleanupResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Cleanup transcodes
+      tags:
+      - transcode
+  /api/transcode/disk-usage:
+    get:
+      description: Returns current disk usage statistics for transcode files
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.DiskUsageResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get disk usage
+      tags:
+      - transcode
+  /api/transcode/stats:
+    get:
+      description: Gets current statistics about the transcode job queue
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_transcode.QueueStats'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get transcode queue statistics
+      tags:
+      - transcode
+  /api/tv/episodes/{id}:
+    get:
+      description: Returns details of a specific TV episode including all metadata
+      parameters:
+      - description: Episode ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVEpisodeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a TV episode by ID
+      tags:
+      - tv
+  /api/tv/episodes/{id}/images:
+    get:
+      description: Returns all images (primarily thumbnails) for a specific episode
+      parameters:
+      - description: Episode media ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all images for a TV episode
+      tags:
+      - tv
+      - images
+  /api/tv/search:
+    get:
+      description: Searches for TV shows and episodes by title in a specific library
+      parameters:
+      - description: Library ID to search in
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: Search query (show title or episode title)
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Search TV shows and episodes
+      tags:
+      - tv
+  /api/tv/seasons/{id}/images:
+    get:
+      description: Returns all images (primarily season posters) for a specific TV
+        season
+      parameters:
+      - description: TV Season ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all images for a TV season
+      tags:
+      - tv
+      - images
+  /api/tv/shows:
+    get:
+      description: Returns a list of all TV shows in a library with episode and season
+        counts and optional pagination
+      parameters:
+      - description: Library ID to filter shows
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      - description: 'Number of items per page (default: 50, max: 200)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of items to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVShowsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List TV shows
+      tags:
+      - tv
+  /api/tv/shows/{id}:
+    get:
+      description: Returns details of a specific TV show including season and episode
+        counts
+      parameters:
+      - description: Show ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.TVShowDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get a TV show by ID
+      tags:
+      - tv
+  /api/tv/shows/{id}/episodes:
+    get:
+      description: Returns all episodes for a specific TV show using its ID
+      parameters:
+      - description: Show ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List episodes for a TV show by ID
+      tags:
+      - tv
+  /api/tv/shows/{id}/images:
+    get:
+      description: Returns all images (poster, fanart, clearlogo, banner, etc.) for
+        a specific TV show
+      parameters:
+      - description: TV Show ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_images.ListImagesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: Get all images for a TV show
+      tags:
+      - tv
+      - images
+  /api/tv/shows/{showTitle}/episodes:
+    get:
+      description: Returns all episodes for a specific TV show
+      parameters:
+      - description: Show title
+        in: path
+        name: showTitle
+        required: true
+        type: string
+      - description: Library ID
+        in: query
+        name: library_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_viewra_viewra_internal_application_tv.ListTVEpisodesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api_handlers.ErrorResponse'
+      summary: List episodes for a TV show
+      tags:
+      - tv
+  /health:
+    get:
+      description: Returns comprehensive health status of the application and its
+        dependencies
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api_handlers.HealthResponse'
+      summary: Health check endpoint
+      tags:
+      - health
+schemes:
+- http
+- https
+swagger: "2.0"

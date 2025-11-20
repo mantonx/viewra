@@ -5,9 +5,7 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import {
-  useQuery
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -17,22 +15,19 @@ import type {
   QueryKey,
   UndefinedInitialDataOptions,
   UseQueryOptions,
-  UseQueryResult
-} from '@tanstack/react-query';
+  UseQueryResult,
+} from '@tanstack/react-query'
 
 import type {
   GetApiLibrariesIdScanHistoryParams,
   InternalApiHandlersErrorResponse,
   InternalApiHandlersScanHistoryResponse,
-  InternalApiHandlersScanStatusResponse
-} from '.././models';
+  InternalApiHandlersScanStatusResponse,
+} from '.././models'
 
-import { customInstance } from '../../mutator/index';
+import { customInstance } from '../../mutator/index'
 
-
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
  * Returns the last N scan jobs for a library, ordered by creation date (newest first)
@@ -52,127 +47,181 @@ export type getApiLibrariesIdScanHistoryResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiLibrariesIdScanHistoryResponseSuccess = (getApiLibrariesIdScanHistoryResponse200) & {
-  headers: Headers;
-};
-export type getApiLibrariesIdScanHistoryResponseError = (getApiLibrariesIdScanHistoryResponse400 | getApiLibrariesIdScanHistoryResponse500) & {
-  headers: Headers;
-};
 
-export type getApiLibrariesIdScanHistoryResponse = (getApiLibrariesIdScanHistoryResponseSuccess | getApiLibrariesIdScanHistoryResponseError)
+export type getApiLibrariesIdScanHistoryResponseSuccess =
+  getApiLibrariesIdScanHistoryResponse200 & {
+    headers: Headers
+  }
+export type getApiLibrariesIdScanHistoryResponseError = (
+  | getApiLibrariesIdScanHistoryResponse400
+  | getApiLibrariesIdScanHistoryResponse500
+) & {
+  headers: Headers
+}
 
-export const getGetApiLibrariesIdScanHistoryUrl = (id: number,
-    params?: GetApiLibrariesIdScanHistoryParams,) => {
-  const normalizedParams = new URLSearchParams();
+export type getApiLibrariesIdScanHistoryResponse =
+  | getApiLibrariesIdScanHistoryResponseSuccess
+  | getApiLibrariesIdScanHistoryResponseError
+
+export const getGetApiLibrariesIdScanHistoryUrl = (
+  id: number,
+  params?: GetApiLibrariesIdScanHistoryParams
+) => {
+  const normalizedParams = new URLSearchParams()
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
-  });
+  })
 
-  const stringifiedParams = normalizedParams.toString();
+  const stringifiedParams = normalizedParams.toString()
 
-  return stringifiedParams.length > 0 ? `/api/libraries/${id}/scan/history?${stringifiedParams}` : `/api/libraries/${id}/scan/history`
+  return stringifiedParams.length > 0
+    ? `/api/libraries/${id}/scan/history?${stringifiedParams}`
+    : `/api/libraries/${id}/scan/history`
 }
 
-export const getApiLibrariesIdScanHistory = async (id: number,
-    params?: GetApiLibrariesIdScanHistoryParams, options?: RequestInit): Promise<getApiLibrariesIdScanHistoryResponse> => {
-  
-  return customInstance<getApiLibrariesIdScanHistoryResponse>(getGetApiLibrariesIdScanHistoryUrl(id,params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
-
-export const getGetApiLibrariesIdScanHistoryQueryKey = (id?: number,
-    params?: GetApiLibrariesIdScanHistoryParams,) => {
-    return [
-    `/api/libraries/${id}/scan/history`, ...(params ? [params]: [])
-    ] as const;
+export const getApiLibrariesIdScanHistory = async (
+  id: number,
+  params?: GetApiLibrariesIdScanHistoryParams,
+  options?: RequestInit
+): Promise<getApiLibrariesIdScanHistoryResponse> => {
+  return customInstance<getApiLibrariesIdScanHistoryResponse>(
+    getGetApiLibrariesIdScanHistoryUrl(id, params),
+    {
+      ...options,
+      method: 'GET',
     }
-
-    
-export const getGetApiLibrariesIdScanHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError = InternalApiHandlersErrorResponse>(id: number,
-    params?: GetApiLibrariesIdScanHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiLibrariesIdScanHistoryQueryKey(id,params);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>> = ({ signal }) => getApiLibrariesIdScanHistory(id,params, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  )
 }
 
-export type GetApiLibrariesIdScanHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>>
+export const getGetApiLibrariesIdScanHistoryQueryKey = (
+  id?: number,
+  params?: GetApiLibrariesIdScanHistoryParams
+) => {
+  return [`/api/libraries/${id}/scan/history`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiLibrariesIdScanHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdScanHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiLibrariesIdScanHistoryQueryKey(id, params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>> = ({
+    signal,
+  }) => getApiLibrariesIdScanHistory(id, params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiLibrariesIdScanHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>
+>
 export type GetApiLibrariesIdScanHistoryQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiLibrariesIdScanHistory<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError = InternalApiHandlersErrorResponse>(
- id: number,
-    params: undefined |  GetApiLibrariesIdScanHistoryParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>> & Pick<
+export function useGetApiLibrariesIdScanHistory<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params: undefined | GetApiLibrariesIdScanHistoryParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesIdScanHistory<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError = InternalApiHandlersErrorResponse>(
- id: number,
-    params?: GetApiLibrariesIdScanHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanHistory<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdScanHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesIdScanHistory<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError = InternalApiHandlersErrorResponse>(
- id: number,
-    params?: GetApiLibrariesIdScanHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanHistory<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdScanHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get scan history
  */
 
-export function useGetApiLibrariesIdScanHistory<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError = InternalApiHandlersErrorResponse>(
- id: number,
-    params?: GetApiLibrariesIdScanHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetApiLibrariesIdScanHistory<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  params?: GetApiLibrariesIdScanHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanHistory>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiLibrariesIdScanHistoryQueryOptions(id, params, options)
 
-  const queryOptions = getGetApiLibrariesIdScanHistoryQueryOptions(id,params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey
 
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
+  return query
 }
-
-
-
 
 /**
  * Returns the current status of the most recent scan job for a library
@@ -197,112 +246,157 @@ export type getApiLibrariesIdScanStatusResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiLibrariesIdScanStatusResponseSuccess = (getApiLibrariesIdScanStatusResponse200) & {
-  headers: Headers;
-};
-export type getApiLibrariesIdScanStatusResponseError = (getApiLibrariesIdScanStatusResponse400 | getApiLibrariesIdScanStatusResponse404 | getApiLibrariesIdScanStatusResponse500) & {
-  headers: Headers;
-};
 
-export type getApiLibrariesIdScanStatusResponse = (getApiLibrariesIdScanStatusResponseSuccess | getApiLibrariesIdScanStatusResponseError)
+export type getApiLibrariesIdScanStatusResponseSuccess = getApiLibrariesIdScanStatusResponse200 & {
+  headers: Headers
+}
+export type getApiLibrariesIdScanStatusResponseError = (
+  | getApiLibrariesIdScanStatusResponse400
+  | getApiLibrariesIdScanStatusResponse404
+  | getApiLibrariesIdScanStatusResponse500
+) & {
+  headers: Headers
+}
 
-export const getGetApiLibrariesIdScanStatusUrl = (id: number,) => {
+export type getApiLibrariesIdScanStatusResponse =
+  | getApiLibrariesIdScanStatusResponseSuccess
+  | getApiLibrariesIdScanStatusResponseError
 
-
-  
-
+export const getGetApiLibrariesIdScanStatusUrl = (id: number) => {
   return `/api/libraries/${id}/scan/status`
 }
 
-export const getApiLibrariesIdScanStatus = async (id: number, options?: RequestInit): Promise<getApiLibrariesIdScanStatusResponse> => {
-  
-  return customInstance<getApiLibrariesIdScanStatusResponse>(getGetApiLibrariesIdScanStatusUrl(id),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
-
-export const getGetApiLibrariesIdScanStatusQueryKey = (id?: number,) => {
-    return [
-    `/api/libraries/${id}/scan/status`
-    ] as const;
+export const getApiLibrariesIdScanStatus = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiLibrariesIdScanStatusResponse> => {
+  return customInstance<getApiLibrariesIdScanStatusResponse>(
+    getGetApiLibrariesIdScanStatusUrl(id),
+    {
+      ...options,
+      method: 'GET',
     }
-
-    
-export const getGetApiLibrariesIdScanStatusQueryOptions = <TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiLibrariesIdScanStatusQueryKey(id);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>> = ({ signal }) => getApiLibrariesIdScanStatus(id, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  )
 }
 
-export type GetApiLibrariesIdScanStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>>
+export const getGetApiLibrariesIdScanStatusQueryKey = (id?: number) => {
+  return [`/api/libraries/${id}/scan/status`] as const
+}
+
+export const getGetApiLibrariesIdScanStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiLibrariesIdScanStatusQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>> = ({
+    signal,
+  }) => getApiLibrariesIdScanStatus(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiLibrariesIdScanStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>
+>
 export type GetApiLibrariesIdScanStatusQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiLibrariesIdScanStatus<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>> & Pick<
+export function useGetApiLibrariesIdScanStatus<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesIdScanStatus<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanStatus<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesIdScanStatus<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanStatus<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get current scan status
  */
 
-export function useGetApiLibrariesIdScanStatus<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetApiLibrariesIdScanStatus<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStatus>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiLibrariesIdScanStatusQueryOptions(id, options)
 
-  const queryOptions = getGetApiLibrariesIdScanStatusQueryOptions(id,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey
 
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
+  return query
 }
-
-
-
 
 /**
  * Streams real-time progress updates for an active scan job using Server-Sent Events
@@ -327,110 +421,154 @@ export type getApiLibrariesIdScanStreamResponse500 = {
   data: InternalApiHandlersErrorResponse
   status: 500
 }
-    
-export type getApiLibrariesIdScanStreamResponseSuccess = (getApiLibrariesIdScanStreamResponse200) & {
-  headers: Headers;
-};
-export type getApiLibrariesIdScanStreamResponseError = (getApiLibrariesIdScanStreamResponse400 | getApiLibrariesIdScanStreamResponse404 | getApiLibrariesIdScanStreamResponse500) & {
-  headers: Headers;
-};
 
-export type getApiLibrariesIdScanStreamResponse = (getApiLibrariesIdScanStreamResponseSuccess | getApiLibrariesIdScanStreamResponseError)
+export type getApiLibrariesIdScanStreamResponseSuccess = getApiLibrariesIdScanStreamResponse200 & {
+  headers: Headers
+}
+export type getApiLibrariesIdScanStreamResponseError = (
+  | getApiLibrariesIdScanStreamResponse400
+  | getApiLibrariesIdScanStreamResponse404
+  | getApiLibrariesIdScanStreamResponse500
+) & {
+  headers: Headers
+}
 
-export const getGetApiLibrariesIdScanStreamUrl = (id: number,) => {
+export type getApiLibrariesIdScanStreamResponse =
+  | getApiLibrariesIdScanStreamResponseSuccess
+  | getApiLibrariesIdScanStreamResponseError
 
-
-  
-
+export const getGetApiLibrariesIdScanStreamUrl = (id: number) => {
   return `/api/libraries/${id}/scan/stream`
 }
 
-export const getApiLibrariesIdScanStream = async (id: number, options?: RequestInit): Promise<getApiLibrariesIdScanStreamResponse> => {
-  
-  return customInstance<getApiLibrariesIdScanStreamResponse>(getGetApiLibrariesIdScanStreamUrl(id),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-
-
-
-export const getGetApiLibrariesIdScanStreamQueryKey = (id?: number,) => {
-    return [
-    `/api/libraries/${id}/scan/stream`
-    ] as const;
+export const getApiLibrariesIdScanStream = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiLibrariesIdScanStreamResponse> => {
+  return customInstance<getApiLibrariesIdScanStreamResponse>(
+    getGetApiLibrariesIdScanStreamUrl(id),
+    {
+      ...options,
+      method: 'GET',
     }
-
-    
-export const getGetApiLibrariesIdScanStreamQueryOptions = <TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError = InternalApiHandlersErrorResponse>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetApiLibrariesIdScanStreamQueryKey(id);
-
-  
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>> = ({ signal }) => getApiLibrariesIdScanStream(id, { signal, ...requestOptions });
-
-      
-
-      
-
-   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  )
 }
 
-export type GetApiLibrariesIdScanStreamQueryResult = NonNullable<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>>
+export const getGetApiLibrariesIdScanStreamQueryKey = (id?: number) => {
+  return [`/api/libraries/${id}/scan/stream`] as const
+}
+
+export const getGetApiLibrariesIdScanStreamQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiLibrariesIdScanStreamQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>> = ({
+    signal,
+  }) => getApiLibrariesIdScanStream(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiLibrariesIdScanStreamQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>
+>
 export type GetApiLibrariesIdScanStreamQueryError = InternalApiHandlersErrorResponse
 
-
-export function useGetApiLibrariesIdScanStream<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>> & Pick<
+export function useGetApiLibrariesIdScanStream<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesIdScanStream<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanStream<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
           TError,
           Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetApiLibrariesIdScanStream<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanStream<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Stream scan progress
  */
 
-export function useGetApiLibrariesIdScanStream<TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError = InternalApiHandlersErrorResponse>(
- id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
- , queryClient?: QueryClient 
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetApiLibrariesIdScanStream<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanStream>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiLibrariesIdScanStreamQueryOptions(id, options)
 
-  const queryOptions = getGetApiLibrariesIdScanStreamQueryOptions(id,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey
 
-  query.queryKey = queryOptions.queryKey ;
-
-  return query;
+  return query
 }
-
-
-
-

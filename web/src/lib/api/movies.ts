@@ -1,36 +1,24 @@
 /**
  * Movies API Client
- * Direct API calls for movie endpoints
+ * Wrapper around generated API functions
  */
 
-import { customInstance } from './mutator'
-import type { ListMoviesResponse, MovieResponse } from '@/lib/types/movies'
+import { getApiMovies, getApiMoviesId, getApiMoviesSearch } from './generated/movies/movies'
+import type { GetApiMoviesParams, GetApiMoviesSearchParams } from './generated/models'
 
 export const moviesApi = {
   /**
-   * List all movies for a library
+   * List all movies for a library with optional pagination
    */
-  listMovies: (libraryId: number) =>
-    customInstance<ListMoviesResponse>({
-      url: `/api/movies?library_id=${libraryId}`,
-      method: 'GET',
-    }),
+  listMovies: (params: GetApiMoviesParams) => getApiMovies(params),
 
   /**
    * Get a specific movie by ID
    */
-  getMovie: (id: number) =>
-    customInstance<MovieResponse>({
-      url: `/api/movies/${id}`,
-      method: 'GET',
-    }),
+  getMovie: (id: number) => getApiMoviesId(id),
 
   /**
-   * Search movies
+   * Search movies with optional pagination
    */
-  search: (libraryId: number, query: string) =>
-    customInstance<ListMoviesResponse>({
-      url: `/api/movies/search?library_id=${libraryId}&q=${encodeURIComponent(query)}`,
-      method: 'GET',
-    }),
+  search: (params: GetApiMoviesSearchParams) => getApiMoviesSearch(params),
 }

@@ -7,8 +7,8 @@
  */
 
 export interface GithubComViewraViewraInternalApplicationLibraryStartScanResponse {
-  job_id?: number;
-  library_id?: number;
-  started_at?: string;
-  status?: string;
+  job_id?: number
+  library_id?: number
+  started_at?: string
+  status?: string
 }

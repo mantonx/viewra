@@ -22,17 +22,17 @@ type mockCreateLibraryExecutor struct {
 	executeFunc func(
 		ctx context.Context,
 		req library.CreateLibraryRequest,
-	) (library.CreateLibraryResponse, error)
+	) (library.LibraryResponse, error)
 }
 
 func (m *mockCreateLibraryExecutor) Execute(
 	ctx context.Context,
 	req library.CreateLibraryRequest,
-) (library.CreateLibraryResponse, error) {
+) (library.LibraryResponse, error) {
 	if m.executeFunc != nil {
 		return m.executeFunc(ctx, req)
 	}
-	return library.CreateLibraryResponse{}, nil
+	return library.LibraryResponse{}, nil
 }
 
 type mockUpdateLibraryExecutor struct {
@@ -40,18 +40,18 @@ type mockUpdateLibraryExecutor struct {
 		ctx context.Context,
 		id int64,
 		req library.UpdateLibraryRequest,
-	) (library.UpdateLibraryResponse, error)
+	) (library.LibraryResponse, error)
 }
 
 func (m *mockUpdateLibraryExecutor) Execute(
 	ctx context.Context,
 	id int64,
 	req library.UpdateLibraryRequest,
-) (library.UpdateLibraryResponse, error) {
+) (library.LibraryResponse, error) {
 	if m.executeFunc != nil {
 		return m.executeFunc(ctx, id, req)
 	}
-	return library.UpdateLibraryResponse{}, nil
+	return library.LibraryResponse{}, nil
 }
 
 type mockDeleteLibraryExecutor struct {
@@ -153,7 +153,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    interface{}
-		mockResponse   library.CreateLibraryResponse
+		mockResponse   library.LibraryResponse
 		mockError      error
 		expectedStatus int
 		expectedBody   interface{}
@@ -165,7 +165,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 				Path: "/media/movies",
 				Type: "movies",
 			},
-			mockResponse: library.CreateLibraryResponse{
+			mockResponse: library.LibraryResponse{
 				ID:        1,
 				Name:      "My Movies",
 				Path:      "/media/movies",
@@ -175,7 +175,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 			},
 			mockError:      nil,
 			expectedStatus: http.StatusCreated,
-			expectedBody: library.CreateLibraryResponse{
+			expectedBody: library.LibraryResponse{
 				ID:        1,
 				Name:      "My Movies",
 				Path:      "/media/movies",
@@ -187,7 +187,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 		{
 			name:           "invalid request body",
 			requestBody:    "invalid json",
-			mockResponse:   library.CreateLibraryResponse{},
+			mockResponse:   library.LibraryResponse{},
 			mockError:      nil,
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: ErrorResponse{
@@ -202,7 +202,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 				Path: "/media/movies",
 				Type: "movies",
 			},
-			mockResponse:   library.CreateLibraryResponse{},
+			mockResponse:   library.LibraryResponse{},
 			mockError:      domainLibrary.ErrDuplicatePath,
 			expectedStatus: http.StatusConflict,
 			expectedBody: ErrorResponse{
@@ -217,7 +217,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 				Path: "/nonexistent/path",
 				Type: "movies",
 			},
-			mockResponse:   library.CreateLibraryResponse{},
+			mockResponse:   library.LibraryResponse{},
 			mockError:      domainLibrary.ErrPathNotFound,
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: ErrorResponse{
@@ -233,7 +233,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 				executeFunc: func(
 					_ context.Context,
 					_ library.CreateLibraryRequest,
-				) (library.CreateLibraryResponse, error) {
+				) (library.LibraryResponse, error) {
 					return tt.mockResponse, tt.mockError
 				},
 			}
@@ -462,7 +462,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 		name           string
 		libraryID      string
 		requestBody    interface{}
-		mockResponse   library.UpdateLibraryResponse
+		mockResponse   library.LibraryResponse
 		mockError      error
 		expectedStatus int
 	}{
@@ -474,7 +474,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 				Path: "/media/movies-new",
 				Type: "movies",
 			},
-			mockResponse: library.UpdateLibraryResponse{
+			mockResponse: library.LibraryResponse{
 				ID:        1,
 				Name:      "Updated Movies",
 				Path:      "/media/movies-new",
@@ -491,7 +491,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 			requestBody: library.UpdateLibraryRequest{
 				Name: "Updated Movies",
 			},
-			mockResponse: library.UpdateLibraryResponse{
+			mockResponse: library.LibraryResponse{
 				ID:        1,
 				Name:      "Updated Movies",
 				Path:      "/media/movies",
@@ -506,7 +506,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 			name:           "invalid library ID",
 			libraryID:      "invalid",
 			requestBody:    library.UpdateLibraryRequest{Name: "Test"},
-			mockResponse:   library.UpdateLibraryResponse{},
+			mockResponse:   library.LibraryResponse{},
 			mockError:      nil,
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -514,7 +514,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 			name:           "invalid request body",
 			libraryID:      "1",
 			requestBody:    "invalid json",
-			mockResponse:   library.UpdateLibraryResponse{},
+			mockResponse:   library.LibraryResponse{},
 			mockError:      nil,
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -522,7 +522,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 			name:           "library not found",
 			libraryID:      "999",
 			requestBody:    library.UpdateLibraryRequest{Name: "Test"},
-			mockResponse:   library.UpdateLibraryResponse{},
+			mockResponse:   library.LibraryResponse{},
 			mockError:      domainLibrary.ErrLibraryNotFound,
 			expectedStatus: http.StatusNotFound,
 		},
@@ -532,7 +532,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 			requestBody: library.UpdateLibraryRequest{
 				Path: "/media/existing",
 			},
-			mockResponse:   library.UpdateLibraryResponse{},
+			mockResponse:   library.LibraryResponse{},
 			mockError:      domainLibrary.ErrDuplicatePath,
 			expectedStatus: http.StatusConflict,
 		},
@@ -545,7 +545,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 					_ context.Context,
 					_ int64,
 					_ library.UpdateLibraryRequest,
-				) (library.UpdateLibraryResponse, error) {
+				) (library.LibraryResponse, error) {
 					return tt.mockResponse, tt.mockError
 				},
 			}
@@ -568,7 +568,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusOK {
-				var responseBody library.UpdateLibraryResponse
+				var responseBody library.LibraryResponse
 				if err := json.Unmarshal(w.Body.Bytes(), &responseBody); err != nil {
 					t.Fatalf("Failed to parse response body: %v", err)
 				}

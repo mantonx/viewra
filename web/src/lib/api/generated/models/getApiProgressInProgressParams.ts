@@ -7,12 +7,12 @@
  */
 
 export type GetApiProgressInProgressParams = {
-/**
- * Limit
- */
-limit?: number;
-/**
- * Offset
- */
-offset?: number;
-};
+  /**
+   * Limit
+   */
+  limit?: number
+  /**
+   * Offset
+   */
+  offset?: number
+}

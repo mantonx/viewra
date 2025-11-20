@@ -27,7 +27,7 @@ func ProcessAndSaveImages(
 
 	// Process each image
 	for _, imgInfo := range extractedImages.Images {
-		// Extract metadata
+		// Extract metadata (calculate hash to check for duplicates)
 		metadata, err := metadataExtractor.ExtractMetadata(imgInfo.Path)
 		if err != nil {
 			slog.Warn("Failed to extract metadata for image",
@@ -36,12 +36,78 @@ func ProcessAndSaveImages(
 			continue
 		}
 
+		// Check if an image with this hash already exists
+		// This enables smart deduplication and cache reuse
+		var existingImage *images.Image
+		if metadata.FileHash != nil {
+			existingImages, err := repo.GetByHash(ctx, *metadata.FileHash)
+			if err != nil {
+				slog.Warn("Failed to check for existing image by hash",
+					"hash", *metadata.FileHash,
+					"error", err)
+			} else if len(existingImages) > 0 {
+				// Found existing image(s) with same hash
+				// Check if any match our current media_id/entity_id and image_type
+				for _, existing := range existingImages {
+					matchesMedia := (mediaID != nil && existing.MediaID != nil && *mediaID == *existing.MediaID) ||
+						(mediaID == nil && existing.MediaID == nil)
+					matchesEntity := existing.EntityID == entityID && existing.MediaType == mediaType
+					matchesType := existing.ImageType == imgInfo.Type
+
+					if matchesMedia && matchesEntity && matchesType {
+						existingImage = existing
+						break
+					}
+				}
+
+				// If we found a matching image, check if we can reuse it
+				if existingImage != nil {
+					// Image already exists with same hash - skip processing
+					slog.Debug("Reusing existing image with matching hash",
+						"path", imgInfo.Path,
+						"hash", *metadata.FileHash,
+						"existing_id", existingImage.ID,
+						"cache_path", existingImage.LocalCachePath)
+					continue
+				}
+
+				// If hash exists but for different media/entity, we can still reuse the cache
+				// by copying the cache path from the existing image
+				slog.Debug("Found existing image with same hash for different media",
+					"hash", *metadata.FileHash,
+					"existing_count", len(existingImages))
+			}
+		}
+
 		// Generate all preset size variants during scan (Phase 4.1+ implementation)
 		// Cache format: data/cache/images/{first2}/{next2}/{hash}_{preset_name}.webp
 		// Example presets: thumb, medium, large, xlarge (based on image type)
 		var localCachePath *string
 		cachedMimeType := metadata.MimeType // Default to original if caching fails
-		if transformer != nil && metadata.FileHash != nil {
+
+		// Check if we can reuse cache from existing image with same hash
+		if existingImage == nil && metadata.FileHash != nil {
+			// Check if any existing image has this hash and valid cache
+			existingImages, err := repo.GetByHash(ctx, *metadata.FileHash)
+			if err == nil && len(existingImages) > 0 {
+				for _, existing := range existingImages {
+					if existing.LocalCachePath != nil && *existing.LocalCachePath != "" {
+						// Reuse the cache path from existing image
+						localCachePath = existing.LocalCachePath
+						if existing.MimeType != nil {
+							cachedMimeType = existing.MimeType
+						}
+						slog.Debug("Reusing cache from existing image with same hash",
+							"hash", *metadata.FileHash,
+							"cache_path", *localCachePath)
+						break
+					}
+				}
+			}
+		}
+
+		// Only generate new cache if we don't have one from an existing image
+		if localCachePath == nil && transformer != nil && metadata.FileHash != nil {
 			// Generate all preset sizes for this image type
 			presetPaths, err := transformer.TransformAllPresets(imgInfo.Path, *metadata.FileHash, imgInfo.Type)
 			if err != nil {

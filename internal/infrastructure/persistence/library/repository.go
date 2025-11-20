@@ -268,3 +268,116 @@ func (r *Repository) Exists(ctx context.Context, path string) (bool, error) {
 
 	return result.(bool), nil
 }
+
+// CreateWithTx adds a new library to the database within a transaction.
+func (r *Repository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *library.Library) error {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.WithTx(tx).CreateLibrary(ctx, sqlc_postgres.CreateLibraryParams{
+				Name: lib.Name,
+				Path: lib.Path,
+				Type: string(lib.Type),
+			})
+		},
+		func() (any, error) {
+			return r.sqlite.WithTx(tx).CreateLibrary(ctx, sqlc_sqlite.CreateLibraryParams{
+				Name: lib.Name,
+				Path: lib.Path,
+				Type: string(lib.Type),
+			})
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Convert result to domain library
+	if r.router.IsPostgresDB() {
+		pgResult := result.(sqlc_postgres.Library)
+		lib.ID = int64(pgResult.ID)
+		lib.CreatedAt = common.ParseNullTime(pgResult.CreatedAt)
+		lib.UpdatedAt = common.ParseNullTime(pgResult.UpdatedAt)
+	} else {
+		sqResult := result.(sqlc_sqlite.Library)
+		lib.ID = sqResult.ID
+		lib.CreatedAt = common.ParseNullTime(sqResult.CreatedAt)
+		lib.UpdatedAt = common.ParseNullTime(sqResult.UpdatedAt)
+	}
+
+	return nil
+}
+
+// GetByIDWithTx retrieves a library by its ID within a transaction.
+func (r *Repository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*library.Library, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.WithTx(tx).GetLibraryByID(ctx, int32(id))
+		},
+		func() (any, error) {
+			return r.sqlite.WithTx(tx).GetLibraryByID(ctx, id)
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, library.ErrLibraryNotFound
+		}
+		return nil, err
+	}
+
+	// Convert to domain library
+	if r.router.IsPostgresDB() {
+		pgResult := result.(sqlc_postgres.Library)
+		return &library.Library{
+			ID:        int64(pgResult.ID),
+			Name:      pgResult.Name,
+			Path:      pgResult.Path,
+			Type:      library.LibraryType(pgResult.Type),
+			CreatedAt: common.ParseNullTime(pgResult.CreatedAt),
+			UpdatedAt: common.ParseNullTime(pgResult.UpdatedAt),
+		}, nil
+	}
+
+	sqResult := result.(sqlc_sqlite.Library)
+	return &library.Library{
+		ID:        sqResult.ID,
+		Name:      sqResult.Name,
+		Path:      sqResult.Path,
+		Type:      library.LibraryType(sqResult.Type),
+		CreatedAt: common.ParseNullTime(sqResult.CreatedAt),
+		UpdatedAt: common.ParseNullTime(sqResult.UpdatedAt),
+	}, nil
+}
+
+// DeleteWithTx deletes a library by its ID within a transaction.
+func (r *Repository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	_, err := r.router.Route(
+		func() (any, error) {
+			return nil, r.postgres.WithTx(tx).DeleteLibrary(ctx, int32(id))
+		},
+		func() (any, error) {
+			return nil, r.sqlite.WithTx(tx).DeleteLibrary(ctx, id)
+		},
+	)
+	return err
+}
+
+// ExistsWithTx checks if a library with the given path exists within a transaction.
+func (r *Repository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.WithTx(tx).LibraryExistsByPath(ctx, path)
+		},
+		func() (any, error) {
+			count, err := r.sqlite.WithTx(tx).LibraryExistsByPath(ctx, path)
+			if err != nil {
+				return false, err
+			}
+			return count > 0, nil
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+
+	return result.(bool), nil
+}

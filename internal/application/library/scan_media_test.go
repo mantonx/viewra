@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -110,6 +111,15 @@ func (m *mockMediaRepository) CountByType(ctx context.Context, libraryID int64, 
 	return 0, nil
 }
 
+// Transaction-aware methods (delegate to non-transactional versions for mock)
+func (m *mockMediaRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	return m.Delete(ctx, id)
+}
+
+func (m *mockMediaRepository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*media.Media, error) {
+	return m.ListByLibrary(ctx, libraryID)
+}
+
 type mockMovieRepository struct {
 	movies       map[int64]*media.Movie
 	nextID       int64
@@ -214,6 +224,28 @@ func (m *mockTVRepository) UpdateTVEpisode(ctx context.Context, episode *media.T
 
 func (m *mockTVRepository) SearchTVEpisodes(ctx context.Context, libraryID int64, query string) ([]*media.TVEpisode, error) {
 	return nil, nil
+}
+
+func (m *mockTVRepository) ListTVEpisodesByShowID(ctx context.Context, showID int64) ([]*media.TVEpisode, error) {
+	return nil, nil
+}
+
+func (m *mockTVRepository) GetTVShowByTitle(ctx context.Context, libraryID int64, title string) (media.TVShow, error) {
+	// Return a mock TV show for testing
+	return media.TVShow{
+		ID:        1,
+		LibraryID: libraryID,
+		Title:     title,
+	}, nil
+}
+
+func (m *mockTVRepository) GetTVSeasonByShowAndNumber(ctx context.Context, showID int64, seasonNumber int64) (media.TVSeason, error) {
+	// Return a mock TV season for testing
+	return media.TVSeason{
+		ID:           1,
+		ShowID:       showID,
+		SeasonNumber: seasonNumber,
+	}, nil
 }
 
 type mockMusicRepository struct {

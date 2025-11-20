@@ -4,12 +4,12 @@ import "context"
 
 // CreateLibraryExecutor defines the interface for creating libraries
 type CreateLibraryExecutor interface {
-	Execute(ctx context.Context, req CreateLibraryRequest) (CreateLibraryResponse, error)
+	Execute(ctx context.Context, req CreateLibraryRequest) (LibraryResponse, error)
 }
 
 // UpdateLibraryExecutor defines the interface for updating libraries
 type UpdateLibraryExecutor interface {
-	Execute(ctx context.Context, id int64, req UpdateLibraryRequest) (UpdateLibraryResponse, error)
+	Execute(ctx context.Context, id int64, req UpdateLibraryRequest) (LibraryResponse, error)
 }
 
 // DeleteLibraryExecutor defines the interface for deleting libraries

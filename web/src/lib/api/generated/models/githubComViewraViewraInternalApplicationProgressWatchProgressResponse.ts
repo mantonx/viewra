@@ -7,14 +7,14 @@
  */
 
 export interface GithubComViewraViewraInternalApplicationProgressWatchProgressResponse {
-  created_at?: string;
-  duration_seconds?: number;
-  id?: number;
-  is_watched?: boolean;
-  last_watched_at?: string;
-  media_id?: number;
-  progress_percentage?: number;
-  progress_seconds?: number;
-  updated_at?: string;
-  user_id?: number;
+  created_at?: string
+  duration_seconds?: number
+  id?: number
+  is_watched?: boolean
+  last_watched_at?: string
+  media_id?: number
+  progress_percentage?: number
+  progress_seconds?: number
+  updated_at?: string
+  user_id?: number
 }

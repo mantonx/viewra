@@ -7,8 +7,8 @@
  */
 
 export type GetApiLibrariesIdScanHistoryParams = {
-/**
- * Number of scan jobs to return (default 10, max 100)
- */
-limit?: number;
-};
+  /**
+   * Number of scan jobs to return (default 10, max 100)
+   */
+  limit?: number
+}

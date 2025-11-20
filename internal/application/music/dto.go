@@ -3,13 +3,14 @@ package music
 import (
 	"time"
 
+	"github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 )
 
 // ArtistSummary represents an artist with aggregated metadata (for list view)
 type ArtistSummary struct {
-	ID         int64            `json:"id"`         // Representative media_id (first track)
-	Name       string           `json:"name"`
+	ID         int64            `json:"id" binding:"required"`         // Representative media_id (first track)
+	Name       string           `json:"name" binding:"required"`
 	AlbumCount int              `json:"album_count"`
 	TrackCount int              `json:"track_count"`
 	Albums     map[string]bool  `json:"-"` // Internal use only for aggregation
@@ -62,20 +63,23 @@ type MusicTrackResponse struct {
 
 // ListArtistsResponse represents a list of artists with summary data
 type ListArtistsResponse struct {
-	Artists []ArtistSummary `json:"artists"`
-	Total   int             `json:"total"`
+	Artists    []ArtistSummary            `json:"artists"`
+	Total      int                        `json:"total"`
+	Pagination *common.PaginationMetadata `json:"pagination,omitempty"`
 }
 
 // ListAlbumsResponse represents a list of albums with summary data
 type ListAlbumsResponse struct {
-	Albums []AlbumSummary `json:"albums"`
-	Total  int            `json:"total"`
+	Albums     []AlbumSummary             `json:"albums"`
+	Total      int                        `json:"total"`
+	Pagination *common.PaginationMetadata `json:"pagination,omitempty"`
 }
 
 // ListTracksResponse represents a list of music tracks
 type ListTracksResponse struct {
-	Tracks []MusicTrackResponse `json:"tracks"`
-	Total  int                  `json:"total"`
+	Tracks     []MusicTrackResponse       `json:"tracks"`
+	Total      int                        `json:"total"`
+	Pagination *common.PaginationMetadata `json:"pagination,omitempty"`
 }
 
 // ToMusicTrackResponse converts a domain music track entity to a DTO

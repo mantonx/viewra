@@ -1,10 +1,15 @@
 package tv
 
-import "context"
+import (
+	"context"
+
+	"github.com/viewra/viewra/internal/domain/common"
+)
 
 // ListTVShowsExecutor defines the interface for listing TV shows
 type ListTVShowsExecutor interface {
 	Execute(ctx context.Context, libraryID int64) (ListTVShowsResponse, error)
+	ExecuteWithPagination(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListTVShowsResponse, error)
 }
 
 // GetTVShowExecutor defines the interface for getting a single TV show

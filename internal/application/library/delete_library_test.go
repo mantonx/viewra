@@ -2,8 +2,11 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
+    _ "modernc.org/sqlite" // Import SQLite driver
+	"github.com/viewra/viewra/internal/application/common"
 	"github.com/viewra/viewra/internal/domain/library"
 )
 
@@ -45,10 +48,18 @@ func TestDeleteLibraryUseCase_Execute(t *testing.T) {
 				tt.setup(repo)
 			}
 
-			// Create mock image repo and cleanup - can be nil for these tests
-			uc := NewDeleteLibraryUseCase(repo, nil, nil)
+			// Create an in-memory SQLite database for testing transactions
+			db, err := sql.Open("sqlite", ":memory:")
+			if err != nil {
+				t.Fatalf("Failed to open test database: %v", err)
+			}
+			defer db.Close()
 
-			err := uc.Execute(context.Background(), tt.libraryID)
+			txManager := common.NewTxManager(db)
+			// Create mock image repo and cleanup - can be nil for these tests
+			uc := NewDeleteLibraryUseCase(repo, nil, nil, txManager)
+
+			err = uc.Execute(context.Background(), tt.libraryID)
 
 			if tt.wantErr {
 				if err == nil {

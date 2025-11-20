@@ -8,15 +8,15 @@
 
 export interface InternalApiHandlersOnDemandResponse {
   /** Estimated completion time */
-  estimated_time?: string;
+  estimated_time?: string
   /** For processing strategies */
-  job_id?: number;
+  job_id?: number
   /** Job progress (0-100) */
-  progress?: number;
+  progress?: number
   /** Job status */
-  status?: string;
+  status?: string
   /** direct_play, remux, remux_audio, or transcode */
-  strategy?: string;
+  strategy?: string
   /** For direct_play */
-  url?: string;
+  url?: string
 }

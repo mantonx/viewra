@@ -6,4 +6,4 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type PostApiMediaMediaIdTranscodeQualityCancel200 = {[key: string]: string};
+export type PostApiMediaMediaIdTranscodeQualityCancel200 = { [key: string]: string }

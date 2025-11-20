@@ -355,6 +355,10 @@ func (s *CleanupService) CleanOrphans(ctx context.Context, dryRun bool) (*Cleanu
 				result.Errors = append(result.Errors, fmt.Errorf("failed to delete orphan %s: %w", orphan.Path, err))
 				continue
 			}
+
+			// Try to remove the parent media ID directory if it's now empty
+			parentDir := filepath.Dir(orphan.Path)
+			s.removeIfEmpty(parentDir)
 		}
 
 		result.DeletedCount++
@@ -421,7 +425,36 @@ func (s *CleanupService) deleteTranscodeFiles(outputPath string) error {
 	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
 		return nil // Already gone
 	}
-	return os.RemoveAll(outputPath)
+
+	// Remove the quality directory (e.g., data/transcode/hls/123/720p/)
+	if err := os.RemoveAll(outputPath); err != nil {
+		return err
+	}
+
+	// Try to remove the parent media ID directory if it's now empty
+	// (e.g., data/transcode/hls/123/)
+	parentDir := filepath.Dir(outputPath)
+	s.removeIfEmpty(parentDir)
+
+	return nil
+}
+
+// removeIfEmpty removes a directory if it's empty (best-effort, ignores errors)
+func (s *CleanupService) removeIfEmpty(dir string) {
+	// Don't try to remove the base HLS directory
+	hlsDir := filepath.Join(s.outputDir, "hls")
+	if dir == hlsDir || dir == s.outputDir {
+		return
+	}
+
+	// Check if directory is empty
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) > 0 {
+		return // Not empty or error reading
+	}
+
+	// Remove if empty (ignore errors - this is cleanup)
+	_ = os.Remove(dir)
 }
 
 // DiskUsage contains disk usage statistics

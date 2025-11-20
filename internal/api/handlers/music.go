@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/viewra/viewra/internal/application/music"
+	"github.com/viewra/viewra/internal/domain/common"
 )
 
 // MusicHandler handles HTTP requests for music
@@ -35,33 +36,39 @@ func NewMusicHandler(
 
 // ListArtists handles GET /api/music/artists
 // @Summary List music artists
-// @Description Returns a list of all artists in a library with album and track counts
+// @Description Returns a list of all artists in a library with album and track counts and optional pagination
 // @Tags music
 // @Produce json
 // @Param library_id query int true "Library ID to filter artists"
+// @Param limit query int false "Number of items per page (default: 50, max: 200)"
+// @Param offset query int false "Number of items to skip (default: 0)"
 // @Success 200 {object} music.ListArtistsResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/music/artists [get]
 func (h *MusicHandler) ListArtists(c *gin.Context) {
-	libraryIDStr := c.Query("library_id")
-	if libraryIDStr == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing library_id",
-			Message: "library_id query parameter is required",
-		})
+	libraryID, ok := getRequiredQueryInt64(c, "library_id")
+	if !ok {
 		return
 	}
 
-	libraryID, err := parseID(libraryIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid library_id",
-			Message: err.Error(),
-		})
+	// Parse optional pagination and sort parameters
+	pagination := parsePaginationParams(c)
+	sort := c.Query("sort")
+
+	// If pagination parameters were provided, use paginated endpoint
+	if c.Query("limit") != "" || c.Query("offset") != "" || sort != "" {
+		paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sort)
+		resp, err := h.listArtists.ExecuteWithPagination(c.Request.Context(), libraryID, paginationParams)
+		if err != nil {
+			handleError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, resp)
 		return
 	}
 
+	// Otherwise use non-paginated endpoint for backward compatibility
 	resp, err := h.listArtists.Execute(c.Request.Context(), libraryID)
 	if err != nil {
 		handleError(c, err)

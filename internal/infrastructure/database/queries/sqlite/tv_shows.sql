@@ -422,3 +422,73 @@ LEFT JOIN tv_episodes e ON s.id = e.show_id
 WHERE s.library_id = ?
 GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
 ORDER BY s.sort_title, s.title;
+
+-- ============================================================================
+-- Pagination Support Queries
+-- ============================================================================
+
+-- name: CountTVShowsByLibrary :one
+SELECT COUNT(*)
+FROM tv_shows
+WHERE library_id = ?;
+
+-- name: ListTVShowsByLibraryPaginated :many
+SELECT * FROM tv_shows
+WHERE library_id = ?
+ORDER BY COALESCE(sort_title, title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListTVShowsByLibraryPaginatedDesc :many
+SELECT * FROM tv_shows
+WHERE library_id = ?
+ORDER BY COALESCE(sort_title, title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;
+
+-- name: GetTVShowsWithCountsByLibraryPaginated :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = ?
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: GetTVShowsWithCountsByLibraryPaginatedDesc :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = ?
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountSearchTVShowsByTitle :one
+SELECT COUNT(*)
+FROM tv_shows
+WHERE library_id = ?
+  AND (title LIKE ? OR original_title LIKE ?);
+
+-- name: SearchTVShowsByTitlePaginated :many
+SELECT * FROM tv_shows
+WHERE library_id = ?
+  AND (title LIKE ? OR original_title LIKE ?)
+ORDER BY sort_title, title
+LIMIT ? OFFSET ?;
