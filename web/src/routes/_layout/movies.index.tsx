@@ -219,11 +219,12 @@ const Movies = () => {
   }
 
   // If video player is showing, render it
-  if (playbackState.isPlaying && playbackState.streamUrl && playingMovie) {
+  // Show player immediately when playback starts, even if streamUrl isn't ready yet
+  if (playbackState.isPlaying && playingMovie) {
     return (
       <VideoPlayer
         mediaId={playingMovie.id}
-        streamUrl={playbackState.streamUrl}
+        streamUrl={playbackState.streamUrl || ''}
         initialPosition={playbackState.initialPosition}
         duration={playingMovie.duration}
         onClose={handleClosePlayer}

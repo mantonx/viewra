@@ -73,6 +73,15 @@ export const VideoPlayer = ({
       return
     }
 
+    // If streamUrl is empty, show buffering indicator and wait
+    if (!streamUrl) {
+      setIsBuffering(true)
+      return
+    }
+
+    // Clear buffering state when we have a URL
+    setIsBuffering(false)
+
     // For direct streams, use native HTML5 video
     if (!isHlsStream) {
       video.src = streamUrl
@@ -498,7 +507,9 @@ export const VideoPlayer = ({
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
           <div className="bg-black/60 backdrop-blur-sm rounded-lg px-6 py-4 flex items-center gap-3">
             <div className="animate-spin rounded-full h-8 w-8 border-4 border-white/30 border-t-white"></div>
-            <span className="text-white text-lg font-medium">Buffering...</span>
+            <span className="text-white text-lg font-medium">
+              {!streamUrl ? 'Starting playback...' : 'Buffering...'}
+            </span>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
-import { Card, CardContent, Button, Loading } from '@/components/ui'
+import { Card, CardContent, Button } from '@/components/ui'
 import { EpisodeCard } from '@/components/tv'
 import { VideoPlayer } from '@/components/media/VideoPlayer'
 import { PageHeader, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
@@ -108,31 +108,14 @@ const SeasonDetail = () => {
     navigate({ to: `/tv/${showId}` })
   }
 
-  // If transcoding in progress, show loading state
-  if (playbackState.isPlaying && !playbackState.streamUrl && playbackState.transcodeState === 'transcoding') {
-    return (
-      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
-        <div className="text-center">
-          <Loading size="lg" text="Preparing video for playback..." />
-          <p className="text-white mt-4 text-sm">This may take a few moments</p>
-          <button
-            onClick={handleClosePlayer}
-            className="mt-6 px-4 py-2 bg-white/20 text-white rounded hover:bg-white/30"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   // If video player is showing, render it with next episode button
-  if (playbackState.isPlaying && playbackState.streamUrl && playingEpisode) {
+  // Show player immediately when playback starts, even if streamUrl isn't ready yet
+  if (playbackState.isPlaying && playingEpisode) {
     return (
       <div className="relative">
         <VideoPlayer
           mediaId={playingEpisode.id}
-          streamUrl={playbackState.streamUrl}
+          streamUrl={playbackState.streamUrl || ''}
           initialPosition={playbackState.initialPosition}
           duration={playingEpisode.duration}
           onClose={handleClosePlayer}
