@@ -1,14 +1,16 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
-import { TVShowCard } from '@/components/tv'
+import { TVShowCard, TVShowListItem } from '@/components/tv'
 import { MediaBrowsePage } from '@/components/common'
 import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvider } from '@/lib/hooks'
+import type { ViewMode } from '@/components/common'
 
 const TVShows = () => {
   const navigate = useNavigate()
   const search = Route.useSearch() as {
     q?: string
     sort?: string
+    view?: ViewMode
   }
 
   // Use library filter to get the active library ID
@@ -18,7 +20,7 @@ const TVShows = () => {
   const handleSearchChange = (q: string) => {
     navigate({
       to: '/tv',
-      search: { q: q || undefined, sort: search.sort || undefined },
+      search: { q: q || undefined, sort: search.sort || undefined, view: search.view },
       replace: true,
     })
   }
@@ -26,7 +28,15 @@ const TVShows = () => {
   const handleSortChange = (sort: string) => {
     navigate({
       to: '/tv',
-      search: { q: search.q || undefined, sort: sort === 'title-asc' ? undefined : sort },
+      search: { q: search.q || undefined, sort: sort === 'title-asc' ? undefined : sort, view: search.view },
+      replace: true,
+    })
+  }
+
+  const handleViewModeChange = (viewMode: ViewMode) => {
+    navigate({
+      to: '/tv',
+      search: { q: search.q || undefined, sort: search.sort || undefined, view: viewMode === 'grid' ? undefined : viewMode },
       replace: true,
     })
   }
@@ -100,11 +110,20 @@ const TVShows = () => {
             onClick={() => handleShowClick(show.id)}
           />
         )}
+        renderListItem={(show) => (
+          <TVShowListItem
+            key={show.id}
+            show={show}
+            onClick={() => handleShowClick(show.id)}
+          />
+        )}
         onItemSelect={(show) => handleShowClick(show.id)}
         initialSearch={search.q}
         initialSort={search.sort || 'title-asc'}
+        initialViewMode={search.view || 'grid'}
         onSearchChange={handleSearchChange}
         onSortChange={handleSortChange}
+        onViewModeChange={handleViewModeChange}
       />
       {/* Infinite scroll observer target */}
       <div ref={observerTarget} className="h-20 flex items-center justify-center">
@@ -121,10 +140,12 @@ export const Route = createFileRoute('/_layout/tv/')({
   validateSearch: (search: Record<string, unknown>) => {
     const q = typeof search.q === 'string' ? search.q : undefined
     const sort = typeof search.sort === 'string' ? search.sort : undefined
+    const view = typeof search.view === 'string' && (search.view === 'grid' || search.view === 'list') ? search.view as ViewMode : undefined
 
     return {
       q,
       sort,
+      view,
     }
   },
 })

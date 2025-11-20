@@ -326,7 +326,7 @@ export const VideoPlayer = ({ mediaId, streamUrl, initialPosition = 0, duration 
                 <select
                   value={currentQuality || 0}
                   onChange={(e) => handleQualityChange(Number(e.target.value))}
-                  className="bg-white/20 text-white text-sm rounded px-2 py-1 border border-white/30 hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  className="bg-white/20 text-white text-sm rounded px-3 py-2.5 min-h-11 border border-white/30 hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
                 >
                   <option value={0}>Auto</option>
                   {availableQualities.map((quality) => (

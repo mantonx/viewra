@@ -1,14 +1,16 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
-import { ArtistCard } from '@/components/music'
+import { ArtistCard, ArtistListItem } from '@/components/music'
 import { MediaBrowsePage } from '@/components/common'
 import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider } from '@/lib/hooks'
+import type { ViewMode } from '@/components/common'
 
 const Music = () => {
   const navigate = useNavigate()
   const search = Route.useSearch() as {
     q?: string
     sort?: string
+    view?: ViewMode
   }
 
   // Use library filter to get the active library ID
@@ -18,7 +20,7 @@ const Music = () => {
   const handleSearchChange = (q: string) => {
     navigate({
       to: '/music',
-      search: { q: q || undefined, sort: search.sort || undefined },
+      search: { q: q || undefined, sort: search.sort || undefined, view: search.view },
       replace: true,
     })
   }
@@ -26,7 +28,15 @@ const Music = () => {
   const handleSortChange = (sort: string) => {
     navigate({
       to: '/music',
-      search: { q: search.q || undefined, sort: sort === 'title-asc' ? undefined : sort },
+      search: { q: search.q || undefined, sort: sort === 'title-asc' ? undefined : sort, view: search.view },
+      replace: true,
+    })
+  }
+
+  const handleViewModeChange = (viewMode: ViewMode) => {
+    navigate({
+      to: '/music',
+      search: { q: search.q || undefined, sort: search.sort || undefined, view: viewMode === 'grid' ? undefined : viewMode },
       replace: true,
     })
   }
@@ -100,11 +110,20 @@ const Music = () => {
             onClick={() => handleArtistClick(artist.id)}
           />
         )}
+        renderListItem={(artist) => (
+          <ArtistListItem
+            key={artist.id}
+            artist={artist}
+            onClick={() => handleArtistClick(artist.id)}
+          />
+        )}
         onItemSelect={(artist) => handleArtistClick(artist.id)}
         initialSearch={search.q}
         initialSort={search.sort || 'title-asc'}
+        initialViewMode={search.view || 'grid'}
         onSearchChange={handleSearchChange}
         onSortChange={handleSortChange}
+        onViewModeChange={handleViewModeChange}
       />
       {/* Infinite scroll observer target */}
       <div ref={observerTarget} className="h-20 flex items-center justify-center">
@@ -121,10 +140,12 @@ export const Route = createFileRoute('/_layout/music/')({
   validateSearch: (search: Record<string, unknown>) => {
     const q = typeof search.q === 'string' ? search.q : undefined
     const sort = typeof search.sort === 'string' ? search.sort : undefined
+    const view = typeof search.view === 'string' && (search.view === 'grid' || search.view === 'list') ? search.view as ViewMode : undefined
 
     return {
       q,
       sort,
+      view,
     }
   },
 })

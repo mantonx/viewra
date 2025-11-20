@@ -1,14 +1,6 @@
-export { ArtistCard } from './ArtistCard'
-export type { ArtistCardProps } from './ArtistCard'
-
-export { AlbumCard } from './AlbumCard'
-export type { AlbumCardProps } from './AlbumCard'
-
-export { TrackListItem } from './TrackListItem'
-export type { TrackListItemProps } from './TrackListItem'
-
-export { TrackList } from './TrackList'
-export type { TrackListProps } from './TrackList'
-
-export { AudioPlayer } from './AudioPlayer'
-export type { AudioPlayerProps } from './AudioPlayer'
+export { ArtistCard, type ArtistCardProps } from './ArtistCard'
+export { ArtistListItem, type ArtistListItemProps } from './ArtistListItem'
+export { AlbumCard, type AlbumCardProps } from './AlbumCard'
+export { TrackListItem, type TrackListItemProps } from './TrackListItem'
+export { TrackList, type TrackListProps } from './TrackList'
+export { AudioPlayer, type AudioPlayerProps } from './AudioPlayer'

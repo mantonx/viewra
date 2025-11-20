@@ -1,10 +1,12 @@
 // Centralized export for custom hooks
 export { useLibraryFilter } from './useLibraryFilter'
 export type { LibraryType } from './useLibraryFilter'
-export { useMediaProgress } from './useProgress'
+export { useMediaProgress, useWatchedList } from './useProgress'
 export { useMediaPlayback } from './useMediaPlayback'
 export { useDebounce } from './useDebounce'
 export { useGridNavigation } from './useGridNavigation'
+export { useGlobalKeyboardShortcuts } from './useGlobalKeyboardShortcuts'
+export type { GlobalKeyboardShortcutsOptions } from './useGlobalKeyboardShortcuts'
 export { useMediaImages, useMovieImages, useTVShowImages, useTVSeasonImages, useEpisodeImages, useMusicAlbumImages, useMusicArtistImages } from './useMediaImages'
 export { BatchImagesProvider, useBatchImages, useBatchImagesIfAvailable } from './useBatchImages'
 export { useInfiniteMovies, flattenMovies } from './useInfiniteMovies'

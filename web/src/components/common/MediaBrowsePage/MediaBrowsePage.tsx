@@ -1,14 +1,17 @@
-import { useState, useEffect, type ReactNode } from 'react'
-import { Card, CardContent, Input, Select } from '@/components/ui'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { Card, CardContent, Input } from '@/components/ui'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
-import { useLibraryFilter, useDebounce, useGridNavigation } from '@/lib/hooks'
+import { SortSelector } from '@/components/common/SortSelector'
+import { AdvancedFilters, type FilterState } from '@/components/common/AdvancedFilters'
+import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
+import { useLibraryFilter, useDebounce, useGridNavigation, useGlobalKeyboardShortcuts, useWatchedList } from '@/lib/hooks'
 import type { MediaBrowsePageProps } from './MediaBrowsePage.types'
 
 /**
  * Reusable wrapper for media browsing pages (Movies, TV Shows, Music).
  * Provides common layout, filtering UI, loading states, and search functionality with debouncing.
  */
-export function MediaBrowsePage<T extends { id: number; title?: string; name?: string }>({
+export const MediaBrowsePage = <T extends { id: number; title?: string; name?: string }>({
   // Page configuration
   type,
   title,
@@ -25,6 +28,7 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
 
   // Item rendering
   renderItem,
+  renderListItem,
   getItemSearchText,
   gridClassName = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4',
 
@@ -34,17 +38,44 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
   // URL state preservation
   onSearchChange,
   onSortChange,
+  onFiltersChange,
+  onViewModeChange,
   initialSearch = '',
   initialSort = 'title-asc',
+  initialFilters = { genres: [], yearMin: undefined, yearMax: undefined, qualities: [], watchedFilter: 'all' },
+  initialViewMode = 'grid',
+
+  // Advanced filters configuration
+  enableAdvancedFilters = false,
+  genres = [],
+  yearRange,
+  qualityOptions = [],
+  showWatchedFilter = false,
+  getItemGenres,
+  getItemYear,
+  getItemQuality,
 
   // Optional overrides
   additionalFilters,
   customHeader,
   customEmpty,
-}: MediaBrowsePageProps<T>): ReactNode {
+}: MediaBrowsePageProps<T>): ReactNode => {
   const [searchQuery, setSearchQuery] = useState(initialSearch)
   const [sortBy, setSortBy] = useState(initialSort)
+  const [filters, setFilters] = useState<FilterState>(initialFilters)
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode)
   const [columns, setColumns] = useState(6)
+  const [showHelpModal, setShowHelpModal] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-enable view toggle if renderListItem is provided
+  const enableViewToggle = !!renderListItem
+
+  // Global keyboard shortcuts
+  useGlobalKeyboardShortcuts({
+    onSearch: () => searchInputRef.current?.focus(),
+    onHelp: () => setShowHelpModal(true),
+  })
 
   // Sync state with URL params when they change externally
   useEffect(() => {
@@ -54,6 +85,14 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
   useEffect(() => {
     setSortBy(initialSort)
   }, [initialSort])
+
+  useEffect(() => {
+    setFilters(initialFilters)
+  }, [initialFilters])
+
+  useEffect(() => {
+    setViewMode(initialViewMode)
+  }, [initialViewMode])
 
   // Debounce search query to avoid filtering on every keystroke (300ms delay)
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -74,15 +113,37 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
     }
   }, [sortBy, onSortChange])
 
+  useEffect(() => {
+    if (onFiltersChange) {
+      onFiltersChange(filters)
+    }
+  }, [filters, onFiltersChange])
+
+  useEffect(() => {
+    if (onViewModeChange) {
+      onViewModeChange(viewMode)
+    }
+  }, [viewMode, onViewModeChange])
+
+  // Fetch watched items for filtering
+  const { data: watchedData } = useWatchedList({ limit: 10000 })
+  const watchedMediaIds = new Set(watchedData?.progress?.map((p) => p.media_id) || [])
+
   // Calculate grid columns based on window width for keyboard navigation
   useEffect(() => {
     const updateColumns = () => {
       const width = window.innerWidth
-      if (width >= 1280) setColumns(6) // xl
-      else if (width >= 1024) setColumns(5) // lg
-      else if (width >= 768) setColumns(4) // md
-      else if (width >= 640) setColumns(3) // sm
-      else setColumns(2) // base
+      if (width >= 1280) {
+        setColumns(6) // xl
+      } else if (width >= 1024) {
+        setColumns(5) // lg
+      } else if (width >= 768) {
+        setColumns(4) // md
+      } else if (width >= 640) {
+        setColumns(3) // sm
+      } else {
+        setColumns(2) // base
+      }
     }
 
     updateColumns()
@@ -90,15 +151,99 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
     return () => window.removeEventListener('resize', updateColumns)
   }, [])
 
-  // Filter items by debounced search query
+  // Filter items by debounced search query and advanced filters
   const filteredItems = data.filter((item) => {
-    if (debouncedSearchQuery === '') return true
-    const searchText = getItemSearchText ? getItemSearchText(item) : (item.title || item.name || '')
-    return searchText.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    // Text search filter
+    if (debouncedSearchQuery !== '') {
+      const searchText = getItemSearchText ? getItemSearchText(item) : (item.title || item.name || '')
+      if (!searchText.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) {
+        return false
+      }
+    }
+
+    // Genre filter
+    if (filters.genres && filters.genres.length > 0 && getItemGenres) {
+      const itemGenres = getItemGenres(item) || []
+      const hasMatchingGenre = filters.genres.some((filterGenre) =>
+        itemGenres.some((itemGenre) => itemGenre.toLowerCase() === filterGenre.toLowerCase())
+      )
+      if (!hasMatchingGenre) {
+        return false
+      }
+    }
+
+    // Year range filter
+    if ((filters.yearMin !== undefined || filters.yearMax !== undefined) && getItemYear) {
+      const itemYear = getItemYear(item)
+      if (itemYear !== undefined) {
+        if (filters.yearMin !== undefined && itemYear < filters.yearMin) {
+          return false
+        }
+        if (filters.yearMax !== undefined && itemYear > filters.yearMax) {
+          return false
+        }
+      }
+    }
+
+    // Quality filter
+    if (filters.qualities && filters.qualities.length > 0 && getItemQuality) {
+      const itemQuality = getItemQuality(item)
+      if (!itemQuality || !filters.qualities.includes(itemQuality)) {
+        return false
+      }
+    }
+
+    // Watched/unwatched filter
+    if (filters.watchedFilter && filters.watchedFilter !== 'all') {
+      const isWatched = watchedMediaIds.has(item.id)
+      if (filters.watchedFilter === 'watched' && !isWatched) {
+        return false
+      }
+      if (filters.watchedFilter === 'unwatched' && isWatched) {
+        return false
+      }
+    }
+
+    return true
   })
 
-  // Sorting is now handled by the backend API
-  const sortedItems = filteredItems
+  // Client-side sorting (backend supports title_asc/title_desc, other sorts handled here)
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    const [field, direction] = sortBy.split('-')
+
+    let aVal: string | number
+    let bVal: string | number
+
+    switch (field) {
+      case 'title':
+        aVal = (a.title || a.name || '').toLowerCase()
+        bVal = (b.title || b.name || '').toLowerCase()
+        break
+      case 'year':
+        aVal = (a as T & { year?: number }).year || 0
+        bVal = (b as T & { year?: number }).year || 0
+        break
+      case 'added':
+        aVal = (a as T & { created_at?: string; date_added?: string }).created_at || (a as T & { created_at?: string; date_added?: string }).date_added || 0
+        bVal = (b as T & { created_at?: string; date_added?: string }).created_at || (b as T & { created_at?: string; date_added?: string }).date_added || 0
+        break
+      case 'rating':
+        aVal = (a as T & { rating?: number; imdb_rating?: number }).rating || (a as T & { rating?: number; imdb_rating?: number }).imdb_rating || 0
+        bVal = (b as T & { rating?: number; imdb_rating?: number }).rating || (b as T & { rating?: number; imdb_rating?: number }).imdb_rating || 0
+        break
+      default:
+        aVal = (a.title || a.name || '').toLowerCase()
+        bVal = (b.title || b.name || '').toLowerCase()
+    }
+
+    if (aVal < bVal) {
+      return direction === 'asc' ? -1 : 1
+    }
+    if (aVal > bVal) {
+      return direction === 'asc' ? 1 : -1
+    }
+    return 0
+  })
 
 
   // Use default grid class
@@ -130,27 +275,45 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
       <Card className="mb-6">
         <CardContent>
           <form role="search" aria-label={`Filter and sort ${type}`} onSubmit={(e) => e.preventDefault()}>
-            <div className={`grid gap-4 ${additionalFilters ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
+            <div className={`grid gap-4 ${enableViewToggle ? 'grid-cols-1 md:grid-cols-3' : additionalFilters ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
               <Input
+                ref={searchInputRef}
                 label="Search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={searchPlaceholder}
                 aria-label={`Search ${type}`}
                 aria-describedby="search-results-count"
+                helperText="Press / or Cmd+K to focus"
               />
-              <Select
-                label="Sort By"
+              <SortSelector
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                options={[
-                  { value: 'title-asc', label: 'Title (A-Z)' },
-                  { value: 'title-desc', label: 'Title (Z-A)' },
-                ]}
-                aria-label={`Sort ${type} by`}
+                onChange={(newSort) => setSortBy(newSort)}
               />
+              {enableViewToggle && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    View
+                  </label>
+                  <ViewToggle value={viewMode} onChange={setViewMode} />
+                </div>
+              )}
               {additionalFilters}
             </div>
+
+            {/* Advanced Filters */}
+            {enableAdvancedFilters && (
+              <div className="mt-4">
+                <AdvancedFilters
+                  genres={genres}
+                  yearRange={yearRange}
+                  qualityOptions={qualityOptions}
+                  showWatchedFilter={showWatchedFilter}
+                  value={filters}
+                  onChange={setFilters}
+                />
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -172,6 +335,10 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
             </CardContent>
           </Card>
         )
+      ) : viewMode === 'list' && renderListItem ? (
+        <div className="space-y-2" role="list" aria-label={`${type} list`}>
+          {sortedItems.map((item) => renderListItem(item, libraryId))}
+        </div>
       ) : (
         <div ref={gridRef} className={actualGridClassName} role="grid" aria-label={`${type} grid`}>
           {sortedItems.map((item) => renderItem(item, libraryId))}
@@ -188,6 +355,56 @@ export function MediaBrowsePage<T extends { id: number; title?: string; name?: s
       >
         Showing {sortedItems.length} of {data.length} {type}
       </div>
+
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setShowHelpModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="text-gray-400 hover:text-gray-600 min-h-11 min-w-11 flex items-center justify-center"
+                aria-label="Close help modal"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center py-2 border-b">
+                <span className="text-sm text-gray-600">Focus search</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+                  / or Cmd+K
+                </kbd>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b">
+                <span className="text-sm text-gray-600">Navigate grid</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+                  Arrow keys
+                </kbd>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b">
+                <span className="text-sm text-gray-600">Select item</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+                  Enter
+                </kbd>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-sm text-gray-600">Show shortcuts</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+                  ?
+                </kbd>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

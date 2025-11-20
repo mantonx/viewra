@@ -166,7 +166,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Shuffle */}
             <button
               onClick={toggleShuffle}
-              className={`p-2 rounded hover:bg-gray-700 transition-colors ${
+              className={`p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors ${
                 isShuffle ? 'text-rose-500' : 'text-gray-400'
               }`}
               title="Shuffle"
@@ -178,7 +178,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Previous */}
             <button
               onClick={playPrevious}
-              className="p-2 rounded hover:bg-gray-700 transition-colors"
+              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors"
               title="Previous track"
               aria-label="Previous track"
             >
@@ -188,7 +188,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Play/Pause */}
             <button
               onClick={togglePlayPause}
-              className="p-3 bg-rose-600 rounded-full hover:bg-rose-700 transition-colors"
+              className="p-3 min-h-[52px] min-w-[52px] flex items-center justify-center bg-rose-600 rounded-full hover:bg-rose-700 transition-colors"
               title={isPlaying ? 'Pause' : 'Play'}
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
@@ -198,7 +198,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Next */}
             <button
               onClick={playNext}
-              className="p-2 rounded hover:bg-gray-700 transition-colors"
+              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors"
               title="Next track"
               aria-label="Next track"
             >
@@ -208,7 +208,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Repeat */}
             <button
               onClick={toggleRepeat}
-              className={`p-2 rounded hover:bg-gray-700 transition-colors ${
+              className={`p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors ${
                 repeatMode !== 'off' ? 'text-rose-500' : 'text-gray-400'
               }`}
               title={`Repeat: ${repeatMode}`}
@@ -222,7 +222,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
           <div className="flex items-center gap-2 relative" ref={volumeRef}>
             <button
               onClick={() => setShowVolumeSlider(!showVolumeSlider)}
-              className="p-2 rounded hover:bg-gray-700 transition-colors text-gray-400"
+              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors text-gray-400"
               title="Volume"
               aria-label="Toggle volume control"
             >

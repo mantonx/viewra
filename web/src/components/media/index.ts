@@ -1,3 +1,5 @@
 export { MediaCard, type MediaCardProps } from './MediaCard'
-export { MovieCard, type MovieCardProps } from './MovieCard'
+export { MediaPoster, type MediaPosterProps } from './MediaPoster'
 export { VideoPlayer, type VideoPlayerProps } from './VideoPlayer'
+export { ProgressBar } from './ProgressBar'
+export { WatchedBadge } from './WatchedBadge'
