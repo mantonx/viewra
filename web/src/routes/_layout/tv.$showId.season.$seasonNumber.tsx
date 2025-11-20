@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
 import { Card, CardContent, Button } from '@/components/ui'
 import { EpisodeCard } from '@/components/tv'
-import { VideoPlayer } from '@/components/media/VideoPlayer'
+import { VideoPlayerContainer } from '@/components/media'
 import { PageHeader, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
 import { tvApi } from '@/lib/api/tv'
 import { useMediaPlayback } from '@/lib/hooks/useMediaPlayback'
@@ -108,32 +108,30 @@ const SeasonDetail = () => {
     navigate({ to: `/tv/${showId}` })
   }
 
-  // If video player is showing, render it with next episode button
-  // Show player immediately when playback starts, even if streamUrl isn't ready yet
+  // Render video player with next episode button overlay
+  const nextEpisodeButton = nextEpisode ? (
+    <div className="fixed bottom-24 right-8 z-50">
+      <button
+        onClick={handlePlayNextEpisode}
+        className="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
+      >
+        <span>Next Episode</span>
+        <span>→</span>
+      </button>
+    </div>
+  ) : undefined
+
+  const videoPlayer = (
+    <VideoPlayerContainer
+      playbackState={playbackState}
+      media={playingEpisode}
+      onClose={handleClosePlayer}
+      overlay={nextEpisodeButton}
+    />
+  )
+
   if (playbackState.isPlaying && playingEpisode) {
-    return (
-      <div className="relative">
-        <VideoPlayer
-          mediaId={playingEpisode.id}
-          streamUrl={playbackState.streamUrl || ''}
-          initialPosition={playbackState.initialPosition}
-          duration={playingEpisode.duration}
-          onClose={handleClosePlayer}
-        />
-        {/* Next Episode Button Overlay */}
-        {nextEpisode && (
-          <div className="fixed bottom-24 right-8 z-50">
-            <button
-              onClick={handlePlayNextEpisode}
-              className="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
-            >
-              <span>Next Episode</span>
-              <span>→</span>
-            </button>
-          </div>
-        )}
-      </div>
-    )
+    return videoPlayer
   }
 
   if (isLoading) {

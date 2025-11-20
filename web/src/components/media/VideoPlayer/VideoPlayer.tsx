@@ -505,11 +505,13 @@ export const VideoPlayer = ({
       {/* Buffering indicator */}
       {isBuffering && (
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-          <div className="bg-black/60 backdrop-blur-sm rounded-lg px-6 py-4 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-4 border-white/30 border-t-white"></div>
-            <span className="text-white text-lg font-medium">
-              {!streamUrl ? 'Starting playback...' : 'Buffering...'}
-            </span>
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              {/* Outer ring */}
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-white/10"></div>
+              {/* Spinning arc */}
+              <div className="absolute inset-0 animate-spin rounded-full h-16 w-16 border-4 border-transparent border-t-white"></div>
+            </div>
           </div>
         </div>
       )}

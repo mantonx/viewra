@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useMemo } from 'react'
 import { MovieCard } from '@/components/movies'
 import { MovieListItem } from '@/components/movies'
-import { VideoPlayer } from '@/components/media'
+import { VideoPlayerContainer } from '@/components/media'
 import { MediaBrowsePage } from '@/components/common'
 import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider } from '@/lib/hooks'
 import { logger } from '@/lib/utils/logger'
@@ -218,18 +218,17 @@ const Movies = () => {
     }
   }
 
-  // If video player is showing, render it
-  // Show player immediately when playback starts, even if streamUrl isn't ready yet
+  // Render video player if playing
+  const videoPlayer = (
+    <VideoPlayerContainer
+      playbackState={playbackState}
+      media={playingMovie}
+      onClose={handleClosePlayer}
+    />
+  )
+
   if (playbackState.isPlaying && playingMovie) {
-    return (
-      <VideoPlayer
-        mediaId={playingMovie.id}
-        streamUrl={playbackState.streamUrl || ''}
-        initialPosition={playbackState.initialPosition}
-        duration={playingMovie.duration}
-        onClose={handleClosePlayer}
-      />
-    )
+    return videoPlayer
   }
 
   // Extract movie IDs for batch image loading
