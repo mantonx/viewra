@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	domainCommon "github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
@@ -150,7 +151,7 @@ func (r *Repository) ListTVEpisodesByShowID(ctx context.Context, showID int64) (
 	sqResults := result.([]sqlc_sqlite.ListTVEpisodesByShowRow)
 	episodes := make([]*media.TVEpisode, len(sqResults))
 	for i, sqResult := range sqResults {
-		episodes[i] = sqliteEpisodeRowToDomain(convertToEpisodeFieldsFromShow(sqResult))
+		episodes[i] = sqliteEpisodeRowToDomain(convertToEpisodeFields(sqResult))
 	}
 	return episodes, nil
 }
@@ -219,7 +220,7 @@ func (r *Repository) SearchTVEpisodes(ctx context.Context, libraryID int64, quer
 	sqResults := result.([]sqlc_sqlite.SearchTVEpisodesByTitleRow)
 	episodes := make([]*media.TVEpisode, len(sqResults))
 	for i, sqResult := range sqResults {
-		episodes[i] = sqliteEpisodeRowToDomain(convertToEpisodeFieldsFromSearch(sqResult))
+		episodes[i] = sqliteEpisodeRowToDomain(convertToEpisodeFields(sqResult))
 	}
 	return episodes, nil
 }
@@ -233,11 +234,13 @@ func (r *Repository) CreateTVShow(ctx context.Context, libraryID int64, title st
 			return media.TVShow{}, r.PostgresNotImplemented()
 		},
 		func() (any, error) {
+			// Normalize the title for sorting
+			sortTitle := domainCommon.NormalizeSortTitle(title)
 			return r.SQLite().CreateTVShow(ctx, sqlc_sqlite.CreateTVShowParams{
 				LibraryID:        libraryID,
 				Title:            title,
 				OriginalTitle:    sql.NullString{Valid: false},
-				SortTitle:        sql.NullString{Valid: false},
+				SortTitle:        sql.NullString{String: sortTitle, Valid: true},
 				Year:             sql.NullInt64{Valid: false},
 				FirstAirDate:     sql.NullTime{Valid: false},
 				LastAirDate:      sql.NullTime{Valid: false},
@@ -448,6 +451,169 @@ func (r *Repository) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]m
 		}
 	}
 	return seasons, nil
+}
+
+// CountTVShowsByLibrary returns the total count of TV shows in a library
+func (r *Repository) CountTVShowsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CountTVShowsByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return 0, r.PostgresNotImplemented()
+	}
+
+	return result.(int64), nil
+}
+
+// ListTVShowsByLibraryPaginated retrieves TV shows in a library with pagination
+func (r *Repository) ListTVShowsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]media.TVShowWithCounts, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Default to title_asc if not specified
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			if sortBy == "title_desc" {
+				return r.SQLite().GetTVShowsWithCountsByLibraryPaginatedDesc(ctx, sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().GetTVShowsWithCountsByLibraryPaginated(ctx, sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	// Handle different row types based on sort order
+	var shows []media.TVShowWithCounts
+	if sortBy == "title_desc" {
+		sqResults := result.([]sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedDescRow)
+		shows = make([]media.TVShowWithCounts, len(sqResults))
+		for i, row := range sqResults {
+			shows[i] = media.TVShowWithCounts{
+				TVShow: media.TVShow{
+					ID:        row.ID,
+					LibraryID: row.LibraryID,
+					Title:     row.Title,
+				},
+				SeasonCount:  row.SeasonCount,
+				EpisodeCount: row.EpisodeCount,
+			}
+		}
+	} else {
+		sqResults := result.([]sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedRow)
+		shows = make([]media.TVShowWithCounts, len(sqResults))
+		for i, row := range sqResults {
+			shows[i] = media.TVShowWithCounts{
+				TVShow: media.TVShow{
+					ID:        row.ID,
+					LibraryID: row.LibraryID,
+					Title:     row.Title,
+				},
+				SeasonCount:  row.SeasonCount,
+				EpisodeCount: row.EpisodeCount,
+			}
+		}
+	}
+	return shows, nil
+}
+
+// CountSearchTVShowsByTitle returns the count of TV shows matching a search query
+func (r *Repository) CountSearchTVShowsByTitle(ctx context.Context, libraryID int64, query string) (int64, error) {
+	searchPattern := "%" + query + "%"
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CountSearchTVShowsByTitle(ctx, sqlc_sqlite.CountSearchTVShowsByTitleParams{
+				LibraryID:     libraryID,
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+			})
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return 0, r.PostgresNotImplemented()
+	}
+
+	return result.(int64), nil
+}
+
+// SearchTVShowsByTitlePaginated searches for TV shows by title with pagination
+func (r *Repository) SearchTVShowsByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *domainCommon.PaginationParams) ([]media.TVShow, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	searchPattern := "%" + query + "%"
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().SearchTVShowsByTitlePaginated(ctx, sqlc_sqlite.SearchTVShowsByTitlePaginatedParams{
+				LibraryID:     libraryID,
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+				Limit:         int64(pagination.Limit),
+				Offset:        int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	sqResults := result.([]sqlc_sqlite.TvShow)
+	shows := make([]media.TVShow, len(sqResults))
+	for i, row := range sqResults {
+		shows[i] = media.TVShow{
+			ID:        row.ID,
+			LibraryID: row.LibraryID,
+			Title:     row.Title,
+		}
+	}
+	return shows, nil
 }
 
 // --- Helper Methods ---

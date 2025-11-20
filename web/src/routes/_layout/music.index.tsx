@@ -1,122 +1,130 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { getGetApiLibrariesQueryOptions } from '@/lib/api'
-import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Card, CardContent, Input, Select } from '@/components/ui'
+import { useEffect, useRef } from 'react'
 import { ArtistCard } from '@/components/music'
-import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
-import { extractLibraries, getLibraryId, filterLibrariesByType } from '@/lib/utils/api'
-import { musicApi } from '@/lib/api/music'
+import { MediaBrowsePage } from '@/components/common'
+import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider } from '@/lib/hooks'
 
 const Music = () => {
   const navigate = useNavigate()
-  const [selectedLibrary, setSelectedLibrary] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const search = Route.useSearch() as {
+    q?: string
+    sort?: string
+  }
 
-  const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
-  const libraries = extractLibraries(librariesData)
-  
-  // Filter to only music libraries
-  const musicLibraries = filterLibrariesByType(libraries, 'music')
+  // Use library filter to get the active library ID
+  const { libraryId } = useLibraryFilter('music')
 
-  // Get the library ID (defaults to first music library when 'all' is selected)
-  const libraryId = getLibraryId(selectedLibrary, libraries, 'music')
+  // URL state handlers
+  const handleSearchChange = (q: string) => {
+    navigate({
+      to: '/music',
+      search: { q: q || undefined, sort: search.sort || undefined },
+      replace: true,
+    })
+  }
 
+  const handleSortChange = (sort: string) => {
+    navigate({
+      to: '/music',
+      search: { q: search.q || undefined, sort: sort === 'title-asc' ? undefined : sort },
+      replace: true,
+    })
+  }
+
+  // Convert sort format from URL (title-asc) to API format (title_asc)
+  // Always use a sort value (default to title_asc) to ensure consistent query keys
+  const apiSort = (search.sort || 'title-asc').replace(/-/g, '_')
+
+  // Use infinite scroll for artists
   const {
-    data: artistsData,
+    data,
     isLoading,
     error,
-  } = useQuery({
-    queryKey: ['music-artists', libraryId],
-    queryFn: () => musicApi.listArtists(libraryId),
-  })
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteArtists({ libraryId, sort: apiSort })
 
-  const allArtists = artistsData?.artists || []
+  const allArtists = data ? flattenArtists(data.pages) : []
 
-  // Filter artists by search query
-  const filteredArtists = allArtists.filter((artist) => {
-    const matchesSearch =
-      searchQuery === '' || artist.name.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSearch
-  })
+  // Infinite scroll: Detect when user scrolls near bottom
+  const observerTarget = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    const currentTarget = observerTarget.current
+    if (currentTarget) {
+      observer.observe(currentTarget)
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget)
+      }
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
 
   // Handle clicking on an artist card
   const handleArtistClick = (artistId: number) => {
     navigate({ to: `/music/artists/${artistId}` })
   }
 
-  if (isLoading) {
-    return <LoadingPage text="Loading artists..." />
-  }
-
-  if (error) {
-    return <ErrorPage error={error} context="music artists" />
-  }
+  // Extract artist IDs for batch image loading
+  const artistIds = allArtists.map((a) => a.id)
 
   return (
-    <div className="p-8">
-      <PageHeader title="Music" description="Browse your music collection by artist." />
-
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search artists..."
-            />
-            <Select
-              label="Library"
-              value={selectedLibrary}
-              onChange={(e) => setSelectedLibrary(e.target.value)}
-              options={[
-                { value: 'all', label: 'All Music Libraries' },
-                ...musicLibraries.map((lib) => ({
-                  value: String(lib.id),
-                  label: lib.name || '',
-                })),
-              ]}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Artists Grid */}
-      {filteredArtists.length === 0 ? (
-        <Card>
-          <CardContent>
-            <EmptyState
-              icon="🎤"
-              title={allArtists.length === 0 ? 'No artists found' : 'No matches'}
-              description={
-                allArtists.length === 0
-                  ? 'Add a library with music and scan it to see your artists here.'
-                  : 'No artists match your search. Try adjusting your query.'
-              }
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {filteredArtists.map((artist) => (
-            <ArtistCard
-              key={artist.id}
-              artist={artist}
-              onClick={() => handleArtistClick(artist.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="mt-4 text-sm text-gray-500 text-center">
-        Showing {filteredArtists.length} of {allArtists.length} artists
+    <BatchImagesProvider entityIds={artistIds} mediaType="music_artist">
+      <MediaBrowsePage
+        type="music"
+        title="Music"
+        description="Browse your music collection by artist."
+        searchPlaceholder="Search artists..."
+        emptyIcon="🎤"
+        emptyTitle="No artists found"
+        emptyDescription="Add a library with music and scan it to see your artists here."
+        data={allArtists}
+        isLoading={isLoading}
+        error={error}
+        renderItem={(artist) => (
+          <ArtistCard
+            key={artist.id}
+            artist={artist}
+            onClick={() => handleArtistClick(artist.id)}
+          />
+        )}
+        onItemSelect={(artist) => handleArtistClick(artist.id)}
+        initialSearch={search.q}
+        initialSort={search.sort || 'title-asc'}
+        onSearchChange={handleSearchChange}
+        onSortChange={handleSortChange}
+      />
+      {/* Infinite scroll observer target */}
+      <div ref={observerTarget} className="h-20 flex items-center justify-center">
+        {isFetchingNextPage && (
+          <div className="text-gray-400">Loading more artists...</div>
+        )}
       </div>
-    </div>
+    </BatchImagesProvider>
   )
 }
 
 export const Route = createFileRoute('/_layout/music/')({
   component: Music,
+  validateSearch: (search: Record<string, unknown>) => {
+    const q = typeof search.q === 'string' ? search.q : undefined
+    const sort = typeof search.sort === 'string' ? search.sort : undefined
+
+    return {
+      q,
+      sort,
+    }
+  },
 })
