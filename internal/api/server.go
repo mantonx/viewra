@@ -131,6 +131,9 @@ func NewServer(
 	// Add recovery middleware (panic recovery)
 	router.Use(gin.Recovery())
 
+	// Add gzip compression middleware
+	router.Use(middleware.Gzip())
+
 	// Add request ID middleware (must be before logger to include ID in logs)
 	router.Use(middleware.RequestID(logger))
 

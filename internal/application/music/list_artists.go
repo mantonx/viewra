@@ -21,52 +21,39 @@ func NewListArtistsUseCase(repo media.MusicRepository) *ListArtistsUseCase {
 }
 
 // Execute retrieves all artists in a library with track and album counts
-// This aggregates data by artist name (from either artist or album_artist fields)
+// Uses efficient database aggregation instead of loading all tracks into memory
 func (uc *ListArtistsUseCase) Execute(ctx context.Context, libraryID int64) (ListArtistsResponse, error) {
-	// Get all tracks in the library
-	tracks, err := uc.repo.ListMusicTracksByLibrary(ctx, libraryID)
+	// Get total count
+	total, err := uc.repo.CountArtistsByLibrary(ctx, libraryID)
 	if err != nil {
-		return ListArtistsResponse{}, fmt.Errorf("failed to list music tracks: %w", err)
+		return ListArtistsResponse{}, fmt.Errorf("failed to count artists: %w", err)
 	}
 
-	// Aggregate by artist
-	artistMap := make(map[string]*ArtistSummary)
-	for _, track := range tracks {
-		// Use album_artist if available, otherwise use artist
-		artistName := track.AlbumArtist
-		if artistName == "" {
-			artistName = track.Artist
-		}
-		if artistName == "" {
-			continue // Skip tracks with no artist information
-		}
-
-		if _, exists := artistMap[artistName]; !exists {
-			artistMap[artistName] = &ArtistSummary{
-				ID:         track.ID, // Use first track's media_id as representative ID
-				Name:       artistName,
-				Albums:     make(map[string]bool),
-				TrackCount: 0,
-			}
-		}
-
-		artistMap[artistName].TrackCount++
-		if track.Album != "" {
-			artistMap[artistName].Albums[track.Album] = true
-		}
+	// Get all artists without pagination (use very large limit)
+	pagination := &common.PaginationParams{
+		Limit:  int(total), // Get all artists
+		Offset: 0,
 	}
 
-	// Convert map to slice
-	artists := make([]ArtistSummary, 0, len(artistMap))
-	for _, artist := range artistMap {
-		artist.AlbumCount = len(artist.Albums)
-		artist.Albums = nil // Remove the map from the response
-		artists = append(artists, *artist)
+	artists, err := uc.repo.ListArtistsByLibraryPaginated(ctx, libraryID, pagination)
+	if err != nil {
+		return ListArtistsResponse{}, fmt.Errorf("failed to list artists: %w", err)
+	}
+
+	// Convert to response
+	responses := make([]ArtistSummary, len(artists))
+	for i, artist := range artists {
+		responses[i] = ArtistSummary{
+			ID:         artist.RepresentativeID,
+			Name:       artist.Artist,
+			AlbumCount: int(artist.AlbumCount),
+			TrackCount: int(artist.TrackCount),
+		}
 	}
 
 	return ListArtistsResponse{
-		Artists: artists,
-		Total:   len(artists),
+		Artists: responses,
+		Total:   len(responses),
 	}, nil
 }
 
