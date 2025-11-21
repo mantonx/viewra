@@ -17,7 +17,7 @@ const HLS_CONFIG = {
   MAX_BUFFER_HOLE: 2.0,         // Maximum gap tolerance (2s for keyframe alignment)
   ENABLE_WORKER: false,         // Disable worker - can cause audio issues
   LOW_LATENCY_MODE: false,
-  DEBUG: true,                  // Enable debug logging temporarily
+  DEBUG: false,                 // Disable debug logging for production
 } as const
 
 // Helper functions for video element manipulation
@@ -196,7 +196,6 @@ export const VideoPlayer = ({
 
       // Extract audio tracks if available
       const audioTracks = hls.audioTracks
-      logger.debug('HLS audio tracks detected:', audioTracks ? audioTracks.length : 0)
       if (audioTracks && audioTracks.length > 0) {
         const tracks = audioTracks.map((track, index) => ({
           id: index,
@@ -207,9 +206,6 @@ export const VideoPlayer = ({
 
         // Set initial audio track (HLS.js defaults to track 0)
         setCurrentAudioTrack(hls.audioTrack)
-        logger.debug('Current audio track set to:', hls.audioTrack)
-      } else {
-        logger.warn('⚠️ NO AUDIO TRACKS DETECTED IN HLS MANIFEST')
       }
 
       // Set initial position
@@ -222,11 +218,9 @@ export const VideoPlayer = ({
         .then(() => {
           // Successfully started - unmute immediately
           ensureVideoUnmuted(video)
-          logger.debug('Video started with audio')
         })
-        .catch((err) => {
-          logger.warn('Autoplay blocked:', err)
-          // If even muted autoplay is blocked, user will need to click play
+        .catch(() => {
+          // Autoplay blocked - user will need to click play
         })
     })
 
@@ -252,34 +246,22 @@ export const VideoPlayer = ({
 
     // Error handling
     hls.on(Hls.Events.ERROR, (_event, data) => {
-      // Only log non-buffer errors to reduce noise
-      if (data.details !== 'bufferFullError') {
-        logger.error('HLS.js error:', data.type, data.details, data.fatal ? '[FATAL]' : '', data)
-      }
-
-      // Log audio codec errors specifically
-      if (data.details && data.details.includes('audio')) {
-        logger.error('⚠️ AUDIO ERROR DETECTED:', data)
-      }
-
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
             // Network error - usually means segments aren't ready yet
-            logger.error('Fatal network error, attempting recovery')
             setError('Network issue: Retrying...')
             // Try to recover
             hls.startLoad()
             break
           case Hls.ErrorTypes.MEDIA_ERROR:
             // Media error - try to recover
-            logger.error('Fatal media error, attempting recovery', data)
             setError('Media error: Recovering...')
             hls.recoverMediaError()
             break
           default:
             // Fatal error - cannot recover
-            logger.error('Fatal error, cannot recover:', data.details)
+            logger.error('Fatal HLS error:', data.details)
             setError(`Playback error: ${data.details || 'Unknown error'}`)
             hls.destroy()
             hlsRef.current = null
@@ -578,8 +560,6 @@ export const VideoPlayer = ({
 
     if (isHlsStream && hls && hls.url && seekDistance > seekThreshold) {
       // Large seek - reload manifest with start position to restart FFmpeg session
-      logger.debug('Large seek detected, reloading manifest with start position', time)
-
       // Update stream offset to the new seek position
       streamOffsetRef.current = time
 
@@ -603,8 +583,8 @@ export const VideoPlayer = ({
         if (!video.paused) {
           video.play().then(() => {
             ensureVideoUnmuted(video)
-          }).catch((err) => {
-            logger.warn('Failed to resume playback after seek:', err)
+          }).catch(() => {
+            // Failed to resume playback after seek
           })
         } else {
           // Even if paused, ensure we're unmuted for when user hits play

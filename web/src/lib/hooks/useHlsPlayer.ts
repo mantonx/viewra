@@ -1,6 +1,5 @@
 import Hls from 'hls.js'
 import { useEffect, useRef, useState } from 'react'
-import { logger } from '../utils/logger'
 
 // HLS configuration constants
 // CRITICAL: Ultra-conservative buffer limits to prevent bufferFullError
@@ -11,7 +10,7 @@ const HLS_CONFIG = {
   MAX_BUFFER_HOLE: 2.0, // Maximum gap tolerance (2s for keyframe alignment)
   ENABLE_WORKER: false, // Disable worker - can cause audio issues
   LOW_LATENCY_MODE: false,
-  DEBUG: true, // Enable debug logging
+  DEBUG: false, // Disable debug logging for production
 } as const
 
 export interface QualityLevel {
@@ -81,7 +80,15 @@ export const useHlsPlayer = (
     }
 
     // Create HLS instance
-    const hls = new Hls(HLS_CONFIG)
+    const hls = new Hls({
+      debug: HLS_CONFIG.DEBUG,
+      enableWorker: HLS_CONFIG.ENABLE_WORKER,
+      lowLatencyMode: HLS_CONFIG.LOW_LATENCY_MODE,
+      maxBufferLength: HLS_CONFIG.MAX_BUFFER_LENGTH,
+      maxMaxBufferLength: HLS_CONFIG.MAX_MAX_BUFFER_LENGTH,
+      maxBufferSize: HLS_CONFIG.MAX_BUFFER_SIZE,
+      maxBufferHole: HLS_CONFIG.MAX_BUFFER_HOLE,
+    })
     hlsRef.current = hls
 
     // Load stream
@@ -90,11 +97,6 @@ export const useHlsPlayer = (
 
     // Wait for manifest to be parsed
     hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-      logger.debug('HLS manifest parsed', {
-        levels: data.levels.length,
-        audioTracks: data.audioTracks?.length || 0,
-      })
-
       // Extract quality levels
       const qualities = data.levels.map((level, _index) => ({
         height: level.height,
@@ -107,9 +109,9 @@ export const useHlsPlayer = (
 
       // Extract audio tracks
       if (data.audioTracks && data.audioTracks.length > 0) {
-        const tracks = data.audioTracks.map((track, _index) => ({
-          id: index,
-          name: track.name || `Track ${index + 1}`,
+        const tracks = data.audioTracks.map((track, idx) => ({
+          id: idx,
+          name: track.name || `Track ${idx + 1}`,
           language: track.lang || 'unknown',
         }))
         setAvailableAudioTracks(tracks)
@@ -121,8 +123,8 @@ export const useHlsPlayer = (
       }
 
       // Start playback
-      video.play().catch((err) => {
-        logger.error('Failed to start playback', err)
+      video.play().catch(() => {
+        // Autoplay blocked - user will need to click play
       })
     })
 
@@ -133,16 +135,12 @@ export const useHlsPlayer = (
 
     // Handle errors
     hls.on(Hls.Events.ERROR, (_event, data) => {
-      logger.error('HLS error', data)
-
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            logger.error('Fatal network error, trying to recover')
             hls.startLoad()
             break
           case Hls.ErrorTypes.MEDIA_ERROR:
-            logger.error('Fatal media error, trying to recover')
             hls.recoverMediaError()
             break
           default:
@@ -172,7 +170,6 @@ export const useHlsPlayer = (
     if (hlsRef.current) {
       hlsRef.current.currentLevel = level
       setCurrentQuality(level)
-      logger.debug('Quality changed to', level)
     }
   }
 
@@ -180,7 +177,6 @@ export const useHlsPlayer = (
   const handleAudioTrackChange = (trackId: number) => {
     if (hlsRef.current) {
       hlsRef.current.audioTrack = trackId
-      logger.debug('Audio track changed to', trackId)
     }
   }
 

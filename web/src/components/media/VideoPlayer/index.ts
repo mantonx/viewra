@@ -1,2 +1,2 @@
 export { VideoPlayer } from './VideoPlayer'
-export type { VideoPlayerProps } from './VideoPlayer.types'
+export type { VideoPlayerProps, MediaMetadata } from './VideoPlayer.types'
