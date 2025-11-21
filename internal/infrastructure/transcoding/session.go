@@ -144,6 +144,14 @@ func (s *TranscodeSession) Stop() error {
 			// Process may have already exited
 			s.logger.Debug("Process kill failed (may have already exited)", "error", err)
 		}
+
+		// CRITICAL: Wait for process to prevent zombie processes
+		// This reaps the process and cleans up the OS process table entry
+		go func() {
+			if err := s.FFmpegCmd.Wait(); err != nil {
+				s.logger.Debug("FFmpeg process wait completed", "error", err)
+			}
+		}()
 	}
 
 	return nil
