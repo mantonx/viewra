@@ -120,6 +120,44 @@ func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, i
 		}
 	}
 
+	// Get video info for size estimation
+	videoInfo, err := GetVideoInfo(inputPath)
+	if err != nil {
+		s.logger.Warn("failed to get video info for size estimation",
+			slog.Int64("job_id", job.ID),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	// Estimate output size and verify sufficient disk space
+	if videoInfo != nil && videoInfo.Duration > 0 {
+		estimatedSize, err := EstimateOutputSize(profile.VideoBitrate, profile.AudioBitrate, videoInfo.Duration)
+		if err != nil {
+			s.logger.Warn("failed to estimate output size",
+				slog.Int64("job_id", job.ID),
+				slog.String("error", err.Error()),
+			)
+		} else {
+			// Add 30% safety margin for HLS overhead (m3u8, multiple segments, etc.)
+			requiredBytes := uint64(float64(estimatedSize) * 1.3)
+			requiredGB := int64(requiredBytes / (1024 * 1024 * 1024))
+
+			// Check if we have enough space for the estimated output
+			if err := CheckDiskSpace(outputDir, requiredGB); err != nil {
+				return s.failJob(ctx, job, fmt.Errorf(
+					"insufficient disk space for estimated output (%.2f GB required): %w",
+					float64(requiredBytes)/(1024*1024*1024), err))
+			}
+
+			s.logger.Info("estimated output size",
+				slog.Int64("job_id", job.ID),
+				slog.String("estimated_size", FormatBytes(estimatedSize)),
+				slog.String("with_margin", FormatBytes(requiredBytes)),
+				slog.Float64("duration_seconds", videoInfo.Duration),
+			)
+		}
+	}
+
 	// Log operation start
 	s.logger.Info(fmt.Sprintf("starting %s", operationName),
 		slog.Int64("job_id", job.ID),
@@ -139,13 +177,15 @@ func (s *service) executeJob(ctx context.Context, job *transcode.TranscodeJob, i
 		// Continue anyway - the operation can still proceed
 	}
 
-	// Get video info to select best audio track
-	videoInfo, err := GetVideoInfo(inputPath)
-	if err != nil {
-		s.logger.Warn("failed to get video info for audio track selection, using defaults",
-			slog.Int64("job_id", job.ID),
-			slog.String("error", err.Error()),
-		)
+	// Reuse video info from size estimation, or get it now if we didn't get it earlier
+	if videoInfo == nil {
+		videoInfo, err = GetVideoInfo(inputPath)
+		if err != nil {
+			s.logger.Warn("failed to get video info for audio track selection, using defaults",
+				slog.Int64("job_id", job.ID),
+				slog.String("error", err.Error()),
+			)
+		}
 	}
 
 	// Create progress handler

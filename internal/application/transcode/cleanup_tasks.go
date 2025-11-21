@@ -207,8 +207,40 @@ func performLRUCleanup(
 ) error {
 	logger := slog.Default().With("task", "lru-cleanup")
 
+	// Calculate dynamic batch size based on how far over threshold we are
+	// This helps handle rapid disk growth scenarios
+	batchSize := config.CleanupBatchSize
+
+	// Get current disk usage to determine pressure level
+	diskUsage, err := getDiskUsage(svc.outputDir)
+	if err == nil {
+		usagePercent := int(diskUsage.UsedPercent)
+
+		// Scale batch size based on how critical the situation is:
+		// 85-89%: 1x (default batch size)
+		// 90-94%: 2x (moderate pressure)
+		// 95-97%: 4x (high pressure)
+		// 98%+:   8x (critical - aggressive cleanup)
+		if usagePercent >= 98 {
+			batchSize = config.CleanupBatchSize * 8
+			logger.Warn("critical disk pressure, using 8x batch size",
+				"usage_percent", usagePercent,
+				"batch_size", batchSize)
+		} else if usagePercent >= 95 {
+			batchSize = config.CleanupBatchSize * 4
+			logger.Warn("high disk pressure, using 4x batch size",
+				"usage_percent", usagePercent,
+				"batch_size", batchSize)
+		} else if usagePercent >= 90 {
+			batchSize = config.CleanupBatchSize * 2
+			logger.Warn("moderate disk pressure, using 2x batch size",
+				"usage_percent", usagePercent,
+				"batch_size", batchSize)
+		}
+	}
+
 	// Get least recently used transcodes
-	jobs, err := repo.ListByLRU(ctx, config.CleanupBatchSize)
+	jobs, err := repo.ListByLRU(ctx, batchSize)
 	if err != nil {
 		return fmt.Errorf("failed to list LRU transcodes: %w", err)
 	}
@@ -258,7 +290,8 @@ func performLRUCleanup(
 	if deletedCount > 0 {
 		logger.Info("LRU cleanup completed",
 			"deleted_count", deletedCount,
-			"deleted_bytes", deletedSize)
+			"deleted_bytes", deletedSize,
+			"batch_size", batchSize)
 	}
 
 	return nil

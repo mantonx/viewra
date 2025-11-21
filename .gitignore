@@ -8,6 +8,18 @@ bin/
 dist/
 build/
 
+# Go compiled binaries (prevent re-committing)
+viewra
+viewra-test
+backend/viewra
+backend/viewra-backend
+backend/main
+backend/server
+backend/test-*
+plugins/*/ffmpeg_*
+plugins/*/*_enricher
+backend/data/plugins/*/*_enricher
+
 # Test binary, built with `go test -c`
 *.test
 

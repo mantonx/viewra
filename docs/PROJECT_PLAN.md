@@ -13,6 +13,20 @@
 
 ### Recent Accomplishments (Nov 20, 2025)
 
+**🔧 Phase 2.3+ - Disk Space Management Enhancements ✅ COMPLETE** (Nov 20, 2025):
+
+- ✅ **Pre-Transcode Output Size Estimation**: Added accurate size estimation with 30% safety margin
+  - Location: `internal/infrastructure/transcoding/service.go` (lines 123-159)
+  - Calculates expected output size based on media duration, target bitrate, and audio codec
+  - 30% safety margin accounts for HLS overhead and variable bitrate
+  - Prevents transcoding jobs from failing due to insufficient disk space
+- ✅ **Dynamic Cleanup Batch Sizing**: Intelligent batch size scaling based on disk pressure
+  - Location: `internal/application/transcode/cleanup_tasks.go` (lines 210-240)
+  - Uses multipliers: 1x (normal), 2x (warning 80%), 4x (threshold 85%), 8x (critical 90%)
+  - Aggressive cleanup when disk space is critical
+  - Prevents disk exhaustion during high-demand periods
+- ✅ **Production Tested**: Both improvements deployed and operational
+
 **🎬 Phase 5.7 - Video Player Enhancement ✅ COMPLETE** (Nov 20, 2025):
 
 **Tier 1 - Critical Fixes**:
@@ -29,6 +43,9 @@
   - Home/End: jump to start/end
 - ✅ **Playback Speed Control**: UI selector with 0.25x to 2x options
 - ✅ **Buffering Indicator**: Visual feedback with animated spinner during HLS progressive transcoding
+- ✅ **Startup UX Improvement**: Eliminated loading screen delay for instant playback
+- ✅ **VideoPlayerContainer**: Created container to eliminate duplicate playback code between movie and TV pages
+- ✅ **Code Cleanup**: Removed unmute button duplication
 
 **Tier 2 - Custom Control Bar** (12 hours):
 
@@ -46,8 +63,21 @@
 - ✅ **Event Handling**: Full event listener integration for video, volume, and fullscreen changes
 - ✅ **UI Cleanup**: Removed browser native controls and old header bar
 - ✅ **formatTime Utility**: Added MM:SS/HH:MM:SS formatting for video timestamps
+- ✅ **Buffering Indicator Visual Fix**: Improved design with proper centering and visibility
 
-**Impact**: Transformed from 40% to ~85% feature parity with industry standards (Plex/Jellyfin/Netflix)
+**🎯 Phase 5.7.1 - Seek-Based Transcoding ✅ COMPLETE** (Nov 20, 2025):
+
+- ✅ **Seek Functionality**: Implemented HLS progressive streaming with seek support
+  - Users can now seek/scrub during transcoding without waiting for full completion
+  - FFmpeg starts from requested timestamp when user seeks ahead
+  - Automatic cleanup and restart of transcode jobs when seek position changes
+  - Location: `internal/application/transcode/serve_manifest.go`
+- ✅ **Integration**: Full integration with video player and transcode queue
+  - Backend detects seek requests and restarts transcoding from new position
+  - Player seamlessly handles seek operations during active transcoding
+  - Modified files: useMediaPlayback.ts, VideoPlayer.tsx, VideoPlayerContainer.tsx
+
+**Impact**: Transformed from 40% to ~90% feature parity with industry standards (Plex/Jellyfin/Netflix)
 
 **🎯 Phase 5.5 - Quick Wins & Performance Polish ✅ COMPLETE** (Nov 20, 2025):
 

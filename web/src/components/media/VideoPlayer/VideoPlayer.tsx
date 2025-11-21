@@ -96,8 +96,7 @@ export const VideoPlayer = ({
       video
         .play()
         .then(() => {
-          video.muted = false
-          video.volume = 1.0
+          ensureVideoUnmuted(video)
         })
         .catch(() => {
           // Autoplay blocked, user will need to click play
@@ -117,8 +116,7 @@ export const VideoPlayer = ({
       video
         .play()
         .then(() => {
-          video.muted = false
-          video.volume = 1.0
+          ensureVideoUnmuted(video)
         })
         .catch(() => {
           // Autoplay blocked
@@ -175,8 +173,7 @@ export const VideoPlayer = ({
         .play()
         .then(() => {
           // Successfully started - unmute immediately
-          video.muted = false
-          video.volume = 1.0
+          ensureVideoUnmuted(video)
           logger.debug('Video started with audio')
         })
         .catch((err) => {

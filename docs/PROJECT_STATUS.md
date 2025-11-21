@@ -1,11 +1,11 @@
 # ViewRA Project Status
 
-**Last Updated**: November 16, 2025
+**Last Updated**: November 20, 2025
 
-## Current Phase: Phase 4.2 Complete - Unified Task Scheduler ✅
+## Current Phase: Phase 5.7 Complete - Video Player Enhancement ✅
 
-**Overall Progress**: Phase 4 - Enhanced Metadata + Task Scheduler (NFO/ID3 complete, Scheduler complete, External APIs pending)
-**Next Phase**: Phase 4 continuation - External metadata APIs (TMDb, MusicBrainz)
+**Overall Progress**: Phase 5 - UX & Performance (Video player at 90% parity, disk management enhanced, git cleanup complete)
+**Next Phase**: Phase 5.8 - Audio Player Enhancement
 
 ---
 
@@ -13,6 +13,11 @@
 
 ### Recently Completed ✅
 
+- **Phase 5.7.1 - Seek-Based Transcoding** (Nov 20) - Users can seek during active transcoding
+- **Phase 5.7 Tier 2 - Custom Control Bar** (Nov 20) - Professional video player controls with auto-hide
+- **Phase 5.7 Tier 1 - Critical Fixes** (Nov 20) - Aspect ratio, performance, keyboard shortcuts, buffering
+- **Disk Space Management Enhancements** (Nov 20) - Pre-transcode size estimation + dynamic cleanup batch sizing
+- **VideoPlayerContainer** (Nov 20) - Eliminated duplicate playback code between movie/TV pages
 - **Unified Task Scheduler** (Nov 16) - Complete scheduler management UI with user-friendly controls
 - **Schedule Editor** (Nov 16) - Visual schedule editor with daily/weekly/monthly presets and time picker
 - **Scheduler API** (Nov 16) - Full REST API for task management (trigger, enable/disable, update schedules)
@@ -21,6 +26,7 @@
 - **TV Episode UI Enhancement** (Nov 15) - Episode cards display air dates, descriptions, IMDb/TVDb IDs
 - **Movie UI Enhancement** (Nov 15) - Movie cards display plot, director, genre, year, content rating
 - **NFO Integration** (Nov 15) - Movie and TV episode NFO parsing integrated into scanner
+- **Git Repository Cleanup** (Earlier) - Removed 26GB of binary files, reduced .git from 26G to 150M
 
 ### Current Work 🚧
 
