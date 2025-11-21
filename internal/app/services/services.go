@@ -96,8 +96,17 @@ func BuildServices(
 	transcodeConfig := transcoding.DefaultTranscodeConfig()
 	sessionManager := transcoding.NewSessionManager(transcodeConfig, logger)
 
-	// Start background cleanup of idle sessions (5 minute idle timeout)
-	_ = sessionManager.StartIdleCleanup(5*time.Minute, 5*time.Minute)
+	// Start comprehensive background cleanup:
+	// 1. Idle sessions: Check every 15s, clean sessions idle >30s
+	// 2. Old transcode caches: Check every 5min, remove caches >1 hour old
+	// This ensures responsive resource cleanup and prevents disk space bloat
+	_ = sessionManager.StartPeriodicCleanup(
+		15*time.Second,  // Session check interval
+		30*time.Second,  // Session idle timeout
+		5*time.Minute,   // Transcode cache check interval
+		1*time.Hour,     // Transcode cache max age
+		cfg.Media.TranscodeOutputDir,
+	)
 
 	return &Services{
 		ImageCache:       imageCacheService,

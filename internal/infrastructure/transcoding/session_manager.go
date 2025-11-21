@@ -60,6 +60,10 @@ func (m *SessionManager) GetOrCreateSession(
 ) (*TranscodeSession, error) {
 	key := sessionKey(mediaID, quality)
 
+	// Stop all sessions for OTHER media to prevent resource hogging
+	// When user switches to a different video, clean up the old one immediately
+	m.stopOtherMediaSessions(mediaID)
+
 	// Check for existing session
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
@@ -73,9 +77,16 @@ func (m *SessionManager) GetOrCreateSession(
 				"old_position", session.StartPosition,
 				"new_position", startPosition)
 
-			// Stop old session
+			// Stop old session and clean up immediately
 			session.Stop()
 			m.sessions.Delete(key)
+
+			// Clean up output directory immediately to free disk space
+			if err := os.RemoveAll(session.OutputDir); err != nil {
+				m.logger.Warn("Failed to clean up session output directory",
+					"session_id", session.ID,
+					"error", err)
+			}
 
 			// Fall through to create new session
 		} else {
@@ -248,6 +259,43 @@ func sessionKey(mediaID int64, quality string) string {
 	return fmt.Sprintf("%d:%s", mediaID, quality)
 }
 
+// stopOtherMediaSessions stops all sessions for media IDs other than the specified one.
+// This prevents resource hogging when users switch between different videos.
+func (m *SessionManager) stopOtherMediaSessions(currentMediaID int64) {
+	var toStop []string
+
+	// Collect sessions to stop (can't delete while iterating sync.Map)
+	m.sessions.Range(func(key, value interface{}) bool {
+		session := value.(*TranscodeSession)
+		if session.MediaID != currentMediaID {
+			toStop = append(toStop, key.(string))
+		}
+		return true
+	})
+
+	// Stop and clean up sessions for other media
+	for _, key := range toStop {
+		if existing, ok := m.sessions.Load(key); ok {
+			session := existing.(*TranscodeSession)
+
+			m.logger.Info("Stopping session for different media",
+				"session_id", session.ID,
+				"media_id", session.MediaID,
+				"current_media_id", currentMediaID)
+
+			session.Stop()
+			m.sessions.Delete(key)
+
+			// Clean up output directory immediately
+			if err := os.RemoveAll(session.OutputDir); err != nil {
+				m.logger.Warn("Failed to clean up session output directory",
+					"session_id", session.ID,
+					"error", err)
+			}
+		}
+	}
+}
+
 // StartIdleCleanup starts a background goroutine that periodically cleans up idle sessions.
 // Returns a cancel function that should be called to stop the cleanup goroutine.
 func (m *SessionManager) StartIdleCleanup(interval time.Duration, idleTimeout time.Duration) func() {
@@ -287,4 +335,146 @@ func (m *SessionManager) CleanupSessionOutput(mediaID int64, quality string, out
 		"path", sessionOutputDir)
 
 	return nil
+}
+
+// CleanupOldTranscodes removes old transcode cache files based on age and LRU.
+// Returns the number of directories cleaned and bytes freed.
+func (m *SessionManager) CleanupOldTranscodes(outputDir string, maxAge time.Duration) (int, int64, error) {
+	type dirInfo struct {
+		path     string
+		modTime  time.Time
+		size     int64
+		mediaID  int64
+		isActive bool
+	}
+
+	var dirs []dirInfo
+	activeMediaIDs := make(map[int64]bool)
+
+	// Collect active media IDs from current sessions
+	m.sessions.Range(func(key, value interface{}) bool {
+		session := value.(*TranscodeSession)
+		activeMediaIDs[session.MediaID] = true
+		return true
+	})
+
+	// Scan transcode directory for media subdirectories
+	entries, err := os.ReadDir(outputDir)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to read transcode directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		// Parse media ID from directory name
+		var mediaID int64
+		if _, err := fmt.Sscanf(entry.Name(), "%d", &mediaID); err != nil {
+			continue // Skip non-numeric directories
+		}
+
+		mediaPath := filepath.Join(outputDir, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		// Calculate directory size
+		var totalSize int64
+		filepath.Walk(mediaPath, func(path string, fi os.FileInfo, err error) error {
+			if err == nil && !fi.IsDir() {
+				totalSize += fi.Size()
+			}
+			return nil
+		})
+
+		dirs = append(dirs, dirInfo{
+			path:     mediaPath,
+			modTime:  info.ModTime(),
+			size:     totalSize,
+			mediaID:  mediaID,
+			isActive: activeMediaIDs[mediaID],
+		})
+	}
+
+	// Clean up old directories (not active and older than maxAge)
+	cleanedCount := 0
+	var bytesFreed int64
+	cutoff := time.Now().Add(-maxAge)
+
+	for _, dir := range dirs {
+		// Skip active sessions
+		if dir.isActive {
+			continue
+		}
+
+		// Skip recent transcodes
+		if dir.modTime.After(cutoff) {
+			continue
+		}
+
+		m.logger.Info("Removing old transcode cache",
+			"path", dir.path,
+			"media_id", dir.mediaID,
+			"age", time.Since(dir.modTime),
+			"size_mb", dir.size/(1024*1024))
+
+		if err := os.RemoveAll(dir.path); err != nil {
+			m.logger.Warn("Failed to remove old transcode cache",
+				"path", dir.path,
+				"error", err)
+			continue
+		}
+
+		cleanedCount++
+		bytesFreed += dir.size
+	}
+
+	if cleanedCount > 0 {
+		m.logger.Info("Cleaned up old transcode caches",
+			"count", cleanedCount,
+			"freed_mb", bytesFreed/(1024*1024))
+	}
+
+	return cleanedCount, bytesFreed, nil
+}
+
+// StartPeriodicCleanup starts background cleanup of both idle sessions and old transcode caches.
+// Returns a cancel function that should be called to stop the cleanup goroutine.
+func (m *SessionManager) StartPeriodicCleanup(
+	sessionCheckInterval time.Duration,
+	sessionIdleTimeout time.Duration,
+	transcodeCheckInterval time.Duration,
+	transcodeMaxAge time.Duration,
+	outputDir string,
+) func() {
+	done := make(chan bool)
+
+	// Session cleanup ticker
+	sessionTicker := time.NewTicker(sessionCheckInterval)
+
+	// Transcode cache cleanup ticker (less frequent)
+	transcodeTicker := time.NewTicker(transcodeCheckInterval)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				sessionTicker.Stop()
+				transcodeTicker.Stop()
+				return
+			case <-sessionTicker.C:
+				m.CleanupIdleSessions(sessionIdleTimeout)
+			case <-transcodeTicker.C:
+				m.CleanupOldTranscodes(outputDir, transcodeMaxAge)
+			}
+		}
+	}()
+
+	// Return cancel function
+	return func() {
+		done <- true
+	}
 }
