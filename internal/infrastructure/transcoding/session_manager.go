@@ -45,6 +45,24 @@ func NewSessionManager(config *TranscodeConfig, logger *slog.Logger) *SessionMan
 	return mgr
 }
 
+// cleanupOutputDir removes a session's output directory and logs any errors.
+// This centralizes cleanup logic to avoid duplication across the codebase.
+// sessionID is optional and used for logging context.
+func (m *SessionManager) cleanupOutputDir(path string, sessionID string) {
+	if err := os.RemoveAll(path); err != nil {
+		if sessionID != "" {
+			m.logger.Warn("Failed to clean up output directory",
+				"path", path,
+				"session_id", sessionID,
+				"error", err)
+		} else {
+			m.logger.Warn("Failed to clean up output directory",
+				"path", path,
+				"error", err)
+		}
+	}
+}
+
 // GetOrCreateSession returns an existing session or creates a new one.
 // If a session exists but the seek position is significantly different (>30s),
 // the old session is stopped and a new one is created from the new position.
@@ -82,11 +100,7 @@ func (m *SessionManager) GetOrCreateSession(
 			m.sessions.Delete(key)
 
 			// Clean up output directory immediately to free disk space
-			if err := os.RemoveAll(session.OutputDir); err != nil {
-				m.logger.Warn("Failed to clean up session output directory",
-					"session_id", session.ID,
-					"error", err)
-			}
+			m.cleanupOutputDir(session.OutputDir, session.ID)
 
 			// Fall through to create new session
 		} else {
@@ -157,11 +171,7 @@ func (m *SessionManager) StopSession(mediaID int64, quality string) error {
 		m.sessions.Delete(key)
 
 		// Clean up output directory
-		if err := os.RemoveAll(session.OutputDir); err != nil {
-			m.logger.Warn("Failed to clean up session output directory",
-				"session_id", session.ID,
-				"error", err)
-		}
+		m.cleanupOutputDir(session.OutputDir, session.ID)
 
 		m.logger.Info("Stopped transcode session", "session_id", session.ID)
 		return nil
@@ -179,11 +189,7 @@ func (m *SessionManager) StopAllSessions() {
 		session.Stop()
 
 		// Clean up output directory
-		if err := os.RemoveAll(session.OutputDir); err != nil {
-			m.logger.Warn("Failed to clean up session output directory",
-				"session_id", session.ID,
-				"error", err)
-		}
+		m.cleanupOutputDir(session.OutputDir, session.ID)
 
 		return true
 	})
@@ -210,11 +216,7 @@ func (m *SessionManager) CleanupIdleSessions(idleTimeout time.Duration) int {
 			cleanedCount++
 
 			// Clean up output directory
-			if err := os.RemoveAll(session.OutputDir); err != nil {
-				m.logger.Warn("Failed to clean up session output directory",
-					"session_id", session.ID,
-					"error", err)
-			}
+			m.cleanupOutputDir(session.OutputDir, session.ID)
 		}
 
 		return true
@@ -286,11 +288,7 @@ func (m *SessionManager) stopOtherMediaSessions(currentMediaID int64) {
 			m.sessions.Delete(key)
 
 			// Clean up output directory immediately
-			if err := os.RemoveAll(session.OutputDir); err != nil {
-				m.logger.Warn("Failed to clean up session output directory",
-					"session_id", session.ID,
-					"error", err)
-			}
+			m.cleanupOutputDir(session.OutputDir, session.ID)
 		}
 	}
 }
@@ -420,12 +418,7 @@ func (m *SessionManager) CleanupOldTranscodes(outputDir string, maxAge time.Dura
 			"age", time.Since(dir.modTime),
 			"size_mb", dir.size/(1024*1024))
 
-		if err := os.RemoveAll(dir.path); err != nil {
-			m.logger.Warn("Failed to remove old transcode cache",
-				"path", dir.path,
-				"error", err)
-			continue
-		}
+		m.cleanupOutputDir(dir.path, "")
 
 		cleanedCount++
 		bytesFreed += dir.size
