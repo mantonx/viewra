@@ -68,14 +68,14 @@ func NewTranscodeSession(
 
 // Start begins the FFmpeg transcoding process.
 // FFmpeg will run continuously, writing segments progressively to the output directory.
-func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, toneMappingEnabled bool) error {
+func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) error {
 	// Create output directory
 	if err := os.MkdirAll(s.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Build FFmpeg arguments
-	args := s.buildFFmpegArgs(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, toneMappingEnabled)
+	args := s.buildFFmpegArgs(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, config)
 
 	// Log FFmpeg command for debugging
 	s.logger.Info("Starting FFmpeg process",
@@ -242,16 +242,20 @@ func (s *TranscodeSession) UpdateLastAccessed() {
 
 // buildFFmpegArgs builds the FFmpeg command arguments for progressive HLS transcoding.
 // Supports hardware acceleration for Transcode strategy.
-func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *QualityProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, toneMappingEnabled bool) []string {
+func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *QualityProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) []string {
 	// Create TranscodeOptions from session data
 	opts := TranscodeOptions{
-		InputPath:          inputPath,
-		OutputDir:          s.OutputDir,
-		Profile:            profile,
-		UseStartPosition:   s.StartPosition > 0,
-		StartPosition:      int(s.StartPosition),
-		VideoInfo:          videoInfo,
-		ToneMappingEnabled: toneMappingEnabled,
+		InputPath:                  inputPath,
+		OutputDir:                  s.OutputDir,
+		Profile:                    profile,
+		UseStartPosition:           s.StartPosition > 0,
+		StartPosition:              int(s.StartPosition),
+		VideoInfo:                  videoInfo,
+		ToneMappingEnabled:         config.ToneMappingEnabled,
+		ToneMappingAlgorithm:       config.ToneMappingAlgorithm,
+		ToneMappingBackend:         config.ToneMappingBackend,
+		LibPlaceboPeakDetect:       config.LibPlaceboPeakDetect,
+		LibPlaceboContrastRecovery: config.LibPlaceboContrastRecovery,
 	}
 
 	// Build arguments based on strategy
@@ -261,9 +265,18 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *QualityPro
 	if hwAccel != AccelNone && strategy == Transcode {
 		builder.AddHardwareAccel(GetHardwareAccelArgsWithDevice(hwAccel, hwDevice))
 
-		// For NVENC with HDR content, initialize OpenCL device for GPU tone mapping
-		if hwAccel == AccelNVENC && toneMappingEnabled && videoInfo != nil && videoInfo.IsHDR {
-			builder.AddOpenCLDevice().AddOpenCLFilterDevice()
+		// For NVENC and QSV with HDR content, initialize OpenCL device for GPU tone mapping
+		// Both use tonemap_opencl for algorithm selection (matches Jellyfin/Emby approach)
+		// Only needed if not using libplacebo (which uses Vulkan instead)
+		if (hwAccel == AccelNVENC || hwAccel == AccelQSV) && config.ToneMappingEnabled && videoInfo != nil && videoInfo.IsHDR {
+			// Check if we need OpenCL (not using libplacebo)
+			backend := config.ToneMappingBackend
+			if backend == "" {
+				backend = "auto"
+			}
+			if backend == "opencl" || (backend == "auto" && hwAccel == AccelQSV) {
+				builder.AddOpenCLDevice().AddOpenCLFilterDevice()
+			}
 		}
 	}
 

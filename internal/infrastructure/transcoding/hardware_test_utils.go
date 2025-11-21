@@ -103,3 +103,16 @@ func CheckFFmpegEncoder(encoderName string) bool {
 	// Check if the encoder name appears in the output
 	return bytes.Contains(output, []byte(encoderName))
 }
+
+// CheckFFmpegFilter verifies that FFmpeg has support for a specific filter.
+// Returns true if the filter is available, false otherwise.
+func CheckFFmpegFilter(filterName string) bool {
+	cmd := exec.Command("ffmpeg", "-filters")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	// Check if the filter name appears in the output
+	return bytes.Contains(output, []byte(filterName))
+}

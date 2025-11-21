@@ -102,23 +102,44 @@ func (b *FFmpegArgsBuilder) AddVideoEncoding() *FFmpegArgsBuilder {
 		"-bufsize", p.VideoBufSize,
 	)
 
-	// Build CPU-based filter chain with optional HDR tone mapping
+	// Build filter chain with optional HDR tone mapping
 	filterChain := ""
 
-	// Add HDR tone mapping if needed (CPU-based with zscale)
+	// Add HDR tone mapping if needed
 	if b.needsHDRToneMapping() {
-		// zscale HDR to SDR tone mapping (software/CPU-based)
-		// 1. zscale with linear transfer for tone mapping preparation (npl=100 sets nominal peak luminance)
-		// 2. Convert to floating point for accurate tone mapping
-		// 3. zscale to bt709 primaries (SDR color space)
-		// 4. zscale to bt709 transfer and matrix with TV range
-		filterChain = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,zscale=t=bt709:m=bt709:r=tv,"
-	}
+		if b.shouldUseLibPlacebo(AccelNone) {
+			// libplacebo (best quality, CPU-based but highly optimized)
+			// libplacebo handles scaling + tone mapping in single pass
+			algorithm := b.getToneMappingLibPlaceboAlgorithm()
+			peakDetect := "false"
+			if b.opts.LibPlaceboPeakDetect {
+				peakDetect = "true"
+			}
+			contrastRecovery := b.opts.LibPlaceboContrastRecovery
 
-	// Video resolution with pixel format conversion
-	// format=yuv420p ensures HDR/10-bit sources are converted to 8-bit SDR before encoding
-	filterChain += fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
-		p.Width, p.Height, p.Width, p.Height)
+			// Single-pass scaling + tone mapping with libplacebo
+			// format=yuv420p: Output 8-bit SDR for encoding
+			filterChain = fmt.Sprintf("libplacebo=w=%d:h=%d:tonemapping=%s:peak_detect=%s:contrast_recovery=%.2f:format=yuv420p",
+				p.Width, p.Height, algorithm, peakDetect, contrastRecovery)
+		} else {
+			// Fallback to traditional CPU tone mapping (zscale + tonemap)
+			// 1. zscale to linear transfer for tone mapping preparation
+			// 2. format=gbrpf32le: Convert to floating point for tone mapping
+			// 3. zscale=p=bt709: Convert to bt709 primaries (SDR color space)
+			// 4. tonemap: Apply selected tone mapping algorithm
+			// 5. zscale to bt709 transfer and matrix with TV range
+			algorithm := b.getToneMappingAlgorithm()
+			filterChain = fmt.Sprintf("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=%s:desat=0,zscale=t=bt709:m=bt709:r=tv,", algorithm)
+
+			// Add scaling and padding after tone mapping
+			filterChain += fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
+				p.Width, p.Height, p.Width, p.Height)
+		}
+	} else {
+		// No tone mapping, just scaling
+		filterChain = fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
+			p.Width, p.Height, p.Width, p.Height)
+	}
 
 	b.args = append(b.args, "-vf", filterChain)
 
@@ -155,7 +176,7 @@ func (b *FFmpegArgsBuilder) AddHardwareVideoEncoding(hwAccel HardwareAccel) *FFm
 }
 
 // addNVENCEncoding adds NVIDIA NVENC-specific encoding parameters.
-// Optimized for full GPU pipeline: NVDEC (decode) → scale_cuda → pad_cuda → NVENC (encode)
+// Optimized for full GPU pipeline: NVDEC (decode) → libplacebo/scale_cuda → pad_cuda → NVENC (encode)
 func (b *FFmpegArgsBuilder) addNVENCEncoding(p *QualityProfile) {
 	// NVENC preset (p1-p7, where p1=fastest, p7=slowest/best quality)
 	// Use p2 (faster) for real-time streaming - excellent speed/quality balance
@@ -172,30 +193,52 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *QualityProfile) {
 		"-bufsize", p.VideoBufSize,
 	)
 
-	// GPU-only filter chain - keeps all frames in GPU memory
 	// Build filter chain with optional HDR tone mapping
 	filterChain := ""
 
-	// Add HDR tone mapping if needed (GPU-accelerated with OpenCL)
+	// Add HDR tone mapping if needed
 	if b.needsHDRToneMapping() {
-		// GPU-accelerated HDR tone mapping for NVENC (CUDA → OpenCL → CUDA)
-		// OpenCL provides GPU tone mapping to avoid CPU bottleneck
-		//
-		// 1. hwdownload: Download from CUDA to system memory
-		// 2. format=p010le: Ensure 10-bit format for HDR content
-		// 3. hwupload: Upload to OpenCL (uses device initialized with -init_hw_device)
-		// 4. tonemap_opencl: GPU-accelerated HDR to SDR tone mapping
-		// 5. hwdownload: Download from OpenCL back to system memory
-		// 6. format=nv12: Convert to NV12 for NVENC
-		// 7. hwupload_cuda: Upload back to CUDA for encoding
-		filterChain = "hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=hable:desat=0,hwdownload,format=nv12,hwupload_cuda,"
+		if b.shouldUseLibPlacebo(AccelNVENC) {
+			// libplacebo with Vulkan (best quality and performance)
+			// CUDA → CPU → libplacebo (Vulkan) → CPU → CUDA
+			// libplacebo provides superior tone mapping with dynamic peak detection
+			// Zero-copy between CUDA and Vulkan on some systems
+			algorithm := b.getToneMappingLibPlaceboAlgorithm()
+			peakDetect := "false"
+			if b.opts.LibPlaceboPeakDetect {
+				peakDetect = "true"
+			}
+			contrastRecovery := b.opts.LibPlaceboContrastRecovery
+
+			// Use libplacebo for scaling + tone mapping in single pass
+			// 1. hwdownload: Download from CUDA to system memory (automatic format conversion)
+			// 2. format=p010le: Ensure 10-bit format for HDR content before libplacebo
+			// 3. libplacebo: Scale + tonemap with format=yuv420p output for 8-bit SDR
+			// 4. hwupload_cuda: Upload back to CUDA for NVENC encoding
+			filterChain = fmt.Sprintf("hwdownload,format=p010le,libplacebo=w=%d:h=%d:tonemapping=%s:peak_detect=%s:contrast_recovery=%.2f:format=yuv420p,hwupload_cuda,",
+				p.Width, p.Height, algorithm, peakDetect, contrastRecovery)
+		} else {
+			// Fallback to OpenCL tone mapping (CUDA → OpenCL → CUDA)
+			// 1. hwdownload: Download from CUDA to system memory
+			// 2. format=p010le: Ensure 10-bit format for HDR content
+			// 3. hwupload: Upload to OpenCL (uses device initialized with -init_hw_device)
+			// 4. tonemap_opencl: GPU-accelerated HDR to SDR tone mapping
+			// 5. hwdownload: Download from OpenCL back to system memory
+			// 6. format=nv12: Convert to NV12 for NVENC
+			// 7. hwupload_cuda: Upload back to CUDA for encoding
+			algorithm := b.getToneMappingAlgorithm()
+			filterChain = fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0,hwdownload,format=nv12,hwupload_cuda,", algorithm)
+		}
 	}
 
-	// scale_cuda: GPU-accelerated scaling
-	// pad_cuda: GPU-accelerated padding (no CPU involvement)
-	// This eliminates PCIe transfers and CPU processing for 2-3x performance gain
-	filterChain += fmt.Sprintf("scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
-		p.Width, p.Height, p.Width, p.Height)
+	// If libplacebo already handled scaling, skip CUDA scaling
+	if filterChain == "" || !b.shouldUseLibPlacebo(AccelNVENC) || !b.needsHDRToneMapping() {
+		// scale_cuda: GPU-accelerated scaling
+		// pad_cuda: GPU-accelerated padding (no CPU involvement)
+		// This eliminates PCIe transfers and CPU processing for 2-3x performance gain
+		filterChain += fmt.Sprintf("scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
+			p.Width, p.Height, p.Width, p.Height)
+	}
 
 	b.args = append(b.args, "-vf", filterChain)
 
@@ -221,18 +264,22 @@ func (b *FFmpegArgsBuilder) addQSVEncoding(p *QualityProfile) {
 		"-bufsize", p.VideoBufSize,
 	)
 
-	// Build filter chain with optional HDR tone mapping
-	// QSV limitation: No tonemap_qsv filter exists, so we use hybrid approach for HDR
+	// Build GPU-only filter chain with optional HDR tone mapping
+	// Intel QSV supports GPU-accelerated tone mapping via OpenCL (like Jellyfin/Emby)
 	filterChain := ""
 
 	if b.needsHDRToneMapping() {
-		// Hybrid HDR tone mapping for QSV (GPU → CPU → GPU)
-		// 1. hwdownload: Transfer frames from QSV to CPU
-		// 2. zscale: CPU-based HDR to SDR tone mapping
-		// 3. format=nv12: Convert to NV12 for QSV compatibility
-		// 4. hwupload=extra_hw_frames=64: Upload back to QSV with frame buffer
-		// This breaks the GPU pipeline but is the only way to tone map with QSV
-		filterChain = "hwdownload,zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,zscale=t=bt709:m=bt709:r=tv,format=nv12,hwupload=extra_hw_frames=64,"
+		// GPU-accelerated HDR tone mapping for QSV using OpenCL
+		// This matches Jellyfin/Emby's approach: QSV decode → OpenCL tonemap → QSV encode
+		// 1. hwdownload: Download from QSV to system memory
+		// 2. format=p010le: Ensure 10-bit format for HDR content
+		// 3. hwupload: Upload to OpenCL (uses device initialized with -init_hw_device)
+		// 4. tonemap_opencl: GPU-accelerated HDR to SDR tone mapping with algorithm selection
+		// 5. hwdownload: Download from OpenCL back to system memory
+		// 6. format=nv12: Convert to NV12 for QSV compatibility
+		// 7. hwupload=extra_hw_frames=64: Upload back to QSV with frame buffer
+		algorithm := b.getToneMappingAlgorithm()
+		filterChain = fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0,hwdownload,format=nv12,hwupload=extra_hw_frames=64,", algorithm)
 	}
 
 	// QSV scaling with aspect ratio preservation
@@ -268,8 +315,8 @@ func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *QualityProfile) {
 	// Add HDR tone mapping if needed (GPU-accelerated with tonemap_vaapi)
 	if b.needsHDRToneMapping() {
 		// tonemap_vaapi: GPU-accelerated HDR to SDR tone mapping
-		// Uses mobius tone mapping algorithm (good balance between detail and color)
-		filterChain = "tonemap_vaapi=mobius,"
+		algorithm := b.getToneMappingAlgorithm()
+		filterChain = fmt.Sprintf("tonemap_vaapi=%s,", algorithm)
 	}
 
 	// scale_vaapi: GPU-accelerated scaling with aspect ratio preservation
@@ -316,14 +363,16 @@ func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *QualityProfile) {
 	// Pipeline: VT decode (GPU) → hwdownload → [tone mapping] → scale (CPU) → pad (CPU) → format (CPU) → hwupload → VT encode (GPU)
 	filterChain := ""
 
-	// Add HDR tone mapping if needed (CPU-based with zscale)
+	// Add HDR tone mapping if needed (CPU-based with tonemap filter)
 	if b.needsHDRToneMapping() {
-		// zscale HDR to SDR tone mapping (CPU-based)
-		// 1. zscale with linear transfer for tone mapping preparation
-		// 2. Convert to float for tone mapping
-		// 3. zscale to bt709 primaries (SDR color space)
-		// 4. zscale to bt709 transfer and matrix
-		filterChain = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,zscale=t=bt709:m=bt709:r=tv,"
+		// CPU-based HDR to SDR tone mapping using tonemap filter
+		// 1. zscale to linear transfer for tone mapping preparation
+		// 2. format=gbrpf32le: Convert to floating point
+		// 3. zscale=p=bt709: Convert to bt709 primaries (SDR color space)
+		// 4. tonemap: Apply selected tone mapping algorithm
+		// 5. zscale to bt709 transfer and matrix
+		algorithm := b.getToneMappingAlgorithm()
+		filterChain = fmt.Sprintf("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=%s:desat=0,zscale=t=bt709:m=bt709:r=tv,", algorithm)
 	}
 
 	// Software scaling and padding (already on CPU)
@@ -437,6 +486,84 @@ func (b *FFmpegArgsBuilder) needsHDRToneMapping() bool {
 
 	// Check if content is HDR
 	return b.opts.VideoInfo.IsHDR
+}
+
+// getToneMappingAlgorithm returns the configured tone mapping algorithm, defaulting to "hable" if not set.
+// This is used for OpenCL, VAAPI, and CPU-based tone mapping.
+func (b *FFmpegArgsBuilder) getToneMappingAlgorithm() string {
+	if b.opts.ToneMappingAlgorithm == "" {
+		return "hable" // Default to Uncharted 2 filmic tone mapping
+	}
+	return b.opts.ToneMappingAlgorithm
+}
+
+// getToneMappingLibPlaceboAlgorithm returns the tone mapping algorithm name for libplacebo.
+// Maps our algorithm names to libplacebo's algorithm names.
+func (b *FFmpegArgsBuilder) getToneMappingLibPlaceboAlgorithm() string {
+	algorithm := b.opts.ToneMappingAlgorithm
+	if algorithm == "" {
+		return "bt.2390" // Default to ITU-R BT.2390 EETF (broadcast standard)
+	}
+
+	// Map algorithm names (some are direct matches, others need mapping)
+	switch algorithm {
+	case "bt.2390", "bt2390":
+		return "bt.2390"
+	case "bt.2446a", "bt2446a":
+		return "bt.2446a"
+	case "st2094-40", "st2094_40":
+		return "st2094-40"
+	case "st2094-10", "st2094_10":
+		return "st2094-10"
+	case "spline":
+		return "spline"
+	case "reinhard":
+		return "reinhard"
+	case "mobius":
+		return "mobius"
+	case "hable":
+		return "hable"
+	case "gamma":
+		return "gamma"
+	case "linear":
+		return "linear"
+	case "clip", "none":
+		return "clip"
+	default:
+		return "bt.2390" // Default to broadcast standard
+	}
+}
+
+// shouldUseLibPlacebo determines if libplacebo should be used for tone mapping.
+// Returns true if:
+//  1. Tone mapping backend is "libplacebo" or "auto"
+//  2. libplacebo filter is available in FFmpeg
+//  3. We're using NVENC or software encoding (libplacebo works best here)
+func (b *FFmpegArgsBuilder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
+	backend := b.opts.ToneMappingBackend
+	if backend == "" {
+		backend = "auto"
+	}
+
+	// If explicitly set to libplacebo, try to use it
+	if backend == "libplacebo" {
+		return CheckFFmpegFilter("libplacebo")
+	}
+
+	// If explicitly set to something else, don't use libplacebo
+	if backend != "auto" {
+		return false
+	}
+
+	// Auto mode: Use libplacebo for NVENC and software encoding
+	// VAAPI has native tonemap_vaapi which works well
+	// QSV will use OpenCL (similar to current implementation)
+	switch hwAccel {
+	case AccelNVENC, AccelNone:
+		return CheckFFmpegFilter("libplacebo")
+	default:
+		return false
+	}
 }
 
 // Build returns the final arguments slice.

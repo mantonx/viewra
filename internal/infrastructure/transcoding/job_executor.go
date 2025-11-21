@@ -179,10 +179,16 @@ func (e *jobExecutor) prepareOptions(
 	videoInfo *VideoInfo,
 ) TranscodeOptions {
 	opts := TranscodeOptions{
-		InputPath:       inputPath,
-		OutputDir:       outputDir,
-		Profile:         profile,
-		ProgressHandler: e.createProgressHandler(job),
+		InputPath:                  inputPath,
+		OutputDir:                  outputDir,
+		Profile:                    profile,
+		ProgressHandler:            e.createProgressHandler(job),
+		ToneMappingEnabled:         e.executor.config.ToneMappingEnabled,
+		ToneMappingAlgorithm:       e.executor.config.ToneMappingAlgorithm,
+		ToneMappingBackend:         e.executor.config.ToneMappingBackend,
+		LibPlaceboPeakDetect:       e.executor.config.LibPlaceboPeakDetect,
+		LibPlaceboContrastRecovery: e.executor.config.LibPlaceboContrastRecovery,
+		VideoInfo:                  videoInfo,
 	}
 
 	// Use specific audio track if available

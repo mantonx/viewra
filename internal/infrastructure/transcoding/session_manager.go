@@ -106,8 +106,7 @@ func (m *SessionManager) GetOrCreateSession(
 	// Start FFmpeg process with hardware acceleration and HDR tone mapping
 	hwAccel := m.config.HardwareAccel
 	hwDevice := m.config.HardwareDevice
-	toneMappingEnabled := m.config.ToneMappingEnabled
-	if err := session.Start(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, toneMappingEnabled); err != nil {
+	if err := session.Start(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, m.config); err != nil {
 		// Check if this is a hardware error and fallback if needed
 		if m.fallbackManager.RecordFailure(hwAccel, err) {
 			m.logger.Info("Retrying with fallback acceleration",
@@ -115,7 +114,7 @@ func (m *SessionManager) GetOrCreateSession(
 				"to", m.config.HardwareAccel,
 			)
 			// Retry with new hardware acceleration setting
-			if err := session.Start(inputPath, profile, strategy, m.config.HardwareAccel, hwDevice, videoInfo, toneMappingEnabled); err != nil {
+			if err := session.Start(inputPath, profile, strategy, m.config.HardwareAccel, hwDevice, videoInfo, m.config); err != nil {
 				return nil, fmt.Errorf("failed to start transcode session after fallback: %w", err)
 			}
 		} else {

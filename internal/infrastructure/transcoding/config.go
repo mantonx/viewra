@@ -3,6 +3,7 @@ package transcoding
 import (
 	"os"
 	"os/exec"
+	"strconv"
 )
 
 // HardwareAccel represents hardware acceleration type.
@@ -60,6 +61,27 @@ type TranscodeConfig struct {
 	// When true, HDR10/HLG content will be tone mapped to SDR (bt709) for better compatibility
 	// Environment variable: TONE_MAPPING_ENABLED (default: true)
 	ToneMappingEnabled bool
+
+	// ToneMappingAlgorithm specifies which tone mapping algorithm to use
+	// Options: none, linear, gamma, clip, reinhard, hable, mobius, bt.2390, bt.2446a, spline
+	// Environment variable: TONE_MAPPING_ALGORITHM (default: bt.2390)
+	ToneMappingAlgorithm string
+
+	// ToneMappingBackend specifies which tone mapping backend to use
+	// Options: auto, libplacebo, opencl, vaapi, cpu
+	// auto = libplacebo if available, else OpenCL/VAAPI/CPU based on hardware
+	// Environment variable: TONE_MAPPING_BACKEND (default: auto)
+	ToneMappingBackend string
+
+	// LibPlaceboPeakDetect enables dynamic peak detection for adaptive HDR tone mapping
+	// Only applies when using libplacebo backend
+	// Environment variable: LIBPLACEBO_PEAK_DETECT (default: true)
+	LibPlaceboPeakDetect bool
+
+	// LibPlaceboContrastRecovery controls highlight detail preservation (0.0-3.0)
+	// Higher values preserve more highlight detail at the cost of local contrast
+	// Environment variable: LIBPLACEBO_CONTRAST_RECOVERY (default: 0.3)
+	LibPlaceboContrastRecovery float64
 }
 
 // DefaultTranscodeConfig returns sensible defaults.
@@ -79,15 +101,46 @@ func DefaultTranscodeConfig() *TranscodeConfig {
 		toneMappingEnabled = envToneMapping == "true" || envToneMapping == "1"
 	}
 
+	// Get tone mapping algorithm from environment (default: bt.2390)
+	toneMappingAlgorithm := os.Getenv("TONE_MAPPING_ALGORITHM")
+	if toneMappingAlgorithm == "" {
+		toneMappingAlgorithm = "bt.2390" // Default to ITU-R BT.2390 EETF (broadcast standard)
+	}
+
+	// Get tone mapping backend from environment (default: auto)
+	toneMappingBackend := os.Getenv("TONE_MAPPING_BACKEND")
+	if toneMappingBackend == "" {
+		toneMappingBackend = "auto" // Auto-detect best backend
+	}
+
+	// Get libplacebo peak detection setting (default: true)
+	libPlaceboPeakDetect := true
+	if envPeakDetect := os.Getenv("LIBPLACEBO_PEAK_DETECT"); envPeakDetect != "" {
+		libPlaceboPeakDetect = envPeakDetect == "true" || envPeakDetect == "1"
+	}
+
+	// Get libplacebo contrast recovery (default: 0.3)
+	libPlaceboContrastRecovery := 0.3
+	if envContrastRecov := os.Getenv("LIBPLACEBO_CONTRAST_RECOVERY"); envContrastRecov != "" {
+		// Parse float, ignore errors (keep default)
+		if val, err := strconv.ParseFloat(envContrastRecov, 64); err == nil {
+			libPlaceboContrastRecovery = val
+		}
+	}
+
 	return &TranscodeConfig{
-		HardwareAccel:      hwaccel,
-		HardwareDevice:     hwDevice,
-		OutputBaseDir:      GetDefaultOutputDir(), // /data/dash or ./data/dash
-		MinFreeDiskGB:      10,                    // Require 10GB free space
-		MaxCPUPercent:      0,                     // Unlimited by default
-		MaxMemoryMB:        0,                     // Unlimited by default
-		ProcessGroupKill:   true,                  // Always kill process group
-		ToneMappingEnabled: toneMappingEnabled,    // Enable tone mapping by default
+		HardwareAccel:              hwaccel,
+		HardwareDevice:             hwDevice,
+		OutputBaseDir:              GetDefaultOutputDir(), // /data/dash or ./data/dash
+		MinFreeDiskGB:              10,                    // Require 10GB free space
+		MaxCPUPercent:              0,                     // Unlimited by default
+		MaxMemoryMB:                0,                     // Unlimited by default
+		ProcessGroupKill:           true,                  // Always kill process group
+		ToneMappingEnabled:         toneMappingEnabled,    // Enable tone mapping by default
+		ToneMappingAlgorithm:       toneMappingAlgorithm,  // Default: bt.2390 (ITU-R BT.2390)
+		ToneMappingBackend:         toneMappingBackend,    // Default: auto
+		LibPlaceboPeakDetect:       libPlaceboPeakDetect,  // Default: true
+		LibPlaceboContrastRecovery: libPlaceboContrastRecovery, // Default: 0.3
 	}
 }
 

@@ -51,12 +51,16 @@ type TranscodeOptions struct {
 	OutputDir            string
 	Profile              *QualityProfile
 	ProgressHandler      func(progress int)
-	AudioTrackIndex      int  // Specific audio track to use (for -map 0:a:N)
-	UseSpecificAudioTrack bool // If true, use AudioTrackIndex; if false, use default (first)
-	StartPosition         int  // Start position in seconds (for seek-based transcoding)
-	UseStartPosition      bool // If true, use StartPosition for seeking
+	AudioTrackIndex      int    // Specific audio track to use (for -map 0:a:N)
+	UseSpecificAudioTrack bool   // If true, use AudioTrackIndex; if false, use default (first)
+	StartPosition         int    // Start position in seconds (for seek-based transcoding)
+	UseStartPosition      bool   // If true, use StartPosition for seeking
 	VideoInfo            *VideoInfo // Video metadata including HDR info (optional)
-	ToneMappingEnabled   bool       // Enable HDR to SDR tone mapping for HDR content
+	ToneMappingEnabled   bool   // Enable HDR to SDR tone mapping for HDR content
+	ToneMappingAlgorithm string // Tone mapping algorithm: none, linear, gamma, clip, reinhard, hable, mobius, bt.2390, bt.2446a, spline
+	ToneMappingBackend   string // Tone mapping backend: auto, libplacebo, opencl, vaapi, cpu
+	LibPlaceboPeakDetect bool   // Enable dynamic peak detection for libplacebo (default: true)
+	LibPlaceboContrastRecovery float64 // Contrast recovery for libplacebo (0.0-3.0, default: 0.3)
 }
 
 // TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.
