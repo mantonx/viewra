@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
  *   searchAPI(debouncedQuery)
  * }, [debouncedQuery])
  */
-export function useDebounce<T>(value: T, delay: number = 300): T {
+export const useDebounce = <T,>(value: T, delay: number = 300): T => {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
 
   useEffect(() => {

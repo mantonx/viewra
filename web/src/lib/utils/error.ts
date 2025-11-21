@@ -18,7 +18,7 @@
  *   showToast(message)
  * }
  */
-export function getErrorMessage(error: unknown, fallback = 'An error occurred'): string {
+export const getErrorMessage = (error: unknown, fallback = 'An error occurred'): string => {
   if (error instanceof Error) {
     return error.message
   }

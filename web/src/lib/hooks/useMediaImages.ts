@@ -17,7 +17,7 @@ export interface UseMediaImagesOptions {
 /**
  * Hook to fetch images for a media item
  */
-export function useMediaImages(mediaId: number | undefined, options: UseMediaImagesOptions = {}) {
+export const useMediaImages = (mediaId: number | undefined, options: UseMediaImagesOptions = {}) => {
   const { enabled = true } = options
 
   return useQuery({
@@ -36,7 +36,7 @@ export function useMediaImages(mediaId: number | undefined, options: UseMediaIma
 /**
  * Hook to fetch images for a movie
  */
-export function useMovieImages(movieId: number | undefined, options: UseMediaImagesOptions = {}) {
+export const useMovieImages = (movieId: number | undefined, options: UseMediaImagesOptions = {}) => {
   const { enabled = true } = options
 
   return useQuery({
@@ -55,10 +55,10 @@ export function useMovieImages(movieId: number | undefined, options: UseMediaIma
 /**
  * Hook to fetch images for a TV episode
  */
-export function useEpisodeImages(
+export const useEpisodeImages = (
   episodeId: number | undefined,
   options: UseMediaImagesOptions = {}
-) {
+) => {
   const { enabled = true } = options
 
   return useQuery({
@@ -77,10 +77,10 @@ export function useEpisodeImages(
 /**
  * Hook to fetch images for a TV show
  */
-export function useTVShowImages(
+export const useTVShowImages = (
   showId: number | undefined,
   options: UseMediaImagesOptions = {}
-) {
+) => {
   const { enabled = true } = options
 
   return useQuery({
@@ -99,10 +99,10 @@ export function useTVShowImages(
 /**
  * Hook to fetch images for a TV season
  */
-export function useTVSeasonImages(
+export const useTVSeasonImages = (
   seasonId: number | undefined,
   options: UseMediaImagesOptions = {}
-) {
+) => {
   const { enabled = true } = options
 
   return useQuery({
@@ -121,10 +121,10 @@ export function useTVSeasonImages(
 /**
  * Hook to fetch images for a music album
  */
-export function useMusicAlbumImages(
+export const useMusicAlbumImages = (
   albumId: number | undefined,
   options: UseMediaImagesOptions = {}
-) {
+) => {
   const { enabled = true } = options
 
   return useQuery({
@@ -143,10 +143,10 @@ export function useMusicAlbumImages(
 /**
  * Hook to fetch all images for a music artist
  */
-export function useMusicArtistImages(
+export const useMusicArtistImages = (
   artistId: number | undefined,
   options: UseMediaImagesOptions = {}
-) {
+) => {
   const { enabled = true } = options
 
   return useQuery({
@@ -165,7 +165,7 @@ export function useMusicArtistImages(
 /**
  * Helper hook to get poster image URL from media images
  */
-export function usePosterUrl(mediaId: number | undefined): string | null {
+export const usePosterUrl = (mediaId: number | undefined): string | null => {
   const { data } = useMediaImages(mediaId)
 
   if (!data?.images || data.images.length === 0) {

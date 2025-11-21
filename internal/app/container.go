@@ -89,16 +89,20 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		cases.Movies.List,
 		cases.Movies.Get,
 		cases.Movies.Search,
+		cases.Movies.ListIDs,
 		cases.TV.ListShows,
 		cases.TV.GetShow,
 		cases.TV.ListEpisodes,
 		cases.TV.GetEpisode,
 		cases.TV.SearchEpisodes,
+		cases.TV.ListShowIDs,
+		cases.TV.GetNextEpisode,
 		cases.Music.ListArtists,
 		cases.Music.ListAlbumsByArtist,
 		cases.Music.ListTracksByAlbum,
 		cases.Music.GetTrack,
 		cases.Music.SearchTracks,
+		cases.Music.ListArtistIDs,
 	)
 
 	return &Container{

@@ -209,6 +209,43 @@ When working with this codebase, refer to:
 
 ---
 
+## Development Setup
+
+### Quick Start
+
+**Single command to start everything:**
+```bash
+make dev
+```
+
+This starts both backend and frontend in a tmux session:
+- Backend: http://localhost:8080
+- Frontend: http://localhost:5173
+- Swagger: http://localhost:8080/swagger/index.html
+
+**Tmux controls:**
+- Detach: `Ctrl+B` then `D`
+- Reattach: `tmux attach -t viewra-dev`
+- Kill: `tmux kill-session -t viewra-dev`
+
+### Manual Start (if you prefer separate terminals)
+
+```bash
+# Terminal 1: Backend
+make dev-backend
+
+# Terminal 2: Frontend
+cd web && npm run dev
+```
+
+### Ports
+
+- **Backend**: Always 8080 (fails if in use)
+- **Frontend**: Always 5173 (fails if in use)
+- Frontend uses Vite proxy to avoid CORS (no configuration needed)
+
+See [docs/development/PORT_CONFIGURATION.md](docs/development/PORT_CONFIGURATION.md) for details.
+
 ## Development Workflow
 
 ### Code Generation

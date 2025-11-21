@@ -1,4 +1,4 @@
-import { useMediaProgress } from '@/lib/hooks/useProgress'
+import { useBatchProgress } from '@/lib/hooks'
 import { getProgressPercentage } from '@/lib/utils'
 import { formatResolutionLabel } from '@/lib/utils/quality'
 import { getCodecBadgeColor } from '@/lib/utils/media'
@@ -8,7 +8,7 @@ import { WatchedBadge } from '@/components/media/WatchedBadge'
 import type { MovieCardProps} from './MovieCard.types'
 
 const MovieCard = ({ movie, onClick }: MovieCardProps) => {
-  const { data: progress } = useMediaProgress(movie.id, true)
+  const { progress } = useBatchProgress(movie.id)
 
   const resolution = formatResolutionLabel(movie.height)
   
@@ -75,15 +75,18 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
               {movie.video_codec.toUpperCase()}
             </span>
           )}
+        </>
+      }
+      overlays={
+        <>
           <ProgressBar progress={progress} />
-          <WatchedBadge isWatched={progress?.is_watched} />
         </>
       }
       infoContent={
         <>
           <div className="flex items-start justify-between gap-2 mb-1">
             <h3 className="font-semibold text-sm line-clamp-2 flex-1">{movie.title}</h3>
-            {progress?.is_watched && (
+            {progress?.is_watched && getProgressPercentage(progress) >= 95 && (
               <span className="text-green-500 shrink-0" title="Watched">
                 ✓
               </span>

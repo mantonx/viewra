@@ -541,3 +541,46 @@ func (r *Repository) ListMusicTracksByLibraryPaginated(ctx context.Context, libr
 	sqResults := result.([]sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow)
 	return convertRowsToMusicTracks(sqResults), nil
 }
+
+// ListArtistIDsByLibraryPaginated retrieves only artist representative IDs in a library with pagination
+func (r *Repository) ListArtistIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]int64, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Determine sort order from pagination params
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			// Choose the appropriate query based on sort order
+			if sortBy == "title_desc" {
+				return r.SQLite().ListArtistIDsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListArtistIDsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().ListArtistIDsByLibraryPaginated(ctx, sqlc_sqlite.ListArtistIDsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	return result.([]int64), nil
+}

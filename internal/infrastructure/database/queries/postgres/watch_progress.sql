@@ -35,6 +35,10 @@ SELECT * FROM watch_progress
 WHERE media_id = $1 AND user_id = $2
 LIMIT 1;
 
+-- name: GetBatchWatchProgressByMediaIDs :many
+SELECT * FROM watch_progress
+WHERE media_id = ANY($1::bigint[]) AND user_id = $2;
+
 -- name: ListWatchProgressByUserID :many
 SELECT * FROM watch_progress
 WHERE user_id = $1

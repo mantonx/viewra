@@ -31,3 +31,8 @@ type GetTrackExecutor interface {
 type SearchTracksExecutor interface {
 	Execute(ctx context.Context, libraryID int64, query string) (ListTracksResponse, error)
 }
+
+// ListArtistIDsExecutor defines the interface for listing artist IDs only
+type ListArtistIDsExecutor interface {
+	Execute(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListIDsResponse, error)
+}

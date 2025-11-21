@@ -168,6 +168,7 @@ type TranscodeJob struct {
 	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
 	LastAccessedAt sql.NullTime   `json:"last_accessed_at"`
 	AccessCount    sql.NullInt64  `json:"access_count"`
+	StartPosition  int64          `json:"start_position"`
 }
 
 type TvEpisode struct {

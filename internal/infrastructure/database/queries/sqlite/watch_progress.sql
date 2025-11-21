@@ -35,6 +35,10 @@ SELECT * FROM watch_progress
 WHERE media_id = ? AND user_id = ?
 LIMIT 1;
 
+-- name: GetBatchWatchProgressByMediaIDs :many
+SELECT * FROM watch_progress
+WHERE media_id IN (sqlc.slice('media_ids')) AND user_id = ?;
+
 -- name: ListWatchProgressByUserID :many
 SELECT * FROM watch_progress
 WHERE user_id = ?

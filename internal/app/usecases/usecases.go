@@ -48,18 +48,21 @@ type MediaUseCases struct {
 
 // MovieUseCases holds movie-related use cases
 type MovieUseCases struct {
-	List   *movies.ListMoviesUseCase
-	Get    *movies.GetMovieUseCase
-	Search *movies.SearchMoviesUseCase
+	List    *movies.ListMoviesUseCase
+	Get     *movies.GetMovieUseCase
+	Search  *movies.SearchMoviesUseCase
+	ListIDs *movies.ListMovieIDsUseCase
 }
 
 // TVUseCases holds TV show-related use cases
 type TVUseCases struct {
-	ListShows    *tv.ListTVShowsUseCase
-	GetShow      *tv.GetTVShowUseCase
-	ListEpisodes *tv.ListTVEpisodesUseCase
-	GetEpisode   *tv.GetTVEpisodeUseCase
+	ListShows      *tv.ListTVShowsUseCase
+	GetShow        *tv.GetTVShowUseCase
+	ListEpisodes   *tv.ListTVEpisodesUseCase
+	GetEpisode     *tv.GetTVEpisodeUseCase
 	SearchEpisodes *tv.SearchTVEpisodesUseCase
+	ListShowIDs    *tv.ListTVShowIDsUseCase
+	GetNextEpisode *tv.GetNextEpisodeUseCase
 }
 
 // MusicUseCases holds music-related use cases
@@ -69,6 +72,7 @@ type MusicUseCases struct {
 	ListTracksByAlbum  *music.ListTracksByAlbumIDUseCase
 	GetTrack           *music.GetTrackUseCase
 	SearchTracks       *music.SearchTracksUseCase
+	ListArtistIDs      *music.ListArtistIDsUseCase
 }
 
 // ImageUseCases holds image-related use cases
@@ -181,9 +185,10 @@ func buildMediaUseCases(
 // buildMovieUseCases creates movie use cases
 func buildMovieUseCases(repos *repositories.Repositories) *MovieUseCases {
 	return &MovieUseCases{
-		List:   movies.NewListMoviesUseCase(repos.Movie),
-		Get:    movies.NewGetMovieUseCase(repos.Movie),
-		Search: movies.NewSearchMoviesUseCase(repos.Movie),
+		List:    movies.NewListMoviesUseCase(repos.Movie),
+		Get:     movies.NewGetMovieUseCase(repos.Movie),
+		Search:  movies.NewSearchMoviesUseCase(repos.Movie),
+		ListIDs: movies.NewListMovieIDsUseCase(repos.Movie),
 	}
 }
 
@@ -195,6 +200,8 @@ func buildTVUseCases(repos *repositories.Repositories) *TVUseCases {
 		ListEpisodes:   tv.NewListTVEpisodesUseCase(repos.TV),
 		GetEpisode:     tv.NewGetTVEpisodeUseCase(repos.TV),
 		SearchEpisodes: tv.NewSearchTVEpisodesUseCase(repos.TV),
+		ListShowIDs:    tv.NewListTVShowIDsUseCase(repos.TV),
+		GetNextEpisode: tv.NewGetNextEpisodeUseCase(repos.TV, repos.Progress),
 	}
 }
 
@@ -206,6 +213,7 @@ func buildMusicUseCases(repos *repositories.Repositories) *MusicUseCases {
 		ListTracksByAlbum:  music.NewListTracksByAlbumIDUseCase(repos.Music),
 		GetTrack:           music.NewGetTrackUseCase(repos.Music),
 		SearchTracks:       music.NewSearchTracksUseCase(repos.Music),
+		ListArtistIDs:      music.NewListArtistIDsUseCase(repos.Music),
 	}
 }
 

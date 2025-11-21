@@ -1502,6 +1502,80 @@ func (q *Queries) ListTVSeasonsByShow(ctx context.Context, showID int64) ([]TvSe
 	return items, nil
 }
 
+const listTVShowIDsByLibraryPaginated = `-- name: ListTVShowIDsByLibraryPaginated :many
+SELECT id
+FROM tv_shows
+WHERE library_id = ?
+ORDER BY COALESCE(sort_title, title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type ListTVShowIDsByLibraryPaginatedParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+func (q *Queries) ListTVShowIDsByLibraryPaginated(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listTVShowIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTVShowIDsByLibraryPaginatedDesc = `-- name: ListTVShowIDsByLibraryPaginatedDesc :many
+SELECT id
+FROM tv_shows
+WHERE library_id = ?
+ORDER BY COALESCE(sort_title, title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?
+`
+
+type ListTVShowIDsByLibraryPaginatedDescParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+func (q *Queries) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedDescParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listTVShowIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTVShowsByLibrary = `-- name: ListTVShowsByLibrary :many
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
 WHERE library_id = ?

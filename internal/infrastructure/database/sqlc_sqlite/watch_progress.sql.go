@@ -8,6 +8,7 @@ package sqlc_sqlite
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const createWatchProgress = `-- name: CreateWatchProgress :one
@@ -79,6 +80,60 @@ WHERE media_id = ?
 func (q *Queries) DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteWatchProgressByMediaID, mediaID)
 	return err
+}
+
+const getBatchWatchProgressByMediaIDs = `-- name: GetBatchWatchProgressByMediaIDs :many
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+WHERE media_id IN (/*SLICE:media_ids*/?) AND user_id = ?
+`
+
+type GetBatchWatchProgressByMediaIDsParams struct {
+	MediaIds []int64       `json:"media_ids"`
+	UserID   sql.NullInt64 `json:"user_id"`
+}
+
+func (q *Queries) GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error) {
+	query := getBatchWatchProgressByMediaIDs
+	var queryParams []interface{}
+	if len(arg.MediaIds) > 0 {
+		for _, v := range arg.MediaIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:media_ids*/?", strings.Repeat(",?", len(arg.MediaIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:media_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WatchProgress{}
+	for rows.Next() {
+		var i WatchProgress
+		if err := rows.Scan(
+			&i.ID,
+			&i.MediaID,
+			&i.UserID,
+			&i.Position,
+			&i.Duration,
+			&i.Watched,
+			&i.LastWatched,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWatchProgressByID = `-- name: GetWatchProgressByID :one

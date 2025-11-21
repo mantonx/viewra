@@ -97,10 +97,10 @@ export const isValidQuality = (quality: string): quality is QualityLevel => {
  * formatResolutionLabel(0, true) // "Auto"
  * formatResolutionLabel(undefined) // null
  */
-export function formatResolutionLabel(
+export const formatResolutionLabel = (
   height: number | undefined,
   includeAuto = false
-): string | null {
+): string | null  => {
   if (height === undefined) {
     return null
   }

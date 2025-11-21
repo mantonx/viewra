@@ -30,7 +30,7 @@ const ShowDetail = () => {
     queryFn: () => tvApi.listEpisodesByShowId(showIdNumber),
   })
 
-  const allEpisodes = episodesData?.data?.episodes || []
+  const allEpisodes = useMemo(() => episodesData?.data?.episodes || [], [episodesData])
   const isLoading = isLoadingShow || isLoadingEpisodes
   const error = showError || episodesError
   const showTitle = showData?.data?.title || ''
@@ -48,15 +48,17 @@ const ShowDetail = () => {
           episodes: [],
         })
       }
-      const seasonGroup = seasonMap.get(episode.season)!
-      seasonGroup.episodes.push(episode)
-      seasonGroup.episode_count++
+      const seasonGroup = seasonMap.get(episode.season)
+      if (seasonGroup) {
+        seasonGroup.episodes.push(episode)
+        seasonGroup.episode_count++
+      }
     })
 
     // Sort seasons (0 at the end, rest in ascending order)
     return Array.from(seasonMap.values()).sort((a, b) => {
-      if (a.season === 0) return 1
-      if (b.season === 0) return -1
+      if (a.season === 0) {return 1}
+      if (b.season === 0) {return -1}
       return a.season - b.season
     })
   }, [allEpisodes])

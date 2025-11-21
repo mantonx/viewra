@@ -21,6 +21,10 @@ type Repository interface {
 	// For future multi-user support.
 	GetByMediaIDAndUserID(ctx context.Context, mediaID, userID int64) (*WatchProgress, error)
 
+	// GetBatchByMediaIDs retrieves watch progress for multiple media items.
+	// Returns a map of media_id -> WatchProgress. Missing media IDs won't be in the map.
+	GetBatchByMediaIDs(ctx context.Context, mediaIDs []int64, userID int64) (map[int64]*WatchProgress, error)
+
 	// ListByUserID retrieves all watch progress records for a user.
 	// Returns empty slice if no progress exists.
 	ListByUserID(ctx context.Context, userID int64, limit, offset int) ([]*WatchProgress, error)

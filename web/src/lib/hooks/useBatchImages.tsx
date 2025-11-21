@@ -32,7 +32,7 @@ interface BatchImagesProviderProps {
  * Provider component that fetches images for multiple media items or entities in batched chunks
  * Handles infinite scroll by splitting IDs into 50-item batches and merging results
  */
-export function BatchImagesProvider({ mediaIds, entityIds, mediaType, children }: BatchImagesProviderProps) {
+export const BatchImagesProvider = ({ mediaIds, entityIds, mediaType, children }: BatchImagesProviderProps) => {
   const ids = mediaIds || entityIds || []
   const isEntityBased = !!entityIds && !!mediaType
 
@@ -48,7 +48,7 @@ export function BatchImagesProvider({ mediaIds, entityIds, mediaType, children }
 
   // Use useQueries to fetch all batches in parallel and cache them independently
   const queries = useQueries({
-    queries: batches.map((batch, index) => ({
+    queries: batches.map((batch, _index) => ({
       queryKey: isEntityBased
         ? ['batch-images-entity', mediaType, batch.sort().join(',')]
         : ['batch-images', batch.sort().join(',')],
@@ -96,11 +96,11 @@ export function BatchImagesProvider({ mediaIds, entityIds, mediaType, children }
  * Hook to access batched images for a specific media item
  * Must be used within a BatchImagesProvider
  */
-export function useBatchImages(mediaId: number): {
+export const useBatchImages = (mediaId: number): {
   images: Image[]
   isLoading: boolean
   error: Error | null
-} {
+} => {
   const context = useContext(BatchImagesContext)
 
   if (!context) {
@@ -119,11 +119,11 @@ export function useBatchImages(mediaId: number): {
  * Returns null if not within a BatchImagesProvider
  * Use this when you want to fall back to individual queries
  */
-export function useBatchImagesIfAvailable(mediaId: number): {
+export const useBatchImagesIfAvailable = (mediaId: number): {
   images: Image[]
   isLoading: boolean
   error: Error | null
-} | null {
+} | null => {
   const context = useContext(BatchImagesContext)
 
   if (!context) {

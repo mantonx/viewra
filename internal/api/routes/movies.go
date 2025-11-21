@@ -10,6 +10,7 @@ func RegisterMoviesRoutes(rg *gin.RouterGroup, handler *handlers.MoviesHandler) 
 	movies := rg.Group("/movies")
 	{
 		movies.GET("", handler.List)           // GET /api/movies?library_id=1
+		movies.GET("/ids", handler.ListIDs)    // GET /api/movies/ids?library_id=1
 		movies.GET("/search", handler.Search)  // GET /api/movies/search?library_id=1&q=batman
 		movies.GET("/:id", handler.Get)        // GET /api/movies/123
 	}

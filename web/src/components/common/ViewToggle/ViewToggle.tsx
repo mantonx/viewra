@@ -11,8 +11,8 @@ export const ViewToggle = ({ value, onChange }: ViewToggleProps) => {
         onClick={() => onChange('grid')}
         className={`px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 ${
           value === 'grid'
-            ? 'bg-rose-500 text-white border-rose-500'
-            : 'bg-white text-gray-700 border-gray-300 hover:border-rose-300 hover:bg-rose-50'
+            ? 'bg-blue-600 text-white border-blue-600'
+            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
         }`}
         aria-pressed={value === 'grid'}
         aria-label="Grid view"
@@ -38,8 +38,8 @@ export const ViewToggle = ({ value, onChange }: ViewToggleProps) => {
         onClick={() => onChange('list')}
         className={`px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 ${
           value === 'list'
-            ? 'bg-rose-500 text-white border-rose-500'
-            : 'bg-white text-gray-700 border-gray-300 hover:border-rose-300 hover:bg-rose-50'
+            ? 'bg-blue-600 text-white border-blue-600'
+            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
         }`}
         aria-pressed={value === 'list'}
         aria-label="List view"

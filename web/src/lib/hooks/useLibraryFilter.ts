@@ -17,7 +17,7 @@ export type LibraryType = 'movies' | 'tv' | 'music'
  * const { selectedLibrary, setSelectedLibrary, libraries, libraryId } = useLibraryFilter('movies')
  * ```
  */
-export function useLibraryFilter(type: LibraryType) {
+export const useLibraryFilter = (type: LibraryType) => {
   const [selectedLibrary, setSelectedLibrary] = useState<string>('all')
 
   // Fetch all libraries

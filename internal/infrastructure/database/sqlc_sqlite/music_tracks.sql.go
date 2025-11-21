@@ -470,6 +470,84 @@ func (q *Queries) ListAlbumsByLibraryPaginatedDesc(ctx context.Context, arg List
 	return items, nil
 }
 
+const listArtistIDsByLibraryPaginated = `-- name: ListArtistIDsByLibraryPaginated :many
+SELECT mt.media_id as id
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.artist
+ORDER BY COALESCE(mt.sort_artist, mt.artist) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type ListArtistIDsByLibraryPaginatedParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+func (q *Queries) ListArtistIDsByLibraryPaginated(ctx context.Context, arg ListArtistIDsByLibraryPaginatedParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listArtistIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArtistIDsByLibraryPaginatedDesc = `-- name: ListArtistIDsByLibraryPaginatedDesc :many
+SELECT mt.media_id as id
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.artist
+ORDER BY COALESCE(mt.sort_artist, mt.artist) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?
+`
+
+type ListArtistIDsByLibraryPaginatedDescParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+func (q *Queries) ListArtistIDsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistIDsByLibraryPaginatedDescParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listArtistIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listArtistsByLibrary = `-- name: ListArtistsByLibrary :many
 SELECT DISTINCT
     mt.album_artist as artist,

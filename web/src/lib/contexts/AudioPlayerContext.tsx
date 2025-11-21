@@ -75,7 +75,10 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       audioRef.current.addEventListener('ended', handleTrackEnded)
 
       audioRef.current.addEventListener('error', (e) => {
-        logger.error('Audio playback error:', e)
+        // Only log errors if there's an actual source (ignore errors from empty src)
+        if (audioRef.current?.src && audioRef.current.src !== '') {
+          logger.error('Audio playback error:', e)
+        }
         setIsPlaying(false)
       })
     }
@@ -83,7 +86,9 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
-        audioRef.current.src = ''
+        // Don't set src to empty string - it causes error events
+        audioRef.current.removeAttribute('src')
+        audioRef.current.load() // Reset the media element
       }
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current)
@@ -119,7 +124,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }, [isPlaying, currentTrack, currentTime])
 
   const reportProgress = async () => {
-    if (!currentTrack || !audioRef.current) return
+    if (!currentTrack || !audioRef.current) {return}
 
     try {
       const position = Math.floor(audioRef.current.currentTime)
@@ -164,7 +169,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }
 
   const playQueue = (tracks: MusicTrackResponse[], startIndex: number = 0) => {
-    if (tracks.length === 0) return
+    if (tracks.length === 0) {return}
     setQueue(tracks)
     setCurrentIndex(startIndex)
     setCurrentTrack(tracks[startIndex])
@@ -172,14 +177,14 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }
 
   const playQueueAtIndex = (index: number) => {
-    if (index < 0 || index >= queue.length) return
+    if (index < 0 || index >= queue.length) {return}
     setCurrentIndex(index)
     setCurrentTrack(queue[index])
     loadAndPlay(queue[index])
   }
 
   const loadAndPlay = async (track: MusicTrackResponse) => {
-    if (!audioRef.current) return
+    if (!audioRef.current) {return}
 
     const streamUrl = `${API_BASE_URL}/api/stream/${track.id}`
     audioRef.current.src = streamUrl
@@ -194,7 +199,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }
 
   const togglePlayPause = () => {
-    if (!audioRef.current) return
+    if (!audioRef.current) {return}
 
     if (isPlaying) {
       audioRef.current.pause()
@@ -210,7 +215,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }
 
   const playNext = () => {
-    if (queue.length === 0) return
+    if (queue.length === 0) {return}
 
     let nextIndex = currentIndex + 1
     if (nextIndex >= queue.length) {
@@ -226,7 +231,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }
 
   const playPrevious = () => {
-    if (queue.length === 0) return
+    if (queue.length === 0) {return}
 
     // If more than 3 seconds into track, restart it
     if (audioRef.current && audioRef.current.currentTime > 3) {
@@ -291,7 +296,9 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const clearQueue = () => {
     if (audioRef.current) {
       audioRef.current.pause()
-      audioRef.current.src = ''
+      // Don't set src to empty string - it causes error events
+      audioRef.current.removeAttribute('src')
+      audioRef.current.load() // Reset the media element
     }
     setQueue([])
     setCurrentTrack(null)

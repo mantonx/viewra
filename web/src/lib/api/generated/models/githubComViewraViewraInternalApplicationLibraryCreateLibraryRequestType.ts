@@ -9,7 +9,7 @@
 export type GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequestType =
   (typeof GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequestType)[keyof typeof GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequestType]
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+ 
 export const GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequestType = {
   movies: 'movies',
   tv: 'tv',

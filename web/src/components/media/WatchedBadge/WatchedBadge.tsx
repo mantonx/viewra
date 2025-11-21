@@ -10,7 +10,7 @@ export const WatchedBadge = ({ isWatched }: WatchedBadgeProps) => {
   }
 
   return (
-    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+    <div className="absolute bottom-2 right-2 z-10">
       <div className="bg-green-500 text-white px-3 py-2 rounded-full font-semibold text-sm shadow-lg flex items-center gap-1">
         <span>✓</span>
         <span>Watched</span>

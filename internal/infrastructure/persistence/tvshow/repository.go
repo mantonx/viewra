@@ -616,6 +616,49 @@ func (r *Repository) SearchTVShowsByTitlePaginated(ctx context.Context, libraryI
 	return shows, nil
 }
 
+// ListTVShowIDsByLibraryPaginated retrieves only TV show IDs in a library with pagination
+func (r *Repository) ListTVShowIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]int64, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Determine sort order from pagination params
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			// Choose the appropriate query based on sort order
+			if sortBy == "title_desc" {
+				return r.SQLite().ListTVShowIDsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListTVShowIDsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().ListTVShowIDsByLibraryPaginated(ctx, sqlc_sqlite.ListTVShowIDsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	return result.([]int64), nil
+}
+
 // --- Helper Methods ---
 
 // ensureTVShowExists creates a TV show if it doesn't exist, or returns the existing one

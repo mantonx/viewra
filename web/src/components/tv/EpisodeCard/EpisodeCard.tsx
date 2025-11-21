@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { MediaPoster } from '@/components/media/MediaPoster'
 import { ProgressBar } from '@/components/media/ProgressBar'
 import { WatchedBadge } from '@/components/media/WatchedBadge'
-import { useMediaProgress } from '@/lib/hooks/useProgress'
+import { HoverPlayButton } from '@/components/common'
+import { useBatchProgress } from '@/lib/hooks'
 import { getProgressPercentage } from '@/lib/utils'
 import { formatDuration } from '@/lib/utils/format'
 import { getCodecBadgeColor } from '@/lib/utils/media'
@@ -9,7 +11,8 @@ import { formatResolutionLabel } from '@/lib/utils/quality'
 import type { EpisodeCardProps } from './EpisodeCard.types'
 
 const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
-  const { data: progress } = useMediaProgress(episode.id, true)
+  const [isHovered, setIsHovered] = useState(false)
+  const { progress } = useBatchProgress(episode.id)
 
   const handleClick = () => {
     onClick?.()
@@ -37,6 +40,8 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
     <div
       className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-xl transition-all hover:scale-105 duration-200"
       onClick={handleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Thumbnail with badges */}
       <div className="aspect-video relative">
@@ -48,6 +53,9 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
           preset="medium"
           fallbackIcon="🎬"
         />
+
+        <HoverPlayButton isParentHovered={isHovered} iconType="play" size="medium" />
+
         {/* Badges overlay */}
         <div className="absolute top-2 left-2 right-2 flex justify-between z-10">
           <div className="flex gap-1">
@@ -71,7 +79,6 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
           )}
         </div>
         <ProgressBar progress={progress} />
-        <WatchedBadge isWatched={progress?.is_watched} />
       </div>
 
       {/* Info */}

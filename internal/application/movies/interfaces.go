@@ -22,3 +22,8 @@ type SearchMoviesExecutor interface {
 	Execute(ctx context.Context, libraryID int64, query string) (ListMoviesResponse, error)
 	ExecuteWithPagination(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) (ListMoviesResponse, error)
 }
+
+// ListMovieIDsExecutor defines the interface for listing movie IDs only
+type ListMovieIDsExecutor interface {
+	Execute(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListIDsResponse, error)
+}

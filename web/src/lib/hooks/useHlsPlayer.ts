@@ -39,14 +39,14 @@ export interface UseHlsPlayerReturn {
  * Hook for managing HLS.js player lifecycle and quality/audio track selection.
  * Handles initialization, quality detection, track management, and cleanup.
  */
-export function useHlsPlayer(
+export const useHlsPlayer = (
   videoRef: React.RefObject<HTMLVideoElement>,
   streamUrl: string,
   initialPosition: number,
   isHlsStream: boolean,
   onBuffering: (buffering: boolean) => void,
   onError: (error: string) => void
-): UseHlsPlayerReturn {
+): UseHlsPlayerReturn => {
   const hlsRef = useRef<Hls | null>(null)
   const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([])
   const [currentQuality, setCurrentQuality] = useState<number | null>(null)
@@ -56,7 +56,7 @@ export function useHlsPlayer(
   // Initialize HLS player for HLS streams
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video) {return}
 
     // If streamUrl is empty, show buffering indicator and wait
     if (!streamUrl) {
@@ -96,7 +96,7 @@ export function useHlsPlayer(
       })
 
       // Extract quality levels
-      const qualities = data.levels.map((level, index) => ({
+      const qualities = data.levels.map((level, _index) => ({
         height: level.height,
         bandwidth: level.bitrate,
       }))
@@ -107,7 +107,7 @@ export function useHlsPlayer(
 
       // Extract audio tracks
       if (data.audioTracks && data.audioTracks.length > 0) {
-        const tracks = data.audioTracks.map((track, index) => ({
+        const tracks = data.audioTracks.map((track, _index) => ({
           id: index,
           name: track.name || `Track ${index + 1}`,
           language: track.lang || 'unknown',

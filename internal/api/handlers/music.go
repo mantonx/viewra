@@ -15,6 +15,7 @@ type MusicHandler struct {
 	listTracksByAlbumID  music.ListTracksByAlbumIDExecutor
 	getTrack             music.GetTrackExecutor
 	searchTracks         music.SearchTracksExecutor
+	listArtistIDs        music.ListArtistIDsExecutor
 }
 
 // NewMusicHandler creates a new music handler
@@ -24,6 +25,7 @@ func NewMusicHandler(
 	listTracksByAlbumID music.ListTracksByAlbumIDExecutor,
 	getTrack music.GetTrackExecutor,
 	searchTracks music.SearchTracksExecutor,
+	listArtistIDs music.ListArtistIDsExecutor,
 ) *MusicHandler {
 	return &MusicHandler{
 		listArtists:          listArtists,
@@ -31,6 +33,7 @@ func NewMusicHandler(
 		listTracksByAlbumID:  listTracksByAlbumID,
 		getTrack:             getTrack,
 		searchTracks:         searchTracks,
+		listArtistIDs:        listArtistIDs,
 	}
 }
 
@@ -148,6 +151,44 @@ func (h *MusicHandler) Search(c *gin.Context) {
 	}
 
 	resp, err := h.searchTracks.Execute(c.Request.Context(), libraryID, query)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ListIDs handles GET /api/music/ids
+// @Summary List artist IDs
+// @Description Returns a list of artist representative IDs only for prefetching images with optional pagination
+// @Tags music
+// @Produce json
+// @Param library_id query int true "Library ID to filter artists"
+// @Param limit query int false "Number of items per page (default: 50, max: 200)"
+// @Param offset query int false "Number of items to skip (default: 0)"
+// @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
+// @Success 200 {object} music.ListIDsResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/music/ids [get]
+func (h *MusicHandler) ListIDs(c *gin.Context) {
+	libraryID, ok := getRequiredQueryInt64(c, "library_id")
+	if !ok {
+		return
+	}
+
+	// Parse optional pagination parameters
+	pagination := parsePaginationParams(c)
+
+	// Parse optional sort parameter
+	sortBy := c.Query("sort")
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sortBy)
+	resp, err := h.listArtistIDs.Execute(c.Request.Context(), libraryID, paginationParams)
 	if err != nil {
 		handleError(c, err)
 		return

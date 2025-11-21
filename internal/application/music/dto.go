@@ -3,6 +3,7 @@ package music
 import (
 	"time"
 
+	appcommon "github.com/viewra/viewra/internal/application/common"
 	"github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 )
@@ -126,3 +127,7 @@ func ToListTracksResponse(tracks []*media.MusicTrack) ListTracksResponse {
 		Total:  len(responses),
 	}
 }
+
+// ListIDsResponse is now defined in application/common package to eliminate duplication
+// Kept as type alias for backwards compatibility
+type ListIDsResponse = appcommon.ListIDsResponse

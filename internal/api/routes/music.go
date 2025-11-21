@@ -19,6 +19,9 @@ func RegisterMusicRoutes(rg *gin.RouterGroup, handler *handlers.MusicHandler) {
 		// Tracks
 		music.GET("/tracks/:id", handler.GetTrack) // GET /api/music/tracks/123
 
+		// IDs for prefetching
+		music.GET("/ids", handler.ListIDs) // GET /api/music/ids?library_id=1
+
 		// Search
 		music.GET("/search", handler.Search) // GET /api/music/search?library_id=1&q=imagine
 	}

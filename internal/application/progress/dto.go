@@ -34,6 +34,11 @@ type ListProgressResponse struct {
 	Total    int                      `json:"total"`
 }
 
+// BatchProgressResponse represents batch progress for multiple media items.
+type BatchProgressResponse struct {
+	Progress map[int64]*WatchProgressResponse `json:"progress"` // map[media_id]progress
+}
+
 // toResponse converts a domain entity to a response DTO.
 func toResponse(prog *progress.WatchProgress) *WatchProgressResponse {
 	return &WatchProgressResponse{

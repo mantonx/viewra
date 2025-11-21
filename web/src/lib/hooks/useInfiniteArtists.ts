@@ -14,7 +14,7 @@ export interface UseInfiniteArtistsOptions {
   pageSize?: number
 }
 
-export function useInfiniteArtists({ libraryId, sort, enabled = true, pageSize }: UseInfiniteArtistsOptions) {
+export const useInfiniteArtists = ({ libraryId, sort, enabled = true, pageSize }: UseInfiniteArtistsOptions) => {
   return useInfiniteMedia({
     queryKey: ['music', 'artists', sort || 'title_asc'],
     queryFn: getApiMusicArtists,
@@ -27,10 +27,10 @@ export function useInfiniteArtists({ libraryId, sort, enabled = true, pageSize }
 /**
  * Helper to flatten all pages into a single array
  */
-export function flattenArtists(
+export const flattenArtists = (
   pages: Array<{
     artists?: GithubComViewraViewraInternalApplicationMusicArtistSummary[]
   }> = []
-) {
+) => {
   return flattenPages<GithubComViewraViewraInternalApplicationMusicArtistSummary>(pages, 'artists')
 }

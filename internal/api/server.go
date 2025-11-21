@@ -109,18 +109,22 @@ func NewServer(
 	listMovies *movies.ListMoviesUseCase,
 	getMovie *movies.GetMovieUseCase,
 	searchMovies *movies.SearchMoviesUseCase,
+	listMovieIDs *movies.ListMovieIDsUseCase,
 	// TV use cases
 	listTVShows *tv.ListTVShowsUseCase,
 	getTVShow *tv.GetTVShowUseCase,
 	listTVEpisodes *tv.ListTVEpisodesUseCase,
 	getTVEpisode *tv.GetTVEpisodeUseCase,
 	searchTVEpisodes *tv.SearchTVEpisodesUseCase,
+	listTVShowIDs *tv.ListTVShowIDsUseCase,
+	getNextEpisode *tv.GetNextEpisodeUseCase,
 	// Music use cases
 	listArtists *music.ListArtistsUseCase,
 	listAlbumsByArtistID *music.ListAlbumsByArtistIDUseCase,
 	listTracksByAlbumID *music.ListTracksByAlbumIDUseCase,
 	getTrack *music.GetTrackUseCase,
 	searchTracks *music.SearchTracksUseCase,
+	listArtistIDs *music.ListArtistIDsUseCase,
 ) *Server {
 	// Set Gin to release mode in production
 	// gin.SetMode(gin.ReleaseMode)
@@ -167,6 +171,7 @@ func NewServer(
 		listMovies,
 		getMovie,
 		searchMovies,
+		listMovieIDs,
 	)
 	tvHandler := handlers.NewTVHandler(
 		listTVShows,
@@ -174,6 +179,8 @@ func NewServer(
 		listTVEpisodes,
 		getTVEpisode,
 		searchTVEpisodes,
+		listTVShowIDs,
+		getNextEpisode,
 	)
 	musicHandler := handlers.NewMusicHandler(
 		listArtists,
@@ -181,6 +188,7 @@ func NewServer(
 		listTracksByAlbumID,
 		getTrack,
 		searchTracks,
+		listArtistIDs,
 	)
 
 	server := &Server{

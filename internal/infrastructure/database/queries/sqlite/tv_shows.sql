@@ -492,3 +492,17 @@ WHERE library_id = ?
   AND (title LIKE ? OR original_title LIKE ?)
 ORDER BY sort_title, title
 LIMIT ? OFFSET ?;
+
+-- name: ListTVShowIDsByLibraryPaginated :many
+SELECT id
+FROM tv_shows
+WHERE library_id = ?
+ORDER BY COALESCE(sort_title, title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListTVShowIDsByLibraryPaginatedDesc :many
+SELECT id
+FROM tv_shows
+WHERE library_id = ?
+ORDER BY COALESCE(sort_title, title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;

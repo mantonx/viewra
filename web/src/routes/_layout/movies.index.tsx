@@ -4,7 +4,7 @@ import { MovieCard } from '@/components/movies'
 import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
 import { MediaBrowsePage } from '@/components/common'
-import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider } from '@/lib/hooks'
+import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider } from '@/lib/hooks'
 import { logger } from '@/lib/utils/logger'
 import type { FilterState, ViewMode } from '@/components/common'
 
@@ -105,7 +105,7 @@ const Movies = () => {
     isFetchingNextPage,
   } = useInfiniteMovies({ libraryId, sort: apiSort })
 
-  const allMovies = data ? flattenMovies(data.pages) : []
+  const allMovies = useMemo(() => data ? flattenMovies(data.pages) : [], [data])
 
   // Extract unique genres, year range, and quality options from movies
   const { genres, yearRange, qualityOptions } = useMemo(() => {
@@ -128,10 +128,10 @@ const Movies = () => {
 
       // Collect video qualities based on resolution
       if (movie.height) {
-        if (movie.height >= 2160) qualitySet.add('4K')
-        else if (movie.height >= 1080) qualitySet.add('1080p')
-        else if (movie.height >= 720) qualitySet.add('720p')
-        else qualitySet.add('SD')
+        if (movie.height >= 2160) {qualitySet.add('4K')}
+        else if (movie.height >= 1080) {qualitySet.add('1080p')}
+        else if (movie.height >= 720) {qualitySet.add('720p')}
+        else {qualitySet.add('SD')}
       }
     })
 
@@ -236,7 +236,8 @@ const Movies = () => {
 
   return (
     <BatchImagesProvider mediaIds={movieIds}>
-      <MediaBrowsePage
+      <BatchProgressProvider mediaIds={movieIds}>
+        <MediaBrowsePage
         type="movies"
         title="Movies"
         description="Browse your movie collection."
@@ -278,10 +279,10 @@ const Movies = () => {
         getItemGenres={(movie) => movie.genre}
         getItemYear={(movie) => movie.year}
         getItemQuality={(movie) => {
-          if (!movie.height) return undefined
-          if (movie.height >= 2160) return '4K'
-          if (movie.height >= 1080) return '1080p'
-          if (movie.height >= 720) return '720p'
+          if (!movie.height) {return undefined}
+          if (movie.height >= 2160) {return '4K'}
+          if (movie.height >= 1080) {return '1080p'}
+          if (movie.height >= 720) {return '720p'}
           return 'SD'
         }}
       />
@@ -291,6 +292,7 @@ const Movies = () => {
           <div className="text-gray-400">Loading more movies...</div>
         )}
       </div>
+      </BatchProgressProvider>
     </BatchImagesProvider>
   )
 }

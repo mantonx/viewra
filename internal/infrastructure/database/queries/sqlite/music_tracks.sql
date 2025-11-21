@@ -488,3 +488,21 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = ?
 ORDER BY COALESCE(mt.sort_title, med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?;
+
+-- name: ListArtistIDsByLibraryPaginated :many
+SELECT mt.media_id as id
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.artist
+ORDER BY COALESCE(mt.sort_artist, mt.artist) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListArtistIDsByLibraryPaginatedDesc :many
+SELECT mt.media_id as id
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = ?
+GROUP BY mt.artist
+ORDER BY COALESCE(mt.sort_artist, mt.artist) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;

@@ -174,13 +174,13 @@ func TestUpdateProgress(t *testing.T) {
 			wantWatched:     true,
 		},
 		{
-			name:            "Update already watched - stays watched",
+			name:            "Update from watched to below threshold - clears watched flag",
 			initialProgress: 95,
 			initialWatched:  true,
 			newProgress:     50,
 			duration:        100,
 			wantProgress:    50,
-			wantWatched:     true,
+			wantWatched:     false,
 		},
 		{
 			name:            "Update below 90% - doesn't auto mark",

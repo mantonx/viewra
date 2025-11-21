@@ -33,3 +33,13 @@ type GetTVEpisodeExecutor interface {
 type SearchTVEpisodesExecutor interface {
 	Execute(ctx context.Context, libraryID int64, query string) (ListTVEpisodesResponse, error)
 }
+
+// ListTVShowIDsExecutor defines the interface for listing TV show IDs only
+type ListTVShowIDsExecutor interface {
+	Execute(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListIDsResponse, error)
+}
+
+// GetNextEpisodeExecutor defines the interface for getting the next episode to watch for a show
+type GetNextEpisodeExecutor interface {
+	Execute(ctx context.Context, showID int64) (*TVEpisodeResponse, error)
+}

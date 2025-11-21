@@ -286,6 +286,82 @@ func (q *Queries) GetMovieByMediaID(ctx context.Context, mediaID int64) (GetMovi
 	return i, err
 }
 
+const listMovieIDsByLibraryPaginated = `-- name: ListMovieIDsByLibraryPaginated :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type ListMovieIDsByLibraryPaginatedParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+func (q *Queries) ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMovieIDsByLibraryPaginatedDesc = `-- name: ListMovieIDsByLibraryPaginatedDesc :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?
+`
+
+type ListMovieIDsByLibraryPaginatedDescParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMoviesByGenre = `-- name: ListMoviesByGenre :many
 SELECT
     m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,

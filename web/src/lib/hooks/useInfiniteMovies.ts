@@ -14,7 +14,7 @@ export interface UseInfiniteMoviesOptions {
   pageSize?: number
 }
 
-export function useInfiniteMovies({ libraryId, sort, enabled = true, pageSize }: UseInfiniteMoviesOptions) {
+export const useInfiniteMovies = ({ libraryId, sort, enabled = true, pageSize }: UseInfiniteMoviesOptions) => {
   return useInfiniteMedia({
     queryKey: ['movies', sort],
     queryFn: getApiMovies,
@@ -27,10 +27,10 @@ export function useInfiniteMovies({ libraryId, sort, enabled = true, pageSize }:
 /**
  * Helper to flatten all pages into a single array
  */
-export function flattenMovies(
+export const flattenMovies = (
   pages: Array<{
     movies?: GithubComViewraViewraInternalApplicationMoviesMovieResponse[]
   }> = []
-) {
+) => {
   return flattenPages<GithubComViewraViewraInternalApplicationMoviesMovieResponse>(pages, 'movies')
 }

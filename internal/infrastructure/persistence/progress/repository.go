@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/viewra/viewra/internal/domain/progress"
@@ -195,6 +196,34 @@ func (r *Repository) GetByMediaIDAndUserID(ctx context.Context, mediaID, userID 
 	}
 
 	return postgresRowToProgress(result), nil
+}
+
+// GetBatchByMediaIDs retrieves watch progress for multiple media items.
+func (r *Repository) GetBatchByMediaIDs(ctx context.Context, mediaIDs []int64, userID int64) (map[int64]*progress.WatchProgress, error) {
+	result := make(map[int64]*progress.WatchProgress)
+
+	if len(mediaIDs) == 0 {
+		return result, nil
+	}
+
+	if r.dbType == "sqlite" {
+		rows, err := r.sqliteQuerier.GetBatchWatchProgressByMediaIDs(ctx, sqlc_sqlite.GetBatchWatchProgressByMediaIDsParams{
+			MediaIds: mediaIDs,
+			UserID:   common.NullInt64(userID),
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, row := range rows {
+			prog := sqliteRowToProgress(row)
+			result[prog.MediaID] = prog
+		}
+		return result, nil
+	}
+
+	// PostgreSQL batch support - TODO: implement when postgres queries are properly generated
+	return nil, fmt.Errorf("batch progress retrieval not yet supported for PostgreSQL")
 }
 
 // ListByUserID retrieves all watch progress records for a user.

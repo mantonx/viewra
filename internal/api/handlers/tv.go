@@ -10,11 +10,13 @@ import (
 
 // TVHandler handles HTTP requests for TV shows and episodes
 type TVHandler struct {
-	listShows    tv.ListTVShowsExecutor
-	getShow      tv.GetTVShowExecutor
-	listEpisodes tv.ListTVEpisodesExecutor
-	getEpisode   tv.GetTVEpisodeExecutor
-	searchTV     tv.SearchTVEpisodesExecutor
+	listShows      tv.ListTVShowsExecutor
+	getShow        tv.GetTVShowExecutor
+	listEpisodes   tv.ListTVEpisodesExecutor
+	getEpisode     tv.GetTVEpisodeExecutor
+	searchTV       tv.SearchTVEpisodesExecutor
+	listShowIDs    tv.ListTVShowIDsExecutor
+	getNextEpisode tv.GetNextEpisodeExecutor
 }
 
 // NewTVHandler creates a new TV handler
@@ -24,13 +26,17 @@ func NewTVHandler(
 	listEpisodes tv.ListTVEpisodesExecutor,
 	getEpisode tv.GetTVEpisodeExecutor,
 	searchTV tv.SearchTVEpisodesExecutor,
+	listShowIDs tv.ListTVShowIDsExecutor,
+	getNextEpisode tv.GetNextEpisodeExecutor,
 ) *TVHandler {
 	return &TVHandler{
-		listShows:    listShows,
-		getShow:      getShow,
-		listEpisodes: listEpisodes,
-		getEpisode:   getEpisode,
-		searchTV:     searchTV,
+		listShows:      listShows,
+		getShow:        getShow,
+		listEpisodes:   listEpisodes,
+		getEpisode:     getEpisode,
+		searchTV:       searchTV,
+		listShowIDs:    listShowIDs,
+		getNextEpisode: getNextEpisode,
 	}
 }
 
@@ -257,6 +263,74 @@ func (h *TVHandler) Search(c *gin.Context) {
 	}
 
 	resp, err := h.searchTV.Execute(c.Request.Context(), libraryID, query)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ListIDs handles GET /api/tv/ids
+// @Summary List TV show IDs
+// @Description Returns a list of TV show IDs only for prefetching images with optional pagination
+// @Tags tv
+// @Produce json
+// @Param library_id query int true "Library ID to filter shows"
+// @Param limit query int false "Number of items per page (default: 50, max: 200)"
+// @Param offset query int false "Number of items to skip (default: 0)"
+// @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
+// @Success 200 {object} tv.ListIDsResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/tv/ids [get]
+func (h *TVHandler) ListIDs(c *gin.Context) {
+	libraryID, ok := getRequiredQueryInt64(c, "library_id")
+	if !ok {
+		return
+	}
+
+	// Parse optional pagination parameters
+	pagination := parsePaginationParams(c)
+
+	// Parse optional sort parameter
+	sortBy := c.Query("sort")
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sortBy)
+	resp, err := h.listShowIDs.Execute(c.Request.Context(), libraryID, paginationParams)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// GetNextEpisode handles GET /api/tv/shows/:id/next-episode
+// @Summary Get next episode to watch for a show
+// @Description Returns the next episode to watch for a show based on watch progress. Returns in-progress episode if exists, otherwise first unwatched episode, or first episode if all watched
+// @Tags tv
+// @Produce json
+// @Param id path int true "Show ID"
+// @Success 200 {object} tv.TVEpisodeResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/tv/shows/{id}/next-episode [get]
+func (h *TVHandler) GetNextEpisode(c *gin.Context) {
+	showID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid show ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.getNextEpisode.Execute(c.Request.Context(), showID)
 	if err != nil {
 		handleError(c, err)
 		return

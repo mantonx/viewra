@@ -32,9 +32,21 @@ export interface MediaCardProps {
   onClick?: () => void
 
   /**
+   * Play button click handler (for the hover play button)
+   * If provided, the play button will be interactive
+   */
+  onPlay?: () => void
+
+  /**
    * Badge content to display in the top corners
    */
   badges?: ReactNode
+
+  /**
+   * Overlay content to display over the image (e.g., progress bars, watched badges)
+   * These elements should use absolute positioning
+   */
+  overlays?: ReactNode
 
   /**
    * Content to display in the info section below the image

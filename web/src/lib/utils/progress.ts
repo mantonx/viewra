@@ -4,30 +4,32 @@ import type {
 } from '../api/generated/models'
 
 // Type guards for API responses
-export function isProgressResponse(response: unknown): response is { data: WatchProgressResponse; status: number } {
+export const isProgressResponse = (response: unknown): response is { data: WatchProgressResponse; status: number } => {
+  if (typeof response !== 'object' || response === null || !('data' in response)) {
+    return false
+  }
+  const r = response as { data: unknown }
   return (
-    typeof response === 'object' &&
-    response !== null &&
-    'data' in response &&
-    typeof (response as any).data === 'object' &&
-    (response as any).data !== null &&
-    'media_id' in (response as any).data
+    typeof r.data === 'object' &&
+    r.data !== null &&
+    'media_id' in r.data
   )
 }
 
-export function isListProgressResponse(response: unknown): response is { data: ListProgressResponse; status: number } {
+export const isListProgressResponse = (response: unknown): response is { data: ListProgressResponse; status: number } => {
+  if (typeof response !== 'object' || response === null || !('data' in response)) {
+    return false
+  }
+  const r = response as { data: unknown }
   return (
-    typeof response === 'object' &&
-    response !== null &&
-    'data' in response &&
-    typeof (response as any).data === 'object' &&
-    (response as any).data !== null &&
-    'progress' in (response as any).data
+    typeof r.data === 'object' &&
+    r.data !== null &&
+    'progress' in r.data
   )
 }
 
 // Helper to extract progress response data
-export function extractProgressData(response: unknown): WatchProgressResponse | null {
+export const extractProgressData = (response: unknown): WatchProgressResponse | null => {
   if (isProgressResponse(response)) {
     return response.data
   }
@@ -35,7 +37,7 @@ export function extractProgressData(response: unknown): WatchProgressResponse | 
 }
 
 // Helper to extract list progress response data
-export function extractListProgressData(response: unknown): ListProgressResponse | null {
+export const extractListProgressData = (response: unknown): ListProgressResponse | null => {
   if (isListProgressResponse(response)) {
     return response.data
   }
@@ -46,18 +48,18 @@ export function extractListProgressData(response: unknown): ListProgressResponse
 export const DEFAULT_USER_ID = 1
 
 // Helpers for handling optional progress values
-export function getProgressPercentage(progress: WatchProgressResponse | null | undefined): number {
+export const getProgressPercentage = (progress: WatchProgressResponse | null | undefined): number => {
   return progress?.progress_percentage ?? 0
 }
 
-export function getProgressSeconds(progress: WatchProgressResponse | null | undefined): number {
+export const getProgressSeconds = (progress: WatchProgressResponse | null | undefined): number => {
   return progress?.progress_seconds ?? 0
 }
 
-export function getDurationSeconds(progress: WatchProgressResponse | null | undefined): number {
+export const getDurationSeconds = (progress: WatchProgressResponse | null | undefined): number => {
   return progress?.duration_seconds ?? 0
 }
 
-export function hasProgress(progress: WatchProgressResponse | null | undefined): boolean {
+export const hasProgress = (progress: WatchProgressResponse | null | undefined): boolean => {
   return getProgressPercentage(progress) > 0
 }

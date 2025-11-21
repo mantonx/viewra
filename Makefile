@@ -16,10 +16,10 @@ install-tools: ## Install development tools (Air, sqlc, swag, migrate)
 
 dev: ## Run development servers (backend + frontend)
 	@echo "Starting development servers..."
-	@echo "Backend will run on http://localhost:8080"
-	@echo "Frontend will run on http://localhost:3000"
+	@echo "Backend: http://localhost:8080"
+	@echo "Frontend: http://localhost:5173"
 	@echo ""
-	@which overmind > /dev/null 2>&1 && overmind start || (which foreman > /dev/null 2>&1 && foreman start || echo "Please install overmind or foreman to run dev servers")
+	@which overmind > /dev/null 2>&1 && overmind start || (echo "Overmind not found. Run separately: 'make dev-backend' and 'make dev-frontend'")
 
 dev-backend: ## Run backend with hot reload
 	~/go/bin/air

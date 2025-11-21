@@ -6,7 +6,7 @@ import { EpisodeCard } from '@/components/tv'
 import { VideoPlayerContainer } from '@/components/media'
 import { PageHeader, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
 import { tvApi } from '@/lib/api/tv'
-import { useMediaPlayback } from '@/lib/hooks/useMediaPlayback'
+import { useMediaPlayback, BatchProgressProvider } from '@/lib/hooks'
 import type { TVEpisodeResponse } from '@/lib/types/tv'
 import { logger } from '@/lib/utils/logger'
 
@@ -37,7 +37,7 @@ const SeasonDetail = () => {
     queryFn: () => tvApi.listEpisodesByShowId(showIdNumber),
   })
 
-  const allEpisodes = episodesData?.data?.episodes || []
+  const allEpisodes = useMemo(() => episodesData?.data?.episodes || [], [episodesData])
   const isLoading = isLoadingShow || isLoadingEpisodes
   const error = showError || episodesError
   const showTitle = showData?.data?.title || ''
@@ -52,7 +52,7 @@ const SeasonDetail = () => {
   // Find currently playing episode and enrich with show title and show_id
   const playingEpisode = useMemo(() => {
     const episode = seasonEpisodes.find((ep) => ep.id === playbackState.mediaId)
-    if (!episode) return undefined
+    if (!episode) {return undefined}
     // Enrich episode with show metadata for video player
     return {
       ...episode,
@@ -63,9 +63,9 @@ const SeasonDetail = () => {
 
   // Get next episode
   const nextEpisode = useMemo(() => {
-    if (!playingEpisode) return null
+    if (!playingEpisode) {return null}
     const currentIndex = seasonEpisodes.findIndex((ep) => ep.id === playingEpisode.id)
-    if (currentIndex === -1 || currentIndex === seasonEpisodes.length - 1) return null
+    if (currentIndex === -1 || currentIndex === seasonEpisodes.length - 1) {return null}
     return seasonEpisodes[currentIndex + 1]
   }, [playingEpisode, seasonEpisodes])
 
@@ -81,7 +81,7 @@ const SeasonDetail = () => {
   }, [urlEpisodeId, seasonEpisodes.length])
 
   const handlePlayEpisode = async (episode: TVEpisodeResponse) => {
-    logger.debug('Playing episode:', episode.show_title, 'S' + episode.season + 'E' + episode.episode)
+    logger.debug('Playing episode:', episode.show_title, `S${  episode.season  }E${  episode.episode}`)
 
     // Update URL with episode ID
     navigate({
@@ -170,6 +170,7 @@ const SeasonDetail = () => {
   }
 
   const seasonLabel = parseInt(seasonNumber, 10) === 0 ? 'Specials' : `Season ${seasonNumber}`
+  const episodeIds = seasonEpisodes.map((ep) => ep.id)
 
   return (
     <div className="p-8">
@@ -180,15 +181,17 @@ const SeasonDetail = () => {
       />
 
       {/* Episodes Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {seasonEpisodes.map((episode) => (
-          <EpisodeCard
-            key={episode.id}
-            episode={episode}
-            onClick={() => handlePlayEpisode(episode)}
-          />
-        ))}
-      </div>
+      <BatchProgressProvider mediaIds={episodeIds}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {seasonEpisodes.map((episode) => (
+            <EpisodeCard
+              key={episode.id}
+              episode={episode}
+              onClick={() => handlePlayEpisode(episode)}
+            />
+          ))}
+        </div>
+      </BatchProgressProvider>
     </div>
   )
 }

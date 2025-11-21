@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { TVShowCard, TVShowListItem } from '@/components/tv'
 import { MediaBrowsePage } from '@/components/common'
 import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvider } from '@/lib/hooks'
+import { tvApi } from '@/lib/api/tv'
 import type { ViewMode } from '@/components/common'
 
 const TVShows = () => {
@@ -87,6 +88,22 @@ const TVShows = () => {
     navigate({ to: `/tv/${showId}` })
   }
 
+  // Handle playing a show (play the next episode to watch)
+  const handlePlayShow = async (showId: number) => {
+    try {
+      const nextEpisode = await tvApi.getNextEpisode(showId)
+      // Navigate to the season page with the episode ID to auto-play
+      navigate({
+        to: `/tv/${showId}/season/${nextEpisode.season}`,
+        search: { episodeId: nextEpisode.id }
+      })
+    } catch (error) {
+      console.error('Failed to get next episode:', error)
+      // Fallback: just navigate to the show page
+      navigate({ to: `/tv/${showId}` })
+    }
+  }
+
   // Extract show IDs for batch image loading
   const showIds = allShows.map((s) => s.id)
 
@@ -108,6 +125,7 @@ const TVShows = () => {
             key={show.id}
             show={show}
             onClick={() => handleShowClick(show.id)}
+            onPlay={() => handlePlayShow(show.id)}
           />
         )}
         renderListItem={(show) => (

@@ -1,7 +1,7 @@
 import { MediaCard } from '@/components/media/MediaCard'
 import type { TVShowCardProps } from './TVShowCard.types'
 
-const TVShowCard = ({ show, onClick }: TVShowCardProps) => {
+const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
   return (
     <MediaCard
       mediaId={show.id}
@@ -10,6 +10,7 @@ const TVShowCard = ({ show, onClick }: TVShowCardProps) => {
       imageFallback="📺"
       aspectRatio="2/3"
       onClick={onClick}
+      onPlay={onPlay}
       playIconType="play"
       badges={
         <span className="px-2 py-1 text-xs font-semibold bg-black bg-opacity-75 text-white rounded">

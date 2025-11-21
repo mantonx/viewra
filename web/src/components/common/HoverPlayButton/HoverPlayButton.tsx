@@ -63,18 +63,13 @@ export const HoverPlayButton = ({
   }
 
   return (
-    <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${roundedClass}`}>
-      {/* Semi-transparent backdrop */}
-      <div
-        className={`absolute inset-0 bg-black transition-opacity duration-200 ${roundedClass} ${
-          isButtonHovered ? 'opacity-60' : 'opacity-20'
-        }`}
-      />
-
+    <div className="flex items-center justify-center">
       {/* Play/View button */}
       <div
-        className={`relative ${config.button} rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ${
-          isButtonHovered ? 'bg-rose-500' : 'bg-rose-500/50'
+        className={`${config.button} rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ${
+          isButtonHovered ? 'bg-blue-600' : 'bg-blue-600/50'
+        } ${
+          isButtonHovered ? 'backdrop-blur-sm' : ''
         }`}
         onMouseEnter={() => setIsButtonHovered(true)}
         onMouseLeave={() => setIsButtonHovered(false)}

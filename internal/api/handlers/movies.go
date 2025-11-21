@@ -13,6 +13,7 @@ type MoviesHandler struct {
 	listMovies   movies.ListMoviesExecutor
 	getMovie     movies.GetMovieExecutor
 	searchMovies movies.SearchMoviesExecutor
+	listMovieIDs movies.ListMovieIDsExecutor
 }
 
 // NewMoviesHandler creates a new movies handler
@@ -20,11 +21,13 @@ func NewMoviesHandler(
 	listMovies movies.ListMoviesExecutor,
 	getMovie movies.GetMovieExecutor,
 	searchMovies movies.SearchMoviesExecutor,
+	listMovieIDs movies.ListMovieIDsExecutor,
 ) *MoviesHandler {
 	return &MoviesHandler{
 		listMovies:   listMovies,
 		getMovie:     getMovie,
 		searchMovies: searchMovies,
+		listMovieIDs: listMovieIDs,
 	}
 }
 
@@ -153,6 +156,44 @@ func (h *MoviesHandler) Search(c *gin.Context) {
 
 	// Otherwise use non-paginated endpoint for backward compatibility
 	resp, err := h.searchMovies.Execute(c.Request.Context(), libraryID, query)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ListIDs handles GET /api/movies/ids
+// @Summary List movie IDs
+// @Description Returns a list of movie IDs only for prefetching images with optional pagination
+// @Tags movies
+// @Produce json
+// @Param library_id query int true "Library ID to filter movies"
+// @Param limit query int false "Number of items per page (default: 50, max: 200)"
+// @Param offset query int false "Number of items to skip (default: 0)"
+// @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
+// @Success 200 {object} movies.ListIDsResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/movies/ids [get]
+func (h *MoviesHandler) ListIDs(c *gin.Context) {
+	libraryID, ok := getRequiredQueryInt64(c, "library_id")
+	if !ok {
+		return
+	}
+
+	// Parse optional pagination parameters
+	pagination := parsePaginationParams(c)
+
+	// Parse optional sort parameter
+	sortBy := c.Query("sort")
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sortBy)
+	resp, err := h.listMovieIDs.Execute(c.Request.Context(), libraryID, paginationParams)
 	if err != nil {
 		handleError(c, err)
 		return

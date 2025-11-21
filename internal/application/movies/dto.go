@@ -3,6 +3,7 @@ package movies
 import (
 	"time"
 
+	appcommon "github.com/viewra/viewra/internal/application/common"
 	"github.com/viewra/viewra/internal/domain/common"
 	"github.com/viewra/viewra/internal/domain/media"
 )
@@ -128,3 +129,7 @@ func ToListMoviesResponseWithPagination(movies []*media.Movie, total int64, para
 		Pagination: common.NewPaginationMetadata(total, params),
 	}
 }
+
+// ListIDsResponse is now defined in application/common package to eliminate duplication
+// Kept as type alias for backwards compatibility
+type ListIDsResponse = appcommon.ListIDsResponse

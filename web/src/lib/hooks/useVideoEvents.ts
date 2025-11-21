@@ -20,11 +20,11 @@ export interface UseVideoEventsReturn {
  * Hook for managing video element event listeners and state.
  * Handles play/pause, timeupdate, volume, fullscreen, and PiP events.
  */
-export function useVideoEvents(
+export const useVideoEvents = (
   videoRef: React.RefObject<HTMLVideoElement>,
   videoDuration: number,
   progressUpdater: ProgressUpdater | null
-): UseVideoEventsReturn {
+): UseVideoEventsReturn => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [volume, setVolume] = useState(1)
@@ -35,7 +35,7 @@ export function useVideoEvents(
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video) {return}
 
     // Play event
     const handlePlay = () => {
@@ -133,7 +133,7 @@ export function useVideoEvents(
   // Picture-in-Picture event
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video) {return}
 
     const handleEnterPiP = () => {
       setIsPiP(true)

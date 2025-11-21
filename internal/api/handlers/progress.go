@@ -97,6 +97,41 @@ func (h *ProgressHandler) GetProgress(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetBatchProgress retrieves watch progress for multiple media items.
+//
+// @Summary Get batch watch progress
+// @Description Gets watch progress for multiple media items
+// @Tags progress
+// @Produce json
+// @Param media_ids query string true "Comma-separated media IDs" example("1,2,3")
+// @Success 200 {object} progress.BatchProgressResponse
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/progress/batch [get]
+func (h *ProgressHandler) GetBatchProgress(c *gin.Context) {
+	mediaIDsStr := c.Query("media_ids")
+	if mediaIDsStr == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "media_ids query parameter is required"})
+		return
+	}
+
+	mediaIDs, err := parseIDList(mediaIDsStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media IDs format"})
+		return
+	}
+
+	userID := getCurrentUserID()
+
+	response, err := progress.GetBatchProgressByMediaIDs(c.Request.Context(), h.repo, mediaIDs, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get batch progress"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 // ListProgress retrieves all watch progress for the current user.
 //
 // @Summary List watch progress

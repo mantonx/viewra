@@ -78,6 +78,9 @@ type MovieRepository interface {
 
 	// SearchMoviesByTitlePaginated searches for movies by title with pagination
 	SearchMoviesByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]*Movie, error)
+
+	// ListMovieIDsByLibraryPaginated retrieves only movie IDs in a library with pagination (for prefetching)
+	ListMovieIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]int64, error)
 }
 
 // TVRepository extends Repository with TV-specific operations
@@ -121,6 +124,9 @@ type TVRepository interface {
 
 	// SearchTVShowsByTitlePaginated searches for TV shows by title with pagination
 	SearchTVShowsByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]TVShow, error)
+
+	// ListTVShowIDsByLibraryPaginated retrieves only TV show IDs in a library with pagination (for prefetching)
+	ListTVShowIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]int64, error)
 }
 
 // TVShow represents a TV show for use in repository operations
@@ -188,6 +194,9 @@ type MusicRepository interface {
 
 	// ListMusicTracksByLibraryPaginated retrieves music tracks in a library with pagination
 	ListMusicTracksByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]*MusicTrack, error)
+
+	// ListArtistIDsByLibraryPaginated retrieves only artist representative IDs in a library with pagination (for prefetching)
+	ListArtistIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]int64, error)
 }
 
 // MusicArtist represents an artist with aggregated track and album counts

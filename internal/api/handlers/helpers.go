@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,39 @@ import (
 // parseID parses a string ID to int64
 func parseID(idStr string) (int64, error) {
 	return strconv.ParseInt(idStr, 10, 64)
+}
+
+// parseIDList parses a comma-separated string of IDs to a slice of int64
+func parseIDList(idsStr string) ([]int64, error) {
+	if idsStr == "" {
+		return []int64{}, nil
+	}
+
+	parts := splitCSV(idsStr)
+	ids := make([]int64, 0, len(parts))
+
+	for _, part := range parts {
+		id, err := parseID(part)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ID: %s", part)
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+// splitCSV splits a comma-separated string into trimmed parts
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 // parseInt parses a string to int

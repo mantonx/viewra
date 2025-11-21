@@ -31,4 +31,17 @@ export const tvApi = {
    * Search TV episodes with optional pagination
    */
   search: (params: GetApiTvSearchParams) => getApiTvSearch(params),
+
+  /**
+   * Get the next episode to watch for a show
+   * Returns the in-progress episode if exists, otherwise first unwatched episode,
+   * or first episode if all are watched
+   */
+  getNextEpisode: async (showId: number) => {
+    const response = await fetch(`/api/tv/shows/${showId}/next-episode`)
+    if (!response.ok) {
+      throw new Error(`Failed to get next episode: ${response.statusText}`)
+    }
+    return response.json()
+  },
 }

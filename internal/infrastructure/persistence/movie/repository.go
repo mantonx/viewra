@@ -383,3 +383,46 @@ func (r *Repository) SearchMoviesByTitlePaginated(ctx context.Context, libraryID
 	}
 	return movies, nil
 }
+
+// ListMovieIDsByLibraryPaginated retrieves only movie IDs in a library with pagination
+func (r *Repository) ListMovieIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]int64, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	// Determine sort order from pagination params
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			// Choose the appropriate query based on sort order
+			if sortBy == "title_desc" {
+				return r.SQLite().ListMovieIDsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListMovieIDsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			}
+			return r.SQLite().ListMovieIDsByLibraryPaginated(ctx, sqlc_sqlite.ListMovieIDsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	return result.([]int64), nil
+}

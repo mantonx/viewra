@@ -16,14 +16,31 @@ export const MediaCard = ({
   imageFallback = '🎬',
   aspectRatio = '2/3',
   onClick,
+  onPlay,
   badges,
+  overlays,
   infoContent,
   playIconType = 'play',
 }: MediaCardProps) => {
   const [isHovered, setIsHovered] = useState(false)
 
-  const handleClick = () => {
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Only trigger onClick if we're NOT clicking on the play button area
     onClick?.()
+  }
+
+  const handlePlayClick = (e: React.MouseEvent) => {
+    // Stop all event propagation and default behavior
+    e.stopPropagation()
+    e.preventDefault()
+
+    // If onPlay is provided (TV shows), trigger it
+    // Otherwise fall back to onClick (movies)
+    if (onPlay) {
+      onPlay()
+    } else {
+      onClick?.()
+    }
   }
 
   const aspectClass = aspectRatio === 'square' ? 'aspect-square' : 'aspect-2/3'
@@ -31,7 +48,7 @@ export const MediaCard = ({
   return (
     <div
       className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-xl transition-all hover:scale-105 duration-200"
-      onClick={handleClick}
+      onClick={handleCardClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -46,7 +63,14 @@ export const MediaCard = ({
           fallbackIcon={imageFallback}
         />
 
-        <HoverPlayButton isParentHovered={isHovered} iconType={playIconType} size="large" />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div
+            className="pointer-events-auto"
+            onClick={handlePlayClick}
+          >
+            <HoverPlayButton isParentHovered={isHovered} iconType={playIconType} size="large" />
+          </div>
+        </div>
 
         {/* Badge overlays */}
         {badges && (
@@ -54,6 +78,9 @@ export const MediaCard = ({
             {badges}
           </div>
         )}
+
+        {/* Positioned overlays (progress bar, watched badge, etc.) */}
+        {overlays}
       </div>
 
       {/* Info section */}

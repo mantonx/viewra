@@ -59,14 +59,18 @@ func (wp *WatchProgress) ShouldMarkWatched() bool {
 }
 
 // UpdateProgress updates the progress position and auto-marks as watched if threshold met.
+// If progress drops below 90%, the watched flag is automatically cleared.
 func (wp *WatchProgress) UpdateProgress(progressSeconds int) {
 	wp.ProgressSeconds = progressSeconds
 	wp.LastWatchedAt = time.Now()
 	wp.UpdatedAt = time.Now()
 
-	// Auto-mark as watched if >90% complete
+	// Auto-mark as watched if >90% complete, or unmark if below threshold
 	if wp.ShouldMarkWatched() {
 		wp.IsWatched = true
+	} else {
+		// If progress drops below threshold, clear the watched flag
+		wp.IsWatched = false
 	}
 }
 

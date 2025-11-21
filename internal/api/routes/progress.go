@@ -13,6 +13,9 @@ func RegisterProgressRoutes(router *gin.RouterGroup, handler *handlers.ProgressH
 		progress.GET("", handler.ListProgress)
 		progress.PUT("", handler.UpdateProgress)
 
+		// Batch progress
+		progress.GET("/batch", handler.GetBatchProgress)
+
 		// Filtered lists
 		progress.GET("/watched", handler.ListWatched)
 		progress.GET("/in-progress", handler.ListInProgress)

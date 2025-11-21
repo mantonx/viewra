@@ -401,3 +401,19 @@ LIMIT ? OFFSET ?;
 -- name: DeleteMovie :exec
 DELETE FROM movies
 WHERE media_id = ?;
+
+-- name: ListMovieIDsByLibraryPaginated :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListMovieIDsByLibraryPaginatedDesc :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = ?
+ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?;

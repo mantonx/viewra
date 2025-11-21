@@ -5,15 +5,15 @@ import { logger } from '../utils/logger'
  * Hook for handling keyboard shortcuts in the video player.
  * Supports play/pause, seeking, volume, fullscreen, and percentage-based seeking.
  */
-export function useVideoKeyboard(
+export const useVideoKeyboard = (
   videoRef: React.RefObject<HTMLVideoElement>,
   videoContainerRef: React.RefObject<HTMLDivElement>,
   videoDuration: number
-) {
+) => {
   useEffect(() => {
     const video = videoRef.current
     const container = videoContainerRef.current
-    if (!video || !container) return
+    if (!video || !container) {return}
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts if user is typing in an input field
