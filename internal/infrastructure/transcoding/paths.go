@@ -1,18 +1,20 @@
 package transcoding
 
 import (
+	"fmt"
 	"path/filepath"
-	"strconv"
+	"strings"
 )
 
 // GetHLSOutputPath returns the output directory path for HLS transcoding.
 // Format: <outputDir>/hls/<mediaID>/<quality>/
+// Quality is normalized to lowercase for consistency.
 func GetHLSOutputPath(outputDir string, mediaID int64, quality string) string {
 	return filepath.Join(
 		outputDir,
 		"hls",
-		strconv.FormatInt(mediaID, 10),
-		quality,
+		fmt.Sprintf("%d", mediaID),
+		strings.ToLower(quality),
 	)
 }
 
@@ -22,5 +24,14 @@ func GetHLSManifestPath(outputDir string, mediaID int64, quality string) string 
 	return filepath.Join(
 		GetHLSOutputPath(outputDir, mediaID, quality),
 		"playlist.m3u8",
+	)
+}
+
+// GetHLSSegmentPath returns the full path to a specific HLS segment file.
+// Format: <outputDir>/hls/<mediaID>/<quality>/seg_NNNNNN.ts
+func GetHLSSegmentPath(outputDir string, mediaID int64, quality string, segmentNum int) string {
+	return filepath.Join(
+		GetHLSOutputPath(outputDir, mediaID, quality),
+		SegmentFilename(segmentNum),
 	)
 }

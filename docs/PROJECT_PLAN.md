@@ -1897,6 +1897,316 @@ See [ADR 013](./decisions/013-library-browsing-ux-improvements.md) for complete 
 
 ---
 
+## Phase 5.9: Segment-Based On-Demand Transcoding 🎯 (4 weeks / 160 hours)
+
+**Goal**: Replace linear transcoding with intelligent segment-based generation for instant seeks and efficient resource usage
+
+**Status**: Proposed
+
+**Related ADR**: [ADR 016: Segment-Based On-Demand Transcoding](decisions/ADR-016-segment-based-on-demand-transcoding.md)
+
+**Current Limitations**:
+- ⚠️ Seeking ahead discards all previous transcode work
+- ⚠️ Every seek requires restarting transcoding from scratch
+- ⚠️ Poor UX when users sample content by jumping around
+- ⚠️ Wasteful: Most videos have <50% actual watch time
+
+**Target Outcome**: Jellyfin-style on-demand segment generation
+- ✅ Instant seeks - no transcode restart needed
+- ✅ Only transcode segments that are actually watched
+- ✅ Smooth playback with predictive prefetching
+- ✅ 70-80% reduction in transcoding work for typical usage
+
+### Phase 1: Core Infrastructure (Week 1 / 40 hours)
+
+**Database Schema**:
+
+```sql
+-- New table for segment cache tracking
+CREATE TABLE segment_cache (
+    id INTEGER PRIMARY KEY,
+    media_id INTEGER NOT NULL,
+    quality TEXT NOT NULL,
+    segment_number INTEGER NOT NULL,
+    file_path TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    last_accessed_at TIMESTAMP NOT NULL,
+    access_count INTEGER DEFAULT 0,
+    UNIQUE(media_id, quality, segment_number)
+);
+
+CREATE INDEX idx_segment_cache_lru
+    ON segment_cache(media_id, quality, last_accessed_at);
+```
+
+**Tasks**:
+1. **Segment Cache Storage** (8 hours)
+   - Create directory structure: `data/transcodes/hls/segments/{media_id}/{quality}/`
+   - Design metadata.json format for cache tracking
+   - Files: `internal/domain/transcode/segment_cache.go`
+
+2. **Segment Number Utilities** (4 hours)
+   - Calculate segment number from timestamp: `floor(seconds / 6)`
+   - Calculate segment start time: `segment_number * 6`
+   - Validate segment ranges
+   - Files: `internal/infrastructure/transcoding/segment_utils.go`
+
+3. **Segment Cache Manager** (12 hours)
+   - Repository layer with CRUD operations
+   - Check if segment exists in cache
+   - Track segment access patterns (LRU metadata)
+   - Atomic segment registration
+   - Files: `internal/domain/transcode/segment_repository.go`, `internal/infrastructure/persistence/transcode/segment_repo.go`
+
+4. **On-Demand Segment Generator** (12 hours)
+   - FFmpeg command builder for single-segment generation
+   - Use input seeking (`-ss` before `-i`) for speed
+   - Handle segment generation failures gracefully
+   - Queue-based generation with concurrency control
+   - Files: `internal/infrastructure/transcoding/segment_generator.go`
+
+5. **Database Migration** (4 hours)
+   - Create migration for `segment_cache` table
+   - Add migration rollback
+   - Test migration on PostgreSQL and SQLite
+   - Files: `migrations/010_segment_cache.sql`
+
+**Success Criteria**:
+- ✅ Can generate any segment independently
+- ✅ Cache correctly tracks segment metadata
+- ✅ Segment generation completes in <2 seconds (1080p)
+- ✅ No race conditions in concurrent generation
+
+### Phase 2: Request Handling (Week 2 / 40 hours)
+
+**Tasks**:
+1. **Dynamic Manifest Generator** (8 hours)
+   - Generate HLS m3u8 on-demand based on start position
+   - Calculate segment range from timestamp
+   - Use stable segment numbering
+   - Handle discontinuity sequences
+   - Files: `internal/application/transcode/generate_manifest.go`
+
+2. **Segment Serving Handler** (8 hours)
+   - Update `/api/media/:id/hls/:quality/seg_:number.ts` endpoint
+   - Check cache for segment
+   - If cached: serve immediately
+   - If not cached: queue generation, wait, serve
+   - Update segment access metadata
+   - Files: `internal/api/handlers/transcode.go` (update ServeHLSSegment)
+
+3. **Generation Queue** (8 hours)
+   - Worker pool for parallel segment generation
+   - Priority queue (user requests > prefetch)
+   - Deduplication (don't generate same segment twice)
+   - Cancellation support
+   - Files: `internal/infrastructure/transcoding/generation_queue.go`
+
+4. **Integration with Existing System** (8 hours)
+   - Update `ServePlaylist` to return on-demand manifests
+   - Handle transition from linear to segment-based
+   - Fallback to direct stream on errors
+   - Remove old transcode job dependencies
+   - Files: `internal/application/transcode/serve_manifest.go`
+
+5. **Error Handling & Timeouts** (8 hours)
+   - Timeout segment generation after 5 seconds
+   - Retry failed segments once
+   - Cache corruption detection & regeneration
+   - Graceful degradation to direct stream
+   - Comprehensive error logging
+   - Files: Throughout transcoding package
+
+**Success Criteria**:
+- ✅ Manifest returns in <100ms
+- ✅ First segment ready in <3 seconds
+- ✅ Concurrent requests handled correctly
+- ✅ No duplicate generation work
+- ✅ Errors don't crash playback
+
+### Phase 3: Optimization & Prefetching (Week 3 / 40 hours)
+
+**Tasks**:
+1. **Predictive Prefetcher** (12 hours)
+   - Analyze playback patterns to predict next segments
+   - Background-generate segments N+1 to N+5 (next 30 seconds)
+   - Prefetch every 10th segment for scrubbing support
+   - Don't block user requests
+   - Files: `internal/application/transcode/prefetcher.go`
+
+2. **LRU Cache Eviction** (8 hours)
+   - Eviction policy: size pressure + access patterns
+   - Scheduled cleanup task (every 6 hours)
+   - Aggressive eviction on disk pressure (>95% full)
+   - Keep segments with high access count
+   - Files: `internal/application/transcode/cache_eviction.go`
+
+3. **Cache Warming** (8 hours)
+   - Pre-generate key segments for popular content
+   - First segment (immediate playback)
+   - Segments at 25%, 50%, 75% (common seek points)
+   - Triggered on library scan or user request
+   - Files: `internal/application/transcode/cache_warming.go`
+
+4. **Monitoring & Metrics** (8 hours)
+   - Track cache hit rate
+   - Monitor segment generation time
+   - Log concurrent generation requests
+   - Disk usage alerts
+   - Expose metrics via `/api/admin/transcode/metrics`
+   - Files: `internal/api/handlers/admin_transcode.go`
+
+5. **Performance Tuning** (4 hours)
+   - Optimize FFmpeg preset (`-preset veryfast`)
+   - Tune worker pool size based on CPU cores
+   - Adjust cache size limits dynamically
+   - Profile and optimize hot paths
+   - Files: `internal/infrastructure/transcoding/config.go`
+
+**Success Criteria**:
+- ✅ Cache hit rate >80% after initial playback
+- ✅ Prefetching doesn't impact user requests
+- ✅ Disk usage stays under 20% of linear approach
+- ✅ Metrics accurately track system health
+
+### Phase 4: Migration, Testing & Rollout (Week 4 / 40 hours)
+
+**Tasks**:
+1. **Migration Path** (8 hours)
+   - Feature flag: `ENABLE_SEGMENT_BASED_TRANSCODING`
+   - Gradual rollout plan (10% → 50% → 100%)
+   - Coexistence with linear transcoding during transition
+   - Cleanup old transcode jobs when enabled
+   - Files: `internal/app/config/features.go`
+
+2. **Comprehensive Testing** (12 hours)
+   - Unit tests for all new components
+   - Integration tests for request flow
+   - Load testing (concurrent users)
+   - Edge case testing (cache misses, failures, corruption)
+   - Browser compatibility testing
+   - Files: `*_test.go` throughout transcoding package
+
+3. **Performance Comparison** (8 hours)
+   - Benchmark linear vs segment-based
+   - Measure: seek latency, disk usage, CPU usage
+   - A/B test with subset of users
+   - Document performance improvements
+   - Files: `test-integration/transcode_benchmark_test.go`
+
+4. **Documentation** (8 hours)
+   - Update API documentation
+   - Add troubleshooting guide
+   - Document configuration options
+   - Create migration guide for admins
+   - Files: `docs/TRANSCODE_ARCHITECTURE.md`, `docs/API_SPECIFICATION.md`
+
+5. **Bug Fixes & Polish** (4 hours)
+   - Fix issues discovered in testing
+   - UI polish (loading states, error messages)
+   - Final code review
+   - Prepare release notes
+   - Files: As needed
+
+**Success Criteria**:
+- ✅ All tests passing (>90% coverage)
+- ✅ No regressions in existing functionality
+- ✅ Performance targets met (see ADR-016)
+- ✅ Documentation complete
+- ✅ Ready for production rollout
+
+### Files Created/Modified
+
+**New Files** (~15 files):
+- `internal/domain/transcode/segment_cache.go`
+- `internal/domain/transcode/segment_repository.go`
+- `internal/infrastructure/transcoding/segment_utils.go`
+- `internal/infrastructure/transcoding/segment_generator.go`
+- `internal/infrastructure/transcoding/generation_queue.go`
+- `internal/infrastructure/persistence/transcode/segment_repo.go`
+- `internal/application/transcode/generate_manifest.go`
+- `internal/application/transcode/prefetcher.go`
+- `internal/application/transcode/cache_eviction.go`
+- `internal/application/transcode/cache_warming.go`
+- `migrations/010_segment_cache.sql`
+- `test-integration/transcode_benchmark_test.go`
+- `docs/TRANSCODE_ARCHITECTURE.md`
+
+**Modified Files** (~8 files):
+- `internal/api/handlers/transcode.go` (segment serving)
+- `internal/application/transcode/serve_manifest.go` (manifest generation)
+- `internal/infrastructure/transcoding/config.go` (new config options)
+- `internal/api/handlers/admin_transcode.go` (metrics endpoint)
+- `internal/app/config/features.go` (feature flag)
+- `docs/API_SPECIFICATION.md` (updated docs)
+
+### Success Metrics
+
+**Performance Targets** (from ADR-016):
+- Cache Hit Rate: >80% for segments after initial playback
+- Segment Generation Time: <2 seconds per segment (720p/1080p)
+- First Segment Ready: <3 seconds from request
+- Seek Latency: <1 second for cache hits, <5 seconds for cache misses
+- Disk Space Usage: <20% of current transcode storage
+
+**User Experience Targets**:
+- Seek Buffering Time: <3 seconds average
+- Playback Startup Time: <2 seconds
+- Rebuffering Events: <1 per viewing session
+- User Satisfaction: Reduced seek-ahead complaints
+
+### Dependencies
+
+**Required**:
+- FFmpeg (already installed)
+- Go 1.21+ (already installed)
+- SQLite or PostgreSQL (already configured)
+
+**Optional**:
+- Redis (for distributed caching in multi-instance deployments)
+
+### Risk Mitigation
+
+| Risk | Mitigation |
+|------|-----------|
+| FFmpeg input seeking inaccuracy | Accept <1s inaccuracy, use keyframe alignment |
+| Concurrent generation overhead | Lock-based queue, check cache before generating |
+| Cache corruption | Verify segment integrity, auto-regenerate on corruption |
+| Disk space exhaustion | Aggressive LRU eviction, configurable size limits |
+| Slow generation blocking playback | Use `-preset veryfast`, implement 5s timeout |
+
+### Rollback Plan
+
+If critical issues discovered during rollout:
+1. Disable feature flag: `ENABLE_SEGMENT_BASED_TRANSCODING=false`
+2. System falls back to linear transcoding immediately
+3. Segment cache remains (safe to leave for future retry)
+4. No data loss or breaking changes
+
+### Estimated Effort
+
+- **Phase 1**: 40 hours (1 week)
+- **Phase 2**: 40 hours (1 week)
+- **Phase 3**: 40 hours (1 week)
+- **Phase 4**: 40 hours (1 week)
+- **Total**: 160 hours (4 weeks / 1 month)
+
+### Prerequisites
+
+**Before Starting**:
+- ✅ Current seek-ahead implementation working (Phase 5.7 Tier 1 complete)
+- ✅ ADR-016 reviewed and approved
+- ✅ Team aligned on 4-week commitment
+- ✅ Test environment ready for performance benchmarking
+
+**Recommended First**:
+- Implement Phase 5.7 Tier 2 custom controls (better testing foundation)
+- Document current transcoding system thoroughly
+- Set up performance monitoring baseline
+
+---
+
 ## Phase 6: User Features & Multi-User Support (Future)
 
 **Goal**: Authentication and per-user features

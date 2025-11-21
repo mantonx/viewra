@@ -21,6 +21,11 @@ func parseInt(s string) (int, error) {
 	return i, err
 }
 
+// parseFloat parses a string to float64
+func parseFloat(s string) (float64, error) {
+	return strconv.ParseFloat(s, 64)
+}
+
 // paginationParams holds pagination parameters
 type paginationParams struct {
 	limit  int

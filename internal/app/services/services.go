@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/viewra/viewra/internal/app/config"
 	"github.com/viewra/viewra/internal/app/repositories"
@@ -26,6 +27,7 @@ type Services struct {
 	TranscodeService transcoding.Service
 	TranscodeQueue   *transcode.Queue
 	CleanupService   *transcode.CleanupService
+	SessionManager   *transcoding.SessionManager
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -90,6 +92,13 @@ func BuildServices(
 		cleanupService = transcode.NewCleanupService(repos.Transcode, cfg.Media.TranscodeOutputDir)
 	}
 
+	// Initialize session manager for progressive transcoding
+	transcodeConfig := transcoding.DefaultTranscodeConfig()
+	sessionManager := transcoding.NewSessionManager(transcodeConfig, logger)
+
+	// Start background cleanup of idle sessions (5 minute idle timeout)
+	_ = sessionManager.StartIdleCleanup(5*time.Minute, 5*time.Minute)
+
 	return &Services{
 		ImageCache:       imageCacheService,
 		ImageTransformer: imageTransformer,
@@ -97,6 +106,7 @@ func BuildServices(
 		TranscodeService: transcodeService,
 		TranscodeQueue:   transcodeQueue,
 		CleanupService:   cleanupService,
+		SessionManager:   sessionManager,
 	}, nil
 }
 

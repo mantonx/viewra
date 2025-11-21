@@ -242,12 +242,7 @@ func buildTranscodeUseCases(
 
 	createJob := transcode.NewCreateJobUseCase(repos.Transcode, svcs.TranscodeQueue)
 	getStatus := transcode.NewGetJobStatusUseCase(repos.Transcode)
-	serveManifest := transcode.NewServeManifestUseCase(
-		repos.Transcode,
-		repos.Media,
-		repos.Library,
-		createJob,
-	)
+	serveManifest := transcode.NewServeManifestUseCase(repos.Media, svcs.SessionManager)
 
 	return &TranscodeUseCases{
 		CreateJob:     createJob,

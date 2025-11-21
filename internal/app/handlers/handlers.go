@@ -57,6 +57,8 @@ func BuildHandlers(
 			cases.Transcode.ServeManifest,
 			svcs.TranscodeQueue,
 			svcs.CleanupService,
+			svcs.SessionManager,
+			repos.Media,
 			transcodeOutputDir,
 		)
 	}

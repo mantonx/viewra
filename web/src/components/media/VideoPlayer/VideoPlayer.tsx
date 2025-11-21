@@ -7,11 +7,17 @@ import { VideoControls } from './VideoControls'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 
 // HLS configuration constants
+// CRITICAL: Ultra-conservative buffer limits to prevent bufferFullError
+// Segments are generated on-demand and served instantly from cache,
+// so we need MINIMAL buffering to avoid overwhelming the browser's SourceBuffer
 const HLS_CONFIG = {
-  MAX_BUFFER_LENGTH: 30,
-  MAX_MAX_BUFFER_LENGTH: 60,
-  ENABLE_WORKER: true,
+  MAX_BUFFER_LENGTH: 30,        // Buffer 30 seconds ahead (5 segments)
+  MAX_MAX_BUFFER_LENGTH: 60,    // Maximum buffer of 1 minute
+  MAX_BUFFER_SIZE: 100 * 1000 * 1000,  // 100MB max buffer size
+  MAX_BUFFER_HOLE: 2.0,         // Maximum gap tolerance (2s for keyframe alignment)
+  ENABLE_WORKER: false,         // Disable worker - can cause audio issues
   LOW_LATENCY_MODE: false,
+  DEBUG: true,                  // Enable debug logging temporarily
 } as const
 
 // Helper functions for video element manipulation
@@ -60,8 +66,18 @@ export const VideoPlayer = ({
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isPiP, setIsPiP] = useState(false)
+  const [availableAudioTracks, setAvailableAudioTracks] = useState<
+    Array<{ id: number; name: string; language: string }>
+  >([])
+  const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1)
   const progressUpdaterRef = useRef<ReturnType<typeof useProgressUpdater> | null>(null)
   const lastTimeUpdateRef = useRef<number>(0)
+
+  // Track stream offset for progressive transcoding with seeking
+  // When we seek to position X, FFmpeg restarts at that position, but the new stream starts at 0
+  // We need to add this offset to display the correct time to the user
+  const streamOffsetRef = useRef<number>(0)
 
   // Detect if this is an HLS stream or direct stream
   const isHlsStream = streamUrl.endsWith('.m3u8')
@@ -130,12 +146,26 @@ export const VideoPlayer = ({
       return
     }
 
-    // Create hls.js instance
+    // Create hls.js instance with minimal buffering to prevent bufferFullError
     const hls = new Hls({
-      maxBufferLength: HLS_CONFIG.MAX_BUFFER_LENGTH,
-      maxMaxBufferLength: HLS_CONFIG.MAX_MAX_BUFFER_LENGTH,
+      debug: HLS_CONFIG.DEBUG,
       enableWorker: HLS_CONFIG.ENABLE_WORKER,
       lowLatencyMode: HLS_CONFIG.LOW_LATENCY_MODE,
+      // Buffer management - keep it moderate to avoid bufferFullError
+      maxBufferLength: HLS_CONFIG.MAX_BUFFER_LENGTH,
+      maxMaxBufferLength: HLS_CONFIG.MAX_MAX_BUFFER_LENGTH,
+      maxBufferSize: HLS_CONFIG.MAX_BUFFER_SIZE,
+      maxBufferHole: HLS_CONFIG.MAX_BUFFER_HOLE,
+      // Back buffer management
+      backBufferLength: 90,  // Keep 90 seconds behind for seeking
+      // Prevent stalls
+      highBufferWatchdogPeriod: 1,
+      // Fragment retry
+      fragLoadingMaxRetry: 6,
+      fragLoadingMaxRetryTimeout: 64000,
+      // Nudge forward on stalls
+      nudgeOffset: 0.1,
+      nudgeMaxRetry: 10,
     })
     hlsRef.current = hls
 
@@ -143,7 +173,7 @@ export const VideoPlayer = ({
     hls.loadSource(streamUrl)
     hls.attachMedia(video)
 
-    // Handle manifest parsed - extract quality levels
+    // Handle manifest parsed - extract quality levels and audio tracks
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       const levels = hls.levels
       if (levels && levels.length > 0) {
@@ -162,6 +192,24 @@ export const VideoPlayer = ({
         )
 
         setAvailableQualities(uniqueQualities)
+      }
+
+      // Extract audio tracks if available
+      const audioTracks = hls.audioTracks
+      logger.debug('HLS audio tracks detected:', audioTracks ? audioTracks.length : 0)
+      if (audioTracks && audioTracks.length > 0) {
+        const tracks = audioTracks.map((track, index) => ({
+          id: index,
+          name: track.name || `Track ${index + 1}`,
+          language: track.lang || 'Unknown',
+        }))
+        setAvailableAudioTracks(tracks)
+
+        // Set initial audio track (HLS.js defaults to track 0)
+        setCurrentAudioTrack(hls.audioTrack)
+        logger.debug('Current audio track set to:', hls.audioTrack)
+      } else {
+        logger.warn('⚠️ NO AUDIO TRACKS DETECTED IN HLS MANIFEST')
       }
 
       // Set initial position
@@ -190,6 +238,11 @@ export const VideoPlayer = ({
       }
     })
 
+    // Track audio track changes
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
+      setCurrentAudioTrack(data.id)
+    })
+
     // Clear error on successful fragment load
     hls.on(Hls.Events.FRAG_LOADED, () => {
       if (error) {
@@ -199,24 +252,34 @@ export const VideoPlayer = ({
 
     // Error handling
     hls.on(Hls.Events.ERROR, (_event, data) => {
-      logger.error('HLS.js error:', data)
+      // Only log non-buffer errors to reduce noise
+      if (data.details !== 'bufferFullError') {
+        logger.error('HLS.js error:', data.type, data.details, data.fatal ? '[FATAL]' : '', data)
+      }
+
+      // Log audio codec errors specifically
+      if (data.details && data.details.includes('audio')) {
+        logger.error('⚠️ AUDIO ERROR DETECTED:', data)
+      }
 
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
             // Network error - usually means segments aren't ready yet
-            // This can happen during progressive transcoding
-            setError('Buffering issue: Waiting for video segments to be generated...')
+            logger.error('Fatal network error, attempting recovery')
+            setError('Network issue: Retrying...')
             // Try to recover
             hls.startLoad()
             break
           case Hls.ErrorTypes.MEDIA_ERROR:
             // Media error - try to recover
-            setError('Media error: Attempting to recover...')
+            logger.error('Fatal media error, attempting recovery', data)
+            setError('Media error: Recovering...')
             hls.recoverMediaError()
             break
           default:
             // Fatal error - cannot recover
+            logger.error('Fatal error, cannot recover:', data.details)
             setError(`Playback error: ${data.details || 'Unknown error'}`)
             hls.destroy()
             hlsRef.current = null
@@ -282,9 +345,11 @@ export const VideoPlayer = ({
       const currentSecond = Math.floor(video.currentTime)
       if (currentSecond !== lastTimeUpdateRef.current) {
         lastTimeUpdateRef.current = currentSecond
-        setCurrentTime(video.currentTime)
+        // Add stream offset to show actual position in the video
+        const actualTime = video.currentTime + streamOffsetRef.current
+        setCurrentTime(actualTime)
         if (progressUpdaterRef.current && isPlaying) {
-          progressUpdaterRef.current.updateCurrentTime(video.currentTime)
+          progressUpdaterRef.current.updateCurrentTime(actualTime)
         }
       }
     }
@@ -307,6 +372,8 @@ export const VideoPlayer = ({
 
     const handleCanPlay = () => {
       setIsBuffering(false)
+      // Ensure video is unmuted when ready to play
+      ensureVideoUnmuted(video)
     }
 
     // Handle volume changes
@@ -320,6 +387,15 @@ export const VideoPlayer = ({
       setIsFullscreen(!!document.fullscreenElement)
     }
 
+    // Handle PiP changes
+    const handlePiPEnter = () => {
+      setIsPiP(true)
+    }
+
+    const handlePiPExit = () => {
+      setIsPiP(false)
+    }
+
     video.addEventListener('loadedmetadata', handleLoadedMetadata)
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
@@ -328,6 +404,8 @@ export const VideoPlayer = ({
     video.addEventListener('waiting', handleWaiting)
     video.addEventListener('canplay', handleCanPlay)
     video.addEventListener('volumechange', handleVolumeChange)
+    video.addEventListener('enterpictureinpicture', handlePiPEnter)
+    video.addEventListener('leavepictureinpicture', handlePiPExit)
     document.addEventListener('fullscreenchange', handleFullscreenChange)
 
     return () => {
@@ -339,6 +417,8 @@ export const VideoPlayer = ({
       video.removeEventListener('waiting', handleWaiting)
       video.removeEventListener('canplay', handleCanPlay)
       video.removeEventListener('volumechange', handleVolumeChange)
+      video.removeEventListener('enterpictureinpicture', handlePiPEnter)
+      video.removeEventListener('leavepictureinpicture', handlePiPExit)
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
 
       // Stop tracking when component unmounts
@@ -458,6 +538,18 @@ export const VideoPlayer = ({
     }
   }
 
+  // Handle audio track change
+  const handleAudioTrackChange = (trackId: number) => {
+    const hls = hlsRef.current
+    if (!hls) {
+      return
+    }
+
+    // Set the audio track using HLS.js API
+    hls.audioTrack = trackId
+    setCurrentAudioTrack(trackId)
+  }
+
   // Control handlers for VideoControls component
   const handlePlayPause = () => {
     const video = videoRef.current
@@ -472,8 +564,61 @@ export const VideoPlayer = ({
 
   const handleSeek = (time: number) => {
     const video = videoRef.current
-    if (video) {
-      video.currentTime = time
+    const hls = hlsRef.current
+    if (!video) {
+      return
+    }
+
+    // For progressive transcoding with HLS:
+    // If seeking far (>30s) from current position, reload manifest with start parameter
+    // to trigger backend session restart. Otherwise, seek normally.
+    const currentActualTime = video.currentTime + streamOffsetRef.current
+    const seekDistance = Math.abs(time - currentActualTime)
+    const seekThreshold = 30 // seconds - matches backend threshold
+
+    if (isHlsStream && hls && hls.url && seekDistance > seekThreshold) {
+      // Large seek - reload manifest with start position to restart FFmpeg session
+      logger.debug('Large seek detected, reloading manifest with start position', time)
+
+      // Update stream offset to the new seek position
+      streamOffsetRef.current = time
+
+      // Extract base URL and add start parameter
+      const currentUrl = hls.url
+      const baseUrl = currentUrl.split('?')[0]
+      const newUrl = `${baseUrl}?start=${time}`
+
+      // Reload with new URL
+      hls.loadSource(newUrl)
+
+      // After manifest loads, HLS.js will start from beginning of new session
+      // Resume playback with audio
+      const seekAfterManifest = () => {
+        video.currentTime = 0 // New session starts at seek position (segment 0 = time X in actual video)
+
+        // Update displayed time immediately to match seek position
+        setCurrentTime(time)
+
+        // Resume playback if we were playing before
+        if (!video.paused) {
+          video.play().then(() => {
+            ensureVideoUnmuted(video)
+          }).catch((err) => {
+            logger.warn('Failed to resume playback after seek:', err)
+          })
+        } else {
+          // Even if paused, ensure we're unmuted for when user hits play
+          ensureVideoUnmuted(video)
+        }
+
+        hls.off(Hls.Events.MANIFEST_PARSED, seekAfterManifest)
+      }
+      hls.on(Hls.Events.MANIFEST_PARSED, seekAfterManifest)
+    } else {
+      // Small seek or direct stream - seek normally
+      // Convert from actual video time to stream time
+      const streamTime = time - streamOffsetRef.current
+      video.currentTime = streamTime
     }
   }
 
@@ -499,6 +644,25 @@ export const VideoPlayer = ({
       videoContainerRef.current?.requestFullscreen()
     } else {
       document.exitFullscreen()
+    }
+  }
+
+  const handlePiPToggle = async () => {
+    const video = videoRef.current
+    if (!video) {
+      return
+    }
+
+    try {
+      if (document.pictureInPictureElement) {
+        // Already in PiP mode, exit it
+        await document.exitPictureInPicture()
+      } else if (document.pictureInPictureEnabled) {
+        // Enter PiP mode
+        await video.requestPictureInPicture()
+      }
+    } catch (error) {
+      logger.error('Picture-in-Picture error:', error)
     }
   }
 
@@ -573,8 +737,11 @@ export const VideoPlayer = ({
           volume={volume}
           isMuted={isMuted}
           isFullscreen={isFullscreen}
+          isPiP={isPiP}
           availableQualities={availableQualities}
           currentQuality={currentQuality}
+          availableAudioTracks={availableAudioTracks}
+          currentAudioTrack={currentAudioTrack}
           playbackSpeed={playbackSpeed}
           metadata={metadata}
           onPlayPause={handlePlayPause}
@@ -582,7 +749,9 @@ export const VideoPlayer = ({
           onVolumeChange={handleVolumeChangeControl}
           onMuteToggle={handleMuteToggle}
           onFullscreenToggle={handleFullscreenToggle}
+          onPiPToggle={handlePiPToggle}
           onQualityChange={handleQualityChange}
+          onAudioTrackChange={handleAudioTrackChange}
           onSpeedChange={handlePlaybackSpeedChange}
           onSkip={handleSkip}
         />

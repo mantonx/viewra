@@ -1,7 +1,6 @@
 package transcoding
 
 import (
-	"bytes"
 	"os"
 	"os/exec"
 )
@@ -31,6 +30,13 @@ type TranscodeConfig struct {
 	// HardwareAccel specifies which hardware acceleration to use
 	HardwareAccel HardwareAccel
 
+	// HardwareDevice specifies the device path for hardware acceleration
+	// Linux VAAPI/QSV: /dev/dri/renderD128 (default), /dev/dri/renderD129, etc.
+	// Windows: Not applicable (uses Direct3D/DXVA automatically)
+	// macOS: Not applicable (uses VideoToolbox automatically)
+	// Environment variable: HARDWARE_DEVICE
+	HardwareDevice string
+
 	// OutputBaseDir is the base directory for DASH outputs
 	// Environment variable: TRANSCODE_OUTPUT_DIR
 	// Default: /data/dash (or ./data/dash if /data doesn't exist)
@@ -49,6 +55,11 @@ type TranscodeConfig struct {
 
 	// ProcessGroupKill ensures all child processes are killed on cancellation
 	ProcessGroupKill bool
+
+	// ToneMappingEnabled enables automatic HDR to SDR tone mapping for HDR content
+	// When true, HDR10/HLG content will be tone mapped to SDR (bt709) for better compatibility
+	// Environment variable: TONE_MAPPING_ENABLED (default: true)
+	ToneMappingEnabled bool
 }
 
 // DefaultTranscodeConfig returns sensible defaults.
@@ -56,13 +67,27 @@ func DefaultTranscodeConfig() *TranscodeConfig {
 	// Try to detect hardware acceleration
 	hwaccel := detectHardwareAccel()
 
+	// Get hardware device from environment or use default
+	hwDevice := os.Getenv("HARDWARE_DEVICE")
+	if hwDevice == "" {
+		hwDevice = "/dev/dri/renderD128" // Default Linux device
+	}
+
+	// Get tone mapping setting from environment (default: enabled)
+	toneMappingEnabled := true
+	if envToneMapping := os.Getenv("TONE_MAPPING_ENABLED"); envToneMapping != "" {
+		toneMappingEnabled = envToneMapping == "true" || envToneMapping == "1"
+	}
+
 	return &TranscodeConfig{
-		HardwareAccel:    hwaccel,
-		OutputBaseDir:    GetDefaultOutputDir(), // /data/dash or ./data/dash
-		MinFreeDiskGB:    10,                    // Require 10GB free space
-		MaxCPUPercent:    0,                     // Unlimited by default
-		MaxMemoryMB:      0,                     // Unlimited by default
-		ProcessGroupKill: true,                  // Always kill process group
+		HardwareAccel:      hwaccel,
+		HardwareDevice:     hwDevice,
+		OutputBaseDir:      GetDefaultOutputDir(), // /data/dash or ./data/dash
+		MinFreeDiskGB:      10,                    // Require 10GB free space
+		MaxCPUPercent:      0,                     // Unlimited by default
+		MaxMemoryMB:        0,                     // Unlimited by default
+		ProcessGroupKill:   true,                  // Always kill process group
+		ToneMappingEnabled: toneMappingEnabled,    // Enable tone mapping by default
 	}
 }
 
@@ -104,13 +129,9 @@ func detectHardwareAccel() HardwareAccel {
 }
 
 // checkFFmpegEncoder checks if FFmpeg has a specific encoder available.
+// Deprecated: Use CheckFFmpegEncoder from hardware_test_utils.go instead.
 func checkFFmpegEncoder(encoder string) bool {
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-encoders")
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-	return bytes.Contains(output, []byte(encoder))
+	return CheckFFmpegEncoder(encoder)
 }
 
 // GetDefaultOutputDir returns the default transcode output directory.

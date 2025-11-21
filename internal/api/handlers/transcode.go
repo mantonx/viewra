@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"net/http"
-	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/viewra/viewra/internal/application/transcode"
+	"github.com/viewra/viewra/internal/domain/media"
 	transcodeDomain "github.com/viewra/viewra/internal/domain/transcode"
 	"github.com/viewra/viewra/internal/infrastructure/transcoding"
 	"github.com/viewra/viewra/internal/pkg/format"
@@ -19,6 +19,8 @@ type TranscodeHandler struct {
 	serveManifestUseCase *transcode.ServeManifestUseCase
 	queue                *transcode.Queue
 	cleanupService       *transcode.CleanupService
+	sessionManager       *transcoding.SessionManager
+	mediaRepo            media.Repository
 	outputDir            string
 }
 
@@ -29,6 +31,8 @@ func NewTranscodeHandler(
 	serveManifestUseCase *transcode.ServeManifestUseCase,
 	queue *transcode.Queue,
 	cleanupService *transcode.CleanupService,
+	sessionManager *transcoding.SessionManager,
+	mediaRepo media.Repository,
 	outputDir string,
 ) *TranscodeHandler {
 	return &TranscodeHandler{
@@ -37,13 +41,16 @@ func NewTranscodeHandler(
 		serveManifestUseCase: serveManifestUseCase,
 		queue:                queue,
 		cleanupService:       cleanupService,
+		sessionManager:       sessionManager,
+		mediaRepo:            mediaRepo,
 		outputDir:            outputDir,
 	}
 }
 
 // CreateTranscodeJobRequest represents a request to start transcoding.
 type CreateTranscodeJobRequest struct {
-	Quality string `json:"quality" binding:"required"`
+	Quality       string `json:"quality" binding:"required"`
+	StartPosition int    `json:"start_position,omitempty"` // Optional: start position in seconds for seek-based transcoding
 }
 
 // TranscodeJobResponse represents a transcode job response.
@@ -90,8 +97,9 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 
 	// Use the create job use case
 	job, err := h.createJobUseCase.Execute(c.Request.Context(), transcode.CreateJobRequest{
-		MediaID: mediaID,
-		Quality: req.Quality,
+		MediaID:       mediaID,
+		Quality:       req.Quality,
+		StartPosition: req.StartPosition,
 	})
 	if err != nil {
 		switch err {
@@ -171,29 +179,17 @@ func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-// OnDemandResponse represents the response for on-demand transcoding requests.
-type OnDemandResponse struct {
-	Strategy      string `json:"strategy"`                 // direct_play, remux, remux_audio, or transcode
-	URL           string `json:"url,omitempty"`            // For direct_play
-	JobID         int64  `json:"job_id,omitempty"`         // For processing strategies
-	Status        string `json:"status,omitempty"`         // Job status
-	Progress      int    `json:"progress,omitempty"`       // Job progress (0-100)
-	EstimatedTime string `json:"estimated_time,omitempty"` // Estimated completion time
-}
-
-// ServePlaylist serves the HLS playlist file for a transcoded media item with on-demand transcoding support.
+// ServePlaylist serves the HLS playlist file for a media item with on-demand segment generation.
 //
-// @Summary Serve HLS playlist (with on-demand transcoding)
-// @Description Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video
-// @Description and either redirects to direct stream or creates a transcode job.
+// @Summary Serve HLS playlist (instant manifest generation)
+// @Description Serves the HLS playlist (.m3u8) file for adaptive streaming. Generates complete manifest instantly
+// @Description from segment 0. Segments are created on-demand as the player requests them. Compatible videos redirect to direct stream.
 // @Tags transcode
 // @Produce application/vnd.apple.mpegurl,application/json
 // @Param media_id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
-// @Param start query int false "Start position in seconds (for seek-based transcoding)"
-// @Success 200 {file} file "HLS playlist file (if exists)"
+// @Success 200 {file} file "HLS playlist file - segments generated on-demand"
 // @Success 302 "Redirect to direct stream (for compatible files)"
-// @Success 202 {object} OnDemandResponse "Job created (for files needing processing)"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
@@ -201,7 +197,6 @@ type OnDemandResponse struct {
 func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
-	startPosStr := c.Query("start")
 
 	mediaID, err := parseID(mediaIDStr)
 	if err != nil {
@@ -209,16 +204,12 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		return
 	}
 
-	// Parse optional start position
-	var startPosition *int
-	if startPosStr != "" {
-		pos, err := parseID(startPosStr)
-		if err != nil || pos < 0 {
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid start position"})
-			return
+	// Parse optional start position query parameter for seeking
+	startPosition := 0.0
+	if startStr := c.Query("start"); startStr != "" {
+		if start, err := parseFloat(startStr); err == nil {
+			startPosition = start
 		}
-		startPosInt := int(pos)
-		startPosition = &startPosInt
 	}
 
 	// Use the serve manifest use case
@@ -236,7 +227,8 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 	// Handle response based on strategy
 	switch response.Strategy {
 	case transcode.StrategyServe:
-		// Playlist exists - serve it directly
+		// Manifest generated - serve it directly
+		// Segments will be generated on-demand as player requests them
 		c.Header("Content-Type", "application/vnd.apple.mpegurl")
 		c.Header("Access-Control-Allow-Origin", "*") // CORS for HLS
 		c.File(response.ManifestPath)
@@ -246,47 +238,67 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		// Frontend expects 302 redirect for direct play
 		c.Redirect(http.StatusFound, response.DirectPlayURL)
 
-	case transcode.StrategyTranscode:
-		// Transcode needed - return job information
-		c.JSON(http.StatusAccepted, OnDemandResponse{
-			Strategy:      response.Job.Type,
-			JobID:         response.Job.ID,
-			Status:        response.Job.Status,
-			Progress:      response.Job.Progress,
-			EstimatedTime: response.EstimatedTime,
-		})
+	default:
+		// Should never reach here with new segment-based system
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Unknown streaming strategy"})
 	}
 }
 
-// ServeHLSSegment serves HLS segment files (MPEG-TS segments).
+// ServeHLSSegment serves HLS segment files from progressive transcode sessions.
 //
 // @Summary Serve HLS segment
-// @Description Serves HLS segment files (.ts) for adaptive streaming
+// @Description Serves HLS segment files (.ts) from progressive transcoding sessions
 // @Tags transcode
 // @Produce video/mp2t
 // @Param media_id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
-// @Param filename path string true "Segment filename"
+// @Param filename path string true "Segment filename (e.g., seg_000123.ts)"
 // @Success 200 {file} file "HLS segment file"
+// @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
 // @Router /api/media/{media_id}/hls/{quality}/{filename} [get]
 func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	mediaIDStr := c.Param("id")
 	quality := c.Param("quality")
 	filename := c.Param("filename")
 
-	// Record access to prevent idle timeout
+	// Parse media ID
 	mediaID, err := parseID(mediaIDStr)
-	if err == nil {
-		h.queue.RecordAccess(mediaID, quality)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		return
 	}
 
-	// Build segment path using centralized path construction
-	segmentPath := filepath.Join(transcoding.GetHLSOutputPath(h.outputDir, mediaID, quality), filename)
+	// Parse segment number from filename
+	segmentNum := transcoding.ParseSegmentNumber(filename)
+	if segmentNum < 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid segment filename"})
+		return
+	}
 
-	// Serve the file
+	// Get active transcode session
+	session, err := h.sessionManager.GetSession(mediaID, quality)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "No active transcode session"})
+		return
+	}
+
+	// Wait for segment to be generated (30 second timeout)
+	segmentPath, err := session.WaitForSegment(segmentNum, 30*time.Second)
+	if err != nil {
+		c.JSON(http.StatusRequestTimeout, ErrorResponse{
+			Error: "Segment not available - transcoding may be slow or failed",
+		})
+		return
+	}
+
+	// Update session last accessed time
+	session.UpdateLastAccessed()
+
+	// Serve the segment
 	c.Header("Content-Type", "video/mp2t")
-	c.Header("Access-Control-Allow-Origin", "*") // CORS for HLS
+	c.Header("Access-Control-Allow-Origin", "*")
 	c.File(segmentPath)
 }
 

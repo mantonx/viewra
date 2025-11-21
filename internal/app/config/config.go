@@ -125,8 +125,8 @@ func (c *Config) Validate() error {
 	if c.Media.TranscodeWorkers < 1 {
 		return fmt.Errorf("transcode workers must be at least 1, got %d", c.Media.TranscodeWorkers)
 	}
-	if c.Media.TranscodeWorkers > 10 {
-		return fmt.Errorf("transcode workers should not exceed 10, got %d", c.Media.TranscodeWorkers)
+	if c.Media.TranscodeWorkers > 20 {
+		return fmt.Errorf("transcode workers should not exceed 20, got %d", c.Media.TranscodeWorkers)
 	}
 	if c.Media.TranscodePollInterval < 1*time.Second {
 		return fmt.Errorf("transcode poll interval must be at least 1 second, got %v", c.Media.TranscodePollInterval)
@@ -233,7 +233,7 @@ func loadServerConfig(logger *slog.Logger) ServerConfig {
 func loadMediaConfig(logger *slog.Logger) MediaConfig {
 	return MediaConfig{
 		TranscodeOutputDir:    getEnv("TRANSCODE_OUTPUT_DIR", "./data/cache/transcodes"),
-		TranscodeWorkers:      getEnvIntWithLog(logger, "TRANSCODE_WORKERS", 2),
+		TranscodeWorkers:      getEnvIntWithLog(logger, "TRANSCODE_WORKERS", 8),
 		TranscodePollInterval: getEnvDurationWithLog(logger, "TRANSCODE_POLL_INTERVAL", 10*time.Second),
 		TranscodeIdleTimeout:  getEnvDurationWithLog(logger, "TRANSCODE_IDLE_TIMEOUT", 5*time.Minute),
 		ScanTimeout:           getEnvDurationWithLog(logger, "SCAN_TIMEOUT", 24*time.Hour), // Default 24 hours for large libraries
