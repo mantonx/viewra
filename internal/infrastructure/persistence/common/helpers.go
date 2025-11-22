@@ -78,6 +78,24 @@ func NullInt64(value int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: value, Valid: value != 0}
 }
 
+// NullInt64Ptr creates a sql.NullInt64 from an *int64 pointer.
+// Valid is true if pointer is non-nil.
+func NullInt64Ptr(value *int64) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{Valid: false}
+	}
+	return sql.NullInt64{Int64: *value, Valid: true}
+}
+
+// NullInt32Ptr creates a sql.NullInt32 from an *int64 pointer.
+// Valid is true if pointer is non-nil.
+func NullInt32Ptr(value *int64) sql.NullInt32 {
+	if value == nil {
+		return sql.NullInt32{Valid: false}
+	}
+	return sql.NullInt32{Int32: int32(*value), Valid: true}
+}
+
 // NullFloat64 creates a sql.NullFloat64 from a float64 value.
 // Valid is true if value is non-zero.
 func NullFloat64(value float64) sql.NullFloat64 {
@@ -140,6 +158,26 @@ func ParseNullInt64(value sql.NullInt64) int64 {
 	return 0
 }
 
+// ParseNullInt64Ptr converts sql.NullInt64 to *int64.
+// Returns nil if the value is NULL.
+func ParseNullInt64Ptr(value sql.NullInt64) *int64 {
+	if value.Valid {
+		val := value.Int64
+		return &val
+	}
+	return nil
+}
+
+// ParseNullInt32Ptr converts sql.NullInt32 to *int64.
+// Returns nil if the value is NULL.
+func ParseNullInt32Ptr(value sql.NullInt32) *int64 {
+	if value.Valid {
+		val := int64(value.Int32)
+		return &val
+	}
+	return nil
+}
+
 // ParseNullInt32 converts sql.NullInt32 to int64.
 // Returns 0 if the value is NULL.
 func ParseNullInt32(value sql.NullInt32) int64 {
@@ -188,4 +226,26 @@ func IsUniqueConstraintError(err error) bool {
 	}
 
 	return isUnique
+}
+
+// FormatNullDate converts sql.NullTime to ISO 8601 date string (YYYY-MM-DD).
+// Returns empty string if the value is NULL or zero.
+func FormatNullDate(t sql.NullTime) string {
+	if t.Valid && !t.Time.IsZero() {
+		return t.Time.Format("2006-01-02")
+	}
+	return ""
+}
+
+// ParseDateString parses an ISO 8601 date string (YYYY-MM-DD) to sql.NullTime.
+// Returns NULL NullTime if the string is empty or invalid.
+func ParseDateString(s string) sql.NullTime {
+	if s == "" {
+		return sql.NullTime{Valid: false}
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return sql.NullTime{Valid: false}
+	}
+	return sql.NullTime{Time: t, Valid: true}
 }

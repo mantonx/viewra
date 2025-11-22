@@ -199,10 +199,10 @@ func (h *MusicHandler) ListIDs(c *gin.Context) {
 
 // ListAlbumsByArtistID handles GET /api/music/artists/:id/albums
 // @Summary List albums for an artist by ID
-// @Description Returns all albums for an artist identified by a representative track ID
+// @Description Returns all albums for an artist identified by artist entity ID from music_artists table
 // @Tags music
 // @Produce json
-// @Param id path int true "Artist representative track ID"
+// @Param id path int true "Artist ID (music_artists.id)"
 // @Success 200 {object} music.ListAlbumsResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -229,10 +229,10 @@ func (h *MusicHandler) ListAlbumsByArtistID(c *gin.Context) {
 
 // ListTracksByAlbumID handles GET /api/music/albums/:id/tracks
 // @Summary List tracks for an album by ID
-// @Description Returns all tracks for an album identified by a representative track ID
+// @Description Returns all tracks for an album identified by album entity ID from music_albums table
 // @Tags music
 // @Produce json
-// @Param id path int true "Album representative track ID"
+// @Param id path int true "Album ID (music_albums.id)"
 // @Success 200 {object} music.ListTracksResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse

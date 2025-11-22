@@ -150,6 +150,8 @@ func buildLibraryUseCases(
 			repos.TV,
 			repos.Music,
 			repos.ScanJob,
+			repos.Checkpoint,
+			repos.ScanState,
 			extractMovie,
 			extractEpisode,
 			extractShow,
@@ -159,6 +161,7 @@ func buildLibraryUseCases(
 			repos.Image,
 			imageCleanup,
 			scanTimeout,
+			logger,
 		),
 	}
 }

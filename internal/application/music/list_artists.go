@@ -20,34 +20,49 @@ func NewListArtistsUseCase(repo media.MusicRepository) *ListArtistsUseCase {
 	}
 }
 
-// Execute retrieves all artists in a library with track and album counts
-// Uses efficient database aggregation instead of loading all tracks into memory
+// Execute retrieves all artists in a library
 func (uc *ListArtistsUseCase) Execute(ctx context.Context, libraryID int64) (ListArtistsResponse, error) {
-	// Get total count
-	total, err := uc.repo.CountArtistsByLibrary(ctx, libraryID)
-	if err != nil {
-		return ListArtistsResponse{}, fmt.Errorf("failed to count artists: %w", err)
-	}
-
-	// Get all artists without pagination (use very large limit)
-	pagination := &common.PaginationParams{
-		Limit:  int(total), // Get all artists
-		Offset: 0,
-	}
-
-	artists, err := uc.repo.ListArtistsByLibraryPaginated(ctx, libraryID, pagination)
+	// Get all artist entities from music_artists table
+	artists, err := uc.repo.ListArtistsByLibrary(ctx, libraryID)
 	if err != nil {
 		return ListArtistsResponse{}, fmt.Errorf("failed to list artists: %w", err)
+	}
+
+	// Get all albums and tracks to count per artist
+	albums, err := uc.repo.ListAlbumsByLibrary(ctx, libraryID)
+	if err != nil {
+		return ListArtistsResponse{}, fmt.Errorf("failed to list albums: %w", err)
+	}
+
+	tracks, err := uc.repo.ListMusicTracksByLibrary(ctx, libraryID)
+	if err != nil {
+		return ListArtistsResponse{}, fmt.Errorf("failed to list tracks: %w", err)
+	}
+
+	// Count albums and tracks per artist
+	albumCounts := make(map[int64]int)
+	trackCounts := make(map[int64]int)
+
+	for _, album := range albums {
+		if album.ArtistID > 0 {
+			albumCounts[album.ArtistID]++
+		}
+	}
+
+	for _, track := range tracks {
+		if track.ArtistID > 0 {
+			trackCounts[track.ArtistID]++
+		}
 	}
 
 	// Convert to response
 	responses := make([]ArtistSummary, len(artists))
 	for i, artist := range artists {
 		responses[i] = ArtistSummary{
-			ID:         artist.RepresentativeID,
-			Name:       artist.Artist,
-			AlbumCount: int(artist.AlbumCount),
-			TrackCount: int(artist.TrackCount),
+			ID:         artist.ID,
+			Name:       artist.Name,
+			AlbumCount: albumCounts[artist.ID],
+			TrackCount: trackCounts[artist.ID],
 		}
 	}
 
@@ -58,37 +73,23 @@ func (uc *ListArtistsUseCase) Execute(ctx context.Context, libraryID int64) (Lis
 }
 
 // ExecuteWithPagination retrieves artists in a library with pagination
+// For now, this doesn't paginate properly - it gets all artists and counts
+// TODO: Optimize with database-level pagination and aggregation
 func (uc *ListArtistsUseCase) ExecuteWithPagination(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListArtistsResponse, error) {
 	if pagination == nil {
 		pagination = common.DefaultPaginationParams()
 	}
 
-	// Get total count
-	total, err := uc.repo.CountArtistsByLibrary(ctx, libraryID)
+	// For now, just call Execute and return all results
+	// TODO: Add proper pagination at database level
+	resp, err := uc.Execute(ctx, libraryID)
 	if err != nil {
-		return ListArtistsResponse{}, fmt.Errorf("failed to count artists: %w", err)
+		return ListArtistsResponse{}, err
 	}
 
-	// Get paginated results with counts
-	artists, err := uc.repo.ListArtistsByLibraryPaginated(ctx, libraryID, pagination)
-	if err != nil {
-		return ListArtistsResponse{}, fmt.Errorf("failed to list artists: %w", err)
-	}
+	// Add pagination metadata
+	total := int64(len(resp.Artists))
+	resp.Pagination = common.NewPaginationMetadata(total, pagination)
 
-	// Convert to response
-	responses := make([]ArtistSummary, len(artists))
-	for i, artist := range artists {
-		responses[i] = ArtistSummary{
-			ID:         artist.RepresentativeID,
-			Name:       artist.Artist,
-			AlbumCount: int(artist.AlbumCount),
-			TrackCount: int(artist.TrackCount),
-		}
-	}
-
-	return ListArtistsResponse{
-		Artists:    responses,
-		Total:      len(responses),
-		Pagination: common.NewPaginationMetadata(total, pagination),
-	}, nil
+	return resp, nil
 }

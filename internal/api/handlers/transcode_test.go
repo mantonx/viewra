@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -131,10 +129,9 @@ func (m *MockTranscodeRepository) CountByStatus(ctx context.Context, status stri
 
 func (m *MockTranscodeRepository) GetTotalSize(ctx context.Context) (int64, error) {
 	var totalSize int64
-	// TODO: OutputSize field doesn't exist on TranscodeJob
-	// for _, job := range m.jobs {
-	// 	totalSize += job.OutputSize
-	// }
+	for _, job := range m.jobs {
+		totalSize += job.FileSizeBytes
+	}
 	return totalSize, nil
 }
 
@@ -165,7 +162,7 @@ func (m *MockTranscodeRepository) UpdateAccess(ctx context.Context, mediaID int6
 
 
 // setupTestHandler creates a test handler with mocked dependencies
-func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository, *transcode.Queue) {
+func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository, *transcode.Queue, *mocks.MediaRepository) {
 	repo := NewMockTranscodeRepository()
 	mediaRepo := mocks.NewMediaRepository(t)
 
@@ -192,7 +189,7 @@ func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository
 		t.TempDir(),
 	)
 
-	return handler, repo, queue
+	return handler, repo, queue, mediaRepo
 }
 
 func TestCreateTranscodeJob(t *testing.T) {
@@ -261,7 +258,7 @@ func TestCreateTranscodeJob(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler, repo, _ := setupTestHandler(t)
+			handler, repo, _, _ := setupTestHandler(t)
 			tt.setupRepo(repo)
 
 			// Create request
@@ -347,7 +344,7 @@ func TestGetTranscodeStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler, repo, _ := setupTestHandler(t)
+			handler, repo, _, _ := setupTestHandler(t)
 			tt.setupRepo(repo)
 
 			// Create request
@@ -425,7 +422,7 @@ func TestGetQueueStats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler, repo, _ := setupTestHandler(t)
+			handler, repo, _, _ := setupTestHandler(t)
 			tt.setupRepo(repo)
 
 			// Create request
@@ -463,40 +460,25 @@ func TestGetQueueStats(t *testing.T) {
 func TestServeManifest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	// TODO: Add test case for successful manifest serving
+	// This requires either:
+	// 1) Mocking the ServeManifestUseCase to avoid FFmpeg dependency, OR
+	// 2) Creating a test fixture with a real video file and FFmpeg available
+	// The media repository mock is properly set up now (returns mediaRepo from setupTestHandler),
+	// so tests can populate it with: mediaRepo.WithMedia(&media.Media{...})
+
 	tests := []struct {
 		name           string
 		mediaID        string
 		quality        string
-		setupEnv       func(*testing.T, string) // Setup files and media repo
 		expectedStatus int
 		expectFile     bool
 		expectJSON     bool
-		skip           bool // Skip this test case
 	}{
-		{
-			name:    "Serve existing manifest",
-			mediaID: "123",
-			quality: "720p",
-			setupEnv: func(t *testing.T, outputDir string) {
-				// Create manifest file
-				manifestDir := filepath.Join(outputDir, "dash", "123", "720p")
-				os.MkdirAll(manifestDir, 0755)
-				manifestPath := filepath.Join(manifestDir, "manifest.mpd")
-				os.WriteFile(manifestPath, []byte("<MPD>test manifest</MPD>"), 0644)
-				// Create segments
-				os.WriteFile(filepath.Join(manifestDir, "segment_0.m4s"), []byte("segment"), 0644)
-				os.WriteFile(filepath.Join(manifestDir, "segment_1.m4s"), []byte("segment"), 0644)
-			},
-			expectedStatus: http.StatusOK,
-			expectFile:     true,
-			expectJSON:     false,
-			skip:           true, // TODO: Need to setup media repository properly
-		},
 		{
 			name:           "Invalid media ID",
 			mediaID:        "invalid",
 			quality:        "720p",
-			setupEnv:       func(t *testing.T, outputDir string) {},
 			expectedStatus: http.StatusBadRequest,
 			expectFile:     false,
 			expectJSON:     false,
@@ -505,16 +487,7 @@ func TestServeManifest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.skip {
-				t.Skip("Skipping test - needs proper media repository setup")
-			}
-
-			handler, _, _ := setupTestHandler(t)
-
-			// Setup environment
-			if tt.setupEnv != nil {
-				tt.setupEnv(t, handler.outputDir)
-			}
+			handler, _, _, _ := setupTestHandler(t)
 
 			// Create request
 			req := httptest.NewRequest(http.MethodGet, "/api/media/"+tt.mediaID+"/dash/"+tt.quality+"/manifest.mpd", nil)
@@ -587,7 +560,7 @@ func TestCancelTranscodeJob(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler, repo, _ := setupTestHandler(t)
+			handler, repo, _, _ := setupTestHandler(t)
 			tt.setupRepo(repo)
 
 			// Create request

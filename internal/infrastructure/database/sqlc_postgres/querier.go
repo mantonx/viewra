@@ -13,8 +13,10 @@ type Querier interface {
 	CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error
 	CountAlbumsInLibrary(ctx context.Context, libraryID int32) (int64, error)
 	CountArtistsInLibrary(ctx context.Context, libraryID int32) (int64, error)
+	CountFailedScanCheckpoints(ctx context.Context, scanJobID int32) (int64, error)
 	CountLibraries(ctx context.Context) (int64, error)
 	CountLibrariesByType(ctx context.Context, type_ string) (int64, error)
+	CountLibraryScanState(ctx context.Context, libraryID int32) (int64, error)
 	CountMediaByType(ctx context.Context, arg CountMediaByTypeParams) (int64, error)
 	CountMediaInLibrary(ctx context.Context, libraryID int32) (int64, error)
 	CountScanJobsByLibrary(ctx context.Context, libraryID int32) (int64, error)
@@ -27,6 +29,8 @@ type Querier interface {
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreateMovie(ctx context.Context, arg CreateMovieParams) error
 	CreateMusicTrack(ctx context.Context, arg CreateMusicTrackParams) error
+	CreateScanCheckpoint(ctx context.Context, arg CreateScanCheckpointParams) (ScanCheckpoint, error)
+	CreateScanCheckpointBatch(ctx context.Context, arg CreateScanCheckpointBatchParams) error
 	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
 	// ============================================================================
 	// TV Episodes
@@ -50,7 +54,10 @@ type Querier interface {
 	DeleteMusicTrack(ctx context.Context, mediaID int32) error
 	// sqlc.arg(retention_days): the number of days to retain completed/failed jobs
 	DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error
+	DeleteScanCheckpointsByJobID(ctx context.Context, scanJobID int32) error
 	DeleteScanJob(ctx context.Context, id int32) error
+	DeleteScanStateByLibrary(ctx context.Context, libraryID int32) error
+	DeleteScanStateByPath(ctx context.Context, arg DeleteScanStateByPathParams) error
 	DeleteTVEpisode(ctx context.Context, mediaID int32) error
 	DeleteTVSeason(ctx context.Context, id int32) error
 	DeleteTVShow(ctx context.Context, id int32) error
@@ -68,12 +75,21 @@ type Querier interface {
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int32) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int32) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
+	GetLibraryScanState(ctx context.Context, libraryID int32) ([]ScanState, error)
 	GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePathParams) (Medium, error)
 	GetMediaByID(ctx context.Context, id int32) (Medium, error)
 	GetMovieByMediaID(ctx context.Context, mediaID int32) (GetMovieByMediaIDRow, error)
 	GetMusicTrackByMediaID(ctx context.Context, mediaID int32) (GetMusicTrackByMediaIDRow, error)
+	GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error)
+	GetScanCheckpointByID(ctx context.Context, id int32) (ScanCheckpoint, error)
+	GetScanCheckpointByPath(ctx context.Context, arg GetScanCheckpointByPathParams) (ScanCheckpoint, error)
+	GetScanCheckpointErrorsByCategory(ctx context.Context, scanJobID int32) ([]GetScanCheckpointErrorsByCategoryRow, error)
+	GetScanCheckpointProgress(ctx context.Context, scanJobID int32) (GetScanCheckpointProgressRow, error)
+	GetScanCheckpointStats(ctx context.Context, scanJobID int32) (GetScanCheckpointStatsRow, error)
 	GetScanJob(ctx context.Context, id int32) (ScanJob, error)
 	GetScanJobStats(ctx context.Context, libraryID int32) (GetScanJobStatsRow, error)
+	GetScanStateByPath(ctx context.Context, arg GetScanStateByPathParams) (ScanState, error)
+	GetScanStateModifiedSince(ctx context.Context, arg GetScanStateModifiedSinceParams) ([]ScanState, error)
 	GetTVEpisodeByMediaID(ctx context.Context, mediaID int32) (GetTVEpisodeByMediaIDRow, error)
 	GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg GetTVEpisodeByShowSeasonEpisodeParams) (GetTVEpisodeByShowSeasonEpisodeRow, error)
 	GetTVSeasonByID(ctx context.Context, id int32) (TvSeason, error)
@@ -95,6 +111,7 @@ type Querier interface {
 	ListAllMedia(ctx context.Context) ([]Medium, error)
 	ListAllTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListArtistsByLibrary(ctx context.Context, libraryID int32) ([]MusicArtist, error)
+	ListFailedScanCheckpoints(ctx context.Context, arg ListFailedScanCheckpointsParams) ([]ScanCheckpoint, error)
 	ListInProgressByUserID(ctx context.Context, arg ListInProgressByUserIDParams) ([]WatchProgress, error)
 	ListLibraries(ctx context.Context) ([]Library, error)
 	ListLibrariesByType(ctx context.Context, type_ string) ([]Library, error)
@@ -123,6 +140,7 @@ type Querier interface {
 	ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error)
 	ListWatchedByUserID(ctx context.Context, arg ListWatchedByUserIDParams) ([]WatchProgress, error)
 	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (bool, error)
+	ResetFailedScanCheckpoints(ctx context.Context, scanJobID int32) error
 	SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTitleParams) ([]SearchMoviesByTitleRow, error)
 	SearchMusicTracks(ctx context.Context, arg SearchMusicTracksParams) ([]SearchMusicTracksRow, error)
 	SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpisodesByTitleParams) ([]SearchTVEpisodesByTitleRow, error)
@@ -133,6 +151,8 @@ type Querier interface {
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)
 	UpdateMovie(ctx context.Context, arg UpdateMovieParams) error
 	UpdateMusicTrack(ctx context.Context, arg UpdateMusicTrackParams) error
+	UpdateScanCheckpointRetryCount(ctx context.Context, arg UpdateScanCheckpointRetryCountParams) error
+	UpdateScanCheckpointStatus(ctx context.Context, arg UpdateScanCheckpointStatusParams) error
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
 	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
 	UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams) error
@@ -142,6 +162,7 @@ type Querier interface {
 	UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error
 	UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
+	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error)
 }
 

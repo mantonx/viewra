@@ -11,6 +11,7 @@ import (
 	musicRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/music"
 	progressRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/progress"
 	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
+	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 )
@@ -18,15 +19,17 @@ import (
 // Repositories holds all data access layer implementations.
 // Groups all persistence repositories for dependency injection.
 type Repositories struct {
-	Library   *libraryRepo.Repository
-	Media     *mediaRepo.Repository
-	Progress  *progressRepo.Repository
-	ScanJob   *scanJobRepo.Repository
-	Transcode *transcodeRepo.Repository
-	Movie     *movieRepo.Repository
-	TV        *tvRepo.Repository
-	Music     *musicRepo.Repository
-	Image     *imageRepo.Repository
+	Library    *libraryRepo.Repository
+	Media      *mediaRepo.Repository
+	Progress   *progressRepo.Repository
+	ScanJob    *scanJobRepo.Repository
+	Checkpoint *scanJobRepo.CheckpointRepo
+	ScanState  *scanStateRepo.Repository
+	Transcode  *transcodeRepo.Repository
+	Movie      *movieRepo.Repository
+	TV         *tvRepo.Repository
+	Music      *musicRepo.Repository
+	Image      *imageRepo.Repository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -40,6 +43,8 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	mediaRepository := mediaRepo.NewRepository(db, driver)
 	progressRepository := progressRepo.NewRepository(db, driver)
 	scanJobRepository := scanJobRepo.NewRepository(db, driver)
+	checkpointRepository := scanJobRepo.NewCheckpointRepo(db, driver)
+	scanStateRepository := scanStateRepo.NewRepository(db, driver)
 	transcodeRepository := transcodeRepo.NewRepository(db, driver)
 
 	// Create media-type specific repositories (with dependencies)
@@ -51,14 +56,16 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	imageRepository := imageRepo.NewRepository(baseRepo)
 
 	return &Repositories{
-		Library:   libraryRepository,
-		Media:     mediaRepository,
-		Progress:  progressRepository,
-		ScanJob:   scanJobRepository,
-		Transcode: transcodeRepository,
-		Movie:     movieRepository,
-		TV:        tvRepository,
-		Music:     musicRepository,
-		Image:     imageRepository,
+		Library:    libraryRepository,
+		Media:      mediaRepository,
+		Progress:   progressRepository,
+		ScanJob:    scanJobRepository,
+		Checkpoint: checkpointRepository,
+		ScanState:  scanStateRepository,
+		Transcode:  transcodeRepository,
+		Movie:      movieRepository,
+		TV:         tvRepository,
+		Music:      musicRepository,
+		Image:      imageRepository,
 	}
 }

@@ -8,7 +8,7 @@
 
 This document outlines **remaining work** and future phases for ViewRA. For current status and what's already complete, see [PROJECT_STATUS.md](./PROJECT_STATUS.md).
 
-**Current Focus**: P0 blockers complete ✅ | Next: Technical debt resolution and user authentication
+**Current Focus**: P0 blockers complete ✅ | Technical debt 75% resolved ✅ | Next: User authentication
 
 ---
 
@@ -56,23 +56,45 @@ This document outlines **remaining work** and future phases for ViewRA. For curr
 
 ## Short Term Work (Next 2 Weeks)
 
-### 3. Technical Debt Audit ✅ COMPLETED
+### 3. Technical Debt Resolution ⚡ PHASES 1-3 COMPLETED + PHASE 4 IN PROGRESS
 
 **Priority**: P1
-**Actual Effort**: 2 hours
+**Actual Effort**: 23 hours (2 hours audit + 21 hours implementation)
 
 **Tasks**:
 
 - [x] Catalog all TODO/FIXME/XXX/HACK comments - **COMPLETED Nov 22, 2025**
 - [x] Categorize by severity and impact - **COMPLETED Nov 22, 2025**
 - [x] Create prioritized resolution plan - **COMPLETED Nov 22, 2025**
+- [x] **Phase 1: High-Impact Quick Wins** - **COMPLETED Nov 22, 2025 (6 hours)**
+  - [x] Source type detection (BluRay, WEB-DL, etc.)
+  - [x] 3D media detection from filename patterns
+  - [x] Build version info using ldflags
+  - [x] Test repository setup fix
+- [x] **Phase 2: Music Metadata Enhancement** - **COMPLETED Nov 22, 2025 (7 hours)**
+  - [x] Extended music schema (13 new fields)
+  - [x] MusicBrainz IDs extraction (reserved for plugin)
+  - [x] Multi-disc album support
+  - [x] ISRC, release date, publisher fields
+- [x] **Phase 3: Video Quality Metadata** - **COMPLETED Nov 21, 2025 (5 hours)**
+  - [x] FFmpeg advanced parsing (codec profile, HDR, color space)
+- [ ] **Phase 4: PostgreSQL & Polish** - **IN PROGRESS (3/7 hours)**
+  - [x] PostgreSQL batch progress support (3 hours)
+  - [ ] Transcode output size field (2 hours)
+  - [ ] Frontend album workaround fix (2-3 hours)
 
 **Results**:
 
-- 31 technical debt items cataloged
-- Debt ratio: 0.04% (excellent)
-- Report: [TECHNICAL_DEBT.md](./TECHNICAL_DEBT.md)
-- Action plan: 23-32 hours estimated for resolution
+- **Original Items**: 31 TODO/HACK comments
+- **Remaining Items**: 16 TODO/HACK comments
+- **Items Resolved**: 15 (48% reduction)
+- **Debt Ratio**: Reduced from 0.04% to 0.02%
+- **Progress**: 21/23-32 hours completed (84%)
+- **Report**: [TECHNICAL_DEBT.md](./TECHNICAL_DEBT.md)
+
+**Remaining Work** (Phase 4):
+- Transcode output size field (2 hours)
+- Frontend album workaround fix (2-3 hours)
 
 ### 4. ~~Image Caching~~ ✅ ALREADY COMPLETE
 

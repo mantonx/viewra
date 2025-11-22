@@ -17,8 +17,6 @@ func main() {
 	// Parse command line arguments
 	libraryPath := flag.String("path", "", "Path to media library to scan (required)")
 	numWorkers := flag.Int("workers", 4, "Number of concurrent workers")
-	enableHash := flag.Bool("hash", true, "Enable duplicate detection (hash computation, deprecated - use -hash-strategy)")
-	hashStrategy := flag.String("hash-strategy", "on_conflict", "Hashing strategy: always, on_conflict, disabled")
 	enableIncremental := flag.Bool("incremental", false, "Enable incremental scanning (cache unchanged files)")
 	flag.Parse()
 
@@ -45,32 +43,15 @@ func main() {
 	fmt.Println()
 	fmt.Printf("Library Path:     %s\n", *libraryPath)
 	fmt.Printf("Workers:          %d\n", *numWorkers)
-	fmt.Printf("Hash Strategy:    %s\n", *hashStrategy)
 	fmt.Printf("Incremental Scan: %v\n\n", *enableIncremental)
 
-	// Convert string strategy to type
-	var strategy scanner.HashingStrategy
-	switch *hashStrategy {
-	case "always":
-		strategy = scanner.HashingStrategyAlways
-	case "on_conflict":
-		strategy = scanner.HashingStrategyOnConflict
-	case "disabled":
-		strategy = scanner.HashingStrategyDisabled
-	default:
-		fmt.Printf("Warning: Unknown hash strategy '%s', using 'on_conflict'\n", *hashStrategy)
-		strategy = scanner.HashingStrategyOnConflict
-	}
-
 	// Create coordinator
+	// Note: Hashing has been removed from coordinator - use checkpoint-based scanning instead
 	config := filesystem.CoordinatorConfig{
-		NumWorkers:               *numWorkers,
-		ResultBufferSize:         100,
-		EnableDuplicateDetection: *enableHash,
-		HashingStrategy:          strategy,
-		ConflictThreshold:        1024 * 1024, // 1MB
-		EnableIncrementalScan:    *enableIncremental,
-		FileCache:                make(map[string]*scanner.FileCacheEntry),
+		NumWorkers:            *numWorkers,
+		ResultBufferSize:      100,
+		EnableIncrementalScan: *enableIncremental,
+		FileCache:             make(map[string]*scanner.FileCacheEntry),
 	}
 	coordinator := filesystem.NewCoordinator(config)
 
@@ -175,7 +156,7 @@ progressLoop:
 	)
 
 	// Print results
-	printResults(stats, duplicates, err, *enableHash)
+	printResults(stats, duplicates, err, false)
 
 	if err != nil && err != context.Canceled {
 		os.Exit(1)

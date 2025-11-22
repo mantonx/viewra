@@ -73,7 +73,7 @@ CREATE TABLE movies (
     release_date DATE,
     genre TEXT,
     director TEXT,
-    cast TEXT,
+    "cast" TEXT,
     content_rating TEXT,
     maturity_rating INTEGER,
     content_advisories TEXT,

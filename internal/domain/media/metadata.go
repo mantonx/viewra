@@ -1,5 +1,7 @@
 package media
 
+import "strings"
+
 // CalculateAspectRatio calculates aspect ratio string from width and height
 // Returns common aspect ratio labels (16:9, 4:3, 2.39:1, etc.)
 // This is domain logic - how we categorize and label aspect ratios
@@ -58,7 +60,33 @@ func CalculateResolutionLabel(height int) string {
 // Returns BluRay, WEB-DL, WEBRip, HDTV, DVDRip, DVD, Remux, or empty string
 // This is domain logic - how we identify media sources
 func DetectSourceType(filename string) string {
-	// TODO: Implement source type detection from filename patterns
+	lower := strings.ToLower(filename)
+
+	// Check in priority order (most specific to least specific)
+	patterns := []struct {
+		keywords   []string
+		sourceType string
+	}{
+		{[]string{"bluray", "blu-ray", "bdrip", "brrip", "bdremux"}, "BluRay"},
+		{[]string{"remux"}, "Remux"},
+		{[]string{"web-dl", "webdl", "web dl"}, "WEB-DL"},
+		{[]string{"webrip", "web-rip", "web rip"}, "WEBRip"},
+		{[]string{"hdtv", "pdtv", "dsr", "tvrip"}, "HDTV"},
+		{[]string{"dvdrip", "dvd-rip"}, "DVDRip"},
+		{[]string{"dvd"}, "DVD"},
+		{[]string{"hddvd", "hd-dvd"}, "HD-DVD"},
+		{[]string{"cam", "camrip", "ts", "telesync", "tc", "telecine"}, "CAM"},
+		{[]string{"screener", "scr", "dvdscr"}, "Screener"},
+	}
+
+	for _, p := range patterns {
+		for _, keyword := range p.keywords {
+			if strings.Contains(lower, keyword) {
+				return p.sourceType
+			}
+		}
+	}
+
 	return ""
 }
 
@@ -66,6 +94,32 @@ func DetectSourceType(filename string) string {
 // Returns (is3D bool, stereoMode string)
 // This is domain logic - how we identify 3D content
 func Detect3D(filename string) (bool, string) {
-	// TODO: Implement 3D detection from filename patterns
+	lower := strings.ToLower(filename)
+
+	// Check for 3D indicators with specific stereo modes
+	patterns := []struct {
+		keywords   []string
+		stereoMode string
+	}{
+		{[]string{"3d.hsbs", "half.sbs", "h-sbs", "hsbs"}, "half-sbs"},
+		{[]string{"3d.sbs", "side.by.side", "sbs"}, "sbs"},
+		{[]string{"3d.htab", "half.tab", "h-tab", "htab"}, "half-tab"},
+		{[]string{"3d.tab", "top.and.bottom", "tab"}, "tab"},
+		{[]string{"3d.mvc", "mvc"}, "mvc"},
+	}
+
+	for _, p := range patterns {
+		for _, keyword := range p.keywords {
+			if strings.Contains(lower, keyword) {
+				return true, p.stereoMode
+			}
+		}
+	}
+
+	// Generic 3D check (no specific stereo mode detected)
+	if strings.Contains(lower, "3d") || strings.Contains(lower, ".3d.") {
+		return true, ""
+	}
+
 	return false, ""
 }

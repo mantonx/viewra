@@ -75,7 +75,7 @@ INSERT INTO scan_jobs (
     error_count,
     started_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at
+RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count
 `
 
 type CreateScanJobParams struct {
@@ -115,6 +115,8 @@ func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (S
 		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastCheckpointAt,
+		&i.ResumeCount,
 	)
 	return i, err
 }
@@ -147,7 +149,7 @@ func (q *Queries) DeleteScanJob(ctx context.Context, id int64) error {
 }
 
 const getLatestScanJobByLibrary = `-- name: GetLatestScanJobByLibrary :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count FROM scan_jobs
 WHERE library_id = ?
 ORDER BY created_at DESC
 LIMIT 1
@@ -170,12 +172,14 @@ func (q *Queries) GetLatestScanJobByLibrary(ctx context.Context, libraryID int64
 		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastCheckpointAt,
+		&i.ResumeCount,
 	)
 	return i, err
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count FROM scan_jobs
 WHERE id = ?
 `
 
@@ -196,6 +200,8 @@ func (q *Queries) GetScanJob(ctx context.Context, id int64) (ScanJob, error) {
 		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastCheckpointAt,
+		&i.ResumeCount,
 	)
 	return i, err
 }
@@ -236,7 +242,7 @@ func (q *Queries) GetScanJobStats(ctx context.Context, libraryID int64) (GetScan
 }
 
 const listRunningScanJobs = `-- name: ListRunningScanJobs :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count FROM scan_jobs
 WHERE status = 'running'
 ORDER BY started_at ASC
 `
@@ -264,6 +270,8 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LastCheckpointAt,
+			&i.ResumeCount,
 		); err != nil {
 			return nil, err
 		}
@@ -279,7 +287,7 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 }
 
 const listScanJobsByLibrary = `-- name: ListScanJobsByLibrary :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count FROM scan_jobs
 WHERE library_id = ?
 ORDER BY created_at DESC
 LIMIT ?
@@ -313,6 +321,8 @@ func (q *Queries) ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByL
 			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LastCheckpointAt,
+			&i.ResumeCount,
 		); err != nil {
 			return nil, err
 		}

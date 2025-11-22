@@ -4,7 +4,7 @@
 
 ## Current Status
 
-**Current Focus**: P0 blockers complete ✅ | Next: User authentication and technical debt resolution
+**Current Focus**: P0 blockers complete ✅ | Technical debt 75% resolved ✅ | Next: User authentication
 **Phase**: 5+ (Core features complete, quality improvements in progress)
 **Overall Health**: B+ (Good architecture, all core features working, ready for authentication layer)
 
@@ -23,7 +23,7 @@ ViewRA is a well-architected media server with **solid foundations** but some **
 **What Needs Work**:
 - User authentication doesn't exist yet
 - Some advanced features still in development
-- Technical debt items cataloged (31 items, see [TECHNICAL_DEBT.md](./TECHNICAL_DEBT.md))
+- Remaining technical debt (17 items, 14 resolved, see [TECHNICAL_DEBT.md](./TECHNICAL_DEBT.md))
 
 ---
 

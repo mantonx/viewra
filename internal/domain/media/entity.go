@@ -14,6 +14,7 @@ type Media struct {
 	Type      string // Type of media: 'movie', 'tv_episode', 'music_track'
 	FilePath  string // Relative path from library root
 	FileSize  int64  // In bytes
+	FileHash  string // SHA-256 hash of file for integrity verification and duplicate detection
 	Duration  int    // In seconds
 	IsExtra   bool   // True for extras (trailers, deleted scenes, featurettes)
 

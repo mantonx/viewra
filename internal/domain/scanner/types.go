@@ -186,32 +186,33 @@ type TVEpisodeInfo struct {
 
 // MusicInfo contains metadata for a music track
 type MusicInfo struct {
-	// Title is the track title
-	Title string
-
-	// Artist is the track artist
-	Artist string
-
-	// Album is the album name
-	Album string
-
-	// AlbumArtist is the album artist (may differ from track artist)
+	// Basic metadata
+	Title       string
+	Artist      string
+	Album       string
 	AlbumArtist string
-
-	// TrackNumber is the track number on the album (0 if not found)
 	TrackNumber int
+	DiscNumber  int
+	Year        int
+	Genre       string
+	Duration    int // In seconds
+	Composer    string
 
-	// DiscNumber is the disc number for multi-disc albums (0 if not found)
-	DiscNumber int
+	// Extended metadata
+	TotalTracks   int    // Total tracks on disc/album
+	TotalDiscs    int    // Total discs in album
+	ReleaseDate   string // ISO 8601 date string (YYYY-MM-DD)
+	Lyricist      string // Lyric writer
+	ISRC          string // International Standard Recording Code
+	ReleaseType   string // album, single, ep, compilation, live, remix, soundtrack
+	Compilation   bool   // Compilation album flag
+	OriginalTitle string // Title in original language
+	Publisher     string // Record label
 
-	// Year is the release year (0 if not found)
-	Year int
-
-	// Genre is the music genre
-	Genre string
-
-	// Duration is the track length in seconds (0 if not found)
-	Duration int
+	// MusicBrainz IDs (for future plugin use)
+	MusicBrainzTrackID  string
+	MusicBrainzAlbumID  string
+	MusicBrainzArtistID string
 }
 
 // FilenameParser parses metadata from media filenames

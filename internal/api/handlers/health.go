@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
+	"github.com/mantonx/viewra/internal/version"
 )
 
 // HealthHandler handles health check requests
@@ -113,7 +114,7 @@ func (h *HealthHandler) Check(c *gin.Context) {
 	// Build response
 	response := HealthResponse{
 		Status:     overallStatus,
-		Version:    "2.0.0", // TODO: Get from build info
+		Version:    version.Info(),
 		Uptime:     time.Since(h.startTime).String(),
 		Timestamp:  time.Now().UTC(),
 		Components: components,

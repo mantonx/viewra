@@ -6,6 +6,7 @@ package sqlc_postgres
 
 import (
 	"database/sql"
+	"time"
 )
 
 type Library struct {
@@ -143,6 +144,23 @@ type MusicTrack struct {
 	ArtistID            sql.NullInt32  `json:"artist_id"`
 }
 
+// Tracks individual file processing state for resumable scans
+type ScanCheckpoint struct {
+	ID        int32  `json:"id"`
+	ScanJobID int32  `json:"scan_job_id"`
+	FilePath  string `json:"file_path"`
+	// pending: not yet processed, processing: currently being processed, completed: successfully processed, failed: processing failed
+	Status       string         `json:"status"`
+	FileSize     sql.NullInt64  `json:"file_size"`
+	FileHash     sql.NullString `json:"file_hash"`
+	ErrorMessage sql.NullString `json:"error_message"`
+	// Category of error for failed files: parsing, ffmpeg, database, filesystem, metadata
+	ErrorCategory sql.NullString `json:"error_category"`
+	ProcessedAt   sql.NullTime   `json:"processed_at"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	RetryCount    int32          `json:"retry_count"`
+}
+
 type ScanJob struct {
 	ID             int32           `json:"id"`
 	LibraryID      int32           `json:"library_id"`
@@ -157,6 +175,23 @@ type ScanJob struct {
 	ErrorMessage   sql.NullString  `json:"error_message"`
 	CreatedAt      sql.NullTime    `json:"created_at"`
 	UpdatedAt      sql.NullTime    `json:"updated_at"`
+	// Timestamp of last checkpoint update (for resume detection)
+	LastCheckpointAt sql.NullTime `json:"last_checkpoint_at"`
+	// Number of times this scan has been resumed
+	ResumeCount sql.NullInt32 `json:"resume_count"`
+}
+
+type ScanState struct {
+	ID            int32          `json:"id"`
+	LibraryID     int32          `json:"library_id"`
+	FilePath      string         `json:"file_path"`
+	FileSize      int64          `json:"file_size"`
+	FileMtime     time.Time      `json:"file_mtime"`
+	FileHash      sql.NullString `json:"file_hash"`
+	MediaID       sql.NullInt32  `json:"media_id"`
+	LastScannedAt time.Time      `json:"last_scanned_at"`
+	ScanJobID     int32          `json:"scan_job_id"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
 type TranscodeJob struct {

@@ -30,6 +30,7 @@ func pgMediumToDomain(pg sqlc_postgres.Medium) *media.Media {
 		Type:            pg.Type,
 		FilePath:        pg.FilePath,
 		FileSize:        pg.FileSize.Int64,
+		FileHash:        pg.FileHash.String,
 		Duration:        int(pg.Duration.Float64),
 		IsExtra:         pg.IsExtra,
 		Width:           int(pg.Width.Int32),
@@ -58,6 +59,7 @@ func sqliteMediumToDomain(sq sqlc_sqlite.Medium) *media.Media {
 		Type:            sq.Type,
 		FilePath:        sq.FilePath,
 		FileSize:        sq.FileSize.Int64,
+		FileHash:        sq.FileHash.String,
 		Duration:        int(sq.Duration.Float64),
 		IsExtra:         sq.IsExtra,
 		Width:           int(sq.Width.Int64),
@@ -87,7 +89,7 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 		Duration:          common.NullFloat64(float64(m.Duration)),
 		Type:              m.Type,
 		IsExtra:           m.IsExtra,
-		FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
+		FileHash:          common.NullString(m.FileHash),
 		ContainerFormat:   common.NullString(m.ContainerFormat),
 		Width:             common.NullInt32(int32(m.Width)),
 		Height:            common.NullInt32(int32(m.Height)),
@@ -105,8 +107,8 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
 		QualityScore:      sql.NullInt32{},    // TODO: Calculate heuristic
-		Is3d:              sql.NullBool{},     // TODO: Detect from filename
-		StereoMode:        sql.NullString{},   // TODO: Detect if 3D
+		Is3d:              common.NullBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
+		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
 		HasDash:           common.NullBool(false),
 		DashManifestPath:  sql.NullString{},
 		TranscodingStatus: sql.NullString{},
@@ -123,7 +125,7 @@ func buildSQLiteCreateParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
 		Duration:          common.NullFloat64(float64(m.Duration)),
 		Type:              m.Type,
 		IsExtra:           m.IsExtra,
-		FileHash:          sql.NullString{}, // TODO: Add Hash field to domain.Media
+		FileHash:          common.NullString(m.FileHash),
 		ContainerFormat:   common.NullString(m.ContainerFormat),
 		Width:             common.NullInt64(int64(m.Width)),
 		Height:            common.NullInt64(int64(m.Height)),
@@ -141,8 +143,8 @@ func buildSQLiteCreateParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
 		QualityScore:      sql.NullInt64{},    // TODO: Calculate heuristic
-		Is3d:              sql.NullBool{},     // TODO: Detect from filename
-		StereoMode:        sql.NullString{},   // TODO: Detect if 3D
+		Is3d:              common.NullBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
+		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
 		HasDash:           common.NullBool(false),
 		DashManifestPath:  sql.NullString{},
 		TranscodingStatus: sql.NullString{},

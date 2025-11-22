@@ -68,6 +68,7 @@ func (r *Repository) Create(ctx context.Context, job *transcode.TranscodeJob) er
 	result, err := r.postgresQuerier.CreateTranscodeJob(ctx, sqlc_postgres.CreateTranscodeJobParams{
 		MediaID:   int32(job.MediaID),
 		Quality:   job.Quality,
+		Type:      job.Type,
 		Status:    job.Status,
 		Progress:  common.NullInt32FromInt64(int64(job.Progress)),
 		CreatedAt: common.NullTime(job.CreatedAt),
@@ -111,12 +112,15 @@ func (r *Repository) Update(ctx context.Context, job *transcode.TranscodeJob) er
 
 	// PostgreSQL
 	err := r.postgresQuerier.UpdateTranscodeJob(ctx, sqlc_postgres.UpdateTranscodeJobParams{
-		ID:          int32(job.ID),
-		Status:      job.Status,
-		Progress:    common.NullInt32FromInt64(int64(job.Progress)),
-		Error:       common.NullString(job.Error),
-		StartedAt:   common.NullTime(job.StartedAt),
-		CompletedAt: common.NullTime(job.CompletedAt),
+		ID:            int32(job.ID),
+		Status:        job.Status,
+		Progress:      common.NullInt32FromInt64(int64(job.Progress)),
+		Error:         common.NullString(job.Error),
+		StartedAt:     common.NullTime(job.StartedAt),
+		CompletedAt:   common.NullTime(job.CompletedAt),
+		FilePath:      common.NullString(job.FilePath),
+		FileSizeBytes: common.NullInt64(job.FileSizeBytes),
+		StartPosition: int32(job.StartPosition),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -389,14 +393,20 @@ func (r *Repository) sqliteModelToDomain(model sqlc_sqlite.TranscodeJob) *transc
 // postgresModelToDomain converts a PostgreSQL model to a domain entity.
 func (r *Repository) postgresModelToDomain(model sqlc_postgres.TranscodeJob) *transcode.TranscodeJob {
 	return &transcode.TranscodeJob{
-		ID:          int64(model.ID),
-		MediaID:     int64(model.MediaID),
-		Quality:     model.Quality,
-		Status:      model.Status,
-		Progress:    int(common.ParseNullInt32(model.Progress)),
-		Error:       common.ParseNullString(model.Error),
-		StartedAt:   common.ParseNullTime(model.StartedAt),
-		CompletedAt: common.ParseNullTime(model.CompletedAt),
-		CreatedAt:   common.ParseNullTime(model.CreatedAt),
+		ID:             int64(model.ID),
+		MediaID:        int64(model.MediaID),
+		Quality:        model.Quality,
+		Type:           model.Type,
+		Status:         model.Status,
+		Progress:       int(common.ParseNullInt32(model.Progress)),
+		Error:          common.ParseNullString(model.Error),
+		StartedAt:      common.ParseNullTime(model.StartedAt),
+		CompletedAt:    common.ParseNullTime(model.CompletedAt),
+		CreatedAt:      common.ParseNullTime(model.CreatedAt),
+		FilePath:       common.ParseNullString(model.FilePath),
+		FileSizeBytes:  common.ParseNullInt64(model.FileSizeBytes),
+		LastAccessedAt: common.ParseNullTime(model.LastAccessedAt),
+		AccessCount:    int(common.ParseNullInt32(model.AccessCount)),
+		StartPosition:  int(model.StartPosition),
 	}
 }

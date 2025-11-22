@@ -165,20 +165,49 @@ type MusicTrack struct {
 	ArtistID            sql.NullInt64  `json:"artist_id"`
 }
 
+type ScanCheckpoint struct {
+	ID            int64          `json:"id"`
+	ScanJobID     int64          `json:"scan_job_id"`
+	FilePath      string         `json:"file_path"`
+	Status        string         `json:"status"`
+	FileSize      sql.NullInt64  `json:"file_size"`
+	FileHash      sql.NullString `json:"file_hash"`
+	ErrorMessage  sql.NullString `json:"error_message"`
+	ErrorCategory sql.NullString `json:"error_category"`
+	ProcessedAt   sql.NullTime   `json:"processed_at"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	RetryCount    int64          `json:"retry_count"`
+}
+
 type ScanJob struct {
-	ID             int64           `json:"id"`
-	LibraryID      int64           `json:"library_id"`
-	Status         string          `json:"status"`
-	Progress       sql.NullFloat64 `json:"progress"`
-	FilesFound     sql.NullInt64   `json:"files_found"`
-	FilesProcessed sql.NullInt64   `json:"files_processed"`
-	BytesProcessed sql.NullInt64   `json:"bytes_processed"`
-	ErrorCount     sql.NullInt64   `json:"error_count"`
-	StartedAt      sql.NullTime    `json:"started_at"`
-	CompletedAt    sql.NullTime    `json:"completed_at"`
-	ErrorMessage   sql.NullString  `json:"error_message"`
-	CreatedAt      sql.NullTime    `json:"created_at"`
-	UpdatedAt      sql.NullTime    `json:"updated_at"`
+	ID               int64           `json:"id"`
+	LibraryID        int64           `json:"library_id"`
+	Status           string          `json:"status"`
+	Progress         sql.NullFloat64 `json:"progress"`
+	FilesFound       sql.NullInt64   `json:"files_found"`
+	FilesProcessed   sql.NullInt64   `json:"files_processed"`
+	BytesProcessed   sql.NullInt64   `json:"bytes_processed"`
+	ErrorCount       sql.NullInt64   `json:"error_count"`
+	StartedAt        sql.NullTime    `json:"started_at"`
+	CompletedAt      sql.NullTime    `json:"completed_at"`
+	ErrorMessage     sql.NullString  `json:"error_message"`
+	CreatedAt        sql.NullTime    `json:"created_at"`
+	UpdatedAt        sql.NullTime    `json:"updated_at"`
+	LastCheckpointAt sql.NullTime    `json:"last_checkpoint_at"`
+	ResumeCount      sql.NullInt64   `json:"resume_count"`
+}
+
+type ScanState struct {
+	ID            int64          `json:"id"`
+	LibraryID     int64          `json:"library_id"`
+	FilePath      string         `json:"file_path"`
+	FileSize      int64          `json:"file_size"`
+	FileMtime     time.Time      `json:"file_mtime"`
+	FileHash      sql.NullString `json:"file_hash"`
+	MediaID       sql.NullInt64  `json:"media_id"`
+	LastScannedAt time.Time      `json:"last_scanned_at"`
+	ScanJobID     int64          `json:"scan_job_id"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
 type TaskExecution struct {

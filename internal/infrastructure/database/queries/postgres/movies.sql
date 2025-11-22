@@ -1,6 +1,6 @@
 -- name: CreateMovie :exec
 INSERT INTO movies (
-    media_id, year, release_date, genre, director, cast,
+    media_id, year, release_date, genre, director, "cast",
     content_rating, maturity_rating, content_advisories, plot, tagline,
     original_title, sort_title, imdb_id, tmdb_id, runtime_minutes,
     budget, revenue, original_language, country_of_origin, awards_summary
@@ -102,7 +102,7 @@ SET year = $1,
     release_date = $2,
     genre = $3,
     director = $4,
-    cast = $5,
+    "cast" = $5,
     content_rating = $6,
     maturity_rating = $7,
     content_advisories = $8,

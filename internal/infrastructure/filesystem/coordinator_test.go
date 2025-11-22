@@ -18,8 +18,6 @@ func TestDefaultCoordinatorConfig(t *testing.T) {
 	if config.ResultBufferSize != 100 {
 		t.Errorf("Expected ResultBufferSize=100, got %d", config.ResultBufferSize)
 	}
-	if !config.EnableDuplicateDetection {
-		t.Error("Expected EnableDuplicateDetection=true")
 	}
 }
 
@@ -27,7 +25,6 @@ func TestNewCoordinator(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         50,
-		EnableDuplicateDetection: false,
 	}
 
 	coordinator := NewCoordinator(config)
@@ -138,7 +135,6 @@ func TestCoordinatorScan(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 	}
 	coordinator := NewCoordinator(config)
 
@@ -195,7 +191,6 @@ func TestCoordinatorScanWithCancellation(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               1, // Single worker to make timing more predictable
 		ResultBufferSize:         5,
-		EnableDuplicateDetection: false,
 	}
 	coordinator := NewCoordinator(config)
 
@@ -229,7 +224,6 @@ func TestCoordinatorScanEmptyDirectory(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 	}
 	coordinator := NewCoordinator(config)
 
@@ -345,7 +339,6 @@ func TestUpdateFileCache(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 		EnableIncrementalScan:    true,
 		FileCache:                make(map[string]*scanner.FileCacheEntry),
 	}
@@ -407,7 +400,6 @@ func TestUpdateFileCacheMultipleEntries(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 		EnableIncrementalScan:    true,
 		FileCache:                make(map[string]*scanner.FileCacheEntry),
 	}
@@ -468,7 +460,6 @@ func TestUpdateFileCacheWithMusicMetadata(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 		EnableIncrementalScan:    true,
 		FileCache:                make(map[string]*scanner.FileCacheEntry),
 	}
@@ -521,7 +512,6 @@ func TestUpdateFileCacheWithTVMetadata(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 		EnableIncrementalScan:    true,
 		FileCache:                make(map[string]*scanner.FileCacheEntry),
 	}
@@ -573,7 +563,6 @@ func TestUpdateFileCacheOverwrite(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 		EnableIncrementalScan:    true,
 		FileCache:                make(map[string]*scanner.FileCacheEntry),
 	}
@@ -641,7 +630,6 @@ func TestUpdateFileCacheThreadSafety(t *testing.T) {
 	config := CoordinatorConfig{
 		NumWorkers:               4,
 		ResultBufferSize:         10,
-		EnableDuplicateDetection: false,
 		EnableIncrementalScan:    true,
 		FileCache:                make(map[string]*scanner.FileCacheEntry),
 	}

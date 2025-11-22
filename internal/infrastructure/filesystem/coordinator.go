@@ -3,7 +3,9 @@ package filesystem
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,28 +22,21 @@ type CoordinatorConfig struct {
 	NumWorkers int
 	// ResultBufferSize is the size of the result channel buffer
 	ResultBufferSize int
-	// EnableDuplicateDetection enables file hash computation for duplicate detection (deprecated, use HashingStrategy)
-	EnableDuplicateDetection bool
-	// HashingStrategy determines when to compute file hashes
-	HashingStrategy scanner.HashingStrategy
-	// ConflictThreshold is size in bytes - below this, always hash (for on_conflict strategy)
-	ConflictThreshold int64
 	// EnableIncrementalScan enables smart file skipping based on ModTime
 	EnableIncrementalScan bool
 	// FileCache stores previously scanned file metadata
 	FileCache map[string]*scanner.FileCacheEntry
+	// Logger for diagnostic output (optional, uses default if nil)
+	Logger *slog.Logger
 }
 
 // DefaultCoordinatorConfig returns sensible defaults
 func DefaultCoordinatorConfig() CoordinatorConfig {
 	return CoordinatorConfig{
-		NumWorkers:               4,
-		ResultBufferSize:         100,
-		EnableDuplicateDetection: true,
-		HashingStrategy:          scanner.HashingStrategyOnConflict, // Only hash on size conflicts
-		ConflictThreshold:        1024 * 1024,                       // 1MB - always hash files smaller than this
-		EnableIncrementalScan:    false,                             // Disabled by default for first implementation
-		FileCache:                make(map[string]*scanner.FileCacheEntry),
+		NumWorkers:            4,
+		ResultBufferSize:      100,
+		EnableIncrementalScan: false,
+		FileCache:             make(map[string]*scanner.FileCacheEntry),
 	}
 }
 
@@ -51,8 +46,8 @@ type Coordinator struct {
 	walker       scanner.FileWalker
 	filter       scanner.FileFilter
 	parser       scanner.FilenameParser
-	hasher       *Hasher
 	ffmpegClient *ffmpeg.Client
+	logger       *slog.Logger
 
 	// Progress tracking (atomic)
 	filesFound     atomic.Int64
@@ -60,19 +55,24 @@ type Coordinator struct {
 	bytesProcessed atomic.Int64
 	errorCount     atomic.Int64
 
-	// Size tracking for conflict detection
+	// State tracking
 	mu        sync.RWMutex
 	startTime time.Time
 	isRunning bool
-	sizeMap   map[int64]int // tracks count of files per size
 }
 
 // NewCoordinator creates a new scanner coordinator
 func NewCoordinator(config CoordinatorConfig) *Coordinator {
+	// Use provided logger or default
+	logger := config.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	ffmpegClient, err := ffmpeg.NewClient()
 	if err != nil {
 		// Log warning but don't fail - metadata extraction will be skipped
-		fmt.Printf("Warning: FFmpeg not available, technical metadata extraction disabled: %v\n", err)
+		logger.Warn("FFmpeg not available, technical metadata extraction disabled", "error", err)
 	}
 
 	// Create metadata extractor for music files
@@ -83,9 +83,8 @@ func NewCoordinator(config CoordinatorConfig) *Coordinator {
 		walker:       NewWalker(),
 		filter:       NewFilter(),
 		parser:       parsers.NewDefaultParserWithMetadata(metadataExtractor),
-		hasher:       NewHasher(),
 		ffmpegClient: ffmpegClient,
-		sizeMap:      make(map[int64]int),
+		logger:       logger,
 	}
 }
 
@@ -216,7 +215,7 @@ func (c *Coordinator) worker(
 			}
 
 			// Process the file
-			result := c.processFile(ctx, fileInfo)
+			result := c.ProcessFile(ctx, fileInfo)
 
 			// Send result
 			select {
@@ -236,8 +235,8 @@ func (c *Coordinator) worker(
 	}
 }
 
-// processFile extracts metadata from a single file
-func (c *Coordinator) processFile(ctx context.Context, fileInfo scanner.FileInfo) scanner.ScanResult {
+// ProcessFile extracts metadata from a single file (exported for checkpoint resumption)
+func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo) scanner.ScanResult {
 	result := scanner.ScanResult{
 		FilePath:       fileInfo.Path,
 		MediaType:      scanner.MediaTypeUnknown,
@@ -251,9 +250,6 @@ func (c *Coordinator) processFile(ctx context.Context, fileInfo scanner.FileInfo
 		return result
 	default:
 	}
-
-	// Record file size for conflict detection
-	c.recordFileSize(fileInfo.Size)
 
 	// Check if file is in cache and unchanged (incremental scan optimization)
 	if c.config.EnableIncrementalScan {
@@ -317,13 +313,16 @@ func (c *Coordinator) processFile(ctx context.Context, fileInfo scanner.FileInfo
 		}
 	}
 
-	// Extract technical metadata using FFmpeg (for video/audio files)
-	if c.ffmpegClient != nil && (mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode) {
+	// Extract technical metadata using FFmpeg (for all media files: video and audio)
+	if c.ffmpegClient != nil && (mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode || mediaType == scanner.MediaTypeTrack) {
 		metadata, err := c.ffmpegClient.ExtractMetadata(ctx, fileInfo.Path)
 		if err != nil {
 			// Log warning but don't fail the entire scan
 			// Some files might be corrupted or in unsupported formats
-			fmt.Printf("Warning: Failed to extract FFmpeg metadata for %s: %v\n", fileInfo.Path, err)
+			c.logger.Warn("Failed to extract FFmpeg metadata",
+				"file_path", fileInfo.Path,
+				"media_type", mediaType,
+				"error", err)
 		} else {
 			// Populate result with technical metadata
 			result.FileSize = metadata.FileSize
@@ -335,27 +334,20 @@ func (c *Coordinator) processFile(ctx context.Context, fileInfo scanner.FileInfo
 			result.FrameRate = metadata.FrameRate
 			result.Duration = int64(metadata.Duration.Seconds())
 
-			// Populate advanced video quality metadata
+			// Populate advanced video quality metadata (primarily for video files)
 			result.CodecProfile = metadata.CodecProfile
 			result.ScanType = metadata.ScanType
 			result.HDRFormat = metadata.HDRFormat
 			result.ColorSpace = metadata.ColorSpace
 			result.ColorPrimaries = metadata.ColorPrimaries
 
-			// Determine container format from file extension
-			result.ContainerFormat = fileInfo.Extension
+			// Determine container format from file extension (remove dot)
+			result.ContainerFormat = strings.TrimPrefix(fileInfo.Extension, ".")
 		}
 	}
 
-	// Conditional hashing based on strategy
-	if c.shouldHashFile(fileInfo.Size) {
-		hash, err := c.hasher.Hash(fileInfo.Path)
-		if err != nil {
-			result.Error = fmt.Errorf("failed to hash file: %w", err)
-			return result
-		}
-		result.Hash = hash
-	}
+	// File hashing is now handled at checkpoint creation level (scan_library.go)
+	// The coordinator is only responsible for metadata extraction
 
 	// Update file cache if incremental scanning is enabled
 	if c.config.EnableIncrementalScan {
@@ -415,45 +407,6 @@ func (c *Coordinator) resetCounters() {
 	c.filesProcessed.Store(0)
 	c.bytesProcessed.Store(0)
 	c.errorCount.Store(0)
-	c.sizeMap = make(map[int64]int)
 }
 
 // shouldHashFile determines if a file should be hashed based on strategy
-func (c *Coordinator) shouldHashFile(size int64) bool {
-	// Support legacy flag
-	if c.config.EnableDuplicateDetection && c.config.HashingStrategy == "" {
-		return true
-	}
-
-	switch c.config.HashingStrategy {
-	case scanner.HashingStrategyAlways:
-		return true
-
-	case scanner.HashingStrategyDisabled:
-		return false
-
-	case scanner.HashingStrategyOnConflict:
-		// Always hash small files (below threshold)
-		if size < c.config.ConflictThreshold {
-			return true
-		}
-
-		// Check if we've seen this size before (potential duplicate)
-		c.mu.RLock()
-		count := c.sizeMap[size]
-		c.mu.RUnlock()
-
-		return count > 0 // Hash if we've seen this size before
-
-	default:
-		// Unknown strategy, default to always hash
-		return true
-	}
-}
-
-// recordFileSize tracks file sizes for conflict detection
-func (c *Coordinator) recordFileSize(size int64) {
-	c.mu.Lock()
-	c.sizeMap[size]++
-	c.mu.Unlock()
-}

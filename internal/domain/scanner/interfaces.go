@@ -58,3 +58,33 @@ type ScanJobRepository interface {
 	// DeleteOld deletes old completed/failed scan jobs for a library
 	DeleteOld(ctx context.Context, libraryID int64, retentionDays int) error
 }
+
+// CheckpointRepository handles persistence of scan checkpoints for resumable scans
+type CheckpointRepository interface {
+	// CreateBatch creates multiple checkpoints in a single operation
+	CreateBatch(ctx context.Context, checkpoints []*ScanCheckpoint) error
+
+	// GetPendingBatch retrieves a batch of pending files to process
+	GetPendingBatch(ctx context.Context, jobID int64, limit int) ([]*ScanCheckpoint, error)
+
+	// UpdateStatus updates the processing status of a checkpoint
+	UpdateStatus(ctx context.Context, id int64, status CheckpointStatus, errorMsg string, errorCategory ErrorCategory) error
+
+	// UpdateRetryCount increments the retry count for a checkpoint
+	UpdateRetryCount(ctx context.Context, id int64, retryCount int) error
+
+	// GetStats retrieves aggregate statistics for a scan job's checkpoints
+	GetStats(ctx context.Context, jobID int64) (*CheckpointStats, error)
+
+	// ListFailed retrieves all failed checkpoints for error reporting
+	ListFailed(ctx context.Context, jobID int64, limit int) ([]*ScanCheckpoint, error)
+
+	// GetByPath retrieves a checkpoint for a specific file path (for deduplication)
+	GetByPath(ctx context.Context, jobID int64, filePath string) (*ScanCheckpoint, error)
+
+	// ResetFailed resets all failed checkpoints to pending for retry
+	ResetFailed(ctx context.Context, jobID int64) (int64, error)
+
+	// DeleteByJobID deletes all checkpoints for a scan job (cleanup)
+	DeleteByJobID(ctx context.Context, jobID int64) error
+}

@@ -7,38 +7,30 @@ import (
 	"log/slog"
 
 	appconfig "github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/app/services"
+	"github.com/mantonx/viewra/internal/app/usecases"
+	"github.com/mantonx/viewra/internal/application/common"
 	"github.com/mantonx/viewra/internal/infrastructure/database"
-	"github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 )
 
-// RunStartupTasks executes all startup tasks in order
-func RunStartupTasks(ctx context.Context, db *sql.DB, driver string, cfg *Config, logger *slog.Logger) error {
-	// Run database migrations
-	if err := runMigrations(db, cfg.Database, cfg.Migration, logger); err != nil {
-		return err
+// recoverStuckScans automatically resumes scans that were interrupted by server restart or crash
+func recoverStuckScans(ctx context.Context, db *sql.DB, driver string, cfg *appconfig.Config, logger *slog.Logger) error {
+	// Build dependencies needed for scan resumption
+	repos := repositories.BuildRepositories(db, driver)
+	svcs, err := services.BuildServices(cfg, repos, logger)
+	if err != nil {
+		return fmt.Errorf("failed to build services for scan recovery: %w", err)
 	}
 
-	// Recover stuck scans (non-critical)
-	if err := recoverStuckScans(ctx, db, driver, logger); err != nil {
-		logger.Error("Failed to recover stuck scans", "error", err)
-		// Don't return error - this is not critical
-	}
+	// Create transaction manager
+	txManager := common.NewTxManager(db)
 
-	return nil
-}
+	// Build use cases
+	cases := usecases.BuildUseCases(cfg, repos, svcs, txManager, logger)
 
-// runMigrations runs database migrations if auto-migration is enabled
-func runMigrations(db *sql.DB, dbConfig *database.Config, migrationConfig *database.MigrationConfig, logger *slog.Logger) error {
-	if err := database.AutoMigrate(db, dbConfig, migrationConfig, logger); err != nil {
-		return fmt.Errorf("failed to run database migrations: %w", err)
-	}
-	return nil
-}
-
-// recoverStuckScans checks for scans stuck in "running" status and marks them as failed
-func recoverStuckScans(ctx context.Context, db *sql.DB, driver string, logger *slog.Logger) error {
-	scanJobRepo := scanjob.NewRepository(db, driver)
-	return scanJobRepo.RecoverStuckScans(ctx, logger)
+	// Resume stuck scans automatically
+	return cases.Library.Scan.ResumeStuckScans(ctx)
 }
 
 // RunStartupTasksFromConfig executes all startup tasks using the new config structure
@@ -63,9 +55,9 @@ func RunStartupTasksFromConfig(ctx context.Context, db *sql.DB, driver string, c
 		}
 	}
 
-	// Recover stuck scans (non-critical)
-	if err := recoverStuckScans(ctx, db, driver, logger); err != nil {
-		logger.Error("Failed to recover stuck scans", "error", err)
+	// Resume stuck scans automatically (non-critical)
+	if err := recoverStuckScans(ctx, db, driver, cfg, logger); err != nil {
+		logger.Error("Failed to resume stuck scans", "error", err)
 		// Don't return error - this is not critical
 	}
 

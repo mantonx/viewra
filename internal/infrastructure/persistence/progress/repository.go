@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/progress"
@@ -222,8 +221,20 @@ func (r *Repository) GetBatchByMediaIDs(ctx context.Context, mediaIDs []int64, u
 		return result, nil
 	}
 
-	// PostgreSQL batch support - TODO: implement when postgres queries are properly generated
-	return nil, fmt.Errorf("batch progress retrieval not yet supported for PostgreSQL")
+	// PostgreSQL
+	rows, err := r.postgresQuerier.GetBatchWatchProgressByMediaIDs(ctx, sqlc_postgres.GetBatchWatchProgressByMediaIDsParams{
+		Column1: mediaIDs,
+		UserID:  common.NullInt32FromInt64(userID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		prog := postgresRowToProgress(row)
+		result[prog.MediaID] = prog
+	}
+	return result, nil
 }
 
 // ListByUserID retrieves all watch progress records for a user.
