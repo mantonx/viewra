@@ -1,18 +1,20 @@
 # ViewRA Development Roadmap
 
-**Project History and Implementation Details**
+**Historical Record of Implementation Progress**
 
-This document provides a high-level overview of completed development phases. For detailed implementation notes, see git commit history and the codebase itself.
+This document provides a high-level overview of completed development phases through mid-November 2025. For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md). For detailed implementation notes, see git commit history and the codebase itself.
 
 ---
 
-## Project Timeline
+## Project Timeline (Historical)
 
 **Project Start**: November 11, 2025
 **Phase 0 Complete**: November 11, 2025 (1 day)
 **Phase 1 Complete**: November 12, 2025 (1 day)
 **Phase 2 Complete**: November 13, 2025 (2 days)
-**Current Phase**: Phase 3 (TV Shows & Music Support)
+**Phase 3-5**: November 15-21, 2025 (see PROJECT_STATUS.md for details)
+
+**Note**: This roadmap documents the early project history. Phases 4 and 5 were completed ahead of schedule. For the current state and future plans, refer to [PROJECT_STATUS.md](PROJECT_STATUS.md) and [PROJECT_PLAN.md](PROJECT_PLAN.md).
 
 ---
 
