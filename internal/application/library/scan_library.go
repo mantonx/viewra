@@ -295,6 +295,16 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	// Initialize artist deduplication tracking for this scan session
 	uc.processedArtists = sync.Map{}
 
+	// Update system profile with library-specific storage detection
+	// This ensures we get correct worker counts for network vs local storage
+	if uc.systemProfile != nil {
+		uc.systemProfile.UpdateForLibraryPath(ctx, lib.Path)
+		uc.logger.Info("detected storage for library",
+			"library_path", lib.Path,
+			"storage_type", uc.systemProfile.Storage.Type,
+			"is_remote", uc.systemProfile.Storage.IsRemote)
+	}
+
 	// Check if there are existing checkpoints to resume from
 	stats, err := uc.checkpointRepo.GetStats(ctx, jobID)
 	if err == nil && stats.PendingFiles > 0 {
@@ -884,12 +894,8 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 	jobID int64,
 	libraryID int64,
 ) error {
-	// Detect storage type for this library path (if we have files to process)
-	if uc.systemProfile != nil && len(filesToProcess) > 0 {
-		uc.systemProfile.UpdateForLibraryPath(ctx, filesToProcess[0].Path)
-	}
-
 	// Calculate optimal settings based on system profile
+	// Storage type detection is done earlier in runScan()
 	var numWorkers, batchSize int
 	if uc.systemProfile != nil {
 		settings := uc.systemProfile.Calculate()
