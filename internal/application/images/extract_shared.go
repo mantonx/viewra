@@ -151,7 +151,7 @@ func ProcessAndSaveImages(
 			Height:         metadata.Height,
 			FileSizeBytes:  metadata.FileSizeBytes,
 			MimeType:       cachedMimeType,    // WebP if cached, original if not
-			FileHash:       metadata.FileHash, // SHA256 for deduplication
+			FileHash:       metadata.FileHash, // XXH3-128 for deduplication
 			Language:       imgInfo.Language,
 			Priority:       imgInfo.Priority,
 		}
