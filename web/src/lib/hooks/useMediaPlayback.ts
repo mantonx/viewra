@@ -36,9 +36,10 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
 
   const playMedia = async (id: number, media: any) => {
     setMediaId(id)
+    setIsPlaying(true) // Show player immediately with loading state
     setTranscodeState('checking')
 
-    // Fetch progress to determine resume position
+    // Fetch progress to determine resume position (usually fast, <50ms from cache)
     let resumePosition = 0
     try {
       const response = await fetch(`${API_BASE_URL}/api/progress/${id}`)
@@ -49,44 +50,35 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       // Resume unless user finished watching (within 1 second of end)
       const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
       resumePosition = (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
-
       setInitialPosition(resumePosition)
     } catch (error) {
       logger.error('Error fetching progress:', error)
       setInitialPosition(0)
     }
 
+    // Select quality and build manifest URL with resume position
+    const quality = selectBestQuality(media)
+    let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/${quality}/playlist.m3u8`
+    if (resumePosition > 0) {
+      manifestUrl += `?start=${resumePosition}`
+    }
+
+    // Fetch manifest (player shows buffering indicator during this)
     try {
-      // Select best quality based on media and screen
-      const quality = selectBestQuality(media)
-
-      // Build HLS manifest URL with start position for resume
-      // If resuming, tell the backend to start transcoding from that position
-      let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/${quality}/playlist.m3u8`
-      if (resumePosition > 0) {
-        manifestUrl += `?start=${resumePosition}`
-      }
-
-      // Fetch manifest with manual redirect handling
-      const response = await fetch(manifestUrl, {
-        redirect: 'manual',
-      })
+      const response = await fetch(manifestUrl, { redirect: 'manual' })
 
       // Handle Direct Play (302 redirect) - compatible video, no transcoding needed
       if (response.status === 302 || response.type === 'opaqueredirect') {
         const directUrl = `${API_BASE_URL}/api/stream/${id}`
         setStreamUrl(directUrl)
         setTranscodeState('direct')
-        setIsPlaying(true) // Show player now that we have the stream URL
         return
       }
 
       // Handle manifest ready (200 OK) - instant manifest generation
-      // Segments will be generated on-demand as player requests them
       if (response.status === 200) {
         setStreamUrl(manifestUrl)
         setTranscodeState('ready')
-        setIsPlaying(true) // Show player now that we have the stream URL
         return
       }
 
