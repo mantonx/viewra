@@ -118,16 +118,55 @@ func (p *Profile) Calculate() RecommendedSettings {
 	}
 
 	// Processing workers: FFprobe is I/O-bound, can run many concurrent processes
-	// Network storage benefits from high parallelism to overcome latency
-	// Conservative approach: Leave headroom for system and other tasks
-	if p.Storage.IsRemote {
-		// Network storage: I/O latency dominates, use moderate parallelism
-		// Reserve ~25% of cores for system (16 cores -> 4 workers, 8 cores -> 4 workers)
-		settings.ProcessingWorkers = max(p.CPU.NumPhysical/4, 4)
+	// Scale workers based on available CPU cores, storage type, and system class
+	// Strategy: Use percentage of cores, with floor and ceiling based on system size
+
+	// Determine system class and appropriate scaling factor
+	var workerScalingFactor float64
+	var minWorkers, maxWorkers int
+
+	if p.CPU.NumPhysical <= 2 {
+		// Low-end: Raspberry Pi, embedded systems (1-2 cores)
+		// Very conservative - single worker to avoid overwhelming system
+		workerScalingFactor = 0.5 // Use 50% of cores
+		minWorkers = 1
+		maxWorkers = 2
+	} else if p.CPU.NumPhysical <= 4 {
+		// Entry-level: Budget NAS, low-end desktop (3-4 cores)
+		// Conservative but allow some parallelism
+		workerScalingFactor = 0.5 // Use 50% of cores
+		minWorkers = 2
+		maxWorkers = 3
+	} else if p.CPU.NumPhysical <= 8 {
+		// Mid-range: Standard desktop, mid-tier NAS (5-8 cores)
+		// Moderate parallelism with headroom for user tasks
+		workerScalingFactor = 0.375 // Use 37.5% of cores
+		minWorkers = 2
+		maxWorkers = 4
+	} else if p.CPU.NumPhysical <= 16 {
+		// High-end: Enthusiast desktop, server (9-16 cores)
+		// More aggressive but still leave headroom
+		workerScalingFactor = 0.25 // Use 25% of cores
+		minWorkers = 3
+		maxWorkers = 6
 	} else {
-		// Local storage: Balance CPU and I/O
-		settings.ProcessingWorkers = max(p.CPU.NumPhysical/4, 4)
+		// Server/datacenter: High core count (17+ cores)
+		// Can use more workers but cap to prevent runaway resource usage
+		workerScalingFactor = 0.20 // Use 20% of cores
+		minWorkers = 4
+		maxWorkers = 8
 	}
+
+	// Calculate base workers from scaling factor
+	baseWorkers := int(float64(p.CPU.NumPhysical) * workerScalingFactor)
+
+	// Network storage can use slightly more parallelism to overcome latency
+	if p.Storage.IsRemote {
+		baseWorkers = int(float64(baseWorkers) * 1.25) // 25% boost for network
+	}
+
+	// Clamp to min/max for this system class
+	settings.ProcessingWorkers = max(minWorkers, min(baseWorkers, maxWorkers))
 
 	// Transcode workers: CPU-intensive, limit based on physical cores
 	// Reserve cores for system and other tasks
