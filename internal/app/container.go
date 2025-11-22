@@ -147,8 +147,45 @@ func registerTasks(
 	svcs *services.Services,
 	logger *slog.Logger,
 ) {
-	// Register image cache cleanup task
+	// Register scan job cleanup task
 	err := taskScheduler.RegisterTask(scheduler.Task{
+		ID:          "scan-job-cleanup",
+		Name:        "Scan Job Cleanup",
+		Description: "Delete old scan jobs and their checkpoints based on retention policy",
+		Schedule:    "*/30 * * * *", // Every 30 minutes
+		Enabled:     true,
+		Handler: func(ctx context.Context) error {
+			retentionMinutes := cfg.Media.ScanJobRetentionMinutes
+			logger.Info("Running scan job cleanup", "retention_minutes", retentionMinutes)
+
+			// Get all libraries and clean up their old scan jobs
+			libraries, err := repos.Library.List(ctx)
+			if err != nil {
+				return err
+			}
+
+			for _, lib := range libraries {
+				// The repository's DeleteOld method handles CASCADE deletion of checkpoints
+				if err := repos.ScanJob.DeleteOld(ctx, lib.ID, retentionMinutes); err != nil {
+					logger.Error("Failed to clean scan jobs for library",
+						"library_id", lib.ID,
+						"error", err)
+					// Continue with other libraries even if one fails
+				}
+			}
+
+			logger.Info("Scan job cleanup completed", "libraries_processed", len(libraries))
+			return nil
+		},
+	})
+	if err != nil {
+		logger.Error("Failed to register scan job cleanup task", "error", err)
+	} else {
+		logger.Info("Registered scan job cleanup task with scheduler")
+	}
+
+	// Register image cache cleanup task
+	err = taskScheduler.RegisterTask(scheduler.Task{
 		ID:          "image-cache-cleanup",
 		Name:        "Image Cache Cleanup",
 		Description: "Remove orphaned image cache files that are no longer referenced in the database",

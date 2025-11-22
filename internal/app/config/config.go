@@ -61,6 +61,9 @@ type MediaConfig struct {
 
 	// Operation timeouts
 	ScanTimeout time.Duration // Maximum time for a library scan operation
+
+	// Scan job cleanup
+	ScanJobRetentionMinutes int // How many minutes to keep completed/failed scan jobs before cleanup
 }
 
 // TranscodeConfig holds transcode cleanup policies and thresholds.
@@ -232,11 +235,12 @@ func loadServerConfig(logger *slog.Logger) ServerConfig {
 // loadMediaConfig loads media processing configuration from environment
 func loadMediaConfig(logger *slog.Logger) MediaConfig {
 	return MediaConfig{
-		TranscodeOutputDir:    getEnv("TRANSCODE_OUTPUT_DIR", "./data/cache/transcodes"),
-		TranscodeWorkers:      getEnvIntWithLog(logger, "TRANSCODE_WORKERS", 8),
-		TranscodePollInterval: getEnvDurationWithLog(logger, "TRANSCODE_POLL_INTERVAL", 10*time.Second),
-		TranscodeIdleTimeout:  getEnvDurationWithLog(logger, "TRANSCODE_IDLE_TIMEOUT", 5*time.Minute),
-		ScanTimeout:           getEnvDurationWithLog(logger, "SCAN_TIMEOUT", 24*time.Hour), // Default 24 hours for large libraries
+		TranscodeOutputDir:      getEnv("TRANSCODE_OUTPUT_DIR", "./data/cache/transcodes"),
+		TranscodeWorkers:        getEnvIntWithLog(logger, "TRANSCODE_WORKERS", 8),
+		TranscodePollInterval:   getEnvDurationWithLog(logger, "TRANSCODE_POLL_INTERVAL", 10*time.Second),
+		TranscodeIdleTimeout:    getEnvDurationWithLog(logger, "TRANSCODE_IDLE_TIMEOUT", 5*time.Minute),
+		ScanTimeout:             getEnvDurationWithLog(logger, "SCAN_TIMEOUT", 24*time.Hour), // Default 24 hours for large libraries
+		ScanJobRetentionMinutes: getEnvIntWithLog(logger, "SCAN_JOB_RETENTION_MINUTES", 30), // Keep scan jobs for 30 minutes by default
 	}
 }
 

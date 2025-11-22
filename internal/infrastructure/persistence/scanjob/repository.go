@@ -281,18 +281,20 @@ func (r *Repository) Delete(ctx context.Context, id int64) error {
 }
 
 // DeleteOld deletes old completed/failed scan jobs for a library
-func (r *Repository) DeleteOld(ctx context.Context, libraryID int64, retentionDays int) error {
+func (r *Repository) DeleteOld(ctx context.Context, libraryID int64, retentionMinutes int) error {
 	_, err := r.router.Route(
 		func() (any, error) {
-			// PostgreSQL: pass retention days as string for the query to build the interval
+			// PostgreSQL: convert minutes to days for the interval
+			// Using float division to support sub-day retention
+			retentionDays := float64(retentionMinutes) / (24.0 * 60.0)
 			return nil, r.postgres.DeleteOldScanJobs(ctx, sqlc_postgres.DeleteOldScanJobsParams{
 				LibraryID:     int32(libraryID),
-				RetentionDays: fmt.Sprintf("%d", retentionDays),
+				RetentionDays: fmt.Sprintf("%.4f", retentionDays),
 			})
 		},
 		func() (any, error) {
-			// SQLite uses modifier syntax: '-7 days'
-			modifier := fmt.Sprintf("-%d days", retentionDays)
+			// SQLite uses modifier syntax: '-30 minutes'
+			modifier := fmt.Sprintf("-%d minutes", retentionMinutes)
 			return nil, r.sqlite.DeleteOldScanJobs(ctx, sqlc_sqlite.DeleteOldScanJobsParams{
 				LibraryID: libraryID,
 				Datetime:  modifier,

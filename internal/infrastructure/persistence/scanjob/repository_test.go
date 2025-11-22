@@ -829,7 +829,8 @@ func TestRepository_DeleteOld(t *testing.T) {
 	}
 
 	// Delete old jobs (older than 7 days)
-	if err := repo.DeleteOld(ctx, 1, 7); err != nil {
+	// Delete jobs older than 7 days (7 * 24 * 60 = 10080 minutes)
+	if err := repo.DeleteOld(ctx, 1, 10080); err != nil {
 		t.Fatalf("Failed to delete old jobs: %v", err)
 	}
 

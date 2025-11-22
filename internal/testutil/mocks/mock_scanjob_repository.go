@@ -243,7 +243,7 @@ func (r *ScanJobRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (r *ScanJobRepository) DeleteOld(ctx context.Context, libraryID int64, retentionDays int) error {
+func (r *ScanJobRepository) DeleteOld(ctx context.Context, libraryID int64, retentionMinutes int) error {
 	if r.DeleteErr != nil {
 		return r.DeleteErr
 	}
@@ -251,7 +251,7 @@ func (r *ScanJobRepository) DeleteOld(ctx context.Context, libraryID int64, rete
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	cutoff := time.Now().AddDate(0, 0, -retentionDays)
+	cutoff := time.Now().Add(-time.Duration(retentionMinutes) * time.Minute)
 
 	for id, job := range r.jobs {
 		if job.LibraryID == libraryID {

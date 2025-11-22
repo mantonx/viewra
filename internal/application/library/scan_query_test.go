@@ -136,7 +136,7 @@ func (m *mockScanJobRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockScanJobRepository) DeleteOld(ctx context.Context, libraryID int64, retentionDays int) error {
+func (m *mockScanJobRepository) DeleteOld(ctx context.Context, libraryID int64, retentionMinutes int) error {
 	return nil
 }
 
