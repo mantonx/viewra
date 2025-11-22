@@ -197,6 +197,35 @@ type MusicRepository interface {
 
 	// ListArtistIDsByLibraryPaginated retrieves only artist representative IDs in a library with pagination (for prefetching)
 	ListArtistIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *common.PaginationParams) ([]int64, error)
+
+	// Album entity operations
+	// CreateAlbum creates a new album entity
+	CreateAlbum(ctx context.Context, album *Album) error
+
+	// GetAlbumByID retrieves an album by its ID
+	GetAlbumByID(ctx context.Context, id int64) (*Album, error)
+
+	// FindAlbumByTitle finds an album by library, title, and album artist
+	FindAlbumByTitle(ctx context.Context, libraryID int64, title, albumArtist string) (*Album, error)
+
+	// ListAlbumsByLibrary retrieves all album entities in a library
+	ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]*Album, error)
+
+	// ListMusicTracksByAlbumID retrieves all tracks for a specific album ID
+	ListMusicTracksByAlbumID(ctx context.Context, albumID int64) ([]*MusicTrack, error)
+
+	// Artist entity operations
+	// CreateArtist creates a new artist entity
+	CreateArtist(ctx context.Context, artist *Artist) error
+
+	// GetArtistByID retrieves an artist by its ID
+	GetArtistByID(ctx context.Context, id int64) (*Artist, error)
+
+	// FindArtistByName finds an artist by library and name
+	FindArtistByName(ctx context.Context, libraryID int64, name string) (*Artist, error)
+
+	// ListArtistsByLibrary retrieves all artist entities in a library
+	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]*Artist, error)
 }
 
 // MusicArtist represents an artist with aggregated track and album counts

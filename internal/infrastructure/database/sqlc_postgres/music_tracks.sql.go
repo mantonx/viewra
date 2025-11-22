@@ -3,44 +3,12 @@
 //   sqlc v1.30.0
 // source: music_tracks.sql
 
-package sqlc_sqlite
+package sqlc_postgres
 
 import (
 	"context"
 	"database/sql"
 )
-
-const countAlbumsByLibrary = `-- name: CountAlbumsByLibrary :one
-
-SELECT COUNT(DISTINCT mt.album || mt.album_artist)
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-`
-
-// ============================================================================
-// Pagination Support Queries
-// ============================================================================
-func (q *Queries) CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countAlbumsByLibrary, libraryID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countMusicTracksByLibrary = `-- name: CountMusicTracksByLibrary :one
-SELECT COUNT(*)
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-`
-
-func (q *Queries) CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countMusicTracksByLibrary, libraryID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
 
 const createMusicTrack = `-- name: CreateMusicTrack :exec
 INSERT INTO music_tracks (
@@ -48,27 +16,27 @@ INSERT INTO music_tracks (
     total_tracks, total_discs, genre, year, release_date, composer,
     lyricist, record_label, isrc, release_type, compilation,
     musicbrainz_track_id, musicbrainz_album_id, musicbrainz_artist_id,
-    original_title, sort_title, album_id, artist_id
+    original_title, sort_title, album_id
 ) VALUES (
-    ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?,
-    ?, ?, ?,
-    ?, ?, ?, ?
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11, $12,
+    $13, $14, $15, $16, $17,
+    $18, $19, $20,
+    $21, $22, $23
 )
 `
 
 type CreateMusicTrackParams struct {
-	MediaID             int64          `json:"media_id"`
+	MediaID             int32          `json:"media_id"`
 	Artist              sql.NullString `json:"artist"`
 	Album               sql.NullString `json:"album"`
 	AlbumArtist         sql.NullString `json:"album_artist"`
-	TrackNumber         sql.NullInt64  `json:"track_number"`
-	DiscNumber          sql.NullInt64  `json:"disc_number"`
-	TotalTracks         sql.NullInt64  `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64  `json:"total_discs"`
+	TrackNumber         sql.NullInt32  `json:"track_number"`
+	DiscNumber          sql.NullInt32  `json:"disc_number"`
+	TotalTracks         sql.NullInt32  `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32  `json:"total_discs"`
 	Genre               sql.NullString `json:"genre"`
-	Year                sql.NullInt64  `json:"year"`
+	Year                sql.NullInt32  `json:"year"`
 	ReleaseDate         sql.NullTime   `json:"release_date"`
 	Composer            sql.NullString `json:"composer"`
 	Lyricist            sql.NullString `json:"lyricist"`
@@ -81,8 +49,7 @@ type CreateMusicTrackParams struct {
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString `json:"original_title"`
 	SortTitle           sql.NullString `json:"sort_title"`
-	AlbumID             sql.NullInt64  `json:"album_id"`
-	ArtistID            sql.NullInt64  `json:"artist_id"`
+	AlbumID             sql.NullInt32  `json:"album_id"`
 }
 
 func (q *Queries) CreateMusicTrack(ctx context.Context, arg CreateMusicTrackParams) error {
@@ -110,17 +77,16 @@ func (q *Queries) CreateMusicTrack(ctx context.Context, arg CreateMusicTrackPara
 		arg.OriginalTitle,
 		arg.SortTitle,
 		arg.AlbumID,
-		arg.ArtistID,
 	)
 	return err
 }
 
 const deleteMusicTrack = `-- name: DeleteMusicTrack :exec
 DELETE FROM music_tracks
-WHERE media_id = ?
+WHERE media_id = $1
 `
 
-func (q *Queries) DeleteMusicTrack(ctx context.Context, mediaID int64) error {
+func (q *Queries) DeleteMusicTrack(ctx context.Context, mediaID int32) error {
 	_, err := q.db.ExecContext(ctx, deleteMusicTrack, mediaID)
 	return err
 }
@@ -165,20 +131,20 @@ SELECT
     med.updated_at
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE mt.media_id = ?
+WHERE mt.media_id = $1
 `
 
 type GetMusicTrackByMediaIDRow struct {
-	MediaID             int64           `json:"media_id"`
+	MediaID             int32           `json:"media_id"`
 	Artist              sql.NullString  `json:"artist"`
 	Album               sql.NullString  `json:"album"`
 	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	TrackNumber         sql.NullInt32   `json:"track_number"`
+	DiscNumber          sql.NullInt32   `json:"disc_number"`
+	TotalTracks         sql.NullInt32   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32   `json:"total_discs"`
 	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
+	Year                sql.NullInt32   `json:"year"`
 	ReleaseDate         sql.NullTime    `json:"release_date"`
 	Composer            sql.NullString  `json:"composer"`
 	Lyricist            sql.NullString  `json:"lyricist"`
@@ -191,18 +157,18 @@ type GetMusicTrackByMediaIDRow struct {
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString  `json:"original_title"`
 	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
+	AlbumID             sql.NullInt32   `json:"album_id"`
+	ArtistID            sql.NullInt32   `json:"artist_id"`
+	MediaID_2           int32           `json:"media_id_2"`
+	LibraryID           int32           `json:"library_id"`
 	Title               string          `json:"title"`
 	FilePath            string          `json:"file_path"`
 	FileSize            sql.NullInt64   `json:"file_size"`
 	FileHash            sql.NullString  `json:"file_hash"`
 	ContainerFormat     sql.NullString  `json:"container_format"`
 	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
+	Width               sql.NullInt32   `json:"width"`
+	Height              sql.NullInt32   `json:"height"`
 	AspectRatio         sql.NullString  `json:"aspect_ratio"`
 	Codec               sql.NullString  `json:"codec"`
 	AudioCodec          sql.NullString  `json:"audio_codec"`
@@ -217,7 +183,7 @@ type GetMusicTrackByMediaIDRow struct {
 	Type                string          `json:"type"`
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
+	QualityScore        sql.NullInt32   `json:"quality_score"`
 	Is3d                sql.NullBool    `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
 	HasDash             sql.NullBool    `json:"has_dash"`
@@ -230,7 +196,7 @@ type GetMusicTrackByMediaIDRow struct {
 	UpdatedAt           sql.NullTime    `json:"updated_at"`
 }
 
-func (q *Queries) GetMusicTrackByMediaID(ctx context.Context, mediaID int64) (GetMusicTrackByMediaIDRow, error) {
+func (q *Queries) GetMusicTrackByMediaID(ctx context.Context, mediaID int32) (GetMusicTrackByMediaIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getMusicTrackByMediaID, mediaID)
 	var i GetMusicTrackByMediaIDRow
 	err := row.Scan(
@@ -306,20 +272,20 @@ SELECT DISTINCT
     SUM(med.duration) as total_duration
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
+WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist, mt.album
 `
 
 type ListAlbumsByLibraryGroupedRow struct {
-	Album         sql.NullString  `json:"album"`
-	AlbumArtist   sql.NullString  `json:"album_artist"`
-	Year          sql.NullInt64   `json:"year"`
-	TrackCount    int64           `json:"track_count"`
-	TotalDuration sql.NullFloat64 `json:"total_duration"`
+	Album         sql.NullString `json:"album"`
+	AlbumArtist   sql.NullString `json:"album_artist"`
+	Year          sql.NullInt32  `json:"year"`
+	TrackCount    int64          `json:"track_count"`
+	TotalDuration int64          `json:"total_duration"`
 }
 
-func (q *Queries) ListAlbumsByLibraryGrouped(ctx context.Context, libraryID int64) ([]ListAlbumsByLibraryGroupedRow, error) {
+func (q *Queries) ListAlbumsByLibraryGrouped(ctx context.Context, libraryID int32) ([]ListAlbumsByLibraryGroupedRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAlbumsByLibraryGrouped, libraryID)
 	if err != nil {
 		return nil, err
@@ -338,200 +304,6 @@ func (q *Queries) ListAlbumsByLibraryGrouped(ctx context.Context, libraryID int6
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAlbumsByLibraryPaginated = `-- name: ListAlbumsByLibraryPaginated :many
-SELECT DISTINCT
-    mt.album,
-    mt.album_artist,
-    mt.year,
-    COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-GROUP BY mt.album, mt.album_artist, mt.year
-ORDER BY mt.album_artist COLLATE NOCASE ASC, mt.album COLLATE NOCASE ASC
-LIMIT ? OFFSET ?
-`
-
-type ListAlbumsByLibraryPaginatedParams struct {
-	LibraryID int64 `json:"library_id"`
-	Limit     int64 `json:"limit"`
-	Offset    int64 `json:"offset"`
-}
-
-type ListAlbumsByLibraryPaginatedRow struct {
-	Album         sql.NullString  `json:"album"`
-	AlbumArtist   sql.NullString  `json:"album_artist"`
-	Year          sql.NullInt64   `json:"year"`
-	TrackCount    int64           `json:"track_count"`
-	TotalDuration sql.NullFloat64 `json:"total_duration"`
-}
-
-func (q *Queries) ListAlbumsByLibraryPaginated(ctx context.Context, arg ListAlbumsByLibraryPaginatedParams) ([]ListAlbumsByLibraryPaginatedRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAlbumsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListAlbumsByLibraryPaginatedRow{}
-	for rows.Next() {
-		var i ListAlbumsByLibraryPaginatedRow
-		if err := rows.Scan(
-			&i.Album,
-			&i.AlbumArtist,
-			&i.Year,
-			&i.TrackCount,
-			&i.TotalDuration,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAlbumsByLibraryPaginatedDesc = `-- name: ListAlbumsByLibraryPaginatedDesc :many
-SELECT DISTINCT
-    mt.album,
-    mt.album_artist,
-    mt.year,
-    COUNT(*) as track_count,
-    SUM(med.duration) as total_duration
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-GROUP BY mt.album, mt.album_artist, mt.year
-ORDER BY mt.album_artist COLLATE NOCASE DESC, mt.album COLLATE NOCASE DESC
-LIMIT ? OFFSET ?
-`
-
-type ListAlbumsByLibraryPaginatedDescParams struct {
-	LibraryID int64 `json:"library_id"`
-	Limit     int64 `json:"limit"`
-	Offset    int64 `json:"offset"`
-}
-
-type ListAlbumsByLibraryPaginatedDescRow struct {
-	Album         sql.NullString  `json:"album"`
-	AlbumArtist   sql.NullString  `json:"album_artist"`
-	Year          sql.NullInt64   `json:"year"`
-	TrackCount    int64           `json:"track_count"`
-	TotalDuration sql.NullFloat64 `json:"total_duration"`
-}
-
-func (q *Queries) ListAlbumsByLibraryPaginatedDesc(ctx context.Context, arg ListAlbumsByLibraryPaginatedDescParams) ([]ListAlbumsByLibraryPaginatedDescRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAlbumsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListAlbumsByLibraryPaginatedDescRow{}
-	for rows.Next() {
-		var i ListAlbumsByLibraryPaginatedDescRow
-		if err := rows.Scan(
-			&i.Album,
-			&i.AlbumArtist,
-			&i.Year,
-			&i.TrackCount,
-			&i.TotalDuration,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listArtistIDsByLibraryPaginated = `-- name: ListArtistIDsByLibraryPaginated :many
-SELECT mt.media_id as id
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-GROUP BY mt.artist
-ORDER BY COALESCE(mt.sort_artist, mt.artist) COLLATE NOCASE ASC
-LIMIT ? OFFSET ?
-`
-
-type ListArtistIDsByLibraryPaginatedParams struct {
-	LibraryID int64 `json:"library_id"`
-	Limit     int64 `json:"limit"`
-	Offset    int64 `json:"offset"`
-}
-
-func (q *Queries) ListArtistIDsByLibraryPaginated(ctx context.Context, arg ListArtistIDsByLibraryPaginatedParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listArtistIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []int64{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listArtistIDsByLibraryPaginatedDesc = `-- name: ListArtistIDsByLibraryPaginatedDesc :many
-SELECT mt.media_id as id
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-GROUP BY mt.artist
-ORDER BY COALESCE(mt.sort_artist, mt.artist) COLLATE NOCASE DESC
-LIMIT ? OFFSET ?
-`
-
-type ListArtistIDsByLibraryPaginatedDescParams struct {
-	LibraryID int64 `json:"library_id"`
-	Limit     int64 `json:"limit"`
-	Offset    int64 `json:"offset"`
-}
-
-func (q *Queries) ListArtistIDsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistIDsByLibraryPaginatedDescParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listArtistIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []int64{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -582,26 +354,26 @@ SELECT
     med.updated_at
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ? AND mt.album = ?
+WHERE med.library_id = $1 AND mt.album = $2
 ORDER BY mt.disc_number, mt.track_number
 `
 
 type ListMusicTracksByAlbumParams struct {
-	LibraryID int64          `json:"library_id"`
+	LibraryID int32          `json:"library_id"`
 	Album     sql.NullString `json:"album"`
 }
 
 type ListMusicTracksByAlbumRow struct {
-	MediaID             int64           `json:"media_id"`
+	MediaID             int32           `json:"media_id"`
 	Artist              sql.NullString  `json:"artist"`
 	Album               sql.NullString  `json:"album"`
 	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	TrackNumber         sql.NullInt32   `json:"track_number"`
+	DiscNumber          sql.NullInt32   `json:"disc_number"`
+	TotalTracks         sql.NullInt32   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32   `json:"total_discs"`
 	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
+	Year                sql.NullInt32   `json:"year"`
 	ReleaseDate         sql.NullTime    `json:"release_date"`
 	Composer            sql.NullString  `json:"composer"`
 	Lyricist            sql.NullString  `json:"lyricist"`
@@ -614,18 +386,18 @@ type ListMusicTracksByAlbumRow struct {
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString  `json:"original_title"`
 	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
+	AlbumID             sql.NullInt32   `json:"album_id"`
+	ArtistID            sql.NullInt32   `json:"artist_id"`
+	MediaID_2           int32           `json:"media_id_2"`
+	LibraryID           int32           `json:"library_id"`
 	Title               string          `json:"title"`
 	FilePath            string          `json:"file_path"`
 	FileSize            sql.NullInt64   `json:"file_size"`
 	FileHash            sql.NullString  `json:"file_hash"`
 	ContainerFormat     sql.NullString  `json:"container_format"`
 	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
+	Width               sql.NullInt32   `json:"width"`
+	Height              sql.NullInt32   `json:"height"`
 	AspectRatio         sql.NullString  `json:"aspect_ratio"`
 	Codec               sql.NullString  `json:"codec"`
 	AudioCodec          sql.NullString  `json:"audio_codec"`
@@ -640,7 +412,7 @@ type ListMusicTracksByAlbumRow struct {
 	Type                string          `json:"type"`
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
+	QualityScore        sql.NullInt32   `json:"quality_score"`
 	Is3d                sql.NullBool    `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
 	HasDash             sql.NullBool    `json:"has_dash"`
@@ -776,26 +548,26 @@ SELECT
     med.updated_at
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ? AND mt.album_artist = ?
+WHERE med.library_id = $1 AND mt.album_artist = $2
 ORDER BY mt.album, mt.disc_number, mt.track_number
 `
 
 type ListMusicTracksByAlbumArtistParams struct {
-	LibraryID   int64          `json:"library_id"`
+	LibraryID   int32          `json:"library_id"`
 	AlbumArtist sql.NullString `json:"album_artist"`
 }
 
 type ListMusicTracksByAlbumArtistRow struct {
-	MediaID             int64           `json:"media_id"`
+	MediaID             int32           `json:"media_id"`
 	Artist              sql.NullString  `json:"artist"`
 	Album               sql.NullString  `json:"album"`
 	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	TrackNumber         sql.NullInt32   `json:"track_number"`
+	DiscNumber          sql.NullInt32   `json:"disc_number"`
+	TotalTracks         sql.NullInt32   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32   `json:"total_discs"`
 	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
+	Year                sql.NullInt32   `json:"year"`
 	ReleaseDate         sql.NullTime    `json:"release_date"`
 	Composer            sql.NullString  `json:"composer"`
 	Lyricist            sql.NullString  `json:"lyricist"`
@@ -808,18 +580,18 @@ type ListMusicTracksByAlbumArtistRow struct {
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString  `json:"original_title"`
 	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
+	AlbumID             sql.NullInt32   `json:"album_id"`
+	ArtistID            sql.NullInt32   `json:"artist_id"`
+	MediaID_2           int32           `json:"media_id_2"`
+	LibraryID           int32           `json:"library_id"`
 	Title               string          `json:"title"`
 	FilePath            string          `json:"file_path"`
 	FileSize            sql.NullInt64   `json:"file_size"`
 	FileHash            sql.NullString  `json:"file_hash"`
 	ContainerFormat     sql.NullString  `json:"container_format"`
 	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
+	Width               sql.NullInt32   `json:"width"`
+	Height              sql.NullInt32   `json:"height"`
 	AspectRatio         sql.NullString  `json:"aspect_ratio"`
 	Codec               sql.NullString  `json:"codec"`
 	AudioCodec          sql.NullString  `json:"audio_codec"`
@@ -834,7 +606,7 @@ type ListMusicTracksByAlbumArtistRow struct {
 	Type                string          `json:"type"`
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
+	QualityScore        sql.NullInt32   `json:"quality_score"`
 	Is3d                sql.NullBool    `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
 	HasDash             sql.NullBool    `json:"has_dash"`
@@ -970,21 +742,21 @@ SELECT
     med.updated_at
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE mt.album_id = ?
+WHERE mt.album_id = $1
 ORDER BY mt.disc_number, mt.track_number
 `
 
 type ListMusicTracksByAlbumIDRow struct {
-	MediaID             int64           `json:"media_id"`
+	MediaID             int32           `json:"media_id"`
 	Artist              sql.NullString  `json:"artist"`
 	Album               sql.NullString  `json:"album"`
 	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	TrackNumber         sql.NullInt32   `json:"track_number"`
+	DiscNumber          sql.NullInt32   `json:"disc_number"`
+	TotalTracks         sql.NullInt32   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32   `json:"total_discs"`
 	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
+	Year                sql.NullInt32   `json:"year"`
 	ReleaseDate         sql.NullTime    `json:"release_date"`
 	Composer            sql.NullString  `json:"composer"`
 	Lyricist            sql.NullString  `json:"lyricist"`
@@ -997,18 +769,18 @@ type ListMusicTracksByAlbumIDRow struct {
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString  `json:"original_title"`
 	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
+	AlbumID             sql.NullInt32   `json:"album_id"`
+	ArtistID            sql.NullInt32   `json:"artist_id"`
+	MediaID_2           int32           `json:"media_id_2"`
+	LibraryID           int32           `json:"library_id"`
 	Title               string          `json:"title"`
 	FilePath            string          `json:"file_path"`
 	FileSize            sql.NullInt64   `json:"file_size"`
 	FileHash            sql.NullString  `json:"file_hash"`
 	ContainerFormat     sql.NullString  `json:"container_format"`
 	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
+	Width               sql.NullInt32   `json:"width"`
+	Height              sql.NullInt32   `json:"height"`
 	AspectRatio         sql.NullString  `json:"aspect_ratio"`
 	Codec               sql.NullString  `json:"codec"`
 	AudioCodec          sql.NullString  `json:"audio_codec"`
@@ -1023,7 +795,7 @@ type ListMusicTracksByAlbumIDRow struct {
 	Type                string          `json:"type"`
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
+	QualityScore        sql.NullInt32   `json:"quality_score"`
 	Is3d                sql.NullBool    `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
 	HasDash             sql.NullBool    `json:"has_dash"`
@@ -1036,7 +808,7 @@ type ListMusicTracksByAlbumIDRow struct {
 	UpdatedAt           sql.NullTime    `json:"updated_at"`
 }
 
-func (q *Queries) ListMusicTracksByAlbumID(ctx context.Context, albumID sql.NullInt64) ([]ListMusicTracksByAlbumIDRow, error) {
+func (q *Queries) ListMusicTracksByAlbumID(ctx context.Context, albumID sql.NullInt32) ([]ListMusicTracksByAlbumIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, listMusicTracksByAlbumID, albumID)
 	if err != nil {
 		return nil, err
@@ -1159,28 +931,28 @@ SELECT
     med.updated_at
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-  AND (mt.artist LIKE ? OR mt.album_artist LIKE ?)
+WHERE med.library_id = $1
+  AND (mt.artist ILIKE $2 OR mt.album_artist ILIKE $3)
 ORDER BY mt.album, mt.disc_number, mt.track_number
 `
 
 type ListMusicTracksByArtistParams struct {
-	LibraryID   int64          `json:"library_id"`
+	LibraryID   int32          `json:"library_id"`
 	Artist      sql.NullString `json:"artist"`
 	AlbumArtist sql.NullString `json:"album_artist"`
 }
 
 type ListMusicTracksByArtistRow struct {
-	MediaID             int64           `json:"media_id"`
+	MediaID             int32           `json:"media_id"`
 	Artist              sql.NullString  `json:"artist"`
 	Album               sql.NullString  `json:"album"`
 	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	TrackNumber         sql.NullInt32   `json:"track_number"`
+	DiscNumber          sql.NullInt32   `json:"disc_number"`
+	TotalTracks         sql.NullInt32   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32   `json:"total_discs"`
 	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
+	Year                sql.NullInt32   `json:"year"`
 	ReleaseDate         sql.NullTime    `json:"release_date"`
 	Composer            sql.NullString  `json:"composer"`
 	Lyricist            sql.NullString  `json:"lyricist"`
@@ -1193,18 +965,18 @@ type ListMusicTracksByArtistRow struct {
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString  `json:"original_title"`
 	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
+	AlbumID             sql.NullInt32   `json:"album_id"`
+	ArtistID            sql.NullInt32   `json:"artist_id"`
+	MediaID_2           int32           `json:"media_id_2"`
+	LibraryID           int32           `json:"library_id"`
 	Title               string          `json:"title"`
 	FilePath            string          `json:"file_path"`
 	FileSize            sql.NullInt64   `json:"file_size"`
 	FileHash            sql.NullString  `json:"file_hash"`
 	ContainerFormat     sql.NullString  `json:"container_format"`
 	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
+	Width               sql.NullInt32   `json:"width"`
+	Height              sql.NullInt32   `json:"height"`
 	AspectRatio         sql.NullString  `json:"aspect_ratio"`
 	Codec               sql.NullString  `json:"codec"`
 	AudioCodec          sql.NullString  `json:"audio_codec"`
@@ -1219,7 +991,7 @@ type ListMusicTracksByArtistRow struct {
 	Type                string          `json:"type"`
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
+	QualityScore        sql.NullInt32   `json:"quality_score"`
 	Is3d                sql.NullBool    `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
 	HasDash             sql.NullBool    `json:"has_dash"`
@@ -1355,21 +1127,21 @@ SELECT
     med.updated_at
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
+WHERE med.library_id = $1
 ORDER BY mt.album_artist, mt.album, mt.disc_number, mt.track_number
 `
 
 type ListMusicTracksByLibraryRow struct {
-	MediaID             int64           `json:"media_id"`
+	MediaID             int32           `json:"media_id"`
 	Artist              sql.NullString  `json:"artist"`
 	Album               sql.NullString  `json:"album"`
 	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	TrackNumber         sql.NullInt32   `json:"track_number"`
+	DiscNumber          sql.NullInt32   `json:"disc_number"`
+	TotalTracks         sql.NullInt32   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32   `json:"total_discs"`
 	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
+	Year                sql.NullInt32   `json:"year"`
 	ReleaseDate         sql.NullTime    `json:"release_date"`
 	Composer            sql.NullString  `json:"composer"`
 	Lyricist            sql.NullString  `json:"lyricist"`
@@ -1382,18 +1154,18 @@ type ListMusicTracksByLibraryRow struct {
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString  `json:"original_title"`
 	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
+	AlbumID             sql.NullInt32   `json:"album_id"`
+	ArtistID            sql.NullInt32   `json:"artist_id"`
+	MediaID_2           int32           `json:"media_id_2"`
+	LibraryID           int32           `json:"library_id"`
 	Title               string          `json:"title"`
 	FilePath            string          `json:"file_path"`
 	FileSize            sql.NullInt64   `json:"file_size"`
 	FileHash            sql.NullString  `json:"file_hash"`
 	ContainerFormat     sql.NullString  `json:"container_format"`
 	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
+	Width               sql.NullInt32   `json:"width"`
+	Height              sql.NullInt32   `json:"height"`
 	AspectRatio         sql.NullString  `json:"aspect_ratio"`
 	Codec               sql.NullString  `json:"codec"`
 	AudioCodec          sql.NullString  `json:"audio_codec"`
@@ -1408,7 +1180,7 @@ type ListMusicTracksByLibraryRow struct {
 	Type                string          `json:"type"`
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
+	QualityScore        sql.NullInt32   `json:"quality_score"`
 	Is3d                sql.NullBool    `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
 	HasDash             sql.NullBool    `json:"has_dash"`
@@ -1421,7 +1193,7 @@ type ListMusicTracksByLibraryRow struct {
 	UpdatedAt           sql.NullTime    `json:"updated_at"`
 }
 
-func (q *Queries) ListMusicTracksByLibrary(ctx context.Context, libraryID int64) ([]ListMusicTracksByLibraryRow, error) {
+func (q *Queries) ListMusicTracksByLibrary(ctx context.Context, libraryID int32) ([]ListMusicTracksByLibraryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listMusicTracksByLibrary, libraryID)
 	if err != nil {
 		return nil, err
@@ -1430,398 +1202,6 @@ func (q *Queries) ListMusicTracksByLibrary(ctx context.Context, libraryID int64)
 	items := []ListMusicTracksByLibraryRow{}
 	for rows.Next() {
 		var i ListMusicTracksByLibraryRow
-		if err := rows.Scan(
-			&i.MediaID,
-			&i.Artist,
-			&i.Album,
-			&i.AlbumArtist,
-			&i.TrackNumber,
-			&i.DiscNumber,
-			&i.TotalTracks,
-			&i.TotalDiscs,
-			&i.Genre,
-			&i.Year,
-			&i.ReleaseDate,
-			&i.Composer,
-			&i.Lyricist,
-			&i.RecordLabel,
-			&i.Isrc,
-			&i.ReleaseType,
-			&i.Compilation,
-			&i.MusicbrainzTrackID,
-			&i.MusicbrainzAlbumID,
-			&i.MusicbrainzArtistID,
-			&i.OriginalTitle,
-			&i.SortTitle,
-			&i.AlbumID,
-			&i.ArtistID,
-			&i.MediaID_2,
-			&i.LibraryID,
-			&i.Title,
-			&i.FilePath,
-			&i.FileSize,
-			&i.FileHash,
-			&i.ContainerFormat,
-			&i.Duration,
-			&i.Width,
-			&i.Height,
-			&i.AspectRatio,
-			&i.Codec,
-			&i.AudioCodec,
-			&i.CodecProfile,
-			&i.BitRate,
-			&i.FrameRate,
-			&i.ScanType,
-			&i.HdrFormat,
-			&i.ColorSpace,
-			&i.ColorPrimaries,
-			&i.ThumbnailPath,
-			&i.Type,
-			&i.SourceType,
-			&i.ResolutionLabel,
-			&i.QualityScore,
-			&i.Is3d,
-			&i.StereoMode,
-			&i.HasDash,
-			&i.DashManifestPath,
-			&i.TranscodingStatus,
-			&i.IsExtra,
-			&i.DateAdded,
-			&i.DateModified,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listMusicTracksByLibraryPaginated = `-- name: ListMusicTracksByLibraryPaginated :many
-SELECT
-    mt.media_id, mt.artist, mt.album, mt.album_artist, mt.track_number, mt.disc_number, mt.total_tracks, mt.total_discs, mt.genre, mt.year, mt.release_date, mt.composer, mt.lyricist, mt.record_label, mt.isrc, mt.release_type, mt.compilation, mt.musicbrainz_track_id, mt.musicbrainz_album_id, mt.musicbrainz_artist_id, mt.original_title, mt.sort_title, mt.album_id, mt.artist_id,
-    med.id as media_id,
-    med.library_id,
-    med.title,
-    med.file_path,
-    med.file_size,
-    med.file_hash,
-    med.container_format,
-    med.duration,
-    med.width,
-    med.height,
-    med.aspect_ratio,
-    med.codec,
-    med.audio_codec,
-    med.codec_profile,
-    med.bit_rate,
-    med.frame_rate,
-    med.scan_type,
-    med.hdr_format,
-    med.color_space,
-    med.color_primaries,
-    med.thumbnail_path,
-    med.type,
-    med.source_type,
-    med.resolution_label,
-    med.quality_score,
-    med.is_3d,
-    med.stereo_mode,
-    med.has_dash,
-    med.dash_manifest_path,
-    med.transcoding_status,
-    med.is_extra,
-    med.date_added,
-    med.date_modified,
-    med.created_at,
-    med.updated_at
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-ORDER BY COALESCE(mt.sort_title, med.title) COLLATE NOCASE ASC
-LIMIT ? OFFSET ?
-`
-
-type ListMusicTracksByLibraryPaginatedParams struct {
-	LibraryID int64 `json:"library_id"`
-	Limit     int64 `json:"limit"`
-	Offset    int64 `json:"offset"`
-}
-
-type ListMusicTracksByLibraryPaginatedRow struct {
-	MediaID             int64           `json:"media_id"`
-	Artist              sql.NullString  `json:"artist"`
-	Album               sql.NullString  `json:"album"`
-	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
-	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
-	ReleaseDate         sql.NullTime    `json:"release_date"`
-	Composer            sql.NullString  `json:"composer"`
-	Lyricist            sql.NullString  `json:"lyricist"`
-	RecordLabel         sql.NullString  `json:"record_label"`
-	Isrc                sql.NullString  `json:"isrc"`
-	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
-	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
-	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
-	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
-	OriginalTitle       sql.NullString  `json:"original_title"`
-	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
-	Title               string          `json:"title"`
-	FilePath            string          `json:"file_path"`
-	FileSize            sql.NullInt64   `json:"file_size"`
-	FileHash            sql.NullString  `json:"file_hash"`
-	ContainerFormat     sql.NullString  `json:"container_format"`
-	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
-	AspectRatio         sql.NullString  `json:"aspect_ratio"`
-	Codec               sql.NullString  `json:"codec"`
-	AudioCodec          sql.NullString  `json:"audio_codec"`
-	CodecProfile        sql.NullString  `json:"codec_profile"`
-	BitRate             sql.NullInt64   `json:"bit_rate"`
-	FrameRate           sql.NullFloat64 `json:"frame_rate"`
-	ScanType            sql.NullString  `json:"scan_type"`
-	HdrFormat           sql.NullString  `json:"hdr_format"`
-	ColorSpace          sql.NullString  `json:"color_space"`
-	ColorPrimaries      sql.NullString  `json:"color_primaries"`
-	ThumbnailPath       sql.NullString  `json:"thumbnail_path"`
-	Type                string          `json:"type"`
-	SourceType          sql.NullString  `json:"source_type"`
-	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
-	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
-	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
-	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
-	DateAdded           sql.NullTime    `json:"date_added"`
-	DateModified        sql.NullTime    `json:"date_modified"`
-	CreatedAt           sql.NullTime    `json:"created_at"`
-	UpdatedAt           sql.NullTime    `json:"updated_at"`
-}
-
-func (q *Queries) ListMusicTracksByLibraryPaginated(ctx context.Context, arg ListMusicTracksByLibraryPaginatedParams) ([]ListMusicTracksByLibraryPaginatedRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMusicTracksByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListMusicTracksByLibraryPaginatedRow{}
-	for rows.Next() {
-		var i ListMusicTracksByLibraryPaginatedRow
-		if err := rows.Scan(
-			&i.MediaID,
-			&i.Artist,
-			&i.Album,
-			&i.AlbumArtist,
-			&i.TrackNumber,
-			&i.DiscNumber,
-			&i.TotalTracks,
-			&i.TotalDiscs,
-			&i.Genre,
-			&i.Year,
-			&i.ReleaseDate,
-			&i.Composer,
-			&i.Lyricist,
-			&i.RecordLabel,
-			&i.Isrc,
-			&i.ReleaseType,
-			&i.Compilation,
-			&i.MusicbrainzTrackID,
-			&i.MusicbrainzAlbumID,
-			&i.MusicbrainzArtistID,
-			&i.OriginalTitle,
-			&i.SortTitle,
-			&i.AlbumID,
-			&i.ArtistID,
-			&i.MediaID_2,
-			&i.LibraryID,
-			&i.Title,
-			&i.FilePath,
-			&i.FileSize,
-			&i.FileHash,
-			&i.ContainerFormat,
-			&i.Duration,
-			&i.Width,
-			&i.Height,
-			&i.AspectRatio,
-			&i.Codec,
-			&i.AudioCodec,
-			&i.CodecProfile,
-			&i.BitRate,
-			&i.FrameRate,
-			&i.ScanType,
-			&i.HdrFormat,
-			&i.ColorSpace,
-			&i.ColorPrimaries,
-			&i.ThumbnailPath,
-			&i.Type,
-			&i.SourceType,
-			&i.ResolutionLabel,
-			&i.QualityScore,
-			&i.Is3d,
-			&i.StereoMode,
-			&i.HasDash,
-			&i.DashManifestPath,
-			&i.TranscodingStatus,
-			&i.IsExtra,
-			&i.DateAdded,
-			&i.DateModified,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listMusicTracksByLibraryPaginatedDesc = `-- name: ListMusicTracksByLibraryPaginatedDesc :many
-SELECT
-    mt.media_id, mt.artist, mt.album, mt.album_artist, mt.track_number, mt.disc_number, mt.total_tracks, mt.total_discs, mt.genre, mt.year, mt.release_date, mt.composer, mt.lyricist, mt.record_label, mt.isrc, mt.release_type, mt.compilation, mt.musicbrainz_track_id, mt.musicbrainz_album_id, mt.musicbrainz_artist_id, mt.original_title, mt.sort_title, mt.album_id, mt.artist_id,
-    med.id as media_id,
-    med.library_id,
-    med.title,
-    med.file_path,
-    med.file_size,
-    med.file_hash,
-    med.container_format,
-    med.duration,
-    med.width,
-    med.height,
-    med.aspect_ratio,
-    med.codec,
-    med.audio_codec,
-    med.codec_profile,
-    med.bit_rate,
-    med.frame_rate,
-    med.scan_type,
-    med.hdr_format,
-    med.color_space,
-    med.color_primaries,
-    med.thumbnail_path,
-    med.type,
-    med.source_type,
-    med.resolution_label,
-    med.quality_score,
-    med.is_3d,
-    med.stereo_mode,
-    med.has_dash,
-    med.dash_manifest_path,
-    med.transcoding_status,
-    med.is_extra,
-    med.date_added,
-    med.date_modified,
-    med.created_at,
-    med.updated_at
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-ORDER BY COALESCE(mt.sort_title, med.title) COLLATE NOCASE DESC
-LIMIT ? OFFSET ?
-`
-
-type ListMusicTracksByLibraryPaginatedDescParams struct {
-	LibraryID int64 `json:"library_id"`
-	Limit     int64 `json:"limit"`
-	Offset    int64 `json:"offset"`
-}
-
-type ListMusicTracksByLibraryPaginatedDescRow struct {
-	MediaID             int64           `json:"media_id"`
-	Artist              sql.NullString  `json:"artist"`
-	Album               sql.NullString  `json:"album"`
-	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
-	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
-	ReleaseDate         sql.NullTime    `json:"release_date"`
-	Composer            sql.NullString  `json:"composer"`
-	Lyricist            sql.NullString  `json:"lyricist"`
-	RecordLabel         sql.NullString  `json:"record_label"`
-	Isrc                sql.NullString  `json:"isrc"`
-	ReleaseType         sql.NullString  `json:"release_type"`
-	Compilation         sql.NullBool    `json:"compilation"`
-	MusicbrainzTrackID  sql.NullString  `json:"musicbrainz_track_id"`
-	MusicbrainzAlbumID  sql.NullString  `json:"musicbrainz_album_id"`
-	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
-	OriginalTitle       sql.NullString  `json:"original_title"`
-	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
-	Title               string          `json:"title"`
-	FilePath            string          `json:"file_path"`
-	FileSize            sql.NullInt64   `json:"file_size"`
-	FileHash            sql.NullString  `json:"file_hash"`
-	ContainerFormat     sql.NullString  `json:"container_format"`
-	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
-	AspectRatio         sql.NullString  `json:"aspect_ratio"`
-	Codec               sql.NullString  `json:"codec"`
-	AudioCodec          sql.NullString  `json:"audio_codec"`
-	CodecProfile        sql.NullString  `json:"codec_profile"`
-	BitRate             sql.NullInt64   `json:"bit_rate"`
-	FrameRate           sql.NullFloat64 `json:"frame_rate"`
-	ScanType            sql.NullString  `json:"scan_type"`
-	HdrFormat           sql.NullString  `json:"hdr_format"`
-	ColorSpace          sql.NullString  `json:"color_space"`
-	ColorPrimaries      sql.NullString  `json:"color_primaries"`
-	ThumbnailPath       sql.NullString  `json:"thumbnail_path"`
-	Type                string          `json:"type"`
-	SourceType          sql.NullString  `json:"source_type"`
-	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
-	Is3d                sql.NullBool    `json:"is_3d"`
-	StereoMode          sql.NullString  `json:"stereo_mode"`
-	HasDash             sql.NullBool    `json:"has_dash"`
-	DashManifestPath    sql.NullString  `json:"dash_manifest_path"`
-	TranscodingStatus   sql.NullString  `json:"transcoding_status"`
-	IsExtra             bool            `json:"is_extra"`
-	DateAdded           sql.NullTime    `json:"date_added"`
-	DateModified        sql.NullTime    `json:"date_modified"`
-	CreatedAt           sql.NullTime    `json:"created_at"`
-	UpdatedAt           sql.NullTime    `json:"updated_at"`
-}
-
-func (q *Queries) ListMusicTracksByLibraryPaginatedDesc(ctx context.Context, arg ListMusicTracksByLibraryPaginatedDescParams) ([]ListMusicTracksByLibraryPaginatedDescRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMusicTracksByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListMusicTracksByLibraryPaginatedDescRow{}
-	for rows.Next() {
-		var i ListMusicTracksByLibraryPaginatedDescRow
 		if err := rows.Scan(
 			&i.MediaID,
 			&i.Artist,
@@ -1936,29 +1316,29 @@ SELECT
     med.updated_at
 FROM music_tracks mt
 JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = ?
-  AND (med.title LIKE ? OR mt.artist LIKE ? OR mt.album LIKE ?)
+WHERE med.library_id = $1
+  AND (med.title ILIKE $2 OR mt.artist ILIKE $3 OR mt.album ILIKE $4)
 ORDER BY mt.album_artist, mt.album, mt.disc_number, mt.track_number
 `
 
 type SearchMusicTracksParams struct {
-	LibraryID int64          `json:"library_id"`
+	LibraryID int32          `json:"library_id"`
 	Title     string         `json:"title"`
 	Artist    sql.NullString `json:"artist"`
 	Album     sql.NullString `json:"album"`
 }
 
 type SearchMusicTracksRow struct {
-	MediaID             int64           `json:"media_id"`
+	MediaID             int32           `json:"media_id"`
 	Artist              sql.NullString  `json:"artist"`
 	Album               sql.NullString  `json:"album"`
 	AlbumArtist         sql.NullString  `json:"album_artist"`
-	TrackNumber         sql.NullInt64   `json:"track_number"`
-	DiscNumber          sql.NullInt64   `json:"disc_number"`
-	TotalTracks         sql.NullInt64   `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64   `json:"total_discs"`
+	TrackNumber         sql.NullInt32   `json:"track_number"`
+	DiscNumber          sql.NullInt32   `json:"disc_number"`
+	TotalTracks         sql.NullInt32   `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32   `json:"total_discs"`
 	Genre               sql.NullString  `json:"genre"`
-	Year                sql.NullInt64   `json:"year"`
+	Year                sql.NullInt32   `json:"year"`
 	ReleaseDate         sql.NullTime    `json:"release_date"`
 	Composer            sql.NullString  `json:"composer"`
 	Lyricist            sql.NullString  `json:"lyricist"`
@@ -1971,18 +1351,18 @@ type SearchMusicTracksRow struct {
 	MusicbrainzArtistID sql.NullString  `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString  `json:"original_title"`
 	SortTitle           sql.NullString  `json:"sort_title"`
-	AlbumID             sql.NullInt64   `json:"album_id"`
-	ArtistID            sql.NullInt64   `json:"artist_id"`
-	MediaID_2           int64           `json:"media_id_2"`
-	LibraryID           int64           `json:"library_id"`
+	AlbumID             sql.NullInt32   `json:"album_id"`
+	ArtistID            sql.NullInt32   `json:"artist_id"`
+	MediaID_2           int32           `json:"media_id_2"`
+	LibraryID           int32           `json:"library_id"`
 	Title               string          `json:"title"`
 	FilePath            string          `json:"file_path"`
 	FileSize            sql.NullInt64   `json:"file_size"`
 	FileHash            sql.NullString  `json:"file_hash"`
 	ContainerFormat     sql.NullString  `json:"container_format"`
 	Duration            sql.NullFloat64 `json:"duration"`
-	Width               sql.NullInt64   `json:"width"`
-	Height              sql.NullInt64   `json:"height"`
+	Width               sql.NullInt32   `json:"width"`
+	Height              sql.NullInt32   `json:"height"`
 	AspectRatio         sql.NullString  `json:"aspect_ratio"`
 	Codec               sql.NullString  `json:"codec"`
 	AudioCodec          sql.NullString  `json:"audio_codec"`
@@ -1997,7 +1377,7 @@ type SearchMusicTracksRow struct {
 	Type                string          `json:"type"`
 	SourceType          sql.NullString  `json:"source_type"`
 	ResolutionLabel     sql.NullString  `json:"resolution_label"`
-	QualityScore        sql.NullInt64   `json:"quality_score"`
+	QualityScore        sql.NullInt32   `json:"quality_score"`
 	Is3d                sql.NullBool    `json:"is_3d"`
 	StereoMode          sql.NullString  `json:"stereo_mode"`
 	HasDash             sql.NullBool    `json:"has_dash"`
@@ -2100,41 +1480,41 @@ func (q *Queries) SearchMusicTracks(ctx context.Context, arg SearchMusicTracksPa
 
 const updateMusicTrack = `-- name: UpdateMusicTrack :exec
 UPDATE music_tracks
-SET artist = ?,
-    album = ?,
-    album_artist = ?,
-    track_number = ?,
-    disc_number = ?,
-    total_tracks = ?,
-    total_discs = ?,
-    genre = ?,
-    year = ?,
-    release_date = ?,
-    composer = ?,
-    lyricist = ?,
-    record_label = ?,
-    isrc = ?,
-    release_type = ?,
-    compilation = ?,
-    musicbrainz_track_id = ?,
-    musicbrainz_album_id = ?,
-    musicbrainz_artist_id = ?,
-    original_title = ?,
-    sort_title = ?,
-    album_id = ?
-WHERE media_id = ?
+SET artist = $1,
+    album = $2,
+    album_artist = $3,
+    track_number = $4,
+    disc_number = $5,
+    total_tracks = $6,
+    total_discs = $7,
+    genre = $8,
+    year = $9,
+    release_date = $10,
+    composer = $11,
+    lyricist = $12,
+    record_label = $13,
+    isrc = $14,
+    release_type = $15,
+    compilation = $16,
+    musicbrainz_track_id = $17,
+    musicbrainz_album_id = $18,
+    musicbrainz_artist_id = $19,
+    original_title = $20,
+    sort_title = $21,
+    album_id = $22
+WHERE media_id = $23
 `
 
 type UpdateMusicTrackParams struct {
 	Artist              sql.NullString `json:"artist"`
 	Album               sql.NullString `json:"album"`
 	AlbumArtist         sql.NullString `json:"album_artist"`
-	TrackNumber         sql.NullInt64  `json:"track_number"`
-	DiscNumber          sql.NullInt64  `json:"disc_number"`
-	TotalTracks         sql.NullInt64  `json:"total_tracks"`
-	TotalDiscs          sql.NullInt64  `json:"total_discs"`
+	TrackNumber         sql.NullInt32  `json:"track_number"`
+	DiscNumber          sql.NullInt32  `json:"disc_number"`
+	TotalTracks         sql.NullInt32  `json:"total_tracks"`
+	TotalDiscs          sql.NullInt32  `json:"total_discs"`
 	Genre               sql.NullString `json:"genre"`
-	Year                sql.NullInt64  `json:"year"`
+	Year                sql.NullInt32  `json:"year"`
 	ReleaseDate         sql.NullTime   `json:"release_date"`
 	Composer            sql.NullString `json:"composer"`
 	Lyricist            sql.NullString `json:"lyricist"`
@@ -2147,8 +1527,8 @@ type UpdateMusicTrackParams struct {
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString `json:"original_title"`
 	SortTitle           sql.NullString `json:"sort_title"`
-	AlbumID             sql.NullInt64  `json:"album_id"`
-	MediaID             int64          `json:"media_id"`
+	AlbumID             sql.NullInt32  `json:"album_id"`
+	MediaID             int32          `json:"media_id"`
 }
 
 func (q *Queries) UpdateMusicTrack(ctx context.Context, arg UpdateMusicTrackParams) error {

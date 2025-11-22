@@ -8,6 +8,8 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
+
+	"github.com/lib/pq"
 )
 
 const createWatchProgress = `-- name: CreateWatchProgress :one
@@ -79,6 +81,49 @@ WHERE media_id = $1
 func (q *Queries) DeleteWatchProgressByMediaID(ctx context.Context, mediaID int32) error {
 	_, err := q.db.ExecContext(ctx, deleteWatchProgressByMediaID, mediaID)
 	return err
+}
+
+const getBatchWatchProgressByMediaIDs = `-- name: GetBatchWatchProgressByMediaIDs :many
+SELECT id, media_id, user_id, position, duration, watched, last_watched, created_at, updated_at FROM watch_progress
+WHERE media_id = ANY($1::bigint[]) AND user_id = $2
+`
+
+type GetBatchWatchProgressByMediaIDsParams struct {
+	Column1 []int64       `json:"column_1"`
+	UserID  sql.NullInt32 `json:"user_id"`
+}
+
+func (q *Queries) GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error) {
+	rows, err := q.db.QueryContext(ctx, getBatchWatchProgressByMediaIDs, pq.Array(arg.Column1), arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WatchProgress{}
+	for rows.Next() {
+		var i WatchProgress
+		if err := rows.Scan(
+			&i.ID,
+			&i.MediaID,
+			&i.UserID,
+			&i.Position,
+			&i.Duration,
+			&i.Watched,
+			&i.LastWatched,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWatchProgressByID = `-- name: GetWatchProgressByID :one

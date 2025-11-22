@@ -631,6 +631,42 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		}
 	}
 
+	// Prepare extended metadata fields
+	var (
+		totalTracks         int
+		totalDiscs          int
+		releaseDate         string
+		lyricist            string
+		isrc                string
+		releaseType         string
+		compilation         bool
+		originalTitle       string
+		publisher           string
+		musicBrainzTrackID  string
+		musicBrainzAlbumID  string
+		musicBrainzArtistID string
+		composer            string
+	)
+
+	// Get extended metadata if we have the extractor result
+	if extractor := music.NewExtractor(); extractor != nil {
+		if musicInfo, err := extractor.ExtractMetadata(result.FilePath); err == nil && musicInfo != nil {
+			totalTracks = musicInfo.TotalTracks
+			totalDiscs = musicInfo.TotalDiscs
+			releaseDate = musicInfo.ReleaseDate
+			lyricist = musicInfo.Lyricist
+			isrc = musicInfo.ISRC
+			releaseType = musicInfo.ReleaseType
+			compilation = musicInfo.Compilation
+			originalTitle = musicInfo.OriginalTitle
+			publisher = musicInfo.Publisher
+			musicBrainzTrackID = musicInfo.MusicBrainzTrackID
+			musicBrainzAlbumID = musicInfo.MusicBrainzAlbumID
+			musicBrainzArtistID = musicInfo.MusicBrainzArtistID
+			composer = musicInfo.Composer
+		}
+	}
+
 	track := &media.MusicTrack{
 		Media: media.Media{
 			LibraryID:       libraryID,
@@ -645,6 +681,7 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 			CreatedAt:       time.Now(),
 			UpdatedAt:       time.Now(),
 		},
+		// Basic metadata
 		Artist:      artist,
 		Album:       album,
 		AlbumArtist: albumArtist,
@@ -652,6 +689,85 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		DiscNumber:  discNumber,
 		Genre:       genre,
 		Year:        year,
+		Composer:    composer,
+		// Extended metadata
+		TotalTracks:         totalTracks,
+		TotalDiscs:          totalDiscs,
+		ReleaseDate:         releaseDate,
+		Lyricist:            lyricist,
+		ISRC:                isrc,
+		ReleaseType:         releaseType,
+		Compilation:         compilation,
+		OriginalTitle:       originalTitle,
+		Publisher:           publisher,
+		MusicBrainzTrackID:  musicBrainzTrackID,
+		MusicBrainzAlbumID:  musicBrainzAlbumID,
+		MusicBrainzArtistID: musicBrainzArtistID,
+	}
+
+	// Find or create artist entity if artist info is available
+	var artistID int64
+	if artist != "" {
+		// Try to find existing artist
+		existingArtist, err := uc.musicRepo.FindArtistByName(ctx, libraryID, artist)
+		if err == nil && existingArtist != nil {
+			// Link to existing artist
+			artistID = existingArtist.ID
+		} else {
+			// Create new artist entity
+			newArtist := &media.Artist{
+				LibraryID:           libraryID,
+				Name:                artist,
+				MusicBrainzArtistID: musicBrainzArtistID,
+				Genre:               genre,
+			}
+
+			if err := uc.musicRepo.CreateArtist(ctx, newArtist); err == nil {
+				artistID = newArtist.ID
+			}
+			// If artist creation fails, track will still be created without artist link
+		}
+		track.ArtistID = artistID
+	}
+
+	// Find or create album entity if album info is available
+	if album != "" {
+		// Use album artist if available, otherwise fall back to track artist
+		effectiveAlbumArtist := albumArtist
+		if effectiveAlbumArtist == "" {
+			effectiveAlbumArtist = artist
+		}
+
+		// Try to find existing album
+		existingAlbum, err := uc.musicRepo.FindAlbumByTitle(ctx, libraryID, album, effectiveAlbumArtist)
+		if err == nil && existingAlbum != nil {
+			// Link track to existing album
+			track.AlbumID = existingAlbum.ID
+		} else {
+			// Create new album entity
+			newAlbum := &media.Album{
+				LibraryID:          libraryID,
+				ArtistID:           artistID, // Link album to artist
+				Title:              album,
+				AlbumArtist:        effectiveAlbumArtist,
+				Artist:             artist,
+				Year:               year,
+				ReleaseDate:        releaseDate,
+				Genre:              genre,
+				TotalTracks:        totalTracks,
+				TotalDiscs:         totalDiscs,
+				RecordLabel:        publisher,
+				ReleaseType:        releaseType,
+				Compilation:        compilation,
+				MusicBrainzAlbumID: musicBrainzAlbumID,
+			}
+
+			if err := uc.musicRepo.CreateAlbum(ctx, newAlbum); err == nil {
+				// Link track to new album
+				track.AlbumID = newAlbum.ID
+			}
+			// If album creation fails, track will still be created without album link
+		}
 	}
 
 	// Check if track already exists

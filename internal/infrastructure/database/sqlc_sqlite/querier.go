@@ -12,11 +12,12 @@ import (
 
 type Querier interface {
 	CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error
-	CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	// ============================================================================
 	// Pagination Support Queries
 	// ============================================================================
-	CountArtistsByLibrary(ctx context.Context, libraryID int64) (int64, error)
+	CountAlbumsByLibrary(ctx context.Context, libraryID int64) (int64, error)
+	CountAlbumsInLibrary(ctx context.Context, libraryID int64) (int64, error)
+	CountArtistsInLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountImagesByEntity(ctx context.Context, arg CountImagesByEntityParams) (int64, error)
 	CountImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) (int64, error)
 	CountLibraries(ctx context.Context) (int64, error)
@@ -33,6 +34,8 @@ type Querier interface {
 	// ============================================================================
 	CountTVShowsByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountTranscodeJobsByStatus(ctx context.Context, status string) (int64, error)
+	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (MusicAlbum, error)
+	CreateArtist(ctx context.Context, arg CreateArtistParams) (MusicArtist, error)
 	CreateImage(ctx context.Context, arg CreateImageParams) (MediaImage, error)
 	// Library queries for SQLite
 	CreateLibrary(ctx context.Context, arg CreateLibraryParams) (Library, error)
@@ -54,6 +57,8 @@ type Querier interface {
 	CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvShow, error)
 	CreateTranscodeJob(ctx context.Context, arg CreateTranscodeJobParams) (TranscodeJob, error)
 	CreateWatchProgress(ctx context.Context, arg CreateWatchProgressParams) (WatchProgress, error)
+	DeleteAlbum(ctx context.Context, id int64) error
+	DeleteArtist(ctx context.Context, id int64) error
 	DeleteImage(ctx context.Context, id int64) error
 	DeleteImagesByEntity(ctx context.Context, arg DeleteImagesByEntityParams) error
 	DeleteImagesByHash(ctx context.Context, fileHash sql.NullString) error
@@ -72,8 +77,14 @@ type Querier interface {
 	DeleteTranscodeJobsByMediaID(ctx context.Context, mediaID int64) error
 	DeleteWatchProgress(ctx context.Context, id int64) error
 	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error
+	FindAlbumByTitle(ctx context.Context, arg FindAlbumByTitleParams) (MusicAlbum, error)
+	FindArtistByName(ctx context.Context, arg FindArtistByNameParams) (MusicArtist, error)
+	GetAlbumByID(ctx context.Context, id int64) (MusicAlbum, error)
+	GetAlbumByMusicBrainzID(ctx context.Context, musicbrainzAlbumID sql.NullString) (MusicAlbum, error)
 	GetAllFileHashes(ctx context.Context) ([]sql.NullString, error)
 	GetAllRecentExecutions(ctx context.Context, limit int64) ([]TaskExecution, error)
+	GetArtistByID(ctx context.Context, id int64) (MusicArtist, error)
+	GetArtistByMusicBrainzID(ctx context.Context, musicbrainzArtistID sql.NullString) (MusicArtist, error)
 	GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error)
 	GetImageByFilePath(ctx context.Context, filePath sql.NullString) (MediaImage, error)
 	GetImageByID(ctx context.Context, id int64) (MediaImage, error)
@@ -113,16 +124,16 @@ type Querier interface {
 	IncrementSeasonEpisodeCount(ctx context.Context, id int64) error
 	LibraryExistsByID(ctx context.Context, id int64) (int64, error)
 	LibraryExistsByPath(ctx context.Context, path string) (int64, error)
-	ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]ListAlbumsByLibraryRow, error)
+	ListAlbumsByArtist(ctx context.Context, arg ListAlbumsByArtistParams) ([]MusicAlbum, error)
+	ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]MusicAlbum, error)
+	ListAlbumsByLibraryGrouped(ctx context.Context, libraryID int64) ([]ListAlbumsByLibraryGroupedRow, error)
 	ListAlbumsByLibraryPaginated(ctx context.Context, arg ListAlbumsByLibraryPaginatedParams) ([]ListAlbumsByLibraryPaginatedRow, error)
 	ListAlbumsByLibraryPaginatedDesc(ctx context.Context, arg ListAlbumsByLibraryPaginatedDescParams) ([]ListAlbumsByLibraryPaginatedDescRow, error)
 	ListAllMedia(ctx context.Context) ([]Medium, error)
 	ListAllTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
 	ListArtistIDsByLibraryPaginated(ctx context.Context, arg ListArtistIDsByLibraryPaginatedParams) ([]int64, error)
 	ListArtistIDsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistIDsByLibraryPaginatedDescParams) ([]int64, error)
-	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]ListArtistsByLibraryRow, error)
-	ListArtistsByLibraryPaginated(ctx context.Context, arg ListArtistsByLibraryPaginatedParams) ([]ListArtistsByLibraryPaginatedRow, error)
-	ListArtistsByLibraryPaginatedDesc(ctx context.Context, arg ListArtistsByLibraryPaginatedDescParams) ([]ListArtistsByLibraryPaginatedDescRow, error)
+	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]MusicArtist, error)
 	ListImagesByEntity(ctx context.Context, arg ListImagesByEntityParams) ([]MediaImage, error)
 	ListImagesByMediaID(ctx context.Context, mediaID sql.NullInt64) ([]MediaImage, error)
 	ListImagesBySource(ctx context.Context, sourceType string) ([]MediaImage, error)
@@ -140,6 +151,7 @@ type Querier interface {
 	ListMoviesByYear(ctx context.Context, arg ListMoviesByYearParams) ([]ListMoviesByYearRow, error)
 	ListMusicTracksByAlbum(ctx context.Context, arg ListMusicTracksByAlbumParams) ([]ListMusicTracksByAlbumRow, error)
 	ListMusicTracksByAlbumArtist(ctx context.Context, arg ListMusicTracksByAlbumArtistParams) ([]ListMusicTracksByAlbumArtistRow, error)
+	ListMusicTracksByAlbumID(ctx context.Context, albumID sql.NullInt64) ([]ListMusicTracksByAlbumIDRow, error)
 	ListMusicTracksByArtist(ctx context.Context, arg ListMusicTracksByArtistParams) ([]ListMusicTracksByArtistRow, error)
 	ListMusicTracksByLibrary(ctx context.Context, libraryID int64) ([]ListMusicTracksByLibraryRow, error)
 	ListMusicTracksByLibraryPaginated(ctx context.Context, arg ListMusicTracksByLibraryPaginatedParams) ([]ListMusicTracksByLibraryPaginatedRow, error)
@@ -173,6 +185,8 @@ type Querier interface {
 	SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpisodesByTitleParams) ([]SearchTVEpisodesByTitleRow, error)
 	SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByTitleParams) ([]TvShow, error)
 	SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchTVShowsByTitlePaginatedParams) ([]TvShow, error)
+	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error
+	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
 	UpdateImage(ctx context.Context, arg UpdateImageParams) error
 	UpdateLibrary(ctx context.Context, arg UpdateLibraryParams) (Library, error)
 	UpdateMedia(ctx context.Context, arg UpdateMediaParams) (Medium, error)

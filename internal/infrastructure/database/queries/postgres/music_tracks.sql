@@ -4,13 +4,13 @@ INSERT INTO music_tracks (
     total_tracks, total_discs, genre, year, release_date, composer,
     lyricist, record_label, isrc, release_type, compilation,
     musicbrainz_track_id, musicbrainz_album_id, musicbrainz_artist_id,
-    original_title, sort_title
+    original_title, sort_title, album_id
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12,
     $13, $14, $15, $16, $17,
     $18, $19, $20,
-    $21, $22
+    $21, $22, $23
 );
 
 -- name: GetMusicTrackByMediaID :one
@@ -141,6 +141,49 @@ JOIN media med ON mt.media_id = med.id
 WHERE med.library_id = $1 AND mt.album = $2
 ORDER BY mt.disc_number, mt.track_number;
 
+-- name: ListMusicTracksByAlbumID :many
+SELECT
+    mt.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE mt.album_id = $1
+ORDER BY mt.disc_number, mt.track_number;
+
 -- name: ListMusicTracksByArtist :many
 SELECT
     mt.*,
@@ -250,8 +293,9 @@ SET artist = $1,
     musicbrainz_album_id = $18,
     musicbrainz_artist_id = $19,
     original_title = $20,
-    sort_title = $21
-WHERE media_id = $22;
+    sort_title = $21,
+    album_id = $22
+WHERE media_id = $23;
 
 -- name: DeleteMusicTrack :exec
 DELETE FROM music_tracks
@@ -301,7 +345,7 @@ WHERE med.library_id = $1
   AND (med.title ILIKE $2 OR mt.artist ILIKE $3 OR mt.album ILIKE $4)
 ORDER BY mt.album_artist, mt.album, mt.disc_number, mt.track_number;
 
--- name: ListAlbumsByLibrary :many
+-- name: ListAlbumsByLibraryGrouped :many
 SELECT DISTINCT
     mt.album,
     mt.album_artist,
@@ -314,13 +358,3 @@ WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist, mt.album;
 
--- name: ListArtistsByLibrary :many
-SELECT DISTINCT
-    mt.album_artist as artist,
-    COUNT(DISTINCT mt.album) as album_count,
-    COUNT(*) as track_count
-FROM music_tracks mt
-JOIN media med ON mt.media_id = med.id
-WHERE med.library_id = $1 AND mt.album_artist IS NOT NULL AND mt.album_artist != ''
-GROUP BY mt.album_artist
-ORDER BY mt.album_artist;

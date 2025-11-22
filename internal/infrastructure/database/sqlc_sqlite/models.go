@@ -101,6 +101,43 @@ type Movie struct {
 	AwardsSummary     sql.NullString `json:"awards_summary"`
 }
 
+type MusicAlbum struct {
+	ID                 int64          `json:"id"`
+	LibraryID          int64          `json:"library_id"`
+	Title              string         `json:"title"`
+	AlbumArtist        sql.NullString `json:"album_artist"`
+	Artist             sql.NullString `json:"artist"`
+	Year               sql.NullInt64  `json:"year"`
+	ReleaseDate        sql.NullTime   `json:"release_date"`
+	Genre              sql.NullString `json:"genre"`
+	TotalTracks        sql.NullInt64  `json:"total_tracks"`
+	TotalDiscs         sql.NullInt64  `json:"total_discs"`
+	RecordLabel        sql.NullString `json:"record_label"`
+	ReleaseType        sql.NullString `json:"release_type"`
+	Compilation        sql.NullBool   `json:"compilation"`
+	MusicbrainzAlbumID sql.NullString `json:"musicbrainz_album_id"`
+	CoverArtPath       sql.NullString `json:"cover_art_path"`
+	SortTitle          sql.NullString `json:"sort_title"`
+	CreatedAt          sql.NullTime   `json:"created_at"`
+	UpdatedAt          sql.NullTime   `json:"updated_at"`
+	ArtistID           sql.NullInt64  `json:"artist_id"`
+}
+
+type MusicArtist struct {
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
+	Name                string         `json:"name"`
+	SortName            sql.NullString `json:"sort_name"`
+	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
+	Bio                 sql.NullString `json:"bio"`
+	Country             sql.NullString `json:"country"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
+	Genre               sql.NullString `json:"genre"`
+	ImagePath           sql.NullString `json:"image_path"`
+	CreatedAt           sql.NullTime   `json:"created_at"`
+	UpdatedAt           sql.NullTime   `json:"updated_at"`
+}
+
 type MusicTrack struct {
 	MediaID             int64          `json:"media_id"`
 	Artist              sql.NullString `json:"artist"`
@@ -124,6 +161,8 @@ type MusicTrack struct {
 	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
 	OriginalTitle       sql.NullString `json:"original_title"`
 	SortTitle           sql.NullString `json:"sort_title"`
+	AlbumID             sql.NullInt64  `json:"album_id"`
+	ArtistID            sql.NullInt64  `json:"artist_id"`
 }
 
 type ScanJob struct {

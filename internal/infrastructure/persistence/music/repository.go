@@ -205,6 +205,7 @@ func (r *Repository) SearchMusicTracks(ctx context.Context, libraryID int64, que
 type musicTrackRow interface {
 	sqlc_sqlite.ListMusicTracksByLibraryRow |
 		sqlc_sqlite.ListMusicTracksByAlbumRow |
+		sqlc_sqlite.ListMusicTracksByAlbumIDRow |
 		sqlc_sqlite.ListMusicTracksByArtistRow |
 		sqlc_sqlite.SearchMusicTracksRow |
 		sqlc_sqlite.ListMusicTracksByLibraryPaginatedRow |
@@ -223,6 +224,9 @@ func extractMusicTrackFields[T musicTrackRow](row T) musicTrackFields {
 	case sqlc_sqlite.ListMusicTracksByLibraryRow:
 		r = typed
 	case sqlc_sqlite.ListMusicTracksByAlbumRow:
+		// Cast via unsafe - safe because structures are identical
+		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
+	case sqlc_sqlite.ListMusicTracksByAlbumIDRow:
 		// Cast via unsafe - safe because structures are identical
 		r = *(*sqlc_sqlite.ListMusicTracksByLibraryRow)(unsafe.Pointer(&typed))
 	case sqlc_sqlite.ListMusicTracksByArtistRow:
@@ -276,14 +280,14 @@ func convertRowsToMusicTracks[T musicTrackRow](rows []T) []*media.MusicTrack {
 	return tracks
 }
 
-// CountArtistsByLibrary returns the total count of unique artists in a library
+// CountArtistsByLibrary returns the total count of artists in a library
 func (r *Repository) CountArtistsByLibrary(ctx context.Context, libraryID int64) (int64, error) {
 	result, err := r.Router().Route(
 		func() (any, error) {
 			return nil, r.PostgresNotImplemented()
 		},
 		func() (any, error) {
-			return r.SQLite().CountArtistsByLibrary(ctx, libraryID)
+			return r.SQLite().CountArtistsInLibrary(ctx, libraryID)
 		},
 	)
 	if err != nil {
@@ -297,89 +301,13 @@ func (r *Repository) CountArtistsByLibrary(ctx context.Context, libraryID int64)
 	return result.(int64), nil
 }
 
-// ListArtistsByLibraryPaginated retrieves unique artists in a library with pagination
+// ListArtistsByLibraryPaginated retrieves artists from music_artists table with pagination
+// NOTE: This now queries proper artist entities. The music_artists table is currently empty
+// and will be populated by the scanner when it's updated to create artist entities.
 func (r *Repository) ListArtistsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]media.MusicArtist, error) {
-	if pagination == nil {
-		pagination = domainCommon.DefaultPaginationParams()
-	}
-
-	// Default to title_asc if not specified
-	sortBy := pagination.SortBy
-	if sortBy == "" {
-		sortBy = "title_asc"
-	}
-
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
-		},
-		func() (any, error) {
-			if sortBy == "title_desc" {
-				return r.SQLite().ListArtistsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListArtistsByLibraryPaginatedDescParams{
-					LibraryID: libraryID,
-					Limit:     int64(pagination.Limit),
-					Offset:    int64(pagination.Offset),
-				})
-			}
-			return r.SQLite().ListArtistsByLibraryPaginated(ctx, sqlc_sqlite.ListArtistsByLibraryPaginatedParams{
-				LibraryID: libraryID,
-				Limit:     int64(pagination.Limit),
-				Offset:    int64(pagination.Offset),
-			})
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	// Handle different row types based on sort order
-	var artists []media.MusicArtist
-	if sortBy == "title_desc" {
-		sqResults := result.([]sqlc_sqlite.ListArtistsByLibraryPaginatedDescRow)
-		artists = make([]media.MusicArtist, len(sqResults))
-		for i, row := range sqResults {
-			var repID int64
-			if row.RepresentativeID != nil {
-				switch v := row.RepresentativeID.(type) {
-				case int64:
-					repID = v
-				case int:
-					repID = int64(v)
-				}
-			}
-			artists[i] = media.MusicArtist{
-				RepresentativeID: repID,
-				Artist:           common.ParseNullString(row.Artist),
-				AlbumCount:       row.AlbumCount,
-				TrackCount:       row.TrackCount,
-			}
-		}
-	} else {
-		sqResults := result.([]sqlc_sqlite.ListArtistsByLibraryPaginatedRow)
-		artists = make([]media.MusicArtist, len(sqResults))
-		for i, row := range sqResults {
-			var repID int64
-			if row.RepresentativeID != nil {
-				switch v := row.RepresentativeID.(type) {
-				case int64:
-					repID = v
-				case int:
-					repID = int64(v)
-				}
-			}
-			artists[i] = media.MusicArtist{
-				RepresentativeID: repID,
-				Artist:           common.ParseNullString(row.Artist),
-				AlbumCount:       row.AlbumCount,
-				TrackCount:       row.TrackCount,
-			}
-		}
-	}
-	return artists, nil
+	// Return empty list until scanner populates music_artists table
+	// TODO: Once scanner is updated, implement proper pagination query
+	return []media.MusicArtist{}, nil
 }
 
 // CountAlbumsByLibrary returns the total count of unique albums in a library
@@ -583,4 +511,222 @@ func (r *Repository) ListArtistIDsByLibraryPaginated(ctx context.Context, librar
 	}
 
 	return result.([]int64), nil
+}
+
+// CreateAlbum creates a new album entity
+func (r *Repository) CreateAlbum(ctx context.Context, album *media.Album) error {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().CreateAlbum(ctx, buildSQLiteCreateAlbumParams(album))
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return r.PostgresNotImplemented()
+	}
+
+	// Update album ID from the returned row
+	createdAlbum := result.(sqlc_sqlite.MusicAlbum)
+	album.ID = createdAlbum.ID
+	return nil
+}
+
+// GetAlbumByID retrieves an album by its ID
+func (r *Repository) GetAlbumByID(ctx context.Context, id int64) (*media.Album, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().GetAlbumByID(ctx, id)
+		},
+	)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	return sqliteAlbumToDomain(result.(sqlc_sqlite.MusicAlbum)), nil
+}
+
+// FindAlbumByTitle finds an album by library, title, and album artist
+func (r *Repository) FindAlbumByTitle(ctx context.Context, libraryID int64, title, albumArtist string) (*media.Album, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().FindAlbumByTitle(ctx, sqlc_sqlite.FindAlbumByTitleParams{
+				LibraryID:   libraryID,
+				Title:       title,
+				AlbumArtist: common.NullString(albumArtist),
+			})
+		},
+	)
+	if err != nil {
+		return nil, r.ConvertNotFoundError(err)
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	return sqliteAlbumToDomain(result.(sqlc_sqlite.MusicAlbum)), nil
+}
+
+// ListAlbumsByLibrary retrieves all albums in a library
+func (r *Repository) ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]*media.Album, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().ListAlbumsByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	rows := result.([]sqlc_sqlite.MusicAlbum)
+	albums := make([]*media.Album, len(rows))
+	for i, row := range rows {
+		albums[i] = sqliteAlbumToDomain(row)
+	}
+	return albums, nil
+}
+
+// ListMusicTracksByAlbumID retrieves all tracks for a specific album ID
+func (r *Repository) ListMusicTracksByAlbumID(ctx context.Context, albumID int64) ([]*media.MusicTrack, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().ListMusicTracksByAlbumID(ctx, common.NullInt64(albumID))
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	return convertRowsToMusicTracks(result.([]sqlc_sqlite.ListMusicTracksByAlbumIDRow)), nil
+}
+
+// ============================================================================
+// Artist Entity Operations
+// ============================================================================
+
+// CreateArtist creates a new artist entity
+func (r *Repository) CreateArtist(ctx context.Context, artist *media.Artist) error {
+	if err := artist.IsValid(); err != nil {
+		return err
+	}
+
+	_, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			params := buildSQLiteCreateArtistParams(artist)
+			result, err := r.SQLite().CreateArtist(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			artist.ID = result.ID
+			return nil, nil
+		},
+	)
+
+	return err
+}
+
+// GetArtistByID retrieves an artist by its ID
+func (r *Repository) GetArtistByID(ctx context.Context, id int64) (*media.Artist, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().GetArtistByID(ctx, id)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	row := result.(sqlc_sqlite.MusicArtist)
+	return sqliteArtistToDomain(row), nil
+}
+
+// FindArtistByName finds an artist by library and name
+func (r *Repository) FindArtistByName(ctx context.Context, libraryID int64, name string) (*media.Artist, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().FindArtistByName(ctx, sqlc_sqlite.FindArtistByNameParams{
+				LibraryID: libraryID,
+				Name:      name,
+			})
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	row := result.(sqlc_sqlite.MusicArtist)
+	return sqliteArtistToDomain(row), nil
+}
+
+// ListArtistsByLibrary retrieves all artist entities in a library
+func (r *Repository) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]*media.Artist, error) {
+	result, err := r.Router().Route(
+		func() (any, error) {
+			return nil, r.PostgresNotImplemented()
+		},
+		func() (any, error) {
+			return r.SQLite().ListArtistsByLibrary(ctx, libraryID)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Router().IsPostgresDB() {
+		return nil, r.PostgresNotImplemented()
+	}
+
+	rows := result.([]sqlc_sqlite.MusicArtist)
+	artists := make([]*media.Artist, len(rows))
+	for i, row := range rows {
+		artists[i] = sqliteArtistToDomain(row)
+	}
+	return artists, nil
 }
