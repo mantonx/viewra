@@ -30,7 +30,17 @@ const Movies = () => {
   const handleSearchChange = (q: string) => {
     navigate({
       to: '/movies',
-      search: { id: undefined, q: q || undefined, sort: search.sort || undefined },
+      search: {
+        id: undefined,
+        q: q || undefined,
+        sort: search.sort || undefined,
+        genres: search.genres,
+        yearMin: search.yearMin,
+        yearMax: search.yearMax,
+        qualities: search.qualities,
+        watched: search.watched,
+        view: search.view,
+      },
       replace: true,
     })
   }
@@ -214,7 +224,20 @@ const Movies = () => {
     stopPlayback()
     // Clear URL parameter if present
     if (urlMovieId) {
-      navigate({ to: '/movies', search: { id: undefined, q: search.q || undefined, sort: search.sort || undefined } })
+      navigate({
+        to: '/movies',
+        search: {
+          id: undefined,
+          q: search.q || undefined,
+          sort: search.sort || undefined,
+          genres: search.genres,
+          yearMin: search.yearMin,
+          yearMax: search.yearMax,
+          qualities: search.qualities,
+          watched: search.watched,
+          view: search.view,
+        },
+      })
     }
   }
 

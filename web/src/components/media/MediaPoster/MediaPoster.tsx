@@ -119,18 +119,18 @@ export const MediaPoster = ({
   // Get image - use appropriate type based on media type
   const image =
     mediaType === 'tv-episode'
-      ? images.length > 0
+      ? images && images.length > 0
         ? getEpisodeThumbnail(images)
         : null
       : mediaType === 'music-album'
-        ? images.length > 0
+        ? images && images.length > 0
           ? getAlbumCover(images)
           : null
         : mediaType === 'music-artist'
-          ? images.length > 0
+          ? images && images.length > 0
             ? getArtistImage(images)
             : null
-          : images.length > 0
+          : images && images.length > 0
             ? getPosterImage(images)
             : null
   const imageUrl = image ? getImageUrl(image.id, preset) : null

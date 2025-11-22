@@ -5,6 +5,7 @@ import { MediaBrowsePage } from '@/components/common'
 import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvider } from '@/lib/hooks'
 import { tvApi } from '@/lib/api/tv'
 import type { ViewMode } from '@/components/common'
+import type { GithubComViewraViewraInternalApplicationTvTVShowSummary } from '@/lib/api/generated/models'
 
 const TVShows = () => {
   const navigate = useNavigate()
@@ -120,15 +121,15 @@ const TVShows = () => {
         data={allShows}
         isLoading={isLoading}
         error={error}
-        renderItem={(show) => (
+        renderItem={(show: GithubComViewraViewraInternalApplicationTvTVShowSummary) => (
           <TVShowCard
             key={show.id}
             show={show}
-            onClick={() => handleShowClick(show.id)}
-            onPlay={() => handlePlayShow(show.id)}
+            onClick={() => handleShowClick(show.id!)}
+            onPlay={() => handlePlayShow(show.id!)}
           />
         )}
-        renderListItem={(show) => (
+        renderListItem={(show: GithubComViewraViewraInternalApplicationTvTVShowSummary) => (
           <TVShowListItem
             key={show.id}
             show={show}

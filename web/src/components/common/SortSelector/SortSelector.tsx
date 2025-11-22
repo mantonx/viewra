@@ -82,7 +82,7 @@ export const SortSelector = ({ value, onChange, className = '' }: SortSelectorPr
       </button>
 
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg">
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg">
           <div className="py-1">
             {SORT_OPTIONS.map((option) => {
               const isActive = option.field === field

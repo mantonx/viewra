@@ -594,7 +594,9 @@ export const VideoPlayer = ({
   const handleSeek = (time: number) => {
     const video = videoRef.current
     const hls = hlsRef.current
-    if (!video) return
+    if (!video) {
+      return
+    }
 
     // Save progress immediately to prevent loss if user closes video after seeking
     if (progressUpdaterRef.current && videoDuration > 0) {

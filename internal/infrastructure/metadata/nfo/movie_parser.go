@@ -183,8 +183,6 @@ func ParseMovieNFO(nfoPath string) (*MovieMetadata, error) {
 	// Extract IDs - try multiple fields
 	if nfo.IMDb != "" {
 		metadata.IMDbID = cleanIMDbID(nfo.IMDb)
-	} else if nfo.ID != "" {
-		metadata.IMDbID = cleanIMDbID(nfo.ID)
 	}
 	metadata.TMDbID = parseIntSafe(nfo.TMDbID)
 

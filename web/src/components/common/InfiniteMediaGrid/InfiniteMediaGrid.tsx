@@ -56,14 +56,21 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useInfiniteHook.hook({ libraryId, sort, enabled: libraryId > 0 }) as any
 
-  // Flatten pages into single array
-  const allItems = (data ? useInfiniteHook.flatten(data.pages) : []) as T[]
+  // Flatten pages into single array - memoized to prevent re-creation
+  const allItems = useMemo(
+    () => (data ? useInfiniteHook.flatten(data.pages) : []) as T[],
+    [data, useInfiniteHook],
+  )
 
   // Fetch watched items for filtering
   const { data: watchedData } = useWatchedList({ limit: 10000 })
-  const watchedMediaIds = new Set(watchedData?.progress?.map((p) => p.media_id) || [])
+  const watchedMediaIds = useMemo(
+    () => new Set(watchedData?.progress?.map((p) => p.media_id) || []),
+    [watchedData],
+  )
 
   // Client-side filtering
   const filteredItems = useMemo(() => {

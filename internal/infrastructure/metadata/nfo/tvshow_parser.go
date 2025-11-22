@@ -236,8 +236,6 @@ func ParseTVShowNFO(nfoPath string) (*TVShowMetadata, error) {
 	// Extract IDs - try multiple fields
 	if nfo.IMDb != "" {
 		metadata.IMDbID = cleanIMDbID(nfo.IMDb)
-	} else if nfo.ID != "" {
-		metadata.IMDbID = cleanIMDbID(nfo.ID)
 	}
 	metadata.TVDbID = parseIntSafe(nfo.TVDbID)
 	metadata.TMDbID = parseIntSafe(nfo.TMDbID)
@@ -314,8 +312,6 @@ func ParseEpisodeNFO(nfoPath string) (*EpisodeMetadata, error) {
 	// Extract IDs
 	if nfo.IMDb != "" {
 		metadata.IMDbID = cleanIMDbID(nfo.IMDb)
-	} else if nfo.ID != "" {
-		metadata.IMDbID = cleanIMDbID(nfo.ID)
 	}
 	metadata.TVDbID = parseIntSafe(nfo.TVDbID)
 	metadata.TMDbID = parseIntSafe(nfo.TMDbID)

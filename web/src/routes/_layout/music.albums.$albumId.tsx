@@ -59,9 +59,9 @@ const AlbumDetail = () => {
     if (albumMetadata) {
       // Try to navigate to artist using the first track's ID as artist ID
       // This is a bit of a hack but works since we need an artist track ID
-      navigate({ to: '/music' })
+      navigate({ to: '/music', search: {} })
     } else {
-      navigate({ to: '/music' })
+      navigate({ to: '/music', search: {} })
     }
   }
 

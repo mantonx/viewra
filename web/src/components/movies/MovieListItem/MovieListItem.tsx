@@ -48,7 +48,9 @@ export const MovieListItem = ({ movie, onClick }: MovieListItemProps) => {
           fallbackIcon="🎬"
         />
 
-        <HoverPlayButton isParentHovered={isHovered} iconType="play" size="small" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <HoverPlayButton isParentHovered={isHovered} iconType="play" size="small" />
+        </div>
 
         {isNew && (
           <span className="absolute top-2 left-2 px-2 py-1 text-xs font-bold bg-linear-to-r from-green-500 to-emerald-600 text-white rounded shadow-lg z-10">
@@ -78,11 +80,6 @@ export const MovieListItem = ({ movie, onClick }: MovieListItemProps) => {
           {movie.content_rating && (
             <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">
               {movie.content_rating}
-            </span>
-          )}
-          {movie.imdb_rating && (
-            <span className="flex items-center gap-1">
-              ⭐ {movie.imdb_rating.toFixed(1)}
             </span>
           )}
         </div>

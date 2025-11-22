@@ -35,7 +35,7 @@ export const HoverPlayButton = ({
   isParentHovered,
   iconType = 'play',
   size = 'medium',
-  rounded = 'normal',
+  rounded: _rounded = 'normal',
 }: HoverPlayButtonProps) => {
   const [isButtonHovered, setIsButtonHovered] = useState(false)
 
@@ -56,7 +56,6 @@ export const HoverPlayButton = ({
   }
 
   const config = sizeConfig[size]
-  const roundedClass = rounded === 'full' ? 'rounded-full' : 'rounded'
 
   if (!isParentHovered) {
     return null

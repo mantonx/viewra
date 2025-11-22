@@ -4,6 +4,7 @@ import { Card, CardContent, Button } from '@/components/ui'
 import { AlbumCard } from '@/components/music'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
 import { musicApi } from '@/lib/api/music'
+import type { GithubComViewraViewraInternalApplicationMusicAlbumSummary } from '@/lib/api/generated/models'
 
 const ArtistDetail = () => {
   const navigate = useNavigate()
@@ -19,7 +20,8 @@ const ArtistDetail = () => {
     queryFn: () => musicApi.listAlbumsByArtistID(artistIdNum),
   })
 
-  const albums = albumsData?.data?.albums || []
+  const albums: GithubComViewraViewraInternalApplicationMusicAlbumSummary[] =
+    (albumsData?.data && 'albums' in albumsData.data) ? albumsData.data.albums || [] : []
 
   // Get artist name from first album
   const artistName = albums.length > 0 ? albums[0].artist : 'Artist'
@@ -31,7 +33,7 @@ const ArtistDetail = () => {
 
   // Handle back to artists
   const handleBackToArtists = () => {
-    navigate({ to: '/music' })
+    navigate({ to: '/music', search: {} })
   }
 
   if (isLoading) {
@@ -70,11 +72,11 @@ const ArtistDetail = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {albums.map((album) => (
+          {albums.map((album: GithubComViewraViewraInternalApplicationMusicAlbumSummary) => (
             <AlbumCard
               key={album.id}
               album={album}
-              onClick={() => handleAlbumClick(album.id)}
+              onClick={() => handleAlbumClick(album.id!)}
             />
           ))}
         </div>

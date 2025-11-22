@@ -31,6 +31,7 @@ export const customInstance = async <T>(
   } else {
     // Called as customInstance({ url, ...options })
     const { url: extractedUrl, data, ...rest } = urlOrConfig
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     url = extractedUrl!
     config = { ...rest, data }
   }
@@ -72,6 +73,7 @@ export const customInstance = async <T>(
   // Handle 204 No Content
   if (response.status === 204) {
     return {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {} as any,
       status: response.status,
       headers: response.headers,

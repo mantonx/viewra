@@ -39,7 +39,7 @@ export const BatchProgressProvider = ({ mediaIds, children }: BatchProgressProvi
       chunks.push(mediaIds.slice(i, i + BATCH_SIZE))
     }
     return chunks
-  }, [mediaIds.join(',')]) // Only recalculate when the actual IDs change
+  }, [mediaIds]) // Only recalculate when the actual IDs change
 
   // Use useQueries to fetch all batches in parallel and cache them independently
   const queries = useQueries({
@@ -51,7 +51,8 @@ export const BatchProgressProvider = ({ mediaIds, children }: BatchProgressProvi
         }
 
         const response = await progressApi.getBatchProgress(batch)
-        return response.data
+        // customInstance returns { data, status, headers }, extract the data
+        return (response as unknown as { data: { progress: Record<string, WatchProgressResponse> } }).data
       },
       staleTime: 1000 * 30, // 30 seconds - progress changes more frequently than images
     })),
@@ -90,6 +91,7 @@ export const BatchProgressProvider = ({ mediaIds, children }: BatchProgressProvi
  * Hook to access batched progress for a specific media item
  * Must be used within a BatchProgressProvider
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useBatchProgress = (mediaId: number): {
   progress: WatchProgressResponse | null
   isLoading: boolean
@@ -113,6 +115,7 @@ export const useBatchProgress = (mediaId: number): {
  * Returns null if not within a BatchProgressProvider
  * Use this when you want to fall back to individual queries
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useBatchProgressIfAvailable = (mediaId: number): {
   progress: WatchProgressResponse | null
   isLoading: boolean

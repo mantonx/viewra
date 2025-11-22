@@ -8,7 +8,8 @@
  * 3. Use useBatchImages(id) in child components to get images
  */
 
-import { createContext, useContext, ReactNode, useMemo } from 'react'
+import { createContext, useContext, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { imagesApi } from '@/lib/api'
 import type { Image } from '@/lib/types/images'
@@ -33,7 +34,7 @@ interface BatchImagesProviderProps {
  * Handles infinite scroll by splitting IDs into 50-item batches and merging results
  */
 export const BatchImagesProvider = ({ mediaIds, entityIds, mediaType, children }: BatchImagesProviderProps) => {
-  const ids = mediaIds || entityIds || []
+  const ids = useMemo(() => mediaIds || entityIds || [], [mediaIds, entityIds])
   const isEntityBased = !!entityIds && !!mediaType
 
   // Split IDs into chunks of 50 to avoid overwhelming the backend
@@ -44,7 +45,7 @@ export const BatchImagesProvider = ({ mediaIds, entityIds, mediaType, children }
       chunks.push(ids.slice(i, i + BATCH_SIZE))
     }
     return chunks
-  }, [ids.join(',')]) // Only recalculate when the actual IDs change
+  }, [ids]) // Only recalculate when the actual IDs change
 
   // Use useQueries to fetch all batches in parallel and cache them independently
   const queries = useQueries({
@@ -58,11 +59,14 @@ export const BatchImagesProvider = ({ mediaIds, entityIds, mediaType, children }
         }
 
         if (isEntityBased) {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           const response = await imagesApi.getBatchEntityImages(batch, mediaType!)
-          return response.data
+          // customInstance returns { data, status, headers }, extract the data
+          return (response as unknown as { data: { media_images: Record<number, Image[]> } }).data
         } else {
           const response = await imagesApi.getBatchMediaImages(batch)
-          return response.data
+          // customInstance returns { data, status, headers }, extract the data
+          return (response as unknown as { data: { media_images: Record<number, Image[]> } }).data
         }
       },
       staleTime: 1000 * 60 * 5, // 5 minutes - each batch stays cached
@@ -96,6 +100,7 @@ export const BatchImagesProvider = ({ mediaIds, entityIds, mediaType, children }
  * Hook to access batched images for a specific media item
  * Must be used within a BatchImagesProvider
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useBatchImages = (mediaId: number): {
   images: Image[]
   isLoading: boolean
@@ -119,6 +124,7 @@ export const useBatchImages = (mediaId: number): {
  * Returns null if not within a BatchImagesProvider
  * Use this when you want to fall back to individual queries
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useBatchImagesIfAvailable = (mediaId: number): {
   images: Image[]
   isLoading: boolean

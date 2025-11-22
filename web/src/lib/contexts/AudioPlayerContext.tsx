@@ -31,6 +31,7 @@ interface AudioPlayerContextType {
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined)
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAudioPlayer = () => {
   const context = useContext(AudioPlayerContext)
   if (!context) {
@@ -94,7 +95,8 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
         clearInterval(progressIntervalRef.current)
       }
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volume])
 
   // Update volume when changed
   useEffect(() => {
@@ -121,6 +123,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
         clearInterval(progressIntervalRef.current)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, currentTrack, currentTime])
 
   const reportProgress = async () => {

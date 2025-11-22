@@ -24,7 +24,7 @@ export const MediaCard = ({
 }: MediaCardProps) => {
   const [isHovered, setIsHovered] = useState(false)
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = (_e: React.MouseEvent) => {
     // Only trigger onClick if we're NOT clicking on the play button area
     onClick?.()
   }

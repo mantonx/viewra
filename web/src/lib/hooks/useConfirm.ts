@@ -40,14 +40,14 @@ export const useConfirmState = () => {
       confirmState.resolver(true)
     }
     setConfirmState((prev) => ({ ...prev, isOpen: false, resolver: undefined }))
-  }, [confirmState.resolver])
+  }, [confirmState])
 
   const handleCancel = useCallback(() => {
     if (confirmState.resolver) {
       confirmState.resolver(false)
     }
     setConfirmState((prev) => ({ ...prev, isOpen: false, resolver: undefined }))
-  }, [confirmState.resolver])
+  }, [confirmState])
 
   return { confirmState, confirm, handleConfirm, handleCancel }
 }

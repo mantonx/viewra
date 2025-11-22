@@ -68,7 +68,7 @@ const ShowDetail = () => {
   }
 
   const handleBackClick = () => {
-    navigate({ to: '/tv' })
+    navigate({ to: '/tv', search: {} })
   }
 
   if (isLoading) {

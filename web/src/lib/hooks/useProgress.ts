@@ -31,13 +31,15 @@ export const progressKeys = {
 };
 
 // Hook to get progress for a specific media item
-export function useMediaProgress(mediaId: number | undefined, enabled = true) {
+export const useMediaProgress = (mediaId: number | undefined, enabled = true) => {
   return useQuery({
     queryKey: progressKeys.detail(mediaId || 0),
     queryFn: async () => {
-      if (!mediaId) return null;
-      const response = await getApiProgressMediaId(mediaId);
-      return extractProgressData(response);
+      if (!mediaId) {
+        return null
+      }
+      const response = await getApiProgressMediaId(mediaId)
+      return extractProgressData(response)
     },
     enabled: enabled && !!mediaId,
     retry: false, // Don't retry if progress doesn't exist
@@ -45,7 +47,7 @@ export function useMediaProgress(mediaId: number | undefined, enabled = true) {
 }
 
 // Hook to list all progress
-export function useProgressList(params?: { limit?: number; offset?: number }) {
+export const useProgressList = (params?: { limit?: number; offset?: number }) => {
   return useQuery({
     queryKey: progressKeys.list(params || {}),
     queryFn: async () => {
@@ -56,7 +58,7 @@ export function useProgressList(params?: { limit?: number; offset?: number }) {
 }
 
 // Hook to list watched items
-export function useWatchedList(params?: { limit?: number; offset?: number }) {
+export const useWatchedList = (params?: { limit?: number; offset?: number }) => {
   return useQuery({
     queryKey: progressKeys.watched(params || {}),
     queryFn: async () => {
@@ -67,7 +69,7 @@ export function useWatchedList(params?: { limit?: number; offset?: number }) {
 }
 
 // Hook to list in-progress items
-export function useInProgressList(params?: { limit?: number; offset?: number }) {
+export const useInProgressList = (params?: { limit?: number; offset?: number }) => {
   return useQuery({
     queryKey: progressKeys.inProgress(params || {}),
     queryFn: async () => {
@@ -78,7 +80,7 @@ export function useInProgressList(params?: { limit?: number; offset?: number }) 
 }
 
 // Hook to update progress
-export function useUpdateProgress() {
+export const useUpdateProgress = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -106,7 +108,7 @@ export function useUpdateProgress() {
 }
 
 // Hook to mark as watched
-export function useMarkWatched() {
+export const useMarkWatched = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -131,7 +133,7 @@ export function useMarkWatched() {
 }
 
 // Hook to mark as unwatched
-export function useMarkUnwatched() {
+export const useMarkUnwatched = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -156,7 +158,7 @@ export function useMarkUnwatched() {
 }
 
 // Hook to delete progress
-export function useDeleteProgress() {
+export const useDeleteProgress = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -169,11 +171,11 @@ export function useDeleteProgress() {
 }
 
 // Utility hook for continuous progress updates during playback
-export function useProgressUpdater(
+export const useProgressUpdater = (
   mediaId: number,
   durationSeconds: number,
-  updateIntervalMs = 10000 // Update every 10 seconds by default
-) {
+  updateIntervalMs = 10000, // Update every 10 seconds by default
+) => {
   const updateProgress = useUpdateProgress();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentTimeRef = useRef<number>(0);

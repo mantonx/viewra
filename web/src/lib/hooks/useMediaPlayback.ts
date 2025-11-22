@@ -3,6 +3,7 @@ import { selectBestQuality } from '../utils/quality'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
+import type { GithubComViewraViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
 type TranscodeState = 'idle' | 'checking' | 'ready' | 'direct'
 
@@ -16,11 +17,11 @@ export interface PlaybackState {
 
 interface UseMediaPlaybackReturn {
   playbackState: PlaybackState
-  playMedia: (mediaId: number, media: any) => Promise<void>
+  playMedia: (mediaId: number, media: Media) => Promise<void>
   stopPlayback: () => void
 }
 
-export function useMediaPlayback(): UseMediaPlaybackReturn {
+export const useMediaPlayback = (): UseMediaPlaybackReturn => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [mediaId, setMediaId] = useState<number | null>(null)
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
@@ -34,7 +35,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     setIsPlaying(true)
   }
 
-  const playMedia = async (id: number, media: any) => {
+  const playMedia = async (id: number, _media: Media) => {
     setMediaId(id)
     setIsPlaying(true) // Show player immediately with loading state
     setTranscodeState('checking')

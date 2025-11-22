@@ -63,7 +63,7 @@ export const useBatchImagesPrefetch = ({
   // Calculate next page offset for predictive prefetching
   const nextPageOffset = currentItemIds.length
   const shouldPrefetch = !isEntityBased && hasNextPage && !isFetchingNextPage &&
-                         libraryId && contentType && nextPageOffset > 0
+                         !!libraryId && !!contentType && nextPageOffset > 0
 
   // Prefetch next page IDs (only when user is 75% through current page)
   const nextPageIDsQuery = useQuery({
@@ -71,6 +71,7 @@ export const useBatchImagesPrefetch = ({
     queryFn: async (): Promise<IDsResponse> => {
       const endpoint = `${API_BASE_URL}/api/${contentType}/ids`
       const params = new URLSearchParams({
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         library_id: libraryId!.toString(),
         limit: BATCH_SIZE.toString(),
         offset: nextPageOffset.toString(),
@@ -121,10 +122,12 @@ export const useBatchImagesPrefetch = ({
 
         if (isEntityBased && mediaType) {
           const response = await imagesApi.getBatchEntityImages(batch, mediaType)
-          return response.data as BatchImagesResponse
+          // customInstance returns { data, status, headers }, extract the data
+          return (response as unknown as { data: BatchImagesResponse }).data
         } else {
           const response = await imagesApi.getBatchMediaImages(batch)
-          return response.data as BatchImagesResponse
+          // customInstance returns { data, status, headers }, extract the data
+          return (response as unknown as { data: BatchImagesResponse }).data
         }
       },
       staleTime: 1000 * 60 * 5, // 5 minutes cache

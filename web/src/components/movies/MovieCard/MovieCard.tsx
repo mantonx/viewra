@@ -4,7 +4,6 @@ import { formatResolutionLabel } from '@/lib/utils/quality'
 import { getCodecBadgeColor } from '@/lib/utils/media'
 import { MediaCard } from '@/components/media/MediaCard'
 import { ProgressBar } from '@/components/media/ProgressBar'
-import { WatchedBadge } from '@/components/media/WatchedBadge'
 import type { MovieCardProps} from './MovieCard.types'
 
 const MovieCard = ({ movie, onClick }: MovieCardProps) => {
@@ -140,14 +139,28 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
             {(movie.imdb_id || movie.tmdb_id) && (
               <div className="flex gap-1">
                 {movie.imdb_id && (
-                  <span className="text-yellow-600 font-bold" title="IMDb ID available">
+                  <a
+                    href={`https://www.imdb.com/title/${movie.imdb_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-yellow-600 font-bold hover:underline"
+                    title="View on IMDb"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     IMDb
-                  </span>
+                  </a>
                 )}
                 {movie.tmdb_id && (
-                  <span className="text-blue-600 font-bold" title="TMDb ID available">
+                  <a
+                    href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 font-bold hover:underline"
+                    title="View on TMDb"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     TMDb
-                  </span>
+                  </a>
                 )}
               </div>
             )}

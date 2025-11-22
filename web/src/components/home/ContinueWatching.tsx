@@ -56,8 +56,12 @@ export const ContinueWatching = () => {
         <div className="overflow-x-auto -mx-4 px-4 pb-4">
           <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
             {sortedMedia.map((media) => (
-              <div key={media.id} className="w-48 flex-shrink-0">
-                <MediaCard media={media} />
+              <div key={media.id} className="w-48 shrink-0">
+                <MediaCard
+                  mediaId={media.id!}
+                  mediaType={media.type === 'movie' ? 'movie' : 'tv-show'}
+                  imageAlt={media.title || 'Media item'}
+                />
               </div>
             ))}
           </div>

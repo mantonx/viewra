@@ -13,7 +13,7 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.17",
     "@tanstack/react-router": "^1.135.2",
-    "@tanstack/router-devtools": "^1.135.2",
+    "@tanstack/react-router-devtools": "^1.135.2",
     "@types/hls.js": "^0.13.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

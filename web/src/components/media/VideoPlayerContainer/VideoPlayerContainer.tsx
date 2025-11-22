@@ -2,7 +2,6 @@ import { VideoPlayer, type MediaMetadata } from '../VideoPlayer'
 import type { PlaybackState } from '@/lib/hooks/useMediaPlayback'
 import { useTVShowImages, useMovieImages } from '@/lib/hooks/useMediaImages'
 import { getPosterImage, getImageUrl } from '@/lib/types/images'
-import { logger } from '@/lib/utils/logger'
 
 interface Media {
   id: number

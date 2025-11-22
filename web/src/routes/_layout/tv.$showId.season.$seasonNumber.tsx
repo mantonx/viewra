@@ -37,16 +37,22 @@ const SeasonDetail = () => {
     queryFn: () => tvApi.listEpisodesByShowId(showIdNumber),
   })
 
-  const allEpisodes = useMemo(() => episodesData?.data?.episodes || [], [episodesData])
+  const allEpisodes = useMemo(() => {
+    // Check if episodesData has the expected structure (not an error response)
+    if (episodesData?.data && 'episodes' in episodesData.data) {
+      return episodesData.data.episodes || []
+    }
+    return []
+  }, [episodesData])
   const isLoading = isLoadingShow || isLoadingEpisodes
   const error = showError || episodesError
-  const showTitle = showData?.data?.title || ''
+  const showTitle = (showData?.data && 'title' in showData.data) ? showData.data.title || '' : ''
 
   // Filter episodes for this season and sort by episode number
   const seasonEpisodes = useMemo(() => {
     return allEpisodes
-      .filter((ep) => ep.season === parseInt(seasonNumber, 10))
-      .sort((a, b) => a.episode - b.episode)
+      .filter((ep: TVEpisodeResponse) => ep.season === parseInt(seasonNumber, 10))
+      .sort((a: TVEpisodeResponse, b: TVEpisodeResponse) => a.episode - b.episode)
   }, [allEpisodes, seasonNumber])
 
   // Find currently playing episode and enrich with show title and show_id
@@ -170,7 +176,7 @@ const SeasonDetail = () => {
   }
 
   const seasonLabel = parseInt(seasonNumber, 10) === 0 ? 'Specials' : `Season ${seasonNumber}`
-  const episodeIds = seasonEpisodes.map((ep) => ep.id)
+  const episodeIds = seasonEpisodes.map((ep: TVEpisodeResponse) => ep.id)
 
   return (
     <div className="p-8">
@@ -183,7 +189,7 @@ const SeasonDetail = () => {
       {/* Episodes Grid */}
       <BatchProgressProvider mediaIds={episodeIds}>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {seasonEpisodes.map((episode) => (
+          {seasonEpisodes.map((episode: TVEpisodeResponse) => (
             <EpisodeCard
               key={episode.id}
               episode={episode}

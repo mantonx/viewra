@@ -38,6 +38,7 @@ const Layout = () => {
             </Link>
             <Link
               to="/tv"
+              search={{}}
               className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
               activeProps={{ className: 'bg-gray-800' }}
             >
@@ -45,6 +46,7 @@ const Layout = () => {
             </Link>
             <Link
               to="/music"
+              search={{}}
               className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
               activeProps={{ className: 'bg-gray-800' }}
             >

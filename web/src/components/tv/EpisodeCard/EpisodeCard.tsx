@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { MediaPoster } from '@/components/media/MediaPoster'
 import { ProgressBar } from '@/components/media/ProgressBar'
-import { WatchedBadge } from '@/components/media/WatchedBadge'
 import { HoverPlayButton } from '@/components/common'
 import { useBatchProgress } from '@/lib/hooks'
 import { getProgressPercentage } from '@/lib/utils'
@@ -54,7 +53,9 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
           fallbackIcon="🎬"
         />
 
-        <HoverPlayButton isParentHovered={isHovered} iconType="play" size="medium" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <HoverPlayButton isParentHovered={isHovered} iconType="play" size="medium" />
+        </div>
 
         {/* Badges overlay */}
         <div className="absolute top-2 left-2 right-2 flex justify-between z-10">
@@ -125,14 +126,28 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
         {(episode.imdb_id || episode.tvdb_id) && (
           <div className="flex gap-1 mt-2">
             {episode.imdb_id && (
-              <span className="text-xs text-yellow-600 font-bold" title="IMDb ID available">
+              <a
+                href={`https://www.imdb.com/title/${episode.imdb_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-yellow-600 font-bold hover:underline"
+                title="View on IMDb"
+                onClick={(e) => e.stopPropagation()}
+              >
                 IMDb
-              </span>
+              </a>
             )}
             {episode.tvdb_id && (
-              <span className="text-xs text-blue-600 font-bold" title="TVDb ID available">
+              <a
+                href={`https://www.thetvdb.com/?tab=episode&id=${episode.tvdb_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 font-bold hover:underline"
+                title="View on TVDb"
+                onClick={(e) => e.stopPropagation()}
+              >
                 TVDb
-              </span>
+              </a>
             )}
           </div>
         )}

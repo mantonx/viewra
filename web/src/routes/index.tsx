@@ -31,12 +31,14 @@ const Index = () => {
           </Link>
           <Link
             to="/tv"
+            search={{}}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
           >
             Browse TV Shows
           </Link>
           <Link
             to="/music"
+            search={{}}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
           >
             Browse Music

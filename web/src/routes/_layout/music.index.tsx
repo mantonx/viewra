@@ -4,6 +4,7 @@ import { ArtistCard, ArtistListItem } from '@/components/music'
 import { MediaBrowsePage } from '@/components/common'
 import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider } from '@/lib/hooks'
 import type { ViewMode } from '@/components/common'
+import type { GithubComViewraViewraInternalApplicationMusicArtistSummary } from '@/lib/api/generated/models'
 
 const Music = () => {
   const navigate = useNavigate()
@@ -103,14 +104,14 @@ const Music = () => {
         data={allArtists}
         isLoading={isLoading}
         error={error}
-        renderItem={(artist) => (
+        renderItem={(artist: GithubComViewraViewraInternalApplicationMusicArtistSummary) => (
           <ArtistCard
             key={artist.id}
             artist={artist}
-            onClick={() => handleArtistClick(artist.id)}
+            onClick={() => handleArtistClick(artist.id!)}
           />
         )}
-        renderListItem={(artist) => (
+        renderListItem={(artist: GithubComViewraViewraInternalApplicationMusicArtistSummary) => (
           <ArtistListItem
             key={artist.id}
             artist={artist}
