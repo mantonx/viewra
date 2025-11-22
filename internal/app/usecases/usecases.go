@@ -159,6 +159,8 @@ func buildLibraryUseCases(
 			repos.Image,
 			imageCleanup,
 			cfg.Media.ScanTimeout,
+			cfg.Media.ScanParallelWalkers,
+			cfg.Media.ScanProgressInterval,
 			cfg.SystemProfile,
 			logger,
 		),

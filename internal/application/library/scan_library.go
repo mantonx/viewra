@@ -44,6 +44,8 @@ type ScanLibraryUseCase struct {
 	imageRepo            images.Repository
 	imageCleanup         ImageCleanupExecutor
 	scanTimeout          time.Duration
+	scanParallelWalkers  int // Number of concurrent directory walkers (0 = sequential)
+	scanProgressInterval int // Log progress every N files (0 = disabled)
 	systemProfile        *system.Profile
 	logger               *slog.Logger
 
@@ -101,6 +103,8 @@ func NewScanLibraryUseCase(
 	imageRepo images.Repository,
 	imageCleanup ImageCleanupExecutor,
 	scanTimeout time.Duration,
+	scanParallelWalkers int,
+	scanProgressInterval int,
 	systemProfile *system.Profile,
 	logger *slog.Logger,
 ) *ScanLibraryUseCase {
@@ -126,6 +130,8 @@ func NewScanLibraryUseCase(
 		imageRepo:            imageRepo,
 		imageCleanup:         imageCleanup,
 		scanTimeout:          scanTimeout,
+		scanParallelWalkers:  scanParallelWalkers,
+		scanProgressInterval: scanProgressInterval,
 		systemProfile:        systemProfile,
 		logger:               logger,
 	}
@@ -309,7 +315,31 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 // Uses incremental scanning to only process new/modified/deleted files
 func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib *library.Library) {
 	// Phase 1: File Discovery - walk directory to collect file paths with metadata
-	walker := filesystem.NewWalker()
+	// Configure walker with optimal settings for this system
+	var walkerOpts []filesystem.WalkerOption
+
+	// Use profiler recommendations if available, otherwise use config
+	if uc.systemProfile != nil {
+		recommendations := uc.systemProfile.Calculate()
+
+		// Enable parallel walking if recommended
+		if recommendations.ScanWalkers > 0 {
+			walkerOpts = append(walkerOpts, filesystem.WithParallelWalking(recommendations.ScanWalkers))
+			uc.logger.Info("using parallel directory walking",
+				"workers", recommendations.ScanWalkers,
+				"storage_type", uc.systemProfile.Storage.Type)
+		}
+	} else if uc.scanParallelWalkers > 0 {
+		// Fallback to manual configuration
+		walkerOpts = append(walkerOpts, filesystem.WithParallelWalking(uc.scanParallelWalkers))
+	}
+
+	// Enable progress logging if configured
+	if uc.scanProgressInterval > 0 {
+		walkerOpts = append(walkerOpts, filesystem.WithProgressLogging(uc.scanProgressInterval))
+	}
+
+	walker := filesystem.NewWalker(walkerOpts...)
 
 	var discoveredFiles []scanner.FileInfo
 	var mu sync.Mutex

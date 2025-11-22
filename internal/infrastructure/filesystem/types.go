@@ -12,6 +12,11 @@ import (
 type Walker struct {
 	// walkDirFunc allows injection for testing
 	walkDirFunc func(root string, fn fs.WalkDirFunc) error
+
+	// Parallel walking configuration
+	parallelWorkers  int  // Number of concurrent directory walkers (0 = sequential)
+	enableParallel   bool // Enable parallel walking for network storage optimization
+	progressInterval int  // Log progress every N files (0 = disabled)
 }
 
 // Filter implements scanner.FileFilter with smart file detection
@@ -37,6 +42,25 @@ func (dfs *DefaultFileSystem) Stat(name string) (os.FileInfo, error) {
 // ReadDir wraps os.ReadDir
 func (dfs *DefaultFileSystem) ReadDir(name string) ([]fs.DirEntry, error) {
 	return os.ReadDir(name)
+}
+
+// WalkerOption configures Walker behavior
+type WalkerOption func(*Walker)
+
+// WithParallelWalking enables parallel directory walking with specified worker count
+// Recommended for network storage to parallelize I/O operations
+func WithParallelWalking(workers int) WalkerOption {
+	return func(w *Walker) {
+		w.enableParallel = true
+		w.parallelWorkers = workers
+	}
+}
+
+// WithProgressLogging enables progress logging every N files discovered
+func WithProgressLogging(interval int) WalkerOption {
+	return func(w *Walker) {
+		w.progressInterval = interval
+	}
 }
 
 // toFileInfo converts fs.DirEntry to scanner.FileInfo

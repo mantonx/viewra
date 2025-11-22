@@ -68,6 +68,7 @@ type GPUProfile struct {
 // RecommendedSettings contains optimized settings based on system profile
 type RecommendedSettings struct {
 	// Scanner settings
+	ScanWalkers          int // Number of concurrent directory walkers (0 = sequential)
 	HashWorkers          int // Number of concurrent file hash workers
 	ProcessingWorkers    int // Number of concurrent metadata processing workers
 	CheckpointBatchSize  int // Batch size for checkpoint inserts
@@ -87,6 +88,23 @@ func (p *Profile) Calculate() RecommendedSettings {
 	settings := RecommendedSettings{
 		CheckpointBatchSize: 10,   // Good default for immediate availability
 		ChannelBufferSize:   100,  // Good default for most systems
+	}
+
+	// Calculate scan walkers based on storage type
+	if p.Storage.IsRemote {
+		// Network storage: Enable parallel walking to saturate network bandwidth
+		// Use aggressive parallelism to overcome network latency
+		settings.ScanWalkers = min(p.CPU.NumCPU, 20) // 20 concurrent directory walks
+	} else {
+		// Local storage: Sequential walking is often faster
+		// Parallel walking can cause excessive disk seeking on HDDs
+		if p.Storage.Type == StorageTypeLocalSSD {
+			// SSDs can handle some parallelism
+			settings.ScanWalkers = max(p.CPU.NumPhysical/4, 4)
+		} else {
+			// HDDs prefer sequential access
+			settings.ScanWalkers = 0 // Sequential walking
+		}
 	}
 
 	// Calculate hash workers based on CPU and storage type
