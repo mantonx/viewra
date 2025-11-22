@@ -24,7 +24,7 @@ const ArtistDetail = () => {
     (albumsData?.data && 'albums' in albumsData.data) ? albumsData.data.albums || [] : []
 
   // Get artist name from first album
-  const artistName = albums.length > 0 ? albums[0].artist : 'Artist'
+  const artistName = albums.length > 0 ? (albums[0].artist || 'Artist') : 'Artist'
 
   // Handle clicking on an album card
   const handleAlbumClick = (albumId: number) => {
@@ -33,7 +33,7 @@ const ArtistDetail = () => {
 
   // Handle back to artists
   const handleBackToArtists = () => {
-    navigate({ to: '/music', search: {} })
+    navigate({ to: '/music', search: { q: undefined, sort: undefined, view: undefined } })
   }
 
   if (isLoading) {

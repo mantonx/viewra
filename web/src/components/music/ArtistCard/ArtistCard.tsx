@@ -4,9 +4,9 @@ import type { ArtistCardProps } from './ArtistCard.types'
 const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
   return (
     <MediaCard
-      mediaId={artist.id}
+      mediaId={artist.id ?? 0}
       mediaType="music-artist"
-      imageAlt={artist.name}
+      imageAlt={artist.name ?? 'Artist'}
       imageFallback="🎤"
       aspectRatio="square"
       onClick={onClick}
@@ -18,13 +18,13 @@ const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
       }
       infoContent={
         <>
-          <h3 className="font-semibold text-sm line-clamp-2 mb-2">{artist.name}</h3>
+          <h3 className="font-semibold text-sm line-clamp-2 mb-2">{artist.name ?? 'Unknown Artist'}</h3>
           <div className="flex items-center justify-between text-xs text-gray-600">
             <span>
-              {artist.album_count} {artist.album_count === 1 ? 'Album' : 'Albums'}
+              {artist.album_count ?? 0} {artist.album_count === 1 ? 'Album' : 'Albums'}
             </span>
             <span>
-              {artist.track_count} {artist.track_count === 1 ? 'Track' : 'Tracks'}
+              {artist.track_count ?? 0} {artist.track_count === 1 ? 'Track' : 'Tracks'}
             </span>
           </div>
         </>

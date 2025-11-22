@@ -30,7 +30,7 @@ const Layout = () => {
             </Link>
             <Link
               to="/movies"
-              search={{ id: undefined }}
+              search={{ id: undefined, q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, qualities: undefined, watched: undefined, view: undefined }}
               className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
               activeProps={{ className: 'bg-gray-800' }}
             >
@@ -38,7 +38,7 @@ const Layout = () => {
             </Link>
             <Link
               to="/tv"
-              search={{}}
+              search={{ q: undefined, sort: undefined, view: undefined }}
               className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
               activeProps={{ className: 'bg-gray-800' }}
             >
@@ -46,7 +46,7 @@ const Layout = () => {
             </Link>
             <Link
               to="/music"
-              search={{}}
+              search={{ q: undefined, sort: undefined, view: undefined }}
               className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
               activeProps={{ className: 'bg-gray-800' }}
             >

@@ -4,9 +4,9 @@ import type { TVShowCardProps } from './TVShowCard.types'
 const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
   return (
     <MediaCard
-      mediaId={show.id}
+      mediaId={show.id ?? 0}
       mediaType="tv-show"
-      imageAlt={show.title}
+      imageAlt={show.title ?? 'TV Show'}
       imageFallback="📺"
       aspectRatio="2/3"
       onClick={onClick}
@@ -19,13 +19,13 @@ const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
       }
       infoContent={
         <>
-          <h3 className="font-semibold text-sm line-clamp-2 mb-2">{show.title}</h3>
+          <h3 className="font-semibold text-sm line-clamp-2 mb-2">{show.title ?? 'Unknown Show'}</h3>
           <div className="flex items-center justify-between text-xs text-gray-600">
             <span>
-              {show.season_count} {show.season_count === 1 ? 'Season' : 'Seasons'}
+              {show.season_count ?? 0} {show.season_count === 1 ? 'Season' : 'Seasons'}
             </span>
             <span>
-              {show.episode_count} {show.episode_count === 1 ? 'Episode' : 'Episodes'}
+              {show.episode_count ?? 0} {show.episode_count === 1 ? 'Episode' : 'Episodes'}
             </span>
           </div>
         </>

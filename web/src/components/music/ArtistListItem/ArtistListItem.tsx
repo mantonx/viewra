@@ -36,8 +36,8 @@ export const ArtistListItem = ({ artist, onClick }: ArtistListItemProps) => {
       <div className="shrink-0 relative w-24 h-24">
         <MediaPoster
           mediaType="music-artist"
-          mediaId={artist.id}
-          alt={`${artist.name} image`}
+          mediaId={artist.id ?? 0}
+          alt={`${artist.name ?? 'Artist'} image`}
           className="w-full h-full rounded-full shadow-sm transition-all duration-200"
           preset="thumb"
           fallbackIcon="🎤"

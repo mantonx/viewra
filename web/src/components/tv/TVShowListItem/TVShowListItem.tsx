@@ -36,8 +36,8 @@ export const TVShowListItem = ({ show, onClick }: TVShowListItemProps) => {
       <div className="shrink-0 relative w-24 h-36">
         <MediaPoster
           mediaType="tv-show"
-          mediaId={show.id}
-          alt={`${show.title} poster`}
+          mediaId={show.id ?? 0}
+          alt={`${show.title ?? 'TV Show'} poster`}
           className="w-full h-full rounded shadow-sm transition-all duration-200"
           preset="thumb"
           fallbackIcon="📺"

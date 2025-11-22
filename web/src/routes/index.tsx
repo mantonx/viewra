@@ -24,21 +24,21 @@ const Index = () => {
           </Link>
           <Link
             to="/movies"
-            search={{ id: undefined }}
+            search={{ id: undefined, q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, qualities: undefined, watched: undefined, view: undefined }}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
           >
             Browse Movies
           </Link>
           <Link
             to="/tv"
-            search={{}}
+            search={{ q: undefined, sort: undefined, view: undefined }}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
           >
             Browse TV Shows
           </Link>
           <Link
             to="/music"
-            search={{}}
+            search={{ q: undefined, sort: undefined, view: undefined }}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
           >
             Browse Music

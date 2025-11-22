@@ -4,30 +4,30 @@
  */
 
 export interface TVShowSummary {
-  id: number
-  library_id: number
-  title: string
-  season_count: number
-  episode_count: number
+  id?: number
+  library_id?: number
+  title?: string
+  season_count?: number
+  episode_count?: number
 }
 
 export interface TVShowDetailResponse {
-  id: number
-  library_id: number
-  title: string
-  season_count: number
-  episode_count: number
+  id?: number
+  library_id?: number
+  title?: string
+  season_count?: number
+  episode_count?: number
 }
 
 export interface TVEpisodeResponse {
   // Base Media fields
-  id: number
-  library_id: number
-  title: string // filename
-  file_path: string
-  file_size: number
-  duration: number // in seconds
-  is_extra: boolean
+  id?: number
+  library_id?: number
+  title?: string // filename
+  file_path?: string
+  file_size?: number
+  duration?: number // in seconds
+  is_extra?: boolean
 
   // Technical metadata
   width?: number
@@ -39,18 +39,18 @@ export interface TVEpisodeResponse {
   container_format?: string
 
   // TV Episode-specific fields
-  show_title: string
-  season_id: number
-  season: number
-  episode: number
+  show_title?: string
+  season_id?: number
+  season?: number
+  episode?: number
   episode_title?: string // actual episode name
   tvdb_id?: number
   imdb_id?: string
   air_date?: string
   description?: string
 
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ListTVShowsResponse {
@@ -64,8 +64,8 @@ export interface ListTVEpisodesResponse {
 }
 
 export interface SeasonGroup {
-  season: number
+  season?: number
   season_id?: number
-  episode_count: number
+  episode_count?: number
   episodes: TVEpisodeResponse[]
 }

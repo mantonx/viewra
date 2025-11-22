@@ -8,8 +8,8 @@ export interface Movie {
   library_id: number
   title: string
   file_path: string
-  file_size: number
-  duration: number
+  file_size?: number
+  duration?: number
   is_extra: boolean
 
   // Video metadata

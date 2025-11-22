@@ -57,7 +57,7 @@ const TVShows = () => {
     isFetchingNextPage,
   } = useInfiniteTVShows({ libraryId, sort: apiSort })
 
-  const allShows = data ? flattenTVShows(data.pages) : []
+  const allShows = data ? flattenTVShows(data.pages as Array<{ shows?: GithubComViewraViewraInternalApplicationTvTVShowSummary[] }>) : []
 
   // Infinite scroll: Detect when user scrolls near bottom
   const observerTarget = useRef<HTMLDivElement>(null)

@@ -11,14 +11,14 @@ import type { EpisodeCardProps } from './EpisodeCard.types'
 
 const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
   const [isHovered, setIsHovered] = useState(false)
-  const { progress } = useBatchProgress(episode.id)
+  const { progress } = useBatchProgress(episode.id ?? 0)
 
   const handleClick = () => {
     onClick?.()
   }
 
   const resolution = formatResolutionLabel(episode.height)
-  const episodeNumber = `S${episode.season}E${episode.episode}`
+  const episodeNumber = `S${episode.season ?? 0}E${episode.episode ?? 0}`
   
   // Format air date if available
   const formatAirDate = (dateStr?: string) => {
@@ -45,9 +45,9 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
       {/* Thumbnail with badges */}
       <div className="aspect-video relative">
         <MediaPoster
-          mediaId={episode.id}
+          mediaId={episode.id ?? 0}
           mediaType="tv-episode"
-          alt={episode.episode_title || episode.title}
+          alt={episode.episode_title || episode.title || 'Episode'}
           className="w-full h-full absolute inset-0"
           preset="medium"
           fallbackIcon="🎬"
@@ -114,7 +114,7 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
         
         {/* Duration and Progress */}
         <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-          {episode.duration > 0 && <span>{formatDuration(episode.duration)}</span>}
+          {episode.duration && episode.duration > 0 && <span>{formatDuration(episode.duration)}</span>}
           {progress && getProgressPercentage(progress) > 0 && !progress.is_watched && (
             <span className="text-blue-600 font-medium">
               {Math.floor(getProgressPercentage(progress))}% watched

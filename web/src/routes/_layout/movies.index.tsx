@@ -7,6 +7,7 @@ import { MediaBrowsePage } from '@/components/common'
 import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider } from '@/lib/hooks'
 import { logger } from '@/lib/utils/logger'
 import type { FilterState, ViewMode } from '@/components/common'
+import type { Movie } from '@/lib/types/movies'
 
 const Movies = () => {
   const navigate = useNavigate()
@@ -203,7 +204,7 @@ const Movies = () => {
     logger.debug('✅ Found movie:', movie.title)
 
     // Update URL with movie ID
-    navigate({ to: '/movies', search: { id: movieId, q: undefined, sort: undefined } })
+    navigate({ to: '/movies', search: { id: movieId, q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, qualities: undefined, watched: undefined, view: undefined } })
 
     // Convert Movie to the format expected by playMedia
     const mediaItem = {
@@ -274,14 +275,14 @@ const Movies = () => {
         renderItem={(movie) => (
           <MovieCard
             key={movie.id}
-            movie={movie}
+            movie={movie as Movie}
             onClick={() => handlePlayMovie(movie.id)}
           />
         )}
         renderListItem={(movie) => (
           <MovieListItem
             key={movie.id}
-            movie={movie}
+            movie={movie as Movie}
             onClick={() => handlePlayMovie(movie.id)}
           />
         )}

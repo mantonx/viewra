@@ -4,9 +4,9 @@ import { useTVShowImages, useMovieImages } from '@/lib/hooks/useMediaImages'
 import { getPosterImage, getImageUrl } from '@/lib/types/images'
 
 interface Media {
-  id: number
-  duration: number
-  title: string
+  id?: number
+  duration?: number
+  title?: string
   year?: number
   // For TV shows
   show_title?: string
@@ -60,13 +60,13 @@ export const VideoPlayerContainer = ({
   const metadata: MediaMetadata = media.show_title
     ? {
         // TV Show
-        title: media.show_title,
+        title: media.show_title || 'Unknown',
         subtitle: `S${media.season || 0}:E${media.episode || 0}${media.episode_title ? ` • ${media.episode_title}` : ''}`,
         posterUrl,
       }
     : {
         // Movie
-        title: media.title,
+        title: media.title || 'Unknown',
         subtitle: media.year?.toString(),
         posterUrl,
       }
@@ -74,7 +74,7 @@ export const VideoPlayerContainer = ({
   return (
     <div className="relative">
       <VideoPlayer
-        mediaId={media.id}
+        mediaId={media.id || 0}
         streamUrl={playbackState.streamUrl || ''}
         initialPosition={playbackState.initialPosition}
         duration={media.duration}

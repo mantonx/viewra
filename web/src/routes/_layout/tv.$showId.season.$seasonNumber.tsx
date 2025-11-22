@@ -52,7 +52,7 @@ const SeasonDetail = () => {
   const seasonEpisodes = useMemo(() => {
     return allEpisodes
       .filter((ep: TVEpisodeResponse) => ep.season === parseInt(seasonNumber, 10))
-      .sort((a: TVEpisodeResponse, b: TVEpisodeResponse) => a.episode - b.episode)
+      .sort((a: TVEpisodeResponse, b: TVEpisodeResponse) => (a.episode ?? 0) - (b.episode ?? 0))
   }, [allEpisodes, seasonNumber])
 
   // Find currently playing episode and enrich with show title and show_id
@@ -96,7 +96,7 @@ const SeasonDetail = () => {
     })
 
     // Trigger playback
-    await playMedia(episode.id, episode)
+    await playMedia(episode.id ?? 0, episode)
   }
 
   const handlePlayNextEpisode = async () => {
@@ -176,7 +176,7 @@ const SeasonDetail = () => {
   }
 
   const seasonLabel = parseInt(seasonNumber, 10) === 0 ? 'Specials' : `Season ${seasonNumber}`
-  const episodeIds = seasonEpisodes.map((ep: TVEpisodeResponse) => ep.id)
+  const episodeIds = seasonEpisodes.map((ep: TVEpisodeResponse) => ep.id ?? 0).filter((id): id is number => id !== 0)
 
   return (
     <div className="p-8">

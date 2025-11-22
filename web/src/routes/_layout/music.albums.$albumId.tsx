@@ -22,7 +22,7 @@ const AlbumDetail = () => {
     queryFn: () => musicApi.listTracksByAlbumID(albumIdNum),
   })
 
-  const tracks = tracksData?.data?.tracks || []
+  const tracks = (tracksData?.data && 'tracks' in tracksData.data) ? tracksData.data.tracks || [] : []
 
   // Sort tracks by disc number and track number
   const sortedTracks = [...tracks].sort((a, b) => {
@@ -50,7 +50,7 @@ const AlbumDetail = () => {
   // Handle play all
   const handlePlayAll = () => {
     if (sortedTracks.length > 0) {
-      playQueue(sortedTracks, 0)
+      playQueue(sortedTracks as MusicTrackResponse[], 0)
     }
   }
 
@@ -59,9 +59,9 @@ const AlbumDetail = () => {
     if (albumMetadata) {
       // Try to navigate to artist using the first track's ID as artist ID
       // This is a bit of a hack but works since we need an artist track ID
-      navigate({ to: '/music', search: {} })
+      navigate({ to: '/music', search: { q: undefined, sort: undefined, view: undefined } })
     } else {
-      navigate({ to: '/music', search: {} })
+      navigate({ to: '/music', search: { q: undefined, sort: undefined, view: undefined } })
     }
   }
 
@@ -125,7 +125,7 @@ const AlbumDetail = () => {
         <Card>
           <CardContent>
             <TrackList
-              tracks={sortedTracks}
+              tracks={sortedTracks as MusicTrackResponse[]}
               currentTrackId={currentTrack?.id}
               onTrackClick={handleTrackClick}
               onPlayAll={handlePlayAll}
