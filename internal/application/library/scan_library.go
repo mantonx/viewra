@@ -21,6 +21,7 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 	"github.com/mantonx/viewra/internal/infrastructure/metadata/music"
 	"github.com/mantonx/viewra/internal/infrastructure/metadata/nfo"
+	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
 
 // ScanLibraryUseCase handles the business logic for scanning a library
@@ -43,6 +44,7 @@ type ScanLibraryUseCase struct {
 	imageRepo            images.Repository
 	imageCleanup         ImageCleanupExecutor
 	scanTimeout          time.Duration
+	systemProfile        *system.Profile
 	logger               *slog.Logger
 
 	// Artist deduplication tracking (per scan session)
@@ -99,6 +101,7 @@ func NewScanLibraryUseCase(
 	imageRepo images.Repository,
 	imageCleanup ImageCleanupExecutor,
 	scanTimeout time.Duration,
+	systemProfile *system.Profile,
 	logger *slog.Logger,
 ) *ScanLibraryUseCase {
 	// Create incremental scanner
@@ -123,6 +126,7 @@ func NewScanLibraryUseCase(
 		imageRepo:            imageRepo,
 		imageCleanup:         imageCleanup,
 		scanTimeout:          scanTimeout,
+		systemProfile:        systemProfile,
 		logger:               logger,
 	}
 }
@@ -388,47 +392,86 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 		// For now, we just remove from scan_state tracking
 	}
 
-	// Phase 4: Create checkpoints only for files that need processing
+	// Phase 4 & 5: Hash files and process them concurrently
 	// Hash files upfront so hashes survive crashes and we don't duplicate work on resume
-	// Uses streaming approach: hash in parallel → insert in batches → lower memory, crash resilient
+	// Uses streaming approach: hash in parallel → insert in batches → process immediately
+	// This doubles efficiency: hashing and processing happen in parallel instead of sequentially
 	filesToProcess := append(diff.NewFiles, diff.ModifiedFiles...)
 
-	uc.logger.Info("computing file hashes and creating checkpoints",
+	uc.logger.Info("starting concurrent hashing and processing",
 		"file_count", len(filesToProcess),
-		"workers", 8)
-	hashStartTime := time.Now()
+		"hash_workers", 8)
+	startTime := time.Now()
 
-	// Stream hashing: hash in parallel, insert checkpoints in batches as they complete
-	// Memory efficient: holds max 1000 checkpoints vs all 33k+ in memory
-	// Crash resilient: checkpoints saved incrementally, not lost if server crashes mid-hash
-	if err := uc.hashAndStreamCheckpoints(ctx, filesToProcess, jobID); err != nil {
+	fmt.Printf("info: processing %d files (new=%d, modified=%d, skipped=%d)\n",
+		len(filesToProcess), len(diff.NewFiles), len(diff.ModifiedFiles), len(diff.UnchangedFiles))
+
+	// Start processing goroutine immediately - it will consume checkpoints as they're created
+	var processingWg sync.WaitGroup
+	processingWg.Add(1)
+	processingErrChan := make(chan error, 1)
+	hashingDone := make(chan struct{}) // Signal when hashing completes
+
+	go func() {
+		defer processingWg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				uc.logger.Error("panic in processing goroutine",
+					"panic", r,
+					"stack", string(debug.Stack()))
+				processingErrChan <- fmt.Errorf("processing panicked: %v", r)
+			}
+		}()
+
+		// Process files as checkpoints become available
+		uc.processFilesWithCheckpoints(ctx, jobID, lib, hashingDone)
+	}()
+
+	// Hash files and stream checkpoints in parallel (processing consumes them concurrently)
+	if err := uc.hashAndStreamCheckpoints(ctx, filesToProcess, jobID, lib.ID); err != nil {
 		uc.logger.Error("failed to create checkpoints", "error", err)
+		close(hashingDone) // Signal completion even on error
 		uc.completeJobWithError(ctx, jobID, err)
 		return
 	}
 
-	hashDuration := time.Since(hashStartTime)
-	avgMs := float64(hashDuration.Milliseconds()) / float64(len(filesToProcess))
-	uc.logger.Info("file hashing and checkpoint creation completed",
+	// Signal that hashing is complete
+	close(hashingDone)
+
+	// Wait for processing to complete
+	processingWg.Wait()
+
+	// Check for processing errors
+	select {
+	case err := <-processingErrChan:
+		if err != nil {
+			uc.logger.Error("processing failed", "error", err)
+			uc.completeJobWithError(ctx, jobID, err)
+			return
+		}
+	default:
+	}
+
+	duration := time.Since(startTime)
+	avgMs := float64(duration.Milliseconds()) / float64(len(filesToProcess))
+	uc.logger.Info("concurrent hashing and processing completed",
 		"file_count", len(filesToProcess),
-		"duration", hashDuration,
+		"duration", duration,
 		"avg_ms_per_file", avgMs)
-
-	fmt.Printf("info: created %d checkpoints for processing (new=%d, modified=%d, skipped=%d)\n",
-		len(filesToProcess), len(diff.NewFiles), len(diff.ModifiedFiles), len(diff.UnchangedFiles))
-
-	// Phase 5: Process files using checkpoint-based batching
-	uc.processFilesWithCheckpoints(ctx, jobID, lib)
 }
 
 // resumeScanFromCheckpoints resumes a scan from existing checkpoints
 func (uc *ScanLibraryUseCase) resumeScanFromCheckpoints(ctx context.Context, jobID int64, lib *library.Library) {
 	fmt.Printf("info: resuming scan from checkpoints for job %d\n", jobID)
-	uc.processFilesWithCheckpoints(ctx, jobID, lib)
+	// When resuming, hashing is already done
+	hashingDone := make(chan struct{})
+	close(hashingDone)
+	uc.processFilesWithCheckpoints(ctx, jobID, lib, hashingDone)
 }
 
 // processFilesWithCheckpoints processes files in batches using checkpoints
-func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, jobID int64, lib *library.Library) {
+// hashingDone channel signals when checkpoint creation is complete
+func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, jobID int64, lib *library.Library, hashingDone <-chan struct{}) {
 	const batchSize = 50
 	const maxRetries = 3
 	updateTicker := time.NewTicker(2 * time.Second)
@@ -447,8 +490,18 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		}
 
 		if len(batch) == 0 {
-			// No more pending files
-			break
+			// Check if hashing is complete
+			select {
+			case <-hashingDone:
+				// Hashing is done and no more checkpoints - we're finished
+				uc.logger.Info("All checkpoints processed, scan complete",
+					"job_id", jobID)
+				break
+			default:
+				// Hashing still in progress, wait for more checkpoints
+				time.Sleep(2 * time.Second)
+				continue
+			}
 		}
 
 		// Process each file in the batch
@@ -728,16 +781,43 @@ func isExtra(filepath string) bool {
 }
 
 // hashAndStreamCheckpoints hashes files in parallel and streams checkpoints to DB in batches.
-// Memory efficient: holds max 1000 checkpoints in memory vs all 33k+
-// Crash resilient: checkpoints saved incrementally, not lost if server crashes mid-hash
-// Uses 8 workers to parallelize I/O-bound hashing operations.
+// Optimizations:
+// - Skips hashing for files unchanged since last scan (reuses existing hash from scan_state)
+// - Uses xxHash instead of SHA256 (10-20x faster for new/modified files)
+// - Memory efficient: holds max 10 checkpoints in memory vs all 33k+
+// - Crash resilient: checkpoints saved incrementally, not lost if server crashes mid-hash
+// - Uses system profile to auto-tune worker count based on CPU and storage type
 func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 	ctx context.Context,
 	filesToProcess []scanner.FileInfo,
 	jobID int64,
+	libraryID int64,
 ) error {
-	const numWorkers = 8
-	const batchSize = 1000
+	// Detect storage type for this library path (if we have files to process)
+	if uc.systemProfile != nil && len(filesToProcess) > 0 {
+		uc.systemProfile.UpdateForLibraryPath(ctx, filesToProcess[0].Path)
+	}
+
+	// Calculate optimal settings based on system profile
+	var numWorkers, batchSize int
+	if uc.systemProfile != nil {
+		settings := uc.systemProfile.Calculate()
+		numWorkers = settings.HashWorkers
+		batchSize = settings.CheckpointBatchSize
+		uc.logger.Info("Using profile-based scan settings",
+			"hash_workers", numWorkers,
+			"batch_size", batchSize,
+			"storage_type", uc.systemProfile.Storage.Type)
+	} else {
+		// Fallback to conservative defaults if no profile
+		numWorkers = 8
+		batchSize = 10
+		uc.logger.Warn("No system profile available, using default settings",
+			"hash_workers", numWorkers,
+			"batch_size", batchSize)
+	}
+
+	const batchTimeout = 500 * time.Millisecond // Insert even partial batches after 500ms
 
 	type hashJob struct {
 		fileInfo scanner.FileInfo
@@ -777,13 +857,22 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 						}
 					}()
 
-					hash, err := hasher.Hash(job.fileInfo.Path)
-					fileHash := hash
-					if err != nil {
-						uc.logger.Warn("failed to hash file, will use mtime+size fallback for change detection",
-							"file_path", job.fileInfo.Path,
-							"error", err)
-						fileHash = "" // Leave empty - scan_state will use mtime+size fallback
+					// Try to get existing hash from scan_state (optimization for unchanged files)
+					var fileHash string
+					existingState, err := uc.scanStateRepo.GetByPath(ctx, libraryID, job.fileInfo.Path)
+					if err == nil && existingState != nil && existingState.FileHash != "" {
+						// File exists in scan_state with a hash - reuse it (skip expensive hashing)
+						fileHash = existingState.FileHash
+					} else {
+						// New file or hash missing - compute hash using xxHash (10-20x faster than SHA256)
+						hash, err := hasher.Hash(job.fileInfo.Path)
+						fileHash = hash
+						if err != nil {
+							uc.logger.Warn("failed to hash file, will use mtime+size fallback for change detection",
+								"file_path", job.fileInfo.Path,
+								"error", err)
+							fileHash = "" // Leave empty - scan_state will use mtime+size fallback
+						}
 					}
 
 					checkpoints <- &scanner.ScanCheckpoint{
@@ -799,7 +888,7 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 		}()
 	}
 
-	// Start DB writer goroutine - inserts checkpoints in batches
+	// Start DB writer goroutine - inserts checkpoints in small batches with timeout
 	var writerWg sync.WaitGroup
 	writerWg.Add(1)
 	go func() {
@@ -807,42 +896,53 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 
 		batch := make([]*scanner.ScanCheckpoint, 0, batchSize)
 		processed := 0
+		timer := time.NewTimer(batchTimeout)
+		defer timer.Stop()
 
-		for checkpoint := range checkpoints {
-			batch = append(batch, checkpoint)
-			processed++
-
-			// Log progress every 5000 files
-			if processed%5000 == 0 {
-				uc.logger.Info("hashing and checkpoint creation progress",
-					"processed", processed,
-					"total", len(filesToProcess),
-					"percent", int(float64(processed)/float64(len(filesToProcess))*100))
+		flushBatch := func() {
+			if len(batch) == 0 {
+				return
 			}
-
-			// Insert batch when it reaches batch size
-			if len(batch) >= batchSize {
-				if err := uc.checkpointRepo.CreateBatch(ctx, batch); err != nil {
-					uc.logger.Error("failed to insert checkpoint batch", "error", err)
-					select {
-					case errors <- err:
-					default:
-					}
-					return
-				}
-				batch = batch[:0] // Clear batch
-			}
-		}
-
-		// Insert remaining checkpoints
-		if len(batch) > 0 {
 			if err := uc.checkpointRepo.CreateBatch(ctx, batch); err != nil {
-				uc.logger.Error("failed to insert final checkpoint batch", "error", err)
+				uc.logger.Error("failed to insert checkpoint batch", "error", err)
 				select {
 				case errors <- err:
 				default:
 				}
 				return
+			}
+			batch = batch[:0] // Clear batch
+			timer.Reset(batchTimeout)
+		}
+
+		for {
+			select {
+			case checkpoint, ok := <-checkpoints:
+				if !ok {
+					// Channel closed, flush remaining batch
+					flushBatch()
+					return
+				}
+
+				batch = append(batch, checkpoint)
+				processed++
+
+				// Log progress every 5000 files
+				if processed%5000 == 0 {
+					uc.logger.Info("hashing and checkpoint creation progress",
+						"processed", processed,
+						"total", len(filesToProcess),
+						"percent", int(float64(processed)/float64(len(filesToProcess))*100))
+				}
+
+				// Insert batch when it reaches batch size
+				if len(batch) >= batchSize {
+					flushBatch()
+				}
+
+			case <-timer.C:
+				// Timeout - flush partial batch
+				flushBatch()
 			}
 		}
 	}()

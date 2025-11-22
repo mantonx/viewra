@@ -11,16 +11,18 @@ import (
 	"github.com/mantonx/viewra/internal/api"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/database"
+	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
 
 // Config holds all application configuration
 type Config struct {
-	Environment string
-	Database    DatabaseConfig
-	Server      ServerConfig
-	Media       MediaConfig
-	Transcode   TranscodeConfig
-	Images      ImagesConfig
+	Environment   string
+	Database      DatabaseConfig
+	Server        ServerConfig
+	Media         MediaConfig
+	Transcode     TranscodeConfig
+	Images        ImagesConfig
+	SystemProfile *system.Profile // Detected system profile for auto-tuning
 }
 
 // DatabaseConfig holds database connection and migration configuration.

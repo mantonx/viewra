@@ -2,7 +2,6 @@ package usecases
 
 import (
 	"log/slog"
-	"time"
 
 	"github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/app/repositories"
@@ -107,7 +106,7 @@ func BuildUseCases(
 	logger *slog.Logger,
 ) *UseCases {
 	return &UseCases{
-		Library:   buildLibraryUseCases(repos, svcs, txManager, logger, cfg.Images.CacheDir, cfg.Media.ScanTimeout),
+		Library:   buildLibraryUseCases(repos, svcs, txManager, logger, cfg),
 		Media:     buildMediaUseCases(repos, svcs, txManager, logger, cfg.Images.CacheDir),
 		Movies:    buildMovieUseCases(repos),
 		TV:        buildTVUseCases(repos),
@@ -123,11 +122,10 @@ func buildLibraryUseCases(
 	svcs *services.Services,
 	txManager *common.TxManager,
 	logger *slog.Logger,
-	imageCacheDir string,
-	scanTimeout time.Duration,
+	cfg *config.Config,
 ) *LibraryUseCases {
 	// Image cleanup use case (needed for library delete and scan)
-	imageCleanup := images.NewCleanupUseCase(repos.Image, imageCacheDir, logger)
+	imageCleanup := images.NewCleanupUseCase(repos.Image, cfg.Images.CacheDir, logger)
 
 	// Image extraction use cases (needed for scanner)
 	extractMovie := images.NewExtractMovieImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
@@ -160,7 +158,8 @@ func buildLibraryUseCases(
 			extractArtist,
 			repos.Image,
 			imageCleanup,
-			scanTimeout,
+			cfg.Media.ScanTimeout,
+			cfg.SystemProfile,
 			logger,
 		),
 	}

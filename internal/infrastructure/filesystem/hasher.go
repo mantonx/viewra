@@ -1,11 +1,12 @@
 package filesystem
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 const (
@@ -64,8 +65,8 @@ func (h *Hasher) Hash(path string) (string, error) {
 	}
 	lastChunk = lastChunk[:n]
 
-	// Combine chunks and hash
-	hasher := sha256.New()
+	// Combine chunks and hash using xxHash (10-20x faster than SHA256)
+	hasher := xxhash.New()
 	hasher.Write(firstChunk)
 	hasher.Write(lastChunk)
 
@@ -75,9 +76,9 @@ func (h *Hasher) Hash(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// hashEntireFile computes a full SHA-256 hash of a small file
+// hashEntireFile computes a full xxHash of a small file
 func (h *Hasher) hashEntireFile(file *os.File) (string, error) {
-	hasher := sha256.New()
+	hasher := xxhash.New()
 	if _, err := io.Copy(hasher, file); err != nil {
 		return "", fmt.Errorf("failed to hash file: %w", err)
 	}

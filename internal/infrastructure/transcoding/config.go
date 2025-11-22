@@ -86,8 +86,19 @@ type TranscodeConfig struct {
 
 // DefaultTranscodeConfig returns sensible defaults.
 func DefaultTranscodeConfig() *TranscodeConfig {
-	// Try to detect hardware acceleration
-	hwaccel := detectHardwareAccel()
+	return DefaultTranscodeConfigFromProfile("")
+}
+
+// DefaultTranscodeConfigFromProfile returns transcode config based on system profile.
+// If profile is nil, falls back to hardware detection.
+func DefaultTranscodeConfigFromProfile(hwAccelType string) *TranscodeConfig {
+	// Use provided hardware acceleration or detect
+	var hwaccel HardwareAccel
+	if hwAccelType != "" {
+		hwaccel = HardwareAccel(hwAccelType)
+	} else {
+		hwaccel = detectHardwareAccel()
+	}
 
 	// Get hardware device from environment or use default
 	hwDevice := os.Getenv("HARDWARE_DEVICE")

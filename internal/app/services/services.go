@@ -93,7 +93,16 @@ func BuildServices(
 	}
 
 	// Initialize session manager for progressive transcoding
-	transcodeConfig := transcoding.DefaultTranscodeConfig()
+	// Use system profile for hardware acceleration if available
+	var transcodeConfig *transcoding.TranscodeConfig
+	if cfg.SystemProfile != nil {
+		settings := cfg.SystemProfile.Calculate()
+		transcodeConfig = transcoding.DefaultTranscodeConfigFromProfile(settings.HardwareAccel)
+		logger.Info("Using profile-based transcode config",
+			"hardware_accel", settings.HardwareAccel)
+	} else {
+		transcodeConfig = transcoding.DefaultTranscodeConfig()
+	}
 	sessionManager := transcoding.NewSessionManager(transcodeConfig, logger)
 
 	// Start comprehensive background cleanup:
