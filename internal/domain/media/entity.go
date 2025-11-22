@@ -26,6 +26,13 @@ type Media struct {
 	FrameRate       float64 // Frames per second
 	ContainerFormat string  // File container format (mkv, mp4, etc.)
 
+	// Advanced video quality metadata
+	CodecProfile   string // Codec profile (High, Main, Baseline, etc.)
+	ScanType       string // progressive or interlaced
+	HDRFormat      string // HDR format (HDR10, Dolby Vision, HLG, etc.)
+	ColorSpace     string // Color space (bt709, bt2020nc, etc.)
+	ColorPrimaries string // Color primaries (bt709, bt2020, etc.)
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

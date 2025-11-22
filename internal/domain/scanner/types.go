@@ -76,6 +76,13 @@ type ScanResult struct {
 	Bitrate         int64
 	FrameRate       float64
 	ContainerFormat string
+
+	// Advanced video quality metadata
+	CodecProfile   string
+	ScanType       string
+	HDRFormat      string
+	ColorSpace     string
+	ColorPrimaries string
 }
 
 // Progress tracks scanning progress with thread-safe counters

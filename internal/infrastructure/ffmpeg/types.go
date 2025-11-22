@@ -33,6 +33,21 @@ type VideoMetadata struct {
 
 	// FileSize is the size of the file in bytes
 	FileSize int64
+
+	// CodecProfile is the codec profile (e.g., "High", "Main", "Baseline")
+	CodecProfile string
+
+	// ScanType indicates if the video is progressive or interlaced
+	ScanType string
+
+	// HDRFormat indicates the HDR format (e.g., "HDR10", "Dolby Vision", "HLG")
+	HDRFormat string
+
+	// ColorSpace is the color space (e.g., "bt709", "bt2020nc")
+	ColorSpace string
+
+	// ColorPrimaries defines the color primaries (e.g., "bt709", "bt2020")
+	ColorPrimaries string
 }
 
 // ThumbnailOptions configures thumbnail generation.

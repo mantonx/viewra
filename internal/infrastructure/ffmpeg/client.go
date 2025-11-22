@@ -41,13 +41,42 @@ type ffprobeOutput struct {
 		Tags       map[string]string `json:"tags"`
 	} `json:"format"`
 	Streams []struct {
-		CodecType  string `json:"codec_type"`
-		CodecName  string `json:"codec_name"`
-		Width      int    `json:"width"`
-		Height     int    `json:"height"`
-		RFrameRate string `json:"r_frame_rate"`
-		BitRate    string `json:"bit_rate"`
+		CodecType       string            `json:"codec_type"`
+		CodecName       string            `json:"codec_name"`
+		Profile         string            `json:"profile"`
+		Width           int               `json:"width"`
+		Height          int               `json:"height"`
+		RFrameRate      string            `json:"r_frame_rate"`
+		BitRate         string            `json:"bit_rate"`
+		FieldOrder      string            `json:"field_order"`
+		ColorSpace      string            `json:"color_space"`
+		ColorPrimaries  string            `json:"color_primaries"`
+		ColorTransfer   string            `json:"color_transfer"`
+		SideDataList    []sideData        `json:"side_data_list,omitempty"`
+		Tags            map[string]string `json:"tags"`
 	} `json:"streams"`
+}
+
+// sideData represents side data in video streams (used for HDR metadata)
+type sideData struct {
+	SideDataType string `json:"side_data_type"`
+}
+
+// videoStream represents a video stream from ffprobe output
+type videoStream struct {
+	CodecType      string
+	CodecName      string
+	Profile        string
+	Width          int
+	Height         int
+	RFrameRate     string
+	BitRate        string
+	FieldOrder     string
+	ColorSpace     string
+	ColorPrimaries string
+	ColorTransfer  string
+	SideDataList   []sideData
+	Tags           map[string]string
 }
 
 // ExtractMetadata extracts metadata from a video file using ffprobe.
@@ -123,6 +152,40 @@ func (c *Client) ExtractMetadata(ctx context.Context, filePath string) (*VideoMe
 				}
 			}
 
+			// Extract codec profile
+			if stream.Profile != "" {
+				metadata.CodecProfile = stream.Profile
+			}
+
+			// Extract scan type (progressive/interlaced)
+			metadata.ScanType = determineScanType(stream.FieldOrder)
+
+			// Extract color metadata
+			if stream.ColorSpace != "" {
+				metadata.ColorSpace = stream.ColorSpace
+			}
+			if stream.ColorPrimaries != "" {
+				metadata.ColorPrimaries = stream.ColorPrimaries
+			}
+
+			// Detect HDR format
+			vs := videoStream{
+				CodecType:      stream.CodecType,
+				CodecName:      stream.CodecName,
+				Profile:        stream.Profile,
+				Width:          stream.Width,
+				Height:         stream.Height,
+				RFrameRate:     stream.RFrameRate,
+				BitRate:        stream.BitRate,
+				FieldOrder:     stream.FieldOrder,
+				ColorSpace:     stream.ColorSpace,
+				ColorPrimaries: stream.ColorPrimaries,
+				ColorTransfer:  stream.ColorTransfer,
+				SideDataList:   stream.SideDataList,
+				Tags:           stream.Tags,
+			}
+			metadata.HDRFormat = detectHDRFormat(vs)
+
 		case "audio":
 			if metadata.AudioCodec == "" { // Take first audio stream
 				metadata.AudioCodec = stream.CodecName
@@ -197,4 +260,57 @@ func formatDuration(d time.Duration) string {
 	milliseconds := int(d.Milliseconds()) % 1000
 
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
+}
+
+// determineScanType determines if the video is progressive or interlaced based on field order.
+func determineScanType(fieldOrder string) string {
+	switch fieldOrder {
+	case "progressive", "":
+		return "progressive"
+	case "tt", "bb", "tb", "bt":
+		return "interlaced"
+	default:
+		return "progressive" // Default to progressive if unknown
+	}
+}
+
+// detectHDRFormat detects the HDR format from video stream metadata.
+func detectHDRFormat(stream videoStream) string {
+	// Check for HDR10/HDR10+ via side data
+	for _, sideData := range stream.SideDataList {
+		switch sideData.SideDataType {
+		case "HDR10+ Application SEI":
+			return "HDR10+"
+		case "Mastering display metadata", "Content light level metadata":
+			// These indicate HDR10
+			if stream.ColorTransfer == "smpte2084" { // PQ transfer function
+				return "HDR10"
+			}
+		}
+	}
+
+	// Check for Dolby Vision via codec profile
+	if strings.Contains(strings.ToLower(stream.Profile), "dolby") ||
+		strings.Contains(strings.ToLower(stream.Profile), "dovi") {
+		return "Dolby Vision"
+	}
+
+	// Check for HLG (Hybrid Log-Gamma)
+	if stream.ColorTransfer == "arib-std-b67" {
+		return "HLG"
+	}
+
+	// Check via color transfer function
+	if stream.ColorTransfer == "smpte2084" {
+		return "HDR10"
+	}
+
+	// Check tags for HDR indicators
+	if tags := stream.Tags; tags != nil {
+		if dolbyVision, ok := tags["DOVI_CONFIGURATION_RECORD"]; ok && dolbyVision != "" {
+			return "Dolby Vision"
+		}
+	}
+
+	return "" // No HDR detected
 }

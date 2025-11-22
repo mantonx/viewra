@@ -39,6 +39,11 @@ func pgMediumToDomain(pg sqlc_postgres.Medium) *media.Media {
 		Bitrate:         pg.BitRate.Int64,
 		FrameRate:       pg.FrameRate.Float64,
 		ContainerFormat: pg.ContainerFormat.String,
+		CodecProfile:    pg.CodecProfile.String,
+		ScanType:        pg.ScanType.String,
+		HDRFormat:       pg.HdrFormat.String,
+		ColorSpace:      pg.ColorSpace.String,
+		ColorPrimaries:  pg.ColorPrimaries.String,
 		CreatedAt:       common.ParseNullTime(pg.CreatedAt),
 		UpdatedAt:       common.ParseNullTime(pg.UpdatedAt),
 	}
@@ -62,6 +67,11 @@ func sqliteMediumToDomain(sq sqlc_sqlite.Medium) *media.Media {
 		Bitrate:         sq.BitRate.Int64,
 		FrameRate:       sq.FrameRate.Float64,
 		ContainerFormat: sq.ContainerFormat.String,
+		CodecProfile:    sq.CodecProfile.String,
+		ScanType:        sq.ScanType.String,
+		HDRFormat:       sq.HdrFormat.String,
+		ColorSpace:      sq.ColorSpace.String,
+		ColorPrimaries:  sq.ColorPrimaries.String,
 		CreatedAt:       common.ParseNullTime(sq.CreatedAt),
 		UpdatedAt:       common.ParseNullTime(sq.UpdatedAt),
 	}
@@ -84,13 +94,13 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 		AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
 		Codec:             common.NullString(m.VideoCodec),
 		AudioCodec:        common.NullString(m.AudioCodec),
-		CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
+		CodecProfile:      common.NullString(m.CodecProfile),
 		BitRate:           common.NullInt64(m.Bitrate),
 		FrameRate:         common.NullFloat64(m.FrameRate),
-		ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
-		HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
-		ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
-		ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
+		ScanType:          common.NullString(m.ScanType),
+		HdrFormat:         common.NullString(m.HDRFormat),
+		ColorSpace:        common.NullString(m.ColorSpace),
+		ColorPrimaries:    common.NullString(m.ColorPrimaries),
 		ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
@@ -120,13 +130,13 @@ func buildSQLiteCreateParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
 		AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
 		Codec:             common.NullString(m.VideoCodec),
 		AudioCodec:        common.NullString(m.AudioCodec),
-		CodecProfile:      sql.NullString{}, // TODO: Extract from FFmpeg if available
+		CodecProfile:      common.NullString(m.CodecProfile),
 		BitRate:           common.NullInt64(m.Bitrate),
 		FrameRate:         common.NullFloat64(m.FrameRate),
-		ScanType:          sql.NullString{},   // TODO: Extract from FFmpeg
-		HdrFormat:         sql.NullString{},   // TODO: Extract from FFmpeg
-		ColorSpace:        sql.NullString{},   // TODO: Extract from FFmpeg
-		ColorPrimaries:    sql.NullString{},   // TODO: Extract from FFmpeg
+		ScanType:          common.NullString(m.ScanType),
+		HdrFormat:         common.NullString(m.HDRFormat),
+		ColorSpace:        common.NullString(m.ColorSpace),
+		ColorPrimaries:    common.NullString(m.ColorPrimaries),
 		ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
 		ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),

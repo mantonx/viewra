@@ -335,6 +335,13 @@ func (c *Coordinator) processFile(ctx context.Context, fileInfo scanner.FileInfo
 			result.FrameRate = metadata.FrameRate
 			result.Duration = int64(metadata.Duration.Seconds())
 
+			// Populate advanced video quality metadata
+			result.CodecProfile = metadata.CodecProfile
+			result.ScanType = metadata.ScanType
+			result.HDRFormat = metadata.HDRFormat
+			result.ColorSpace = metadata.ColorSpace
+			result.ColorPrimaries = metadata.ColorPrimaries
+
 			// Determine container format from file extension
 			result.ContainerFormat = fileInfo.Extension
 		}
