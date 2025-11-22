@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
 func TestListMediaUseCase_Execute(t *testing.T) {
@@ -14,22 +15,23 @@ func TestListMediaUseCase_Execute(t *testing.T) {
 		libraryID     int64
 		expectedCount int
 		wantErr       bool
-		setup         func(*mockMediaRepository)
+		setup         func(*mocks.MediaRepository)
 	}{
 		{
 			name:          "empty library",
 			libraryID:     1,
 			expectedCount: 0,
 			wantErr:       false,
-			setup:         func(repo *mockMediaRepository) {},
+			setup:         func(repo *mocks.MediaRepository) {},
 		},
 		{
 			name:          "single media item",
 			libraryID:     1,
 			expectedCount: 1,
 			wantErr:       false,
-			setup: func(repo *mockMediaRepository) {
-				_ = repo.Create(context.Background(), &media.Media{
+			setup: func(repo *mocks.MediaRepository) {
+				repo.WithMedia(&media.Media{
+					ID:        1,
 					LibraryID: 1,
 					Title:     "Movie 1",
 					FilePath:  "movies/movie1.mp4",
@@ -45,9 +47,10 @@ func TestListMediaUseCase_Execute(t *testing.T) {
 			libraryID:     1,
 			expectedCount: 3,
 			wantErr:       false,
-			setup: func(repo *mockMediaRepository) {
+			setup: func(repo *mocks.MediaRepository) {
 				for i := 1; i <= 3; i++ {
-					_ = repo.Create(context.Background(), &media.Media{
+					repo.WithMedia(&media.Media{
+						ID:        int64(i),
 						LibraryID: 1,
 						Title:     "Movie",
 						FilePath:  "movies/movie.mp4",
@@ -64,10 +67,11 @@ func TestListMediaUseCase_Execute(t *testing.T) {
 			libraryID:     1,
 			expectedCount: 2,
 			wantErr:       false,
-			setup: func(repo *mockMediaRepository) {
+			setup: func(repo *mocks.MediaRepository) {
 				// Add items for library 1
 				for i := 1; i <= 2; i++ {
-					_ = repo.Create(context.Background(), &media.Media{
+					repo.WithMedia(&media.Media{
+						ID:        int64(i),
 						LibraryID: 1,
 						Title:     "Movie",
 						FilePath:  "movies/movie.mp4",
@@ -78,7 +82,8 @@ func TestListMediaUseCase_Execute(t *testing.T) {
 					})
 				}
 				// Add items for library 2 (should be filtered out)
-				_ = repo.Create(context.Background(), &media.Media{
+				repo.WithMedia(&media.Media{
+					ID:        3,
 					LibraryID: 2,
 					Title:     "Other Movie",
 					FilePath:  "movies/other.mp4",
@@ -93,7 +98,7 @@ func TestListMediaUseCase_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newMockMediaRepository()
+			repo := mocks.NewMediaRepository(t)
 			if tt.setup != nil {
 				tt.setup(repo)
 			}
@@ -127,12 +132,14 @@ func TestListMediaUseCase_Execute(t *testing.T) {
 }
 
 func TestListMediaUseCase_ExecuteByType(t *testing.T) {
-	repo := newMockMediaRepository()
+	repo := mocks.NewMediaRepository(t)
 
 	// Add some test data
-	_ = repo.Create(context.Background(), &media.Media{
+	repo.WithMedia(&media.Media{
+		ID:        1,
 		LibraryID: 1,
 		Title:     "Test Movie",
+		Type:      string(media.MediaTypeMovie),
 		FilePath:  "movies/test.mp4",
 		FileSize:  1000000,
 		Duration:  7200,

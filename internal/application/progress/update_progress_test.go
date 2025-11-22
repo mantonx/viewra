@@ -7,134 +7,11 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
-// mockRepository implements progress.Repository for testing
-type mockRepository struct {
-	progresses                map[int64]*progress.WatchProgress
-	nextID                    int64
-	createFunc               func(ctx context.Context, prog *progress.WatchProgress) error
-	updateFunc               func(ctx context.Context, prog *progress.WatchProgress) error
-	getByMediaIDAndUserIDFunc func(ctx context.Context, mediaID, userID int64) (*progress.WatchProgress, error)
-}
-
-func newMockRepository() *mockRepository {
-	return &mockRepository{
-		progresses: make(map[int64]*progress.WatchProgress),
-		nextID:     1,
-	}
-}
-
-func (m *mockRepository) Create(ctx context.Context, prog *progress.WatchProgress) error {
-	if m.createFunc != nil {
-		return m.createFunc(ctx, prog)
-	}
-	prog.ID = m.nextID
-	m.nextID++
-	prog.CreatedAt = time.Now()
-	prog.UpdatedAt = time.Now()
-	m.progresses[prog.ID] = prog
-	return nil
-}
-
-func (m *mockRepository) Update(ctx context.Context, prog *progress.WatchProgress) error {
-	if m.updateFunc != nil {
-		return m.updateFunc(ctx, prog)
-	}
-	prog.UpdatedAt = time.Now()
-	m.progresses[prog.ID] = prog
-	return nil
-}
-
-func (m *mockRepository) GetByMediaID(ctx context.Context, mediaID int64) (*progress.WatchProgress, error) {
-	for _, p := range m.progresses {
-		if p.MediaID == mediaID {
-			return p, nil
-		}
-	}
-	return nil, progress.ErrProgressNotFound
-}
-
-func (m *mockRepository) GetByMediaIDAndUserID(ctx context.Context, mediaID, userID int64) (*progress.WatchProgress, error) {
-	if m.getByMediaIDAndUserIDFunc != nil {
-		return m.getByMediaIDAndUserIDFunc(ctx, mediaID, userID)
-	}
-	for _, p := range m.progresses {
-		if p.MediaID == mediaID && p.UserID == userID {
-			return p, nil
-		}
-	}
-	return nil, progress.ErrProgressNotFound
-}
-
-func (m *mockRepository) GetBatchByMediaIDs(ctx context.Context, mediaIDs []int64, userID int64) (map[int64]*progress.WatchProgress, error) {
-	result := make(map[int64]*progress.WatchProgress)
-	for _, p := range m.progresses {
-		if p.UserID == userID {
-			for _, mediaID := range mediaIDs {
-				if p.MediaID == mediaID {
-					result[mediaID] = p
-					break
-				}
-			}
-		}
-	}
-	return result, nil
-}
-
-func (m *mockRepository) ListByUserID(ctx context.Context, userID int64, limit, offset int) ([]*progress.WatchProgress, error) {
-	var result []*progress.WatchProgress
-	for _, p := range m.progresses {
-		if p.UserID == userID {
-			result = append(result, p)
-		}
-	}
-	return result, nil
-}
-
-func (m *mockRepository) ListWatchedByUserID(ctx context.Context, userID int64, limit, offset int) ([]*progress.WatchProgress, error) {
-	var result []*progress.WatchProgress
-	for _, p := range m.progresses {
-		if p.UserID == userID && p.IsWatched {
-			result = append(result, p)
-		}
-	}
-	return result, nil
-}
-
-func (m *mockRepository) ListInProgressByUserID(ctx context.Context, userID int64, limit, offset int) ([]*progress.WatchProgress, error) {
-	var result []*progress.WatchProgress
-	for _, p := range m.progresses {
-		if p.UserID == userID && !p.IsWatched && p.ProgressSeconds > 0 {
-			result = append(result, p)
-		}
-	}
-	return result, nil
-}
-
-func (m *mockRepository) Delete(ctx context.Context, id int64) error {
-	delete(m.progresses, id)
-	return nil
-}
-
-func (m *mockRepository) DeleteByMediaID(ctx context.Context, mediaID int64) error {
-	for id, p := range m.progresses {
-		if p.MediaID == mediaID {
-			delete(m.progresses, id)
-		}
-	}
-	return nil
-}
-
-func (m *mockRepository) Upsert(ctx context.Context, prog *progress.WatchProgress) error {
-	if prog.ID == 0 {
-		return m.Create(ctx, prog)
-	}
-	return m.Update(ctx, prog)
-}
-
 func TestUpdateProgress_CreateNew(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         1,
 		UserID:          1,
@@ -162,7 +39,7 @@ func TestUpdateProgress_CreateNew(t *testing.T) {
 }
 
 func TestUpdateProgress_AutoMarkWatched(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         1,
 		UserID:          1,
@@ -184,7 +61,7 @@ func TestUpdateProgress_AutoMarkWatched(t *testing.T) {
 }
 
 func TestUpdateProgress_DoesNotAutoMark(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         1,
 		UserID:          1,
@@ -214,10 +91,7 @@ func TestUpdateProgress_UpdateExisting(t *testing.T) {
 		UpdatedAt:       time.Now().Add(-1 * time.Hour),
 	}
 
-	repo := newMockRepository()
-	repo.getByMediaIDAndUserIDFunc = func(ctx context.Context, mediaID, userID int64) (*progress.WatchProgress, error) {
-		return existing, nil
-	}
+	repo := mocks.NewProgressRepository(t).WithProgress(existing)
 
 	req := &UpdateProgressRequest{
 		MediaID:         1,
@@ -240,7 +114,7 @@ func TestUpdateProgress_UpdateExisting(t *testing.T) {
 }
 
 func TestUpdateProgress_InvalidMediaID(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         0,
 		UserID:          1,
@@ -255,7 +129,7 @@ func TestUpdateProgress_InvalidMediaID(t *testing.T) {
 }
 
 func TestUpdateProgress_NegativeProgress(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         1,
 		UserID:          1,
@@ -270,7 +144,7 @@ func TestUpdateProgress_NegativeProgress(t *testing.T) {
 }
 
 func TestUpdateProgress_NegativeDuration(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         1,
 		UserID:          1,
@@ -285,7 +159,7 @@ func TestUpdateProgress_NegativeDuration(t *testing.T) {
 }
 
 func TestUpdateProgress_ProgressExceedsDuration(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         1,
 		UserID:          1,
@@ -300,7 +174,7 @@ func TestUpdateProgress_ProgressExceedsDuration(t *testing.T) {
 }
 
 func TestUpdateProgress_ZeroDuration(t *testing.T) {
-	repo := newMockRepository()
+	repo := mocks.NewProgressRepository(t)
 	req := &UpdateProgressRequest{
 		MediaID:         1,
 		UserID:          1,
@@ -323,11 +197,7 @@ func TestUpdateProgress_ZeroDuration(t *testing.T) {
 
 func TestUpdateProgress_RepositoryError(t *testing.T) {
 	testErr := errors.New("database error")
-	repo := &mockRepository{
-		createFunc: func(ctx context.Context, prog *progress.WatchProgress) error {
-			return testErr
-		},
-	}
+	repo := mocks.NewProgressRepository(t).WithCreateError(testErr)
 
 	req := &UpdateProgressRequest{
 		MediaID:         1,

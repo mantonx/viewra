@@ -9,6 +9,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
 // Mock library repository for StartScan tests
@@ -227,10 +228,10 @@ func TestScanLibraryUseCase_StartScan(t *testing.T) {
 			// Create mocks
 			libRepo := &mockLibraryRepoForScan{}
 			scanRepo := newMockScanJobRepository()
-			mediaRepo := newMockMediaRepository()
-			movieRepo := newMockMovieRepository()
-			tvRepo := newMockTVRepository()
-			musicRepo := newMockMusicRepository()
+			mediaRepo := mocks.NewMediaRepository(t)
+			movieRepo := mocks.NewMovieRepository(t)
+			tvRepo := mocks.NewTVRepository(t)
+			musicRepo := mocks.NewMusicRepository(t)
 
 			// Setup mocks
 			if tt.setupMocks != nil {
@@ -304,10 +305,10 @@ func TestScanLibraryUseCase_StartScan_CreationError(t *testing.T) {
 
 	uc := &ScanLibraryUseCase{
 		libraryRepo: libRepo,
-		mediaRepo:   newMockMediaRepository(),
-		movieRepo:   newMockMovieRepository(),
-		tvRepo:      newMockTVRepository(),
-		musicRepo:   newMockMusicRepository(),
+		mediaRepo:   mocks.NewMediaRepository(t),
+		movieRepo:   mocks.NewMovieRepository(t),
+		tvRepo:      mocks.NewTVRepository(t),
+		musicRepo:   mocks.NewMusicRepository(t),
 		scanJobRepo: scanRepo,
 	}
 
@@ -362,10 +363,10 @@ func TestScanLibraryUseCase_StartScan_ListRunningError(t *testing.T) {
 
 	uc := &ScanLibraryUseCase{
 		libraryRepo: libRepo,
-		mediaRepo:   newMockMediaRepository(),
-		movieRepo:   newMockMovieRepository(),
-		tvRepo:      newMockTVRepository(),
-		musicRepo:   newMockMusicRepository(),
+		mediaRepo:   mocks.NewMediaRepository(t),
+		movieRepo:   mocks.NewMovieRepository(t),
+		tvRepo:      mocks.NewTVRepository(t),
+		musicRepo:   mocks.NewMusicRepository(t),
 		scanJobRepo: scanRepo,
 	}
 

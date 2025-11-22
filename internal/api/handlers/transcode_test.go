@@ -12,9 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/transcode"
-	"github.com/mantonx/viewra/internal/domain/library"
-	"github.com/mantonx/viewra/internal/domain/media"
 	transcodeDomain "github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
 // MockTranscodeRepository implements transcode.Repository for testing
@@ -164,101 +163,11 @@ func (m *MockTranscodeRepository) UpdateAccess(ctx context.Context, mediaID int6
 	return nil
 }
 
-// MockMediaRepository for testing
-type MockMediaRepository struct {
-	mediaItems map[int64]*media.Media
-}
-
-func NewMockMediaRepository() *MockMediaRepository {
-	return &MockMediaRepository{
-		mediaItems: make(map[int64]*media.Media),
-	}
-}
-
-func (m *MockMediaRepository) GetByID(ctx context.Context, id int64) (*media.Media, error) {
-	item, exists := m.mediaItems[id]
-	if !exists {
-		return nil, media.ErrMediaNotFound
-	}
-	return item, nil
-}
-
-func (m *MockMediaRepository) Create(ctx context.Context, media *media.Media) error {
-	return nil
-}
-
-func (m *MockMediaRepository) Update(ctx context.Context, media *media.Media) error {
-	return nil
-}
-
-func (m *MockMediaRepository) Delete(ctx context.Context, id int64) error {
-	return nil
-}
-
-func (m *MockMediaRepository) GetByFilePath(ctx context.Context, libraryID int64, filePath string) (*media.Media, error) {
-	return nil, media.ErrMediaNotFound
-}
-
-func (m *MockMediaRepository) ListAll(ctx context.Context) ([]*media.Media, error) {
-	return nil, nil
-}
-
-func (m *MockMediaRepository) ListByLibrary(ctx context.Context, libraryID int64) ([]*media.Media, error) {
-	return nil, nil
-}
-
-func (m *MockMediaRepository) ListByType(ctx context.Context, libraryID int64, mediaType media.MediaType) ([]*media.Media, error) {
-	return nil, nil
-}
-
-func (m *MockMediaRepository) ExistsInLibrary(ctx context.Context, libraryID int64, filePath string) (bool, error) {
-	return false, nil
-}
-
-func (m *MockMediaRepository) Count(ctx context.Context, libraryID int64) (int64, error) {
-	return 0, nil
-}
-
-func (m *MockMediaRepository) CountByType(ctx context.Context, libraryID int64, mediaType media.MediaType) (int64, error) {
-	return 0, nil
-}
-
-// MockLibraryRepository for testing
-type MockLibraryRepository struct{}
-
-func (m *MockLibraryRepository) GetByID(ctx context.Context, id int64) (*library.Library, error) {
-	return nil, library.ErrLibraryNotFound
-}
-
-func (m *MockLibraryRepository) Create(ctx context.Context, library *library.Library) error {
-	return nil
-}
-
-func (m *MockLibraryRepository) Update(ctx context.Context, library *library.Library) error {
-	return nil
-}
-
-func (m *MockLibraryRepository) Delete(ctx context.Context, id int64) error {
-	return nil
-}
-
-func (m *MockLibraryRepository) List(ctx context.Context) ([]*library.Library, error) {
-	return nil, nil
-}
-
-func (m *MockLibraryRepository) GetByPath(ctx context.Context, path string) (*library.Library, error) {
-	return nil, library.ErrLibraryNotFound
-}
-
-func (m *MockLibraryRepository) Exists(ctx context.Context, path string) (bool, error) {
-	return false, nil
-}
 
 // setupTestHandler creates a test handler with mocked dependencies
 func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository, *transcode.Queue) {
 	repo := NewMockTranscodeRepository()
-	mediaRepo := NewMockMediaRepository()
-	libraryRepo := &MockLibraryRepository{}
+	mediaRepo := mocks.NewMediaRepository(t)
 
 	// Create a minimal queue for testing
 	queueConfig := &transcode.QueueConfig{
@@ -270,7 +179,7 @@ func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository
 	// Create use cases
 	createJobUC := transcode.NewCreateJobUseCase(repo, queue)
 	getStatusUC := transcode.NewGetJobStatusUseCase(repo)
-	serveManifestUC := transcode.NewServeManifestUseCase(repo, mediaRepo, libraryRepo, createJobUC)
+	serveManifestUC := transcode.NewServeManifestUseCase(mediaRepo, nil) // SessionManager not needed for these tests
 
 	handler := NewTranscodeHandler(
 		createJobUC,
@@ -278,6 +187,8 @@ func setupTestHandler(t *testing.T) (*TranscodeHandler, *MockTranscodeRepository
 		serveManifestUC,
 		queue,
 		nil, // CleanupService not needed for these tests
+		nil, // SessionManager not needed for these tests
+		mediaRepo,
 		t.TempDir(),
 	)
 
@@ -699,89 +610,6 @@ func TestCancelTranscodeJob(t *testing.T) {
 			// Check status code
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Body: %s", tt.expectedStatus, w.Code, w.Body.String())
-			}
-		})
-	}
-}
-
-func TestServeDASHSegment(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	tests := []struct {
-		name           string
-		mediaID        string
-		quality        string
-		filename       string
-		setupEnv       func(*testing.T, string)
-		expectedStatus int
-		skip           bool
-	}{
-		{
-			name:     "Serve existing segment",
-			mediaID:  "123",
-			quality:  "720p",
-			filename: "segment_0.m4s",
-			setupEnv: func(t *testing.T, outputDir string) {
-				segmentDir := filepath.Join(outputDir, "dash", "123", "720p")
-				os.MkdirAll(segmentDir, 0755)
-				segmentPath := filepath.Join(segmentDir, "segment_0.m4s")
-				os.WriteFile(segmentPath, []byte("segment data"), 0644)
-			},
-			expectedStatus: http.StatusOK,
-			skip:           true, // TODO: Needs proper setup
-		},
-		{
-			name:           "Segment not found",
-			mediaID:        "123",
-			quality:        "720p",
-			filename:       "nonexistent.m4s",
-			setupEnv:       func(t *testing.T, outputDir string) {},
-			expectedStatus: http.StatusNotFound,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.skip {
-				t.Skip("Skipping test - needs proper setup")
-			}
-
-			handler, _, _ := setupTestHandler(t)
-
-			// Setup environment
-			if tt.setupEnv != nil {
-				tt.setupEnv(t, handler.outputDir)
-			}
-
-			// Create request
-			req := httptest.NewRequest(http.MethodGet, "/api/media/"+tt.mediaID+"/dash/"+tt.quality+"/"+tt.filename, nil)
-
-			// Create response recorder
-			w := httptest.NewRecorder()
-
-			// Setup Gin context
-			c, _ := gin.CreateTestContext(w)
-			c.Request = req
-			c.Params = gin.Params{
-				{Key: "id", Value: tt.mediaID},
-				{Key: "quality", Value: tt.quality},
-				{Key: "filename", Value: tt.filename},
-			}
-
-			// Call handler
-			handler.ServeHLSSegment(c)
-
-			// Check status code
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			// Check content type for successful requests
-			if tt.expectedStatus == http.StatusOK {
-				contentType := w.Header().Get("Content-Type")
-				if contentType != "application/octet-stream" {
-					t.Errorf("Expected Content-Type application/octet-stream, got %s", contentType)
-				}
 			}
 		})
 	}

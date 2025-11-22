@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
 func TestUpdateLibraryUseCase_Execute(t *testing.T) {
@@ -17,7 +18,7 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 		req         UpdateLibraryRequest
 		wantErr     bool
 		expectedErr error
-		setup       func(*mockLibraryRepository)
+		setup       func(*mocks.LibraryRepository)
 	}{
 		{
 			name:      "update library name",
@@ -26,7 +27,7 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 				Name: "Updated Movies",
 			},
 			wantErr: false,
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				_ = repo.Create(context.Background(), &library.Library{
 					Name: "Movies",
 					Path: tempDir,
@@ -41,7 +42,7 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 				Type: "tv",
 			},
 			wantErr: false,
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				_ = repo.Create(context.Background(), &library.Library{
 					Name: "Library",
 					Path: tempDir,
@@ -58,7 +59,7 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 				Type: "music",
 			},
 			wantErr: false,
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				_ = repo.Create(context.Background(), &library.Library{
 					Name: "Original",
 					Path: tempDir,
@@ -74,7 +75,7 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 			},
 			wantErr:     true,
 			expectedErr: library.ErrLibraryNotFound,
-			setup:       func(repo *mockLibraryRepository) {},
+			setup:       func(repo *mocks.LibraryRepository) {},
 		},
 		{
 			name:      "invalid type",
@@ -84,7 +85,7 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 			},
 			wantErr:     true,
 			expectedErr: library.ErrInvalidType,
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				_ = repo.Create(context.Background(), &library.Library{
 					Name: "Movies",
 					Path: tempDir,
@@ -96,7 +97,7 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newMockLibraryRepository()
+			repo := mocks.NewLibraryRepository(t)
 			if tt.setup != nil {
 				tt.setup(repo)
 			}

@@ -2,310 +2,13 @@ package library
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
-
-// Mock media repositories for testing
-
-type mockMediaRepository struct {
-	media         map[int64]*media.Media
-	nextID        int64
-	getByFilePathErr error
-}
-
-func newMockMediaRepository() *mockMediaRepository {
-	return &mockMediaRepository{
-		media:  make(map[int64]*media.Media),
-		nextID: 1,
-	}
-}
-
-func (m *mockMediaRepository) Create(ctx context.Context, med *media.Media) error {
-	med.ID = m.nextID
-	m.nextID++
-	m.media[med.ID] = med
-	return nil
-}
-
-func (m *mockMediaRepository) GetByID(ctx context.Context, id int64) (*media.Media, error) {
-	med, ok := m.media[id]
-	if !ok {
-		return nil, media.ErrMediaNotFound
-	}
-	return med, nil
-}
-
-func (m *mockMediaRepository) GetByFilePath(ctx context.Context, libraryID int64, filePath string) (*media.Media, error) {
-	if m.getByFilePathErr != nil {
-		return nil, m.getByFilePathErr
-	}
-
-	for _, med := range m.media {
-		if med.LibraryID == libraryID && med.FilePath == filePath {
-			return med, nil
-		}
-	}
-	return nil, media.ErrMediaNotFound
-}
-
-func (m *mockMediaRepository) ListAll(ctx context.Context) ([]*media.Media, error) {
-	result := make([]*media.Media, 0, len(m.media))
-	for _, med := range m.media {
-		result = append(result, med)
-	}
-	return result, nil
-}
-
-func (m *mockMediaRepository) ListByLibrary(ctx context.Context, libraryID int64) ([]*media.Media, error) {
-	var result []*media.Media
-	for _, med := range m.media {
-		if med.LibraryID == libraryID {
-			result = append(result, med)
-		}
-	}
-	return result, nil
-}
-
-func (m *mockMediaRepository) ListByType(ctx context.Context, libraryID int64, mediaType media.MediaType) ([]*media.Media, error) {
-	return nil, nil
-}
-
-func (m *mockMediaRepository) Update(ctx context.Context, med *media.Media) error {
-	if _, ok := m.media[med.ID]; !ok {
-		return media.ErrMediaNotFound
-	}
-	m.media[med.ID] = med
-	return nil
-}
-
-func (m *mockMediaRepository) Delete(ctx context.Context, id int64) error {
-	delete(m.media, id)
-	return nil
-}
-
-func (m *mockMediaRepository) ExistsInLibrary(ctx context.Context, libraryID int64, filePath string) (bool, error) {
-	for _, med := range m.media {
-		if med.LibraryID == libraryID && med.FilePath == filePath {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (m *mockMediaRepository) Count(ctx context.Context, libraryID int64) (int64, error) {
-	var count int64
-	for _, med := range m.media {
-		if med.LibraryID == libraryID {
-			count++
-		}
-	}
-	return count, nil
-}
-
-func (m *mockMediaRepository) CountByType(ctx context.Context, libraryID int64, mediaType media.MediaType) (int64, error) {
-	return 0, nil
-}
-
-// Transaction-aware methods (delegate to non-transactional versions for mock)
-func (m *mockMediaRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
-	return m.Delete(ctx, id)
-}
-
-func (m *mockMediaRepository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*media.Media, error) {
-	return m.ListByLibrary(ctx, libraryID)
-}
-
-type mockMovieRepository struct {
-	movies       map[int64]*media.Movie
-	nextID       int64
-	createErr    error
-	updateErr    error
-}
-
-func newMockMovieRepository() *mockMovieRepository {
-	return &mockMovieRepository{
-		movies: make(map[int64]*media.Movie),
-		nextID: 100,
-	}
-}
-
-func (m *mockMovieRepository) CreateMovie(ctx context.Context, movie *media.Movie) error {
-	if m.createErr != nil {
-		return m.createErr
-	}
-	movie.Media.ID = m.nextID
-	m.nextID++
-	m.movies[movie.Media.ID] = movie
-	return nil
-}
-
-func (m *mockMovieRepository) GetMovieByID(ctx context.Context, id int64) (*media.Movie, error) {
-	movie, ok := m.movies[id]
-	if !ok {
-		return nil, media.ErrMediaNotFound
-	}
-	return movie, nil
-}
-
-func (m *mockMovieRepository) ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]*media.Movie, error) {
-	return nil, nil
-}
-
-func (m *mockMovieRepository) UpdateMovie(ctx context.Context, movie *media.Movie) error {
-	if m.updateErr != nil {
-		return m.updateErr
-	}
-	if _, ok := m.movies[movie.Media.ID]; !ok {
-		return media.ErrMediaNotFound
-	}
-	m.movies[movie.Media.ID] = movie
-	return nil
-}
-
-func (m *mockMovieRepository) SearchMovies(ctx context.Context, libraryID int64, query string) ([]*media.Movie, error) {
-	return nil, nil
-}
-
-type mockTVRepository struct {
-	episodes  map[int64]*media.TVEpisode
-	nextID    int64
-	createErr error
-	updateErr error
-}
-
-func newMockTVRepository() *mockTVRepository {
-	return &mockTVRepository{
-		episodes: make(map[int64]*media.TVEpisode),
-		nextID:   200,
-	}
-}
-
-func (m *mockTVRepository) CreateTVEpisode(ctx context.Context, episode *media.TVEpisode) error {
-	if m.createErr != nil {
-		return m.createErr
-	}
-	episode.Media.ID = m.nextID
-	m.nextID++
-	m.episodes[episode.Media.ID] = episode
-	return nil
-}
-
-func (m *mockTVRepository) GetTVEpisodeByID(ctx context.Context, id int64) (*media.TVEpisode, error) {
-	episode, ok := m.episodes[id]
-	if !ok {
-		return nil, media.ErrMediaNotFound
-	}
-	return episode, nil
-}
-
-func (m *mockTVRepository) ListTVEpisodesByLibrary(ctx context.Context, libraryID int64) ([]*media.TVEpisode, error) {
-	return nil, nil
-}
-
-func (m *mockTVRepository) ListTVEpisodesByShow(ctx context.Context, libraryID int64, showTitle string) ([]*media.TVEpisode, error) {
-	return nil, nil
-}
-
-func (m *mockTVRepository) UpdateTVEpisode(ctx context.Context, episode *media.TVEpisode) error {
-	if m.updateErr != nil {
-		return m.updateErr
-	}
-	if _, ok := m.episodes[episode.Media.ID]; !ok {
-		return media.ErrMediaNotFound
-	}
-	m.episodes[episode.Media.ID] = episode
-	return nil
-}
-
-func (m *mockTVRepository) SearchTVEpisodes(ctx context.Context, libraryID int64, query string) ([]*media.TVEpisode, error) {
-	return nil, nil
-}
-
-func (m *mockTVRepository) ListTVEpisodesByShowID(ctx context.Context, showID int64) ([]*media.TVEpisode, error) {
-	return nil, nil
-}
-
-func (m *mockTVRepository) GetTVShowByTitle(ctx context.Context, libraryID int64, title string) (media.TVShow, error) {
-	// Return a mock TV show for testing
-	return media.TVShow{
-		ID:        1,
-		LibraryID: libraryID,
-		Title:     title,
-	}, nil
-}
-
-func (m *mockTVRepository) GetTVSeasonByShowAndNumber(ctx context.Context, showID int64, seasonNumber int64) (media.TVSeason, error) {
-	// Return a mock TV season for testing
-	return media.TVSeason{
-		ID:           1,
-		ShowID:       showID,
-		SeasonNumber: seasonNumber,
-	}, nil
-}
-
-type mockMusicRepository struct {
-	tracks    map[int64]*media.MusicTrack
-	nextID    int64
-	createErr error
-	updateErr error
-}
-
-func newMockMusicRepository() *mockMusicRepository {
-	return &mockMusicRepository{
-		tracks: make(map[int64]*media.MusicTrack),
-		nextID: 300,
-	}
-}
-
-func (m *mockMusicRepository) CreateMusicTrack(ctx context.Context, track *media.MusicTrack) error {
-	if m.createErr != nil {
-		return m.createErr
-	}
-	track.Media.ID = m.nextID
-	m.nextID++
-	m.tracks[track.Media.ID] = track
-	return nil
-}
-
-func (m *mockMusicRepository) GetMusicTrackByID(ctx context.Context, id int64) (*media.MusicTrack, error) {
-	track, ok := m.tracks[id]
-	if !ok {
-		return nil, media.ErrMediaNotFound
-	}
-	return track, nil
-}
-
-func (m *mockMusicRepository) ListMusicTracksByLibrary(ctx context.Context, libraryID int64) ([]*media.MusicTrack, error) {
-	return nil, nil
-}
-
-func (m *mockMusicRepository) ListMusicTracksByAlbum(ctx context.Context, libraryID int64, album string) ([]*media.MusicTrack, error) {
-	return nil, nil
-}
-
-func (m *mockMusicRepository) ListMusicTracksByArtist(ctx context.Context, libraryID int64, artist string) ([]*media.MusicTrack, error) {
-	return nil, nil
-}
-
-func (m *mockMusicRepository) UpdateMusicTrack(ctx context.Context, track *media.MusicTrack) error {
-	if m.updateErr != nil {
-		return m.updateErr
-	}
-	if _, ok := m.tracks[track.Media.ID]; !ok {
-		return media.ErrMediaNotFound
-	}
-	m.tracks[track.Media.ID] = track
-	return nil
-}
-
-func (m *mockMusicRepository) SearchMusicTracks(ctx context.Context, libraryID int64, query string) ([]*media.MusicTrack, error) {
-	return nil, nil
-}
 
 // Tests for processMovie
 
@@ -316,8 +19,8 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 		name      string
 		libraryID int64
 		result    *scanner.ScanResult
-		setupRepo func(*mockMediaRepository, *mockMovieRepository)
-		checkRepo func(*testing.T, *mockMediaRepository, *mockMovieRepository)
+		setupRepo func(*mocks.MediaRepository, *mocks.MovieRepository)
+		checkRepo func(*testing.T, *mocks.MediaRepository, *mocks.MovieRepository)
 	}{
 		{
 			name:      "create new movie",
@@ -328,14 +31,15 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 				Year:     &year2020,
 				Duration: 7200,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
+			setupRepo: func(mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
 				// No existing movie
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
-				if len(movieRepo.movies) != 1 {
-					t.Errorf("Expected 1 movie created, got %d", len(movieRepo.movies))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
+				movies, _ := movieRepo.ListMoviesByLibrary(context.Background(), 1)
+				if len(movies) != 1 {
+					t.Errorf("Expected 1 movie created, got %d", len(movies))
 				}
-				for _, movie := range movieRepo.movies {
+				for _, movie := range movies {
 					if movie.Media.Title != "Test Movie" {
 						t.Errorf("Title = %v, want Test Movie", movie.Media.Title)
 					}
@@ -357,16 +61,16 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 				Year:     &year2020,
 				Duration: 5400,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
+			setupRepo: func(mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
 				// Create existing media entry in both repos
-				mediaRepo.media[50] = &media.Media{
+				mediaRepo.WithMedia(&media.Media{
 					ID:        50,
 					LibraryID: 1,
 					Title:     "Original Title",
 					FilePath:  "/movies/existing.mp4",
 					Duration:  3600,
-				}
-				movieRepo.movies[50] = &media.Movie{
+				})
+				movieRepo.WithMovies(&media.Movie{
 					Media: media.Media{
 						ID:        50,
 						LibraryID: 1,
@@ -375,13 +79,14 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 						Duration:  3600,
 					},
 					Year: 2019,
-				}
+				})
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
-				if len(movieRepo.movies) != 1 {
-					t.Errorf("Expected 1 movie updated, got %d", len(movieRepo.movies))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
+				movies, _ := movieRepo.ListMoviesByLibrary(context.Background(), 1)
+				if len(movies) != 1 {
+					t.Errorf("Expected 1 movie updated, got %d", len(movies))
 				}
-				for _, movie := range movieRepo.movies {
+				for _, movie := range movies {
 					if movie.Media.Title != "Updated Title" {
 						t.Errorf("Title = %v, want Updated Title", movie.Media.Title)
 					}
@@ -400,13 +105,14 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 				Year:     nil,
 				Duration: 3600,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
+			setupRepo: func(mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
-				if len(movieRepo.movies) != 1 {
-					t.Errorf("Expected 1 movie created, got %d", len(movieRepo.movies))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
+				movies, _ := movieRepo.ListMoviesByLibrary(context.Background(), 1)
+				if len(movies) != 1 {
+					t.Errorf("Expected 1 movie created, got %d", len(movies))
 				}
-				for _, movie := range movieRepo.movies {
+				for _, movie := range movies {
 					if movie.Year != 0 {
 						t.Errorf("Year = %v, want 0 (default)", movie.Year)
 					}
@@ -421,13 +127,14 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 				Title:    "Error Movie",
 				Duration: 3600,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
-				movieRepo.createErr = errors.New("database error")
+			setupRepo: func(mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
+				movieRepo.WithCreateError(errors.New("database error"))
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
 				// Should not panic, error logged but processing continues
-				if len(movieRepo.movies) != 0 {
-					t.Errorf("Expected 0 movies due to error, got %d", len(movieRepo.movies))
+				movies, _ := movieRepo.ListMoviesByLibrary(context.Background(), 1)
+				if len(movies) != 0 {
+					t.Errorf("Expected 0 movies due to error, got %d", len(movies))
 				}
 			},
 		},
@@ -439,15 +146,15 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 				Title:    "Update Error",
 				Duration: 3600,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
-				mediaRepo.media[60] = &media.Media{
+			setupRepo: func(mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
+				mediaRepo.WithMedia(&media.Media{
 					ID:        60,
 					LibraryID: 1,
 					FilePath:  "/movies/update-error.mp4",
-				}
-				movieRepo.updateErr = errors.New("update failed")
+				})
+				movieRepo.WithUpdateError(errors.New("update failed"))
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, movieRepo *mockMovieRepository) {
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, movieRepo *mocks.MovieRepository) {
 				// Should not panic
 			},
 		},
@@ -455,8 +162,8 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mediaRepo := newMockMediaRepository()
-			movieRepo := newMockMovieRepository()
+			mediaRepo := mocks.NewMediaRepository(t)
+			movieRepo := mocks.NewMovieRepository(t)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(mediaRepo, movieRepo)
@@ -487,8 +194,8 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 		name      string
 		libraryID int64
 		result    *scanner.ScanResult
-		setupRepo func(*mockMediaRepository, *mockTVRepository)
-		checkRepo func(*testing.T, *mockMediaRepository, *mockTVRepository)
+		setupRepo func(*mocks.MediaRepository, *mocks.TVRepository)
+		checkRepo func(*testing.T, *mocks.MediaRepository, *mocks.TVRepository)
 	}{
 		{
 			name:      "create new TV episode",
@@ -500,13 +207,14 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 				EpisodeNumber: &episode5,
 				Duration:      2700,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
+			setupRepo: func(mediaRepo *mocks.MediaRepository, tvRepo *mocks.TVRepository) {
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
-				if len(tvRepo.episodes) != 1 {
-					t.Errorf("Expected 1 episode created, got %d", len(tvRepo.episodes))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, tvRepo *mocks.TVRepository) {
+				episodes, _ := tvRepo.ListTVEpisodesByLibrary(context.Background(), 2)
+				if len(episodes) != 1 {
+					t.Errorf("Expected 1 episode created, got %d", len(episodes))
 				}
-				for _, ep := range tvRepo.episodes {
+				for _, ep := range episodes {
 					if ep.Media.Title != "Episode Title" {
 						t.Errorf("Title = %v, want Episode Title", ep.Media.Title)
 					}
@@ -529,14 +237,14 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 				EpisodeNumber: &episode5,
 				Duration:      2800,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
-				mediaRepo.media[70] = &media.Media{
+			setupRepo: func(mediaRepo *mocks.MediaRepository, tvRepo *mocks.TVRepository) {
+				mediaRepo.WithMedia(&media.Media{
 					ID:        70,
 					LibraryID: 2,
 					FilePath:  "/tv/My Show/Season 01/My Show - S01E05 - Updated Episode.mp4",
 					Title:     "Old Title",
-				}
-				tvRepo.episodes[70] = &media.TVEpisode{
+				})
+				tvRepo.WithEpisodes(&media.TVEpisode{
 					Media: media.Media{
 						ID:        70,
 						LibraryID: 2,
@@ -545,13 +253,14 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 					},
 					Season:  1,
 					Episode: 5,
-				}
+				})
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
-				if len(tvRepo.episodes) != 1 {
-					t.Errorf("Expected 1 episode updated, got %d", len(tvRepo.episodes))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, tvRepo *mocks.TVRepository) {
+				episodes, _ := tvRepo.ListTVEpisodesByLibrary(context.Background(), 2)
+				if len(episodes) != 1 {
+					t.Errorf("Expected 1 episode updated, got %d", len(episodes))
 				}
-				for _, ep := range tvRepo.episodes {
+				for _, ep := range episodes {
 					if ep.Media.ID != 70 {
 						t.Errorf("ID = %v, want 70 (existing)", ep.Media.ID)
 					}
@@ -571,13 +280,14 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 				EpisodeNumber: nil, // Will be parsed from filename
 				Duration:      2700,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
+			setupRepo: func(mediaRepo *mocks.MediaRepository, tvRepo *mocks.TVRepository) {
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, tvRepo *mockTVRepository) {
-				if len(tvRepo.episodes) != 1 {
-					t.Errorf("Expected 1 episode created, got %d", len(tvRepo.episodes))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, tvRepo *mocks.TVRepository) {
+				episodes, _ := tvRepo.ListTVEpisodesByLibrary(context.Background(), 2)
+				if len(episodes) != 1 {
+					t.Errorf("Expected 1 episode created, got %d", len(episodes))
 				}
-				for _, ep := range tvRepo.episodes {
+				for _, ep := range episodes {
 					// Parser will extract S01E01 from filename
 					if ep.Season != 1 {
 						t.Errorf("Season = %v, want 1 (parsed from filename)", ep.Season)
@@ -592,8 +302,8 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mediaRepo := newMockMediaRepository()
-			tvRepo := newMockTVRepository()
+			mediaRepo := mocks.NewMediaRepository(t)
+			tvRepo := mocks.NewTVRepository(t)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(mediaRepo, tvRepo)
@@ -623,8 +333,8 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 		name      string
 		libraryID int64
 		result    *scanner.ScanResult
-		setupRepo func(*mockMediaRepository, *mockMusicRepository)
-		checkRepo func(*testing.T, *mockMediaRepository, *mockMusicRepository)
+		setupRepo func(*mocks.MediaRepository, *mocks.MusicRepository)
+		checkRepo func(*testing.T, *mocks.MediaRepository, *mocks.MusicRepository)
 	}{
 		{
 			name:      "create new music track",
@@ -638,13 +348,14 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 				Year:        &year2021,
 				Duration:    180,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, musicRepo *mockMusicRepository) {
+			setupRepo: func(mediaRepo *mocks.MediaRepository, musicRepo *mocks.MusicRepository) {
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, musicRepo *mockMusicRepository) {
-				if len(musicRepo.tracks) != 1 {
-					t.Errorf("Expected 1 track created, got %d", len(musicRepo.tracks))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, musicRepo *mocks.MusicRepository) {
+				tracks, _ := musicRepo.ListMusicTracksByLibrary(context.Background(), 3)
+				if len(tracks) != 1 {
+					t.Errorf("Expected 1 track created, got %d", len(tracks))
 				}
-				for _, track := range musicRepo.tracks {
+				for _, track := range tracks {
 					if track.Media.Title != "Song Title" {
 						t.Errorf("Title = %v, want Song Title", track.Media.Title)
 					}
@@ -673,14 +384,14 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 				Album:    "Updated Album",
 				Duration: 200,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, musicRepo *mockMusicRepository) {
-				mediaRepo.media[80] = &media.Media{
+			setupRepo: func(mediaRepo *mocks.MediaRepository, musicRepo *mocks.MusicRepository) {
+				mediaRepo.WithMedia(&media.Media{
 					ID:        80,
 					LibraryID: 3,
 					FilePath:  "/music/existing.mp3",
 					Title:     "Old Song",
-				}
-				musicRepo.tracks[80] = &media.MusicTrack{
+				})
+				musicRepo.WithTracks(&media.MusicTrack{
 					Media: media.Media{
 						ID:        80,
 						LibraryID: 3,
@@ -689,13 +400,14 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 					},
 					Artist: "Old Artist",
 					Album:  "Old Album",
-				}
+				})
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, musicRepo *mockMusicRepository) {
-				if len(musicRepo.tracks) != 1 {
-					t.Errorf("Expected 1 track updated, got %d", len(musicRepo.tracks))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, musicRepo *mocks.MusicRepository) {
+				tracks, _ := musicRepo.ListMusicTracksByLibrary(context.Background(), 3)
+				if len(tracks) != 1 {
+					t.Errorf("Expected 1 track updated, got %d", len(tracks))
 				}
-				for _, track := range musicRepo.tracks {
+				for _, track := range tracks {
 					if track.Media.ID != 80 {
 						t.Errorf("ID = %v, want 80 (existing)", track.Media.ID)
 					}
@@ -720,13 +432,14 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 				Year:        nil,
 				Duration:    150,
 			},
-			setupRepo: func(mediaRepo *mockMediaRepository, musicRepo *mockMusicRepository) {
+			setupRepo: func(mediaRepo *mocks.MediaRepository, musicRepo *mocks.MusicRepository) {
 			},
-			checkRepo: func(t *testing.T, mediaRepo *mockMediaRepository, musicRepo *mockMusicRepository) {
-				if len(musicRepo.tracks) != 1 {
-					t.Errorf("Expected 1 track created, got %d", len(musicRepo.tracks))
+			checkRepo: func(t *testing.T, mediaRepo *mocks.MediaRepository, musicRepo *mocks.MusicRepository) {
+				tracks, _ := musicRepo.ListMusicTracksByLibrary(context.Background(), 3)
+				if len(tracks) != 1 {
+					t.Errorf("Expected 1 track created, got %d", len(tracks))
 				}
-				for _, track := range musicRepo.tracks {
+				for _, track := range tracks {
 					if track.TrackNumber != 0 {
 						t.Errorf("TrackNumber = %v, want 0 (default)", track.TrackNumber)
 					}
@@ -740,8 +453,8 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mediaRepo := newMockMediaRepository()
-			musicRepo := newMockMusicRepository()
+			mediaRepo := mocks.NewMediaRepository(t)
+			musicRepo := mocks.NewMusicRepository(t)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(mediaRepo, musicRepo)

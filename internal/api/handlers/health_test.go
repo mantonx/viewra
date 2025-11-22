@@ -19,8 +19,8 @@ func TestHealthCheck_DatabaseOK(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Create health handler
-	handler := NewHealthHandler(db)
+	// Create health handler (scheduler and transcode queue are optional, pass nil)
+	handler := NewHealthHandler(db, nil, nil)
 
 	// Setup gin router
 	gin.SetMode(gin.TestMode)
@@ -44,16 +44,28 @@ func TestHealthCheck_DatabaseOK(t *testing.T) {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if response.Status != "ok" {
-		t.Errorf("Expected status 'ok', got '%s'", response.Status)
+	// Check overall status (new structure)
+	if response.Status != "healthy" {
+		t.Errorf("Expected status 'healthy', got '%s'", response.Status)
 	}
 
-	if response.Database.Status != "ok" {
-		t.Errorf("Expected database status 'ok', got '%s'", response.Database.Status)
+	// Check database component status (new structure)
+	dbCheck, ok := response.Components["database"]
+	if !ok {
+		t.Fatal("Expected database component in response")
 	}
 
-	if response.Database.Ping == "" {
-		t.Error("Expected database ping time, got empty string")
+	if dbCheck.Status != "pass" {
+		t.Errorf("Expected database status 'pass', got '%s'", dbCheck.Status)
+	}
+
+	if dbCheck.Message == "" {
+		t.Error("Expected database ping message, got empty string")
+	}
+
+	// Verify system info is present
+	if response.System == nil {
+		t.Error("Expected system info in response")
 	}
 }
 
@@ -65,8 +77,8 @@ func TestHealthCheck_DatabaseDown(t *testing.T) {
 	}
 	db.Close() // Close to simulate failure
 
-	// Create health handler
-	handler := NewHealthHandler(db)
+	// Create health handler (scheduler and transcode queue are optional, pass nil)
+	handler := NewHealthHandler(db, nil, nil)
 
 	// Setup gin router
 	gin.SetMode(gin.TestMode)
@@ -90,11 +102,18 @@ func TestHealthCheck_DatabaseDown(t *testing.T) {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if response.Status != "degraded" {
-		t.Errorf("Expected status 'degraded', got '%s'", response.Status)
+	// Check overall status (new structure)
+	if response.Status != "unhealthy" {
+		t.Errorf("Expected status 'unhealthy', got '%s'", response.Status)
 	}
 
-	if response.Database.Status != "error" {
-		t.Errorf("Expected database status 'error', got '%s'", response.Database.Status)
+	// Check database component status (new structure)
+	dbCheck, ok := response.Components["database"]
+	if !ok {
+		t.Fatal("Expected database component in response")
+	}
+
+	if dbCheck.Status != "fail" {
+		t.Errorf("Expected database status 'fail', got '%s'", dbCheck.Status)
 	}
 }

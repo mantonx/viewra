@@ -2,9 +2,10 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"errors"
-	"testing"
 	"os"
+	"testing"
 )
 
 // MockRepository is a mock implementation of Repository for testing
@@ -113,6 +114,23 @@ func (m *MockRepository) Exists(ctx context.Context, path string) (bool, error) 
 	}
 	_, exists := m.pathIndex[path]
 	return exists, nil
+}
+
+// Transaction-aware methods (delegate to non-tx versions for testing)
+func (m *MockRepository) CreateWithTx(ctx context.Context, tx *sql.Tx, lib *Library) error {
+	return m.Create(ctx, lib)
+}
+
+func (m *MockRepository) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int64) (*Library, error) {
+	return m.GetByID(ctx, id)
+}
+
+func (m *MockRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	return m.Delete(ctx, id)
+}
+
+func (m *MockRepository) ExistsWithTx(ctx context.Context, tx *sql.Tx, path string) (bool, error) {
+	return m.Exists(ctx, path)
 }
 
 func TestNewService(t *testing.T) {

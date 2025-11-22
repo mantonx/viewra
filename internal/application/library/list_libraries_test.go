@@ -6,18 +6,19 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
 func TestListLibrariesUseCase_Execute(t *testing.T) {
 	tests := []struct {
 		name          string
-		setup         func(*mockLibraryRepository)
+		setup         func(*mocks.LibraryRepository)
 		expectedCount int
 		wantErr       bool
 	}{
 		{
 			name: "empty list",
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				// No libraries
 			},
 			expectedCount: 0,
@@ -25,7 +26,7 @@ func TestListLibrariesUseCase_Execute(t *testing.T) {
 		},
 		{
 			name: "single library",
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				_ = repo.Create(context.Background(), &library.Library{
 					Name:      "Movies",
 					Path:      "/media/movies",
@@ -39,7 +40,7 @@ func TestListLibrariesUseCase_Execute(t *testing.T) {
 		},
 		{
 			name: "multiple libraries",
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				libraries := []library.Library{
 					{
 						Name:      "Movies",
@@ -75,7 +76,7 @@ func TestListLibrariesUseCase_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newMockLibraryRepository()
+			repo := mocks.NewLibraryRepository(t)
 			if tt.setup != nil {
 				tt.setup(repo)
 			}

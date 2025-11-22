@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
 func TestMarkWatched(t *testing.T) {
@@ -55,11 +56,11 @@ func TestMarkWatched(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newMockRepository()
 			ctx := context.Background()
 
+			repo := mocks.NewProgressRepository(t)
 			if tt.existingProg != nil {
-				repo.progresses[tt.existingProg.ID] = tt.existingProg
+				repo.WithProgress(tt.existingProg)
 			}
 
 			resp, err := MarkWatched(ctx, repo, tt.req)
@@ -127,11 +128,11 @@ func TestMarkUnwatched(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newMockRepository()
 			ctx := context.Background()
 
+			repo := mocks.NewProgressRepository(t)
 			if tt.existingProg != nil {
-				repo.progresses[tt.existingProg.ID] = tt.existingProg
+				repo.WithProgress(tt.existingProg)
 			}
 
 			resp, err := MarkUnwatched(ctx, repo, tt.req)
@@ -189,11 +190,11 @@ func TestDeleteProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newMockRepository()
 			ctx := context.Background()
 
+			repo := mocks.NewProgressRepository(t)
 			if tt.existingProg != nil {
-				repo.progresses[tt.existingProg.ID] = tt.existingProg
+				repo.WithProgress(tt.existingProg)
 			}
 
 			err := DeleteProgress(ctx, repo, tt.mediaID, tt.userID)
@@ -203,8 +204,9 @@ func TestDeleteProgress(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				// Verify progress was deleted
-				if _, exists := repo.progresses[tt.existingProg.ID]; exists {
+				// Verify progress was deleted - check it no longer exists
+				_, getErr := repo.GetByMediaIDAndUserID(ctx, tt.mediaID, tt.userID)
+				if getErr == nil {
 					t.Error("DeleteProgress() did not delete the progress")
 				}
 			}

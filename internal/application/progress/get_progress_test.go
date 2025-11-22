@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
 
 func TestGetProgressByMediaID(t *testing.T) {
-	repo := newMockRepository()
 	ctx := context.Background()
 
 	// Create test progress
@@ -22,7 +22,9 @@ func TestGetProgressByMediaID(t *testing.T) {
 		IsWatched:       false,
 		LastWatchedAt:   time.Now(),
 	}
-	repo.progresses[1] = testProgress
+
+	repo := mocks.NewProgressRepository(t).
+		WithProgress(testProgress)
 
 	// Test successful retrieval
 	resp, err := GetProgressByMediaID(ctx, repo, 100)
@@ -37,14 +39,14 @@ func TestGetProgressByMediaID(t *testing.T) {
 	}
 
 	// Test not found
-	_, err = GetProgressByMediaID(ctx, repo, 999)
+	emptyRepo := mocks.NewProgressRepository(t)
+	_, err = GetProgressByMediaID(ctx, emptyRepo, 999)
 	if err == nil {
 		t.Error("Expected error for non-existent progress, got nil")
 	}
 }
 
 func TestGetProgressByMediaIDAndUserID(t *testing.T) {
-	repo := newMockRepository()
 	ctx := context.Background()
 
 	// Create test progress
@@ -57,7 +59,9 @@ func TestGetProgressByMediaIDAndUserID(t *testing.T) {
 		IsWatched:       false,
 		LastWatchedAt:   time.Now(),
 	}
-	repo.progresses[1] = testProgress
+
+	repo := mocks.NewProgressRepository(t).
+		WithProgress(testProgress)
 
 	// Test successful retrieval
 	resp, err := GetProgressByMediaIDAndUserID(ctx, repo, 100, 5)
@@ -79,31 +83,33 @@ func TestGetProgressByMediaIDAndUserID(t *testing.T) {
 }
 
 func TestListProgressByUserID(t *testing.T) {
-	repo := newMockRepository()
 	ctx := context.Background()
 
 	// Create test progress records
-	repo.progresses[1] = &progress.WatchProgress{
-		ID:              1,
-		MediaID:         100,
-		UserID:          1,
-		ProgressSeconds: 300,
-		DurationSeconds: 1000,
-	}
-	repo.progresses[2] = &progress.WatchProgress{
-		ID:              2,
-		MediaID:         200,
-		UserID:          1,
-		ProgressSeconds: 500,
-		DurationSeconds: 2000,
-	}
-	repo.progresses[3] = &progress.WatchProgress{
-		ID:              3,
-		MediaID:         300,
-		UserID:          2,
-		ProgressSeconds: 100,
-		DurationSeconds: 1000,
-	}
+	repo := mocks.NewProgressRepository(t).
+		WithProgress(
+			&progress.WatchProgress{
+				ID:              1,
+				MediaID:         100,
+				UserID:          1,
+				ProgressSeconds: 300,
+				DurationSeconds: 1000,
+			},
+			&progress.WatchProgress{
+				ID:              2,
+				MediaID:         200,
+				UserID:          1,
+				ProgressSeconds: 500,
+				DurationSeconds: 2000,
+			},
+			&progress.WatchProgress{
+				ID:              3,
+				MediaID:         300,
+				UserID:          2,
+				ProgressSeconds: 100,
+				DurationSeconds: 1000,
+			},
+		)
 
 	// Test listing for user 1
 	resp, err := ListProgressByUserID(ctx, repo, 1, 10, 0)
@@ -125,28 +131,30 @@ func TestListProgressByUserID(t *testing.T) {
 }
 
 func TestListWatchedByUserID(t *testing.T) {
-	repo := newMockRepository()
 	ctx := context.Background()
 
 	// Create test progress records
-	repo.progresses[1] = &progress.WatchProgress{
-		ID:        1,
-		MediaID:   100,
-		UserID:    1,
-		IsWatched: true,
-	}
-	repo.progresses[2] = &progress.WatchProgress{
-		ID:        2,
-		MediaID:   200,
-		UserID:    1,
-		IsWatched: false,
-	}
-	repo.progresses[3] = &progress.WatchProgress{
-		ID:        3,
-		MediaID:   300,
-		UserID:    1,
-		IsWatched: true,
-	}
+	repo := mocks.NewProgressRepository(t).
+		WithProgress(
+			&progress.WatchProgress{
+				ID:        1,
+				MediaID:   100,
+				UserID:    1,
+				IsWatched: true,
+			},
+			&progress.WatchProgress{
+				ID:        2,
+				MediaID:   200,
+				UserID:    1,
+				IsWatched: false,
+			},
+			&progress.WatchProgress{
+				ID:        3,
+				MediaID:   300,
+				UserID:    1,
+				IsWatched: true,
+			},
+		)
 
 	// Test listing watched items
 	resp, err := ListWatchedByUserID(ctx, repo, 1, 10, 0)
@@ -159,34 +167,36 @@ func TestListWatchedByUserID(t *testing.T) {
 }
 
 func TestListInProgressByUserID(t *testing.T) {
-	repo := newMockRepository()
 	ctx := context.Background()
 
 	// Create test progress records
-	repo.progresses[1] = &progress.WatchProgress{
-		ID:              1,
-		MediaID:         100,
-		UserID:          1,
-		ProgressSeconds: 500,
-		DurationSeconds: 1000,
-		IsWatched:       false,
-	}
-	repo.progresses[2] = &progress.WatchProgress{
-		ID:              2,
-		MediaID:         200,
-		UserID:          1,
-		ProgressSeconds: 0,
-		DurationSeconds: 1000,
-		IsWatched:       false,
-	}
-	repo.progresses[3] = &progress.WatchProgress{
-		ID:              3,
-		MediaID:         300,
-		UserID:          1,
-		ProgressSeconds: 900,
-		DurationSeconds: 1000,
-		IsWatched:       false,
-	}
+	repo := mocks.NewProgressRepository(t).
+		WithProgress(
+			&progress.WatchProgress{
+				ID:              1,
+				MediaID:         100,
+				UserID:          1,
+				ProgressSeconds: 500,
+				DurationSeconds: 1000,
+				IsWatched:       false,
+			},
+			&progress.WatchProgress{
+				ID:              2,
+				MediaID:         200,
+				UserID:          1,
+				ProgressSeconds: 0,
+				DurationSeconds: 1000,
+				IsWatched:       false,
+			},
+			&progress.WatchProgress{
+				ID:              3,
+				MediaID:         300,
+				UserID:          1,
+				ProgressSeconds: 900,
+				DurationSeconds: 1000,
+				IsWatched:       false,
+			},
+		)
 
 	// Test listing in-progress items
 	resp, err := ListInProgressByUserID(ctx, repo, 1, 10, 0)

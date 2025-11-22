@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,14 +11,14 @@ import (
 
 // mockRepository implements Repository for testing
 type mockRepository struct {
-	media      map[int64]*Media
-	nextID     int64
-	pathIndex  map[int64]map[string]bool // libraryID -> filePath -> exists
-	createErr  error
-	getErr     error
-	updateErr  error
-	deleteErr  error
-	existsErr  error
+	media     map[int64]*Media
+	nextID    int64
+	pathIndex map[int64]map[string]bool // libraryID -> filePath -> exists
+	createErr error
+	getErr    error
+	updateErr error
+	deleteErr error
+	existsErr error
 }
 
 func newMockRepository() *mockRepository {
@@ -145,6 +146,15 @@ func (m *mockRepository) ListByType(ctx context.Context, libraryID int64, mediaT
 	return nil, nil
 }
 
+// Transaction-aware methods (delegate to non-tx versions for testing)
+func (m *mockRepository) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	return m.Delete(ctx, id)
+}
+
+func (m *mockRepository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*Media, error) {
+	return m.ListByLibrary(ctx, libraryID)
+}
+
 func TestNewService(t *testing.T) {
 	repo := newMockRepository()
 	service := NewService(repo)
@@ -176,8 +186,8 @@ func TestService_CreateMedia(t *testing.T) {
 		{
 			name: "valid media creation",
 			media: &Media{
-				Title:    "Test Movie",
-				FilePath: "test.mp4",
+				Title:     "Test Movie",
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -187,8 +197,8 @@ func TestService_CreateMedia(t *testing.T) {
 		{
 			name: "invalid media - validation error",
 			media: &Media{
-				Title:    "", // Invalid: empty title
-				FilePath: "test.mp4",
+				Title:     "", // Invalid: empty title
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -199,8 +209,8 @@ func TestService_CreateMedia(t *testing.T) {
 		{
 			name: "file does not exist",
 			media: &Media{
-				Title:    "Test Movie",
-				FilePath: "nonexistent.mp4",
+				Title:     "Test Movie",
+				FilePath:  "nonexistent.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -211,8 +221,8 @@ func TestService_CreateMedia(t *testing.T) {
 		{
 			name: "duplicate file path",
 			media: &Media{
-				Title:    "Test Movie",
-				FilePath: "test.mp4",
+				Title:     "Test Movie",
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -226,10 +236,10 @@ func TestService_CreateMedia(t *testing.T) {
 		{
 			name: "file size auto-detected",
 			media: &Media{
-				Title:    "Test Movie",
-				FilePath: "test.mp4",
+				Title:     "Test Movie",
+				FilePath:  "test.mp4",
 				LibraryID: 1,
-				FileSize: 0, // Should be auto-detected
+				FileSize:  0, // Should be auto-detected
 			},
 			libraryPath: tempDir,
 			setupRepo:   func(m *mockRepository) {},
@@ -238,8 +248,8 @@ func TestService_CreateMedia(t *testing.T) {
 		{
 			name: "repository create error",
 			media: &Media{
-				Title:    "Test Movie",
-				FilePath: "test.mp4",
+				Title:     "Test Movie",
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -251,8 +261,8 @@ func TestService_CreateMedia(t *testing.T) {
 		{
 			name: "repository exists check error",
 			media: &Media{
-				Title:    "Test Movie",
-				FilePath: "test.mp4",
+				Title:     "Test Movie",
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -313,8 +323,8 @@ func TestService_CreateMedia_DirectoryPath(t *testing.T) {
 	service := NewService(repo)
 
 	media := &Media{
-		Title:    "Test",
-		FilePath: "subdir", // This is a directory, not a file
+		Title:     "Test",
+		FilePath:  "subdir", // This is a directory, not a file
 		LibraryID: 1,
 	}
 
@@ -485,9 +495,9 @@ func TestService_UpdateMedia(t *testing.T) {
 		{
 			name: "valid media update",
 			media: &Media{
-				ID:       1,
-				Title:    "Updated Movie",
-				FilePath: "test.mp4",
+				ID:        1,
+				Title:     "Updated Movie",
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -499,9 +509,9 @@ func TestService_UpdateMedia(t *testing.T) {
 		{
 			name: "invalid media - validation error",
 			media: &Media{
-				ID:       1,
-				Title:    "", // Invalid
-				FilePath: "test.mp4",
+				ID:        1,
+				Title:     "", // Invalid
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -514,9 +524,9 @@ func TestService_UpdateMedia(t *testing.T) {
 		{
 			name: "file does not exist",
 			media: &Media{
-				ID:       1,
-				Title:    "Updated Movie",
-				FilePath: "nonexistent.mp4",
+				ID:        1,
+				Title:     "Updated Movie",
+				FilePath:  "nonexistent.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,
@@ -529,9 +539,9 @@ func TestService_UpdateMedia(t *testing.T) {
 		{
 			name: "repository update error",
 			media: &Media{
-				ID:       1,
-				Title:    "Updated Movie",
-				FilePath: "test.mp4",
+				ID:        1,
+				Title:     "Updated Movie",
+				FilePath:  "test.mp4",
 				LibraryID: 1,
 			},
 			libraryPath: tempDir,

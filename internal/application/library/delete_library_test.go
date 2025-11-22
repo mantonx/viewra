@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"testing"
 
-    _ "modernc.org/sqlite" // Import SQLite driver
 	"github.com/mantonx/viewra/internal/application/common"
 	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
+	_ "modernc.org/sqlite" // Import SQLite driver
 )
 
 func TestDeleteLibraryUseCase_Execute(t *testing.T) {
@@ -18,13 +19,13 @@ func TestDeleteLibraryUseCase_Execute(t *testing.T) {
 		libraryID   int64
 		wantErr     bool
 		expectedErr error
-		setup       func(*mockLibraryRepository)
+		setup       func(*mocks.LibraryRepository)
 	}{
 		{
 			name:      "delete existing library",
 			libraryID: 1,
 			wantErr:   false,
-			setup: func(repo *mockLibraryRepository) {
+			setup: func(repo *mocks.LibraryRepository) {
 				_ = repo.Create(context.Background(), &library.Library{
 					Name: "Movies",
 					Path: tempDir,
@@ -37,13 +38,13 @@ func TestDeleteLibraryUseCase_Execute(t *testing.T) {
 			libraryID:   999,
 			wantErr:     true,
 			expectedErr: library.ErrLibraryNotFound,
-			setup:       func(repo *mockLibraryRepository) {},
+			setup:       func(repo *mocks.LibraryRepository) {},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := newMockLibraryRepository()
+			repo := mocks.NewLibraryRepository(t)
 			if tt.setup != nil {
 				tt.setup(repo)
 			}
