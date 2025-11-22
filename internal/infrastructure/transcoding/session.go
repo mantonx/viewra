@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -80,7 +81,7 @@ func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, stra
 	// Log FFmpeg command for debugging
 	s.logger.Info("Starting FFmpeg process",
 		"session_id", s.ID,
-		"command", fmt.Sprintf("ffmpeg %v", args))
+		"command", fmt.Sprintf("ffmpeg %s", strings.Join(args, " ")))
 
 	// Create FFmpeg command
 	s.FFmpegCmd = exec.CommandContext(s.ctx, "ffmpeg", args...)
@@ -96,17 +97,50 @@ func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, stra
 		return fmt.Errorf("failed to start ffmpeg: %w", err)
 	}
 
-	// Log FFmpeg stderr in background
+	// Log FFmpeg stderr in background with better error visibility
 	go func() {
 		buf := make([]byte, 4096)
+		var stderrBuffer []byte
 		for {
 			n, err := stderr.Read(buf)
 			if n > 0 {
-				s.logger.Debug("FFmpeg output", "session_id", s.ID, "output", string(buf[:n]))
+				chunk := buf[:n]
+				stderrBuffer = append(stderrBuffer, chunk...)
+
+				// Log at INFO level for visibility, especially for errors
+				output := string(chunk)
+				if strings.Contains(strings.ToLower(output), "error") ||
+				   strings.Contains(strings.ToLower(output), "failed") ||
+				   strings.Contains(strings.ToLower(output), "invalid") {
+					s.logger.Error("FFmpeg error detected", "session_id", s.ID, "output", output)
+				} else {
+					s.logger.Debug("FFmpeg output", "session_id", s.ID, "output", output)
+				}
 			}
 			if err != nil {
+				// Log the full stderr buffer if process exits with error
+				if len(stderrBuffer) > 0 {
+					s.logger.Error("FFmpeg process stderr",
+						"session_id", s.ID,
+						"full_output", string(stderrBuffer))
+				}
 				return
 			}
+		}
+	}()
+
+	// Monitor process exit status in background
+	go func() {
+		err := s.FFmpegCmd.Wait()
+		if err != nil {
+			s.logger.Error("FFmpeg process exited with error",
+				"session_id", s.ID,
+				"media_id", s.MediaID,
+				"error", err)
+		} else {
+			s.logger.Info("FFmpeg process completed successfully",
+				"session_id", s.ID,
+				"media_id", s.MediaID)
 		}
 	}()
 

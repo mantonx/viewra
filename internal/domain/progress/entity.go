@@ -10,8 +10,8 @@ type WatchProgress struct {
 	ID              int64
 	UserID          int64  // For future multi-user support
 	MediaID         int64  // Foreign key to media table
-	ProgressSeconds int    // Current playback position in seconds
-	DurationSeconds int    // Total duration at time of viewing (cached for percentage calculation)
+	ProgressSeconds float64 // Current playback position in seconds (float for sub-second precision)
+	DurationSeconds float64 // Total duration at time of viewing (cached for percentage calculation)
 	IsWatched       bool   // True if user explicitly marked as watched or >90% complete
 	LastWatchedAt   time.Time
 	CreatedAt       time.Time
@@ -45,7 +45,7 @@ func (wp *WatchProgress) GetProgressPercentage() float64 {
 		return 0.0
 	}
 
-	percentage := (float64(wp.ProgressSeconds) / float64(wp.DurationSeconds)) * 100.0
+	percentage := (wp.ProgressSeconds / wp.DurationSeconds) * 100.0
 	if percentage > 100.0 {
 		return 100.0
 	}
@@ -60,7 +60,7 @@ func (wp *WatchProgress) ShouldMarkWatched() bool {
 
 // UpdateProgress updates the progress position and auto-marks as watched if threshold met.
 // If progress drops below 90%, the watched flag is automatically cleared.
-func (wp *WatchProgress) UpdateProgress(progressSeconds int) {
+func (wp *WatchProgress) UpdateProgress(progressSeconds float64) {
 	wp.ProgressSeconds = progressSeconds
 	wp.LastWatchedAt = time.Now()
 	wp.UpdatedAt = time.Now()

@@ -12,6 +12,7 @@ func RegisterProgressRoutes(router *gin.RouterGroup, handler *handlers.ProgressH
 		// List and update progress
 		progress.GET("", handler.ListProgress)
 		progress.PUT("", handler.UpdateProgress)
+		progress.POST("", handler.UpdateProgress) // Support POST for sendBeacon compatibility
 
 		// Batch progress
 		progress.GET("/batch", handler.GetBatchProgress)

@@ -38,16 +38,21 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     setMediaId(id)
     setTranscodeState('checking')
 
-    // Show video player immediately with buffering indicator
-    setIsPlaying(true)
-
-    // Fetch progress to determine initial position
+    // Fetch progress FIRST to determine initial position before showing video player
+    let resumePosition = 0
     try {
       const response = await fetch(`${API_BASE_URL}/api/progress/${id}`)
       const progressData = response.ok ? await response.json() : null
       const progressSecs = progressData ? getProgressSeconds(progressData) : 0
-      const shouldResume = progressSecs > 0 && !progressData?.is_watched
-      setInitialPosition(shouldResume ? progressSecs : 0)
+      const durationSecs = progressData ? progressData.duration_seconds : 0
+
+      // Resume if there's progress AND user hasn't finished watching (not at 100%)
+      // Note: is_watched can be true at 90%, but we should still resume unless at 100%
+      const isComplete = durationSecs > 0 && progressSecs >= durationSecs - 1 // Within 1 second of end
+      const shouldResume = progressSecs > 0 && !isComplete
+
+      resumePosition = shouldResume ? progressSecs : 0
+      setInitialPosition(resumePosition)
     } catch (error) {
       logger.error('Error fetching progress:', error)
       setInitialPosition(0)
@@ -57,8 +62,12 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       // Select best quality based on media and screen
       const quality = selectBestQuality(media)
 
-      // Build HLS manifest URL
-      const manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/${quality}/playlist.m3u8`
+      // Build HLS manifest URL with start position for resume
+      // If resuming, tell the backend to start transcoding from that position
+      let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/${quality}/playlist.m3u8`
+      if (resumePosition > 0) {
+        manifestUrl += `?start=${resumePosition}`
+      }
 
       // Fetch manifest with manual redirect handling
       const response = await fetch(manifestUrl, {
@@ -70,6 +79,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
         const directUrl = `${API_BASE_URL}/api/stream/${id}`
         setStreamUrl(directUrl)
         setTranscodeState('direct')
+        setIsPlaying(true) // Show player now that we have the stream URL
         return
       }
 
@@ -78,6 +88,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       if (response.status === 200) {
         setStreamUrl(manifestUrl)
         setTranscodeState('ready')
+        setIsPlaying(true) // Show player now that we have the stream URL
         return
       }
 

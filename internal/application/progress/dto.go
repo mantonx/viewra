@@ -8,10 +8,10 @@ import (
 
 // UpdateProgressRequest represents a request to update watch progress.
 type UpdateProgressRequest struct {
-	MediaID         int64 `json:"media_id"`
-	UserID          int64 `json:"user_id"`
-	ProgressSeconds int   `json:"progress_seconds"`
-	DurationSeconds int   `json:"duration_seconds"`
+	MediaID         int64   `json:"media_id"`
+	UserID          int64   `json:"user_id"`
+	ProgressSeconds float64 `json:"progress_seconds"`
+	DurationSeconds float64 `json:"duration_seconds"`
 }
 
 // WatchProgressResponse represents watch progress information in API responses.
@@ -19,8 +19,8 @@ type WatchProgressResponse struct {
 	ID                 int64     `json:"id"`
 	MediaID            int64     `json:"media_id"`
 	UserID             int64     `json:"user_id"`
-	ProgressSeconds    int       `json:"progress_seconds"`
-	DurationSeconds    int       `json:"duration_seconds"`
+	ProgressSeconds    float64   `json:"progress_seconds"`
+	DurationSeconds    float64   `json:"duration_seconds"`
 	ProgressPercentage float64   `json:"progress_percentage"`
 	IsWatched          bool      `json:"is_watched"`
 	LastWatchedAt      time.Time `json:"last_watched_at"`

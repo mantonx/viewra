@@ -145,7 +145,7 @@ func TestMarkUnwatched(t *testing.T) {
 					t.Errorf("MarkUnwatched() IsWatched = %v, want %v", resp.IsWatched, tt.wantIsWatched)
 				}
 				if resp.ProgressSeconds != 0 {
-					t.Errorf("MarkUnwatched() ProgressSeconds should be reset to 0, got %d", resp.ProgressSeconds)
+					t.Errorf("MarkUnwatched() ProgressSeconds should be reset to 0, got %.2f", resp.ProgressSeconds)
 				}
 			}
 		})

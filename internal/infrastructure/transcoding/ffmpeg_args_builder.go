@@ -398,7 +398,9 @@ func (b *FFmpegArgsBuilder) buildScalingFilter(hwAccel HardwareAccel, skipIfLibP
 	switch hwAccel {
 	case AccelNVENC:
 		// NVENC: GPU-accelerated scaling and padding
-		return fmt.Sprintf("scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
+		// Add format=nv12 to scale_cuda to convert 10-bit (yuv420p10le) to 8-bit (nv12)
+		// pad_cuda doesn't support 10-bit input, so conversion must happen in scale_cuda
+		return fmt.Sprintf("scale_cuda=%d:%d:format=nv12:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
 			p.Width, p.Height, p.Width, p.Height)
 	case AccelQSV:
 		// QSV: GPU scaling (no pad_qsv available, encoder handles padding)

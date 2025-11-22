@@ -33,7 +33,7 @@ func TestGetProgressByMediaID(t *testing.T) {
 		t.Errorf("Expected MediaID 100, got %d", resp.MediaID)
 	}
 	if resp.ProgressSeconds != 300 {
-		t.Errorf("Expected ProgressSeconds 300, got %d", resp.ProgressSeconds)
+		t.Errorf("Expected ProgressSeconds 300, got %.2f", resp.ProgressSeconds)
 	}
 
 	// Test not found

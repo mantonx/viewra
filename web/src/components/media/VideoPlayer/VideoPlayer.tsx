@@ -32,11 +32,17 @@ const setInitialPosition = (video: HTMLVideoElement, position: number, waitForMe
   }
 
   if (waitForMetadata) {
+    // For HLS streams, we need to wait for enough data to be buffered before seeking
     const setTime = () => {
-      video.currentTime = position
-      video.removeEventListener('loadedmetadata', setTime)
+      if (video.seekable.length > 0) {
+        const seekableEnd = video.seekable.end(video.seekable.length - 1)
+        if (position <= seekableEnd) {
+          video.currentTime = position
+          video.removeEventListener('canplay', setTime)
+        }
+      }
     }
-    video.addEventListener('loadedmetadata', setTime)
+    video.addEventListener('canplay', setTime)
   } else {
     video.currentTime = position
   }
@@ -80,7 +86,8 @@ export const VideoPlayer = ({
   const streamOffsetRef = useRef<number>(0)
 
   // Detect if this is an HLS stream or direct stream
-  const isHlsStream = streamUrl.endsWith('.m3u8')
+  // Check for .m3u8 in the URL path (before query parameters)
+  const isHlsStream = streamUrl.includes('.m3u8')
 
   // Initialize progress updater hook
   const progressUpdater = useProgressUpdater(mediaId, videoDuration)
@@ -126,7 +133,19 @@ export const VideoPlayer = ({
     if (canPlayHls) {
       // Native HLS support - just set the source
       video.src = streamUrl
-      setInitialPosition(video, initialPosition, true)
+
+      // Set stream offset for resume playback
+      // When backend starts transcoding from position X (via ?start=X), the HLS stream
+      // starts at 0, but represents position X in the actual video. We need to add this
+      // offset to currentTime to show the correct position in the scrubber.
+      // We do NOT seek the video because it already starts at the correct position.
+      // Only set the offset if it hasn't been set by a seek operation (streamOffsetRef.current === 0)
+      if (initialPosition > 0 && streamOffsetRef.current === 0) {
+        streamOffsetRef.current = initialPosition
+      }
+
+      // Note: We don't call setInitialPosition here because when using ?start= parameter,
+      // the backend starts transcoding from that position, so video.currentTime=0 is already correct
       // Start muted to allow autoplay, unmute after play starts
       video.muted = true
       video
@@ -208,8 +227,18 @@ export const VideoPlayer = ({
         setCurrentAudioTrack(hls.audioTrack)
       }
 
-      // Set initial position
-      setInitialPosition(video, initialPosition)
+      // Set stream offset for resume playback
+      // When backend starts transcoding from position X (via ?start=X), the HLS stream
+      // starts at 0, but represents position X in the actual video. We need to add this
+      // offset to currentTime to show the correct position in the scrubber.
+      // We do NOT seek the video because it already starts at the correct position.
+      // Only set the offset if it hasn't been set by a seek operation (streamOffsetRef.current === 0)
+      if (initialPosition > 0 && streamOffsetRef.current === 0) {
+        streamOffsetRef.current = initialPosition
+      }
+
+      // Note: We don't call setInitialPosition here because when using ?start= parameter,
+      // the backend starts transcoding from that position, so video.currentTime=0 is already correct
 
       // Start muted to allow autoplay, will unmute on first play event
       video.muted = true
@@ -490,6 +519,33 @@ export const VideoPlayer = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [videoDuration])
 
+  // Browser close progress save - captures progress when user closes tab/window
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Only save if we have valid progress data
+      if (currentTime > 0 && videoDuration > 0) {
+        // Use sendBeacon for guaranteed delivery during page unload
+        // This API is specifically designed to work even as the page is closing
+        const data = JSON.stringify({
+          media_id: mediaId,
+          user_id: 1, // Default user
+          progress_seconds: currentTime,
+          duration_seconds: videoDuration,
+        })
+
+        // Construct the full API URL
+        const apiUrl = `${window.location.origin}/api/progress`
+
+        // sendBeacon sends a POST request that completes even if the page unloads
+        // Returns true if the browser accepted the request for delivery
+        navigator.sendBeacon(apiUrl, new Blob([data], { type: 'application/json' }))
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [mediaId, currentTime, videoDuration])
+
   // Handle quality selection
   const handleQualityChange = (height: number) => {
     const hls = hlsRef.current
@@ -551,6 +607,12 @@ export const VideoPlayer = ({
       return
     }
 
+    // Immediate progress save before seek (prevents data loss if user closes video)
+    if (progressUpdaterRef.current && videoDuration > 0) {
+      progressUpdaterRef.current.updateCurrentTime(time)
+      progressUpdaterRef.current.immediateUpdate()
+    }
+
     // For progressive transcoding with HLS:
     // If seeking far (>30s) from current position, reload manifest with start parameter
     // to trigger backend session restart. Otherwise, seek normally.
@@ -599,6 +661,9 @@ export const VideoPlayer = ({
       // Convert from actual video time to stream time
       const streamTime = time - streamOffsetRef.current
       video.currentTime = streamTime
+
+      // Update displayed time immediately to match seek position
+      setCurrentTime(time)
     }
   }
 

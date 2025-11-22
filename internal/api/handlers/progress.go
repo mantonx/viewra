@@ -23,7 +23,7 @@ func NewProgressHandler(repo progressDomain.Repository) *ProgressHandler {
 // UpdateProgress updates watch progress for a media item.
 //
 // @Summary Update watch progress
-// @Description Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%.
+// @Description Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%. Supports both PUT and POST for browser sendBeacon compatibility.
 // @Tags progress
 // @Accept json
 // @Produce json
@@ -32,6 +32,7 @@ func NewProgressHandler(repo progressDomain.Repository) *ProgressHandler {
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
 // @Router /api/progress [put]
+// @Router /api/progress [post]
 func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 	var req progress.UpdateProgressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

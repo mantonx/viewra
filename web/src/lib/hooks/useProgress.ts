@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useRef, useEffect } from 'react';
 import {
   getApiProgress,
   getApiProgressMediaId,
@@ -174,54 +175,76 @@ export function useProgressUpdater(
   updateIntervalMs = 10000 // Update every 10 seconds by default
 ) {
   const updateProgress = useUpdateProgress();
-  let intervalId: ReturnType<typeof setInterval> | null = null;
-  let lastProgressSeconds = 0;
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentTimeRef = useRef<number>(0);
 
-  const startTracking = (currentTimeSeconds: number) => {
-    lastProgressSeconds = Math.floor(currentTimeSeconds);
+  // Use useCallback for stable function references
+  const startTracking = useCallback((currentTimeSeconds: number) => {
+    currentTimeRef.current = currentTimeSeconds;
 
     // Clear any existing interval
-    if (intervalId) {
-      clearInterval(intervalId);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
     }
 
     // Set up periodic updates
-    intervalId = setInterval(() => {
-      if (lastProgressSeconds > 0) {
+    intervalRef.current = setInterval(() => {
+      if (currentTimeRef.current > 0) {
         updateProgress.mutate({
           media_id: mediaId,
           user_id: 1, // Default user
-          progress_seconds: lastProgressSeconds,
-          duration_seconds: Math.floor(durationSeconds),
+          progress_seconds: currentTimeRef.current,
+          duration_seconds: durationSeconds,
         });
       }
     }, updateIntervalMs);
-  };
+  }, [mediaId, durationSeconds, updateIntervalMs, updateProgress]);
 
-  const updateCurrentTime = (currentTimeSeconds: number) => {
-    lastProgressSeconds = Math.floor(currentTimeSeconds);
-  };
+  const updateCurrentTime = useCallback((currentTimeSeconds: number) => {
+    currentTimeRef.current = currentTimeSeconds;
+  }, []);
 
-  const stopTracking = () => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-
-    // Send final update
-    if (lastProgressSeconds > 0) {
+  const immediateUpdate = useCallback(() => {
+    if (currentTimeRef.current > 0) {
       updateProgress.mutate({
         media_id: mediaId,
         user_id: 1,
-        progress_seconds: lastProgressSeconds,
-        duration_seconds: Math.floor(durationSeconds),
+        progress_seconds: currentTimeRef.current,
+        duration_seconds: durationSeconds,
       });
     }
-  };
+  }, [mediaId, durationSeconds, updateProgress]);
+
+  const stopTracking = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    // Send final update
+    if (currentTimeRef.current > 0) {
+      updateProgress.mutate({
+        media_id: mediaId,
+        user_id: 1,
+        progress_seconds: currentTimeRef.current,
+        duration_seconds: durationSeconds,
+      });
+    }
+  }, [mediaId, durationSeconds, updateProgress]);
+
+  // Automatic cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   return {
     startTracking,
     updateCurrentTime,
+    immediateUpdate,
     stopTracking,
   };
 }

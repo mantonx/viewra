@@ -67,6 +67,21 @@ func (m *mockRepository) GetByMediaIDAndUserID(ctx context.Context, mediaID, use
 	return nil, progress.ErrProgressNotFound
 }
 
+func (m *mockRepository) GetBatchByMediaIDs(ctx context.Context, mediaIDs []int64, userID int64) (map[int64]*progress.WatchProgress, error) {
+	result := make(map[int64]*progress.WatchProgress)
+	for _, p := range m.progresses {
+		if p.UserID == userID {
+			for _, mediaID := range mediaIDs {
+				if p.MediaID == mediaID {
+					result[mediaID] = p
+					break
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
 func (m *mockRepository) ListByUserID(ctx context.Context, userID int64, limit, offset int) ([]*progress.WatchProgress, error) {
 	var result []*progress.WatchProgress
 	for _, p := range m.progresses {

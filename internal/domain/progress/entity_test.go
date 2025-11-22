@@ -8,8 +8,8 @@ import (
 func TestGetProgressPercentage(t *testing.T) {
 	tests := []struct {
 		name     string
-		progress int
-		duration int
+		progress float64
+		duration float64
 		want     float64
 	}{
 		{
@@ -70,8 +70,8 @@ func TestGetProgressPercentage(t *testing.T) {
 func TestShouldMarkWatched(t *testing.T) {
 	tests := []struct {
 		name     string
-		progress int
-		duration int
+		progress float64
+		duration float64
 		want     bool
 	}{
 		{
@@ -138,7 +138,7 @@ func TestShouldMarkWatched(t *testing.T) {
 			}
 			got := wp.ShouldMarkWatched()
 			if got != tt.want {
-				t.Errorf("ShouldMarkWatched() = %v, want %v (progress=%d, duration=%d, percentage=%.2f)",
+				t.Errorf("ShouldMarkWatched() = %v, want %v (progress=%.2f, duration=%.2f, percentage=%.2f)",
 					got, tt.want, tt.progress, tt.duration, wp.GetProgressPercentage())
 			}
 		})
@@ -148,11 +148,11 @@ func TestShouldMarkWatched(t *testing.T) {
 func TestUpdateProgress(t *testing.T) {
 	tests := []struct {
 		name            string
-		initialProgress int
+		initialProgress float64
 		initialWatched  bool
-		newProgress     int
-		duration        int
-		wantProgress    int
+		newProgress     float64
+		duration        float64
+		wantProgress    float64
 		wantWatched     bool
 	}{
 		{
