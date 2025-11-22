@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -513,7 +512,7 @@ func (uc *ScanLibraryUseCase) resumeScanFromCheckpoints(ctx context.Context, job
 	uc.processFilesWithCheckpoints(ctx, jobID, lib, hashingDone)
 }
 
-// processFilesWithCheckpoints processes files in batches using checkpoints
+// processFilesWithCheckpoints processes files in batches using checkpoints with parallel workers
 // hashingDone channel signals when checkpoint creation is complete
 func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, jobID int64, lib *library.Library, hashingDone <-chan struct{}) {
 	const batchSize = 50
@@ -521,8 +520,36 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 	updateTicker := time.NewTicker(2 * time.Second)
 	defer updateTicker.Stop()
 
+	// Determine number of concurrent workers from system profile
+	numWorkers := 4 // Conservative default
+	if uc.systemProfile != nil {
+		settings := uc.systemProfile.Calculate()
+		numWorkers = settings.ProcessingWorkers
+		uc.logger.Info("using parallel checkpoint processing",
+			"workers", numWorkers,
+			"storage_type", uc.systemProfile.Storage.Type)
+	}
+
+	// Track found files (thread-safe with mutex)
+	var foundFilesMu sync.Mutex
 	foundFiles := make(map[string]bool)
 
+	// Worker pool: checkpoints channel -> workers -> completion
+	checkpointsChan := make(chan *scanner.ScanCheckpoint, batchSize*2)
+	var workerWg sync.WaitGroup
+
+	// Start worker goroutines
+	for w := 0; w < numWorkers; w++ {
+		workerWg.Add(1)
+		go func(workerID int) {
+			defer workerWg.Done()
+			for checkpoint := range checkpointsChan {
+				uc.processCheckpointWorker(ctx, lib, checkpoint, maxRetries, &foundFilesMu, foundFiles)
+			}
+		}(w)
+	}
+
+	// Main loop: fetch batches and feed to workers
 	for {
 		// Get next batch of pending files
 		batch, err := uc.checkpointRepo.GetPendingBatch(ctx, jobID, batchSize)
@@ -548,87 +575,9 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 			}
 		}
 
-		// Process each file in the batch
+		// Send checkpoints to worker pool
 		for _, checkpoint := range batch {
-			// Mark as processing
-			if err := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointProcessing, "", ""); err != nil {
-				uc.logger.Error("failed to mark checkpoint as processing",
-					"checkpoint_id", checkpoint.ID,
-					"file_path", checkpoint.FilePath,
-					"error", err)
-				continue // Skip this file, will retry in next batch
-			}
-
-			// Process the file
-			err := uc.processFileWithCheckpoint(ctx, lib, checkpoint)
-
-			if err != nil {
-				// Categorize the error
-				category := scanner.CategorizeError(err)
-
-				// Check if error is transient and we haven't exceeded max retries
-				if scanner.IsTransientError(err) && checkpoint.RetryCount < maxRetries {
-					// Increment retry count
-					checkpoint.RetryCount++
-					if retryErr := uc.checkpointRepo.UpdateRetryCount(ctx, checkpoint.ID, checkpoint.RetryCount); retryErr != nil {
-						uc.logger.Error("failed to update retry count",
-							"checkpoint_id", checkpoint.ID,
-							"file_path", checkpoint.FilePath,
-							"retry_count", checkpoint.RetryCount,
-							"error", retryErr)
-					}
-
-					// Calculate exponential backoff: 2^retryCount seconds (1s, 2s, 4s)
-					backoffDuration := time.Duration(math.Pow(2, float64(checkpoint.RetryCount))) * time.Second
-					uc.logger.Info("retrying file after transient error",
-						"file_path", checkpoint.FilePath,
-						"retry_count", checkpoint.RetryCount,
-						"max_retries", maxRetries,
-						"backoff_duration", backoffDuration,
-						"error", err)
-
-					// Wait with exponential backoff
-					time.Sleep(backoffDuration)
-
-					// Reset to pending for retry
-					if statusErr := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointPending, "", ""); statusErr != nil {
-						uc.logger.Error("failed to reset checkpoint to pending for retry",
-							"checkpoint_id", checkpoint.ID,
-							"file_path", checkpoint.FilePath,
-							"error", statusErr)
-					}
-				} else {
-					// Either not transient or max retries exceeded - mark as failed
-					if statusErr := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointFailed, err.Error(), category); statusErr != nil {
-						uc.logger.Error("failed to mark checkpoint as failed",
-							"checkpoint_id", checkpoint.ID,
-							"file_path", checkpoint.FilePath,
-							"error", statusErr)
-					}
-					if checkpoint.RetryCount >= maxRetries {
-						uc.logger.Error("max retries exceeded",
-							"file_path", checkpoint.FilePath,
-							"error_category", category,
-							"retry_count", checkpoint.RetryCount,
-							"error", err)
-					} else {
-						uc.logger.Error("failed to process file",
-							"file_path", checkpoint.FilePath,
-							"error_category", category,
-							"error", err)
-					}
-				}
-			} else {
-				// Mark as completed
-				if statusErr := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointCompleted, "", ""); statusErr != nil {
-					uc.logger.Error("failed to mark checkpoint as completed",
-						"checkpoint_id", checkpoint.ID,
-						"file_path", checkpoint.FilePath,
-						"error", statusErr)
-					// Continue anyway - file was processed successfully, just status update failed
-				}
-				foundFiles[checkpoint.FilePath] = true
-			}
+			checkpointsChan <- checkpoint
 		}
 
 		// Periodic progress update
@@ -644,6 +593,10 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		default:
 		}
 	}
+
+	// Close checkpoint channel and wait for all workers to finish
+	close(checkpointsChan)
+	workerWg.Wait()
 
 	// Get final stats
 	stats, _ := uc.checkpointRepo.GetStats(ctx, jobID)
@@ -765,6 +718,100 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 	}
 
 	return nil
+}
+
+// processCheckpointWorker handles individual checkpoint processing in a worker goroutine
+// This allows parallel FFprobe execution to overcome I/O latency on network storage
+func (uc *ScanLibraryUseCase) processCheckpointWorker(
+	ctx context.Context,
+	lib *library.Library,
+	checkpoint *scanner.ScanCheckpoint,
+	maxRetries int,
+	foundFilesMu *sync.Mutex,
+	foundFiles map[string]bool,
+) {
+	// Mark as processing
+	if err := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointProcessing, "", ""); err != nil {
+		uc.logger.Error("failed to mark checkpoint as processing",
+			"checkpoint_id", checkpoint.ID,
+			"file_path", checkpoint.FilePath,
+			"error", err)
+		return
+	}
+
+	// Process the file
+	err := uc.processFileWithCheckpoint(ctx, lib, checkpoint)
+
+	if err != nil {
+		// Categorize the error
+		category := scanner.CategorizeError(err)
+
+		// Check if error is transient and we haven't exceeded max retries
+		if scanner.IsTransientError(err) && checkpoint.RetryCount < maxRetries {
+			// Increment retry count
+			checkpoint.RetryCount++
+			if retryErr := uc.checkpointRepo.UpdateRetryCount(ctx, checkpoint.ID, checkpoint.RetryCount); retryErr != nil {
+				uc.logger.Error("failed to update retry count",
+					"checkpoint_id", checkpoint.ID,
+					"file_path", checkpoint.FilePath,
+					"retry_count", checkpoint.RetryCount,
+					"error", retryErr)
+			}
+
+			// Calculate exponential backoff: 2^retryCount seconds (1s, 2s, 4s)
+			backoffDuration := time.Duration(1<<checkpoint.RetryCount) * time.Second
+			uc.logger.Info("retrying file after transient error",
+				"file_path", checkpoint.FilePath,
+				"retry_count", checkpoint.RetryCount,
+				"max_retries", maxRetries,
+				"backoff_duration", backoffDuration,
+				"error", err)
+
+			// Wait with exponential backoff
+			time.Sleep(backoffDuration)
+
+			// Reset to pending for retry
+			if statusErr := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointPending, "", ""); statusErr != nil {
+				uc.logger.Error("failed to reset checkpoint to pending for retry",
+					"checkpoint_id", checkpoint.ID,
+					"file_path", checkpoint.FilePath,
+					"error", statusErr)
+			}
+		} else {
+			// Either not transient or max retries exceeded - mark as failed
+			if statusErr := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointFailed, err.Error(), category); statusErr != nil {
+				uc.logger.Error("failed to mark checkpoint as failed",
+					"checkpoint_id", checkpoint.ID,
+					"file_path", checkpoint.FilePath,
+					"error", statusErr)
+			}
+			if checkpoint.RetryCount >= maxRetries {
+				uc.logger.Error("max retries exceeded",
+					"file_path", checkpoint.FilePath,
+					"error_category", category,
+					"retry_count", checkpoint.RetryCount,
+					"error", err)
+			} else {
+				uc.logger.Error("failed to process file",
+					"file_path", checkpoint.FilePath,
+					"error_category", category,
+					"error", err)
+			}
+		}
+	} else {
+		// Mark as completed
+		if statusErr := uc.checkpointRepo.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointCompleted, "", ""); statusErr != nil {
+			uc.logger.Error("failed to mark checkpoint as completed",
+				"checkpoint_id", checkpoint.ID,
+				"file_path", checkpoint.FilePath,
+				"error", statusErr)
+			// Continue anyway - file was processed successfully, just status update failed
+		}
+		// Thread-safe update of found files
+		foundFilesMu.Lock()
+		foundFiles[checkpoint.FilePath] = true
+		foundFilesMu.Unlock()
+	}
 }
 
 // completeJobWithError marks a job as failed

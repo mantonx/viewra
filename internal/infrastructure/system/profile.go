@@ -117,8 +117,15 @@ func (p *Profile) Calculate() RecommendedSettings {
 		settings.HashWorkers = max(p.CPU.NumPhysical/2, 4)
 	}
 
-	// Processing workers: lighter workload, fewer workers needed
-	settings.ProcessingWorkers = max(p.CPU.NumPhysical/4, 2)
+	// Processing workers: FFprobe is I/O-bound, can run many concurrent processes
+	// Network storage benefits from high parallelism to overcome latency
+	if p.Storage.IsRemote {
+		// Network storage: I/O latency dominates, use more workers
+		settings.ProcessingWorkers = max(p.CPU.NumPhysical/2, 8)
+	} else {
+		// Local storage: Balance CPU and I/O
+		settings.ProcessingWorkers = max(p.CPU.NumPhysical/4, 4)
+	}
 
 	// Transcode workers: CPU-intensive, limit based on physical cores
 	// Reserve cores for system and other tasks
