@@ -119,9 +119,11 @@ func (p *Profile) Calculate() RecommendedSettings {
 
 	// Processing workers: FFprobe is I/O-bound, can run many concurrent processes
 	// Network storage benefits from high parallelism to overcome latency
+	// Conservative approach: Leave headroom for system and other tasks
 	if p.Storage.IsRemote {
-		// Network storage: I/O latency dominates, use more workers
-		settings.ProcessingWorkers = max(p.CPU.NumPhysical/2, 8)
+		// Network storage: I/O latency dominates, use moderate parallelism
+		// Reserve ~25% of cores for system (16 cores -> 4 workers, 8 cores -> 4 workers)
+		settings.ProcessingWorkers = max(p.CPU.NumPhysical/4, 4)
 	} else {
 		// Local storage: Balance CPU and I/O
 		settings.ProcessingWorkers = max(p.CPU.NumPhysical/4, 4)
