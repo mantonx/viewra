@@ -6,7 +6,7 @@ import { SeasonCard } from '@/components/tv'
 import { PageHeader, LoadingPage, ErrorPage, EmptyState } from '@/components/common'
 import { tvApi } from '@/lib/api/tv'
 import type { SeasonGroup } from '@/lib/types/tv'
-import type { GithubComViewraViewraInternalApplicationTvTVEpisodeResponse } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse } from '@/lib/api/generated/models'
 
 const ShowDetail = () => {
   const navigate = useNavigate()
@@ -40,7 +40,7 @@ const ShowDetail = () => {
   const seasons = useMemo(() => {
     const seasonMap = new Map<number, SeasonGroup>()
 
-    allEpisodes.forEach((episode: GithubComViewraViewraInternalApplicationTvTVEpisodeResponse) => {
+    allEpisodes.forEach((episode: GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse) => {
       const seasonNum = episode.season ?? 0
       if (!seasonMap.has(seasonNum)) {
         seasonMap.set(seasonNum, {

@@ -2,7 +2,7 @@
  * Media-related utility functions
  */
 
-import type { GithubComViewraViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
 /**
  * Finds a media item by ID from a list of media items.

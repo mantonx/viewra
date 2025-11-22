@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useGetApiFilesystemBrowse } from '@/lib/api'
-import type { GetApiFilesystemBrowseParams, GithubComViewraViewraInternalDomainLibraryBrowseResult } from '@/lib/api'
+import type { GetApiFilesystemBrowseParams, GithubComMantonxViewraInternalDomainLibraryBrowseResult } from '@/lib/api'
 
 /**
  * Hook for browsing the filesystem during library path selection
@@ -32,7 +32,7 @@ const useFilesystemBrowser = (initialPath?: string) => {
   // Handle both wrapped ({ data, status }) and unwrapped (direct BrowseResult) responses
   const browseResult = response?.status === 200
     ? response.data
-    : (response as unknown as GithubComViewraViewraInternalDomainLibraryBrowseResult | undefined)
+    : (response as unknown as GithubComMantonxViewraInternalDomainLibraryBrowseResult | undefined)
 
   // Navigation methods
   const navigateToPath = useCallback((path: string) => {

@@ -6,8 +6,8 @@
 import { getApiMovies } from '../api/generated/movies/movies'
 import { useInfiniteMedia, flattenPages } from './useInfiniteMedia'
 import type {
-  GithubComViewraViewraInternalApplicationMoviesMovieResponse,
-  GithubComViewraViewraInternalApplicationMoviesListMoviesResponse,
+  GithubComMantonxViewraInternalApplicationMoviesMovieResponse,
+  GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse,
 } from '../api/generated/models'
 
 export interface UseInfiniteMoviesOptions {
@@ -22,9 +22,9 @@ export const useInfiniteMovies = ({ libraryId, sort, enabled = true, pageSize }:
   const queryFn = async (
     params: { library_id: number; sort?: string; limit?: number; offset?: number },
     options?: RequestInit
-  ): Promise<{ data: GithubComViewraViewraInternalApplicationMoviesListMoviesResponse; status: number; headers: Headers }> => {
+  ): Promise<{ data: GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse; status: number; headers: Headers }> => {
     const response = await getApiMovies(params, options)
-    return response as { data: GithubComViewraViewraInternalApplicationMoviesListMoviesResponse; status: number; headers: Headers }
+    return response as { data: GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse; status: number; headers: Headers }
   }
 
   return useInfiniteMedia({
@@ -41,8 +41,8 @@ export const useInfiniteMovies = ({ libraryId, sort, enabled = true, pageSize }:
  */
 export const flattenMovies = (
   pages: Array<{
-    movies?: GithubComViewraViewraInternalApplicationMoviesMovieResponse[]
+    movies?: GithubComMantonxViewraInternalApplicationMoviesMovieResponse[]
   }> = []
 ) => {
-  return flattenPages<GithubComViewraViewraInternalApplicationMoviesMovieResponse>(pages, 'movies')
+  return flattenPages<GithubComMantonxViewraInternalApplicationMoviesMovieResponse>(pages, 'movies')
 }

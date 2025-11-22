@@ -3,7 +3,7 @@ import { selectBestQuality } from '../utils/quality'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
-import type { GithubComViewraViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
 type TranscodeState = 'idle' | 'checking' | 'ready' | 'direct'
 

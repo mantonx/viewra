@@ -1,6 +1,6 @@
 import type {
-  GithubComViewraViewraInternalApplicationProgressWatchProgressResponse as WatchProgressResponse,
-  GithubComViewraViewraInternalApplicationProgressListProgressResponse as ListProgressResponse,
+  GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse as WatchProgressResponse,
+  GithubComMantonxViewraInternalApplicationProgressListProgressResponse as ListProgressResponse,
 } from '../api/generated/models'
 
 // Type guards for API responses

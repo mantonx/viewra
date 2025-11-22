@@ -1,4 +1,4 @@
-import type { GithubComViewraViewraInternalApplicationMediaMediaResponse as Media } from '../api/generated/models';
+import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '../api/generated/models';
 
 /**
  * Quality levels supported by the transcoding system

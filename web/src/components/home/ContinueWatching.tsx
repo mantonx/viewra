@@ -4,7 +4,7 @@ import { getGetApiMediaQueryOptions } from '@/lib/api'
 import { MediaCard } from '@/components/media'
 import { Loading } from '@/components/ui'
 import { extractMedia } from '@/lib/utils/api'
-import type { GithubComViewraViewraInternalApplicationMediaMediaResponse } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse } from '@/lib/api/generated/models'
 
 export const ContinueWatching = () => {
   const { data: progressData, isLoading: isLoadingProgress } = useInProgressList({ limit: 20 })
@@ -24,7 +24,7 @@ export const ContinueWatching = () => {
       const mediaItem = allMedia.find((m) => m.id === progressItem.media_id)
       return mediaItem
     })
-    .filter((item): item is GithubComViewraViewraInternalApplicationMediaMediaResponse =>
+    .filter((item): item is GithubComMantonxViewraInternalApplicationMediaMediaResponse =>
       Boolean(item)
     )
 

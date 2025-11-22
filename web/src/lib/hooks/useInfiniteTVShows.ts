@@ -4,7 +4,7 @@
  */
 
 import type {
-  GithubComViewraViewraInternalApplicationTvTVShowSummary,
+  GithubComMantonxViewraInternalApplicationTvTVShowSummary,
 } from '../api/generated/models'
 import { getApiTvShows } from '../api/generated/tv/tv'
 import { flattenPages, useInfiniteMedia } from './useInfiniteMedia'
@@ -37,8 +37,8 @@ export const useInfiniteTVShows = ({
  */
 export const flattenTVShows = (
   pages: Array<{
-    shows?: GithubComViewraViewraInternalApplicationTvTVShowSummary[]
+    shows?: GithubComMantonxViewraInternalApplicationTvTVShowSummary[]
   }> = []
 ) => {
-  return flattenPages<GithubComViewraViewraInternalApplicationTvTVShowSummary>(pages, 'shows')
+  return flattenPages<GithubComMantonxViewraInternalApplicationTvTVShowSummary>(pages, 'shows')
 }

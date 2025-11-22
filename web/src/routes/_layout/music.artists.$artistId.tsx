@@ -4,7 +4,7 @@ import { Card, CardContent, Button } from '@/components/ui'
 import { AlbumCard } from '@/components/music'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
 import { musicApi } from '@/lib/api/music'
-import type { GithubComViewraViewraInternalApplicationMusicAlbumSummary } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationMusicAlbumSummary } from '@/lib/api/generated/models'
 
 const ArtistDetail = () => {
   const navigate = useNavigate()
@@ -20,7 +20,7 @@ const ArtistDetail = () => {
     queryFn: () => musicApi.listAlbumsByArtistID(artistIdNum),
   })
 
-  const albums: GithubComViewraViewraInternalApplicationMusicAlbumSummary[] =
+  const albums: GithubComMantonxViewraInternalApplicationMusicAlbumSummary[] =
     (albumsData?.data && 'albums' in albumsData.data) ? albumsData.data.albums || [] : []
 
   // Get artist name from first album
@@ -74,7 +74,7 @@ const ArtistDetail = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {albums
             .filter((album) => album.id !== undefined)
-            .map((album: GithubComViewraViewraInternalApplicationMusicAlbumSummary) => (
+            .map((album: GithubComMantonxViewraInternalApplicationMusicAlbumSummary) => (
               <AlbumCard
                 key={album.id}
                 album={album}

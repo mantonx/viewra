@@ -1,7 +1,7 @@
-import type { GithubComViewraViewraInternalApplicationLibraryLibraryResponse } from '@/lib/api'
+import type { GithubComMantonxViewraInternalApplicationLibraryLibraryResponse } from '@/lib/api'
 
 interface LibraryCardProps {
-  library: GithubComViewraViewraInternalApplicationLibraryLibraryResponse
+  library: GithubComMantonxViewraInternalApplicationLibraryLibraryResponse
 }
 
 export type { LibraryCardProps }

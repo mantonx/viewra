@@ -6,8 +6,8 @@
 import { getApiMusicArtists } from '../api/generated/music/music'
 import { useInfiniteMedia, flattenPages } from './useInfiniteMedia'
 import type {
-  GithubComViewraViewraInternalApplicationMusicArtistSummary,
-  GithubComViewraViewraInternalApplicationMusicListArtistsResponse,
+  GithubComMantonxViewraInternalApplicationMusicArtistSummary,
+  GithubComMantonxViewraInternalApplicationMusicListArtistsResponse,
 } from '../api/generated/models'
 
 export interface UseInfiniteArtistsOptions {
@@ -22,9 +22,9 @@ export const useInfiniteArtists = ({ libraryId, sort, enabled = true, pageSize }
   const queryFn = async (
     params: { library_id: number; sort?: string; limit?: number; offset?: number },
     options?: RequestInit
-  ): Promise<{ data: GithubComViewraViewraInternalApplicationMusicListArtistsResponse; status: number; headers: Headers }> => {
+  ): Promise<{ data: GithubComMantonxViewraInternalApplicationMusicListArtistsResponse; status: number; headers: Headers }> => {
     const response = await getApiMusicArtists(params, options)
-    return response as { data: GithubComViewraViewraInternalApplicationMusicListArtistsResponse; status: number; headers: Headers }
+    return response as { data: GithubComMantonxViewraInternalApplicationMusicListArtistsResponse; status: number; headers: Headers }
   }
 
   return useInfiniteMedia({
@@ -41,8 +41,8 @@ export const useInfiniteArtists = ({ libraryId, sort, enabled = true, pageSize }
  */
 export const flattenArtists = (
   pages: Array<{
-    artists?: GithubComViewraViewraInternalApplicationMusicArtistSummary[]
+    artists?: GithubComMantonxViewraInternalApplicationMusicArtistSummary[]
   }> = []
 ) => {
-  return flattenPages<GithubComViewraViewraInternalApplicationMusicArtistSummary>(pages, 'artists')
+  return flattenPages<GithubComMantonxViewraInternalApplicationMusicArtistSummary>(pages, 'artists')
 }

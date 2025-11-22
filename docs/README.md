@@ -8,9 +8,9 @@
 
 **New to ViewRA?** Start here:
 1. **[README.md](../README.md)** - Project overview
-2. **[ARCHITECTURE.md](core/ARCHITECTURE.md)** - Understand the system design
-3. **[QUICK_REFERENCE.md](development/QUICK_REFERENCE.md)** - Essential commands
-4. **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - Current implementation status
+2. **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - Current status and what's actually working
+3. **[ARCHITECTURE.md](core/ARCHITECTURE.md)** - Understand the system design
+4. **[QUICK_REFERENCE.md](development/QUICK_REFERENCE.md)** - Essential commands
 
 ---
 
@@ -42,9 +42,9 @@
 
 **Where we are and where we're going**
 
-- **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - Current phase, recent work, implementation metrics
-- **[PROJECT_PLAN.md](planning/PROJECT_PLAN.md)** - Complete 8-phase roadmap with detailed tasks
-- **[ROADMAP.md](planning/ROADMAP.md)** - Historical implementation timeline and milestones
+- **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - Single source of truth for current status
+- **[PROJECT_PLAN.md](planning/PROJECT_PLAN.md)** - Remaining work and future phases
+- **[ROADMAP.md](archive/ROADMAP.md)** - Historical timeline (archived)
 
 ---
 
@@ -102,10 +102,10 @@ Key decisions:
 **Essential reading for Claude and other AI assistants**
 
 ### Core Understanding
-1. **[ARCHITECTURE.md](core/ARCHITECTURE.md)** - Understand DDD layers, file organization, dependency flow
-2. **[CONVENTIONS.md](development/CONVENTIONS.md)** - Code style rules, naming patterns, file structure
-3. **[DATABASE_SCHEMA.md](core/DATABASE_SCHEMA.md)** - Table structures, relationships, query patterns
-4. **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - What phase we're in, what's been done
+1. **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - What actually works vs what doesn't (reality-checked)
+2. **[ARCHITECTURE.md](core/ARCHITECTURE.md)** - Understand DDD layers, file organization, dependency flow
+3. **[CONVENTIONS.md](development/CONVENTIONS.md)** - Code style rules, naming patterns, file structure
+4. **[DATABASE_SCHEMA.md](core/DATABASE_SCHEMA.md)** - Table structures, relationships, query patterns
 
 ### Code Organization Rules
 - **Domain layer**: NO external dependencies, only business logic and interfaces
@@ -154,4 +154,24 @@ See [decisions/README.md](decisions/README.md) for the ADR template and numberin
 
 ---
 
-**Last Updated**: 2025-11-21
+---
+
+## Recent Changes (Nov 22, 2025)
+
+**Documentation Reorganization**:
+- Moved ROADMAP.md to archive (historical reference)
+- Updated PROJECT_STATUS.md with honest, evidence-based assessments
+- Simplified PROJECT_PLAN.md to focus on remaining work
+- Established three-tier status system: ✅ Complete | ⚠️ Partial | ❌ Not Started
+
+**Key Insights**:
+- Type-specific repositories fully implemented (Nov 22, 2025) - metadata now persisted
+- Image caching is working perfectly (16,300+ cached WebP files)
+- Test infrastructure is solid (188+ tests, 100% passing)
+- Clean Architecture patterns consistently applied throughout
+
+See [PROJECT_STATUS.md](planning/PROJECT_STATUS.md) for full details.
+
+---
+
+**Last Updated**: 2025-11-22

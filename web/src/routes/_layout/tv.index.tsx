@@ -5,7 +5,7 @@ import { MediaBrowsePage } from '@/components/common'
 import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvider } from '@/lib/hooks'
 import { tvApi } from '@/lib/api/tv'
 import type { ViewMode } from '@/components/common'
-import type { GithubComViewraViewraInternalApplicationTvTVShowSummary } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationTvTVShowSummary } from '@/lib/api/generated/models'
 
 const TVShows = () => {
   const navigate = useNavigate()
@@ -57,7 +57,7 @@ const TVShows = () => {
     isFetchingNextPage,
   } = useInfiniteTVShows({ libraryId, sort: apiSort })
 
-  const allShows = data ? flattenTVShows(data.pages as Array<{ shows?: GithubComViewraViewraInternalApplicationTvTVShowSummary[] }>) : []
+  const allShows = data ? flattenTVShows(data.pages as Array<{ shows?: GithubComMantonxViewraInternalApplicationTvTVShowSummary[] }>) : []
 
   // Infinite scroll: Detect when user scrolls near bottom
   const observerTarget = useRef<HTMLDivElement>(null)
@@ -121,7 +121,7 @@ const TVShows = () => {
         data={allShows}
         isLoading={isLoading}
         error={error}
-        renderItem={(show: GithubComViewraViewraInternalApplicationTvTVShowSummary) => (
+        renderItem={(show: GithubComMantonxViewraInternalApplicationTvTVShowSummary) => (
           <TVShowCard
             key={show.id}
             show={show}
@@ -129,7 +129,7 @@ const TVShows = () => {
             onPlay={() => show.id && handlePlayShow(show.id)}
           />
         )}
-        renderListItem={(show: GithubComViewraViewraInternalApplicationTvTVShowSummary) => (
+        renderListItem={(show: GithubComMantonxViewraInternalApplicationTvTVShowSummary) => (
           <TVShowListItem
             key={show.id}
             show={show}

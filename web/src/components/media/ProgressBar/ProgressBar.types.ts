@@ -1,5 +1,5 @@
-import type { GithubComViewraViewraInternalApplicationProgressWatchProgressResponse } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse } from '@/lib/api/generated/models'
 
 export interface ProgressBarProps {
-  progress?: GithubComViewraViewraInternalApplicationProgressWatchProgressResponse | null
+  progress?: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse | null
 }

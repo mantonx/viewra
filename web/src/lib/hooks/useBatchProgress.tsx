@@ -11,7 +11,7 @@ import type { ReactNode } from 'react'
 import { createContext, useContext, useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { progressApi } from '@/lib/api'
-import type { GithubComViewraViewraInternalApplicationProgressWatchProgressResponse as WatchProgressResponse } from '@/lib/api/generated/models'
+import type { GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse as WatchProgressResponse } from '@/lib/api/generated/models'
 
 interface BatchProgressContextValue {
   progress: Record<number, WatchProgressResponse>

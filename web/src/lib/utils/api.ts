@@ -7,9 +7,9 @@
  */
 
 import type {
-  GithubComViewraViewraInternalApplicationLibraryLibraryResponse,
-  GithubComViewraViewraInternalApplicationMediaMediaResponse,
-  GithubComViewraViewraInternalApplicationProgressWatchProgressResponse,
+  GithubComMantonxViewraInternalApplicationLibraryLibraryResponse,
+  GithubComMantonxViewraInternalApplicationMediaMediaResponse,
+  GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse,
 } from '@/lib/api/generated/models'
 
 /**
@@ -38,21 +38,21 @@ const isArray = (value: unknown): value is unknown[] => {
  */
 export const extractLibraries = (
   response: unknown
-): GithubComViewraViewraInternalApplicationLibraryLibraryResponse[] => {
+): GithubComMantonxViewraInternalApplicationLibraryLibraryResponse[] => {
   if (!isObject(response)) {
     return []
   }
 
   // Check for direct libraries property
   if ('libraries' in response && isArray(response.libraries)) {
-    return response.libraries as GithubComViewraViewraInternalApplicationLibraryLibraryResponse[]
+    return response.libraries as GithubComMantonxViewraInternalApplicationLibraryLibraryResponse[]
   }
 
   // Check for nested data.libraries property
   if ('data' in response && isObject(response.data)) {
     if ('libraries' in response.data && isArray(response.data.libraries)) {
       return response.data
-        .libraries as GithubComViewraViewraInternalApplicationLibraryLibraryResponse[]
+        .libraries as GithubComMantonxViewraInternalApplicationLibraryLibraryResponse[]
     }
   }
 
@@ -71,20 +71,20 @@ export const extractLibraries = (
  */
 export const extractMedia = (
   response: unknown
-): GithubComViewraViewraInternalApplicationMediaMediaResponse[] => {
+): GithubComMantonxViewraInternalApplicationMediaMediaResponse[] => {
   if (!isObject(response)) {
     return []
   }
 
   // Check for direct media property
   if ('media' in response && isArray(response.media)) {
-    return response.media as GithubComViewraViewraInternalApplicationMediaMediaResponse[]
+    return response.media as GithubComMantonxViewraInternalApplicationMediaMediaResponse[]
   }
 
   // Check for nested data.media property
   if ('data' in response && isObject(response.data)) {
     if ('media' in response.data && isArray(response.data.media)) {
-      return response.data.media as GithubComViewraViewraInternalApplicationMediaMediaResponse[]
+      return response.data.media as GithubComMantonxViewraInternalApplicationMediaMediaResponse[]
     }
   }
 
@@ -103,21 +103,21 @@ export const extractMedia = (
  */
 export const extractProgress = (
   response: unknown
-): GithubComViewraViewraInternalApplicationProgressWatchProgressResponse[] => {
+): GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse[] => {
   if (!isObject(response)) {
     return []
   }
 
   // Check for direct progress property
   if ('progress' in response && isArray(response.progress)) {
-    return response.progress as GithubComViewraViewraInternalApplicationProgressWatchProgressResponse[]
+    return response.progress as GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse[]
   }
 
   // Check for nested data.progress property
   if ('data' in response && isObject(response.data)) {
     if ('progress' in response.data && isArray(response.data.progress)) {
       return response.data
-        .progress as GithubComViewraViewraInternalApplicationProgressWatchProgressResponse[]
+        .progress as GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse[]
     }
   }
 
@@ -137,7 +137,7 @@ export const extractProgress = (
  */
 export const getLibraryId = (
   selectedLibrary: string,
-  libraries: GithubComViewraViewraInternalApplicationLibraryLibraryResponse[],
+  libraries: GithubComMantonxViewraInternalApplicationLibraryLibraryResponse[],
   libraryType: 'movies' | 'tv' | 'music'
 ): number => {
   // If a specific library is selected, use it
@@ -162,8 +162,8 @@ export const getLibraryId = (
  * @returns Filtered array of libraries
  */
 export const filterLibrariesByType = (
-  libraries: GithubComViewraViewraInternalApplicationLibraryLibraryResponse[],
+  libraries: GithubComMantonxViewraInternalApplicationLibraryLibraryResponse[],
   libraryType: 'movies' | 'tv' | 'music'
-): GithubComViewraViewraInternalApplicationLibraryLibraryResponse[] => {
+): GithubComMantonxViewraInternalApplicationLibraryLibraryResponse[] => {
   return libraries.filter(lib => lib.type === libraryType)
 }

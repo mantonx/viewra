@@ -11,9 +11,9 @@ import {
   getApiProgressInProgress,
 } from '../api/generated/progress/progress';
 import type {
-  GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest as UpdateProgressRequest,
-  GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest as MarkWatchedRequest,
-  GithubComViewraViewraInternalApplicationProgressWatchProgressResponse as WatchProgressResponse,
+  GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequest as UpdateProgressRequest,
+  GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest as MarkWatchedRequest,
+  GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse as WatchProgressResponse,
 } from '../api/generated/models';
 import { extractProgressData, extractListProgressData } from '../utils/progress';
 
