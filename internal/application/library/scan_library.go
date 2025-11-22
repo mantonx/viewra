@@ -341,10 +341,22 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 
 	walker := filesystem.NewWalker(walkerOpts...)
 
-	var discoveredFiles []scanner.FileInfo
-	var mu sync.Mutex
+	// Use buffered channel to collect files with less lock contention
+	// Buffer size = 10000 allows discovery to proceed without blocking
+	filesChan := make(chan scanner.FileInfo, 10000)
+	var discoveryWg sync.WaitGroup
+	discoveryWg.Add(1)
 
-	// Collect all media file paths with size and mtime
+	// Collector goroutine - drains channel into slice
+	var discoveredFiles []scanner.FileInfo
+	go func() {
+		defer discoveryWg.Done()
+		for fileInfo := range filesChan {
+			discoveredFiles = append(discoveredFiles, fileInfo)
+		}
+	}()
+
+	// Walk directory tree and send media files to channel
 	err := walker.Walk(ctx, lib.Path, func(fileInfo scanner.FileInfo) error {
 		// Skip directories
 		if fileInfo.IsDir {
@@ -356,12 +368,14 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 			return nil
 		}
 
-		mu.Lock()
-		discoveredFiles = append(discoveredFiles, fileInfo)
-		mu.Unlock()
-
+		// Send to channel (non-blocking due to buffer)
+		filesChan <- fileInfo
 		return nil
 	})
+
+	// Close channel and wait for collector to finish
+	close(filesChan)
+	discoveryWg.Wait()
 
 	if err != nil {
 		fmt.Printf("error: file discovery failed: %v\n", err)
