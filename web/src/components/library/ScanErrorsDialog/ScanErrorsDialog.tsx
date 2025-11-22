@@ -3,12 +3,14 @@ import {
   useGetApiLibrariesIdScanJobIdErrors,
   usePostApiLibrariesIdScanJobIdRetryFailed,
   type InternalApiHandlersScanErrorDetail,
-  type InternalApiHandlersScanErrorsResponse,
   type InternalApiHandlersRetryFailedResponse,
 } from '@/lib/api'
 import { Modal, Button, Loading, Alert } from '@/components/ui'
 import { useToast } from '@/lib/hooks/useToast'
 import { getErrorMessage } from '@/lib/utils/error'
+import { formatFileSize, pluralize } from '@/lib/utils/format'
+import { isScanErrorsResponse } from '@/lib/utils/type-guards'
+import { ERROR_CATEGORY_COLORS } from '@/lib/constants/scan'
 import type { ScanErrorsDialogProps } from './ScanErrorsDialog.types'
 
 const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }: ScanErrorsDialogProps) => {
@@ -33,7 +35,6 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
         id: libraryId,
         jobId,
       })
-      // Type guard for retry response
       const retryData = response.data as InternalApiHandlersRetryFailedResponse
       toast.success(retryData.message || `${retryData.count} files queued for retry`)
       onRetrySuccess?.()
@@ -43,35 +44,14 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
     }
   }
 
-  // Type guard to check if response is successful
-  const isScanErrorsResponse = (data: any): data is InternalApiHandlersScanErrorsResponse => {
-    return data && typeof data.total_errors === 'number' && data.by_category
-  }
-
   const errorData = errors?.data && isScanErrorsResponse(errors.data) ? errors.data : null
 
   const toggleCategory = (category: string) => {
     setExpandedCategory(expandedCategory === category ? null : category)
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
-  }
-
   const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      ffmpeg: 'text-red-600 bg-red-50 border-red-200',
-      parsing: 'text-orange-600 bg-orange-50 border-orange-200',
-      database: 'text-purple-600 bg-purple-50 border-purple-200',
-      filesystem: 'text-blue-600 bg-blue-50 border-blue-200',
-      metadata: 'text-yellow-600 bg-yellow-50 border-yellow-200',
-      unknown: 'text-gray-600 bg-gray-50 border-gray-200',
-    }
-    return colors[category] || colors.unknown
+    return ERROR_CATEGORY_COLORS[category] || ERROR_CATEGORY_COLORS.unknown
   }
 
   return (
@@ -163,7 +143,7 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
       {errorData && (errorData.total_errors ?? 0) > 0 && (
         <div className="mt-6 flex justify-between items-center border-t pt-4">
           <p className="text-sm text-gray-600">
-            {errorData.total_errors ?? 0} file{(errorData.total_errors ?? 0) !== 1 ? 's' : ''} failed during scanning
+            {pluralize(errorData.total_errors, 'file')} failed during scanning
           </p>
           <div className="flex gap-2">
             <Button onClick={onClose} variant="secondary">

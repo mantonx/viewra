@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan, useGetApiLibrariesIdScanStatus, type InternalApiHandlersScanStatusResponse } from '@/lib/api'
+import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan, useGetApiLibrariesIdScanStatus } from '@/lib/api'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { useToast } from '@/lib/hooks/useToast'
 import { useConfirm } from '@/lib/hooks/useConfirm'
 import { getErrorMessage } from '@/lib/utils/error'
+import { pluralize } from '@/lib/utils/format'
+import { isScanStatusResponse } from '@/lib/utils/type-guards'
+import { SCAN_POLL_INTERVAL_MS } from '@/lib/constants/scan'
 import { Button } from '@/components/ui'
 import { ScanErrorsDialog } from '@/components/library/ScanErrorsDialog'
 import type { LibraryCardProps } from './LibraryCard.types'
@@ -22,7 +25,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
     {
       query: {
         enabled: !!library.id,
-        refetchInterval: 5000, // Poll every 5 seconds if scan is running
+        refetchInterval: SCAN_POLL_INTERVAL_MS,
       },
     }
   )
@@ -66,11 +69,6 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
     }
   }
 
-  // Type guard to check if response is a successful scan status
-  const isScanStatusResponse = (data: any): data is InternalApiHandlersScanStatusResponse => {
-    return data && typeof data.error_count === 'number' && typeof data.status === 'string'
-  }
-
   const scanData = scanStatus?.data && isScanStatusResponse(scanStatus.data) ? scanStatus.data : null
   const hasErrors = scanData && (scanData.error_count ?? 0) > 0
   const isScanning = scanData?.status === 'running'
@@ -97,7 +95,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  {scanData.error_count ?? 0} error{(scanData.error_count ?? 0) !== 1 ? 's' : ''}
+                  {pluralize(scanData.error_count, 'error')}
                 </button>
               )}
             </div>

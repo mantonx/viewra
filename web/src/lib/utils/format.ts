@@ -86,4 +86,25 @@ const formatTime = (seconds: number): string => {
   return `${minutes}:${pad(secs)}`
 }
 
-export { formatFileSize, formatDuration, formatDate, formatTime }
+/**
+ * Pluralize a word based on count with optional custom plural form
+ * @param count - Number to determine singular/plural
+ * @param singular - Singular form of the word
+ * @param plural - Optional custom plural form (defaults to singular + 's')
+ * @returns Formatted string with count and properly pluralized word
+ * @example
+ * pluralize(1, 'error') // "1 error"
+ * pluralize(5, 'error') // "5 errors"
+ * pluralize(0, 'file') // "0 files"
+ */
+const pluralize = (
+  count: number | undefined,
+  singular: string,
+  plural?: string
+): string => {
+  const n = count ?? 0
+  const pluralForm = plural ?? `${singular}s`
+  return `${n} ${n !== 1 ? pluralForm : singular}`
+}
+
+export { formatFileSize, formatDuration, formatDate, formatTime, pluralize }
