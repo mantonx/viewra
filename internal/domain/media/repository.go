@@ -226,6 +226,15 @@ type MusicRepository interface {
 
 	// ListArtistsByLibrary retrieves all artist entities in a library
 	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]*Artist, error)
+
+	// CreateMusicTrackWithEntities atomically creates a music track along with artist and album entities if needed
+	// This operation is transactional - all entities are created or none are created
+	// Parameters:
+	//   - track: The music track to create (with Media, Artist, Album fields populated)
+	//   - artist: Optional artist entity (can be nil if track.Artist is empty)
+	//   - album: Optional album entity (can be nil if track.Album is empty)
+	// Returns the created track with updated IDs for artist and album
+	CreateMusicTrackWithEntities(ctx context.Context, track *MusicTrack, artist *Artist, album *Album) error
 }
 
 // MusicArtist represents an artist with aggregated track and album counts

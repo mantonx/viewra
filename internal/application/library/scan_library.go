@@ -1356,6 +1356,7 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 			AudioCodec:      result.AudioCodec,
 			Bitrate:         result.Bitrate,
 			ContainerFormat: result.ContainerFormat,
+			Type:            "music_track",
 			CreatedAt:       time.Now(),
 			UpdatedAt:       time.Now(),
 		},
@@ -1383,77 +1384,11 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		MusicBrainzArtistID: musicBrainzArtistID,
 	}
 
-	// Find or create artist entity if artist info is available
-	var artistID int64
-	if artist != "" {
-		// Try to find existing artist
-		existingArtist, err := uc.musicRepo.FindArtistByName(ctx, libraryID, artist)
-		if err == nil && existingArtist != nil {
-			// Link to existing artist
-			artistID = existingArtist.ID
-		} else {
-			// Create new artist entity
-			newArtist := &media.Artist{
-				LibraryID:           libraryID,
-				Name:                artist,
-				MusicBrainzArtistID: musicBrainzArtistID,
-				Genre:               genre,
-			}
-
-			if err := uc.musicRepo.CreateArtist(ctx, newArtist); err == nil {
-				artistID = newArtist.ID
-			}
-			// If artist creation fails, track will still be created without artist link
-		}
-		track.ArtistID = artistID
-	}
-
-	// Find or create album entity if album info is available
-	if album != "" {
-		// Use album artist if available, otherwise fall back to track artist
-		effectiveAlbumArtist := albumArtist
-		if effectiveAlbumArtist == "" {
-			effectiveAlbumArtist = artist
-		}
-
-		// Try to find existing album
-		existingAlbum, err := uc.musicRepo.FindAlbumByTitle(ctx, libraryID, album, effectiveAlbumArtist)
-		if err == nil && existingAlbum != nil {
-			// Link track to existing album
-			track.AlbumID = existingAlbum.ID
-		} else {
-			// Create new album entity
-			newAlbum := &media.Album{
-				LibraryID:          libraryID,
-				ArtistID:           artistID, // Link album to artist
-				Title:              album,
-				AlbumArtist:        effectiveAlbumArtist,
-				Artist:             artist,
-				Year:               year,
-				ReleaseDate:        releaseDate,
-				Genre:              genre,
-				TotalTracks:        totalTracks,
-				TotalDiscs:         totalDiscs,
-				RecordLabel:        publisher,
-				ReleaseType:        releaseType,
-				Compilation:        compilation,
-				MusicBrainzAlbumID: musicBrainzAlbumID,
-			}
-
-			if err := uc.musicRepo.CreateAlbum(ctx, newAlbum); err == nil {
-				// Link track to new album
-				track.AlbumID = newAlbum.ID
-			}
-			// If album creation fails, track will still be created without album link
-		}
-	}
-
 	// Check if track already exists
 	existing, err := uc.mediaRepo.GetByFilePath(ctx, libraryID, result.FilePath)
 	if err == nil && existing != nil {
 		// Update existing entry
 		track.Media.ID = existing.ID
-		track.Media.Type = "music_track"
 		if err := uc.mediaRepo.Update(ctx, &track.Media); err != nil {
 			fmt.Printf("failed to update media %s: %v\n", result.FilePath, err)
 		}
@@ -1465,9 +1400,46 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		return
 	}
 
-	// Create new entry - let music repository handle both media and track records
-	track.Media.Type = "music_track"
-	if err := uc.musicRepo.CreateMusicTrack(ctx, track); err != nil {
+	// Prepare artist entity if artist info is available
+	var artistEntity *media.Artist
+	if artist != "" {
+		artistEntity = &media.Artist{
+			LibraryID:           libraryID,
+			Name:                artist,
+			MusicBrainzArtistID: musicBrainzArtistID,
+			Genre:               genre,
+		}
+	}
+
+	// Prepare album entity if album info is available
+	var albumEntity *media.Album
+	if album != "" {
+		// Use album artist if available, otherwise fall back to track artist
+		effectiveAlbumArtist := albumArtist
+		if effectiveAlbumArtist == "" {
+			effectiveAlbumArtist = artist
+		}
+
+		albumEntity = &media.Album{
+			LibraryID:          libraryID,
+			Title:              album,
+			AlbumArtist:        effectiveAlbumArtist,
+			Artist:             artist,
+			Year:               year,
+			ReleaseDate:        releaseDate,
+			Genre:              genre,
+			TotalTracks:        totalTracks,
+			TotalDiscs:         totalDiscs,
+			RecordLabel:        publisher,
+			ReleaseType:        releaseType,
+			Compilation:        compilation,
+			MusicBrainzAlbumID: musicBrainzAlbumID,
+		}
+	}
+
+	// Create track with artist and album entities in a single transaction
+	// This ensures all-or-nothing semantics - no orphaned records on failure
+	if err := uc.musicRepo.CreateMusicTrackWithEntities(ctx, track, artistEntity, albumEntity); err != nil {
 		fmt.Printf("failed to create music track %s: %v\n", result.FilePath, err)
 		return
 	}

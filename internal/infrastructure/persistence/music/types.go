@@ -10,6 +10,42 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
+// buildSQLiteCreateMediaParams builds CreateMediaParams for SQLite from a domain Media entity
+func buildSQLiteCreateMediaParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
+	return sqlc_sqlite.CreateMediaParams{
+		LibraryID:         m.LibraryID,
+		Title:             m.Title,
+		FilePath:          m.FilePath,
+		FileSize:          common.NullInt64(m.FileSize),
+		Duration:          common.NullFloat64(float64(m.Duration)),
+		Type:              m.Type,
+		IsExtra:           m.IsExtra,
+		FileHash:          common.NullString(m.FileHash),
+		ContainerFormat:   common.NullString(m.ContainerFormat),
+		Width:             common.NullInt64(int64(m.Width)),
+		Height:            common.NullInt64(int64(m.Height)),
+		AspectRatio:       common.NullString(media.CalculateAspectRatio(m.Width, m.Height)),
+		Codec:             common.NullString(m.VideoCodec),
+		AudioCodec:        common.NullString(m.AudioCodec),
+		CodecProfile:      common.NullString(m.CodecProfile),
+		BitRate:           common.NullInt64(m.Bitrate),
+		FrameRate:         common.NullFloat64(m.FrameRate),
+		ScanType:          common.NullString(m.ScanType),
+		HdrFormat:         common.NullString(m.HDRFormat),
+		ColorSpace:        common.NullString(m.ColorSpace),
+		ColorPrimaries:    common.NullString(m.ColorPrimaries),
+		ThumbnailPath:     sql.NullString{},
+		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
+		ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
+		QualityScore:      sql.NullInt64{},
+		Is3d:              common.NullBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
+		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
+		HasDash:           common.NullBool(false),
+		DashManifestPath:  sql.NullString{},
+		TranscodingStatus: sql.NullString{},
+	}
+}
+
 // sqliteMusicTrackToDomain converts a SQLite music track query row to a domain MusicTrack entity
 func sqliteMusicTrackToDomain(row sqlc_sqlite.GetMusicTrackByMediaIDRow) *media.MusicTrack {
 	return &media.MusicTrack{

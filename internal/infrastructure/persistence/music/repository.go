@@ -730,3 +730,106 @@ func (r *Repository) ListArtistsByLibrary(ctx context.Context, libraryID int64) 
 	}
 	return artists, nil
 }
+
+// CreateMusicTrackWithEntities atomically creates a music track along with artist and album entities if needed.
+// This operation is transactional - all entities are created or none are created.
+// If any step fails, the entire transaction is rolled back to prevent orphaned records.
+func (r *Repository) CreateMusicTrackWithEntities(ctx context.Context, track *media.MusicTrack, artist *media.Artist, album *media.Album) error {
+	// PostgreSQL support not yet implemented
+	if r.Router().IsPostgresDB() {
+		return r.PostgresNotImplemented()
+	}
+
+	// Begin transaction
+	tx, err := r.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// Defer rollback in case of panic or error
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p) // Re-throw panic after rollback
+		}
+	}()
+
+	// Create queries instance bound to this transaction
+	txQueries := sqlc_sqlite.New(tx)
+
+	// Step 1: Create or find artist entity if provided
+	if artist != nil && artist.Name != "" {
+		// Try to find existing artist first
+		existingArtist, err := r.FindArtistByName(ctx, artist.LibraryID, artist.Name)
+		if err == nil && existingArtist != nil {
+			// Use existing artist
+			artist.ID = existingArtist.ID
+			track.ArtistID = existingArtist.ID
+		} else {
+			// Create new artist within transaction
+			params := buildSQLiteCreateArtistParams(artist)
+			createdArtist, err := txQueries.CreateArtist(ctx, params)
+			if err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("failed to create artist in transaction: %w", err)
+			}
+			artist.ID = createdArtist.ID
+			track.ArtistID = createdArtist.ID
+		}
+	}
+
+	// Step 2: Create or find album entity if provided
+	if album != nil && album.Title != "" {
+		// Determine the effective album artist for lookup
+		effectiveAlbumArtist := album.AlbumArtist
+		if effectiveAlbumArtist == "" {
+			effectiveAlbumArtist = album.Artist
+		}
+
+		// Try to find existing album first
+		existingAlbum, err := r.FindAlbumByTitle(ctx, album.LibraryID, album.Title, effectiveAlbumArtist)
+		if err == nil && existingAlbum != nil {
+			// Use existing album
+			album.ID = existingAlbum.ID
+			track.AlbumID = existingAlbum.ID
+		} else {
+			// Link album to artist if we just created one
+			if artist != nil && artist.ID > 0 {
+				album.ArtistID = artist.ID
+			}
+
+			// Create new album within transaction
+			params := buildSQLiteCreateAlbumParams(album)
+			createdAlbum, err := txQueries.CreateAlbum(ctx, params)
+			if err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("failed to create album in transaction: %w", err)
+			}
+			album.ID = createdAlbum.ID
+			track.AlbumID = createdAlbum.ID
+		}
+	}
+
+	// Step 3: Create base media record within transaction
+	mediaParams := buildSQLiteCreateMediaParams(&track.Media)
+	createdMedia, err := txQueries.CreateMedia(ctx, mediaParams)
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("failed to create media in transaction: %w", err)
+	}
+	track.Media.ID = createdMedia.ID
+
+	// Step 4: Create music track record within transaction
+	trackParams := buildSQLiteCreateMusicTrackParams(track)
+	if err := txQueries.CreateMusicTrack(ctx, trackParams); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("failed to create music track in transaction: %w", err)
+	}
+
+	// Commit transaction - all operations succeeded
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}

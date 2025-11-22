@@ -1,7 +1,8 @@
 # ADR 025: Resilient Library Scanner V2 - Checkpoint-Based Recovery
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2025-11-22
+**Implemented**: 2025-11-22
 **Author**: ViewRA Team
 **Supersedes**: [ADR 014](014-library-scanner-resilience-improvements.md) (builds upon it)
 
