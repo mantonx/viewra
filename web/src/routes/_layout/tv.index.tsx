@@ -125,8 +125,8 @@ const TVShows = () => {
           <TVShowCard
             key={show.id}
             show={show}
-            onClick={() => handleShowClick(show.id!)}
-            onPlay={() => handlePlayShow(show.id!)}
+            onClick={() => show.id && handleShowClick(show.id)}
+            onPlay={() => show.id && handlePlayShow(show.id)}
           />
         )}
         renderListItem={(show: GithubComViewraViewraInternalApplicationTvTVShowSummary) => (

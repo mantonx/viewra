@@ -58,7 +58,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     }
 
     // Select quality and build manifest URL with resume position
-    const quality = selectBestQuality(media)
+    const quality = selectBestQuality(_media)
     let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/${quality}/playlist.m3u8`
     if (resumePosition > 0) {
       manifestUrl += `?start=${resumePosition}`

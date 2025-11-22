@@ -72,13 +72,15 @@ const ArtistDetail = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {albums.map((album: GithubComViewraViewraInternalApplicationMusicAlbumSummary) => (
-            <AlbumCard
-              key={album.id}
-              album={album}
-              onClick={() => handleAlbumClick(album.id!)}
-            />
-          ))}
+          {albums
+            .filter((album) => album.id !== undefined)
+            .map((album: GithubComViewraViewraInternalApplicationMusicAlbumSummary) => (
+              <AlbumCard
+                key={album.id}
+                album={album}
+                onClick={() => handleAlbumClick(album.id as number)}
+              />
+            ))}
         </div>
       )}
 

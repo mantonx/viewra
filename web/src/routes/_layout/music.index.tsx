@@ -108,7 +108,7 @@ const Music = () => {
           <ArtistCard
             key={artist.id}
             artist={artist}
-            onClick={() => handleArtistClick(artist.id!)}
+            onClick={() => artist.id && handleArtistClick(artist.id)}
           />
         )}
         renderListItem={(artist: GithubComViewraViewraInternalApplicationMusicArtistSummary) => (

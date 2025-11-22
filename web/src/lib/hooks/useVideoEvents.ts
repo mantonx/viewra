@@ -58,7 +58,7 @@ export const useVideoEvents = (
 
         // Update progress if we have a duration
         if (videoDuration > 0 && progressUpdater) {
-          progressUpdater.updateProgress(currentSecond)
+          progressUpdater.updateCurrentTime(currentSecond)
         }
       }
     }
@@ -73,7 +73,7 @@ export const useVideoEvents = (
     const handleEnded = () => {
       logger.debug('Video ended')
       if (videoDuration > 0 && progressUpdater) {
-        progressUpdater.markComplete()
+        progressUpdater.immediateUpdate()
       }
     }
 

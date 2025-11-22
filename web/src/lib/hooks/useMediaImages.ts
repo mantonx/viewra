@@ -26,7 +26,8 @@ export const useMediaImages = (mediaId: number | undefined, options: UseMediaIma
       if (!mediaId) {
         return { images: [] }
       }
-      return (await imagesApi.getMediaImages(mediaId)).data
+      const response = await imagesApi.getMediaImages(mediaId)
+      return (response as unknown as { data: { images: Image[] } }).data
     },
     enabled: enabled && mediaId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -45,7 +46,8 @@ export const useMovieImages = (movieId: number | undefined, options: UseMediaIma
       if (!movieId) {
         return { images: [] }
       }
-      return (await imagesApi.getMovieImages(movieId)).data
+      const response = await imagesApi.getMovieImages(movieId)
+      return (response as unknown as { data: { images: Image[] } }).data
     },
     enabled: enabled && movieId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -67,7 +69,8 @@ export const useEpisodeImages = (
       if (!episodeId) {
         return { images: [] }
       }
-      return (await imagesApi.getEpisodeImages(episodeId)).data
+      const response = await imagesApi.getEpisodeImages(episodeId)
+      return (response as unknown as { data: { images: Image[] } }).data
     },
     enabled: enabled && episodeId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -89,7 +92,8 @@ export const useTVShowImages = (
       if (!showId) {
         return { images: [] }
       }
-      return (await imagesApi.getTVShowImages(showId)).data
+      const response = await imagesApi.getTVShowImages(showId)
+      return (response as unknown as { data: { images: Image[] } }).data
     },
     enabled: enabled && showId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -111,7 +115,8 @@ export const useTVSeasonImages = (
       if (!seasonId) {
         return { images: [] }
       }
-      return (await imagesApi.getTVSeasonImages(seasonId)).data
+      const response = await imagesApi.getTVSeasonImages(seasonId)
+      return (response as unknown as { data: { images: Image[] } }).data
     },
     enabled: enabled && seasonId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -133,7 +138,8 @@ export const useMusicAlbumImages = (
       if (!albumId) {
         return { images: [] }
       }
-      return (await imagesApi.getMusicAlbumImages(albumId)).data
+      const response = await imagesApi.getMusicAlbumImages(albumId)
+      return (response as unknown as { data: { images: Image[] } }).data
     },
     enabled: enabled && albumId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -155,7 +161,8 @@ export const useMusicArtistImages = (
       if (!artistId) {
         return { images: [] }
       }
-      return (await imagesApi.getMusicArtistImages(artistId)).data
+      const response = await imagesApi.getMusicArtistImages(artistId)
+      return (response as unknown as { data: { images: Image[] } }).data
     },
     enabled: enabled && artistId !== undefined,
     staleTime: 1000 * 60 * 5, // 5 minutes
