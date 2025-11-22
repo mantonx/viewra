@@ -17,20 +17,29 @@ type ScanJobRepository interface {
 	ListByLibrary(ctx context.Context, libraryID int64, limit int32) ([]*scanner.ScanJob, error)
 }
 
+// CheckpointRepository defines the interface for checkpoint data access
+type CheckpointRepository interface {
+	ListFailed(ctx context.Context, jobID int64, limit int) ([]*scanner.ScanCheckpoint, error)
+	ResetFailed(ctx context.Context, jobID int64) (int64, error)
+}
+
 // ScanJobHandler handles scan job-related HTTP requests
 type ScanJobHandler struct {
-	scanJobRepo ScanJobRepository
+	scanJobRepo    ScanJobRepository
+	checkpointRepo CheckpointRepository
 }
 
 // NewScanJobHandler creates a new scan job handler
-func NewScanJobHandler(scanJobRepo ScanJobRepository) *ScanJobHandler {
+func NewScanJobHandler(scanJobRepo ScanJobRepository, checkpointRepo CheckpointRepository) *ScanJobHandler {
 	return &ScanJobHandler{
-		scanJobRepo: scanJobRepo,
+		scanJobRepo:    scanJobRepo,
+		checkpointRepo: checkpointRepo,
 	}
 }
 
 // ScanStatusResponse represents the current status of a library scan
 type ScanStatusResponse struct {
+	JobID          int64   `json:"job_id"`                    // Scan job ID
 	Status         string  `json:"status"`                    // pending, running, paused, completed, failed
 	Progress       float64 `json:"progress"`                  // 0-100
 	FilesFound     int64   `json:"files_found"`               // Total files discovered
@@ -95,6 +104,7 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 
 	// Convert to response
 	response := ScanStatusResponse{
+		JobID:          job.ID,
 		Status:         string(job.Status),
 		Progress:       job.Progress,
 		FilesFound:     job.FilesFound,
@@ -273,4 +283,133 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 			lastStatus = job.Status
 		}
 	}
+}
+
+// ScanErrorDetail represents a single file processing error
+type ScanErrorDetail struct {
+	FilePath      string  `json:"file_path"`
+	ErrorMessage  string  `json:"error_message"`
+	ErrorCategory string  `json:"error_category"`
+	FileSize      int64   `json:"file_size"`
+	ProcessedAt   *string `json:"processed_at,omitempty"`
+}
+
+// ScanErrorsResponse represents scan errors grouped by category
+type ScanErrorsResponse struct {
+	TotalErrors int                            `json:"total_errors"`
+	ByCategory  map[string][]ScanErrorDetail   `json:"by_category"`
+}
+
+// RetryFailedResponse represents the result of retrying failed files
+type RetryFailedResponse struct {
+	Message string `json:"message"`
+	Count   int64  `json:"count"`
+}
+
+// GetScanErrors returns all failed files for a scan job, grouped by error category
+// @Summary Get scan errors
+// @Description Returns all files that failed during scanning, grouped by error category
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Param id path int true "Library ID"
+// @Param jobId path int true "Scan Job ID"
+// @Success 200 {object} ScanErrorsResponse "Scan errors"
+// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/libraries/{id}/scan/{jobId}/errors [get]
+func (h *ScanJobHandler) GetScanErrors(c *gin.Context) {
+	// Parse library ID (for consistency, though not strictly needed)
+	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		return
+	}
+	_ = libraryID // Not used but validates URL structure
+
+	// Parse job ID
+	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		return
+	}
+
+	// Get failed checkpoints (limit to 1000 to prevent memory issues)
+	failed, err := h.checkpointRepo.ListFailed(c.Request.Context(), jobID, 1000)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve scan errors"})
+		return
+	}
+
+	// Group errors by category
+	errorsByCategory := make(map[string][]ScanErrorDetail)
+	for _, checkpoint := range failed {
+		category := string(checkpoint.ErrorCategory)
+		if category == "" {
+			category = "unknown"
+		}
+
+		var processedAtStr *string
+		if checkpoint.ProcessedAt != nil {
+			str := checkpoint.ProcessedAt.Format("2006-01-02T15:04:05Z07:00")
+			processedAtStr = &str
+		}
+
+		errorsByCategory[category] = append(
+			errorsByCategory[category],
+			ScanErrorDetail{
+				FilePath:      checkpoint.FilePath,
+				ErrorMessage:  checkpoint.ErrorMessage,
+				ErrorCategory: category,
+				FileSize:      checkpoint.FileSize,
+				ProcessedAt:   processedAtStr,
+			},
+		)
+	}
+
+	c.JSON(http.StatusOK, ScanErrorsResponse{
+		TotalErrors: len(failed),
+		ByCategory:  errorsByCategory,
+	})
+}
+
+// RetryFailedFiles resets all failed checkpoints to pending, allowing them to be retried
+// @Summary Retry failed files
+// @Description Resets all failed file processing attempts to pending status for retry
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Param id path int true "Library ID"
+// @Param jobId path int true "Scan Job ID"
+// @Success 200 {object} RetryFailedResponse "Retry result"
+// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/libraries/{id}/scan/{jobId}/retry-failed [post]
+func (h *ScanJobHandler) RetryFailedFiles(c *gin.Context) {
+	// Parse library ID (for consistency)
+	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		return
+	}
+	_ = libraryID // Not used but validates URL structure
+
+	// Parse job ID
+	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		return
+	}
+
+	// Reset failed checkpoints to pending
+	count, err := h.checkpointRepo.ResetFailed(c.Request.Context(), jobID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to reset failed files"})
+		return
+	}
+
+	c.JSON(http.StatusOK, RetryFailedResponse{
+		Message: "Failed files queued for retry",
+		Count:   count,
+	})
 }

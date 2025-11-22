@@ -19,4 +19,6 @@ func RegisterLibraryRoutes(rg *gin.RouterGroup, handler *handlers.LibraryHandler
 	libraries.GET("/:id/scan/status", scanHandler.GetStatus)
 	libraries.GET("/:id/scan/history", scanHandler.GetHistory)
 	libraries.GET("/:id/scan/stream", scanHandler.StreamProgress)
+	libraries.GET("/:id/scan/:jobId/errors", scanHandler.GetScanErrors)
+	libraries.POST("/:id/scan/:jobId/retry-failed", scanHandler.RetryFailedFiles)
 }

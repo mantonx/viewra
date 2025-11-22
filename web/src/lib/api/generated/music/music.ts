@@ -202,7 +202,7 @@ export function useGetApiMusicAlbumsIdImages<
 }
 
 /**
- * Returns all tracks for an album identified by a representative track ID
+ * Returns all tracks for an album identified by album entity ID from music_albums table
  * @summary List tracks for an album by ID
  */
 export type getApiMusicAlbumsIdTracksResponse200 = {
@@ -543,7 +543,7 @@ export function useGetApiMusicArtists<
 }
 
 /**
- * Returns all albums for an artist identified by a representative track ID
+ * Returns all albums for an artist identified by artist entity ID from music_artists table
  * @summary List albums for an artist by ID
  */
 export type getApiMusicArtistsIdAlbumsResponse200 = {

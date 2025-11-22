@@ -19,6 +19,8 @@ export interface InternalApiHandlersScanStatusResponse {
   files_found?: number
   /** Files processed so far */
   files_processed?: number
+  /** Scan job ID */
+  job_id?: number
   /** 0-100 */
   progress?: number
   /** ISO 8601 timestamp */

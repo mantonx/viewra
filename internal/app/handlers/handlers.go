@@ -35,7 +35,7 @@ func BuildHandlers(
 	// Create basic handlers
 	healthHandler := handlers.NewHealthHandler(db, taskScheduler, svcs.TranscodeQueue)
 	browserHandler := handlers.NewBrowserHandler(svcs.PathBrowser)
-	scanJobHandler := handlers.NewScanJobHandler(repos.ScanJob)
+	scanJobHandler := handlers.NewScanJobHandler(repos.ScanJob, repos.Checkpoint)
 	progressHandler := handlers.NewProgressHandler(repos.Progress)
 
 	// Create image handler

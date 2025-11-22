@@ -5,15 +5,18 @@
  * Self-hosted media server for movies, TV shows, and music
  * OpenAPI spec version: 0.0.1
  */
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query'
@@ -21,6 +24,8 @@ import type {
 import type {
   GetApiLibrariesIdScanHistoryParams,
   InternalApiHandlersErrorResponse,
+  InternalApiHandlersRetryFailedResponse,
+  InternalApiHandlersScanErrorsResponse,
   InternalApiHandlersScanHistoryResponse,
   InternalApiHandlersScanStatusResponse,
 } from '.././models'
@@ -571,4 +576,302 @@ export function useGetApiLibrariesIdScanStream<
   query.queryKey = queryOptions.queryKey
 
   return query
+}
+
+/**
+ * Returns all files that failed during scanning, grouped by error category
+ * @summary Get scan errors
+ */
+export type getApiLibrariesIdScanJobIdErrorsResponse200 = {
+  data: InternalApiHandlersScanErrorsResponse
+  status: 200
+}
+
+export type getApiLibrariesIdScanJobIdErrorsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiLibrariesIdScanJobIdErrorsResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiLibrariesIdScanJobIdErrorsResponseSuccess =
+  getApiLibrariesIdScanJobIdErrorsResponse200 & {
+    headers: Headers
+  }
+export type getApiLibrariesIdScanJobIdErrorsResponseError = (
+  | getApiLibrariesIdScanJobIdErrorsResponse400
+  | getApiLibrariesIdScanJobIdErrorsResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiLibrariesIdScanJobIdErrorsResponse =
+  | getApiLibrariesIdScanJobIdErrorsResponseSuccess
+  | getApiLibrariesIdScanJobIdErrorsResponseError
+
+export const getGetApiLibrariesIdScanJobIdErrorsUrl = (id: number, jobId: number) => {
+  return `/api/libraries/${id}/scan/${jobId}/errors`
+}
+
+export const getApiLibrariesIdScanJobIdErrors = async (
+  id: number,
+  jobId: number,
+  options?: RequestInit
+): Promise<getApiLibrariesIdScanJobIdErrorsResponse> => {
+  return customInstance<getApiLibrariesIdScanJobIdErrorsResponse>(
+    getGetApiLibrariesIdScanJobIdErrorsUrl(id, jobId),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiLibrariesIdScanJobIdErrorsQueryKey = (id?: number, jobId?: number) => {
+  return [`/api/libraries/${id}/scan/${jobId}/errors`] as const
+}
+
+export const getGetApiLibrariesIdScanJobIdErrorsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiLibrariesIdScanJobIdErrorsQueryKey(id, jobId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>> = ({
+    signal,
+  }) => getApiLibrariesIdScanJobIdErrors(id, jobId, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!(id && jobId), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiLibrariesIdScanJobIdErrorsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>
+>
+export type GetApiLibrariesIdScanJobIdErrorsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiLibrariesIdScanJobIdErrors<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  jobId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+          TError,
+          Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanJobIdErrors<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+          TError,
+          Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiLibrariesIdScanJobIdErrors<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get scan errors
+ */
+
+export function useGetApiLibrariesIdScanJobIdErrors<
+  TData = Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiLibrariesIdScanJobIdErrors>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiLibrariesIdScanJobIdErrorsQueryOptions(id, jobId, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Resets all failed file processing attempts to pending status for retry
+ * @summary Retry failed files
+ */
+export type postApiLibrariesIdScanJobIdRetryFailedResponse200 = {
+  data: InternalApiHandlersRetryFailedResponse
+  status: 200
+}
+
+export type postApiLibrariesIdScanJobIdRetryFailedResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiLibrariesIdScanJobIdRetryFailedResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type postApiLibrariesIdScanJobIdRetryFailedResponseSuccess =
+  postApiLibrariesIdScanJobIdRetryFailedResponse200 & {
+    headers: Headers
+  }
+export type postApiLibrariesIdScanJobIdRetryFailedResponseError = (
+  | postApiLibrariesIdScanJobIdRetryFailedResponse400
+  | postApiLibrariesIdScanJobIdRetryFailedResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiLibrariesIdScanJobIdRetryFailedResponse =
+  | postApiLibrariesIdScanJobIdRetryFailedResponseSuccess
+  | postApiLibrariesIdScanJobIdRetryFailedResponseError
+
+export const getPostApiLibrariesIdScanJobIdRetryFailedUrl = (id: number, jobId: number) => {
+  return `/api/libraries/${id}/scan/${jobId}/retry-failed`
+}
+
+export const postApiLibrariesIdScanJobIdRetryFailed = async (
+  id: number,
+  jobId: number,
+  options?: RequestInit
+): Promise<postApiLibrariesIdScanJobIdRetryFailedResponse> => {
+  return customInstance<postApiLibrariesIdScanJobIdRetryFailedResponse>(
+    getPostApiLibrariesIdScanJobIdRetryFailedUrl(id, jobId),
+    {
+      ...options,
+      method: 'POST',
+    }
+  )
+}
+
+export const getPostApiLibrariesIdScanJobIdRetryFailedMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdRetryFailed>>,
+    TError,
+    { id: number; jobId: number },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdRetryFailed>>,
+  TError,
+  { id: number; jobId: number },
+  TContext
+> => {
+  const mutationKey = ['postApiLibrariesIdScanJobIdRetryFailed']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdRetryFailed>>,
+    { id: number; jobId: number }
+  > = (props) => {
+    const { id, jobId } = props ?? {}
+
+    return postApiLibrariesIdScanJobIdRetryFailed(id, jobId, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiLibrariesIdScanJobIdRetryFailedMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdRetryFailed>>
+>
+
+export type PostApiLibrariesIdScanJobIdRetryFailedMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Retry failed files
+ */
+export const usePostApiLibrariesIdScanJobIdRetryFailed = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdRetryFailed>>,
+      TError,
+      { id: number; jobId: number },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiLibrariesIdScanJobIdRetryFailed>>,
+  TError,
+  { id: number; jobId: number },
+  TContext
+> => {
+  const mutationOptions = getPostApiLibrariesIdScanJobIdRetryFailedMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
 }

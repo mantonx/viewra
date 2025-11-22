@@ -129,9 +129,7 @@ func (c *Container) Shutdown(ctx context.Context) error {
 	// Shutdown server last
 	if c.Server != nil {
 		if err := c.Server.Shutdown(ctx); err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
+			firstErr = err
 		}
 	}
 
