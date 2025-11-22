@@ -19,14 +19,16 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  GetApiTvIdsParams,
   GetApiTvSearchParams,
   GetApiTvShowsParams,
   GetApiTvShowsShowTitleEpisodesParams,
-  GithubComViewraViewraInternalApplicationImagesListImagesResponse,
-  GithubComViewraViewraInternalApplicationTvListTVEpisodesResponse,
-  GithubComViewraViewraInternalApplicationTvListTVShowsResponse,
-  GithubComViewraViewraInternalApplicationTvTVEpisodeResponse,
-  GithubComViewraViewraInternalApplicationTvTVShowDetailResponse,
+  GithubComMantonxViewraInternalApplicationImagesListImagesResponse,
+  GithubComMantonxViewraInternalApplicationTvListIDsResponse,
+  GithubComMantonxViewraInternalApplicationTvListTVEpisodesResponse,
+  GithubComMantonxViewraInternalApplicationTvListTVShowsResponse,
+  GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse,
+  GithubComMantonxViewraInternalApplicationTvTVShowDetailResponse,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -39,7 +41,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary Get a TV episode by ID
  */
 export type getApiTvEpisodesIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationTvTVEpisodeResponse
+  data: GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse
   status: 200
 }
 
@@ -202,7 +204,7 @@ export function useGetApiTvEpisodesId<
  * @summary Get all images for a TV episode
  */
 export type getApiTvEpisodesIdImagesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesListImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 
@@ -364,11 +366,169 @@ export function useGetApiTvEpisodesIdImages<
 }
 
 /**
+ * Returns a list of TV show IDs only for prefetching images with optional pagination
+ * @summary List TV show IDs
+ */
+export type getApiTvIdsResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationTvListIDsResponse
+  status: 200
+}
+
+export type getApiTvIdsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiTvIdsResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiTvIdsResponseSuccess = getApiTvIdsResponse200 & {
+  headers: Headers
+}
+export type getApiTvIdsResponseError = (getApiTvIdsResponse400 | getApiTvIdsResponse500) & {
+  headers: Headers
+}
+
+export type getApiTvIdsResponse = getApiTvIdsResponseSuccess | getApiTvIdsResponseError
+
+export const getGetApiTvIdsUrl = (params: GetApiTvIdsParams) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0 ? `/api/tv/ids?${stringifiedParams}` : `/api/tv/ids`
+}
+
+export const getApiTvIds = async (
+  params: GetApiTvIdsParams,
+  options?: RequestInit
+): Promise<getApiTvIdsResponse> => {
+  return customInstance<getApiTvIdsResponse>(getGetApiTvIdsUrl(params), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiTvIdsQueryKey = (params?: GetApiTvIdsParams) => {
+  return [`/api/tv/ids`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiTvIdsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiTvIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiTvIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTvIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiTvIdsQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiTvIds>>> = ({ signal }) =>
+    getApiTvIds(params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiTvIds>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiTvIdsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiTvIds>>>
+export type GetApiTvIdsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiTvIds<
+  TData = Awaited<ReturnType<typeof getApiTvIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiTvIdsParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTvIds>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvIds>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvIds>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvIds<
+  TData = Awaited<ReturnType<typeof getApiTvIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiTvIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTvIds>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvIds>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvIds>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvIds<
+  TData = Awaited<ReturnType<typeof getApiTvIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiTvIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTvIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List TV show IDs
+ */
+
+export function useGetApiTvIds<
+  TData = Awaited<ReturnType<typeof getApiTvIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiTvIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiTvIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiTvIdsQueryOptions(params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Searches for TV shows and episodes by title in a specific library
  * @summary Search TV shows and episodes
  */
 export type getApiTvSearchResponse200 = {
-  data: GithubComViewraViewraInternalApplicationTvListTVEpisodesResponse
+  data: GithubComMantonxViewraInternalApplicationTvListTVEpisodesResponse
   status: 200
 }
 
@@ -529,7 +689,7 @@ export function useGetApiTvSearch<
  * @summary Get all images for a TV season
  */
 export type getApiTvSeasonsIdImagesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesListImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 
@@ -695,7 +855,7 @@ export function useGetApiTvSeasonsIdImages<
  * @summary List TV shows
  */
 export type getApiTvShowsResponse200 = {
-  data: GithubComViewraViewraInternalApplicationTvListTVShowsResponse
+  data: GithubComMantonxViewraInternalApplicationTvListTVShowsResponse
   status: 200
 }
 
@@ -853,7 +1013,7 @@ export function useGetApiTvShows<
  * @summary Get a TV show by ID
  */
 export type getApiTvShowsIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationTvTVShowDetailResponse
+  data: GithubComMantonxViewraInternalApplicationTvTVShowDetailResponse
   status: 200
 }
 
@@ -1010,7 +1170,7 @@ export function useGetApiTvShowsId<
  * @summary List episodes for a TV show by ID
  */
 export type getApiTvShowsIdEpisodesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationTvListTVEpisodesResponse
+  data: GithubComMantonxViewraInternalApplicationTvListTVEpisodesResponse
   status: 200
 }
 
@@ -1182,7 +1342,7 @@ export function useGetApiTvShowsIdEpisodes<
  * @summary Get all images for a TV show
  */
 export type getApiTvShowsIdImagesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesListImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 
@@ -1343,11 +1503,183 @@ export function useGetApiTvShowsIdImages<
 }
 
 /**
+ * Returns the next episode to watch for a show based on watch progress. Returns in-progress episode if exists, otherwise first unwatched episode, or first episode if all watched
+ * @summary Get next episode to watch for a show
+ */
+export type getApiTvShowsIdNextEpisodeResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationTvTVEpisodeResponse
+  status: 200
+}
+
+export type getApiTvShowsIdNextEpisodeResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiTvShowsIdNextEpisodeResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiTvShowsIdNextEpisodeResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiTvShowsIdNextEpisodeResponseSuccess = getApiTvShowsIdNextEpisodeResponse200 & {
+  headers: Headers
+}
+export type getApiTvShowsIdNextEpisodeResponseError = (
+  | getApiTvShowsIdNextEpisodeResponse400
+  | getApiTvShowsIdNextEpisodeResponse404
+  | getApiTvShowsIdNextEpisodeResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiTvShowsIdNextEpisodeResponse =
+  | getApiTvShowsIdNextEpisodeResponseSuccess
+  | getApiTvShowsIdNextEpisodeResponseError
+
+export const getGetApiTvShowsIdNextEpisodeUrl = (id: number) => {
+  return `/api/tv/shows/${id}/next-episode`
+}
+
+export const getApiTvShowsIdNextEpisode = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiTvShowsIdNextEpisodeResponse> => {
+  return customInstance<getApiTvShowsIdNextEpisodeResponse>(getGetApiTvShowsIdNextEpisodeUrl(id), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiTvShowsIdNextEpisodeQueryKey = (id?: number) => {
+  return [`/api/tv/shows/${id}/next-episode`] as const
+}
+
+export const getGetApiTvShowsIdNextEpisodeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiTvShowsIdNextEpisodeQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>> = ({
+    signal,
+  }) => getApiTvShowsIdNextEpisode(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiTvShowsIdNextEpisodeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>
+>
+export type GetApiTvShowsIdNextEpisodeQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiTvShowsIdNextEpisode<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvShowsIdNextEpisode<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+          TError,
+          Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiTvShowsIdNextEpisode<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get next episode to watch for a show
+ */
+
+export function useGetApiTvShowsIdNextEpisode<
+  TData = Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiTvShowsIdNextEpisode>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiTvShowsIdNextEpisodeQueryOptions(id, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Returns all episodes for a specific TV show
  * @summary List episodes for a TV show
  */
 export type getApiTvShowsShowTitleEpisodesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationTvListTVEpisodesResponse
+  data: GithubComMantonxViewraInternalApplicationTvListTVEpisodesResponse
   status: 200
 }
 

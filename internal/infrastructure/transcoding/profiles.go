@@ -3,7 +3,7 @@ package transcoding
 import (
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/domain/transcode"
 )
 
 // QualityProfile defines the encoding parameters for a specific quality level.

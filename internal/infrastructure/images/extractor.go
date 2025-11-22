@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/images"
 )
 
 // Extractor discovers and catalogs image files for media items

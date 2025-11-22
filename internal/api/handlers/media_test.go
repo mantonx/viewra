@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/media"
-	domainMedia "github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/application/media"
+	domainMedia "github.com/mantonx/viewra/internal/domain/media"
 )
 
 // Mock implementations for media use case interfaces

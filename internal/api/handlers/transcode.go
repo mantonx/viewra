@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/transcode"
-	"github.com/viewra/viewra/internal/domain/media"
-	transcodeDomain "github.com/viewra/viewra/internal/domain/transcode"
-	"github.com/viewra/viewra/internal/infrastructure/transcoding"
-	"github.com/viewra/viewra/internal/pkg/format"
+	"github.com/mantonx/viewra/internal/application/transcode"
+	"github.com/mantonx/viewra/internal/domain/media"
+	transcodeDomain "github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/pkg/format"
 )
 
 // TranscodeHandler handles transcode-related HTTP requests.

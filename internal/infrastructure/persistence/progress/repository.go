@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/progress"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
+	"github.com/mantonx/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository implements the domain progress.Repository interface.

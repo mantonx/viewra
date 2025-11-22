@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
-	"github.com/viewra/viewra/internal/infrastructure/filesystem"
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 )
 
 // ExampleWalker_Walk demonstrates how to use the walker and filter together

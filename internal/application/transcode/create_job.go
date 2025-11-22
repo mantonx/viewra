@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/domain/transcode"
 )
 
 // CreateJobRequest represents a request to create a new transcode job.

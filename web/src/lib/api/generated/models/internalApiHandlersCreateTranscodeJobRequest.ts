@@ -8,4 +8,6 @@
 
 export interface InternalApiHandlersCreateTranscodeJobRequest {
   quality: string
+  /** Optional: start position in seconds for seek-based transcoding */
+  start_position?: number
 }

@@ -3,9 +3,9 @@ package movies
 import (
 	"time"
 
-	appcommon "github.com/viewra/viewra/internal/application/common"
-	"github.com/viewra/viewra/internal/domain/common"
-	"github.com/viewra/viewra/internal/domain/media"
+	appcommon "github.com/mantonx/viewra/internal/application/common"
+	"github.com/mantonx/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // MovieResponse represents a movie with all its metadata

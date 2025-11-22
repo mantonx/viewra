@@ -3,8 +3,8 @@ package library
 import (
 	"context"
 
-	"github.com/viewra/viewra/internal/application/images"
-	domainImages "github.com/viewra/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/application/images"
+	domainImages "github.com/mantonx/viewra/internal/domain/images"
 )
 
 // ImageCleanupExecutor interface for cleaning up image cache files

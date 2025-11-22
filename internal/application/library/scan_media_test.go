@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/viewra/viewra/internal/domain/media"
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // Mock media repositories for testing

@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/application/common"
-	domainImages "github.com/viewra/viewra/internal/domain/images"
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/common"
+	domainImages "github.com/mantonx/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // DeleteLibraryUseCase handles the business logic for deleting a library

@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/media"
-	domainMedia "github.com/viewra/viewra/internal/domain/media"
-	"github.com/viewra/viewra/internal/infrastructure/streaming"
+	"github.com/mantonx/viewra/internal/application/media"
+	domainMedia "github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
 
 func TestStreamHandler_Stream(t *testing.T) {

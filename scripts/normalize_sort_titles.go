@@ -6,7 +6,7 @@ import (
 	"log"
 
 	_ "github.com/mattn/go-sqlite3"
-	domainCommon "github.com/viewra/viewra/internal/domain/common"
+	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 )
 
 func main() {

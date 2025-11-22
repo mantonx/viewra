@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"unsafe"
 
-	"github.com/viewra/viewra/internal/domain/media"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // TVShow represents a simplified TV show record for internal repository use

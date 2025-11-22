@@ -3,7 +3,7 @@ package progress
 import (
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/domain/progress"
 )
 
 // UpdateProgressRequest represents a request to update watch progress.

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/dhowden/tag"
-	"github.com/viewra/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/images"
 )
 
 // EmbeddedExtractor handles extraction of artwork embedded in audio files (ID3/APIC tags)

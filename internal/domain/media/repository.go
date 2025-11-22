@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/viewra/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // Repository defines the interface for media data access operations.

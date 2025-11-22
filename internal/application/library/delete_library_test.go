@@ -6,8 +6,8 @@ import (
 	"testing"
 
     _ "modernc.org/sqlite" // Import SQLite driver
-	"github.com/viewra/viewra/internal/application/common"
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/common"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 func TestDeleteLibraryUseCase_Execute(t *testing.T) {

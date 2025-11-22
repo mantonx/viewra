@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/viewra/viewra/internal/domain/media"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/adapters"
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
 )
 
 // BaseRepository provides common repository functionality for all media type repositories.

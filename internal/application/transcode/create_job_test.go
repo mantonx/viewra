@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/viewra/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/domain/transcode"
 )
 
 // MockRepository is a mock implementation of transcode.Repository for testing

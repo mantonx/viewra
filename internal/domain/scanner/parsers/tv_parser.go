@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // TV show filename patterns in order of preference (most specific to least specific)

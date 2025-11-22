@@ -1,6 +1,6 @@
 package images
 
-import "github.com/viewra/viewra/internal/domain/images"
+import "github.com/mantonx/viewra/internal/domain/images"
 
 // ImageInfo represents extracted image information
 type ImageInfo struct {

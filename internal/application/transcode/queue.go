@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/transcode"
-	transcoding "github.com/viewra/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/domain/transcode"
+	transcoding "github.com/mantonx/viewra/internal/infrastructure/transcoding"
 )
 
 // QueueConfig configures the transcode job queue.

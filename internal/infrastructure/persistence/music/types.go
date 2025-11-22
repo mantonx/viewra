@@ -3,10 +3,10 @@ package music
 import (
 	"database/sql"
 
-	domainCommon "github.com/viewra/viewra/internal/domain/common"
-	"github.com/viewra/viewra/internal/domain/media"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
+	domainCommon "github.com/mantonx/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // sqliteMusicTrackToDomain converts a SQLite music track query row to a domain MusicTrack entity

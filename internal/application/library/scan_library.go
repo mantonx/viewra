@@ -9,15 +9,15 @@ import (
 	"sync"
 	"time"
 
-	domainCommon "github.com/viewra/viewra/internal/domain/common"
-	"github.com/viewra/viewra/internal/domain/images"
-	"github.com/viewra/viewra/internal/domain/library"
-	"github.com/viewra/viewra/internal/domain/media"
-	"github.com/viewra/viewra/internal/domain/scanner"
-	"github.com/viewra/viewra/internal/domain/scanner/parsers"
-	"github.com/viewra/viewra/internal/infrastructure/filesystem"
-	"github.com/viewra/viewra/internal/infrastructure/metadata/music"
-	"github.com/viewra/viewra/internal/infrastructure/metadata/nfo"
+	domainCommon "github.com/mantonx/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner/parsers"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
+	"github.com/mantonx/viewra/internal/infrastructure/metadata/music"
+	"github.com/mantonx/viewra/internal/infrastructure/metadata/nfo"
 )
 
 // ScanLibraryUseCase handles the business logic for scanning a library

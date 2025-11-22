@@ -10,7 +10,7 @@ import (
 
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
-	"github.com/viewra/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/images"
 )
 
 // TransformOptions contains parameters for image transformation

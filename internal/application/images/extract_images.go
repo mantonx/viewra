@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/images"
-	infraImages "github.com/viewra/viewra/internal/infrastructure/images"
+	"github.com/mantonx/viewra/internal/domain/images"
+	infraImages "github.com/mantonx/viewra/internal/infrastructure/images"
 )
 
 // ExtractMovieImagesUseCase handles extracting and cataloging movie images

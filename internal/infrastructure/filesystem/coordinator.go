@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
-	"github.com/viewra/viewra/internal/domain/scanner/parsers"
-	"github.com/viewra/viewra/internal/infrastructure/ffmpeg"
-	"github.com/viewra/viewra/internal/infrastructure/metadata/music"
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner/parsers"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/metadata/music"
 )
 
 // CoordinatorConfig holds configuration for the scanner coordinator

@@ -3,16 +3,16 @@ package repositories
 import (
 	"database/sql"
 
-	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
-	imageRepo "github.com/viewra/viewra/internal/infrastructure/persistence/image"
-	libraryRepo "github.com/viewra/viewra/internal/infrastructure/persistence/library"
-	mediaRepo "github.com/viewra/viewra/internal/infrastructure/persistence/media"
-	movieRepo "github.com/viewra/viewra/internal/infrastructure/persistence/movie"
-	musicRepo "github.com/viewra/viewra/internal/infrastructure/persistence/music"
-	progressRepo "github.com/viewra/viewra/internal/infrastructure/persistence/progress"
-	scanJobRepo "github.com/viewra/viewra/internal/infrastructure/persistence/scanjob"
-	transcodeRepo "github.com/viewra/viewra/internal/infrastructure/persistence/transcode"
-	tvRepo "github.com/viewra/viewra/internal/infrastructure/persistence/tvshow"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
+	imageRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/image"
+	libraryRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/library"
+	mediaRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/media"
+	movieRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/movie"
+	musicRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/music"
+	progressRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/progress"
+	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
+	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
+	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 )
 
 // Repositories holds all data access layer implementations.

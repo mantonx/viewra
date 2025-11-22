@@ -20,7 +20,7 @@ import type {
 
 import type {
   GetApiFilesystemBrowseParams,
-  GithubComViewraViewraInternalDomainLibraryBrowseResult,
+  GithubComMantonxViewraInternalDomainLibraryBrowseResult,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -33,7 +33,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary Browse server filesystem
  */
 export type getApiFilesystemBrowseResponse200 = {
-  data: GithubComViewraViewraInternalDomainLibraryBrowseResult
+  data: GithubComMantonxViewraInternalDomainLibraryBrowseResult
   status: 200
 }
 

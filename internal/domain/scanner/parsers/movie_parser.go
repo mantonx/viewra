@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // Movie filename patterns to extract title and year

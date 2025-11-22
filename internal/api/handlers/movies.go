@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/movies"
-	"github.com/viewra/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/application/movies"
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // MoviesHandler handles HTTP requests for movies

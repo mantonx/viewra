@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/viewra/viewra/internal/infrastructure/metadata/nfo"
+	"github.com/mantonx/viewra/internal/infrastructure/metadata/nfo"
 )
 
 func main() {

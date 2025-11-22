@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/viewra/viewra/internal/domain/images"
-	infraImages "github.com/viewra/viewra/internal/infrastructure/images"
+	"github.com/mantonx/viewra/internal/domain/images"
+	infraImages "github.com/mantonx/viewra/internal/infrastructure/images"
 )
 
 // ProcessAndSaveImages is a shared helper that processes extracted images and saves them to the database

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/transcode"
-	"github.com/viewra/viewra/internal/infrastructure/filesystem"
-	"github.com/viewra/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 )
 
 // CleanupFilter defines criteria for selecting transcodes to clean

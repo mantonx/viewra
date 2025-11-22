@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // mockScanJobRepository is a mock implementation of scanner.ScanJobRepository

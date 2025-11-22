@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	appconfig "github.com/viewra/viewra/internal/app/config"
-	"github.com/viewra/viewra/internal/infrastructure/database"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/scanjob"
+	appconfig "github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/infrastructure/database"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 )
 
 // RunStartupTasks executes all startup tasks in order

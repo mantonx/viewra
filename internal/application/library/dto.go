@@ -3,7 +3,7 @@ package library
 import (
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // CreateLibraryRequest represents the input for creating a new library

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // Service implements the filesystem.Browser interface

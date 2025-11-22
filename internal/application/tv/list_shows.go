@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/common"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/tvshow"
+	"github.com/mantonx/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 )
 
 // ListTVShowsUseCase handles the business logic for listing TV shows with aggregated data

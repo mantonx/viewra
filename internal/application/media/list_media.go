@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // ListMediaUseCase handles the business logic for listing media items

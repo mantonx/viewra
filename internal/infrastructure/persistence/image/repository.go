@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/images"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
+	"github.com/mantonx/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository implements images.Repository using sqlc.

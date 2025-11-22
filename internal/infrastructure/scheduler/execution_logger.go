@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 )
 
 // DBExecutionLogger implements ExecutionLogger using database storage

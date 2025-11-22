@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/media"
-	"github.com/viewra/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 )
 
 // ServeManifestRequest represents a request to serve an HLS playlist.

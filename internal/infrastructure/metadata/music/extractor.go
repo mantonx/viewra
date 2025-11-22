@@ -3,7 +3,7 @@ package music
 import (
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // Extractor adapts the infrastructure ID3 parser to the domain's MusicMetadataExtractor interface

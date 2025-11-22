@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/infrastructure/scheduler"
+	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 )
 
 // SchedulerHandler handles scheduler-related API requests

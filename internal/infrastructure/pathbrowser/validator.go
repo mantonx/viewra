@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // PathValidator validates filesystem paths with security checks

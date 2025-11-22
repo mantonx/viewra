@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // ListTracksByAlbumIDUseCase handles listing tracks using an album's representative track ID

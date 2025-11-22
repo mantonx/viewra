@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/adapters"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // NewRepository creates a new scan job repository with the appropriate database driver.

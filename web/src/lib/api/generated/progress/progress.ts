@@ -22,13 +22,15 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  GetApiProgressBatchParams,
   GetApiProgressInProgressParams,
   GetApiProgressParams,
   GetApiProgressWatchedParams,
-  GithubComViewraViewraInternalApplicationProgressListProgressResponse,
-  GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest,
-  GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest,
-  GithubComViewraViewraInternalApplicationProgressWatchProgressResponse,
+  GithubComMantonxViewraInternalApplicationProgressBatchProgressResponse,
+  GithubComMantonxViewraInternalApplicationProgressListProgressResponse,
+  GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest,
+  GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody,
+  GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -41,7 +43,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary List watch progress
  */
 export type getApiProgressResponse200 = {
-  data: GithubComViewraViewraInternalApplicationProgressListProgressResponse
+  data: GithubComMantonxViewraInternalApplicationProgressListProgressResponse
   status: 200
 }
 
@@ -190,11 +192,11 @@ export function useGetApiProgress<
 }
 
 /**
- * Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%.
+ * Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%. Supports both PUT and POST for browser sendBeacon compatibility.
  * @summary Update watch progress
  */
 export type putApiProgressResponse200 = {
-  data: GithubComViewraViewraInternalApplicationProgressWatchProgressResponse
+  data: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse
   status: 200
 }
 
@@ -225,14 +227,16 @@ export const getPutApiProgressUrl = () => {
 }
 
 export const putApiProgress = async (
-  githubComViewraViewraInternalApplicationProgressUpdateProgressRequest: GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest,
+  githubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody,
   options?: RequestInit
 ): Promise<putApiProgressResponse> => {
   return customInstance<putApiProgressResponse>(getPutApiProgressUrl(), {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(githubComViewraViewraInternalApplicationProgressUpdateProgressRequest),
+    body: JSON.stringify(
+      githubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody
+    ),
   })
 }
 
@@ -243,14 +247,14 @@ export const getPutApiProgressMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof putApiProgress>>,
     TError,
-    { data: GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest },
+    { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
   Awaited<ReturnType<typeof putApiProgress>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest },
+  { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
   TContext
 > => {
   const mutationKey = ['putApiProgress']
@@ -262,7 +266,7 @@ export const getPutApiProgressMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof putApiProgress>>,
-    { data: GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest }
+    { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody }
   > = (props) => {
     const { data } = props ?? {}
 
@@ -274,7 +278,7 @@ export const getPutApiProgressMutationOptions = <
 
 export type PutApiProgressMutationResult = NonNullable<Awaited<ReturnType<typeof putApiProgress>>>
 export type PutApiProgressMutationBody =
-  GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest
+  GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody
 export type PutApiProgressMutationError = InternalApiHandlersErrorResponse
 
 /**
@@ -285,7 +289,7 @@ export const usePutApiProgress = <TError = InternalApiHandlersErrorResponse, TCo
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiProgress>>,
       TError,
-      { data: GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest },
+      { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
@@ -294,7 +298,7 @@ export const usePutApiProgress = <TError = InternalApiHandlersErrorResponse, TCo
 ): UseMutationResult<
   Awaited<ReturnType<typeof putApiProgress>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationProgressUpdateProgressRequest },
+  { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
   TContext
 > => {
   const mutationOptions = getPutApiProgressMutationOptions(options)
@@ -302,11 +306,296 @@ export const usePutApiProgress = <TError = InternalApiHandlersErrorResponse, TCo
   return useMutation(mutationOptions, queryClient)
 }
 /**
+ * Updates or creates watch progress for a media item. Automatically marks as watched if progress exceeds 90%. Supports both PUT and POST for browser sendBeacon compatibility.
+ * @summary Update watch progress
+ */
+export type postApiProgressResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse
+  status: 200
+}
+
+export type postApiProgressResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type postApiProgressResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type postApiProgressResponseSuccess = postApiProgressResponse200 & {
+  headers: Headers
+}
+export type postApiProgressResponseError = (
+  | postApiProgressResponse400
+  | postApiProgressResponse500
+) & {
+  headers: Headers
+}
+
+export type postApiProgressResponse = postApiProgressResponseSuccess | postApiProgressResponseError
+
+export const getPostApiProgressUrl = () => {
+  return `/api/progress`
+}
+
+export const postApiProgress = async (
+  githubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody,
+  options?: RequestInit
+): Promise<postApiProgressResponse> => {
+  return customInstance<postApiProgressResponse>(getPostApiProgressUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      githubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody
+    ),
+  })
+}
+
+export const getPostApiProgressMutationOptions = <
+  TError = InternalApiHandlersErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiProgress>>,
+    TError,
+    { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiProgress>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
+  TContext
+> => {
+  const mutationKey = ['postApiProgress']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiProgress>>,
+    { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return postApiProgress(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostApiProgressMutationResult = NonNullable<Awaited<ReturnType<typeof postApiProgress>>>
+export type PostApiProgressMutationBody =
+  GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody
+export type PostApiProgressMutationError = InternalApiHandlersErrorResponse
+
+/**
+ * @summary Update watch progress
+ */
+export const usePostApiProgress = <TError = InternalApiHandlersErrorResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiProgress>>,
+      TError,
+      { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiProgress>>,
+  TError,
+  { data: GithubComMantonxViewraInternalApplicationProgressUpdateProgressRequestBody },
+  TContext
+> => {
+  const mutationOptions = getPostApiProgressMutationOptions(options)
+
+  return useMutation(mutationOptions, queryClient)
+}
+/**
+ * Gets watch progress for multiple media items
+ * @summary Get batch watch progress
+ */
+export type getApiProgressBatchResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationProgressBatchProgressResponse
+  status: 200
+}
+
+export type getApiProgressBatchResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiProgressBatchResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiProgressBatchResponseSuccess = getApiProgressBatchResponse200 & {
+  headers: Headers
+}
+export type getApiProgressBatchResponseError = (
+  | getApiProgressBatchResponse400
+  | getApiProgressBatchResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiProgressBatchResponse =
+  | getApiProgressBatchResponseSuccess
+  | getApiProgressBatchResponseError
+
+export const getGetApiProgressBatchUrl = (params: GetApiProgressBatchParams) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/progress/batch?${stringifiedParams}`
+    : `/api/progress/batch`
+}
+
+export const getApiProgressBatch = async (
+  params: GetApiProgressBatchParams,
+  options?: RequestInit
+): Promise<getApiProgressBatchResponse> => {
+  return customInstance<getApiProgressBatchResponse>(getGetApiProgressBatchUrl(params), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiProgressBatchQueryKey = (params?: GetApiProgressBatchParams) => {
+  return [`/api/progress/batch`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiProgressBatchQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiProgressBatchParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressBatch>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiProgressBatchQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiProgressBatch>>> = ({ signal }) =>
+    getApiProgressBatch(params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiProgressBatch>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiProgressBatchQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiProgressBatch>>
+>
+export type GetApiProgressBatchQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiProgressBatch<
+  TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiProgressBatchParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiProgressBatch>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiProgressBatch>>,
+          TError,
+          Awaited<ReturnType<typeof getApiProgressBatch>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiProgressBatch<
+  TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiProgressBatchParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiProgressBatch>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiProgressBatch>>,
+          TError,
+          Awaited<ReturnType<typeof getApiProgressBatch>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiProgressBatch<
+  TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiProgressBatchParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressBatch>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get batch watch progress
+ */
+
+export function useGetApiProgressBatch<
+  TData = Awaited<ReturnType<typeof getApiProgressBatch>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiProgressBatchParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiProgressBatch>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiProgressBatchQueryOptions(params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Gets all in-progress (partially watched) media items for the current user
  * @summary List in-progress items
  */
 export type getApiProgressInProgressResponse200 = {
-  data: GithubComViewraViewraInternalApplicationProgressListProgressResponse
+  data: GithubComMantonxViewraInternalApplicationProgressListProgressResponse
   status: 200
 }
 
@@ -476,7 +765,7 @@ export function useGetApiProgressInProgress<
  * @summary Mark as unwatched
  */
 export type postApiProgressMarkUnwatchedResponse200 = {
-  data: GithubComViewraViewraInternalApplicationProgressWatchProgressResponse
+  data: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse
   status: 200
 }
 
@@ -516,7 +805,7 @@ export const getPostApiProgressMarkUnwatchedUrl = () => {
 }
 
 export const postApiProgressMarkUnwatched = async (
-  githubComViewraViewraInternalApplicationProgressMarkWatchedRequest: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest,
+  githubComMantonxViewraInternalApplicationProgressMarkWatchedRequest: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest,
   options?: RequestInit
 ): Promise<postApiProgressMarkUnwatchedResponse> => {
   return customInstance<postApiProgressMarkUnwatchedResponse>(
@@ -525,7 +814,7 @@ export const postApiProgressMarkUnwatched = async (
       ...options,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(githubComViewraViewraInternalApplicationProgressMarkWatchedRequest),
+      body: JSON.stringify(githubComMantonxViewraInternalApplicationProgressMarkWatchedRequest),
     }
   )
 }
@@ -537,14 +826,14 @@ export const getPostApiProgressMarkUnwatchedMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof postApiProgressMarkUnwatched>>,
     TError,
-    { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+    { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
   Awaited<ReturnType<typeof postApiProgressMarkUnwatched>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+  { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
   TContext
 > => {
   const mutationKey = ['postApiProgressMarkUnwatched']
@@ -556,7 +845,7 @@ export const getPostApiProgressMarkUnwatchedMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof postApiProgressMarkUnwatched>>,
-    { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest }
+    { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest }
   > = (props) => {
     const { data } = props ?? {}
 
@@ -570,7 +859,7 @@ export type PostApiProgressMarkUnwatchedMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiProgressMarkUnwatched>>
 >
 export type PostApiProgressMarkUnwatchedMutationBody =
-  GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest
+  GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest
 export type PostApiProgressMarkUnwatchedMutationError = InternalApiHandlersErrorResponse
 
 /**
@@ -584,7 +873,7 @@ export const usePostApiProgressMarkUnwatched = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiProgressMarkUnwatched>>,
       TError,
-      { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+      { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
@@ -593,7 +882,7 @@ export const usePostApiProgressMarkUnwatched = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof postApiProgressMarkUnwatched>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+  { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
   TContext
 > => {
   const mutationOptions = getPostApiProgressMarkUnwatchedMutationOptions(options)
@@ -605,7 +894,7 @@ export const usePostApiProgressMarkUnwatched = <
  * @summary Mark as watched
  */
 export type postApiProgressMarkWatchedResponse200 = {
-  data: GithubComViewraViewraInternalApplicationProgressWatchProgressResponse
+  data: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse
   status: 200
 }
 
@@ -638,14 +927,14 @@ export const getPostApiProgressMarkWatchedUrl = () => {
 }
 
 export const postApiProgressMarkWatched = async (
-  githubComViewraViewraInternalApplicationProgressMarkWatchedRequest: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest,
+  githubComMantonxViewraInternalApplicationProgressMarkWatchedRequest: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest,
   options?: RequestInit
 ): Promise<postApiProgressMarkWatchedResponse> => {
   return customInstance<postApiProgressMarkWatchedResponse>(getPostApiProgressMarkWatchedUrl(), {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(githubComViewraViewraInternalApplicationProgressMarkWatchedRequest),
+    body: JSON.stringify(githubComMantonxViewraInternalApplicationProgressMarkWatchedRequest),
   })
 }
 
@@ -656,14 +945,14 @@ export const getPostApiProgressMarkWatchedMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof postApiProgressMarkWatched>>,
     TError,
-    { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+    { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
   Awaited<ReturnType<typeof postApiProgressMarkWatched>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+  { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
   TContext
 > => {
   const mutationKey = ['postApiProgressMarkWatched']
@@ -675,7 +964,7 @@ export const getPostApiProgressMarkWatchedMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof postApiProgressMarkWatched>>,
-    { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest }
+    { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest }
   > = (props) => {
     const { data } = props ?? {}
 
@@ -689,7 +978,7 @@ export type PostApiProgressMarkWatchedMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiProgressMarkWatched>>
 >
 export type PostApiProgressMarkWatchedMutationBody =
-  GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest
+  GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest
 export type PostApiProgressMarkWatchedMutationError = InternalApiHandlersErrorResponse
 
 /**
@@ -703,7 +992,7 @@ export const usePostApiProgressMarkWatched = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiProgressMarkWatched>>,
       TError,
-      { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+      { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
@@ -712,7 +1001,7 @@ export const usePostApiProgressMarkWatched = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof postApiProgressMarkWatched>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationProgressMarkWatchedRequest },
+  { data: GithubComMantonxViewraInternalApplicationProgressMarkWatchedRequest },
   TContext
 > => {
   const mutationOptions = getPostApiProgressMarkWatchedMutationOptions(options)
@@ -724,7 +1013,7 @@ export const usePostApiProgressMarkWatched = <
  * @summary List watched items
  */
 export type getApiProgressWatchedResponse200 = {
-  data: GithubComViewraViewraInternalApplicationProgressListProgressResponse
+  data: GithubComMantonxViewraInternalApplicationProgressListProgressResponse
   status: 200
 }
 
@@ -893,7 +1182,7 @@ export function useGetApiProgressWatched<
  * @summary Get watch progress
  */
 export type getApiProgressMediaIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationProgressWatchProgressResponse
+  data: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse
   status: 200
 }
 

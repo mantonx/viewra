@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/viewra/viewra/internal/infrastructure/images"
+	"github.com/mantonx/viewra/internal/infrastructure/images"
 )
 
 func main() {

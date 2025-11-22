@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/domain/progress"
 )
 
 func TestMarkWatched(t *testing.T) {

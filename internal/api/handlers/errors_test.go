@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	domainLibrary "github.com/viewra/viewra/internal/domain/library"
-	domainMedia "github.com/viewra/viewra/internal/domain/media"
+	domainLibrary "github.com/mantonx/viewra/internal/domain/library"
+	domainMedia "github.com/mantonx/viewra/internal/domain/media"
 )
 
 func TestHandleError(t *testing.T) {

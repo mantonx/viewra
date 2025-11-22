@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	domain "github.com/viewra/viewra/internal/domain/transcode"
+	domain "github.com/mantonx/viewra/internal/domain/transcode"
 	"golang.org/x/sys/unix"
 )
 

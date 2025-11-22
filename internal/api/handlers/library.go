@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/library"
 )
 
 // LibraryHandler handles HTTP requests for libraries

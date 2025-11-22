@@ -20,8 +20,8 @@ import type {
 
 import type {
   GetApiMediaParams,
-  GithubComViewraViewraInternalApplicationMediaGetMediaResponse,
-  GithubComViewraViewraInternalApplicationMediaListMediaResponse,
+  GithubComMantonxViewraInternalApplicationMediaGetMediaResponse,
+  GithubComMantonxViewraInternalApplicationMediaListMediaResponse,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -34,7 +34,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary List media items
  */
 export type getApiMediaResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMediaListMediaResponse
+  data: GithubComMantonxViewraInternalApplicationMediaListMediaResponse
   status: 200
 }
 
@@ -192,7 +192,7 @@ export function useGetApiMedia<
  * @summary Get a media item by ID
  */
 export type getApiMediaIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMediaGetMediaResponse
+  data: GithubComMantonxViewraInternalApplicationMediaGetMediaResponse
   status: 200
 }
 

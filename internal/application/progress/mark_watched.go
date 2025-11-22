@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/domain/progress"
 )
 
 // MarkWatchedRequest represents a request to mark media as watched or unwatched.

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/tv"
-	"github.com/viewra/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/application/tv"
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // TVHandler handles HTTP requests for TV shows and episodes

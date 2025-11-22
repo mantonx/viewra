@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/media"
+	"github.com/mantonx/viewra/internal/application/media"
 )
 
 // MediaHandler handles HTTP requests for media

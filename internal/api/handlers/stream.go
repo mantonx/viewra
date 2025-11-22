@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/media"
-	"github.com/viewra/viewra/internal/infrastructure/streaming"
+	"github.com/mantonx/viewra/internal/application/media"
+	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
 
 // StreamHandler handles media streaming requests

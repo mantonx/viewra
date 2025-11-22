@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/viewra/viewra/internal/application/common"
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/application/common"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // CreateLibraryUseCase handles the business logic for creating a new library

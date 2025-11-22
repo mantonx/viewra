@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/infrastructure/persistence/tvshow"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 )
 
 // GetTVShowUseCase handles the business logic for getting a single TV show

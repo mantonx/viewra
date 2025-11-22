@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // setupTestDB creates an in-memory SQLite database with schema

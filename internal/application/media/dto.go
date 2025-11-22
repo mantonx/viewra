@@ -3,7 +3,7 @@ package media
 import (
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // MediaResponse represents the base media response for all media types

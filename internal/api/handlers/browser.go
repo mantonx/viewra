@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // BrowserHandler handles filesystem browsing requests

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // TestNoOpRepositoriesDoNotPanic verifies that no-op repositories can be safely called

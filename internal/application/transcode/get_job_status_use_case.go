@@ -3,7 +3,7 @@ package transcode
 import (
 	"context"
 
-	"github.com/viewra/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/domain/transcode"
 )
 
 // GetJobStatusRequest represents a request to get job status.

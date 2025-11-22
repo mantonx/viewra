@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
-	"github.com/viewra/viewra/internal/infrastructure/filesystem"
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 )
 
 func main() {

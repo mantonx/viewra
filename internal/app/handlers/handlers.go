@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/viewra/viewra/internal/api/handlers"
-	"github.com/viewra/viewra/internal/app/repositories"
-	"github.com/viewra/viewra/internal/app/services"
-	"github.com/viewra/viewra/internal/app/usecases"
-	"github.com/viewra/viewra/internal/infrastructure/scheduler"
+	"github.com/mantonx/viewra/internal/api/handlers"
+	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/app/services"
+	"github.com/mantonx/viewra/internal/app/usecases"
+	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 )
 
 // Handlers holds all HTTP handlers grouped by domain

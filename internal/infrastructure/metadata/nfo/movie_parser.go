@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	domainCommon "github.com/viewra/viewra/internal/domain/common"
+	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 )
 
 // MovieNFO represents a Kodi/Plex-compatible movie .nfo file structure

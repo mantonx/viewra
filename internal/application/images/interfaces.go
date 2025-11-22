@@ -3,7 +3,7 @@ package images
 import (
 	"context"
 
-	"github.com/viewra/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/images"
 )
 
 // GetImageExecutor defines the interface for getting a single image

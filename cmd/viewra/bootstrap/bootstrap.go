@@ -12,10 +12,10 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	"github.com/viewra/viewra/internal/api"
-	"github.com/viewra/viewra/internal/app"
-	appconfig "github.com/viewra/viewra/internal/app/config"
-	"github.com/viewra/viewra/internal/pkg/logger"
+	"github.com/mantonx/viewra/internal/api"
+	"github.com/mantonx/viewra/internal/app"
+	appconfig "github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // Application holds all application dependencies

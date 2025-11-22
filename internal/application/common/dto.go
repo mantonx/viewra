@@ -1,6 +1,6 @@
 package common
 
-import "github.com/viewra/viewra/internal/domain/common"
+import "github.com/mantonx/viewra/internal/domain/common"
 
 // ListIDsResponse represents a list of IDs for prefetching
 // This is shared across movies, TV shows, and music to avoid duplication

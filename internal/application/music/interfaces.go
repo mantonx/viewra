@@ -3,7 +3,7 @@ package music
 import (
 	"context"
 
-	"github.com/viewra/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // ListArtistsExecutor defines the interface for listing music artists

@@ -5,15 +5,15 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/viewra/viewra/internal/api"
-	appconfig "github.com/viewra/viewra/internal/app/config"
-	apphandlers "github.com/viewra/viewra/internal/app/handlers"
-	"github.com/viewra/viewra/internal/app/repositories"
-	"github.com/viewra/viewra/internal/app/services"
-	"github.com/viewra/viewra/internal/app/usecases"
-	"github.com/viewra/viewra/internal/application/common"
-	"github.com/viewra/viewra/internal/application/transcode"
-	"github.com/viewra/viewra/internal/infrastructure/scheduler"
+	"github.com/mantonx/viewra/internal/api"
+	appconfig "github.com/mantonx/viewra/internal/app/config"
+	apphandlers "github.com/mantonx/viewra/internal/app/handlers"
+	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/app/services"
+	"github.com/mantonx/viewra/internal/app/usecases"
+	"github.com/mantonx/viewra/internal/application/common"
+	"github.com/mantonx/viewra/internal/application/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 )
 
 // Container holds all application dependencies

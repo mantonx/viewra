@@ -3,7 +3,7 @@ package library_test
 import (
 	"testing"
 
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 func TestLibrary_IsValid(t *testing.T) {

@@ -2,7 +2,7 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/api/handlers"
+	"github.com/mantonx/viewra/internal/api/handlers"
 )
 
 // RegisterTVRoutes registers all TV-related routes

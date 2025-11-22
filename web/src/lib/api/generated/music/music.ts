@@ -20,12 +20,14 @@ import type {
 
 import type {
   GetApiMusicArtistsParams,
+  GetApiMusicIdsParams,
   GetApiMusicSearchParams,
-  GithubComViewraViewraInternalApplicationImagesListImagesResponse,
-  GithubComViewraViewraInternalApplicationMusicListAlbumsResponse,
-  GithubComViewraViewraInternalApplicationMusicListArtistsResponse,
-  GithubComViewraViewraInternalApplicationMusicListTracksResponse,
-  GithubComViewraViewraInternalApplicationMusicMusicTrackResponse,
+  GithubComMantonxViewraInternalApplicationImagesListImagesResponse,
+  GithubComMantonxViewraInternalApplicationMusicListAlbumsResponse,
+  GithubComMantonxViewraInternalApplicationMusicListArtistsResponse,
+  GithubComMantonxViewraInternalApplicationMusicListIDsResponse,
+  GithubComMantonxViewraInternalApplicationMusicListTracksResponse,
+  GithubComMantonxViewraInternalApplicationMusicMusicTrackResponse,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -38,7 +40,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary Get all images for a music album
  */
 export type getApiMusicAlbumsIdImagesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesListImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 
@@ -204,7 +206,7 @@ export function useGetApiMusicAlbumsIdImages<
  * @summary List tracks for an album by ID
  */
 export type getApiMusicAlbumsIdTracksResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMusicListTracksResponse
+  data: GithubComMantonxViewraInternalApplicationMusicListTracksResponse
   status: 200
 }
 
@@ -376,7 +378,7 @@ export function useGetApiMusicAlbumsIdTracks<
  * @summary List music artists
  */
 export type getApiMusicArtistsResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMusicListArtistsResponse
+  data: GithubComMantonxViewraInternalApplicationMusicListArtistsResponse
   status: 200
 }
 
@@ -545,7 +547,7 @@ export function useGetApiMusicArtists<
  * @summary List albums for an artist by ID
  */
 export type getApiMusicArtistsIdAlbumsResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMusicListAlbumsResponse
+  data: GithubComMantonxViewraInternalApplicationMusicListAlbumsResponse
   status: 200
 }
 
@@ -717,7 +719,7 @@ export function useGetApiMusicArtistsIdAlbums<
  * @summary Get all images for a music artist
  */
 export type getApiMusicArtistsIdImagesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesListImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 
@@ -879,11 +881,172 @@ export function useGetApiMusicArtistsIdImages<
 }
 
 /**
+ * Returns a list of artist representative IDs only for prefetching images with optional pagination
+ * @summary List artist IDs
+ */
+export type getApiMusicIdsResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationMusicListIDsResponse
+  status: 200
+}
+
+export type getApiMusicIdsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMusicIdsResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiMusicIdsResponseSuccess = getApiMusicIdsResponse200 & {
+  headers: Headers
+}
+export type getApiMusicIdsResponseError = (
+  | getApiMusicIdsResponse400
+  | getApiMusicIdsResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiMusicIdsResponse = getApiMusicIdsResponseSuccess | getApiMusicIdsResponseError
+
+export const getGetApiMusicIdsUrl = (params: GetApiMusicIdsParams) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0 ? `/api/music/ids?${stringifiedParams}` : `/api/music/ids`
+}
+
+export const getApiMusicIds = async (
+  params: GetApiMusicIdsParams,
+  options?: RequestInit
+): Promise<getApiMusicIdsResponse> => {
+  return customInstance<getApiMusicIdsResponse>(getGetApiMusicIdsUrl(params), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiMusicIdsQueryKey = (params?: GetApiMusicIdsParams) => {
+  return [`/api/music/ids`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiMusicIdsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMusicIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMusicIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMusicIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiMusicIdsQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMusicIds>>> = ({ signal }) =>
+    getApiMusicIds(params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMusicIds>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMusicIdsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMusicIds>>>
+export type GetApiMusicIdsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMusicIds<
+  TData = Awaited<ReturnType<typeof getApiMusicIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMusicIdsParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMusicIds>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMusicIds>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMusicIds>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMusicIds<
+  TData = Awaited<ReturnType<typeof getApiMusicIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMusicIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMusicIds>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMusicIds>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMusicIds>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMusicIds<
+  TData = Awaited<ReturnType<typeof getApiMusicIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMusicIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMusicIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List artist IDs
+ */
+
+export function useGetApiMusicIds<
+  TData = Awaited<ReturnType<typeof getApiMusicIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMusicIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMusicIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMusicIdsQueryOptions(params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Searches for music tracks by title, artist, or album in a specific library
  * @summary Search music
  */
 export type getApiMusicSearchResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMusicListTracksResponse
+  data: GithubComMantonxViewraInternalApplicationMusicListTracksResponse
   status: 200
 }
 
@@ -1050,7 +1213,7 @@ export function useGetApiMusicSearch<
  * @summary Get a music track by ID
  */
 export type getApiMusicTracksIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMusicMusicTrackResponse
+  data: GithubComMantonxViewraInternalApplicationMusicMusicTrackResponse
   status: 200
 }
 

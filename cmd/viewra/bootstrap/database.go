@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	appconfig "github.com/viewra/viewra/internal/app/config"
-	"github.com/viewra/viewra/internal/infrastructure/database"
+	appconfig "github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/infrastructure/database"
 )
 
 // DatabaseConnection holds the database connection and metadata

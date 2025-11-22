@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/library"
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // Mock library repository for StartScan tests

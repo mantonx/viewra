@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/library"
 )
 
 // UpdateLibraryUseCase handles the business logic for updating a library

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	domainLibrary "github.com/viewra/viewra/internal/domain/library"
-	domainMedia "github.com/viewra/viewra/internal/domain/media"
-	domainScanner "github.com/viewra/viewra/internal/domain/scanner"
+	domainLibrary "github.com/mantonx/viewra/internal/domain/library"
+	domainMedia "github.com/mantonx/viewra/internal/domain/media"
+	domainScanner "github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // ErrorResponse represents an API error response (legacy)

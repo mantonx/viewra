@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // mockMediaRepository is a mock implementation of media.Repository for testing

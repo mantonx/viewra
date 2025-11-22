@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/viewra/viewra/internal/api"
-	"github.com/viewra/viewra/internal/application/transcode"
-	"github.com/viewra/viewra/internal/infrastructure/database"
+	"github.com/mantonx/viewra/internal/api"
+	"github.com/mantonx/viewra/internal/application/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/database"
 )
 
 // Config holds all application configuration

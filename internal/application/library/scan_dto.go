@@ -3,7 +3,7 @@ package library
 import (
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // StartScanRequest represents the input for starting a library scan

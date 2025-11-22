@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // SearchMediaUseCase handles the business logic for searching media

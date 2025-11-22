@@ -3,10 +3,10 @@ package library
 import (
 	"database/sql"
 
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/adapters"
-	"github.com/viewra/viewra/internal/infrastructure/persistence/common"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/adapters"
+	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository implements the library.Repository interface using sqlc.

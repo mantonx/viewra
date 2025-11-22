@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/domain/progress"
 )
 
 // mockRepository implements progress.Repository for testing

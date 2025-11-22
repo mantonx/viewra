@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/transcode"
-	"github.com/viewra/viewra/internal/infrastructure/scheduler"
+	"github.com/mantonx/viewra/internal/application/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 )
 
 // HealthHandler handles health check requests

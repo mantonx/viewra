@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_postgres"
-	"github.com/viewra/viewra/internal/infrastructure/database/sqlc_sqlite"
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 )
 
 // RecoverStuckScans checks for scans stuck in "running" status and marks them as failed.

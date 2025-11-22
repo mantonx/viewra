@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/common"
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // ListTVShowIDsUseCase handles the business logic for listing TV show IDs only

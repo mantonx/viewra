@@ -3,7 +3,7 @@ package progress
 import (
 	"context"
 
-	"github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/domain/progress"
 )
 
 // GetBatchProgressByMediaIDs retrieves watch progress for multiple media items.

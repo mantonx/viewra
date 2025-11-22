@@ -7,12 +7,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/viewra/viewra/internal/app/config"
-	"github.com/viewra/viewra/internal/app/repositories"
-	"github.com/viewra/viewra/internal/application/transcode"
-	infraimages "github.com/viewra/viewra/internal/infrastructure/images"
-	"github.com/viewra/viewra/internal/infrastructure/pathbrowser"
-	"github.com/viewra/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/application/transcode"
+	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
+	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 )
 
 // Services holds all infrastructure and domain services.

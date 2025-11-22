@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	_ "github.com/viewra/viewra/docs/swagger" // Import generated docs
-	"github.com/viewra/viewra/cmd/viewra/bootstrap"
+	_ "github.com/mantonx/viewra/docs/swagger" // Import generated docs
+	"github.com/mantonx/viewra/cmd/viewra/bootstrap"
 )
 
 // @title           ViewRA Media Server API

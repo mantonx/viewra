@@ -22,12 +22,12 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
-  GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest,
-  GithubComViewraViewraInternalApplicationLibraryGetLibraryResponse,
-  GithubComViewraViewraInternalApplicationLibraryLibraryResponse,
-  GithubComViewraViewraInternalApplicationLibraryListLibrariesResponse,
-  GithubComViewraViewraInternalApplicationLibraryStartScanResponse,
-  GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest,
+  GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest,
+  GithubComMantonxViewraInternalApplicationLibraryGetLibraryResponse,
+  GithubComMantonxViewraInternalApplicationLibraryLibraryResponse,
+  GithubComMantonxViewraInternalApplicationLibraryListLibrariesResponse,
+  GithubComMantonxViewraInternalApplicationLibraryStartScanResponse,
+  GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -40,7 +40,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary List all libraries
  */
 export type getApiLibrariesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationLibraryListLibrariesResponse
+  data: GithubComMantonxViewraInternalApplicationLibraryListLibrariesResponse
   status: 200
 }
 
@@ -173,7 +173,7 @@ export function useGetApiLibraries<
  * @summary Create a new library
  */
 export type postApiLibrariesResponse201 = {
-  data: GithubComViewraViewraInternalApplicationLibraryLibraryResponse
+  data: GithubComMantonxViewraInternalApplicationLibraryLibraryResponse
   status: 201
 }
 
@@ -206,14 +206,14 @@ export const getPostApiLibrariesUrl = () => {
 }
 
 export const postApiLibraries = async (
-  githubComViewraViewraInternalApplicationLibraryCreateLibraryRequest: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest,
+  githubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest: GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest,
   options?: RequestInit
 ): Promise<postApiLibrariesResponse> => {
   return customInstance<postApiLibrariesResponse>(getPostApiLibrariesUrl(), {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(githubComViewraViewraInternalApplicationLibraryCreateLibraryRequest),
+    body: JSON.stringify(githubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest),
   })
 }
 
@@ -224,14 +224,14 @@ export const getPostApiLibrariesMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof postApiLibraries>>,
     TError,
-    { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+    { data: GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
   Awaited<ReturnType<typeof postApiLibraries>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+  { data: GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest },
   TContext
 > => {
   const mutationKey = ['postApiLibraries']
@@ -243,7 +243,7 @@ export const getPostApiLibrariesMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof postApiLibraries>>,
-    { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest }
+    { data: GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest }
   > = (props) => {
     const { data } = props ?? {}
 
@@ -257,7 +257,7 @@ export type PostApiLibrariesMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiLibraries>>
 >
 export type PostApiLibrariesMutationBody =
-  GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest
+  GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest
 export type PostApiLibrariesMutationError = InternalApiHandlersErrorResponse
 
 /**
@@ -268,7 +268,7 @@ export const usePostApiLibraries = <TError = InternalApiHandlersErrorResponse, T
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiLibraries>>,
       TError,
-      { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+      { data: GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
@@ -277,7 +277,7 @@ export const usePostApiLibraries = <TError = InternalApiHandlersErrorResponse, T
 ): UseMutationResult<
   Awaited<ReturnType<typeof postApiLibraries>>,
   TError,
-  { data: GithubComViewraViewraInternalApplicationLibraryCreateLibraryRequest },
+  { data: GithubComMantonxViewraInternalApplicationLibraryCreateLibraryRequest },
   TContext
 > => {
   const mutationOptions = getPostApiLibrariesMutationOptions(options)
@@ -289,7 +289,7 @@ export const usePostApiLibraries = <TError = InternalApiHandlersErrorResponse, T
  * @summary Get a library by ID
  */
 export type getApiLibrariesIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationLibraryGetLibraryResponse
+  data: GithubComMantonxViewraInternalApplicationLibraryGetLibraryResponse
   status: 200
 }
 
@@ -450,7 +450,7 @@ export function useGetApiLibrariesId<
  * @summary Update a library
  */
 export type putApiLibrariesIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationLibraryLibraryResponse
+  data: GithubComMantonxViewraInternalApplicationLibraryLibraryResponse
   status: 200
 }
 
@@ -490,14 +490,14 @@ export const getPutApiLibrariesIdUrl = (id: number) => {
 
 export const putApiLibrariesId = async (
   id: number,
-  githubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest,
+  githubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest: GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest,
   options?: RequestInit
 ): Promise<putApiLibrariesIdResponse> => {
   return customInstance<putApiLibrariesIdResponse>(getPutApiLibrariesIdUrl(id), {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(githubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest),
+    body: JSON.stringify(githubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest),
   })
 }
 
@@ -508,14 +508,14 @@ export const getPutApiLibrariesIdMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof putApiLibrariesId>>,
     TError,
-    { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+    { id: number; data: GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest },
     TContext
   >
   request?: SecondParameter<typeof customInstance>
 }): UseMutationOptions<
   Awaited<ReturnType<typeof putApiLibrariesId>>,
   TError,
-  { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+  { id: number; data: GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest },
   TContext
 > => {
   const mutationKey = ['putApiLibrariesId']
@@ -527,7 +527,7 @@ export const getPutApiLibrariesIdMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof putApiLibrariesId>>,
-    { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest }
+    { id: number; data: GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest }
   > = (props) => {
     const { id, data } = props ?? {}
 
@@ -541,7 +541,7 @@ export type PutApiLibrariesIdMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiLibrariesId>>
 >
 export type PutApiLibrariesIdMutationBody =
-  GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest
+  GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest
 export type PutApiLibrariesIdMutationError = InternalApiHandlersErrorResponse
 
 /**
@@ -552,7 +552,7 @@ export const usePutApiLibrariesId = <TError = InternalApiHandlersErrorResponse, 
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiLibrariesId>>,
       TError,
-      { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+      { id: number; data: GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest },
       TContext
     >
     request?: SecondParameter<typeof customInstance>
@@ -561,7 +561,7 @@ export const usePutApiLibrariesId = <TError = InternalApiHandlersErrorResponse, 
 ): UseMutationResult<
   Awaited<ReturnType<typeof putApiLibrariesId>>,
   TError,
-  { id: number; data: GithubComViewraViewraInternalApplicationLibraryUpdateLibraryRequest },
+  { id: number; data: GithubComMantonxViewraInternalApplicationLibraryUpdateLibraryRequest },
   TContext
 > => {
   const mutationOptions = getPutApiLibrariesIdMutationOptions(options)
@@ -695,7 +695,7 @@ export const useDeleteApiLibrariesId = <
  * @summary Scan a library
  */
 export type postApiLibrariesIdScanResponse202 = {
-  data: GithubComViewraViewraInternalApplicationLibraryStartScanResponse
+  data: GithubComMantonxViewraInternalApplicationLibraryStartScanResponse
   status: 202
 }
 

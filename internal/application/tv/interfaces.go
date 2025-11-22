@@ -3,7 +3,7 @@ package tv
 import (
 	"context"
 
-	"github.com/viewra/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // ListTVShowsExecutor defines the interface for listing TV shows

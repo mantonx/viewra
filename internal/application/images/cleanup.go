@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/images"
 )
 
 // CleanupUseCase handles cleanup of orphaned image cache files

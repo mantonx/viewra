@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/progress"
-	progressDomain "github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/application/progress"
+	progressDomain "github.com/mantonx/viewra/internal/domain/progress"
 )
 
 // ProgressHandler handles watch progress-related HTTP requests.
@@ -104,7 +104,7 @@ func (h *ProgressHandler) GetProgress(c *gin.Context) {
 // @Description Gets watch progress for multiple media items
 // @Tags progress
 // @Produce json
-// @Param media_ids query string true "Comma-separated media IDs" example("1,2,3")
+// @Param media_ids query string true "Comma-separated media IDs"
 // @Success 200 {object} progress.BatchProgressResponse
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse

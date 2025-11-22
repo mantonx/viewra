@@ -3,7 +3,7 @@ package movies
 import (
 	"context"
 
-	"github.com/viewra/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // ListMoviesExecutor defines the interface for listing movies

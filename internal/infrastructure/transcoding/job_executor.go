@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/viewra/viewra/internal/domain/transcode"
-	"github.com/viewra/viewra/internal/infrastructure/filesystem"
+	"github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 )
 
 // jobExecutor handles the execution of transcode jobs with validation, progress tracking, and cleanup.

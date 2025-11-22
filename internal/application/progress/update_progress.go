@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/domain/progress"
 )
 
 // UpdateProgress updates or creates watch progress for a media item.

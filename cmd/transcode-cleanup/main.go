@@ -10,9 +10,9 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/viewra/viewra/internal/application/transcode"
-	transcodeRepo "github.com/viewra/viewra/internal/infrastructure/persistence/transcode"
-	"github.com/viewra/viewra/internal/pkg/format"
+	"github.com/mantonx/viewra/internal/application/transcode"
+	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
+	"github.com/mantonx/viewra/internal/pkg/format"
 )
 
 func main() {

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/music"
-	"github.com/viewra/viewra/internal/domain/common"
+	"github.com/mantonx/viewra/internal/application/music"
+	"github.com/mantonx/viewra/internal/domain/common"
 )
 
 // MusicHandler handles HTTP requests for music

@@ -4,17 +4,17 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/viewra/viewra/internal/app/config"
-	"github.com/viewra/viewra/internal/app/repositories"
-	"github.com/viewra/viewra/internal/app/services"
-	"github.com/viewra/viewra/internal/application/common"
-	"github.com/viewra/viewra/internal/application/images"
-	"github.com/viewra/viewra/internal/application/library"
-	"github.com/viewra/viewra/internal/application/media"
-	"github.com/viewra/viewra/internal/application/movies"
-	"github.com/viewra/viewra/internal/application/music"
-	"github.com/viewra/viewra/internal/application/transcode"
-	"github.com/viewra/viewra/internal/application/tv"
+	"github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/app/services"
+	"github.com/mantonx/viewra/internal/application/common"
+	"github.com/mantonx/viewra/internal/application/images"
+	"github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/media"
+	"github.com/mantonx/viewra/internal/application/movies"
+	"github.com/mantonx/viewra/internal/application/music"
+	"github.com/mantonx/viewra/internal/application/transcode"
+	"github.com/mantonx/viewra/internal/application/tv"
 )
 
 // UseCases holds all application use cases organized by domain.

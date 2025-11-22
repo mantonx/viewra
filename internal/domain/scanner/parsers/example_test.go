@@ -3,7 +3,7 @@ package parsers_test
 import (
 	"fmt"
 
-	"github.com/viewra/viewra/internal/domain/scanner/parsers"
+	"github.com/mantonx/viewra/internal/domain/scanner/parsers"
 )
 
 // Example demonstrates how to use the movie parser

@@ -22,13 +22,12 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
-  GithubComViewraViewraInternalApplicationTranscodeQueueStats,
+  GithubComMantonxViewraInternalApplicationTranscodeQueueStats,
   InternalApiHandlersCleanupRequest,
   InternalApiHandlersCleanupResponse,
   InternalApiHandlersCreateTranscodeJobRequest,
   InternalApiHandlersDiskUsageResponse,
   InternalApiHandlersErrorResponse,
-  InternalApiHandlersOnDemandResponse,
   InternalApiHandlersTranscodeJobResponse,
   PostApiMediaMediaIdTranscodeQualityCancel200,
 } from '.././models'
@@ -38,18 +37,13 @@ import { customInstance } from '../../mutator/index'
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
- * Serves the HLS playlist (.m3u8) file for adaptive streaming. If playlist doesn't exist, analyzes video
-and either redirects to direct stream or creates a transcode job.
- * @summary Serve HLS playlist (with on-demand transcoding)
+ * Serves the HLS playlist (.m3u8) file for adaptive streaming. Generates complete manifest instantly
+from segment 0. Segments are created on-demand as the player requests them. Compatible videos redirect to direct stream.
+ * @summary Serve HLS playlist (instant manifest generation)
  */
 export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response200 = {
   data: Blob
   status: 200
-}
-
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response202 = {
-  data: InternalApiHandlersOnDemandResponse
-  status: 202
 }
 
 export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response302 = {
@@ -72,12 +66,10 @@ export type getApiMediaMediaIdHlsQualityPlaylistM3u8Response500 = {
   status: 500
 }
 
-export type getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseSuccess = (
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response200
-  | getApiMediaMediaIdHlsQualityPlaylistM3u8Response202
-) & {
-  headers: Headers
-}
+export type getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseSuccess =
+  getApiMediaMediaIdHlsQualityPlaylistM3u8Response200 & {
+    headers: Headers
+  }
 export type getApiMediaMediaIdHlsQualityPlaylistM3u8ResponseError = (
   | getApiMediaMediaIdHlsQualityPlaylistM3u8Response302
   | getApiMediaMediaIdHlsQualityPlaylistM3u8Response400
@@ -230,7 +222,7 @@ export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Serve HLS playlist (with on-demand transcoding)
+ * @summary Serve HLS playlist (instant manifest generation)
  */
 
 export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
@@ -267,7 +259,7 @@ export function useGetApiMediaMediaIdHlsQualityPlaylistM3u8<
 }
 
 /**
- * Serves HLS segment files (.ts) for adaptive streaming
+ * Serves HLS segment files (.ts) from progressive transcoding sessions
  * @summary Serve HLS segment
  */
 export type getApiMediaMediaIdHlsQualityFilenameResponse200 = {
@@ -275,19 +267,32 @@ export type getApiMediaMediaIdHlsQualityFilenameResponse200 = {
   status: 200
 }
 
+export type getApiMediaMediaIdHlsQualityFilenameResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
 export type getApiMediaMediaIdHlsQualityFilenameResponse404 = {
   data: InternalApiHandlersErrorResponse
   status: 404
+}
+
+export type getApiMediaMediaIdHlsQualityFilenameResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
 }
 
 export type getApiMediaMediaIdHlsQualityFilenameResponseSuccess =
   getApiMediaMediaIdHlsQualityFilenameResponse200 & {
     headers: Headers
   }
-export type getApiMediaMediaIdHlsQualityFilenameResponseError =
-  getApiMediaMediaIdHlsQualityFilenameResponse404 & {
-    headers: Headers
-  }
+export type getApiMediaMediaIdHlsQualityFilenameResponseError = (
+  | getApiMediaMediaIdHlsQualityFilenameResponse400
+  | getApiMediaMediaIdHlsQualityFilenameResponse404
+  | getApiMediaMediaIdHlsQualityFilenameResponse500
+) & {
+  headers: Headers
+}
 
 export type getApiMediaMediaIdHlsQualityFilenameResponse =
   | getApiMediaMediaIdHlsQualityFilenameResponseSuccess
@@ -1195,7 +1200,7 @@ export function useGetApiTranscodeDiskUsage<
  * @summary Get transcode queue statistics
  */
 export type getApiTranscodeStatsResponse200 = {
-  data: GithubComViewraViewraInternalApplicationTranscodeQueueStats
+  data: GithubComMantonxViewraInternalApplicationTranscodeQueueStats
   status: 200
 }
 

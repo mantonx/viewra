@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/viewra/viewra/internal/application/library"
-	"github.com/viewra/viewra/internal/domain/images"
-	"github.com/viewra/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/domain/images"
+	"github.com/mantonx/viewra/internal/domain/media"
 )
 
 // DeleteMediaUseCase handles deletion of media items with proper cleanup

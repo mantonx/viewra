@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // ParseMusic extracts music metadata from an audio file.

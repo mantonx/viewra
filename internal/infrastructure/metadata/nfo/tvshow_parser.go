@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	domainCommon "github.com/viewra/viewra/internal/domain/common"
+	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 )
 
 // TVShowNFO represents a Kodi/Plex-compatible tvshow.nfo file structure

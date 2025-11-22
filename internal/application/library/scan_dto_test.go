@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 func TestToStartScanResponse(t *testing.T) {

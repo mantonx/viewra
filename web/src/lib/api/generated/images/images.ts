@@ -23,9 +23,9 @@ import type {
 
 import type {
   GetApiImagesIdFileParams,
-  GithubComViewraViewraInternalApplicationImagesBatchImagesResponse,
-  GithubComViewraViewraInternalApplicationImagesImageResponse,
-  GithubComViewraViewraInternalApplicationImagesListImagesResponse,
+  GithubComMantonxViewraInternalApplicationImagesBatchImagesResponse,
+  GithubComMantonxViewraInternalApplicationImagesImageResponse,
+  GithubComMantonxViewraInternalApplicationImagesListImagesResponse,
   InternalApiHandlersErrorResponse,
   PostApiImagesBatchBody,
 } from '.././models'
@@ -39,7 +39,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary Get images for multiple media items or entities
  */
 export type postApiImagesBatchResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesBatchImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesBatchImagesResponse
   status: 200
 }
 
@@ -157,7 +157,7 @@ export const usePostApiImagesBatch = <
  * @summary Get image metadata by ID
  */
 export type getApiImagesIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesImageResponse
+  data: GithubComMantonxViewraInternalApplicationImagesImageResponse
   status: 200
 }
 
@@ -485,7 +485,7 @@ export function useGetApiImagesIdFile<
  * @summary Get all images for a media item
  */
 export type getApiMediaMediaIdImagesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesListImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 

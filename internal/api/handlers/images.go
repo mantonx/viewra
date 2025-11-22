@@ -8,9 +8,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/application/images"
-	domainimages "github.com/viewra/viewra/internal/domain/images"
-	infraimages "github.com/viewra/viewra/internal/infrastructure/images"
+	"github.com/mantonx/viewra/internal/application/images"
+	domainimages "github.com/mantonx/viewra/internal/domain/images"
+	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 )
 
 // ImagesHandler handles HTTP requests for images

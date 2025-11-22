@@ -19,11 +19,13 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  GetApiMoviesIdsParams,
   GetApiMoviesParams,
   GetApiMoviesSearchParams,
-  GithubComViewraViewraInternalApplicationImagesListImagesResponse,
-  GithubComViewraViewraInternalApplicationMoviesListMoviesResponse,
-  GithubComViewraViewraInternalApplicationMoviesMovieResponse,
+  GithubComMantonxViewraInternalApplicationImagesListImagesResponse,
+  GithubComMantonxViewraInternalApplicationMoviesListIDsResponse,
+  GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse,
+  GithubComMantonxViewraInternalApplicationMoviesMovieResponse,
   InternalApiHandlersErrorResponse,
 } from '.././models'
 
@@ -36,7 +38,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
  * @summary List movies
  */
 export type getApiMoviesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMoviesListMoviesResponse
+  data: GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse
   status: 200
 }
 
@@ -190,11 +192,172 @@ export function useGetApiMovies<
 }
 
 /**
+ * Returns a list of movie IDs only for prefetching images with optional pagination
+ * @summary List movie IDs
+ */
+export type getApiMoviesIdsResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationMoviesListIDsResponse
+  status: 200
+}
+
+export type getApiMoviesIdsResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMoviesIdsResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiMoviesIdsResponseSuccess = getApiMoviesIdsResponse200 & {
+  headers: Headers
+}
+export type getApiMoviesIdsResponseError = (
+  | getApiMoviesIdsResponse400
+  | getApiMoviesIdsResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiMoviesIdsResponse = getApiMoviesIdsResponseSuccess | getApiMoviesIdsResponseError
+
+export const getGetApiMoviesIdsUrl = (params: GetApiMoviesIdsParams) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0 ? `/api/movies/ids?${stringifiedParams}` : `/api/movies/ids`
+}
+
+export const getApiMoviesIds = async (
+  params: GetApiMoviesIdsParams,
+  options?: RequestInit
+): Promise<getApiMoviesIdsResponse> => {
+  return customInstance<getApiMoviesIdsResponse>(getGetApiMoviesIdsUrl(params), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiMoviesIdsQueryKey = (params?: GetApiMoviesIdsParams) => {
+  return [`/api/movies/ids`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiMoviesIdsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMoviesIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiMoviesIdsQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMoviesIds>>> = ({ signal }) =>
+    getApiMoviesIds(params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMoviesIds>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMoviesIdsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiMoviesIds>>>
+export type GetApiMoviesIdsQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMoviesIds<
+  TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMoviesIdsParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMoviesIds>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMoviesIds>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMoviesIds<
+  TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMoviesIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMoviesIds>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMoviesIds>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMoviesIds<
+  TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMoviesIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List movie IDs
+ */
+
+export function useGetApiMoviesIds<
+  TData = Awaited<ReturnType<typeof getApiMoviesIds>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  params: GetApiMoviesIdsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMoviesIds>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMoviesIdsQueryOptions(params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
  * Searches for movies by title in a specific library with optional pagination
  * @summary Search movies
  */
 export type getApiMoviesSearchResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMoviesListMoviesResponse
+  data: GithubComMantonxViewraInternalApplicationMoviesListMoviesResponse
   status: 200
 }
 
@@ -363,7 +526,7 @@ export function useGetApiMoviesSearch<
  * @summary Get a movie by ID
  */
 export type getApiMoviesIdResponse200 = {
-  data: GithubComViewraViewraInternalApplicationMoviesMovieResponse
+  data: GithubComMantonxViewraInternalApplicationMoviesMovieResponse
   status: 200
 }
 
@@ -520,7 +683,7 @@ export function useGetApiMoviesId<
  * @summary Get all images for a movie
  */
 export type getApiMoviesIdImagesResponse200 = {
-  data: GithubComViewraViewraInternalApplicationImagesListImagesResponse
+  data: GithubComMantonxViewraInternalApplicationImagesListImagesResponse
   status: 200
 }
 

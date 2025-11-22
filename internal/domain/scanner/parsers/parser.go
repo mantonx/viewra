@@ -1,7 +1,7 @@
 package parsers
 
 import (
-	"github.com/viewra/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
 // DefaultParser implements the scanner.FilenameParser interface.

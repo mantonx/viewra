@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/viewra/viewra/internal/domain/media"
-	domainprogress "github.com/viewra/viewra/internal/domain/progress"
+	"github.com/mantonx/viewra/internal/domain/media"
+	domainprogress "github.com/mantonx/viewra/internal/domain/progress"
 )
 
 // GetNextEpisodeUseCase handles the business logic for getting the next episode to watch for a show

@@ -10,15 +10,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/viewra/viewra/internal/api/handlers"
-	"github.com/viewra/viewra/internal/api/middleware"
-	"github.com/viewra/viewra/internal/api/routes"
-	"github.com/viewra/viewra/internal/application/library"
-	"github.com/viewra/viewra/internal/application/media"
-	"github.com/viewra/viewra/internal/application/movies"
-	"github.com/viewra/viewra/internal/application/music"
-	"github.com/viewra/viewra/internal/application/tv"
-	"github.com/viewra/viewra/internal/infrastructure/streaming"
+	"github.com/mantonx/viewra/internal/api/handlers"
+	"github.com/mantonx/viewra/internal/api/middleware"
+	"github.com/mantonx/viewra/internal/api/routes"
+	"github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/media"
+	"github.com/mantonx/viewra/internal/application/movies"
+	"github.com/mantonx/viewra/internal/application/music"
+	"github.com/mantonx/viewra/internal/application/tv"
+	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
 
 // Server represents the HTTP server
