@@ -38,20 +38,18 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     setMediaId(id)
     setTranscodeState('checking')
 
-    // Fetch progress FIRST to determine initial position before showing video player
+    // Fetch progress to determine resume position
     let resumePosition = 0
     try {
       const response = await fetch(`${API_BASE_URL}/api/progress/${id}`)
       const progressData = response.ok ? await response.json() : null
       const progressSecs = progressData ? getProgressSeconds(progressData) : 0
-      const durationSecs = progressData ? progressData.duration_seconds : 0
+      const durationSecs = progressData?.duration_seconds ?? 0
 
-      // Resume if there's progress AND user hasn't finished watching (not at 100%)
-      // Note: is_watched can be true at 90%, but we should still resume unless at 100%
-      const isComplete = durationSecs > 0 && progressSecs >= durationSecs - 1 // Within 1 second of end
-      const shouldResume = progressSecs > 0 && !isComplete
+      // Resume unless user finished watching (within 1 second of end)
+      const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
+      resumePosition = (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
 
-      resumePosition = shouldResume ? progressSecs : 0
       setInitialPosition(resumePosition)
     } catch (error) {
       logger.error('Error fetching progress:', error)

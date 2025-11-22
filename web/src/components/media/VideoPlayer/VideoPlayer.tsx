@@ -6,6 +6,9 @@ import { useEffect, useRef, useState } from 'react'
 import { VideoControls } from './VideoControls'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 
+// Threshold for triggering backend FFmpeg restart on seek (matches backend config)
+const LARGE_SEEK_THRESHOLD_SECONDS = 30
+
 // HLS configuration constants
 // CRITICAL: Ultra-conservative buffer limits to prevent bufferFullError
 // Segments are generated on-demand and served instantly from cache,
@@ -24,6 +27,17 @@ const HLS_CONFIG = {
 const ensureVideoUnmuted = (video: HTMLVideoElement) => {
   video.muted = false
   video.volume = 1.0
+}
+
+// HLS transcoded streams: Backend starts at ?start=X, but stream reports time=0.
+// We track the offset to display correct position in scrubber without seeking.
+const initializeStreamOffset = (
+  streamOffsetRef: { current: number },
+  initialPosition: number
+) => {
+  if (initialPosition > 0 && streamOffsetRef.current === 0) {
+    streamOffsetRef.current = initialPosition
+  }
 }
 
 const setInitialPosition = (video: HTMLVideoElement, position: number, waitForMetadata = false) => {
@@ -133,19 +147,7 @@ export const VideoPlayer = ({
     if (canPlayHls) {
       // Native HLS support - just set the source
       video.src = streamUrl
-
-      // Set stream offset for resume playback
-      // When backend starts transcoding from position X (via ?start=X), the HLS stream
-      // starts at 0, but represents position X in the actual video. We need to add this
-      // offset to currentTime to show the correct position in the scrubber.
-      // We do NOT seek the video because it already starts at the correct position.
-      // Only set the offset if it hasn't been set by a seek operation (streamOffsetRef.current === 0)
-      if (initialPosition > 0 && streamOffsetRef.current === 0) {
-        streamOffsetRef.current = initialPosition
-      }
-
-      // Note: We don't call setInitialPosition here because when using ?start= parameter,
-      // the backend starts transcoding from that position, so video.currentTime=0 is already correct
+      initializeStreamOffset(streamOffsetRef, initialPosition)
       // Start muted to allow autoplay, unmute after play starts
       video.muted = true
       video
@@ -227,18 +229,7 @@ export const VideoPlayer = ({
         setCurrentAudioTrack(hls.audioTrack)
       }
 
-      // Set stream offset for resume playback
-      // When backend starts transcoding from position X (via ?start=X), the HLS stream
-      // starts at 0, but represents position X in the actual video. We need to add this
-      // offset to currentTime to show the correct position in the scrubber.
-      // We do NOT seek the video because it already starts at the correct position.
-      // Only set the offset if it hasn't been set by a seek operation (streamOffsetRef.current === 0)
-      if (initialPosition > 0 && streamOffsetRef.current === 0) {
-        streamOffsetRef.current = initialPosition
-      }
-
-      // Note: We don't call setInitialPosition here because when using ?start= parameter,
-      // the backend starts transcoding from that position, so video.currentTime=0 is already correct
+      initializeStreamOffset(streamOffsetRef, initialPosition)
 
       // Start muted to allow autoplay, will unmute on first play event
       video.muted = true
@@ -603,25 +594,20 @@ export const VideoPlayer = ({
   const handleSeek = (time: number) => {
     const video = videoRef.current
     const hls = hlsRef.current
-    if (!video) {
-      return
-    }
+    if (!video) return
 
-    // Immediate progress save before seek (prevents data loss if user closes video)
+    // Save progress immediately to prevent loss if user closes video after seeking
     if (progressUpdaterRef.current && videoDuration > 0) {
       progressUpdaterRef.current.updateCurrentTime(time)
       progressUpdaterRef.current.immediateUpdate()
     }
 
-    // For progressive transcoding with HLS:
-    // If seeking far (>30s) from current position, reload manifest with start parameter
-    // to trigger backend session restart. Otherwise, seek normally.
-    const currentActualTime = video.currentTime + streamOffsetRef.current
-    const seekDistance = Math.abs(time - currentActualTime)
-    const seekThreshold = 30 // seconds - matches backend threshold
+    const actualTime = video.currentTime + streamOffsetRef.current
+    const seekDistance = Math.abs(time - actualTime)
+    const isLargeSeek = seekDistance > LARGE_SEEK_THRESHOLD_SECONDS
 
-    if (isHlsStream && hls && hls.url && seekDistance > seekThreshold) {
-      // Large seek - reload manifest with start position to restart FFmpeg session
+    if (isHlsStream && hls?.url && isLargeSeek) {
+      // Large seek: Reload manifest to restart FFmpeg session at new position
       // Update stream offset to the new seek position
       streamOffsetRef.current = time
 
@@ -657,7 +643,7 @@ export const VideoPlayer = ({
       }
       hls.on(Hls.Events.MANIFEST_PARSED, seekAfterManifest)
     } else {
-      // Small seek or direct stream - seek normally
+      // Small seek: Normal seek within current stream
       // Convert from actual video time to stream time
       const streamTime = time - streamOffsetRef.current
       video.currentTime = streamTime
