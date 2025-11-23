@@ -32,7 +32,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
 
   // Get total media count for this library
   const { data: mediaCount } = useGetApiMedia(
-    { library_id: library.id?.toString(), limit: '1' },
+    { library_id: library.id, limit: 1 },
     {
       query: {
         enabled: !!library.id,
@@ -83,7 +83,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const hasErrors = scanData && (scanData.error_count ?? 0) > 0
   const isScanning = scanData?.status === 'running'
   const isCompleted = scanData?.status === 'completed'
-  const totalMediaCount = mediaCount?.data.total ?? 0
+  const totalMediaCount = mediaCount?.data && 'total' in mediaCount.data ? mediaCount.data.total ?? 0 : 0
 
   return (
     <>
@@ -99,9 +99,9 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                   {scanData.phase === 'discovering' && !scanData.discovery_done
                     ? `Discovering files... ${(scanData.files_found ?? 0).toLocaleString()} found`
                     : `Scanning... ${(scanData.progress ?? 0).toFixed(1)}%`}
-                  {scanData.estimated_total > 0 && !scanData.discovery_done && (
+                  {(scanData.estimated_total ?? 0) > 0 && !scanData.discovery_done && (
                     <span className="text-gray-500 ml-1">
-                      (est. {scanData.estimated_total.toLocaleString()} total)
+                      (est. {(scanData.estimated_total ?? 0).toLocaleString()} total)
                     </span>
                   )}
                 </span>
