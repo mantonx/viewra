@@ -58,7 +58,7 @@ func TestDeleteLibraryUseCase_Execute(t *testing.T) {
 
 			txManager := common.NewTxManager(db)
 			// Create mock image repo and cleanup - can be nil for these tests
-			service := NewLibraryService(repo, nil, nil, txManager)
+			service := NewLibraryService(repo, nil, nil, txManager, nil)
 
 			err = service.Delete(context.Background(), tt.libraryID)
 

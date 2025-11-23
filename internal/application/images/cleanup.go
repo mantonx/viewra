@@ -55,28 +55,37 @@ func (uc *CleanupUseCase) CleanOrphanedImages(ctx context.Context) (*CleanupStat
 		"cache_dir", uc.cacheDir,
 		"db_hashes", len(dbHashes))
 
-	// 2. Scan cache directory
+	// 2. Scan cache directory recursively
 	if _, err := os.Stat(uc.cacheDir); os.IsNotExist(err) {
 		uc.logger.Info("Cache directory does not exist, nothing to clean",
 			"cache_dir", uc.cacheDir)
 		return stats, nil
 	}
 
-	cacheFiles, err := filepath.Glob(filepath.Join(uc.cacheDir, "*"))
+	// Walk the cache directory recursively to find all files
+	var cacheFiles []string
+	err = filepath.Walk(uc.cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			uc.logger.Warn("Failed to access path during walk", "path", path, "error", err)
+			stats.Errors++
+			return nil // Continue walking despite errors
+		}
+		// Only collect regular files, not directories
+		if !info.IsDir() {
+			cacheFiles = append(cacheFiles, path)
+		}
+		return nil
+	})
 	if err != nil {
-		return stats, fmt.Errorf("failed to scan cache directory: %w", err)
+		return stats, fmt.Errorf("failed to walk cache directory: %w", err)
 	}
 
 	// 3. Check each cache file
 	for _, file := range cacheFiles {
-		// Skip directories
 		info, err := os.Stat(file)
 		if err != nil {
 			uc.logger.Warn("Failed to stat cache file", "path", file, "error", err)
 			stats.Errors++
-			continue
-		}
-		if info.IsDir() {
 			continue
 		}
 
