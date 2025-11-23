@@ -396,6 +396,7 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		FilesFound:     stats.TotalFiles,
 		FilesProcessed: stats.CompletedFiles,
 		ErrorCount:     stats.FailedFiles,
+		WarningCount:   stats.WarningFiles,
 		Progress:       stats.GetProgress(),
 		CompletedAt:    &[]time.Time{time.Now()}[0],
 		Phase:          scanner.ScanPhaseCompleted,
