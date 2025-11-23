@@ -250,11 +250,7 @@ func (e *jobExecutor) createProgressHandler(job *transcode.TranscodeJob) func(in
 		}
 
 		lastReported = progress
-
-		e.logger.Debug("transcode progress",
-			slog.Int64("job_id", job.ID),
-			slog.Int("progress", progress),
-		)
+		// Progress tracking is internal - no need to log every update
 	}
 }
 

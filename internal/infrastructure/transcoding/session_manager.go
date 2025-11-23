@@ -106,10 +106,6 @@ func (m *SessionManager) GetOrCreateSession(
 		} else {
 			// Reuse existing session
 			session.UpdateLastAccessed()
-			m.logger.Debug("Reusing existing session",
-				"session_id", session.ID,
-				"media_id", mediaID,
-				"quality", quality)
 			return session, nil
 		}
 	}
