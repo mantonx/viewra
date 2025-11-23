@@ -157,15 +157,10 @@ func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, stra
 				   strings.Contains(strings.ToLower(output), "invalid") {
 					s.logger.Error("FFmpeg error detected", "session_id", s.ID, "output", output)
 				}
-				// Verbose FFmpeg output suppressed - full stderr is logged on process error
+				// Verbose FFmpeg output suppressed - full stderr only logged if process fails
 			}
 			if err != nil {
-				// Log the full stderr buffer if process exits with error
-				if len(stderrBuffer) > 0 {
-					s.logger.Error("FFmpeg process stderr",
-						"session_id", s.ID,
-						"full_output", string(stderrBuffer))
-				}
+				// stderr pipe closed - don't log buffer here, wait for process exit status
 				return
 			}
 		}
