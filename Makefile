@@ -29,7 +29,7 @@ dev-clean: ## Clean up stale dev processes and sockets
 
 dev: ## Start development servers with auto-recovery
 	@if [ ! -x "$$(command -v overmind)" ]; then \
-		echo "❌ Overmind not found. Install: go install github.com/DarthSim/overmind/v2@latest"; \
+		echo "❌ Overmind not found. Install: brew install overmind (macOS) or go install github.com/DarthSim/overmind/v2@latest"; \
 		exit 1; \
 	fi
 	@if [ -e .overmind.sock ]; then \
