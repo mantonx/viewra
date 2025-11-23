@@ -81,9 +81,9 @@ func TestListLibrariesUseCase_Execute(t *testing.T) {
 				tt.setup(repo)
 			}
 
-			uc := NewListLibrariesUseCase(repo)
+			service := NewLibraryService(repo, nil, nil, nil)
 
-			resp, err := uc.Execute(context.Background())
+			resp, err := service.List(context.Background())
 
 			if tt.wantErr {
 				if err == nil {

@@ -102,9 +102,9 @@ func TestUpdateLibraryUseCase_Execute(t *testing.T) {
 				tt.setup(repo)
 			}
 
-			uc := NewUpdateLibraryUseCase(repo)
+			service := NewLibraryService(repo, nil, nil, nil)
 
-			resp, err := uc.Execute(context.Background(), tt.libraryID, tt.req)
+			resp, err := service.Update(context.Background(), tt.libraryID, tt.req)
 
 			if tt.wantErr {
 				if err == nil {

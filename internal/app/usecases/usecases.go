@@ -30,12 +30,8 @@ type UseCases struct {
 
 // LibraryUseCases holds library-related use cases
 type LibraryUseCases struct {
-	Create *library.CreateLibraryUseCase
-	Update *library.UpdateLibraryUseCase
-	Delete *library.DeleteLibraryUseCase
-	Get    *library.GetLibraryUseCase
-	List   *library.ListLibrariesUseCase
-	Scan   *library.ScanLibraryUseCase
+	Service *library.LibraryService // Consolidated CRUD operations
+	Scan    *library.ScanLibraryUseCase
 }
 
 // MediaUseCases holds media-related use cases
@@ -135,32 +131,48 @@ func buildLibraryUseCases(
 	extractAlbum := images.NewExtractMusicAlbumImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractArtist := images.NewExtractMusicArtistImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 
+	// Create unified image extractor adapter (wraps 6 legacy extractors into single interface)
+	imageExtractor := library.NewImageExtractorAdapter(
+		extractMovie,
+		extractEpisode,
+		extractShow,
+		extractSeason,
+		extractAlbum,
+		extractArtist,
+	)
+
+	// Bundle media repositories
+	mediaRepos := &library.MediaRepositories{
+		Library: repos.Library,
+		Media:   repos.Media,
+		Movie:   repos.Movie,
+		TV:      repos.TV,
+		Music:   repos.Music,
+	}
+
+	// Bundle scan repositories
+	scanRepos := &library.ScanRepositories{
+		ScanJob:    repos.ScanJob,
+		Checkpoint: repos.Checkpoint,
+		ScanState:  repos.ScanState,
+	}
+
+	// Bundle scan configuration
+	scanConfig := library.ScanConfig{
+		Timeout:          cfg.Media.ScanTimeout,
+		ParallelWalkers:  cfg.Media.ScanParallelWalkers,
+		ProgressInterval: cfg.Media.ScanProgressInterval,
+	}
+
 	return &LibraryUseCases{
-		Create: library.NewCreateLibraryUseCase(repos.Library, txManager),
-		Update: library.NewUpdateLibraryUseCase(repos.Library),
-		Delete: library.NewDeleteLibraryUseCase(repos.Library, repos.Image, imageCleanup, txManager),
-		Get:    library.NewGetLibraryUseCase(repos.Library),
-		List:   library.NewListLibrariesUseCase(repos.Library),
+		Service: library.NewLibraryService(repos.Library, repos.Image, imageCleanup, txManager),
 		Scan: library.NewScanLibraryUseCase(
-			repos.Library,
-			repos.Media,
-			repos.Movie,
-			repos.TV,
-			repos.Music,
-			repos.ScanJob,
-			repos.Checkpoint,
-			repos.ScanState,
-			extractMovie,
-			extractEpisode,
-			extractShow,
-			extractSeason,
-			extractAlbum,
-			extractArtist,
+			mediaRepos,
+			scanRepos,
+			imageExtractor,
 			repos.Image,
 			imageCleanup,
-			cfg.Media.ScanTimeout,
-			cfg.Media.ScanParallelWalkers,
-			cfg.Media.ScanProgressInterval,
+			scanConfig,
 			cfg.SystemProfile,
 			logger,
 		),

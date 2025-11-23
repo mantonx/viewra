@@ -49,6 +49,9 @@ type ScanStatusResponse struct {
 	ErrorMessage   string  `json:"error_message,omitempty"`   // Error message if failed
 	StartedAt      string  `json:"started_at"`                // ISO 8601 timestamp
 	CompletedAt    *string `json:"completed_at,omitempty"`    // ISO 8601 timestamp
+	Phase          string  `json:"phase,omitempty"`           // Current scan phase (discovering/processing/completed)
+	EstimatedTotal int64   `json:"estimated_total,omitempty"` // Estimated total files from previous scan
+	DiscoveryDone  bool    `json:"discovery_done"`            // Whether file discovery is complete
 }
 
 // ScanHistoryItem represents a historical scan job
@@ -113,6 +116,9 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		ErrorCount:     job.ErrorCount,
 		ErrorMessage:   job.ErrorMessage,
 		StartedAt:      job.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Phase:          string(job.Phase),
+		EstimatedTotal: job.EstimatedTotal,
+		DiscoveryDone:  job.DiscoveryDone,
 	}
 
 	if job.CompletedAt != nil {

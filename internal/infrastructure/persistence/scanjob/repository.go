@@ -45,6 +45,9 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 				BytesProcessed:  sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
 				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
 				StartedAt:       common.NullTime(job.StartedAt),
+				Phase:           common.NullString(string(job.Phase)),
+				EstimatedTotal:  sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
+				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
 			})
 		},
 		func() (any, error) {
@@ -57,6 +60,9 @@ func (r *Repository) Create(ctx context.Context, job *scanner.ScanJob) error {
 				BytesProcessed:  sql.NullInt64{Int64: job.BytesProcessed, Valid: true},
 				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
 				StartedAt:       common.NullTime(job.StartedAt),
+				Phase:           common.NullString(string(job.Phase)),
+				EstimatedTotal:  sql.NullInt64{Int64: job.EstimatedTotal, Valid: true},
+				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
 			})
 		},
 	)
@@ -198,6 +204,9 @@ func (r *Repository) UpdateProgress(ctx context.Context, id int64, progress *sca
 				FilesProcessed:  sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
 				BytesProcessed:  sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
 				ErrorCount:      sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
+				Phase:           common.NullString(string(progress.Phase)),
+				EstimatedTotal:  sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
+				DiscoveryDone:   sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
 				ID:              int32(id),
 			})
 		},
@@ -208,6 +217,9 @@ func (r *Repository) UpdateProgress(ctx context.Context, id int64, progress *sca
 				FilesProcessed:  sql.NullInt64{Int64: progress.FilesProcessed, Valid: true},
 				BytesProcessed:  sql.NullInt64{Int64: progress.BytesProcessed, Valid: true},
 				ErrorCount:      sql.NullInt64{Int64: progress.ErrorCount, Valid: true},
+				Phase:           common.NullString(string(progress.Phase)),
+				EstimatedTotal:  sql.NullInt64{Int64: progress.EstimatedTotal, Valid: true},
+				DiscoveryDone:   sql.NullBool{Bool: progress.DiscoveryDone, Valid: true},
 				ID:              id,
 			})
 		},
@@ -247,6 +259,8 @@ func (r *Repository) Complete(ctx context.Context, job *scanner.ScanJob) error {
 				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
 				CompletedAt:     common.NullTimePtr(job.CompletedAt),
 				ErrorMessage:    common.NullString(job.ErrorMessage),
+				Phase:           common.NullString(string(job.Phase)),
+				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
 				ID:              int32(job.ID),
 			})
 		},
@@ -260,6 +274,8 @@ func (r *Repository) Complete(ctx context.Context, job *scanner.ScanJob) error {
 				ErrorCount:      sql.NullInt64{Int64: job.ErrorCount, Valid: true},
 				CompletedAt:     common.NullTimePtr(job.CompletedAt),
 				ErrorMessage:    common.NullString(job.ErrorMessage),
+				Phase:           common.NullString(string(job.Phase)),
+				DiscoveryDone:   sql.NullBool{Bool: job.DiscoveryDone, Valid: true},
 				ID:              job.ID,
 			})
 		},
@@ -322,6 +338,9 @@ func (r *Repository) convertToScanJob(result any) *scanner.ScanJob {
 			ErrorMessage:   common.ParseNullString(pgJob.ErrorMessage),
 			CreatedAt:      common.ParseNullTime(pgJob.CreatedAt),
 			UpdatedAt:      common.ParseNullTime(pgJob.UpdatedAt),
+			Phase:          scanner.ScanPhase(common.ParseNullString(pgJob.Phase)),
+			EstimatedTotal: pgJob.EstimatedTotal.Int64,
+			DiscoveryDone:  pgJob.DiscoveryDone.Bool,
 		}
 	}
 
@@ -340,5 +359,8 @@ func (r *Repository) convertToScanJob(result any) *scanner.ScanJob {
 		ErrorMessage:   common.ParseNullString(sqJob.ErrorMessage),
 		CreatedAt:      common.ParseNullTime(sqJob.CreatedAt),
 		UpdatedAt:      common.ParseNullTime(sqJob.UpdatedAt),
+		Phase:          scanner.ScanPhase(common.ParseNullString(sqJob.Phase)),
+		EstimatedTotal: sqJob.EstimatedTotal.Int64,
+		DiscoveryDone:  sqJob.DiscoveryDone.Bool,
 	}
 }

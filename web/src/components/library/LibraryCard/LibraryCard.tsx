@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan, useGetApiLibrariesIdScanStatus } from '@/lib/api'
+import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan, useGetApiLibrariesIdScanStatus, useGetApiMedia } from '@/lib/api'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { useToast } from '@/lib/hooks/useToast'
 import { useConfirm } from '@/lib/hooks/useConfirm'
@@ -26,6 +26,16 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
       query: {
         enabled: !!library.id,
         refetchInterval: SCAN_POLL_INTERVAL_MS,
+      },
+    }
+  )
+
+  // Get total media count for this library
+  const { data: mediaCount } = useGetApiMedia(
+    { library_id: library.id?.toString(), limit: '1' },
+    {
+      query: {
+        enabled: !!library.id,
       },
     }
   )
@@ -72,6 +82,8 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const scanData = scanStatus?.data && isScanStatusResponse(scanStatus.data) ? scanStatus.data : null
   const hasErrors = scanData && (scanData.error_count ?? 0) > 0
   const isScanning = scanData?.status === 'running'
+  const isCompleted = scanData?.status === 'completed'
+  const totalMediaCount = mediaCount?.data.total ?? 0
 
   return (
     <>
@@ -84,10 +96,22 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
               <span>Type: {library.type}</span>
               {isScanning && scanData && (
                 <span className="text-blue-600 font-medium">
-                  Scanning... {(scanData.progress ?? 0).toFixed(1)}%
+                  {scanData.phase === 'discovering' && !scanData.discovery_done
+                    ? `Discovering files... ${(scanData.files_found ?? 0).toLocaleString()} found`
+                    : `Scanning... ${(scanData.progress ?? 0).toFixed(1)}%`}
+                  {scanData.estimated_total > 0 && !scanData.discovery_done && (
+                    <span className="text-gray-500 ml-1">
+                      (est. {scanData.estimated_total.toLocaleString()} total)
+                    </span>
+                  )}
                 </span>
               )}
-              {hasErrors && !isScanning && scanData && (
+              {isCompleted && scanData && (
+                <span className={hasErrors ? "text-yellow-600 font-medium" : "text-green-600 font-medium"}>
+                  ✓ Scan complete ({totalMediaCount.toLocaleString()} {totalMediaCount === 1 ? 'file' : 'files'})
+                </span>
+              )}
+              {hasErrors && scanData && (
                 <button
                   onClick={() => setShowErrorsDialog(true)}
                   className="text-red-600 font-medium hover:underline flex items-center gap-1"
@@ -108,7 +132,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
               isLoading={scanMutation.isPending || isScanning}
               disabled={isScanning}
             >
-              {isScanning ? 'Scanning...' : 'Scan'}
+              {isScanning ? 'Scanning...' : isCompleted ? 'Rescan' : 'Scan'}
             </Button>
             <Button
               variant="danger"

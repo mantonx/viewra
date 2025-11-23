@@ -170,8 +170,10 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepo: mediaRepo,
-				movieRepo: movieRepo,
+				mediaRepos: &MediaRepositories{
+					Media: mediaRepo,
+					Movie: movieRepo,
+				},
 			}
 
 			// Call processMovie with checkpoint
@@ -315,8 +317,10 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepo: mediaRepo,
-				tvRepo:    tvRepo,
+				mediaRepos: &MediaRepositories{
+					Media: mediaRepo,
+					TV:    tvRepo,
+				},
 			}
 
 			// Call processTVEpisode with checkpoint
@@ -472,8 +476,10 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				mediaRepo: mediaRepo,
-				musicRepo: musicRepo,
+				mediaRepos: &MediaRepositories{
+					Media: mediaRepo,
+					Music: musicRepo,
+				},
 			}
 
 			uc.processMusicTrack(context.Background(), tt.libraryID, tt.result, nil)

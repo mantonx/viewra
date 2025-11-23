@@ -78,11 +78,7 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		handlers.Transcode,
 		handlers.Images,
 		handlers.Scheduler,
-		cases.Library.Create,
-		cases.Library.Update,
-		cases.Library.Delete,
-		cases.Library.Get,
-		cases.Library.List,
+		cases.Library.Service,
 		cases.Library.Scan,
 		cases.Media.Get,
 		cases.Media.List,
@@ -198,6 +194,59 @@ func registerTasks(
 		logger.Error("Failed to register image cleanup task", "error", err)
 	} else {
 		logger.Info("Registered image cleanup task with scheduler")
+	}
+
+	// Register automatic library scanning task
+	if cfg.Media.AutoScanEnabled {
+		err = taskScheduler.RegisterTask(scheduler.Task{
+			ID:          "auto-library-scan",
+			Name:        "Automatic Library Scan",
+			Description: "Automatically scan all libraries for new, modified, or deleted files",
+			Schedule:    cfg.Media.AutoScanInterval,
+			Enabled:     true,
+			Handler: func(ctx context.Context) error {
+				logger.Info("Starting automatic library scan")
+
+				// Get all libraries
+				libraries, err := repos.Library.List(ctx)
+				if err != nil {
+					logger.Error("Failed to list libraries for auto scan", "error", err)
+					return err
+				}
+
+				// Scan each library (incremental scan will detect changes efficiently)
+				for _, lib := range libraries {
+					logger.Info("Auto-scanning library",
+						"library_id", lib.ID,
+						"name", lib.Name,
+						"path", lib.Path)
+
+					// Trigger scan using the scan use case
+					if _, err := cases.Library.Scan.StartScan(ctx, lib.ID); err != nil {
+						logger.Error("Auto scan failed for library",
+							"library_id", lib.ID,
+							"library_name", lib.Name,
+							"error", err)
+						// Continue scanning other libraries even if one fails
+						continue
+					}
+
+					logger.Info("Auto scan triggered for library",
+						"library_id", lib.ID,
+						"library_name", lib.Name)
+				}
+
+				logger.Info("Automatic library scan completed", "libraries_scanned", len(libraries))
+				return nil
+			},
+		})
+		if err != nil {
+			logger.Error("Failed to register auto library scan task", "error", err)
+		} else {
+			logger.Info("Registered automatic library scan task",
+				"interval", cfg.Media.AutoScanInterval,
+				"enabled", cfg.Media.AutoScanEnabled)
+		}
 	}
 
 	// Register transcode cleanup tasks (if transcode is enabled)

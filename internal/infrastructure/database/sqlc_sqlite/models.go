@@ -195,6 +195,9 @@ type ScanJob struct {
 	UpdatedAt        sql.NullTime    `json:"updated_at"`
 	LastCheckpointAt sql.NullTime    `json:"last_checkpoint_at"`
 	ResumeCount      sql.NullInt64   `json:"resume_count"`
+	Phase            sql.NullString  `json:"phase"`
+	EstimatedTotal   sql.NullInt64   `json:"estimated_total"`
+	DiscoveryDone    sql.NullBool    `json:"discovery_done"`
 }
 
 type ScanState struct {

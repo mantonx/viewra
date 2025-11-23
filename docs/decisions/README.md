@@ -46,6 +46,7 @@ Create an ADR when making decisions about:
 | [019](019-watch-progress-tracking-reliability.md) | Watch Progress Tracking Reliability | Accepted | 2025-11-XX | progress, backend |
 | [020](020-segment-based-on-demand-transcoding.md) | Segment-Based On-Demand Transcoding | **REJECTED** | 2025-01-20 | transcoding, streaming |
 | [021](021-progressive-hls-transcoding.md) | Progressive HLS Transcoding (Jellyfin-Style) | Proposed | 2025-11-XX | transcoding, streaming |
+| [022](022-library-package-refactoring.md) | Library Package Refactoring and Simplification | Proposed | 2025-11-22 | architecture, refactoring, complexity |
 
 ---
 

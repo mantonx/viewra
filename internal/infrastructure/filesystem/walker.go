@@ -2,8 +2,8 @@ package filesystem
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,6 +20,7 @@ func NewWalker(opts ...WalkerOption) *Walker {
 		parallelWorkers:  0,    // Sequential by default
 		enableParallel:   false,
 		progressInterval: 0,    // No progress logging by default
+		logger:           slog.Default(), // Use default logger if not provided
 	}
 
 	// Apply options
@@ -28,6 +29,14 @@ func NewWalker(opts ...WalkerOption) *Walker {
 	}
 
 	return w
+}
+
+// getLogger returns the walker's logger or slog.Default if nil
+func (w *Walker) getLogger() *slog.Logger {
+	if w.logger == nil {
+		return slog.Default()
+	}
+	return w.logger
 }
 
 // Walk traverses a directory tree, calling walkFn for each file
@@ -45,6 +54,27 @@ func (w *Walker) Walk(ctx context.Context, root string, walkFn scanner.WalkFunc)
 
 	// Sequential walking (original behavior)
 	return w.walkSequential(ctx, root, walkFn)
+}
+
+// Count returns the total number of files that match the filter function
+// This is a fast count-only pass that reuses Walk logic but just increments a counter
+// Uses the same filtering logic as Walk to ensure accurate estimates
+func (w *Walker) Count(ctx context.Context, root string, shouldCount func(scanner.FileInfo) bool) (int64, error) {
+	var count atomic.Int64
+
+	err := w.Walk(ctx, root, func(fi scanner.FileInfo) error {
+		// Only count non-directory files that pass the filter
+		if !fi.IsDir && shouldCount(fi) {
+			count.Add(1)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count.Load(), nil
 }
 
 // walkSequential performs traditional sequential directory traversal
@@ -72,11 +102,19 @@ func (w *Walker) walkSequential(ctx context.Context, root string, walkFn scanner
 			return nil
 		}
 
-		// Progress logging
-		if w.progressInterval > 0 && !fileInfo.IsDir {
+		// Progress tracking and logging
+		if !fileInfo.IsDir {
 			filesDiscovered++
-			if filesDiscovered%w.progressInterval == 0 {
-				fmt.Printf("info: discovered %d files so far...\n", filesDiscovered)
+
+			// Call progress callback if set
+			if w.progressCallback != nil && filesDiscovered%w.progressInterval == 0 {
+				w.progressCallback(int64(filesDiscovered))
+			}
+
+			// Log progress at intervals
+			if w.progressInterval > 0 && filesDiscovered%w.progressInterval == 0 {
+				w.getLogger().Info("File discovery progress",
+					"files_discovered", filesDiscovered)
 			}
 		}
 
@@ -130,11 +168,17 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 			return err
 		}
 
-		if w.progressInterval > 0 {
-			count := filesDiscovered.Add(1)
-			if count%int64(w.progressInterval) == 0 {
-				fmt.Printf("info: discovered %d files so far...\n", count)
-			}
+		count := filesDiscovered.Add(1)
+
+		// Call progress callback if set
+		if w.progressCallback != nil && count%int64(w.progressInterval) == 0 {
+			w.progressCallback(count)
+		}
+
+		// Log progress at intervals
+		if w.progressInterval > 0 && count%int64(w.progressInterval) == 0 {
+			w.getLogger().Info("File discovery progress",
+				"files_discovered", count)
 		}
 	}
 
@@ -181,12 +225,16 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 
 						if current == last && elapsed > 60*time.Second {
 							// No progress in 30s and running for >60s = likely hung
-							fmt.Printf("warning: walker for directory '%s' appears stuck (no progress in 30s, elapsed=%s, files=%d)\n",
-								dirName, elapsed.Round(time.Second), current)
+							w.getLogger().Warn("Walker appears stuck",
+								"directory", dirName,
+								"elapsed_seconds", elapsed.Seconds(),
+								"files", current)
 						} else if current > last {
 							// Progress detected
-							fmt.Printf("info: directory '%s' progress: %d files discovered (elapsed=%s)\n",
-								dirName, current, elapsed.Round(time.Second))
+							w.getLogger().Info("Directory scan progress",
+								"directory", dirName,
+								"files_discovered", current,
+								"elapsed_seconds", elapsed.Seconds())
 							lastProgress.Store(current)
 						}
 					}
@@ -204,7 +252,9 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 
 				// Handle walk errors - log but continue
 				if err != nil {
-					fmt.Printf("warning: walk error at '%s': %v (continuing...)\n", path, err)
+					w.getLogger().Warn("Walk error, continuing",
+						"path", path,
+						"error", err)
 					return nil // Continue walking
 				}
 
@@ -214,11 +264,19 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 					return nil // Skip files we can't stat
 				}
 
-				// Progress logging
-				if w.progressInterval > 0 && !fileInfo.IsDir {
+				// Progress tracking and logging
+				if !fileInfo.IsDir {
 					count := filesDiscovered.Add(1)
-					if count%int64(w.progressInterval) == 0 {
-						fmt.Printf("info: discovered %d files so far...\n", count)
+
+					// Call progress callback if set
+					if w.progressCallback != nil && count%int64(w.progressInterval) == 0 {
+						w.progressCallback(count)
+					}
+
+					// Log progress at intervals
+					if w.progressInterval > 0 && count%int64(w.progressInterval) == 0 {
+						w.getLogger().Info("File discovery progress",
+							"files_discovered", count)
 					}
 				}
 
@@ -228,8 +286,10 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 
 			elapsed := time.Since(startTime)
 			if elapsed > 5*time.Second {
-				fmt.Printf("info: completed directory '%s' in %s (discovered %d files total)\n",
-					dirName, elapsed.Round(time.Second), filesDiscovered.Load())
+				w.getLogger().Info("Completed directory scan",
+					"directory", dirName,
+					"elapsed_seconds", elapsed.Seconds(),
+					"files_discovered", filesDiscovered.Load())
 			}
 
 			// Capture first error

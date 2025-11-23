@@ -46,9 +46,9 @@ func TestGetLibraryUseCase_Execute(t *testing.T) {
 				tt.setup(repo)
 			}
 
-			uc := NewGetLibraryUseCase(repo)
+			service := NewLibraryService(repo, nil, nil, nil)
 
-			resp, err := uc.Execute(context.Background(), tt.libraryID)
+			resp, err := service.Get(context.Background(), tt.libraryID)
 
 			if tt.wantErr {
 				if err == nil {

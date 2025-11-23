@@ -240,12 +240,16 @@ func TestScanLibraryUseCase_StartScan(t *testing.T) {
 
 			// Create use case
 			uc := &ScanLibraryUseCase{
-				libraryRepo: libRepo,
-				mediaRepo:   mediaRepo,
-				movieRepo:   movieRepo,
-				tvRepo:      tvRepo,
-				musicRepo:   musicRepo,
-				scanJobRepo: scanRepo,
+				mediaRepos: &MediaRepositories{
+					Library: libRepo,
+					Media:   mediaRepo,
+					Movie:   movieRepo,
+					TV:      tvRepo,
+					Music:   musicRepo,
+				},
+				scanRepos: &ScanRepositories{
+					ScanJob: scanRepo,
+				},
 			}
 
 			// Execute
@@ -304,12 +308,16 @@ func TestScanLibraryUseCase_StartScan_CreationError(t *testing.T) {
 	}
 
 	uc := &ScanLibraryUseCase{
-		libraryRepo: libRepo,
-		mediaRepo:   mocks.NewMediaRepository(t),
-		movieRepo:   mocks.NewMovieRepository(t),
-		tvRepo:      mocks.NewTVRepository(t),
-		musicRepo:   mocks.NewMusicRepository(t),
-		scanJobRepo: scanRepo,
+		mediaRepos: &MediaRepositories{
+			Library: libRepo,
+			Media:   mocks.NewMediaRepository(t),
+			Movie:   mocks.NewMovieRepository(t),
+			TV:      mocks.NewTVRepository(t),
+			Music:   mocks.NewMusicRepository(t),
+		},
+		scanRepos: &ScanRepositories{
+			ScanJob: scanRepo,
+		},
 	}
 
 	_, err := uc.StartScan(context.Background(), 1)
@@ -362,12 +370,16 @@ func TestScanLibraryUseCase_StartScan_ListRunningError(t *testing.T) {
 	}
 
 	uc := &ScanLibraryUseCase{
-		libraryRepo: libRepo,
-		mediaRepo:   mocks.NewMediaRepository(t),
-		movieRepo:   mocks.NewMovieRepository(t),
-		tvRepo:      mocks.NewTVRepository(t),
-		musicRepo:   mocks.NewMusicRepository(t),
-		scanJobRepo: scanRepo,
+		mediaRepos: &MediaRepositories{
+			Library: libRepo,
+			Media:   mocks.NewMediaRepository(t),
+			Movie:   mocks.NewMovieRepository(t),
+			TV:      mocks.NewTVRepository(t),
+			Music:   mocks.NewMusicRepository(t),
+		},
+		scanRepos: &ScanRepositories{
+			ScanJob: scanRepo,
+		},
 	}
 
 	_, err := uc.StartScan(context.Background(), 1)

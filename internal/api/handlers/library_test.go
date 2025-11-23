@@ -16,75 +16,49 @@ import (
 	domainScanner "github.com/mantonx/viewra/internal/domain/scanner"
 )
 
-// Mock implementations for use case interfaces
+// Mock implementations for library service
 
-type mockCreateLibraryExecutor struct {
-	executeFunc func(
-		ctx context.Context,
-		req library.CreateLibraryRequest,
-	) (library.LibraryResponse, error)
+type mockLibraryService struct {
+	createFunc func(ctx context.Context, req library.CreateLibraryRequest) (library.LibraryResponse, error)
+	getFunc    func(ctx context.Context, id int64) (library.LibraryResponse, error)
+	listFunc   func(ctx context.Context) (library.ListLibrariesResponse, error)
+	updateFunc func(ctx context.Context, id int64, req library.UpdateLibraryRequest) (library.LibraryResponse, error)
+	deleteFunc func(ctx context.Context, id int64) error
 }
 
-func (m *mockCreateLibraryExecutor) Execute(
-	ctx context.Context,
-	req library.CreateLibraryRequest,
-) (library.LibraryResponse, error) {
-	if m.executeFunc != nil {
-		return m.executeFunc(ctx, req)
+func (m *mockLibraryService) Create(ctx context.Context, req library.CreateLibraryRequest) (library.LibraryResponse, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, req)
 	}
 	return library.LibraryResponse{}, nil
 }
 
-type mockUpdateLibraryExecutor struct {
-	executeFunc func(
-		ctx context.Context,
-		id int64,
-		req library.UpdateLibraryRequest,
-	) (library.LibraryResponse, error)
-}
-
-func (m *mockUpdateLibraryExecutor) Execute(
-	ctx context.Context,
-	id int64,
-	req library.UpdateLibraryRequest,
-) (library.LibraryResponse, error) {
-	if m.executeFunc != nil {
-		return m.executeFunc(ctx, id, req)
+func (m *mockLibraryService) Get(ctx context.Context, id int64) (library.LibraryResponse, error) {
+	if m.getFunc != nil {
+		return m.getFunc(ctx, id)
 	}
 	return library.LibraryResponse{}, nil
 }
 
-type mockDeleteLibraryExecutor struct {
-	executeFunc func(ctx context.Context, id int64) error
-}
-
-func (m *mockDeleteLibraryExecutor) Execute(ctx context.Context, id int64) error {
-	if m.executeFunc != nil {
-		return m.executeFunc(ctx, id)
-	}
-	return nil
-}
-
-type mockGetLibraryExecutor struct {
-	executeFunc func(ctx context.Context, id int64) (library.LibraryResponse, error)
-}
-
-func (m *mockGetLibraryExecutor) Execute(ctx context.Context, id int64) (library.LibraryResponse, error) {
-	if m.executeFunc != nil {
-		return m.executeFunc(ctx, id)
-	}
-	return library.LibraryResponse{}, nil
-}
-
-type mockListLibrariesExecutor struct {
-	executeFunc func(ctx context.Context) (library.ListLibrariesResponse, error)
-}
-
-func (m *mockListLibrariesExecutor) Execute(ctx context.Context) (library.ListLibrariesResponse, error) {
-	if m.executeFunc != nil {
-		return m.executeFunc(ctx)
+func (m *mockLibraryService) List(ctx context.Context) (library.ListLibrariesResponse, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx)
 	}
 	return library.ListLibrariesResponse{}, nil
+}
+
+func (m *mockLibraryService) Update(ctx context.Context, id int64, req library.UpdateLibraryRequest) (library.LibraryResponse, error) {
+	if m.updateFunc != nil {
+		return m.updateFunc(ctx, id, req)
+	}
+	return library.LibraryResponse{}, nil
+}
+
+func (m *mockLibraryService) Delete(ctx context.Context, id int64) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id)
+	}
+	return nil
 }
 
 type mockScanLibraryExecutor struct {
@@ -229,8 +203,8 @@ func TestLibraryHandler_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockCreate := &mockCreateLibraryExecutor{
-				executeFunc: func(
+			mockService := &mockLibraryService{
+				createFunc: func(
 					_ context.Context,
 					_ library.CreateLibraryRequest,
 				) (library.LibraryResponse, error) {
@@ -239,11 +213,7 @@ func TestLibraryHandler_Create(t *testing.T) {
 			}
 
 			handler := NewLibraryHandler(
-				mockCreate,
-				nil, // updateLibrary not used in this test
-				nil, // deleteLibrary not used in this test
-				nil, // getLibrary not used in this test
-				nil, // listLibraries not used in this test
+				mockService,
 				nil, // scanLibrary not used in this test
 			)
 
@@ -332,18 +302,14 @@ func TestLibraryHandler_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockList := &mockListLibrariesExecutor{
-				executeFunc: func(_ context.Context) (library.ListLibrariesResponse, error) {
+			mockService := &mockLibraryService{
+				listFunc: func(_ context.Context) (library.ListLibrariesResponse, error) {
 					return tt.mockResponse, tt.mockError
 				},
 			}
 
 			handler := NewLibraryHandler(
-				nil, // createLibrary not used in this test
-				nil, // updateLibrary not used in this test
-				nil, // deleteLibrary not used in this test
-				nil, // getLibrary not used in this test
-				mockList,
+				mockService,
 				nil, // scanLibrary not used in this test
 			)
 
@@ -418,18 +384,14 @@ func TestLibraryHandler_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockGet := &mockGetLibraryExecutor{
-				executeFunc: func(_ context.Context, _ int64) (library.LibraryResponse, error) {
+			mockService := &mockLibraryService{
+				getFunc: func(_ context.Context, _ int64) (library.LibraryResponse, error) {
 					return tt.mockResponse, tt.mockError
 				},
 			}
 
 			handler := NewLibraryHandler(
-				nil, // createLibrary not used in this test
-				nil, // updateLibrary not used in this test
-				nil, // deleteLibrary not used in this test
-				mockGet,
-				nil, // listLibraries not used in this test
+				mockService,
 				nil, // scanLibrary not used in this test
 			)
 
@@ -540,8 +502,8 @@ func TestLibraryHandler_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockUpdate := &mockUpdateLibraryExecutor{
-				executeFunc: func(
+			mockService := &mockLibraryService{
+				updateFunc: func(
 					_ context.Context,
 					_ int64,
 					_ library.UpdateLibraryRequest,
@@ -551,11 +513,7 @@ func TestLibraryHandler_Update(t *testing.T) {
 			}
 
 			handler := NewLibraryHandler(
-				nil, // createLibrary not used in this test
-				mockUpdate,
-				nil, // deleteLibrary not used in this test
-				nil, // getLibrary not used in this test
-				nil, // listLibraries not used in this test
+				mockService,
 				nil, // scanLibrary not used in this test
 			)
 
@@ -621,18 +579,14 @@ func TestLibraryHandler_Delete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDelete := &mockDeleteLibraryExecutor{
-				executeFunc: func(_ context.Context, _ int64) error {
+			mockService := &mockLibraryService{
+				deleteFunc: func(_ context.Context, _ int64) error {
 					return tt.mockError
 				},
 			}
 
 			handler := NewLibraryHandler(
-				nil, // createLibrary not used in this test
-				nil, // updateLibrary not used in this test
-				mockDelete,
-				nil, // getLibrary not used in this test
-				nil, // listLibraries not used in this test
+				mockService,
 				nil, // scanLibrary not used in this test
 			)
 
@@ -710,11 +664,7 @@ func TestLibraryHandler_Scan(t *testing.T) {
 			}
 
 			handler := NewLibraryHandler(
-				nil, // createLibrary not used in this test
-				nil, // updateLibrary not used in this test
-				nil, // deleteLibrary not used in this test
-				nil, // getLibrary not used in this test
-				nil, // listLibraries not used in this test
+				nil, // libraryService not used in this test
 				mockScan,
 			)
 

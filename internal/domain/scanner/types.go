@@ -15,21 +15,33 @@ const (
 	ScanStatusFailed    ScanStatus = "failed"
 )
 
+// ScanPhase represents the current phase of an active scan
+type ScanPhase string
+
+const (
+	ScanPhaseDiscovering ScanPhase = "discovering" // Walking directory tree to find files
+	ScanPhaseProcessing  ScanPhase = "processing"  // Processing discovered files with FFprobe
+	ScanPhaseCompleted   ScanPhase = "completed"   // Scan finished
+)
+
 // ScanJob represents a library scanning operation
 type ScanJob struct {
-	ID             int64
-	LibraryID      int64
-	Status         ScanStatus
-	Progress       float64
-	FilesFound     int64
-	FilesProcessed int64
-	BytesProcessed int64
-	ErrorCount     int64
-	StartedAt      time.Time
-	CompletedAt    *time.Time
-	ErrorMessage   string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID              int64
+	LibraryID       int64
+	Status          ScanStatus
+	Progress        float64
+	FilesFound      int64
+	FilesProcessed  int64
+	BytesProcessed  int64
+	ErrorCount      int64
+	StartedAt       time.Time
+	CompletedAt     *time.Time
+	ErrorMessage    string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	Phase           ScanPhase // Current scan phase
+	EstimatedTotal  int64     // Estimated total files from previous scan
+	DiscoveryDone   bool      // Whether file discovery is complete
 }
 
 // FileInfo represents a discovered file during scanning
@@ -87,20 +99,33 @@ type ScanResult struct {
 
 // Progress tracks scanning progress with thread-safe counters
 type Progress struct {
-	FilesFound     int64
-	FilesProcessed int64
-	BytesProcessed int64
-	ErrorCount     int64
-	StartTime      time.Time
-	LastUpdate     time.Time
+	FilesFound      int64
+	FilesProcessed  int64
+	BytesProcessed  int64
+	ErrorCount      int64
+	StartTime       time.Time
+	LastUpdate      time.Time
+	Phase           ScanPhase // Current phase of the scan
+	EstimatedTotal  int64     // Estimated total files from previous scan (0 if unknown)
+	DiscoveryDone   bool      // True when file discovery is complete
 }
 
 // GetPercentage calculates the completion percentage
+// Uses estimated total during discovery phase for more accurate progress
 func (p *Progress) GetPercentage() float64 {
-	if p.FilesFound == 0 {
+	// Determine the denominator (total files to process)
+	total := p.FilesFound
+
+	// If discovery is not done and we have an estimate, use it for better accuracy
+	if !p.DiscoveryDone && p.EstimatedTotal > 0 && p.EstimatedTotal > p.FilesFound {
+		total = p.EstimatedTotal
+	}
+
+	if total == 0 {
 		return 0
 	}
-	percentage := float64(p.FilesProcessed) / float64(p.FilesFound) * 100
+
+	percentage := float64(p.FilesProcessed) / float64(total) * 100
 	if percentage > 100 {
 		return 100
 	}

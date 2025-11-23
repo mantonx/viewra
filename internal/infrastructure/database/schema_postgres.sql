@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS scan_jobs (
     error_message TEXT,
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
+    phase TEXT DEFAULT 'processing' CHECK(phase IN ('discovering', 'processing', 'completed')),
+    estimated_total BIGINT DEFAULT 0,
+    discovery_done BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (library_id) REFERENCES libraries(id) ON DELETE CASCADE

@@ -96,11 +96,7 @@ func NewServer(
 	imagesHandler *handlers.ImagesHandler,
 	schedulerHandler *handlers.SchedulerHandler,
 	// Library use cases
-	createLibrary *library.CreateLibraryUseCase,
-	updateLibrary *library.UpdateLibraryUseCase,
-	deleteLibrary *library.DeleteLibraryUseCase,
-	getLibrary *library.GetLibraryUseCase,
-	listLibraries *library.ListLibrariesUseCase,
+	libraryService *library.LibraryService,
 	scanLibrary *library.ScanLibraryUseCase,
 	// Media use cases
 	getMedia *media.GetMediaUseCase,
@@ -150,13 +146,9 @@ func NewServer(
 	// Add our custom logging middleware
 	router.Use(middleware.Logger(logger))
 
-	// Create handlers with individual use cases
+	// Create handlers with services
 	libraryHandler := handlers.NewLibraryHandler(
-		createLibrary,
-		updateLibrary,
-		deleteLibrary,
-		getLibrary,
-		listLibraries,
+		libraryService,
 		scanLibrary,
 	)
 	mediaHandler := handlers.NewMediaHandler(

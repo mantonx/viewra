@@ -9,30 +9,18 @@ import (
 
 // LibraryHandler handles HTTP requests for libraries
 type LibraryHandler struct {
-	createLibrary library.CreateLibraryExecutor
-	updateLibrary library.UpdateLibraryExecutor
-	deleteLibrary library.DeleteLibraryExecutor
-	getLibrary    library.GetLibraryExecutor
-	listLibraries library.ListLibrariesExecutor
-	scanLibrary   library.ScanLibraryExecutor
+	service     library.LibraryServiceInterface
+	scanLibrary library.ScanLibraryExecutor
 }
 
 // NewLibraryHandler creates a new library handler
 func NewLibraryHandler(
-	createLibrary library.CreateLibraryExecutor,
-	updateLibrary library.UpdateLibraryExecutor,
-	deleteLibrary library.DeleteLibraryExecutor,
-	getLibrary library.GetLibraryExecutor,
-	listLibraries library.ListLibrariesExecutor,
+	service library.LibraryServiceInterface,
 	scanLibrary library.ScanLibraryExecutor,
 ) *LibraryHandler {
 	return &LibraryHandler{
-		createLibrary: createLibrary,
-		updateLibrary: updateLibrary,
-		deleteLibrary: deleteLibrary,
-		getLibrary:    getLibrary,
-		listLibraries: listLibraries,
-		scanLibrary:   scanLibrary,
+		service:     service,
+		scanLibrary: scanLibrary,
 	}
 }
 
@@ -57,7 +45,7 @@ func (h *LibraryHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.createLibrary.Execute(c.Request.Context(), req)
+	resp, err := h.service.Create(c.Request.Context(), req)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -75,7 +63,7 @@ func (h *LibraryHandler) Create(c *gin.Context) {
 // @Failure 500 {object} ErrorResponse
 // @Router /api/libraries [get]
 func (h *LibraryHandler) List(c *gin.Context) {
-	resp, err := h.listLibraries.Execute(c.Request.Context())
+	resp, err := h.service.List(c.Request.Context())
 	if err != nil {
 		handleError(c, err)
 		return
@@ -105,7 +93,7 @@ func (h *LibraryHandler) Get(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.getLibrary.Execute(c.Request.Context(), id)
+	resp, err := h.service.Get(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -146,7 +134,7 @@ func (h *LibraryHandler) Update(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.updateLibrary.Execute(c.Request.Context(), id, req)
+	resp, err := h.service.Update(c.Request.Context(), id, req)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -176,7 +164,7 @@ func (h *LibraryHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.deleteLibrary.Execute(c.Request.Context(), id)
+	err = h.service.Delete(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return

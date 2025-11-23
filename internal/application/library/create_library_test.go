@@ -124,9 +124,9 @@ func TestCreateLibraryUseCase_Execute(t *testing.T) {
 			defer db.Close()
 
 			txManager := common.NewTxManager(db)
-			uc := NewCreateLibraryUseCase(repo, txManager)
+			service := NewLibraryService(repo, nil, nil, txManager)
 
-			resp, err := uc.Execute(context.Background(), tt.req)
+			resp, err := service.Create(context.Background(), tt.req)
 
 			if tt.wantErr {
 				if err == nil {

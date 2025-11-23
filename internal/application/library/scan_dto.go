@@ -21,17 +21,20 @@ type StartScanResponse struct {
 
 // ScanProgressResponse represents the current scan progress
 type ScanProgressResponse struct {
-	JobID          int64     `json:"job_id"`
-	LibraryID      int64     `json:"library_id"`
-	Status         string    `json:"status"`
-	Progress       float64   `json:"progress"`
-	FilesFound     int64     `json:"files_found"`
-	FilesProcessed int64     `json:"files_processed"`
-	BytesProcessed int64     `json:"bytes_processed"`
-	ErrorCount     int64     `json:"error_count"`
-	StartedAt      time.Time `json:"started_at"`
-	CompletedAt    *time.Time `json:"completed_at,omitempty"`
-	ErrorMessage   string    `json:"error_message,omitempty"`
+	JobID           int64     `json:"job_id"`
+	LibraryID       int64     `json:"library_id"`
+	Status          string    `json:"status"`
+	Progress        float64   `json:"progress"`
+	FilesFound      int64     `json:"files_found"`
+	FilesProcessed  int64     `json:"files_processed"`
+	BytesProcessed  int64     `json:"bytes_processed"`
+	ErrorCount      int64     `json:"error_count"`
+	StartedAt       time.Time `json:"started_at"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	ErrorMessage    string    `json:"error_message,omitempty"`
+	Phase           string    `json:"phase,omitempty"`            // Current scan phase (discovering/processing/completed)
+	EstimatedTotal  int64     `json:"estimated_total,omitempty"`  // Estimated total files from previous scan
+	DiscoveryDone   bool      `json:"discovery_done"`             // Whether file discovery is complete
 }
 
 // ScanHistoryResponse represents a list of scan jobs for a library
@@ -64,6 +67,9 @@ func ToScanProgressResponse(job *scanner.ScanJob) ScanProgressResponse {
 		StartedAt:      job.StartedAt,
 		CompletedAt:    job.CompletedAt,
 		ErrorMessage:   job.ErrorMessage,
+		Phase:          string(job.Phase),
+		EstimatedTotal: job.EstimatedTotal,
+		DiscoveryDone:  job.DiscoveryDone,
 	}
 }
 

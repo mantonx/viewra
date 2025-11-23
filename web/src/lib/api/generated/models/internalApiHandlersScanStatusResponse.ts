@@ -11,16 +11,22 @@ export interface InternalApiHandlersScanStatusResponse {
   bytes_processed?: number
   /** ISO 8601 timestamp */
   completed_at?: string
+  /** Whether file discovery is complete */
+  discovery_done?: boolean
   /** Number of errors encountered */
   error_count?: number
   /** Error message if failed */
   error_message?: string
+  /** Estimated total files from previous scan */
+  estimated_total?: number
   /** Total files discovered */
   files_found?: number
   /** Files processed so far */
   files_processed?: number
   /** Scan job ID */
   job_id?: number
+  /** Current scan phase (discovering/processing/completed) */
+  phase?: string
   /** 0-100 */
   progress?: number
   /** ISO 8601 timestamp */

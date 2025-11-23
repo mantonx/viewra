@@ -8,9 +8,12 @@ INSERT INTO scan_jobs (
     bytes_processed,
     error_count,
     started_at,
+    phase,
+    estimated_total,
+    discovery_done,
     created_at,
     updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 RETURNING *;
 
 -- name: GetScanJob :one
@@ -42,8 +45,11 @@ SET
     files_processed = $3,
     bytes_processed = $4,
     error_count = $5,
+    phase = $6,
+    estimated_total = $7,
+    discovery_done = $8,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $6;
+WHERE id = $9;
 
 -- name: UpdateScanJobStatus :exec
 UPDATE scan_jobs
@@ -63,8 +69,10 @@ SET
     error_count = $6,
     completed_at = $7,
     error_message = $8,
+    phase = $9,
+    discovery_done = $10,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $9;
+WHERE id = $11;
 
 -- name: DeleteScanJob :exec
 DELETE FROM scan_jobs

@@ -246,7 +246,9 @@ func TestScanLibraryUseCase_GetProgress(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanJobRepo: mockRepo,
+				scanRepos: &ScanRepositories{
+					ScanJob: mockRepo,
+				},
 			}
 
 			resp, err := uc.GetProgress(context.Background(), tt.jobID)
@@ -345,7 +347,9 @@ func TestScanLibraryUseCase_GetLatestScan(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanJobRepo: mockRepo,
+				scanRepos: &ScanRepositories{
+					ScanJob: mockRepo,
+				},
 			}
 
 			resp, err := uc.GetLatestScan(context.Background(), tt.libraryID)
@@ -492,7 +496,9 @@ func TestScanLibraryUseCase_GetScanHistory(t *testing.T) {
 			}
 
 			uc := &ScanLibraryUseCase{
-				scanJobRepo: mockRepo,
+				scanRepos: &ScanRepositories{
+					ScanJob: mockRepo,
+				},
 			}
 
 			resp, err := uc.GetScanHistory(context.Background(), tt.libraryID, tt.limit)

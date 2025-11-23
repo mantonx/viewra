@@ -2,11 +2,15 @@ package filesystem
 
 import (
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
 )
+
+// ProgressCallback is called periodically during file discovery to report progress
+type ProgressCallback func(filesDiscovered int64)
 
 // Walker implements scanner.FileWalker using filepath.WalkDir
 type Walker struct {
@@ -17,6 +21,12 @@ type Walker struct {
 	parallelWorkers  int  // Number of concurrent directory walkers (0 = sequential)
 	enableParallel   bool // Enable parallel walking for network storage optimization
 	progressInterval int  // Log progress every N files (0 = disabled)
+
+	// Progress callback for real-time discovery updates
+	progressCallback ProgressCallback
+
+	// Logger for structured logging (optional, will use slog.Default if nil)
+	logger *slog.Logger
 }
 
 // Filter implements scanner.FileFilter with smart file detection
@@ -60,6 +70,21 @@ func WithParallelWalking(workers int) WalkerOption {
 func WithProgressLogging(interval int) WalkerOption {
 	return func(w *Walker) {
 		w.progressInterval = interval
+	}
+}
+
+// WithProgressCallback sets a callback function that will be called periodically
+// during file discovery to report the current count of discovered files
+func WithProgressCallback(callback ProgressCallback) WalkerOption {
+	return func(w *Walker) {
+		w.progressCallback = callback
+	}
+}
+
+// WithLogger sets a custom logger for the walker
+func WithLogger(logger *slog.Logger) WalkerOption {
+	return func(w *Walker) {
+		w.logger = logger
 	}
 }
 

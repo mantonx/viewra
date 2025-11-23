@@ -7,8 +7,11 @@ INSERT INTO scan_jobs (
     files_processed,
     bytes_processed,
     error_count,
-    started_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    started_at,
+    phase,
+    estimated_total,
+    discovery_done
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetScanJob :one
@@ -40,6 +43,9 @@ SET
     files_processed = ?,
     bytes_processed = ?,
     error_count = ?,
+    phase = ?,
+    estimated_total = ?,
+    discovery_done = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 
@@ -61,6 +67,8 @@ SET
     error_count = ?,
     completed_at = ?,
     error_message = ?,
+    phase = ?,
+    discovery_done = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 

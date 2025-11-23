@@ -99,7 +99,7 @@ migrate-create: ## Create a new migration (usage: make migrate-create NAME=add_u
 	migrate create -ext sql -dir migrations -seq $(NAME)
 
 sqlc-gen: ## Generate sqlc code from queries
-	sqlc generate
+	~/go/bin/sqlc generate
 
 swagger-gen: ## Generate Swagger documentation
 	~/go/bin/swag init -g cmd/viewra/main.go -o docs/swagger --parseDependency --parseInternal
