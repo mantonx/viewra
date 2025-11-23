@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
@@ -15,7 +16,7 @@ import (
 )
 
 // processMovie creates or updates a movie entry
-func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) (*int64, error) {
+func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint, existingMediaCache *sync.Map) (*int64, error) {
 	// Handle nil checkpoint (legacy code path or tests)
 	if checkpoint == nil {
 		checkpoint = &scanner.ScanCheckpoint{
@@ -104,11 +105,11 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 		movie.SortTitle = domainCommon.NormalizeSortTitle(movie.Media.Title)
 	}
 
-	// Check if movie already exists
-	existing, err := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-	if err == nil && existing != nil {
+	// Check if movie already exists using in-memory cache (major performance optimization!)
+	// This eliminates individual database SELECTs for every file
+	if value, found := existingMediaCache.Load(result.FilePath); found {
 		// Update existing entry
-		movie.Media.ID = existing.ID
+		movie.Media.ID = value.(int64)
 		movie.Media.Type = "movie"
 		if err := uc.mediaRepos.Media.Update(ctx, &movie.Media); err != nil {
 			return nil, fmt.Errorf("failed to update base media record: %w", err)
@@ -126,24 +127,37 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 	if err := uc.mediaRepos.Movie.CreateMovie(ctx, movie); err != nil {
 		// Handle race condition: Another worker may have created this movie between our check and insert
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
-			// Fetch the existing record again
-			existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-			if fetchErr == nil && existing != nil {
+			// Check cache again (another worker may have just added it)
+			if value, found := existingMediaCache.Load(result.FilePath); found {
 				// Update the existing record
+				movie.Media.ID = value.(int64)
+			} else {
+				// Cache miss - fetch from database (race condition: created after our initial cache load)
+				existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
+				if fetchErr != nil || existing == nil {
+					return nil, fmt.Errorf("failed to fetch existing media after collision: %w", fetchErr)
+				}
 				movie.Media.ID = existing.ID
-				movie.Media.Type = "movie"
-				if updateErr := uc.mediaRepos.Media.Update(ctx, &movie.Media); updateErr != nil {
-					return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
-				}
-				if updateErr := uc.mediaRepos.Movie.UpdateMovie(ctx, movie); updateErr != nil {
-					return nil, fmt.Errorf("failed to update movie metadata after collision: %w", updateErr)
-				}
-				uc.extractImagesForMovie(ctx, movie, result.FilePath)
-				return &movie.Media.ID, nil
+				// Add to cache for future lookups
+				existingMediaCache.Store(result.FilePath, existing.ID)
 			}
+
+			// Update the existing record
+			movie.Media.Type = "movie"
+			if updateErr := uc.mediaRepos.Media.Update(ctx, &movie.Media); updateErr != nil {
+				return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
+			}
+			if updateErr := uc.mediaRepos.Movie.UpdateMovie(ctx, movie); updateErr != nil {
+				return nil, fmt.Errorf("failed to update movie metadata after collision: %w", updateErr)
+			}
+			uc.extractImagesForMovie(ctx, movie, result.FilePath)
+			return &movie.Media.ID, nil
 		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
 	}
+
+	// Add newly created media to cache so other workers don't try to create it again
+	existingMediaCache.Store(result.FilePath, movie.Media.ID)
 
 	// Extract and catalog images for the movie
 	uc.extractImagesForMovie(ctx, movie, result.FilePath)
@@ -151,7 +165,7 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 }
 
 // processTVEpisode creates or updates a TV episode entry
-func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) (*int64, error) {
+func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint, existingMediaCache *sync.Map) (*int64, error) {
 	// Handle nil checkpoint (legacy code path or tests)
 	if checkpoint == nil {
 		checkpoint = &scanner.ScanCheckpoint{
@@ -267,11 +281,11 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		}
 	}
 
-	// Check if episode already exists
-	existing, err := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-	if err == nil && existing != nil {
+	// Check if episode already exists using in-memory cache (major performance optimization!)
+	// This eliminates individual database SELECTs for every file
+	if value, found := existingMediaCache.Load(result.FilePath); found {
 		// Update existing entry
-		episode.Media.ID = existing.ID
+		episode.Media.ID = value.(int64)
 		episode.Media.Type = "tv_episode"
 		if err := uc.mediaRepos.Media.Update(ctx, &episode.Media); err != nil {
 			return nil, fmt.Errorf("failed to update base media record: %w", err)
@@ -290,24 +304,37 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		// Handle race condition: Another worker may have created this episode between our check and insert
 		// TV episodes have a UNIQUE constraint on (show_id, season_number, episode_number)
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
-			// Fetch the existing record again
-			existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-			if fetchErr == nil && existing != nil {
+			// Check cache again (another worker may have just added it)
+			if value, found := existingMediaCache.Load(result.FilePath); found {
 				// Update the existing record
+				episode.Media.ID = value.(int64)
+			} else {
+				// Cache miss - fetch from database (race condition: created after our initial cache load)
+				existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
+				if fetchErr != nil || existing == nil {
+					return nil, fmt.Errorf("failed to fetch existing media after collision: %w", fetchErr)
+				}
 				episode.Media.ID = existing.ID
-				episode.Media.Type = "tv_episode"
-				if updateErr := uc.mediaRepos.Media.Update(ctx, &episode.Media); updateErr != nil {
-					return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
-				}
-				if updateErr := uc.mediaRepos.TV.UpdateTVEpisode(ctx, episode); updateErr != nil {
-					return nil, fmt.Errorf("failed to update TV episode metadata after collision: %w", updateErr)
-				}
-				uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
-				return &episode.Media.ID, nil
+				// Add to cache for future lookups
+				existingMediaCache.Store(result.FilePath, existing.ID)
 			}
+
+			// Update the existing record
+			episode.Media.Type = "tv_episode"
+			if updateErr := uc.mediaRepos.Media.Update(ctx, &episode.Media); updateErr != nil {
+				return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
+			}
+			if updateErr := uc.mediaRepos.TV.UpdateTVEpisode(ctx, episode); updateErr != nil {
+				return nil, fmt.Errorf("failed to update TV episode metadata after collision: %w", updateErr)
+			}
+			uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
+			return &episode.Media.ID, nil
 		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
 	}
+
+	// Add newly created media to cache so other workers don't try to create it again
+	existingMediaCache.Store(result.FilePath, episode.Media.ID)
 
 	// Extract and catalog images for the episode, show, and season
 	uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
@@ -315,7 +342,7 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 }
 
 // processMusicTrack creates or updates a music track entry
-func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) (*int64, error) {
+func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint, existingMediaCache *sync.Map) (*int64, error) {
 	// Handle nil checkpoint (legacy code path or tests)
 	if checkpoint == nil {
 		checkpoint = &scanner.ScanCheckpoint{
@@ -449,11 +476,11 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		MusicBrainzArtistID: musicBrainzArtistID,
 	}
 
-	// Check if track already exists
-	existing, err := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-	if err == nil && existing != nil {
+	// Check if track already exists using in-memory cache (major performance optimization!)
+	// This eliminates individual database SELECTs for every file
+	if value, found := existingMediaCache.Load(result.FilePath); found {
 		// Update existing entry
-		track.Media.ID = existing.ID
+		track.Media.ID = value.(int64)
 		if err := uc.mediaRepos.Media.Update(ctx, &track.Media); err != nil {
 			return nil, fmt.Errorf("failed to update base media record: %w", err)
 		}
@@ -508,23 +535,36 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		// Handle race condition: Another worker may have created this record between our check and insert
 		// If we get a UNIQUE constraint error, retry with update logic
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
-			// Fetch the existing record again
-			existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-			if fetchErr == nil && existing != nil {
+			// Check cache again (another worker may have just added it)
+			if value, found := existingMediaCache.Load(result.FilePath); found {
 				// Update the existing record
+				track.Media.ID = value.(int64)
+			} else {
+				// Cache miss - fetch from database (race condition: created after our initial cache load)
+				existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
+				if fetchErr != nil || existing == nil {
+					return nil, fmt.Errorf("failed to fetch existing media after collision: %w", fetchErr)
+				}
 				track.Media.ID = existing.ID
-				if updateErr := uc.mediaRepos.Media.Update(ctx, &track.Media); updateErr != nil {
-					return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
-				}
-				if updateErr := uc.mediaRepos.Music.UpdateMusicTrack(ctx, track); updateErr != nil {
-					return nil, fmt.Errorf("failed to update music track metadata after collision: %w", updateErr)
-				}
-				uc.extractImagesForTrack(ctx, track, result.FilePath)
-				return &track.Media.ID, nil
+				// Add to cache for future lookups
+				existingMediaCache.Store(result.FilePath, existing.ID)
 			}
+
+			// Update the existing record
+			if updateErr := uc.mediaRepos.Media.Update(ctx, &track.Media); updateErr != nil {
+				return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
+			}
+			if updateErr := uc.mediaRepos.Music.UpdateMusicTrack(ctx, track); updateErr != nil {
+				return nil, fmt.Errorf("failed to update music track metadata after collision: %w", updateErr)
+			}
+			uc.extractImagesForTrack(ctx, track, result.FilePath)
+			return &track.Media.ID, nil
 		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
 	}
+
+	// Add newly created media to cache so other workers don't try to create it again
+	existingMediaCache.Store(result.FilePath, track.Media.ID)
 
 	// Extract and catalog images for the album and artist
 	uc.extractImagesForTrack(ctx, track, result.FilePath)

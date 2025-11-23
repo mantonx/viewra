@@ -179,6 +179,32 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*med
 	return mediaList, nil
 }
 
+// GetFilePathCache retrieves a map of file_path -> id for all media in a library
+// Memory-efficient: only loads the columns needed for cache lookup
+func (r *Repository) GetFilePathCache(ctx context.Context, libraryID int64) (map[string]int64, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, file_path
+		FROM media
+		WHERE library_id = ?
+	`, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cache := make(map[string]int64)
+	for rows.Next() {
+		var id int64
+		var filePath string
+		if err := rows.Scan(&id, &filePath); err != nil {
+			return nil, err
+		}
+		cache[filePath] = id
+	}
+
+	return cache, rows.Err()
+}
+
 // ListByType retrieves all media items of a specific type in a library
 func (r *Repository) ListByType(
 	ctx context.Context,

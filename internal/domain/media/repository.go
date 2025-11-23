@@ -44,6 +44,10 @@ type Repository interface {
 	// CountByType returns the number of media items of a specific type in a library
 	CountByType(ctx context.Context, libraryID int64, mediaType MediaType) (int64, error)
 
+	// GetFilePathCache retrieves a map of file_path -> id for all media in a library
+	// Memory-efficient: only loads the columns needed for cache lookup
+	GetFilePathCache(ctx context.Context, libraryID int64) (map[string]int64, error)
+
 	// Transaction-aware methods
 	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
 	ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*Media, error)

@@ -372,6 +372,29 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 			"storage_type", uc.systemProfile.Storage.Type)
 	}
 
+	// Load all existing media file paths into memory (major optimization!)
+	// This eliminates 58K+ individual SELECT queries (one per file)
+	// Use sync.Map for thread-safe concurrent access by workers
+	uc.logger.Info("loading existing media files into cache", "library_id", lib.ID)
+	existingMediaMap, err := uc.mediaRepos.Media.GetFilePathCache(ctx, lib.ID)
+	if err != nil {
+		uc.logger.Warn("failed to load existing media cache, will fall back to per-file lookups",
+			"library_id", lib.ID,
+			"error", err)
+		existingMediaMap = make(map[string]int64) // Empty cache if load fails
+	} else {
+		uc.logger.Info("loaded existing media cache",
+			"library_id", lib.ID,
+			"count", len(existingMediaMap))
+	}
+
+	// Convert to sync.Map for thread-safe concurrent access
+	// Workers will read from this cache AND update it when creating new media
+	var existingMediaCache sync.Map
+	for path, id := range existingMediaMap {
+		existingMediaCache.Store(path, id)
+	}
+
 	// Track found files (thread-safe with mutex)
 	var foundFilesMu sync.Mutex
 	foundFiles := make(map[string]bool)
@@ -398,7 +421,7 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 			}()
 
 			for checkpoint := range checkpointsChan {
-				uc.processCheckpointWorker(ctx, lib, checkpoint, maxRetries, &foundFilesMu, foundFiles)
+				uc.processCheckpointWorker(ctx, lib, checkpoint, maxRetries, &foundFilesMu, foundFiles, &existingMediaCache)
 			}
 		}(w)
 	}
@@ -593,7 +616,7 @@ processingLoop:
 
 // processFileWithCheckpoint processes a single file based on library type
 // Returns (hasWarning bool, error)
-func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib *library.Library, checkpoint *scanner.ScanCheckpoint) (bool, error) {
+func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib *library.Library, checkpoint *scanner.ScanCheckpoint, existingMediaCache *sync.Map) (bool, error) {
 	// Re-extract metadata for this file (checkpoint only stores the path)
 	// We need full metadata to create the media entry
 	// CRITICAL: os.Stat can hang indefinitely on CIFS/NFS, so we wrap it with a timeout
@@ -639,11 +662,11 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 	var processErr error
 	switch lib.Type {
 	case library.LibraryTypeMovies:
-		mediaID, processErr = uc.processMovie(ctx, lib.ID, &result, checkpoint)
+		mediaID, processErr = uc.processMovie(ctx, lib.ID, &result, checkpoint, existingMediaCache)
 	case library.LibraryTypeTV:
-		mediaID, processErr = uc.processTVEpisode(ctx, lib.ID, &result, checkpoint)
+		mediaID, processErr = uc.processTVEpisode(ctx, lib.ID, &result, checkpoint, existingMediaCache)
 	case library.LibraryTypeMusic:
-		mediaID, processErr = uc.processMusicTrack(ctx, lib.ID, &result, checkpoint)
+		mediaID, processErr = uc.processMusicTrack(ctx, lib.ID, &result, checkpoint, existingMediaCache)
 	default:
 		return false, fmt.Errorf("unknown library type: %s", lib.Type)
 	}
@@ -697,6 +720,7 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 	maxRetries int,
 	foundFilesMu *sync.Mutex,
 	foundFiles map[string]bool,
+	existingMediaCache *sync.Map,
 ) {
 	// Mark as processing
 	if err := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointProcessing, "", ""); err != nil {
@@ -718,7 +742,7 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 	defer cancel()
 
 	// Process the file with timeout protection
-	hasWarning, err := uc.processFileWithCheckpoint(workerCtx, lib, checkpoint)
+	hasWarning, err := uc.processFileWithCheckpoint(workerCtx, lib, checkpoint, existingMediaCache)
 
 	if err != nil {
 		// Categorize the error
