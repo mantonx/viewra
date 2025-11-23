@@ -111,6 +111,24 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 	// Create new entry - let movie repository handle both media and movie records
 	movie.Media.Type = "movie"
 	if err := uc.mediaRepos.Movie.CreateMovie(ctx, movie); err != nil {
+		// Handle race condition: Another worker may have created this movie between our check and insert
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
+			// Fetch the existing record again
+			existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
+			if fetchErr == nil && existing != nil {
+				// Update the existing record
+				movie.Media.ID = existing.ID
+				movie.Media.Type = "movie"
+				if updateErr := uc.mediaRepos.Media.Update(ctx, &movie.Media); updateErr != nil {
+					return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
+				}
+				if updateErr := uc.mediaRepos.Movie.UpdateMovie(ctx, movie); updateErr != nil {
+					return nil, fmt.Errorf("failed to update movie metadata after collision: %w", updateErr)
+				}
+				uc.extractImagesForMovie(ctx, movie, result.FilePath)
+				return &movie.Media.ID, nil
+			}
+		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
 	}
 
@@ -239,6 +257,25 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 	// Create new entry - let TV repository handle both media and episode records
 	episode.Media.Type = "tv_episode"
 	if err := uc.mediaRepos.TV.CreateTVEpisode(ctx, episode); err != nil {
+		// Handle race condition: Another worker may have created this episode between our check and insert
+		// TV episodes have a UNIQUE constraint on (show_id, season_number, episode_number)
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
+			// Fetch the existing record again
+			existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
+			if fetchErr == nil && existing != nil {
+				// Update the existing record
+				episode.Media.ID = existing.ID
+				episode.Media.Type = "tv_episode"
+				if updateErr := uc.mediaRepos.Media.Update(ctx, &episode.Media); updateErr != nil {
+					return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
+				}
+				if updateErr := uc.mediaRepos.TV.UpdateTVEpisode(ctx, episode); updateErr != nil {
+					return nil, fmt.Errorf("failed to update TV episode metadata after collision: %w", updateErr)
+				}
+				uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
+				return &episode.Media.ID, nil
+			}
+		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
 	}
 
