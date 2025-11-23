@@ -135,7 +135,7 @@ func (m *SessionManager) GetOrCreateSession(
 	// Store session
 	m.sessions.Store(key, session)
 
-	m.logger.Info("Created new transcode session",
+	m.logger.Debug("Created new transcode session",
 		"session_id", session.ID,
 		"media_id", mediaID,
 		"quality", quality,
