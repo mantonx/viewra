@@ -348,7 +348,7 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 			select {
 			case <-hashingDone:
 				// Hashing is done and no more checkpoints - we're finished
-				uc.logger.Info("All checkpoints processed, scan complete",
+				uc.logger.Debug("All checkpoints processed, scan complete",
 					"job_id", jobID)
 				break
 			default:
