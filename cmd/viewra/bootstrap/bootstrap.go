@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/mantonx/viewra/internal/app"
 	appconfig "github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/pkg/logger"
+	"github.com/mantonx/viewra/web"
 )
 
 // Application holds all application dependencies
@@ -57,6 +61,26 @@ func Initialize() (*Application, error) {
 
 	// Add Swagger documentation endpoint
 	container.Server.Router().GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Serve embedded frontend in production (if available)
+	if web.IsEmbedded() {
+		distFS, err := web.FS()
+		if err != nil {
+			lgr.Warn("Frontend embedded but failed to load", "error", err)
+		} else {
+			lgr.Info("Serving embedded frontend at http://localhost:8080/")
+			// Serve frontend files - use NoRoute to catch all non-API routes
+			httpFS := http.FS(distFS)
+			container.Server.Router().NoRoute(func(c *gin.Context) {
+				// Serve index.html for root or any path that doesn't look like an API call
+				if c.Request.URL.Path == "/" || !isAPIPath(c.Request.URL.Path) {
+					c.FileFromFS(c.Request.URL.Path, httpFS)
+				}
+			})
+		}
+	} else {
+		lgr.Info("Frontend not embedded - development mode (use Vite on :5173)")
+	}
 
 	return &Application{
 		Config:    cfg,
@@ -122,4 +146,11 @@ func (a *Application) Run() error {
 
 	a.Logger.Info("Application stopped gracefully")
 	return nil
+}
+
+// isAPIPath checks if a path is an API endpoint
+func isAPIPath(path string) bool {
+	return strings.HasPrefix(path, "/api/") ||
+	       strings.HasPrefix(path, "/swagger/") ||
+	       strings.HasPrefix(path, "/health")
 }
