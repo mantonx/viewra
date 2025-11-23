@@ -1,4 +1,4 @@
-.PHONY: help dev build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools
+.PHONY: help dev dev-clean stop build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -14,54 +14,51 @@ install-tools: ## Install development tools (Air, sqlc, swag, migrate)
 	go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	@echo "Tools installed successfully!"
 
-dev: ## Run development servers (backend + frontend) with hot reload
-	@echo "🚀 Starting development servers with hot reload..."
-	@echo ""
-	@echo "📡 Backend:  http://localhost:8080"
-	@echo "🎨 Frontend: http://localhost:5173"
-	@echo ""
-	@echo "💡 Tip: Edit any .go or .tsx file and see changes instantly!"
-	@echo "🛑 To stop: Ctrl+C or 'overmind quit'"
-	@echo ""
-	@which overmind > /dev/null 2>&1 && overmind start || (echo "❌ Overmind not found. Install: brew install overmind (Mac) or go install github.com/DarthSim/overmind/v2@latest")
+dev-clean: ## Clean up stale dev processes and sockets
+	@echo "🧹 Cleaning up stale development state..."
+	@if pgrep overmind >/dev/null 2>&1; then \
+		overmind quit 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@killall -9 air 2>/dev/null || true
+	@killall -9 main 2>/dev/null || true
+	@lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
+	@lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
+	@rm -f .overmind.sock
+	@echo "✓ Cleanup complete"
 
-dev-backend: ## Run backend with hot reload (standalone)
-	@echo "🔥 Starting backend with Air hot reload..."
-	@echo "📡 Backend: http://localhost:8080"
-	~/go/bin/air
-
-dev-frontend: ## Run frontend dev server (standalone)
-	@echo "⚛️  Starting Vite dev server..."
-	@echo "🎨 Frontend: http://localhost:5173"
-	cd web && npm run dev
-
-restart: ## Restart development servers
-	@echo "🔄 Restarting all services..."
-	overmind restart
-
-restart-backend: ## Restart only backend
-	@echo "🔄 Restarting backend..."
-	overmind restart backend
-
-restart-frontend: ## Restart only frontend
-	@echo "🔄 Restarting frontend..."
-	overmind restart frontend
+dev: ## Start development servers with auto-recovery
+	@if [ ! -x "$$(command -v overmind)" ]; then \
+		echo "❌ Overmind not found. Install: go install github.com/DarthSim/overmind/v2@latest"; \
+		exit 1; \
+	fi
+	@if [ -e .overmind.sock ]; then \
+		echo "🧹 Cleaning up stale session..."; \
+		$(MAKE) -s dev-clean; \
+	fi
+	@if lsof -i:8080 -sTCP:LISTEN -t >/dev/null 2>&1; then \
+		echo "⚠️  Port 8080 in use. Run: make dev-clean"; \
+		exit 1; \
+	fi
+	@if lsof -i:5173 -sTCP:LISTEN -t >/dev/null 2>&1; then \
+		echo "⚠️  Port 5173 in use. Run: make dev-clean"; \
+		exit 1; \
+	fi
+	@echo "🚀 Starting dev servers: http://localhost:8080 | http://localhost:5173"
+	@overmind start
 
 stop: ## Stop all development servers
-	@echo "🛑 Stopping all services..."
-	overmind quit
-
-logs: ## Show logs from all services
-	@echo "📋 Showing logs (Ctrl+C to exit)..."
-	overmind echo
-
-logs-backend: ## Show backend logs only
-	@echo "📋 Showing backend logs..."
-	overmind connect backend
-
-logs-frontend: ## Show frontend logs only
-	@echo "📋 Showing frontend logs..."
-	overmind connect frontend
+	@echo "🛑 Stopping services..."
+	@if pgrep overmind >/dev/null 2>&1; then \
+		overmind quit 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@killall -9 air 2>/dev/null || true
+	@killall -9 main 2>/dev/null || true
+	@lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
+	@lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
+	@rm -f .overmind.sock
+	@echo "✓ Stopped"
 
 build: ## Build production binaries with version info
 	@echo "Building backend..."
@@ -78,9 +75,6 @@ clean: ## Clean build artifacts and temporary files
 	rm -rf tmp/
 	rm -rf bin/
 	rm -rf web/dist/
-	rm -rf data/*.db
-	rm -rf data/*.db-shm
-	rm -rf data/*.db-wal
 	@echo "Cleaned build artifacts"
 
 test: ## Run tests
@@ -108,17 +102,6 @@ api-client-gen: swagger-gen ## Generate TypeScript API client from Swagger
 	cd web && npm run generate:api
 	@echo "API client generated successfully in web/src/lib/api/generated/"
 
-lint: ## Run linters
-	golangci-lint run
-	cd web && npm run lint
-
-fmt: ## Format code
-	go fmt ./...
-	cd web && npm run format || true
-
-tidy: ## Tidy go modules
-	go mod tidy
-
 setup: install-tools ## Initial project setup
 	@echo "Setting up project..."
 	mkdir -p data
@@ -126,16 +109,3 @@ setup: install-tools ## Initial project setup
 	cd web && npm install
 	@echo "Setup complete! Run 'make dev' to start development servers"
 
-docker-build: ## Build Docker image
-	docker build -t viewra:latest .
-
-docker-run: ## Run Docker container
-	docker run -p 8080:8080 -v $(PWD)/data:/app/data viewra:latest
-
-audit: ## Run incomplete implementation audit
-	@./scripts/audit-incomplete.sh
-
-audit-fix: ## Update INCOMPLETE_IMPLEMENTATIONS.md after fixes
-	@./scripts/audit-incomplete.sh || true
-	@echo ""
-	@echo "Update docs/INCOMPLETE_IMPLEMENTATIONS.md with current status"
