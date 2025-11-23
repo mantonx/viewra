@@ -25,6 +25,19 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 		}
 	}
 
+	// Skip audio files in Movie libraries - they can't be movies (e.g., soundtrack files)
+	// Audio files should only be processed in Music libraries
+	ext := strings.ToLower(strings.TrimPrefix(result.FilePath[strings.LastIndex(result.FilePath, "."):], "."))
+	audioExts := map[string]bool{
+		"mp3": true, "flac": true, "m4a": true, "aac": true, "ogg": true, "opus": true,
+		"wav": true, "wma": true, "ape": true, "wv": true, "tta": true, "tak": true,
+		"dsf": true, "dff": true, "alac": true, "aiff": true, "aif": true,
+	}
+	if audioExts[ext] {
+		// Return nil media ID but no error - this file is intentionally skipped
+		return nil, nil
+	}
+
 	// Coordinator already parsed the filename - just use the results
 	movie := &media.Movie{
 		Media: media.Media{
@@ -146,6 +159,19 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 			FileHash: "",
 			FileSize: 0,
 		}
+	}
+
+	// Skip audio files in TV libraries - they can't be episodes (e.g., theme.mp3, soundtrack files)
+	// Audio files should only be processed in Music libraries
+	ext := strings.ToLower(strings.TrimPrefix(result.FilePath[strings.LastIndex(result.FilePath, "."):], "."))
+	audioExts := map[string]bool{
+		"mp3": true, "flac": true, "m4a": true, "aac": true, "ogg": true, "opus": true,
+		"wav": true, "wma": true, "ape": true, "wv": true, "tta": true, "tak": true,
+		"dsf": true, "dff": true, "alac": true, "aiff": true, "aif": true,
+	}
+	if audioExts[ext] {
+		// Return nil media ID but no error - this file is intentionally skipped
+		return nil, nil
 	}
 
 	// Coordinator already parsed season/episode/title, but we need show name which isn't in ScanResult
