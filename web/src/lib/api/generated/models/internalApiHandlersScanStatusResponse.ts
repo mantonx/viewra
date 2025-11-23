@@ -33,4 +33,6 @@ export interface InternalApiHandlersScanStatusResponse {
   started_at?: string
   /** pending, running, paused, completed, failed */
   status?: string
+  /** Number of warnings encountered */
+  warning_count?: number
 }

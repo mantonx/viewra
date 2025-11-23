@@ -19,4 +19,5 @@ export interface InternalApiHandlersScanHistoryItem {
   progress?: number
   started_at?: string
   status?: string
+  warning_count?: number
 }

@@ -12,4 +12,6 @@ export interface InternalApiHandlersScanErrorDetail {
   file_path?: string
   file_size?: number
   processed_at?: string
+  /** "failed" or "warning" */
+  status?: string
 }

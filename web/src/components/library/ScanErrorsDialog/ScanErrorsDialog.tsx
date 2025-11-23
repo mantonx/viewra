@@ -160,19 +160,29 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
       {errorData && (errorData.total_errors ?? 0) > 0 && (
         <div className="mt-6 flex justify-between items-center border-t pt-4">
           <p className="text-sm text-gray-600">
-            {pluralize(errorData.total_errors, 'file')} failed during scanning
+            {errorCount > 0 && warningCount > 0 && (
+              <>{pluralize(errorCount, 'error')} and {pluralize(warningCount, 'warning')}</>
+            )}
+            {errorCount > 0 && warningCount === 0 && (
+              <>{pluralize(errorCount, 'file')} failed during scanning</>
+            )}
+            {errorCount === 0 && warningCount > 0 && (
+              <>{pluralize(warningCount, 'file')} processed with warnings</>
+            )}
           </p>
           <div className="flex gap-2">
             <Button onClick={onClose} variant="secondary">
               Close
             </Button>
-            <Button
-              onClick={handleRetry}
-              variant="primary"
-              isLoading={retryMutation.isPending}
-            >
-              Retry Failed Files
-            </Button>
+            {errorCount > 0 && (
+              <Button
+                onClick={handleRetry}
+                variant="primary"
+                isLoading={retryMutation.isPending}
+              >
+                Retry Failed Files
+              </Button>
+            )}
           </div>
         </div>
       )}
