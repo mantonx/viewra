@@ -1,4 +1,4 @@
-.PHONY: help dev dev-clean stop build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools
+.PHONY: help dev dev-clean stop build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
