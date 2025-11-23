@@ -43,6 +43,13 @@ type ScanJob struct {
 	Phase           ScanPhase // Current scan phase
 	EstimatedTotal  int64     // Estimated total files from previous scan
 	DiscoveryDone   bool      // Whether file discovery is complete
+
+	// Discovery health metrics (added in migration 000018)
+	DiscoveryErrors   int64 // Total errors during file discovery
+	DiscoveryWarnings int64 // Warnings during discovery (non-fatal issues)
+	DirsScanned       int64 // Directories successfully scanned
+	DirsSkipped       int64 // Directories that couldn't be read
+	FilesSkipped      int64 // Files that couldn't be stat'd during discovery
 }
 
 // FileInfo represents a discovered file during scanning

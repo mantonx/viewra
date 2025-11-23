@@ -24,23 +24,33 @@ SET
     error_message = $9,
     phase = $10,
     discovery_done = $11,
+    discovery_errors = $12,
+    discovery_warnings = $13,
+    dirs_scanned = $14,
+    dirs_skipped = $15,
+    files_skipped = $16,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $12
+WHERE id = $17
 `
 
 type CompleteScanJobParams struct {
-	Status         string          `json:"status"`
-	Progress       sql.NullFloat64 `json:"progress"`
-	FilesFound     sql.NullInt64   `json:"files_found"`
-	FilesProcessed sql.NullInt64   `json:"files_processed"`
-	BytesProcessed sql.NullInt64   `json:"bytes_processed"`
-	ErrorCount     sql.NullInt64   `json:"error_count"`
-	WarningCount   sql.NullInt32   `json:"warning_count"`
-	CompletedAt    sql.NullTime    `json:"completed_at"`
-	ErrorMessage   sql.NullString  `json:"error_message"`
-	Phase          sql.NullString  `json:"phase"`
-	DiscoveryDone  sql.NullBool    `json:"discovery_done"`
-	ID             int32           `json:"id"`
+	Status            string          `json:"status"`
+	Progress          sql.NullFloat64 `json:"progress"`
+	FilesFound        sql.NullInt64   `json:"files_found"`
+	FilesProcessed    sql.NullInt64   `json:"files_processed"`
+	BytesProcessed    sql.NullInt64   `json:"bytes_processed"`
+	ErrorCount        sql.NullInt64   `json:"error_count"`
+	WarningCount      sql.NullInt32   `json:"warning_count"`
+	CompletedAt       sql.NullTime    `json:"completed_at"`
+	ErrorMessage      sql.NullString  `json:"error_message"`
+	Phase             sql.NullString  `json:"phase"`
+	DiscoveryDone     sql.NullBool    `json:"discovery_done"`
+	DiscoveryErrors   sql.NullInt32   `json:"discovery_errors"`
+	DiscoveryWarnings sql.NullInt32   `json:"discovery_warnings"`
+	DirsScanned       sql.NullInt32   `json:"dirs_scanned"`
+	DirsSkipped       sql.NullInt32   `json:"dirs_skipped"`
+	FilesSkipped      sql.NullInt32   `json:"files_skipped"`
+	ID                int32           `json:"id"`
 }
 
 func (q *Queries) CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error {
@@ -56,6 +66,11 @@ func (q *Queries) CompleteScanJob(ctx context.Context, arg CompleteScanJobParams
 		arg.ErrorMessage,
 		arg.Phase,
 		arg.DiscoveryDone,
+		arg.DiscoveryErrors,
+		arg.DiscoveryWarnings,
+		arg.DirsScanned,
+		arg.DirsSkipped,
+		arg.FilesSkipped,
 		arg.ID,
 	)
 	return err
@@ -89,7 +104,7 @@ INSERT INTO scan_jobs (
     created_at,
     updated_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count
+RETURNING id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped
 `
 
 type CreateScanJobParams struct {
@@ -141,6 +156,11 @@ func (q *Queries) CreateScanJob(ctx context.Context, arg CreateScanJobParams) (S
 		&i.EstimatedTotal,
 		&i.DiscoveryDone,
 		&i.WarningCount,
+		&i.DiscoveryErrors,
+		&i.DiscoveryWarnings,
+		&i.DirsScanned,
+		&i.DirsSkipped,
+		&i.FilesSkipped,
 	)
 	return i, err
 }
@@ -174,7 +194,7 @@ func (q *Queries) DeleteScanJob(ctx context.Context, id int32) error {
 }
 
 const getLatestScanJobByLibrary = `-- name: GetLatestScanJobByLibrary :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
 WHERE library_id = $1
 ORDER BY created_at DESC
 LIMIT 1
@@ -203,12 +223,17 @@ func (q *Queries) GetLatestScanJobByLibrary(ctx context.Context, libraryID int32
 		&i.EstimatedTotal,
 		&i.DiscoveryDone,
 		&i.WarningCount,
+		&i.DiscoveryErrors,
+		&i.DiscoveryWarnings,
+		&i.DirsScanned,
+		&i.DirsSkipped,
+		&i.FilesSkipped,
 	)
 	return i, err
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
 WHERE id = $1
 `
 
@@ -235,6 +260,11 @@ func (q *Queries) GetScanJob(ctx context.Context, id int32) (ScanJob, error) {
 		&i.EstimatedTotal,
 		&i.DiscoveryDone,
 		&i.WarningCount,
+		&i.DiscoveryErrors,
+		&i.DiscoveryWarnings,
+		&i.DirsScanned,
+		&i.DirsSkipped,
+		&i.FilesSkipped,
 	)
 	return i, err
 }
@@ -275,7 +305,7 @@ func (q *Queries) GetScanJobStats(ctx context.Context, libraryID int32) (GetScan
 }
 
 const listRunningScanJobs = `-- name: ListRunningScanJobs :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
 WHERE status = 'running'
 ORDER BY started_at ASC
 `
@@ -309,6 +339,11 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 			&i.EstimatedTotal,
 			&i.DiscoveryDone,
 			&i.WarningCount,
+			&i.DiscoveryErrors,
+			&i.DiscoveryWarnings,
+			&i.DirsScanned,
+			&i.DirsSkipped,
+			&i.FilesSkipped,
 		); err != nil {
 			return nil, err
 		}
@@ -324,7 +359,7 @@ func (q *Queries) ListRunningScanJobs(ctx context.Context) ([]ScanJob, error) {
 }
 
 const listScanJobsByLibrary = `-- name: ListScanJobsByLibrary :many
-SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count FROM scan_jobs
+SELECT id, library_id, status, progress, files_found, files_processed, bytes_processed, error_count, started_at, completed_at, error_message, created_at, updated_at, last_checkpoint_at, resume_count, phase, estimated_total, discovery_done, warning_count, discovery_errors, discovery_warnings, dirs_scanned, dirs_skipped, files_skipped FROM scan_jobs
 WHERE library_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -364,6 +399,11 @@ func (q *Queries) ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByL
 			&i.EstimatedTotal,
 			&i.DiscoveryDone,
 			&i.WarningCount,
+			&i.DiscoveryErrors,
+			&i.DiscoveryWarnings,
+			&i.DirsScanned,
+			&i.DirsSkipped,
+			&i.FilesSkipped,
 		); err != nil {
 			return nil, err
 		}

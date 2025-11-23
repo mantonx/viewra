@@ -101,7 +101,7 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 
 		// Update job with estimated total and mark discovery as done
 		countProgress := &scanner.Progress{
-			FilesFound:     0,
+			FilesFound:     totalFiles, // Set to actual count after count phase
 			FilesProcessed: 0,
 			LastUpdate:     time.Now(),
 			Phase:          scanner.ScanPhaseDiscovering,
@@ -290,6 +290,7 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 	uc.logger.Info("starting concurrent hashing and processing",
 		"file_count", len(filesToProcess),
 		"hash_workers", 8)
+
 	startTime := time.Now()
 
 	uc.logger.Info("processing files",
@@ -960,6 +961,11 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 				if !ok {
 					// Channel closed, flush remaining batch
 					flushBatch()
+
+					uc.logger.Info("checkpoint writer finished",
+						"total_checkpoints_received", processed,
+						"expected", len(filesToProcess))
+
 					return
 				}
 
@@ -988,11 +994,23 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 
 	// Send all jobs to workers
 	go func() {
+		jobsSent := 0
 		for _, fileInfo := range filesToProcess {
-			jobs <- hashJob{
-				fileInfo: fileInfo,
+			select {
+			case <-ctx.Done():
+				uc.logger.Warn("context cancelled while sending hash jobs",
+					"sent", jobsSent,
+					"total", len(filesToProcess))
+				close(jobs)
+				return
+			case jobs <- hashJob{fileInfo: fileInfo}:
+				jobsSent++
 			}
 		}
+		uc.logger.Info("finished sending all hash jobs",
+			"total_sent", jobsSent,
+			"expected", len(filesToProcess))
+
 		close(jobs)
 	}()
 

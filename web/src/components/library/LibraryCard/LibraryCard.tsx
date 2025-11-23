@@ -1,14 +1,21 @@
-import { useState } from 'react'
-import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan, useGetApiLibrariesIdScanStatus, useGetApiMedia, usePostApiLibrariesIdScanJobIdPause, usePostApiLibrariesIdScanJobIdResume } from '@/lib/api'
+import { ScanErrorsDialog } from '@/components/library/ScanErrorsDialog'
+import { Button, ProgressBar } from '@/components/ui'
+import {
+  useDeleteApiLibrariesId,
+  useGetApiLibrariesIdScanStatus,
+  useGetApiMedia,
+  usePostApiLibrariesIdScan,
+  usePostApiLibrariesIdScanJobIdPause,
+  usePostApiLibrariesIdScanJobIdResume,
+} from '@/lib/api'
+import { SCAN_POLL_INTERVAL_MS } from '@/lib/constants/scan'
+import { useConfirm } from '@/lib/hooks/useConfirm'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { useToast } from '@/lib/hooks/useToast'
-import { useConfirm } from '@/lib/hooks/useConfirm'
 import { getErrorMessage } from '@/lib/utils/error'
-import { pluralize } from '@/lib/utils/format'
+import { pluralize, formatETA } from '@/lib/utils/format'
 import { isScanStatusResponse } from '@/lib/utils/type-guards'
-import { SCAN_POLL_INTERVAL_MS } from '@/lib/constants/scan'
-import { Button, ProgressBar } from '@/components/ui'
-import { ScanErrorsDialog } from '@/components/library/ScanErrorsDialog'
+import { useState } from 'react'
 import type { LibraryCardProps } from './LibraryCard.types'
 
 const LibraryCard = ({ library }: LibraryCardProps) => {
@@ -22,15 +29,12 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const { confirm } = useConfirm()
 
   // Get latest scan status to show error count
-  const { data: scanStatus } = useGetApiLibrariesIdScanStatus(
-    library.id!,
-    {
-      query: {
-        enabled: !!library.id,
-        refetchInterval: SCAN_POLL_INTERVAL_MS,
-      },
-    }
-  )
+  const { data: scanStatus } = useGetApiLibrariesIdScanStatus(library.id!, {
+    query: {
+      enabled: !!library.id,
+      refetchInterval: SCAN_POLL_INTERVAL_MS,
+    },
+  })
 
   // Get total media count for this library
   const { data: mediaCount } = useGetApiMedia(
@@ -107,14 +111,28 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
     }
   }
 
-  const scanData = scanStatus?.data && isScanStatusResponse(scanStatus.data) ? scanStatus.data : null
+  const scanData =
+    scanStatus?.data && isScanStatusResponse(scanStatus.data) ? scanStatus.data : null
   const hasErrors = scanData && (scanData.error_count ?? 0) > 0
   const hasWarnings = scanData && (scanData.warning_count ?? 0) > 0
   const hasIssues = hasErrors || hasWarnings
   const isScanning = scanData?.status === 'running'
   const isPaused = scanData?.status === 'paused'
   const isCompleted = scanData?.status === 'completed'
-  const totalMediaCount = mediaCount?.data && 'total' in mediaCount.data ? mediaCount.data.total ?? 0 : 0
+  const totalMediaCount =
+    mediaCount?.data && 'total' in mediaCount.data ? (mediaCount.data.total ?? 0) : 0
+
+  // Discovery health checks
+  const hasDiscoveryIssues =
+    scanData &&
+    ((scanData.dirs_skipped ?? 0) > 0 ||
+      (scanData.discovery_errors ?? 0) > 0 ||
+      (scanData.files_skipped ?? 0) > 0)
+  const discoveryWarningsCount =
+    (scanData?.discovery_warnings ?? 0) + (scanData?.discovery_errors ?? 0)
+
+  // Calculate ETA display
+  const etaDisplay = scanData?.eta_seconds ? formatETA(scanData.eta_seconds) : null
 
   return (
     <>
@@ -127,19 +145,36 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
               <div className="mt-2 flex gap-4 items-center text-sm text-gray-500 flex-wrap">
                 <span>Type: {library.type}</span>
                 {isCompleted && scanData && (
-                  <span className={hasIssues ? "text-yellow-600 font-medium" : "text-green-600 font-medium"}>
-                    ✓ Scan complete ({totalMediaCount.toLocaleString()} {totalMediaCount === 1 ? 'file' : 'files'})
+                  <span
+                    className={
+                      hasIssues ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'
+                    }
+                    title={`${(scanData.files_processed ?? 0).toLocaleString()} files processed, ${totalMediaCount.toLocaleString()} total media items in library`}
+                  >
+                    ✓ Scan complete ({(scanData.files_processed ?? 0).toLocaleString()}{' '}
+                    {(scanData.files_processed ?? 0) === 1 ? 'file' : 'files'})
                   </span>
                 )}
                 {hasErrors && scanData && (
                   <button
                     onClick={() => setShowErrorsDialog(true)}
                     className="cursor-pointer text-red-600 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
-                    title={isScanning ? "View errors (scan in progress)" : "View scan errors"}
+                    title={isScanning ? 'View errors (scan in progress)' : 'View scan errors'}
                     aria-label={`View ${pluralize(scanData.error_count, 'error')}${isScanning ? ' from ongoing scan' : ''}`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                     <span>{pluralize(scanData.error_count, 'error')}</span>
                   </button>
@@ -148,11 +183,22 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                   <button
                     onClick={() => setShowErrorsDialog(true)}
                     className="cursor-pointer text-yellow-600 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
-                    title={isScanning ? "View warnings (scan in progress)" : "View scan warnings"}
+                    title={isScanning ? 'View warnings (scan in progress)' : 'View scan warnings'}
                     aria-label={`View ${pluralize(scanData.warning_count, 'warning')}${isScanning ? ' from ongoing scan' : ''}`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
                     </svg>
                     <span>{pluralize(scanData.warning_count, 'warning')}</span>
                   </button>
@@ -203,22 +249,80 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
         {(isScanning || isPaused) && scanData && (
           <div className="px-4 pb-4">
             <ProgressBar
-              progress={scanData.progress ?? 0}
+              progress={
+                scanData.phase === 'discovering' && !scanData.discovery_done ? 0 : scanData.progress ?? 0
+              }
               label={
                 isPaused
                   ? 'Scan paused'
                   : scanData.phase === 'discovering' && !scanData.discovery_done
-                  ? `Discovering files... ${(scanData.files_found ?? 0).toLocaleString()} found${
-                      (scanData.estimated_total ?? 0) > 0
-                        ? ` (est. ${(scanData.estimated_total ?? 0).toLocaleString()} total)`
-                        : ''
-                    }`
-                  : `Scanning files...`
+                    ? `Discovering files... ${(scanData.files_found ?? 0).toLocaleString()} found${
+                        (scanData.estimated_total ?? 0) > 0
+                          ? ` (est. ${(scanData.estimated_total ?? 0).toLocaleString()} total)`
+                          : ''
+                      }`
+                    : `${(scanData.files_processed ?? 0).toLocaleString()} / ${(scanData.files_found ?? 0).toLocaleString()} files scanned${
+                        etaDisplay ? ` • ETA ${etaDisplay}` : ''
+                      }`
               }
               variant={isPaused ? 'warning' : 'default'}
               size="sm"
               showPercentage={scanData.phase !== 'discovering' || scanData.discovery_done}
             />
+          </div>
+        )}
+        {isCompleted && hasDiscoveryIssues && scanData && (
+          <div className="px-4 pb-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+              <div className="flex items-start gap-2">
+                <svg
+                  className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-yellow-800">Incomplete File Discovery</h4>
+                  <div className="mt-2 flex items-center gap-4 text-sm">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-green-700 font-semibold text-lg">
+                        {(scanData.files_found ?? 0).toLocaleString()}
+                      </span>
+                      <span className="text-yellow-700">files found</span>
+                    </div>
+                    <span className="text-yellow-400">•</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-red-600 font-semibold text-lg">
+                        {(scanData.files_skipped ?? 0).toLocaleString()}
+                      </span>
+                      <span className="text-yellow-700">skipped</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-yellow-700 mt-2">
+                    {scanData.dirs_skipped && scanData.dirs_skipped > 0 && (
+                      <span>
+                        Could not read {scanData.dirs_skipped.toLocaleString()}{' '}
+                        {pluralize(scanData.dirs_skipped, 'directory', 'directories')}.{' '}
+                      </span>
+                    )}
+                    Check permissions and network connectivity.
+                  </p>
+                  {discoveryWarningsCount > 0 && (
+                    <p className="text-xs text-yellow-600 mt-1">
+                      {discoveryWarningsCount} {pluralize(discoveryWarningsCount, 'warning')}{' '}
+                      detected during discovery
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -239,5 +343,5 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   )
 }
 
-export { LibraryCard }
 export type { LibraryCardProps } from './LibraryCard.types'
+export { LibraryCard }

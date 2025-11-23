@@ -22,6 +22,7 @@ type ScanJobRepository interface {
 
 // CheckpointRepository defines the interface for checkpoint data access
 type CheckpointRepository interface {
+	GetStats(ctx context.Context, jobID int64) (*scanner.CheckpointStats, error)
 	ListFailed(ctx context.Context, jobID int64, limit int) ([]*scanner.ScanCheckpoint, error)
 	ResetFailed(ctx context.Context, jobID int64) (int64, error)
 }
@@ -172,22 +173,32 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		progress = float64(filesProcessed) / float64(job.FilesFound) * 100.0
 	}
 
-	// Calculate ETA for running scans
+	// Calculate ETA for running scans using checkpoint stats (not scan_state total!)
+	// This gives accurate ETA based on files actually being processed by THIS scan
 	var etaSeconds *int64
-	if job.Status == scanner.ScanStatusRunning && filesProcessed > 0 && job.FilesFound > 0 {
-		// Calculate time elapsed
-		elapsed := time.Since(job.StartedAt).Seconds()
+	if job.Status == scanner.ScanStatusRunning {
+		// Get checkpoint statistics for the current scan job
+		if stats, err := h.checkpointRepo.GetStats(c.Request.Context(), job.ID); err == nil && stats != nil {
+			// Use checkpoint stats for accurate ETA calculation
+			currentProcessed := stats.ProcessedFiles // Completed + Failed + Warning
+			totalCheckpoints := stats.TotalFiles     // All checkpoints for this scan
 
-		// Calculate processing rate (files per second)
-		rate := float64(filesProcessed) / elapsed
+			if currentProcessed > 0 && totalCheckpoints > 0 {
+				// Calculate time elapsed
+				elapsed := time.Since(job.StartedAt).Seconds()
 
-		// Calculate remaining files
-		remaining := job.FilesFound - filesProcessed
+				// Calculate processing rate (files per second) based on actual checkpoint processing
+				rate := float64(currentProcessed) / elapsed
 
-		// Calculate ETA (only if we have a meaningful rate)
-		if rate > 0 && remaining > 0 {
-			eta := int64(float64(remaining) / rate)
-			etaSeconds = &eta
+				// Calculate remaining checkpoints
+				remaining := totalCheckpoints - currentProcessed
+
+				// Calculate ETA (only if we have a meaningful rate)
+				if rate > 0 && remaining > 0 {
+					eta := int64(float64(remaining) / rate)
+					etaSeconds = &eta
+				}
+			}
 		}
 	}
 

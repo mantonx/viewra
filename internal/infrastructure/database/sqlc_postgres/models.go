@@ -199,11 +199,16 @@ type ScanJob struct {
 	// Timestamp of last checkpoint update (for resume detection)
 	LastCheckpointAt sql.NullTime `json:"last_checkpoint_at"`
 	// Number of times this scan has been resumed
-	ResumeCount    sql.NullInt32  `json:"resume_count"`
-	Phase          sql.NullString `json:"phase"`
-	EstimatedTotal sql.NullInt64  `json:"estimated_total"`
-	DiscoveryDone  sql.NullBool   `json:"discovery_done"`
-	WarningCount   sql.NullInt32  `json:"warning_count"`
+	ResumeCount       sql.NullInt32  `json:"resume_count"`
+	Phase             sql.NullString `json:"phase"`
+	EstimatedTotal    sql.NullInt64  `json:"estimated_total"`
+	DiscoveryDone     sql.NullBool   `json:"discovery_done"`
+	WarningCount      sql.NullInt32  `json:"warning_count"`
+	DiscoveryErrors   sql.NullInt32  `json:"discovery_errors"`
+	DiscoveryWarnings sql.NullInt32  `json:"discovery_warnings"`
+	DirsScanned       sql.NullInt32  `json:"dirs_scanned"`
+	DirsSkipped       sql.NullInt32  `json:"dirs_skipped"`
+	FilesSkipped      sql.NullInt32  `json:"files_skipped"`
 }
 
 type ScanState struct {

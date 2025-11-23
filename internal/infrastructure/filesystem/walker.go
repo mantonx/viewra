@@ -41,11 +41,15 @@ func (w *Walker) getLogger() *slog.Logger {
 
 // Walk traverses a directory tree, calling walkFn for each file
 // Uses parallel walking if enabled, otherwise falls back to sequential
+// Tracks statistics in w.stats which can be retrieved via GetStats()
 func (w *Walker) Walk(ctx context.Context, root string, walkFn scanner.WalkFunc) error {
 	// Validate root path
 	if root == "" {
 		return scanner.ErrInvalidPath
 	}
+
+	// Initialize statistics for this walk
+	w.stats = NewWalkStats()
 
 	// Use parallel walking if enabled
 	if w.enableParallel {
@@ -54,6 +58,12 @@ func (w *Walker) Walk(ctx context.Context, root string, walkFn scanner.WalkFunc)
 
 	// Sequential walking (original behavior)
 	return w.walkSequential(ctx, root, walkFn)
+}
+
+// GetStats returns the statistics from the last Walk operation
+// Returns nil if Walk has not been called yet
+func (w *Walker) GetStats() *WalkStats {
+	return w.stats
 }
 
 // Count returns the total number of files that match the filter function
@@ -79,8 +89,6 @@ func (w *Walker) Count(ctx context.Context, root string, shouldCount func(scanne
 
 // walkSequential performs traditional sequential directory traversal
 func (w *Walker) walkSequential(ctx context.Context, root string, walkFn scanner.WalkFunc) error {
-	filesDiscovered := 0
-
 	return w.walkDirFunc(root, func(path string, d fs.DirEntry, err error) error {
 		// Check for context cancellation
 		select {
@@ -91,34 +99,44 @@ func (w *Walker) walkSequential(ctx context.Context, root string, walkFn scanner
 
 		// Handle walk errors
 		if err != nil {
-			// Log but continue walking
+			// Track the error in statistics
+			if d != nil && d.IsDir() {
+				w.stats.DirsSkipped++
+			} else {
+				w.stats.FilesSkipped++
+			}
+			categorizeError(err, w.stats)
+			w.stats.AddSkippedPath(path)
+
+			// Log and continue walking
+			w.getLogger().Warn("Walk error, skipping",
+				"path", path,
+				"error", err)
 			return nil
+		}
+
+		// Track directory scanning
+		if d.IsDir() {
+			w.stats.DirsScanned++
 		}
 
 		// Convert to FileInfo
 		fileInfo, err := toFileInfo(path, d)
 		if err != nil {
-			// Skip files we can't stat
+			// Track failed stat
+			w.stats.FilesSkipped++
+			categorizeError(err, w.stats)
+			w.stats.AddSkippedPath(path)
+
+			w.getLogger().Warn("Failed to stat file, skipping",
+				"path", path,
+				"error", err)
 			return nil
 		}
 
-		// Progress tracking and logging
-		if !fileInfo.IsDir {
-			filesDiscovered++
-
-			// Call progress callback if set
-			if w.progressCallback != nil && filesDiscovered%w.progressInterval == 0 {
-				w.progressCallback(int64(filesDiscovered))
-			}
-
-			// Log progress at intervals
-			if w.progressInterval > 0 && filesDiscovered%w.progressInterval == 0 {
-				w.getLogger().Info("File discovery progress",
-					"files_discovered", filesDiscovered)
-			}
-		}
-
 		// Call the walk function
+		// Note: FilesDiscovered tracking has been removed from the walker.
+		// Callers should track discovered files themselves based on their filtering logic.
 		return walkFn(fileInfo)
 	})
 }
@@ -145,8 +163,7 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 		}
 	}
 
-	// Track progress across all workers
-	var filesDiscovered atomic.Int64
+	// Track errors across all workers
 	var mu sync.Mutex
 	var firstErr error
 
@@ -161,24 +178,18 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 		path := filepath.Join(root, entry.Name())
 		fileInfo, err := toFileInfo(path, entry)
 		if err != nil {
+			// Track failed stat
+			w.stats.FilesSkipped++
+			categorizeError(err, w.stats)
+			w.stats.AddSkippedPath(path)
+			w.getLogger().Warn("Failed to stat top-level file, skipping",
+				"path", path,
+				"error", err)
 			continue
 		}
 
 		if err := walkFn(fileInfo); err != nil {
 			return err
-		}
-
-		count := filesDiscovered.Add(1)
-
-		// Call progress callback if set
-		if w.progressCallback != nil && count%int64(w.progressInterval) == 0 {
-			w.progressCallback(count)
-		}
-
-		// Log progress at intervals
-		if w.progressInterval > 0 && count%int64(w.progressInterval) == 0 {
-			w.getLogger().Info("File discovery progress",
-				"files_discovered", count)
 		}
 	}
 
@@ -203,43 +214,6 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 			dirPath := filepath.Join(root, dirEntry.Name())
 			dirName := dirEntry.Name()
 			startTime := time.Now()
-			var lastProgress atomic.Int64
-			lastProgress.Store(filesDiscovered.Load())
-
-			// Create progress monitor goroutine
-			monitorCtx, cancelMonitor := context.WithCancel(ctx)
-			defer cancelMonitor()
-
-			go func() {
-				ticker := time.NewTicker(30 * time.Second)
-				defer ticker.Stop()
-
-				for {
-					select {
-					case <-monitorCtx.Done():
-						return
-					case <-ticker.C:
-						current := filesDiscovered.Load()
-						last := lastProgress.Load()
-						elapsed := time.Since(startTime)
-
-						if current == last && elapsed > 60*time.Second {
-							// No progress in 30s and running for >60s = likely hung
-							w.getLogger().Warn("Walker appears stuck",
-								"directory", dirName,
-								"elapsed_seconds", elapsed.Seconds(),
-								"files", current)
-						} else if current > last {
-							// Progress detected
-							w.getLogger().Info("Directory scan progress",
-								"directory", dirName,
-								"files_discovered", current,
-								"elapsed_seconds", elapsed.Seconds())
-							lastProgress.Store(current)
-						}
-					}
-				}
-			}()
 
 			// Walk this directory tree with context (allows cancellation)
 			walkErr := w.walkDirFunc(dirPath, func(path string, d fs.DirEntry, err error) error {
@@ -250,37 +224,51 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 				default:
 				}
 
-				// Handle walk errors - log but continue
+				// Handle walk errors - track and continue
 				if err != nil {
-					w.getLogger().Warn("Walk error, continuing",
+					// Thread-safe stats update
+					mu.Lock()
+					if d != nil && d.IsDir() {
+						w.stats.DirsSkipped++
+					} else {
+						w.stats.FilesSkipped++
+					}
+					categorizeError(err, w.stats)
+					w.stats.AddSkippedPath(path)
+					mu.Unlock()
+
+					w.getLogger().Warn("Walk error, skipping",
 						"path", path,
 						"error", err)
 					return nil // Continue walking
 				}
 
+				// Track directory scanning
+				if d.IsDir() {
+					mu.Lock()
+					w.stats.DirsScanned++
+					mu.Unlock()
+				}
+
 				// Convert to FileInfo
 				fileInfo, err := toFileInfo(path, d)
 				if err != nil {
-					return nil // Skip files we can't stat
-				}
+					// Track failed stat
+					mu.Lock()
+					w.stats.FilesSkipped++
+					categorizeError(err, w.stats)
+					w.stats.AddSkippedPath(path)
+					mu.Unlock()
 
-				// Progress tracking and logging
-				if !fileInfo.IsDir {
-					count := filesDiscovered.Add(1)
-
-					// Call progress callback if set
-					if w.progressCallback != nil && count%int64(w.progressInterval) == 0 {
-						w.progressCallback(count)
-					}
-
-					// Log progress at intervals
-					if w.progressInterval > 0 && count%int64(w.progressInterval) == 0 {
-						w.getLogger().Info("File discovery progress",
-							"files_discovered", count)
-					}
+					w.getLogger().Warn("Failed to stat file, skipping",
+						"path", path,
+						"error", err)
+					return nil
 				}
 
 				// Call the walk function (thread-safe)
+				// Note: FilesDiscovered tracking has been removed from the walker.
+				// Callers should track discovered files themselves based on their filtering logic.
 				return walkFn(fileInfo)
 			})
 
@@ -288,8 +276,7 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 			if elapsed > 5*time.Second {
 				w.getLogger().Info("Completed directory scan",
 					"directory", dirName,
-					"elapsed_seconds", elapsed.Seconds(),
-					"files_discovered", filesDiscovered.Load())
+					"elapsed_seconds", elapsed.Seconds())
 			}
 
 			// Capture first error

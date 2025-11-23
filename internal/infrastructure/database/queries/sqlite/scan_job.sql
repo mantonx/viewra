@@ -71,6 +71,11 @@ SET
     error_message = ?,
     phase = ?,
     discovery_done = ?,
+    discovery_errors = ?,
+    discovery_warnings = ?,
+    dirs_scanned = ?,
+    dirs_skipped = ?,
+    files_skipped = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 

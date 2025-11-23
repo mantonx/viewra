@@ -97,14 +97,44 @@ const formatTime = (seconds: number): string => {
  * pluralize(5, 'error') // "5 errors"
  * pluralize(0, 'file') // "0 files"
  */
-const pluralize = (
-  count: number | undefined,
-  singular: string,
-  plural?: string
-): string => {
+const pluralize = (count: number | undefined, singular: string, plural?: string): string => {
   const n = count ?? 0
   const pluralForm = plural ?? `${singular}s`
   return `${n} ${n !== 1 ? pluralForm : singular}`
 }
 
-export { formatFileSize, formatDuration, formatDate, formatTime, pluralize }
+/**
+ * Format ETA (estimated time remaining) in a clean, human-readable way
+ * @param seconds - Number of seconds remaining
+ * @returns Formatted string like "~5m", "~1h 23m", or "~2h"
+ * @example
+ * formatETA(300) // "~5m"
+ * formatETA(5000) // "~1h 23m"
+ * formatETA(120) // "~2m"
+ * formatETA(45) // "<1m"
+ */
+const formatETA = (seconds: number | undefined | null): string | null => {
+  if (seconds === null || seconds === undefined || seconds <= 0) {
+    return null
+  }
+
+  // Less than a minute
+  if (seconds < 60) {
+    return '<1m'
+  }
+
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.round((seconds % 3600) / 60)
+
+  if (hours > 0) {
+    // Show hours and minutes, but omit minutes if 0
+    if (minutes > 0) {
+      return `~${hours}h ${minutes}m`
+    }
+    return `~${hours}h`
+  }
+
+  return `~${minutes}m`
+}
+
+export { formatDate, formatDuration, formatETA, formatFileSize, formatTime, pluralize }

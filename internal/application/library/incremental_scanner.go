@@ -44,6 +44,9 @@ func (is *IncrementalScanner) DetermineChanges(
 	// Get previous scan state
 	previousState, err := is.scanStateRepo.GetLibraryState(ctx, libraryID)
 	if err != nil {
+		is.logger.Error("failed to get previous scan state - falling back to full scan",
+			"library_id", libraryID,
+			"error", err)
 		return nil, err
 	}
 
@@ -51,6 +54,20 @@ func (is *IncrementalScanner) DetermineChanges(
 		"library_id", libraryID,
 		"current_files", len(currentFiles),
 		"previous_files", len(previousState))
+
+	// Debug: Sample file paths for comparison
+	if len(currentFiles) > 0 && len(previousState) > 0 {
+		is.logger.Debug("sample paths for comparison",
+			"current_sample", currentFiles[0].Path,
+			"previous_sample", previousState[0].FilePath)
+	}
+
+	// Log warning if we have no previous state (first scan or state was cleared)
+	if len(previousState) == 0 {
+		is.logger.Warn("no previous scan state found - performing full scan",
+			"library_id", libraryID,
+			"current_files", len(currentFiles))
+	}
 
 	// Build maps for efficient O(1) lookup
 	prevFileMap := make(map[string]*scanner.ScanState)
@@ -71,20 +88,41 @@ func (is *IncrementalScanner) DetermineChanges(
 	}
 
 	// Find new and modified files
+	newCount := 0
+	modifiedCount := 0
+	unchangedCount := 0
+
 	for path, currentFile := range currentFileMap {
 		prevState, existed := prevFileMap[path]
 
 		if !existed {
 			// New file - didn't exist in previous scan
 			diff.NewFiles = append(diff.NewFiles, currentFile)
+			newCount++
+			// Log first few new files for debugging
+			if newCount <= 5 {
+				is.logger.Debug("new file detected", "path", path)
+			}
 		} else if is.isFileModified(prevState, currentFile) {
 			// Modified file - mtime or size changed
 			diff.ModifiedFiles = append(diff.ModifiedFiles, currentFile)
+			modifiedCount++
 		} else {
 			// Unchanged file - identical mtime and size
 			diff.UnchangedFiles = append(diff.UnchangedFiles, path)
+			unchangedCount++
+			// Log first few unchanged files to verify they're actually in scan_state
+			if unchangedCount <= 5 {
+				is.logger.Debug("unchanged file", "path", path, "has_scan_state", true)
+			}
 		}
 	}
+
+	is.logger.Info("incremental scan breakdown",
+		"new_files", newCount,
+		"modified_files", modifiedCount,
+		"unchanged_files", unchangedCount,
+		"total_compared", len(currentFileMap))
 
 	// Find deleted files (existed before but now missing)
 	for path := range prevFileMap {
@@ -93,7 +131,14 @@ func (is *IncrementalScanner) DetermineChanges(
 		}
 	}
 
-	is.logger.Info("scan diff calculated", "diff", diff.Summary())
+	is.logger.Info("scan diff calculated",
+		"diff", diff.Summary(),
+		"current_files", len(currentFiles),
+		"previous_state", len(previousState),
+		"new", len(diff.NewFiles),
+		"modified", len(diff.ModifiedFiles),
+		"deleted", len(diff.DeletedFiles),
+		"unchanged", len(diff.UnchangedFiles))
 
 	return diff, nil
 }

@@ -11,8 +11,16 @@ export interface InternalApiHandlersScanStatusResponse {
   bytes_processed?: number
   /** ISO 8601 timestamp */
   completed_at?: string
+  /** Directories successfully scanned */
+  dirs_scanned?: number
+  /** Directories that couldn't be read */
+  dirs_skipped?: number
   /** Whether file discovery is complete */
   discovery_done?: boolean
+  /** Discovery health metrics (added in v0.18) */
+  discovery_errors?: number
+  /** Warnings during discovery */
+  discovery_warnings?: number
   /** Number of errors encountered */
   error_count?: number
   /** Error message if failed */
@@ -21,10 +29,14 @@ export interface InternalApiHandlersScanStatusResponse {
   errors_job_id?: number
   /** Estimated total files from previous scan */
   estimated_total?: number
+  /** Estimated seconds remaining (nil if unknown) */
+  eta_seconds?: number
   /** Total files discovered */
   files_found?: number
   /** Files processed so far */
   files_processed?: number
+  /** Files that couldn't be stat'd */
+  files_skipped?: number
   /** Scan job ID */
   job_id?: number
   /** Current scan phase (discovering/processing/completed) */

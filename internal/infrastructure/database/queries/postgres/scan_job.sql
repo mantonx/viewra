@@ -73,8 +73,13 @@ SET
     error_message = $9,
     phase = $10,
     discovery_done = $11,
+    discovery_errors = $12,
+    discovery_warnings = $13,
+    dirs_scanned = $14,
+    dirs_skipped = $15,
+    files_skipped = $16,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $12;
+WHERE id = $17;
 
 -- name: DeleteScanJob :exec
 DELETE FROM scan_jobs

@@ -33,6 +33,10 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
   const retryMutation = usePostApiLibrariesIdScanJobIdRetryFailed()
 
   const handleRetry = async () => {
+    if (jobId === undefined) {
+      toast.error('No active scan job to retry')
+      return
+    }
     try {
       const response = await retryMutation.mutateAsync({
         id: libraryId,
@@ -188,7 +192,7 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
               <Button onClick={onClose} variant="secondary">
                 Close
               </Button>
-              {errorCount > 0 && (
+              {errorCount > 0 && jobId !== undefined && (
                 <Button
                   onClick={handleRetry}
                   variant="primary"

@@ -180,25 +180,30 @@ type ScanCheckpoint struct {
 }
 
 type ScanJob struct {
-	ID               int64           `json:"id"`
-	LibraryID        int64           `json:"library_id"`
-	Status           string          `json:"status"`
-	Progress         sql.NullFloat64 `json:"progress"`
-	FilesFound       sql.NullInt64   `json:"files_found"`
-	FilesProcessed   sql.NullInt64   `json:"files_processed"`
-	BytesProcessed   sql.NullInt64   `json:"bytes_processed"`
-	ErrorCount       sql.NullInt64   `json:"error_count"`
-	StartedAt        sql.NullTime    `json:"started_at"`
-	CompletedAt      sql.NullTime    `json:"completed_at"`
-	ErrorMessage     sql.NullString  `json:"error_message"`
-	CreatedAt        sql.NullTime    `json:"created_at"`
-	UpdatedAt        sql.NullTime    `json:"updated_at"`
-	LastCheckpointAt sql.NullTime    `json:"last_checkpoint_at"`
-	ResumeCount      sql.NullInt64   `json:"resume_count"`
-	Phase            sql.NullString  `json:"phase"`
-	EstimatedTotal   sql.NullInt64   `json:"estimated_total"`
-	DiscoveryDone    sql.NullBool    `json:"discovery_done"`
-	WarningCount     sql.NullInt64   `json:"warning_count"`
+	ID                int64           `json:"id"`
+	LibraryID         int64           `json:"library_id"`
+	Status            string          `json:"status"`
+	Progress          sql.NullFloat64 `json:"progress"`
+	FilesFound        sql.NullInt64   `json:"files_found"`
+	FilesProcessed    sql.NullInt64   `json:"files_processed"`
+	BytesProcessed    sql.NullInt64   `json:"bytes_processed"`
+	ErrorCount        sql.NullInt64   `json:"error_count"`
+	StartedAt         sql.NullTime    `json:"started_at"`
+	CompletedAt       sql.NullTime    `json:"completed_at"`
+	ErrorMessage      sql.NullString  `json:"error_message"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+	LastCheckpointAt  sql.NullTime    `json:"last_checkpoint_at"`
+	ResumeCount       sql.NullInt64   `json:"resume_count"`
+	Phase             sql.NullString  `json:"phase"`
+	EstimatedTotal    sql.NullInt64   `json:"estimated_total"`
+	DiscoveryDone     sql.NullBool    `json:"discovery_done"`
+	WarningCount      sql.NullInt64   `json:"warning_count"`
+	DiscoveryErrors   sql.NullInt64   `json:"discovery_errors"`
+	DiscoveryWarnings sql.NullInt64   `json:"discovery_warnings"`
+	DirsScanned       sql.NullInt64   `json:"dirs_scanned"`
+	DirsSkipped       sql.NullInt64   `json:"dirs_skipped"`
+	FilesSkipped      sql.NullInt64   `json:"files_skipped"`
 }
 
 type ScanState struct {
