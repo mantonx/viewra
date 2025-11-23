@@ -78,8 +78,8 @@ func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, stra
 	// Build FFmpeg arguments
 	args := s.buildFFmpegArgs(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, config)
 
-	// Log FFmpeg command for debugging
-	s.logger.Info("Starting FFmpeg process",
+	// FFmpeg command available via debug logging if needed
+	s.logger.Debug("Starting FFmpeg process",
 		"session_id", s.ID,
 		"command", fmt.Sprintf("ffmpeg %s", strings.Join(args, " ")))
 
