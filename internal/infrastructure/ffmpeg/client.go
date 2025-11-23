@@ -95,15 +95,27 @@ func (c *Client) ExtractMetadata(ctx context.Context, filePath string) (*VideoMe
 		filePath,
 	)
 
-	output, err := cmd.Output()
+	// Stream parse JSON to avoid loading entire output into memory
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		return nil, fmt.Errorf("%w: failed to create stdout pipe: %v", ErrMetadataExtraction, err)
+	}
+
+	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
 	}
 
-	// Parse JSON output
+	// Parse JSON output incrementally from stream
 	var probe ffprobeOutput
-	if err := json.Unmarshal(output, &probe); err != nil {
+	decoder := json.NewDecoder(stdout)
+	if err := decoder.Decode(&probe); err != nil {
+		cmd.Wait() // Clean up process
 		return nil, fmt.Errorf("%w: failed to parse ffprobe output: %v", ErrMetadataExtraction, err)
+	}
+
+	// Wait for command to complete
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
 	}
 
 	metadata := &VideoMetadata{}

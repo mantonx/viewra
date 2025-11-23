@@ -86,8 +86,8 @@ type RecommendedSettings struct {
 // Calculate returns recommended settings based on the system profile
 func (p *Profile) Calculate() RecommendedSettings {
 	settings := RecommendedSettings{
-		CheckpointBatchSize: 10,   // Good default for immediate availability
-		ChannelBufferSize:   100,  // Good default for most systems
+		CheckpointBatchSize: 10,  // Good default for immediate availability
+		ChannelBufferSize:   50,  // Reduced to lower memory usage for concurrent scans
 	}
 
 	// Calculate scan walkers based on storage type
@@ -160,9 +160,12 @@ func (p *Profile) Calculate() RecommendedSettings {
 	// Calculate base workers from scaling factor
 	baseWorkers := int(float64(p.CPU.NumPhysical) * workerScalingFactor)
 
-	// Network storage can use slightly more parallelism to overcome latency
+	// Network storage: Cap workers at 4 to reduce memory usage
+	// Network bandwidth is the bottleneck, not CPU - additional workers don't help
+	// and each worker holds FFprobe output in memory
 	if p.Storage.IsRemote {
-		baseWorkers = int(float64(baseWorkers) * 1.25) // 25% boost for network
+		baseWorkers = 4 // Fixed at 4 for network storage to optimize memory usage
+		maxWorkers = 4  // Enforce cap for network
 	}
 
 	// Clamp to min/max for this system class
