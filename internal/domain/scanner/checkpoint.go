@@ -10,6 +10,7 @@ const (
 	CheckpointProcessing CheckpointStatus = "processing"
 	CheckpointCompleted  CheckpointStatus = "completed"
 	CheckpointFailed     CheckpointStatus = "failed"
+	CheckpointWarning    CheckpointStatus = "warning" // Processed with non-fatal warnings
 )
 
 // ErrorCategory represents the type of error that occurred during file processing
@@ -42,15 +43,16 @@ type ScanCheckpoint struct {
 type CheckpointStats struct {
 	TotalFiles       int64
 	PendingFiles     int64
-	ProcessedFiles   int64 // Completed + Failed
+	ProcessedFiles   int64 // Completed + Failed + Warning
 	CompletedFiles   int64
 	FailedFiles      int64
+	WarningFiles     int64 // Files processed with warnings
 	ErrorsByCategory map[ErrorCategory]int64
 }
 
-// GetProcessedFiles returns the total number of processed files (completed + failed)
+// GetProcessedFiles returns the total number of processed files (completed + failed + warning)
 func (s *CheckpointStats) GetProcessedFiles() int64 {
-	return s.CompletedFiles + s.FailedFiles
+	return s.CompletedFiles + s.FailedFiles + s.WarningFiles
 }
 
 // GetSuccessRate returns the percentage of successfully processed files

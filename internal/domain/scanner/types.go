@@ -34,6 +34,7 @@ type ScanJob struct {
 	FilesProcessed  int64
 	BytesProcessed  int64
 	ErrorCount      int64
+	WarningCount    int64  // Number of files processed with warnings
 	StartedAt       time.Time
 	CompletedAt     *time.Time
 	ErrorMessage    string
@@ -79,6 +80,10 @@ type ScanResult struct {
 	Error          error
 	BytesProcessed int64
 
+	// Warning tracking for non-fatal issues (e.g., metadata extraction failures)
+	Warning         error  // Non-fatal warning message
+	WarningCategory string // Category of warning (e.g., "ffmpeg", "metadata")
+
 	// Technical video metadata (from FFmpeg)
 	FileSize        int64
 	Width           int
@@ -103,6 +108,7 @@ type Progress struct {
 	FilesProcessed  int64
 	BytesProcessed  int64
 	ErrorCount      int64
+	WarningCount    int64     // Number of files processed with warnings
 	StartTime       time.Time
 	LastUpdate      time.Time
 	Phase           ScanPhase // Current phase of the scan

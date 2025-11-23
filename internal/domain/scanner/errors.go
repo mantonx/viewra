@@ -149,6 +149,36 @@ func IsTransientError(err error) bool {
 	return false
 }
 
+// IsScanJobDeleted checks if an error indicates the scan job or library was deleted
+// This happens when a library is deleted while a scan is running, causing foreign key constraint violations
+func IsScanJobDeleted(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := strings.ToLower(err.Error())
+
+	// Check for foreign key constraint violations or "not found" errors
+	// These indicate the parent scan job or library was deleted
+	deletedPatterns := []string{
+		"foreign key constraint",
+		"violates foreign key",
+		"fk_",
+		"no such row", // SQLite
+		"not found",
+		"scan job not found",
+		"library not found",
+	}
+
+	for _, pattern := range deletedPatterns {
+		if strings.Contains(errMsg, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // containsAny checks if the string contains any of the substrings
 func containsAny(s string, substrings []string) bool {
 	for _, substr := range substrings {

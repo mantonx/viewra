@@ -81,6 +81,8 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
 
   const scanData = scanStatus?.data && isScanStatusResponse(scanStatus.data) ? scanStatus.data : null
   const hasErrors = scanData && (scanData.error_count ?? 0) > 0
+  const hasWarnings = scanData && (scanData.warning_count ?? 0) > 0
+  const hasIssues = hasErrors || hasWarnings
   const isScanning = scanData?.status === 'running'
   const isCompleted = scanData?.status === 'completed'
   const totalMediaCount = mediaCount?.data && 'total' in mediaCount.data ? mediaCount.data.total ?? 0 : 0
@@ -92,7 +94,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
           <div className="flex-1">
             <h3 className="font-semibold text-lg">{library.name}</h3>
             <p className="text-sm text-gray-600">{library.path}</p>
-            <div className="mt-2 flex gap-4 text-sm text-gray-500">
+            <div className="mt-2 flex gap-4 items-center text-sm text-gray-500">
               <span>Type: {library.type}</span>
               {isScanning && scanData && (
                 <span className="text-blue-600 font-medium">
@@ -107,7 +109,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 </span>
               )}
               {isCompleted && scanData && (
-                <span className={hasErrors ? "text-yellow-600 font-medium" : "text-green-600 font-medium"}>
+                <span className={hasIssues ? "text-yellow-600 font-medium" : "text-green-600 font-medium"}>
                   ✓ Scan complete ({totalMediaCount.toLocaleString()} {totalMediaCount === 1 ? 'file' : 'files'})
                 </span>
               )}
@@ -115,11 +117,26 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 <button
                   onClick={() => setShowErrorsDialog(true)}
                   className="text-red-600 font-medium hover:underline flex items-center gap-1"
+                  title={isScanning ? "View errors (scan in progress)" : "View scan errors"}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   {pluralize(scanData.error_count, 'error')}
+                  {isScanning && <span className="text-xs">(ongoing)</span>}
+                </button>
+              )}
+              {hasWarnings && scanData && (
+                <button
+                  onClick={() => setShowErrorsDialog(true)}
+                  className="text-yellow-600 font-medium hover:underline flex items-center gap-1"
+                  title={isScanning ? "View warnings (scan in progress)" : "View scan warnings"}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  {pluralize(scanData.warning_count, 'warning')}
+                  {isScanning && <span className="text-xs">(ongoing)</span>}
                 </button>
               )}
             </div>
@@ -146,7 +163,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
         </div>
       </div>
 
-      {hasErrors && library.id && scanData && scanData.job_id && (
+      {hasIssues && library.id && scanData && scanData.job_id && (
         <ScanErrorsDialog
           libraryId={library.id}
           jobId={scanData.job_id}

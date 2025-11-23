@@ -323,6 +323,10 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 				"file_path", fileInfo.Path,
 				"media_type", mediaType,
 				"error", err)
+
+			// Set warning on result so it gets tracked in checkpoints
+			result.Warning = fmt.Errorf("failed to extract metadata: %w", err)
+			result.WarningCategory = "ffmpeg"
 		} else {
 			// Populate result with technical metadata
 			result.FileSize = metadata.FileSize

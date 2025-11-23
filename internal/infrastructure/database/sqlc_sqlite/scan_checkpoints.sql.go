@@ -212,7 +212,7 @@ SELECT
     error_category,
     COUNT(*) as error_count
 FROM scan_checkpoints
-WHERE scan_job_id = ? AND status = 'failed' AND error_category IS NOT NULL
+WHERE scan_job_id = ? AND status IN ('failed', 'warning') AND error_category IS NOT NULL
 GROUP BY error_category
 `
 
@@ -247,7 +247,7 @@ func (q *Queries) GetScanCheckpointErrorsByCategory(ctx context.Context, scanJob
 const getScanCheckpointProgress = `-- name: GetScanCheckpointProgress :one
 SELECT
     COUNT(*) as total,
-    SUM(CASE WHEN status IN ('completed', 'failed') THEN 1 ELSE 0 END) as processed
+    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed
 FROM scan_checkpoints
 WHERE scan_job_id = ?
 `
@@ -270,7 +270,8 @@ SELECT
     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_files,
     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_files,
     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_files,
-    SUM(CASE WHEN status IN ('completed', 'failed') THEN 1 ELSE 0 END) as processed_files
+    SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warning_files,
+    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files
 FROM scan_checkpoints
 WHERE scan_job_id = ?
 `
@@ -280,6 +281,7 @@ type GetScanCheckpointStatsRow struct {
 	PendingFiles   sql.NullFloat64 `json:"pending_files"`
 	CompletedFiles sql.NullFloat64 `json:"completed_files"`
 	FailedFiles    sql.NullFloat64 `json:"failed_files"`
+	WarningFiles   sql.NullFloat64 `json:"warning_files"`
 	ProcessedFiles sql.NullFloat64 `json:"processed_files"`
 }
 
@@ -291,6 +293,7 @@ func (q *Queries) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (
 		&i.PendingFiles,
 		&i.CompletedFiles,
 		&i.FailedFiles,
+		&i.WarningFiles,
 		&i.ProcessedFiles,
 	)
 	return i, err
@@ -298,8 +301,13 @@ func (q *Queries) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (
 
 const listFailedScanCheckpoints = `-- name: ListFailedScanCheckpoints :many
 SELECT id, scan_job_id, file_path, status, file_size, file_hash, error_message, error_category, processed_at, created_at, retry_count FROM scan_checkpoints
-WHERE scan_job_id = ? AND status = 'failed'
-ORDER BY processed_at DESC
+WHERE scan_job_id = ? AND status IN ('failed', 'warning')
+ORDER BY
+    CASE
+        WHEN status = 'failed' THEN 1
+        WHEN status = 'warning' THEN 2
+    END,
+    processed_at DESC
 LIMIT ?
 `
 

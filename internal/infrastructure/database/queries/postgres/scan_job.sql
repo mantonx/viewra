@@ -45,11 +45,12 @@ SET
     files_processed = $3,
     bytes_processed = $4,
     error_count = $5,
-    phase = $6,
-    estimated_total = $7,
-    discovery_done = $8,
+    warning_count = $6,
+    phase = $7,
+    estimated_total = $8,
+    discovery_done = $9,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $9;
+WHERE id = $10;
 
 -- name: UpdateScanJobStatus :exec
 UPDATE scan_jobs
