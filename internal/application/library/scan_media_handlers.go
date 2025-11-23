@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
@@ -440,6 +441,24 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 	// Create track with artist and album entities in a single transaction
 	// This ensures all-or-nothing semantics - no orphaned records on failure
 	if err := uc.mediaRepos.Music.CreateMusicTrackWithEntities(ctx, track, artistEntity, albumEntity); err != nil {
+		// Handle race condition: Another worker may have created this record between our check and insert
+		// If we get a UNIQUE constraint error, retry with update logic
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
+			// Fetch the existing record again
+			existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
+			if fetchErr == nil && existing != nil {
+				// Update the existing record
+				track.Media.ID = existing.ID
+				if updateErr := uc.mediaRepos.Media.Update(ctx, &track.Media); updateErr != nil {
+					return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
+				}
+				if updateErr := uc.mediaRepos.Music.UpdateMusicTrack(ctx, track); updateErr != nil {
+					return nil, fmt.Errorf("failed to update music track metadata after collision: %w", updateErr)
+				}
+				uc.extractImagesForTrack(ctx, track, result.FilePath)
+				return &track.Media.ID, nil
+			}
+		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
 	}
 
