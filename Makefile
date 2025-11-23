@@ -61,15 +61,15 @@ stop: ## Stop all development servers
 	@echo "✓ Stopped"
 
 build: ## Build production binaries with version info
-	@echo "Building backend..."
+	@echo "Building frontend..."
+	cd web && npm run build
+	@echo "Building backend with embedded frontend..."
 	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo "dev"); \
 	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u '+%Y-%m-%d_%H:%M:%S'); \
 	echo "Version: $$VERSION, Commit: $$COMMIT, Built: $$BUILD_DATE"; \
 	go build -ldflags "-X github.com/mantonx/viewra/internal/version.Version=$$VERSION -X github.com/mantonx/viewra/internal/version.Commit=$$COMMIT -X github.com/mantonx/viewra/internal/version.BuildDate=$$BUILD_DATE" -o bin/viewra ./cmd/viewra
-	@echo "Building frontend..."
-	cd web && npm run build
-	@echo "Build complete! Binary: bin/viewra"
+	@echo "✓ Build complete! Binary: bin/viewra (includes embedded frontend)"
 
 clean: ## Clean build artifacts and temporary files
 	rm -rf tmp/

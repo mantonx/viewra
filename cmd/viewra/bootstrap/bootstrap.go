@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +17,7 @@ import (
 	"github.com/mantonx/viewra/internal/app"
 	appconfig "github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/pkg/logger"
+	"github.com/mantonx/viewra/web"
 )
 
 // Application holds all application dependencies
@@ -57,6 +59,19 @@ func Initialize() (*Application, error) {
 
 	// Add Swagger documentation endpoint
 	container.Server.Router().GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Serve embedded frontend in production (if available)
+	if web.IsEmbedded() {
+		distFS, err := web.FS()
+		if err != nil {
+			lgr.Warn("Frontend embedded but failed to load", "error", err)
+		} else {
+			lgr.Info("Serving embedded frontend at http://localhost:8080/")
+			container.Server.Router().StaticFS("/", http.FS(distFS))
+		}
+	} else {
+		lgr.Info("Frontend not embedded - development mode (use Vite on :5173)")
+	}
 
 	return &Application{
 		Config:    cfg,
