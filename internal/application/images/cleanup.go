@@ -55,28 +55,37 @@ func (uc *CleanupUseCase) CleanOrphanedImages(ctx context.Context) (*CleanupStat
 		"cache_dir", uc.cacheDir,
 		"db_hashes", len(dbHashes))
 
-	// 2. Scan cache directory
+	// 2. Scan cache directory recursively
 	if _, err := os.Stat(uc.cacheDir); os.IsNotExist(err) {
 		uc.logger.Info("Cache directory does not exist, nothing to clean",
 			"cache_dir", uc.cacheDir)
 		return stats, nil
 	}
 
-	cacheFiles, err := filepath.Glob(filepath.Join(uc.cacheDir, "*"))
+	// Walk the cache directory recursively to find all files
+	var cacheFiles []string
+	err = filepath.Walk(uc.cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			uc.logger.Warn("Failed to access path during walk", "path", path, "error", err)
+			stats.Errors++
+			return nil // Continue walking despite errors
+		}
+		// Only collect regular files, not directories
+		if !info.IsDir() {
+			cacheFiles = append(cacheFiles, path)
+		}
+		return nil
+	})
 	if err != nil {
-		return stats, fmt.Errorf("failed to scan cache directory: %w", err)
+		return stats, fmt.Errorf("failed to walk cache directory: %w", err)
 	}
 
 	// 3. Check each cache file
 	for _, file := range cacheFiles {
-		// Skip directories
 		info, err := os.Stat(file)
 		if err != nil {
 			uc.logger.Warn("Failed to stat cache file", "path", file, "error", err)
 			stats.Errors++
-			continue
-		}
-		if info.IsDir() {
 			continue
 		}
 
@@ -112,6 +121,9 @@ func (uc *CleanupUseCase) CleanOrphanedImages(ctx context.Context) (*CleanupStat
 		}
 	}
 
+	// 4. Remove empty directories (always run to clean up any leftover dirs)
+	uc.removeEmptyDirs(uc.cacheDir)
+
 	uc.logger.Info("Image cache cleanup completed",
 		"orphaned_files", stats.OrphanedFiles,
 		"deleted_files", stats.DeletedFiles,
@@ -119,6 +131,45 @@ func (uc *CleanupUseCase) CleanOrphanedImages(ctx context.Context) (*CleanupStat
 		"bytes_freed", stats.BytesFreed)
 
 	return stats, nil
+}
+
+// removeEmptyDirs recursively removes empty directories in the cache
+// We need to walk bottom-up (deepest first) to remove nested empty directories
+func (uc *CleanupUseCase) removeEmptyDirs(root string) {
+	// Collect all directories first
+	var dirs []string
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() && path != root {
+			dirs = append(dirs, path)
+		}
+		return nil
+	})
+
+	// Sort directories by depth (deepest first) by sorting by path length descending
+	// Longer paths are deeper in the directory tree
+	for i := 0; i < len(dirs); i++ {
+		for j := i + 1; j < len(dirs); j++ {
+			if len(dirs[i]) < len(dirs[j]) {
+				dirs[i], dirs[j] = dirs[j], dirs[i]
+			}
+		}
+	}
+
+	// Remove directories from deepest to shallowest
+	removedCount := 0
+	for _, dir := range dirs {
+		if err := os.Remove(dir); err == nil {
+			removedCount++
+			uc.logger.Debug("Removed empty directory", "path", dir)
+		}
+	}
+
+	if removedCount > 0 {
+		uc.logger.Info("Removed empty directories", "count", removedCount)
+	}
 }
 
 // CleanCacheForHash removes all cache variants for a specific hash

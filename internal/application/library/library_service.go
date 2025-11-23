@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -19,6 +20,7 @@ type LibraryService struct {
 	imageRepo    domainImages.Repository
 	imageCleanup ImageCleanupExecutor
 	txManager    *common.TxManager
+	logger       *slog.Logger
 }
 
 // NewLibraryService creates a new instance of LibraryService
@@ -27,12 +29,14 @@ func NewLibraryService(
 	imageRepo domainImages.Repository,
 	imageCleanup ImageCleanupExecutor,
 	txManager *common.TxManager,
+	logger *slog.Logger,
 ) *LibraryService {
 	return &LibraryService{
 		repo:         repo,
 		imageRepo:    imageRepo,
 		imageCleanup: imageCleanup,
 		txManager:    txManager,
+		logger:       logger,
 	}
 }
 
@@ -194,9 +198,19 @@ func (s *LibraryService) Delete(ctx context.Context, id int64) error {
 	// This is a "best effort" cleanup - failures won't prevent library deletion
 	// Runs AFTER transaction commits (outside transaction)
 	if s.imageCleanup != nil {
-		if _, err := s.imageCleanup.CleanOrphanedImages(ctx); err != nil {
+		s.logger.Info("Triggering image cache cleanup after library deletion", "library_id", id)
+		stats, err := s.imageCleanup.CleanOrphanedImages(ctx)
+		if err != nil {
 			// Log but don't fail - the scheduled cleanup will handle this later
-			fmt.Printf("warning: failed to clean image cache after deleting library %d: %v\n", id, err)
+			s.logger.Warn("Failed to clean image cache after deleting library",
+				"library_id", id,
+				"error", err)
+		} else if stats != nil {
+			s.logger.Info("Image cache cleanup completed",
+				"library_id", id,
+				"orphaned_files", stats.OrphanedFiles,
+				"deleted_files", stats.DeletedFiles,
+				"bytes_freed", stats.BytesFreed)
 		}
 	}
 

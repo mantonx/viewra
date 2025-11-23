@@ -165,7 +165,7 @@ func buildLibraryUseCases(
 	}
 
 	return &LibraryUseCases{
-		Service: library.NewLibraryService(repos.Library, repos.Image, imageCleanup, txManager),
+		Service: library.NewLibraryService(repos.Library, repos.Image, imageCleanup, txManager, logger),
 		Scan: library.NewScanLibraryUseCase(
 			mediaRepos,
 			scanRepos,
