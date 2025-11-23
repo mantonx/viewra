@@ -1,4 +1,4 @@
-.PHONY: help dev dev-clean stop build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
+.PHONY: help dev dev-debug dev-clean stop build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -27,7 +27,7 @@ dev-clean: ## Clean up stale dev processes and sockets
 	@rm -f .overmind.sock
 	@echo "✓ Cleanup complete"
 
-dev: ## Start development servers with auto-recovery
+dev: ## Start development servers with INFO logging (use dev-debug for DEBUG logs)
 	@if [ ! -x "$$(command -v overmind)" ]; then \
 		echo "❌ Overmind not found. Install: brew install overmind (macOS) or go install github.com/DarthSim/overmind/v2@latest"; \
 		exit 1; \
@@ -46,6 +46,26 @@ dev: ## Start development servers with auto-recovery
 	fi
 	@echo "🚀 Starting dev servers: http://localhost:8080 | http://localhost:5173"
 	@overmind start
+
+dev-debug: ## Start development servers with DEBUG logging
+	@if [ ! -x "$$(command -v overmind)" ]; then \
+		echo "❌ Overmind not found. Install: brew install overmind (macOS) or go install github.com/DarthSim/overmind/v2@latest"; \
+		exit 1; \
+	fi
+	@if [ -e .overmind.sock ]; then \
+		echo "🧹 Cleaning up stale session..."; \
+		$(MAKE) -s dev-clean; \
+	fi
+	@if lsof -i:8080 -sTCP:LISTEN -t >/dev/null 2>&1; then \
+		echo "⚠️  Port 8080 in use. Run: make dev-clean"; \
+		exit 1; \
+	fi
+	@if lsof -i:5173 -sTCP:LISTEN -t >/dev/null 2>&1; then \
+		echo "⚠️  Port 5173 in use. Run: make dev-clean"; \
+		exit 1; \
+	fi
+	@echo "🚀 Starting dev servers with DEBUG logging: http://localhost:8080 | http://localhost:5173"
+	@LOG_LEVEL=DEBUG overmind start
 
 stop: ## Stop all development servers
 	@echo "🛑 Stopping services..."
