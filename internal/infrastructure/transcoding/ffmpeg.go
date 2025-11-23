@@ -141,6 +141,7 @@ func (e *ffmpegExecutor) executeFFmpeg(ctx context.Context, opts TranscodeOption
 func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	videoCodec, videoPreset := GetVideoCodecAndPreset(e.config.HardwareAccel)
 	builder := NewFFmpegArgsBuilder(opts).
+		AddLogLevel("error").
 		AddHardwareAccel(GetHardwareAccelArgsWithDevice(e.config.HardwareAccel, e.config.HardwareDevice)).
 		AddSeekPosition().
 		AddInput().
@@ -167,6 +168,7 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 // This is used when video is already H.264 and audio is stereo, but container format needs conversion.
 func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 	return NewFFmpegArgsBuilder(opts).
+		AddLogLevel("error").
 		AddSeekPosition().
 		AddInput().
 		AddStreamMapping().
@@ -183,6 +185,7 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 // This copies the video stream but re-encodes multi-channel audio to stereo for browser compatibility.
 func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) []string {
 	return NewFFmpegArgsBuilder(opts).
+		AddLogLevel("error").
 		AddSeekPosition().
 		AddInput().
 		AddStreamMapping().

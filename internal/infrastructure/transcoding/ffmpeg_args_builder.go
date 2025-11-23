@@ -21,6 +21,14 @@ func NewFFmpegArgsBuilder(opts TranscodeOptions) *FFmpegArgsBuilder {
 	}
 }
 
+// AddLogLevel sets FFmpeg's log level to reduce verbosity.
+// Use "error" to only show errors, "warning" for warnings and errors,
+// "info" for normal output (default), or "quiet" to suppress all output.
+func (b *FFmpegArgsBuilder) AddLogLevel(level string) *FFmpegArgsBuilder {
+	b.args = append(b.args, "-loglevel", level)
+	return b
+}
+
 // AddHardwareAccel adds hardware acceleration arguments.
 func (b *FFmpegArgsBuilder) AddHardwareAccel(hwAccelArgs []string) *FFmpegArgsBuilder {
 	b.args = append(b.args, hwAccelArgs...)
