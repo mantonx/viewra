@@ -136,18 +136,18 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
 
   return (
     <>
-      <div className="hover:bg-gray-50">
+      <div className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
         <div className="p-4">
           <div className="flex justify-between items-start">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-lg">{library.name}</h3>
-              <p className="text-sm text-gray-600">{library.path}</p>
-              <div className="mt-2 flex gap-4 items-center text-sm text-gray-500 flex-wrap">
+              <h3 className="font-semibold text-lg text-neutral-900 dark:text-neutral-50">{library.name}</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">{library.path}</p>
+              <div className="mt-2 flex gap-4 items-center text-sm text-neutral-500 dark:text-neutral-500 flex-wrap">
                 <span>Type: {library.type}</span>
                 {isCompleted && scanData && (
                   <span
                     className={
-                      hasIssues ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'
+                      hasIssues ? 'text-yellow-600 dark:text-yellow-500 font-medium' : 'text-green-600 dark:text-green-500 font-medium'
                     }
                     title={`${(scanData.files_processed ?? 0).toLocaleString()} files processed, ${totalMediaCount.toLocaleString()} total media items in library`}
                   >
@@ -158,7 +158,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 {hasErrors && scanData && (
                   <button
                     onClick={() => setShowErrorsDialog(true)}
-                    className="cursor-pointer text-red-600 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
+                    className="cursor-pointer text-red-600 dark:text-red-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
                     title={isScanning ? 'View errors (scan in progress)' : 'View scan errors'}
                     aria-label={`View ${pluralize(scanData.error_count, 'error')}${isScanning ? ' from ongoing scan' : ''}`}
                   >
@@ -182,7 +182,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 {hasWarnings && scanData && (
                   <button
                     onClick={() => setShowErrorsDialog(true)}
-                    className="cursor-pointer text-yellow-600 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
+                    className="cursor-pointer text-yellow-600 dark:text-yellow-500 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
                     title={isScanning ? 'View warnings (scan in progress)' : 'View scan warnings'}
                     aria-label={`View ${pluralize(scanData.warning_count, 'warning')}${isScanning ? ' from ongoing scan' : ''}`}
                   >
@@ -273,10 +273,10 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
         )}
         {isCompleted && hasDiscoveryIssues && scanData && (
           <div className="px-4 pb-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
               <div className="flex items-start gap-2">
                 <svg
-                  className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5"
+                  className="w-5 h-5 text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -289,23 +289,23 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                   />
                 </svg>
                 <div className="flex-1">
-                  <h4 className="text-sm font-medium text-yellow-800">Incomplete File Discovery</h4>
+                  <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Incomplete File Discovery</h4>
                   <div className="mt-2 flex items-center gap-4 text-sm">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-green-700 font-semibold text-lg">
+                      <span className="text-green-700 dark:text-green-400 font-semibold text-lg">
                         {(scanData.files_found ?? 0).toLocaleString()}
                       </span>
-                      <span className="text-yellow-700">files found</span>
+                      <span className="text-yellow-700 dark:text-yellow-300">files found</span>
                     </div>
-                    <span className="text-yellow-400">•</span>
+                    <span className="text-yellow-400 dark:text-yellow-600">•</span>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-red-600 font-semibold text-lg">
+                      <span className="text-red-600 dark:text-red-400 font-semibold text-lg">
                         {(scanData.files_skipped ?? 0).toLocaleString()}
                       </span>
-                      <span className="text-yellow-700">skipped</span>
+                      <span className="text-yellow-700 dark:text-yellow-300">skipped</span>
                     </div>
                   </div>
-                  <p className="text-sm text-yellow-700 mt-2">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-2">
                     {scanData.dirs_skipped && scanData.dirs_skipped > 0 && (
                       <span>
                         Could not read {scanData.dirs_skipped.toLocaleString()}{' '}
@@ -315,7 +315,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                     Check permissions and network connectivity.
                   </p>
                   {discoveryWarningsCount > 0 && (
-                    <p className="text-xs text-yellow-600 mt-1">
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
                       {discoveryWarningsCount} {pluralize(discoveryWarningsCount, 'warning')}{' '}
                       detected during discovery
                     </p>

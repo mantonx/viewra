@@ -13,11 +13,11 @@ const DirectorySearch = ({ searchQuery, onSearchChange, resultsCount, totalCount
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Filter directories..."
-          className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 pl-10 border border-neutral-300 dark:border-neutral-700 rounded-md text-sm bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 placeholder:text-neutral-500 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           aria-label="Filter directories by name"
         />
         <svg
-          className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+          className="absolute left-3 top-2.5 h-5 w-5 text-neutral-400 dark:text-neutral-600"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -33,7 +33,7 @@ const DirectorySearch = ({ searchQuery, onSearchChange, resultsCount, totalCount
         {searchQuery && (
           <button
             onClick={() => onSearchChange('')}
-            className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-2.5 text-neutral-400 dark:text-neutral-600 hover:text-neutral-600 dark:hover:text-neutral-400"
             aria-label="Clear search"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -48,7 +48,7 @@ const DirectorySearch = ({ searchQuery, onSearchChange, resultsCount, totalCount
         )}
       </div>
       {searchQuery && (
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-500">
           Showing {resultsCount} of {totalCount} directories
         </p>
       )}

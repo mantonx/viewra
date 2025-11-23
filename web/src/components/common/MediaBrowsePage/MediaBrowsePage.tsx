@@ -292,7 +292,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
               />
               {enableViewToggle && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                     View
                   </label>
                   <ViewToggle value={viewMode} onChange={setViewMode} />
@@ -348,7 +348,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
       {/* Count display */}
       <div
         id="search-results-count"
-        className="mt-4 text-sm text-gray-500 text-center"
+        className="mt-4 text-sm text-neutral-500 dark:text-neutral-500 text-center"
         role="status"
         aria-live="polite"
         aria-atomic="true"
@@ -363,41 +363,41 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
           onClick={() => setShowHelpModal(false)}
         >
           <div
-            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+            className="bg-white dark:bg-neutral-900 rounded-lg shadow-xl dark:shadow-neutral-950/50 max-w-md w-full mx-4 p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+              <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">Keyboard Shortcuts</h2>
               <button
                 onClick={() => setShowHelpModal(false)}
-                className="text-gray-400 hover:text-gray-600 min-h-11 min-w-11 flex items-center justify-center"
+                className="text-neutral-400 dark:text-neutral-600 hover:text-neutral-600 dark:hover:text-neutral-400 min-h-11 min-w-11 flex items-center justify-center"
                 aria-label="Close help modal"
               >
                 ✕
               </button>
             </div>
             <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-gray-600">Focus search</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+              <div className="flex justify-between items-center py-2 border-b border-neutral-200 dark:border-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-400">Focus search</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
                   / or Cmd+K
                 </kbd>
               </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-gray-600">Navigate grid</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+              <div className="flex justify-between items-center py-2 border-b border-neutral-200 dark:border-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-400">Navigate grid</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
                   Arrow keys
                 </kbd>
               </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-gray-600">Select item</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+              <div className="flex justify-between items-center py-2 border-b border-neutral-200 dark:border-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-400">Select item</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
                   Enter
                 </kbd>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-gray-600">Show shortcuts</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 border border-gray-300 rounded">
+                <span className="text-sm text-neutral-600 dark:text-neutral-400">Show shortcuts</span>
+                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
                   ?
                 </kbd>
               </div>

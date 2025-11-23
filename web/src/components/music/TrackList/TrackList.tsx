@@ -34,7 +34,7 @@ const TrackList = ({ tracks, currentTrackId, onTrackClick, onPlayAll }: TrackLis
       {discNumbers.map((discNumber) => (
         <div key={discNumber}>
           {isMultiDisc && (
-            <h3 className="text-sm font-semibold text-gray-700 mb-2 px-3">
+            <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2 px-3">
               Disc {discNumber}
             </h3>
           )}
@@ -53,7 +53,7 @@ const TrackList = ({ tracks, currentTrackId, onTrackClick, onPlayAll }: TrackLis
 
       {/* Empty state */}
       {tracks.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-neutral-500 dark:text-neutral-500">
           <p>No tracks found</p>
         </div>
       )}

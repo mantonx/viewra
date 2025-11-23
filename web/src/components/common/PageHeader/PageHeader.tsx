@@ -24,8 +24,8 @@ const PageHeader = ({ title, description, actions, className = '' }: PageHeaderP
     <div className={`mb-6 ${className}`}>
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold mb-2">{title}</h1>
-          {description && <p className="text-gray-600">{description}</p>}
+          <h1 className="text-3xl font-bold mb-2 text-neutral-900 dark:text-neutral-50">{title}</h1>
+          {description && <p className="text-neutral-600 dark:text-neutral-400">{description}</p>}
         </div>
         {actions && <div className="flex gap-2">{actions}</div>}
       </div>

@@ -174,35 +174,39 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		return nil, nil
 	}
 
-	// Coordinator already parsed season/episode/title, but we need show name which isn't in ScanResult
-	parser := parsers.NewDefaultParser()
-	tvInfo, err := parser.ParseTVEpisode(result.FilePath)
-	if err != nil || tvInfo == nil {
-		return nil, fmt.Errorf("failed to parse TV episode filename: %w", err)
-	}
-
-	// Use coordinator's parsed data where available, parser for show name
-	showTitle := tvInfo.ShowName
+	// Use coordinator's parsed data directly (no duplicate parsing needed!)
+	showTitle := result.ShowName
 	season := 0
 	episodeNumber := 0
 	episodeTitle := result.Title
 
-	// Prefer coordinator's parsed season/episode numbers
+	// Use coordinator's parsed season/episode numbers
 	if result.SeasonNumber != nil {
 		season = *result.SeasonNumber
-	} else {
-		season = tvInfo.Season
 	}
 
 	if result.EpisodeNumber != nil {
 		episodeNumber = *result.EpisodeNumber
-	} else {
-		episodeNumber = tvInfo.Episode
 	}
 
-	// Use parser's episode title if result title is empty
-	if result.Title == "" && tvInfo != nil && tvInfo.EpisodeTitle != "" {
-		episodeTitle = tvInfo.EpisodeTitle
+	// Fallback: If coordinator didn't populate show name, parse as last resort
+	// This should rarely happen, but handles edge cases
+	if showTitle == "" {
+		parser := parsers.NewDefaultParser()
+		tvInfo, err := parser.ParseTVEpisode(result.FilePath)
+		if err != nil || tvInfo == nil {
+			return nil, fmt.Errorf("failed to parse TV episode filename: %w", err)
+		}
+		showTitle = tvInfo.ShowName
+		if season == 0 {
+			season = tvInfo.Season
+		}
+		if episodeNumber == 0 {
+			episodeNumber = tvInfo.Episode
+		}
+		if episodeTitle == "" {
+			episodeTitle = tvInfo.EpisodeTitle
+		}
 	}
 
 	episode := &media.TVEpisode{
@@ -338,13 +342,31 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		year = *result.Year
 	}
 
-	// Try to extract additional metadata if coordinator's result is incomplete
-	// This handles fields like album artist, disc number, and genre that aren't in ScanResult
-	if artist == "" || album == "" || genre == "" {
+	// Extract ID3 metadata ONCE (was being done twice - major bottleneck!)
+	// This handles fields like album artist, disc number, genre, and extended metadata
+	// that aren't in the coordinator's ScanResult
+	var (
+		totalTracks         int
+		totalDiscs          int
+		releaseDate         string
+		lyricist            string
+		isrc                string
+		releaseType         string
+		compilation         bool
+		originalTitle       string
+		publisher           string
+		musicBrainzTrackID  string
+		musicBrainzAlbumID  string
+		musicBrainzArtistID string
+		composer            string
+	)
+
+	// Single metadata extraction for both basic and extended fields
+	if artist == "" || album == "" || genre == "" || albumArtist == "" {
 		extractor := music.NewExtractor()
 		musicInfo, err := extractor.ExtractMetadata(result.FilePath)
 		if err == nil && musicInfo != nil {
-			// Fill in missing fields from ID3 tags
+			// Fill in missing basic fields from ID3 tags
 			if title == "" {
 				title = musicInfo.Title
 			}
@@ -369,29 +391,8 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 			if year == 0 {
 				year = musicInfo.Year
 			}
-		}
-	}
 
-	// Prepare extended metadata fields
-	var (
-		totalTracks         int
-		totalDiscs          int
-		releaseDate         string
-		lyricist            string
-		isrc                string
-		releaseType         string
-		compilation         bool
-		originalTitle       string
-		publisher           string
-		musicBrainzTrackID  string
-		musicBrainzAlbumID  string
-		musicBrainzArtistID string
-		composer            string
-	)
-
-	// Get extended metadata if we have the extractor result
-	if extractor := music.NewExtractor(); extractor != nil {
-		if musicInfo, err := extractor.ExtractMetadata(result.FilePath); err == nil && musicInfo != nil {
+			// Extract extended metadata from the same result (no second read!)
 			totalTracks = musicInfo.TotalTracks
 			totalDiscs = musicInfo.TotalDiscs
 			releaseDate = musicInfo.ReleaseDate

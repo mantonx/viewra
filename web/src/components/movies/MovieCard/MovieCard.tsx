@@ -60,7 +60,7 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
               </span>
             )}
             {movie.content_rating && (
-              <span className="px-2 py-1 text-xs font-semibold bg-gray-800 bg-opacity-90 text-white rounded border border-gray-600">
+              <span className="px-2 py-1 text-xs font-semibold bg-neutral-800 dark:bg-neutral-700 bg-opacity-90 text-white rounded border border-neutral-600 dark:border-neutral-500">
                 {movie.content_rating}
               </span>
             )}
@@ -93,7 +93,7 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
           </div>
 
           {/* Year and Duration */}
-          <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+          <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400 mb-2">
             {movie.year && <span className="font-medium">{movie.year}</span>}
             {movie.year && duration && <span>•</span>}
             {duration && <span>{duration}</span>}
@@ -102,7 +102,7 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
           {/* Genre */}
           {primaryGenre && (
             <div className="mb-2">
-              <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
+              <span className="inline-block px-2 py-1 text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded">
                 {primaryGenre}
               </span>
             </div>
@@ -110,7 +110,7 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
 
           {/* Plot preview - show first 80 characters */}
           {movie.plot && (
-            <p className="text-xs text-gray-600 line-clamp-2 mb-2">
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 mb-2">
               {movie.plot.substring(0, 100)}
               {movie.plot.length > 100 ? '...' : ''}
             </p>
@@ -118,13 +118,13 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
 
           {/* Director */}
           {movie.director && (
-            <p className="text-xs text-gray-500 truncate">
+            <p className="text-xs text-neutral-500 dark:text-neutral-500 truncate">
               <span className="font-medium">Dir:</span> {movie.director}
             </p>
           )}
 
           {/* Progress or file size */}
-          <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+          <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-500 mt-2">
             {progress && getProgressPercentage(progress) > 0 && !progress.is_watched ? (
               <span className="text-blue-600 font-medium">
                 {Math.floor(getProgressPercentage(progress))}% watched

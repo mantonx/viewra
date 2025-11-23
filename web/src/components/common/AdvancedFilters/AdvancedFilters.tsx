@@ -70,14 +70,14 @@ export const AdvancedFilters = ({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
           aria-expanded={isExpanded}
           aria-controls="advanced-filters-content"
         >
           <span>{isExpanded ? '▼' : '▶'}</span>
           <span>Advanced Filters</span>
           {hasActiveFilters && (
-            <span className="px-2 py-0.5 text-xs bg-rose-100 text-rose-700 rounded-full font-semibold">
+            <span className="px-2 py-0.5 text-xs bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 rounded-full font-semibold">
               Active
             </span>
           )}
@@ -91,11 +91,11 @@ export const AdvancedFilters = ({
 
       {/* Expanded Filters */}
       {isExpanded && (
-        <div id="advanced-filters-content" className="space-y-6 pt-4 border-t border-gray-200">
+        <div id="advanced-filters-content" className="space-y-6 pt-4 border-t border-neutral-200 dark:border-neutral-800">
           {/* Genre Filter */}
           {genres.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Genres</label>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Genres</label>
               <div className="flex flex-wrap gap-2">
                 {genres.map((genre) => (
                   <button
@@ -105,7 +105,7 @@ export const AdvancedFilters = ({
                     className={`px-3 py-1.5 text-sm rounded-full border transition-colors min-h-11 ${
                       value.genres?.includes(genre)
                         ? 'bg-rose-500 text-white border-rose-500'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-rose-300 hover:bg-rose-50'
+                        : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950'
                     }`}
                     aria-pressed={value.genres?.includes(genre)}
                   >
@@ -119,10 +119,10 @@ export const AdvancedFilters = ({
           {/* Year Range Filter */}
           {yearRange && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Year Range</label>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Year Range</label>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
-                  <label htmlFor="year-min" className="block text-xs text-gray-600 mb-1">
+                  <label htmlFor="year-min" className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1">
                     From
                   </label>
                   <input
@@ -132,12 +132,12 @@ export const AdvancedFilters = ({
                     max={yearRange.max}
                     value={value.yearMin || yearRange.min}
                     onChange={(e) => handleYearChange('min', parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-2.5 min-h-11 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    className="w-full px-3 py-2.5 min-h-11 border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
                   />
                 </div>
-                <span className="text-gray-400 mt-6">—</span>
+                <span className="text-neutral-400 dark:text-neutral-600 mt-6">—</span>
                 <div className="flex-1">
-                  <label htmlFor="year-max" className="block text-xs text-gray-600 mb-1">
+                  <label htmlFor="year-max" className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1">
                     To
                   </label>
                   <input
@@ -147,7 +147,7 @@ export const AdvancedFilters = ({
                     max={yearRange.max}
                     value={value.yearMax || yearRange.max}
                     onChange={(e) => handleYearChange('max', parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-2.5 min-h-[44px] border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    className="w-full px-3 py-2.5 min-h-[44px] border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -157,7 +157,7 @@ export const AdvancedFilters = ({
           {/* Quality Filter */}
           {qualityOptions.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Quality</label>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Quality</label>
               <div className="flex flex-wrap gap-2">
                 {qualityOptions.map((quality) => (
                   <button
@@ -167,7 +167,7 @@ export const AdvancedFilters = ({
                     className={`px-3 py-1.5 text-sm rounded-full border transition-colors min-h-11 ${
                       value.qualities?.includes(quality)
                         ? 'bg-rose-500 text-white border-rose-500'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-rose-300 hover:bg-rose-50'
+                        : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950'
                     }`}
                     aria-pressed={value.qualities?.includes(quality)}
                   >
@@ -181,7 +181,7 @@ export const AdvancedFilters = ({
           {/* Watched/Unwatched Filter */}
           {showWatchedFilter && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Watch Status</label>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Watch Status</label>
               <div className="flex gap-2">
                 {(['all', 'watched', 'unwatched'] as const).map((status) => (
                   <button
@@ -191,7 +191,7 @@ export const AdvancedFilters = ({
                     className={`flex-1 px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 ${
                       value.watchedFilter === status
                         ? 'bg-rose-500 text-white border-rose-500'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-rose-300 hover:bg-rose-50'
+                        : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950'
                     }`}
                     aria-pressed={value.watchedFilter === status}
                   >

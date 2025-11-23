@@ -385,6 +385,18 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		workerWg.Add(1)
 		go func(workerID int) {
 			defer workerWg.Done()
+
+			// Recover from panics to prevent leaving checkpoints in "processing" state
+			defer func() {
+				if r := recover(); r != nil {
+					uc.logger.Error("PANIC: worker goroutine panicked",
+						"worker_id", workerID,
+						"job_id", jobID,
+						"panic", r,
+						"stack_trace", string(debug.Stack()))
+				}
+			}()
+
 			for checkpoint := range checkpointsChan {
 				uc.processCheckpointWorker(ctx, lib, checkpoint, maxRetries, &foundFilesMu, foundFiles)
 			}
@@ -392,6 +404,7 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 	}
 
 	// Main loop: fetch batches and feed to workers
+processingLoop:
 	for {
 		// Check if scan has been paused
 		currentJob, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
@@ -429,7 +442,7 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 				// Hashing is done and no more checkpoints - we're finished
 				uc.logger.Debug("All checkpoints processed, scan complete",
 					"job_id", jobID)
-				break
+				break processingLoop
 			default:
 				// Hashing still in progress, wait for more checkpoints
 				time.Sleep(2 * time.Second)
@@ -583,7 +596,8 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib *library.Library, checkpoint *scanner.ScanCheckpoint) (bool, error) {
 	// Re-extract metadata for this file (checkpoint only stores the path)
 	// We need full metadata to create the media entry
-	fileInfo, err := os.Stat(checkpoint.FilePath)
+	// CRITICAL: os.Stat can hang indefinitely on CIFS/NFS, so we wrap it with a timeout
+	fileInfo, err := uc.statWithTimeout(ctx, checkpoint.FilePath, 30*time.Second)
 	if err != nil {
 		return false, fmt.Errorf("failed to stat file: %w", err)
 	}
@@ -597,12 +611,6 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 		Extension: strings.ToLower(filepath.Ext(checkpoint.FilePath)), // Keep the dot for GetMediaType
 	}
 
-	// Use coordinator to extract metadata (this will parse filename and run ffprobe)
-	// Note: Coordinator no longer handles hashing - done during checkpoint creation
-	config := filesystem.DefaultCoordinatorConfig()
-	config.Logger = uc.logger // Pass the use case logger to coordinator
-	coordinator := filesystem.NewCoordinator(config)
-
 	// Add timeout protection to prevent worker deadlocks on slow network storage
 	// FFprobe can hang indefinitely on large files over CIFS/NFS
 	// Timeout varies based on storage type and file size
@@ -610,7 +618,8 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 	processCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result := coordinator.ProcessFile(processCtx, scanFileInfo)
+	// Use the reused coordinator instance (no longer creating new one per file!)
+	result := uc.coordinator.ProcessFile(processCtx, scanFileInfo)
 
 	// Check if metadata extraction had an error
 	if result.Error != nil {
@@ -1076,6 +1085,33 @@ func (uc *ScanLibraryUseCase) calculateProcessingTimeout(fileSize int64) time.Du
 	}
 
 	return baseTimeout
+}
+
+// statWithTimeout wraps os.Stat with a timeout to prevent indefinite hangs on network storage
+// os.Stat doesn't support context cancellation, so we run it in a goroutine with a timeout
+func (uc *ScanLibraryUseCase) statWithTimeout(ctx context.Context, path string, timeout time.Duration) (os.FileInfo, error) {
+	type result struct {
+		info os.FileInfo
+		err  error
+	}
+
+	resultChan := make(chan result, 1)
+
+	// Run os.Stat in a goroutine
+	go func() {
+		info, err := os.Stat(path)
+		resultChan <- result{info: info, err: err}
+	}()
+
+	// Wait for either the stat to complete or timeout
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("stat timeout after %v: %s", timeout, path)
+	case res := <-resultChan:
+		return res.info, res.err
+	}
 }
 
 // validateDiscovery checks discovery results for potential issues

@@ -14,7 +14,10 @@ import (
 
 // NewClient creates a new FFmpeg client.
 // It checks for the presence of ffmpeg and ffprobe executables in the system PATH.
+// NOTE: This should only be called once and the client reused to avoid repeated PATH searches.
+// The Coordinator creates this once and reuses it for all files.
 func NewClient() (*Client, error) {
+	// Cache the paths so they're only looked up once per client instance
 	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return nil, ErrFFmpegNotFound

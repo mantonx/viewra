@@ -1,76 +1,102 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import { AudioPlayerProvider } from '@/lib/contexts/AudioPlayerContext'
 import { AudioPlayer } from '@/components/music'
+import { useTheme } from '@/contexts'
+import { Home, Library, Film, Tv, Music, Clock, Moon, Sun } from 'lucide-react'
 
 const Layout = () => {
+  const { theme, toggleTheme } = useTheme()
+
   return (
     <AudioPlayerProvider>
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex h-screen bg-neutral-100 dark:bg-neutral-950">
         {/* Sidebar */}
-        <aside className="w-64 bg-gray-900 text-white flex flex-col">
-          <div className="p-4 border-b border-gray-700">
+        <aside className="w-64 bg-neutral-900 dark:bg-neutral-900 text-white flex flex-col">
+          <div className="p-4 border-b border-neutral-700 dark:border-neutral-800">
             <h1 className="text-2xl font-bold">ViewRA</h1>
-            <p className="text-sm text-gray-400">Media Server</p>
+            <p className="text-sm text-neutral-400">Media Server</p>
           </div>
 
           <nav className="flex-1 p-4 space-y-2">
             <Link
               to="/"
-              className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
-              activeProps={{ className: 'bg-gray-800' }}
+              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-800 dark:hover:bg-neutral-800 transition-colors"
+              activeProps={{ className: 'bg-neutral-800 dark:bg-neutral-800' }}
             >
-              🏠 Dashboard
+              <Home className="w-5 h-5" />
+              <span>Dashboard</span>
             </Link>
             <Link
               to="/libraries"
-              className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
-              activeProps={{ className: 'bg-gray-800' }}
+              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-800 dark:hover:bg-neutral-800 transition-colors"
+              activeProps={{ className: 'bg-neutral-800 dark:bg-neutral-800' }}
             >
-              📚 Libraries
+              <Library className="w-5 h-5" />
+              <span>Libraries</span>
             </Link>
             <Link
               to="/movies"
               search={{ id: undefined, t: undefined, q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, qualities: undefined, watched: undefined, view: undefined }}
-              className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
-              activeProps={{ className: 'bg-gray-800' }}
+              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-800 dark:hover:bg-neutral-800 transition-colors"
+              activeProps={{ className: 'bg-neutral-800 dark:bg-neutral-800' }}
             >
-              🎬 Movies
+              <Film className="w-5 h-5" />
+              <span>Movies</span>
             </Link>
             <Link
               to="/tv"
               search={{ q: undefined, sort: undefined, view: undefined }}
-              className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
-              activeProps={{ className: 'bg-gray-800' }}
+              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-800 dark:hover:bg-neutral-800 transition-colors"
+              activeProps={{ className: 'bg-neutral-800 dark:bg-neutral-800' }}
             >
-              📺 TV Shows
+              <Tv className="w-5 h-5" />
+              <span>TV Shows</span>
             </Link>
             <Link
               to="/music"
               search={{ q: undefined, sort: undefined, view: undefined }}
-              className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
-              activeProps={{ className: 'bg-gray-800' }}
+              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-800 dark:hover:bg-neutral-800 transition-colors"
+              activeProps={{ className: 'bg-neutral-800 dark:bg-neutral-800' }}
             >
-              🎵 Music
+              <Music className="w-5 h-5" />
+              <span>Music</span>
             </Link>
 
-            <div className="mt-8 pt-4 border-t border-gray-700">
-              <p className="px-4 text-xs text-gray-500 uppercase tracking-wider mb-2">
+            <div className="mt-8 pt-4 border-t border-neutral-700 dark:border-neutral-800">
+              <p className="px-4 text-xs text-neutral-500 uppercase tracking-wider mb-2">
                 Settings
               </p>
               <Link
                 to="/settings/scheduler"
-                className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
-                activeProps={{ className: 'bg-gray-800' }}
+                className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-800 dark:hover:bg-neutral-800 transition-colors"
+                activeProps={{ className: 'bg-neutral-800 dark:bg-neutral-800' }}
               >
-                ⏰ Scheduler
+                <Clock className="w-5 h-5" />
+                <span>Scheduler</span>
               </Link>
             </div>
           </nav>
 
-          <div className="p-4 border-t border-gray-700">
-            <div className="text-sm text-gray-400">
+          <div className="p-4 border-t border-neutral-700 dark:border-neutral-800 space-y-3">
+            <button
+              onClick={toggleTheme}
+              className="w-full flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-800 dark:hover:bg-neutral-800 transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="w-5 h-5" />
+                  <span>Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-5 h-5" />
+                  <span>Dark Mode</span>
+                </>
+              )}
+            </button>
+            <div className="text-sm text-neutral-400">
               <p>Version 0.0.1</p>
-              <p>Phase 1 MVP</p>
             </div>
           </div>
         </aside>

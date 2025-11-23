@@ -117,7 +117,7 @@ func TestStreamHandler_Stream(t *testing.T) {
 			}
 
 			streamService := streaming.NewService()
-			handler := NewStreamHandler(mockGet, streamService)
+			handler := NewStreamHandler(mockGet, streamService, nil)
 
 			c, w := setupTestContext(http.MethodGet, "/api/stream/"+tt.mediaID, nil)
 			c.Params = gin.Params{{Key: "id", Value: tt.mediaID}}
@@ -210,7 +210,7 @@ func TestStreamHandler_Stream_InvalidRange(t *testing.T) {
 	}
 
 	streamService := streaming.NewService()
-	handler := NewStreamHandler(mockGet, streamService)
+	handler := NewStreamHandler(mockGet, streamService, nil)
 
 	// Test with invalid range (beyond file size)
 	c, w := setupTestContext(http.MethodGet, "/api/stream/1", nil)
@@ -246,7 +246,7 @@ func TestStreamHandler_Stream_InternalError(t *testing.T) {
 	}
 
 	streamService := streaming.NewService()
-	handler := NewStreamHandler(mockGet, streamService)
+	handler := NewStreamHandler(mockGet, streamService, nil)
 
 	c, w := setupTestContext(http.MethodGet, "/api/stream/1", nil)
 	c.Params = gin.Params{{Key: "id", Value: "1"}}

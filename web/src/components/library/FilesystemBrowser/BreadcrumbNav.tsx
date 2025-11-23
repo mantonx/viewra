@@ -17,7 +17,7 @@ const BreadcrumbNav = ({ currentPath, onNavigate, onNavigateUp, canNavigateUp, i
         ↑ Up
       </Button>
       <div
-        className="flex-1 flex items-center gap-1 px-3 py-2 bg-gray-50 rounded-md text-sm overflow-x-auto"
+        className="flex-1 flex items-center gap-1 px-3 py-2 bg-neutral-50 dark:bg-neutral-950 rounded-md text-sm overflow-x-auto"
         role="navigation"
         aria-label="Current path"
         title={currentPath || '/'}
@@ -30,14 +30,14 @@ const BreadcrumbNav = ({ currentPath, onNavigate, onNavigateUp, canNavigateUp, i
 
             return (
               <div key={segmentPath} className="flex items-center gap-1 shrink-0">
-                {!isFirst && <span className="text-gray-400">/</span>}
+                {!isFirst && <span className="text-neutral-400 dark:text-neutral-600">/</span>}
                 {isLast ? (
-                  <span className="text-gray-700 font-medium">{segment}</span>
+                  <span className="text-neutral-700 dark:text-neutral-300 font-medium">{segment}</span>
                 ) : (
                   <button
                     onClick={() => onNavigate(segmentPath)}
                     disabled={isLoading}
-                    className="text-blue-600 hover:text-blue-800 hover:underline disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed font-medium"
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline disabled:text-neutral-400 dark:disabled:text-neutral-600 disabled:no-underline disabled:cursor-not-allowed font-medium"
                     title={`Navigate to ${segmentPath}`}
                   >
                     {segment}
@@ -47,7 +47,7 @@ const BreadcrumbNav = ({ currentPath, onNavigate, onNavigateUp, canNavigateUp, i
             )
           })
         ) : (
-          <span className="text-gray-700 font-medium">/</span>
+          <span className="text-neutral-700 dark:text-neutral-300 font-medium">/</span>
         )}
       </div>
     </nav>

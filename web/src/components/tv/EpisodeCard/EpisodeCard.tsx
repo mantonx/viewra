@@ -37,7 +37,7 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
 
   return (
     <div
-      className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-xl transition-all hover:scale-105 duration-200"
+      className="bg-white dark:bg-neutral-900 rounded-lg shadow dark:shadow-neutral-950/50 overflow-hidden cursor-pointer hover:shadow-xl dark:hover:shadow-neutral-950/70 transition-all hover:scale-105 duration-200"
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -86,42 +86,42 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-1">
           <div className="flex-1">
-            <div className="text-xs text-gray-500 mb-1">{episodeNumber}</div>
-            <h3 className="font-semibold text-sm line-clamp-2">
+            <div className="text-xs text-neutral-500 dark:text-neutral-500 mb-1">{episodeNumber}</div>
+            <h3 className="font-semibold text-sm line-clamp-2 text-neutral-900 dark:text-neutral-50">
               {episode.episode_title || episode.title}
             </h3>
           </div>
           {progress?.is_watched && (
-            <span className="text-green-500 shrink-0" title="Watched">
+            <span className="text-green-500 dark:text-green-400 shrink-0" title="Watched">
               ✓
             </span>
           )}
         </div>
-        
+
         {/* Air Date */}
         {airDate && (
-          <p className="text-xs text-gray-500 mb-2">
+          <p className="text-xs text-neutral-500 dark:text-neutral-500 mb-2">
             Aired: {airDate}
           </p>
         )}
-        
+
         {/* Description/Plot from NFO */}
         {episode.description && (
-          <p className="text-xs text-gray-600 line-clamp-2 mb-2">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 mb-2">
             {episode.description}
           </p>
         )}
-        
+
         {/* Duration and Progress */}
-        <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+        <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-500 mt-2">
           {episode.duration && episode.duration > 0 && <span>{formatDuration(episode.duration)}</span>}
           {progress && getProgressPercentage(progress) > 0 && !progress.is_watched && (
-            <span className="text-blue-600 font-medium">
+            <span className="text-blue-600 dark:text-blue-400 font-medium">
               {Math.floor(getProgressPercentage(progress))}% watched
             </span>
           )}
         </div>
-        
+
         {/* IMDb/TVDb indicators */}
         {(episode.imdb_id || episode.tvdb_id) && (
           <div className="flex gap-1 mt-2">
@@ -130,7 +130,7 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
                 href={`https://www.imdb.com/title/${episode.imdb_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-yellow-600 font-bold hover:underline"
+                className="text-xs text-yellow-600 dark:text-yellow-500 font-bold hover:underline"
                 title="View on IMDb"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -142,7 +142,7 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
                 href={`https://www.thetvdb.com/?tab=episode&id=${episode.tvdb_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-blue-600 font-bold hover:underline"
+                className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline"
                 title="View on TVDb"
                 onClick={(e) => e.stopPropagation()}
               >

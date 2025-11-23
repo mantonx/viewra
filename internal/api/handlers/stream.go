@@ -3,25 +3,29 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/media"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
+	"github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // StreamHandler handles media streaming requests
 type StreamHandler struct {
 	getMedia      media.GetMediaExecutor
 	streamService *streaming.Service
+	logger        *slog.Logger
 }
 
 // NewStreamHandler creates a new stream handler
-func NewStreamHandler(getMedia media.GetMediaExecutor, streamService *streaming.Service) *StreamHandler {
+func NewStreamHandler(getMedia media.GetMediaExecutor, streamService *streaming.Service, log *slog.Logger) *StreamHandler {
 	return &StreamHandler{
 		getMedia:      getMedia,
 		streamService: streamService,
+		logger:        logger.DefaultIfNil(log),
 	}
 }
 
@@ -99,6 +103,9 @@ func (h *StreamHandler) Stream(c *gin.Context) {
 	if _, err := io.Copy(c.Writer, stream.Reader()); err != nil {
 		// Log error but don't return since headers already sent
 		// Client will see incomplete response
-		fmt.Printf("Error streaming media: %v\n", err)
+		h.logger.Error("error streaming media after headers sent",
+			"media_id", id,
+			"file_path", mediaResp.FilePath,
+			"error", err)
 	}
 }

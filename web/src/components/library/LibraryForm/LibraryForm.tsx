@@ -65,7 +65,7 @@ const LibraryForm = ({ onCancel, onSuccess }: LibraryFormProps) => {
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
           Folder Path
         </label>
         <div className="flex gap-2">
@@ -86,7 +86,7 @@ const LibraryForm = ({ onCancel, onSuccess }: LibraryFormProps) => {
             Browse...
           </Button>
         </div>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-500">
           Full path to the folder containing your media files
         </p>
       </div>

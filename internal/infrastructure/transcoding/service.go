@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/mantonx/viewra/internal/domain/transcode"
+	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // Service provides video transcoding functionality for HLS streaming.
@@ -52,9 +53,7 @@ func NewService(repo transcode.Repository, logger *slog.Logger) (Service, error)
 		return nil, fmt.Errorf("failed to initialize ffmpeg executor: %w", err)
 	}
 
-	if logger == nil {
-		logger = slog.Default()
-	}
+	logger = pkgLogger.DefaultIfNil(logger)
 
 	jobExec := newJobExecutor(repo, ffmpegExec, logger)
 

@@ -2,7 +2,6 @@ package library
 
 import (
 	"context"
-	"fmt"
 )
 
 // cleanupStaleMedia removes media database records and associated images for files that no longer exist on disk
@@ -13,7 +12,9 @@ func (uc *ScanLibraryUseCase) cleanupStaleMedia(ctx context.Context, libraryID i
 	// Get all media items for this library
 	allMedia, err := uc.mediaRepos.Media.ListByLibrary(ctx, libraryID)
 	if err != nil {
-		fmt.Printf("warning: failed to list media for stale cleanup: %v\n", err)
+		uc.logger.Warn("failed to list media for stale cleanup",
+			"library_id", libraryID,
+			"error", err)
 		return
 	}
 
@@ -31,19 +32,25 @@ func (uc *ScanLibraryUseCase) cleanupStaleMedia(ctx context.Context, libraryID i
 	if len(allMedia) > 0 {
 		stalePercent := float64(staleCount) / float64(len(allMedia)) * 100
 		if stalePercent > 10.0 {
-			fmt.Printf("error: refusing to cleanup - too many files marked stale (stale=%d, total=%d, percentage=%.1f%%). This likely indicates a scan failure, not actual file deletions.\n",
-				staleCount, len(allMedia), stalePercent)
+			uc.logger.Error("refusing to cleanup - too many files marked stale",
+				"library_id", libraryID,
+				"stale_count", staleCount,
+				"total_count", len(allMedia),
+				"stale_percent", stalePercent,
+				"reason", "likely indicates scan failure, not actual file deletions")
 			return
 		}
 	}
 
 	if staleCount == 0 {
-		fmt.Printf("info: no stale media to cleanup\n")
+		uc.logger.Info("no stale media to cleanup", "library_id", libraryID)
 		return
 	}
 
-	fmt.Printf("info: cleaning up %d stale media records (%.1f%% of library)\n",
-		staleCount, float64(staleCount)/float64(len(allMedia))*100)
+	uc.logger.Info("cleaning up stale media records",
+		"library_id", libraryID,
+		"stale_count", staleCount,
+		"stale_percent", float64(staleCount)/float64(len(allMedia))*100)
 
 	// Track hashes for cleanup
 	var hashesToClean []string
@@ -59,9 +66,15 @@ func (uc *ScanLibraryUseCase) cleanupStaleMedia(ctx context.Context, libraryID i
 
 			// Delete the media database record (cascades to images, transcode jobs, etc.)
 			if err := uc.mediaRepos.Media.Delete(ctx, m.ID); err != nil {
-				fmt.Printf("warning: failed to delete stale media %d (%s): %v\n", m.ID, m.FilePath, err)
+				uc.logger.Warn("failed to delete stale media",
+					"library_id", libraryID,
+					"media_id", m.ID,
+					"file_path", m.FilePath,
+					"error", err)
 			} else {
-				fmt.Printf("info: removed stale media from library: %s\n", m.FilePath)
+				uc.logger.Info("removed stale media from library",
+					"library_id", libraryID,
+					"file_path", m.FilePath)
 			}
 		}
 	}
@@ -69,7 +82,10 @@ func (uc *ScanLibraryUseCase) cleanupStaleMedia(ctx context.Context, libraryID i
 	// Clean up image cache files for all the removed media
 	if uc.imageCleanup != nil && len(hashesToClean) > 0 {
 		if err := uc.imageCleanup.CleanCacheForHashes(ctx, hashesToClean); err != nil {
-			fmt.Printf("warning: failed to clean image cache during library scan: %v\n", err)
+			uc.logger.Warn("failed to clean image cache during library scan",
+				"library_id", libraryID,
+				"hash_count", len(hashesToClean),
+				"error", err)
 		}
 	}
 }

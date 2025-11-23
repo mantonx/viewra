@@ -43,7 +43,7 @@ export const ConfirmDialog = ({
   return (
     <Modal isOpen={isOpen} onClose={onCancel} title={title} size="sm">
       <ModalContent>
-        <p className="text-gray-700">{message}</p>
+        <p className="text-neutral-700 dark:text-neutral-300">{message}</p>
       </ModalContent>
       <ModalFooter>
         <Button variant="secondary" onClick={onCancel}>

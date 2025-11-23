@@ -12,7 +12,7 @@ export const ViewToggle = ({ value, onChange }: ViewToggleProps) => {
         className={`px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 ${
           value === 'grid'
             ? 'bg-blue-600 text-white border-blue-600'
-            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
+            : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
         }`}
         aria-pressed={value === 'grid'}
         aria-label="Grid view"
@@ -39,7 +39,7 @@ export const ViewToggle = ({ value, onChange }: ViewToggleProps) => {
         className={`px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 ${
           value === 'list'
             ? 'bg-blue-600 text-white border-blue-600'
-            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300 hover:bg-blue-50'
+            : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
         }`}
         aria-pressed={value === 'list'}
         aria-label="List view"

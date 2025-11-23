@@ -20,7 +20,7 @@ const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
       infoContent={
         <>
           <h3 className="font-semibold text-sm line-clamp-2 mb-2">{show.title ?? 'Unknown Show'}</h3>
-          <div className="flex items-center justify-between text-xs text-gray-600">
+          <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
             <span>
               {show.season_count ?? 0} {show.season_count === 1 ? 'Season' : 'Seasons'}
             </span>

@@ -77,8 +77,9 @@ type ScanResult struct {
 	MediaType      MediaType
 	Title          string
 	Year           *int
-	SeasonNumber   *int // TV episodes only
-	EpisodeNumber  *int // TV episodes only
+	SeasonNumber   *int   // TV episodes only
+	EpisodeNumber  *int   // TV episodes only
+	ShowName       string // TV show name (to avoid duplicate parsing)
 	Artist         string
 	Album          string
 	TrackNumber    *int

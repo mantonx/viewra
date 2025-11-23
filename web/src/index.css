@@ -1,54 +1,67 @@
 @import "tailwindcss";
 
 :root {
-  /* Light theme (default) */
+  /* Light theme (default) - Background colors */
   --color-bg-primary: 250 250 250; /* neutral-50 */
   --color-bg-secondary: 245 245 245; /* neutral-100 */
   --color-bg-tertiary: 229 229 229; /* neutral-200 */
+  --color-bg-elevated: 255 255 255; /* white */
+  --color-bg-inverse: 23 23 23; /* neutral-900 */
 
+  /* Light theme - Text colors */
   --color-text-primary: 23 23 23; /* neutral-900 */
   --color-text-secondary: 82 82 82; /* neutral-600 */
   --color-text-tertiary: 115 115 115; /* neutral-500 */
+  --color-text-inverse: 250 250 250; /* neutral-50 */
 
+  /* Light theme - Border colors */
   --color-border-primary: 229 229 229; /* neutral-200 */
   --color-border-secondary: 212 212 212; /* neutral-300 */
+
+  /* Light theme - Component colors */
+  --color-button-primary: 37 99 235; /* blue-600 */
+  --color-button-primary-hover: 29 78 216; /* blue-700 */
+  --color-button-secondary: 245 245 245; /* neutral-100 */
+  --color-button-secondary-hover: 229 229 229; /* neutral-200 */
 }
 
 .dark {
-  /* Dark theme */
+  /* Dark theme - Background colors */
   --color-bg-primary: 10 10 10; /* neutral-950 */
   --color-bg-secondary: 23 23 23; /* neutral-900 */
   --color-bg-tertiary: 38 38 38; /* neutral-800 */
+  --color-bg-elevated: 23 23 23; /* neutral-900 */
+  --color-bg-inverse: 250 250 250; /* neutral-50 */
 
+  /* Dark theme - Text colors */
   --color-text-primary: 250 250 250; /* neutral-50 */
   --color-text-secondary: 163 163 163; /* neutral-400 */
   --color-text-tertiary: 115 115 115; /* neutral-500 */
+  --color-text-inverse: 23 23 23; /* neutral-900 */
 
+  /* Dark theme - Border colors */
   --color-border-primary: 38 38 38; /* neutral-800 */
   --color-border-secondary: 64 64 64; /* neutral-700 */
+
+  /* Dark theme - Component colors */
+  --color-button-primary: 37 99 235; /* blue-600 */
+  --color-button-primary-hover: 59 130 246; /* blue-500 */
+  --color-button-secondary: 38 38 38; /* neutral-800 */
+  --color-button-secondary-hover: 64 64 64; /* neutral-700 */
 }
 
 * {
-  border-color: rgb(229 229 229);
-}
-
-.dark * {
-  border-color: rgb(38 38 38);
+  border-color: rgb(var(--color-border-primary));
 }
 
 body {
-  background-color: rgb(250 250 250);
-  color: rgb(23 23 23);
+  background-color: rgb(var(--color-bg-primary));
+  color: rgb(var(--color-text-primary));
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   margin: 0;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.dark body {
-  background-color: rgb(10 10 10);
-  color: rgb(250 250 250);
 }
 
 /* Modal animations */

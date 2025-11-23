@@ -40,7 +40,7 @@ const PathInput = ({ onNavigate, isLoading }: PathInputProps) => {
       <div className="mb-4">
         <button
           onClick={() => setShowInput(true)}
-          className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
         >
           Jump to path...
         </button>
@@ -62,10 +62,10 @@ const PathInput = ({ onNavigate, isLoading }: PathInputProps) => {
             placeholder="Type a path (e.g., /home/user/Videos)"
             disabled={isLoading}
             autoFocus
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-md text-sm bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 placeholder:text-neutral-500 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-neutral-100 dark:disabled:bg-neutral-900 disabled:cursor-not-allowed"
           />
           {pathInputError && (
-            <p className="mt-1 text-sm text-red-600">{pathInputError}</p>
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{pathInputError}</p>
           )}
         </div>
         <Button

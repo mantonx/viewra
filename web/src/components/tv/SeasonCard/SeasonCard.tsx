@@ -10,7 +10,7 @@ const SeasonCard = ({ season, showTitle, onClick }: SeasonCardProps) => {
 
   return (
     <div
-      className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+      className="bg-white dark:bg-neutral-900 rounded-lg shadow dark:shadow-neutral-950/50 overflow-hidden cursor-pointer hover:shadow-lg dark:hover:shadow-neutral-950/70 transition-shadow"
       onClick={handleClick}
     >
       {/* Thumbnail */}
@@ -40,8 +40,8 @@ const SeasonCard = ({ season, showTitle, onClick }: SeasonCardProps) => {
 
       {/* Info */}
       <div className="p-3">
-        <h3 className="font-semibold text-sm line-clamp-1">{showTitle}</h3>
-        <p className="text-xs text-gray-600 mt-1">{seasonLabel}</p>
+        <h3 className="font-semibold text-sm line-clamp-1 text-neutral-900 dark:text-neutral-50">{showTitle}</h3>
+        <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">{seasonLabel}</p>
       </div>
     </div>
   )

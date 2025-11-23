@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // NewWalker creates a new Walker with default filepath.WalkDir
@@ -20,7 +21,7 @@ func NewWalker(opts ...WalkerOption) *Walker {
 		parallelWorkers:  0,    // Sequential by default
 		enableParallel:   false,
 		progressInterval: 0,    // No progress logging by default
-		logger:           slog.Default(), // Use default logger if not provided
+		logger:           pkgLogger.DefaultIfNil(nil), // Use default logger if not provided
 	}
 
 	// Apply options
@@ -31,12 +32,9 @@ func NewWalker(opts ...WalkerOption) *Walker {
 	return w
 }
 
-// getLogger returns the walker's logger or slog.Default if nil
+// getLogger returns the walker's logger or default if nil
 func (w *Walker) getLogger() *slog.Logger {
-	if w.logger == nil {
-		return slog.Default()
-	}
-	return w.logger
+	return pkgLogger.DefaultIfNil(w.logger)
 }
 
 // Walk traverses a directory tree, calling walkFn for each file

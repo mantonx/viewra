@@ -23,19 +23,19 @@ export const ProgressBar = ({
   }
 
   const backgrounds = {
-    default: 'bg-blue-100',
-    success: 'bg-green-100',
-    warning: 'bg-yellow-100',
-    error: 'bg-red-100',
+    default: 'bg-blue-100 dark:bg-blue-950',
+    success: 'bg-green-100 dark:bg-green-950',
+    warning: 'bg-yellow-100 dark:bg-yellow-950',
+    error: 'bg-red-100 dark:bg-red-950',
   }
 
   return (
     <div className="w-full">
       {(label || showPercentage) && (
         <div className="flex justify-between items-center mb-1.5">
-          {label && <span className="text-sm font-medium text-gray-700">{label}</span>}
+          {label && <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{label}</span>}
           {showPercentage && (
-            <span className="text-sm font-medium text-gray-600">{clampedProgress.toFixed(1)}%</span>
+            <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">{clampedProgress.toFixed(1)}%</span>
           )}
         </div>
       )}

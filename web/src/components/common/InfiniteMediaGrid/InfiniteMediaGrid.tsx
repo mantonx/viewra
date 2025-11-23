@@ -156,7 +156,7 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-gray-400">Loading {type}...</div>
+        <div className="text-neutral-400 dark:text-neutral-600">Loading {type}...</div>
       </div>
     )
   }
@@ -165,7 +165,7 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
   if (error) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-red-500">Error loading {type}: {(error as Error).message}</div>
+        <div className="text-red-500 dark:text-red-400">Error loading {type}: {(error as Error).message}</div>
       </div>
     )
   }
@@ -174,7 +174,7 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
   if (filteredItems.length === 0) {
     return emptyState || (
       <div className="flex items-center justify-center py-20">
-        <div className="text-gray-400">No {type} found</div>
+        <div className="text-neutral-400 dark:text-neutral-600">No {type} found</div>
       </div>
     )
   }
@@ -199,12 +199,12 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
       {/* Infinite scroll trigger */}
       <div ref={observerRef} className="h-20 flex items-center justify-center">
         {isFetchingNextPage && (
-          loadingIndicator || <div className="text-gray-400">Loading more {type}...</div>
+          loadingIndicator || <div className="text-neutral-400 dark:text-neutral-600">Loading more {type}...</div>
         )}
       </div>
 
       {/* Item count */}
-      <div className="mt-4 text-sm text-gray-500 text-center">
+      <div className="mt-4 text-sm text-neutral-500 dark:text-neutral-500 text-center">
         Showing {filteredItems.length} of {allItems.length} {type}
       </div>
     </BatchImagesProvider>

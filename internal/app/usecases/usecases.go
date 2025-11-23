@@ -194,7 +194,7 @@ func buildMediaUseCases(
 	return &MediaUseCases{
 		Get:    media.NewGetMediaUseCase(repos.Media),
 		List:   media.NewListMediaUseCase(repos.Media),
-		Delete: media.NewDeleteMediaUseCase(repos.Media, repos.Image, imageCleanup),
+		Delete: media.NewDeleteMediaUseCase(repos.Media, repos.Image, imageCleanup, logger),
 	}
 }
 

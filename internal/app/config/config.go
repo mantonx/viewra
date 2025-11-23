@@ -12,6 +12,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/database"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
+	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // Config holds all application configuration
@@ -97,7 +98,7 @@ type ImagesConfig struct {
 // Load reads configuration from environment variables with sensible defaults
 func Load() (*Config, error) {
 	env := getEnv("ENVIRONMENT", "development")
-	logger := slog.Default()
+	logger := pkgLogger.DefaultIfNil(nil)
 
 	config := &Config{
 		Environment: env,

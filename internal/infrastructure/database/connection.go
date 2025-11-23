@@ -3,7 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -107,7 +107,7 @@ func Connect(config *Config) (*sql.DB, error) {
 
 		// SQLite connection string with recommended settings
 		dsn = fmt.Sprintf("%s?_journal_mode=WAL&_timeout=5000&_fk=true", config.DBName)
-		log.Printf("Connecting to SQLite database: %s", config.DBName)
+		slog.Info("connecting to SQLite database", "db_name", config.DBName)
 
 	case "postgres", "postgresql":
 		// PostgreSQL connection string
@@ -120,8 +120,11 @@ func Connect(config *Config) (*sql.DB, error) {
 			config.DBName,
 			config.SSLMode,
 		)
-		log.Printf("Connecting to PostgreSQL database: %s@%s:%s/%s",
-			config.User, config.Host, config.Port, config.DBName)
+		slog.Info("connecting to PostgreSQL database",
+			"user", config.User,
+			"host", config.Host,
+			"port", config.Port,
+			"db_name", config.DBName)
 
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", config.Driver)
@@ -151,7 +154,7 @@ func Connect(config *Config) (*sql.DB, error) {
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 
-	log.Printf("Successfully connected to %s database", config.Driver)
+	slog.Info("successfully connected to database", "driver", config.Driver)
 	return db, nil
 }
 

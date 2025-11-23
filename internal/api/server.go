@@ -156,7 +156,7 @@ func NewServer(
 		listMedia,
 	)
 	streamService := streaming.NewService()
-	streamHandler := handlers.NewStreamHandler(getMedia, streamService)
+	streamHandler := handlers.NewStreamHandler(getMedia, streamService, logger)
 
 	// Create media-type specific handlers
 	moviesHandler := handlers.NewMoviesHandler(

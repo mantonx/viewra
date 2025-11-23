@@ -6,12 +6,14 @@ import (
 
 	"github.com/mantonx/viewra/internal/domain/images"
 	infraImages "github.com/mantonx/viewra/internal/infrastructure/images"
+	"github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // ProcessAndSaveImages is a shared helper that processes extracted images and saves them to the database
 // This eliminates duplication across ExtractMovieImages, ExtractTVEpisodeImages, and ExtractMusicAlbumImages
 func ProcessAndSaveImages(
 	ctx context.Context,
+	log *slog.Logger,
 	repo images.Repository,
 	metadataExtractor *infraImages.MetadataExtractor,
 	cacheService *infraImages.CacheService,
@@ -21,6 +23,9 @@ func ProcessAndSaveImages(
 	entityID int,
 	mediaID *int,
 ) error {
+	// Use default logger if none provided
+	log = logger.DefaultIfNil(log)
+
 	if extractedImages == nil || len(extractedImages.Images) == 0 {
 		return nil
 	}
@@ -30,7 +35,7 @@ func ProcessAndSaveImages(
 		// Extract metadata (calculate hash to check for duplicates)
 		metadata, err := metadataExtractor.ExtractMetadata(imgInfo.Path)
 		if err != nil {
-			slog.Warn("Failed to extract metadata for image",
+			log.Warn("failed to extract metadata for image",
 				"path", imgInfo.Path,
 				"error", err)
 			continue
@@ -42,7 +47,7 @@ func ProcessAndSaveImages(
 		if metadata.FileHash != nil {
 			existingImages, err := repo.GetByHash(ctx, *metadata.FileHash)
 			if err != nil {
-				slog.Warn("Failed to check for existing image by hash",
+				log.Warn("failed to check for existing image by hash",
 					"hash", *metadata.FileHash,
 					"error", err)
 			} else if len(existingImages) > 0 {
@@ -63,7 +68,7 @@ func ProcessAndSaveImages(
 				// If we found a matching image, check if we can reuse it
 				if existingImage != nil {
 					// Image already exists with same hash - skip processing
-					slog.Debug("Reusing existing image with matching hash",
+					log.Debug("reusing existing image with matching hash",
 						"path", imgInfo.Path,
 						"hash", *metadata.FileHash,
 						"existing_id", existingImage.ID,
@@ -73,7 +78,7 @@ func ProcessAndSaveImages(
 
 				// If hash exists but for different media/entity, we can still reuse the cache
 				// by copying the cache path from the existing image
-				slog.Debug("Found existing image with same hash for different media",
+				log.Debug("found existing image with same hash for different media",
 					"hash", *metadata.FileHash,
 					"existing_count", len(existingImages))
 			}
@@ -97,7 +102,7 @@ func ProcessAndSaveImages(
 						if existing.MimeType != nil {
 							cachedMimeType = existing.MimeType
 						}
-						slog.Debug("Reusing cache from existing image with same hash",
+						log.Debug("reusing cache from existing image with same hash",
 							"hash", *metadata.FileHash,
 							"cache_path", *localCachePath)
 						break
@@ -111,7 +116,7 @@ func ProcessAndSaveImages(
 			// Generate all preset sizes for this image type
 			presetPaths, err := transformer.TransformAllPresets(imgInfo.Path, *metadata.FileHash, imgInfo.Type)
 			if err != nil {
-				slog.Warn("Failed to generate image presets",
+				log.Warn("failed to generate image presets",
 					"path", imgInfo.Path,
 					"image_type", imgInfo.Type,
 					"error", err)
@@ -131,7 +136,7 @@ func ProcessAndSaveImages(
 				}
 				webpMime := "image/webp"
 				cachedMimeType = &webpMime // All presets are WebP
-				slog.Debug("Image presets generated",
+				log.Debug("image presets generated",
 					"path", imgInfo.Path,
 					"image_type", imgInfo.Type,
 					"preset_count", len(presetPaths))
@@ -158,7 +163,7 @@ func ProcessAndSaveImages(
 
 		// Validate
 		if err := img.Validate(); err != nil {
-			slog.Warn("Invalid image entity",
+			log.Warn("invalid image entity",
 				"path", imgInfo.Path,
 				"error", err)
 			continue
@@ -166,13 +171,13 @@ func ProcessAndSaveImages(
 
 		// Save to database
 		if err := repo.Create(ctx, img); err != nil {
-			slog.Error("Failed to save image to database",
+			log.Error("failed to save image to database",
 				"path", imgInfo.Path,
 				"error", err)
 			continue
 		}
 
-		slog.Debug("Image cataloged",
+		log.Debug("image cataloged",
 			"path", imgInfo.Path,
 			"type", imgInfo.Type,
 			"media_type", mediaType)

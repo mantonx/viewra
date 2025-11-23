@@ -7,6 +7,7 @@ import (
 	"time"
 
 	domain "github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/pkg/logger"
 	"golang.org/x/sys/unix"
 )
 
@@ -66,17 +67,17 @@ func PerformPolicyCleanup(
 	svc *CleanupService,
 	config *CleanupSchedulerConfig,
 ) error {
-	logger := slog.Default().With("task", "transcode-policy-cleanup")
-	logger.Info("running policy-based cleanup")
+	taskLogger := logger.WithTask(slog.Default(), "transcode-policy-cleanup")
+	taskLogger.Info("running policy-based cleanup")
 
 	// 1. Clean failed jobs older than configured hours
 	if config.KeepFailedHours > 0 {
 		olderThan := time.Duration(config.KeepFailedHours) * time.Hour
 		result, err := svc.CleanFailed(ctx, olderThan, false)
 		if err != nil {
-			logger.Error("failed to clean failed jobs", "error", err)
+			taskLogger.Error("failed to clean failed jobs", "error", err)
 		} else if result.DeletedCount > 0 {
-			logger.Info("cleaned failed transcode jobs",
+			taskLogger.Info("cleaned failed transcode jobs",
 				"count", result.DeletedCount,
 				"size_bytes", result.DeletedSizeBytes)
 		}
@@ -87,9 +88,9 @@ func PerformPolicyCleanup(
 		olderThan := time.Duration(config.MaxAgeHours) * time.Hour
 		result, err := svc.CleanOld(ctx, olderThan, false)
 		if err != nil {
-			logger.Error("failed to clean old transcodes", "error", err)
+			taskLogger.Error("failed to clean old transcodes", "error", err)
 		} else if result.DeletedCount > 0 {
-			logger.Info("cleaned old transcodes",
+			taskLogger.Info("cleaned old transcodes",
 				"count", result.DeletedCount,
 				"size_bytes", result.DeletedSizeBytes,
 				"max_age_hours", config.MaxAgeHours)
@@ -101,9 +102,9 @@ func PerformPolicyCleanup(
 		idleSince := time.Now().Add(-time.Duration(config.MaxIdleHours) * time.Hour)
 		result, err := cleanIdleTranscodes(ctx, svc, idleSince)
 		if err != nil {
-			logger.Error("failed to clean idle transcodes", "error", err)
+			taskLogger.Error("failed to clean idle transcodes", "error", err)
 		} else if result.DeletedCount > 0 {
-			logger.Info("cleaned idle transcodes",
+			taskLogger.Info("cleaned idle transcodes",
 				"count", result.DeletedCount,
 				"size_bytes", result.DeletedSizeBytes,
 				"max_idle_hours", config.MaxIdleHours)
@@ -113,14 +114,14 @@ func PerformPolicyCleanup(
 	// 4. Clean orphaned files
 	result, err := svc.CleanOrphans(ctx, false)
 	if err != nil {
-		logger.Error("failed to clean orphans", "error", err)
+		taskLogger.Error("failed to clean orphans", "error", err)
 	} else if result.DeletedCount > 0 {
-		logger.Info("cleaned orphaned files",
+		taskLogger.Info("cleaned orphaned files",
 			"count", result.DeletedCount,
 			"size_bytes", result.DeletedSizeBytes)
 	}
 
-	logger.Info("policy cleanup completed")
+	taskLogger.Info("policy cleanup completed")
 	return nil // Don't fail the task for individual cleanup errors
 }
 
@@ -137,7 +138,7 @@ func PerformDiskMonitoring(
 	config *CleanupSchedulerConfig,
 	outputDir string,
 ) error {
-	logger := slog.Default().With("task", "transcode-disk-monitor")
+	taskLogger := logger.WithTask(slog.Default(), "transcode-disk-monitor")
 
 	// Get disk usage
 	diskUsage, err := getDiskUsage(outputDir)
@@ -148,7 +149,7 @@ func PerformDiskMonitoring(
 	usagePercent := int(diskUsage.UsedPercent)
 	freeSpaceGB := diskUsage.FreeBytes / (1024 * 1024 * 1024)
 
-	logger.Info("disk usage check",
+	taskLogger.Info("disk usage check",
 		"used_percent", usagePercent,
 		"free_gb", freeSpaceGB,
 		"total_gb", diskUsage.TotalBytes/(1024*1024*1024),
@@ -156,7 +157,7 @@ func PerformDiskMonitoring(
 
 	// Log warning if approaching threshold
 	if usagePercent >= config.DiskWarningPercent {
-		logger.Warn("disk usage approaching threshold",
+		taskLogger.Warn("disk usage approaching threshold",
 			"used_percent", usagePercent,
 			"warning_threshold", config.DiskWarningPercent)
 	}
@@ -188,7 +189,7 @@ func PerformDiskMonitoring(
 
 	// Perform LRU cleanup if needed
 	if needsCleanup {
-		logger.Warn("disk threshold exceeded, performing LRU cleanup",
+		taskLogger.Warn("disk threshold exceeded, performing LRU cleanup",
 			"reason", reason)
 		return performLRUCleanup(ctx, svc, repo, config)
 	}
@@ -205,7 +206,7 @@ func performLRUCleanup(
 	},
 	config *CleanupSchedulerConfig,
 ) error {
-	logger := slog.Default().With("task", "lru-cleanup")
+	taskLogger := logger.WithTask(slog.Default(), "lru-cleanup")
 
 	// Calculate dynamic batch size based on how far over threshold we are
 	// This helps handle rapid disk growth scenarios
@@ -223,17 +224,17 @@ func performLRUCleanup(
 		// 98%+:   8x (critical - aggressive cleanup)
 		if usagePercent >= 98 {
 			batchSize = config.CleanupBatchSize * 8
-			logger.Warn("critical disk pressure, using 8x batch size",
+			taskLogger.Warn("critical disk pressure, using 8x batch size",
 				"usage_percent", usagePercent,
 				"batch_size", batchSize)
 		} else if usagePercent >= 95 {
 			batchSize = config.CleanupBatchSize * 4
-			logger.Warn("high disk pressure, using 4x batch size",
+			taskLogger.Warn("high disk pressure, using 4x batch size",
 				"usage_percent", usagePercent,
 				"batch_size", batchSize)
 		} else if usagePercent >= 90 {
 			batchSize = config.CleanupBatchSize * 2
-			logger.Warn("moderate disk pressure, using 2x batch size",
+			taskLogger.Warn("moderate disk pressure, using 2x batch size",
 				"usage_percent", usagePercent,
 				"batch_size", batchSize)
 		}
@@ -246,7 +247,7 @@ func performLRUCleanup(
 	}
 
 	if len(jobs) == 0 {
-		logger.Info("no LRU transcodes to clean")
+		taskLogger.Info("no LRU transcodes to clean")
 		return nil
 	}
 
@@ -269,7 +270,7 @@ func performLRUCleanup(
 
 		result, err := svc.Clean(ctx, filter)
 		if err != nil {
-			logger.Error("failed to clean LRU transcode",
+			taskLogger.Error("failed to clean LRU transcode",
 				"job_id", job.ID,
 				"media_id", job.MediaID,
 				"quality", job.Quality,
@@ -280,7 +281,7 @@ func performLRUCleanup(
 		deletedCount += result.DeletedCount
 		deletedSize += result.DeletedSizeBytes
 
-		logger.Debug("deleted LRU transcode",
+		taskLogger.Debug("deleted LRU transcode",
 			"job_id", job.ID,
 			"media_id", job.MediaID,
 			"quality", job.Quality,
@@ -288,7 +289,7 @@ func performLRUCleanup(
 	}
 
 	if deletedCount > 0 {
-		logger.Info("LRU cleanup completed",
+		taskLogger.Info("LRU cleanup completed",
 			"deleted_count", deletedCount,
 			"deleted_bytes", deletedSize,
 			"batch_size", batchSize)

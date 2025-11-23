@@ -105,14 +105,14 @@ export const ScheduleEditor = ({
       onClick={onCancel}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden"
+        className="bg-white dark:bg-neutral-900 rounded-lg shadow-xl dark:shadow-neutral-950/70 max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <form onSubmit={handleSubmit}>
           {/* Header */}
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">Edit Schedule</h2>
-            <p className="text-sm text-gray-600 mt-1">
+          <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">Edit Schedule</h2>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
               Configure when "{taskName}" should run
             </p>
           </div>
@@ -123,7 +123,7 @@ export const ScheduleEditor = ({
               <>
                 {/* Frequency Selection */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
                     How often?
                   </label>
                   <div className="grid grid-cols-3 gap-3">
@@ -134,8 +134,8 @@ export const ScheduleEditor = ({
                         px-4 py-3 rounded-lg border-2 transition-colors text-center
                         ${
                           frequency === 'daily'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 font-medium'
+                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50'
                         }
                       `}
                     >
@@ -148,8 +148,8 @@ export const ScheduleEditor = ({
                         px-4 py-3 rounded-lg border-2 transition-colors text-center
                         ${
                           frequency === 'weekly'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 font-medium'
+                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50'
                         }
                       `}
                     >
@@ -162,8 +162,8 @@ export const ScheduleEditor = ({
                         px-4 py-3 rounded-lg border-2 transition-colors text-center
                         ${
                           frequency === 'monthly'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 font-medium'
+                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50'
                         }
                       `}
                     >
@@ -175,13 +175,13 @@ export const ScheduleEditor = ({
                 {/* Day Selection for Weekly */}
                 {frequency === 'weekly' && (
                   <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
                       Which day?
                     </label>
                     <select
                       value={dayOfWeek}
                       onChange={(e) => setDayOfWeek(parseInt(e.target.value))}
-                      className="w-full px-4 py-2 border rounded-lg"
+                      className="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
                     >
                       {weekDays.map((day) => (
                         <option key={day.value} value={day.value}>
@@ -195,13 +195,13 @@ export const ScheduleEditor = ({
                 {/* Day Selection for Monthly */}
                 {frequency === 'monthly' && (
                   <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
                       Which day of the month?
                     </label>
                     <select
                       value={dayOfMonth}
                       onChange={(e) => setDayOfMonth(parseInt(e.target.value))}
-                      className="w-full px-4 py-2 border rounded-lg"
+                      className="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
                     >
                       {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
                         <option key={day} value={day}>
@@ -221,7 +221,7 @@ export const ScheduleEditor = ({
 
                 {/* Time Selection */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
                     At what time?
                   </label>
                   <DatePicker
@@ -232,9 +232,9 @@ export const ScheduleEditor = ({
                     timeIntervals={15}
                     timeCaption="Time"
                     dateFormat="h:mm aa"
-                    className="w-full px-4 py-2 border rounded-lg"
+                    className="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
                     Select the time of day the task should run
                   </p>
                 </div>
@@ -243,7 +243,7 @@ export const ScheduleEditor = ({
               <>
                 {/* Advanced Cron Editor */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
                     Cron Expression
                   </label>
                   <input
@@ -254,15 +254,15 @@ export const ScheduleEditor = ({
                       setCronError('')
                     }}
                     placeholder="0 3 * * *"
-                    className={`w-full px-4 py-2 border rounded-lg font-mono text-sm ${
-                      cronError ? 'border-red-500' : ''
+                    className={`w-full px-4 py-2 border rounded-lg font-mono text-sm bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 placeholder:text-neutral-500 dark:placeholder:text-neutral-500 ${
+                      cronError ? 'border-red-500 dark:border-red-500' : 'border-neutral-300 dark:border-neutral-700'
                     }`}
                     required
                   />
                   {cronError && (
-                    <p className="text-xs text-red-600 mt-1">{cronError}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{cronError}</p>
                   )}
-                  <div className="mt-2 text-xs text-gray-500">
+                  <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-500">
                     <p className="font-medium mb-1">Cron format:</p>
                     <p className="font-mono">minute hour day month weekday</p>
                     <p className="mt-1">
@@ -274,7 +274,7 @@ export const ScheduleEditor = ({
                         href="https://crontab.guru"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         Learn more at crontab.guru →
                       </a>
@@ -285,7 +285,7 @@ export const ScheduleEditor = ({
             )}
 
             {/* Advanced Mode Toggle */}
-            <div className="pt-4 border-t">
+            <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -296,20 +296,20 @@ export const ScheduleEditor = ({
                   }}
                   className="rounded"
                 />
-                <span className="text-sm font-medium">
+                <span className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
                   Advanced: Use custom cron expression
                 </span>
               </label>
             </div>
 
             {/* Schedule Preview */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-2">
                 Schedule Preview:
               </h4>
-              <p className="text-blue-800 font-medium">{getCurrentSchedulePreview()}</p>
+              <p className="text-blue-800 dark:text-blue-400 font-medium">{getCurrentSchedulePreview()}</p>
               {!advancedMode && (
-                <p className="text-xs text-blue-600 mt-1 font-mono">
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono">
                   {humanToCron({
                     frequency,
                     time,
@@ -322,7 +322,7 @@ export const ScheduleEditor = ({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
+          <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex justify-end gap-2">
             <Button
               type="button"
               variant="secondary"

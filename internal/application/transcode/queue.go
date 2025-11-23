@@ -9,6 +9,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/domain/transcode"
 	transcoding "github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // QueueConfig configures the transcode job queue.
@@ -71,9 +72,7 @@ func NewQueue(config *QueueConfig, repo transcode.Repository, service transcodin
 		config = DefaultQueueConfig()
 	}
 
-	if logger == nil {
-		logger = slog.Default()
-	}
+	logger = pkgLogger.DefaultIfNil(logger)
 
 	if config.MediaFileGetter == nil {
 		// Default implementation that requires manual setting

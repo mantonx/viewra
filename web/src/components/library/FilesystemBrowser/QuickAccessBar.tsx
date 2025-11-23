@@ -13,7 +13,7 @@ const QuickAccessBar = ({ onNavigate, recentPaths, onClearRecent, isLoading }: Q
     <div className="mb-3 flex flex-col gap-2" role="region" aria-label="Quick access and recent paths">
       {/* Quick Access */}
       <div className="flex gap-2 flex-wrap items-center">
-        <span className="text-xs font-medium text-gray-500" id="quick-access-label">
+        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-500" id="quick-access-label">
           Quick Access:
         </span>
         {QUICK_ACCESS_PATHS.map(({ path, label, ariaLabel }) => (
@@ -33,7 +33,7 @@ const QuickAccessBar = ({ onNavigate, recentPaths, onClearRecent, isLoading }: Q
       {/* Recent Paths */}
       {recentPaths.length > 0 && (
         <div className="flex gap-2 flex-wrap items-center">
-          <span className="text-xs font-medium text-gray-500">Recent:</span>
+          <span className="text-xs font-medium text-neutral-500 dark:text-neutral-500">Recent:</span>
           {recentPaths.map((path) => {
             // Show last 2-3 segments for better readability
             const segments = path.split('/').filter(Boolean)
@@ -57,7 +57,7 @@ const QuickAccessBar = ({ onNavigate, recentPaths, onClearRecent, isLoading }: Q
           })}
           <button
             onClick={onClearRecent}
-            className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-1 px-2 py-1 rounded transition-colors"
+            className="text-xs text-neutral-500 dark:text-neutral-500 hover:text-red-600 dark:hover:text-red-400 hover:underline ml-1 px-2 py-1 rounded transition-colors"
             title="Clear all recent paths"
             aria-label="Clear all recent paths"
           >

@@ -37,7 +37,7 @@ func (uc *ExtractMovieImagesUseCase) Execute(ctx context.Context, movieFilePath 
 	}
 
 	// Process and save all extracted images
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, mediaID)
+	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, mediaID)
 }
 
 // ExtractTVEpisodeImagesUseCase handles extracting and cataloging TV episode images
@@ -69,7 +69,7 @@ func (uc *ExtractTVEpisodeImagesUseCase) Execute(ctx context.Context, episodeFil
 	}
 
 	// Process and save all extracted images
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, mediaID)
+	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, mediaID)
 }
 
 // ExtractMusicAlbumImagesUseCase handles extracting and cataloging music album images
@@ -101,7 +101,7 @@ func (uc *ExtractMusicAlbumImagesUseCase) Execute(ctx context.Context, albumDir 
 	}
 
 	// Process and save all extracted images (albums don't have media_id, so pass nil)
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
 }
 
 // ExtractTVShowImagesUseCase handles extracting and cataloging TV show images
@@ -133,7 +133,7 @@ func (uc *ExtractTVShowImagesUseCase) Execute(ctx context.Context, showDir strin
 	}
 
 	// Process and save all extracted images (shows don't have media_id, so pass nil)
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
 }
 
 // ExtractTVSeasonImagesUseCase handles extracting and cataloging TV season images
@@ -165,7 +165,7 @@ func (uc *ExtractTVSeasonImagesUseCase) Execute(ctx context.Context, showDir str
 	}
 
 	// Process and save all extracted images (seasons don't have media_id, so pass nil)
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
 }
 
 // ExtractMusicArtistImagesUseCase handles extracting and cataloging music artist images
@@ -197,5 +197,5 @@ func (uc *ExtractMusicArtistImagesUseCase) Execute(ctx context.Context, artistDi
 	}
 
 	// Process and save all extracted images (artists don't have media_id, so pass nil)
-	return ProcessAndSaveImages(ctx, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
 }

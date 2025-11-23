@@ -125,7 +125,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
 
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 bg-gradient-to-r from-gray-900 to-gray-800 text-white shadow-lg z-50 ${className}`}
+      className={`fixed bottom-0 left-0 right-0 bg-gradient-to-r from-neutral-900 to-neutral-800 dark:from-neutral-900 dark:to-neutral-800 text-white shadow-lg z-50 ${className}`}
     >
       <div className="max-w-screen-2xl mx-auto px-6 py-3">
         {/* Progress bar */}
@@ -140,12 +140,12 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             onMouseUp={handleSeekEnd}
             onTouchStart={handleSeekStart}
             onTouchEnd={handleSeekEnd}
-            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+            className="w-full h-1 bg-neutral-700 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer slider"
             style={{
               background: `linear-gradient(to right, rgb(244, 63, 94) 0%, rgb(244, 63, 94) ${progress}%, rgb(55, 65, 81) ${progress}%, rgb(55, 65, 81) 100%)`,
             }}
           />
-          <div className="flex justify-between text-xs text-gray-400 mt-1">
+          <div className="flex justify-between text-xs text-neutral-400 dark:text-neutral-400 mt-1">
             <span>{formatTime(displayTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
@@ -155,7 +155,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
           {/* Track info */}
           <div className="flex-1 min-w-0">
             <h4 className="font-semibold text-sm truncate">{currentTrack.title}</h4>
-            <p className="text-xs text-gray-400 truncate">
+            <p className="text-xs text-neutral-400 dark:text-neutral-400 truncate">
               {currentTrack.artist || 'Unknown Artist'}
               {currentTrack.album && ` • ${currentTrack.album}`}
             </p>
@@ -166,8 +166,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Shuffle */}
             <button
               onClick={toggleShuffle}
-              className={`p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors ${
-                isShuffle ? 'text-rose-500' : 'text-gray-400'
+              className={`p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-neutral-700 dark:hover:bg-neutral-700 transition-colors ${
+                isShuffle ? 'text-rose-500' : 'text-neutral-400 dark:text-neutral-400'
               }`}
               title="Shuffle"
               aria-label="Toggle shuffle"
@@ -178,7 +178,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Previous */}
             <button
               onClick={playPrevious}
-              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors"
+              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-neutral-700 dark:hover:bg-neutral-700 transition-colors"
               title="Previous track"
               aria-label="Previous track"
             >
@@ -198,7 +198,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Next */}
             <button
               onClick={playNext}
-              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors"
+              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-neutral-700 dark:hover:bg-neutral-700 transition-colors"
               title="Next track"
               aria-label="Next track"
             >
@@ -208,8 +208,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             {/* Repeat */}
             <button
               onClick={toggleRepeat}
-              className={`p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors ${
-                repeatMode !== 'off' ? 'text-rose-500' : 'text-gray-400'
+              className={`p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-neutral-700 dark:hover:bg-neutral-700 transition-colors ${
+                repeatMode !== 'off' ? 'text-rose-500' : 'text-neutral-400 dark:text-neutral-400'
               }`}
               title={`Repeat: ${repeatMode}`}
               aria-label="Toggle repeat"
@@ -222,7 +222,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
           <div className="flex items-center gap-2 relative" ref={volumeRef}>
             <button
               onClick={() => setShowVolumeSlider(!showVolumeSlider)}
-              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-gray-700 transition-colors text-gray-400"
+              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-neutral-700 dark:hover:bg-neutral-700 transition-colors text-neutral-400 dark:text-neutral-400"
               title="Volume"
               aria-label="Toggle volume control"
             >
@@ -230,7 +230,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             </button>
 
             {showVolumeSlider && (
-              <div className="absolute bottom-full right-0 mb-2 bg-gray-900 rounded-lg shadow-xl p-4">
+              <div className="absolute bottom-full right-0 mb-2 bg-neutral-900 dark:bg-neutral-900 rounded-lg shadow-xl p-4">
                 <input
                   type="range"
                   min="0"
@@ -238,7 +238,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
                   step="0.01"
                   value={volume}
                   onChange={handleVolumeChange}
-                  className="w-24 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                  className="w-24 h-1 bg-neutral-700 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer slider"
                   style={{
                     background: `linear-gradient(to right, rgb(244, 63, 94) 0%, rgb(244, 63, 94) ${
                       volume * 100
@@ -246,7 +246,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
                   }}
                   aria-label="Volume slider"
                 />
-                <div className="text-xs text-center text-gray-400 mt-1">
+                <div className="text-xs text-center text-neutral-400 dark:text-neutral-400 mt-1">
                   {Math.round(volume * 100)}%
                 </div>
               </div>

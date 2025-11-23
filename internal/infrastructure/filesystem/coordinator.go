@@ -14,6 +14,7 @@ import (
 	"github.com/mantonx/viewra/internal/domain/scanner/parsers"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg"
 	"github.com/mantonx/viewra/internal/infrastructure/metadata/music"
+	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // CoordinatorConfig holds configuration for the scanner coordinator
@@ -64,10 +65,7 @@ type Coordinator struct {
 // NewCoordinator creates a new scanner coordinator
 func NewCoordinator(config CoordinatorConfig) *Coordinator {
 	// Use provided logger or default
-	logger := config.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
+	logger := pkgLogger.DefaultIfNil(config.Logger)
 
 	ffmpegClient, err := ffmpeg.NewClient()
 	if err != nil {
@@ -289,6 +287,7 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 		if tvInfo, err := c.parser.ParseTVEpisode(fileInfo.Path); err == nil && tvInfo != nil {
 			result.MediaType = scanner.MediaTypeEpisode
 			result.Title = tvInfo.EpisodeTitle
+			result.ShowName = tvInfo.ShowName // Add show name to avoid duplicate parsing later
 			result.Year = &tvInfo.Year
 			result.SeasonNumber = &tvInfo.Season
 			result.EpisodeNumber = &tvInfo.Episode

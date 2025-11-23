@@ -12,8 +12,8 @@ export const Loading = forwardRef<HTMLDivElement, LoadingProps>(
   ({ className, size = 'md', text, ...props }, ref) => {
     return (
       <div ref={ref} className={cn('flex flex-col items-center gap-2', className)} {...props}>
-        <Spinner size={size} className="text-blue-600" />
-        {text && <p className="text-sm text-gray-600">{text}</p>}
+        <Spinner size={size} className="text-blue-600 dark:text-blue-400" />
+        {text && <p className="text-sm text-neutral-600 dark:text-neutral-400">{text}</p>}
       </div>
     )
   }

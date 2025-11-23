@@ -334,28 +334,28 @@ export const VideoControls = ({
               className="bg-white/10 backdrop-blur-sm text-white text-sm rounded-md px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               style={{ minWidth: '80px' }}
             >
-              <option value={0.25} className="bg-gray-900">
+              <option value={0.25} className="bg-neutral-900 dark:bg-neutral-900">
                 0.25x
               </option>
-              <option value={0.5} className="bg-gray-900">
+              <option value={0.5} className="bg-neutral-900 dark:bg-neutral-900">
                 0.5x
               </option>
-              <option value={0.75} className="bg-gray-900">
+              <option value={0.75} className="bg-neutral-900 dark:bg-neutral-900">
                 0.75x
               </option>
-              <option value={1} className="bg-gray-900">
+              <option value={1} className="bg-neutral-900 dark:bg-neutral-900">
                 Normal
               </option>
-              <option value={1.25} className="bg-gray-900">
+              <option value={1.25} className="bg-neutral-900 dark:bg-neutral-900">
                 1.25x
               </option>
-              <option value={1.5} className="bg-gray-900">
+              <option value={1.5} className="bg-neutral-900 dark:bg-neutral-900">
                 1.5x
               </option>
-              <option value={1.75} className="bg-gray-900">
+              <option value={1.75} className="bg-neutral-900 dark:bg-neutral-900">
                 1.75x
               </option>
-              <option value={2} className="bg-gray-900">
+              <option value={2} className="bg-neutral-900 dark:bg-neutral-900">
                 2x
               </option>
             </select>
@@ -368,11 +368,11 @@ export const VideoControls = ({
                 className="bg-white/10 backdrop-blur-sm text-white text-sm rounded-md px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 style={{ minWidth: '90px' }}
               >
-                <option value={0} className="bg-gray-900">
+                <option value={0} className="bg-neutral-900 dark:bg-neutral-900">
                   Auto
                 </option>
                 {availableQualities.map((quality) => (
-                  <option key={quality.height} value={quality.height} className="bg-gray-900">
+                  <option key={quality.height} value={quality.height} className="bg-neutral-900 dark:bg-neutral-900">
                     {quality.height}p
                   </option>
                 ))}
@@ -389,7 +389,7 @@ export const VideoControls = ({
                 aria-label="Audio track"
               >
                 {availableAudioTracks.map((track) => (
-                  <option key={track.id} value={track.id} className="bg-gray-900">
+                  <option key={track.id} value={track.id} className="bg-neutral-900 dark:bg-neutral-900">
                     {track.name} ({track.language})
                   </option>
                 ))}

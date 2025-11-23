@@ -13,6 +13,7 @@ import (
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
 
@@ -47,6 +48,7 @@ type ScanLibraryUseCase struct {
 	imageExtractor     ImageExtractor // Unified image extractor (replaces 6 separate executors)
 	imageCleanup       ImageCleanupExecutor
 	incrementalScanner *IncrementalScanner
+	coordinator        *filesystem.Coordinator // Reused for all files (was created per file - major bottleneck!)
 	config             ScanConfig
 	systemProfile      *system.Profile
 	logger             *slog.Logger
@@ -75,6 +77,11 @@ func NewScanLibraryUseCase(
 	// Create incremental scanner
 	incrementalScanner := NewIncrementalScanner(scanRepos.ScanState, logger)
 
+	// Create a single coordinator instance to reuse for all files (major performance optimization!)
+	coordinatorConfig := filesystem.DefaultCoordinatorConfig()
+	coordinatorConfig.Logger = logger
+	coordinator := filesystem.NewCoordinator(coordinatorConfig)
+
 	return &ScanLibraryUseCase{
 		mediaRepos:         mediaRepos,
 		scanRepos:          scanRepos,
@@ -82,6 +89,7 @@ func NewScanLibraryUseCase(
 		imageRepo:          imageRepo,
 		imageCleanup:       imageCleanup,
 		incrementalScanner: incrementalScanner,
+		coordinator:        coordinator,
 		config:             config,
 		systemProfile:      systemProfile,
 		logger:             logger,
@@ -154,7 +162,11 @@ func (uc *ScanLibraryUseCase) StartScan(ctx context.Context, libraryID int64) (S
 		// Recover from panics to prevent crashing the entire application
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Printf("PANIC: scan goroutine panicked: %v\nStack trace:\n%s\n", r, string(debug.Stack()))
+				uc.logger.Error("PANIC: scan goroutine panicked",
+					"job_id", job.ID,
+					"library_id", lib.ID,
+					"panic", r,
+					"stack_trace", string(debug.Stack()))
 
 				// Mark job as failed
 				failedJob := &scanner.ScanJob{
@@ -164,7 +176,9 @@ func (uc *ScanLibraryUseCase) StartScan(ctx context.Context, libraryID int64) (S
 					CompletedAt:  &[]time.Time{time.Now()}[0],
 				}
 				if err := uc.scanRepos.ScanJob.Complete(context.Background(), failedJob); err != nil {
-					fmt.Printf("error: failed to mark panicked scan job as failed: %v\n", err)
+					uc.logger.Error("failed to mark panicked scan job as failed",
+						"job_id", job.ID,
+						"error", err)
 				}
 			}
 		}()
@@ -254,7 +268,11 @@ func (uc *ScanLibraryUseCase) ResumeStuckScans(ctx context.Context) error {
 			// Recover from panics
 			defer func() {
 				if r := recover(); r != nil {
-					fmt.Printf("PANIC: resumed scan goroutine panicked: %v\nStack trace:\n%s\n", r, string(debug.Stack()))
+					uc.logger.Error("PANIC: resumed scan goroutine panicked",
+						"job_id", jobID,
+						"library_id", library.ID,
+						"panic", r,
+						"stack_trace", string(debug.Stack()))
 					failedJob := &scanner.ScanJob{
 						ID:           jobID,
 						Status:       scanner.ScanStatusFailed,
@@ -311,7 +329,11 @@ func (uc *ScanLibraryUseCase) ResumeScan(ctx context.Context, jobID int64) error
 		// Recover from panics
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Printf("PANIC: resumed scan goroutine panicked: %v\nStack trace:\n%s\n", r, string(debug.Stack()))
+				uc.logger.Error("PANIC: resumed scan goroutine panicked",
+					"job_id", jobID,
+					"library_id", library.ID,
+					"panic", r,
+					"stack_trace", string(debug.Stack()))
 				failedJob := &scanner.ScanJob{
 					ID:           jobID,
 					Status:       scanner.ScanStatusFailed,

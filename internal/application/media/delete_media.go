@@ -3,10 +3,12 @@ package media
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/mantonx/viewra/internal/application/library"
 	"github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // DeleteMediaUseCase handles deletion of media items with proper cleanup
@@ -14,6 +16,7 @@ type DeleteMediaUseCase struct {
 	mediaRepo    media.Repository
 	imageRepo    images.Repository
 	imageCleanup library.ImageCleanupExecutor
+	logger       *slog.Logger
 }
 
 // NewDeleteMediaUseCase creates a new delete media use case
@@ -21,11 +24,13 @@ func NewDeleteMediaUseCase(
 	mediaRepo media.Repository,
 	imageRepo images.Repository,
 	imageCleanup library.ImageCleanupExecutor,
+	log *slog.Logger,
 ) *DeleteMediaUseCase {
 	return &DeleteMediaUseCase{
 		mediaRepo:    mediaRepo,
 		imageRepo:    imageRepo,
 		imageCleanup: imageCleanup,
+		logger:       logger.DefaultIfNil(log),
 	}
 }
 
@@ -55,7 +60,10 @@ func (uc *DeleteMediaUseCase) Execute(ctx context.Context, mediaID int64) error 
 		if err := uc.imageCleanup.CleanCacheForHashes(ctx, hashes); err != nil {
 			// Log but don't fail - the scheduled cleanup will handle this later
 			// We don't want to rollback the media deletion due to cleanup failures
-			fmt.Printf("warning: failed to clean image cache for media %d: %v\n", mediaID, err)
+			uc.logger.Warn("failed to clean image cache for media",
+				"media_id", mediaID,
+				"hash_count", len(hashes),
+				"error", err)
 		}
 	}
 

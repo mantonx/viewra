@@ -4,6 +4,7 @@ import { routeTree } from './routeTree.gen'
 import { ToastProvider, useToastState } from '@/lib/hooks/useToast'
 import { ConfirmProvider, useConfirmState } from '@/lib/hooks/useConfirm'
 import { ToastContainer, ConfirmDialog } from '@/components/ui'
+import { ThemeProvider } from '@/contexts'
 
 // Create a new query client instance
 const queryClient = new QueryClient({
@@ -58,11 +59,13 @@ const AppProviders = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AppProviders>
-        <RouterProvider router={router} />
-      </AppProviders>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AppProviders>
+          <RouterProvider router={router} />
+        </AppProviders>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
 

@@ -2,7 +2,7 @@ package common
 
 import (
 	"database/sql"
-	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -229,9 +229,9 @@ func IsUniqueConstraintError(err error) bool {
 
 	// DEBUG: Log the check result
 	if isUnique {
-		fmt.Printf("[DEBUG] IsUniqueConstraintError: TRUE for error: %v\n", errStr)
+		slog.Debug("unique constraint error detected", "error", errStr)
 	} else if strings.Contains(errStr, "constraint") || strings.Contains(errStr, "UNIQUE") {
-		fmt.Printf("[DEBUG] IsUniqueConstraintError: FALSE for error: %v\n", errStr)
+		slog.Debug("constraint error but not unique", "error", errStr)
 	}
 
 	return isUnique

@@ -31,14 +31,14 @@ export const Progress = ({
 
   return (
     <div className="w-full">
-      <div className={cn('w-full bg-gray-200 rounded-full overflow-hidden', containerSizes[size], className)}>
+      <div className={cn('w-full bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden', containerSizes[size], className)}>
         <div
           className={cn('h-full transition-all duration-300 ease-in-out', variants[variant])}
           style={{ width: `${clampedValue}%` }}
         />
       </div>
       {showLabel && (
-        <div className="text-xs text-gray-600 mt-1 text-right">
+        <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 text-right">
           {Math.floor(clampedValue)}%
         </div>
       )}

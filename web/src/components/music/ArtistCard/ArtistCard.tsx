@@ -18,8 +18,8 @@ const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
       }
       infoContent={
         <>
-          <h3 className="font-semibold text-sm line-clamp-2 mb-2">{artist.name ?? 'Unknown Artist'}</h3>
-          <div className="flex items-center justify-between text-xs text-gray-600">
+          <h3 className="font-semibold text-sm line-clamp-2 mb-2 text-neutral-900 dark:text-neutral-50">{artist.name ?? 'Unknown Artist'}</h3>
+          <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
             <span>
               {artist.album_count ?? 0} {artist.album_count === 1 ? 'Album' : 'Albums'}
             </span>

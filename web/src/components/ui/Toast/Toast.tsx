@@ -17,10 +17,10 @@ const ToastItem = ({ toast, onDismiss }: ToastProps) => {
   }, [toast.id, toast.duration, onDismiss])
 
   const variantStyles: Record<ToastVariant, string> = {
-    success: 'bg-green-50 border-green-500 text-green-900',
-    error: 'bg-red-50 border-red-500 text-red-900',
-    warning: 'bg-yellow-50 border-yellow-500 text-yellow-900',
-    info: 'bg-blue-50 border-blue-500 text-blue-900',
+    success: 'bg-green-50 dark:bg-green-950 border-green-500 dark:border-green-600 text-green-900 dark:text-green-100',
+    error: 'bg-red-50 dark:bg-red-950 border-red-500 dark:border-red-600 text-red-900 dark:text-red-100',
+    warning: 'bg-yellow-50 dark:bg-yellow-950 border-yellow-500 dark:border-yellow-600 text-yellow-900 dark:text-yellow-100',
+    info: 'bg-blue-50 dark:bg-blue-950 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-100',
   }
 
   const iconMap: Record<ToastVariant, string> = {
@@ -35,7 +35,7 @@ const ToastItem = ({ toast, onDismiss }: ToastProps) => {
       role="alert"
       aria-live="polite"
       className={cn(
-        'flex items-start gap-3 p-4 rounded-lg border-l-4 shadow-lg max-w-md w-full',
+        'flex items-start gap-3 p-4 rounded-lg border-l-4 shadow-lg dark:shadow-neutral-950/50 max-w-md w-full',
         'transition-all duration-300 ease-in-out',
         isExiting ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0',
         variantStyles[toast.variant]

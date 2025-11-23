@@ -23,7 +23,7 @@ export const MovieListItem = ({ movie, onClick }: MovieListItemProps) => {
 
   return (
     <div
-      className="group flex gap-4 p-4 bg-white rounded-lg border-2 border-transparent shadow hover:shadow-lg hover:border-rose-500 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2"
+      className="group flex gap-4 p-4 bg-white dark:bg-neutral-900 rounded-lg border-2 border-transparent shadow dark:shadow-neutral-950/50 hover:shadow-lg hover:border-rose-500 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2"
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -62,23 +62,23 @@ export const MovieListItem = ({ movie, onClick }: MovieListItemProps) => {
       {/* Movie Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="text-lg font-semibold text-gray-900 truncate">
+          <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50 truncate">
             {movie.title}
           </h3>
           {movie.year && (
-            <span className="flex-shrink-0 text-sm text-gray-600 font-medium">
+            <span className="flex-shrink-0 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               {movie.year}
             </span>
           )}
         </div>
 
         {/* Metadata */}
-        <div className="flex flex-wrap gap-3 mb-2 text-sm text-gray-600">
+        <div className="flex flex-wrap gap-3 mb-2 text-sm text-neutral-600 dark:text-neutral-400">
           {movie.runtime_minutes && (
             <span>{Math.floor(movie.runtime_minutes)} min</span>
           )}
           {movie.content_rating && (
-            <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">
+            <span className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-medium">
               {movie.content_rating}
             </span>
           )}
@@ -100,14 +100,14 @@ export const MovieListItem = ({ movie, onClick }: MovieListItemProps) => {
 
         {/* Plot Summary */}
         {movie.plot && (
-          <p className="text-sm text-gray-700 line-clamp-2 leading-relaxed">
+          <p className="text-sm text-neutral-700 dark:text-neutral-300 line-clamp-2 leading-relaxed">
             {movie.plot}
           </p>
         )}
 
         {/* Director/Cast */}
         {(movie.director || movie.cast) && (
-          <div className="mt-2 text-xs text-gray-500">
+          <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-500">
             {movie.director && <span>Directed by {movie.director}</span>}
             {movie.director && movie.cast && movie.cast.length > 0 && (
               <span> • </span>
