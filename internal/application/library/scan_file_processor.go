@@ -337,6 +337,12 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		// Get next batch of pending files
 		batch, err := uc.scanRepos.Checkpoint.GetPendingBatch(ctx, jobID, batchSize)
 		if err != nil {
+			// If the scan job was deleted (library deleted during scan), silently exit
+			if scanner.IsScanJobDeleted(err) {
+				uc.logger.Info("Scan job deleted, stopping scan workers",
+					"job_id", jobID)
+				break
+			}
 			uc.logger.Error("failed to get pending checkpoint batch",
 				"job_id", jobID,
 				"error", err)
@@ -537,6 +543,10 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 ) {
 	// Mark as processing
 	if err := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointProcessing, "", ""); err != nil {
+		// If the scan job was deleted (library deleted during scan), silently return
+		if scanner.IsScanJobDeleted(err) {
+			return
+		}
 		uc.logger.Error("failed to mark checkpoint as processing",
 			"checkpoint_id", checkpoint.ID,
 			"file_path", checkpoint.FilePath,
@@ -562,6 +572,10 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 			// Increment retry count
 			checkpoint.RetryCount++
 			if retryErr := uc.scanRepos.Checkpoint.UpdateRetryCount(ctx, checkpoint.ID, checkpoint.RetryCount); retryErr != nil {
+				// If the scan job was deleted (library deleted during scan), silently return
+				if scanner.IsScanJobDeleted(retryErr) {
+					return
+				}
 				uc.logger.Error("failed to update retry count",
 					"checkpoint_id", checkpoint.ID,
 					"file_path", checkpoint.FilePath,
@@ -583,6 +597,10 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 
 			// Reset to pending for retry
 			if statusErr := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointPending, "", ""); statusErr != nil {
+				// If the scan job was deleted (library deleted during scan), silently return
+				if scanner.IsScanJobDeleted(statusErr) {
+					return
+				}
 				uc.logger.Error("failed to reset checkpoint to pending for retry",
 					"checkpoint_id", checkpoint.ID,
 					"file_path", checkpoint.FilePath,
@@ -591,6 +609,10 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 		} else {
 			// Either not transient or max retries exceeded - mark as failed
 			if statusErr := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointFailed, err.Error(), category); statusErr != nil {
+				// If the scan job was deleted (library deleted during scan), silently return
+				if scanner.IsScanJobDeleted(statusErr) {
+					return
+				}
 				uc.logger.Error("failed to mark checkpoint as failed",
 					"checkpoint_id", checkpoint.ID,
 					"file_path", checkpoint.FilePath,
@@ -613,6 +635,10 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 		// File processed successfully but with warnings (e.g., FFmpeg metadata extraction failed)
 		// Mark as warning status so users can see which files had issues
 		if statusErr := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointWarning, "metadata extraction incomplete", "ffmpeg"); statusErr != nil {
+			// If the scan job was deleted (library deleted during scan), silently return
+			if scanner.IsScanJobDeleted(statusErr) {
+				return
+			}
 			uc.logger.Error("failed to mark checkpoint as warning",
 				"checkpoint_id", checkpoint.ID,
 				"file_path", checkpoint.FilePath,
@@ -625,6 +651,10 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 	} else {
 		// Mark as completed (no errors, no warnings)
 		if statusErr := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointCompleted, "", ""); statusErr != nil {
+			// If the scan job was deleted (library deleted during scan), silently return
+			if scanner.IsScanJobDeleted(statusErr) {
+				return
+			}
 			uc.logger.Error("failed to mark checkpoint as completed",
 				"checkpoint_id", checkpoint.ID,
 				"file_path", checkpoint.FilePath,
