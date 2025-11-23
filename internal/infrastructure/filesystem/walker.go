@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
 )
@@ -86,6 +87,7 @@ func (w *Walker) walkSequential(ctx context.Context, root string, walkFn scanner
 
 // walkParallel performs parallel directory traversal optimized for network storage
 // It walks top-level directories concurrently to parallelize network I/O
+// Includes timeout and progress monitoring to handle slow/hanging network shares
 func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.WalkFunc) error {
 	// Read top-level directories
 	entries, err := os.ReadDir(root)
@@ -155,8 +157,43 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 			defer func() { <-semaphore }() // Release semaphore
 
 			dirPath := filepath.Join(root, dirEntry.Name())
+			dirName := dirEntry.Name()
+			startTime := time.Now()
+			var lastProgress atomic.Int64
+			lastProgress.Store(filesDiscovered.Load())
 
-			// Walk this directory tree
+			// Create progress monitor goroutine
+			monitorCtx, cancelMonitor := context.WithCancel(ctx)
+			defer cancelMonitor()
+
+			go func() {
+				ticker := time.NewTicker(30 * time.Second)
+				defer ticker.Stop()
+
+				for {
+					select {
+					case <-monitorCtx.Done():
+						return
+					case <-ticker.C:
+						current := filesDiscovered.Load()
+						last := lastProgress.Load()
+						elapsed := time.Since(startTime)
+
+						if current == last && elapsed > 60*time.Second {
+							// No progress in 30s and running for >60s = likely hung
+							fmt.Printf("warning: walker for directory '%s' appears stuck (no progress in 30s, elapsed=%s, files=%d)\n",
+								dirName, elapsed.Round(time.Second), current)
+						} else if current > last {
+							// Progress detected
+							fmt.Printf("info: directory '%s' progress: %d files discovered (elapsed=%s)\n",
+								dirName, current, elapsed.Round(time.Second))
+							lastProgress.Store(current)
+						}
+					}
+				}
+			}()
+
+			// Walk this directory tree with context (allows cancellation)
 			walkErr := w.walkDirFunc(dirPath, func(path string, d fs.DirEntry, err error) error {
 				// Check for context cancellation
 				select {
@@ -165,8 +202,9 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 				default:
 				}
 
-				// Handle walk errors
+				// Handle walk errors - log but continue
 				if err != nil {
+					fmt.Printf("warning: walk error at '%s': %v (continuing...)\n", path, err)
 					return nil // Continue walking
 				}
 
@@ -187,6 +225,12 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 				// Call the walk function (thread-safe)
 				return walkFn(fileInfo)
 			})
+
+			elapsed := time.Since(startTime)
+			if elapsed > 5*time.Second {
+				fmt.Printf("info: completed directory '%s' in %s (discovered %d files total)\n",
+					dirName, elapsed.Round(time.Second), filesDiscovered.Load())
+			}
 
 			// Capture first error
 			if walkErr != nil && walkErr != context.Canceled {

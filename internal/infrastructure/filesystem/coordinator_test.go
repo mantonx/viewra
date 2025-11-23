@@ -18,7 +18,6 @@ func TestDefaultCoordinatorConfig(t *testing.T) {
 	if config.ResultBufferSize != 100 {
 		t.Errorf("Expected ResultBufferSize=100, got %d", config.ResultBufferSize)
 	}
-	}
 }
 
 func TestNewCoordinator(t *testing.T) {
@@ -44,8 +43,8 @@ func TestNewCoordinator(t *testing.T) {
 	if coordinator.parser == nil {
 		t.Error("Expected parser to be initialized")
 	}
-	if coordinator.hasher == nil {
-		t.Error("Expected hasher to be initialized")
+	if coordinator.ffmpegClient == nil {
+		t.Error("Expected ffmpegClient to be initialized")
 	}
 }
 

@@ -14,18 +14,54 @@ install-tools: ## Install development tools (Air, sqlc, swag, migrate)
 	go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	@echo "Tools installed successfully!"
 
-dev: ## Run development servers (backend + frontend)
-	@echo "Starting development servers..."
-	@echo "Backend: http://localhost:8080"
-	@echo "Frontend: http://localhost:5173"
+dev: ## Run development servers (backend + frontend) with hot reload
+	@echo "🚀 Starting development servers with hot reload..."
 	@echo ""
-	@which overmind > /dev/null 2>&1 && overmind start || (echo "Overmind not found. Run separately: 'make dev-backend' and 'make dev-frontend'")
+	@echo "📡 Backend:  http://localhost:8080"
+	@echo "🎨 Frontend: http://localhost:5173"
+	@echo ""
+	@echo "💡 Tip: Edit any .go or .tsx file and see changes instantly!"
+	@echo "🛑 To stop: Ctrl+C or 'overmind quit'"
+	@echo ""
+	@which overmind > /dev/null 2>&1 && overmind start || (echo "❌ Overmind not found. Install: brew install overmind (Mac) or go install github.com/DarthSim/overmind/v2@latest")
 
-dev-backend: ## Run backend with hot reload
+dev-backend: ## Run backend with hot reload (standalone)
+	@echo "🔥 Starting backend with Air hot reload..."
+	@echo "📡 Backend: http://localhost:8080"
 	~/go/bin/air
 
-dev-frontend: ## Run frontend dev server
+dev-frontend: ## Run frontend dev server (standalone)
+	@echo "⚛️  Starting Vite dev server..."
+	@echo "🎨 Frontend: http://localhost:5173"
 	cd web && npm run dev
+
+restart: ## Restart development servers
+	@echo "🔄 Restarting all services..."
+	overmind restart
+
+restart-backend: ## Restart only backend
+	@echo "🔄 Restarting backend..."
+	overmind restart backend
+
+restart-frontend: ## Restart only frontend
+	@echo "🔄 Restarting frontend..."
+	overmind restart frontend
+
+stop: ## Stop all development servers
+	@echo "🛑 Stopping all services..."
+	overmind quit
+
+logs: ## Show logs from all services
+	@echo "📋 Showing logs (Ctrl+C to exit)..."
+	overmind echo
+
+logs-backend: ## Show backend logs only
+	@echo "📋 Showing backend logs..."
+	overmind connect backend
+
+logs-frontend: ## Show frontend logs only
+	@echo "📋 Showing frontend logs..."
+	overmind connect frontend
 
 build: ## Build production binaries with version info
 	@echo "Building backend..."

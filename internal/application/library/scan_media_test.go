@@ -174,8 +174,13 @@ func TestScanLibraryUseCase_processMovie(t *testing.T) {
 				movieRepo: movieRepo,
 			}
 
-			// Call processMovie
-			uc.processMovie(context.Background(), tt.libraryID, tt.result)
+			// Call processMovie with checkpoint
+			checkpoint := &scanner.ScanCheckpoint{
+				FilePath: tt.result.FilePath,
+				FileSize: 1024,
+				FileHash: "test-hash",
+			}
+			uc.processMovie(context.Background(), tt.libraryID, tt.result, checkpoint)
 
 			if tt.checkRepo != nil {
 				tt.checkRepo(t, mediaRepo, movieRepo)
@@ -314,7 +319,13 @@ func TestScanLibraryUseCase_processTVEpisode(t *testing.T) {
 				tvRepo:    tvRepo,
 			}
 
-			uc.processTVEpisode(context.Background(), tt.libraryID, tt.result)
+			// Call processTVEpisode with checkpoint
+			checkpoint := &scanner.ScanCheckpoint{
+				FilePath: tt.result.FilePath,
+				FileSize: 1024,
+				FileHash: "test-hash",
+			}
+			uc.processTVEpisode(context.Background(), tt.libraryID, tt.result, checkpoint)
 
 			if tt.checkRepo != nil {
 				tt.checkRepo(t, mediaRepo, tvRepo)
@@ -465,7 +476,7 @@ func TestScanLibraryUseCase_processMusicTrack(t *testing.T) {
 				musicRepo: musicRepo,
 			}
 
-			uc.processMusicTrack(context.Background(), tt.libraryID, tt.result)
+			uc.processMusicTrack(context.Background(), tt.libraryID, tt.result, nil)
 
 			if tt.checkRepo != nil {
 				tt.checkRepo(t, mediaRepo, musicRepo)

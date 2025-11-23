@@ -13,10 +13,14 @@ import (
 
 // MusicRepository is a mock implementation of media.MusicRepository for testing.
 type MusicRepository struct {
-	t      testing.TB
-	mu     sync.RWMutex
-	tracks map[int64]*media.MusicTrack
-	nextID int64
+	t         testing.TB
+	mu        sync.RWMutex
+	tracks    map[int64]*media.MusicTrack
+	albums    map[int64]*media.Album
+	artists   map[int64]*media.Artist
+	nextID    int64
+	nextAlbumID  int64
+	nextArtistID int64
 
 	// Error injection
 	CreateErr error
@@ -30,9 +34,13 @@ type MusicRepository struct {
 // NewMusicRepository creates a new mock music repository.
 func NewMusicRepository(t testing.TB) *MusicRepository {
 	return &MusicRepository{
-		t:      t,
-		tracks: make(map[int64]*media.MusicTrack),
-		nextID: 1,
+		t:            t,
+		tracks:       make(map[int64]*media.MusicTrack),
+		albums:       make(map[int64]*media.Album),
+		artists:      make(map[int64]*media.Artist),
+		nextID:       1,
+		nextAlbumID:  1,
+		nextArtistID: 1,
 	}
 }
 
@@ -418,4 +426,208 @@ func (r *MusicRepository) ListArtistIDsByLibraryPaginated(ctx context.Context, l
 	}
 
 	return allIDs[start:end], nil
+}
+
+// CreateAlbum creates a new album entity
+func (r *MusicRepository) CreateAlbum(ctx context.Context, album *media.Album) error {
+	if r.CreateErr != nil {
+		return r.CreateErr
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if album.ID == 0 {
+		album.ID = r.nextAlbumID
+		r.nextAlbumID++
+	}
+
+	r.albums[album.ID] = album
+	return nil
+}
+
+// GetAlbumByID retrieves an album by its ID
+func (r *MusicRepository) GetAlbumByID(ctx context.Context, id int64) (*media.Album, error) {
+	if r.GetErr != nil {
+		return nil, r.GetErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	album, exists := r.albums[id]
+	if !exists {
+		return nil, sql.ErrNoRows
+	}
+
+	return album, nil
+}
+
+// CreateArtist creates a new artist entity
+func (r *MusicRepository) CreateArtist(ctx context.Context, artist *media.Artist) error {
+	if r.CreateErr != nil {
+		return r.CreateErr
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if artist.ID == 0 {
+		artist.ID = r.nextArtistID
+		r.nextArtistID++
+	}
+
+	r.artists[artist.ID] = artist
+	return nil
+}
+
+// GetArtistByID retrieves an artist by its ID
+func (r *MusicRepository) GetArtistByID(ctx context.Context, id int64) (*media.Artist, error) {
+	if r.GetErr != nil {
+		return nil, r.GetErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	artist, exists := r.artists[id]
+	if !exists {
+		return nil, sql.ErrNoRows
+	}
+
+	return artist, nil
+}
+
+// CreateMusicTrackWithEntities atomically creates a music track along with artist and album entities if needed
+func (r *MusicRepository) CreateMusicTrackWithEntities(ctx context.Context, track *media.MusicTrack, artist *media.Artist, album *media.Album) error {
+	if r.CreateErr != nil {
+		return r.CreateErr
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Create artist if provided
+	if artist != nil && artist.ID == 0 {
+		artist.ID = r.nextArtistID
+		r.nextArtistID++
+		r.artists[artist.ID] = artist
+	}
+
+	// Create album if provided
+	if album != nil && album.ID == 0 {
+		album.ID = r.nextAlbumID
+		r.nextAlbumID++
+		r.albums[album.ID] = album
+	}
+
+	// Create track
+	if track.ID == 0 {
+		track.ID = r.nextID
+		r.nextID++
+	}
+
+	// Link artist and album IDs if provided
+	if artist != nil {
+		track.ArtistID = artist.ID
+	}
+	if album != nil {
+		track.AlbumID = album.ID
+	}
+
+	r.tracks[track.ID] = track
+	return nil
+}
+
+// FindAlbumByTitle finds an album by library, title, and album artist
+func (r *MusicRepository) FindAlbumByTitle(ctx context.Context, libraryID int64, title, albumArtist string) (*media.Album, error) {
+	if r.GetErr != nil {
+		return nil, r.GetErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, album := range r.albums {
+		if album.LibraryID == libraryID && album.Title == title && album.AlbumArtist == albumArtist {
+			return album, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+// ListAlbumsByLibrary retrieves all album entities in a library
+func (r *MusicRepository) ListAlbumsByLibrary(ctx context.Context, libraryID int64) ([]*media.Album, error) {
+	if r.ListErr != nil {
+		return nil, r.ListErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*media.Album
+	for _, album := range r.albums {
+		if album.LibraryID == libraryID {
+			result = append(result, album)
+		}
+	}
+
+	return result, nil
+}
+
+// FindArtistByName finds an artist by library and name
+func (r *MusicRepository) FindArtistByName(ctx context.Context, libraryID int64, name string) (*media.Artist, error) {
+	if r.GetErr != nil {
+		return nil, r.GetErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, artist := range r.artists {
+		if artist.LibraryID == libraryID && artist.Name == name {
+			return artist, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+// ListArtistsByLibrary retrieves all artist entities in a library
+func (r *MusicRepository) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]*media.Artist, error) {
+	if r.ListErr != nil {
+		return nil, r.ListErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*media.Artist
+	for _, artist := range r.artists {
+		if artist.LibraryID == libraryID {
+			result = append(result, artist)
+		}
+	}
+
+	return result, nil
+}
+
+// ListMusicTracksByAlbumID retrieves all tracks for a specific album ID
+func (r *MusicRepository) ListMusicTracksByAlbumID(ctx context.Context, albumID int64) ([]*media.MusicTrack, error) {
+	if r.ListErr != nil {
+		return nil, r.ListErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*media.MusicTrack
+	for _, track := range r.tracks {
+		if track.AlbumID == albumID {
+			result = append(result, track)
+		}
+	}
+
+	return result, nil
 }

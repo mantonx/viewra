@@ -351,8 +351,8 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 	walker := filesystem.NewWalker(walkerOpts...)
 
 	// Use buffered channel to collect files with less lock contention
-	// Buffer size = 10000 allows discovery to proceed without blocking
-	filesChan := make(chan scanner.FileInfo, 10000)
+	// Buffer size = 100000 allows discovery to proceed without blocking even for large libraries
+	filesChan := make(chan scanner.FileInfo, 100000)
 	var discoveryWg sync.WaitGroup
 	discoveryWg.Add(1)
 
