@@ -34,6 +34,7 @@ type ScanJob struct {
 	FilesProcessed  int64
 	BytesProcessed  int64
 	ErrorCount      int64
+	WarningCount    int64  // Number of files processed with warnings
 	StartedAt       time.Time
 	CompletedAt     *time.Time
 	ErrorMessage    string

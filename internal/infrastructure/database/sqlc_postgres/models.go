@@ -18,6 +18,27 @@ type Library struct {
 	UpdatedAt sql.NullTime `json:"updated_at"`
 }
 
+type MediaImage struct {
+	ID             int32          `json:"id"`
+	MediaID        sql.NullInt32  `json:"media_id"`
+	MediaType      string         `json:"media_type"`
+	EntityID       int32          `json:"entity_id"`
+	ImageType      string         `json:"image_type"`
+	SourceType     string         `json:"source_type"`
+	FilePath       sql.NullString `json:"file_path"`
+	ExternalUrl    sql.NullString `json:"external_url"`
+	LocalCachePath sql.NullString `json:"local_cache_path"`
+	Width          sql.NullInt32  `json:"width"`
+	Height         sql.NullInt32  `json:"height"`
+	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
+	MimeType       sql.NullString `json:"mime_type"`
+	FileHash       sql.NullString `json:"file_hash"`
+	Language       sql.NullString `json:"language"`
+	Priority       sql.NullInt32  `json:"priority"`
+	CreatedAt      sql.NullTime   `json:"created_at"`
+	UpdatedAt      sql.NullTime   `json:"updated_at"`
+}
+
 type Medium struct {
 	ID                int32           `json:"id"`
 	LibraryID         int32           `json:"library_id"`

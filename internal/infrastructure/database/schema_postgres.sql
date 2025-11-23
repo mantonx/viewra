@@ -96,3 +96,34 @@ CREATE TABLE IF NOT EXISTS transcode_jobs (
     FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE,
     UNIQUE(media_id, quality)
 );
+
+CREATE TABLE IF NOT EXISTS media_images (
+    id SERIAL PRIMARY KEY,
+    media_id INTEGER,
+    media_type TEXT NOT NULL CHECK(media_type IN (
+        'movie', 'tv_show', 'tv_season', 'tv_episode',
+        'music_artist', 'music_album', 'music_track'
+    )),
+    entity_id INTEGER NOT NULL,
+    image_type TEXT NOT NULL CHECK(image_type IN (
+        'poster', 'fanart', 'backdrop', 'banner', 'clearlogo', 'landscape',
+        'thumb', 'discart', 'cover', 'folder', 'logo',
+        'actor', 'extrafanart', 'characterart', 'clearart'
+    )),
+    source_type TEXT NOT NULL CHECK(source_type IN (
+        'local', 'tmdb', 'musicbrainz', 'tvdb', 'fanart.tv', 'manual'
+    )),
+    file_path TEXT,
+    external_url TEXT,
+    local_cache_path TEXT,
+    width INTEGER,
+    height INTEGER,
+    file_size_bytes BIGINT,
+    mime_type TEXT,
+    file_hash TEXT,
+    language TEXT,
+    priority INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
+);

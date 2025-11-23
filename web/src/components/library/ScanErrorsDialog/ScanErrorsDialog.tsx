@@ -54,11 +54,15 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
     return ERROR_CATEGORY_COLORS[category] || ERROR_CATEGORY_COLORS.unknown
   }
 
+  // Count warnings vs errors
+  const warningCount = errorData ? Object.values(errorData.by_category || {}).flat().filter((item: any) => item.status === 'warning').length : 0
+  const errorCount = (errorData?.total_errors || 0) - warningCount
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Scan Errors (${errorData?.total_errors || 0})`}
+      title={`Scan Issues (${errorData?.total_errors || 0})`}
       size="lg"
     >
       <div className="max-h-[600px] overflow-y-auto">
@@ -107,30 +111,43 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
                 {expandedCategory === category && (
                   <div className="bg-white">
                     <ul className="divide-y divide-gray-200">
-                      {typedItems.map((item, idx) => (
+                      {typedItems.map((item, idx) => {
+                        const isWarning = item.status === 'warning'
+                        return (
                         <li key={idx} className="p-4 hover:bg-gray-50">
                           <div className="space-y-2">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-mono text-gray-900 truncate" title={item.file_path ?? ''}>
-                                  {item.file_path}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <div className="flex items-center gap-2">
+                                  {isWarning ? (
+                                    <svg className="w-4 h-4 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  )}
+                                  <p className="text-sm font-mono text-gray-900 truncate" title={item.file_path ?? ''}>
+                                    {item.file_path}
+                                  </p>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 ml-6">
                                   Size: {formatFileSize(item.file_size ?? 0)}
                                   {item.processed_at && (
                                     <span className="ml-3">
-                                      Failed: {new Date(item.processed_at).toLocaleString()}
+                                      {isWarning ? 'Processed' : 'Failed'}: {new Date(item.processed_at).toLocaleString()}
                                     </span>
                                   )}
                                 </p>
                               </div>
                             </div>
-                            <div className="bg-red-50 border border-red-200 rounded p-2">
-                              <p className="text-sm text-red-800">{item.error_message}</p>
+                            <div className={`${isWarning ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'} border rounded p-2 ml-6`}>
+                              <p className={`text-sm ${isWarning ? 'text-yellow-800' : 'text-red-800'}`}>{item.error_message}</p>
                             </div>
                           </div>
                         </li>
-                      ))}
+                      )})}
                     </ul>
                   </div>
                 )}

@@ -46,6 +46,7 @@ type ScanStatusResponse struct {
 	FilesProcessed int64   `json:"files_processed"`           // Files processed so far
 	BytesProcessed int64   `json:"bytes_processed"`           // Bytes processed
 	ErrorCount     int64   `json:"error_count"`               // Number of errors encountered
+	WarningCount   int64   `json:"warning_count"`             // Number of warnings encountered
 	ErrorMessage   string  `json:"error_message,omitempty"`   // Error message if failed
 	StartedAt      string  `json:"started_at"`                // ISO 8601 timestamp
 	CompletedAt    *string `json:"completed_at,omitempty"`    // ISO 8601 timestamp
@@ -63,6 +64,7 @@ type ScanHistoryItem struct {
 	FilesProcessed int64   `json:"files_processed"`
 	BytesProcessed int64   `json:"bytes_processed"`
 	ErrorCount     int64   `json:"error_count"`
+	WarningCount   int64   `json:"warning_count"`
 	ErrorMessage   string  `json:"error_message,omitempty"`
 	StartedAt      string  `json:"started_at"`
 	CompletedAt    *string `json:"completed_at,omitempty"`
@@ -114,6 +116,7 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		FilesProcessed: job.FilesProcessed,
 		BytesProcessed: job.BytesProcessed,
 		ErrorCount:     job.ErrorCount,
+		WarningCount:   job.WarningCount,
 		ErrorMessage:   job.ErrorMessage,
 		StartedAt:      job.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Phase:          string(job.Phase),
@@ -178,6 +181,7 @@ func (h *ScanJobHandler) GetHistory(c *gin.Context) {
 			FilesProcessed: job.FilesProcessed,
 			BytesProcessed: job.BytesProcessed,
 			ErrorCount:     job.ErrorCount,
+			WarningCount:   job.WarningCount,
 			ErrorMessage:   job.ErrorMessage,
 			StartedAt:      job.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
@@ -256,13 +260,14 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 
 			// Send progress update
 			progressData := fmt.Sprintf(
-				`{"status":"%s","progress":%.2f,"files_found":%d,"files_processed":%d,"bytes_processed":%d,"error_count":%d}`,
+				`{"status":"%s","progress":%.2f,"files_found":%d,"files_processed":%d,"bytes_processed":%d,"error_count":%d,"warning_count":%d}`,
 				job.Status,
 				job.Progress,
 				job.FilesFound,
 				job.FilesProcessed,
 				job.BytesProcessed,
 				job.ErrorCount,
+				job.WarningCount,
 			)
 			fmt.Fprintf(c.Writer, "event: progress\ndata: %s\n\n", progressData)
 			c.Writer.(http.Flusher).Flush()
@@ -291,9 +296,10 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 	}
 }
 
-// ScanErrorDetail represents a single file processing error
+// ScanErrorDetail represents a single file processing error or warning
 type ScanErrorDetail struct {
 	FilePath      string  `json:"file_path"`
+	Status        string  `json:"status"`           // "failed" or "warning"
 	ErrorMessage  string  `json:"error_message"`
 	ErrorCategory string  `json:"error_category"`
 	FileSize      int64   `json:"file_size"`
@@ -365,6 +371,7 @@ func (h *ScanJobHandler) GetScanErrors(c *gin.Context) {
 			errorsByCategory[category],
 			ScanErrorDetail{
 				FilePath:      checkpoint.FilePath,
+				Status:        string(checkpoint.Status),
 				ErrorMessage:  checkpoint.ErrorMessage,
 				ErrorCategory: category,
 				FileSize:      checkpoint.FileSize,
