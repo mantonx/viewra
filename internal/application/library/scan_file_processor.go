@@ -195,7 +195,8 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 
 	// Check if there are any changes to process
 	if !diff.NeedsProcessing() {
-		fmt.Printf("info: no changes detected, scan complete (unchanged=%d)\n", len(diff.UnchangedFiles))
+		uc.logger.Info("no changes detected, scan complete",
+			"unchanged_files", len(diff.UnchangedFiles))
 		// Mark job as completed successfully with no files processed
 		job := &scanner.ScanJob{
 			ID:             jobID,
@@ -216,7 +217,8 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 
 	// Phase 3: Handle deleted files
 	if len(diff.DeletedFiles) > 0 {
-		fmt.Printf("info: removing %d deleted files from scan state\n", len(diff.DeletedFiles))
+		uc.logger.Info("removing deleted files from scan state",
+			"count", len(diff.DeletedFiles))
 		if err := uc.scanRepos.ScanState.DeleteByPaths(ctx, lib.ID, diff.DeletedFiles); err != nil {
 			uc.logger.Error("failed to delete scan state for removed files",
 				"library_id", lib.ID,
@@ -238,8 +240,11 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 		"hash_workers", 8)
 	startTime := time.Now()
 
-	fmt.Printf("info: processing %d files (new=%d, modified=%d, skipped=%d)\n",
-		len(filesToProcess), len(diff.NewFiles), len(diff.ModifiedFiles), len(diff.UnchangedFiles))
+	uc.logger.Info("processing files",
+		"total", len(filesToProcess),
+		"new", len(diff.NewFiles),
+		"modified", len(diff.ModifiedFiles),
+		"skipped", len(diff.UnchangedFiles))
 
 	// Start processing goroutine immediately - it will consume checkpoints as they're created
 	var processingWg sync.WaitGroup
@@ -334,6 +339,20 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 
 	// Main loop: fetch batches and feed to workers
 	for {
+		// Check if scan has been paused
+		currentJob, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
+		if err != nil {
+			uc.logger.Error("failed to get scan job status",
+				"job_id", jobID,
+				"error", err)
+			break
+		}
+		if currentJob.Status == scanner.ScanStatusPaused {
+			uc.logger.Info("Scan paused by user, stopping workers",
+				"job_id", jobID)
+			break
+		}
+
 		// Get next batch of pending files
 		batch, err := uc.scanRepos.Checkpoint.GetPendingBatch(ctx, jobID, batchSize)
 		if err != nil {
@@ -373,13 +392,20 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		select {
 		case <-updateTicker.C:
 			stats, _ := uc.scanRepos.Checkpoint.GetStats(ctx, jobID)
-			progress := &scanner.Progress{
-				FilesFound:     stats.TotalFiles,
-				FilesProcessed: stats.ProcessedFiles,
-				ErrorCount:     stats.FailedFiles,
-				WarningCount:   stats.WarningFiles,
+			// Get current job to preserve phase and discovery state
+			currentJob, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
+			if err == nil && currentJob != nil {
+				progress := &scanner.Progress{
+					FilesFound:     stats.TotalFiles,
+					FilesProcessed: stats.ProcessedFiles,
+					ErrorCount:     stats.FailedFiles,
+					WarningCount:   stats.WarningFiles,
+					Phase:          currentJob.Phase,
+					EstimatedTotal: currentJob.EstimatedTotal,
+					DiscoveryDone:  currentJob.DiscoveryDone,
+				}
+				_ = uc.scanRepos.ScanJob.UpdateProgress(ctx, jobID, progress)
 			}
-			_ = uc.scanRepos.ScanJob.UpdateProgress(ctx, jobID, progress)
 		default:
 		}
 	}
@@ -411,7 +437,16 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 			"library_id", lib.ID,
 			"total_files", stats.TotalFiles,
 			"completed_files", stats.CompletedFiles,
-			"failed_files", stats.FailedFiles)
+			"failed_files", stats.FailedFiles,
+			"warning_files", stats.WarningFiles)
+	} else if stats.WarningFiles > 0 {
+		job.Status = scanner.ScanStatusCompleted
+		uc.logger.Info("scan completed with warnings",
+			"job_id", jobID,
+			"library_id", lib.ID,
+			"total_files", stats.TotalFiles,
+			"completed_files", stats.CompletedFiles,
+			"warning_files", stats.WarningFiles)
 	} else {
 		job.Status = scanner.ScanStatusCompleted
 		uc.logger.Info("scan completed successfully",
@@ -502,15 +537,21 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 
 	// Process based on library type and capture the returned media ID
 	var mediaID *int64
+	var processErr error
 	switch lib.Type {
 	case library.LibraryTypeMovies:
-		mediaID = uc.processMovie(ctx, lib.ID, &result, checkpoint)
+		mediaID, processErr = uc.processMovie(ctx, lib.ID, &result, checkpoint)
 	case library.LibraryTypeTV:
-		mediaID = uc.processTVEpisode(ctx, lib.ID, &result, checkpoint)
+		mediaID, processErr = uc.processTVEpisode(ctx, lib.ID, &result, checkpoint)
 	case library.LibraryTypeMusic:
-		mediaID = uc.processMusicTrack(ctx, lib.ID, &result, checkpoint)
+		mediaID, processErr = uc.processMusicTrack(ctx, lib.ID, &result, checkpoint)
 	default:
 		return false, fmt.Errorf("unknown library type: %s", lib.Type)
+	}
+
+	// If media creation/update failed, return the error
+	if processErr != nil {
+		return false, processErr
 	}
 
 	// Update scan state after successful processing
@@ -527,6 +568,17 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 		ScanJobID:     checkpoint.ScanJobID,
 	}
 
+	// Check if file processing had warnings (e.g., FFmpeg metadata extraction failure)
+	hasWarning := result.Warning != nil
+	if hasWarning {
+		// Set persistent warning in scan_state
+		scanState.HasWarning = true
+		scanState.WarningMessage = result.Warning.Error()
+		scanState.WarningCategory = result.WarningCategory
+	}
+	// If no warning, clear any previous warning (file successfully re-scanned)
+	// HasWarning, WarningMessage, WarningCategory default to false/empty
+
 	if err := uc.scanRepos.ScanState.Upsert(ctx, scanState); err != nil {
 		// Log error but don't fail the scan - scan state is for optimization, not critical
 		uc.logger.Warn("failed to update scan state",
@@ -534,8 +586,6 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 			"error", err)
 	}
 
-	// Check if file processing had warnings (e.g., FFmpeg metadata extraction failure)
-	hasWarning := result.Warning != nil
 	return hasWarning, nil
 }
 
@@ -626,6 +676,14 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 					"file_path", checkpoint.FilePath,
 					"error", statusErr)
 			}
+
+			// Persist error to scan_state for library-level tracking
+			if setErr := uc.scanRepos.ScanState.SetError(ctx, lib.ID, checkpoint.FilePath, err.Error(), string(category)); setErr != nil {
+				uc.logger.Warn("failed to set error in scan_state",
+					"file_path", checkpoint.FilePath,
+					"error", setErr)
+			}
+
 			if checkpoint.RetryCount >= maxRetries {
 				uc.logger.Error("max retries exceeded",
 					"file_path", checkpoint.FilePath,

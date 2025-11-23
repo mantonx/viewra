@@ -207,16 +207,22 @@ type ScanJob struct {
 }
 
 type ScanState struct {
-	ID            int32          `json:"id"`
-	LibraryID     int32          `json:"library_id"`
-	FilePath      string         `json:"file_path"`
-	FileSize      int64          `json:"file_size"`
-	FileMtime     time.Time      `json:"file_mtime"`
-	FileHash      sql.NullString `json:"file_hash"`
-	MediaID       sql.NullInt32  `json:"media_id"`
-	LastScannedAt time.Time      `json:"last_scanned_at"`
-	ScanJobID     int32          `json:"scan_job_id"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
+	ID              int32          `json:"id"`
+	LibraryID       int32          `json:"library_id"`
+	FilePath        string         `json:"file_path"`
+	FileSize        int64          `json:"file_size"`
+	FileMtime       time.Time      `json:"file_mtime"`
+	FileHash        sql.NullString `json:"file_hash"`
+	MediaID         sql.NullInt32  `json:"media_id"`
+	LastScannedAt   time.Time      `json:"last_scanned_at"`
+	ScanJobID       int32          `json:"scan_job_id"`
+	CreatedAt       sql.NullTime   `json:"created_at"`
+	HasWarning      sql.NullBool   `json:"has_warning"`
+	WarningMessage  sql.NullString `json:"warning_message"`
+	WarningCategory sql.NullString `json:"warning_category"`
+	HasError        sql.NullBool   `json:"has_error"`
+	ErrorMessage    sql.NullString `json:"error_message"`
+	ErrorCategory   sql.NullString `json:"error_category"`
 }
 
 type TranscodeJob struct {

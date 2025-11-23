@@ -17,6 +17,8 @@ export interface InternalApiHandlersScanStatusResponse {
   error_count?: number
   /** Error message if failed */
   error_message?: string
+  /** Job ID where errors/warnings are from (if different from JobID) */
+  errors_job_id?: number
   /** Estimated total files from previous scan */
   estimated_total?: number
   /** Total files discovered */

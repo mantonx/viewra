@@ -50,3 +50,32 @@ body {
   background-color: rgb(10 10 10);
   color: rgb(250 250 250);
 }
+
+/* Modal animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-overlay {
+  animation: fadeIn 200ms ease-out;
+}
+
+.modal-content {
+  animation: modalSlideIn 300ms ease-out;
+}

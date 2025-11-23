@@ -34,23 +34,32 @@ const QuickAccessBar = ({ onNavigate, recentPaths, onClearRecent, isLoading }: Q
       {recentPaths.length > 0 && (
         <div className="flex gap-2 flex-wrap items-center">
           <span className="text-xs font-medium text-gray-500">Recent:</span>
-          {recentPaths.map((path) => (
-            <Button
-              key={path}
-              variant="secondary"
-              size="sm"
-              onClick={() => onNavigate(path)}
-              disabled={isLoading}
-              title={path}
-              className="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap"
-            >
-              {path}
-            </Button>
-          ))}
+          {recentPaths.map((path) => {
+            // Show last 2-3 segments for better readability
+            const segments = path.split('/').filter(Boolean)
+            const displayPath = segments.length > 3
+              ? `.../${segments.slice(-3).join('/')}`
+              : path
+
+            return (
+              <Button
+                key={path}
+                variant="secondary"
+                size="sm"
+                onClick={() => onNavigate(path)}
+                disabled={isLoading}
+                title={`Navigate to ${path}`}
+                className="max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap"
+              >
+                {displayPath}
+              </Button>
+            )
+          })}
           <button
             onClick={onClearRecent}
-            className="text-xs text-gray-500 hover:text-gray-700 underline ml-1"
-            title="Clear recent paths"
+            className="text-xs text-gray-500 hover:text-red-600 hover:underline ml-1 px-2 py-1 rounded transition-colors"
+            title="Clear all recent paths"
+            aria-label="Clear all recent paths"
           >
             Clear
           </button>

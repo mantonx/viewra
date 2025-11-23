@@ -18,6 +18,7 @@ type LibraryServiceInterface interface {
 // ScanLibraryExecutor defines the interface for library scanning operations
 type ScanLibraryExecutor interface {
 	StartScan(ctx context.Context, libraryID int64) (StartScanResponse, error)
+	ResumeScan(ctx context.Context, jobID int64) error
 	GetProgress(ctx context.Context, jobID int64) (ScanProgressResponse, error)
 	GetLatestScan(ctx context.Context, libraryID int64) (ScanProgressResponse, error)
 	GetScanHistory(ctx context.Context, libraryID int64, limit int32) (ScanHistoryResponse, error)

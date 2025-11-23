@@ -10,6 +10,8 @@ import (
 )
 
 type Querier interface {
+	ClearScanStateError(ctx context.Context, arg ClearScanStateErrorParams) error
+	ClearScanStateWarning(ctx context.Context, arg ClearScanStateWarningParams) error
 	CompleteScanJob(ctx context.Context, arg CompleteScanJobParams) error
 	// ============================================================================
 	// Pagination Support Queries
@@ -22,7 +24,10 @@ type Querier interface {
 	CountImagesByMediaID(ctx context.Context, mediaID sql.NullInt32) (int64, error)
 	CountLibraries(ctx context.Context) (int64, error)
 	CountLibrariesByType(ctx context.Context, type_ string) (int64, error)
+	CountLibraryErrors(ctx context.Context, libraryID int32) (int64, error)
+	CountLibraryIssues(ctx context.Context, libraryID int32) (CountLibraryIssuesRow, error)
 	CountLibraryScanState(ctx context.Context, libraryID int32) (int64, error)
+	CountLibraryWarnings(ctx context.Context, libraryID int32) (int64, error)
 	CountMediaByType(ctx context.Context, arg CountMediaByTypeParams) (int64, error)
 	CountMediaInLibrary(ctx context.Context, libraryID int32) (int64, error)
 	CountMoviesByLibrary(ctx context.Context, libraryID int32) (int64, error)
@@ -100,7 +105,10 @@ type Querier interface {
 	GetLatestScanJobByLibrary(ctx context.Context, libraryID int32) (ScanJob, error)
 	GetLibraryByID(ctx context.Context, id int32) (Library, error)
 	GetLibraryByPath(ctx context.Context, path string) (Library, error)
+	GetLibraryErrors(ctx context.Context, libraryID int32) ([]ScanState, error)
+	GetLibraryIssues(ctx context.Context, libraryID int32) ([]ScanState, error)
 	GetLibraryScanState(ctx context.Context, libraryID int32) ([]ScanState, error)
+	GetLibraryWarnings(ctx context.Context, libraryID int32) ([]ScanState, error)
 	GetMediaByFilePath(ctx context.Context, arg GetMediaByFilePathParams) (Medium, error)
 	GetMediaByID(ctx context.Context, id int32) (Medium, error)
 	GetMovieByMediaID(ctx context.Context, mediaID int32) (GetMovieByMediaIDRow, error)
@@ -198,6 +206,8 @@ type Querier interface {
 	SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpisodesByTitleParams) ([]SearchTVEpisodesByTitleRow, error)
 	SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByTitleParams) ([]TvShow, error)
 	SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchTVShowsByTitlePaginatedParams) ([]TvShow, error)
+	SetScanStateError(ctx context.Context, arg SetScanStateErrorParams) error
+	SetScanStateWarning(ctx context.Context, arg SetScanStateWarningParams) error
 	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error
 	UpdateArtist(ctx context.Context, arg UpdateArtistParams) error
 	UpdateImage(ctx context.Context, arg UpdateImageParams) error

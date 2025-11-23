@@ -226,6 +226,7 @@ func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.Ch
 		stats.PendingFiles = int64(pgStats.PendingFiles)
 		stats.CompletedFiles = int64(pgStats.CompletedFiles)
 		stats.FailedFiles = int64(pgStats.FailedFiles)
+		stats.WarningFiles = int64(pgStats.WarningFiles)
 		stats.ProcessedFiles = int64(pgStats.ProcessedFiles)
 
 		if errorResult != nil {
@@ -242,6 +243,7 @@ func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.Ch
 		stats.PendingFiles = int64(sqStats.PendingFiles.Float64)
 		stats.CompletedFiles = int64(sqStats.CompletedFiles.Float64)
 		stats.FailedFiles = int64(sqStats.FailedFiles.Float64)
+		stats.WarningFiles = int64(sqStats.WarningFiles.Float64)
 		stats.ProcessedFiles = int64(sqStats.ProcessedFiles.Float64)
 
 		if errorResult != nil {

@@ -66,6 +66,7 @@ SET
     files_processed = ?,
     bytes_processed = ?,
     error_count = ?,
+    warning_count = ?,
     completed_at = ?,
     error_message = ?,
     phase = ?,

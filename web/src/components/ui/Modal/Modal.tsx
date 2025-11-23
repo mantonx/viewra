@@ -47,13 +47,13 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
 
     return (
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+        className="modal-overlay fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
         onClick={onClose}
       >
         <div
           ref={ref}
           className={cn(
-            'bg-white rounded-lg shadow-xl w-full max-h-[90vh] overflow-auto',
+            'modal-content bg-white rounded-xl shadow-2xl w-full max-h-[90vh] flex flex-col overflow-hidden',
             sizes[size],
             className
           )}
@@ -61,11 +61,12 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
           {...props}
         >
           {title && (
-            <div className="flex justify-between items-start p-6 border-b border-gray-200">
+            <div className="flex justify-between items-start p-6 border-b border-gray-200 shrink-0">
               <h2 className="text-2xl font-bold">{title}</h2>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                className="cursor-pointer text-gray-400 hover:text-gray-600 text-2xl leading-none focus:outline-none focus:ring-2 focus:ring-gray-400 rounded"
+                aria-label="Close modal"
               >
                 ×
               </button>
@@ -82,7 +83,7 @@ Modal.displayName = 'Modal'
 
 export const ModalContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn('p-6', className)} {...props} />
+    return <div ref={ref} className={cn('p-6 overflow-y-auto flex-1', className)} {...props} />
   }
 )
 
@@ -93,7 +94,7 @@ export const ModalFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
     return (
       <div
         ref={ref}
-        className={cn('p-6 border-t border-gray-200 flex gap-2 justify-end', className)}
+        className={cn('p-6 border-t border-gray-200 flex gap-2 justify-end shrink-0', className)}
         {...props}
       />
     )

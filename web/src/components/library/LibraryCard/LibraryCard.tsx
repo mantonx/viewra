@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan, useGetApiLibrariesIdScanStatus, useGetApiMedia } from '@/lib/api'
+import { useDeleteApiLibrariesId, usePostApiLibrariesIdScan, useGetApiLibrariesIdScanStatus, useGetApiMedia, usePostApiLibrariesIdScanJobIdPause, usePostApiLibrariesIdScanJobIdResume } from '@/lib/api'
 import { useInvalidateLibraries } from '@/lib/hooks/useInvalidateLibraries'
 import { useToast } from '@/lib/hooks/useToast'
 import { useConfirm } from '@/lib/hooks/useConfirm'
@@ -7,7 +7,7 @@ import { getErrorMessage } from '@/lib/utils/error'
 import { pluralize } from '@/lib/utils/format'
 import { isScanStatusResponse } from '@/lib/utils/type-guards'
 import { SCAN_POLL_INTERVAL_MS } from '@/lib/constants/scan'
-import { Button } from '@/components/ui'
+import { Button, ProgressBar } from '@/components/ui'
 import { ScanErrorsDialog } from '@/components/library/ScanErrorsDialog'
 import type { LibraryCardProps } from './LibraryCard.types'
 
@@ -16,6 +16,8 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const invalidateLibraries = useInvalidateLibraries()
   const deleteMutation = useDeleteApiLibrariesId()
   const scanMutation = usePostApiLibrariesIdScan()
+  const pauseMutation = usePostApiLibrariesIdScanJobIdPause()
+  const resumeMutation = usePostApiLibrariesIdScanJobIdResume()
   const toast = useToast()
   const { confirm } = useConfirm()
 
@@ -79,94 +81,152 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
     }
   }
 
+  const handlePause = async () => {
+    if (!library.id || !scanData?.job_id) {
+      return
+    }
+    try {
+      await pauseMutation.mutateAsync({ id: library.id, jobId: scanData.job_id })
+      toast.success('Scan paused')
+      invalidateLibraries()
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to pause scan'))
+    }
+  }
+
+  const handleResume = async () => {
+    if (!library.id || !scanData?.job_id) {
+      return
+    }
+    try {
+      await resumeMutation.mutateAsync({ id: library.id, jobId: scanData.job_id })
+      toast.success('Scan resumed')
+      invalidateLibraries()
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to resume scan'))
+    }
+  }
+
   const scanData = scanStatus?.data && isScanStatusResponse(scanStatus.data) ? scanStatus.data : null
   const hasErrors = scanData && (scanData.error_count ?? 0) > 0
   const hasWarnings = scanData && (scanData.warning_count ?? 0) > 0
   const hasIssues = hasErrors || hasWarnings
   const isScanning = scanData?.status === 'running'
+  const isPaused = scanData?.status === 'paused'
   const isCompleted = scanData?.status === 'completed'
   const totalMediaCount = mediaCount?.data && 'total' in mediaCount.data ? mediaCount.data.total ?? 0 : 0
 
   return (
     <>
-      <div className="p-4 hover:bg-gray-50">
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <h3 className="font-semibold text-lg">{library.name}</h3>
-            <p className="text-sm text-gray-600">{library.path}</p>
-            <div className="mt-2 flex gap-4 items-center text-sm text-gray-500">
-              <span>Type: {library.type}</span>
-              {isScanning && scanData && (
-                <span className="text-blue-600 font-medium">
-                  {scanData.phase === 'discovering' && !scanData.discovery_done
-                    ? `Discovering files... ${(scanData.files_found ?? 0).toLocaleString()} found`
-                    : `Scanning... ${(scanData.progress ?? 0).toFixed(1)}%`}
-                  {(scanData.estimated_total ?? 0) > 0 && !scanData.discovery_done && (
-                    <span className="text-gray-500 ml-1">
-                      (est. {(scanData.estimated_total ?? 0).toLocaleString()} total)
-                    </span>
-                  )}
-                </span>
-              )}
-              {isCompleted && scanData && (
-                <span className={hasIssues ? "text-yellow-600 font-medium" : "text-green-600 font-medium"}>
-                  ✓ Scan complete ({totalMediaCount.toLocaleString()} {totalMediaCount === 1 ? 'file' : 'files'})
-                </span>
-              )}
-              {hasErrors && scanData && (
-                <button
-                  onClick={() => setShowErrorsDialog(true)}
-                  className="text-red-600 font-medium hover:underline flex items-center gap-1"
-                  title={isScanning ? "View errors (scan in progress)" : "View scan errors"}
+      <div className="hover:bg-gray-50">
+        <div className="p-4">
+          <div className="flex justify-between items-start">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg">{library.name}</h3>
+              <p className="text-sm text-gray-600">{library.path}</p>
+              <div className="mt-2 flex gap-4 items-center text-sm text-gray-500 flex-wrap">
+                <span>Type: {library.type}</span>
+                {isCompleted && scanData && (
+                  <span className={hasIssues ? "text-yellow-600 font-medium" : "text-green-600 font-medium"}>
+                    ✓ Scan complete ({totalMediaCount.toLocaleString()} {totalMediaCount === 1 ? 'file' : 'files'})
+                  </span>
+                )}
+                {hasErrors && scanData && (
+                  <button
+                    onClick={() => setShowErrorsDialog(true)}
+                    className="cursor-pointer text-red-600 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
+                    title={isScanning ? "View errors (scan in progress)" : "View scan errors"}
+                    aria-label={`View ${pluralize(scanData.error_count, 'error')}${isScanning ? ' from ongoing scan' : ''}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{pluralize(scanData.error_count, 'error')}</span>
+                  </button>
+                )}
+                {hasWarnings && scanData && (
+                  <button
+                    onClick={() => setShowErrorsDialog(true)}
+                    className="cursor-pointer text-yellow-600 font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1 rounded-sm flex items-center gap-1.5 transition-colors"
+                    title={isScanning ? "View warnings (scan in progress)" : "View scan warnings"}
+                    aria-label={`View ${pluralize(scanData.warning_count, 'warning')}${isScanning ? ' from ongoing scan' : ''}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>{pluralize(scanData.warning_count, 'warning')}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2 ml-4">
+              {isPaused ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleResume}
+                  isLoading={resumeMutation.isPending}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {pluralize(scanData.error_count, 'error')}
-                  {isScanning && <span className="text-xs">(ongoing)</span>}
-                </button>
-              )}
-              {hasWarnings && scanData && (
-                <button
-                  onClick={() => setShowErrorsDialog(true)}
-                  className="text-yellow-600 font-medium hover:underline flex items-center gap-1"
-                  title={isScanning ? "View warnings (scan in progress)" : "View scan warnings"}
+                  Resume
+                </Button>
+              ) : isScanning ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handlePause}
+                  isLoading={pauseMutation.isPending}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  {pluralize(scanData.warning_count, 'warning')}
-                  {isScanning && <span className="text-xs">(ongoing)</span>}
-                </button>
+                  Pause
+                </Button>
+              ) : (
+                <Button
+                  variant="success"
+                  size="sm"
+                  onClick={handleScan}
+                  isLoading={scanMutation.isPending}
+                >
+                  {isCompleted ? 'Rescan' : 'Scan'}
+                </Button>
               )}
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleDelete}
+                isLoading={deleteMutation.isPending}
+                disabled={isScanning}
+              >
+                Delete
+              </Button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="success"
-              size="sm"
-              onClick={handleScan}
-              isLoading={scanMutation.isPending || isScanning}
-              disabled={isScanning}
-            >
-              {isScanning ? 'Scanning...' : isCompleted ? 'Rescan' : 'Scan'}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={handleDelete}
-              isLoading={deleteMutation.isPending}
-            >
-              Delete
-            </Button>
-          </div>
         </div>
+        {(isScanning || isPaused) && scanData && (
+          <div className="px-4 pb-4">
+            <ProgressBar
+              progress={scanData.progress ?? 0}
+              label={
+                isPaused
+                  ? 'Scan paused'
+                  : scanData.phase === 'discovering' && !scanData.discovery_done
+                  ? `Discovering files... ${(scanData.files_found ?? 0).toLocaleString()} found${
+                      (scanData.estimated_total ?? 0) > 0
+                        ? ` (est. ${(scanData.estimated_total ?? 0).toLocaleString()} total)`
+                        : ''
+                    }`
+                  : `Scanning files...`
+              }
+              variant={isPaused ? 'warning' : 'default'}
+              size="sm"
+              showPercentage={scanData.phase !== 'discovering' || scanData.discovery_done}
+            />
+          </div>
+        )}
       </div>
 
-      {hasIssues && library.id && scanData && scanData.job_id && (
+      {hasIssues && library.id && (
         <ScanErrorsDialog
           libraryId={library.id}
-          jobId={scanData.job_id}
+          jobId={scanData?.job_id}
           isOpen={showErrorsDialog}
           onClose={() => setShowErrorsDialog(false)}
           onRetrySuccess={() => {

@@ -2,7 +2,6 @@ package library
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 
 	"github.com/mantonx/viewra/internal/domain/images"
@@ -24,7 +23,15 @@ func (uc *ScanLibraryUseCase) extractImagesForMovie(ctx context.Context, movie *
 		MediaID:   &mediaID,
 	}
 	if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
-		fmt.Printf("failed to extract images for movie %s: %v\n", filePath, err)
+		uc.logger.Warn("failed to extract images for movie",
+			"file_path", filePath,
+			"error", err)
+		// Track as warning in scan_state for user visibility
+		if setErr := uc.scanRepos.ScanState.SetWarning(ctx, movie.Media.LibraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
+			uc.logger.Warn("failed to set image extraction warning in scan_state",
+				"file_path", filePath,
+				"error", setErr)
+		}
 	}
 }
 
@@ -44,7 +51,15 @@ func (uc *ScanLibraryUseCase) extractImagesForEpisode(ctx context.Context, episo
 		MediaID:   &mediaID,
 	}
 	if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
-		fmt.Printf("failed to extract images for episode %s: %v\n", filePath, err)
+		uc.logger.Warn("failed to extract images for episode",
+			"file_path", filePath,
+			"error", err)
+		// Track as warning in scan_state for user visibility
+		if setErr := uc.scanRepos.ScanState.SetWarning(ctx, libraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
+			uc.logger.Warn("failed to set image extraction warning in scan_state",
+				"file_path", filePath,
+				"error", setErr)
+		}
 	}
 
 	// Extract show and season images
@@ -69,7 +84,16 @@ func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *
 			EntityID:  entityID,
 		}
 		if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
-			fmt.Printf("failed to extract images for album %s: %v\n", track.Album, err)
+			uc.logger.Warn("failed to extract images for album",
+				"album", track.Album,
+				"file_path", filePath,
+				"error", err)
+			// Track as warning in scan_state for user visibility
+			if setErr := uc.scanRepos.ScanState.SetWarning(ctx, track.Media.LibraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
+				uc.logger.Warn("failed to set image extraction warning in scan_state",
+					"file_path", filePath,
+					"error", setErr)
+			}
 		}
 	}
 
@@ -86,7 +110,10 @@ func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *
 				EntityID:  entityID,
 			}
 			if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
-				fmt.Printf("failed to extract artist images for %s: %v\n", track.Artist, err)
+				uc.logger.Warn("failed to extract artist images",
+					"artist", track.Artist,
+					"error", err)
+				// Artist image extraction failures don't get tracked per-file since they're per-artist
 			}
 		}
 	}
@@ -102,7 +129,9 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 	// Get show ID by title (show was created/ensured by CreateTVEpisode)
 	show, err := uc.mediaRepos.TV.GetTVShowByTitle(ctx, libraryID, showTitle)
 	if err != nil {
-		fmt.Printf("failed to get TV show for image extraction: %v\n", err)
+		uc.logger.Warn("failed to get TV show for image extraction",
+			"show_title", showTitle,
+			"error", err)
 		return
 	}
 
@@ -113,13 +142,19 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 		EntityID:  int(show.ID),
 	}
 	if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
-		fmt.Printf("failed to extract images for show %s: %v\n", showTitle, err)
+		uc.logger.Warn("failed to extract images for show",
+			"show_title", showTitle,
+			"error", err)
+		// Show/season image extraction failures don't get tracked per-file since they're per-show/season
 	}
 
 	// Get season ID
 	season, err := uc.mediaRepos.TV.GetTVSeasonByShowAndNumber(ctx, show.ID, int64(seasonNumber))
 	if err != nil {
-		fmt.Printf("failed to get TV season for image extraction: %v\n", err)
+		uc.logger.Warn("failed to get TV season for image extraction",
+			"show_title", showTitle,
+			"season", seasonNumber,
+			"error", err)
 		return
 	}
 
@@ -131,7 +166,11 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 		SeasonNum: seasonNumber,
 	}
 	if err := uc.imageExtractor.Extract(ctx, seasonOpts); err != nil {
-		fmt.Printf("failed to extract images for season %d: %v\n", seasonNumber, err)
+		uc.logger.Warn("failed to extract images for season",
+			"show_title", showTitle,
+			"season", seasonNumber,
+			"error", err)
+		// Show/season image extraction failures don't get tracked per-file since they're per-show/season
 	}
 }
 

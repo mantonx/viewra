@@ -68,12 +68,13 @@ SET
     files_processed = $4,
     bytes_processed = $5,
     error_count = $6,
-    completed_at = $7,
-    error_message = $8,
-    phase = $9,
-    discovery_done = $10,
+    warning_count = $7,
+    completed_at = $8,
+    error_message = $9,
+    phase = $10,
+    discovery_done = $11,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $11;
+WHERE id = $12;
 
 -- name: DeleteScanJob :exec
 DELETE FROM scan_jobs

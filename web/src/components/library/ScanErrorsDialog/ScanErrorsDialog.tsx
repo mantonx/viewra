@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import {
-  useGetApiLibrariesIdScanJobIdErrors,
+  useGetApiLibrariesIdIssues,
   usePostApiLibrariesIdScanJobIdRetryFailed,
   type InternalApiHandlersScanErrorDetail,
   type InternalApiHandlersRetryFailedResponse,
 } from '@/lib/api'
-import { Modal, Button, Loading, Alert } from '@/components/ui'
+import { Modal, ModalContent, ModalFooter, Button, Loading, Alert } from '@/components/ui'
 import { useToast } from '@/lib/hooks/useToast'
 import { getErrorMessage } from '@/lib/utils/error'
-import { formatFileSize, pluralize } from '@/lib/utils/format'
+import { formatFileSize, formatDate, pluralize } from '@/lib/utils/format'
 import { isScanErrorsResponse } from '@/lib/utils/type-guards'
 import { ERROR_CATEGORY_COLORS } from '@/lib/constants/scan'
 import type { ScanErrorsDialogProps } from './ScanErrorsDialog.types'
@@ -17,12 +17,15 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const toast = useToast()
 
-  const { data: errors, isLoading, error } = useGetApiLibrariesIdScanJobIdErrors(
+  // Always use library-level issues endpoint (persistent across scans)
+  // This shows all unresolved warnings/errors regardless of which scan they came from
+  const { data: errors, isLoading, error } = useGetApiLibrariesIdIssues(
     libraryId,
-    jobId,
     {
       query: {
-        enabled: isOpen && !!libraryId && !!jobId,
+        enabled: isOpen && !!libraryId,
+        staleTime: 0,
+        refetchOnMount: 'always',
       },
     }
   )
@@ -65,7 +68,7 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
       title={`Scan Issues (${errorData?.total_errors || 0})`}
       size="lg"
     >
-      <div className="max-h-[600px] overflow-y-auto">
+      <ModalContent>
         {isLoading && (
           <div className="flex justify-center py-8">
             <Loading />
@@ -85,66 +88,76 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
         )}
 
         {errorData && (errorData.total_errors ?? 0) > 0 && errorData.by_category && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {Object.entries(errorData.by_category).map(([category, items]) => {
               const typedItems = items as InternalApiHandlersScanErrorDetail[]
               return (
-              <div key={category} className="border rounded-lg overflow-hidden">
+              <div key={category} className="border rounded-lg overflow-hidden shadow-sm">
                 <button
-                  className={`w-full p-4 flex items-center justify-between ${getCategoryColor(category)} border-b transition-colors hover:opacity-80`}
+                  className={`cursor-pointer w-full px-4 py-3 flex items-center justify-between ${getCategoryColor(category)} border-b transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                   onClick={() => toggleCategory(category)}
+                  aria-expanded={expandedCategory === category}
+                  aria-label={`${expandedCategory === category ? 'Collapse' : 'Expand'} ${category} category with ${typedItems.length} files`}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <svg
-                      className={`w-5 h-5 transition-transform ${expandedCategory === category ? 'rotate-90' : ''}`}
+                      className={`w-4 h-4 transition-transform ${expandedCategory === category ? 'rotate-90' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     <span className="font-semibold capitalize">{category}</span>
                   </div>
-                  <span className="text-sm font-medium">{typedItems.length} files</span>
+                  <span className="text-sm font-medium">{pluralize(typedItems.length, 'file')}</span>
                 </button>
 
                 {expandedCategory === category && (
                   <div className="bg-white">
-                    <ul className="divide-y divide-gray-200">
+                    <ul className="divide-y divide-gray-100">
                       {typedItems.map((item, idx) => {
                         const isWarning = item.status === 'warning'
+                        const fileName = item.file_path?.split('/').pop() || item.file_path || 'Unknown file'
+                        const filePath = item.file_path || ''
                         return (
-                        <li key={idx} className="p-4 hover:bg-gray-50">
-                          <div className="space-y-2">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  {isWarning ? (
-                                    <svg className="w-4 h-4 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                  ) : (
-                                    <svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  )}
-                                  <p className="text-sm font-mono text-gray-900 truncate" title={item.file_path ?? ''}>
-                                    {item.file_path}
-                                  </p>
-                                </div>
-                                <p className="text-xs text-gray-500 mt-1 ml-6">
-                                  Size: {formatFileSize(item.file_size ?? 0)}
+                        <li key={idx} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                              {isWarning ? (
+                                <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <p className="text-sm font-medium text-gray-900 break-words" title={filePath}>
+                                  {fileName}
+                                </p>
+                                <p className="text-xs text-gray-500 font-mono break-all">
+                                  {filePath}
+                                </p>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                                  <span>Size: {formatFileSize(item.file_size ?? 0)}</span>
                                   {item.processed_at && (
-                                    <span className="ml-3">
-                                      {isWarning ? 'Processed' : 'Failed'}: {new Date(item.processed_at).toLocaleString()}
+                                    <span>
+                                      {isWarning ? 'Processed' : 'Failed'}: {formatDate(item.processed_at)}
                                     </span>
                                   )}
-                                </p>
+                                </div>
                               </div>
                             </div>
-                            <div className={`${isWarning ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'} border rounded p-2 ml-6`}>
-                              <p className={`text-sm ${isWarning ? 'text-yellow-800' : 'text-red-800'}`}>{item.error_message}</p>
-                            </div>
+                            {item.error_message && (
+                              <div className={`${isWarning ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'} border rounded-md p-3 ml-8`}>
+                                <p className={`text-sm leading-relaxed ${isWarning ? 'text-yellow-900' : 'text-red-900'}`}>
+                                  {item.error_message}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </li>
                       )})}
@@ -155,45 +168,43 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
             )})}
           </div>
         )}
-      </div>
+      </ModalContent>
 
-      {errorData && (errorData.total_errors ?? 0) > 0 && (
-        <div className="mt-6 flex justify-between items-center border-t pt-4">
-          <p className="text-sm text-gray-600">
-            {errorCount > 0 && warningCount > 0 && (
-              <>{pluralize(errorCount, 'error')} and {pluralize(warningCount, 'warning')}</>
-            )}
-            {errorCount > 0 && warningCount === 0 && (
-              <>{pluralize(errorCount, 'file')} failed during scanning</>
-            )}
-            {errorCount === 0 && warningCount > 0 && (
-              <>{pluralize(warningCount, 'file')} processed with warnings</>
-            )}
-          </p>
-          <div className="flex gap-2">
-            <Button onClick={onClose} variant="secondary">
-              Close
-            </Button>
-            {errorCount > 0 && (
-              <Button
-                onClick={handleRetry}
-                variant="primary"
-                isLoading={retryMutation.isPending}
-              >
-                Retry Failed Files
+      <ModalFooter className="justify-between">
+        {errorData && (errorData.total_errors ?? 0) > 0 ? (
+          <>
+            <p className="text-sm text-gray-600">
+              {errorCount > 0 && warningCount > 0 && (
+                <>{pluralize(errorCount, 'error')} and {pluralize(warningCount, 'warning')}</>
+              )}
+              {errorCount > 0 && warningCount === 0 && (
+                <>{pluralize(errorCount, 'file')} failed during scanning</>
+              )}
+              {errorCount === 0 && warningCount > 0 && (
+                <>{pluralize(warningCount, 'file')} processed with warnings</>
+              )}
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={onClose} variant="secondary">
+                Close
               </Button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {(!errorData || (errorData.total_errors ?? 0) === 0) && (
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onClose} variant="secondary">
+              {errorCount > 0 && (
+                <Button
+                  onClick={handleRetry}
+                  variant="primary"
+                  isLoading={retryMutation.isPending}
+                >
+                  Retry Failed Files
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <Button onClick={onClose} variant="secondary" className="ml-auto">
             Close
           </Button>
-        </div>
-      )}
+        )}
+      </ModalFooter>
     </Modal>
   )
 }

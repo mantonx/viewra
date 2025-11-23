@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +16,8 @@ import (
 type ScanJobRepository interface {
 	GetLatestByLibrary(ctx context.Context, libraryID int64) (*scanner.ScanJob, error)
 	ListByLibrary(ctx context.Context, libraryID int64, limit int32) ([]*scanner.ScanJob, error)
+	GetByID(ctx context.Context, jobID int64) (*scanner.ScanJob, error)
+	UpdateStatus(ctx context.Context, jobID int64, status scanner.ScanStatus) error
 }
 
 // CheckpointRepository defines the interface for checkpoint data access
@@ -23,17 +26,34 @@ type CheckpointRepository interface {
 	ResetFailed(ctx context.Context, jobID int64) (int64, error)
 }
 
+// ScanStateRepository defines the interface for scan state data access
+type ScanStateRepository interface {
+	GetLibraryIssues(ctx context.Context, libraryID int64) ([]*scanner.ScanState, error)
+	CountLibraryIssues(ctx context.Context, libraryID int64) (*scanner.LibraryIssueCounts, error)
+}
+
+// ScanLibraryExecutor defines the interface for resuming scans
+type ScanLibraryExecutor interface {
+	ResumeScan(ctx context.Context, jobID int64) error
+}
+
 // ScanJobHandler handles scan job-related HTTP requests
 type ScanJobHandler struct {
-	scanJobRepo    ScanJobRepository
-	checkpointRepo CheckpointRepository
+	scanJobRepo     ScanJobRepository
+	checkpointRepo  CheckpointRepository
+	scanStateRepo   ScanStateRepository
+	scanLibrary     ScanLibraryExecutor
+	logger          *slog.Logger
 }
 
 // NewScanJobHandler creates a new scan job handler
-func NewScanJobHandler(scanJobRepo ScanJobRepository, checkpointRepo CheckpointRepository) *ScanJobHandler {
+func NewScanJobHandler(scanJobRepo ScanJobRepository, checkpointRepo CheckpointRepository, scanStateRepo ScanStateRepository, scanLibrary ScanLibraryExecutor, logger *slog.Logger) *ScanJobHandler {
 	return &ScanJobHandler{
 		scanJobRepo:    scanJobRepo,
 		checkpointRepo: checkpointRepo,
+		scanStateRepo:  scanStateRepo,
+		scanLibrary:    scanLibrary,
+		logger:         logger,
 	}
 }
 
@@ -47,6 +67,7 @@ type ScanStatusResponse struct {
 	BytesProcessed int64   `json:"bytes_processed"`           // Bytes processed
 	ErrorCount     int64   `json:"error_count"`               // Number of errors encountered
 	WarningCount   int64   `json:"warning_count"`             // Number of warnings encountered
+	ErrorsJobID    *int64  `json:"errors_job_id,omitempty"`   // Job ID where errors/warnings are from (if different from JobID)
 	ErrorMessage   string  `json:"error_message,omitempty"`   // Error message if failed
 	StartedAt      string  `json:"started_at"`                // ISO 8601 timestamp
 	CompletedAt    *string `json:"completed_at,omitempty"`    // ISO 8601 timestamp
@@ -107,6 +128,22 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		return
 	}
 
+	// Get library-level persistent error/warning counts from scan_state
+	// This shows all unresolved issues across the library, not just from the current scan
+	var errorCount int64
+	var warningCount int64
+	if counts, err := h.scanStateRepo.CountLibraryIssues(c.Request.Context(), libraryID); err == nil && counts != nil {
+		errorCount = counts.ErrorCount
+		warningCount = counts.WarningCount
+	} else {
+		// Fallback to job-based counts if scan_state query fails
+		h.logger.Warn("failed to get library issue counts, using job counts",
+			"library_id", libraryID,
+			"error", err)
+		errorCount = job.ErrorCount
+		warningCount = job.WarningCount
+	}
+
 	// Convert to response
 	response := ScanStatusResponse{
 		JobID:          job.ID,
@@ -115,8 +152,8 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		FilesFound:     job.FilesFound,
 		FilesProcessed: job.FilesProcessed,
 		BytesProcessed: job.BytesProcessed,
-		ErrorCount:     job.ErrorCount,
-		WarningCount:   job.WarningCount,
+		ErrorCount:     errorCount,
+		WarningCount:   warningCount,
 		ErrorMessage:   job.ErrorMessage,
 		StartedAt:      job.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Phase:          string(job.Phase),
@@ -386,6 +423,82 @@ func (h *ScanJobHandler) GetScanErrors(c *gin.Context) {
 	})
 }
 
+// GetLibraryIssues returns all persistent warnings and errors for a library from scan_state
+// This endpoint shows current library health, persisting across scans until files are re-scanned successfully
+// @Summary Get library warnings and errors
+// @Description Returns all files with warnings or errors from scan_state (persistent across scans)
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Param id path int true "Library ID"
+// @Success 200 {object} ScanErrorsResponse "Library issues"
+// @Failure 400 {object} ErrorResponse "Invalid library ID"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/libraries/{id}/issues [get]
+func (h *ScanJobHandler) GetLibraryIssues(c *gin.Context) {
+	// Parse library ID
+	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		return
+	}
+
+	// Get all files with warnings or errors from scan_state
+	issues, err := h.scanStateRepo.GetLibraryIssues(c.Request.Context(), libraryID)
+	if err != nil {
+		h.logger.Error("failed to get library issues",
+			"library_id", libraryID,
+			"error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve library issues"})
+		return
+	}
+
+	// Group issues by category (use error category if present, otherwise warning category)
+	issuesByCategory := make(map[string][]ScanErrorDetail)
+	for _, state := range issues {
+		category := "unknown"
+		message := ""
+		status := "warning" // default to warning
+
+		if state.HasError {
+			status = "failed"
+			category = state.ErrorCategory
+			message = state.ErrorMessage
+		} else if state.HasWarning {
+			status = "warning"
+			category = state.WarningCategory
+			message = state.WarningMessage
+		}
+
+		if category == "" {
+			category = "unknown"
+		}
+
+		var processedAtStr *string
+		if !state.LastScannedAt.IsZero() {
+			str := state.LastScannedAt.Format("2006-01-02T15:04:05Z07:00")
+			processedAtStr = &str
+		}
+
+		issuesByCategory[category] = append(
+			issuesByCategory[category],
+			ScanErrorDetail{
+				FilePath:      state.FilePath,
+				Status:        status,
+				ErrorMessage:  message,
+				ErrorCategory: category,
+				FileSize:      state.FileSize,
+				ProcessedAt:   processedAtStr,
+			},
+		)
+	}
+
+	c.JSON(http.StatusOK, ScanErrorsResponse{
+		TotalErrors: len(issues),
+		ByCategory:  issuesByCategory,
+	})
+}
+
 // RetryFailedFiles resets all failed checkpoints to pending, allowing them to be retried
 // @Summary Retry failed files
 // @Description Resets all failed file processing attempts to pending status for retry
@@ -424,5 +537,144 @@ func (h *ScanJobHandler) RetryFailedFiles(c *gin.Context) {
 	c.JSON(http.StatusOK, RetryFailedResponse{
 		Message: "Failed files queued for retry",
 		Count:   count,
+	})
+}
+
+// PauseScanResponse represents the result of pausing a scan
+type PauseScanResponse struct {
+	Message string `json:"message"`
+	JobID   int64  `json:"job_id"`
+}
+
+// PauseScan pauses a running scan job
+// @Summary Pause scan
+// @Description Pauses an active scan job, allowing it to be resumed later
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Param id path int true "Library ID"
+// @Param jobId path int true "Scan Job ID"
+// @Success 200 {object} PauseScanResponse "Scan paused successfully"
+// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
+// @Failure 404 {object} ErrorResponse "Scan job not found"
+// @Failure 409 {object} ErrorResponse "Scan is not running"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/libraries/{id}/scan/{jobId}/pause [post]
+func (h *ScanJobHandler) PauseScan(c *gin.Context) {
+	// Parse library ID (for consistency)
+	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		return
+	}
+	_ = libraryID // Not used but validates URL structure
+
+	// Parse job ID
+	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		return
+	}
+
+	// Get the scan job
+	job, err := h.scanJobRepo.GetByID(c.Request.Context(), jobID)
+	if err != nil {
+		if err == scanner.ErrNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Scan job not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get scan job"})
+		return
+	}
+
+	// Check if scan is running
+	if job.Status != scanner.ScanStatusRunning {
+		c.JSON(http.StatusConflict, ErrorResponse{Error: fmt.Sprintf("Scan is not running (current status: %s)", job.Status)})
+		return
+	}
+
+	// Update status to paused
+	if err := h.scanJobRepo.UpdateStatus(c.Request.Context(), jobID, scanner.ScanStatusPaused); err != nil {
+		h.logger.Error("failed to pause scan",
+			"job_id", jobID,
+			"library_id", libraryID,
+			"error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to pause scan"})
+		return
+	}
+
+	h.logger.Info("scan paused by user",
+		"job_id", jobID,
+		"library_id", libraryID,
+		"files_processed", job.FilesProcessed,
+		"files_found", job.FilesFound,
+		"progress", job.Progress)
+
+	c.JSON(http.StatusOK, PauseScanResponse{
+		Message: "Scan paused successfully",
+		JobID:   jobID,
+	})
+}
+
+// ResumeScanResponse represents the result of resuming a scan
+type ResumeScanResponse struct {
+	Message string `json:"message"`
+	JobID   int64  `json:"job_id"`
+}
+
+// ResumeScan resumes a paused scan job
+// @Summary Resume scan
+// @Description Resumes a paused scan job, continuing from where it left off
+// @Tags scans
+// @Accept json
+// @Produce json
+// @Param id path int true "Library ID"
+// @Param jobId path int true "Scan Job ID"
+// @Success 200 {object} ResumeScanResponse "Scan resumed successfully"
+// @Failure 400 {object} ErrorResponse "Invalid library ID or job ID"
+// @Failure 404 {object} ErrorResponse "Scan job not found"
+// @Failure 409 {object} ErrorResponse "Scan is not paused"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /api/libraries/{id}/scan/{jobId}/resume [post]
+func (h *ScanJobHandler) ResumeScan(c *gin.Context) {
+	// Parse library ID (for consistency)
+	libraryID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid library ID"})
+		return
+	}
+	_ = libraryID // Not used but validates URL structure
+
+	// Parse job ID
+	jobID, err := strconv.ParseInt(c.Param("jobId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid job ID"})
+		return
+	}
+
+	// Resume the scan via the use case (which will start the background goroutine)
+	if err := h.scanLibrary.ResumeScan(c.Request.Context(), jobID); err != nil {
+		h.logger.Error("failed to resume scan",
+			"job_id", jobID,
+			"library_id", libraryID,
+			"error", err)
+
+		// Check error type for appropriate status code
+		if err.Error() == "scan job is not paused" || err.Error() == fmt.Sprintf("scan job is not paused (current status: %s)", "") {
+			c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to resume scan"})
+		return
+	}
+
+	h.logger.Info("scan resumed by user",
+		"job_id", jobID,
+		"library_id", libraryID)
+
+	c.JSON(http.StatusOK, ResumeScanResponse{
+		Message: "Scan resumed successfully",
+		JobID:   jobID,
 	})
 }

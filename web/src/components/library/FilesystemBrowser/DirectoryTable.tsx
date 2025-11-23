@@ -98,29 +98,27 @@ const DirectoryTable = ({
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" scope="col">
               <button
                 onClick={() => onSort('name')}
-                className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                className="flex items-center gap-1 hover:text-gray-700 transition-colors cursor-pointer"
                 aria-label={`Sort by name ${sortBy === 'name' ? (sortOrder === 'asc' ? 'descending' : 'ascending') : 'ascending'}`}
+                title={`Click to sort by name ${sortBy === 'name' ? (sortOrder === 'asc' ? 'descending' : 'ascending') : ''}`}
               >
                 Name
-                {sortBy === 'name' && (
-                  <span className="text-blue-600" aria-hidden="true">
-                    {sortOrder === 'asc' ? '↑' : '↓'}
-                  </span>
-                )}
+                <span className={`text-xs ${sortBy === 'name' ? 'text-blue-600' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`} aria-hidden="true">
+                  {sortBy === 'name' ? (sortOrder === 'asc' ? '↑' : '↓') : '⇅'}
+                </span>
               </button>
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" scope="col">
               <button
                 onClick={() => onSort('modified')}
-                className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                className="flex items-center gap-1 hover:text-gray-700 transition-colors cursor-pointer"
                 aria-label={`Sort by modified date ${sortBy === 'modified' ? (sortOrder === 'asc' ? 'descending' : 'ascending') : 'ascending'}`}
+                title={`Click to sort by date modified ${sortBy === 'modified' ? (sortOrder === 'asc' ? 'descending' : 'ascending') : ''}`}
               >
                 Modified
-                {sortBy === 'modified' && (
-                  <span className="text-blue-600" aria-hidden="true">
-                    {sortOrder === 'asc' ? '↑' : '↓'}
-                  </span>
-                )}
+                <span className={`text-xs ${sortBy === 'modified' ? 'text-blue-600' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`} aria-hidden="true">
+                  {sortBy === 'modified' ? (sortOrder === 'asc' ? '↑' : '↓') : '⇅'}
+                </span>
               </button>
             </th>
           </tr>
@@ -133,8 +131,8 @@ const DirectoryTable = ({
               onMouseEnter={() => onSelectIndex(index)}
               className={`
                 ${dir.readable ? 'hover:bg-blue-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'}
-                ${selectedIndex === index ? 'bg-blue-100' : ''}
-                transition-colors
+                ${selectedIndex === index ? 'bg-blue-100 ring-2 ring-inset ring-blue-400' : ''}
+                transition-all
               `}
               role="button"
               tabIndex={dir.readable ? 0 : -1}

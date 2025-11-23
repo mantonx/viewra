@@ -11,6 +11,74 @@ import (
 	"time"
 )
 
+const clearScanStateError = `-- name: ClearScanStateError :exec
+UPDATE scan_state
+SET has_error = FALSE,
+    error_message = NULL,
+    error_category = NULL
+WHERE library_id = $1 AND file_path = $2
+`
+
+type ClearScanStateErrorParams struct {
+	LibraryID int32  `json:"library_id"`
+	FilePath  string `json:"file_path"`
+}
+
+func (q *Queries) ClearScanStateError(ctx context.Context, arg ClearScanStateErrorParams) error {
+	_, err := q.db.ExecContext(ctx, clearScanStateError, arg.LibraryID, arg.FilePath)
+	return err
+}
+
+const clearScanStateWarning = `-- name: ClearScanStateWarning :exec
+UPDATE scan_state
+SET has_warning = FALSE,
+    warning_message = NULL,
+    warning_category = NULL
+WHERE library_id = $1 AND file_path = $2
+`
+
+type ClearScanStateWarningParams struct {
+	LibraryID int32  `json:"library_id"`
+	FilePath  string `json:"file_path"`
+}
+
+func (q *Queries) ClearScanStateWarning(ctx context.Context, arg ClearScanStateWarningParams) error {
+	_, err := q.db.ExecContext(ctx, clearScanStateWarning, arg.LibraryID, arg.FilePath)
+	return err
+}
+
+const countLibraryErrors = `-- name: CountLibraryErrors :one
+SELECT COUNT(*) FROM scan_state
+WHERE library_id = $1 AND has_error = TRUE
+`
+
+func (q *Queries) CountLibraryErrors(ctx context.Context, libraryID int32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLibraryErrors, libraryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLibraryIssues = `-- name: CountLibraryIssues :one
+SELECT
+    COUNT(CASE WHEN has_error = TRUE THEN 1 END) as error_count,
+    COUNT(CASE WHEN has_warning = TRUE THEN 1 END) as warning_count
+FROM scan_state
+WHERE library_id = $1
+`
+
+type CountLibraryIssuesRow struct {
+	ErrorCount   int64 `json:"error_count"`
+	WarningCount int64 `json:"warning_count"`
+}
+
+func (q *Queries) CountLibraryIssues(ctx context.Context, libraryID int32) (CountLibraryIssuesRow, error) {
+	row := q.db.QueryRowContext(ctx, countLibraryIssues, libraryID)
+	var i CountLibraryIssuesRow
+	err := row.Scan(&i.ErrorCount, &i.WarningCount)
+	return i, err
+}
+
 const countLibraryScanState = `-- name: CountLibraryScanState :one
 SELECT COUNT(*) FROM scan_state
 WHERE library_id = $1
@@ -18,6 +86,18 @@ WHERE library_id = $1
 
 func (q *Queries) CountLibraryScanState(ctx context.Context, libraryID int32) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countLibraryScanState, libraryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLibraryWarnings = `-- name: CountLibraryWarnings :one
+SELECT COUNT(*) FROM scan_state
+WHERE library_id = $1 AND has_warning = TRUE
+`
+
+func (q *Queries) CountLibraryWarnings(ctx context.Context, libraryID int32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLibraryWarnings, libraryID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -48,8 +128,100 @@ func (q *Queries) DeleteScanStateByPath(ctx context.Context, arg DeleteScanState
 	return err
 }
 
+const getLibraryErrors = `-- name: GetLibraryErrors :many
+SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
+WHERE library_id = $1 AND has_error = TRUE
+ORDER BY file_path ASC
+`
+
+func (q *Queries) GetLibraryErrors(ctx context.Context, libraryID int32) ([]ScanState, error) {
+	rows, err := q.db.QueryContext(ctx, getLibraryErrors, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScanState{}
+	for rows.Next() {
+		var i ScanState
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileMtime,
+			&i.FileHash,
+			&i.MediaID,
+			&i.LastScannedAt,
+			&i.ScanJobID,
+			&i.CreatedAt,
+			&i.HasWarning,
+			&i.WarningMessage,
+			&i.WarningCategory,
+			&i.HasError,
+			&i.ErrorMessage,
+			&i.ErrorCategory,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLibraryIssues = `-- name: GetLibraryIssues :many
+SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
+WHERE library_id = $1 AND (has_warning = TRUE OR has_error = TRUE)
+ORDER BY has_error DESC, file_path ASC
+`
+
+func (q *Queries) GetLibraryIssues(ctx context.Context, libraryID int32) ([]ScanState, error) {
+	rows, err := q.db.QueryContext(ctx, getLibraryIssues, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScanState{}
+	for rows.Next() {
+		var i ScanState
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileMtime,
+			&i.FileHash,
+			&i.MediaID,
+			&i.LastScannedAt,
+			&i.ScanJobID,
+			&i.CreatedAt,
+			&i.HasWarning,
+			&i.WarningMessage,
+			&i.WarningCategory,
+			&i.HasError,
+			&i.ErrorMessage,
+			&i.ErrorCategory,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLibraryScanState = `-- name: GetLibraryScanState :many
-SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at FROM scan_state
+SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
 WHERE library_id = $1
 ORDER BY file_path ASC
 `
@@ -74,6 +246,58 @@ func (q *Queries) GetLibraryScanState(ctx context.Context, libraryID int32) ([]S
 			&i.LastScannedAt,
 			&i.ScanJobID,
 			&i.CreatedAt,
+			&i.HasWarning,
+			&i.WarningMessage,
+			&i.WarningCategory,
+			&i.HasError,
+			&i.ErrorMessage,
+			&i.ErrorCategory,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLibraryWarnings = `-- name: GetLibraryWarnings :many
+SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
+WHERE library_id = $1 AND has_warning = TRUE
+ORDER BY file_path ASC
+`
+
+func (q *Queries) GetLibraryWarnings(ctx context.Context, libraryID int32) ([]ScanState, error) {
+	rows, err := q.db.QueryContext(ctx, getLibraryWarnings, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScanState{}
+	for rows.Next() {
+		var i ScanState
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileMtime,
+			&i.FileHash,
+			&i.MediaID,
+			&i.LastScannedAt,
+			&i.ScanJobID,
+			&i.CreatedAt,
+			&i.HasWarning,
+			&i.WarningMessage,
+			&i.WarningCategory,
+			&i.HasError,
+			&i.ErrorMessage,
+			&i.ErrorCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -89,7 +313,7 @@ func (q *Queries) GetLibraryScanState(ctx context.Context, libraryID int32) ([]S
 }
 
 const getScanStateByPath = `-- name: GetScanStateByPath :one
-SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at FROM scan_state
+SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
 WHERE library_id = $1 AND file_path = $2
 `
 
@@ -112,12 +336,18 @@ func (q *Queries) GetScanStateByPath(ctx context.Context, arg GetScanStateByPath
 		&i.LastScannedAt,
 		&i.ScanJobID,
 		&i.CreatedAt,
+		&i.HasWarning,
+		&i.WarningMessage,
+		&i.WarningCategory,
+		&i.HasError,
+		&i.ErrorMessage,
+		&i.ErrorCategory,
 	)
 	return i, err
 }
 
 const getScanStateModifiedSince = `-- name: GetScanStateModifiedSince :many
-SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at FROM scan_state
+SELECT id, library_id, file_path, file_size, file_mtime, file_hash, media_id, last_scanned_at, scan_job_id, created_at, has_warning, warning_message, warning_category, has_error, error_message, error_category FROM scan_state
 WHERE library_id = $1 AND file_mtime > $2
 ORDER BY file_mtime DESC
 `
@@ -147,6 +377,12 @@ func (q *Queries) GetScanStateModifiedSince(ctx context.Context, arg GetScanStat
 			&i.LastScannedAt,
 			&i.ScanJobID,
 			&i.CreatedAt,
+			&i.HasWarning,
+			&i.WarningMessage,
+			&i.WarningCategory,
+			&i.HasError,
+			&i.ErrorMessage,
+			&i.ErrorCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -161,6 +397,60 @@ func (q *Queries) GetScanStateModifiedSince(ctx context.Context, arg GetScanStat
 	return items, nil
 }
 
+const setScanStateError = `-- name: SetScanStateError :exec
+UPDATE scan_state
+SET has_error = $1,
+    error_message = $2,
+    error_category = $3
+WHERE library_id = $4 AND file_path = $5
+`
+
+type SetScanStateErrorParams struct {
+	HasError      sql.NullBool   `json:"has_error"`
+	ErrorMessage  sql.NullString `json:"error_message"`
+	ErrorCategory sql.NullString `json:"error_category"`
+	LibraryID     int32          `json:"library_id"`
+	FilePath      string         `json:"file_path"`
+}
+
+func (q *Queries) SetScanStateError(ctx context.Context, arg SetScanStateErrorParams) error {
+	_, err := q.db.ExecContext(ctx, setScanStateError,
+		arg.HasError,
+		arg.ErrorMessage,
+		arg.ErrorCategory,
+		arg.LibraryID,
+		arg.FilePath,
+	)
+	return err
+}
+
+const setScanStateWarning = `-- name: SetScanStateWarning :exec
+UPDATE scan_state
+SET has_warning = $1,
+    warning_message = $2,
+    warning_category = $3
+WHERE library_id = $4 AND file_path = $5
+`
+
+type SetScanStateWarningParams struct {
+	HasWarning      sql.NullBool   `json:"has_warning"`
+	WarningMessage  sql.NullString `json:"warning_message"`
+	WarningCategory sql.NullString `json:"warning_category"`
+	LibraryID       int32          `json:"library_id"`
+	FilePath        string         `json:"file_path"`
+}
+
+func (q *Queries) SetScanStateWarning(ctx context.Context, arg SetScanStateWarningParams) error {
+	_, err := q.db.ExecContext(ctx, setScanStateWarning,
+		arg.HasWarning,
+		arg.WarningMessage,
+		arg.WarningCategory,
+		arg.LibraryID,
+		arg.FilePath,
+	)
+	return err
+}
+
 const upsertScanState = `-- name: UpsertScanState :exec
 INSERT INTO scan_state (
     library_id,
@@ -171,26 +461,44 @@ INSERT INTO scan_state (
     media_id,
     last_scanned_at,
     scan_job_id,
+    has_warning,
+    warning_message,
+    warning_category,
+    has_error,
+    error_message,
+    error_category,
     created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
 ON CONFLICT(library_id, file_path) DO UPDATE SET
     file_size = EXCLUDED.file_size,
     file_mtime = EXCLUDED.file_mtime,
     file_hash = EXCLUDED.file_hash,
     media_id = EXCLUDED.media_id,
     last_scanned_at = EXCLUDED.last_scanned_at,
-    scan_job_id = EXCLUDED.scan_job_id
+    scan_job_id = EXCLUDED.scan_job_id,
+    has_warning = EXCLUDED.has_warning,
+    warning_message = EXCLUDED.warning_message,
+    warning_category = EXCLUDED.warning_category,
+    has_error = EXCLUDED.has_error,
+    error_message = EXCLUDED.error_message,
+    error_category = EXCLUDED.error_category
 `
 
 type UpsertScanStateParams struct {
-	LibraryID     int32          `json:"library_id"`
-	FilePath      string         `json:"file_path"`
-	FileSize      int64          `json:"file_size"`
-	FileMtime     time.Time      `json:"file_mtime"`
-	FileHash      sql.NullString `json:"file_hash"`
-	MediaID       sql.NullInt32  `json:"media_id"`
-	LastScannedAt time.Time      `json:"last_scanned_at"`
-	ScanJobID     int32          `json:"scan_job_id"`
+	LibraryID       int32          `json:"library_id"`
+	FilePath        string         `json:"file_path"`
+	FileSize        int64          `json:"file_size"`
+	FileMtime       time.Time      `json:"file_mtime"`
+	FileHash        sql.NullString `json:"file_hash"`
+	MediaID         sql.NullInt32  `json:"media_id"`
+	LastScannedAt   time.Time      `json:"last_scanned_at"`
+	ScanJobID       int32          `json:"scan_job_id"`
+	HasWarning      sql.NullBool   `json:"has_warning"`
+	WarningMessage  sql.NullString `json:"warning_message"`
+	WarningCategory sql.NullString `json:"warning_category"`
+	HasError        sql.NullBool   `json:"has_error"`
+	ErrorMessage    sql.NullString `json:"error_message"`
+	ErrorCategory   sql.NullString `json:"error_category"`
 }
 
 func (q *Queries) UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error {
@@ -203,6 +511,12 @@ func (q *Queries) UpsertScanState(ctx context.Context, arg UpsertScanStateParams
 		arg.MediaID,
 		arg.LastScannedAt,
 		arg.ScanJobID,
+		arg.HasWarning,
+		arg.WarningMessage,
+		arg.WarningCategory,
+		arg.HasError,
+		arg.ErrorMessage,
+		arg.ErrorCategory,
 	)
 	return err
 }

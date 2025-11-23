@@ -19,12 +19,13 @@ SET
     files_processed = $4,
     bytes_processed = $5,
     error_count = $6,
-    completed_at = $7,
-    error_message = $8,
-    phase = $9,
-    discovery_done = $10,
+    warning_count = $7,
+    completed_at = $8,
+    error_message = $9,
+    phase = $10,
+    discovery_done = $11,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $11
+WHERE id = $12
 `
 
 type CompleteScanJobParams struct {
@@ -34,6 +35,7 @@ type CompleteScanJobParams struct {
 	FilesProcessed sql.NullInt64   `json:"files_processed"`
 	BytesProcessed sql.NullInt64   `json:"bytes_processed"`
 	ErrorCount     sql.NullInt64   `json:"error_count"`
+	WarningCount   sql.NullInt32   `json:"warning_count"`
 	CompletedAt    sql.NullTime    `json:"completed_at"`
 	ErrorMessage   sql.NullString  `json:"error_message"`
 	Phase          sql.NullString  `json:"phase"`
@@ -49,6 +51,7 @@ func (q *Queries) CompleteScanJob(ctx context.Context, arg CompleteScanJobParams
 		arg.FilesProcessed,
 		arg.BytesProcessed,
 		arg.ErrorCount,
+		arg.WarningCount,
 		arg.CompletedAt,
 		arg.ErrorMessage,
 		arg.Phase,

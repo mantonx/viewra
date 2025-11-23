@@ -189,18 +189,22 @@ func (uc *ScanLibraryUseCase) ResumeStuckScans(ctx context.Context) error {
 	}
 
 	if len(runningScans) == 0 {
-		fmt.Printf("info: no stuck scans found during startup\n")
+		uc.logger.Debug("no stuck scans found during startup")
 		return nil
 	}
 
-	fmt.Printf("info: found %d stuck scans, automatically resuming...\n", len(runningScans))
+	uc.logger.Info("found stuck scans, automatically resuming",
+		"count", len(runningScans))
 
 	// Resume each stuck scan
 	for _, job := range runningScans {
 		// Get the library for this scan
 		lib, err := uc.mediaRepos.Library.GetByID(ctx, job.LibraryID)
 		if err != nil {
-			fmt.Printf("error: failed to get library %d for stuck scan %d: %v\n", job.LibraryID, job.ID, err)
+			uc.logger.Error("failed to get library for stuck scan",
+				"library_id", job.LibraryID,
+				"scan_id", job.ID,
+				"error", err)
 			// Mark this scan as failed since we can't resume it
 			failedJob := &scanner.ScanJob{
 				ID:           job.ID,
@@ -216,7 +220,8 @@ func (uc *ScanLibraryUseCase) ResumeStuckScans(ctx context.Context) error {
 		stats, err := uc.scanRepos.Checkpoint.GetStats(ctx, job.ID)
 		if err != nil || stats.PendingFiles == 0 {
 			// No pending files, mark as completed
-			fmt.Printf("info: stuck scan %d has no pending files, marking as completed\n", job.ID)
+			uc.logger.Info("stuck scan has no pending files, marking as completed",
+				"scan_id", job.ID)
 			completedJob := &scanner.ScanJob{
 				ID:             job.ID,
 				Status:         scanner.ScanStatusCompleted,
@@ -232,8 +237,11 @@ func (uc *ScanLibraryUseCase) ResumeStuckScans(ctx context.Context) error {
 			continue
 		}
 
-		fmt.Printf("info: resuming stuck scan %d for library %d (pending=%d, completed=%d)\n",
-			job.ID, lib.ID, stats.PendingFiles, stats.CompletedFiles)
+		uc.logger.Info("resuming stuck scan",
+			"scan_id", job.ID,
+			"library_id", lib.ID,
+			"pending", stats.PendingFiles,
+			"completed", stats.CompletedFiles)
 
 		// Start background goroutine to resume the scan
 		scanCtx, cancel := context.WithTimeout(context.Background(), uc.config.Timeout)
@@ -262,6 +270,62 @@ func (uc *ScanLibraryUseCase) ResumeStuckScans(ctx context.Context) error {
 	return nil
 }
 
+// ResumeScan resumes a paused scan job by starting the scan processing goroutine
+func (uc *ScanLibraryUseCase) ResumeScan(ctx context.Context, jobID int64) error {
+	// Get the scan job
+	job, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
+	if err != nil {
+		return fmt.Errorf("failed to get scan job: %w", err)
+	}
+
+	// Verify the job is paused
+	if job.Status != scanner.ScanStatusPaused {
+		return fmt.Errorf("scan job is not paused (current status: %s)", job.Status)
+	}
+
+	// Get the library for this scan
+	lib, err := uc.mediaRepos.Library.GetByID(ctx, job.LibraryID)
+	if err != nil {
+		return fmt.Errorf("failed to get library: %w", err)
+	}
+
+	// Update status to running
+	if err := uc.scanRepos.ScanJob.UpdateStatus(ctx, jobID, scanner.ScanStatusRunning); err != nil {
+		return fmt.Errorf("failed to update scan status: %w", err)
+	}
+
+	uc.logger.Info("resuming scan from user request",
+		"job_id", jobID,
+		"library_id", lib.ID,
+		"files_processed", job.FilesProcessed,
+		"files_found", job.FilesFound)
+
+	// Start background goroutine to resume the scan
+	scanCtx, cancel := context.WithTimeout(context.Background(), uc.config.Timeout)
+	go func(jobID int64, library *library.Library) {
+		defer cancel()
+
+		// Recover from panics
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("PANIC: resumed scan goroutine panicked: %v\nStack trace:\n%s\n", r, string(debug.Stack()))
+				failedJob := &scanner.ScanJob{
+					ID:           jobID,
+					Status:       scanner.ScanStatusFailed,
+					ErrorMessage: fmt.Sprintf("resumed scan panicked: %v", r),
+					CompletedAt:  &[]time.Time{time.Now()}[0],
+				}
+				_ = uc.scanRepos.ScanJob.Complete(context.Background(), failedJob)
+			}
+		}()
+
+		// Resume the scan using the existing runScan method
+		uc.runScan(scanCtx, jobID, library)
+	}(job.ID, lib)
+
+	return nil
+}
+
 // runScan executes the actual scan in the background with checkpoint-based resumability
 func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *library.Library) {
 	// Initialize artist deduplication tracking for this scan session
@@ -281,14 +345,15 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	stats, err := uc.scanRepos.Checkpoint.GetStats(ctx, jobID)
 	if err == nil && stats.PendingFiles > 0 {
 		// Resume from existing checkpoints
-		fmt.Printf("info: resuming scan from checkpoint (pending=%d, completed=%d)\n",
-			stats.PendingFiles, stats.CompletedFiles)
+		uc.logger.Info("resuming scan from checkpoint",
+			"pending", stats.PendingFiles,
+			"completed", stats.CompletedFiles)
 		uc.resumeScanFromCheckpoints(ctx, jobID, lib)
 		return
 	}
 
 	// Fresh scan - discover files and create checkpoints
-	fmt.Printf("info: starting fresh scan for library %d\n", lib.ID)
+	uc.logger.Info("starting fresh scan", "library_id", lib.ID)
 	uc.runFreshScan(ctx, jobID, lib)
 }
 
@@ -314,7 +379,9 @@ func (uc *ScanLibraryUseCase) resumeScanFromCheckpoints(ctx context.Context, job
 		FilesFound:     totalFiles,
 		FilesProcessed: stats.CompletedFiles,
 		ErrorCount:     stats.FailedFiles,
+		WarningCount:   stats.WarningFiles,
 		Phase:          scanner.ScanPhaseProcessing,
+		EstimatedTotal: totalFiles,
 		DiscoveryDone:  true,
 	}
 	if err := uc.scanRepos.ScanJob.UpdateProgress(ctx, jobID, progress); err != nil {

@@ -44,13 +44,13 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 		}
 
 		// Log based on status code
+		// Only log warnings (4xx) and errors (5xx) to reduce log pollution
 		switch {
 		case status >= 500:
 			logger.Error("HTTP request", attrs...)
 		case status >= 400:
 			logger.Warn("HTTP request", attrs...)
-		default:
-			logger.Info("HTTP request", attrs...)
+		// Successful requests (2xx, 3xx) are not logged
 		}
 	}
 }

@@ -8,17 +8,24 @@ import (
 
 // ScanState tracks the last-known state of a file for incremental scanning.
 // Used to detect new, modified, and deleted files without reprocessing unchanged files.
+// Also tracks persistent warnings and errors that remain until the file is successfully re-scanned.
 type ScanState struct {
-	ID             int64
-	LibraryID      int64
-	FilePath       string
-	FileSize       int64
-	FileMTime      time.Time
-	FileHash       string // Optional: NULL for mtime+size-only comparison (faster for large files)
-	MediaID        *int64
-	LastScannedAt  time.Time
-	ScanJobID      int64
-	CreatedAt      time.Time
+	ID              int64
+	LibraryID       int64
+	FilePath        string
+	FileSize        int64
+	FileMTime       time.Time
+	FileHash        string // Optional: NULL for mtime+size-only comparison (faster for large files)
+	MediaID         *int64
+	LastScannedAt   time.Time
+	ScanJobID       int64
+	CreatedAt       time.Time
+	HasWarning      bool
+	WarningMessage  string
+	WarningCategory string
+	HasError        bool
+	ErrorMessage    string
+	ErrorCategory   string
 }
 
 // ScanDiff represents the differences between current filesystem state and last scan
@@ -43,6 +50,12 @@ func (d *ScanDiff) Summary() string {
 // TotalChanges returns the count of files needing processing
 func (d *ScanDiff) TotalChanges() int {
 	return len(d.NewFiles) + len(d.ModifiedFiles) + len(d.DeletedFiles)
+}
+
+// LibraryIssueCounts holds counts of warnings and errors for a library
+type LibraryIssueCounts struct {
+	ErrorCount   int64
+	WarningCount int64
 }
 
 // ScanStateRepository defines operations for managing scan state
@@ -70,4 +83,28 @@ type ScanStateRepository interface {
 
 	// CountByLibrary returns the number of files tracked for a library
 	CountByLibrary(ctx context.Context, libraryID int64) (int64, error)
+
+	// GetLibraryWarnings retrieves all files with warnings for a library
+	GetLibraryWarnings(ctx context.Context, libraryID int64) ([]*ScanState, error)
+
+	// GetLibraryErrors retrieves all files with errors for a library
+	GetLibraryErrors(ctx context.Context, libraryID int64) ([]*ScanState, error)
+
+	// GetLibraryIssues retrieves all files with either warnings or errors for a library
+	GetLibraryIssues(ctx context.Context, libraryID int64) ([]*ScanState, error)
+
+	// CountLibraryIssues returns counts of errors and warnings for a library
+	CountLibraryIssues(ctx context.Context, libraryID int64) (*LibraryIssueCounts, error)
+
+	// SetWarning sets a warning for a file
+	SetWarning(ctx context.Context, libraryID int64, filePath, message, category string) error
+
+	// SetError sets an error for a file
+	SetError(ctx context.Context, libraryID int64, filePath, message, category string) error
+
+	// ClearWarning clears the warning for a file
+	ClearWarning(ctx context.Context, libraryID int64, filePath string) error
+
+	// ClearError clears the error for a file
+	ClearError(ctx context.Context, libraryID int64, filePath string) error
 }

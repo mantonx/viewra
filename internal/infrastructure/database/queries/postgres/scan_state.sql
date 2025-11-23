@@ -8,15 +8,27 @@ INSERT INTO scan_state (
     media_id,
     last_scanned_at,
     scan_job_id,
+    has_warning,
+    warning_message,
+    warning_category,
+    has_error,
+    error_message,
+    error_category,
     created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
 ON CONFLICT(library_id, file_path) DO UPDATE SET
     file_size = EXCLUDED.file_size,
     file_mtime = EXCLUDED.file_mtime,
     file_hash = EXCLUDED.file_hash,
     media_id = EXCLUDED.media_id,
     last_scanned_at = EXCLUDED.last_scanned_at,
-    scan_job_id = EXCLUDED.scan_job_id;
+    scan_job_id = EXCLUDED.scan_job_id,
+    has_warning = EXCLUDED.has_warning,
+    warning_message = EXCLUDED.warning_message,
+    warning_category = EXCLUDED.warning_category,
+    has_error = EXCLUDED.has_error,
+    error_message = EXCLUDED.error_message,
+    error_category = EXCLUDED.error_category;
 
 -- name: GetScanStateByPath :one
 SELECT * FROM scan_state
@@ -43,3 +55,61 @@ WHERE library_id = $1;
 SELECT * FROM scan_state
 WHERE library_id = $1 AND file_mtime > $2
 ORDER BY file_mtime DESC;
+
+-- name: GetLibraryWarnings :many
+SELECT * FROM scan_state
+WHERE library_id = $1 AND has_warning = TRUE
+ORDER BY file_path ASC;
+
+-- name: CountLibraryWarnings :one
+SELECT COUNT(*) FROM scan_state
+WHERE library_id = $1 AND has_warning = TRUE;
+
+-- name: SetScanStateWarning :exec
+UPDATE scan_state
+SET has_warning = $1,
+    warning_message = $2,
+    warning_category = $3
+WHERE library_id = $4 AND file_path = $5;
+
+-- name: ClearScanStateWarning :exec
+UPDATE scan_state
+SET has_warning = FALSE,
+    warning_message = NULL,
+    warning_category = NULL
+WHERE library_id = $1 AND file_path = $2;
+
+-- name: GetLibraryErrors :many
+SELECT * FROM scan_state
+WHERE library_id = $1 AND has_error = TRUE
+ORDER BY file_path ASC;
+
+-- name: CountLibraryErrors :one
+SELECT COUNT(*) FROM scan_state
+WHERE library_id = $1 AND has_error = TRUE;
+
+-- name: SetScanStateError :exec
+UPDATE scan_state
+SET has_error = $1,
+    error_message = $2,
+    error_category = $3
+WHERE library_id = $4 AND file_path = $5;
+
+-- name: ClearScanStateError :exec
+UPDATE scan_state
+SET has_error = FALSE,
+    error_message = NULL,
+    error_category = NULL
+WHERE library_id = $1 AND file_path = $2;
+
+-- name: GetLibraryIssues :many
+SELECT * FROM scan_state
+WHERE library_id = $1 AND (has_warning = TRUE OR has_error = TRUE)
+ORDER BY has_error DESC, file_path ASC;
+
+-- name: CountLibraryIssues :one
+SELECT
+    COUNT(CASE WHEN has_error = TRUE THEN 1 END) as error_count,
+    COUNT(CASE WHEN has_warning = TRUE THEN 1 END) as warning_count
+FROM scan_state
+WHERE library_id = $1;
