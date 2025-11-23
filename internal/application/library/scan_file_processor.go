@@ -422,6 +422,12 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 	}
 
 	if err := uc.scanRepos.ScanJob.Complete(ctx, job); err != nil {
+		// If the scan job was deleted (library deleted during scan), silently return
+		if scanner.IsScanJobDeleted(err) {
+			uc.logger.Info("Scan job deleted before completion, exiting gracefully",
+				"job_id", jobID)
+			return
+		}
 		uc.logger.Error("failed to mark scan job as complete",
 			"job_id", jobID,
 			"error", err)
