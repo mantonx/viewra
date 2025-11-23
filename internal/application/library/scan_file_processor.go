@@ -377,6 +377,7 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 				FilesFound:     stats.TotalFiles,
 				FilesProcessed: stats.ProcessedFiles,
 				ErrorCount:     stats.FailedFiles,
+				WarningCount:   stats.WarningFiles,
 			}
 			_ = uc.scanRepos.ScanJob.UpdateProgress(ctx, jobID, progress)
 		default:

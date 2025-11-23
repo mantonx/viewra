@@ -383,11 +383,12 @@ SET
     files_processed = $3,
     bytes_processed = $4,
     error_count = $5,
-    phase = $6,
-    estimated_total = $7,
-    discovery_done = $8,
+    warning_count = $6,
+    phase = $7,
+    estimated_total = $8,
+    discovery_done = $9,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $9
+WHERE id = $10
 `
 
 type UpdateScanJobProgressParams struct {
@@ -396,6 +397,7 @@ type UpdateScanJobProgressParams struct {
 	FilesProcessed sql.NullInt64   `json:"files_processed"`
 	BytesProcessed sql.NullInt64   `json:"bytes_processed"`
 	ErrorCount     sql.NullInt64   `json:"error_count"`
+	WarningCount   sql.NullInt32   `json:"warning_count"`
 	Phase          sql.NullString  `json:"phase"`
 	EstimatedTotal sql.NullInt64   `json:"estimated_total"`
 	DiscoveryDone  sql.NullBool    `json:"discovery_done"`
@@ -409,6 +411,7 @@ func (q *Queries) UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobPr
 		arg.FilesProcessed,
 		arg.BytesProcessed,
 		arg.ErrorCount,
+		arg.WarningCount,
 		arg.Phase,
 		arg.EstimatedTotal,
 		arg.DiscoveryDone,

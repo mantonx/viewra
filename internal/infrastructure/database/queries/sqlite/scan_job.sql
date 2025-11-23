@@ -43,6 +43,7 @@ SET
     files_processed = ?,
     bytes_processed = ?,
     error_count = ?,
+    warning_count = ?,
     phase = ?,
     estimated_total = ?,
     discovery_done = ?,

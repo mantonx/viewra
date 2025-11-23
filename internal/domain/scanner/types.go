@@ -108,6 +108,7 @@ type Progress struct {
 	FilesProcessed  int64
 	BytesProcessed  int64
 	ErrorCount      int64
+	WarningCount    int64     // Number of files processed with warnings
 	StartTime       time.Time
 	LastUpdate      time.Time
 	Phase           ScanPhase // Current phase of the scan
