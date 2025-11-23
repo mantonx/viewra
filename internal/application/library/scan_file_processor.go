@@ -462,21 +462,38 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 	config := filesystem.DefaultCoordinatorConfig()
 	config.Logger = uc.logger // Pass the use case logger to coordinator
 	coordinator := filesystem.NewCoordinator(config)
-	result := coordinator.ProcessFile(ctx, scanFileInfo)
+
+	// Add timeout protection to prevent worker deadlocks on slow network storage
+	// FFprobe can hang indefinitely on large files over CIFS/NFS
+	// Timeout varies based on storage type and file size
+	timeout := uc.calculateProcessingTimeout(fileInfo.Size())
+	processCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	result := coordinator.ProcessFile(processCtx, scanFileInfo)
 
 	// Check if metadata extraction had an error
 	if result.Error != nil {
+		// Check if it was a timeout
+		if processCtx.Err() == context.DeadlineExceeded {
+			uc.logger.Warn("file processing timeout exceeded",
+				"file_path", checkpoint.FilePath,
+				"file_size", fileInfo.Size(),
+				"timeout", timeout)
+			return fmt.Errorf("processing timeout after %v: %w", timeout, processCtx.Err())
+		}
 		return result.Error
 	}
 
-	// Process based on library type (these methods don't return errors)
+	// Process based on library type and capture the returned media ID
+	var mediaID *int64
 	switch lib.Type {
 	case library.LibraryTypeMovies:
-		uc.processMovie(ctx, lib.ID, &result, checkpoint)
+		mediaID = uc.processMovie(ctx, lib.ID, &result, checkpoint)
 	case library.LibraryTypeTV:
-		uc.processTVEpisode(ctx, lib.ID, &result, checkpoint)
+		mediaID = uc.processTVEpisode(ctx, lib.ID, &result, checkpoint)
 	case library.LibraryTypeMusic:
-		uc.processMusicTrack(ctx, lib.ID, &result, checkpoint)
+		mediaID = uc.processMusicTrack(ctx, lib.ID, &result, checkpoint)
 	default:
 		return fmt.Errorf("unknown library type: %s", lib.Type)
 	}
@@ -490,7 +507,7 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 		FileSize:      fileInfo.Size(),
 		FileMTime:     fileInfo.ModTime(),
 		FileHash:      checkpoint.FileHash, // Already computed during checkpoint creation
-		MediaID:       nil,                 // TODO: Link to created media record if needed
+		MediaID:       mediaID,              // Link to created/updated media record
 		LastScannedAt: time.Now(),
 		ScanJobID:     checkpoint.ScanJobID,
 	}
@@ -524,8 +541,14 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 		return
 	}
 
-	// Process the file
-	err := uc.processFileWithCheckpoint(ctx, lib, checkpoint)
+	// Add overall timeout protection at worker level to catch any hangs
+	// This includes os.Stat, database calls, and ProcessFile execution
+	// Use 5 minutes as absolute maximum to prevent worker deadlocks
+	workerCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	// Process the file with timeout protection
+	err := uc.processFileWithCheckpoint(workerCtx, lib, checkpoint)
 
 	if err != nil {
 		// Categorize the error
@@ -804,6 +827,33 @@ func (uc *ScanLibraryUseCase) isMediaFile(ext string) bool {
 		"wav": true, "wma": true, "ape": true, "wv": true, "tta": true, "tak": true,
 	}
 	return mediaExtensions[strings.ToLower(ext)]
+}
+
+// calculateProcessingTimeout determines appropriate timeout for file processing
+// based on file size and storage type to prevent worker deadlocks
+func (uc *ScanLibraryUseCase) calculateProcessingTimeout(fileSize int64) time.Duration {
+	// Base timeout: 30 seconds (sufficient for most files on local storage)
+	baseTimeout := 30 * time.Second
+
+	// For network storage, be more generous due to latency
+	if uc.systemProfile != nil && uc.systemProfile.Storage.IsRemote {
+		baseTimeout = 60 * time.Second
+	}
+
+	// Add extra time for large files (1 second per GB)
+	// This handles 4K content and large remuxes that take longer to probe
+	const bytesPerGB = 1024 * 1024 * 1024
+	sizeGB := fileSize / bytesPerGB
+	if sizeGB > 0 {
+		// Add up to 2 minutes extra for very large files
+		extraTime := time.Duration(sizeGB) * time.Second
+		if extraTime > 120*time.Second {
+			extraTime = 120 * time.Second
+		}
+		baseTimeout += extraTime
+	}
+
+	return baseTimeout
 }
 
 // isExtra determines if a file is an extra (trailer, deleted scene, featurette, etc.)

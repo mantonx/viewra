@@ -14,7 +14,7 @@ import (
 )
 
 // processMovie creates or updates a movie entry
-func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) {
+func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) *int64 {
 	// Handle nil checkpoint (legacy code path or tests)
 	if checkpoint == nil {
 		checkpoint = &scanner.ScanCheckpoint{
@@ -104,22 +104,23 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 		}
 		// Extract and catalog images (even for existing movies to populate cache)
 		uc.extractImagesForMovie(ctx, movie, result.FilePath)
-		return
+		return &movie.Media.ID
 	}
 
 	// Create new entry - let movie repository handle both media and movie records
 	movie.Media.Type = "movie"
 	if err := uc.mediaRepos.Movie.CreateMovie(ctx, movie); err != nil {
 		fmt.Printf("failed to create movie %s: %v\n", result.FilePath, err)
-		return
+		return nil
 	}
 
 	// Extract and catalog images for the movie
 	uc.extractImagesForMovie(ctx, movie, result.FilePath)
+	return &movie.Media.ID
 }
 
 // processTVEpisode creates or updates a TV episode entry
-func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) {
+func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) *int64 {
 	// Handle nil checkpoint (legacy code path or tests)
 	if checkpoint == nil {
 		checkpoint = &scanner.ScanCheckpoint{
@@ -134,7 +135,7 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 	tvInfo, err := parser.ParseTVEpisode(result.FilePath)
 	if err != nil || tvInfo == nil {
 		fmt.Printf("failed to parse TV episode filename %s: %v\n", result.FilePath, err)
-		return // Can't create episode without show name
+		return nil // Can't create episode without show name
 	}
 
 	// Use coordinator's parsed data where available, parser for show name
@@ -233,22 +234,23 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		}
 		// Extract and catalog images (even for existing episodes to populate cache)
 		uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
-		return
+		return &episode.Media.ID
 	}
 
 	// Create new entry - let TV repository handle both media and episode records
 	episode.Media.Type = "tv_episode"
 	if err := uc.mediaRepos.TV.CreateTVEpisode(ctx, episode); err != nil {
 		fmt.Printf("failed to create TV episode %s: %v\n", result.FilePath, err)
-		return
+		return nil
 	}
 
 	// Extract and catalog images for the episode, show, and season
 	uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
+	return &episode.Media.ID
 }
 
 // processMusicTrack creates or updates a music track entry
-func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) {
+func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint) *int64 {
 	// Handle nil checkpoint (legacy code path or tests)
 	if checkpoint == nil {
 		checkpoint = &scanner.ScanCheckpoint{
@@ -398,7 +400,7 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		}
 		// Extract album and artist images (even for existing tracks to populate cache)
 		uc.extractImagesForTrack(ctx, track, result.FilePath)
-		return
+		return &track.Media.ID
 	}
 
 	// Prepare artist entity if artist info is available
@@ -442,9 +444,10 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 	// This ensures all-or-nothing semantics - no orphaned records on failure
 	if err := uc.mediaRepos.Music.CreateMusicTrackWithEntities(ctx, track, artistEntity, albumEntity); err != nil {
 		fmt.Printf("failed to create music track %s: %v\n", result.FilePath, err)
-		return
+		return nil
 	}
 
 	// Extract and catalog images for the album and artist
 	uc.extractImagesForTrack(ctx, track, result.FilePath)
+	return &track.Media.ID
 }
