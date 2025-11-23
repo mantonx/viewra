@@ -22,8 +22,8 @@ dev-clean: ## Clean up stale dev processes and sockets
 	fi
 	@killall -9 air 2>/dev/null || true
 	@killall -9 main 2>/dev/null || true
-	@lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
-	@lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
+	@lsof -ti:8080 2>/dev/null | xargs kill -9 2>/dev/null || true
+	@lsof -ti:5173 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@rm -f .overmind.sock
 	@echo "✓ Cleanup complete"
 
@@ -55,8 +55,8 @@ stop: ## Stop all development servers
 	fi
 	@killall -9 air 2>/dev/null || true
 	@killall -9 main 2>/dev/null || true
-	@lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
-	@lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
+	@lsof -ti:8080 2>/dev/null | xargs kill -9 2>/dev/null || true
+	@lsof -ti:5173 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@rm -f .overmind.sock
 	@echo "✓ Stopped"
 
