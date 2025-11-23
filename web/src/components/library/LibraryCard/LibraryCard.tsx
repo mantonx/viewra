@@ -92,7 +92,7 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
           <div className="flex-1">
             <h3 className="font-semibold text-lg">{library.name}</h3>
             <p className="text-sm text-gray-600">{library.path}</p>
-            <div className="mt-2 flex gap-4 text-sm text-gray-500">
+            <div className="mt-2 flex gap-4 items-center text-sm text-gray-500">
               <span>Type: {library.type}</span>
               {isScanning && scanData && (
                 <span className="text-blue-600 font-medium">
@@ -115,11 +115,13 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
                 <button
                   onClick={() => setShowErrorsDialog(true)}
                   className="text-red-600 font-medium hover:underline flex items-center gap-1"
+                  title={isScanning ? "View errors (scan in progress)" : "View scan errors"}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   {pluralize(scanData.error_count, 'error')}
+                  {isScanning && <span className="text-xs">(ongoing)</span>}
                 </button>
               )}
             </div>

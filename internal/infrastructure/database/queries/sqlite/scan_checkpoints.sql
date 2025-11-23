@@ -53,7 +53,8 @@ SELECT
     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_files,
     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_files,
     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_files,
-    SUM(CASE WHEN status IN ('completed', 'failed') THEN 1 ELSE 0 END) as processed_files
+    SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warning_files,
+    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files
 FROM scan_checkpoints
 WHERE scan_job_id = ?;
 
@@ -62,13 +63,18 @@ SELECT
     error_category,
     COUNT(*) as error_count
 FROM scan_checkpoints
-WHERE scan_job_id = ? AND status = 'failed' AND error_category IS NOT NULL
+WHERE scan_job_id = ? AND status IN ('failed', 'warning') AND error_category IS NOT NULL
 GROUP BY error_category;
 
 -- name: ListFailedScanCheckpoints :many
 SELECT * FROM scan_checkpoints
-WHERE scan_job_id = ? AND status = 'failed'
-ORDER BY processed_at DESC
+WHERE scan_job_id = ? AND status IN ('failed', 'warning')
+ORDER BY
+    CASE
+        WHEN status = 'failed' THEN 1
+        WHEN status = 'warning' THEN 2
+    END,
+    processed_at DESC
 LIMIT ?;
 
 -- name: ResetFailedScanCheckpoints :exec
@@ -91,6 +97,6 @@ WHERE scan_job_id = ?;
 -- name: GetScanCheckpointProgress :one
 SELECT
     COUNT(*) as total,
-    SUM(CASE WHEN status IN ('completed', 'failed') THEN 1 ELSE 0 END) as processed
+    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed
 FROM scan_checkpoints
 WHERE scan_job_id = ?;

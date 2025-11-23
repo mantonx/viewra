@@ -440,12 +440,13 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 }
 
 // processFileWithCheckpoint processes a single file based on library type
-func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib *library.Library, checkpoint *scanner.ScanCheckpoint) error {
+// Returns (hasWarning bool, error)
+func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib *library.Library, checkpoint *scanner.ScanCheckpoint) (bool, error) {
 	// Re-extract metadata for this file (checkpoint only stores the path)
 	// We need full metadata to create the media entry
 	fileInfo, err := os.Stat(checkpoint.FilePath)
 	if err != nil {
-		return fmt.Errorf("failed to stat file: %w", err)
+		return false, fmt.Errorf("failed to stat file: %w", err)
 	}
 
 	// Create a scanner.FileInfo for the coordinator to process
@@ -480,9 +481,9 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 				"file_path", checkpoint.FilePath,
 				"file_size", fileInfo.Size(),
 				"timeout", timeout)
-			return fmt.Errorf("processing timeout after %v: %w", timeout, processCtx.Err())
+			return false, fmt.Errorf("processing timeout after %v: %w", timeout, processCtx.Err())
 		}
-		return result.Error
+		return false, result.Error
 	}
 
 	// Process based on library type and capture the returned media ID
@@ -495,7 +496,7 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 	case library.LibraryTypeMusic:
 		mediaID = uc.processMusicTrack(ctx, lib.ID, &result, checkpoint)
 	default:
-		return fmt.Errorf("unknown library type: %s", lib.Type)
+		return false, fmt.Errorf("unknown library type: %s", lib.Type)
 	}
 
 	// Update scan state after successful processing
@@ -519,7 +520,9 @@ func (uc *ScanLibraryUseCase) processFileWithCheckpoint(ctx context.Context, lib
 			"error", err)
 	}
 
-	return nil
+	// Check if file processing had warnings (e.g., FFmpeg metadata extraction failure)
+	hasWarning := result.Warning != nil
+	return hasWarning, nil
 }
 
 // processCheckpointWorker handles individual checkpoint processing in a worker goroutine
@@ -548,7 +551,7 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 	defer cancel()
 
 	// Process the file with timeout protection
-	err := uc.processFileWithCheckpoint(workerCtx, lib, checkpoint)
+	hasWarning, err := uc.processFileWithCheckpoint(workerCtx, lib, checkpoint)
 
 	if err != nil {
 		// Categorize the error
@@ -606,8 +609,21 @@ func (uc *ScanLibraryUseCase) processCheckpointWorker(
 					"error", err)
 			}
 		}
+	} else if hasWarning {
+		// File processed successfully but with warnings (e.g., FFmpeg metadata extraction failed)
+		// Mark as warning status so users can see which files had issues
+		if statusErr := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointWarning, "metadata extraction incomplete", "ffmpeg"); statusErr != nil {
+			uc.logger.Error("failed to mark checkpoint as warning",
+				"checkpoint_id", checkpoint.ID,
+				"file_path", checkpoint.FilePath,
+				"error", statusErr)
+		}
+		// Thread-safe update of found files
+		foundFilesMu.Lock()
+		foundFiles[checkpoint.FilePath] = true
+		foundFilesMu.Unlock()
 	} else {
-		// Mark as completed
+		// Mark as completed (no errors, no warnings)
 		if statusErr := uc.scanRepos.Checkpoint.UpdateStatus(ctx, checkpoint.ID, scanner.CheckpointCompleted, "", ""); statusErr != nil {
 			uc.logger.Error("failed to mark checkpoint as completed",
 				"checkpoint_id", checkpoint.ID,

@@ -182,6 +182,7 @@ type ScanJob struct {
 	Phase          sql.NullString `json:"phase"`
 	EstimatedTotal sql.NullInt64  `json:"estimated_total"`
 	DiscoveryDone  sql.NullBool   `json:"discovery_done"`
+	WarningCount   sql.NullInt32  `json:"warning_count"`
 }
 
 type ScanState struct {

@@ -79,6 +79,10 @@ type ScanResult struct {
 	Error          error
 	BytesProcessed int64
 
+	// Warning tracking for non-fatal issues (e.g., metadata extraction failures)
+	Warning         error  // Non-fatal warning message
+	WarningCategory string // Category of warning (e.g., "ffmpeg", "metadata")
+
 	// Technical video metadata (from FFmpeg)
 	FileSize        int64
 	Width           int
