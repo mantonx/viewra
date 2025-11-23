@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -49,7 +50,13 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 		case status >= 500:
 			logger.Error("HTTP request", attrs...)
 		case status >= 400:
-			logger.Warn("HTTP request", attrs...)
+			// HLS segment 404s are normal - player probes for next segment
+			// Don't log them as warnings to avoid noise
+			if status == 404 && strings.Contains(path, "/hls/") && strings.HasSuffix(path, ".ts") {
+				logger.Debug("HTTP request", attrs...)
+			} else {
+				logger.Warn("HTTP request", attrs...)
+			}
 		// Successful requests (2xx, 3xx) are not logged
 		}
 	}
