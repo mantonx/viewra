@@ -11,4 +11,5 @@ export interface VideoPlayerProps {
   duration?: number // in seconds
   metadata?: MediaMetadata
   onClose?: () => void
+  onTimeUpdate?: (time: number) => void // Called periodically with current playback position
 }

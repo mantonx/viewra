@@ -13,6 +13,7 @@ const Movies = () => {
   const navigate = useNavigate()
   const search = Route.useSearch() as {
     id?: number
+    t?: number
     q?: string
     sort?: string
     genres?: string
@@ -23,6 +24,7 @@ const Movies = () => {
     view?: ViewMode
   }
   const urlMovieId = search.id
+  const urlTimePosition = search.t
 
   // Use library filter to get the active library ID
   const { libraryId } = useLibraryFilter('movies')
@@ -33,6 +35,7 @@ const Movies = () => {
       to: '/movies',
       search: {
         id: undefined,
+        t: undefined,
         q: q || undefined,
         sort: search.sort || undefined,
         genres: search.genres,
@@ -51,6 +54,7 @@ const Movies = () => {
       to: '/movies',
       search: {
         id: undefined,
+        t: undefined,
         q: search.q || undefined,
         sort: sort === 'title-asc' ? undefined : sort,
         genres: search.genres,
@@ -69,6 +73,7 @@ const Movies = () => {
       to: '/movies',
       search: {
         id: undefined,
+        t: undefined,
         q: search.q || undefined,
         sort: search.sort || undefined,
         genres: filters.genres && filters.genres.length > 0 ? filters.genres.join(',') : undefined,
@@ -87,6 +92,7 @@ const Movies = () => {
       to: '/movies',
       search: {
         id: undefined,
+        t: undefined,
         q: search.q || undefined,
         sort: search.sort || undefined,
         genres: search.genres,
@@ -194,8 +200,8 @@ const Movies = () => {
   const playingMovie = allMovies.find((m) => m.id === playbackState.mediaId)
 
   // Handle playing a movie
-  const handlePlayMovie = async (movieId: number) => {
-    logger.debug('🔔 handlePlayMovie called with movieId:', movieId)
+  const handlePlayMovie = async (movieId: number, startTime?: number) => {
+    logger.debug('🔔 handlePlayMovie called with movieId:', movieId, 'startTime:', startTime)
     const movie = allMovies.find((m) => m.id === movieId)
     if (!movie) {
       logger.warn('❌ Movie not found for ID:', movieId)
@@ -203,8 +209,22 @@ const Movies = () => {
     }
     logger.debug('✅ Found movie:', movie.title)
 
-    // Update URL with movie ID
-    navigate({ to: '/movies', search: { id: movieId, q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, qualities: undefined, watched: undefined, view: undefined } })
+    // Update URL with movie ID and optional time position
+    navigate({
+      to: '/movies',
+      search: {
+        id: movieId,
+        t: startTime && startTime > 0 ? Math.floor(startTime) : undefined,
+        q: undefined,
+        sort: undefined,
+        genres: undefined,
+        yearMin: undefined,
+        yearMax: undefined,
+        qualities: undefined,
+        watched: undefined,
+        view: undefined
+      }
+    })
 
     // Convert Movie to the format expected by playMedia
     const mediaItem = {
@@ -216,19 +236,42 @@ const Movies = () => {
       type: 'movie' as const,
     }
 
-    // Trigger playback via hook
-    await playMedia(movieId, mediaItem)
+    // Trigger playback via hook, passing URL time if available
+    await playMedia(movieId, mediaItem, startTime)
+  }
+
+  // Handle time position updates from video player
+  const handleTimeUpdate = (time: number) => {
+    if (urlMovieId && time > 0) {
+      navigate({
+        to: '/movies',
+        search: {
+          id: urlMovieId,
+          t: Math.floor(time),
+          q: search.q || undefined,
+          sort: search.sort || undefined,
+          genres: search.genres,
+          yearMin: search.yearMin,
+          yearMax: search.yearMax,
+          qualities: search.qualities,
+          watched: search.watched,
+          view: search.view,
+        },
+        replace: true, // Use replace to avoid polluting browser history
+      })
+    }
   }
 
   // Handle closing the player
   const handleClosePlayer = () => {
     stopPlayback()
-    // Clear URL parameter if present
+    // Clear URL parameters if present
     if (urlMovieId) {
       navigate({
         to: '/movies',
         search: {
           id: undefined,
+          t: undefined,
           q: search.q || undefined,
           sort: search.sort || undefined,
           genres: search.genres,
@@ -242,12 +285,20 @@ const Movies = () => {
     }
   }
 
+  // Auto-play when URL contains movie ID
+  useEffect(() => {
+    if (urlMovieId && !playbackState.isPlaying) {
+      handlePlayMovie(urlMovieId, urlTimePosition)
+    }
+  }, [urlMovieId]) // Only trigger on urlMovieId change
+
   // Render video player if playing
   const videoPlayer = (
     <VideoPlayerContainer
       playbackState={playbackState}
       media={playingMovie}
       onClose={handleClosePlayer}
+      onTimeUpdate={handleTimeUpdate}
     />
   )
 
@@ -326,6 +377,8 @@ export const Route = createFileRoute('/_layout/movies/')({
   validateSearch: (search: Record<string, unknown>) => {
     const id = search.id
     const parsedId = typeof id === 'string' ? parseInt(id, 10) : typeof id === 'number' ? id : undefined
+    const t = search.t
+    const parsedT = typeof t === 'string' ? parseInt(t, 10) : typeof t === 'number' ? t : undefined
     const q = typeof search.q === 'string' ? search.q : undefined
     const sort = typeof search.sort === 'string' ? search.sort : undefined
     const genres = typeof search.genres === 'string' ? search.genres : undefined
@@ -337,6 +390,7 @@ export const Route = createFileRoute('/_layout/movies/')({
 
     return {
       id: parsedId && !isNaN(parsedId) ? parsedId : undefined,
+      t: parsedT && !isNaN(parsedT) ? parsedT : undefined,
       q,
       sort,
       genres,

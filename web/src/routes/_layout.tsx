@@ -30,7 +30,7 @@ const Layout = () => {
             </Link>
             <Link
               to="/movies"
-              search={{ id: undefined, q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, qualities: undefined, watched: undefined, view: undefined }}
+              search={{ id: undefined, t: undefined, q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, qualities: undefined, watched: undefined, view: undefined }}
               className="block px-4 py-2 rounded hover:bg-gray-800 transition-colors"
               activeProps={{ className: 'bg-gray-800' }}
             >

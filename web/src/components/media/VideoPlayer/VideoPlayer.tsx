@@ -69,6 +69,7 @@ export const VideoPlayer = ({
   duration = 0,
   metadata,
   onClose,
+  onTimeUpdate,
 }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
@@ -352,6 +353,10 @@ export const VideoPlayer = ({
         setCurrentTime(actualTime)
         if (progressUpdaterRef.current && isPlaying) {
           progressUpdaterRef.current.updateCurrentTime(actualTime)
+        }
+        // Notify parent component of time update (for URL sync)
+        if (onTimeUpdate) {
+          onTimeUpdate(actualTime)
         }
       }
     }

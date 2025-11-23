@@ -20,6 +20,7 @@ interface VideoPlayerContainerProps {
   playbackState: PlaybackState
   media: Media | null | undefined
   onClose: () => void
+  onTimeUpdate?: (time: number) => void
   overlay?: React.ReactNode
 }
 
@@ -27,6 +28,7 @@ export const VideoPlayerContainer = ({
   playbackState,
   media,
   onClose,
+  onTimeUpdate,
   overlay,
 }: VideoPlayerContainerProps) => {
   // Fetch images for TV shows or movies
@@ -80,6 +82,7 @@ export const VideoPlayerContainer = ({
         duration={media.duration}
         metadata={metadata}
         onClose={onClose}
+        onTimeUpdate={onTimeUpdate}
       />
       {overlay}
     </div>

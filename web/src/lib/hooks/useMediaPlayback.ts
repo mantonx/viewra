@@ -17,7 +17,7 @@ export interface PlaybackState {
 
 interface UseMediaPlaybackReturn {
   playbackState: PlaybackState
-  playMedia: (mediaId: number, media: Media) => Promise<void>
+  playMedia: (mediaId: number, media: Media, urlTime?: number) => Promise<void>
   stopPlayback: () => void
 }
 
@@ -35,26 +35,34 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     setIsPlaying(true)
   }
 
-  const playMedia = async (id: number, _media: Media) => {
+  const playMedia = async (id: number, _media: Media, urlTime?: number) => {
     setMediaId(id)
     setIsPlaying(true) // Show player immediately with loading state
     setTranscodeState('checking')
 
-    // Fetch progress to determine resume position (usually fast, <50ms from cache)
+    // Determine resume position: URL time takes precedence, then saved progress
     let resumePosition = 0
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/progress/${id}`)
-      const progressData = response.ok ? await response.json() : null
-      const progressSecs = progressData ? getProgressSeconds(progressData) : 0
-      const durationSecs = progressData?.duration_seconds ?? 0
 
-      // Resume unless user finished watching (within 1 second of end)
-      const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
-      resumePosition = (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
+    if (urlTime !== undefined && urlTime > 0) {
+      // URL time specified - use it directly (from bookmarked link)
+      resumePosition = urlTime
       setInitialPosition(resumePosition)
-    } catch (error) {
-      logger.error('Error fetching progress:', error)
-      setInitialPosition(0)
+    } else {
+      // Fetch progress to determine resume position (usually fast, <50ms from cache)
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/progress/${id}`)
+        const progressData = response.ok ? await response.json() : null
+        const progressSecs = progressData ? getProgressSeconds(progressData) : 0
+        const durationSecs = progressData?.duration_seconds ?? 0
+
+        // Resume unless user finished watching (within 1 second of end)
+        const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
+        resumePosition = (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
+        setInitialPosition(resumePosition)
+      } catch (error) {
+        logger.error('Error fetching progress:', error)
+        setInitialPosition(0)
+      }
     }
 
     // Select quality and build manifest URL with resume position

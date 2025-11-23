@@ -13,8 +13,9 @@ import { logger } from '@/lib/utils/logger'
 const SeasonDetail = () => {
   const navigate = useNavigate()
   const { showId, seasonNumber } = Route.useParams()
-  const search = Route.useSearch() as { episodeId?: number }
+  const search = Route.useSearch() as { episodeId?: number; t?: number }
   const urlEpisodeId = search.episodeId
+  const urlTimePosition = search.t
   const showIdNumber = parseInt(showId, 10)
 
   const { playbackState, playMedia, stopPlayback } = useMediaPlayback()
@@ -80,23 +81,26 @@ const SeasonDetail = () => {
     if (urlEpisodeId && !playbackState.isPlaying && !playbackState.mediaId && seasonEpisodes.length > 0) {
       const episode = seasonEpisodes.find((ep) => ep.id === urlEpisodeId)
       if (episode) {
-        handlePlayEpisode(episode)
+        handlePlayEpisode(episode, urlTimePosition)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlEpisodeId, seasonEpisodes.length])
 
-  const handlePlayEpisode = async (episode: TVEpisodeResponse) => {
+  const handlePlayEpisode = async (episode: TVEpisodeResponse, startTime?: number) => {
     logger.debug('Playing episode:', episode.show_title, `S${  episode.season  }E${  episode.episode}`)
 
-    // Update URL with episode ID
+    // Update URL with episode ID and optional time position
     navigate({
       to: `/tv/${showId}/season/${seasonNumber}`,
-      search: { episodeId: episode.id }
+      search: {
+        episodeId: episode.id,
+        t: startTime && startTime > 0 ? Math.floor(startTime) : undefined
+      }
     })
 
-    // Trigger playback
-    await playMedia(episode.id ?? 0, episode)
+    // Trigger playback, passing URL time if available
+    await playMedia(episode.id ?? 0, episode, startTime)
   }
 
   const handlePlayNextEpisode = async () => {
@@ -105,13 +109,27 @@ const SeasonDetail = () => {
     }
   }
 
+  // Handle time position updates from video player
+  const handleTimeUpdate = (time: number) => {
+    if (urlEpisodeId && time > 0) {
+      navigate({
+        to: `/tv/${showId}/season/${seasonNumber}`,
+        search: {
+          episodeId: urlEpisodeId,
+          t: Math.floor(time)
+        },
+        replace: true, // Use replace to avoid polluting browser history
+      })
+    }
+  }
+
   const handleClosePlayer = () => {
     stopPlayback()
-    // Clear URL parameter if present
+    // Clear URL parameters if present
     if (urlEpisodeId) {
       navigate({
         to: `/tv/${showId}/season/${seasonNumber}`,
-        search: {}
+        search: { episodeId: undefined, t: undefined }
       })
     }
   }
@@ -138,6 +156,7 @@ const SeasonDetail = () => {
       playbackState={playbackState}
       media={playingEpisode}
       onClose={handleClosePlayer}
+      onTimeUpdate={handleTimeUpdate}
       overlay={nextEpisodeButton}
     />
   )
@@ -207,8 +226,11 @@ export const Route = createFileRoute('/_layout/tv/$showId/season/$seasonNumber')
   validateSearch: (search: Record<string, unknown>) => {
     const episodeId = search.episodeId
     const parsedId = typeof episodeId === 'string' ? parseInt(episodeId, 10) : typeof episodeId === 'number' ? episodeId : undefined
+    const t = search.t
+    const parsedT = typeof t === 'string' ? parseInt(t, 10) : typeof t === 'number' ? t : undefined
     return {
       episodeId: parsedId && !isNaN(parsedId) ? parsedId : undefined,
+      t: parsedT && !isNaN(parsedT) ? parsedT : undefined,
     }
   },
 })
