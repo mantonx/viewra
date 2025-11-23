@@ -30,6 +30,7 @@ type CheckpointRepository interface {
 type ScanStateRepository interface {
 	GetLibraryIssues(ctx context.Context, libraryID int64) ([]*scanner.ScanState, error)
 	CountLibraryIssues(ctx context.Context, libraryID int64) (*scanner.LibraryIssueCounts, error)
+	CountByLibrary(ctx context.Context, libraryID int64) (int64, error)
 }
 
 // ScanLibraryExecutor defines the interface for resuming scans
@@ -74,6 +75,14 @@ type ScanStatusResponse struct {
 	Phase          string  `json:"phase,omitempty"`           // Current scan phase (discovering/processing/completed)
 	EstimatedTotal int64   `json:"estimated_total,omitempty"` // Estimated total files from previous scan
 	DiscoveryDone  bool    `json:"discovery_done"`            // Whether file discovery is complete
+	ETASeconds     *int64  `json:"eta_seconds,omitempty"`     // Estimated seconds remaining (nil if unknown)
+
+	// Discovery health metrics (added in v0.18)
+	DiscoveryErrors   int64 `json:"discovery_errors,omitempty"`   // Errors during file discovery
+	DiscoveryWarnings int64 `json:"discovery_warnings,omitempty"` // Warnings during discovery
+	DirsScanned       int64 `json:"dirs_scanned,omitempty"`       // Directories successfully scanned
+	DirsSkipped       int64 `json:"dirs_skipped,omitempty"`       // Directories that couldn't be read
+	FilesSkipped      int64 `json:"files_skipped,omitempty"`      // Files that couldn't be stat'd
 }
 
 // ScanHistoryItem represents a historical scan job
@@ -144,13 +153,51 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		warningCount = job.WarningCount
 	}
 
+	// Get total files processed from scan_state (includes all scans, not just current job)
+	// This gives users a sense of progress: files already in the database vs total discovered
+	filesProcessed := job.FilesProcessed // Default to job count
+	if totalProcessed, err := h.scanStateRepo.CountByLibrary(c.Request.Context(), libraryID); err == nil {
+		filesProcessed = totalProcessed
+	} else {
+		// Fallback to job count if scan_state query fails
+		h.logger.Warn("failed to get total processed count, using job count",
+			"library_id", libraryID,
+			"error", err)
+	}
+
+	// Calculate progress percentage based on total files in scan_state vs discovered
+	// This gives users accurate progress: how much of the library is already processed
+	progress := job.Progress // Default to job progress
+	if job.FilesFound > 0 {
+		progress = float64(filesProcessed) / float64(job.FilesFound) * 100.0
+	}
+
+	// Calculate ETA for running scans
+	var etaSeconds *int64
+	if job.Status == scanner.ScanStatusRunning && filesProcessed > 0 && job.FilesFound > 0 {
+		// Calculate time elapsed
+		elapsed := time.Since(job.StartedAt).Seconds()
+
+		// Calculate processing rate (files per second)
+		rate := float64(filesProcessed) / elapsed
+
+		// Calculate remaining files
+		remaining := job.FilesFound - filesProcessed
+
+		// Calculate ETA (only if we have a meaningful rate)
+		if rate > 0 && remaining > 0 {
+			eta := int64(float64(remaining) / rate)
+			etaSeconds = &eta
+		}
+	}
+
 	// Convert to response
 	response := ScanStatusResponse{
 		JobID:          job.ID,
 		Status:         string(job.Status),
-		Progress:       job.Progress,
+		Progress:       progress,
 		FilesFound:     job.FilesFound,
-		FilesProcessed: job.FilesProcessed,
+		FilesProcessed: filesProcessed,
 		BytesProcessed: job.BytesProcessed,
 		ErrorCount:     errorCount,
 		WarningCount:   warningCount,
@@ -159,6 +206,14 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		Phase:          string(job.Phase),
 		EstimatedTotal: job.EstimatedTotal,
 		DiscoveryDone:  job.DiscoveryDone,
+		ETASeconds:     etaSeconds,
+
+		// Discovery health metrics
+		DiscoveryErrors:   job.DiscoveryErrors,
+		DiscoveryWarnings: job.DiscoveryWarnings,
+		DirsScanned:       job.DirsScanned,
+		DirsSkipped:       job.DirsSkipped,
+		FilesSkipped:      job.FilesSkipped,
 	}
 
 	if job.CompletedAt != nil {

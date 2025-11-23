@@ -220,14 +220,17 @@ func (uc *ScanLibraryUseCase) ResumeStuckScans(ctx context.Context) error {
 		stats, err := uc.scanRepos.Checkpoint.GetStats(ctx, job.ID)
 		if err != nil || stats.PendingFiles == 0 {
 			// No pending files, mark as completed
+			// Preserve FilesFound from original job (not stats.TotalFiles which is checkpoint count)
 			uc.logger.Info("stuck scan has no pending files, marking as completed",
-				"scan_id", job.ID)
+				"scan_id", job.ID,
+				"files_found", job.FilesFound)
 			completedJob := &scanner.ScanJob{
 				ID:             job.ID,
 				Status:         scanner.ScanStatusCompleted,
-				FilesFound:     stats.TotalFiles,
-				FilesProcessed: stats.CompletedFiles,
+				FilesFound:     job.FilesFound,         // Preserve from discovery, not checkpoint count
+				FilesProcessed: stats.ProcessedFiles,   // Total processed (completed + failed + warnings)
 				ErrorCount:     stats.FailedFiles,
+				WarningCount:   stats.WarningFiles,     // Include warning count for consistency
 				Progress:       stats.GetProgress(),
 				CompletedAt:    &[]time.Time{time.Now()}[0],
 				Phase:          scanner.ScanPhaseCompleted,
@@ -342,14 +345,55 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 	}
 
 	// Check if there are existing checkpoints to resume from
+	// IMPORTANT: Only resume if ALL checkpoints were created for discovered files
+	// If checkpoint creation was interrupted, we need to start fresh
+	currentJob, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
+	if err != nil {
+		uc.logger.Error("failed to get scan job", "job_id", jobID, "error", err)
+		uc.completeJobWithError(ctx, jobID, err)
+		return
+	}
+
 	stats, err := uc.scanRepos.Checkpoint.GetStats(ctx, jobID)
 	if err == nil && stats.PendingFiles > 0 {
-		// Resume from existing checkpoints
-		uc.logger.Info("resuming scan from checkpoint",
-			"pending", stats.PendingFiles,
-			"completed", stats.CompletedFiles)
-		uc.resumeScanFromCheckpoints(ctx, jobID, lib)
-		return
+		// Checkpoints exist - verify they represent ALL discovered files before resuming
+		// Calculate expected checkpoint count (files needing processing)
+		// Note: We can't know exact count without re-running incremental scan,
+		// but we can detect if checkpoint creation was obviously interrupted:
+		// If we have FilesFound but very few checkpoints, creation was interrupted
+		totalCheckpoints := stats.TotalFiles // pending + completed + failed
+		filesFound := currentJob.FilesFound
+
+		// If checkpoint count seems reasonable (at least 1% of discovered files for incremental,
+		// or we're early in discovery so FilesFound isn't set yet), resume
+		minExpected := int64(1) // At minimum we expect some checkpoints
+		if filesFound > 0 {
+			minExpected = filesFound / 100 // At least 1% of files should have checkpoints
+			if minExpected < 1 {
+				minExpected = 1
+			}
+		}
+
+		if totalCheckpoints >= minExpected || filesFound == 0 {
+			// Checkpoint count seems reasonable - safe to resume
+			uc.logger.Info("resuming scan from checkpoints",
+				"files_found", filesFound,
+				"total_checkpoints", totalCheckpoints,
+				"pending", stats.PendingFiles,
+				"completed", stats.CompletedFiles)
+			uc.resumeScanFromCheckpoints(ctx, jobID, lib)
+			return
+		} else {
+			// Too few checkpoints compared to discovered files - checkpoint creation was interrupted
+			uc.logger.Warn("incomplete checkpoint creation detected, cleaning up and starting fresh",
+				"job_id", jobID,
+				"files_found", filesFound,
+				"checkpoints_created", totalCheckpoints,
+				"expected_minimum", minExpected)
+			if deleteErr := uc.scanRepos.Checkpoint.DeleteByJobID(ctx, jobID); deleteErr != nil {
+				uc.logger.Error("failed to delete partial checkpoints", "error", deleteErr)
+			}
+		}
 	}
 
 	// Fresh scan - discover files and create checkpoints
@@ -366,22 +410,31 @@ func (uc *ScanLibraryUseCase) resumeScanFromCheckpoints(ctx context.Context, job
 		return
 	}
 
-	totalFiles := stats.PendingFiles + stats.CompletedFiles + stats.FailedFiles
+	// Get the current job to preserve FilesFound from original discovery
+	currentJob, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
+	if err != nil {
+		uc.logger.Error("Failed to get scan job for resume", "job_id", jobID, "error", err)
+		return
+	}
+
+	totalCheckpoints := stats.PendingFiles + stats.CompletedFiles + stats.FailedFiles
 	uc.logger.Info("Resuming scan from checkpoints",
 		"job_id", jobID,
-		"total_files", totalFiles,
+		"files_found", currentJob.FilesFound,
+		"checkpoints", totalCheckpoints,
 		"completed", stats.CompletedFiles,
 		"pending", stats.PendingFiles)
 
 	// Initialize progress with existing checkpoint counts so progress shows correctly
 	// When resuming, discovery is already complete
+	// CRITICAL: Preserve FilesFound from original discovery, don't overwrite with checkpoint count
 	progress := &scanner.Progress{
-		FilesFound:     totalFiles,
-		FilesProcessed: stats.CompletedFiles,
+		FilesFound:     currentJob.FilesFound, // Preserve from discovery, not checkpoint count
+		FilesProcessed: stats.ProcessedFiles,  // Total processed (completed + failed + warnings)
 		ErrorCount:     stats.FailedFiles,
 		WarningCount:   stats.WarningFiles,
 		Phase:          scanner.ScanPhaseProcessing,
-		EstimatedTotal: totalFiles,
+		EstimatedTotal: currentJob.EstimatedTotal,
 		DiscoveryDone:  true,
 	}
 	if err := uc.scanRepos.ScanJob.UpdateProgress(ctx, jobID, progress); err != nil {
@@ -391,7 +444,8 @@ func (uc *ScanLibraryUseCase) resumeScanFromCheckpoints(ctx context.Context, job
 	// When resuming, hashing is already done
 	hashingDone := make(chan struct{})
 	close(hashingDone)
-	uc.processFilesWithCheckpoints(ctx, jobID, lib, hashingDone)
+	// When resuming, we don't have fresh discovery stats, pass nil
+	uc.processFilesWithCheckpoints(ctx, jobID, lib, hashingDone, nil)
 }
 
 // GetProgress retrieves the current progress of a scan job

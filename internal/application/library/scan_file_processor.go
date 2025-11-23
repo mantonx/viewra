@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/library"
@@ -52,7 +53,12 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 		return
 	}
 
+	// Track media files discovered (not all files)
+	// We'll manually increment this counter as media files are discovered
+	var mediaFilesDiscovered atomic.Int64
+
 	// Add progress callback to update scan job progress in real-time
+	// This callback is called by the scan_file_processor when a media file is discovered
 	progressCallback := func(filesDiscovered int64) {
 		progress := &scanner.Progress{
 			FilesFound:     filesDiscovered,
@@ -72,7 +78,6 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 			}
 		}()
 	}
-	walkerOpts = append(walkerOpts, filesystem.WithProgressCallback(progressCallback))
 
 	// Pass logger to walker for consistent structured logging
 	walkerOpts = append(walkerOpts, filesystem.WithLogger(uc.logger))
@@ -139,12 +144,49 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 
 		// Send to channel (non-blocking due to buffer)
 		filesChan <- fileInfo
+
+		// Increment media files counter and report progress periodically
+		count := mediaFilesDiscovered.Add(1)
+		if count%1000 == 0 { // Report every 1000 files to avoid too many updates
+			progressCallback(count)
+		}
+
 		return nil
 	})
 
 	// Close channel and wait for collector to finish
 	close(filesChan)
 	discoveryWg.Wait()
+
+	// Report final count (in case total is less than 1000 or not a multiple of 1000)
+	finalCount := mediaFilesDiscovered.Load()
+	if finalCount > 0 {
+		progressCallback(finalCount)
+	}
+
+	// Get discovery statistics from walker
+	discoveryStats := walker.GetStats()
+	if discoveryStats != nil {
+		uc.logger.Info("Discovery statistics",
+			"job_id", jobID,
+			"files_discovered", discoveryStats.FilesDiscovered,
+			"dirs_scanned", discoveryStats.DirsScanned,
+			"dirs_skipped", discoveryStats.DirsSkipped,
+			"files_skipped", discoveryStats.FilesSkipped,
+			"permission_errors", discoveryStats.PermissionErrors,
+			"network_errors", discoveryStats.NetworkErrors,
+			"other_errors", discoveryStats.OtherErrors)
+
+		// Warn if discovery had errors
+		if discoveryStats.HasErrors() {
+			uc.logger.Warn("Discovery completed with errors - some files may be missing",
+				"job_id", jobID,
+				"total_errors", discoveryStats.TotalErrors(),
+				"dirs_skipped", discoveryStats.DirsSkipped,
+				"files_skipped", discoveryStats.FilesSkipped,
+				"sample_paths", discoveryStats.SkippedPaths)
+		}
+	}
 
 	if err != nil {
 		uc.logger.Error("File discovery failed",
@@ -158,6 +200,14 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 	uc.logger.Info("File discovery completed",
 		"job_id", jobID,
 		"media_files_discovered", len(discoveredFiles))
+
+	// Validate discovery results against previous scans
+	discoveryWarnings := uc.validateDiscovery(ctx, lib.ID, int64(len(discoveredFiles)), discoveryStats)
+	if len(discoveryWarnings) > 0 {
+		for _, warning := range discoveryWarnings {
+			uc.logger.Warn("Discovery validation warning", "job_id", jobID, "warning", warning)
+		}
+	}
 
 	// Mark discovery as complete and transition to processing phase
 	discoveryProgress := &scanner.Progress{
@@ -196,12 +246,14 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 	// Check if there are any changes to process
 	if !diff.NeedsProcessing() {
 		uc.logger.Info("no changes detected, scan complete",
+			"files_found", len(discoveredFiles),
 			"unchanged_files", len(diff.UnchangedFiles))
 		// Mark job as completed successfully with no files processed
+		// FilesFound = total discovered files (not just unchanged files!)
 		job := &scanner.ScanJob{
 			ID:             jobID,
 			Status:         scanner.ScanStatusCompleted,
-			FilesFound:     int64(len(diff.UnchangedFiles)),
+			FilesFound:     int64(len(discoveredFiles)), // Total discovered, not just unchanged
 			FilesProcessed: 0,
 			ErrorCount:     0,
 			Progress:       100.0,
@@ -263,8 +315,8 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 			}
 		}()
 
-		// Process files as checkpoints become available
-		uc.processFilesWithCheckpoints(ctx, jobID, lib, hashingDone)
+		// Process files as checkpoints become available, passing discovery stats
+		uc.processFilesWithCheckpoints(ctx, jobID, lib, hashingDone, discoveryStats)
 	}()
 
 	// Hash files and stream checkpoints in parallel (processing consumes them concurrently)
@@ -302,7 +354,8 @@ func (uc *ScanLibraryUseCase) runFreshScan(ctx context.Context, jobID int64, lib
 
 // processFilesWithCheckpoints processes files in batches using checkpoints with parallel workers
 // hashingDone channel signals when checkpoint creation is complete
-func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, jobID int64, lib *library.Library, hashingDone <-chan struct{}) {
+// discoveryStats contains statistics from the discovery phase (may be nil)
+func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, jobID int64, lib *library.Library, hashingDone <-chan struct{}, discoveryStats *filesystem.WalkStats) {
 	const batchSize = 50
 	const maxRetries = 3
 	updateTicker := time.NewTicker(2 * time.Second)
@@ -392,11 +445,11 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		select {
 		case <-updateTicker.C:
 			stats, _ := uc.scanRepos.Checkpoint.GetStats(ctx, jobID)
-			// Get current job to preserve phase and discovery state
+			// Get current job to preserve phase, discovery state, and FilesFound
 			currentJob, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
 			if err == nil && currentJob != nil {
 				progress := &scanner.Progress{
-					FilesFound:     stats.TotalFiles,
+					FilesFound:     currentJob.FilesFound, // Preserve FilesFound from discovery
 					FilesProcessed: stats.ProcessedFiles,
 					ErrorCount:     stats.FailedFiles,
 					WarningCount:   stats.WarningFiles,
@@ -414,14 +467,26 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 	close(checkpointsChan)
 	workerWg.Wait()
 
-	// Get final stats
+	// Get final stats from checkpoints
 	stats, _ := uc.scanRepos.Checkpoint.GetStats(ctx, jobID)
 
-	// Complete the job
+	// Get current job to preserve FilesFound from discovery phase
+	// CRITICAL: FilesFound is set during discovery and represents ALL discovered files,
+	// while stats.TotalFiles only counts files that needed processing (new/modified).
+	// We must ALWAYS use currentJob.FilesFound, never stats.TotalFiles!
+	currentJob, err := uc.scanRepos.ScanJob.GetByID(ctx, jobID)
+	if err != nil {
+		uc.logger.Error("failed to get current job for completion",
+			"job_id", jobID,
+			"error", err)
+		return
+	}
+
+	// Complete the job with discovery health metrics
 	job := &scanner.ScanJob{
 		ID:             jobID,
-		FilesFound:     stats.TotalFiles,
-		FilesProcessed: stats.CompletedFiles,
+		FilesFound:     currentJob.FilesFound,   // MUST preserve from discovery (not stats.TotalFiles!)
+		FilesProcessed: stats.ProcessedFiles,    // Total processed (completed + failed + warnings)
 		ErrorCount:     stats.FailedFiles,
 		WarningCount:   stats.WarningFiles,
 		Progress:       stats.GetProgress(),
@@ -430,12 +495,34 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		DiscoveryDone:  true,
 	}
 
+	// Add discovery health metrics if available
+	if discoveryStats != nil {
+		// Validate discovery and count warnings
+		// Use FilesFound (discovered files) not stats.TotalFiles (checkpoint count)
+		discoveryWarnings := uc.validateDiscovery(ctx, lib.ID, currentJob.FilesFound, discoveryStats)
+
+		job.DiscoveryErrors = discoveryStats.TotalErrors()
+		job.DiscoveryWarnings = int64(len(discoveryWarnings))
+		job.DirsScanned = discoveryStats.DirsScanned
+		job.DirsSkipped = discoveryStats.DirsSkipped
+		job.FilesSkipped = discoveryStats.FilesSkipped
+
+		// Log warnings at completion time as well
+		if len(discoveryWarnings) > 0 {
+			uc.logger.Warn("Scan completed with discovery warnings",
+				"job_id", jobID,
+				"warning_count", len(discoveryWarnings),
+				"warnings", discoveryWarnings)
+		}
+	}
+
 	if stats.FailedFiles > 0 {
 		job.Status = scanner.ScanStatusCompleted // Partial success
 		uc.logger.Info("scan completed with errors",
 			"job_id", jobID,
 			"library_id", lib.ID,
-			"total_files", stats.TotalFiles,
+			"files_found", currentJob.FilesFound,
+			"files_processed", stats.TotalFiles,
 			"completed_files", stats.CompletedFiles,
 			"failed_files", stats.FailedFiles,
 			"warning_files", stats.WarningFiles)
@@ -444,7 +531,8 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		uc.logger.Info("scan completed with warnings",
 			"job_id", jobID,
 			"library_id", lib.ID,
-			"total_files", stats.TotalFiles,
+			"files_found", currentJob.FilesFound,
+			"files_processed", stats.TotalFiles,
 			"completed_files", stats.CompletedFiles,
 			"warning_files", stats.WarningFiles)
 	} else {
@@ -452,7 +540,8 @@ func (uc *ScanLibraryUseCase) processFilesWithCheckpoints(ctx context.Context, j
 		uc.logger.Info("scan completed successfully",
 			"job_id", jobID,
 			"library_id", lib.ID,
-			"total_files", stats.TotalFiles,
+			"files_found", currentJob.FilesFound,
+			"files_processed", stats.TotalFiles,
 			"completed_files", stats.CompletedFiles)
 	}
 
@@ -934,9 +1023,12 @@ func (uc *ScanLibraryUseCase) isMediaFile(ext string) bool {
 		// Video
 		"mp4": true, "mkv": true, "avi": true, "mov": true, "wmv": true, "flv": true,
 		"webm": true, "m4v": true, "mpg": true, "mpeg": true, "m2ts": true, "ts": true,
+		"vob": true, "3gp": true, "3g2": true, "f4v": true, "rm": true, "rmvb": true,
+		"divx": true, "asf": true, "qt": true, "mts": true, "ogv": true, "mxf": true,
 		// Audio
 		"mp3": true, "flac": true, "m4a": true, "aac": true, "ogg": true, "opus": true,
 		"wav": true, "wma": true, "ape": true, "wv": true, "tta": true, "tak": true,
+		"dsf": true, "dff": true, "alac": true, "aiff": true, "aif": true,
 	}
 	return mediaExtensions[strings.ToLower(ext)]
 }
@@ -966,6 +1058,74 @@ func (uc *ScanLibraryUseCase) calculateProcessingTimeout(fileSize int64) time.Du
 	}
 
 	return baseTimeout
+}
+
+// validateDiscovery checks discovery results for potential issues
+// Returns a list of warning messages if problems are detected
+func (uc *ScanLibraryUseCase) validateDiscovery(
+	ctx context.Context,
+	libraryID int64,
+	filesDiscovered int64,
+	stats *filesystem.WalkStats,
+) []string {
+	warnings := []string{}
+
+	// Check 1: Discovery had errors
+	if stats != nil && stats.HasErrors() {
+		if stats.DirsSkipped > 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"Failed to read %d directories during discovery. Some files may be missing. Check permissions and network connectivity.",
+				stats.DirsSkipped))
+		}
+		if stats.FilesSkipped > 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"Failed to stat %d files during discovery. These files were skipped.",
+				stats.FilesSkipped))
+		}
+		if stats.PermissionErrors > 10 {
+			warnings = append(warnings, fmt.Sprintf(
+				"Encountered %d permission errors. Check library path permissions.",
+				stats.PermissionErrors))
+		}
+		if stats.NetworkErrors > 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"Encountered %d network/timeout errors. Check network storage connectivity.",
+				stats.NetworkErrors))
+		}
+	}
+
+	// Check 2: Compare against previous completed scan
+	previousJobs, err := uc.scanRepos.ScanJob.ListByLibrary(ctx, libraryID, 5)
+	if err == nil && len(previousJobs) > 1 {
+		// Find the last completed scan (not the current one)
+		for _, prevJob := range previousJobs {
+			if prevJob.Status == scanner.ScanStatusCompleted && prevJob.FilesFound > 0 {
+				// Calculate percentage drop
+				percentDrop := float64(prevJob.FilesFound-filesDiscovered) / float64(prevJob.FilesFound) * 100
+
+				// Warn if we found significantly fewer files
+				if percentDrop > 10.0 {
+					warnings = append(warnings, fmt.Sprintf(
+						"Discovery found %.0f%% fewer files than last scan (%d vs %d). This may indicate incomplete discovery.",
+						percentDrop, filesDiscovered, prevJob.FilesFound))
+				}
+
+				// Also check if previous scan had discovery errors
+				if prevJob.DirsSkipped > 0 && stats != nil && stats.DirsSkipped > 0 {
+					warnings = append(warnings, fmt.Sprintf(
+						"Repeated discovery errors detected. Previous scan skipped %d dirs, current scan skipped %d dirs. This suggests a persistent issue.",
+						prevJob.DirsSkipped, stats.DirsSkipped))
+				}
+
+				break // Only compare against the most recent completed scan
+			}
+		}
+	}
+
+	// Check 3: Estimated total vs discovered (if we had an estimate)
+	// This is already logged by the scan orchestrator, so we don't duplicate here
+
+	return warnings
 }
 
 // isExtra determines if a file is an extra (trailer, deleted scene, featurette, etc.)
