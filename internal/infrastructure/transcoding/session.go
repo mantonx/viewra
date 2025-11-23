@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -86,16 +87,58 @@ func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, stra
 	// Create FFmpeg command
 	s.FFmpegCmd = exec.CommandContext(s.ctx, "ffmpeg", args...)
 
-	// Capture stderr for debugging
+	// Capture both stdout and stderr
 	stderr, err := s.FFmpegCmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	stdout, err := s.FFmpegCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
 	// Start the process
 	if err := s.FFmpegCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start ffmpeg: %w", err)
 	}
+
+	// Monitor stdout for HLS muxer progress (at DEBUG level)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		segmentCount := 0
+		playlistUpdates := 0
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			// Count segment creations (.ts files)
+			if strings.Contains(line, "Opening") && strings.Contains(line, ".ts'") {
+				segmentCount++
+				// Log every 10 segments to avoid spam
+				if segmentCount%10 == 0 {
+					s.logger.Debug("HLS encoding progress",
+						"session_id", s.ID,
+						"segments_created", segmentCount)
+				}
+			} else if strings.Contains(line, "playlist.m3u8") && strings.Contains(line, "Opening") {
+				// Playlist updates
+				playlistUpdates++
+				s.logger.Debug("HLS playlist updated",
+					"session_id", s.ID,
+					"update_num", playlistUpdates,
+					"total_segments", segmentCount)
+			}
+		}
+
+		// Log final stats when stdout closes
+		if segmentCount > 0 || playlistUpdates > 0 {
+			s.logger.Debug("HLS encoding completed",
+				"session_id", s.ID,
+				"total_segments", segmentCount,
+				"playlist_updates", playlistUpdates)
+		}
+	}()
 
 	// Log FFmpeg stderr in background with better error visibility
 	go func() {
