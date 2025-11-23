@@ -107,15 +107,14 @@ func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, stra
 				chunk := buf[:n]
 				stderrBuffer = append(stderrBuffer, chunk...)
 
-				// Log at INFO level for visibility, especially for errors
+				// Only log errors, suppress verbose FFmpeg output
 				output := string(chunk)
 				if strings.Contains(strings.ToLower(output), "error") ||
 				   strings.Contains(strings.ToLower(output), "failed") ||
 				   strings.Contains(strings.ToLower(output), "invalid") {
 					s.logger.Error("FFmpeg error detected", "session_id", s.ID, "output", output)
-				} else {
-					s.logger.Debug("FFmpeg output", "session_id", s.ID, "output", output)
 				}
+				// Verbose FFmpeg output suppressed - full stderr is logged on process error
 			}
 			if err != nil {
 				// Log the full stderr buffer if process exits with error
