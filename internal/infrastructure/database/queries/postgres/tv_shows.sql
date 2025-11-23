@@ -401,3 +401,108 @@ JOIN tv_shows s ON e.show_id = s.id
 WHERE med.library_id = $1
   AND (e.episode_title ILIKE $2 OR s.title ILIKE $3)
 ORDER BY s.sort_title, e.season_number, e.episode_number;
+
+-- ============================================================================
+-- Aggregation Queries for API
+-- ============================================================================
+
+-- name: GetTVShowsWithCountsByLibrary :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = $1
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY s.sort_title, s.title;
+
+-- ============================================================================
+-- Pagination Support Queries
+-- ============================================================================
+
+-- name: CountTVShowsByLibrary :one
+SELECT COUNT(*)
+FROM tv_shows
+WHERE library_id = $1;
+
+-- name: ListTVShowsByLibraryPaginated :many
+SELECT * FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) ASC
+LIMIT $2 OFFSET $3;
+
+-- name: ListTVShowsByLibraryPaginatedDesc :many
+SELECT * FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) DESC
+LIMIT $2 OFFSET $3;
+
+-- name: GetTVShowsWithCountsByLibraryPaginated :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = $1
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY COALESCE(s.sort_title, s.title) ASC
+LIMIT $2 OFFSET $3;
+
+-- name: GetTVShowsWithCountsByLibraryPaginatedDesc :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = $1
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY COALESCE(s.sort_title, s.title) DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountSearchTVShowsByTitle :one
+SELECT COUNT(*)
+FROM tv_shows
+WHERE library_id = $1
+  AND (title ILIKE $2 OR original_title ILIKE $3);
+
+-- name: SearchTVShowsByTitlePaginated :many
+SELECT * FROM tv_shows
+WHERE library_id = $1
+  AND (title ILIKE $2 OR original_title ILIKE $3)
+ORDER BY sort_title, title
+LIMIT $4 OFFSET $5;
+
+-- name: ListTVShowIDsByLibraryPaginated :many
+SELECT id
+FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) ASC
+LIMIT $2 OFFSET $3;
+
+-- name: ListTVShowIDsByLibraryPaginatedDesc :many
+SELECT id
+FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) DESC
+LIMIT $2 OFFSET $3;

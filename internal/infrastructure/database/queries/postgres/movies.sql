@@ -255,3 +255,165 @@ ORDER BY m.sort_title, med.title;
 -- name: DeleteMovie :exec
 DELETE FROM movies
 WHERE media_id = $1;
+
+-- name: ListMoviesByLibraryPaginated :many
+SELECT
+    m.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) ASC
+LIMIT $2 OFFSET $3;
+
+-- name: ListMoviesByLibraryPaginatedDesc :many
+SELECT
+    m.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountMoviesByLibrary :one
+SELECT COUNT(*)
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1;
+
+-- name: CountSearchMoviesByTitle :one
+SELECT COUNT(*)
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+  AND (med.title ILIKE $2 OR m.original_title ILIKE $3);
+
+-- name: SearchMoviesByTitlePaginated :many
+SELECT
+    m.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+  AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
+ORDER BY COALESCE(m.sort_title, med.title) ASC
+LIMIT $4 OFFSET $5;
+
+-- name: ListMovieIDsByLibraryPaginated :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) ASC
+LIMIT $2 OFFSET $3;
+
+-- name: ListMovieIDsByLibraryPaginatedDesc :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) DESC
+LIMIT $2 OFFSET $3;

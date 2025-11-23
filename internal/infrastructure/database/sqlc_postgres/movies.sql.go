@@ -10,6 +10,41 @@ import (
 	"database/sql"
 )
 
+const countMoviesByLibrary = `-- name: CountMoviesByLibrary :one
+SELECT COUNT(*)
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+`
+
+func (q *Queries) CountMoviesByLibrary(ctx context.Context, libraryID int32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countMoviesByLibrary, libraryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countSearchMoviesByTitle = `-- name: CountSearchMoviesByTitle :one
+SELECT COUNT(*)
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+  AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
+`
+
+type CountSearchMoviesByTitleParams struct {
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+}
+
+func (q *Queries) CountSearchMoviesByTitle(ctx context.Context, arg CountSearchMoviesByTitleParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSearchMoviesByTitle, arg.LibraryID, arg.Title, arg.OriginalTitle)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createMovie = `-- name: CreateMovie :exec
 INSERT INTO movies (
     media_id, year, release_date, genre, director, "cast",
@@ -249,6 +284,82 @@ func (q *Queries) GetMovieByMediaID(ctx context.Context, mediaID int32) (GetMovi
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listMovieIDsByLibraryPaginated = `-- name: ListMovieIDsByLibraryPaginated :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) ASC
+LIMIT $2 OFFSET $3
+`
+
+type ListMovieIDsByLibraryPaginatedParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+func (q *Queries) ListMovieIDsByLibraryPaginated(ctx context.Context, arg ListMovieIDsByLibraryPaginatedParams) ([]int32, error) {
+	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var id int32
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMovieIDsByLibraryPaginatedDesc = `-- name: ListMovieIDsByLibraryPaginatedDesc :many
+SELECT med.id
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListMovieIDsByLibraryPaginatedDescParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+func (q *Queries) ListMovieIDsByLibraryPaginatedDesc(ctx context.Context, arg ListMovieIDsByLibraryPaginatedDescParams) ([]int32, error) {
+	rows, err := q.db.QueryContext(ctx, listMovieIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var id int32
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listMoviesByGenre = `-- name: ListMoviesByGenre :many
@@ -552,6 +663,386 @@ func (q *Queries) ListMoviesByLibrary(ctx context.Context, libraryID int32) ([]L
 	items := []ListMoviesByLibraryRow{}
 	for rows.Next() {
 		var i ListMoviesByLibraryRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.Year,
+			&i.ReleaseDate,
+			&i.Genre,
+			&i.Director,
+			&i.Cast,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.ContentAdvisories,
+			&i.Plot,
+			&i.Tagline,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.RuntimeMinutes,
+			&i.Budget,
+			&i.Revenue,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.AwardsSummary,
+			&i.MediaID_2,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMoviesByLibraryPaginated = `-- name: ListMoviesByLibraryPaginated :many
+SELECT
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) ASC
+LIMIT $2 OFFSET $3
+`
+
+type ListMoviesByLibraryPaginatedParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+type ListMoviesByLibraryPaginatedRow struct {
+	MediaID           int32           `json:"media_id"`
+	Year              sql.NullInt32   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt32   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	MediaID_2         int32           `json:"media_id_2"`
+	LibraryID         int32           `json:"library_id"`
+	Title             string          `json:"title"`
+	FilePath          string          `json:"file_path"`
+	FileSize          sql.NullInt64   `json:"file_size"`
+	FileHash          sql.NullString  `json:"file_hash"`
+	ContainerFormat   sql.NullString  `json:"container_format"`
+	Duration          sql.NullFloat64 `json:"duration"`
+	Width             sql.NullInt32   `json:"width"`
+	Height            sql.NullInt32   `json:"height"`
+	AspectRatio       sql.NullString  `json:"aspect_ratio"`
+	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
+	CodecProfile      sql.NullString  `json:"codec_profile"`
+	BitRate           sql.NullInt64   `json:"bit_rate"`
+	FrameRate         sql.NullFloat64 `json:"frame_rate"`
+	ScanType          sql.NullString  `json:"scan_type"`
+	HdrFormat         sql.NullString  `json:"hdr_format"`
+	ColorSpace        sql.NullString  `json:"color_space"`
+	ColorPrimaries    sql.NullString  `json:"color_primaries"`
+	ThumbnailPath     sql.NullString  `json:"thumbnail_path"`
+	Type              string          `json:"type"`
+	SourceType        sql.NullString  `json:"source_type"`
+	ResolutionLabel   sql.NullString  `json:"resolution_label"`
+	QualityScore      sql.NullInt32   `json:"quality_score"`
+	Is3d              sql.NullBool    `json:"is_3d"`
+	StereoMode        sql.NullString  `json:"stereo_mode"`
+	HasDash           sql.NullBool    `json:"has_dash"`
+	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
+	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           bool            `json:"is_extra"`
+	DateAdded         sql.NullTime    `json:"date_added"`
+	DateModified      sql.NullTime    `json:"date_modified"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+}
+
+func (q *Queries) ListMoviesByLibraryPaginated(ctx context.Context, arg ListMoviesByLibraryPaginatedParams) ([]ListMoviesByLibraryPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMoviesByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMoviesByLibraryPaginatedRow{}
+	for rows.Next() {
+		var i ListMoviesByLibraryPaginatedRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.Year,
+			&i.ReleaseDate,
+			&i.Genre,
+			&i.Director,
+			&i.Cast,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.ContentAdvisories,
+			&i.Plot,
+			&i.Tagline,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.RuntimeMinutes,
+			&i.Budget,
+			&i.Revenue,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.AwardsSummary,
+			&i.MediaID_2,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMoviesByLibraryPaginatedDesc = `-- name: ListMoviesByLibraryPaginatedDesc :many
+SELECT
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(m.sort_title, med.title) DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListMoviesByLibraryPaginatedDescParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+type ListMoviesByLibraryPaginatedDescRow struct {
+	MediaID           int32           `json:"media_id"`
+	Year              sql.NullInt32   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt32   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	MediaID_2         int32           `json:"media_id_2"`
+	LibraryID         int32           `json:"library_id"`
+	Title             string          `json:"title"`
+	FilePath          string          `json:"file_path"`
+	FileSize          sql.NullInt64   `json:"file_size"`
+	FileHash          sql.NullString  `json:"file_hash"`
+	ContainerFormat   sql.NullString  `json:"container_format"`
+	Duration          sql.NullFloat64 `json:"duration"`
+	Width             sql.NullInt32   `json:"width"`
+	Height            sql.NullInt32   `json:"height"`
+	AspectRatio       sql.NullString  `json:"aspect_ratio"`
+	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
+	CodecProfile      sql.NullString  `json:"codec_profile"`
+	BitRate           sql.NullInt64   `json:"bit_rate"`
+	FrameRate         sql.NullFloat64 `json:"frame_rate"`
+	ScanType          sql.NullString  `json:"scan_type"`
+	HdrFormat         sql.NullString  `json:"hdr_format"`
+	ColorSpace        sql.NullString  `json:"color_space"`
+	ColorPrimaries    sql.NullString  `json:"color_primaries"`
+	ThumbnailPath     sql.NullString  `json:"thumbnail_path"`
+	Type              string          `json:"type"`
+	SourceType        sql.NullString  `json:"source_type"`
+	ResolutionLabel   sql.NullString  `json:"resolution_label"`
+	QualityScore      sql.NullInt32   `json:"quality_score"`
+	Is3d              sql.NullBool    `json:"is_3d"`
+	StereoMode        sql.NullString  `json:"stereo_mode"`
+	HasDash           sql.NullBool    `json:"has_dash"`
+	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
+	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           bool            `json:"is_extra"`
+	DateAdded         sql.NullTime    `json:"date_added"`
+	DateModified      sql.NullTime    `json:"date_modified"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+}
+
+func (q *Queries) ListMoviesByLibraryPaginatedDesc(ctx context.Context, arg ListMoviesByLibraryPaginatedDescParams) ([]ListMoviesByLibraryPaginatedDescRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMoviesByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMoviesByLibraryPaginatedDescRow{}
+	for rows.Next() {
+		var i ListMoviesByLibraryPaginatedDescRow
 		if err := rows.Scan(
 			&i.MediaID,
 			&i.Year,
@@ -931,6 +1422,205 @@ func (q *Queries) SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTit
 	items := []SearchMoviesByTitleRow{}
 	for rows.Next() {
 		var i SearchMoviesByTitleRow
+		if err := rows.Scan(
+			&i.MediaID,
+			&i.Year,
+			&i.ReleaseDate,
+			&i.Genre,
+			&i.Director,
+			&i.Cast,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.ContentAdvisories,
+			&i.Plot,
+			&i.Tagline,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.RuntimeMinutes,
+			&i.Budget,
+			&i.Revenue,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.AwardsSummary,
+			&i.MediaID_2,
+			&i.LibraryID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSize,
+			&i.FileHash,
+			&i.ContainerFormat,
+			&i.Duration,
+			&i.Width,
+			&i.Height,
+			&i.AspectRatio,
+			&i.Codec,
+			&i.AudioCodec,
+			&i.CodecProfile,
+			&i.BitRate,
+			&i.FrameRate,
+			&i.ScanType,
+			&i.HdrFormat,
+			&i.ColorSpace,
+			&i.ColorPrimaries,
+			&i.ThumbnailPath,
+			&i.Type,
+			&i.SourceType,
+			&i.ResolutionLabel,
+			&i.QualityScore,
+			&i.Is3d,
+			&i.StereoMode,
+			&i.HasDash,
+			&i.DashManifestPath,
+			&i.TranscodingStatus,
+			&i.IsExtra,
+			&i.DateAdded,
+			&i.DateModified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchMoviesByTitlePaginated = `-- name: SearchMoviesByTitlePaginated :many
+SELECT
+    m.media_id, m.year, m.release_date, m.genre, m.director, m."cast", m.content_rating, m.maturity_rating, m.content_advisories, m.plot, m.tagline, m.original_title, m.sort_title, m.imdb_id, m.tmdb_id, m.runtime_minutes, m.budget, m.revenue, m.original_language, m.country_of_origin, m.awards_summary,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM movies m
+JOIN media med ON m.media_id = med.id
+WHERE med.library_id = $1
+  AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
+ORDER BY COALESCE(m.sort_title, med.title) ASC
+LIMIT $4 OFFSET $5
+`
+
+type SearchMoviesByTitlePaginatedParams struct {
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+	Limit         int32          `json:"limit"`
+	Offset        int32          `json:"offset"`
+}
+
+type SearchMoviesByTitlePaginatedRow struct {
+	MediaID           int32           `json:"media_id"`
+	Year              sql.NullInt32   `json:"year"`
+	ReleaseDate       sql.NullTime    `json:"release_date"`
+	Genre             sql.NullString  `json:"genre"`
+	Director          sql.NullString  `json:"director"`
+	Cast              sql.NullString  `json:"cast"`
+	ContentRating     sql.NullString  `json:"content_rating"`
+	MaturityRating    sql.NullInt32   `json:"maturity_rating"`
+	ContentAdvisories sql.NullString  `json:"content_advisories"`
+	Plot              sql.NullString  `json:"plot"`
+	Tagline           sql.NullString  `json:"tagline"`
+	OriginalTitle     sql.NullString  `json:"original_title"`
+	SortTitle         sql.NullString  `json:"sort_title"`
+	ImdbID            sql.NullString  `json:"imdb_id"`
+	TmdbID            sql.NullInt32   `json:"tmdb_id"`
+	RuntimeMinutes    sql.NullInt32   `json:"runtime_minutes"`
+	Budget            sql.NullInt64   `json:"budget"`
+	Revenue           sql.NullInt64   `json:"revenue"`
+	OriginalLanguage  sql.NullString  `json:"original_language"`
+	CountryOfOrigin   sql.NullString  `json:"country_of_origin"`
+	AwardsSummary     sql.NullString  `json:"awards_summary"`
+	MediaID_2         int32           `json:"media_id_2"`
+	LibraryID         int32           `json:"library_id"`
+	Title             string          `json:"title"`
+	FilePath          string          `json:"file_path"`
+	FileSize          sql.NullInt64   `json:"file_size"`
+	FileHash          sql.NullString  `json:"file_hash"`
+	ContainerFormat   sql.NullString  `json:"container_format"`
+	Duration          sql.NullFloat64 `json:"duration"`
+	Width             sql.NullInt32   `json:"width"`
+	Height            sql.NullInt32   `json:"height"`
+	AspectRatio       sql.NullString  `json:"aspect_ratio"`
+	Codec             sql.NullString  `json:"codec"`
+	AudioCodec        sql.NullString  `json:"audio_codec"`
+	CodecProfile      sql.NullString  `json:"codec_profile"`
+	BitRate           sql.NullInt64   `json:"bit_rate"`
+	FrameRate         sql.NullFloat64 `json:"frame_rate"`
+	ScanType          sql.NullString  `json:"scan_type"`
+	HdrFormat         sql.NullString  `json:"hdr_format"`
+	ColorSpace        sql.NullString  `json:"color_space"`
+	ColorPrimaries    sql.NullString  `json:"color_primaries"`
+	ThumbnailPath     sql.NullString  `json:"thumbnail_path"`
+	Type              string          `json:"type"`
+	SourceType        sql.NullString  `json:"source_type"`
+	ResolutionLabel   sql.NullString  `json:"resolution_label"`
+	QualityScore      sql.NullInt32   `json:"quality_score"`
+	Is3d              sql.NullBool    `json:"is_3d"`
+	StereoMode        sql.NullString  `json:"stereo_mode"`
+	HasDash           sql.NullBool    `json:"has_dash"`
+	DashManifestPath  sql.NullString  `json:"dash_manifest_path"`
+	TranscodingStatus sql.NullString  `json:"transcoding_status"`
+	IsExtra           bool            `json:"is_extra"`
+	DateAdded         sql.NullTime    `json:"date_added"`
+	DateModified      sql.NullTime    `json:"date_modified"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+}
+
+func (q *Queries) SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMoviesByTitlePaginatedParams) ([]SearchMoviesByTitlePaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchMoviesByTitlePaginated,
+		arg.LibraryID,
+		arg.Title,
+		arg.OriginalTitle,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchMoviesByTitlePaginatedRow{}
+	for rows.Next() {
+		var i SearchMoviesByTitlePaginatedRow
 		if err := rows.Scan(
 			&i.MediaID,
 			&i.Year,

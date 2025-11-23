@@ -6,6 +6,7 @@ import (
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
@@ -34,12 +35,13 @@ func (r *Repository) CreateMovie(ctx context.Context, movie *media.Movie) error 
 	}
 
 	// Then, create the movie-specific record
-	_, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	err := common.ExecuteCommand(
+		r.BaseRepository, ctx,
+		func() error {
+			return r.Postgres().CreateMovie(ctx, buildPostgresCreateMovieParams(movie))
 		},
-		func() (any, error) {
-			return nil, r.SQLite().CreateMovie(ctx, buildSQLiteCreateMovieParams(movie))
+		func() error {
+			return r.SQLite().CreateMovie(ctx, buildSQLiteCreateMovieParams(movie))
 		},
 	)
 	if err != nil {
@@ -51,50 +53,32 @@ func (r *Repository) CreateMovie(ctx context.Context, movie *media.Movie) error 
 
 // GetMovieByID retrieves a movie by its media ID
 func (r *Repository) GetMovieByID(ctx context.Context, id int64) (*media.Movie, error) {
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QuerySingle(
+		r.BaseRepository, ctx,
+		func() (sqlc_postgres.GetMovieByMediaIDRow, error) {
+			return r.Postgres().GetMovieByMediaID(ctx, int32(id))
 		},
-		func() (any, error) {
+		func() (sqlc_sqlite.GetMovieByMediaIDRow, error) {
 			return r.SQLite().GetMovieByMediaID(ctx, id)
 		},
+		postgresMovieToDomain,
+		sqliteMovieToDomain,
 	)
-	if err != nil {
-		return nil, r.ConvertNotFoundError(err)
-	}
-
-	// Convert to domain movie
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-	return sqliteMovieToDomain(result.(sqlc_sqlite.GetMovieByMediaIDRow)), nil
 }
 
 // ListMoviesByLibrary retrieves all movies in a specific library
 func (r *Repository) ListMoviesByLibrary(ctx context.Context, libraryID int64) ([]*media.Movie, error) {
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.ListMoviesByLibraryRow, error) {
+			return r.Postgres().ListMoviesByLibrary(ctx, int32(libraryID))
 		},
-		func() (any, error) {
+		func() ([]sqlc_sqlite.ListMoviesByLibraryRow, error) {
 			return r.SQLite().ListMoviesByLibrary(ctx, libraryID)
 		},
+		postgresListMovieToDomain,
+		sqliteListMovieToDomain,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to domain movies
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	sqResults := result.([]sqlc_sqlite.ListMoviesByLibraryRow)
-	movies := make([]*media.Movie, len(sqResults))
-	for i, row := range sqResults {
-		movies[i] = sqliteListMovieToDomain(row)
-	}
-	return movies, nil
 }
 
 // UpdateMovie modifies an existing movie
@@ -105,12 +89,13 @@ func (r *Repository) UpdateMovie(ctx context.Context, movie *media.Movie) error 
 	}
 
 	// Then, update the movie-specific record
-	_, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	err := common.ExecuteCommand(
+		r.BaseRepository, ctx,
+		func() error {
+			return r.Postgres().UpdateMovie(ctx, buildPostgresUpdateMovieParams(movie))
 		},
-		func() (any, error) {
-			return nil, r.SQLite().UpdateMovie(ctx, buildSQLiteUpdateMovieParams(movie))
+		func() error {
+			return r.SQLite().UpdateMovie(ctx, buildSQLiteUpdateMovieParams(movie))
 		},
 	)
 	if err != nil {
@@ -122,109 +107,82 @@ func (r *Repository) UpdateMovie(ctx context.Context, movie *media.Movie) error 
 
 // SearchMovies searches for movies by title
 func (r *Repository) SearchMovies(ctx context.Context, libraryID int64, query string) ([]*media.Movie, error) {
-	// Add wildcards for LIKE search
 	searchPattern := "%" + query + "%"
 
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.SearchMoviesByTitleRow, error) {
+			return r.Postgres().SearchMoviesByTitle(ctx, sqlc_postgres.SearchMoviesByTitleParams{
+				LibraryID:     int32(libraryID),
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+			})
 		},
-		func() (any, error) {
+		func() ([]sqlc_sqlite.SearchMoviesByTitleRow, error) {
 			return r.SQLite().SearchMoviesByTitle(ctx, sqlc_sqlite.SearchMoviesByTitleParams{
 				LibraryID:     libraryID,
 				Title:         searchPattern,
 				OriginalTitle: common.NullString(searchPattern),
 			})
 		},
+		postgresSearchMovieToDomain,
+		sqliteSearchMovieToDomain,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to domain movies
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	sqResults := result.([]sqlc_sqlite.SearchMoviesByTitleRow)
-	movies := make([]*media.Movie, len(sqResults))
-	for i, row := range sqResults {
-		movies[i] = sqliteSearchMovieToDomain(row)
-	}
-	return movies, nil
 }
 
 // ListMoviesByGenre retrieves all movies in a specific library with a given genre
 func (r *Repository) ListMoviesByGenre(ctx context.Context, libraryID int64, genre string) ([]*media.Movie, error) {
-	// Add wildcards for LIKE search
 	genrePattern := "%" + genre + "%"
 
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.ListMoviesByGenreRow, error) {
+			return r.Postgres().ListMoviesByGenre(ctx, sqlc_postgres.ListMoviesByGenreParams{
+				LibraryID: int32(libraryID),
+				Genre:     common.NullString(genrePattern),
+			})
 		},
-		func() (any, error) {
+		func() ([]sqlc_sqlite.ListMoviesByGenreRow, error) {
 			return r.SQLite().ListMoviesByGenre(ctx, sqlc_sqlite.ListMoviesByGenreParams{
 				LibraryID: libraryID,
 				Genre:     common.NullString(genrePattern),
 			})
 		},
+		postgresGenreMovieToDomain,
+		sqliteGenreMovieToDomain,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to domain movies
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	sqResults := result.([]sqlc_sqlite.ListMoviesByGenreRow)
-	movies := make([]*media.Movie, len(sqResults))
-	for i, row := range sqResults {
-		movies[i] = sqliteGenreMovieToDomain(row)
-	}
-	return movies, nil
 }
 
 // ListMoviesByYear retrieves all movies in a specific library from a given year
 func (r *Repository) ListMoviesByYear(ctx context.Context, libraryID int64, year int) ([]*media.Movie, error) {
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.ListMoviesByYearRow, error) {
+			return r.Postgres().ListMoviesByYear(ctx, sqlc_postgres.ListMoviesByYearParams{
+				LibraryID: int32(libraryID),
+				Year:      common.NullInt32FromInt64(int64(year)),
+			})
 		},
-		func() (any, error) {
+		func() ([]sqlc_sqlite.ListMoviesByYearRow, error) {
 			return r.SQLite().ListMoviesByYear(ctx, sqlc_sqlite.ListMoviesByYearParams{
 				LibraryID: libraryID,
 				Year:      common.NullInt64(int64(year)),
 			})
 		},
+		postgresYearMovieToDomain,
+		sqliteYearMovieToDomain,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to domain movies
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	sqResults := result.([]sqlc_sqlite.ListMoviesByYearRow)
-	movies := make([]*media.Movie, len(sqResults))
-	for i, row := range sqResults {
-		movies[i] = sqliteYearMovieToDomain(row)
-	}
-	return movies, nil
 }
 
 // DeleteMovie removes a movie from the database (does not delete the file)
 func (r *Repository) DeleteMovie(ctx context.Context, mediaID int64) error {
-	_, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	err := common.ExecuteCommand(
+		r.BaseRepository, ctx,
+		func() error {
+			return r.Postgres().DeleteMovie(ctx, int32(mediaID))
 		},
-		func() (any, error) {
-			return nil, r.SQLite().DeleteMovie(ctx, mediaID)
+		func() error {
+			return r.SQLite().DeleteMovie(ctx, mediaID)
 		},
 	)
 	if err != nil {
@@ -241,23 +199,15 @@ func (r *Repository) DeleteMovie(ctx context.Context, mediaID int64) error {
 
 // CountMoviesByLibrary returns the total count of movies in a library
 func (r *Repository) CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error) {
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QueryScalar(
+		r.BaseRepository, ctx,
+		func() (int64, error) {
+			return r.Postgres().CountMoviesByLibrary(ctx, int32(libraryID))
 		},
-		func() (any, error) {
+		func() (int64, error) {
 			return r.SQLite().CountMoviesByLibrary(ctx, libraryID)
 		},
 	)
-	if err != nil {
-		return 0, err
-	}
-
-	if r.Router().IsPostgresDB() {
-		return 0, r.PostgresNotImplemented()
-	}
-
-	return result.(int64), nil
 }
 
 // ListMoviesByLibraryPaginated retrieves movies in a library with pagination
@@ -266,68 +216,76 @@ func (r *Repository) ListMoviesByLibraryPaginated(ctx context.Context, libraryID
 		pagination = domainCommon.DefaultPaginationParams()
 	}
 
-	// Default to title_asc if not specified
 	sortBy := pagination.SortBy
 	if sortBy == "" {
 		sortBy = "title_asc"
 	}
 
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
-		},
-		func() (any, error) {
-			if sortBy == "title_desc" {
+	if sortBy == "title_desc" {
+		return common.QueryMany(
+			r.BaseRepository, ctx,
+			func() ([]sqlc_postgres.ListMoviesByLibraryPaginatedDescRow, error) {
+				return r.Postgres().ListMoviesByLibraryPaginatedDesc(ctx, sqlc_postgres.ListMoviesByLibraryPaginatedDescParams{
+					LibraryID: int32(libraryID),
+					Limit:     int32(pagination.Limit),
+					Offset:    int32(pagination.Offset),
+				})
+			},
+			func() ([]sqlc_sqlite.ListMoviesByLibraryPaginatedDescRow, error) {
 				return r.SQLite().ListMoviesByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListMoviesByLibraryPaginatedDescParams{
 					LibraryID: libraryID,
 					Limit:     int64(pagination.Limit),
 					Offset:    int64(pagination.Offset),
 				})
-			}
+			},
+			func(row sqlc_postgres.ListMoviesByLibraryPaginatedDescRow) *media.Movie {
+				return postgresListMovieToDomain(sqlc_postgres.ListMoviesByLibraryRow(row))
+			},
+			func(row sqlc_sqlite.ListMoviesByLibraryPaginatedDescRow) *media.Movie {
+				return sqliteListMovieToDomain(sqlc_sqlite.ListMoviesByLibraryRow(row))
+			},
+		)
+	}
+
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.ListMoviesByLibraryPaginatedRow, error) {
+			return r.Postgres().ListMoviesByLibraryPaginated(ctx, sqlc_postgres.ListMoviesByLibraryPaginatedParams{
+				LibraryID: int32(libraryID),
+				Limit:     int32(pagination.Limit),
+				Offset:    int32(pagination.Offset),
+			})
+		},
+		func() ([]sqlc_sqlite.ListMoviesByLibraryPaginatedRow, error) {
 			return r.SQLite().ListMoviesByLibraryPaginated(ctx, sqlc_sqlite.ListMoviesByLibraryPaginatedParams{
 				LibraryID: libraryID,
 				Limit:     int64(pagination.Limit),
 				Offset:    int64(pagination.Offset),
 			})
 		},
+		func(row sqlc_postgres.ListMoviesByLibraryPaginatedRow) *media.Movie {
+			return postgresListMovieToDomain(sqlc_postgres.ListMoviesByLibraryRow(row))
+		},
+		func(row sqlc_sqlite.ListMoviesByLibraryPaginatedRow) *media.Movie {
+			return sqliteListMovieToDomain(sqlc_sqlite.ListMoviesByLibraryRow(row))
+		},
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	// Handle different row types based on sort order
-	var movies []*media.Movie
-	if sortBy == "title_desc" {
-		sqResults := result.([]sqlc_sqlite.ListMoviesByLibraryPaginatedDescRow)
-		movies = make([]*media.Movie, len(sqResults))
-		for i, descRow := range sqResults {
-			// Convert DescRow to regular Row (they have identical fields)
-			row := sqlc_sqlite.ListMoviesByLibraryRow(descRow)
-			movies[i] = sqliteListMovieToDomain(row)
-		}
-	} else {
-		sqResults := result.([]sqlc_sqlite.ListMoviesByLibraryPaginatedRow)
-		movies = make([]*media.Movie, len(sqResults))
-		for i, row := range sqResults {
-			movies[i] = sqliteListMovieToDomain(sqlc_sqlite.ListMoviesByLibraryRow(row))
-		}
-	}
-	return movies, nil
 }
 
 // CountSearchMoviesByTitle returns the count of movies matching a search query
 func (r *Repository) CountSearchMoviesByTitle(ctx context.Context, libraryID int64, query string) (int64, error) {
 	searchPattern := "%" + query + "%"
 
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QueryScalar(
+		r.BaseRepository, ctx,
+		func() (int64, error) {
+			return r.Postgres().CountSearchMoviesByTitle(ctx, sqlc_postgres.CountSearchMoviesByTitleParams{
+				LibraryID:     int32(libraryID),
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+			})
 		},
-		func() (any, error) {
+		func() (int64, error) {
 			return r.SQLite().CountSearchMoviesByTitle(ctx, sqlc_sqlite.CountSearchMoviesByTitleParams{
 				LibraryID:     libraryID,
 				Title:         searchPattern,
@@ -335,15 +293,6 @@ func (r *Repository) CountSearchMoviesByTitle(ctx context.Context, libraryID int
 			})
 		},
 	)
-	if err != nil {
-		return 0, err
-	}
-
-	if r.Router().IsPostgresDB() {
-		return 0, r.PostgresNotImplemented()
-	}
-
-	return result.(int64), nil
 }
 
 // SearchMoviesByTitlePaginated searches for movies by title with pagination
@@ -354,11 +303,18 @@ func (r *Repository) SearchMoviesByTitlePaginated(ctx context.Context, libraryID
 
 	searchPattern := "%" + query + "%"
 
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.SearchMoviesByTitlePaginatedRow, error) {
+			return r.Postgres().SearchMoviesByTitlePaginated(ctx, sqlc_postgres.SearchMoviesByTitlePaginatedParams{
+				LibraryID:     int32(libraryID),
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+				Limit:         int32(pagination.Limit),
+				Offset:        int32(pagination.Offset),
+			})
 		},
-		func() (any, error) {
+		func() ([]sqlc_sqlite.SearchMoviesByTitlePaginatedRow, error) {
 			return r.SQLite().SearchMoviesByTitlePaginated(ctx, sqlc_sqlite.SearchMoviesByTitlePaginatedParams{
 				LibraryID:     libraryID,
 				Title:         searchPattern,
@@ -367,21 +323,13 @@ func (r *Repository) SearchMoviesByTitlePaginated(ctx context.Context, libraryID
 				Offset:        int64(pagination.Offset),
 			})
 		},
+		func(row sqlc_postgres.SearchMoviesByTitlePaginatedRow) *media.Movie {
+			return postgresSearchMovieToDomain(sqlc_postgres.SearchMoviesByTitleRow(row))
+		},
+		func(row sqlc_sqlite.SearchMoviesByTitlePaginatedRow) *media.Movie {
+			return sqliteSearchMovieToDomain(sqlc_sqlite.SearchMoviesByTitleRow(row))
+		},
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	sqResults := result.([]sqlc_sqlite.SearchMoviesByTitlePaginatedRow)
-	movies := make([]*media.Movie, len(sqResults))
-	for i, row := range sqResults {
-		movies[i] = sqliteSearchMovieToDomain(sqlc_sqlite.SearchMoviesByTitleRow(row))
-	}
-	return movies, nil
 }
 
 // ListMovieIDsByLibraryPaginated retrieves only movie IDs in a library with pagination
@@ -390,39 +338,68 @@ func (r *Repository) ListMovieIDsByLibraryPaginated(ctx context.Context, library
 		pagination = domainCommon.DefaultPaginationParams()
 	}
 
-	// Determine sort order from pagination params
 	sortBy := pagination.SortBy
 	if sortBy == "" {
 		sortBy = "title_asc"
 	}
 
-	result, err := r.Router().Route(
-		func() (any, error) {
-			return nil, r.PostgresNotImplemented()
-		},
-		func() (any, error) {
-			// Choose the appropriate query based on sort order
-			if sortBy == "title_desc" {
+	if sortBy == "title_desc" {
+		return common.QueryMany(
+			r.BaseRepository, ctx,
+			func() ([]int64, error) {
+				ids, err := r.Postgres().ListMovieIDsByLibraryPaginatedDesc(ctx, sqlc_postgres.ListMovieIDsByLibraryPaginatedDescParams{
+					LibraryID: int32(libraryID),
+					Limit:     int32(pagination.Limit),
+					Offset:    int32(pagination.Offset),
+				})
+				if err != nil {
+					return nil, err
+				}
+				// Convert int32 to int64
+				result := make([]int64, len(ids))
+				for i, id := range ids {
+					result[i] = int64(id)
+				}
+				return result, nil
+			},
+			func() ([]int64, error) {
 				return r.SQLite().ListMovieIDsByLibraryPaginatedDesc(ctx, sqlc_sqlite.ListMovieIDsByLibraryPaginatedDescParams{
 					LibraryID: libraryID,
 					Limit:     int64(pagination.Limit),
 					Offset:    int64(pagination.Offset),
 				})
+			},
+			func(id int64) int64 { return id },
+			func(id int64) int64 { return id },
+		)
+	}
+
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]int64, error) {
+			ids, err := r.Postgres().ListMovieIDsByLibraryPaginated(ctx, sqlc_postgres.ListMovieIDsByLibraryPaginatedParams{
+				LibraryID: int32(libraryID),
+				Limit:     int32(pagination.Limit),
+				Offset:    int32(pagination.Offset),
+			})
+			if err != nil {
+				return nil, err
 			}
+			// Convert int32 to int64
+			result := make([]int64, len(ids))
+			for i, id := range ids {
+				result[i] = int64(id)
+			}
+			return result, nil
+		},
+		func() ([]int64, error) {
 			return r.SQLite().ListMovieIDsByLibraryPaginated(ctx, sqlc_sqlite.ListMovieIDsByLibraryPaginatedParams{
 				LibraryID: libraryID,
 				Limit:     int64(pagination.Limit),
 				Offset:    int64(pagination.Offset),
 			})
 		},
+		func(id int64) int64 { return id },
+		func(id int64) int64 { return id },
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	if r.Router().IsPostgresDB() {
-		return nil, r.PostgresNotImplemented()
-	}
-
-	return result.([]int64), nil
 }

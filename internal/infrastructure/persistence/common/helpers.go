@@ -187,6 +187,15 @@ func ParseNullInt32(value sql.NullInt32) int64 {
 	return 0
 }
 
+// ConvertInt32ToInt64 converts sql.NullInt32 to sql.NullInt64.
+// Used when converting PostgreSQL results to domain types.
+func ConvertInt32ToInt64(value sql.NullInt32) sql.NullInt64 {
+	if value.Valid {
+		return sql.NullInt64{Int64: int64(value.Int32), Valid: true}
+	}
+	return sql.NullInt64{Valid: false}
+}
+
 // ParseNullFloat64 converts sql.NullFloat64 to float64.
 // Returns 0 if the value is NULL.
 func ParseNullFloat64(value sql.NullFloat64) float64 {

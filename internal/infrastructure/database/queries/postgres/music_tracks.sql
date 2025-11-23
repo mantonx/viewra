@@ -358,3 +358,153 @@ WHERE med.library_id = $1
 GROUP BY mt.album, mt.album_artist, mt.year
 ORDER BY mt.album_artist, mt.album;
 
+-- ============================================================================
+-- Pagination Support Queries
+-- ============================================================================
+
+-- name: CountAlbumsByLibrary :one
+SELECT COUNT(DISTINCT mt.album || mt.album_artist)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1;
+
+-- name: ListAlbumsByLibraryPaginated :many
+SELECT DISTINCT
+    mt.album,
+    mt.album_artist,
+    mt.year,
+    COUNT(*) as track_count,
+    SUM(med.duration) as total_duration
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1
+GROUP BY mt.album, mt.album_artist, mt.year
+ORDER BY mt.album_artist ASC, mt.album ASC
+LIMIT $2 OFFSET $3;
+
+-- name: ListAlbumsByLibraryPaginatedDesc :many
+SELECT DISTINCT
+    mt.album,
+    mt.album_artist,
+    mt.year,
+    COUNT(*) as track_count,
+    SUM(med.duration) as total_duration
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1
+GROUP BY mt.album, mt.album_artist, mt.year
+ORDER BY mt.album_artist DESC, mt.album DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountMusicTracksByLibrary :one
+SELECT COUNT(*)
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1;
+
+-- name: ListMusicTracksByLibraryPaginated :many
+SELECT
+    mt.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(mt.sort_title, med.title) ASC
+LIMIT $2 OFFSET $3;
+
+-- name: ListMusicTracksByLibraryPaginatedDesc :many
+SELECT
+    mt.*,
+    med.id as media_id,
+    med.library_id,
+    med.title,
+    med.file_path,
+    med.file_size,
+    med.file_hash,
+    med.container_format,
+    med.duration,
+    med.width,
+    med.height,
+    med.aspect_ratio,
+    med.codec,
+    med.audio_codec,
+    med.codec_profile,
+    med.bit_rate,
+    med.frame_rate,
+    med.scan_type,
+    med.hdr_format,
+    med.color_space,
+    med.color_primaries,
+    med.thumbnail_path,
+    med.type,
+    med.source_type,
+    med.resolution_label,
+    med.quality_score,
+    med.is_3d,
+    med.stereo_mode,
+    med.has_dash,
+    med.dash_manifest_path,
+    med.transcoding_status,
+    med.is_extra,
+    med.date_added,
+    med.date_modified,
+    med.created_at,
+    med.updated_at
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1
+ORDER BY COALESCE(mt.sort_title, med.title) DESC
+LIMIT $2 OFFSET $3;
+
+-- name: ListArtistIDsByLibraryPaginated :many
+SELECT mt.media_id as id
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1
+GROUP BY mt.artist
+ORDER BY COALESCE(mt.sort_artist, mt.artist) ASC
+LIMIT $2 OFFSET $3;
+
+-- name: ListArtistIDsByLibraryPaginatedDesc :many
+SELECT mt.media_id as id
+FROM music_tracks mt
+JOIN media med ON mt.media_id = med.id
+WHERE med.library_id = $1
+GROUP BY mt.artist
+ORDER BY COALESCE(mt.sort_artist, mt.artist) DESC
+LIMIT $2 OFFSET $3;
+

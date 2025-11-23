@@ -10,6 +10,43 @@ import (
 	"database/sql"
 )
 
+const countSearchTVShowsByTitle = `-- name: CountSearchTVShowsByTitle :one
+SELECT COUNT(*)
+FROM tv_shows
+WHERE library_id = $1
+  AND (title ILIKE $2 OR original_title ILIKE $3)
+`
+
+type CountSearchTVShowsByTitleParams struct {
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+}
+
+func (q *Queries) CountSearchTVShowsByTitle(ctx context.Context, arg CountSearchTVShowsByTitleParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSearchTVShowsByTitle, arg.LibraryID, arg.Title, arg.OriginalTitle)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTVShowsByLibrary = `-- name: CountTVShowsByLibrary :one
+
+SELECT COUNT(*)
+FROM tv_shows
+WHERE library_id = $1
+`
+
+// ============================================================================
+// Pagination Support Queries
+// ============================================================================
+func (q *Queries) CountTVShowsByLibrary(ctx context.Context, libraryID int32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTVShowsByLibrary, libraryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTVEpisode = `-- name: CreateTVEpisode :exec
 
 INSERT INTO tv_episodes (
@@ -681,6 +718,213 @@ func (q *Queries) GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitlePara
 	return i, err
 }
 
+const getTVShowsWithCountsByLibrary = `-- name: GetTVShowsWithCountsByLibrary :many
+
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = $1
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY s.sort_title, s.title
+`
+
+type GetTVShowsWithCountsByLibraryRow struct {
+	ID            int32          `json:"id"`
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	Year          sql.NullInt32  `json:"year"`
+	Genre         sql.NullString `json:"genre"`
+	Plot          sql.NullString `json:"plot"`
+	ContentRating sql.NullString `json:"content_rating"`
+	SeasonCount   int64          `json:"season_count"`
+	EpisodeCount  int64          `json:"episode_count"`
+}
+
+// ============================================================================
+// Aggregation Queries for API
+// ============================================================================
+func (q *Queries) GetTVShowsWithCountsByLibrary(ctx context.Context, libraryID int32) ([]GetTVShowsWithCountsByLibraryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTVShowsWithCountsByLibrary, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTVShowsWithCountsByLibraryRow{}
+	for rows.Next() {
+		var i GetTVShowsWithCountsByLibraryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.Year,
+			&i.Genre,
+			&i.Plot,
+			&i.ContentRating,
+			&i.SeasonCount,
+			&i.EpisodeCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTVShowsWithCountsByLibraryPaginated = `-- name: GetTVShowsWithCountsByLibraryPaginated :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = $1
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY COALESCE(s.sort_title, s.title) ASC
+LIMIT $2 OFFSET $3
+`
+
+type GetTVShowsWithCountsByLibraryPaginatedParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+type GetTVShowsWithCountsByLibraryPaginatedRow struct {
+	ID            int32          `json:"id"`
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	Year          sql.NullInt32  `json:"year"`
+	Genre         sql.NullString `json:"genre"`
+	Plot          sql.NullString `json:"plot"`
+	ContentRating sql.NullString `json:"content_rating"`
+	SeasonCount   int64          `json:"season_count"`
+	EpisodeCount  int64          `json:"episode_count"`
+}
+
+func (q *Queries) GetTVShowsWithCountsByLibraryPaginated(ctx context.Context, arg GetTVShowsWithCountsByLibraryPaginatedParams) ([]GetTVShowsWithCountsByLibraryPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTVShowsWithCountsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTVShowsWithCountsByLibraryPaginatedRow{}
+	for rows.Next() {
+		var i GetTVShowsWithCountsByLibraryPaginatedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.Year,
+			&i.Genre,
+			&i.Plot,
+			&i.ContentRating,
+			&i.SeasonCount,
+			&i.EpisodeCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTVShowsWithCountsByLibraryPaginatedDesc = `-- name: GetTVShowsWithCountsByLibraryPaginatedDesc :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+WHERE s.library_id = $1
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+ORDER BY COALESCE(s.sort_title, s.title) DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetTVShowsWithCountsByLibraryPaginatedDescParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+type GetTVShowsWithCountsByLibraryPaginatedDescRow struct {
+	ID            int32          `json:"id"`
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	Year          sql.NullInt32  `json:"year"`
+	Genre         sql.NullString `json:"genre"`
+	Plot          sql.NullString `json:"plot"`
+	ContentRating sql.NullString `json:"content_rating"`
+	SeasonCount   int64          `json:"season_count"`
+	EpisodeCount  int64          `json:"episode_count"`
+}
+
+func (q *Queries) GetTVShowsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetTVShowsWithCountsByLibraryPaginatedDescParams) ([]GetTVShowsWithCountsByLibraryPaginatedDescRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTVShowsWithCountsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTVShowsWithCountsByLibraryPaginatedDescRow{}
+	for rows.Next() {
+		var i GetTVShowsWithCountsByLibraryPaginatedDescRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.Year,
+			&i.Genre,
+			&i.Plot,
+			&i.ContentRating,
+			&i.SeasonCount,
+			&i.EpisodeCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const incrementSeasonEpisodeCount = `-- name: IncrementSeasonEpisodeCount :exec
 UPDATE tv_seasons
 SET episode_count = episode_count + 1,
@@ -1258,6 +1502,80 @@ func (q *Queries) ListTVSeasonsByShow(ctx context.Context, showID int32) ([]TvSe
 	return items, nil
 }
 
+const listTVShowIDsByLibraryPaginated = `-- name: ListTVShowIDsByLibraryPaginated :many
+SELECT id
+FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) ASC
+LIMIT $2 OFFSET $3
+`
+
+type ListTVShowIDsByLibraryPaginatedParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+func (q *Queries) ListTVShowIDsByLibraryPaginated(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedParams) ([]int32, error) {
+	rows, err := q.db.QueryContext(ctx, listTVShowIDsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var id int32
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTVShowIDsByLibraryPaginatedDesc = `-- name: ListTVShowIDsByLibraryPaginatedDesc :many
+SELECT id
+FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListTVShowIDsByLibraryPaginatedDescParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+func (q *Queries) ListTVShowIDsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowIDsByLibraryPaginatedDescParams) ([]int32, error) {
+	rows, err := q.db.QueryContext(ctx, listTVShowIDsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var id int32
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTVShowsByLibrary = `-- name: ListTVShowsByLibrary :many
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
 WHERE library_id = $1
@@ -1266,6 +1584,122 @@ ORDER BY sort_title, title
 
 func (q *Queries) ListTVShowsByLibrary(ctx context.Context, libraryID int32) ([]TvShow, error) {
 	rows, err := q.db.QueryContext(ctx, listTVShowsByLibrary, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TvShow{}
+	for rows.Next() {
+		var i TvShow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.Year,
+			&i.FirstAirDate,
+			&i.LastAirDate,
+			&i.Genre,
+			&i.Plot,
+			&i.Status,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.Network,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.TvdbID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTVShowsByLibraryPaginated = `-- name: ListTVShowsByLibraryPaginated :many
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) ASC
+LIMIT $2 OFFSET $3
+`
+
+type ListTVShowsByLibraryPaginatedParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+func (q *Queries) ListTVShowsByLibraryPaginated(ctx context.Context, arg ListTVShowsByLibraryPaginatedParams) ([]TvShow, error) {
+	rows, err := q.db.QueryContext(ctx, listTVShowsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TvShow{}
+	for rows.Next() {
+		var i TvShow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.Year,
+			&i.FirstAirDate,
+			&i.LastAirDate,
+			&i.Genre,
+			&i.Plot,
+			&i.Status,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.Network,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.TvdbID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTVShowsByLibraryPaginatedDesc = `-- name: ListTVShowsByLibraryPaginatedDesc :many
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+WHERE library_id = $1
+ORDER BY COALESCE(sort_title, title) DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListTVShowsByLibraryPaginatedDescParams struct {
+	LibraryID int32 `json:"library_id"`
+	Limit     int32 `json:"limit"`
+	Offset    int32 `json:"offset"`
+}
+
+func (q *Queries) ListTVShowsByLibraryPaginatedDesc(ctx context.Context, arg ListTVShowsByLibraryPaginatedDescParams) ([]TvShow, error) {
+	rows, err := q.db.QueryContext(ctx, listTVShowsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -1507,6 +1941,73 @@ type SearchTVShowsByTitleParams struct {
 
 func (q *Queries) SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByTitleParams) ([]TvShow, error) {
 	rows, err := q.db.QueryContext(ctx, searchTVShowsByTitle, arg.LibraryID, arg.Title, arg.OriginalTitle)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TvShow{}
+	for rows.Next() {
+		var i TvShow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.OriginalTitle,
+			&i.SortTitle,
+			&i.Year,
+			&i.FirstAirDate,
+			&i.LastAirDate,
+			&i.Genre,
+			&i.Plot,
+			&i.Status,
+			&i.ContentRating,
+			&i.MaturityRating,
+			&i.Network,
+			&i.OriginalLanguage,
+			&i.CountryOfOrigin,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.TvdbID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchTVShowsByTitlePaginated = `-- name: SearchTVShowsByTitlePaginated :many
+SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
+WHERE library_id = $1
+  AND (title ILIKE $2 OR original_title ILIKE $3)
+ORDER BY sort_title, title
+LIMIT $4 OFFSET $5
+`
+
+type SearchTVShowsByTitlePaginatedParams struct {
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+	Limit         int32          `json:"limit"`
+	Offset        int32          `json:"offset"`
+}
+
+func (q *Queries) SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchTVShowsByTitlePaginatedParams) ([]TvShow, error) {
+	rows, err := q.db.QueryContext(ctx, searchTVShowsByTitlePaginated,
+		arg.LibraryID,
+		arg.Title,
+		arg.OriginalTitle,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
