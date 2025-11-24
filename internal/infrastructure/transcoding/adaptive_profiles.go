@@ -120,972 +120,440 @@ const (
 	Quality4k80000kWide = "4k-80000k-wide"
 )
 
-// adaptiveProfiles defines the complete catalog of granular quality profiles
-var adaptiveProfiles = map[string]*AdaptiveProfile{
-	// 240p - Ultra Low (Poor connections, data saving)
-	Quality240p400k: {
-		ID:               Quality240p400k,
-		DisplayName:      "240p Ultra Low (0.4 Mbps)",
-		Width:            426,
-		Height:           240,
-		VideoBitrate:     400_000,
-		VideoMaxRate:     440_000,
-		VideoBufSize:     800_000,
-		AudioBitrate:     64_000,
-		AudioChannels:    2,
-		AudioSampleRate:  44100,
-		PreserveMultiCh:  false, // Force stereo to save bandwidth
-		AudioCodec:       "aac",
-		MaxAudioChannels: 2,
-		PreferredCodec:   "h264",
-		FallbackCodecs:   []string{},
-		Preset:          "fast",
-		CRF:             28,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  0.5,
-		MinScreenWidth:  320,
-		MinScreenHeight: 240,
-		RecommendedFor:  []string{"mobile"},
-		DataUsageMBPerHour: 180,
-		Description:     "Minimum quality for very poor connections",
-		QualityTier:     "low",
-	},
-
-	// 360p - Low
-	Quality360p800k: {
-		ID:              Quality360p800k,
-		DisplayName:     "360p Low (0.8 Mbps)",
-		Width:           640,
-		Height:          360,
-		VideoBitrate:    800_000,
-		VideoMaxRate:    880_000,
-		VideoBufSize:    1_600_000,
-		AudioBitrate:    96_000,
-		AudioChannels:   2,
-		AudioSampleRate: 44100,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{},
-		Preset:          "fast",
-		CRF:             26,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  1.0,
-		MinScreenWidth:  480,
-		MinScreenHeight: 320,
-		RecommendedFor:  []string{"mobile"},
-		DataUsageMBPerHour: 360,
-		Description:     "Basic quality for mobile devices",
-		QualityTier:     "low",
-	},
-
-	// 480p - Standard Definition (3 variants)
-	Quality480p1200k: {
-		ID:              Quality480p1200k,
-		DisplayName:     "480p Low (1.2 Mbps)",
-		Width:           854,
-		Height:          480,
-		VideoBitrate:    1_200_000,
-		VideoMaxRate:    1_320_000,
-		VideoBufSize:    2_400_000,
-		AudioBitrate:    96_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{},
-		Preset:          "medium",
-		CRF:             24,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  1.5,
-		MinScreenWidth:  640,
-		MinScreenHeight: 480,
-		RecommendedFor:  []string{"mobile", "tablet"},
-		DataUsageMBPerHour: 540,
-		Description:     "Entry-level SD quality",
-		QualityTier:     "medium",
-	},
-
-	Quality480p1800k: {
-		ID:              Quality480p1800k,
-		DisplayName:     "480p Medium (1.8 Mbps)",
-		Width:           854,
-		Height:          480,
-		VideoBitrate:    1_800_000,
-		VideoMaxRate:    1_980_000,
-		VideoBufSize:    3_600_000,
-		AudioBitrate:    128_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{},
-		Preset:          "medium",
-		CRF:             23,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  2.2,
-		MinScreenWidth:  640,
-		MinScreenHeight: 480,
-		RecommendedFor:  []string{"mobile", "tablet"},
-		DataUsageMBPerHour: 810,
-		Description:     "Balanced SD quality",
-		QualityTier:     "medium",
-	},
-
-	Quality480p2500k: {
-		ID:              Quality480p2500k,
-		DisplayName:     "480p High (2.5 Mbps)",
-		Width:           854,
-		Height:          480,
-		VideoBitrate:    2_500_000,
-		VideoMaxRate:    2_750_000,
-		VideoBufSize:    5_000_000,
-		AudioBitrate:    128_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{},
-		Preset:          "medium",
-		CRF:             22,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  3.0,
-		MinScreenWidth:  640,
-		MinScreenHeight: 480,
-		RecommendedFor:  []string{"tablet"},
-		DataUsageMBPerHour: 1125,
-		Description:     "High quality SD",
-		QualityTier:     "medium",
-	},
-
-	// 720p - HD (4 variants)
-	Quality720p2500k: {
-		ID:              Quality720p2500k,
-		DisplayName:     "720p Low (2.5 Mbps)",
-		Width:           1280,
-		Height:          720,
-		VideoBitrate:    2_500_000,
-		VideoMaxRate:    2_750_000,
-		VideoBufSize:    5_000_000,
-		AudioBitrate:    128_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265"},
-		Preset:          "medium",
-		CRF:             23,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  3.0,
-		MinScreenWidth:  1024,
-		MinScreenHeight: 576,
-		RecommendedFor:  []string{"tablet", "desktop"},
-		DataUsageMBPerHour: 1125,
-		Description:     "Entry-level HD",
-		QualityTier:     "high",
-	},
-
-	Quality720p4000k: {
-		ID:              Quality720p4000k,
-		DisplayName:     "720p Medium (4 Mbps)",
-		Width:           1280,
-		Height:          720,
-		VideoBitrate:    4_000_000,
-		VideoMaxRate:    4_400_000,
-		VideoBufSize:    8_000_000,
-		AudioBitrate:    192_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9"},
-		Preset:          "medium",
-		CRF:             22,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  5.0,
-		MinScreenWidth:  1024,
-		MinScreenHeight: 576,
-		RecommendedFor:  []string{"desktop"},
-		DataUsageMBPerHour: 1800,
-		Description:     "Balanced HD quality",
-		QualityTier:     "high",
-	},
-
-	Quality720p5500k: {
-		ID:              Quality720p5500k,
-		DisplayName:     "720p High (5.5 Mbps)",
-		Width:           1280,
-		Height:          720,
-		VideoBitrate:    5_500_000,
-		VideoMaxRate:    6_050_000,
-		VideoBufSize:    11_000_000,
-		AudioBitrate:    192_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9"},
-		Preset:          "medium",
-		CRF:             21,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  7.0,
-		MinScreenWidth:  1024,
-		MinScreenHeight: 576,
-		RecommendedFor:  []string{"desktop"},
-		DataUsageMBPerHour: 2475,
-		Description:     "High quality HD",
-		QualityTier:     "high",
-	},
-
-	Quality720p7500k: {
-		ID:              Quality720p7500k,
-		DisplayName:     "720p Ultra (7.5 Mbps)",
-		Width:           1280,
-		Height:          720,
-		VideoBitrate:    7_500_000,
-		VideoMaxRate:    8_250_000,
-		VideoBufSize:    15_000_000,
-		AudioBitrate:    256_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9", "av1"},
-		Preset:          "medium",
-		CRF:             20,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  9.0,
-		MinScreenWidth:  1024,
-		MinScreenHeight: 576,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 3375,
-		Description:     "Premium HD quality",
-		QualityTier:     "ultra",
-	},
-
-	// 1080p - Full HD (5 variants)
-	Quality1080p4000k: {
-		ID:              Quality1080p4000k,
-		DisplayName:     "1080p Low (4 Mbps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    4_000_000,
-		VideoMaxRate:    4_400_000,
-		VideoBufSize:    8_000_000,
-		AudioBitrate:    192_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9"},
-		Preset:          "medium",
-		CRF:             23,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  5.5,
-		MinScreenWidth:  1600,
-		MinScreenHeight: 900,
-		RecommendedFor:  []string{"desktop"},
-		DataUsageMBPerHour: 1800,
-		Description:     "Entry-level Full HD",
-		QualityTier:     "high",
-	},
-
-	Quality1080p6000k: {
-		ID:              Quality1080p6000k,
-		DisplayName:     "1080p Medium (6 Mbps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    6_000_000,
-		VideoMaxRate:    6_600_000,
-		VideoBufSize:    12_000_000,
-		AudioBitrate:    192_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9"},
-		Preset:          "medium",
-		CRF:             22,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  7.5,
-		MinScreenWidth:  1600,
-		MinScreenHeight: 900,
-		RecommendedFor:  []string{"desktop"},
-		DataUsageMBPerHour: 2700,
-		Description:     "Balanced Full HD",
-		QualityTier:     "high",
-	},
-
-	Quality1080p8000k: {
-		ID:              Quality1080p8000k,
-		DisplayName:     "1080p High (8 Mbps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    8_000_000,
-		VideoMaxRate:    8_800_000,
-		VideoBufSize:    16_000_000,
-		AudioBitrate:    256_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9", "av1"},
-		Preset:          "medium",
-		CRF:             20,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  10.0,
-		MinScreenWidth:  1600,
-		MinScreenHeight: 900,
-		RecommendedFor:  []string{"desktop"},
-		DataUsageMBPerHour: 3600,
-		Description:     "High quality Full HD",
-		QualityTier:     "ultra",
-	},
-
-	Quality1080p12000k: {
-		ID:              Quality1080p12000k,
-		DisplayName:     "1080p Very High (12 Mbps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    12_000_000,
-		VideoMaxRate:    13_200_000,
-		VideoBufSize:    24_000_000,
-		AudioBitrate:    256_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9", "av1"},
-		Preset:          "medium",
-		CRF:             19,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  15.0,
-		MinScreenWidth:  1920,
-		MinScreenHeight: 1080,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 5400,
-		Description:     "Very high quality Full HD",
-		QualityTier:     "ultra",
-	},
-
-	Quality1080p16000k: {
-		ID:              Quality1080p16000k,
-		DisplayName:     "1080p Ultra (16 Mbps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    16_000_000,
-		VideoMaxRate:    17_600_000,
-		VideoBufSize:    32_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9", "av1"},
-		Preset:          "slow",
-		CRF:             18,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  20.0,
-		MinScreenWidth:  1920,
-		MinScreenHeight: 1080,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 7200,
-		Description:     "Premium Full HD for best quality",
-		QualityTier:     "ultra",
-	},
-
-	// 1440p - 2K (4 variants)
-	Quality1440p8000k: {
-		ID:              Quality1440p8000k,
-		DisplayName:     "1440p Low (8 Mbps)",
-		Width:           2560,
-		Height:          1440,
-		VideoBitrate:    8_000_000,
-		VideoMaxRate:    8_800_000,
-		VideoBufSize:    16_000_000,
-		AudioBitrate:    192_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1", "h264"},
-		Preset:          "medium",
-		CRF:             23,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  10.0,
-		MinScreenWidth:  2048,
-		MinScreenHeight: 1152,
-		RecommendedFor:  []string{"desktop"},
-		DataUsageMBPerHour: 3600,
-		Description:     "Entry-level 2K",
-		QualityTier:     "ultra",
-	},
-
-	Quality1440p12000k: {
-		ID:              Quality1440p12000k,
-		DisplayName:     "1440p Medium (12 Mbps)",
-		Width:           2560,
-		Height:          1440,
-		VideoBitrate:    12_000_000,
-		VideoMaxRate:    13_200_000,
-		VideoBufSize:    24_000_000,
-		AudioBitrate:    256_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1", "h264"},
-		Preset:          "medium",
-		CRF:             22,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  15.0,
-		MinScreenWidth:  2048,
-		MinScreenHeight: 1152,
-		RecommendedFor:  []string{"desktop"},
-		DataUsageMBPerHour: 5400,
-		Description:     "Balanced 2K quality",
-		QualityTier:     "ultra",
-	},
-
-	Quality1440p16000k: {
-		ID:              Quality1440p16000k,
-		DisplayName:     "1440p High (16 Mbps)",
-		Width:           2560,
-		Height:          1440,
-		VideoBitrate:    16_000_000,
-		VideoMaxRate:    17_600_000,
-		VideoBufSize:    32_000_000,
-		AudioBitrate:    256_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1", "h264"},
-		Preset:          "medium",
-		CRF:             21,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  20.0,
-		MinScreenWidth:  2560,
-		MinScreenHeight: 1440,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 7200,
-		Description:     "High quality 2K",
-		QualityTier:     "ultra",
-	},
-
-	Quality1440p24000k: {
-		ID:              Quality1440p24000k,
-		DisplayName:     "1440p Ultra (24 Mbps)",
-		Width:           2560,
-		Height:          1440,
-		VideoBitrate:    24_000_000,
-		VideoMaxRate:    26_400_000,
-		VideoBufSize:    48_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1"},
-		Preset:          "slow",
-		CRF:             20,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  30.0,
-		MinScreenWidth:  2560,
-		MinScreenHeight: 1440,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 10800,
-		Description:     "Premium 2K quality",
-		QualityTier:     "ultra",
-	},
-
-	// 4K - Ultra HD (5 variants)
-	Quality4k16000k: {
-		ID:              Quality4k16000k,
-		DisplayName:     "4K Low (16 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    16_000_000,
-		VideoMaxRate:    17_600_000,
-		VideoBufSize:    32_000_000,
-		AudioBitrate:    256_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1"},
-		Preset:          "medium",
-		CRF:             24,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  20.0,
-		MinScreenWidth:  3200,
-		MinScreenHeight: 1800,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 7200,
-		Description:     "Entry-level 4K",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k25000k: {
-		ID:              Quality4k25000k,
-		DisplayName:     "4K Medium (25 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    25_000_000,
-		VideoMaxRate:    27_500_000,
-		VideoBufSize:    50_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1"},
-		Preset:          "medium",
-		CRF:             21,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  30.0,
-		MinScreenWidth:  3200,
-		MinScreenHeight: 1800,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 11250,
-		Description:     "Balanced 4K quality",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k35000k: {
-		ID:              Quality4k35000k,
-		DisplayName:     "4K High (35 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    35_000_000,
-		VideoMaxRate:    38_500_000,
-		VideoBufSize:    70_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1"},
-		Preset:          "medium",
-		CRF:             20,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  40.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 2160,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 15750,
-		Description:     "High quality 4K",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k50000k: {
-		ID:              Quality4k50000k,
-		DisplayName:     "4K Very High (50 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    50_000_000,
-		VideoMaxRate:    55_000_000,
-		VideoBufSize:    100_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1"},
-		Preset:          "slow",
-		CRF:             19,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  60.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 2160,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 22500,
-		Description:     "Very high quality 4K",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k80000k: {
-		ID:              Quality4k80000k,
-		DisplayName:     "4K Ultra (80 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    80_000_000,
-		VideoMaxRate:    88_000_000,
-		VideoBufSize:    160_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"av1"},
-		Preset:          "slow",
-		CRF:             18,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  100.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 2160,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 36000,
-		Description:     "Premium 4K for maximum quality",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k100000k: {
-		ID:              Quality4k100000k,
-		DisplayName:     "4K Extreme (100 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    100_000_000,
-		VideoMaxRate:    110_000_000,
-		VideoBufSize:    200_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"av1"},
-		Preset:          "veryslow",
-		CRF:             17,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		MinNetworkMbps:  125.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 2160,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 45000,
-		Description:     "Extreme 4K quality for Blu-ray rips",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k120000k: {
-		ID:              Quality4k120000k,
-		DisplayName:     "4K Reference (120 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    120_000_000,
-		VideoMaxRate:    132_000_000,
-		VideoBufSize:    240_000_000,
-		AudioBitrate:    320_000,
-		AudioChannels:   2,
-		AudioSampleRate: 48000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"av1"},
-		Preset:          "veryslow",
-		CRF:             16,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		FrameRate:       30.0,
-		AspectRatio:     "16:9",
-		MinNetworkMbps:  150.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 2160,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 54000,
-		Description:     "Reference quality 4K for premium Blu-ray direct play",
-		QualityTier:     "ultra",
-	},
-
-	// High Frame Rate (60 FPS) Profiles
-	Quality720p8000k60fps: {
-		ID:              Quality720p8000k60fps,
-		DisplayName:     "720p HFR (8 Mbps @ 60fps)",
-		Width:           1280,
-		Height:          720,
-		VideoBitrate:    8_000_000,
-		VideoMaxRate:    8_800_000,
-		VideoBufSize:    16_000_000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9"},
-		Preset:          "medium",
-		CRF:             21,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         120, // 2 seconds at 60fps
-		FrameRate:       60.0,
-		AspectRatio:     "16:9",
-		MinNetworkMbps:  10.0,
-		MinScreenWidth:  1280,
-		MinScreenHeight: 720,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 3600,
-		Description:     "High frame rate 720p for smooth motion",
-		QualityTier:     "high",
-	},
-
-	Quality1080p12000k60fps: {
-		ID:              Quality1080p12000k60fps,
-		DisplayName:     "1080p HFR (12 Mbps @ 60fps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    12_000_000,
-		VideoMaxRate:    13_200_000,
-		VideoBufSize:    24_000_000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9"},
-		Preset:          "medium",
-		CRF:             20,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         120,
-		FrameRate:       60.0,
-		AspectRatio:     "16:9",
-		MinNetworkMbps:  15.0,
-		MinScreenWidth:  1920,
-		MinScreenHeight: 1080,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 5400,
-		Description:     "High frame rate 1080p for sports and action",
-		QualityTier:     "ultra",
-	},
-
-	Quality1080p20000k60fps: {
-		ID:              Quality1080p20000k60fps,
-		DisplayName:     "1080p HFR High (20 Mbps @ 60fps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    20_000_000,
-		VideoMaxRate:    22_000_000,
-		VideoBufSize:    40_000_000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265", "vp9"},
-		Preset:          "slow",
-		CRF:             19,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         120,
-		FrameRate:       60.0,
-		AspectRatio:     "16:9",
-		MinNetworkMbps:  25.0,
-		MinScreenWidth:  1920,
-		MinScreenHeight: 1080,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 9000,
-		Description:     "Premium HFR 1080p for maximum motion clarity",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k50000k60fps: {
-		ID:              Quality4k50000k60fps,
-		DisplayName:     "4K HFR (50 Mbps @ 60fps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    50_000_000,
-		VideoMaxRate:    55_000_000,
-		VideoBufSize:    100_000_000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1"},
-		Preset:          "slow",
-		CRF:             19,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         120,
-		FrameRate:       60.0,
-		AspectRatio:     "16:9",
-		MinNetworkMbps:  60.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 2160,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 22500,
-		Description:     "4K high frame rate for premium viewing",
-		QualityTier:     "ultra",
-	},
-
-	// 3D Profiles (Top-and-Bottom)
-	Quality1080p12000k3d: {
-		ID:              Quality1080p12000k3d,
-		DisplayName:     "1080p 3D TAB (12 Mbps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    12_000_000,
-		VideoMaxRate:    13_200_000,
-		VideoBufSize:    24_000_000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265"},
-		Preset:          "medium",
-		CRF:             21,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		FrameRate:       24.0,
-		AspectRatio:     "16:9",
-		Is3D:            true,
-		StereoMode:      "tab",
-		MinNetworkMbps:  15.0,
-		MinScreenWidth:  1920,
-		MinScreenHeight: 1080,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 5400,
-		Description:     "3D top-and-bottom for stereoscopic content",
-		QualityTier:     "high",
-	},
-
-	Quality1080p16000k3d: {
-		ID:              Quality1080p16000k3d,
-		DisplayName:     "1080p 3D TAB High (16 Mbps)",
-		Width:           1920,
-		Height:          1080,
-		VideoBitrate:    16_000_000,
-		VideoMaxRate:    17_600_000,
-		VideoBufSize:    32_000_000,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{"h265"},
-		Preset:          "medium",
-		CRF:             20,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		FrameRate:       24.0,
-		AspectRatio:     "16:9",
-		Is3D:            true,
-		StereoMode:      "tab",
-		MinNetworkMbps:  20.0,
-		MinScreenWidth:  1920,
-		MinScreenHeight: 1080,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 7200,
-		Description:     "High quality 3D for premium stereoscopic viewing",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k50000k3d: {
-		ID:              Quality4k50000k3d,
-		DisplayName:     "4K 3D TAB (50 Mbps)",
-		Width:           3840,
-		Height:          2160,
-		VideoBitrate:    50_000_000,
-		VideoMaxRate:    55_000_000,
-		VideoBufSize:    100_000_000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"av1"},
-		Preset:          "slow",
-		CRF:             19,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		FrameRate:       24.0,
-		AspectRatio:     "16:9",
-		Is3D:            true,
-		StereoMode:      "tab",
-		MinNetworkMbps:  60.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 2160,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 22500,
-		Description:     "4K 3D top-and-bottom for premium stereoscopic",
-		QualityTier:     "ultra",
-	},
-
-	// Ultra-wide (2.39:1 Cinemascope) Profiles
-	Quality4k25000kWide: {
-		ID:              Quality4k25000kWide,
-		DisplayName:     "4K Wide (25 Mbps @ 2.39:1)",
-		Width:           3840,
-		Height:          1606, // 2.39:1 aspect ratio
-		VideoBitrate:    25_000_000,
-		VideoMaxRate:    27_500_000,
-		VideoBufSize:    50_000_000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"vp9", "av1"},
-		Preset:          "medium",
-		CRF:             21,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		FrameRate:       24.0,
-		AspectRatio:     "2.39:1",
-		MinNetworkMbps:  30.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 1606,
-		RecommendedFor:  []string{"desktop", "tv"},
-		DataUsageMBPerHour: 11250,
-		Description:     "Cinemascope ultra-wide 4K",
-		QualityTier:     "ultra",
-	},
-
-	Quality4k80000kWide: {
-		ID:              Quality4k80000kWide,
-		DisplayName:     "4K Wide Ultra (80 Mbps @ 2.39:1)",
-		Width:           3840,
-		Height:          1606,
-		VideoBitrate:    80_000_000,
-		VideoMaxRate:    88_000_000,
-		VideoBufSize:    160_000_000,
-		PreferredCodec:  "h265",
-		FallbackCodecs:  []string{"av1"},
-		Preset:          "slow",
-		CRF:             18,
-		EnableHWAccel:   true,
-		EnableFastStart: true,
-		SegmentDuration: 2,
-		GOPSize:         48,
-		FrameRate:       24.0,
-		AspectRatio:     "2.39:1",
-		MinNetworkMbps:  100.0,
-		MinScreenWidth:  3840,
-		MinScreenHeight: 1606,
-		RecommendedFor:  []string{"tv"},
-		DataUsageMBPerHour: 36000,
-		Description:     "Premium ultra-wide 4K for cinematic films",
-		QualityTier:     "ultra",
-	},
+// profileBuilder helps construct AdaptiveProfile instances with calculated defaults
+type profileBuilder struct {
+	profile *AdaptiveProfile
 }
+
+// newProfile creates a new profile builder with common defaults
+func newProfile(id, displayName string, width, height, videoBitrate int) *profileBuilder {
+	return &profileBuilder{
+		profile: &AdaptiveProfile{
+			ID:              id,
+			DisplayName:     displayName,
+			Width:           width,
+			Height:          height,
+			VideoBitrate:    videoBitrate,
+			VideoMaxRate:    int(float64(videoBitrate) * 1.1),  // 110% of target
+			VideoBufSize:    videoBitrate * 2,                  // 2x target
+			EnableHWAccel:   true,
+			EnableFastStart: true,
+			SegmentDuration: 2,
+			GOPSize:         48,  // 2 seconds at 24fps (default)
+			FrameRate:       24.0, // Default frame rate
+			AspectRatio:     "16:9", // Default aspect ratio
+		},
+	}
+}
+
+// withCodec sets the preferred codec
+func (pb *profileBuilder) withCodec(codec string, fallbacks ...string) *profileBuilder {
+	pb.profile.PreferredCodec = codec
+	pb.profile.FallbackCodecs = fallbacks
+	return pb
+}
+
+// withPreset sets the encoding preset and CRF
+func (pb *profileBuilder) withPreset(preset string, crf int) *profileBuilder {
+	pb.profile.Preset = preset
+	pb.profile.CRF = crf
+	return pb
+}
+
+// withNetwork sets network requirements
+func (pb *profileBuilder) withNetwork(minMbps float64) *profileBuilder {
+	pb.profile.MinNetworkMbps = minMbps
+	return pb
+}
+
+// withScreen sets screen requirements
+func (pb *profileBuilder) withScreen(minWidth, minHeight int) *profileBuilder {
+	pb.profile.MinScreenWidth = minWidth
+	pb.profile.MinScreenHeight = minHeight
+	return pb
+}
+
+// withDevices sets recommended devices
+func (pb *profileBuilder) withDevices(devices ...string) *profileBuilder {
+	pb.profile.RecommendedFor = devices
+	return pb
+}
+
+// withDescription sets description and quality tier
+func (pb *profileBuilder) withDescription(desc, tier string) *profileBuilder {
+	pb.profile.Description = desc
+	pb.profile.QualityTier = tier
+	return pb
+}
+
+// withFrameRate sets the frame rate and adjusts GOP size accordingly
+func (pb *profileBuilder) withFrameRate(fps float64) *profileBuilder {
+	pb.profile.FrameRate = fps
+	pb.profile.GOPSize = int(fps * 2) // 2 seconds worth of frames
+	return pb
+}
+
+// withAspectRatio sets aspect ratio and adjusts height if ultra-wide
+func (pb *profileBuilder) withAspectRatio(ratio string) *profileBuilder {
+	pb.profile.AspectRatio = ratio
+	// Adjust height for ultra-wide formats
+	if ratio == "2.39:1" && pb.profile.Width == 3840 {
+		pb.profile.Height = 1606 // 3840 / 2.39
+	}
+	return pb
+}
+
+// with3D marks the profile as 3D with stereo mode
+func (pb *profileBuilder) with3D(stereoMode string) *profileBuilder {
+	pb.profile.Is3D = true
+	pb.profile.StereoMode = stereoMode
+	return pb
+}
+
+// build finalizes the profile and calculates data usage
+func (pb *profileBuilder) build() *AdaptiveProfile {
+	// Calculate data usage (MB per hour)
+	totalBitrate := pb.profile.VideoBitrate + pb.profile.AudioBitrate
+	pb.profile.DataUsageMBPerHour = (totalBitrate / 8) * 3600 / 1_000_000
+
+	// Apply audio settings based on quality tier
+	applyAudioSettings(pb.profile)
+
+	return pb.profile
+}
+
+// buildProfiles constructs all adaptive profiles using the builder pattern
+func buildProfiles() map[string]*AdaptiveProfile {
+	return map[string]*AdaptiveProfile{
+		// 240p - Ultra Low (Poor connections, data saving)
+		Quality240p400k: newProfile(Quality240p400k, "240p Ultra Low (0.4 Mbps)", 426, 240, 400_000).
+			withCodec("h264").
+			withPreset("fast", 28).
+			withNetwork(0.5).
+			withScreen(320, 240).
+			withDevices("mobile").
+			withDescription("Minimum quality for very poor connections", "low").
+			build(),
+
+		// 360p - Low
+		Quality360p800k: newProfile(Quality360p800k, "360p Low (0.8 Mbps)", 640, 360, 800_000).
+			withCodec("h264").
+			withPreset("fast", 26).
+			withNetwork(1.0).
+			withScreen(480, 320).
+			withDevices("mobile").
+			withDescription("Basic quality for mobile devices", "low").
+			build(),
+
+		// 480p - Standard Definition (3 variants)
+		Quality480p1200k: newProfile(Quality480p1200k, "480p Low (1.2 Mbps)", 854, 480, 1_200_000).
+			withCodec("h264").
+			withPreset("medium", 24).
+			withNetwork(1.5).
+			withScreen(640, 480).
+			withDevices("mobile", "tablet").
+			withDescription("Entry-level SD quality", "medium").
+			build(),
+
+		Quality480p1800k: newProfile(Quality480p1800k, "480p Medium (1.8 Mbps)", 854, 480, 1_800_000).
+			withCodec("h264").
+			withPreset("medium", 23).
+			withNetwork(2.2).
+			withScreen(640, 480).
+			withDevices("mobile", "tablet").
+			withDescription("Balanced SD quality", "medium").
+			build(),
+
+		Quality480p2500k: newProfile(Quality480p2500k, "480p High (2.5 Mbps)", 854, 480, 2_500_000).
+			withCodec("h264").
+			withPreset("medium", 22).
+			withNetwork(3.0).
+			withScreen(640, 480).
+			withDevices("tablet", "desktop").
+			withDescription("High-quality SD", "medium").
+			build(),
+
+		// 720p - HD (4 variants)
+		Quality720p2500k: newProfile(Quality720p2500k, "720p Low (2.5 Mbps)", 1280, 720, 2_500_000).
+			withCodec("h264").
+			withPreset("medium", 23).
+			withNetwork(3.0).
+			withScreen(1280, 720).
+			withDevices("tablet", "desktop").
+			withDescription("Entry-level HD", "high").
+			build(),
+
+		Quality720p4000k: newProfile(Quality720p4000k, "720p Medium (4 Mbps)", 1280, 720, 4_000_000).
+			withCodec("h264").
+			withPreset("medium", 22).
+			withNetwork(5.0).
+			withScreen(1280, 720).
+			withDevices("tablet", "desktop", "tv").
+			withDescription("Balanced HD quality", "high").
+			build(),
+
+		Quality720p5500k: newProfile(Quality720p5500k, "720p High (5.5 Mbps)", 1280, 720, 5_500_000).
+			withCodec("h264").
+			withPreset("medium", 21).
+			withNetwork(7.0).
+			withScreen(1280, 720).
+			withDevices("desktop", "tv").
+			withDescription("High-quality HD", "high").
+			build(),
+
+		Quality720p7500k: newProfile(Quality720p7500k, "720p Ultra (7.5 Mbps)", 1280, 720, 7_500_000).
+			withCodec("h264").
+			withPreset("slow", 20).
+			withNetwork(9.0).
+			withScreen(1280, 720).
+			withDevices("desktop", "tv").
+			withDescription("Maximum 720p quality", "high").
+			build(),
+
+		// 1080p - Full HD (5 variants)
+		Quality1080p4000k: newProfile(Quality1080p4000k, "1080p Low (4 Mbps)", 1920, 1080, 4_000_000).
+			withCodec("h264").
+			withPreset("medium", 23).
+			withNetwork(5.0).
+			withScreen(1920, 1080).
+			withDevices("desktop", "tv").
+			withDescription("Entry-level Full HD", "high").
+			build(),
+
+		Quality1080p6000k: newProfile(Quality1080p6000k, "1080p Medium (6 Mbps)", 1920, 1080, 6_000_000).
+			withCodec("h264").
+			withPreset("medium", 22).
+			withNetwork(7.5).
+			withScreen(1920, 1080).
+			withDevices("desktop", "tv").
+			withDescription("Balanced Full HD", "high").
+			build(),
+
+		Quality1080p8000k: newProfile(Quality1080p8000k, "1080p High (8 Mbps)", 1920, 1080, 8_000_000).
+			withCodec("h264").
+			withPreset("medium", 21).
+			withNetwork(10.0).
+			withScreen(1920, 1080).
+			withDevices("desktop", "tv").
+			withDescription("High-quality Full HD", "high").
+			build(),
+
+		Quality1080p12000k: newProfile(Quality1080p12000k, "1080p Ultra (12 Mbps)", 1920, 1080, 12_000_000).
+			withCodec("h264", "h265").
+			withPreset("slow", 20).
+			withNetwork(15.0).
+			withScreen(1920, 1080).
+			withDevices("desktop", "tv").
+			withDescription("Ultra Full HD quality", "ultra").
+			build(),
+
+		Quality1080p16000k: newProfile(Quality1080p16000k, "1080p Premium (16 Mbps)", 1920, 1080, 16_000_000).
+			withCodec("h265", "vp9").
+			withPreset("slow", 19).
+			withNetwork(20.0).
+			withScreen(1920, 1080).
+			withDevices("tv").
+			withDescription("Premium Full HD", "ultra").
+			build(),
+
+		// 1440p - 2K (4 variants)
+		Quality1440p8000k: newProfile(Quality1440p8000k, "1440p Low (8 Mbps)", 2560, 1440, 8_000_000).
+			withCodec("h265", "vp9").
+			withPreset("medium", 22).
+			withNetwork(10.0).
+			withScreen(2560, 1440).
+			withDevices("desktop", "tv").
+			withDescription("Entry-level 2K", "ultra").
+			build(),
+
+		Quality1440p12000k: newProfile(Quality1440p12000k, "1440p Medium (12 Mbps)", 2560, 1440, 12_000_000).
+			withCodec("h265", "vp9").
+			withPreset("medium", 21).
+			withNetwork(15.0).
+			withScreen(2560, 1440).
+			withDevices("desktop", "tv").
+			withDescription("Balanced 2K quality", "ultra").
+			build(),
+
+		Quality1440p16000k: newProfile(Quality1440p16000k, "1440p High (16 Mbps)", 2560, 1440, 16_000_000).
+			withCodec("h265", "vp9").
+			withPreset("slow", 20).
+			withNetwork(20.0).
+			withScreen(2560, 1440).
+			withDevices("tv").
+			withDescription("High-quality 2K", "ultra").
+			build(),
+
+		Quality1440p24000k: newProfile(Quality1440p24000k, "1440p Ultra (24 Mbps)", 2560, 1440, 24_000_000).
+			withCodec("h265", "vp9").
+			withPreset("slow", 19).
+			withNetwork(30.0).
+			withScreen(2560, 1440).
+			withDevices("tv").
+			withDescription("Ultra 2K quality", "ultra").
+			build(),
+
+		// 4K - Ultra HD (7 variants)
+		Quality4k16000k: newProfile(Quality4k16000k, "4K Low (16 Mbps)", 3840, 2160, 16_000_000).
+			withCodec("h265", "vp9", "av1").
+			withPreset("medium", 23).
+			withNetwork(20.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withDescription("Entry-level 4K", "ultra").
+			build(),
+
+		Quality4k25000k: newProfile(Quality4k25000k, "4K Medium (25 Mbps)", 3840, 2160, 25_000_000).
+			withCodec("h265", "vp9", "av1").
+			withPreset("medium", 22).
+			withNetwork(30.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withDescription("Balanced 4K quality", "ultra").
+			build(),
+
+		Quality4k35000k: newProfile(Quality4k35000k, "4K High (35 Mbps)", 3840, 2160, 35_000_000).
+			withCodec("h265", "vp9", "av1").
+			withPreset("slow", 21).
+			withNetwork(40.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withDescription("High-quality 4K", "ultra").
+			build(),
+
+		Quality4k50000k: newProfile(Quality4k50000k, "4K Ultra (50 Mbps)", 3840, 2160, 50_000_000).
+			withCodec("h265", "av1").
+			withPreset("slow", 20).
+			withNetwork(60.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withDescription("Ultra 4K quality", "ultra").
+			build(),
+
+		Quality4k80000k: newProfile(Quality4k80000k, "4K Premium (80 Mbps)", 3840, 2160, 80_000_000).
+			withCodec("h265", "av1").
+			withPreset("veryslow", 18).
+			withNetwork(100.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withDescription("Premium 4K for maximum quality", "ultra").
+			build(),
+
+		Quality4k100000k: newProfile(Quality4k100000k, "4K Extreme (100 Mbps)", 3840, 2160, 100_000_000).
+			withCodec("h265", "av1").
+			withPreset("veryslow", 17).
+			withNetwork(125.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withDescription("Extreme 4K quality for Blu-ray rips", "ultra").
+			build(),
+
+		Quality4k120000k: newProfile(Quality4k120000k, "4K Reference (120 Mbps)", 3840, 2160, 120_000_000).
+			withCodec("h265", "av1").
+			withPreset("veryslow", 16).
+			withNetwork(150.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withDescription("Reference quality 4K for premium Blu-ray direct play", "ultra").
+			build(),
+
+		// High Frame Rate (60 FPS) - 4 variants
+		Quality720p8000k60fps: newProfile(Quality720p8000k60fps, "720p HFR (8 Mbps @ 60fps)", 1280, 720, 8_000_000).
+			withCodec("h264", "h265", "vp9").
+			withPreset("medium", 21).
+			withNetwork(10.0).
+			withScreen(1280, 720).
+			withDevices("desktop", "tv").
+			withFrameRate(60.0).
+			withDescription("High frame rate 720p for smooth motion", "high").
+			build(),
+
+		Quality1080p12000k60fps: newProfile(Quality1080p12000k60fps, "1080p HFR (12 Mbps @ 60fps)", 1920, 1080, 12_000_000).
+			withCodec("h264", "h265", "vp9").
+			withPreset("medium", 20).
+			withNetwork(15.0).
+			withScreen(1920, 1080).
+			withDevices("desktop", "tv").
+			withFrameRate(60.0).
+			withDescription("High frame rate 1080p for sports and action", "ultra").
+			build(),
+
+		Quality1080p20000k60fps: newProfile(Quality1080p20000k60fps, "1080p HFR High (20 Mbps @ 60fps)", 1920, 1080, 20_000_000).
+			withCodec("h264", "h265", "vp9").
+			withPreset("slow", 19).
+			withNetwork(25.0).
+			withScreen(1920, 1080).
+			withDevices("desktop", "tv").
+			withFrameRate(60.0).
+			withDescription("Premium HFR 1080p for maximum motion clarity", "ultra").
+			build(),
+
+		Quality4k50000k60fps: newProfile(Quality4k50000k60fps, "4K HFR (50 Mbps @ 60fps)", 3840, 2160, 50_000_000).
+			withCodec("h265", "vp9", "av1").
+			withPreset("slow", 19).
+			withNetwork(60.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			withFrameRate(60.0).
+			withDescription("4K high frame rate for premium viewing", "ultra").
+			build(),
+
+		// 3D Profiles (Top-and-Bottom) - 3 variants
+		Quality1080p12000k3d: newProfile(Quality1080p12000k3d, "1080p 3D TAB (12 Mbps)", 1920, 1080, 12_000_000).
+			withCodec("h264", "h265").
+			withPreset("medium", 21).
+			withNetwork(15.0).
+			withScreen(1920, 1080).
+			withDevices("tv").
+			with3D("tab").
+			withDescription("3D top-and-bottom for stereoscopic content", "high").
+			build(),
+
+		Quality1080p16000k3d: newProfile(Quality1080p16000k3d, "1080p 3D TAB High (16 Mbps)", 1920, 1080, 16_000_000).
+			withCodec("h264", "h265").
+			withPreset("medium", 20).
+			withNetwork(20.0).
+			withScreen(1920, 1080).
+			withDevices("tv").
+			with3D("tab").
+			withDescription("High quality 3D for premium stereoscopic viewing", "ultra").
+			build(),
+
+		Quality4k50000k3d: newProfile(Quality4k50000k3d, "4K 3D TAB (50 Mbps)", 3840, 2160, 50_000_000).
+			withCodec("h265", "av1").
+			withPreset("slow", 19).
+			withNetwork(60.0).
+			withScreen(3840, 2160).
+			withDevices("tv").
+			with3D("tab").
+			withDescription("4K 3D top-and-bottom for premium stereoscopic", "ultra").
+			build(),
+
+		// Ultra-wide (2.39:1 Cinemascope) Profiles - 2 variants
+		Quality4k25000kWide: newProfile(Quality4k25000kWide, "4K Wide (25 Mbps @ 2.39:1)", 3840, 1606, 25_000_000).
+			withCodec("h265", "vp9", "av1").
+			withPreset("medium", 21).
+			withNetwork(30.0).
+			withScreen(3840, 1606).
+			withDevices("desktop", "tv").
+			withAspectRatio("2.39:1").
+			withDescription("Cinemascope ultra-wide 4K", "ultra").
+			build(),
+
+		Quality4k80000kWide: newProfile(Quality4k80000kWide, "4K Wide Ultra (80 Mbps @ 2.39:1)", 3840, 1606, 80_000_000).
+			withCodec("h265", "av1").
+			withPreset("slow", 18).
+			withNetwork(100.0).
+			withScreen(3840, 1606).
+			withDevices("tv").
+			withAspectRatio("2.39:1").
+			withDescription("Premium ultra-wide 4K for cinematic films", "ultra").
+			build(),
+	}
+}
+
+// adaptiveProfiles is initialized using the builder pattern
+var adaptiveProfiles = buildProfiles()
 
 // GetAdaptiveProfile returns the adaptive profile for a given quality ID.
 func GetAdaptiveProfile(quality string) (*AdaptiveProfile, error) {
@@ -1196,9 +664,3 @@ func applyAudioSettings(profile *AdaptiveProfile) {
 	}
 }
 
-// init applies audio settings to all profiles on package initialization
-func init() {
-	for _, profile := range adaptiveProfiles {
-		applyAudioSettings(profile)
-	}
-}
