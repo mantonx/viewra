@@ -2,6 +2,7 @@
 
 ## Status
 **Accepted** - Implemented on 2025-11-23
+**Updated** - Tailwind v4 migration completed on 2025-11-23
 
 ## Context
 ViewRA's frontend lacked a consistent design token system and had several issues that made it appear prototype-like:
@@ -14,12 +15,20 @@ ViewRA's frontend lacked a consistent design token system and had several issues
 5. **No Theme Swapping**: Impossible to change color palettes easily
 6. **Poor DRY Compliance**: Repeated color definitions across components
 
-### Design Token Infrastructure (Already Existed)
-The application already had a solid foundation:
+### Design Token Infrastructure (Evolution)
+
+**Initial State** (Pre-Tailwind v4):
 - Well-organized tokens in `web/src/styles/tokens/` (colors, spacing, typography)
 - ThemeContext and useTheme hook implemented
 - Semantic theme mappings (`lightTheme`, `darkTheme`) defined
-- Tailwind CSS v4 configuration with token imports
+- Tailwind CSS v3 configuration with JavaScript token imports
+
+**Current State** (Post-Tailwind v4 Migration):
+
+- All design tokens defined in `@theme` directive in CSS
+- Class-based dark mode with `.dark` variant
+- No JavaScript token imports required
+- Simplified Tailwind configuration
 
 ## Decision
 
@@ -119,6 +128,7 @@ shadow                → shadow dark:shadow-neutral-950/50
 **Decision**: Update all 54+ components with dark mode support
 
 **Scope**:
+
 - 14 UI components (Button, Card, Modal, Input, Alert, Toast, etc.)
 - 10 common components (PageHeader, EmptyState, MediaBrowsePage, etc.)
 - 8 library components (LibraryCard, FilesystemBrowser components, etc.)
@@ -128,6 +138,7 @@ shadow                → shadow dark:shadow-neutral-950/50
 - 2 other components (VideoControls, ScheduleEditor)
 
 **Status Colors**: Maintained with brighter dark variants where needed:
+
 ```tsx
 // Success (green)
 text-green-600        → text-green-600 dark:text-green-500
@@ -141,9 +152,96 @@ text-red-600          → text-red-600 dark:text-red-500
 border-red-300        → border-red-300 dark:border-red-800
 ```
 
+### 6. Tailwind v4 Migration (Added 2025-11-23)
+
+**Decision**: Migrate from Tailwind CSS v3 to v4 using native CSS-based configuration
+
+**Rationale**:
+
+- **Modern CSS**: Leverages CSS custom properties and `@theme` directive
+- **No Build Step for Tokens**: Design tokens defined in CSS, not JavaScript
+- **Better Performance**: Faster compilation and smaller bundle sizes
+- **Official Direction**: Tailwind v4 is the future of the framework
+- **Simpler Config**: Minimal JavaScript configuration needed
+
+**Implementation Changes**:
+
+1. **Moved Design Tokens to CSS** ([index.css:6-200](web/src/index.css#L6-L200)):
+
+   ```css
+   @theme {
+     /* Colors */
+     --color-white: #ffffff;
+     --color-black: #000000;
+     --color-primary-500: #3b82f6;
+     --color-neutral-900: #171717;
+
+     /* Spacing */
+     --spacing-4: 1rem;
+     --spacing-8: 2rem;
+
+     /* Typography */
+     --text-base: 1rem;
+     --font-sans: Inter, system-ui, sans-serif;
+
+     /* Shadows, Radius, etc. */
+     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+     --radius-lg: 0.5rem;
+   }
+   ```
+
+2. **Configured Class-Based Dark Mode** ([index.css:4](web/src/index.css#L4)):
+
+   ```css
+   @variant dark (.dark &);
+   ```
+
+3. **Simplified Tailwind Config** ([tailwind.config.js](web/tailwind.config.js)):
+
+   ```javascript
+   // Before (v3): 42 lines of theme extension with imports
+   import { colors, spacing, ... } from './src/styles/tokens'
+
+   // After (v4): 6 lines, minimal config
+   export default {
+     content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+   }
+   ```
+
+4. **Fixed ThemeProvider** ([ThemeContext.tsx:39-47](web/src/contexts/ThemeContext.tsx#L39-L47)):
+
+   ```tsx
+   // Before: Added both 'light' and 'dark' classes
+   root.classList.remove('light', 'dark')
+   root.classList.add(theme)
+
+   // After: Only toggle 'dark' class (v4 standard)
+   if (theme === 'dark') {
+     root.classList.add('dark')
+   } else {
+     root.classList.remove('dark')
+   }
+   ```
+
+5. **Removed Global CSS Overrides**:
+
+   - Removed `* { border-color: ... }` that conflicted with Tailwind utilities
+   - Removed `body { background-color: ..., color: ... }` in favor of component-level styling
+   - Kept semantic CSS variables separate for custom use cases
+
+**Benefits**:
+
+- ✅ All Tailwind utilities now work correctly (`bg-white`, `text-neutral-900`, etc.)
+- ✅ No JavaScript imports for design tokens
+- ✅ Faster hot module replacement during development
+- ✅ Smaller tailwind.config.js (6 lines vs 42 lines)
+- ✅ Native CSS custom properties work with both Tailwind and custom CSS
+- ✅ Better alignment with modern web standards
+
 ## Consequences
 
 ### Positive
+
 ✅ **Professional Appearance**: No more emoji, polished icon system
 ✅ **Full Dark Mode Support**: All 54+ components support theme switching
 ✅ **Better DRY**: Consistent color system across all components
@@ -152,16 +250,26 @@ border-red-300        → border-red-300 dark:border-red-800
 ✅ **Accessibility**: Better contrast ratios, proper focus states
 ✅ **Type Safety**: No TypeScript errors, all changes validated
 ✅ **Maintainability**: Single source of truth for colors
+✅ **Tailwind v4 Benefits** (Added 2025-11-23):
+
+- CSS-native design tokens (no JavaScript imports)
+- Faster build times and hot module replacement
+- Simpler configuration (6 lines vs 42 lines)
+- Better alignment with web standards
+- All Tailwind utilities work correctly
 
 ### Negative
+
 ⚠️ **Not Fully DRY**: Still repeating `dark:` classes across components
 ⚠️ **Template Literals**: Some components still use `${className}` instead of `cn()`
 ⚠️ **No Semantic Utilities**: Direct Tailwind classes instead of semantic abstractions
+⚠️ **Token Duplication** (Tailwind v4): Tokens exist in both `@theme` and TypeScript files
 
 ### Neutral
+
 ℹ️ **Bundle Size**: Added Lucide React (~40KB), removed emoji
 ℹ️ **Migration Path**: Incremental; can add semantic utilities later
-ℹ️ **Learning Curve**: Team needs to know dark mode patterns
+ℹ️ **Learning Curve**: Team needs to know dark mode patterns and Tailwind v4 syntax
 
 ## Future Work (Phase 2+)
 
