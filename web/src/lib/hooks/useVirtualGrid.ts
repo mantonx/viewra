@@ -5,7 +5,7 @@
  * Replaces CSS Grid with virtualized rendering for better performance
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 interface UseVirtualGridOptions {
@@ -51,11 +51,11 @@ interface UseVirtualGridOptions {
 }
 
 /**
- * Hook for virtualized grid with infinite scroll
+ * Hook for virtualized grid with infinite scroll (uses window as scroll element)
  *
  * @example
  * ```tsx
- * const { parentRef, virtualRows, totalHeight } = useVirtualGrid({
+ * const { virtualRows, totalHeight } = useVirtualGrid({
  *   itemCount: allMovies.length,
  *   columns: 6,
  *   estimatedRowHeight: 400,
@@ -67,14 +67,12 @@ interface UseVirtualGridOptions {
  * })
  *
  * return (
- *   <div ref={parentRef} style={{ height: '100vh', overflow: 'auto' }}>
- *     <div style={{ height: totalHeight }}>
- *       {virtualRows.map(virtualRow => (
- *         <div key={virtualRow.index} style={{ transform: `translateY(${virtualRow.start}px)` }}>
- *           // Render row items here
- *         </div>
- *       ))}
- *     </div>
+ *   <div style={{ height: totalHeight, position: 'relative' }}>
+ *     {virtualRows.map(virtualRow => (
+ *       <div key={virtualRow.index} style={{ transform: `translateY(${virtualRow.start}px)`, position: 'absolute' }}>
+ *         // Render row items here
+ *       </div>
+ *     ))}
  *   </div>
  * )
  * ```
@@ -89,15 +87,13 @@ export const useVirtualGrid = ({
   hasNextPage,
   isFetchingNextPage,
 }: UseVirtualGridOptions) => {
-  const parentRef = useRef<HTMLDivElement>(null)
-
   // Calculate number of rows
   const rowCount = Math.ceil(itemCount / columns)
 
-  // Create virtualizer for rows
+  // Create virtualizer for rows (using window as scroll element)
   const rowVirtualizer = useVirtualizer({
     count: hasNextPage ? rowCount + 1 : rowCount, // +1 for loading row
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => typeof window !== 'undefined' ? window.document.body : null,
     estimateSize: () => estimatedRowHeight + gap,
     overscan,
   })
@@ -125,7 +121,6 @@ export const useVirtualGrid = ({
   ])
 
   return {
-    parentRef,
     virtualRows: rowVirtualizer.getVirtualItems(),
     totalHeight: rowVirtualizer.getTotalSize(),
     rowVirtualizer,
