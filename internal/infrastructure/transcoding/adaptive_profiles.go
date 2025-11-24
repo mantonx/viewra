@@ -24,9 +24,12 @@ type AdaptiveProfile struct {
 	VideoBufSize int // 2x target for VBV
 
 	// Audio
-	AudioBitrate    int // bits per second
-	AudioChannels   int
-	AudioSampleRate int
+	AudioBitrate       int // bits per second
+	AudioChannels      int // Target channels (2=stereo, 6=5.1, 8=7.1)
+	AudioSampleRate    int
+	PreserveMultiCh    bool // If true, keep original multi-channel audio (no downmix)
+	AudioCodec         string // Target audio codec: "aac", "ac3", "eac3", "opus"
+	MaxAudioChannels   int // Maximum channels to preserve (0 = no limit)
 
 	// Codec preferences
 	PreferredCodec string   // "h264", "h265", "vp9", "av1"
@@ -100,18 +103,21 @@ const (
 var adaptiveProfiles = map[string]*AdaptiveProfile{
 	// 240p - Ultra Low (Poor connections, data saving)
 	Quality240p400k: {
-		ID:              Quality240p400k,
-		DisplayName:     "240p Ultra Low (0.4 Mbps)",
-		Width:           426,
-		Height:          240,
-		VideoBitrate:    400_000,
-		VideoMaxRate:    440_000,
-		VideoBufSize:    800_000,
-		AudioBitrate:    64_000,
-		AudioChannels:   2,
-		AudioSampleRate: 44100,
-		PreferredCodec:  "h264",
-		FallbackCodecs:  []string{},
+		ID:               Quality240p400k,
+		DisplayName:      "240p Ultra Low (0.4 Mbps)",
+		Width:            426,
+		Height:           240,
+		VideoBitrate:     400_000,
+		VideoMaxRate:     440_000,
+		VideoBufSize:     800_000,
+		AudioBitrate:     64_000,
+		AudioChannels:    2,
+		AudioSampleRate:  44100,
+		PreserveMultiCh:  false, // Force stereo to save bandwidth
+		AudioCodec:       "aac",
+		MaxAudioChannels: 2,
+		PreferredCodec:   "h264",
+		FallbackCodecs:   []string{},
 		Preset:          "fast",
 		CRF:             28,
 		EnableHWAccel:   true,
@@ -861,4 +867,63 @@ func FilterProfilesByNetworkSpeed(profiles []*AdaptiveProfile, speedMbps float64
 		}
 	}
 	return filtered
+}
+
+// applyAudioSettings configures audio parameters based on quality tier and resolution.
+// This centralizes audio configuration logic to avoid repetition.
+func applyAudioSettings(profile *AdaptiveProfile) {
+	switch profile.QualityTier {
+	case "low":
+		// 240p-360p: Stereo only, AAC for maximum compatibility
+		profile.AudioBitrate = 64_000
+		profile.AudioChannels = 2
+		profile.AudioSampleRate = 44100
+		profile.PreserveMultiCh = false
+		profile.AudioCodec = "aac"
+		profile.MaxAudioChannels = 2
+
+	case "medium":
+		// 480p: Stereo with higher bitrate, preserve up to stereo
+		profile.AudioBitrate = 128_000
+		profile.AudioChannels = 2
+		profile.AudioSampleRate = 48000
+		profile.PreserveMultiCh = false
+		profile.AudioCodec = "aac"
+		profile.MaxAudioChannels = 2
+
+	case "high":
+		// 720p-1080p: Preserve 5.1 surround, use AC3/AAC
+		if profile.Width >= 1280 {
+			profile.AudioBitrate = 256_000
+			profile.AudioChannels = 6 // 5.1
+			profile.AudioSampleRate = 48000
+			profile.PreserveMultiCh = true
+			profile.AudioCodec = "ac3" // Dolby Digital 5.1
+			profile.MaxAudioChannels = 6
+		} else {
+			// 720p lower bitrates
+			profile.AudioBitrate = 192_000
+			profile.AudioChannels = 2
+			profile.AudioSampleRate = 48000
+			profile.PreserveMultiCh = true
+			profile.AudioCodec = "aac"
+			profile.MaxAudioChannels = 6
+		}
+
+	case "ultra":
+		// 1440p-4K: Preserve all channels (7.1, Atmos), use EAC3
+		profile.AudioBitrate = 320_000
+		profile.AudioChannels = 8 // 7.1
+		profile.AudioSampleRate = 48000
+		profile.PreserveMultiCh = true
+		profile.AudioCodec = "eac3" // Dolby Digital Plus, supports Atmos
+		profile.MaxAudioChannels = 0 // No limit, preserve all channels
+	}
+}
+
+// init applies audio settings to all profiles on package initialization
+func init() {
+	for _, profile := range adaptiveProfiles {
+		applyAudioSettings(profile)
+	}
 }
