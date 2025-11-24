@@ -60,7 +60,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
   hasNextPage,
   isFetchingNextPage,
 }: VirtualMediaGridProps<T>) => {
-  const { virtualRows, totalHeight } = useVirtualGrid({
+  const { parentRef, virtualRows, totalHeight } = useVirtualGrid({
     itemCount: items.length,
     columns,
     estimatedRowHeight,
@@ -75,13 +75,20 @@ export const VirtualMediaGrid = <T extends { id: number }>({
 
   return (
     <div
+      ref={parentRef}
       style={{
-        height: `${totalHeight}px`,
-        width: '100%',
-        position: 'relative',
+        height: 'calc(100vh - 280px)', // Account for header, filters, count
+        overflow: 'auto',
       }}
     >
-      {virtualRows.map((virtualRow: VirtualItem) => {
+      <div
+        style={{
+          height: `${totalHeight + 64}px`, // Add 64px bottom spacing
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualRows.map((virtualRow: VirtualItem) => {
           const isLoaderRow = virtualRow.index > rowCount - 1
           const rowStartIndex = virtualRow.index * columns
           const rowItems = items.slice(rowStartIndex, rowStartIndex + columns)
@@ -96,6 +103,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
                 width: '100%',
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
+                marginBottom: '1rem',
               }}
             >
               <div
@@ -127,6 +135,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
             </div>
           )
         })}
+      </div>
     </div>
   )
 }

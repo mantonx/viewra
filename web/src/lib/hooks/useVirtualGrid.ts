@@ -5,7 +5,7 @@
  * Replaces CSS Grid with virtualized rendering for better performance
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 interface UseVirtualGridOptions {
@@ -87,13 +87,15 @@ export const useVirtualGrid = ({
   hasNextPage,
   isFetchingNextPage,
 }: UseVirtualGridOptions) => {
+  const parentRef = useRef<HTMLDivElement>(null)
+
   // Calculate number of rows
   const rowCount = Math.ceil(itemCount / columns)
 
-  // Create virtualizer for rows (using window as scroll element)
+  // Create virtualizer for rows
   const rowVirtualizer = useVirtualizer({
     count: hasNextPage ? rowCount + 1 : rowCount, // +1 for loading row
-    getScrollElement: () => typeof window !== 'undefined' ? window.document.body : null,
+    getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedRowHeight + gap,
     overscan,
   })
@@ -121,6 +123,7 @@ export const useVirtualGrid = ({
   ])
 
   return {
+    parentRef,
     virtualRows: rowVirtualizer.getVirtualItems(),
     totalHeight: rowVirtualizer.getTotalSize(),
     rowVirtualizer,
