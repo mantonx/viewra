@@ -6,21 +6,34 @@ A comprehensive design token system for ViewRA that provides consistent theming,
 
 Design tokens are the atomic values of the design system - colors, spacing, typography, etc. They provide a single source of truth for design decisions and make it easy to maintain consistency across the application.
 
+ViewRA uses **Tailwind CSS v4's `@theme` directive** to define design tokens natively in CSS, providing better performance and alignment with web standards.
+
 ## Structure
+
+**Primary Source (Tailwind v4):**
+
+```
+web/src/index.css
+└── @theme directive  # All design tokens defined in CSS
+```
+
+**Legacy (Deprecated but maintained for reference):**
 
 ```
 web/src/styles/tokens/
-├── colors.ts      # Color palette and theme definitions
-├── spacing.ts     # Spacing, sizing, borders, shadows, z-index
-├── typography.ts  # Fonts, sizes, weights, line heights
+├── colors.ts      # Color palette definitions (TypeScript reference)
+├── spacing.ts     # Spacing, sizing tokens (TypeScript reference)
+├── typography.ts  # Typography tokens (TypeScript reference)
 └── index.ts       # Main export
 ```
+
+> **Note**: The TypeScript token files in `src/styles/tokens/` are kept for backward compatibility and type safety, but the source of truth is now the `@theme` block in `index.css`.
 
 ## Color Tokens
 
 ### Base Palette
 
-We use a systematic color palette with 11 shades for each color family:
+We use a systematic color palette with 11 shades for each color family, defined in the `@theme` directive:
 
 - **Primary**: Blue - Main brand color
 - **Neutral**: Gray - Text, backgrounds, borders
@@ -31,66 +44,102 @@ We use a systematic color palette with 11 shades for each color family:
 
 Each color has shades from 50 (lightest) to 950 (darkest).
 
+**Definition** ([index.css](../src/index.css)):
+
+```css
+@theme {
+  /* Primary colors (Blue) */
+  --color-primary-50: #eff6ff;
+  --color-primary-500: #3b82f6;
+  --color-primary-900: #1e3a8a;
+
+  /* Neutral colors (Grays) */
+  --color-neutral-50: #fafafa;
+  --color-neutral-500: #737373;
+  --color-neutral-900: #171717;
+
+  /* Success, Warning, Error, Info... */
+}
+```
+
+**Usage in Tailwind:**
+
+```tsx
+<div className="bg-primary-500 text-white">
+  <p className="text-neutral-900 dark:text-neutral-50">
+    Colored text
+  </p>
+</div>
+```
+
 ### Theme Support
 
-The color system includes both light and dark theme mappings:
+Dark mode is implemented using Tailwind v4's class-based system with the `dark:` variant.
 
-```typescript
-import { lightTheme, darkTheme } from '@/styles/tokens'
+**Configuration** ([index.css](../src/index.css)):
 
-// Light theme
-lightTheme.background.primary  // neutral-50
-lightTheme.text.primary         // neutral-900
-
-// Dark theme
-darkTheme.background.primary   // neutral-950
-darkTheme.text.primary         // neutral-50
+```css
+/* Configure class-based dark mode */
+@variant dark (.dark &);
 ```
 
-### Semantic Colors
+**Usage:**
 
-Colors are organized by semantic meaning for easier use:
-
-```typescript
-const theme = lightTheme // or darkTheme
-
-// Backgrounds
-theme.background.primary   // Main background
-theme.background.secondary // Cards, elevated surfaces
-theme.background.tertiary  // Hover states
-
-// Text
-theme.text.primary        // Primary text
-theme.text.secondary      // Secondary text
-theme.text.link           // Link color
-
-// Borders
-theme.border.primary      // Default borders
-theme.border.focus        // Focus rings
-
-// Buttons
-theme.button.primary
-theme.button.danger
-theme.button.success
-
-// Status
-theme.status.success
-theme.status.error
-theme.status.warning
+```tsx
+<div className="bg-neutral-100 dark:bg-neutral-900">
+  <p className="text-neutral-900 dark:text-neutral-50">
+    Adapts to theme
+  </p>
+</div>
 ```
+
+### Semantic Colors (Custom CSS Variables)
+
+For advanced theming, semantic CSS variables are defined separately from Tailwind tokens:
+
+**Definition** ([index.css](../src/index.css)):
+
+```css
+:root {
+  /* Light theme */
+  --color-bg-primary: 250 250 250;     /* neutral-50 */
+  --color-text-primary: 23 23 23;      /* neutral-900 */
+  --color-border-primary: 229 229 229; /* neutral-200 */
+}
+
+.dark {
+  /* Dark theme */
+  --color-bg-primary: 10 10 10;        /* neutral-950 */
+  --color-text-primary: 250 250 250;   /* neutral-50 */
+  --color-border-primary: 38 38 38;    /* neutral-800 */
+}
+```
+
+**Usage in custom CSS:**
+
+```css
+.custom-component {
+  background-color: rgb(var(--color-bg-primary));
+  color: rgb(var(--color-text-primary));
+}
+```
+
+> **Note**: Prefer Tailwind utilities (`bg-neutral-100 dark:bg-neutral-900`) over custom CSS variables for consistency.
 
 ## Spacing Tokens
 
-Based on a 4px base unit for consistency:
+Based on a 4px base unit for consistency, defined in `@theme`:
 
-```typescript
-import { spacing } from '@/styles/tokens'
+**Definition** ([index.css](../src/index.css)):
 
-spacing[1]  // 0.25rem (4px)
-spacing[2]  // 0.5rem (8px)
-spacing[4]  // 1rem (16px)
-spacing[8]  // 2rem (32px)
-// ... up to spacing[96] (24rem / 384px)
+```css
+@theme {
+  --spacing-1: 0.25rem;   /* 4px */
+  --spacing-2: 0.5rem;    /* 8px */
+  --spacing-4: 1rem;      /* 16px */
+  --spacing-8: 2rem;      /* 32px */
+  /* ... up to spacing-96 (24rem / 384px) */
+}
 ```
 
 ### Usage with Tailwind
@@ -254,23 +303,35 @@ function ThemeToggle() {
 
 ## Dark Mode
 
-Dark mode is implemented using Tailwind's class-based dark mode.
+Dark mode is implemented using **Tailwind v4's class-based dark mode** system.
 
 ### Setup
 
-Wrap your app with the ThemeProvider:
+The dark mode variant is configured in [index.css](../src/index.css):
+
+```css
+@variant dark (.dark &);
+```
+
+Wrap your app with the ThemeProvider ([App.tsx](../src/App.tsx)):
 
 ```tsx
 import { ThemeProvider } from '@/contexts/ThemeContext'
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="light">
+    <ThemeProvider>
       <YourApp />
     </ThemeProvider>
   )
 }
 ```
+
+The ThemeProvider:
+
+- Respects system preferences (`prefers-color-scheme`)
+- Persists user choice to localStorage
+- Adds/removes `.dark` class on `<html>` element
 
 ### Usage
 
@@ -278,7 +339,7 @@ Add dark mode variants to any Tailwind class:
 
 ```tsx
 <div className="bg-white dark:bg-neutral-900">
-  <p className="text-gray-900 dark:text-gray-100">
+  <p className="text-neutral-900 dark:text-neutral-50">
     This text adapts to the theme
   </p>
 </div>
@@ -290,11 +351,11 @@ Add dark mode variants to any Tailwind class:
 import { useTheme } from '@/contexts/ThemeContext'
 
 function Component() {
-  const { theme, setTheme, toggleTheme } = useTheme()
+  const { theme, toggleTheme } = useTheme()
 
   return (
     <button onClick={toggleTheme}>
-      Toggle Theme (Current: {theme})
+      {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
     </button>
   )
 }
@@ -309,36 +370,37 @@ function Component() {
 5. **Use CSS variables sparingly**: Prefer Tailwind classes for consistency
 6. **Test both themes**: Ensure your UI works in both light and dark mode
 
-## Adding New Tokens
+## Adding New Tokens (Tailwind v4)
 
-To add new design tokens:
+To add new design tokens in Tailwind v4:
 
-1. Add the token to the appropriate file in `src/styles/tokens/`
-2. Update the Tailwind config in `tailwind.config.js` if needed
-3. Document the new token in this file
-4. Add usage examples
+1. Add the token to the `@theme` block in [index.css](../src/index.css)
+2. Document the new token in this file
+3. Add usage examples
 
-Example:
+Example - Adding an accent color:
 
-```typescript
-// src/styles/tokens/colors.ts
-export const colors = {
-  // ... existing colors
-  accent: {
-    500: '#your-color',
-    // ... other shades
-  },
-}
+```css
+/* web/src/index.css */
+@theme {
+  /* Existing tokens... */
 
-// tailwind.config.js
-theme: {
-  extend: {
-    colors: {
-      accent: colors.accent,
-    },
-  },
+  /* Accent colors (Purple) */
+  --color-accent-50: #faf5ff;
+  --color-accent-500: #a855f7;
+  --color-accent-900: #581c87;
 }
 ```
+
+Usage:
+
+```tsx
+<button className="bg-accent-500 hover:bg-accent-600 text-white">
+  Accent Button
+</button>
+```
+
+> **Note**: Tailwind v4 automatically generates utilities from `@theme` tokens. No additional configuration needed in `tailwind.config.js`.
 
 ## Migration Guide
 
@@ -365,8 +427,50 @@ When updating existing components to use design tokens:
 </div>
 ```
 
+## Tailwind v4 Migration (2025-11-23)
+
+ViewRA migrated from Tailwind CSS v3 to v4, moving all design tokens from JavaScript to CSS.
+
+### Key Changes
+
+**Before (v3):**
+
+- Tokens defined in TypeScript files (`src/styles/tokens/*.ts`)
+- Imported into `tailwind.config.js`
+- 42-line configuration file
+
+**After (v4):**
+
+- Tokens defined in CSS `@theme` directive
+- Minimal 6-line `tailwind.config.js`
+- No JavaScript imports required
+
+### Benefits
+
+✅ Faster build times and HMR
+✅ Better alignment with web standards
+✅ Smaller configuration
+✅ All Tailwind utilities work correctly
+✅ No bundler required for tokens
+
+### Migration Path
+
+If you have legacy code using TypeScript tokens:
+
+```typescript
+// ❌ Old way (deprecated)
+import { colors } from '@/styles/tokens'
+const bg = colors.neutral[500]
+
+// ✅ New way (Tailwind v4)
+<div className="bg-neutral-500" />
+```
+
+For more details, see [ADR 0001](../../docs/adr/0001-design-tokens-and-dark-mode.md).
+
 ## Resources
 
-- [Tailwind CSS Documentation](https://tailwindcss.com)
+- [Tailwind CSS v4 Documentation](https://tailwindcss.com/docs/v4-beta)
+- [Tailwind v4 @theme Directive](https://tailwindcss.com/docs/functions-and-directives#theme)
 - [Design Tokens W3C Standard](https://design-tokens.github.io/community-group/format/)
 - [Color Palette Tool](https://uicolors.app)
