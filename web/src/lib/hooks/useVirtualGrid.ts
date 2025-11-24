@@ -71,7 +71,7 @@ interface UseVirtualGridOptions {
  *     <div style={{ height: totalHeight }}>
  *       {virtualRows.map(virtualRow => (
  *         <div key={virtualRow.index} style={{ transform: `translateY(${virtualRow.start}px)` }}>
- *           {/* Render row items */}
+ *           // Render row items here
  *         </div>
  *       ))}
  *     </div>
