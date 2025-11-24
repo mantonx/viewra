@@ -5,6 +5,7 @@ import { SortSelector } from '@/components/common/SortSelector'
 import { AdvancedFilters, type FilterState } from '@/components/common/AdvancedFilters'
 import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
 import { useLibraryFilter, useDebounce, useGlobalKeyboardShortcuts, useWatchedList } from '@/lib/hooks'
+import { useTheme } from '@/contexts'
 import type { MediaBrowsePageProps } from './MediaBrowsePage.types'
 
 /**
@@ -68,6 +69,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   const [isHeaderMinimized, setIsHeaderMinimized] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const { theme } = useTheme()
 
   // Auto-enable view toggle if renderListItem is provided
   const enableViewToggle = !!renderListItem
@@ -235,17 +237,29 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
 
   return (
     <div className="h-screen overflow-hidden flex flex-col relative">
-      <div className={`sticky top-0 z-10 flex-shrink-0 transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2 px-8' : 'p-8 pb-0'}`}>
+      <div className={`sticky top-0 z-10 flex-shrink-0 transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2 px-8' : 'p-8 pb-0'}`} style={{ background: 'transparent' }}>
       {/* Page header */}
       <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isHeaderMinimized ? 'max-h-0 opacity-0' : 'max-h-32 opacity-100'}`}>
         {customHeader || <PageHeader title={title} description={description} />}
       </div>
 
       {/* Filters */}
-      <Card className={`${isHeaderMinimized ? 'mb-4' : 'mb-6'} dark:[background:rgba(23,23,23,0.6)]`} style={{ background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(16px)' }}>
-        <CardContent className={isHeaderMinimized ? 'py-2' : ''}>
+      <div
+        className={`${isHeaderMinimized ? 'mb-3 px-3 py-2.5' : 'mb-6 px-5 py-4'} rounded-xl transition-all duration-300 ease-out ${
+          theme === 'dark' ? 'border-white/20' : 'border-black/20'
+        }`}
+        style={{
+          backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.75)',
+          backdropFilter: 'blur(16px) saturate(130%)',
+          WebkitBackdropFilter: 'blur(16px) saturate(130%)',
+          boxShadow: theme === 'dark'
+            ? '0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)'
+            : '0 8px 32px 0 rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.8)'
+        }}
+      >
+        <div>
           <form role="search" aria-label={`Filter and sort ${type}`} onSubmit={(e) => e.preventDefault()}>
-            <div className={`grid gap-4 ${enableViewToggle ? 'grid-cols-1 md:grid-cols-3' : additionalFilters ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
+            <div className={`grid gap-3 ${enableViewToggle ? 'grid-cols-1 md:grid-cols-3' : additionalFilters ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
               <Input
                 ref={searchInputRef}
                 label={isHeaderMinimized ? undefined : "Search"}
@@ -255,13 +269,21 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
                 aria-label={`Search ${type}`}
                 aria-describedby="search-results-count"
                 helperText={isHeaderMinimized ? undefined : "Press / or Cmd+K to focus"}
-                className="!bg-white/50 dark:!bg-neutral-900/50 backdrop-blur-sm"
+                className={`backdrop-blur-sm !transition-colors ${
+                  theme === 'dark'
+                    ? '!bg-white/5 !text-white placeholder:!text-white/50 !border-white/20 hover:!border-white/30 focus:!border-white/40'
+                    : '!bg-black/5 !text-neutral-900 placeholder:!text-neutral-500 !border-black/20 hover:!border-black/30 focus:!border-black/40'
+                }`}
               />
               <SortSelector
                 value={sortBy}
                 onChange={(newSort) => setSortBy(newSort)}
                 showLabel={!isHeaderMinimized}
-                className="[&_button]:!bg-white/50 [&_button]:dark:!bg-neutral-900/50 [&_button]:backdrop-blur-sm"
+                className={`[&_button]:backdrop-blur-sm [&_button]:!transition-colors ${
+                  theme === 'dark'
+                    ? '[&_button]:!bg-white/5 [&_button]:!text-white [&_button]:!border-white/20 [&_button]:hover:!border-white/30'
+                    : '[&_button]:!bg-black/5 [&_button]:!text-neutral-900 [&_button]:!border-black/20 [&_button]:hover:!border-black/30'
+                }`}
               />
               {enableViewToggle && (
                 <div>
@@ -290,8 +312,8 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
               )}
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       </div>
 
       {/* Items grid or empty state */}
@@ -303,11 +325,11 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
             setIsHeaderMinimized(e.currentTarget.scrollTop > 100)
           }
         }}
-        style={{ marginTop: '-1.5rem' }}
+        style={{ marginTop: '-3rem' }}
       >
         {sortedItems.length === 0 ? (
           customEmpty || (
-            <Card>
+            <Card className="mt-20">
               <CardContent>
                 <EmptyState
                   icon={emptyIcon}
@@ -322,7 +344,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
             </Card>
           )
         ) : viewMode === 'list' && renderListItem ? (
-          <div className="space-y-2 pt-6" role="list" aria-label={`${type} list`}>
+          <div className="space-y-2 pt-20" role="list" aria-label={`${type} list`}>
             {sortedItems.map((item) => renderListItem(item, libraryId))}
           </div>
         ) : (

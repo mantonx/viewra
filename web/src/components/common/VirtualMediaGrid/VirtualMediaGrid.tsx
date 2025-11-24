@@ -90,10 +90,9 @@ export const VirtualMediaGrid = <T extends { id: number }>({
     >
       <div
         style={{
-          height: `${totalHeight}px`,
+          height: `${totalHeight + 24}px`,
           width: '100%',
           position: 'relative',
-          paddingTop: '16px',
           paddingBottom: '16px',
         }}
       >
@@ -111,7 +110,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
                 left: 0,
                 width: '100%',
                 height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${virtualRow.start + 24}px)`,
                 overflow: 'visible',
               }}
             >
