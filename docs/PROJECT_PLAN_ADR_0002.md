@@ -572,23 +572,156 @@ export { TVShowCard }
 
 ---
 
-### Task 2.3: Verify ArtistCard Compatibility (30 minutes)
+### Task 2.3: Update Music Cards for Consistency (1 hour)
 
-**Files to Review**:
+**Files to Review/Modify**:
 ```
 /web/src/components/music/ArtistCard/ArtistCard.tsx
+/web/src/components/music/AlbumCard/AlbumCard.tsx
 ```
 
-**Actions**:
-1. Verify MediaCard base component works correctly
-2. Verify square aspect ratio preserved
-3. Verify hover/play behavior unchanged
-4. Optional: Integrate MediaBadges if desired
-5. No major changes required
+**Current Issues**:
+- AlbumCard has redundant "ALBUM" badge (users know they're on albums page)
+- Year badge appears twice (in badges AND in info section)
+- Not using shared MediaBadges component
 
-**Dependencies**: None
-**Testing**: Smoke tests only
-**Estimated Time**: 30 minutes
+**Actions**:
+
+1. **ArtistCard** (minimal changes):
+   - Remove redundant "ARTIST" badge (users know context)
+   - Verify MediaCard base component works correctly
+   - Verify square aspect ratio preserved
+   - Keep clean, simple design (it's already good)
+
+2. **AlbumCard** (moderate updates):
+   - Integrate MediaBadges component
+   - Remove redundant "ALBUM" badge by default (optional in settings)
+   - Remove duplicate year display (keep in info section only)
+   - Add NEW badge for recently added albums (7 days)
+   - Maintain square aspect ratio
+   - Keep artist name, track count, year in info section
+
+**New AlbumCard Implementation**:
+```typescript
+import { useBadgePreferences } from '@/lib/hooks/useBadgePreferences'
+import { MediaCard } from '@/components/media/MediaCard'
+import { MediaBadges } from '@/components/media/MediaBadges'
+import type { AlbumCardProps } from './AlbumCard.types'
+
+const AlbumCard = ({ album, onClick }: AlbumCardProps) => {
+  const { preferences } = useBadgePreferences()
+
+  // Check if album is newly added (within last 7 days)
+  const isNew =
+    album.created_at &&
+    Date.now() - new Date(album.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+
+  return (
+    <MediaCard
+      mediaId={album.id ?? 0}
+      mediaType="music-album"
+      imageAlt={album.album ?? 'Album'}
+      imageFallback="💿"
+      aspectRatio="square"
+      onClick={onClick}
+      playIconType="play"
+      badges={
+        <MediaBadges
+          preferences={preferences}
+          badges={{
+            isNew,
+            mediaType: 'ALBUM', // Only shown if user enables mediaType badge
+          }}
+        />
+      }
+      infoContent={
+        <>
+          <h3 className="font-semibold text-sm line-clamp-2 mb-1 text-neutral-900 dark:text-neutral-50">
+            {album.album ?? 'Unknown Album'}
+          </h3>
+          <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2 line-clamp-1">
+            {album.artist ?? 'Unknown Artist'}
+          </p>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500 dark:text-neutral-500">
+              {album.track_count ?? 0} {album.track_count === 1 ? 'Track' : 'Tracks'}
+            </span>
+            {album.year && (
+              <span className="px-2 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                {album.year}
+              </span>
+            )}
+          </div>
+        </>
+      }
+    />
+  )
+}
+```
+
+**New ArtistCard Implementation**:
+```typescript
+import { useBadgePreferences } from '@/lib/hooks/useBadgePreferences'
+import { MediaCard } from '@/components/media/MediaCard'
+import { MediaBadges } from '@/components/media/MediaBadges'
+import type { ArtistCardProps } from './ArtistCard.types'
+
+const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
+  const { preferences } = useBadgePreferences()
+
+  const isNew =
+    artist.created_at &&
+    Date.now() - new Date(artist.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+
+  return (
+    <MediaCard
+      mediaId={artist.id ?? 0}
+      mediaType="music-artist"
+      imageAlt={artist.name ?? 'Artist'}
+      imageFallback="🎤"
+      aspectRatio="square"
+      onClick={onClick}
+      playIconType="play"
+      badges={
+        <MediaBadges
+          preferences={preferences}
+          badges={{
+            isNew,
+            mediaType: 'ARTIST', // Only shown if user enables mediaType badge
+          }}
+        />
+      }
+      infoContent={
+        <>
+          <h3 className="font-semibold text-sm line-clamp-2 mb-2 text-neutral-900 dark:text-neutral-50">
+            {artist.name ?? 'Unknown Artist'}
+          </h3>
+          <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+            <span>
+              {artist.album_count ?? 0} {artist.album_count === 1 ? 'Album' : 'Albums'}
+            </span>
+            <span>
+              {artist.track_count ?? 0} {artist.track_count === 1 ? 'Track' : 'Tracks'}
+            </span>
+          </div>
+        </>
+      }
+    />
+  )
+}
+```
+
+**Key Changes**:
+- ✅ Remove redundant type badges ("ALBUM", "ARTIST") - only show if user enables in settings
+- ✅ Add NEW badge for recently added music (consistency with movies/TV)
+- ✅ Use shared MediaBadges component
+- ✅ Clean up duplicate year display in AlbumCard
+- ✅ Preserve square aspect ratio (essential for music)
+- ✅ Preserve simple, focused design philosophy
+
+**Dependencies**: Tasks 1.1, 1.2
+**Testing**: Visual regression tests, verify square aspect ratio maintained
+**Estimated Time**: 1 hour
 
 ---
 
