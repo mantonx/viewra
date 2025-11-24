@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { bg, border, shadow } from '@/styles/semantic'
 import type { HTMLAttributes } from 'react'
 import { forwardRef } from 'react'
 
@@ -9,9 +10,9 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = 'default', children, ...props }, ref) => {
     const variants = {
-      default: 'bg-white dark:bg-neutral-900 rounded-lg shadow dark:shadow-neutral-950/50',
-      bordered: 'bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800',
-      elevated: 'bg-white dark:bg-neutral-900 rounded-lg shadow-lg dark:shadow-neutral-950/50',
+      default: cn(bg.elevated, shadow.default, 'rounded-lg'),
+      bordered: cn(bg.elevated, border.primary, 'rounded-lg border'),
+      elevated: cn(bg.elevated, shadow.lg, 'rounded-lg'),
     }
 
     return (
@@ -26,7 +27,7 @@ Card.displayName = 'Card'
 
 export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn('p-4 border-b border-neutral-200 dark:border-neutral-800', className)} {...props} />
+    return <div ref={ref} className={cn('p-4 border-b', border.primary, className)} {...props} />
   }
 )
 
@@ -42,7 +43,7 @@ CardContent.displayName = 'CardContent'
 
 export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn('p-4 border-t border-neutral-200 dark:border-neutral-800', className)} {...props} />
+    return <div ref={ref} className={cn('p-4 border-t', border.primary, className)} {...props} />
   }
 )
 

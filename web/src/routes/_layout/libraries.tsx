@@ -32,7 +32,7 @@ const Libraries = () => {
       {showCreateForm && (
         <Card className="mb-6">
           <CardContent>
-            <h2 className="text-lg font-semibold mb-4">Create New Library</h2>
+            <h2 className="text-lg font-semibold mb-4 text-neutral-900 dark:text-neutral-50">Create New Library</h2>
             <LibraryForm
               onCancel={() => setShowCreateForm(false)}
               onSuccess={() => setShowCreateForm(false)}
@@ -43,7 +43,7 @@ const Libraries = () => {
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold">Your Libraries</h2>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">Your Libraries</h2>
         </CardHeader>
 
         {libraryList.length === 0 ? (

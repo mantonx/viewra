@@ -46,7 +46,7 @@ export const ContinueWatching = () => {
 
   return (
     <section className="mb-8">
-      <h2 className="text-2xl font-bold mb-4">Continue Watching</h2>
+      <h2 className="text-2xl font-bold mb-4 text-neutral-900 dark:text-neutral-50">Continue Watching</h2>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">

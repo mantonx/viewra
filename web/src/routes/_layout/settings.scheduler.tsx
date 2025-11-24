@@ -122,8 +122,8 @@ const SchedulerSettings = () => {
   const TaskCard = ({ task }: { task: TaskStatus }) => (
     <div
       className={`
-        p-4 border-b last:border-b-0 hover:bg-gray-50 transition-all duration-200
-        ${!task.enabled ? 'bg-gray-50/50' : ''}
+        p-4 border-b last:border-b-0 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all duration-200
+        ${!task.enabled ? 'bg-neutral-50/50 dark:bg-neutral-900/50' : ''}
       `}
     >
       <div className="flex items-start justify-between">
@@ -133,7 +133,7 @@ const SchedulerSettings = () => {
           <div className="flex items-center gap-2">
             <h3
               className={`text-lg font-semibold ${
-                !task.enabled ? 'text-gray-500' : ''
+                !task.enabled ? 'text-neutral-500 dark:text-neutral-500' : 'text-neutral-900 dark:text-neutral-50'
               }`}
             >
               {task.name}
@@ -144,7 +144,7 @@ const SchedulerSettings = () => {
               </span>
             )}
             {!task.enabled && (
-              <span className="px-2 py-1 text-xs bg-gray-200 text-gray-500 rounded">
+              <span className="px-2 py-1 text-xs bg-neutral-200 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 rounded">
                 Disabled
               </span>
             )}
@@ -156,41 +156,41 @@ const SchedulerSettings = () => {
           </div>
           <p
             className={`text-sm mt-1 ${
-              !task.enabled ? 'text-gray-400' : 'text-gray-600'
+              !task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-600 dark:text-neutral-400'
             }`}
           >
             {task.description}
           </p>
           <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
             <div className="col-span-2">
-              <span className="text-gray-500">Schedule:</span>
+              <span className="text-neutral-500 dark:text-neutral-500">Schedule:</span>
               <span
                 className={`ml-2 font-medium ${
-                  !task.enabled ? 'text-gray-400' : ''
+                  !task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'
                 }`}
               >
                 {cronToReadable(task.schedule)}
               </span>
-              <span className="ml-2 text-xs text-gray-400 font-mono">
+              <span className="ml-2 text-xs text-neutral-400 dark:text-neutral-600 font-mono">
                 ({task.schedule})
               </span>
             </div>
             <div>
-              <span className="text-gray-500">Next run:</span>
-              <span className={`ml-2 ${!task.enabled ? 'text-gray-400' : ''}`}>
+              <span className="text-neutral-500 dark:text-neutral-500">Next run:</span>
+              <span className={`ml-2 ${!task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'}`}>
                 {!task.enabled ? 'N/A' : formatDate(task.next_run)}
               </span>
             </div>
             <div>
-              <span className="text-gray-500">Last run:</span>
-              <span className={`ml-2 ${!task.enabled ? 'text-gray-400' : ''}`}>
+              <span className="text-neutral-500 dark:text-neutral-500">Last run:</span>
+              <span className={`ml-2 ${!task.enabled ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-900 dark:text-neutral-50'}`}>
                 {formatDate(task.last_run)}
               </span>
             </div>
             {task.last_error && (
               <div className="col-span-2">
-                <span className="text-gray-500">Last error:</span>
-                <span className="ml-2 text-red-600 font-mono text-xs">
+                <span className="text-neutral-500 dark:text-neutral-500">Last error:</span>
+                <span className="ml-2 text-red-600 dark:text-red-500 font-mono text-xs">
                   {task.last_error}
                 </span>
               </div>
@@ -273,20 +273,20 @@ const SchedulerSettings = () => {
 
     return (
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center z-50"
         onClick={() => setShowHistory(false)}
       >
         <div
-          className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden"
+          className="bg-white dark:bg-neutral-900 rounded-lg shadow-xl dark:shadow-neutral-950/50 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">
+          <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">
               Execution History: {task?.name}
             </h2>
             <button
               onClick={() => setShowHistory(false)}
-              className="absolute top-6 right-6 text-gray-400 hover:text-gray-600"
+              className="absolute top-6 right-6 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-400"
             >
               ✕
             </button>
@@ -294,48 +294,48 @@ const SchedulerSettings = () => {
 
           <div className="overflow-y-auto max-h-[60vh]">
             {executions.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
+              <div className="p-8 text-center text-neutral-500 dark:text-neutral-500">
                 No execution history yet
               </div>
             ) : (
               <table className="w-full">
-                <thead className="bg-gray-50 sticky top-0">
+                <thead className="bg-neutral-50 dark:bg-neutral-800 sticky top-0">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                       Started
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                       Duration
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                       Error
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-neutral-900 divide-y divide-neutral-200 dark:divide-neutral-800">
                   {executions.map((exec: TaskExecution, idx: number) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <tr key={idx} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-neutral-50">
                         {formatDate(exec.started_at)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-neutral-50">
                         {formatDuration(exec.duration_ms)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {exec.success ? (
-                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                          <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-500 rounded">
                             Success
                           </span>
                         ) : (
-                          <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded">
+                          <span className="px-2 py-1 text-xs bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-500 rounded">
                             Failed
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 font-mono text-xs">
+                      <td className="px-6 py-4 text-xs text-neutral-500 dark:text-neutral-500 font-mono">
                         {exec.error || '-'}
                       </td>
                     </tr>
@@ -345,7 +345,7 @@ const SchedulerSettings = () => {
             )}
           </div>
 
-          <div className="p-4 border-t bg-gray-50">
+          <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800">
             <Button onClick={() => setShowHistory(false)} variant="secondary">
               Close
             </Button>
@@ -364,7 +364,7 @@ const SchedulerSettings = () => {
 
       <Card className="mt-6">
         <CardHeader>
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
             Scheduled Tasks ({tasks.length})
           </h2>
         </CardHeader>

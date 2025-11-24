@@ -84,7 +84,7 @@ const ArtistDetail = () => {
         </div>
       )}
 
-      <div className="mt-4 text-sm text-gray-500 text-center">
+      <div className="mt-4 text-sm text-neutral-500 dark:text-neutral-500 text-center">
         Showing {albums.length} {albums.length === 1 ? 'album' : 'albums'}
       </div>
     </div>

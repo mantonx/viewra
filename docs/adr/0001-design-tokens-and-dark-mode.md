@@ -260,10 +260,8 @@ border-red-300        → border-red-300 dark:border-red-800
 
 ### Negative
 
-⚠️ **Not Fully DRY**: Still repeating `dark:` classes across components
-⚠️ **Template Literals**: Some components still use `${className}` instead of `cn()`
-⚠️ **No Semantic Utilities**: Direct Tailwind classes instead of semantic abstractions
-⚠️ **Token Duplication** (Tailwind v4): Tokens exist in both `@theme` and TypeScript files
+⚠️ **Learning Curve**: Team needs to learn semantic utilities and CVA patterns
+⚠️ **Migration Effort**: Existing components need gradual refactoring to use new patterns
 
 ### Neutral
 
@@ -271,31 +269,57 @@ border-red-300        → border-red-300 dark:border-red-800
 ℹ️ **Migration Path**: Incremental; can add semantic utilities later
 ℹ️ **Learning Curve**: Team needs to know dark mode patterns and Tailwind v4 syntax
 
-## Future Work (Phase 2+)
+## Phase 2: Semantic Utilities & CVA (Completed 2025-11-23)
 
-### Phase 2: Semantic Token Abstraction
-**Goal**: Further improve DRY and maintainability
+**Goal**: Eliminate dark mode repetition and improve maintainability
 
-**Tasks**:
-1. Create semantic color utilities file:
-```tsx
-// web/src/styles/tokens/semantic.ts
-export const semanticColors = {
-  bg: {
-    primary: 'bg-neutral-50 dark:bg-neutral-950',
-    secondary: 'bg-neutral-100 dark:bg-neutral-900',
-    elevated: 'bg-white dark:bg-neutral-900',
-  },
-  text: {
-    primary: 'text-neutral-900 dark:text-neutral-50',
-    secondary: 'text-neutral-600 dark:text-neutral-400',
-  }
-}
-```
+**Decision**: Created semantic utility system and integrated CVA
 
-2. Refactor components to use semantic utilities
-3. Standardize all class composition to use `cn()` utility
-4. Create variant utility system with `class-variance-authority`
+**Implementation**:
+
+1. **Created Semantic Utilities** ([semantic.ts](web/src/styles/semantic.ts)):
+
+   ```tsx
+   export const bg = {
+     primary: 'bg-neutral-50 dark:bg-neutral-950',
+     secondary: 'bg-neutral-100 dark:bg-neutral-900',
+     elevated: 'bg-white dark:bg-neutral-900',
+     hover: {
+       subtle: 'hover:bg-neutral-50 dark:hover:bg-neutral-900',
+       default: 'hover:bg-neutral-100 dark:hover:bg-neutral-800',
+     },
+   }
+
+   export const text = {
+     primary: 'text-neutral-900 dark:text-neutral-50',
+     secondary: 'text-neutral-600 dark:text-neutral-400',
+     link: 'text-primary-600 hover:text-primary-700 dark:text-primary-400',
+   }
+   ```
+
+2. **Integrated class-variance-authority**:
+   - Installed `class-variance-authority` package
+   - Refactored Button component to use CVA ([Button.tsx](web/src/components/ui/Button/Button.tsx))
+   - Provides type-safe variant systems with `VariantProps`
+
+3. **Refactored Components**:
+   - Card component now uses semantic utilities
+   - Button component uses CVA for variant management
+   - Pattern established for future component migrations
+
+4. **Removed TypeScript Token Duplication**:
+   - Deleted `web/src/styles/tokens/` directory entirely
+   - Moved `ThemeMode` type inline to ThemeContext
+   - All design tokens now only exist in `@theme` directive
+
+**Benefits**:
+- ✅ **Reduced Repetition**: `bg.elevated` instead of `bg-white dark:bg-neutral-900`
+- ✅ **Type Safety**: CVA provides type-safe variant props
+- ✅ **Better DX**: IntelliSense for all semantic utilities
+- ✅ **Maintainability**: Change theme colors in one place
+- ✅ **No Token Duplication**: Single source of truth in CSS `@theme`
+
+## Future Work (Phase 3+)
 
 ### Phase 3: Advanced Theming
 **Goal**: Support multiple color palettes

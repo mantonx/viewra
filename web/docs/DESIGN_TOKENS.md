@@ -255,9 +255,83 @@ zIndex.tooltip        // 1070
 
 ## Using Design Tokens
 
-### In Tailwind Classes
+### With Semantic Utilities (Recommended)
 
-The tokens are integrated with Tailwind, so you can use them directly in className:
+ViewRA provides semantic utility classes that bundle light and dark mode styles together, reducing repetition:
+
+```tsx
+import { bg, text, border, shadow } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
+
+// ✅ Using semantic utilities
+<div className={cn(bg.elevated, text.primary, border.primary, 'p-4 rounded-lg')}>
+  <h1 className={cn(text.primary, 'text-3xl font-bold')}>Title</h1>
+  <p className={text.secondary}>Description</p>
+</div>
+
+// ❌ Old way (verbose, repetitive)
+<div className="bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border-neutral-200 dark:border-neutral-800 p-4 rounded-lg">
+  <h1 className="text-neutral-900 dark:text-neutral-50 text-3xl font-bold">Title</h1>
+  <p className="text-neutral-600 dark:text-neutral-400">Description</p>
+</div>
+```
+
+**Available semantic utilities:**
+
+- `bg.*` - Background colors (primary, secondary, tertiary, elevated, inverse, hover.*)
+- `text.*` - Text colors (primary, secondary, tertiary, disabled, inverse, link)
+- `border.*` - Border colors (primary, secondary, subtle, focus)
+- `shadow.*` - Shadows with dark mode variants (sm, default, md, lg, xl, 2xl)
+- `ring.*` - Focus rings with proper dark mode offsets (focus, focusInset, error, success)
+- `status.*` - Status colors (success, warning, error, info with text/bg/border)
+- `patterns.*` - Common component patterns (card, input, buttonBase, modalOverlay, etc.)
+
+See [semantic.ts](../src/styles/semantic.ts) for the complete list.
+
+### With Class Variance Authority (CVA)
+
+For components with multiple variants, use CVA to define type-safe variant systems:
+
+```tsx
+import { cva, type VariantProps } from 'class-variance-authority'
+import { cn } from '@/lib/utils'
+
+const buttonVariants = cva(
+  // Base styles
+  'inline-flex items-center justify-center rounded font-medium transition-colors',
+  {
+    variants: {
+      variant: {
+        primary: 'bg-blue-600 text-white hover:bg-blue-700',
+        secondary: 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-100',
+      },
+      size: {
+        sm: 'px-3 py-2 text-sm',
+        md: 'px-4 py-3 text-base',
+        lg: 'px-6 py-4 text-lg',
+      },
+    },
+    defaultVariants: {
+      variant: 'primary',
+      size: 'md',
+    },
+  }
+)
+
+interface ButtonProps extends VariantProps<typeof buttonVariants> {
+  children: React.ReactNode
+}
+
+function Button({ variant, size, children }: ButtonProps) {
+  return <button className={buttonVariants({ variant, size })}>{children}</button>
+}
+```
+
+See [Button.tsx](../src/components/ui/Button/Button.tsx) for a complete example.
+
+### In Tailwind Classes (Direct)
+
+For simple cases, use Tailwind utilities directly:
 
 ```tsx
 <div className="bg-neutral-50 dark:bg-neutral-950">
@@ -268,19 +342,6 @@ The tokens are integrated with Tailwind, so you can use them directly in classNa
     Description
   </p>
 </div>
-```
-
-### In TypeScript
-
-Import and use tokens directly in your components:
-
-```tsx
-import { lightTheme, spacing } from '@/styles/tokens'
-
-const buttonStyle = {
-  padding: `${spacing[2]} ${spacing[4]}`,
-  backgroundColor: lightTheme.button.primary,
-}
 ```
 
 ### With Theme Context
@@ -363,12 +424,20 @@ function Component() {
 
 ## Best Practices
 
-1. **Use semantic tokens**: Prefer `text-neutral-900` over specific hex colors
-2. **Think in scales**: Use the spacing scale consistently (4, 8, 12, 16, etc.)
-3. **Respect the palette**: Stick to the defined color shades (50-950)
-4. **Always provide dark mode**: Add dark: variants for all themed elements
-5. **Use CSS variables sparingly**: Prefer Tailwind classes for consistency
-6. **Test both themes**: Ensure your UI works in both light and dark mode
+1. **Use semantic utilities first**: Prefer `bg.elevated` and `text.primary` from `@/styles/semantic` over raw Tailwind classes to reduce dark mode repetition
+2. **Use CVA for variants**: For components with multiple variants (buttons, badges, alerts), use `class-variance-authority` for type-safe, maintainable variant systems
+3. **Think in scales**: Use the spacing scale consistently (4, 8, 12, 16, etc.)
+4. **Respect the palette**: Stick to the defined color shades (50-950)
+5. **Always provide dark mode**: All components must work in both light and dark themes
+6. **Test both themes**: Toggle between light and dark mode during development
+7. **Avoid inline dark: classes when possible**: If you're repeating `dark:` variants, create a semantic utility or CVA variant instead
+
+### When to Use What
+
+- **Semantic Utilities** (`@/styles/semantic`): For common color/styling patterns used across multiple components
+- **CVA** (`class-variance-authority`): For components with multiple variants (size, color, state)
+- **Direct Tailwind**: For one-off styling or component-specific layouts
+- **CSS Variables**: Only for truly dynamic values that can't be handled by Tailwind
 
 ## Adding New Tokens (Tailwind v4)
 
@@ -406,12 +475,12 @@ Usage:
 
 When updating existing components to use design tokens:
 
-1. Replace hardcoded colors with semantic tokens
+1. Replace hardcoded colors with semantic utilities from `@/styles/semantic`
 2. Replace magic numbers with spacing tokens
-3. Add dark mode support with dark: variants
+3. Consolidate variant logic with CVA for multi-variant components
 4. Test in both light and dark themes
 
-### Before
+### Before (Inline Styles)
 
 ```tsx
 <div style={{ padding: '16px', backgroundColor: '#f5f5f5' }}>
@@ -419,12 +488,42 @@ When updating existing components to use design tokens:
 </div>
 ```
 
-### After
+### After (Semantic Utilities)
 
 ```tsx
-<div className="p-4 bg-neutral-100 dark:bg-neutral-900">
-  <h1 className="text-2xl text-neutral-900 dark:text-neutral-50">Title</h1>
+import { bg, text } from '@/styles/semantic'
+
+<div className={cn(bg.secondary, 'p-4')}>
+  <h1 className={cn(text.primary, 'text-2xl')}>Title</h1>
 </div>
+```
+
+### Before (Repetitive Dark Mode)
+
+```tsx
+const variants = {
+  primary: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500',
+  secondary: 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-100',
+}
+
+<button className={variants[variant]}>Click me</button>
+```
+
+### After (CVA)
+
+```tsx
+import { cva } from 'class-variance-authority'
+
+const buttonVariants = cva('base-styles', {
+  variants: {
+    variant: {
+      primary: 'bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-500',
+      secondary: 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-100',
+    },
+  },
+})
+
+<button className={buttonVariants({ variant })}>Click me</button>
 ```
 
 ## Tailwind v4 Migration (2025-11-23)

@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { ArtistCard, ArtistListItem } from '@/components/music'
+import { MediaCardSkeleton } from '@/components/media/MediaCard'
 import { MediaBrowsePage } from '@/components/common'
 import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider } from '@/lib/hooks'
 import type { ViewMode } from '@/components/common'
@@ -126,12 +127,15 @@ const Music = () => {
         onSortChange={handleSortChange}
         onViewModeChange={handleViewModeChange}
       />
-      {/* Infinite scroll observer target */}
-      <div ref={observerTarget} className="h-20 flex items-center justify-center">
-        {isFetchingNextPage && (
-          <div className="text-gray-400">Loading more artists...</div>
-        )}
-      </div>
+      {/* Infinite scroll observer target with skeleton cards */}
+      {isFetchingNextPage && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 px-8 pb-8">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <MediaCardSkeleton key={`skeleton-${i}`} aspectRatio="square" />
+          ))}
+        </div>
+      )}
+      <div ref={observerTarget} className="h-20" />
     </BatchImagesProvider>
   )
 }

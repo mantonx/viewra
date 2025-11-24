@@ -3,6 +3,7 @@ import { useEffect, useRef, useMemo } from 'react'
 import { MovieCard } from '@/components/movies'
 import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
+import { MediaCardSkeleton } from '@/components/media/MediaCard'
 import { MediaBrowsePage } from '@/components/common'
 import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider } from '@/lib/hooks'
 import { logger } from '@/lib/utils/logger'
@@ -361,12 +362,15 @@ const Movies = () => {
           return 'SD'
         }}
       />
-      {/* Infinite scroll observer target */}
-      <div ref={observerTarget} className="h-20 flex items-center justify-center">
-        {isFetchingNextPage && (
-          <div className="text-gray-400">Loading more movies...</div>
-        )}
-      </div>
+      {/* Infinite scroll observer target with skeleton cards */}
+      {isFetchingNextPage && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 px-8 pb-8">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <MediaCardSkeleton key={`skeleton-${i}`} aspectRatio="2/3" />
+          ))}
+        </div>
+      )}
+      <div ref={observerTarget} className="h-20" />
       </BatchProgressProvider>
     </BatchImagesProvider>
   )

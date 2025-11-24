@@ -95,10 +95,10 @@ const AlbumDetail = () => {
 
           {/* Album info */}
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{albumName}</h1>
-            <p className="text-lg text-gray-600 mb-2">{artistName}</p>
+            <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-50 mb-2">{albumName}</h1>
+            <p className="text-lg text-neutral-600 dark:text-neutral-400 mb-2">{artistName}</p>
             {albumMetadata && (
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-4 text-sm text-neutral-500 dark:text-neutral-500">
                 {albumMetadata.year && <span>{albumMetadata.year}</span>}
                 <span>
                   {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}

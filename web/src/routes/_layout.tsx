@@ -13,7 +13,7 @@ const Layout = () => {
         {/* Sidebar */}
         <aside className="w-64 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white flex flex-col border-r border-neutral-200 dark:border-neutral-800">
           <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-            <h1 className="text-2xl font-bold">ViewRA</h1>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">ViewRA</h1>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">Media Server</p>
           </div>
 

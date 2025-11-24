@@ -1,5 +1,6 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react'
-import type { ThemeMode } from '@/styles/tokens'
+
+export type ThemeMode = 'light' | 'dark'
 
 export interface ThemeContextType {
   theme: ThemeMode
