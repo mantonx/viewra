@@ -45,6 +45,12 @@ type AdaptiveProfile struct {
 	SegmentDuration int
 	GOPSize         int
 
+	// Frame rate and aspect ratio
+	FrameRate    float64 // Target frame rate (24, 30, 60)
+	AspectRatio  string  // "16:9", "21:9", "2.39:1", etc.
+	Is3D         bool    // Is this a 3D profile
+	StereoMode   string  // "sbs" (side-by-side), "tab" (top-and-bottom), "" (2D)
+
 	// Client requirements
 	MinNetworkMbps  float64
 	MinScreenWidth  int
@@ -97,6 +103,21 @@ const (
 	Quality4k80000k  = "4k-80000k"
 	Quality4k100000k = "4k-100000k"
 	Quality4k120000k = "4k-120000k"
+
+	// High Frame Rate (60 FPS) - 4 variants
+	Quality720p8000k60fps  = "720p-8000k-60fps"
+	Quality1080p12000k60fps = "1080p-12000k-60fps"
+	Quality1080p20000k60fps = "1080p-20000k-60fps"
+	Quality4k50000k60fps    = "4k-50000k-60fps"
+
+	// 3D Variants (Top-and-Bottom) - 3 variants
+	Quality1080p12000k3d = "1080p-12000k-3d"
+	Quality1080p16000k3d = "1080p-16000k-3d"
+	Quality4k50000k3d    = "4k-50000k-3d"
+
+	// Ultra-wide (2.39:1) - 2 variants
+	Quality4k25000kWide = "4k-25000k-wide"
+	Quality4k80000kWide = "4k-80000k-wide"
 )
 
 // adaptiveProfiles defines the complete catalog of granular quality profiles
@@ -802,12 +823,266 @@ var adaptiveProfiles = map[string]*AdaptiveProfile{
 		EnableFastStart: true,
 		SegmentDuration: 2,
 		GOPSize:         48,
+		FrameRate:       30.0,
+		AspectRatio:     "16:9",
 		MinNetworkMbps:  150.0,
 		MinScreenWidth:  3840,
 		MinScreenHeight: 2160,
 		RecommendedFor:  []string{"tv"},
 		DataUsageMBPerHour: 54000,
 		Description:     "Reference quality 4K for premium Blu-ray direct play",
+		QualityTier:     "ultra",
+	},
+
+	// High Frame Rate (60 FPS) Profiles
+	Quality720p8000k60fps: {
+		ID:              Quality720p8000k60fps,
+		DisplayName:     "720p HFR (8 Mbps @ 60fps)",
+		Width:           1280,
+		Height:          720,
+		VideoBitrate:    8_000_000,
+		VideoMaxRate:    8_800_000,
+		VideoBufSize:    16_000_000,
+		PreferredCodec:  "h264",
+		FallbackCodecs:  []string{"h265", "vp9"},
+		Preset:          "medium",
+		CRF:             21,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         120, // 2 seconds at 60fps
+		FrameRate:       60.0,
+		AspectRatio:     "16:9",
+		MinNetworkMbps:  10.0,
+		MinScreenWidth:  1280,
+		MinScreenHeight: 720,
+		RecommendedFor:  []string{"desktop", "tv"},
+		DataUsageMBPerHour: 3600,
+		Description:     "High frame rate 720p for smooth motion",
+		QualityTier:     "high",
+	},
+
+	Quality1080p12000k60fps: {
+		ID:              Quality1080p12000k60fps,
+		DisplayName:     "1080p HFR (12 Mbps @ 60fps)",
+		Width:           1920,
+		Height:          1080,
+		VideoBitrate:    12_000_000,
+		VideoMaxRate:    13_200_000,
+		VideoBufSize:    24_000_000,
+		PreferredCodec:  "h264",
+		FallbackCodecs:  []string{"h265", "vp9"},
+		Preset:          "medium",
+		CRF:             20,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         120,
+		FrameRate:       60.0,
+		AspectRatio:     "16:9",
+		MinNetworkMbps:  15.0,
+		MinScreenWidth:  1920,
+		MinScreenHeight: 1080,
+		RecommendedFor:  []string{"desktop", "tv"},
+		DataUsageMBPerHour: 5400,
+		Description:     "High frame rate 1080p for sports and action",
+		QualityTier:     "ultra",
+	},
+
+	Quality1080p20000k60fps: {
+		ID:              Quality1080p20000k60fps,
+		DisplayName:     "1080p HFR High (20 Mbps @ 60fps)",
+		Width:           1920,
+		Height:          1080,
+		VideoBitrate:    20_000_000,
+		VideoMaxRate:    22_000_000,
+		VideoBufSize:    40_000_000,
+		PreferredCodec:  "h264",
+		FallbackCodecs:  []string{"h265", "vp9"},
+		Preset:          "slow",
+		CRF:             19,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         120,
+		FrameRate:       60.0,
+		AspectRatio:     "16:9",
+		MinNetworkMbps:  25.0,
+		MinScreenWidth:  1920,
+		MinScreenHeight: 1080,
+		RecommendedFor:  []string{"desktop", "tv"},
+		DataUsageMBPerHour: 9000,
+		Description:     "Premium HFR 1080p for maximum motion clarity",
+		QualityTier:     "ultra",
+	},
+
+	Quality4k50000k60fps: {
+		ID:              Quality4k50000k60fps,
+		DisplayName:     "4K HFR (50 Mbps @ 60fps)",
+		Width:           3840,
+		Height:          2160,
+		VideoBitrate:    50_000_000,
+		VideoMaxRate:    55_000_000,
+		VideoBufSize:    100_000_000,
+		PreferredCodec:  "h265",
+		FallbackCodecs:  []string{"vp9", "av1"},
+		Preset:          "slow",
+		CRF:             19,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         120,
+		FrameRate:       60.0,
+		AspectRatio:     "16:9",
+		MinNetworkMbps:  60.0,
+		MinScreenWidth:  3840,
+		MinScreenHeight: 2160,
+		RecommendedFor:  []string{"tv"},
+		DataUsageMBPerHour: 22500,
+		Description:     "4K high frame rate for premium viewing",
+		QualityTier:     "ultra",
+	},
+
+	// 3D Profiles (Top-and-Bottom)
+	Quality1080p12000k3d: {
+		ID:              Quality1080p12000k3d,
+		DisplayName:     "1080p 3D TAB (12 Mbps)",
+		Width:           1920,
+		Height:          1080,
+		VideoBitrate:    12_000_000,
+		VideoMaxRate:    13_200_000,
+		VideoBufSize:    24_000_000,
+		PreferredCodec:  "h264",
+		FallbackCodecs:  []string{"h265"},
+		Preset:          "medium",
+		CRF:             21,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         48,
+		FrameRate:       24.0,
+		AspectRatio:     "16:9",
+		Is3D:            true,
+		StereoMode:      "tab",
+		MinNetworkMbps:  15.0,
+		MinScreenWidth:  1920,
+		MinScreenHeight: 1080,
+		RecommendedFor:  []string{"tv"},
+		DataUsageMBPerHour: 5400,
+		Description:     "3D top-and-bottom for stereoscopic content",
+		QualityTier:     "high",
+	},
+
+	Quality1080p16000k3d: {
+		ID:              Quality1080p16000k3d,
+		DisplayName:     "1080p 3D TAB High (16 Mbps)",
+		Width:           1920,
+		Height:          1080,
+		VideoBitrate:    16_000_000,
+		VideoMaxRate:    17_600_000,
+		VideoBufSize:    32_000_000,
+		PreferredCodec:  "h264",
+		FallbackCodecs:  []string{"h265"},
+		Preset:          "medium",
+		CRF:             20,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         48,
+		FrameRate:       24.0,
+		AspectRatio:     "16:9",
+		Is3D:            true,
+		StereoMode:      "tab",
+		MinNetworkMbps:  20.0,
+		MinScreenWidth:  1920,
+		MinScreenHeight: 1080,
+		RecommendedFor:  []string{"tv"},
+		DataUsageMBPerHour: 7200,
+		Description:     "High quality 3D for premium stereoscopic viewing",
+		QualityTier:     "ultra",
+	},
+
+	Quality4k50000k3d: {
+		ID:              Quality4k50000k3d,
+		DisplayName:     "4K 3D TAB (50 Mbps)",
+		Width:           3840,
+		Height:          2160,
+		VideoBitrate:    50_000_000,
+		VideoMaxRate:    55_000_000,
+		VideoBufSize:    100_000_000,
+		PreferredCodec:  "h265",
+		FallbackCodecs:  []string{"av1"},
+		Preset:          "slow",
+		CRF:             19,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         48,
+		FrameRate:       24.0,
+		AspectRatio:     "16:9",
+		Is3D:            true,
+		StereoMode:      "tab",
+		MinNetworkMbps:  60.0,
+		MinScreenWidth:  3840,
+		MinScreenHeight: 2160,
+		RecommendedFor:  []string{"tv"},
+		DataUsageMBPerHour: 22500,
+		Description:     "4K 3D top-and-bottom for premium stereoscopic",
+		QualityTier:     "ultra",
+	},
+
+	// Ultra-wide (2.39:1 Cinemascope) Profiles
+	Quality4k25000kWide: {
+		ID:              Quality4k25000kWide,
+		DisplayName:     "4K Wide (25 Mbps @ 2.39:1)",
+		Width:           3840,
+		Height:          1606, // 2.39:1 aspect ratio
+		VideoBitrate:    25_000_000,
+		VideoMaxRate:    27_500_000,
+		VideoBufSize:    50_000_000,
+		PreferredCodec:  "h265",
+		FallbackCodecs:  []string{"vp9", "av1"},
+		Preset:          "medium",
+		CRF:             21,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         48,
+		FrameRate:       24.0,
+		AspectRatio:     "2.39:1",
+		MinNetworkMbps:  30.0,
+		MinScreenWidth:  3840,
+		MinScreenHeight: 1606,
+		RecommendedFor:  []string{"desktop", "tv"},
+		DataUsageMBPerHour: 11250,
+		Description:     "Cinemascope ultra-wide 4K",
+		QualityTier:     "ultra",
+	},
+
+	Quality4k80000kWide: {
+		ID:              Quality4k80000kWide,
+		DisplayName:     "4K Wide Ultra (80 Mbps @ 2.39:1)",
+		Width:           3840,
+		Height:          1606,
+		VideoBitrate:    80_000_000,
+		VideoMaxRate:    88_000_000,
+		VideoBufSize:    160_000_000,
+		PreferredCodec:  "h265",
+		FallbackCodecs:  []string{"av1"},
+		Preset:          "slow",
+		CRF:             18,
+		EnableHWAccel:   true,
+		EnableFastStart: true,
+		SegmentDuration: 2,
+		GOPSize:         48,
+		FrameRate:       24.0,
+		AspectRatio:     "2.39:1",
+		MinNetworkMbps:  100.0,
+		MinScreenWidth:  3840,
+		MinScreenHeight: 1606,
+		RecommendedFor:  []string{"tv"},
+		DataUsageMBPerHour: 36000,
+		Description:     "Premium ultra-wide 4K for cinematic films",
 		QualityTier:     "ultra",
 	},
 }
