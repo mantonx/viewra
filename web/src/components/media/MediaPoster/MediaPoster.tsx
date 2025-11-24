@@ -71,6 +71,7 @@ export const MediaPoster = ({
   preset = 'medium',
 }: MediaPosterProps) => {
   const [imageError, setImageError] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
   // Try to use batch images if available (within BatchImagesProvider)
   // Returns null if not in a batch context, allowing graceful fallback to individual queries
@@ -139,7 +140,7 @@ export const MediaPoster = ({
   if (isLoading) {
     return (
       <div
-        className={`bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center animate-pulse ${className}`}
+        className={`bg-linear-to-br from-neutral-700 to-neutral-900 flex items-center justify-center animate-pulse ${className}`}
       >
         <span className="text-white text-4xl opacity-50">{fallbackIcon}</span>
       </div>
@@ -150,21 +151,34 @@ export const MediaPoster = ({
   if (!imageUrl || imageError) {
     return (
       <div
-        className={`bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center ${className}`}
+        className={`bg-linear-to-br from-neutral-700 to-neutral-900 flex items-center justify-center ${className}`}
       >
         <span className="text-white text-4xl">{fallbackIcon}</span>
       </div>
     )
   }
 
-  // Show image
+  // Show image with fade-in transition
   return (
-    <img
-      src={imageUrl}
-      alt={alt}
-      className={`object-cover ${className}`}
-      onError={() => setImageError(true)}
-      loading="lazy"
-    />
+    <div className={`relative ${className}`}>
+      {/* Placeholder shown while image loads */}
+      {!imageLoaded && (
+        <div className="absolute inset-0 bg-linear-to-br from-neutral-700 to-neutral-900 flex items-center justify-center animate-pulse">
+          <span className="text-white text-4xl opacity-50">{fallbackIcon}</span>
+        </div>
+      )}
+
+      {/* Actual image with fade-in */}
+      <img
+        src={imageUrl}
+        alt={alt}
+        className={`object-cover w-full h-full transition-opacity duration-300 ${
+          imageLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        onLoad={() => setImageLoaded(true)}
+        onError={() => setImageError(true)}
+        loading="lazy"
+      />
+    </div>
   )
 }
