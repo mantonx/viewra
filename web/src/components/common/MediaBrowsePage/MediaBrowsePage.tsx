@@ -242,8 +242,8 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
       </div>
 
       {/* Filters */}
-      <Card className={`transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'mb-4' : 'mb-6'} bg-white/60 dark:bg-neutral-900/60 backdrop-blur-lg border-white/20 dark:border-neutral-800/20 shadow-lg`}>
-        <CardContent className={`transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2' : ''}`}>
+      <Card className={`${isHeaderMinimized ? 'mb-4' : 'mb-6'} dark:[background:rgba(23,23,23,0.6)]`} style={{ background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(16px)' }}>
+        <CardContent className={isHeaderMinimized ? 'py-2' : ''}>
           <form role="search" aria-label={`Filter and sort ${type}`} onSubmit={(e) => e.preventDefault()}>
             <div className={`grid gap-4 ${enableViewToggle ? 'grid-cols-1 md:grid-cols-3' : additionalFilters ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
               <Input
@@ -255,11 +255,13 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
                 aria-label={`Search ${type}`}
                 aria-describedby="search-results-count"
                 helperText={isHeaderMinimized ? undefined : "Press / or Cmd+K to focus"}
+                className="!bg-white/50 dark:!bg-neutral-900/50 backdrop-blur-sm"
               />
               <SortSelector
                 value={sortBy}
                 onChange={(newSort) => setSortBy(newSort)}
                 showLabel={!isHeaderMinimized}
+                className="[&_button]:!bg-white/50 [&_button]:dark:!bg-neutral-900/50 [&_button]:backdrop-blur-sm"
               />
               {enableViewToggle && (
                 <div>
@@ -293,7 +295,16 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
       </div>
 
       {/* Items grid or empty state */}
-      <div className="flex-1 min-h-0 px-8 pb-8 -mt-6">
+      <div
+        className={`flex-1 min-h-0 px-8 pb-8 ${viewMode === 'list' || sortedItems.length === 0 ? 'overflow-auto' : ''}`}
+        onScroll={(e) => {
+          // Track scroll for header minimization in list view and empty states
+          if (viewMode === 'list' || sortedItems.length === 0) {
+            setIsHeaderMinimized(e.currentTarget.scrollTop > 100)
+          }
+        }}
+        style={{ marginTop: '-1.5rem' }}
+      >
         {sortedItems.length === 0 ? (
           customEmpty || (
             <Card>
@@ -311,11 +322,11 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
             </Card>
           )
         ) : viewMode === 'list' && renderListItem ? (
-          <div className="space-y-2" role="list" aria-label={`${type} list`}>
+          <div className="space-y-2 pt-6" role="list" aria-label={`${type} list`}>
             {sortedItems.map((item) => renderListItem(item, libraryId))}
           </div>
         ) : (
-          // Virtual grid renderer (TanStack Virtual)
+          // Virtual grid renderer (TanStack Virtual handles its own scroll)
           isValidElement(customGridRenderer)
             ? cloneElement(customGridRenderer as React.ReactElement<{ onScroll?: (scrollTop: number) => void }>, {
                 onScroll: (scrollTop: number) => {
