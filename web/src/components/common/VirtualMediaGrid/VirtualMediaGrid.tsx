@@ -103,7 +103,6 @@ export const VirtualMediaGrid = <T extends { id: number }>({
                 width: '100%',
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
-                marginBottom: '1rem',
               }}
             >
               <div

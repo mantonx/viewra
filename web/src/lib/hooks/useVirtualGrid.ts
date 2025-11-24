@@ -96,7 +96,7 @@ export const useVirtualGrid = ({
   const rowVirtualizer = useVirtualizer({
     count: hasNextPage ? rowCount + 1 : rowCount, // +1 for loading row
     getScrollElement: () => parentRef.current,
-    estimateSize: () => estimatedRowHeight + gap,
+    estimateSize: () => estimatedRowHeight + gap + 32, // Add 32px spacing between rows
     overscan,
   })
 
