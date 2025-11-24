@@ -24,6 +24,7 @@ import (
 // Server represents the HTTP server
 type Server struct {
 	router           *gin.Engine
+	logger           *slog.Logger
 	healthHandler    *handlers.HealthHandler
 	libraryHandler   *handlers.LibraryHandler
 	mediaHandler     *handlers.MediaHandler
@@ -185,6 +186,7 @@ func NewServer(
 
 	server := &Server{
 		router:           router,
+		logger:           logger,
 		healthHandler:    healthHandler,
 		libraryHandler:   libraryHandler,
 		mediaHandler:     mediaHandler,
@@ -237,6 +239,9 @@ func (s *Server) setupRoutes() {
 
 	// Register image routes
 	routes.RegisterImageRoutes(s.router, s.imagesHandler)
+
+	// Register adaptive quality routes
+	routes.RegisterAdaptiveQualityRoutes(s.router, s.logger)
 
 	// Register admin routes
 	admin := api.Group("/admin")
