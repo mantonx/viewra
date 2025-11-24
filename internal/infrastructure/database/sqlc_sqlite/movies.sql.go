@@ -15,6 +15,7 @@ SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
 `
 
 func (q *Queries) CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error) {
@@ -29,6 +30,7 @@ SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
   AND (med.title LIKE ? OR m.original_title LIKE ?)
 `
 
@@ -291,6 +293,7 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
 ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
@@ -329,6 +332,7 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
 ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?
 `
@@ -403,6 +407,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
   AND m.genre LIKE ?
 ORDER BY m.sort_title, med.title
 `
@@ -592,6 +597,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
 ORDER BY m.sort_title, med.title
 `
 
@@ -775,6 +781,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
 ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?
 `
@@ -965,6 +972,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
 ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?
 `
@@ -1155,6 +1163,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
   AND m.year = ?
 ORDER BY m.sort_title, med.title
 `
@@ -1344,6 +1353,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
   AND (med.title LIKE ? OR m.original_title LIKE ?)
 ORDER BY m.sort_title, med.title
 `
@@ -1534,6 +1544,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
   AND (med.title LIKE ? OR m.original_title LIKE ?)
 ORDER BY COALESCE(m.sort_title, med.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?

@@ -294,7 +294,8 @@ SET artist = ?,
     musicbrainz_artist_id = ?,
     original_title = ?,
     sort_title = ?,
-    album_id = ?
+    album_id = ?,
+    artist_id = ?
 WHERE media_id = ?;
 
 -- name: DeleteMusicTrack :exec

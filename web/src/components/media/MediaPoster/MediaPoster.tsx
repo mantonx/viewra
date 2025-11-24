@@ -60,6 +60,15 @@ export interface MediaPosterProps {
    * Defaults to 'medium'
    */
   preset?: ImagePreset
+
+  /**
+   * Aspect ratio for the poster container
+   * - '2/3': Standard poster ratio (default for movies/TV)
+   * - 'square': 1:1 ratio (default for music albums)
+   * - '16/9': Widescreen ratio (for episode thumbnails)
+   * Defaults to '2/3' for most media, 'square' for albums, '16/9' for episodes
+   */
+  aspectRatio?: '2/3' | 'square' | '16/9'
 }
 
 export const MediaPoster = ({
@@ -69,9 +78,23 @@ export const MediaPoster = ({
   className = '',
   fallbackIcon = '🎬',
   preset = 'medium',
+  aspectRatio,
 }: MediaPosterProps) => {
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+
+  // Determine aspect ratio based on media type if not explicitly provided
+  const resolvedAspectRatio =
+    aspectRatio ||
+    (mediaType === 'music-album' || mediaType === 'music-artist'
+      ? 'square'
+      : mediaType === 'tv-episode'
+        ? '16/9'
+        : '2/3')
+
+  // Convert aspect ratio string to CSS value
+  const aspectRatioValue =
+    resolvedAspectRatio === 'square' ? '1 / 1' : resolvedAspectRatio === '16/9' ? '16 / 9' : '2 / 3'
 
   // Try to use batch images if available (within BatchImagesProvider)
   // Returns null if not in a batch context, allowing graceful fallback to individual queries
@@ -141,6 +164,7 @@ export const MediaPoster = ({
     return (
       <div
         className={`bg-linear-to-br from-neutral-700 to-neutral-900 flex items-center justify-center animate-pulse ${className}`}
+        style={{ aspectRatio: aspectRatioValue }}
       >
         <span className="text-white text-4xl opacity-50">{fallbackIcon}</span>
       </div>
@@ -152,6 +176,7 @@ export const MediaPoster = ({
     return (
       <div
         className={`bg-linear-to-br from-neutral-700 to-neutral-900 flex items-center justify-center ${className}`}
+        style={{ aspectRatio: aspectRatioValue }}
       >
         <span className="text-white text-4xl">{fallbackIcon}</span>
       </div>
@@ -160,7 +185,7 @@ export const MediaPoster = ({
 
   // Show image with fade-in transition
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} style={{ aspectRatio: aspectRatioValue }}>
       {/* Placeholder shown while image loads */}
       {!imageLoaded && (
         <div className="absolute inset-0 bg-linear-to-br from-neutral-700 to-neutral-900 flex items-center justify-center animate-pulse">

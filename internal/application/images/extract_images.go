@@ -6,6 +6,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/domain/images"
 	infraImages "github.com/mantonx/viewra/internal/infrastructure/images"
+	"github.com/mantonx/viewra/internal/pkg/logger"
 )
 
 // ExtractMovieImagesUseCase handles extracting and cataloging movie images
@@ -126,11 +127,24 @@ func NewExtractTVShowImagesUseCase(repo images.Repository, cacheService *infraIm
 
 // Execute extracts images for a TV show and stores them in the database
 func (uc *ExtractTVShowImagesUseCase) Execute(ctx context.Context, showDir string, mediaType images.MediaType, entityID int) error {
+	log := logger.DefaultIfNil(nil)
+	log.Info("ExtractTVShowImagesUseCase Execute called",
+		"show_dir", showDir,
+		"media_type", mediaType,
+		"entity_id", entityID)
+
 	// Extract image paths
 	extracted, err := uc.extractor.ExtractTVShowImages(showDir)
 	if err != nil {
+		log.Warn("failed to extract show images in Execute",
+			"show_dir", showDir,
+			"error", err)
 		return fmt.Errorf("failed to extract show images: %w", err)
 	}
+
+	log.Info("extracted images from filesystem",
+		"show_dir", showDir,
+		"image_count", len(extracted.Images))
 
 	// Process and save all extracted images (shows don't have media_id, so pass nil)
 	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
@@ -198,4 +212,36 @@ func (uc *ExtractMusicArtistImagesUseCase) Execute(ctx context.Context, artistDi
 
 	// Process and save all extracted images (artists don't have media_id, so pass nil)
 	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)
+}
+
+// ExtractMusicTrackImagesUseCase handles extracting embedded album art from individual music track files
+type ExtractMusicTrackImagesUseCase struct {
+	repo              images.Repository
+	extractor         *infraImages.Extractor
+	metadataExtractor *infraImages.MetadataExtractor
+	cacheService      *infraImages.CacheService
+	transformer       *infraImages.Transformer
+}
+
+// NewExtractMusicTrackImagesUseCase creates a new instance
+func NewExtractMusicTrackImagesUseCase(repo images.Repository, cacheService *infraImages.CacheService, transformer *infraImages.Transformer) *ExtractMusicTrackImagesUseCase {
+	return &ExtractMusicTrackImagesUseCase{
+		repo:              repo,
+		extractor:         infraImages.NewExtractor(),
+		metadataExtractor: infraImages.NewMetadataExtractor(),
+		cacheService:      cacheService,
+		transformer:       transformer,
+	}
+}
+
+// Execute extracts embedded album art from a specific music track file
+func (uc *ExtractMusicTrackImagesUseCase) Execute(ctx context.Context, trackFile string, mediaType images.MediaType, entityID int, mediaID *int) error {
+	// Extract embedded image from the track file
+	extracted, err := uc.extractor.ExtractMusicTrackImages(trackFile)
+	if err != nil {
+		return fmt.Errorf("failed to extract track images: %w", err)
+	}
+
+	// Process and save all extracted images (tracks have media_id)
+	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, mediaID)
 }

@@ -94,6 +94,12 @@ func (e *EmbeddedExtractor) ExtractFromAudioFile(audioFilePath string, imageType
 	}, nil
 }
 
+// ExtractAlbumArtFromTrack extracts album artwork from a specific audio file
+// This is used for track-level image extraction
+func (e *EmbeddedExtractor) ExtractAlbumArtFromTrack(trackFile string) (*ImageInfo, error) {
+	return e.ExtractFromAudioFile(trackFile, images.ImageTypeCover)
+}
+
 // ExtractAlbumArtFromFirstTrack extracts album artwork from the first audio file in a directory
 // This is used as a fallback when no folder.jpg/cover.jpg is found
 func (e *EmbeddedExtractor) ExtractAlbumArtFromFirstTrack(albumDir string) (*ImageInfo, error) {

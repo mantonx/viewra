@@ -85,6 +85,7 @@ func mapAlbumToDomain(row interface{}) *media.Album {
 	return &media.Album{
 		ID:                 common.IntFieldGetter(row, "ID"),
 		LibraryID:          common.IntFieldGetter(row, "LibraryID"),
+		ArtistID:           common.IntFieldGetter(row, "ArtistID"),
 		Title:              common.StringFieldGetter(row, "Title"),
 		AlbumArtist:        common.ParseNullString(common.NullStringFieldGetter(row, "AlbumArtist")),
 		Artist:             common.ParseNullString(common.NullStringFieldGetter(row, "Artist")),
@@ -341,6 +342,7 @@ func buildSQLiteUpdateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.UpdateMu
 		OriginalTitle:       params.OriginalTitle,
 		SortTitle:           params.SortTitle,
 		AlbumID:             params.AlbumID,
+		ArtistID:            params.ArtistID,
 		MediaID:             t.Media.ID,
 	}
 }
@@ -531,6 +533,7 @@ func buildPostgresUpdateMusicTrackParams(t *media.MusicTrack) sqlc_postgres.Upda
 		OriginalTitle:       params.OriginalTitle,
 		SortTitle:           params.SortTitle,
 		AlbumID:             params.AlbumID,
+		ArtistID:            params.ArtistID,
 		MediaID:             int32(t.Media.ID),
 	}
 }

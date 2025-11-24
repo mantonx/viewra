@@ -19,7 +19,7 @@ WHERE id = ?;
 
 -- name: GetTVShowByTitle :one
 SELECT * FROM tv_shows
-WHERE library_id = ? AND title = ?
+WHERE library_id = ? AND LOWER(title) = LOWER(?)
 LIMIT 1;
 
 -- name: ListTVShowsByLibrary :many
@@ -202,6 +202,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
 ORDER BY e.show_id, e.season_number, e.episode_number;
 
 -- name: ListTVEpisodesByShow :many
@@ -245,6 +246,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE e.show_id = ?
+  AND med.is_extra = 0
 ORDER BY e.season_number, e.episode_number;
 
 -- name: ListTVEpisodesBySeason :many
@@ -288,6 +290,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE e.season_id = ?
+  AND med.is_extra = 0
 ORDER BY e.episode_number;
 
 -- name: GetTVEpisodeByShowSeasonEpisode :one
@@ -399,6 +402,7 @@ FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 JOIN tv_shows s ON e.show_id = s.id
 WHERE med.library_id = ?
+  AND med.is_extra = 0
   AND (e.episode_title LIKE ? OR s.title LIKE ?)
 ORDER BY s.sort_title, e.season_number, e.episode_number;
 
@@ -415,12 +419,16 @@ SELECT
     s.genre,
     s.plot,
     s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+  AND (med.is_extra = 0 OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
 ORDER BY s.sort_title, s.title;
 
 -- ============================================================================
@@ -453,12 +461,16 @@ SELECT
     s.genre,
     s.plot,
     s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+  AND (med.is_extra = 0 OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE ASC
 LIMIT ? OFFSET ?;
 
@@ -471,12 +483,16 @@ SELECT
     s.genre,
     s.plot,
     s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = ?
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+  AND (med.is_extra = 0 OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
 ORDER BY COALESCE(s.sort_title, s.title) COLLATE NOCASE DESC
 LIMIT ? OFFSET ?;
 

@@ -2,6 +2,7 @@ package tvshow
 
 import (
 	"database/sql"
+	"strings"
 
 	domainCommon "github.com/mantonx/viewra/internal/domain/common"
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -302,13 +303,111 @@ func buildSQLiteCreateTVShowParams(libraryID int64, title string) sqlc_sqlite.Cr
 	}
 }
 
+// buildPostgresUpdateTVShowParams builds UpdateTVShowParams for Postgres from domain TVShow
+func buildPostgresUpdateTVShowParams(show media.TVShow) sqlc_postgres.UpdateTVShowParams {
+	// Join genres back to comma-separated string
+	genreStr := strings.Join(show.Genre, ", ")
+
+	// Helper to convert string to sql.NullString
+	toNullString := func(s string) sql.NullString {
+		return sql.NullString{String: s, Valid: s != ""}
+	}
+
+	// Helper to convert int to sql.NullInt32
+	toNullInt32 := func(i int) sql.NullInt32 {
+		return sql.NullInt32{Int32: int32(i), Valid: i != 0}
+	}
+
+	return sqlc_postgres.UpdateTVShowParams{
+		ID:               int32(show.ID),
+		Title:            show.Title,
+		OriginalTitle:    sql.NullString{Valid: false}, // Not in domain struct yet
+		SortTitle:        sql.NullString{Valid: false}, // Not in domain struct yet
+		Year:             toNullInt32(show.Year),
+		FirstAirDate:     sql.NullTime{Valid: false}, // Not in domain struct yet
+		LastAirDate:      sql.NullTime{Valid: false}, // Not in domain struct yet
+		Genre:            toNullString(genreStr),
+		Plot:             toNullString(show.Plot),
+		Status:           sql.NullString{Valid: false}, // Not in domain struct yet
+		ContentRating:    toNullString(show.ContentRating),
+		MaturityRating:   sql.NullInt32{Valid: false}, // Not in domain struct yet
+		Network:          sql.NullString{Valid: false}, // Not in domain struct yet
+		OriginalLanguage: sql.NullString{Valid: false}, // Not in domain struct yet
+		CountryOfOrigin:  sql.NullString{Valid: false}, // Not in domain struct yet
+		ImdbID:           toNullString(show.IMDbID),
+		TmdbID:           toNullInt32(show.TMDbID),
+		TvdbID:           sql.NullInt32{Valid: false}, // Not in domain struct yet
+	}
+}
+
+// buildSQLiteUpdateTVShowParams builds UpdateTVShowParams for SQLite from domain TVShow
+func buildSQLiteUpdateTVShowParams(show media.TVShow) sqlc_sqlite.UpdateTVShowParams {
+	// Join genres back to comma-separated string
+	genreStr := strings.Join(show.Genre, ", ")
+
+	// Helper to convert string to sql.NullString
+	toNullString := func(s string) sql.NullString {
+		return sql.NullString{String: s, Valid: s != ""}
+	}
+
+	// Helper to convert int to sql.NullInt64
+	toNullInt64 := func(i int) sql.NullInt64 {
+		return sql.NullInt64{Int64: int64(i), Valid: i != 0}
+	}
+
+	return sqlc_sqlite.UpdateTVShowParams{
+		ID:               show.ID,
+		Title:            show.Title,
+		OriginalTitle:    sql.NullString{Valid: false}, // Not in domain struct yet
+		SortTitle:        sql.NullString{Valid: false}, // Not in domain struct yet
+		Year:             toNullInt64(show.Year),
+		FirstAirDate:     sql.NullTime{Valid: false}, // Not in domain struct yet
+		LastAirDate:      sql.NullTime{Valid: false}, // Not in domain struct yet
+		Genre:            toNullString(genreStr),
+		Plot:             toNullString(show.Plot),
+		Status:           sql.NullString{Valid: false}, // Not in domain struct yet
+		ContentRating:    toNullString(show.ContentRating),
+		MaturityRating:   sql.NullInt64{Valid: false}, // Not in domain struct yet
+		Network:          sql.NullString{Valid: false}, // Not in domain struct yet
+		OriginalLanguage: sql.NullString{Valid: false}, // Not in domain struct yet
+		CountryOfOrigin:  sql.NullString{Valid: false}, // Not in domain struct yet
+		ImdbID:           toNullString(show.IMDbID),
+		TmdbID:           toNullInt64(show.TMDbID),
+		TvdbID:           sql.NullInt64{Valid: false}, // Not in domain struct yet
+	}
+}
+
+// parseGenres converts a comma-separated genre string to a slice
+func parseGenres(genreStr string) []string {
+	if genreStr == "" {
+		return []string{}
+	}
+
+	var genres []string
+	parts := strings.Split(genreStr, ",")
+	for _, part := range parts {
+		genre := strings.TrimSpace(part)
+		if genre != "" {
+			genres = append(genres, genre)
+		}
+	}
+
+	return genres
+}
+
 // postgresShowWithCountsToDomain converts PostgreSQL rows with counts to domain TVShowWithCounts
 func postgresShowWithCountsToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
-			ID:        int64(row.ID),
-			LibraryID: int64(row.LibraryID),
-			Title:     row.Title,
+			ID:            int64(row.ID),
+			LibraryID:     int64(row.LibraryID),
+			Title:         row.Title,
+			Year:          int(common.ParseNullInt32(row.Year)),
+			Genre:         parseGenres(common.ParseNullString(row.Genre)),
+			Plot:          common.ParseNullString(row.Plot),
+			IMDbID:        common.ParseNullString(row.ImdbID),
+			TMDbID:        int(common.ParseNullInt32(row.TmdbID)),
+			ContentRating: common.ParseNullString(row.ContentRating),
 		},
 		SeasonCount:  row.SeasonCount,
 		EpisodeCount: row.EpisodeCount,
@@ -318,9 +417,15 @@ func postgresShowWithCountsToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibr
 func postgresShowWithCountsDescToDomain(row sqlc_postgres.GetTVShowsWithCountsByLibraryPaginatedDescRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
-			ID:        int64(row.ID),
-			LibraryID: int64(row.LibraryID),
-			Title:     row.Title,
+			ID:            int64(row.ID),
+			LibraryID:     int64(row.LibraryID),
+			Title:         row.Title,
+			Year:          int(common.ParseNullInt32(row.Year)),
+			Genre:         parseGenres(common.ParseNullString(row.Genre)),
+			Plot:          common.ParseNullString(row.Plot),
+			IMDbID:        common.ParseNullString(row.ImdbID),
+			TMDbID:        int(common.ParseNullInt32(row.TmdbID)),
+			ContentRating: common.ParseNullString(row.ContentRating),
 		},
 		SeasonCount:  row.SeasonCount,
 		EpisodeCount: row.EpisodeCount,
@@ -330,9 +435,15 @@ func postgresShowWithCountsDescToDomain(row sqlc_postgres.GetTVShowsWithCountsBy
 func sqliteShowWithCountsToDomain(row sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
-			ID:        row.ID,
-			LibraryID: row.LibraryID,
-			Title:     row.Title,
+			ID:            row.ID,
+			LibraryID:     row.LibraryID,
+			Title:         row.Title,
+			Year:          int(common.ParseNullInt64(row.Year)),
+			Genre:         parseGenres(common.ParseNullString(row.Genre)),
+			Plot:          common.ParseNullString(row.Plot),
+			IMDbID:        common.ParseNullString(row.ImdbID),
+			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
+			ContentRating: common.ParseNullString(row.ContentRating),
 		},
 		SeasonCount:  row.SeasonCount,
 		EpisodeCount: row.EpisodeCount,
@@ -342,9 +453,15 @@ func sqliteShowWithCountsToDomain(row sqlc_sqlite.GetTVShowsWithCountsByLibraryP
 func sqliteShowWithCountsDescToDomain(row sqlc_sqlite.GetTVShowsWithCountsByLibraryPaginatedDescRow) media.TVShowWithCounts {
 	return media.TVShowWithCounts{
 		TVShow: media.TVShow{
-			ID:        row.ID,
-			LibraryID: row.LibraryID,
-			Title:     row.Title,
+			ID:            row.ID,
+			LibraryID:     row.LibraryID,
+			Title:         row.Title,
+			Year:          int(common.ParseNullInt64(row.Year)),
+			Genre:         parseGenres(common.ParseNullString(row.Genre)),
+			Plot:          common.ParseNullString(row.Plot),
+			IMDbID:        common.ParseNullString(row.ImdbID),
+			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
+			ContentRating: common.ParseNullString(row.ContentRating),
 		},
 		SeasonCount:  row.SeasonCount,
 		EpisodeCount: row.EpisodeCount,

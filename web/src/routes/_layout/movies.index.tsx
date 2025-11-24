@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef, useMemo, useState } from 'react'
+import { useEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { MovieCard } from '@/components/movies'
 import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
@@ -171,27 +171,48 @@ const Movies = () => {
     watchedFilter: (search.watched as 'all' | 'watched' | 'unwatched') || 'all',
   }), [search.genres, search.yearMin, search.yearMax, search.qualities, search.watched])
 
-  // Calculate responsive columns for virtual grid
+  // Calculate responsive columns and estimated row height for virtual grid
   const [columns, setColumns] = useState(6)
+  const [estimatedRowHeight, setEstimatedRowHeight] = useState(600)
+
   useEffect(() => {
-    const updateColumns = () => {
+    const updateLayout = () => {
       const width = window.innerWidth
-      if (width >= 1280) setColumns(6) // xl
-      else if (width >= 1024) setColumns(5) // lg
-      else if (width >= 768) setColumns(4) // md
-      else if (width >= 640) setColumns(3) // sm
-      else setColumns(2) // base
+      let cols = 2
+      let estimatedHeight = 400
+
+      // Determine columns and rough height estimate based on viewport width
+      if (width >= 1280) {
+        cols = 6 // xl
+        estimatedHeight = 600
+      } else if (width >= 1024) {
+        cols = 5 // lg
+        estimatedHeight = 650
+      } else if (width >= 768) {
+        cols = 4 // md
+        estimatedHeight = 700
+      } else if (width >= 640) {
+        cols = 3 // sm
+        estimatedHeight = 800
+      } else {
+        cols = 2 // base
+        estimatedHeight = 900
+      }
+
+      setColumns(cols)
+      setEstimatedRowHeight(estimatedHeight)
     }
-    updateColumns()
-    window.addEventListener('resize', updateColumns)
-    return () => window.removeEventListener('resize', updateColumns)
+
+    updateLayout()
+    window.addEventListener('resize', updateLayout)
+    return () => window.removeEventListener('resize', updateLayout)
   }, [])
 
   // Find currently playing movie
   const playingMovie = allMovies.find((m) => m.id === playbackState.mediaId)
 
   // Handle playing a movie
-  const handlePlayMovie = async (movieId: number, startTime?: number) => {
+  const handlePlayMovie = useCallback(async (movieId: number, startTime?: number) => {
     logger.debug('🔔 handlePlayMovie called with movieId:', movieId, 'startTime:', startTime)
     const movie = allMovies.find((m) => m.id === movieId)
     if (!movie) {
@@ -229,7 +250,7 @@ const Movies = () => {
 
     // Trigger playback via hook, passing URL time if available
     await playMedia(movieId, mediaItem, startTime)
-  }
+  }, [allMovies, navigate, playMedia])
 
   // Handle time position updates from video player
   const handleTimeUpdate = (time: number) => {
@@ -277,11 +298,13 @@ const Movies = () => {
   }
 
   // Auto-play when URL contains movie ID
+  const lastPlayedIdRef = useRef<number | undefined>(undefined)
   useEffect(() => {
-    if (urlMovieId && !playbackState.isPlaying) {
+    if (urlMovieId && urlMovieId !== lastPlayedIdRef.current && !playbackState.isPlaying) {
+      lastPlayedIdRef.current = urlMovieId
       handlePlayMovie(urlMovieId, urlTimePosition)
     }
-  }, [urlMovieId]) // Only trigger on urlMovieId change
+  }, [urlMovieId, urlTimePosition, playbackState.isPlaying, handlePlayMovie])
 
   // Render video player if playing
   const videoPlayer = (
@@ -355,7 +378,7 @@ const Movies = () => {
           <VirtualMediaGrid
             items={allMovies}
             columns={columns}
-            estimatedRowHeight={580}
+            estimatedRowHeight={estimatedRowHeight}
             gap={16}
             renderItem={(movie) => (
               <MovieCard

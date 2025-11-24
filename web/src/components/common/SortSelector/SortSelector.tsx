@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import { bg, text, border, shadow } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
 
 export interface SortOption {
   field: string
@@ -61,21 +63,28 @@ export const SortSelector = ({ value, onChange, className = '', showLabel = true
   return (
     <div ref={dropdownRef} className={`relative ${className}`}>
       {showLabel && (
-        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+        <label className={cn('block text-sm font-medium mb-1', text.secondary)}>
           Sort By
         </label>
       )}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2.5 min-h-11 text-left bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-neutral-900 dark:text-neutral-50"
+        className={cn(
+          'w-full px-3 py-2.5 min-h-11 text-left rounded-md border flex items-center justify-between transition-colors',
+          bg.elevated,
+          text.primary,
+          border.secondary,
+          bg.hover.subtle,
+          'focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+        )}
         aria-label="Sort options"
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
         <span className="text-sm">{getCurrentLabel()}</span>
         <svg
-          className={`w-5 h-5 text-neutral-400 dark:text-neutral-600 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={cn('w-5 h-5 transition-transform', text.disabled, isOpen && 'rotate-180')}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -85,7 +94,7 @@ export const SortSelector = ({ value, onChange, className = '', showLabel = true
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-lg dark:shadow-neutral-950/50">
+        <div className={cn('absolute z-50 mt-1 w-full rounded-md border', bg.elevated, border.secondary, shadow.lg)}>
           <div className="py-1">
             {SORT_OPTIONS.map((option) => {
               const isActive = option.field === field
@@ -99,9 +108,13 @@ export const SortSelector = ({ value, onChange, className = '', showLabel = true
                     handleToggleSort(option.field)
                     setIsOpen(false)
                   }}
-                  className={`w-full px-4 py-2.5 min-h-11 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors ${
-                    isActive ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium' : 'text-neutral-700 dark:text-neutral-300'
-                  }`}
+                  className={cn(
+                    'w-full px-4 py-2.5 min-h-11 text-left text-sm flex items-center justify-between transition-colors',
+                    bg.hover.subtle,
+                    isActive
+                      ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium'
+                      : text.secondary
+                  )}
                 >
                   <span>{option.label}</span>
                   <div className="flex items-center gap-2">
@@ -123,9 +136,11 @@ export const SortSelector = ({ value, onChange, className = '', showLabel = true
                           setIsOpen(false)
                         }
                       }}
-                      className={`min-h-8 min-w-8 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors ${
-                        isActive ? 'text-blue-600 dark:text-blue-400' : 'text-neutral-400 dark:text-neutral-600'
-                      }`}
+                      className={cn(
+                        'min-h-8 min-w-8 flex items-center justify-center rounded transition-colors',
+                        'hover:bg-neutral-200 dark:hover:bg-neutral-700',
+                        isActive ? 'text-blue-600 dark:text-blue-400' : text.disabled
+                      )}
                       aria-label={`Sort by ${option.label} ${currentDirection === 'asc' ? 'ascending' : 'descending'}`}
                       title="Toggle sort direction"
                     >
@@ -144,8 +159,8 @@ export const SortSelector = ({ value, onChange, className = '', showLabel = true
               )
             })}
           </div>
-          <div className="border-t border-neutral-200 dark:border-neutral-800 px-4 py-2 bg-neutral-50 dark:bg-neutral-950">
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          <div className={cn('border-t px-4 py-2', border.primary, bg.secondary)}>
+            <p className={cn('text-xs', text.tertiary)}>
               Click field to sort. Click arrow to toggle direction.
             </p>
           </div>

@@ -39,10 +39,16 @@ func (uc *GetTVShowUseCase) Execute(ctx context.Context, showID int64) (*TVShowD
 	}
 
 	return &TVShowDetailResponse{
-		ID:           show.ID,
-		LibraryID:    show.LibraryID,
-		Title:        show.Title,
-		SeasonCount:  len(seasons),
-		EpisodeCount: totalEpisodes,
+		ID:            show.ID,
+		LibraryID:     show.LibraryID,
+		Title:         show.Title,
+		Year:          show.Year,
+		Genre:         show.Genre,
+		Plot:          show.Plot,
+		IMDbID:        show.IMDbID,
+		TMDbID:        show.TMDbID,
+		ContentRating: show.ContentRating,
+		SeasonCount:   len(seasons),
+		EpisodeCount:  totalEpisodes,
 	}, nil
 }

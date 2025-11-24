@@ -7,10 +7,8 @@ import type { TVShowCardProps } from './TVShowCard.types'
 const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
   const { preferences } = useBadgePreferences()
 
-  // Check if show is newly added (within last 7 days)
-  const isNew =
-    show.created_at &&
-    Date.now() - new Date(show.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+  // TODO: Enable isNew when backend adds created_at field
+  const isNew = false
 
   return (
     <MediaCard
@@ -27,21 +25,22 @@ const TVShowCard = ({ show, onClick, onPlay }: TVShowCardProps) => {
           preferences={preferences}
           badges={{
             isNew,
-            // Future: Add resolution, rating, codec once backend provides data
+            contentRating: show.content_rating,
+            mediaType: 'TV SHOW',
           }}
         />
       }
       infoContent={
         <MediaMetadata
           title={show.title ?? 'Unknown Show'}
-          year={show.year} // NEW - needs backend
-          genres={show.genre ? [show.genre] : undefined} // NEW - needs backend
-          plot={show.plot} // NEW - needs backend
+          year={show.year}
+          genres={show.genre}
+          plot={show.plot}
           seasonCount={show.season_count}
           episodeCount={show.episode_count}
           links={{
-            imdb: show.imdb_id, // NEW - needs backend
-            tmdb: show.tmdb_id ? String(show.tmdb_id) : undefined, // NEW - needs backend
+            imdb: show.imdb_id,
+            tmdb: show.tmdb_id ? String(show.tmdb_id) : undefined,
           }}
         />
       }

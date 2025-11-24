@@ -12,9 +12,10 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
   const { preferences } = useBadgePreferences()
 
   // Check if movie is newly added (within last 7 days)
-  const isNew =
+  const isNew = Boolean(
     movie.created_at &&
     Date.now() - new Date(movie.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+  )
 
   return (
     <MediaCard
@@ -30,9 +31,9 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
           badges={{
             isNew,
             isExtra: movie.is_extra,
-            resolution: formatResolutionLabel(movie.height),
-            contentRating: movie.content_rating,
-            codec: movie.video_codec,
+            resolution: formatResolutionLabel(movie.height) ?? undefined,
+            contentRating: movie.content_rating ?? undefined,
+            codec: movie.video_codec ?? undefined,
           }}
         />
       }
@@ -49,7 +50,7 @@ const MovieCard = ({ movie, onClick }: MovieCardProps) => {
           progress={progress}
           links={{
             imdb: movie.imdb_id,
-            tmdb: movie.tmdb_id,
+            tmdb: movie.tmdb_id?.toString(),
           }}
         />
       }

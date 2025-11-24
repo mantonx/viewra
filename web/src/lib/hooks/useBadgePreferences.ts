@@ -7,7 +7,7 @@ const STORAGE_KEY = 'viewra_badge_preferences'
 export const useBadgePreferences = () => {
   const [preferences, setPreferences] = useState<BadgePreferences>(() => {
     // Load from localStorage on mount
-    if (typeof window === 'undefined') return DEFAULT_BADGE_PREFERENCES
+    if (typeof window === 'undefined') {return DEFAULT_BADGE_PREFERENCES}
 
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {

@@ -14,15 +14,16 @@ import (
 var tvPatterns = []*regexp.Regexp{
 	// S01E01 format with optional episode title
 	// Examples: "Show.Name.S01E01.mkv", "Show Name - S01E01 - Episode Title.mp4"
-	regexp.MustCompile(`(?i)^(.+?)[\s._-]+[Ss](\d{1,2})[Ee](\d{1,3})(?:[\s._-]*(?:[Ee](\d{1,3}))?)?(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
+	// Note: Supports 1-4 digit seasons to handle year-based seasons like S1933E21 (Looney Tunes)
+	regexp.MustCompile(`(?i)^(.+?)[\s._-]+[Ss](\d{1,4})[Ee](\d{1,3})(?:[\s._-]*(?:[Ee](\d{1,3}))?)?(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
 
 	// Season X Episode Y format
 	// Examples: "Show.Name.Season.1.Episode.01.mkv"
-	regexp.MustCompile(`(?i)^(.+?)[\s._-]+Season[\s._-]*(\d{1,2})[\s._-]+Episode[\s._-]*(\d{1,3})(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
+	regexp.MustCompile(`(?i)^(.+?)[\s._-]+Season[\s._-]*(\d{1,4})[\s._-]+Episode[\s._-]*(\d{1,3})(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
 
 	// 1x01 format
 	// Examples: "Show Name 1x01.mkv", "Show.Name.1x01.Episode.Title.mp4"
-	regexp.MustCompile(`(?i)^(.+?)[\s._-]+(\d{1,2})x(\d{1,3})(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
+	regexp.MustCompile(`(?i)^(.+?)[\s._-]+(\d{1,4})x(\d{1,3})(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
 
 	// Episode number only (less reliable, requires directory context)
 	// Examples: "Show Name/Season 1/01 - Episode Title.mkv"
@@ -252,8 +253,12 @@ func cleanShowName(name string) string {
 
 	result := make([]string, 0, len(words))
 	for _, w := range words {
-		if original, ok := wordMap[w]; ok && len(w) > 1 {
-			result = append(result, original)
+		if original, ok := wordMap[w]; ok {
+			// Include words longer than 1 character, OR single-character special symbols like &
+			// Skip single letters (a, b, c, etc.) which are likely parsing artifacts
+			if len(w) > 1 || !isSingleLetter(w) {
+				result = append(result, original)
+			}
 		}
 	}
 
@@ -271,6 +276,15 @@ func cleanShowName(name string) string {
 	// Ensure trailing dots on abbreviations are preserved
 	// (they might get trimmed, so we need to check the original)
 	return name
+}
+
+// isSingleLetter returns true if the string is a single alphabetic character (a-z, A-Z)
+func isSingleLetter(s string) bool {
+	if len(s) != 1 {
+		return false
+	}
+	r := rune(s[0])
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
 
 // cleanEpisodeTitle removes quality tags and normalizes the episode title

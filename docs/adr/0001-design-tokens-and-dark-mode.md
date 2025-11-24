@@ -277,7 +277,7 @@ border-red-300        → border-red-300 dark:border-red-800
 
 **Implementation**:
 
-1. **Created Semantic Utilities** ([semantic.ts](web/src/styles/semantic.ts)):
+1. **Created Semantic Utilities** ([semantic.ts:17-163](web/src/styles/semantic.ts#L17-L163)):
 
    ```tsx
    export const bg = {
@@ -313,11 +313,106 @@ border-red-300        → border-red-300 dark:border-red-800
    - All design tokens now only exist in `@theme` directive
 
 **Benefits**:
+
 - ✅ **Reduced Repetition**: `bg.elevated` instead of `bg-white dark:bg-neutral-900`
 - ✅ **Type Safety**: CVA provides type-safe variant props
 - ✅ **Better DX**: IntelliSense for all semantic utilities
 - ✅ **Maintainability**: Change theme colors in one place
 - ✅ **No Token Duplication**: Single source of truth in CSS `@theme`
+
+## Phase 2.5: Glassmorphism Design Utilities (Completed 2025-11-24)
+
+**Goal**: Add modern glassmorphism effects to the design system
+
+**Decision**: Extended semantic utilities with glassmorphism variants for translucent, frosted-glass UI elements
+
+**Implementation**:
+
+1. **Added Glass Utilities** ([semantic.ts:165-235](web/src/styles/semantic.ts#L165-L235)):
+
+   ```tsx
+   export const glass = {
+     light: {
+       bg: 'bg-white/75 dark:bg-black/70',
+       border: 'border-white/20 dark:border-white/20',
+       blur: 'backdrop-blur-sm',
+       full: 'bg-white/75 dark:bg-black/70 backdrop-blur-sm border border-white/20',
+     },
+     medium: { /* balanced translucent effect */ },
+     strong: { /* prominent translucent effect */ },
+     enhanced: {
+       base: 'bg-white/75 dark:bg-black/70 border-black/20 dark:border-white/20',
+       full: 'backdrop-blur-[16px] backdrop-saturate-[130%]',
+       shadowLight: '0 8px 32px 0 rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.8)',
+       shadowDark: '0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+     },
+   }
+   ```
+
+2. **Added Inline Style Functions** for Safari compatibility and custom saturation:
+
+   ```tsx
+   export const glassStyles = {
+     light: (isDark: boolean) => ({ /* ... */ }),
+     medium: (isDark: boolean) => ({ /* ... */ }),
+     enhanced: (isDark: boolean) => ({
+       backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.75)',
+       backdropFilter: 'blur(16px) saturate(130%)',
+       WebkitBackdropFilter: 'blur(16px) saturate(130%)',  // Safari support
+       borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+       boxShadow: /* ... */,
+     }),
+   }
+   ```
+
+3. **Created Pre-composed Patterns** ([semantic.ts:265-268](web/src/styles/semantic.ts#L265-L268)):
+
+   ```tsx
+   export const patterns = {
+     // ... existing patterns
+     glassCard: `${glass.medium.full} rounded-xl shadow-lg`,
+     glassPanel: `${glass.light.full} rounded-lg`,
+   }
+   ```
+
+4. **Migrated MediaBrowsePage** ([MediaBrowsePage.tsx:248-249](web/src/components/common/MediaBrowsePage/MediaBrowsePage.tsx#L248-L249)):
+
+   ```tsx
+   <div
+     className={`${isHeaderMinimized ? 'mb-3 px-3 py-2.5' : 'mb-6 px-5 py-4'} rounded-xl transition-all duration-300 ease-out border`}
+     style={glassStyles.enhanced(theme === 'dark')}
+   >
+   ```
+
+5. **Created Comprehensive Documentation** ([glassmorphism.md](docs/design-system/glassmorphism.md)):
+   - Usage patterns for each intensity level (light, medium, strong, enhanced)
+   - Best practices (use on overlays, ensure content behind, test contrast)
+   - Browser compatibility table
+   - Accessibility considerations
+   - Real-world examples
+
+**Design Principles**:
+
+- **Translucent backgrounds**: Partial opacity (70-90%)
+- **Backdrop blur**: Content behind element is blurred (8-16px)
+- **Subtle borders**: Light colored, semi-transparent
+- **Depth with shadows**: Inset highlights + drop shadows
+- **Saturation boost**: Enhanced variant adds 130% saturation for vibrancy
+
+**Use Cases**:
+
+- Light: Floating toolbars, secondary navigation, subtle overlays
+- Medium: Search bars, filter panels, card overlays
+- Strong: Modal dialogs, hero sections, featured content
+- Enhanced: Main search bars, premium UI sections, branded components
+
+**Benefits**:
+
+- ✅ **Modern Aesthetic**: Frosted-glass effects align with contemporary design trends
+- ✅ **Safari Compatible**: WebkitBackdropFilter prefix ensures cross-browser support
+- ✅ **Flexible**: Four intensity levels for different UI contexts
+- ✅ **Accessible**: Graceful degradation in older browsers
+- ✅ **Documented**: Comprehensive guide with examples and best practices
 
 ## Future Work (Phase 3+)
 

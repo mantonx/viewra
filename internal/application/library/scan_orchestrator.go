@@ -60,10 +60,15 @@ type ScanLibraryUseCase struct {
 	seasonImageExtractor  *appImages.ExtractTVSeasonImagesUseCase
 	albumImageExtractor   *appImages.ExtractMusicAlbumImagesUseCase
 	artistImageExtractor  *appImages.ExtractMusicArtistImagesUseCase
+	trackImageExtractor   *appImages.ExtractMusicTrackImagesUseCase
 
 	// Artist deduplication tracking (per scan session)
 	// Using sync.Map for lock-free concurrent access (fixes race condition)
 	processedArtists sync.Map // string -> bool
+
+	// TV show metadata enrichment tracking (per scan session)
+	// Ensures we only parse tvshow.nfo and update show metadata once per show
+	processedShows sync.Map // string -> bool
 }
 
 // NewScanLibraryUseCase creates a new instance of ScanLibraryUseCase
@@ -76,6 +81,7 @@ func NewScanLibraryUseCase(
 	seasonImageExtractor *appImages.ExtractTVSeasonImagesUseCase,
 	albumImageExtractor *appImages.ExtractMusicAlbumImagesUseCase,
 	artistImageExtractor *appImages.ExtractMusicArtistImagesUseCase,
+	trackImageExtractor *appImages.ExtractMusicTrackImagesUseCase,
 	imageRepo domainImages.Repository,
 	imageCleanup ImageCleanupExecutor,
 	config ScanConfig,
@@ -104,6 +110,7 @@ func NewScanLibraryUseCase(
 		seasonImageExtractor:  seasonImageExtractor,
 		albumImageExtractor:   albumImageExtractor,
 		artistImageExtractor:  artistImageExtractor,
+		trackImageExtractor:   trackImageExtractor,
 		imageRepo:             imageRepo,
 		imageCleanup:          imageCleanup,
 		incrementalScanner:    incrementalScanner,

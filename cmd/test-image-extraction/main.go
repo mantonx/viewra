@@ -21,8 +21,9 @@ func main() {
 
 func testTVShowExtraction(ctx context.Context) {
 	extractor := infraImages.NewExtractor()
-	showDir := "/cifs/fictionalserver/tv/1883"
+	showDir := "/cifs/fictionalserver/tv/The Acolyte (2024)"
 
+	fmt.Printf("Testing extraction for: %s\n", showDir)
 	extracted, err := extractor.ExtractTVShowImages(showDir)
 	if err != nil {
 		log.Printf("ERROR: Failed to extract TV show images: %v", err)

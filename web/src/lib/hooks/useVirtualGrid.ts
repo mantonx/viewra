@@ -92,11 +92,12 @@ export const useVirtualGrid = ({
   // Calculate number of rows
   const rowCount = Math.ceil(itemCount / columns)
 
-  // Create virtualizer for rows
+  // Create virtualizer for rows with dynamic measurement
   const rowVirtualizer = useVirtualizer({
     count: hasNextPage ? rowCount + 1 : rowCount, // +1 for loading row
     getScrollElement: () => parentRef.current,
-    estimateSize: () => estimatedRowHeight + gap, // Minimal spacing between rows
+    estimateSize: () => estimatedRowHeight + gap, // Initial estimate
+    measureElement: (element) => element.getBoundingClientRect().height, // Measure actual height
     overscan,
   })
 
@@ -104,7 +105,7 @@ export const useVirtualGrid = ({
   useEffect(() => {
     const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse()
 
-    if (!lastItem) return
+    if (!lastItem) {return}
 
     // Fetch when last visible row is close to the end
     if (

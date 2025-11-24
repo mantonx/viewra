@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui'
 import { useState } from 'react'
+import { bg, text, border } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
 import type { AdvancedFiltersProps } from './AdvancedFilters.types'
 
 /**
@@ -70,14 +72,18 @@ export const AdvancedFilters = ({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+          className={cn(
+            'flex items-center gap-2 text-sm font-medium transition-colors cursor-pointer',
+            text.secondary,
+            'hover:text-neutral-900 dark:hover:text-neutral-50'
+          )}
           aria-expanded={isExpanded}
           aria-controls="advanced-filters-content"
         >
           <span>{isExpanded ? '▼' : '▶'}</span>
           <span>Advanced Filters</span>
           {hasActiveFilters && (
-            <span className="px-2 py-0.5 text-xs bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 rounded-full font-semibold">
+            <span className="px-2 py-0.5 text-xs bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 rounded-full font-semibold">
               Active
             </span>
           )}
@@ -91,22 +97,28 @@ export const AdvancedFilters = ({
 
       {/* Expanded Filters */}
       {isExpanded && (
-        <div id="advanced-filters-content" className="space-y-6 pt-4 border-t border-neutral-200 dark:border-neutral-800">
+        <div id="advanced-filters-content" className={cn('space-y-6 pt-4 border-t', border.secondary)}>
           {/* Genre Filter */}
           {genres.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Genres</label>
+              <label className={cn('block text-sm font-medium mb-2', text.secondary)}>Genres</label>
               <div className="flex flex-wrap gap-2">
                 {genres.map((genre) => (
                   <button
                     key={genre}
                     type="button"
                     onClick={() => handleGenreToggle(genre)}
-                    className={`px-3 py-1.5 text-sm rounded-full border transition-colors min-h-11 ${
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-full border transition-colors min-h-11 cursor-pointer',
                       value.genres?.includes(genre)
-                        ? 'bg-rose-500 text-white border-rose-500'
-                        : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950'
-                    }`}
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : cn(
+                            bg.elevated,
+                            text.secondary,
+                            border.secondary,
+                            'hover:border-primary-300 dark:hover:border-primary-700'
+                          )
+                    )}
                     aria-pressed={value.genres?.includes(genre)}
                   >
                     {genre}
@@ -119,10 +131,10 @@ export const AdvancedFilters = ({
           {/* Year Range Filter */}
           {yearRange && (
             <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Year Range</label>
+              <label className={cn('block text-sm font-medium mb-2', text.secondary)}>Year Range</label>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
-                  <label htmlFor="year-min" className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1">
+                  <label htmlFor="year-min" className={cn('block text-xs mb-1', text.tertiary)}>
                     From
                   </label>
                   <input
@@ -132,12 +144,18 @@ export const AdvancedFilters = ({
                     max={yearRange.max}
                     value={value.yearMin || yearRange.min}
                     onChange={(e) => handleYearChange('min', parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-2.5 min-h-11 border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    className={cn(
+                      'w-full px-3 py-2.5 min-h-11 border rounded-md',
+                      'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                      bg.elevated,
+                      text.primary,
+                      border.secondary
+                    )}
                   />
                 </div>
-                <span className="text-neutral-400 dark:text-neutral-600 mt-6">—</span>
+                <span className={cn('mt-6', text.tertiary)}>—</span>
                 <div className="flex-1">
-                  <label htmlFor="year-max" className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1">
+                  <label htmlFor="year-max" className={cn('block text-xs mb-1', text.tertiary)}>
                     To
                   </label>
                   <input
@@ -147,7 +165,13 @@ export const AdvancedFilters = ({
                     max={yearRange.max}
                     value={value.yearMax || yearRange.max}
                     onChange={(e) => handleYearChange('max', parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-2.5 min-h-[44px] border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    className={cn(
+                      'w-full px-3 py-2.5 min-h-11 border rounded-md',
+                      'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                      bg.elevated,
+                      text.primary,
+                      border.secondary
+                    )}
                   />
                 </div>
               </div>
@@ -157,18 +181,24 @@ export const AdvancedFilters = ({
           {/* Quality Filter */}
           {qualityOptions.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Quality</label>
+              <label className={cn('block text-sm font-medium mb-2', text.secondary)}>Quality</label>
               <div className="flex flex-wrap gap-2">
                 {qualityOptions.map((quality) => (
                   <button
                     key={quality}
                     type="button"
                     onClick={() => handleQualityToggle(quality)}
-                    className={`px-3 py-1.5 text-sm rounded-full border transition-colors min-h-11 ${
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-full border transition-colors min-h-11 cursor-pointer',
                       value.qualities?.includes(quality)
-                        ? 'bg-rose-500 text-white border-rose-500'
-                        : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950'
-                    }`}
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : cn(
+                            bg.elevated,
+                            text.secondary,
+                            border.secondary,
+                            'hover:border-primary-300 dark:hover:border-primary-700'
+                          )
+                    )}
                     aria-pressed={value.qualities?.includes(quality)}
                   >
                     {quality}
@@ -181,18 +211,24 @@ export const AdvancedFilters = ({
           {/* Watched/Unwatched Filter */}
           {showWatchedFilter && (
             <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Watch Status</label>
+              <label className={cn('block text-sm font-medium mb-2', text.secondary)}>Watch Status</label>
               <div className="flex gap-2">
                 {(['all', 'watched', 'unwatched'] as const).map((status) => (
                   <button
                     key={status}
                     type="button"
                     onClick={() => handleWatchedFilterChange(status)}
-                    className={`flex-1 px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 ${
+                    className={cn(
+                      'flex-1 px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 cursor-pointer',
                       value.watchedFilter === status
-                        ? 'bg-rose-500 text-white border-rose-500'
-                        : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950'
-                    }`}
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : cn(
+                            bg.elevated,
+                            text.secondary,
+                            border.secondary,
+                            'hover:border-primary-300 dark:hover:border-primary-700'
+                          )
+                    )}
                     aria-pressed={value.watchedFilter === status}
                   >
                     {status.charAt(0).toUpperCase() + status.slice(1)}

@@ -94,6 +94,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
 ORDER BY m.sort_title, med.title;
 
 -- name: UpdateMovie :exec
@@ -161,6 +162,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY m.sort_title, med.title;
 
@@ -205,6 +207,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
   AND m.genre ILIKE $2
 ORDER BY m.sort_title, med.title;
 
@@ -249,6 +252,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
   AND m.year = $2
 ORDER BY m.sort_title, med.title;
 
@@ -297,6 +301,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
 ORDER BY COALESCE(m.sort_title, med.title) ASC
 LIMIT $2 OFFSET $3;
 
@@ -341,6 +346,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
 ORDER BY COALESCE(m.sort_title, med.title) DESC
 LIMIT $2 OFFSET $3;
 
@@ -348,13 +354,15 @@ LIMIT $2 OFFSET $3;
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
-WHERE med.library_id = $1;
+WHERE med.library_id = $1
+  AND med.is_extra = false;
 
 -- name: CountSearchMoviesByTitle :one
 SELECT COUNT(*)
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3);
 
 -- name: SearchMoviesByTitlePaginated :many
@@ -398,6 +406,7 @@ SELECT
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
   AND (med.title ILIKE $2 OR m.original_title ILIKE $3)
 ORDER BY COALESCE(m.sort_title, med.title) ASC
 LIMIT $4 OFFSET $5;
@@ -407,6 +416,7 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
 ORDER BY COALESCE(m.sort_title, med.title) ASC
 LIMIT $2 OFFSET $3;
 
@@ -415,5 +425,6 @@ SELECT med.id
 FROM movies m
 JOIN media med ON m.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
 ORDER BY COALESCE(m.sort_title, med.title) DESC
 LIMIT $2 OFFSET $3;

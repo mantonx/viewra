@@ -1,0 +1,2 @@
+-- No safe way to reverse this migration as we've lost the original incorrect entity_id values
+-- A full library rescan would be needed to regenerate the images with correct associations

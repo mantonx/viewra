@@ -1,4 +1,5 @@
-import { getProgressPercentage } from '@/lib/utils'
+import { getProgressPercentage, cn } from '@/lib/utils'
+import { text, bg } from '@/styles/semantic'
 import type { MediaMetadataProps } from './MediaMetadata.types'
 
 export const MediaMetadata = ({
@@ -16,7 +17,7 @@ export const MediaMetadata = ({
 }: MediaMetadataProps) => {
   // Format duration to hours and minutes
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return null
+    if (!seconds) {return null}
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
     if (hours > 0) {
@@ -32,7 +33,7 @@ export const MediaMetadata = ({
     <>
       {/* Title + Watched Indicator */}
       <div className="flex items-start justify-between gap-2 mb-1">
-        <h3 className="font-semibold text-sm line-clamp-2 flex-1 text-neutral-900 dark:text-neutral-50">
+        <h3 className={cn('font-semibold text-sm line-clamp-2 flex-1', text.primary)}>
           {title}
         </h3>
         {progress?.is_watched && getProgressPercentage(progress) >= 95 && (
@@ -43,7 +44,7 @@ export const MediaMetadata = ({
       </div>
 
       {/* Year and Duration OR Season/Episode counts */}
-      <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400 mb-2">
+      <div className={cn('flex items-center gap-2 text-xs mb-2', text.secondary)}>
         {year && <span className="font-medium">{year}</span>}
         {year && (formattedDuration || seasonCount !== undefined) && <span>•</span>}
         {formattedDuration && <span>{formattedDuration}</span>}
@@ -63,7 +64,7 @@ export const MediaMetadata = ({
       {/* Genre */}
       {primaryGenre && (
         <div className="mb-2">
-          <span className="inline-block px-2 py-1 text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded">
+          <span className={cn('inline-block px-2 py-1 text-xs rounded', bg.tertiary, text.secondary)}>
             {primaryGenre}
           </span>
         </div>
@@ -71,7 +72,10 @@ export const MediaMetadata = ({
 
       {/* Plot preview */}
       {plot && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 mb-2">
+        <p
+          className={cn('text-xs line-clamp-2 mb-2', text.secondary)}
+          title={plot.length > 100 ? plot : undefined}
+        >
           {plot.substring(0, 100)}
           {plot.length > 100 ? '...' : ''}
         </p>
@@ -79,13 +83,13 @@ export const MediaMetadata = ({
 
       {/* Director */}
       {director && (
-        <p className="text-xs text-neutral-500 dark:text-neutral-500 truncate">
+        <p className={cn('text-xs truncate', text.tertiary)}>
           <span className="font-medium">Dir:</span> {director}
         </p>
       )}
 
       {/* Progress or file size */}
-      <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-500 mt-2">
+      <div className={cn('flex items-center justify-between text-xs mt-2', text.tertiary)}>
         {progress && getProgressPercentage(progress) > 0 && !progress.is_watched ? (
           <span className="text-blue-600 font-medium">
             {Math.floor(getProgressPercentage(progress))}% watched

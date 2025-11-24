@@ -1,11 +1,9 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import { AudioPlayerProvider } from '@/lib/contexts/AudioPlayerContext'
 import { AudioPlayer } from '@/components/music'
-import { useTheme } from '@/contexts'
-import { Home, Library, Film, Tv, Music, Clock, Moon, Sun } from 'lucide-react'
+import { Home, Library, Film, Tv, Music, Clock, Eye } from 'lucide-react'
 
 const Layout = () => {
-  const { theme, toggleTheme } = useTheme()
 
   return (
     <AudioPlayerProvider>
@@ -67,6 +65,14 @@ const Layout = () => {
                 Settings
               </p>
               <Link
+                to="/settings/display"
+                className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                activeProps={{ className: 'bg-neutral-100 dark:bg-neutral-800' }}
+              >
+                <Eye className="w-5 h-5" />
+                <span>Display</span>
+              </Link>
+              <Link
                 to="/settings/scheduler"
                 className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 activeProps={{ className: 'bg-neutral-100 dark:bg-neutral-800' }}
@@ -77,24 +83,7 @@ const Layout = () => {
             </div>
           </nav>
 
-          <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
-            <button
-              onClick={toggleTheme}
-              className="w-full flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? (
-                <>
-                  <Sun className="w-5 h-5" />
-                  <span>Light Mode</span>
-                </>
-              ) : (
-                <>
-                  <Moon className="w-5 h-5" />
-                  <span>Dark Mode</span>
-                </>
-              )}
-            </button>
+          <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
             <div className="text-sm text-neutral-500 dark:text-neutral-400">
               <p>Version 0.0.1</p>
             </div>
@@ -102,7 +91,7 @@ const Layout = () => {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-hidden pb-32">
+        <main className="flex-1 overflow-y-auto pb-32">
           <Outlet />
         </main>
 

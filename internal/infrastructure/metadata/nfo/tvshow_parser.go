@@ -366,3 +366,23 @@ func FindTVShowNFO(showDir string) (string, error) {
 func FindEpisodeNFO(episodePath string) (string, error) {
 	return FindNFOFile(episodePath, "episode.nfo")
 }
+
+// DetermineShowDirectory extracts the TV show directory from an episode file path
+// Handles two common structures:
+// 1. With season subdirs: /path/to/show/Season 01/episode.mkv -> /path/to/show
+// 2. Without season subdirs: /path/to/show/episode.mkv -> /path/to/show
+func DetermineShowDirectory(episodeFilePath string) string {
+	// Get the directory containing the episode file
+	episodeDir := filepath.Dir(episodeFilePath)
+	dirName := filepath.Base(episodeDir)
+
+	// Check if episode is in a season subdirectory (e.g., "Season 01", "Season 1", "S01")
+	lowerDirName := strings.ToLower(dirName)
+	if strings.HasPrefix(lowerDirName, "season") || strings.HasPrefix(lowerDirName, "s") && len(dirName) <= 4 {
+		// Episode is in a season subdir, so parent dir is the show dir
+		return filepath.Dir(episodeDir)
+	}
+
+	// Episode is directly in the show directory
+	return episodeDir
+}

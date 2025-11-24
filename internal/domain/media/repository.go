@@ -110,8 +110,14 @@ type TVRepository interface {
 	// SearchTVEpisodes searches for TV episodes by show title or episode title
 	SearchTVEpisodes(ctx context.Context, libraryID int64, query string) ([]*TVEpisode, error)
 
+	// GetTVShowByID retrieves a TV show by its ID
+	GetTVShowByID(ctx context.Context, id int64) (TVShow, error)
+
 	// GetTVShowByTitle retrieves a TV show by library ID and title
 	GetTVShowByTitle(ctx context.Context, libraryID int64, title string) (TVShow, error)
+
+	// UpdateTVShow updates an existing TV show's metadata
+	UpdateTVShow(ctx context.Context, show TVShow) error
 
 	// GetTVSeasonByShowAndNumber retrieves a TV season by show ID and season number
 	GetTVSeasonByShowAndNumber(ctx context.Context, showID int64, seasonNumber int64) (TVSeason, error)
@@ -135,9 +141,15 @@ type TVRepository interface {
 
 // TVShow represents a TV show for use in repository operations
 type TVShow struct {
-	ID        int64
-	LibraryID int64
-	Title     string
+	ID            int64
+	LibraryID     int64
+	Title         string
+	Year          int
+	Genre         []string
+	Plot          string
+	IMDbID        string
+	TMDbID        int
+	ContentRating string
 }
 
 // TVShowWithCounts represents a TV show with aggregated season and episode counts

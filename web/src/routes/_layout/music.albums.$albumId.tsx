@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, Button } from '@/components/ui'
 import { TrackList } from '@/components/music'
 import { EmptyState, LoadingPage, ErrorPage } from '@/components/common'
+import { MediaPoster } from '@/components/media/MediaPoster'
 import { musicApi } from '@/lib/api/music'
 import { useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import type { MusicTrackResponse } from '@/lib/types/music'
@@ -86,11 +87,19 @@ const AlbumDetail = () => {
       {/* Album header */}
       <div className="mb-6">
         <div className="flex items-start gap-6">
-          {/* Album art placeholder */}
-          <div className="w-48 h-48 bg-linear-to-br from-purple-500 to-indigo-600 rounded-lg shadow-lg flex items-center justify-center text-white text-6xl shrink-0">
-            <span role="img" aria-label="Album">
-              💿
-            </span>
+          {/* Album art */}
+          <div className="w-48 h-48 rounded-lg shadow-lg overflow-hidden shrink-0 bg-neutral-800">
+            {albumIdNum && (
+              <MediaPoster
+                mediaId={albumIdNum}
+                mediaType="music-album"
+                alt={albumName}
+                className="w-full h-full object-cover"
+                preset="large"
+                aspectRatio="square"
+                fallbackIcon="💿"
+              />
+            )}
           </div>
 
           {/* Album info */}

@@ -12,6 +12,8 @@ import { useInfiniteArtists, flattenArtists } from '@/lib/hooks/useInfiniteArtis
 import { useInfiniteMovies, flattenMovies } from '@/lib/hooks/useInfiniteMovies'
 import { useInfiniteScrollObserver } from '@/lib/hooks/useInfiniteScrollObserver'
 import { useInfiniteTVShows, flattenTVShows } from '@/lib/hooks/useInfiniteTVShows'
+import { text } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
 import type { InfiniteMediaGridProps, MediaItem } from './InfiniteMediaGrid.types'
 
 export const InfiniteMediaGrid = <T extends MediaItem>({
@@ -156,7 +158,7 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-neutral-400 dark:text-neutral-600">Loading {type}...</div>
+        <div className={cn(text.tertiary)}>Loading {type}...</div>
       </div>
     )
   }
@@ -174,7 +176,7 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
   if (filteredItems.length === 0) {
     return emptyState || (
       <div className="flex items-center justify-center py-20">
-        <div className="text-neutral-400 dark:text-neutral-600">No {type} found</div>
+        <div className={cn(text.tertiary)}>No {type} found</div>
       </div>
     )
   }
@@ -199,12 +201,12 @@ export const InfiniteMediaGrid = <T extends MediaItem>({
       {/* Infinite scroll trigger */}
       <div ref={observerRef} className="h-20 flex items-center justify-center">
         {isFetchingNextPage && (
-          loadingIndicator || <div className="text-neutral-400 dark:text-neutral-600">Loading more {type}...</div>
+          loadingIndicator || <div className={cn(text.tertiary)}>Loading more {type}...</div>
         )}
       </div>
 
       {/* Item count */}
-      <div className="mt-4 text-sm text-neutral-500 dark:text-neutral-500 text-center">
+      <div className={cn('mt-4 text-sm text-center', text.tertiary)}>
         Showing {filteredItems.length} of {allItems.length} {type}
       </div>
     </BatchImagesProvider>

@@ -11,6 +11,8 @@ import { getErrorMessage } from '@/lib/utils/error'
 import { formatFileSize, formatDate, pluralize } from '@/lib/utils/format'
 import { isScanErrorsResponse } from '@/lib/utils/type-guards'
 import { ERROR_CATEGORY_COLORS } from '@/lib/constants/scan'
+import { bg, text, border } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
 import type { ScanErrorsDialogProps } from './ScanErrorsDialog.types'
 
 const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }: ScanErrorsDialogProps) => {
@@ -86,7 +88,7 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
         )}
 
         {errorData && (errorData.total_errors ?? 0) === 0 && (
-          <div className="text-center py-8 text-neutral-500 dark:text-neutral-500">
+          <div className={cn('text-center py-8', text.tertiary)}>
             No errors found for this scan
           </div>
         )}
@@ -119,14 +121,14 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
                 </button>
 
                 {expandedCategory === category && (
-                  <div className="bg-white dark:bg-neutral-900">
-                    <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  <div className={cn(bg.elevated)}>
+                    <ul className={cn('divide-y', border.secondary)}>
                       {typedItems.map((item, idx) => {
                         const isWarning = item.status === 'warning'
                         const fileName = item.file_path?.split('/').pop() || item.file_path || 'Unknown file'
                         const filePath = item.file_path || ''
                         return (
-                        <li key={idx} className="p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                        <li key={idx} className={cn('p-4 transition-colors', bg.hover.subtle)}>
                           <div className="space-y-3">
                             <div className="flex items-start gap-3">
                               {isWarning ? (
@@ -139,13 +141,13 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
                                 </svg>
                               )}
                               <div className="flex-1 min-w-0 space-y-1">
-                                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50 break-words" title={filePath}>
+                                <p className={cn('text-sm font-medium break-words', text.primary)} title={filePath}>
                                   {fileName}
                                 </p>
-                                <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono break-all">
+                                <p className={cn('text-xs font-mono break-all', text.tertiary)}>
                                   {filePath}
                                 </p>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-500">
+                                <div className={cn('flex flex-wrap gap-x-4 gap-y-1 text-xs', text.tertiary)}>
                                   <span>Size: {formatFileSize(item.file_size ?? 0)}</span>
                                   {item.processed_at && (
                                     <span>
@@ -177,7 +179,7 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
       <ModalFooter className="justify-between">
         {errorData && (errorData.total_errors ?? 0) > 0 ? (
           <>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className={cn('text-sm', text.secondary)}>
               {errorCount > 0 && warningCount > 0 && (
                 <>{pluralize(errorCount, 'error')} and {pluralize(warningCount, 'warning')}</>
               )}

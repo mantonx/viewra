@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { text } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {
   icon?: ReactNode
@@ -25,8 +27,8 @@ const EmptyState = ({ icon, title, description, action, className = '' }: EmptyS
   return (
     <div className={`text-center py-12 ${className}`}>
       {icon && <div className="text-6xl mb-4">{icon}</div>}
-      <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50 mb-2">{title}</h3>
-      {description && <p className="text-neutral-600 dark:text-neutral-400 mb-4">{description}</p>}
+      <h3 className={cn('text-lg font-semibold mb-2', text.primary)}>{title}</h3>
+      {description && <p className={cn('mb-4', text.secondary)}>{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   )

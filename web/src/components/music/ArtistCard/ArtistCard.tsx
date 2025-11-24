@@ -6,10 +6,9 @@ import type { ArtistCardProps } from './ArtistCard.types'
 const ArtistCard = ({ artist, onClick }: ArtistCardProps) => {
   const { preferences } = useBadgePreferences()
 
-  // Check if artist is newly added (within last 7 days)
-  const isNew =
-    artist.created_at &&
-    Date.now() - new Date(artist.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+  // Note: created_at not available in ArtistSummary type
+  // TODO: Enable when backend adds created_at field to artist summaries
+  const isNew = false
 
   return (
     <MediaCard

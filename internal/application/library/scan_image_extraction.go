@@ -76,16 +76,34 @@ func (uc *ScanLibraryUseCase) extractImagesForEpisode(ctx context.Context, episo
 	uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, episode.Season)
 }
 
-// extractImagesForTrack extracts images for a music track (album and artist)
+// extractImagesForTrack extracts images for a music track (track, album, and artist)
 // Shared helper to eliminate duplication between create and update paths
 func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *media.MusicTrack, filePath string) {
+	// Extract track-level images (embedded album art)
+	if uc.trackImageExtractor != nil {
+		mediaID := int(track.Media.ID)
+		if err := uc.trackImageExtractor.Execute(ctx, filePath, images.MediaTypeMusicTrack, mediaID, &mediaID); err != nil {
+			uc.logger.Warn("failed to extract images for track",
+				"track", track.Title,
+				"file_path", filePath,
+				"error", err)
+			// Track as warning in scan_state for user visibility
+			if setErr := uc.scanRepos.ScanState.SetWarning(ctx, track.Media.LibraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
+				uc.logger.Warn("failed to set image extraction warning in scan_state",
+					"file_path", filePath,
+					"error", setErr)
+			}
+		}
+	}
+
 	// Extract album images
-	if track.Album != "" && uc.albumImageExtractor != nil {
+	if track.Album != "" && track.AlbumID > 0 && uc.albumImageExtractor != nil {
 		albumDir := filepath.Dir(filePath)
-		entityID := int(track.Media.ID)
+		entityID := int(track.AlbumID)
 		if err := uc.albumImageExtractor.Execute(ctx, albumDir, images.MediaTypeMusicAlbum, entityID); err != nil {
 			uc.logger.Warn("failed to extract images for album",
 				"album", track.Album,
+				"album_id", track.AlbumID,
 				"file_path", filePath,
 				"error", err)
 			// Track as warning in scan_state for user visibility
@@ -98,15 +116,16 @@ func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *
 	}
 
 	// Extract artist images (once per artist)
-	if track.Artist != "" && uc.artistImageExtractor != nil {
+	if track.Artist != "" && track.ArtistID > 0 && uc.artistImageExtractor != nil {
 		artistDir := filepath.Dir(filepath.Dir(filePath)) // Parent of album dir
-		entityID := int(track.Media.ID)
+		entityID := int(track.ArtistID)
 
 		// Atomically check and mark artist as processed (prevents race condition)
 		if uc.tryMarkArtistProcessed(track.Artist) {
 			if err := uc.artistImageExtractor.Execute(ctx, artistDir, images.MediaTypeMusicArtist, entityID); err != nil {
 				uc.logger.Warn("failed to extract artist images",
 					"artist", track.Artist,
+					"artist_id", track.ArtistID,
 					"error", err)
 				// Artist image extraction failures don't get tracked per-file since they're per-artist
 			}
@@ -124,6 +143,14 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 			"show_title", showTitle,
 			"error", err)
 		return
+	}
+
+	// Enrich show metadata from NFO file (once per show)
+	// Use atomic check-and-set to ensure we only process each show once
+	if uc.tryMarkShowMetadataProcessed(showTitle) {
+		// Episode file path is needed to determine show directory structure
+		episodeFilePath := filepath.Join(showDir, "dummy.mkv") // We already have showDir
+		uc.enrichTVShowMetadataFromNFO(ctx, show.ID, episodeFilePath)
 	}
 
 	// Extract show images
@@ -175,5 +202,12 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 // This uses LoadOrStore for atomic check-and-set to prevent race conditions
 func (uc *ScanLibraryUseCase) tryMarkArtistProcessed(artistName string) bool {
 	_, alreadyProcessed := uc.processedArtists.LoadOrStore(artistName, true)
+	return !alreadyProcessed // Return true if this is the first time
+}
+
+// tryMarkShowMetadataProcessed atomically checks if a show's metadata has been processed
+// and marks it as processed if not. Returns true if this is the first time processing this show.
+func (uc *ScanLibraryUseCase) tryMarkShowMetadataProcessed(showTitle string) bool {
+	_, alreadyProcessed := uc.processedShows.LoadOrStore(showTitle, true)
 	return !alreadyProcessed // Return true if this is the first time
 }

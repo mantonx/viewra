@@ -5,7 +5,7 @@ import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider } from '@/lib/hooks'
 import type { ViewMode } from '@/components/common'
 import type { GithubComMantonxViewraInternalApplicationMusicArtistSummary } from '@/lib/api/generated/models'
-import type { Artist } from '@/types/music'
+import type { ArtistSummary } from '@/lib/types/music'
 
 const Music = () => {
   const navigate = useNavigate()
@@ -132,7 +132,7 @@ const Music = () => {
             renderItem={(artist) => (
               <ArtistCard
                 key={artist.id}
-                artist={artist as Artist}
+                artist={artist as ArtistSummary}
                 onClick={() => artist.id && handleArtistClick(artist.id)}
               />
             )}

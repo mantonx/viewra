@@ -66,7 +66,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
   isFetchingNextPage,
   onScroll,
 }: VirtualMediaGridProps<T>) => {
-  const { parentRef, virtualRows, totalHeight } = useVirtualGrid({
+  const { parentRef, virtualRows, totalHeight, rowVirtualizer } = useVirtualGrid({
     itemCount: items.length,
     columns,
     estimatedRowHeight,
@@ -86,6 +86,9 @@ export const VirtualMediaGrid = <T extends { id: number }>({
       style={{
         height: '100%',
         overflow: 'auto',
+        // Add padding to prevent clipping on edges when cards scale up
+        paddingLeft: '8px',
+        paddingRight: '8px',
       }}
     >
       <div
@@ -93,7 +96,6 @@ export const VirtualMediaGrid = <T extends { id: number }>({
           height: `${totalHeight + 24}px`,
           width: '100%',
           position: 'relative',
-          paddingBottom: '16px',
         }}
       >
         {virtualRows.map((virtualRow: VirtualItem) => {
@@ -104,12 +106,13 @@ export const VirtualMediaGrid = <T extends { id: number }>({
           return (
             <div
               key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
-                height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start + 24}px)`,
                 overflow: 'visible',
               }}
@@ -120,6 +123,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
                   gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
                   overflow: 'visible',
                   paddingTop: '16px',
+                  paddingBottom: '16px',
                 }}
               >
                 {isLoaderRow ? (

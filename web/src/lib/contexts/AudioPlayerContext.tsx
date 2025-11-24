@@ -9,7 +9,9 @@ interface AudioPlayerContextType {
   queue: MusicTrackResponse[]
   currentIndex: number
   isPlaying: boolean
+  isLoading: boolean
   volume: number
+  isMuted: boolean
   currentTime: number
   duration: number
   isShuffle: boolean
@@ -23,6 +25,7 @@ interface AudioPlayerContextType {
   playPrevious: () => void
   seek: (time: number) => void
   setVolume: (volume: number) => void
+  toggleMute: () => void
   toggleShuffle: () => void
   toggleRepeat: () => void
   clearQueue: () => void
@@ -47,12 +50,25 @@ interface AudioPlayerProviderProps {
 export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const volumeBeforeMuteRef = useRef<number>(0.8)
+
+  // Load volume from localStorage or use default
+  const getInitialVolume = () => {
+    try {
+      const savedVolume = localStorage.getItem('audioPlayerVolume')
+      return savedVolume ? parseFloat(savedVolume) : 0.8
+    } catch {
+      return 0.8
+    }
+  }
 
   const [currentTrack, setCurrentTrack] = useState<MusicTrackResponse | null>(null)
   const [queue, setQueue] = useState<MusicTrackResponse[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [volume, setVolumeState] = useState(0.8)
+  const [isLoading, setIsLoading] = useState(false)
+  const [volume, setVolumeState] = useState(getInitialVolume)
+  const [isMuted, setIsMuted] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [isShuffle, setIsShuffle] = useState(false)
@@ -67,10 +83,19 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       // Event listeners
       audioRef.current.addEventListener('loadedmetadata', () => {
         setDuration(audioRef.current?.duration || 0)
+        setIsLoading(false)
       })
 
       audioRef.current.addEventListener('timeupdate', () => {
         setCurrentTime(audioRef.current?.currentTime || 0)
+      })
+
+      audioRef.current.addEventListener('waiting', () => {
+        setIsLoading(true)
+      })
+
+      audioRef.current.addEventListener('canplay', () => {
+        setIsLoading(false)
       })
 
       audioRef.current.addEventListener('ended', handleTrackEnded)
@@ -81,6 +106,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
           logger.error('Audio playback error:', e)
         }
         setIsPlaying(false)
+        setIsLoading(false)
       })
     }
 
@@ -98,12 +124,20 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [volume])
 
-  // Update volume when changed
+  // Update volume when changed and save to localStorage
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = volume
+      audioRef.current.volume = isMuted ? 0 : volume
     }
-  }, [volume])
+    // Save to localStorage (only save non-muted volume)
+    if (!isMuted) {
+      try {
+        localStorage.setItem('audioPlayerVolume', volume.toString())
+      } catch (error) {
+        logger.error('Failed to save volume to localStorage:', error)
+      }
+    }
+  }, [volume, isMuted])
 
   // Report progress to backend every 5 seconds
   useEffect(() => {
@@ -189,6 +223,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const loadAndPlay = async (track: MusicTrackResponse) => {
     if (!audioRef.current) {return}
 
+    setIsLoading(true)
     const streamUrl = `${API_BASE_URL}/api/stream/${track.id}`
     audioRef.current.src = streamUrl
 
@@ -198,6 +233,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     } catch (error) {
       logger.error('Failed to play track:', error)
       setIsPlaying(false)
+      setIsLoading(false)
     }
   }
 
@@ -264,6 +300,21 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const setVolume = (newVolume: number) => {
     const clampedVolume = Math.max(0, Math.min(1, newVolume))
     setVolumeState(clampedVolume)
+    // Unmute if volume is changed from 0
+    if (isMuted && clampedVolume > 0) {
+      setIsMuted(false)
+    }
+  }
+
+  const toggleMute = () => {
+    if (isMuted) {
+      // Unmute: restore previous volume
+      setIsMuted(false)
+    } else {
+      // Mute: save current volume and mute
+      volumeBeforeMuteRef.current = volume
+      setIsMuted(true)
+    }
   }
 
   const toggleShuffle = () => {
@@ -334,7 +385,9 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     queue,
     currentIndex,
     isPlaying,
+    isLoading,
     volume,
+    isMuted,
     currentTime,
     duration,
     isShuffle,
@@ -346,6 +399,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     playPrevious,
     seek,
     setVolume,
+    toggleMute,
     toggleShuffle,
     toggleRepeat,
     clearQueue,

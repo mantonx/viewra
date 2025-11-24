@@ -6,6 +6,8 @@ import { AdvancedFilters, type FilterState } from '@/components/common/AdvancedF
 import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
 import { useLibraryFilter, useDebounce, useGlobalKeyboardShortcuts, useWatchedList } from '@/lib/hooks'
 import { useTheme } from '@/contexts'
+import { bg, text, border, glassStyles } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
 import type { MediaBrowsePageProps } from './MediaBrowsePage.types'
 
 /**
@@ -80,22 +82,49 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
     onHelp: () => setShowHelpModal(true),
   })
 
-  // Sync state with URL params when they change externally
+  // Refs to track if we've initialized state (to avoid loops when callbacks update URL)
+  const isInitializedRef = useRef(false)
+
+  // Refs to track the last synced initial values (to detect external URL changes)
+  const lastSyncedSearchRef = useRef(initialSearch)
+  const lastSyncedSortRef = useRef(initialSort)
+  const lastSyncedFiltersRef = useRef(JSON.stringify(initialFilters))
+  const lastSyncedViewModeRef = useRef(initialViewMode)
+
+  // Sync state with URL params when they change externally (only after initial mount)
   useEffect(() => {
-    setSearchQuery(initialSearch)
+    if (isInitializedRef.current && initialSearch !== lastSyncedSearchRef.current) {
+      lastSyncedSearchRef.current = initialSearch
+      setSearchQuery(initialSearch)
+    }
   }, [initialSearch])
 
   useEffect(() => {
-    setSortBy(initialSort)
+    if (isInitializedRef.current && initialSort !== lastSyncedSortRef.current) {
+      lastSyncedSortRef.current = initialSort
+      setSortBy(initialSort)
+    }
   }, [initialSort])
 
   useEffect(() => {
-    setFilters(initialFilters)
+    const initialFiltersStr = JSON.stringify(initialFilters)
+    if (isInitializedRef.current && initialFiltersStr !== lastSyncedFiltersRef.current) {
+      lastSyncedFiltersRef.current = initialFiltersStr
+      setFilters(initialFilters)
+    }
   }, [initialFilters])
 
   useEffect(() => {
-    setViewMode(initialViewMode)
+    if (isInitializedRef.current && initialViewMode !== lastSyncedViewModeRef.current) {
+      lastSyncedViewModeRef.current = initialViewMode
+      setViewMode(initialViewMode)
+    }
   }, [initialViewMode])
+
+  // Mark as initialized after first render
+  useEffect(() => {
+    isInitializedRef.current = true
+  }, [])
 
   // Debounce search query to avoid filtering on every keystroke (300ms delay)
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -103,27 +132,44 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   // Get libraryId for rendering (library filtering happens at the page level via useInfiniteMovies/etc hooks)
   const { libraryId } = useLibraryFilter(type)
 
-  // Notify parent of state changes for URL preservation
+  // Use refs to track previous values to detect actual user changes vs prop syncing
+  const prevSearchRef = useRef(searchQuery)
+  const prevSortRef = useRef(sortBy)
+  const prevFiltersRef = useRef(filters)
+  const prevViewModeRef = useRef(viewMode)
+
+  // Notify parent of state changes for URL preservation (only when user changes state, not from prop sync)
   useEffect(() => {
-    if (onSearchChange) {
+    if (isInitializedRef.current && onSearchChange && searchQuery !== prevSearchRef.current) {
+      prevSearchRef.current = searchQuery
+      lastSyncedSearchRef.current = searchQuery // Update last synced to match what we're about to send to URL
       onSearchChange(searchQuery)
     }
   }, [searchQuery, onSearchChange])
 
   useEffect(() => {
-    if (onSortChange) {
+    if (isInitializedRef.current && onSortChange && sortBy !== prevSortRef.current) {
+      prevSortRef.current = sortBy
+      lastSyncedSortRef.current = sortBy // Update last synced to match what we're about to send to URL
       onSortChange(sortBy)
     }
   }, [sortBy, onSortChange])
 
   useEffect(() => {
-    if (onFiltersChange) {
-      onFiltersChange(filters)
+    if (isInitializedRef.current && onFiltersChange) {
+      const filtersChanged = JSON.stringify(filters) !== JSON.stringify(prevFiltersRef.current)
+      if (filtersChanged) {
+        prevFiltersRef.current = filters
+        lastSyncedFiltersRef.current = JSON.stringify(filters) // Update last synced to match what we're about to send to URL
+        onFiltersChange(filters)
+      }
     }
   }, [filters, onFiltersChange])
 
   useEffect(() => {
-    if (onViewModeChange) {
+    if (isInitializedRef.current && onViewModeChange && viewMode !== prevViewModeRef.current) {
+      prevViewModeRef.current = viewMode
+      lastSyncedViewModeRef.current = viewMode // Update last synced to match what we're about to send to URL
       onViewModeChange(viewMode)
     }
   }, [viewMode, onViewModeChange])
@@ -237,7 +283,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
 
   return (
     <div className="h-screen overflow-hidden flex flex-col relative">
-      <div className={`sticky top-0 z-10 flex-shrink-0 transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2 px-8' : 'p-8 pb-0'}`} style={{ background: 'transparent' }}>
+      <div className={`sticky top-0 z-10 flex-shrink-0 transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2 px-4' : 'p-4 pb-0'}`} style={{ background: 'transparent' }}>
       {/* Page header */}
       <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isHeaderMinimized ? 'max-h-0 opacity-0' : 'max-h-32 opacity-100'}`}>
         {customHeader || <PageHeader title={title} description={description} />}
@@ -245,17 +291,8 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
 
       {/* Filters */}
       <div
-        className={`${isHeaderMinimized ? 'mb-3 px-3 py-2.5' : 'mb-6 px-5 py-4'} rounded-xl transition-all duration-300 ease-out ${
-          theme === 'dark' ? 'border-white/20' : 'border-black/20'
-        }`}
-        style={{
-          backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.75)',
-          backdropFilter: 'blur(16px) saturate(130%)',
-          WebkitBackdropFilter: 'blur(16px) saturate(130%)',
-          boxShadow: theme === 'dark'
-            ? '0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)'
-            : '0 8px 32px 0 rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.8)'
-        }}
+        className={`${isHeaderMinimized ? 'mb-3 px-3 py-2.5' : 'mb-6 px-5 py-4'} rounded-xl transition-all duration-300 ease-out border`}
+        style={glassStyles.enhanced(theme === 'dark')}
       >
         <div>
           <form role="search" aria-label={`Filter and sort ${type}`} onSubmit={(e) => e.preventDefault()}>
@@ -288,7 +325,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
               {enableViewToggle && (
                 <div>
                   <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isHeaderMinimized ? 'max-h-0 opacity-0' : 'max-h-10 opacity-100'}`}>
-                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    <label className={cn('block text-sm font-medium mb-2', text.secondary)}>
                       View
                     </label>
                   </div>
@@ -318,7 +355,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
 
       {/* Items grid or empty state */}
       <div
-        className={`flex-1 min-h-0 px-8 pb-8 ${viewMode === 'list' || sortedItems.length === 0 ? 'overflow-auto' : ''}`}
+        className={`flex-1 min-h-0 ${viewMode === 'list' || sortedItems.length === 0 ? 'overflow-auto px-4' : 'px-2'}`}
         onScroll={(e) => {
           // Track scroll for header minimization in list view and empty states
           if (viewMode === 'list' || sortedItems.length === 0) {
@@ -366,41 +403,45 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
           onClick={() => setShowHelpModal(false)}
         >
           <div
-            className="bg-white dark:bg-neutral-900 rounded-lg shadow-xl dark:shadow-neutral-950/50 max-w-md w-full mx-4 p-6"
+            className={cn('rounded-lg shadow-xl max-w-md w-full mx-4 p-6', bg.elevated, 'dark:shadow-neutral-950/50')}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">Keyboard Shortcuts</h2>
+              <h2 className={cn('text-lg font-semibold', text.primary)}>Keyboard Shortcuts</h2>
               <button
                 onClick={() => setShowHelpModal(false)}
-                className="text-neutral-400 dark:text-neutral-600 hover:text-neutral-600 dark:hover:text-neutral-400 min-h-11 min-w-11 flex items-center justify-center"
+                className={cn(
+                  'min-h-11 min-w-11 flex items-center justify-center',
+                  text.tertiary,
+                  'hover:text-neutral-600 dark:hover:text-neutral-400'
+                )}
                 aria-label="Close help modal"
               >
                 ✕
               </button>
             </div>
             <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b border-neutral-200 dark:border-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-400">Focus search</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
+              <div className={cn('flex justify-between items-center py-2 border-b', border.secondary)}>
+                <span className={cn('text-sm', text.secondary)}>Focus search</span>
+                <kbd className={cn('px-2 py-1 text-xs font-semibold border rounded', bg.tertiary, border.secondary, text.primary)}>
                   / or Cmd+K
                 </kbd>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-neutral-200 dark:border-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-400">Navigate grid</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
+              <div className={cn('flex justify-between items-center py-2 border-b', border.secondary)}>
+                <span className={cn('text-sm', text.secondary)}>Navigate grid</span>
+                <kbd className={cn('px-2 py-1 text-xs font-semibold border rounded', bg.tertiary, border.secondary, text.primary)}>
                   Arrow keys
                 </kbd>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-neutral-200 dark:border-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-400">Select item</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
+              <div className={cn('flex justify-between items-center py-2 border-b', border.secondary)}>
+                <span className={cn('text-sm', text.secondary)}>Select item</span>
+                <kbd className={cn('px-2 py-1 text-xs font-semibold border rounded', bg.tertiary, border.secondary, text.primary)}>
                   Enter
                 </kbd>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-neutral-600 dark:text-neutral-400">Show shortcuts</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-50">
+                <span className={cn('text-sm', text.secondary)}>Show shortcuts</span>
+                <kbd className={cn('px-2 py-1 text-xs font-semibold border rounded', bg.tertiary, border.secondary, text.primary)}>
                   ?
                 </kbd>
               </div>

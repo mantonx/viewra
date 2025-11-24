@@ -163,6 +163,78 @@ export const status = {
 } as const
 
 /**
+ * Glassmorphism Effects
+ *
+ * Modern glass-like translucent backgrounds with blur effects
+ */
+export const glass = {
+  /** Light glassmorphism - subtle translucent effect */
+  light: {
+    bg: 'bg-white/75 dark:bg-black/70',
+    border: 'border-white/20 dark:border-white/20',
+    blur: 'backdrop-blur-sm',
+    full: 'bg-white/75 dark:bg-black/70 backdrop-blur-sm border border-white/20 dark:border-white/20',
+  },
+  /** Medium glassmorphism - balanced translucent effect */
+  medium: {
+    bg: 'bg-white/80 dark:bg-black/75',
+    border: 'border-white/30 dark:border-white/20',
+    blur: 'backdrop-blur-md',
+    full: 'bg-white/80 dark:bg-black/75 backdrop-blur-md border border-white/30 dark:border-white/20',
+  },
+  /** Strong glassmorphism - prominent translucent effect */
+  strong: {
+    bg: 'bg-white/90 dark:bg-black/80',
+    border: 'border-white/40 dark:border-white/20',
+    blur: 'backdrop-blur-lg',
+    full: 'bg-white/90 dark:bg-black/80 backdrop-blur-lg border border-white/40 dark:border-white/20',
+  },
+  /** Custom glass with enhanced saturation (for hero sections, search bars) */
+  enhanced: {
+    /** Base glass background and border */
+    base: 'bg-white/75 dark:bg-black/70 border-black/20 dark:border-white/20',
+    /** Full effect with blur and saturation */
+    full: 'backdrop-blur-[16px] backdrop-saturate-[130%]',
+    /** Light mode shadow */
+    shadowLight: '0 8px 32px 0 rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.8)',
+    /** Dark mode shadow */
+    shadowDark: '0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+  },
+} as const
+
+/**
+ * Glassmorphism Style Objects (for inline styles when needed)
+ *
+ * Use these when Tailwind classes aren't sufficient (e.g., Safari webkit prefixes)
+ */
+export const glassStyles = {
+  /** Light glassmorphism inline styles */
+  light: (isDark: boolean) => ({
+    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.75)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+  }),
+  /** Medium glassmorphism inline styles */
+  medium: (isDark: boolean) => ({
+    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.8)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.3)',
+  }),
+  /** Enhanced glassmorphism with saturation boost */
+  enhanced: (isDark: boolean) => ({
+    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.75)',
+    backdropFilter: 'blur(16px) saturate(130%)',
+    WebkitBackdropFilter: 'blur(16px) saturate(130%)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+    boxShadow: isDark
+      ? '0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)'
+      : '0 8px 32px 0 rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.8)',
+  }),
+} as const
+
+/**
  * Common Component Patterns
  *
  * Pre-composed class strings for common component patterns
@@ -188,4 +260,10 @@ export const patterns = {
 
   /** Page header */
   pageHeader: `${bg.elevated} ${border.primary} border-b`,
+
+  /** Glass card - translucent card with blur */
+  glassCard: `${glass.medium.full} rounded-xl shadow-lg`,
+
+  /** Glass panel - for search bars, toolbars */
+  glassPanel: `${glass.light.full} rounded-lg`,
 } as const

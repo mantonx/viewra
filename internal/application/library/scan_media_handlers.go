@@ -337,6 +337,7 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 	existingMediaCache.Store(result.FilePath, episode.Media.ID)
 
 	// Extract and catalog images for the episode, show, and season
+	// NOTE: Image extraction also triggers show metadata enrichment from NFO files
 	uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
 	return &episode.Media.ID, nil
 }
@@ -481,6 +482,59 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 	if value, found := existingMediaCache.Load(result.FilePath); found {
 		// Update existing entry
 		track.Media.ID = value.(int64)
+
+		// Look up or create artist entity and set artist_id
+		if artist != "" {
+			existingArtist, err := uc.mediaRepos.Music.FindArtistByName(ctx, libraryID, artist)
+			if err == nil && existingArtist != nil {
+				track.ArtistID = existingArtist.ID
+			} else {
+				// Create new artist if it doesn't exist
+				artistEntity := &media.Artist{
+					LibraryID:           libraryID,
+					Name:                artist,
+					MusicBrainzArtistID: musicBrainzArtistID,
+					Genre:               genre,
+				}
+				if createErr := uc.mediaRepos.Music.CreateArtist(ctx, artistEntity); createErr == nil {
+					track.ArtistID = artistEntity.ID
+				}
+			}
+		}
+
+		// Look up or create album entity and set album_id
+		if album != "" {
+			effectiveAlbumArtist := albumArtist
+			if effectiveAlbumArtist == "" {
+				effectiveAlbumArtist = artist
+			}
+			existingAlbum, err := uc.mediaRepos.Music.FindAlbumByTitle(ctx, libraryID, album, effectiveAlbumArtist)
+			if err == nil && existingAlbum != nil {
+				track.AlbumID = existingAlbum.ID
+			} else {
+				// Create new album if it doesn't exist
+				albumEntity := &media.Album{
+					LibraryID:          libraryID,
+					Title:              album,
+					AlbumArtist:        effectiveAlbumArtist,
+					Artist:             artist,
+					Year:               year,
+					ReleaseDate:        releaseDate,
+					Genre:              genre,
+					TotalTracks:        totalTracks,
+					TotalDiscs:         totalDiscs,
+					RecordLabel:        publisher,
+					ReleaseType:        releaseType,
+					Compilation:        compilation,
+					MusicBrainzAlbumID: musicBrainzAlbumID,
+					ArtistID:           track.ArtistID, // Link album to artist if we just created one
+				}
+				if createErr := uc.mediaRepos.Music.CreateAlbum(ctx, albumEntity); createErr == nil {
+					track.AlbumID = albumEntity.ID
+				}
+			}
+		}
+
 		if err := uc.mediaRepos.Media.Update(ctx, &track.Media); err != nil {
 			return nil, fmt.Errorf("failed to update base media record: %w", err)
 		}
@@ -550,6 +604,58 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 				existingMediaCache.Store(result.FilePath, existing.ID)
 			}
 
+			// Look up or create artist entity and set artist_id
+			if artist != "" {
+				existingArtist, findErr := uc.mediaRepos.Music.FindArtistByName(ctx, libraryID, artist)
+				if findErr == nil && existingArtist != nil {
+					track.ArtistID = existingArtist.ID
+				} else {
+					// Create new artist if it doesn't exist
+					newArtist := &media.Artist{
+						LibraryID:           libraryID,
+						Name:                artist,
+						MusicBrainzArtistID: musicBrainzArtistID,
+						Genre:               genre,
+					}
+					if createErr := uc.mediaRepos.Music.CreateArtist(ctx, newArtist); createErr == nil {
+						track.ArtistID = newArtist.ID
+					}
+				}
+			}
+
+			// Look up or create album entity and set album_id
+			if album != "" {
+				effectiveAlbumArtist := albumArtist
+				if effectiveAlbumArtist == "" {
+					effectiveAlbumArtist = artist
+				}
+				existingAlbum, findErr := uc.mediaRepos.Music.FindAlbumByTitle(ctx, libraryID, album, effectiveAlbumArtist)
+				if findErr == nil && existingAlbum != nil {
+					track.AlbumID = existingAlbum.ID
+				} else {
+					// Create new album if it doesn't exist
+					newAlbum := &media.Album{
+						LibraryID:          libraryID,
+						Title:              album,
+						AlbumArtist:        effectiveAlbumArtist,
+						Artist:             artist,
+						Year:               year,
+						ReleaseDate:        releaseDate,
+						Genre:              genre,
+						TotalTracks:        totalTracks,
+						TotalDiscs:         totalDiscs,
+						RecordLabel:        publisher,
+						ReleaseType:        releaseType,
+						Compilation:        compilation,
+						MusicBrainzAlbumID: musicBrainzAlbumID,
+						ArtistID:           track.ArtistID, // Link album to artist if we just created one
+					}
+					if createErr := uc.mediaRepos.Music.CreateAlbum(ctx, newAlbum); createErr == nil {
+						track.AlbumID = newAlbum.ID
+					}
+				}
+			}
+
 			// Update the existing record
 			if updateErr := uc.mediaRepos.Media.Update(ctx, &track.Media); updateErr != nil {
 				return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
@@ -569,4 +675,71 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 	// Extract and catalog images for the album and artist
 	uc.extractImagesForTrack(ctx, track, result.FilePath)
 	return &track.Media.ID, nil
+}
+
+// enrichTVShowMetadataFromNFO attempts to load and update TV show metadata from tvshow.nfo files
+// This is called after the show is created/found to populate rich metadata (year, genre, plot, IMDb/TMDb IDs, etc.)
+func (uc *ScanLibraryUseCase) enrichTVShowMetadataFromNFO(ctx context.Context, showID int64, episodeFilePath string) {
+	// Determine the show directory from the episode file path
+	// TV shows can have two structures:
+	// 1. With season subdirs: /path/to/show/Season 01/episode.mkv -> /path/to/show
+	// 2. Without season subdirs: /path/to/show/episode.mkv -> /path/to/show
+	showDir := nfo.DetermineShowDirectory(episodeFilePath)
+	if showDir == "" {
+		return // Unable to determine show directory
+	}
+
+	// Try to find tvshow.nfo in the show directory
+	nfoPath, err := nfo.FindTVShowNFO(showDir)
+	if err != nil || nfoPath == "" {
+		// No NFO file found - this is fine, not all shows have metadata files
+		return
+	}
+
+	// Parse the NFO file
+	nfoMetadata, err := nfo.ParseTVShowNFO(nfoPath)
+	if err != nil {
+		uc.logger.Warn("failed to parse tvshow.nfo",
+			"nfo_path", nfoPath,
+			"show_id", showID,
+			"error", err)
+		return
+	}
+
+	// Get the current show to preserve fields we're not updating
+	show, err := uc.mediaRepos.TV.GetTVShowByID(ctx, showID)
+	if err != nil {
+		uc.logger.Warn("failed to get TV show for metadata enrichment",
+			"show_id", showID,
+			"error", err)
+		return
+	}
+
+	// Populate show metadata from NFO (only fields that exist in domain.TVShow)
+	if nfoMetadata.Year > 0 {
+		show.Year = nfoMetadata.Year
+	}
+	if len(nfoMetadata.Genre) > 0 {
+		show.Genre = nfoMetadata.Genre
+	}
+	if nfoMetadata.Plot != "" {
+		show.Plot = nfoMetadata.Plot
+	}
+	if nfoMetadata.ContentRating != "" {
+		show.ContentRating = nfoMetadata.ContentRating
+	}
+	if nfoMetadata.IMDbID != "" {
+		show.IMDbID = nfoMetadata.IMDbID
+	}
+	if nfoMetadata.TMDbID > 0 {
+		show.TMDbID = nfoMetadata.TMDbID
+	}
+
+	// Update the show in the database
+	if err := uc.mediaRepos.TV.UpdateTVShow(ctx, show); err != nil {
+		uc.logger.Warn("failed to update TV show with NFO metadata",
+			"show_id", showID,
+			"nfo_path", nfoPath,
+			"error", err)
+	}
 }

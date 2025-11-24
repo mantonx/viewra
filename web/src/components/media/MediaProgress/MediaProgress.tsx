@@ -6,7 +6,7 @@ export const MediaProgress = ({
   showPercentage = true,
   showWatchedIndicator = true,
 }: MediaProgressProps) => {
-  if (!progress) return null
+  if (!progress) {return null}
 
   return (
     <>

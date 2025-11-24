@@ -680,17 +680,17 @@ func (q *Queries) GetTVShowByID(ctx context.Context, id int32) (TvShow, error) {
 
 const getTVShowByTitle = `-- name: GetTVShowByTitle :one
 SELECT id, library_id, title, original_title, sort_title, year, first_air_date, last_air_date, genre, plot, status, content_rating, maturity_rating, network, original_language, country_of_origin, imdb_id, tmdb_id, tvdb_id, created_at, updated_at FROM tv_shows
-WHERE library_id = $1 AND title = $2
+WHERE library_id = $1 AND LOWER(title) = LOWER($2)
 LIMIT 1
 `
 
 type GetTVShowByTitleParams struct {
 	LibraryID int32  `json:"library_id"`
-	Title     string `json:"title"`
+	Lower     string `json:"lower"`
 }
 
 func (q *Queries) GetTVShowByTitle(ctx context.Context, arg GetTVShowByTitleParams) (TvShow, error) {
-	row := q.db.QueryRowContext(ctx, getTVShowByTitle, arg.LibraryID, arg.Title)
+	row := q.db.QueryRowContext(ctx, getTVShowByTitle, arg.LibraryID, arg.Lower)
 	var i TvShow
 	err := row.Scan(
 		&i.ID,
@@ -728,12 +728,16 @@ SELECT
     s.genre,
     s.plot,
     s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+  AND (med.is_extra = false OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
 ORDER BY s.sort_title, s.title
 `
 
@@ -745,6 +749,8 @@ type GetTVShowsWithCountsByLibraryRow struct {
 	Genre         sql.NullString `json:"genre"`
 	Plot          sql.NullString `json:"plot"`
 	ContentRating sql.NullString `json:"content_rating"`
+	ImdbID        sql.NullString `json:"imdb_id"`
+	TmdbID        sql.NullInt32  `json:"tmdb_id"`
 	SeasonCount   int64          `json:"season_count"`
 	EpisodeCount  int64          `json:"episode_count"`
 }
@@ -769,6 +775,8 @@ func (q *Queries) GetTVShowsWithCountsByLibrary(ctx context.Context, libraryID i
 			&i.Genre,
 			&i.Plot,
 			&i.ContentRating,
+			&i.ImdbID,
+			&i.TmdbID,
 			&i.SeasonCount,
 			&i.EpisodeCount,
 		); err != nil {
@@ -794,12 +802,16 @@ SELECT
     s.genre,
     s.plot,
     s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+  AND (med.is_extra = false OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
 ORDER BY COALESCE(s.sort_title, s.title) ASC
 LIMIT $2 OFFSET $3
 `
@@ -818,6 +830,8 @@ type GetTVShowsWithCountsByLibraryPaginatedRow struct {
 	Genre         sql.NullString `json:"genre"`
 	Plot          sql.NullString `json:"plot"`
 	ContentRating sql.NullString `json:"content_rating"`
+	ImdbID        sql.NullString `json:"imdb_id"`
+	TmdbID        sql.NullInt32  `json:"tmdb_id"`
 	SeasonCount   int64          `json:"season_count"`
 	EpisodeCount  int64          `json:"episode_count"`
 }
@@ -839,6 +853,8 @@ func (q *Queries) GetTVShowsWithCountsByLibraryPaginated(ctx context.Context, ar
 			&i.Genre,
 			&i.Plot,
 			&i.ContentRating,
+			&i.ImdbID,
+			&i.TmdbID,
 			&i.SeasonCount,
 			&i.EpisodeCount,
 		); err != nil {
@@ -864,12 +880,16 @@ SELECT
     s.genre,
     s.plot,
     s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
     COUNT(DISTINCT e.season_number) as season_count,
     COUNT(*) as episode_count
 FROM tv_shows s
 LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
 WHERE s.library_id = $1
-GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating
+  AND (med.is_extra = false OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
 ORDER BY COALESCE(s.sort_title, s.title) DESC
 LIMIT $2 OFFSET $3
 `
@@ -888,6 +908,8 @@ type GetTVShowsWithCountsByLibraryPaginatedDescRow struct {
 	Genre         sql.NullString `json:"genre"`
 	Plot          sql.NullString `json:"plot"`
 	ContentRating sql.NullString `json:"content_rating"`
+	ImdbID        sql.NullString `json:"imdb_id"`
+	TmdbID        sql.NullInt32  `json:"tmdb_id"`
 	SeasonCount   int64          `json:"season_count"`
 	EpisodeCount  int64          `json:"episode_count"`
 }
@@ -909,6 +931,8 @@ func (q *Queries) GetTVShowsWithCountsByLibraryPaginatedDesc(ctx context.Context
 			&i.Genre,
 			&i.Plot,
 			&i.ContentRating,
+			&i.ImdbID,
+			&i.TmdbID,
 			&i.SeasonCount,
 			&i.EpisodeCount,
 		); err != nil {
@@ -978,6 +1002,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
 ORDER BY e.show_id, e.season_number, e.episode_number
 `
 
@@ -1153,6 +1178,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE e.season_id = $1
+  AND med.is_extra = false
 ORDER BY e.episode_number
 `
 
@@ -1328,6 +1354,7 @@ SELECT
 FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 WHERE e.show_id = $1
+  AND med.is_extra = false
 ORDER BY e.season_number, e.episode_number
 `
 
@@ -1785,6 +1812,7 @@ FROM tv_episodes e
 JOIN media med ON e.media_id = med.id
 JOIN tv_shows s ON e.show_id = s.id
 WHERE med.library_id = $1
+  AND med.is_extra = false
   AND (e.episode_title ILIKE $2 OR s.title ILIKE $3)
 ORDER BY s.sort_title, e.season_number, e.episode_number
 `

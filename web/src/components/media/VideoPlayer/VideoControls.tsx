@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatTime } from '@/lib/utils'
+import { bg, glass } from '@/styles/semantic'
 
 interface MediaMetadata {
   title: string
@@ -161,7 +162,7 @@ export const VideoControls = ({
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
-          <div className="bg-gradient-to-b from-black/80 to-transparent p-6">
+          <div className="px-6 pt-4 pb-6">
             <div className="flex items-start gap-4">
               {/* Poster artwork */}
               {metadata.posterUrl && (
@@ -189,16 +190,13 @@ export const VideoControls = ({
           showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        {/* Gradient overlay for readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
-
-      {/* Controls container */}
-      <div className="relative px-4 pb-4 pt-8">
+        {/* Controls container */}
+        <div className="px-6 pb-6 pt-8">
         {/* Timeline */}
         <div className="mb-3">
           <div
             ref={timelineRef}
-            className="relative h-1 bg-white/30 rounded-full cursor-pointer group hover:h-2 transition-all"
+            className="relative h-2 md:h-1 bg-white/30 rounded-full cursor-pointer group hover:h-2 transition-all touch-none"
             onClick={handleTimelineInteraction}
             onMouseMove={handleTimelineMouseMove}
             onMouseLeave={() => setHoverTime(null)}
@@ -210,7 +208,7 @@ export const VideoControls = ({
           >
             {/* Progress bar */}
             <div
-              className="absolute h-full bg-indigo-500 rounded-full pointer-events-none"
+              className="absolute h-full bg-primary-500 rounded-full pointer-events-none"
               style={{ width: `${progress}%` }}
             />
 
@@ -229,7 +227,7 @@ export const VideoControls = ({
 
             {/* Scrubber */}
             <div
-              className={`absolute w-4 h-4 bg-indigo-500 rounded-full shadow-lg transition-all pointer-events-none ${
+              className={`absolute w-5 h-5 md:w-4 md:h-4 bg-primary-500 rounded-full shadow-lg transition-all pointer-events-none group-hover:scale-125 ${
                 showControls ? 'opacity-100' : 'opacity-0'
               }`}
               style={{ left: `${progress}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
@@ -244,7 +242,7 @@ export const VideoControls = ({
             {/* Rewind 10 seconds */}
             <button
               onClick={() => onSkip(-10)}
-              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+              className="hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
               aria-label="Rewind 10 seconds"
             >
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -255,7 +253,7 @@ export const VideoControls = ({
             {/* Play/Pause */}
             <button
               onClick={onPlayPause}
-              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+              className="hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
@@ -272,7 +270,7 @@ export const VideoControls = ({
             {/* Skip 10 seconds */}
             <button
               onClick={() => onSkip(10)}
-              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+              className="hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
               aria-label="Skip 10 seconds"
             >
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -284,7 +282,7 @@ export const VideoControls = ({
             <div className="flex items-center gap-2 group">
               <button
                 onClick={onMuteToggle}
-                className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+                className="hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
                 aria-label={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
@@ -311,51 +309,52 @@ export const VideoControls = ({
                   step="0.01"
                   value={volume}
                   onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                  className="w-full accent-indigo-500"
+                  className="w-full accent-primary-500 cursor-pointer"
                 />
               </div>
             </div>
 
             {/* Time display */}
-            <div className="text-sm font-medium">
+            <div className="text-sm font-medium hidden sm:block">
               <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
               {getEndTime() && (
-                <span className="text-white/60 ml-2">• Ends at {getEndTime()}</span>
+                <span className="text-white/60 ml-2 hidden md:inline">• Ends at {getEndTime()}</span>
               )}
             </div>
           </div>
 
           {/* Right controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Speed selector */}
             <select
               value={playbackSpeed}
               onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
-              className="bg-white/10 backdrop-blur-sm text-white text-sm rounded-md px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-              style={{ minWidth: '80px' }}
+              className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+              style={{ minWidth: '60px' }}
+              aria-label="Playback speed"
             >
-              <option value={0.25} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={0.25} className={bg.secondary}>
                 0.25x
               </option>
-              <option value={0.5} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={0.5} className={bg.secondary}>
                 0.5x
               </option>
-              <option value={0.75} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={0.75} className={bg.secondary}>
                 0.75x
               </option>
-              <option value={1} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={1} className={bg.secondary}>
                 Normal
               </option>
-              <option value={1.25} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={1.25} className={bg.secondary}>
                 1.25x
               </option>
-              <option value={1.5} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={1.5} className={bg.secondary}>
                 1.5x
               </option>
-              <option value={1.75} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={1.75} className={bg.secondary}>
                 1.75x
               </option>
-              <option value={2} className="bg-neutral-900 dark:bg-neutral-900">
+              <option value={2} className={bg.secondary}>
                 2x
               </option>
             </select>
@@ -365,14 +364,15 @@ export const VideoControls = ({
               <select
                 value={currentQuality || 0}
                 onChange={(e) => onQualityChange(Number(e.target.value))}
-                className="bg-white/10 backdrop-blur-sm text-white text-sm rounded-md px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ minWidth: '90px' }}
+                className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                style={{ minWidth: '70px' }}
+                aria-label="Video quality"
               >
-                <option value={0} className="bg-neutral-900 dark:bg-neutral-900">
+                <option value={0} className={bg.secondary}>
                   Auto
                 </option>
                 {availableQualities.map((quality) => (
-                  <option key={quality.height} value={quality.height} className="bg-neutral-900 dark:bg-neutral-900">
+                  <option key={quality.height} value={quality.height} className={bg.secondary}>
                     {quality.height}p
                   </option>
                 ))}
@@ -384,12 +384,12 @@ export const VideoControls = ({
               <select
                 value={currentAudioTrack}
                 onChange={(e) => onAudioTrackChange(Number(e.target.value))}
-                className="bg-white/10 backdrop-blur-sm text-white text-sm rounded-md px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                style={{ minWidth: '110px' }}
+                className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50 hidden sm:block"
+                style={{ minWidth: '90px' }}
                 aria-label="Audio track"
               >
                 {availableAudioTracks.map((track) => (
-                  <option key={track.id} value={track.id} className="bg-neutral-900 dark:bg-neutral-900">
+                  <option key={track.id} value={track.id} className={bg.secondary}>
                     {track.name} ({track.language})
                   </option>
                 ))}
@@ -400,7 +400,7 @@ export const VideoControls = ({
             {document.pictureInPictureEnabled && (
               <button
                 onClick={onPiPToggle}
-                className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+                className="hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
                 aria-label={isPiP ? 'Exit Picture-in-Picture' : 'Picture-in-Picture'}
               >
                 {isPiP ? (
@@ -418,7 +418,7 @@ export const VideoControls = ({
             {/* Fullscreen */}
             <button
               onClick={onFullscreenToggle}
-              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+              className="hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
             >
               {isFullscreen ? (

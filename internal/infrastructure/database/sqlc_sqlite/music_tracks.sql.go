@@ -2121,7 +2121,8 @@ SET artist = ?,
     musicbrainz_artist_id = ?,
     original_title = ?,
     sort_title = ?,
-    album_id = ?
+    album_id = ?,
+    artist_id = ?
 WHERE media_id = ?
 `
 
@@ -2148,6 +2149,7 @@ type UpdateMusicTrackParams struct {
 	OriginalTitle       sql.NullString `json:"original_title"`
 	SortTitle           sql.NullString `json:"sort_title"`
 	AlbumID             sql.NullInt64  `json:"album_id"`
+	ArtistID            sql.NullInt64  `json:"artist_id"`
 	MediaID             int64          `json:"media_id"`
 }
 
@@ -2175,6 +2177,7 @@ func (q *Queries) UpdateMusicTrack(ctx context.Context, arg UpdateMusicTrackPara
 		arg.OriginalTitle,
 		arg.SortTitle,
 		arg.AlbumID,
+		arg.ArtistID,
 		arg.MediaID,
 	)
 	return err

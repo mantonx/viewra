@@ -27,11 +27,22 @@ func ProcessAndSaveImages(
 	log = logger.DefaultIfNil(log)
 
 	if extractedImages == nil || len(extractedImages.Images) == 0 {
+		log.Info("no images extracted", "media_type", mediaType, "entity_id", entityID)
 		return nil
 	}
 
+	log.Info("processing extracted images",
+		"media_type", mediaType,
+		"entity_id", entityID,
+		"image_count", len(extractedImages.Images))
+
 	// Process each image
-	for _, imgInfo := range extractedImages.Images {
+	for i, imgInfo := range extractedImages.Images {
+		log.Info("processing image",
+			"index", i+1,
+			"total", len(extractedImages.Images),
+			"type", imgInfo.Type,
+			"path", imgInfo.Path)
 		// Extract metadata (calculate hash to check for duplicates)
 		metadata, err := metadataExtractor.ExtractMetadata(imgInfo.Path)
 		if err != nil {

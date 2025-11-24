@@ -196,7 +196,7 @@ func (h *ImagesHandler) ServeImage(c *gin.Context) {
 // @Failure 500 {object} ErrorResponse
 // @Router /api/media/{mediaId}/images [get]
 func (h *ImagesHandler) GetMediaImages(c *gin.Context) {
-	mediaID, err := parseID(c.Param("mediaId"))
+	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error:   "Invalid media ID",

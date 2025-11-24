@@ -6,7 +6,7 @@ import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvid
 import { tvApi } from '@/lib/api/tv'
 import type { ViewMode } from '@/components/common'
 import type { GithubComMantonxViewraInternalApplicationTvTVShowSummary } from '@/lib/api/generated/models'
-import type { TVShow } from '@/types/tv'
+import type { TVShowSummary } from '@/lib/types/tv'
 
 const TVShows = () => {
   const navigate = useNavigate()
@@ -60,27 +60,41 @@ const TVShows = () => {
 
   const allShows = data ? flattenTVShows(data.pages as Array<{ shows?: GithubComMantonxViewraInternalApplicationTvTVShowSummary[] }>) : []
 
-  // Calculate responsive columns for virtualization
+  // Calculate responsive columns and estimated row height for virtualization
   const [columns, setColumns] = useState(6)
+  const [estimatedRowHeight, setEstimatedRowHeight] = useState(550)
+
   useEffect(() => {
-    const updateColumns = () => {
+    const updateLayout = () => {
       const width = window.innerWidth
+      let cols = 2
+      let estimatedHeight = 400
+
+      // Determine columns and rough height estimate based on viewport width
       if (width >= 1280) {
-        setColumns(6) // xl
+        cols = 6 // xl
+        estimatedHeight = 550
       } else if (width >= 1024) {
-        setColumns(5) // lg
+        cols = 5 // lg
+        estimatedHeight = 600
       } else if (width >= 768) {
-        setColumns(4) // md
+        cols = 4 // md
+        estimatedHeight = 650
       } else if (width >= 640) {
-        setColumns(3) // sm
+        cols = 3 // sm
+        estimatedHeight = 750
       } else {
-        setColumns(2) // base
+        cols = 2 // base
+        estimatedHeight = 850
       }
+
+      setColumns(cols)
+      setEstimatedRowHeight(estimatedHeight)
     }
 
-    updateColumns()
-    window.addEventListener('resize', updateColumns)
-    return () => window.removeEventListener('resize', updateColumns)
+    updateLayout()
+    window.addEventListener('resize', updateLayout)
+    return () => window.removeEventListener('resize', updateLayout)
   }, [])
 
   // Handle clicking on a show card
@@ -146,12 +160,12 @@ const TVShows = () => {
           <VirtualMediaGrid
             items={allShows}
             columns={columns}
-            estimatedRowHeight={450}
+            estimatedRowHeight={estimatedRowHeight}
             gap={16}
             renderItem={(show) => (
               <TVShowCard
                 key={show.id}
-                show={show as TVShow}
+                show={show as TVShowSummary}
                 onClick={() => show.id && handleShowClick(show.id)}
                 onPlay={() => show.id && handlePlayShow(show.id)}
               />

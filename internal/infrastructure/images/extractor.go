@@ -273,6 +273,18 @@ func (e *Extractor) ExtractMusicAlbumImages(albumDir string) (*ExtractedImages, 
 	return &ExtractedImages{Images: imageInfos}, nil
 }
 
+// ExtractMusicTrackImages extracts embedded album art from a specific music track file
+func (e *Extractor) ExtractMusicTrackImages(trackFile string) (*ExtractedImages, error) {
+	var imageInfos []ImageInfo
+
+	// Extract embedded artwork from this specific track file
+	if embeddedImg, err := e.embeddedExtractor.ExtractAlbumArtFromTrack(trackFile); err == nil && embeddedImg != nil {
+		imageInfos = append(imageInfos, *embeddedImg)
+	}
+
+	return &ExtractedImages{Images: imageInfos}, nil
+}
+
 // findFirstMatchingImage searches for the first matching image from a list of patterns
 // Returns nil if none found. This eliminates repetitive pattern-matching loops.
 func (e *Extractor) findFirstMatchingImage(dir string, patterns []string, imageType images.ImageType, priority int) *ImageInfo {

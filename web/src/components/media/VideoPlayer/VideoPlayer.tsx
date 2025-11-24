@@ -720,7 +720,7 @@ export const VideoPlayer = ({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-white hover:bg-white/20"
+            className="text-white hover:bg-white/20 cursor-pointer"
           >
             Close
           </Button>

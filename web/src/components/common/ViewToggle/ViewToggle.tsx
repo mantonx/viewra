@@ -1,3 +1,5 @@
+import { bg, text, border } from '@/styles/semantic'
+import { cn } from '@/lib/utils'
 import type { ViewToggleProps } from './ViewToggle.types'
 
 /**
@@ -9,11 +11,12 @@ export const ViewToggle = ({ value, onChange }: ViewToggleProps) => {
       <button
         type="button"
         onClick={() => onChange('grid')}
-        className={`px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 ${
+        className={cn(
+          'px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 cursor-pointer',
           value === 'grid'
-            ? 'bg-blue-600 text-white border-blue-600'
-            : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
-        }`}
+            ? 'bg-primary-500 text-white border-primary-500'
+            : cn(bg.elevated, text.secondary, border.secondary, 'hover:border-primary-300 dark:hover:border-primary-700')
+        )}
         aria-pressed={value === 'grid'}
         aria-label="Grid view"
       >
@@ -36,11 +39,12 @@ export const ViewToggle = ({ value, onChange }: ViewToggleProps) => {
       <button
         type="button"
         onClick={() => onChange('list')}
-        className={`px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 ${
+        className={cn(
+          'px-4 py-2.5 text-sm rounded-md border transition-colors min-h-11 min-w-11 flex items-center gap-2 cursor-pointer',
           value === 'list'
-            ? 'bg-blue-600 text-white border-blue-600'
-            : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
-        }`}
+            ? 'bg-primary-500 text-white border-primary-500'
+            : cn(bg.elevated, text.secondary, border.secondary, 'hover:border-primary-300 dark:hover:border-primary-700')
+        )}
         aria-pressed={value === 'list'}
         aria-label="List view"
       >

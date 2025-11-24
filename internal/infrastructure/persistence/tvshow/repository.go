@@ -228,13 +228,13 @@ func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, titl
 		func() (sqlc_postgres.TvShow, error) {
 			return r.Postgres().GetTVShowByTitle(ctx, sqlc_postgres.GetTVShowByTitleParams{
 				LibraryID: int32(libraryID),
-				Title:     title,
+				Lower:     title,
 			})
 		},
 		func() (sqlc_sqlite.TvShow, error) {
 			return r.SQLite().GetTVShowByTitle(ctx, sqlc_sqlite.GetTVShowByTitleParams{
 				LibraryID: libraryID,
-				Title:     title,
+				LOWER:     title,
 			})
 		},
 		postgresShowToDomain,
@@ -244,6 +244,19 @@ func (r *Repository) GetTVShowByTitle(ctx context.Context, libraryID int64, titl
 		return media.TVShow{}, r.ConvertNotFoundError(err)
 	}
 	return show, nil
+}
+
+// UpdateTVShow updates an existing TV show's metadata
+func (r *Repository) UpdateTVShow(ctx context.Context, show media.TVShow) error {
+	return common.ExecuteCommand(
+		r.BaseRepository, ctx,
+		func() error {
+			return r.Postgres().UpdateTVShow(ctx, buildPostgresUpdateTVShowParams(show))
+		},
+		func() error {
+			return r.SQLite().UpdateTVShow(ctx, buildSQLiteUpdateTVShowParams(show))
+		},
+	)
 }
 
 // ListTVShowsByLibrary retrieves all TV shows in a library

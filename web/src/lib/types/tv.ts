@@ -7,6 +7,12 @@ export interface TVShowSummary {
   id?: number
   library_id?: number
   title?: string
+  year?: number
+  genre?: string[]
+  plot?: string
+  imdb_id?: string
+  tmdb_id?: number
+  content_rating?: string
   season_count?: number
   episode_count?: number
 }
@@ -15,6 +21,12 @@ export interface TVShowDetailResponse {
   id?: number
   library_id?: number
   title?: string
+  year?: number
+  genre?: string[]
+  plot?: string
+  imdb_id?: string
+  tmdb_id?: number
+  content_rating?: string
   season_count?: number
   episode_count?: number
 }

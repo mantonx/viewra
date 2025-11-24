@@ -48,13 +48,13 @@ INSERT INTO music_tracks (
     total_tracks, total_discs, genre, year, release_date, composer,
     lyricist, record_label, isrc, release_type, compilation,
     musicbrainz_track_id, musicbrainz_album_id, musicbrainz_artist_id,
-    original_title, sort_title, album_id
+    original_title, sort_title, album_id, artist_id
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12,
     $13, $14, $15, $16, $17,
     $18, $19, $20,
-    $21, $22, $23
+    $21, $22, $23, $24
 )
 `
 
@@ -82,6 +82,7 @@ type CreateMusicTrackParams struct {
 	OriginalTitle       sql.NullString `json:"original_title"`
 	SortTitle           sql.NullString `json:"sort_title"`
 	AlbumID             sql.NullInt32  `json:"album_id"`
+	ArtistID            sql.NullInt32  `json:"artist_id"`
 }
 
 func (q *Queries) CreateMusicTrack(ctx context.Context, arg CreateMusicTrackParams) error {
@@ -109,6 +110,7 @@ func (q *Queries) CreateMusicTrack(ctx context.Context, arg CreateMusicTrackPara
 		arg.OriginalTitle,
 		arg.SortTitle,
 		arg.AlbumID,
+		arg.ArtistID,
 	)
 	return err
 }
@@ -2119,8 +2121,9 @@ SET artist = $1,
     musicbrainz_artist_id = $19,
     original_title = $20,
     sort_title = $21,
-    album_id = $22
-WHERE media_id = $23
+    album_id = $22,
+    artist_id = $23
+WHERE media_id = $24
 `
 
 type UpdateMusicTrackParams struct {
@@ -2146,6 +2149,7 @@ type UpdateMusicTrackParams struct {
 	OriginalTitle       sql.NullString `json:"original_title"`
 	SortTitle           sql.NullString `json:"sort_title"`
 	AlbumID             sql.NullInt32  `json:"album_id"`
+	ArtistID            sql.NullInt32  `json:"artist_id"`
 	MediaID             int32          `json:"media_id"`
 }
 
@@ -2173,6 +2177,7 @@ func (q *Queries) UpdateMusicTrack(ctx context.Context, arg UpdateMusicTrackPara
 		arg.OriginalTitle,
 		arg.SortTitle,
 		arg.AlbumID,
+		arg.ArtistID,
 		arg.MediaID,
 	)
 	return err

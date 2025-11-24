@@ -6,10 +6,9 @@ import type { AlbumCardProps } from './AlbumCard.types'
 const AlbumCard = ({ album, onClick }: AlbumCardProps) => {
   const { preferences } = useBadgePreferences()
 
-  // Check if album is newly added (within last 7 days)
-  const isNew =
-    album.created_at &&
-    Date.now() - new Date(album.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+  // Note: created_at not available in AlbumSummary type
+  // TODO: Enable when backend adds created_at field to album summaries
+  const isNew = false
 
   return (
     <MediaCard

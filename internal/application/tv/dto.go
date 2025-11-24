@@ -10,20 +10,32 @@ import (
 
 // TVShowSummary represents a TV show with aggregated metadata (for list view)
 type TVShowSummary struct {
-	ID           int64  `json:"id" binding:"required"`
-	LibraryID    int64  `json:"library_id" binding:"required"`
-	Title        string `json:"title" binding:"required"`
-	SeasonCount  int    `json:"season_count"`
-	EpisodeCount int    `json:"episode_count"`
+	ID           int64    `json:"id" binding:"required"`
+	LibraryID    int64    `json:"library_id" binding:"required"`
+	Title        string   `json:"title" binding:"required"`
+	Year         int      `json:"year,omitempty"`
+	Genre        []string `json:"genre,omitempty"`
+	Plot         string   `json:"plot,omitempty"`
+	IMDbID       string   `json:"imdb_id,omitempty"`
+	TMDbID       int      `json:"tmdb_id,omitempty"`
+	ContentRating string  `json:"content_rating,omitempty"`
+	SeasonCount  int      `json:"season_count"`
+	EpisodeCount int      `json:"episode_count"`
 }
 
 // TVShowDetailResponse represents detailed information about a single TV show
 type TVShowDetailResponse struct {
-	ID           int64  `json:"id"`
-	LibraryID    int64  `json:"library_id"`
-	Title        string `json:"title"`
-	SeasonCount  int    `json:"season_count"`
-	EpisodeCount int    `json:"episode_count"`
+	ID            int64    `json:"id"`
+	LibraryID     int64    `json:"library_id"`
+	Title         string   `json:"title"`
+	Year          int      `json:"year,omitempty"`
+	Genre         []string `json:"genre,omitempty"`
+	Plot          string   `json:"plot,omitempty"`
+	IMDbID        string   `json:"imdb_id,omitempty"`
+	TMDbID        int      `json:"tmdb_id,omitempty"`
+	ContentRating string   `json:"content_rating,omitempty"`
+	SeasonCount   int      `json:"season_count"`
+	EpisodeCount  int      `json:"episode_count"`
 }
 
 // TVEpisodeResponse represents a TV episode with all its metadata

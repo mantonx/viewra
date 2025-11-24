@@ -1,4 +1,5 @@
 export { MediaCard, type MediaCardProps } from './MediaCard'
+export { MediaListItem, type MediaListItemProps } from './MediaListItem'
 export { MediaPoster, type MediaPosterProps } from './MediaPoster'
 export { VideoPlayer, type VideoPlayerProps, type MediaMetadata } from './VideoPlayer'
 export { VideoPlayerContainer } from './VideoPlayerContainer'

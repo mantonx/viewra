@@ -44,11 +44,17 @@ func (uc *ListTVShowsUseCase) Execute(ctx context.Context, libraryID int64) (Lis
 	responses := make([]TVShowSummary, len(shows))
 	for i, show := range shows {
 		responses[i] = TVShowSummary{
-			ID:           show.ID,
-			LibraryID:    show.LibraryID,
-			Title:        show.Title,
-			SeasonCount:  int(show.SeasonCount),
-			EpisodeCount: int(show.EpisodeCount),
+			ID:            show.ID,
+			LibraryID:     show.LibraryID,
+			Title:         show.Title,
+			Year:          show.Year,
+			Genre:         show.Genre,
+			Plot:          show.Plot,
+			IMDbID:        show.IMDbID,
+			TMDbID:        show.TMDbID,
+			ContentRating: show.ContentRating,
+			SeasonCount:   int(show.SeasonCount),
+			EpisodeCount:  int(show.EpisodeCount),
 		}
 	}
 
@@ -80,11 +86,17 @@ func (uc *ListTVShowsUseCase) ExecuteWithPagination(ctx context.Context, library
 	responses := make([]TVShowSummary, len(shows))
 	for i, show := range shows {
 		responses[i] = TVShowSummary{
-			ID:           show.ID,
-			LibraryID:    show.LibraryID,
-			Title:        show.Title,
-			SeasonCount:  int(show.SeasonCount),
-			EpisodeCount: int(show.EpisodeCount),
+			ID:            show.ID,
+			LibraryID:     show.LibraryID,
+			Title:         show.Title,
+			Year:          show.Year,
+			Genre:         show.Genre,
+			Plot:          show.Plot,
+			IMDbID:        show.IMDbID,
+			TMDbID:        show.TMDbID,
+			ContentRating: show.ContentRating,
+			SeasonCount:   int(show.SeasonCount),
+			EpisodeCount:  int(show.EpisodeCount),
 		}
 	}
 

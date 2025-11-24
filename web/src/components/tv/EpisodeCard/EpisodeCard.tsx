@@ -3,10 +3,11 @@ import { MediaPoster } from '@/components/media/MediaPoster'
 import { ProgressBar } from '@/components/media/ProgressBar'
 import { HoverPlayButton } from '@/components/common'
 import { useBatchProgress } from '@/lib/hooks'
-import { getProgressPercentage } from '@/lib/utils'
+import { getProgressPercentage, cn } from '@/lib/utils'
 import { formatDuration } from '@/lib/utils/format'
 import { getCodecBadgeColor } from '@/lib/utils/media'
 import { formatResolutionLabel } from '@/lib/utils/quality'
+import { bg, text, shadow } from '@/styles/semantic'
 import type { EpisodeCardProps } from './EpisodeCard.types'
 
 const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
@@ -37,7 +38,12 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
 
   return (
     <div
-      className="bg-white dark:bg-neutral-900 rounded-lg shadow dark:shadow-neutral-950/50 overflow-hidden cursor-pointer hover:shadow-xl dark:hover:shadow-neutral-950/70 transition-all hover:scale-105 duration-200"
+      className={cn(
+        'rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 duration-200',
+        bg.elevated,
+        shadow.default,
+        'hover:shadow-xl dark:hover:shadow-neutral-950/70'
+      )}
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -86,8 +92,8 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-1">
           <div className="flex-1">
-            <div className="text-xs text-neutral-500 dark:text-neutral-500 mb-1">{episodeNumber}</div>
-            <h3 className="font-semibold text-sm line-clamp-2 text-neutral-900 dark:text-neutral-50">
+            <div className={cn('text-xs mb-1', text.tertiary)}>{episodeNumber}</div>
+            <h3 className={cn('font-semibold text-sm line-clamp-2', text.primary)}>
               {episode.episode_title || episode.title}
             </h3>
           </div>
@@ -100,20 +106,20 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
 
         {/* Air Date */}
         {airDate && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-500 mb-2">
+          <p className={cn('text-xs mb-2', text.tertiary)}>
             Aired: {airDate}
           </p>
         )}
 
         {/* Description/Plot from NFO */}
         {episode.description && (
-          <p className="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 mb-2">
+          <p className={cn('text-xs line-clamp-2 mb-2', text.secondary)}>
             {episode.description}
           </p>
         )}
 
         {/* Duration and Progress */}
-        <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-500 mt-2">
+        <div className={cn('flex items-center justify-between text-xs mt-2', text.tertiary)}>
           {episode.duration && episode.duration > 0 && <span>{formatDuration(episode.duration)}</span>}
           {progress && getProgressPercentage(progress) > 0 && !progress.is_watched && (
             <span className="text-blue-600 dark:text-blue-400 font-medium">

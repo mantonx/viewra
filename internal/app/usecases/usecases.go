@@ -130,6 +130,7 @@ func buildLibraryUseCases(
 	extractSeason := images.NewExtractTVSeasonImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractAlbum := images.NewExtractMusicAlbumImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractArtist := images.NewExtractMusicArtistImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
+	extractTrack := images.NewExtractMusicTrackImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 
 	// Bundle media repositories
 	mediaRepos := &library.MediaRepositories{
@@ -165,6 +166,7 @@ func buildLibraryUseCases(
 			extractSeason,
 			extractAlbum,
 			extractArtist,
+			extractTrack,
 			repos.Image,
 			imageCleanup,
 			scanConfig,
