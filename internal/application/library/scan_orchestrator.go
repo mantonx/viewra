@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mantonx/viewra/internal/domain/images"
+	appImages "github.com/mantonx/viewra/internal/application/images"
+	domainImages "github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
@@ -44,14 +45,21 @@ type ScanConfig struct {
 type ScanLibraryUseCase struct {
 	mediaRepos         *MediaRepositories
 	scanRepos          *ScanRepositories
-	imageRepo          images.Repository
-	imageExtractor     ImageExtractor // Unified image extractor (replaces 6 separate executors)
+	imageRepo          domainImages.Repository
 	imageCleanup       ImageCleanupExecutor
 	incrementalScanner *IncrementalScanner
 	coordinator        *filesystem.Coordinator // Reused for all files (was created per file - major bottleneck!)
 	config             ScanConfig
 	systemProfile      *system.Profile
 	logger             *slog.Logger
+
+	// Image extraction use cases - called directly instead of through adapter
+	movieImageExtractor   *appImages.ExtractMovieImagesUseCase
+	episodeImageExtractor *appImages.ExtractTVEpisodeImagesUseCase
+	showImageExtractor    *appImages.ExtractTVShowImagesUseCase
+	seasonImageExtractor  *appImages.ExtractTVSeasonImagesUseCase
+	albumImageExtractor   *appImages.ExtractMusicAlbumImagesUseCase
+	artistImageExtractor  *appImages.ExtractMusicArtistImagesUseCase
 
 	// Artist deduplication tracking (per scan session)
 	// Using sync.Map for lock-free concurrent access (fixes race condition)
@@ -62,8 +70,13 @@ type ScanLibraryUseCase struct {
 func NewScanLibraryUseCase(
 	mediaRepos *MediaRepositories,
 	scanRepos *ScanRepositories,
-	imageExtractor ImageExtractor,
-	imageRepo images.Repository,
+	movieImageExtractor *appImages.ExtractMovieImagesUseCase,
+	episodeImageExtractor *appImages.ExtractTVEpisodeImagesUseCase,
+	showImageExtractor *appImages.ExtractTVShowImagesUseCase,
+	seasonImageExtractor *appImages.ExtractTVSeasonImagesUseCase,
+	albumImageExtractor *appImages.ExtractMusicAlbumImagesUseCase,
+	artistImageExtractor *appImages.ExtractMusicArtistImagesUseCase,
+	imageRepo domainImages.Repository,
 	imageCleanup ImageCleanupExecutor,
 	config ScanConfig,
 	systemProfile *system.Profile,
@@ -83,16 +96,21 @@ func NewScanLibraryUseCase(
 	coordinator := filesystem.NewCoordinator(coordinatorConfig)
 
 	return &ScanLibraryUseCase{
-		mediaRepos:         mediaRepos,
-		scanRepos:          scanRepos,
-		imageExtractor:     imageExtractor,
-		imageRepo:          imageRepo,
-		imageCleanup:       imageCleanup,
-		incrementalScanner: incrementalScanner,
-		coordinator:        coordinator,
-		config:             config,
-		systemProfile:      systemProfile,
-		logger:             logger,
+		mediaRepos:            mediaRepos,
+		scanRepos:             scanRepos,
+		movieImageExtractor:   movieImageExtractor,
+		episodeImageExtractor: episodeImageExtractor,
+		showImageExtractor:    showImageExtractor,
+		seasonImageExtractor:  seasonImageExtractor,
+		albumImageExtractor:   albumImageExtractor,
+		artistImageExtractor:  artistImageExtractor,
+		imageRepo:             imageRepo,
+		imageCleanup:          imageCleanup,
+		incrementalScanner:    incrementalScanner,
+		coordinator:           coordinator,
+		config:                config,
+		systemProfile:         systemProfile,
+		logger:                logger,
 	}
 }
 

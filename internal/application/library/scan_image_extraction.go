@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/media"
@@ -11,18 +12,12 @@ import (
 // extractImagesForMovie extracts and catalogs images for a movie
 // Shared helper to eliminate duplication between create and update paths
 func (uc *ScanLibraryUseCase) extractImagesForMovie(ctx context.Context, movie *media.Movie, filePath string) {
-	if uc.imageExtractor == nil {
+	if uc.movieImageExtractor == nil {
 		return
 	}
 
 	mediaID := int(movie.Media.ID)
-	opts := ImageExtractionOptions{
-		FilePath:  filePath,
-		MediaType: images.MediaTypeMovie,
-		EntityID:  mediaID,
-		MediaID:   &mediaID,
-	}
-	if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
+	if err := uc.movieImageExtractor.Execute(ctx, filePath, images.MediaTypeMovie, mediaID, &mediaID); err != nil {
 		uc.logger.Warn("failed to extract images for movie",
 			"file_path", filePath,
 			"error", err)
@@ -38,19 +33,13 @@ func (uc *ScanLibraryUseCase) extractImagesForMovie(ctx context.Context, movie *
 // extractImagesForEpisode extracts images for a TV episode, its show, and season
 // Shared helper to eliminate duplication between create and update paths
 func (uc *ScanLibraryUseCase) extractImagesForEpisode(ctx context.Context, episode *media.TVEpisode, filePath string, libraryID int64) {
-	if uc.imageExtractor == nil {
+	if uc.episodeImageExtractor == nil {
 		return
 	}
 
 	// Extract episode images
 	mediaID := int(episode.Media.ID)
-	opts := ImageExtractionOptions{
-		FilePath:  filePath,
-		MediaType: images.MediaTypeTVEpisode,
-		EntityID:  mediaID,
-		MediaID:   &mediaID,
-	}
-	if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
+	if err := uc.episodeImageExtractor.Execute(ctx, filePath, images.MediaTypeTVEpisode, mediaID, &mediaID); err != nil {
 		uc.logger.Warn("failed to extract images for episode",
 			"file_path", filePath,
 			"error", err)
@@ -63,27 +52,38 @@ func (uc *ScanLibraryUseCase) extractImagesForEpisode(ctx context.Context, episo
 	}
 
 	// Extract show and season images
-	showDir := filepath.Dir(filepath.Dir(filePath))
+	// TV shows can have two different directory structures:
+	// 1. Episodes in show directory: /tv/ShowName (Year)/ShowName - S01E01.mkv
+	// 2. Episodes in season subdirectories: /tv/ShowName/Season 01/ShowName - S01E01.mkv
+	// Detect which structure is used by checking if parent directory name starts with "Season"
+	episodeDir := filepath.Dir(filePath)
+	episodeDirName := filepath.Base(episodeDir)
+
+	showDir := episodeDir
+	if strings.HasPrefix(strings.ToLower(episodeDirName), "season") {
+		// Episode is in a season subdirectory, go up one more level to get show directory
+		showDir = filepath.Dir(episodeDir)
+	}
+
+	uc.logger.Info("extracting show images",
+		"show_title", episode.ShowTitle,
+		"episode_file", filePath,
+		"episode_dir", episodeDir,
+		"episode_dir_name", episodeDirName,
+		"show_dir", showDir,
+		"has_season_subdir", strings.HasPrefix(strings.ToLower(episodeDirName), "season"))
+
 	uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, episode.Season)
 }
 
 // extractImagesForTrack extracts images for a music track (album and artist)
 // Shared helper to eliminate duplication between create and update paths
 func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *media.MusicTrack, filePath string) {
-	if uc.imageExtractor == nil {
-		return
-	}
-
 	// Extract album images
-	if track.Album != "" {
+	if track.Album != "" && uc.albumImageExtractor != nil {
 		albumDir := filepath.Dir(filePath)
 		entityID := int(track.Media.ID)
-		opts := ImageExtractionOptions{
-			FilePath:  albumDir,
-			MediaType: images.MediaTypeMusicAlbum,
-			EntityID:  entityID,
-		}
-		if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
+		if err := uc.albumImageExtractor.Execute(ctx, albumDir, images.MediaTypeMusicAlbum, entityID); err != nil {
 			uc.logger.Warn("failed to extract images for album",
 				"album", track.Album,
 				"file_path", filePath,
@@ -98,18 +98,13 @@ func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *
 	}
 
 	// Extract artist images (once per artist)
-	if track.Artist != "" {
+	if track.Artist != "" && uc.artistImageExtractor != nil {
 		artistDir := filepath.Dir(filepath.Dir(filePath)) // Parent of album dir
 		entityID := int(track.Media.ID)
 
 		// Atomically check and mark artist as processed (prevents race condition)
 		if uc.tryMarkArtistProcessed(track.Artist) {
-			opts := ImageExtractionOptions{
-				FilePath:  artistDir,
-				MediaType: images.MediaTypeMusicArtist,
-				EntityID:  entityID,
-			}
-			if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
+			if err := uc.artistImageExtractor.Execute(ctx, artistDir, images.MediaTypeMusicArtist, entityID); err != nil {
 				uc.logger.Warn("failed to extract artist images",
 					"artist", track.Artist,
 					"error", err)
@@ -122,10 +117,6 @@ func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *
 // extractTVShowAndSeasonImages extracts images for a TV show and season
 // This is a helper to avoid code duplication between create and update paths
 func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, showTitle string, libraryID int64, showDir string, seasonNumber int) {
-	if uc.imageExtractor == nil {
-		return
-	}
-
 	// Get show ID by title (show was created/ensured by CreateTVEpisode)
 	show, err := uc.mediaRepos.TV.GetTVShowByTitle(ctx, libraryID, showTitle)
 	if err != nil {
@@ -136,16 +127,24 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 	}
 
 	// Extract show images
-	opts := ImageExtractionOptions{
-		FilePath:  showDir,
-		MediaType: images.MediaTypeTVShow,
-		EntityID:  int(show.ID),
-	}
-	if err := uc.imageExtractor.Extract(ctx, opts); err != nil {
-		uc.logger.Warn("failed to extract images for show",
+	if uc.showImageExtractor != nil {
+		uc.logger.Info("calling image extractor for show",
 			"show_title", showTitle,
-			"error", err)
-		// Show/season image extraction failures don't get tracked per-file since they're per-show/season
+			"show_id", show.ID,
+			"show_dir", showDir,
+			"media_type", images.MediaTypeTVShow)
+
+		if err := uc.showImageExtractor.Execute(ctx, showDir, images.MediaTypeTVShow, int(show.ID)); err != nil {
+			uc.logger.Warn("failed to extract images for show",
+				"show_title", showTitle,
+				"show_dir", showDir,
+				"error", err)
+			// Show/season image extraction failures don't get tracked per-file since they're per-show/season
+		} else {
+			uc.logger.Info("successfully extracted images for show",
+				"show_title", showTitle,
+				"show_id", show.ID)
+		}
 	}
 
 	// Get season ID
@@ -159,18 +158,14 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 	}
 
 	// Extract season images
-	seasonOpts := ImageExtractionOptions{
-		FilePath:  showDir,
-		MediaType: images.MediaTypeTVSeason,
-		EntityID:  int(season.ID),
-		SeasonNum: seasonNumber,
-	}
-	if err := uc.imageExtractor.Extract(ctx, seasonOpts); err != nil {
-		uc.logger.Warn("failed to extract images for season",
-			"show_title", showTitle,
-			"season", seasonNumber,
-			"error", err)
-		// Show/season image extraction failures don't get tracked per-file since they're per-show/season
+	if uc.seasonImageExtractor != nil {
+		if err := uc.seasonImageExtractor.Execute(ctx, showDir, seasonNumber, images.MediaTypeTVSeason, int(season.ID)); err != nil {
+			uc.logger.Warn("failed to extract images for season",
+				"show_title", showTitle,
+				"season", seasonNumber,
+				"error", err)
+			// Show/season image extraction failures don't get tracked per-file since they're per-show/season
+		}
 	}
 }
 

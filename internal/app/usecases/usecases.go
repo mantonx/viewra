@@ -123,23 +123,13 @@ func buildLibraryUseCases(
 	// Image cleanup use case (needed for library delete and scan)
 	imageCleanup := images.NewCleanupUseCase(repos.Image, cfg.Images.CacheDir, logger)
 
-	// Image extraction use cases (needed for scanner)
+	// Image extraction use cases (passed directly to scanner - no adapter needed)
 	extractMovie := images.NewExtractMovieImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractEpisode := images.NewExtractTVEpisodeImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractShow := images.NewExtractTVShowImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractSeason := images.NewExtractTVSeasonImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractAlbum := images.NewExtractMusicAlbumImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
 	extractArtist := images.NewExtractMusicArtistImagesUseCase(repos.Image, svcs.ImageCache, svcs.ImageTransformer)
-
-	// Create unified image extractor adapter (wraps 6 legacy extractors into single interface)
-	imageExtractor := library.NewImageExtractorAdapter(
-		extractMovie,
-		extractEpisode,
-		extractShow,
-		extractSeason,
-		extractAlbum,
-		extractArtist,
-	)
 
 	// Bundle media repositories
 	mediaRepos := &library.MediaRepositories{
@@ -169,7 +159,12 @@ func buildLibraryUseCases(
 		Scan: library.NewScanLibraryUseCase(
 			mediaRepos,
 			scanRepos,
-			imageExtractor,
+			extractMovie,
+			extractEpisode,
+			extractShow,
+			extractSeason,
+			extractAlbum,
+			extractArtist,
 			repos.Image,
 			imageCleanup,
 			scanConfig,
