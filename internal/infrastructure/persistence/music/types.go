@@ -66,6 +66,78 @@ func mapMusicTrackToDomain(row interface{}) *media.MusicTrack {
 }
 
 // ========================================
+// Generic Album Mapper
+// ========================================
+
+// mapAlbumToDomain converts any album row to domain Album
+func mapAlbumToDomain(row interface{}) *media.Album {
+	createdAt := common.TimeFieldGetter(row, "CreatedAt")
+	updatedAt := common.TimeFieldGetter(row, "UpdatedAt")
+
+	var createdAtStr, updatedAtStr string
+	if createdAt.Valid {
+		createdAtStr = createdAt.Time.Format("2006-01-02T15:04:05Z07:00")
+	}
+	if updatedAt.Valid {
+		updatedAtStr = updatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+	}
+
+	return &media.Album{
+		ID:                 common.IntFieldGetter(row, "ID"),
+		LibraryID:          common.IntFieldGetter(row, "LibraryID"),
+		Title:              common.StringFieldGetter(row, "Title"),
+		AlbumArtist:        common.ParseNullString(common.NullStringFieldGetter(row, "AlbumArtist")),
+		Artist:             common.ParseNullString(common.NullStringFieldGetter(row, "Artist")),
+		Year:               int(common.ParseNullInt64(common.NullIntFieldGetter(row, "Year"))),
+		ReleaseDate:        common.FormatNullDate(common.TimeFieldGetter(row, "ReleaseDate")),
+		Genre:              common.ParseNullString(common.NullStringFieldGetter(row, "Genre")),
+		TotalTracks:        int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TotalTracks"))),
+		TotalDiscs:         int(common.ParseNullInt64(common.NullIntFieldGetter(row, "TotalDiscs"))),
+		RecordLabel:        common.ParseNullString(common.NullStringFieldGetter(row, "RecordLabel")),
+		ReleaseType:        common.ParseNullString(common.NullStringFieldGetter(row, "ReleaseType")),
+		Compilation:        common.ParseNullBool(sql.NullBool{Bool: common.BoolFieldGetter(row, "Compilation"), Valid: true}),
+		MusicBrainzAlbumID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzAlbumID")),
+		CoverArtPath:       common.ParseNullString(common.NullStringFieldGetter(row, "CoverArtPath")),
+		SortTitle:          common.ParseNullString(common.NullStringFieldGetter(row, "SortTitle")),
+		CreatedAt:          createdAtStr,
+		UpdatedAt:          updatedAtStr,
+	}
+}
+
+// ========================================
+// Generic Artist Mapper
+// ========================================
+
+// mapArtistToDomain converts any artist row to domain Artist
+func mapArtistToDomain(row interface{}) *media.Artist {
+	createdAt := common.TimeFieldGetter(row, "CreatedAt")
+	updatedAt := common.TimeFieldGetter(row, "UpdatedAt")
+
+	var createdAtStr, updatedAtStr string
+	if createdAt.Valid {
+		createdAtStr = createdAt.Time.Format("2006-01-02T15:04:05Z07:00")
+	}
+	if updatedAt.Valid {
+		updatedAtStr = updatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+	}
+
+	return &media.Artist{
+		ID:                  common.IntFieldGetter(row, "ID"),
+		LibraryID:           common.IntFieldGetter(row, "LibraryID"),
+		Name:                common.StringFieldGetter(row, "Name"),
+		SortName:            common.ParseNullString(common.NullStringFieldGetter(row, "SortName")),
+		Bio:                 common.ParseNullString(common.NullStringFieldGetter(row, "Bio")),
+		Country:             common.ParseNullString(common.NullStringFieldGetter(row, "Country")),
+		FormedYear:          int(common.ParseNullInt64(common.NullIntFieldGetter(row, "FormedYear"))),
+		Genre:               common.ParseNullString(common.NullStringFieldGetter(row, "Genre")),
+		MusicBrainzArtistID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzArtistID")),
+		ImagePath:           common.ParseNullString(common.NullStringFieldGetter(row, "ImagePath")),
+		CreatedAt:           createdAtStr,
+		UpdatedAt:           updatedAtStr,
+	}
+}
+
+// ========================================
 // SQLite/PostgreSQL Specific Mappers
 // ========================================
 
@@ -275,34 +347,7 @@ func buildSQLiteUpdateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.UpdateMu
 
 // sqliteAlbumToDomain converts a SQLite album row to a domain Album entity
 func sqliteAlbumToDomain(row sqlc_sqlite.MusicAlbum) *media.Album {
-	var createdAt, updatedAt string
-	if row.CreatedAt.Valid {
-		createdAt = row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-	if row.UpdatedAt.Valid {
-		updatedAt = row.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-
-	return &media.Album{
-		ID:                 row.ID,
-		LibraryID:          row.LibraryID,
-		Title:              row.Title,
-		AlbumArtist:        common.ParseNullString(row.AlbumArtist),
-		Artist:             common.ParseNullString(row.Artist),
-		Year:               int(common.ParseNullInt64(row.Year)),
-		ReleaseDate:        common.FormatNullDate(row.ReleaseDate),
-		Genre:              common.ParseNullString(row.Genre),
-		TotalTracks:        int(common.ParseNullInt64(row.TotalTracks)),
-		TotalDiscs:         int(common.ParseNullInt64(row.TotalDiscs)),
-		RecordLabel:        common.ParseNullString(row.RecordLabel),
-		ReleaseType:        common.ParseNullString(row.ReleaseType),
-		Compilation:        common.ParseNullBool(row.Compilation),
-		MusicBrainzAlbumID: common.ParseNullString(row.MusicbrainzAlbumID),
-		CoverArtPath:       common.ParseNullString(row.CoverArtPath),
-		SortTitle:          common.ParseNullString(row.SortTitle),
-		CreatedAt:          createdAt,
-		UpdatedAt:          updatedAt,
-	}
+	return mapAlbumToDomain(row)
 }
 
 // buildSQLiteCreateAlbumParams builds CreateAlbumParams for SQLite from a domain Album entity
@@ -360,28 +405,7 @@ func buildSQLiteUpdateAlbumParams(a *media.Album) sqlc_sqlite.UpdateAlbumParams 
 
 // sqliteArtistToDomain converts a SQLite artist row to a domain Artist entity
 func sqliteArtistToDomain(row sqlc_sqlite.MusicArtist) *media.Artist {
-	var createdAt, updatedAt string
-	if row.CreatedAt.Valid {
-		createdAt = row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-	if row.UpdatedAt.Valid {
-		updatedAt = row.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-
-	return &media.Artist{
-		ID:                  row.ID,
-		LibraryID:           row.LibraryID,
-		Name:                row.Name,
-		SortName:            common.ParseNullString(row.SortName),
-		MusicBrainzArtistID: common.ParseNullString(row.MusicbrainzArtistID),
-		Bio:                 common.ParseNullString(row.Bio),
-		Country:             common.ParseNullString(row.Country),
-		FormedYear:          int(common.ParseNullInt64(row.FormedYear)),
-		Genre:               common.ParseNullString(row.Genre),
-		ImagePath:           common.ParseNullString(row.ImagePath),
-		CreatedAt:           createdAt,
-		UpdatedAt:           updatedAt,
-	}
+	return mapArtistToDomain(row)
 }
 
 // buildSQLiteCreateArtistParams builds parameters for creating an artist in SQLite
@@ -428,60 +452,12 @@ func postgresMusicTrackToDomain(row sqlc_postgres.GetMusicTrackByMediaIDRow) *me
 
 // postgresAlbumToDomain converts a PostgreSQL MusicAlbum row to domain Album
 func postgresAlbumToDomain(row sqlc_postgres.MusicAlbum) *media.Album {
-	var createdAt, updatedAt string
-	if row.CreatedAt.Valid {
-		createdAt = row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-	if row.UpdatedAt.Valid {
-		updatedAt = row.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-
-	return &media.Album{
-		ID:                 int64(row.ID),
-		LibraryID:          int64(row.LibraryID),
-		Title:              row.Title,
-		AlbumArtist:        common.ParseNullString(row.AlbumArtist),
-		Artist:             common.ParseNullString(row.Artist),
-		Year:               int(common.ParseNullInt64(common.ConvertInt32ToInt64(row.Year))),
-		ReleaseDate:        common.FormatNullDate(row.ReleaseDate),
-		Genre:              common.ParseNullString(row.Genre),
-		TotalTracks:        int(common.ParseNullInt64(common.ConvertInt32ToInt64(row.TotalTracks))),
-		TotalDiscs:         int(common.ParseNullInt64(common.ConvertInt32ToInt64(row.TotalDiscs))),
-		RecordLabel:        common.ParseNullString(row.RecordLabel),
-		ReleaseType:        common.ParseNullString(row.ReleaseType),
-		Compilation:        common.ParseNullBool(row.Compilation),
-		MusicBrainzAlbumID: common.ParseNullString(row.MusicbrainzAlbumID),
-		CoverArtPath:       common.ParseNullString(row.CoverArtPath),
-		SortTitle:          common.ParseNullString(row.SortTitle),
-		CreatedAt:          createdAt,
-		UpdatedAt:          updatedAt,
-	}
+	return mapAlbumToDomain(row)
 }
 
 // postgresArtistToDomain converts a PostgreSQL MusicArtist row to domain Artist
 func postgresArtistToDomain(row sqlc_postgres.MusicArtist) *media.Artist {
-	var createdAt, updatedAt string
-	if row.CreatedAt.Valid {
-		createdAt = row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-	if row.UpdatedAt.Valid {
-		updatedAt = row.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-	}
-
-	return &media.Artist{
-		ID:                  int64(row.ID),
-		LibraryID:           int64(row.LibraryID),
-		Name:                row.Name,
-		SortName:            common.ParseNullString(row.SortName),
-		MusicBrainzArtistID: common.ParseNullString(row.MusicbrainzArtistID),
-		Bio:                 common.ParseNullString(row.Bio),
-		Country:             common.ParseNullString(row.Country),
-		FormedYear:          int(common.ParseNullInt64(common.ConvertInt32ToInt64(row.FormedYear))),
-		Genre:               common.ParseNullString(row.Genre),
-		ImagePath:           common.ParseNullString(row.ImagePath),
-		CreatedAt:           createdAt,
-		UpdatedAt:           updatedAt,
-	}
+	return mapArtistToDomain(row)
 }
 
 // ========================================
