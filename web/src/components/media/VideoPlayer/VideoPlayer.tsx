@@ -1,10 +1,12 @@
 import { Button } from '@/components/ui'
 import { useProgressUpdater } from '@/lib/hooks/useProgress'
+import { useQualityRecommendation } from '@/lib/hooks/useQualityRecommendation'
 import { logger } from '@/lib/utils/logger'
 import Hls from 'hls.js'
 import { useEffect, useRef, useState } from 'react'
 import { VideoControls } from './VideoControls'
 import type { VideoPlayerProps } from './VideoPlayer.types'
+import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 
 // Threshold for triggering backend FFmpeg restart on seek (matches backend config)
 const LARGE_SEEK_THRESHOLD_SECONDS = 30
@@ -108,6 +110,10 @@ export const VideoPlayer = ({
   const progressUpdater = useProgressUpdater(mediaId, videoDuration)
   progressUpdaterRef.current = progressUpdater
 
+  // Get quality recommendation based on client capabilities
+  const qualityRecommendation = useQualityRecommendation()
+  const [recommendedQuality, setRecommendedQuality] = useState<QualityRecommendationResponse | null>(null)
+
   // Initialize HLS player for HLS streams
   useEffect(() => {
     const video = videoRef.current
@@ -197,6 +203,9 @@ export const VideoPlayer = ({
 
     // Handle manifest parsed - extract quality levels and audio tracks
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      console.log('[VideoPlayer] HLS manifest loaded from:', streamUrl)
+      console.log('[VideoPlayer] Available HLS levels:', hls.levels)
+
       const levels = hls.levels
       if (levels && levels.length > 0) {
         const qualities = levels
@@ -214,6 +223,61 @@ export const VideoPlayer = ({
         )
 
         setAvailableQualities(uniqueQualities)
+
+        // Apply recommended quality if available
+        if (qualityRecommendation.recommendation && qualityRecommendation.isReady) {
+          const rec = qualityRecommendation.recommendation
+          setRecommendedQuality(rec)
+
+          // Find matching quality level by height (exact match or closest available)
+          if (rec.height) {
+            let levelIndex = hls.levels.findIndex((level) => level.height === rec.height)
+
+            // If no exact match, find closest quality (prefer lower to avoid buffering)
+            if (levelIndex === -1) {
+              console.log(
+                `[VideoPlayer] No exact match for ${rec.height}p, finding closest quality...`,
+                `Available levels:`,
+                hls.levels.map((l) => `${l.height}p`)
+              )
+
+              // Filter out auto quality (height 0) and find closest real quality
+              const sortedLevels = hls.levels
+                .map((level, index) => ({
+                  level,
+                  index,
+                  diff: Math.abs(level.height - rec.height),
+                  isLower: level.height < rec.height
+                }))
+                .filter((item) => item.level.height > 0) // Exclude auto quality
+                .sort((a, b) => {
+                  // Prefer lower quality over higher (to avoid buffering)
+                  if (a.isLower && !b.isLower) return -1
+                  if (!a.isLower && b.isLower) return 1
+                  // If both lower or both higher, sort by difference
+                  return a.diff - b.diff
+                })
+
+              if (sortedLevels.length > 0) {
+                levelIndex = sortedLevels[0].index
+                console.log(
+                  `[VideoPlayer] Using closest available: ${hls.levels[levelIndex].height}p ` +
+                  `(recommended was ${rec.height}p)`
+                )
+              }
+            }
+
+            if (levelIndex !== -1) {
+              hls.currentLevel = levelIndex
+              setCurrentQuality(hls.levels[levelIndex].height)
+              logger.info(
+                `Applied recommended quality: ${hls.levels[levelIndex].height}p ` +
+                `(${rec.displayName})`,
+                `Reason: ${rec.reason}`
+              )
+            }
+          }
+        }
       }
 
       // Extract audio tracks if available
@@ -297,7 +361,7 @@ export const VideoPlayer = ({
         hlsRef.current = null
       }
     }
-  }, [streamUrl, initialPosition, isHlsStream, error])
+  }, [streamUrl, initialPosition, isHlsStream, error, qualityRecommendation.recommendation, qualityRecommendation.isReady])
 
   // Set up video event handlers for progress tracking
   useEffect(() => {
@@ -778,6 +842,7 @@ export const VideoPlayer = ({
           isPiP={isPiP}
           availableQualities={availableQualities}
           currentQuality={currentQuality}
+          recommendedQuality={recommendedQuality}
           availableAudioTracks={availableAudioTracks}
           currentAudioTrack={currentAudioTrack}
           playbackSpeed={playbackSpeed}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatTime } from '@/lib/utils'
-import { bg, glass } from '@/styles/semantic'
+import { bg } from '@/styles/semantic'
+import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 
 interface MediaMetadata {
   title: string
@@ -19,6 +20,7 @@ interface VideoControlsProps {
   isPiP: boolean
   availableQualities: Array<{ height: number; bandwidth: number }>
   currentQuality: number | null
+  recommendedQuality: QualityRecommendationResponse | null
   availableAudioTracks: Array<{ id: number; name: string; language: string }>
   currentAudioTrack: number
   playbackSpeed: number
@@ -46,6 +48,7 @@ export const VideoControls = ({
   isPiP,
   availableQualities,
   currentQuality,
+  recommendedQuality,
   availableAudioTracks,
   currentAudioTrack,
   playbackSpeed,
@@ -361,22 +364,41 @@ export const VideoControls = ({
 
             {/* Quality selector */}
             {availableQualities.length > 0 && (
-              <select
-                value={currentQuality || 0}
-                onChange={(e) => onQualityChange(Number(e.target.value))}
-                className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                style={{ minWidth: '70px' }}
-                aria-label="Video quality"
-              >
-                <option value={0} className={bg.secondary}>
-                  Auto
-                </option>
-                {availableQualities.map((quality) => (
-                  <option key={quality.height} value={quality.height} className={bg.secondary}>
-                    {quality.height}p
+              <div className="relative group">
+                <select
+                  value={currentQuality || 0}
+                  onChange={(e) => onQualityChange(Number(e.target.value))}
+                  className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                  style={{ minWidth: '70px' }}
+                  aria-label="Video quality"
+                  title={recommendedQuality?.reason || 'Select video quality'}
+                >
+                  <option value={0} className={bg.secondary}>
+                    Auto
                   </option>
-                ))}
-              </select>
+                  {availableQualities.map((quality) => {
+                    const isRecommended = recommendedQuality?.height === quality.height
+                    return (
+                      <option key={quality.height} value={quality.height} className={bg.secondary}>
+                        {quality.height}p{isRecommended ? ' ★' : ''}
+                      </option>
+                    )
+                  })}
+                </select>
+                {recommendedQuality && (
+                  <div className="hidden group-hover:block absolute bottom-full left-0 mb-2 w-64 bg-black/90 backdrop-blur-sm text-white text-xs rounded-md p-3 shadow-lg border border-white/20 pointer-events-none z-50">
+                    <div className="font-semibold mb-1">
+                      Recommended: {recommendedQuality.displayName}
+                    </div>
+                    <div className="text-white/70">{recommendedQuality.reason}</div>
+                    {recommendedQuality.dataUsageMBPerHour && (
+                      <div className="text-white/50 mt-1 text-[10px]">
+                        ~{recommendedQuality.dataUsageMBPerHour.toFixed(0)} MB/hr
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Audio track selector */}

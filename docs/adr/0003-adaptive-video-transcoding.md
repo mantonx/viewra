@@ -6,13 +6,17 @@
 ## Context
 
 ### Current State
+
 ViewRA currently implements a functional video streaming system with:
-- **HLS streaming** with on-demand FFmpeg segment generation
+
+- **HLS streaming** with on-demand FFmpeg segment generation (DASH support deprecated)
 - **Fixed quality profiles**: 360p, 720p, 1080p, 4K
 - **Manual quality selection** via dropdown in video player
 - **Progressive transcoding** starting from user-selected timestamp
 - **Session management** for active transcode jobs
 - **Strategy detection** (Direct Play, Remux, Remux+Audio, Transcode)
+
+**Legacy System Deprecation**: The original DASH-based transcoding system with 4 basic `QualityProfile` entries (profiles.go) will be fully deprecated in favor of the new adaptive HLS system with granular `AdaptiveProfile` entries. This consolidates the codebase around a single, modern streaming protocol.
 
 ### Problems Identified
 
@@ -1707,37 +1711,54 @@ CREATE TABLE user_video_preferences (
 
 **Tasks**:
 1. Create capability detection module (frontend)
-   - Device detection
-   - Network speed measurement
-   - Screen resolution detection
-   - Basic codec support detection
+   - ✅ Device detection
+   - ✅ Network speed measurement
+   - ✅ Screen resolution detection
+   - ✅ Basic codec support detection
 
 2. Add new quality profiles (backend)
-   - 240p, 480p, 1440p profiles
-   - Extended profile structure with ranges
-   - Profile validation
+   - ✅ 240p, 480p, 1440p profiles
+   - ✅ Extended profile structure with ranges
+   - ✅ Profile validation
 
 3. Implement recommendation endpoint
-   - Request/response types
-   - Recommendation algorithm
-   - Screen-based filtering
-   - Network-based filtering
-   - Source-aware filtering
+   - ✅ Request/response types
+   - ✅ Recommendation algorithm
+   - ✅ Screen-based filtering
+   - ✅ Network-based filtering
+   - ✅ Source-aware filtering
 
 4. Database schema updates
-   - Migration for new columns
-   - Create new tables (quality_switches, playback_metrics, user_video_preferences)
+   - ✅ Migration for new columns
+   - ✅ Create new tables (quality_switches, playback_metrics, user_video_preferences)
 
 5. Basic UI enhancement
-   - Show recommended quality with indicator
-   - Display all quality options with metadata
-   - Add data usage estimates
+   - ✅ Show recommended quality with indicator (star ★ + tooltip)
+   - ✅ Display all quality options with metadata
+   - ✅ Add data usage estimates
+
+6. **HLS Master Playlist Implementation** (backend) **[CRITICAL - BLOCKING]**
+   - ⏳ Add master playlist endpoint: `GET /api/media/:id/hls/master.m3u8`
+   - ⏳ Generate HLS master playlist with all quality variants
+   - ⏳ Include bandwidth and resolution metadata for each variant
+   - ⏳ Support `?start=` parameter for resume-from-timestamp
+   - ⏳ Update frontend to use master playlist URL
+
+   **Why Required**: Current implementation serves single-quality playlists (`/720p/playlist.m3u8`),
+   which prevents HLS.js from accessing multiple quality levels. The master playlist is the standard
+   HLS approach that enables:
+   - Multi-quality selection in video player
+   - Quality recommendations to be applied after manifest loads
+   - User override of recommended quality
+   - Foundation for Phase 2 adaptive streaming
 
 **Deliverables**:
 - ✅ Client can detect its own capabilities
 - ✅ Server recommends optimal quality
-- ✅ UI shows recommendation with reasoning
-- ✅ Database tracks recommendation accuracy
+- ✅ UI shows recommendation with reasoning (star indicator + hover tooltip)
+- ✅ Fuzzy quality matching when exact height unavailable
+- ⏳ Master playlist enables multi-quality streaming
+- ⏳ Database tracks recommendation accuracy
 
 **Success Metrics**:
 - Recommendation accuracy > 80% (users don't override)
@@ -1833,7 +1854,62 @@ CREATE TABLE user_video_preferences (
 
 ---
 
-#### **Phase 4: Advanced Features** (Week 7-8)
+#### **Phase 4: Legacy System Migration** (Week 7)
+
+**Goal**: Deprecate and remove legacy DASH-based transcoding system
+
+**Background**: The codebase currently contains two parallel transcoding systems:
+
+- **Legacy**: `QualityProfile` in `profiles.go` with 4 basic profiles (360p, 720p, 1080p, 4K) and string-based bitrates
+- **New**: `AdaptiveProfile` in `adaptive_profiles.go` with 34 granular profiles and comprehensive metadata
+
+This phase consolidates to a single HLS-based system using the new adaptive profiles.
+
+**Tasks**:
+
+1. **Create backward compatibility layer**
+   - Add `GetProfileForLegacyQuality()` function to map old quality strings to new profile IDs
+   - Map: 360p → Quality360p800k, 720p → Quality720p2500k, 1080p → Quality1080p5000k, 4k → Quality4K15000k
+
+2. **Migrate transcoding infrastructure**
+   - Update `job_executor.go` to use AdaptiveProfile instead of QualityProfile
+   - Update `ffmpeg_args_builder.go` to accept integer bitrates instead of string bitrates
+   - Update `session_manager.go` to use new profile lookups
+   - Update `serve_manifest.go` to use adaptive profile system
+
+3. **Remove legacy code**
+   - Delete `profiles.go` entirely
+   - Remove `GetQualityProfile()` function
+   - Clean up any remaining references to old profile system
+
+4. **Update domain layer**
+   - Keep existing quality constants (Quality360p, Quality720p, Quality1080p, Quality4K) for API compatibility
+   - Ensure `isValidQuality()` continues to work with 4 standard quality levels
+   - Domain layer remains stable, infrastructure layer handles mapping
+
+5. **Testing**
+   - Verify all existing transcode jobs work with new profiles
+   - Test all streaming strategies (DirectPlay, Remux, RemuxWithAudio, Transcode)
+   - Ensure no regressions in video playback
+   - Validate session management with new profiles
+
+**Deliverables**:
+
+- ✅ Single unified HLS-based transcoding system
+- ✅ All legacy code removed
+- ✅ Backward compatibility maintained at API level
+- ✅ Zero regressions in existing functionality
+
+**Success Metrics**:
+
+- All transcode jobs complete successfully with new profiles
+- No increase in failure rates
+- Code complexity reduced (fewer lines of code)
+- Clear separation between domain constants and infrastructure profiles
+
+---
+
+#### **Phase 5: Advanced Features** (Week 8-9)
 **Goal**: Polish, optimization, and future-proofing
 
 **Tasks**:

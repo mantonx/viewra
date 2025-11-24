@@ -3,9 +3,9 @@
 
 **Status**: Ready for Execution
 **Created**: 2025-11-24
-**Total Estimated Time**: 6-8 weeks (240-320 hours)
-**Phases**: 4
-**Breaking Changes**: Minimal (additive only)
+**Total Estimated Time**: 8-9 weeks (280-360 hours)
+**Phases**: 5
+**Breaking Changes**: Phase 4 removes legacy DASH system (internal only, API compatibility maintained)
 
 ---
 
@@ -1473,7 +1473,103 @@ func SpeedTestRateLimiter() gin.HandlerFunc {
 
 ---
 
-### Task 1.5: Frontend Integration (16 hours)
+### Task 1.5: Frontend Integration (20 hours)
+
+**CRITICAL PREREQUISITE: Master Playlist Implementation** (4 hours)
+
+Before frontend integration can be fully functional, the backend must generate HLS master playlists that list all available quality levels.
+
+**Why Required**:
+
+- Current system serves single-quality playlists (`/api/media/:id/hls/720p/playlist.m3u8`)
+- HLS.js cannot access multiple quality levels from a single-quality playlist
+- Quality recommendations cannot be applied without a multi-quality manifest
+- Manual quality switching is impossible without all levels being exposed to the player
+
+**Backend Implementation** (4 hours):
+
+**Location**: `internal/api/handlers/transcode.go` + `internal/api/routes/transcode.go`
+
+```go
+// Handler: ServeAdaptiveMasterPlaylist
+// Route: GET /api/media/:id/hls/master.m3u8?start=X
+func (h *TranscodeHandler) ServeAdaptiveMasterPlaylist(c *gin.Context) {
+    mediaID := c.Param("id")
+    startTime := c.Query("start") // Resume position in seconds
+
+    // 1. Get all available quality profiles
+    profiles := getAllAvailableProfiles() // Returns [360p, 720p, 1080p, 4k, etc.]
+
+    // 2. Generate HLS master playlist
+    playlist := "#EXTM3U\n"
+    playlist += "#EXT-X-VERSION:3\n\n"
+
+    for _, profile := range profiles {
+        // EXT-X-STREAM-INF with bandwidth and resolution
+        playlist += fmt.Sprintf(
+            "#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\"\n",
+            profile.VideoBitrate + profile.AudioBitrate,
+            profile.Width,
+            profile.Height,
+            "avc1.64001f,mp4a.40.2", // H.264 High + AAC
+        )
+
+        // Variant stream URL (with resume parameter if present)
+        variantURL := fmt.Sprintf("%s/playlist.m3u8", profile.Quality)
+        if startTime != "" {
+            variantURL += "?start=" + startTime
+        }
+        playlist += variantURL + "\n\n"
+    }
+
+    c.Header("Content-Type", "application/vnd.apple.mpegurl")
+    c.Header("Cache-Control", "no-cache")
+    c.String(http.StatusOK, playlist)
+}
+```
+
+**Route Registration**:
+```go
+// Add to internal/api/routes/transcode.go
+router.GET("/media/:id/hls/master.m3u8", handler.ServeAdaptiveMasterPlaylist)
+```
+
+**Example Output**:
+
+```hls
+#EXTM3U
+#EXT-X-VERSION:3
+
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.64001f,mp4a.40.2"
+360p/playlist.m3u8
+
+#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2"
+720p/playlist.m3u8
+
+#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.64001f,mp4a.40.2"
+1080p/playlist.m3u8
+
+#EXT-X-STREAM-INF:BANDWIDTH=15000000,RESOLUTION=3840x2160,CODECS="avc1.64001f,mp4a.40.2"
+4k/playlist.m3u8
+```
+
+**Frontend Changes**:
+```typescript
+// Update useMediaPlayback.ts line 70:
+// OLD: const manifestUrl = `/api/media/${id}/hls/${quality}/playlist.m3u8`
+// NEW: const manifestUrl = `/api/media/${id}/hls/master.m3u8`
+```
+
+**Testing**:
+
+- [ ] Master playlist generation with all quality levels
+- [ ] Resume parameter propagates to all variant streams
+- [ ] HLS.js can parse and switch between quality levels
+- [ ] Quality recommendation applies after manifest loads
+
+---
+
+### Task 1.5 (Continued): React Hooks and UI (16 hours)
 
 **React Hook for Recommendations** (4 hours):
 ```typescript
@@ -1859,13 +1955,14 @@ export function QualityPreferences() {
 
 ### Phase 1 Completion Checklist
 
-- [ ] Client capability detection implemented and tested
-- [ ] 240p, 480p, 1440p profiles added to backend
-- [ ] Adaptive profile structure created
-- [ ] Recommendation algorithm implemented
-- [ ] Recommendation API endpoint created and tested
-- [ ] Speed test endpoint created with rate limiting
+- [x] Client capability detection implemented and tested
+- [x] 240p, 480p, 1440p profiles added to backend
+- [x] Adaptive profile structure created
+- [x] Recommendation algorithm implemented
+- [x] Recommendation API endpoint created and tested
+- [x] Speed test endpoint created with rate limiting
 - [ ] Database migrations applied
+- [x] Frontend API client for recommendations implemented
 - [ ] Frontend hook for recommendations working
 - [ ] Quality selector UI enhanced
 - [ ] User preferences UI created
@@ -1919,7 +2016,186 @@ export function QualityPreferences() {
 
 ---
 
-## Phase 4: Advanced Features (Week 7-8)
+## Phase 4: Legacy System Migration (Week 7)
+
+**Duration**: 32-40 hours
+**Goal**: Deprecate and remove legacy DASH-based transcoding system
+
+**Background**: The codebase currently contains two parallel transcoding systems:
+
+- **Legacy**: `QualityProfile` in `profiles.go` with 4 basic profiles (360p, 720p, 1080p, 4K) and string-based bitrates
+- **New**: `AdaptiveProfile` in `adaptive_profiles.go` with 34 granular profiles and comprehensive metadata
+
+This phase consolidates to a single HLS-based system using the new adaptive profiles.
+
+### Task 4.1: Create Backward Compatibility Layer (8 hours)
+
+**Location**: `internal/infrastructure/transcoding/adaptive_profiles.go`
+
+**Implementation**:
+
+```go
+// GetProfileForLegacyQuality maps legacy quality strings (360p, 720p, 1080p, 4k) to AdaptiveProfile IDs.
+// This maintains backward compatibility with the domain layer's quality constants while using
+// the new granular AdaptiveProfile system internally.
+func GetProfileForLegacyQuality(quality string) (*AdaptiveProfile, error) {
+    // Map legacy quality strings to specific AdaptiveProfile IDs
+    var profileID string
+    switch quality {
+    case transcode.Quality360p:
+        profileID = Quality360p800k // 360p @ 800 kbps
+    case transcode.Quality720p:
+        profileID = Quality720p2500k // 720p @ 2.5 Mbps (standard)
+    case transcode.Quality1080p:
+        profileID = Quality1080p5000k // 1080p @ 5 Mbps (standard)
+    case transcode.Quality4K:
+        profileID = Quality4K15000k // 4K @ 15 Mbps (standard)
+    default:
+        return nil, fmt.Errorf("%w: %s", transcode.ErrInvalidQuality, quality)
+    }
+
+    return GetAdaptiveProfile(profileID)
+}
+```
+
+**Testing**:
+
+- Unit tests for legacy quality mapping
+- Verify each legacy quality maps to correct adaptive profile
+- Test error handling for invalid quality strings
+
+### Task 4.2: Migrate Transcoding Infrastructure (16 hours)
+
+**Files to Update**:
+
+1. `internal/infrastructure/transcoding/job_executor.go` (4 hours)
+   - Replace `QualityProfile` with `AdaptiveProfile`
+   - Use `GetProfileForLegacyQuality()` for domain layer queries
+   - Convert string bitrates to integer bitrates
+
+2. `internal/infrastructure/transcoding/ffmpeg_args_builder.go` (4 hours)
+   - Update to accept `AdaptiveProfile` instead of `QualityProfile`
+   - Use integer bitrates directly (no string parsing needed)
+   - Leverage additional profile metadata (preset, CRF, etc.)
+
+3. `internal/infrastructure/transcoding/session_manager.go` (4 hours)
+   - Update session storage to use `AdaptiveProfile`
+   - Maintain backward compatibility for existing sessions
+   - Add migration logic for in-progress jobs
+
+4. `internal/application/transcode/serve_manifest.go` (4 hours)
+   - Use `GetProfileForLegacyQuality()` when serving manifests
+   - Ensure existing HLS URLs continue to work
+   - Update quality validation logic
+
+**Testing**:
+
+- Integration tests for each updated component
+- Test all streaming strategies with new profiles
+- Verify existing transcode jobs continue working
+
+### Task 4.3: Remove Legacy Code (4 hours)
+
+**Files to Delete**:
+
+- `internal/infrastructure/transcoding/profiles.go` (entire file)
+
+**Functions to Remove**:
+
+- `GetQualityProfile(quality string) (*QualityProfile, error)`
+- `GetAllProfiles() []*QualityProfile`
+- `IsQualitySupported(quality string) bool`
+- `GetSupportedQualities() []string`
+
+**Cleanup**:
+
+- Remove all references to `QualityProfile` type
+- Update imports to remove profiles.go references
+- Clean up any helper functions that are no longer needed
+
+### Task 4.4: Update Domain Layer (4 hours)
+
+**Location**: `internal/domain/transcode/`
+
+**Changes**:
+
+- **Keep** existing quality constants unchanged:
+  - `Quality360p = "360p"`
+  - `Quality720p = "720p"`
+  - `Quality1080p = "1080p"`
+  - `Quality4K = "4k"`
+- These constants remain the public API contract
+- Infrastructure layer handles mapping to granular profiles
+- `isValidQuality()` continues to validate these 4 levels
+
+**Documentation**:
+
+- Update godoc comments to clarify domain/infrastructure separation
+- Document that infrastructure uses AdaptiveProfile internally
+- Add migration guide for any external callers
+
+### Task 4.5: Comprehensive Testing (8 hours)
+
+**Test Scenarios**:
+
+1. **Existing Functionality** (3 hours)
+   - Start new transcode job with each legacy quality (360p, 720p, 1080p, 4K)
+   - Verify all four streaming strategies still work (DirectPlay, Remux, RemuxWithAudio, Transcode)
+   - Test session persistence and resumption
+   - Validate HLS manifest generation
+
+2. **Edge Cases** (2 hours)
+   - In-progress jobs from old system
+   - Invalid quality strings
+   - Missing profile IDs
+   - Concurrent transcode requests
+
+3. **Performance Validation** (2 hours)
+   - Measure transcode time before/after migration
+   - Check memory usage with new profiles
+   - Validate CPU usage remains stable
+   - Compare output quality metrics
+
+4. **Integration Testing** (1 hour)
+   - End-to-end playback test for each quality
+   - Quality switching during playback
+   - Seeking within transcoded streams
+
+**Success Metrics**:
+
+- All tests pass
+- Zero increase in transcode failure rate
+- No performance regression (< 5% variance)
+- Playback quality metrics unchanged
+
+### Phase 4 Completion Checklist
+
+- [ ] `GetProfileForLegacyQuality()` function implemented and tested
+- [ ] `job_executor.go` migrated to AdaptiveProfile
+- [ ] `ffmpeg_args_builder.go` migrated to AdaptiveProfile
+- [ ] `session_manager.go` migrated to AdaptiveProfile
+- [ ] `serve_manifest.go` migrated to AdaptiveProfile
+- [ ] `profiles.go` file deleted
+- [ ] All legacy `QualityProfile` references removed
+- [ ] Domain layer constants unchanged and validated
+- [ ] All existing transcode jobs work with new system
+- [ ] All streaming strategies tested and functional
+- [ ] Performance metrics show no regressions
+- [ ] Integration tests passing
+- [ ] Migration documentation complete
+
+**Phase 4 Deliverables**:
+
+- ✅ Single unified HLS-based transcoding system
+- ✅ All legacy DASH code removed
+- ✅ Backward compatibility maintained at API level
+- ✅ Zero functional regressions
+- ✅ Cleaner codebase with less duplication
+- ✅ Clear domain/infrastructure separation
+
+---
+
+## Phase 5: Advanced Features (Week 8-9)
 **Duration**: 80-100 hours
 **Goal**: Polish, optimization, and future-proofing
 
@@ -1988,6 +2264,14 @@ export function QualityPreferences() {
 - [ ] Zero playback failures from codec issues
 
 ### Phase 4 Success Criteria
+
+- [ ] All transcode jobs complete successfully with new profiles
+- [ ] No increase in failure rates
+- [ ] Code complexity reduced (fewer lines of code)
+- [ ] Clear separation between domain constants and infrastructure profiles
+
+### Phase 5 Success Criteria
+
 - [ ] AV1 support functional for Chrome 90+
 - [ ] Analytics dashboard operational
 - [ ] A/B testing framework ready
@@ -2010,9 +2294,12 @@ Week 5-6: Phase 3 - Multi-Codec Support
 ├─ Week 5: H.265 + VP9 implementation
 └─ Week 6: Testing + Optimization
 
-Week 7-8: Phase 4 - Advanced Features
-├─ Week 7: AV1 + Analytics dashboard
-└─ Week 8: A/B testing + Documentation
+Week 7: Phase 4 - Legacy System Migration
+└─ Week 7: Migrate to unified HLS system, remove DASH code
+
+Week 8-9: Phase 5 - Advanced Features
+├─ Week 8: AV1 + Analytics dashboard
+└─ Week 9: A/B testing + Documentation
 ```
 
 ---
