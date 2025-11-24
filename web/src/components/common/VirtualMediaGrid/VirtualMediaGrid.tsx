@@ -47,6 +47,11 @@ interface VirtualMediaGridProps<T> {
   fetchNextPage: () => void
   hasNextPage: boolean
   isFetchingNextPage: boolean
+
+  /**
+   * Optional scroll callback
+   */
+  onScroll?: (scrollTop: number) => void
 }
 
 export const VirtualMediaGrid = <T extends { id: number }>({
@@ -59,6 +64,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
   fetchNextPage,
   hasNextPage,
   isFetchingNextPage,
+  onScroll,
 }: VirtualMediaGridProps<T>) => {
   const { parentRef, virtualRows, totalHeight } = useVirtualGrid({
     itemCount: items.length,
@@ -76,16 +82,19 @@ export const VirtualMediaGrid = <T extends { id: number }>({
   return (
     <div
       ref={parentRef}
+      onScroll={(e) => onScroll?.(e.currentTarget.scrollTop)}
       style={{
-        height: 'calc(100vh - 280px)', // Account for header, filters, count
+        height: '100%',
         overflow: 'auto',
       }}
     >
       <div
         style={{
-          height: `${totalHeight + 64}px`, // Add 64px bottom spacing
+          height: `${totalHeight}px`,
           width: '100%',
           position: 'relative',
+          paddingTop: '16px',
+          paddingBottom: '16px',
         }}
       >
         {virtualRows.map((virtualRow: VirtualItem) => {
@@ -103,12 +112,15 @@ export const VirtualMediaGrid = <T extends { id: number }>({
                 width: '100%',
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
+                overflow: 'visible',
               }}
             >
               <div
                 className="grid gap-4"
                 style={{
                   gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                  overflow: 'visible',
+                  paddingTop: '16px',
                 }}
               >
                 {isLoaderRow ? (

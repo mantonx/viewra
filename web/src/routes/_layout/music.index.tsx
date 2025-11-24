@@ -54,7 +54,7 @@ const Music = () => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteArtists({ libraryId, sort: apiSort })
+  } = useInfiniteArtists({ libraryId, sort: apiSort, pageSize: 100 })
 
   const allArtists = data ? flattenArtists(data.pages) : []
 
@@ -127,7 +127,7 @@ const Music = () => {
           <VirtualMediaGrid
             items={allArtists}
             columns={columns}
-            estimatedRowHeight={400}
+            estimatedRowHeight={320}
             gap={16}
             renderItem={(artist) => (
               <ArtistCard

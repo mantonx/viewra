@@ -120,7 +120,7 @@ const Movies = () => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteMovies({ libraryId, sort: apiSort })
+  } = useInfiniteMovies({ libraryId, sort: apiSort, pageSize: 100 })
 
   const allMovies = useMemo(() => data ? flattenMovies(data.pages) : [], [data])
 
@@ -355,7 +355,7 @@ const Movies = () => {
           <VirtualMediaGrid
             items={allMovies}
             columns={columns}
-            estimatedRowHeight={450}
+            estimatedRowHeight={580}
             gap={16}
             renderItem={(movie) => (
               <MovieCard

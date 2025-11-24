@@ -10,6 +10,7 @@ export interface SortSelectorProps {
   value: string
   onChange: (value: string) => void
   className?: string
+  showLabel?: boolean
 }
 
 const SORT_OPTIONS: SortOption[] = [
@@ -19,7 +20,7 @@ const SORT_OPTIONS: SortOption[] = [
   { field: 'rating', label: 'Rating', enabled: true },
 ]
 
-export const SortSelector = ({ value, onChange, className = '' }: SortSelectorProps) => {
+export const SortSelector = ({ value, onChange, className = '', showLabel = true }: SortSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -59,9 +60,11 @@ export const SortSelector = ({ value, onChange, className = '' }: SortSelectorPr
 
   return (
     <div ref={dropdownRef} className={`relative ${className}`}>
-      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-        Sort By
-      </label>
+      {showLabel && (
+        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+          Sort By
+        </label>
+      )}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}

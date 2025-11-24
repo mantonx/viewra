@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode, cloneElement, isValidElement } from 'react'
 import { Card, CardContent, Input } from '@/components/ui'
 import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/common'
 import { SortSelector } from '@/components/common/SortSelector'
@@ -65,7 +65,9 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   const [filters, setFilters] = useState<FilterState>(initialFilters)
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode)
   const [showHelpModal, setShowHelpModal] = useState(false)
+  const [isHeaderMinimized, setIsHeaderMinimized] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Auto-enable view toggle if renderListItem is provided
   const enableViewToggle = !!renderListItem
@@ -232,34 +234,40 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   }
 
   return (
-    <div className="p-8">
+    <div className="h-screen overflow-hidden flex flex-col relative">
+      <div className={`sticky top-0 z-10 flex-shrink-0 transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2 px-8' : 'p-8 pb-0'}`}>
       {/* Page header */}
-      {customHeader || <PageHeader title={title} description={description} />}
+      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isHeaderMinimized ? 'max-h-0 opacity-0' : 'max-h-32 opacity-100'}`}>
+        {customHeader || <PageHeader title={title} description={description} />}
+      </div>
 
       {/* Filters */}
-      <Card className="mb-6">
-        <CardContent>
+      <Card className={`transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'mb-4' : 'mb-6'} bg-white/60 dark:bg-neutral-900/60 backdrop-blur-lg border-white/20 dark:border-neutral-800/20 shadow-lg`}>
+        <CardContent className={`transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2' : ''}`}>
           <form role="search" aria-label={`Filter and sort ${type}`} onSubmit={(e) => e.preventDefault()}>
             <div className={`grid gap-4 ${enableViewToggle ? 'grid-cols-1 md:grid-cols-3' : additionalFilters ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
               <Input
                 ref={searchInputRef}
-                label="Search"
+                label={isHeaderMinimized ? undefined : "Search"}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={searchPlaceholder}
                 aria-label={`Search ${type}`}
                 aria-describedby="search-results-count"
-                helperText="Press / or Cmd+K to focus"
+                helperText={isHeaderMinimized ? undefined : "Press / or Cmd+K to focus"}
               />
               <SortSelector
                 value={sortBy}
                 onChange={(newSort) => setSortBy(newSort)}
+                showLabel={!isHeaderMinimized}
               />
               {enableViewToggle && (
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                    View
-                  </label>
+                  <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isHeaderMinimized ? 'max-h-0 opacity-0' : 'max-h-10 opacity-100'}`}>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      View
+                    </label>
+                  </div>
                   <ViewToggle value={viewMode} onChange={setViewMode} />
                 </div>
               )}
@@ -267,8 +275,8 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
             </div>
 
             {/* Advanced Filters */}
-            {enableAdvancedFilters && (
-              <div className="mt-4">
+            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${enableAdvancedFilters && !isHeaderMinimized ? 'max-h-96 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
+              {enableAdvancedFilters && (
                 <AdvancedFilters
                   genres={genres}
                   yearRange={yearRange}
@@ -277,47 +285,45 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
                   value={filters}
                   onChange={setFilters}
                 />
-              </div>
-            )}
+              )}
+            </div>
           </form>
         </CardContent>
       </Card>
+      </div>
 
       {/* Items grid or empty state */}
-      {sortedItems.length === 0 ? (
-        customEmpty || (
-          <Card>
-            <CardContent>
-              <EmptyState
-                icon={emptyIcon}
-                title={data.length === 0 ? emptyTitle : 'No matches'}
-                description={
-                  data.length === 0
-                    ? emptyDescription
-                    : `No ${type} match your search. Try adjusting your query.`
-                }
-              />
-            </CardContent>
-          </Card>
-        )
-      ) : viewMode === 'list' && renderListItem ? (
-        <div className="space-y-2" role="list" aria-label={`${type} list`}>
-          {sortedItems.map((item) => renderListItem(item, libraryId))}
-        </div>
-      ) : (
-        // Virtual grid renderer (TanStack Virtual)
-        customGridRenderer
-      )}
-
-      {/* Count display */}
-      <div
-        id="search-results-count"
-        className="mt-4 text-sm text-neutral-500 dark:text-neutral-500 text-center"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        Showing {sortedItems.length} of {data.length} {type}
+      <div className="flex-1 min-h-0 px-8 pb-8 -mt-6">
+        {sortedItems.length === 0 ? (
+          customEmpty || (
+            <Card>
+              <CardContent>
+                <EmptyState
+                  icon={emptyIcon}
+                  title={data.length === 0 ? emptyTitle : 'No matches'}
+                  description={
+                    data.length === 0
+                      ? emptyDescription
+                      : `No ${type} match your search. Try adjusting your query.`
+                  }
+                />
+              </CardContent>
+            </Card>
+          )
+        ) : viewMode === 'list' && renderListItem ? (
+          <div className="space-y-2" role="list" aria-label={`${type} list`}>
+            {sortedItems.map((item) => renderListItem(item, libraryId))}
+          </div>
+        ) : (
+          // Virtual grid renderer (TanStack Virtual)
+          isValidElement(customGridRenderer)
+            ? cloneElement(customGridRenderer as React.ReactElement<{ onScroll?: (scrollTop: number) => void }>, {
+                onScroll: (scrollTop: number) => {
+                  setIsHeaderMinimized(scrollTop > 100)
+                },
+              })
+            : customGridRenderer
+        )}
       </div>
 
       {/* Help Modal */}
