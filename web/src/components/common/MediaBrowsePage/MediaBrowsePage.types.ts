@@ -22,7 +22,6 @@ export interface MediaBrowsePageProps<T extends { id: number; title?: string; na
   renderItem: (item: T, libraryId: number) => ReactNode
   renderListItem?: (item: T, libraryId: number) => ReactNode
   getItemSearchText?: (item: T) => string
-  gridClassName?: string
 
   // Interaction handlers
   onItemSelect?: (item: T) => void
@@ -51,4 +50,5 @@ export interface MediaBrowsePageProps<T extends { id: number; title?: string; na
   additionalFilters?: ReactNode
   customHeader?: ReactNode
   customEmpty?: ReactNode
+  customGridRenderer?: ReactNode // For virtual scrolling
 }

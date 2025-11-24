@@ -7,3 +7,4 @@ export { SortSelector, type SortSelectorProps, type SortOption } from './SortSel
 export { AdvancedFilters, type AdvancedFiltersProps, type FilterState, type YearRange } from './AdvancedFilters'
 export { ViewToggle, type ViewToggleProps, type ViewMode } from './ViewToggle'
 export { HoverPlayButton, type HoverPlayButtonProps } from './HoverPlayButton'
+export { VirtualMediaGrid } from './VirtualMediaGrid'

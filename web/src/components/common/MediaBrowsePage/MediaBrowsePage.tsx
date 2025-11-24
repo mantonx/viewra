@@ -4,7 +4,7 @@ import { PageHeader, EmptyState, LoadingPage, ErrorPage } from '@/components/com
 import { SortSelector } from '@/components/common/SortSelector'
 import { AdvancedFilters, type FilterState } from '@/components/common/AdvancedFilters'
 import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
-import { useLibraryFilter, useDebounce, useGridNavigation, useGlobalKeyboardShortcuts, useWatchedList } from '@/lib/hooks'
+import { useLibraryFilter, useDebounce, useGlobalKeyboardShortcuts, useWatchedList } from '@/lib/hooks'
 import type { MediaBrowsePageProps } from './MediaBrowsePage.types'
 
 /**
@@ -30,7 +30,6 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   renderItem,
   renderListItem,
   getItemSearchText,
-  gridClassName = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4',
 
   // Interaction handlers
   onItemSelect,
@@ -59,12 +58,12 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   additionalFilters,
   customHeader,
   customEmpty,
+  customGridRenderer,
 }: MediaBrowsePageProps<T>): ReactNode => {
   const [searchQuery, setSearchQuery] = useState(initialSearch)
   const [sortBy, setSortBy] = useState(initialSort)
   const [filters, setFilters] = useState<FilterState>(initialFilters)
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode)
-  const [columns, setColumns] = useState(6)
   const [showHelpModal, setShowHelpModal] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -128,28 +127,6 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   // Fetch watched items for filtering
   const { data: watchedData } = useWatchedList({ limit: 10000 })
   const watchedMediaIds = new Set(watchedData?.progress?.map((p) => p.media_id) || [])
-
-  // Calculate grid columns based on window width for keyboard navigation
-  useEffect(() => {
-    const updateColumns = () => {
-      const width = window.innerWidth
-      if (width >= 1280) {
-        setColumns(6) // xl
-      } else if (width >= 1024) {
-        setColumns(5) // lg
-      } else if (width >= 768) {
-        setColumns(4) // md
-      } else if (width >= 640) {
-        setColumns(3) // sm
-      } else {
-        setColumns(2) // base
-      }
-    }
-
-    updateColumns()
-    window.addEventListener('resize', updateColumns)
-    return () => window.removeEventListener('resize', updateColumns)
-  }, [])
 
   // Filter items by debounced search query and advanced filters
   const filteredItems = data.filter((item) => {
@@ -245,18 +222,6 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
     return 0
   })
 
-
-  // Use default grid class
-  const actualGridClassName = gridClassName || 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4'
-
-  // Keyboard navigation for media grid
-  const gridRef = useGridNavigation({
-    columns,
-    itemCount: sortedItems.length,
-    enabled: sortedItems.length > 0,
-    onItemSelect: onItemSelect ? (index) => onItemSelect(sortedItems[index]) : undefined,
-  })
-
   // Loading and error states
   if (isLoading) {
     return <LoadingPage text={`Loading ${type}...`} />
@@ -340,9 +305,8 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
           {sortedItems.map((item) => renderListItem(item, libraryId))}
         </div>
       ) : (
-        <div ref={gridRef} className={actualGridClassName} role="grid" aria-label={`${type} grid`}>
-          {sortedItems.map((item) => renderItem(item, libraryId))}
-        </div>
+        // Virtual grid renderer (TanStack Virtual)
+        customGridRenderer
       )}
 
       {/* Count display */}

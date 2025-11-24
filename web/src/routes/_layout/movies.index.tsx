@@ -1,10 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import { MovieCard } from '@/components/movies'
 import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
-import { MediaCardSkeleton } from '@/components/media/MediaCard'
-import { MediaBrowsePage } from '@/components/common'
+import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider } from '@/lib/hooks'
 import { logger } from '@/lib/utils/logger'
 import type { FilterState, ViewMode } from '@/components/common'
@@ -172,30 +171,21 @@ const Movies = () => {
     watchedFilter: (search.watched as 'all' | 'watched' | 'unwatched') || 'all',
   }), [search.genres, search.yearMin, search.yearMax, search.qualities, search.watched])
 
-  // Infinite scroll: Detect when user scrolls near bottom
-  const observerTarget = useRef<HTMLDivElement>(null)
-
+  // Calculate responsive columns for virtual grid
+  const [columns, setColumns] = useState(6)
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage()
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    const currentTarget = observerTarget.current
-    if (currentTarget) {
-      observer.observe(currentTarget)
+    const updateColumns = () => {
+      const width = window.innerWidth
+      if (width >= 1280) setColumns(6) // xl
+      else if (width >= 1024) setColumns(5) // lg
+      else if (width >= 768) setColumns(4) // md
+      else if (width >= 640) setColumns(3) // sm
+      else setColumns(2) // base
     }
-
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget)
-      }
-    }
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+    updateColumns()
+    window.addEventListener('resize', updateColumns)
+    return () => window.removeEventListener('resize', updateColumns)
+  }, [])
 
   // Find currently playing movie
   const playingMovie = allMovies.find((m) => m.id === playbackState.mediaId)
@@ -361,16 +351,26 @@ const Movies = () => {
           if (movie.height >= 720) {return '720p'}
           return 'SD'
         }}
+        customGridRenderer={
+          <VirtualMediaGrid
+            items={allMovies}
+            columns={columns}
+            estimatedRowHeight={450}
+            gap={16}
+            renderItem={(movie) => (
+              <MovieCard
+                key={movie.id}
+                movie={movie as Movie}
+                onClick={() => handlePlayMovie(movie.id)}
+              />
+            )}
+            skeletonAspectRatio="2/3"
+            fetchNextPage={fetchNextPage}
+            hasNextPage={hasNextPage || false}
+            isFetchingNextPage={isFetchingNextPage}
+          />
+        }
       />
-      {/* Infinite scroll observer target with skeleton cards */}
-      {isFetchingNextPage && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 px-8 pb-8">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <MediaCardSkeleton key={`skeleton-${i}`} aspectRatio="2/3" />
-          ))}
-        </div>
-      )}
-      <div ref={observerTarget} className="h-20" />
       </BatchProgressProvider>
     </BatchImagesProvider>
   )

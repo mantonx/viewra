@@ -1,11 +1,11 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { ArtistCard, ArtistListItem } from '@/components/music'
-import { MediaCardSkeleton } from '@/components/media/MediaCard'
-import { MediaBrowsePage } from '@/components/common'
+import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider } from '@/lib/hooks'
 import type { ViewMode } from '@/components/common'
 import type { GithubComMantonxViewraInternalApplicationMusicArtistSummary } from '@/lib/api/generated/models'
+import type { Artist } from '@/types/music'
 
 const Music = () => {
   const navigate = useNavigate()
@@ -44,7 +44,6 @@ const Music = () => {
   }
 
   // Convert sort format from URL (title-asc) to API format (title_asc)
-  // Always use a sort value (default to title_asc) to ensure consistent query keys
   const apiSort = (search.sort || 'title-asc').replace(/-/g, '_')
 
   // Use infinite scroll for artists
@@ -59,30 +58,28 @@ const Music = () => {
 
   const allArtists = data ? flattenArtists(data.pages) : []
 
-  // Infinite scroll: Detect when user scrolls near bottom
-  const observerTarget = useRef<HTMLDivElement>(null)
-
+  // Calculate responsive columns for virtualization
+  const [columns, setColumns] = useState(6)
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage()
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    const currentTarget = observerTarget.current
-    if (currentTarget) {
-      observer.observe(currentTarget)
-    }
-
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget)
+    const updateColumns = () => {
+      const width = window.innerWidth
+      if (width >= 1280) {
+        setColumns(6) // xl
+      } else if (width >= 1024) {
+        setColumns(5) // lg
+      } else if (width >= 768) {
+        setColumns(4) // md
+      } else if (width >= 640) {
+        setColumns(3) // sm
+      } else {
+        setColumns(2) // base
       }
     }
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+
+    updateColumns()
+    window.addEventListener('resize', updateColumns)
+    return () => window.removeEventListener('resize', updateColumns)
+  }, [])
 
   // Handle clicking on an artist card
   const handleArtistClick = (artistId: number) => {
@@ -126,16 +123,26 @@ const Music = () => {
         onSearchChange={handleSearchChange}
         onSortChange={handleSortChange}
         onViewModeChange={handleViewModeChange}
+        customGridRenderer={
+          <VirtualMediaGrid
+            items={allArtists}
+            columns={columns}
+            estimatedRowHeight={400}
+            gap={16}
+            renderItem={(artist) => (
+              <ArtistCard
+                key={artist.id}
+                artist={artist as Artist}
+                onClick={() => artist.id && handleArtistClick(artist.id)}
+              />
+            )}
+            skeletonAspectRatio="square"
+            fetchNextPage={fetchNextPage}
+            hasNextPage={hasNextPage || false}
+            isFetchingNextPage={isFetchingNextPage}
+          />
+        }
       />
-      {/* Infinite scroll observer target with skeleton cards */}
-      {isFetchingNextPage && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 px-8 pb-8">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <MediaCardSkeleton key={`skeleton-${i}`} aspectRatio="square" />
-          ))}
-        </div>
-      )}
-      <div ref={observerTarget} className="h-20" />
     </BatchImagesProvider>
   )
 }
