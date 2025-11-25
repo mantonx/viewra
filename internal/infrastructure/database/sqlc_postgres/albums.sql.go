@@ -40,8 +40,9 @@ INSERT INTO music_albums (
     cover_art_path,
     sort_title,
     created_at,
-    updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    updated_at,
+    artist_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 RETURNING id, library_id, title, album_artist, artist, year, release_date, genre, total_tracks, total_discs, record_label, release_type, compilation, musicbrainz_album_id, cover_art_path, sort_title, created_at, updated_at, artist_id
 `
 
@@ -63,6 +64,7 @@ type CreateAlbumParams struct {
 	SortTitle          sql.NullString `json:"sort_title"`
 	CreatedAt          sql.NullTime   `json:"created_at"`
 	UpdatedAt          sql.NullTime   `json:"updated_at"`
+	ArtistID           sql.NullInt32  `json:"artist_id"`
 }
 
 func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (MusicAlbum, error) {
@@ -84,6 +86,7 @@ func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (Music
 		arg.SortTitle,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.ArtistID,
 	)
 	var i MusicAlbum
 	err := row.Scan(

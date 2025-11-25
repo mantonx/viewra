@@ -37,12 +37,7 @@ func ProcessAndSaveImages(
 		"image_count", len(extractedImages.Images))
 
 	// Process each image
-	for i, imgInfo := range extractedImages.Images {
-		log.Info("processing image",
-			"index", i+1,
-			"total", len(extractedImages.Images),
-			"type", imgInfo.Type,
-			"path", imgInfo.Path)
+	for _, imgInfo := range extractedImages.Images {
 		// Extract metadata (calculate hash to check for duplicates)
 		metadata, err := metadataExtractor.ExtractMetadata(imgInfo.Path)
 		if err != nil {

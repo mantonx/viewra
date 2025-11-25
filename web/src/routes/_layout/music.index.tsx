@@ -117,6 +117,7 @@ const Music = () => {
           />
         )}
         onItemSelect={(artist) => handleArtistClick(artist.id)}
+        getItemSearchText={(artist) => artist.name || ''}
         initialSearch={search.q}
         initialSort={search.sort || 'title-asc'}
         initialViewMode={search.view || 'grid'}

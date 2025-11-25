@@ -83,7 +83,7 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
                     className={cn(
                       'flex items-center gap-3 p-3 cursor-pointer transition-colors group',
                       isCurrentTrack
-                        ? 'bg-rose-500/10 border-l-2 border-rose-500'
+                        ? 'bg-primary-500/10 border-l-2 border-primary-500'
                         : 'hover:bg-neutral-800/50'
                     )}
                   >
@@ -96,7 +96,7 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
                     <div className="w-6 flex-shrink-0 text-center">
                       {isCurrentTrack ? (
                         <div className="flex items-center justify-center">
-                          <div className="w-1 h-3 bg-rose-500 rounded-full animate-pulse" />
+                          <div className="w-1 h-3 bg-primary-500 rounded-full animate-pulse" />
                         </div>
                       ) : (
                         <span className={cn('text-xs', text.tertiary)}>{index + 1}</span>
@@ -108,7 +108,7 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
                       <p
                         className={cn(
                           'text-sm font-medium truncate',
-                          isCurrentTrack ? 'text-rose-500' : 'text-white'
+                          isCurrentTrack ? 'text-primary-500' : 'text-white'
                         )}
                       >
                         {track.title}
@@ -130,7 +130,7 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
                       className={cn(
                         'p-1 rounded hover:bg-neutral-700 transition-colors opacity-0 group-hover:opacity-100',
                         text.tertiary,
-                        'hover:text-rose-500'
+                        'hover:text-primary-500 cursor-pointer'
                       )}
                       aria-label="Remove from queue"
                     >

@@ -352,6 +352,7 @@ const Movies = () => {
           />
         )}
         onItemSelect={(movie) => handlePlayMovie(movie.id)}
+        getItemSearchText={(movie) => movie.title || ''}
         initialSearch={search.q || ''}
         initialSort={search.sort || 'title-asc'}
         initialFilters={initialFilters}

@@ -155,7 +155,7 @@ export const MediaPoster = ({
             ? getArtistImage(images)
             : null
           : images && images.length > 0
-            ? getPosterImage(images)
+            ? getPosterImage(images) || getAlbumCover(images)
             : null
   const imageUrl = image ? getImageUrl(image.id, preset) : null
 

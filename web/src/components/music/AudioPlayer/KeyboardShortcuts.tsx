@@ -33,13 +33,13 @@ export const KeyboardShortcuts = ({ isOpen, onClose }: KeyboardShortcutsProps) =
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-neutral-800">
           <div className="flex items-center gap-2">
-            <Keyboard size={20} className="text-rose-500" />
+            <Keyboard size={20} className="text-primary-500" />
             <h2 className="text-lg font-semibold text-white">Keyboard Shortcuts</h2>
           </div>
           <button
             onClick={onClose}
             className={cn(
-              'p-2 rounded hover:bg-neutral-800 transition-colors',
+              'p-2 rounded hover:bg-neutral-800 transition-colors cursor-pointer',
               text.tertiary
             )}
             aria-label="Close keyboard shortcuts"

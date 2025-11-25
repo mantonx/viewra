@@ -43,15 +43,15 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 			"batch_size", batchSize)
 	}
 
-	const batchTimeout = 500 * time.Millisecond // Insert even partial batches after 500ms
+	batchTimeout := uc.config.BatchWriteTimeout
 
 	type hashJob struct {
 		fileInfo scanner.FileInfo
 	}
 
 	// Create channels for work distribution
-	jobs := make(chan hashJob, 100)
-	checkpoints := make(chan *scanner.ScanCheckpoint, 100)
+	jobs := make(chan hashJob, uc.config.CheckpointBufferSize)
+	checkpoints := make(chan *scanner.ScanCheckpoint, uc.config.CheckpointBufferSize)
 	errors := make(chan error, 1) // Buffered to prevent goroutine leak
 
 	// Start hash workers
@@ -158,8 +158,8 @@ func (uc *ScanLibraryUseCase) hashAndStreamCheckpoints(
 				batch = append(batch, checkpoint)
 				processed++
 
-				// Log progress every 5000 files
-				if processed%5000 == 0 {
+				// Log progress periodically
+				if processed%uc.config.HashProgressLogEvery == 0 {
 					uc.logger.Info("hashing and checkpoint creation progress",
 						"processed", processed,
 						"total", len(filesToProcess),

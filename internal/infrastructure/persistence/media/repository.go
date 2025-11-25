@@ -179,9 +179,25 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*med
 	return mediaList, nil
 }
 
-// GetFilePathCache retrieves a map of file_path -> id for all media in a library
-// Memory-efficient: only loads the columns needed for cache lookup
+// GetFilePathCache retrieves a map of file_path -> id for all media in a library.
+// Memory-efficient: only loads the columns needed for cache lookup.
+//
+// Memory estimate: ~200 bytes per file (150 byte avg path + map overhead).
+// For 100K files: ~20MB. For 500K files: ~100MB.
+//
+// The database/sql package streams rows, so we only hold one row in memory at a time
+// during iteration. The map itself is the main memory consumer.
 func (r *Repository) GetFilePathCache(ctx context.Context, libraryID int64) (map[string]int64, error) {
+	// First, get count to pre-allocate map (avoids repeated reallocation)
+	var count int64
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM media WHERE library_id = ?
+	`, libraryID).Scan(&count)
+	if err != nil {
+		// Non-fatal - continue with default allocation
+		count = 0
+	}
+
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, file_path
 		FROM media
@@ -192,7 +208,8 @@ func (r *Repository) GetFilePathCache(ctx context.Context, libraryID int64) (map
 	}
 	defer rows.Close()
 
-	cache := make(map[string]int64)
+	// Pre-allocate map based on count
+	cache := make(map[string]int64, count)
 	for rows.Next() {
 		var id int64
 		var filePath string

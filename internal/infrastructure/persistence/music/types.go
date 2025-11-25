@@ -62,6 +62,8 @@ func mapMusicTrackToDomain(row interface{}) *media.MusicTrack {
 		MusicBrainzTrackID:  common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzTrackID")),
 		MusicBrainzAlbumID:  common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzAlbumID")),
 		MusicBrainzArtistID: common.ParseNullString(common.NullStringFieldGetter(row, "MusicbrainzArtistID")),
+		AlbumID:             common.IntFieldGetter(row, "AlbumID"),
+		ArtistID:            common.IntFieldGetter(row, "ArtistID"),
 	}
 }
 
@@ -207,6 +209,8 @@ type musicTrackFields struct {
 	MusicBrainzTrackID  sql.NullString
 	MusicBrainzAlbumID  sql.NullString
 	MusicBrainzArtistID sql.NullString
+	AlbumID             sql.NullInt64
+	ArtistID            sql.NullInt64
 	MediaID2            int64
 	LibraryID           int64
 	Title               string
@@ -272,6 +276,9 @@ func sqliteMusicTrackRowToDomain(fields musicTrackFields) *media.MusicTrack {
 		MusicBrainzTrackID:  common.ParseNullString(fields.MusicBrainzTrackID),
 		MusicBrainzAlbumID:  common.ParseNullString(fields.MusicBrainzAlbumID),
 		MusicBrainzArtistID: common.ParseNullString(fields.MusicBrainzArtistID),
+		// Entity references
+		AlbumID:  common.ParseNullInt64(fields.AlbumID),
+		ArtistID: common.ParseNullInt64(fields.ArtistID),
 	}
 }
 
@@ -313,6 +320,7 @@ func buildSQLiteCreateMusicTrackParams(t *media.MusicTrack) sqlc_sqlite.CreateMu
 		OriginalTitle:       common.NullString(t.OriginalTitle),
 		SortTitle:           common.NullString(sortTitle),
 		AlbumID:             common.NullInt64(t.AlbumID),
+		ArtistID:            common.NullInt64(t.ArtistID),
 	}
 }
 
@@ -379,6 +387,7 @@ func buildSQLiteCreateAlbumParams(a *media.Album) sqlc_sqlite.CreateAlbumParams 
 		SortTitle:          common.NullString(sortTitle),
 		CreatedAt:          now,
 		UpdatedAt:          now,
+		ArtistID:           common.NullInt64(a.ArtistID),
 	}
 }
 
@@ -504,6 +513,7 @@ func buildPostgresCreateMusicTrackParams(t *media.MusicTrack) sqlc_postgres.Crea
 		OriginalTitle:       common.NullString(t.OriginalTitle),
 		SortTitle:           common.NullString(sortTitle),
 		AlbumID:             common.NullInt32FromInt64(t.AlbumID),
+		ArtistID:            common.NullInt32FromInt64(t.ArtistID),
 	}
 }
 
@@ -565,6 +575,7 @@ func buildPostgresCreateAlbumParams(a *media.Album) sqlc_postgres.CreateAlbumPar
 		SortTitle:          common.NullString(sortTitle),
 		CreatedAt:          now,
 		UpdatedAt:          now,
+		ArtistID:           common.NullInt32FromInt64(a.ArtistID),
 	}
 }
 

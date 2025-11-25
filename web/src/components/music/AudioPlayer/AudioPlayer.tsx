@@ -1,6 +1,7 @@
 import { useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
-import { useEffect, useRef, useState } from 'react'
-import { text } from '@/styles/semantic'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { text, bg, glassStyles } from '@/styles/semantic'
+import { ThemeContext } from '@/contexts/ThemeContext'
 import { cn } from '@/lib/utils'
 import type { AudioPlayerProps } from './AudioPlayer.types'
 import { MediaPoster } from '@/components/media/MediaPoster'
@@ -31,6 +32,9 @@ const formatTime = (seconds: number): string => {
 }
 
 const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
+  const themeContext = useContext(ThemeContext)
+  const theme = themeContext?.theme || 'light'
+
   const {
     currentTrack,
     isPlaying,
@@ -56,6 +60,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
   const [showVolumeSlider, setShowVolumeSlider] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showAlbumArt, setShowAlbumArt] = useState(false)
   const volumeRef = useRef<HTMLDivElement>(null)
 
   // Close volume slider when clicking outside
@@ -78,6 +83,15 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
       // Only handle if not typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
+      }
+
+      // Handle Escape key for modals
+      if (e.key === 'Escape') {
+        if (showAlbumArt) {
+          e.preventDefault()
+          setShowAlbumArt(false)
+          return
+        }
       }
 
       switch (e.key) {
@@ -115,7 +129,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
 
     document.addEventListener('keydown', handleKeyPress)
     return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [currentTime, duration, volume, togglePlayPause, toggleMute, seek, setVolume])
+  }, [currentTime, duration, volume, showAlbumArt, togglePlayPause, toggleMute, seek, setVolume])
 
   if (!currentTrack) {
     return null
@@ -177,192 +191,232 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
   return (
     <>
       <div
-        className={`fixed bottom-0 left-0 right-0 bg-gradient-to-r from-neutral-900 to-neutral-800 dark:from-neutral-900 dark:to-neutral-800 text-white shadow-lg z-50 ${className}`}
+        className={cn(
+          'fixed bottom-0 left-0 right-0 z-50 border-t',
+          bg.elevated,
+          'border-neutral-200 dark:border-neutral-800',
+          'shadow-2xl',
+          className
+        )}
+        style={{
+          ...glassStyles.medium(theme === 'dark'),
+        }}
       >
-      <div className="max-w-screen-2xl mx-auto px-6 py-3">
-        {/* Progress bar */}
-        <div className="mb-3">
-          <input
-            type="range"
-            min="0"
-            max={duration || 0}
-            value={displayTime}
-            onChange={handleSeekChange}
-            onClick={handleProgressClick}
-            onMouseDown={handleSeekStart}
-            onMouseUp={handleSeekEnd}
-            onTouchStart={handleSeekStart}
-            onTouchEnd={handleSeekEnd}
-            className="w-full h-1 bg-neutral-700 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer slider"
-            style={{
-              background: `linear-gradient(to right, rgb(244, 63, 94) 0%, rgb(244, 63, 94) ${progress}%, rgb(55, 65, 81) ${progress}%, rgb(55, 65, 81) 100%)`,
-            }}
-          />
-          <div className={cn('flex justify-between text-xs mt-1', text.tertiary)}>
-            <span>{formatTime(displayTime)}</span>
-            <span>{formatTime(duration)}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          {/* Album art and track info */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            {/* Album art thumbnail */}
-            <div className="w-14 h-14 rounded overflow-hidden flex-shrink-0 bg-neutral-800">
-              <MediaPoster
-                mediaId={currentTrack.id}
-                mediaType="media"
-                alt={currentTrack.album || currentTrack.title}
-                className="w-full h-full object-cover"
-                preset="thumb"
-                aspectRatio="square"
-                fallbackIcon="🎵"
-              />
-            </div>
-
-            {/* Track info */}
-            <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm truncate">{currentTrack.title}</h4>
-              <p className={cn('text-xs truncate', text.tertiary)}>
-                {currentTrack.artist || 'Unknown Artist'}
-                {currentTrack.album && ` • ${currentTrack.album}`}
-              </p>
+        <div className="max-w-screen-2xl mx-auto px-6 py-3">
+          {/* Progress bar */}
+          <div className="mb-3">
+            <input
+              type="range"
+              min="0"
+              max={duration || 0}
+              value={displayTime}
+              onChange={handleSeekChange}
+              onClick={handleProgressClick}
+              onMouseDown={handleSeekStart}
+              onMouseUp={handleSeekEnd}
+              onTouchStart={handleSeekStart}
+              onTouchEnd={handleSeekEnd}
+              className={cn(
+                'w-full h-1 rounded-lg appearance-none cursor-pointer slider',
+                'bg-neutral-200 dark:bg-neutral-700'
+              )}
+              style={{
+                background: `linear-gradient(to right, var(--color-primary-500) 0%, var(--color-primary-500) ${progress}%, ${theme === 'dark' ? 'var(--color-neutral-700)' : 'var(--color-neutral-200)'} ${progress}%, ${theme === 'dark' ? 'var(--color-neutral-700)' : 'var(--color-neutral-200)'} 100%)`,
+              }}
+            />
+            <div className={cn('flex justify-between text-xs mt-1', text.tertiary)}>
+              <span>{formatTime(displayTime)}</span>
+              <span>{formatTime(duration)}</span>
             </div>
           </div>
 
-          {/* Playback controls */}
-          <div className="flex items-center gap-3">
-            {/* Shuffle */}
-            <button
-              onClick={toggleShuffle}
-              className={cn(
-                'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors',
-                'hover:bg-neutral-700',
-                isShuffle ? 'text-rose-500' : text.tertiary
-              )}
-              title="Shuffle"
-              aria-label="Toggle shuffle"
-            >
-              <Shuffle size={18} />
-            </button>
-
-            {/* Previous */}
-            <button
-              onClick={playPrevious}
-              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-neutral-700 transition-colors"
-              title="Previous track"
-              aria-label="Previous track"
-            >
-              <SkipBack size={20} />
-            </button>
-
-            {/* Play/Pause */}
-            <button
-              onClick={togglePlayPause}
-              className="p-3 min-h-[52px] min-w-[52px] flex items-center justify-center bg-rose-600 rounded-full hover:bg-rose-700 transition-colors"
-              title={isLoading ? 'Loading...' : isPlaying ? 'Pause' : 'Play'}
-              aria-label={isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 size={24} className="animate-spin" />
-              ) : isPlaying ? (
-                <Pause size={24} />
-              ) : (
-                <Play size={24} className="ml-0.5" />
-              )}
-            </button>
-
-            {/* Next */}
-            <button
-              onClick={playNext}
-              className="p-2 min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-neutral-700 transition-colors"
-              title="Next track"
-              aria-label="Next track"
-            >
-              <SkipForward size={20} />
-            </button>
-
-            {/* Repeat */}
-            <button
-              onClick={toggleRepeat}
-              className={cn(
-                'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors',
-                'hover:bg-neutral-700',
-                repeatMode !== 'off' ? 'text-rose-500' : text.tertiary
-              )}
-              title={`Repeat: ${repeatMode}`}
-              aria-label="Toggle repeat"
-            >
-              {getRepeatIcon()}
-            </button>
-          </div>
-
-          {/* Queue button */}
-          <button
-            onClick={() => setShowQueue(!showQueue)}
-            className={cn(
-              'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors',
-              'hover:bg-neutral-700',
-              showQueue ? 'text-rose-500' : text.tertiary
-            )}
-            title="Queue"
-            aria-label="Toggle queue"
-          >
-            <ListMusic size={18} />
-          </button>
-
-          {/* Volume control */}
-          <div className="flex items-center gap-2 relative" ref={volumeRef}>
-            <button
-              onClick={toggleMute}
-              className={cn(
-                'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors',
-                'hover:bg-neutral-700',
-                isMuted ? 'text-rose-500' : text.tertiary
-              )}
-              title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {getVolumeIcon()}
-            </button>
-            <button
-              onClick={() => setShowVolumeSlider(!showVolumeSlider)}
-              className={cn(
-                'text-xs px-2 py-1 rounded transition-colors hover:bg-neutral-700',
-                text.tertiary
-              )}
-              title="Volume slider (↑↓)"
-              aria-label="Toggle volume slider"
-            >
-              {Math.round((isMuted ? 0 : volume) * 100)}%
-            </button>
-
-            {showVolumeSlider && (
-              <div className="absolute bottom-full right-0 mb-2 bg-neutral-900 rounded-lg shadow-xl p-4">
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  className="w-24 h-1 bg-neutral-700 rounded-lg appearance-none cursor-pointer slider"
-                  style={{
-                    background: `linear-gradient(to right, rgb(244, 63, 94) 0%, rgb(244, 63, 94) ${
-                      volume * 100
-                    }%, rgb(55, 65, 81) ${volume * 100}%, rgb(55, 65, 81) 100%)`,
-                  }}
-                  aria-label="Volume slider"
+          <div className="flex items-center justify-between gap-4">
+            {/* Album art and track info */}
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              {/* Album art thumbnail - larger and clickable */}
+              <button
+                onClick={() => setShowAlbumArt(true)}
+                className={cn(
+                  'w-20 h-20 rounded-lg overflow-hidden flex-shrink-0',
+                  'transition-transform hover:scale-105 cursor-pointer',
+                  'shadow-lg',
+                  bg.tertiary
+                )}
+                title="Click to view album art"
+                aria-label="View album art in full size"
+              >
+                <MediaPoster
+                  mediaId={currentTrack.id}
+                  mediaType="media"
+                  alt={currentTrack.album || currentTrack.title}
+                  className="w-full h-full object-cover"
+                  preset="medium"
+                  aspectRatio="square"
+                  fallbackIcon="🎵"
                 />
-                <div className={cn('text-xs text-center mt-1', text.tertiary)}>
-                  {Math.round(volume * 100)}%
-                </div>
+              </button>
+
+              {/* Track info */}
+              <div className="flex-1 min-w-0">
+                <h4 className={cn('font-semibold text-sm truncate', text.primary)}>
+                  {currentTrack.title}
+                </h4>
+                <p className={cn('text-xs truncate', text.tertiary)}>
+                  {currentTrack.artist || 'Unknown Artist'}
+                  {currentTrack.album && ` • ${currentTrack.album}`}
+                </p>
               </div>
-            )}
+            </div>
+
+            {/* Playback controls */}
+            <div className="flex items-center gap-3">
+              {/* Shuffle */}
+              <button
+                onClick={toggleShuffle}
+                className={cn(
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  bg.hover.default,
+                  isShuffle ? 'text-primary-500' : text.tertiary
+                )}
+                title="Shuffle"
+                aria-label="Toggle shuffle"
+              >
+                <Shuffle size={18} />
+              </button>
+
+              {/* Previous */}
+              <button
+                onClick={playPrevious}
+                className={cn(
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  bg.hover.default,
+                  text.primary
+                )}
+                title="Previous track"
+                aria-label="Previous track"
+              >
+                <SkipBack size={20} />
+              </button>
+
+              {/* Play/Pause */}
+              <button
+                onClick={togglePlayPause}
+                className="p-3 min-h-[52px] min-w-[52px] flex items-center justify-center bg-primary-600 rounded-full hover:bg-primary-700 transition-colors text-white cursor-pointer"
+                title={isLoading ? 'Loading...' : isPlaying ? 'Pause' : 'Play'}
+                aria-label={isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 size={24} className="animate-spin" />
+                ) : isPlaying ? (
+                  <Pause size={24} />
+                ) : (
+                  <Play size={24} className="ml-0.5" />
+                )}
+              </button>
+
+              {/* Next */}
+              <button
+                onClick={playNext}
+                className={cn(
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  bg.hover.default,
+                  text.primary
+                )}
+                title="Next track"
+                aria-label="Next track"
+              >
+                <SkipForward size={20} />
+              </button>
+
+              {/* Repeat */}
+              <button
+                onClick={toggleRepeat}
+                className={cn(
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  bg.hover.default,
+                  repeatMode !== 'off' ? 'text-primary-500' : text.tertiary
+                )}
+                title={`Repeat: ${repeatMode}`}
+                aria-label="Toggle repeat"
+              >
+                {getRepeatIcon()}
+              </button>
+            </div>
+
+            {/* Queue button */}
+            <button
+              onClick={() => setShowQueue(!showQueue)}
+              className={cn(
+                'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                bg.hover.default,
+                showQueue ? 'text-primary-500' : text.tertiary
+              )}
+              title="Queue"
+              aria-label="Toggle queue"
+            >
+              <ListMusic size={18} />
+            </button>
+
+            {/* Volume control */}
+            <div className="flex items-center gap-2 relative" ref={volumeRef}>
+              <button
+                onClick={toggleMute}
+                className={cn(
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  bg.hover.default,
+                  isMuted ? 'text-primary-500' : text.tertiary
+                )}
+                title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {getVolumeIcon()}
+              </button>
+              <button
+                onClick={() => setShowVolumeSlider(!showVolumeSlider)}
+                className={cn(
+                  'text-xs px-2 py-1 rounded transition-colors cursor-pointer',
+                  bg.hover.default,
+                  text.tertiary
+                )}
+                title="Volume slider (↑↓)"
+                aria-label="Toggle volume slider"
+              >
+                {Math.round((isMuted ? 0 : volume) * 100)}%
+              </button>
+
+              {showVolumeSlider && (
+                <div
+                  className={cn(
+                    'absolute bottom-full right-0 mb-2 rounded-lg shadow-xl p-4 border',
+                    bg.elevated,
+                    'border-neutral-200 dark:border-neutral-800'
+                  )}
+                >
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    className={cn(
+                      'w-24 h-1 rounded-lg appearance-none cursor-pointer slider',
+                      'bg-neutral-200 dark:bg-neutral-700'
+                    )}
+                    style={{
+                      background: `linear-gradient(to right, var(--color-primary-500) 0%, var(--color-primary-500) ${volume * 100}%, ${theme === 'dark' ? 'var(--color-neutral-700)' : 'var(--color-neutral-200)'} ${volume * 100}%, ${theme === 'dark' ? 'var(--color-neutral-700)' : 'var(--color-neutral-200)'} 100%)`,
+                    }}
+                    aria-label="Volume slider"
+                  />
+                  <div className={cn('text-xs text-center mt-1', text.tertiary)}>
+                    {Math.round(volume * 100)}%
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
         <style>{`
           .slider::-webkit-slider-thumb {
@@ -392,6 +446,58 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
 
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+
+      {/* Album Art Modal */}
+      {showAlbumArt && currentTrack && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setShowAlbumArt(false)}
+        >
+          <div className="relative w-[85vw] h-[85vh] max-w-5xl p-8 animate-in zoom-in-95 duration-300">
+            <button
+              onClick={() => setShowAlbumArt(false)}
+              className="absolute -top-2 -right-2 p-3 bg-black/60 rounded-full hover:bg-black/80 hover:scale-110 transition-all duration-200 z-10 shadow-xl cursor-pointer"
+              title="Close (Esc)"
+              aria-label="Close album art view"
+            >
+              <svg
+                className="w-6 h-6 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+            <div
+              className="w-full h-full rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 animate-in slide-in-from-bottom-4 duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MediaPoster
+                mediaId={currentTrack.id}
+                mediaType="media"
+                alt={currentTrack.album || currentTrack.title}
+                className="w-full h-full object-contain"
+                preset="xlarge"
+                aspectRatio="square"
+                fallbackIcon="🎵"
+              />
+            </div>
+            <div className="mt-6 text-center animate-in fade-in slide-in-from-bottom-2 duration-500 delay-100">
+              <h3 className="text-2xl font-bold text-white drop-shadow-lg">{currentTrack.title}</h3>
+              <p className="text-base text-neutral-200 mt-2 drop-shadow-md">
+                {currentTrack.artist || 'Unknown Artist'}
+                {currentTrack.album && ` • ${currentTrack.album}`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

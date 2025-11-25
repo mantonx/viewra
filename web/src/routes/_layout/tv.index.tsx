@@ -150,6 +150,7 @@ const TVShows = () => {
           />
         )}
         onItemSelect={(show) => handleShowClick(show.id)}
+        getItemSearchText={(show) => show.title || ''}
         initialSearch={search.q}
         initialSort={search.sort || 'title-asc'}
         initialViewMode={search.view || 'grid'}

@@ -221,6 +221,8 @@ func extractMusicTrackFields[T musicTrackRow](row T) musicTrackFields {
 		Genre:           r.Genre,
 		Year:            r.Year,
 		Composer:        r.Composer,
+		AlbumID:         r.AlbumID,
+		ArtistID:        r.ArtistID,
 		MediaID2:        r.MediaID_2,
 		LibraryID:       r.LibraryID,
 		Title:           r.Title,

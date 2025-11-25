@@ -11,34 +11,44 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
 )
 
+// mediaExtensions is a package-level lookup table for supported media file extensions.
+// Allocated once at startup to avoid per-call allocation overhead.
+var mediaExtensions = map[string]bool{
+	// Video
+	"mp4": true, "mkv": true, "avi": true, "mov": true, "wmv": true, "flv": true,
+	"webm": true, "m4v": true, "mpg": true, "mpeg": true, "m2ts": true, "ts": true,
+	"vob": true, "3gp": true, "3g2": true, "f4v": true, "rm": true, "rmvb": true,
+	"divx": true, "asf": true, "qt": true, "mts": true, "ogv": true, "mxf": true,
+	// Audio
+	"mp3": true, "flac": true, "m4a": true, "aac": true, "ogg": true, "opus": true,
+	"wav": true, "wma": true, "ape": true, "wv": true, "tta": true, "tak": true,
+	"dsf": true, "dff": true, "alac": true, "aiff": true, "aif": true,
+}
+
+// audioExtensions is a package-level lookup table for audio-only file extensions.
+// Used to skip audio files in video-only libraries (Movie/TV).
+var audioExtensions = map[string]bool{
+	"mp3": true, "flac": true, "m4a": true, "aac": true, "ogg": true, "opus": true,
+	"wav": true, "wma": true, "ape": true, "wv": true, "tta": true, "tak": true,
+	"dsf": true, "dff": true, "alac": true, "aiff": true, "aif": true,
+}
+
 // isMediaFile checks if a file extension is for a media file
 func (uc *ScanLibraryUseCase) isMediaFile(ext string) bool {
 	// Remove leading dot if present
 	ext = strings.TrimPrefix(ext, ".")
-
-	mediaExtensions := map[string]bool{
-		// Video
-		"mp4": true, "mkv": true, "avi": true, "mov": true, "wmv": true, "flv": true,
-		"webm": true, "m4v": true, "mpg": true, "mpeg": true, "m2ts": true, "ts": true,
-		"vob": true, "3gp": true, "3g2": true, "f4v": true, "rm": true, "rmvb": true,
-		"divx": true, "asf": true, "qt": true, "mts": true, "ogv": true, "mxf": true,
-		// Audio
-		"mp3": true, "flac": true, "m4a": true, "aac": true, "ogg": true, "opus": true,
-		"wav": true, "wma": true, "ape": true, "wv": true, "tta": true, "tak": true,
-		"dsf": true, "dff": true, "alac": true, "aiff": true, "aif": true,
-	}
 	return mediaExtensions[strings.ToLower(ext)]
 }
 
 // calculateProcessingTimeout determines appropriate timeout for file processing
 // based on file size and storage type to prevent worker deadlocks
 func (uc *ScanLibraryUseCase) calculateProcessingTimeout(fileSize int64) time.Duration {
-	// Base timeout: 30 seconds (sufficient for most files on local storage)
-	baseTimeout := 30 * time.Second
+	// Base timeout from config (default: 30s local, 60s remote)
+	baseTimeout := uc.config.BaseFileTimeout
 
 	// For network storage, be more generous due to latency
 	if uc.systemProfile != nil && uc.systemProfile.Storage.IsRemote {
-		baseTimeout = 60 * time.Second
+		baseTimeout = uc.config.RemoteStorageTimeout
 	}
 
 	// Add extra time for large files (1 second per GB)
@@ -46,10 +56,10 @@ func (uc *ScanLibraryUseCase) calculateProcessingTimeout(fileSize int64) time.Du
 	const bytesPerGB = 1024 * 1024 * 1024
 	sizeGB := fileSize / bytesPerGB
 	if sizeGB > 0 {
-		// Add up to 2 minutes extra for very large files
+		// Add up to MaxExtraTimeout for very large files
 		extraTime := time.Duration(sizeGB) * time.Second
-		if extraTime > 120*time.Second {
-			extraTime = 120 * time.Second
+		if extraTime > uc.config.MaxExtraTimeout {
+			extraTime = uc.config.MaxExtraTimeout
 		}
 		baseTimeout += extraTime
 	}
