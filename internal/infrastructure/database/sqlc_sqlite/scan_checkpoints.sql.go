@@ -271,18 +271,20 @@ SELECT
     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_files,
     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_files,
     SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warning_files,
-    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files
+    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files,
+    MIN(CASE WHEN status IN ('completed', 'failed', 'warning') THEN processed_at END) as first_processed_at
 FROM scan_checkpoints
 WHERE scan_job_id = ?
 `
 
 type GetScanCheckpointStatsRow struct {
-	TotalFiles     int64           `json:"total_files"`
-	PendingFiles   sql.NullFloat64 `json:"pending_files"`
-	CompletedFiles sql.NullFloat64 `json:"completed_files"`
-	FailedFiles    sql.NullFloat64 `json:"failed_files"`
-	WarningFiles   sql.NullFloat64 `json:"warning_files"`
-	ProcessedFiles sql.NullFloat64 `json:"processed_files"`
+	TotalFiles       int64           `json:"total_files"`
+	PendingFiles     sql.NullFloat64 `json:"pending_files"`
+	CompletedFiles   sql.NullFloat64 `json:"completed_files"`
+	FailedFiles      sql.NullFloat64 `json:"failed_files"`
+	WarningFiles     sql.NullFloat64 `json:"warning_files"`
+	ProcessedFiles   sql.NullFloat64 `json:"processed_files"`
+	FirstProcessedAt interface{}     `json:"first_processed_at"`
 }
 
 func (q *Queries) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (GetScanCheckpointStatsRow, error) {
@@ -295,6 +297,7 @@ func (q *Queries) GetScanCheckpointStats(ctx context.Context, scanJobID int64) (
 		&i.FailedFiles,
 		&i.WarningFiles,
 		&i.ProcessedFiles,
+		&i.FirstProcessedAt,
 	)
 	return i, err
 }

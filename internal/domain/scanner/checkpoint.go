@@ -48,6 +48,7 @@ type CheckpointStats struct {
 	FailedFiles      int64
 	WarningFiles     int64 // Files processed with warnings
 	ErrorsByCategory map[ErrorCategory]int64
+	FirstProcessedAt *time.Time // When processing started (for ETA calculation)
 }
 
 // GetProcessedFiles returns the total number of processed files (completed + failed + warning)
@@ -69,4 +70,31 @@ func (s *CheckpointStats) GetProgress() float64 {
 		return 0
 	}
 	return float64(s.GetProcessedFiles()) / float64(s.TotalFiles) * 100
+}
+
+// EstimateRemainingSeconds calculates the estimated time remaining for the scan.
+// Returns nil if ETA cannot be calculated (no processing started or no files remaining).
+// Uses FirstProcessedAt for accurate timing - job.StartedAt includes discovery/hashing overhead.
+func (s *CheckpointStats) EstimateRemainingSeconds() *int64 {
+	if s.ProcessedFiles == 0 || s.TotalFiles == 0 || s.FirstProcessedAt == nil {
+		return nil
+	}
+
+	remaining := s.TotalFiles - s.ProcessedFiles
+	if remaining <= 0 {
+		return nil
+	}
+
+	elapsed := time.Since(*s.FirstProcessedAt).Seconds()
+	if elapsed <= 0 {
+		return nil
+	}
+
+	rate := float64(s.ProcessedFiles) / elapsed
+	if rate <= 0 {
+		return nil
+	}
+
+	eta := int64(float64(remaining) / rate)
+	return &eta
 }

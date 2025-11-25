@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	appLibrary "github.com/mantonx/viewra/internal/application/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
@@ -39,22 +40,36 @@ type ScanLibraryExecutor interface {
 	ResumeScan(ctx context.Context, jobID int64) error
 }
 
+// ScanStatusProvider defines the interface for getting enriched scan status
+type ScanStatusProvider interface {
+	GetScanStatus(ctx context.Context, libraryID int64) (*appLibrary.ScanStatusResult, error)
+}
+
 // ScanJobHandler handles scan job-related HTTP requests
 type ScanJobHandler struct {
-	scanJobRepo     ScanJobRepository
-	checkpointRepo  CheckpointRepository
-	scanStateRepo   ScanStateRepository
-	scanLibrary     ScanLibraryExecutor
-	logger          *slog.Logger
+	scanJobRepo    ScanJobRepository
+	checkpointRepo CheckpointRepository
+	scanStateRepo  ScanStateRepository
+	scanLibrary    ScanLibraryExecutor
+	statusProvider ScanStatusProvider
+	logger         *slog.Logger
 }
 
 // NewScanJobHandler creates a new scan job handler
-func NewScanJobHandler(scanJobRepo ScanJobRepository, checkpointRepo CheckpointRepository, scanStateRepo ScanStateRepository, scanLibrary ScanLibraryExecutor, logger *slog.Logger) *ScanJobHandler {
+func NewScanJobHandler(
+	scanJobRepo ScanJobRepository,
+	checkpointRepo CheckpointRepository,
+	scanStateRepo ScanStateRepository,
+	scanLibrary ScanLibraryExecutor,
+	statusProvider ScanStatusProvider,
+	logger *slog.Logger,
+) *ScanJobHandler {
 	return &ScanJobHandler{
 		scanJobRepo:    scanJobRepo,
 		checkpointRepo: checkpointRepo,
 		scanStateRepo:  scanStateRepo,
 		scanLibrary:    scanLibrary,
+		statusProvider: statusProvider,
 		logger:         logger,
 	}
 }
@@ -127,8 +142,8 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		return
 	}
 
-	// Get latest scan job
-	job, err := h.scanJobRepo.GetLatestByLibrary(c.Request.Context(), libraryID)
+	// Get enriched scan status from application layer
+	status, err := h.statusProvider.GetScanStatus(c.Request.Context(), libraryID)
 	if err != nil {
 		if err == scanner.ErrNotFound {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "No scan jobs found for this library"})
@@ -138,97 +153,33 @@ func (h *ScanJobHandler) GetStatus(c *gin.Context) {
 		return
 	}
 
-	// Get library-level persistent error/warning counts from scan_state
-	// This shows all unresolved issues across the library, not just from the current scan
-	var errorCount int64
-	var warningCount int64
-	if counts, err := h.scanStateRepo.CountLibraryIssues(c.Request.Context(), libraryID); err == nil && counts != nil {
-		errorCount = counts.ErrorCount
-		warningCount = counts.WarningCount
-	} else {
-		// Fallback to job-based counts if scan_state query fails
-		h.logger.Warn("failed to get library issue counts, using job counts",
-			"library_id", libraryID,
-			"error", err)
-		errorCount = job.ErrorCount
-		warningCount = job.WarningCount
-	}
-
-	// Get total files processed from scan_state (includes all scans, not just current job)
-	// This gives users a sense of progress: files already in the database vs total discovered
-	filesProcessed := job.FilesProcessed // Default to job count
-	if totalProcessed, err := h.scanStateRepo.CountByLibrary(c.Request.Context(), libraryID); err == nil {
-		filesProcessed = totalProcessed
-	} else {
-		// Fallback to job count if scan_state query fails
-		h.logger.Warn("failed to get total processed count, using job count",
-			"library_id", libraryID,
-			"error", err)
-	}
-
-	// Calculate progress percentage based on total files in scan_state vs discovered
-	// This gives users accurate progress: how much of the library is already processed
-	progress := job.Progress // Default to job progress
-	if job.FilesFound > 0 {
-		progress = float64(filesProcessed) / float64(job.FilesFound) * 100.0
-	}
-
-	// Calculate ETA for running scans using checkpoint stats (not scan_state total!)
-	// This gives accurate ETA based on files actually being processed by THIS scan
-	var etaSeconds *int64
-	if job.Status == scanner.ScanStatusRunning {
-		// Get checkpoint statistics for the current scan job
-		if stats, err := h.checkpointRepo.GetStats(c.Request.Context(), job.ID); err == nil && stats != nil {
-			// Use checkpoint stats for accurate ETA calculation
-			currentProcessed := stats.ProcessedFiles // Completed + Failed + Warning
-			totalCheckpoints := stats.TotalFiles     // All checkpoints for this scan
-
-			if currentProcessed > 0 && totalCheckpoints > 0 {
-				// Calculate time elapsed
-				elapsed := time.Since(job.StartedAt).Seconds()
-
-				// Calculate processing rate (files per second) based on actual checkpoint processing
-				rate := float64(currentProcessed) / elapsed
-
-				// Calculate remaining checkpoints
-				remaining := totalCheckpoints - currentProcessed
-
-				// Calculate ETA (only if we have a meaningful rate)
-				if rate > 0 && remaining > 0 {
-					eta := int64(float64(remaining) / rate)
-					etaSeconds = &eta
-				}
-			}
-		}
-	}
-
-	// Convert to response
+	// Convert to HTTP response
 	response := ScanStatusResponse{
-		JobID:          job.ID,
-		Status:         string(job.Status),
-		Progress:       progress,
-		FilesFound:     job.FilesFound,
-		FilesProcessed: filesProcessed,
-		BytesProcessed: job.BytesProcessed,
-		ErrorCount:     errorCount,
-		WarningCount:   warningCount,
-		ErrorMessage:   job.ErrorMessage,
-		StartedAt:      job.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
-		Phase:          string(job.Phase),
-		EstimatedTotal: job.EstimatedTotal,
-		DiscoveryDone:  job.DiscoveryDone,
-		ETASeconds:     etaSeconds,
+		JobID:          status.JobID,
+		Status:         string(status.Status),
+		Progress:       status.Progress,
+		FilesFound:     status.FilesFound,
+		FilesProcessed: status.FilesProcessed,
+		BytesProcessed: status.BytesProcessed,
+		ErrorCount:     status.ErrorCount,
+		WarningCount:   status.WarningCount,
+		ErrorMessage:   status.ErrorMessage,
+		StartedAt:      status.StartedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Phase:          string(status.Phase),
+		EstimatedTotal: status.EstimatedTotal,
+		DiscoveryDone:  status.DiscoveryDone,
+		ETASeconds:     status.ETASeconds,
 
 		// Discovery health metrics
-		DiscoveryErrors:   job.DiscoveryErrors,
-		DiscoveryWarnings: job.DiscoveryWarnings,
-		DirsScanned:       job.DirsScanned,
-		DirsSkipped:       job.DirsSkipped,
-		FilesSkipped:      job.FilesSkipped,
+		DiscoveryErrors:   status.DiscoveryErrors,
+		DiscoveryWarnings: status.DiscoveryWarnings,
+		DirsScanned:       status.DirsScanned,
+		DirsSkipped:       status.DirsSkipped,
+		FilesSkipped:      status.FilesSkipped,
 	}
 
-	if job.CompletedAt != nil {
-		completedAtStr := job.CompletedAt.Format("2006-01-02T15:04:05Z07:00")
+	if status.CompletedAt != nil {
+		completedAtStr := status.CompletedAt.Format("2006-01-02T15:04:05Z07:00")
 		response.CompletedAt = &completedAtStr
 	}
 

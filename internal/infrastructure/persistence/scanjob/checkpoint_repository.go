@@ -228,6 +228,7 @@ func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.Ch
 		stats.FailedFiles = int64(pgStats.FailedFiles)
 		stats.WarningFiles = int64(pgStats.WarningFiles)
 		stats.ProcessedFiles = int64(pgStats.ProcessedFiles)
+		stats.FirstProcessedAt = parseInterfaceTime(pgStats.FirstProcessedAt)
 
 		if errorResult != nil {
 			pgErrors := errorResult.([]sqlc_postgres.GetScanCheckpointErrorsByCategoryRow)
@@ -245,6 +246,7 @@ func (r *CheckpointRepo) GetStats(ctx context.Context, jobID int64) (*scanner.Ch
 		stats.FailedFiles = int64(sqStats.FailedFiles.Float64)
 		stats.WarningFiles = int64(sqStats.WarningFiles.Float64)
 		stats.ProcessedFiles = int64(sqStats.ProcessedFiles.Float64)
+		stats.FirstProcessedAt = parseInterfaceTime(sqStats.FirstProcessedAt)
 
 		if errorResult != nil {
 			sqErrors := errorResult.([]sqlc_sqlite.GetScanCheckpointErrorsByCategoryRow)
@@ -417,5 +419,32 @@ func (r *CheckpointRepo) convertToCheckpoint(result any) *scanner.ScanCheckpoint
 		RetryCount:    int(sq.RetryCount),
 		ProcessedAt:   common.ParseNullTimePtr(sq.ProcessedAt),
 		CreatedAt:     common.ParseNullTime(sq.CreatedAt),
+	}
+}
+
+// parseInterfaceTime converts interface{} from sqlc to *time.Time
+// This handles the MIN() aggregate which returns interface{} for nullable timestamps
+func parseInterfaceTime(v interface{}) *time.Time {
+	if v == nil {
+		return nil
+	}
+	switch t := v.(type) {
+	case time.Time:
+		return &t
+	case *time.Time:
+		return t
+	case string:
+		// SQLite returns timestamps as strings
+		parsed, err := time.Parse("2006-01-02 15:04:05", t)
+		if err != nil {
+			// Try ISO 8601 format
+			parsed, err = time.Parse(time.RFC3339, t)
+			if err != nil {
+				return nil
+			}
+		}
+		return &parsed
+	default:
+		return nil
 	}
 }

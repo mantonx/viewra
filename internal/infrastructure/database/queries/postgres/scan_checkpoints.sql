@@ -54,7 +54,8 @@ SELECT
     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_files,
     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_files,
     SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warning_files,
-    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files
+    SUM(CASE WHEN status IN ('completed', 'failed', 'warning') THEN 1 ELSE 0 END) as processed_files,
+    MIN(CASE WHEN status IN ('completed', 'failed', 'warning') THEN processed_at END) as first_processed_at
 FROM scan_checkpoints
 WHERE scan_job_id = $1;
 
