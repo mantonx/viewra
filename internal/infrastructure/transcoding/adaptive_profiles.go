@@ -24,12 +24,12 @@ type AdaptiveProfile struct {
 	VideoBufSize int // 2x target for VBV
 
 	// Audio
-	AudioBitrate       int // bits per second
-	AudioChannels      int // Target channels (2=stereo, 6=5.1, 8=7.1)
-	AudioSampleRate    int
-	PreserveMultiCh    bool // If true, keep original multi-channel audio (no downmix)
-	AudioCodec         string // Target audio codec: "aac", "ac3", "eac3", "opus"
-	MaxAudioChannels   int // Maximum channels to preserve (0 = no limit)
+	AudioBitrate     int // bits per second
+	AudioChannels    int // Target channels (2=stereo, 6=5.1, 8=7.1)
+	AudioSampleRate  int
+	PreserveMultiCh  bool   // If true, keep original multi-channel audio (no downmix)
+	AudioCodec       string // Target audio codec: "aac", "ac3", "eac3", "opus"
+	MaxAudioChannels int    // Maximum channels to preserve (0 = no limit)
 
 	// Codec preferences
 	PreferredCodec string   // "h264", "h265", "vp9", "av1"
@@ -46,10 +46,10 @@ type AdaptiveProfile struct {
 	GOPSize         int
 
 	// Frame rate and aspect ratio
-	FrameRate    float64 // Target frame rate (24, 30, 60)
-	AspectRatio  string  // "16:9", "21:9", "2.39:1", etc.
-	Is3D         bool    // Is this a 3D profile
-	StereoMode   string  // "sbs" (side-by-side), "tab" (top-and-bottom), "" (2D)
+	FrameRate   float64 // Target frame rate (24, 30, 60)
+	AspectRatio string  // "16:9", "21:9", "2.39:1", etc.
+	Is3D        bool    // Is this a 3D profile
+	StereoMode  string  // "sbs" (side-by-side), "tab" (top-and-bottom), "" (2D)
 
 	// Client requirements
 	MinNetworkMbps  float64
@@ -105,7 +105,7 @@ const (
 	Quality4k120000k = "4k-120000k"
 
 	// High Frame Rate (60 FPS) - 4 variants
-	Quality720p8000k60fps  = "720p-8000k-60fps"
+	Quality720p8000k60fps   = "720p-8000k-60fps"
 	Quality1080p12000k60fps = "1080p-12000k-60fps"
 	Quality1080p20000k60fps = "1080p-20000k-60fps"
 	Quality4k50000k60fps    = "4k-50000k-60fps"
@@ -134,13 +134,13 @@ func newProfile(id, displayName string, width, height, videoBitrate int) *profil
 			Width:           width,
 			Height:          height,
 			VideoBitrate:    videoBitrate,
-			VideoMaxRate:    int(float64(videoBitrate) * 1.1),  // 110% of target
-			VideoBufSize:    videoBitrate * 2,                  // 2x target
+			VideoMaxRate:    int(float64(videoBitrate) * 1.1), // 110% of target
+			VideoBufSize:    videoBitrate * 2,                 // 2x target
 			EnableHWAccel:   true,
 			EnableFastStart: true,
 			SegmentDuration: 2,
-			GOPSize:         48,  // 2 seconds at 24fps (default)
-			FrameRate:       24.0, // Default frame rate
+			GOPSize:         48,     // 2 seconds at 24fps (default)
+			FrameRate:       24.0,   // Default frame rate
 			AspectRatio:     "16:9", // Default aspect ratio
 		},
 	}
@@ -612,6 +612,26 @@ func FilterProfilesByNetworkSpeed(profiles []*AdaptiveProfile, speedMbps float64
 	return filtered
 }
 
+// GetAdaptiveProfileForQuality maps legacy quality strings (360p, 720p, 1080p, 4k)
+// to standard AdaptiveProfile IDs. This maintains backward compatibility with the
+// domain layer's quality constants while using granular AdaptiveProfiles internally.
+func GetAdaptiveProfileForQuality(quality string) (*AdaptiveProfile, error) {
+	var profileID string
+	switch quality {
+	case transcode.Quality360p:
+		profileID = Quality360p800k
+	case transcode.Quality720p:
+		profileID = Quality720p2500k
+	case transcode.Quality1080p:
+		profileID = Quality1080p6000k
+	case transcode.Quality4K:
+		profileID = Quality4k25000k
+	default:
+		return nil, fmt.Errorf("%w: %s", transcode.ErrInvalidQuality, quality)
+	}
+	return GetAdaptiveProfile(profileID)
+}
+
 // applyAudioSettings configures audio parameters based on quality tier and resolution.
 // This centralizes audio configuration logic to avoid repetition.
 func applyAudioSettings(profile *AdaptiveProfile) {
@@ -659,8 +679,7 @@ func applyAudioSettings(profile *AdaptiveProfile) {
 		profile.AudioChannels = 8 // 7.1
 		profile.AudioSampleRate = 48000
 		profile.PreserveMultiCh = true
-		profile.AudioCodec = "eac3" // Dolby Digital Plus, supports Atmos
+		profile.AudioCodec = "eac3"  // Dolby Digital Plus, supports Atmos
 		profile.MaxAudioChannels = 0 // No limit, preserve all channels
 	}
 }
-

@@ -258,3 +258,30 @@ func ParseDateString(s string) sql.NullTime {
 	}
 	return sql.NullTime{Time: t, Valid: true}
 }
+
+// NullStringPtr creates a sql.NullString from a *string pointer.
+// Valid is true if pointer is non-nil and non-empty.
+func NullStringPtr(value *string) sql.NullString {
+	if value == nil || *value == "" {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: *value, Valid: true}
+}
+
+// NullFloat64Ptr creates a sql.NullFloat64 from a *float64 pointer.
+// Valid is true if pointer is non-nil.
+func NullFloat64Ptr(value *float64) sql.NullFloat64 {
+	if value == nil {
+		return sql.NullFloat64{Valid: false}
+	}
+	return sql.NullFloat64{Float64: *value, Valid: true}
+}
+
+// NullFloat32Ptr creates a sql.NullFloat64 from a *float64 pointer for PostgreSQL float32 fields.
+// Valid is true if pointer is non-nil.
+func NullFloat32Ptr(value *float64) sql.NullFloat64 {
+	if value == nil {
+		return sql.NullFloat64{Valid: false}
+	}
+	return sql.NullFloat64{Float64: *value, Valid: true}
+}

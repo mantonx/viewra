@@ -78,6 +78,7 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		handlers.Transcode,
 		handlers.Images,
 		handlers.Scheduler,
+		handlers.Analytics,
 		cases.Library.Service,
 		cases.Library.Scan,
 		cases.Media.Get,

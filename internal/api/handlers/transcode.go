@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -50,6 +52,7 @@ func NewTranscodeHandler(
 // CreateTranscodeJobRequest represents a request to start transcoding.
 type CreateTranscodeJobRequest struct {
 	Quality       string `json:"quality" binding:"required"`
+	Codec         string `json:"codec,omitempty"`          // Optional: h264, h265, vp9, av1 (defaults to h264)
 	StartPosition int    `json:"start_position,omitempty"` // Optional: start position in seconds for seek-based transcoding
 }
 
@@ -58,7 +61,8 @@ type TranscodeJobResponse struct {
 	ID          int64  `json:"id"`
 	MediaID     int64  `json:"media_id"`
 	Quality     string `json:"quality"`
-	Type        string `json:"type"` // Job type: remux, remux_audio, or transcode
+	Codec       string `json:"codec"` // Video codec: h264, h265, vp9, av1
+	Type        string `json:"type"`  // Job type: remux, remux_audio, or transcode
 	Status      string `json:"status"`
 	Progress    int    `json:"progress"`
 	Error       string `json:"error,omitempty"`
@@ -99,6 +103,7 @@ func (h *TranscodeHandler) CreateTranscodeJob(c *gin.Context) {
 	job, err := h.createJobUseCase.Execute(c.Request.Context(), transcode.CreateJobRequest{
 		MediaID:       mediaID,
 		Quality:       req.Quality,
+		Codec:         req.Codec,
 		StartPosition: req.StartPosition,
 	})
 	if err != nil {
@@ -308,6 +313,7 @@ func toTranscodeJobResponse(job *transcodeDomain.TranscodeJob) TranscodeJobRespo
 		ID:        job.ID,
 		MediaID:   job.MediaID,
 		Quality:   job.Quality,
+		Codec:     job.Codec,
 		Type:      job.Type,
 		Status:    job.Status,
 		Progress:  job.Progress,
@@ -362,35 +368,35 @@ func (h *TranscodeHandler) CancelTranscodeJob(c *gin.Context) {
 
 // CleanupRequest represents a transcode cleanup request
 type CleanupRequest struct {
-	MediaID     *int64  `json:"media_id"`
-	Quality     *string `json:"quality"`
-	Failed      bool    `json:"failed"`
-	Orphans     bool    `json:"orphans"`
-	OlderThanHours *int `json:"older_than_hours"`
-	DryRun      bool    `json:"dry_run"`
+	MediaID        *int64  `json:"media_id"`
+	Quality        *string `json:"quality"`
+	Failed         bool    `json:"failed"`
+	Orphans        bool    `json:"orphans"`
+	OlderThanHours *int    `json:"older_than_hours"`
+	DryRun         bool    `json:"dry_run"`
 }
 
 // CleanupResponse represents cleanup operation results
 type CleanupResponse struct {
-	DeletedCount     int                `json:"deleted_count"`
-	DeletedSizeBytes int64              `json:"deleted_size_bytes"`
-	DeletedSizeHuman string             `json:"deleted_size_human"`
-	FailedCount      int                `json:"failed_count"`
-	Errors           []string           `json:"errors,omitempty"`
-	DryRun           bool               `json:"dry_run"`
+	DeletedCount     int      `json:"deleted_count"`
+	DeletedSizeBytes int64    `json:"deleted_size_bytes"`
+	DeletedSizeHuman string   `json:"deleted_size_human"`
+	FailedCount      int      `json:"failed_count"`
+	Errors           []string `json:"errors,omitempty"`
+	DryRun           bool     `json:"dry_run"`
 }
 
 // DiskUsageResponse represents disk usage statistics
 type DiskUsageResponse struct {
-	OutputDir        string `json:"output_dir"`
-	TotalSizeBytes   int64  `json:"total_size_bytes"`
-	TotalSizeHuman   string `json:"total_size_human"`
-	FileCount        int    `json:"file_count"`
-	TotalJobs        int    `json:"total_jobs"`
-	CompletedCount   int    `json:"completed_count"`
-	FailedCount      int    `json:"failed_count"`
-	QueuedCount      int    `json:"queued_count"`
-	ProcessingCount  int    `json:"processing_count"`
+	OutputDir       string `json:"output_dir"`
+	TotalSizeBytes  int64  `json:"total_size_bytes"`
+	TotalSizeHuman  string `json:"total_size_human"`
+	FileCount       int    `json:"file_count"`
+	TotalJobs       int    `json:"total_jobs"`
+	CompletedCount  int    `json:"completed_count"`
+	FailedCount     int    `json:"failed_count"`
+	QueuedCount     int    `json:"queued_count"`
+	ProcessingCount int    `json:"processing_count"`
 }
 
 // GetDiskUsage returns transcode disk usage statistics.
@@ -410,15 +416,15 @@ func (h *TranscodeHandler) GetDiskUsage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, DiskUsageResponse{
-		OutputDir:        usage.OutputDir,
-		TotalSizeBytes:   usage.TotalSizeBytes,
-		TotalSizeHuman:   format.Bytes(usage.TotalSizeBytes),
-		FileCount:        usage.FileCount,
-		TotalJobs:        usage.TotalJobs,
-		CompletedCount:   usage.CompletedCount,
-		FailedCount:      usage.FailedCount,
-		QueuedCount:      usage.QueuedCount,
-		ProcessingCount:  usage.ProcessingCount,
+		OutputDir:       usage.OutputDir,
+		TotalSizeBytes:  usage.TotalSizeBytes,
+		TotalSizeHuman:  format.Bytes(usage.TotalSizeBytes),
+		FileCount:       usage.FileCount,
+		TotalJobs:       usage.TotalJobs,
+		CompletedCount:  usage.CompletedCount,
+		FailedCount:     usage.FailedCount,
+		QueuedCount:     usage.QueuedCount,
+		ProcessingCount: usage.ProcessingCount,
 	})
 }
 
@@ -491,3 +497,129 @@ func (h *TranscodeHandler) CleanupTranscodes(c *gin.Context) {
 	})
 }
 
+// MasterPlaylistResponse is returned when master playlist generation fails but we have metadata
+type MasterPlaylistResponse struct {
+	MediaID            int64    `json:"media_id"`
+	AvailableQualities []string `json:"available_qualities"`
+	Error              string   `json:"error,omitempty"`
+}
+
+// ServeMasterPlaylist serves an HLS master playlist with all available quality variants.
+// This enables adaptive bitrate streaming where the player can switch between quality levels.
+//
+// @Summary Serve HLS master playlist
+// @Description Serves an HLS master playlist (.m3u8) that lists all available quality levels for adaptive streaming.
+// @Description The player uses this to select and switch between quality levels based on network conditions.
+// @Tags transcode
+// @Produce application/vnd.apple.mpegurl,application/json
+// @Param media_id path int true "Media ID"
+// @Param start query number false "Start position in seconds for seeking"
+// @Success 200 {file} file "HLS master playlist with all quality variants"
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 404 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/media/{media_id}/hls/master.m3u8 [get]
+func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
+	mediaIDStr := c.Param("id")
+	mediaID, err := parseID(mediaIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		return
+	}
+
+	// Parse optional start position query parameter for seeking
+	startPosition := ""
+	if startStr := c.Query("start"); startStr != "" {
+		startPosition = startStr
+	}
+
+	// Get media info to determine source resolution and properties
+	mediaItem, err := h.mediaRepo.GetByID(c.Request.Context(), mediaID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Media not found"})
+		return
+	}
+
+	// Build list of quality profiles appropriate for this media
+	// Filter based on source resolution (don't upscale)
+	sourceHeight := mediaItem.Height
+	sourceWidth := mediaItem.Width
+
+	// Log source resolution for debugging
+	slog.Debug("building master playlist",
+		"media_id", mediaID,
+		"source_width", sourceWidth,
+		"source_height", sourceHeight,
+	)
+
+	// Default ABR ladder - a subset of profiles that work well together
+	// These are selected to provide good coverage without too many variants
+	abrLadder := []struct {
+		quality   string
+		bandwidth int
+		width     int
+		height    int
+		codecs    string
+	}{
+		// Start with lower qualities for poor connections
+		{"360p", 800_000, 640, 360, "avc1.4d401e,mp4a.40.2"},
+		{"480p", 1_800_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
+		{"720p", 4_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
+		{"1080p", 8_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
+		{"4k", 25_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+	}
+
+	// Build master playlist
+	playlist := "#EXTM3U\n"
+	playlist += "#EXT-X-VERSION:4\n"
+	playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n\n"
+
+	// Filter qualities based on source resolution
+	for _, variant := range abrLadder {
+		// Skip qualities higher than source ONLY if we know the source resolution
+		// If source resolution is unknown (0), include all qualities up to 1080p as a safe default
+		if sourceHeight > 0 && sourceWidth > 0 {
+			// Skip qualities higher than source
+			if variant.height > sourceHeight {
+				continue
+			}
+			// Also check width
+			if variant.width > sourceWidth {
+				continue
+			}
+		} else {
+			// Source resolution unknown - include up to 1080p as safe default
+			// This prevents offering 4K when we don't know if the source supports it
+			if variant.height > 1080 {
+				slog.Debug("skipping quality (unknown source resolution)",
+					"quality", variant.quality,
+					"variant_height", variant.height,
+				)
+				continue
+			}
+		}
+
+		// Add variant stream
+		playlist += fmt.Sprintf(
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\",NAME=\"%s\"\n",
+			variant.bandwidth,
+			variant.width,
+			variant.height,
+			variant.codecs,
+			variant.quality,
+		)
+
+		// Variant stream URL
+		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.quality)
+		if startPosition != "" {
+			variantURL += "?start=" + startPosition
+		}
+		playlist += variantURL + "\n\n"
+	}
+
+	// Set headers for HLS
+	c.Header("Content-Type", "application/vnd.apple.mpegurl")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Cache-Control", "no-cache")
+	c.String(http.StatusOK, playlist)
+}

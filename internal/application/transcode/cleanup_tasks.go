@@ -45,14 +45,14 @@ type CleanupSchedulerConfig struct {
 func DefaultCleanupSchedulerConfig() *CleanupSchedulerConfig {
 	return &CleanupSchedulerConfig{
 		Enabled:              true,
-		DiskThresholdPercent: 85,             // Cleanup at 85% disk usage
-		DiskWarningPercent:   80,             // Warn at 80% disk usage
-		MinFreeSpaceGB:       10,             // Require 10GB free
-		MaxAgeHours:          720,            // Delete after 30 days (30 * 24 hours)
-		MaxIdleHours:         168,            // Delete if not accessed in 7 days (7 * 24 hours)
-		MaxStorageGB:         0,              // Unlimited by default
-		CleanupBatchSize:     10,             // Delete up to 10 transcodes per run
-		KeepFailedHours:      24,             // Keep failed jobs for 24 hours
+		DiskThresholdPercent: 85,  // Cleanup at 85% disk usage
+		DiskWarningPercent:   80,  // Warn at 80% disk usage
+		MinFreeSpaceGB:       10,  // Require 10GB free
+		MaxAgeHours:          720, // Delete after 30 days (30 * 24 hours)
+		MaxIdleHours:         168, // Delete if not accessed in 7 days (7 * 24 hours)
+		MaxStorageGB:         0,   // Unlimited by default
+		CleanupBatchSize:     10,  // Delete up to 10 transcodes per run
+		KeepFailedHours:      24,  // Keep failed jobs for 24 hours
 	}
 }
 

@@ -129,7 +129,7 @@ func TestDetermineStreamStrategy(t *testing.T) {
 			expectedReason:   "incompatible",
 		},
 		{
-			name: "Transcode - Nil VideoInfo",
+			name:             "Transcode - Nil VideoInfo",
 			videoInfo:        nil,
 			expectedStrategy: Transcode,
 			expectedReason:   "no video info",
@@ -333,19 +333,19 @@ func TestSanitizeFilename(t *testing.T) {
 
 func TestShouldTranscode(t *testing.T) {
 	tests := []struct {
-		name              string
-		videoInfo         *VideoInfo
-		profile           *QualityProfile
-		shouldTranscode   bool
-		reasonContains    string
+		name            string
+		videoInfo       *VideoInfo
+		profile         *AdaptiveProfile
+		shouldTranscode bool
+		reasonContains  string
 	}{
 		{
 			name:      "Nil video info",
 			videoInfo: nil,
-			profile: &QualityProfile{
+			profile: &AdaptiveProfile{
 				Width:        1920,
 				Height:       1080,
-				VideoBitrate: "5M",
+				VideoBitrate: 5_000_000,
 			},
 			shouldTranscode: true,
 			reasonContains:  "unable to determine",
@@ -357,10 +357,10 @@ func TestShouldTranscode(t *testing.T) {
 				Width:  1920,
 				Height: 1080,
 			},
-			profile: &QualityProfile{
+			profile: &AdaptiveProfile{
 				Width:        1920,
 				Height:       1080,
-				VideoBitrate: "5M",
+				VideoBitrate: 5_000_000,
 			},
 			shouldTranscode: true,
 			reasonContains:  "unable to determine",
@@ -373,10 +373,10 @@ func TestShouldTranscode(t *testing.T) {
 				Height:  2160,
 				Bitrate: 20000000,
 			},
-			profile: &QualityProfile{
+			profile: &AdaptiveProfile{
 				Width:        1920,
 				Height:       1080,
-				VideoBitrate: "5M",
+				VideoBitrate: 5_000_000,
 			},
 			shouldTranscode: true,
 			reasonContains:  "needs transcoding to H.264",
@@ -389,10 +389,10 @@ func TestShouldTranscode(t *testing.T) {
 				Height:  720,
 				Bitrate: 3000000,
 			},
-			profile: &QualityProfile{
+			profile: &AdaptiveProfile{
 				Width:        1920,
 				Height:       1080,
-				VideoBitrate: "5M",
+				VideoBitrate: 5_000_000,
 			},
 			shouldTranscode: false,
 			reasonContains:  "lower than target",
@@ -405,10 +405,10 @@ func TestShouldTranscode(t *testing.T) {
 				Height:  1080,
 				Bitrate: 5000000,
 			},
-			profile: &QualityProfile{
+			profile: &AdaptiveProfile{
 				Width:        1920,
 				Height:       1080,
-				VideoBitrate: "5M",
+				VideoBitrate: 5_000_000,
 			},
 			shouldTranscode: false,
 			reasonContains:  "already matches target",
@@ -421,10 +421,10 @@ func TestShouldTranscode(t *testing.T) {
 				Height:  1440,
 				Bitrate: 2000000,
 			},
-			profile: &QualityProfile{
+			profile: &AdaptiveProfile{
 				Width:        1920,
 				Height:       1080,
-				VideoBitrate: "5M",
+				VideoBitrate: 5_000_000,
 			},
 			shouldTranscode: false,
 			reasonContains:  "already lower than target",
@@ -437,10 +437,10 @@ func TestShouldTranscode(t *testing.T) {
 				Height:  2160,
 				Bitrate: 20000000,
 			},
-			profile: &QualityProfile{
+			profile: &AdaptiveProfile{
 				Width:        1920,
 				Height:       1080,
-				VideoBitrate: "5M",
+				VideoBitrate: 5_000_000,
 			},
 			shouldTranscode: true,
 			reasonContains:  "transcoding from h264",

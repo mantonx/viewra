@@ -45,19 +45,19 @@ type VideoInfo struct {
 // ffprobeOutput represents the JSON structure returned by ffprobe
 type ffprobeOutput struct {
 	Streams []struct {
-		Index          int    `json:"index"`
-		CodecName      string `json:"codec_name"`
-		CodecType      string `json:"codec_type"`
-		Width          int    `json:"width"`
-		Height         int    `json:"height"`
-		Channels       int    `json:"channels"`
-		BitRate        string `json:"bit_rate"`
-		PixFmt         string `json:"pix_fmt"`          // Pixel format (yuv420p, yuv420p10le, etc.)
-		ColorSpace     string `json:"color_space"`      // bt709, bt2020nc, etc.
-		ColorPrimaries string `json:"color_primaries"`  // bt709, bt2020, etc.
-		ColorTransfer  string `json:"color_transfer"`   // bt709, smpte2084 (HDR10), arib-std-b67 (HLG)
+		Index            int    `json:"index"`
+		CodecName        string `json:"codec_name"`
+		CodecType        string `json:"codec_type"`
+		Width            int    `json:"width"`
+		Height           int    `json:"height"`
+		Channels         int    `json:"channels"`
+		BitRate          string `json:"bit_rate"`
+		PixFmt           string `json:"pix_fmt"`             // Pixel format (yuv420p, yuv420p10le, etc.)
+		ColorSpace       string `json:"color_space"`         // bt709, bt2020nc, etc.
+		ColorPrimaries   string `json:"color_primaries"`     // bt709, bt2020, etc.
+		ColorTransfer    string `json:"color_transfer"`      // bt709, smpte2084 (HDR10), arib-std-b67 (HLG)
 		BitsPerRawSample string `json:"bits_per_raw_sample"` // Bit depth as string
-		Tags         struct {
+		Tags             struct {
 			Language string `json:"language"`
 			Title    string `json:"title"`
 		} `json:"tags"`
@@ -278,9 +278,9 @@ func detectBitDepthFromPixelFormat(pixFmt string) int {
 
 // isHDRContent determines if video content is HDR based on color metadata.
 // HDR detection criteria:
-//   1. HDR10 (most common): smpte2084 transfer function (PQ curve)
-//   2. HLG: arib-std-b67 transfer function (Hybrid Log-Gamma)
-//   3. BT.2020 color primaries with non-SDR transfer (catches other HDR variants)
+//  1. HDR10 (most common): smpte2084 transfer function (PQ curve)
+//  2. HLG: arib-std-b67 transfer function (Hybrid Log-Gamma)
+//  3. BT.2020 color primaries with non-SDR transfer (catches other HDR variants)
 //
 // Examples:
 //   - HDR10: transfer="smpte2084", primaries="bt2020" → true

@@ -8,22 +8,36 @@ import {
   postApiAdaptiveLadder,
   getApiSpeedtestChunk,
 } from './generated/adaptive/adaptive'
-import type { InternalApiHandlersRecommendQualityRequestBody } from './generated/models'
+import type {
+  InternalApiHandlersRecommendQualityRequestBody,
+  InternalApiHandlersQualityRecommendationResponse,
+  InternalApiHandlersAdaptiveLadderResponse,
+} from './generated/models'
 
 export const adaptiveApi = {
   /**
    * Get quality recommendation based on client capabilities
    */
-  recommendQuality: async (request: InternalApiHandlersRecommendQualityRequestBody) => {
+  recommendQuality: async (
+    request: InternalApiHandlersRecommendQualityRequestBody
+  ): Promise<InternalApiHandlersQualityRecommendationResponse> => {
     const response = await postApiAdaptiveRecommend(request)
+    if (response.status !== 200) {
+      throw new Error('error' in response.data ? response.data.error : 'Failed to get recommendation')
+    }
     return response.data
   },
 
   /**
    * Get adaptive bitrate ladder for ABR streaming
    */
-  getAdaptiveLadder: async (request: InternalApiHandlersRecommendQualityRequestBody) => {
+  getAdaptiveLadder: async (
+    request: InternalApiHandlersRecommendQualityRequestBody
+  ): Promise<InternalApiHandlersAdaptiveLadderResponse> => {
     const response = await postApiAdaptiveLadder(request)
+    if (response.status !== 200) {
+      throw new Error('error' in response.data ? response.data.error : 'Failed to get ladder')
+    }
     return response.data
   },
 

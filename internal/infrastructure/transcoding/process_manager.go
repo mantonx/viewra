@@ -147,7 +147,7 @@ func hasFFmpegEncoder(encoder string) bool {
 func containsString(haystack, needle string) bool {
 	return len(haystack) >= len(needle) &&
 		(haystack == needle ||
-		 len(haystack) > len(needle) &&
-		 (haystack[:len(needle)] == needle ||
-		  containsString(haystack[1:], needle)))
+			len(haystack) > len(needle) &&
+				(haystack[:len(needle)] == needle ||
+					containsString(haystack[1:], needle)))
 }

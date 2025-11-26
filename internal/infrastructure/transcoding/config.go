@@ -142,15 +142,15 @@ func DefaultTranscodeConfigFromProfile(hwAccelType string) *TranscodeConfig {
 	return &TranscodeConfig{
 		HardwareAccel:              hwaccel,
 		HardwareDevice:             hwDevice,
-		OutputBaseDir:              GetDefaultOutputDir(), // /data/dash or ./data/dash
-		MinFreeDiskGB:              10,                    // Require 10GB free space
-		MaxCPUPercent:              0,                     // Unlimited by default
-		MaxMemoryMB:                0,                     // Unlimited by default
-		ProcessGroupKill:           true,                  // Always kill process group
-		ToneMappingEnabled:         toneMappingEnabled,    // Enable tone mapping by default
-		ToneMappingAlgorithm:       toneMappingAlgorithm,  // Default: bt.2390 (ITU-R BT.2390)
-		ToneMappingBackend:         toneMappingBackend,    // Default: auto
-		LibPlaceboPeakDetect:       libPlaceboPeakDetect,  // Default: true
+		OutputBaseDir:              GetDefaultOutputDir(),      // /data/dash or ./data/dash
+		MinFreeDiskGB:              10,                         // Require 10GB free space
+		MaxCPUPercent:              0,                          // Unlimited by default
+		MaxMemoryMB:                0,                          // Unlimited by default
+		ProcessGroupKill:           true,                       // Always kill process group
+		ToneMappingEnabled:         toneMappingEnabled,         // Enable tone mapping by default
+		ToneMappingAlgorithm:       toneMappingAlgorithm,       // Default: bt.2390 (ITU-R BT.2390)
+		ToneMappingBackend:         toneMappingBackend,         // Default: auto
+		LibPlaceboPeakDetect:       libPlaceboPeakDetect,       // Default: true
 		LibPlaceboContrastRecovery: libPlaceboContrastRecovery, // Default: 0.3
 	}
 }

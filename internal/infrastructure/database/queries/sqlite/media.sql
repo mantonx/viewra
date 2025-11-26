@@ -89,3 +89,7 @@ WHERE library_id = ?;
 -- name: CountMediaByType :one
 SELECT COUNT(*) FROM media
 WHERE library_id = ? AND type = ?;
+
+-- name: GetFilePathCache :many
+SELECT id, file_path FROM media
+WHERE library_id = ?;

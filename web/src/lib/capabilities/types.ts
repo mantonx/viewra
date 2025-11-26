@@ -1,3 +1,28 @@
+// Codec capability with detailed information for quality/performance tradeoffs
+export interface CodecCapability {
+  codec: 'h264' | 'h265' | 'vp9' | 'av1' | 'vp8'
+  supported: boolean
+  hardwareAccelerated: boolean
+  powerEfficient: boolean
+  smooth: boolean
+  // Maximum resolution/fps this codec can handle smoothly
+  maxWidth: number
+  maxHeight: number
+  maxFps: number
+  // Browser-specific notes (e.g., "Safari only supports H.265 via MSE")
+  notes?: string
+}
+
+// Detailed codec support map for intelligent codec selection
+export interface CodecSupport {
+  h264: CodecCapability
+  h265: CodecCapability
+  vp9: CodecCapability
+  av1: CodecCapability
+  // Ordered list of preferred codecs (best compression first)
+  preferredOrder: ('h264' | 'h265' | 'vp9' | 'av1')[]
+}
+
 export interface ClientCapabilities {
   // Network
   networkSpeedMbps: number
@@ -20,7 +45,7 @@ export interface ClientCapabilities {
   isCharging: boolean
 
   // Media Support
-  supportedCodecs: string[]
+  codecSupport: CodecSupport
   hardwareAcceleration: boolean
   maxDecodingProfile: string // e.g., "4k-60fps"
 

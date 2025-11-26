@@ -49,6 +49,7 @@ type Querier interface {
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreateMovie(ctx context.Context, arg CreateMovieParams) error
 	CreateMusicTrack(ctx context.Context, arg CreateMusicTrackParams) error
+	CreateQualitySwitchEvent(ctx context.Context, arg CreateQualitySwitchEventParams) (QualitySwitchEvent, error)
 	CreateScanCheckpoint(ctx context.Context, arg CreateScanCheckpointParams) (ScanCheckpoint, error)
 	CreateScanCheckpointBatch(ctx context.Context, arg CreateScanCheckpointBatchParams) error
 	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
@@ -76,6 +77,8 @@ type Querier interface {
 	DeleteMedia(ctx context.Context, id int32) error
 	DeleteMovie(ctx context.Context, mediaID int32) error
 	DeleteMusicTrack(ctx context.Context, mediaID int32) error
+	DeleteOldPlaybackSessions(ctx context.Context, startTime int64) error
+	DeleteOldQualitySwitchEvents(ctx context.Context, timestamp int64) error
 	// sqlc.arg(retention_days): the number of days to retain completed/failed jobs
 	DeleteOldScanJobs(ctx context.Context, arg DeleteOldScanJobsParams) error
 	DeleteScanCheckpointsByJobID(ctx context.Context, scanJobID int32) error
@@ -97,6 +100,7 @@ type Querier interface {
 	GetArtistByID(ctx context.Context, id int32) (MusicArtist, error)
 	GetArtistByMusicBrainzID(ctx context.Context, musicbrainzArtistID sql.NullString) (MusicArtist, error)
 	GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error)
+	GetFilePathCache(ctx context.Context, libraryID int32) ([]GetFilePathCacheRow, error)
 	GetImageByFilePath(ctx context.Context, filePath sql.NullString) (MediaImage, error)
 	GetImageByID(ctx context.Context, id int32) (MediaImage, error)
 	GetImageByTypeAndEntity(ctx context.Context, arg GetImageByTypeAndEntityParams) (MediaImage, error)
@@ -114,6 +118,8 @@ type Querier interface {
 	GetMovieByMediaID(ctx context.Context, mediaID int32) (GetMovieByMediaIDRow, error)
 	GetMusicTrackByMediaID(ctx context.Context, mediaID int32) (GetMusicTrackByMediaIDRow, error)
 	GetPendingScanCheckpoints(ctx context.Context, arg GetPendingScanCheckpointsParams) ([]ScanCheckpoint, error)
+	GetPlaybackSessionByID(ctx context.Context, sessionID string) (PlaybackSession, error)
+	GetQualitySwitchStats(ctx context.Context, mediaID int32) (GetQualitySwitchStatsRow, error)
 	GetScanCheckpointByID(ctx context.Context, id int32) (ScanCheckpoint, error)
 	GetScanCheckpointByPath(ctx context.Context, arg GetScanCheckpointByPathParams) (ScanCheckpoint, error)
 	GetScanCheckpointErrorsByCategory(ctx context.Context, scanJobID int32) ([]GetScanCheckpointErrorsByCategoryRow, error)
@@ -180,7 +186,9 @@ type Querier interface {
 	// This query returns all images for validation in application code
 	// The application will check if files actually exist
 	ListOrphanImages(ctx context.Context) ([]MediaImage, error)
+	ListPlaybackSessionsByMediaID(ctx context.Context, arg ListPlaybackSessionsByMediaIDParams) ([]PlaybackSession, error)
 	ListProcessingTranscodeJobs(ctx context.Context) ([]TranscodeJob, error)
+	ListQualitySwitchEventsBySessionID(ctx context.Context, sessionID string) ([]QualitySwitchEvent, error)
 	ListQueuedTranscodeJobs(ctx context.Context, limit int32) ([]TranscodeJob, error)
 	ListRunningScanJobs(ctx context.Context) ([]ScanJob, error)
 	ListScanJobsByLibrary(ctx context.Context, arg ListScanJobsByLibraryParams) ([]ScanJob, error)
@@ -226,6 +234,7 @@ type Querier interface {
 	UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error
 	UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
+	UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error)
 	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error)
 }

@@ -1,75 +1,29 @@
 /**
  * Hook for managing video quality preferences
- * Stores user preferences for quality vs data saving trade-offs
+ * Uses the shared preferences module for storage
  */
 import { useState, useCallback } from 'react'
+import {
+  loadVideoPreferences,
+  saveVideoPreferences,
+  DEFAULT_VIDEO_PREFERENCES,
+} from '@/lib/preferences'
+import type { VideoQualityPreferences } from '@/lib/preferences'
 
-const STORAGE_KEY = 'viewra_quality_preferences'
-
-export interface QualityPreferences {
-  /** Prefer lower quality to save data/bandwidth */
-  preferDataSaving: boolean
-  /** Prefer higher quality over data savings */
-  preferQuality: boolean
-  /** Manually selected quality override (e.g., "1080p", "720p") */
-  manualQuality: string | null
-}
-
-export const DEFAULT_QUALITY_PREFERENCES: QualityPreferences = {
-  preferDataSaving: false,
-  preferQuality: false,
-  manualQuality: null,
-}
-
-/**
- * Load preferences from localStorage
- */
-const loadPreferences = (): QualityPreferences => {
-  if (typeof window === 'undefined') {
-    return DEFAULT_QUALITY_PREFERENCES
-  }
-
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      return {
-        ...DEFAULT_QUALITY_PREFERENCES,
-        ...parsed,
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load quality preferences:', error)
-  }
-
-  return DEFAULT_QUALITY_PREFERENCES
-}
-
-/**
- * Save preferences to localStorage
- */
-const savePreferences = (preferences: QualityPreferences): void => {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences))
-  } catch (error) {
-    console.error('Failed to save quality preferences:', error)
-  }
-}
+// Re-export types for backwards compatibility
+export type { VideoQualityPreferences }
+export { DEFAULT_VIDEO_PREFERENCES }
 
 /**
  * Hook for managing video quality preferences
  */
 export const useQualityPreferences = () => {
-  const [preferences, setPreferences] = useState<QualityPreferences>(loadPreferences)
+  const [preferences, setPreferences] = useState<VideoQualityPreferences>(loadVideoPreferences)
 
   /**
    * Update preferences
    */
-  const updatePreferences = useCallback((updates: Partial<QualityPreferences>) => {
+  const updatePreferences = useCallback((updates: Partial<VideoQualityPreferences>) => {
     setPreferences((prev) => {
       const updated = { ...prev, ...updates }
 
@@ -80,7 +34,7 @@ export const useQualityPreferences = () => {
         updated.preferDataSaving = false
       }
 
-      savePreferences(updated)
+      saveVideoPreferences(updated)
       return updated
     })
   }, [])
@@ -100,21 +54,11 @@ export const useQualityPreferences = () => {
   }, [preferences.preferQuality, updatePreferences])
 
   /**
-   * Set manual quality override
-   */
-  const setManualQuality = useCallback(
-    (quality: string | null) => {
-      updatePreferences({ manualQuality: quality })
-    },
-    [updatePreferences]
-  )
-
-  /**
    * Reset to defaults
    */
   const resetPreferences = useCallback(() => {
-    setPreferences(DEFAULT_QUALITY_PREFERENCES)
-    savePreferences(DEFAULT_QUALITY_PREFERENCES)
+    setPreferences(DEFAULT_VIDEO_PREFERENCES)
+    saveVideoPreferences(DEFAULT_VIDEO_PREFERENCES)
   }, [])
 
   return {
@@ -122,7 +66,6 @@ export const useQualityPreferences = () => {
     updatePreferences,
     toggleDataSaving,
     toggleQuality,
-    setManualQuality,
     resetPreferences,
   }
 }

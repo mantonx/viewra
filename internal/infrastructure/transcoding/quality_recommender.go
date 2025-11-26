@@ -19,11 +19,11 @@ type ClientCapabilities struct {
 	PixelRatio   float64
 
 	// Performance
-	CPUCores      int
-	MemoryGB      float64
-	LowPowerMode  bool
-	BatteryLevel  float64
-	IsCharging    bool
+	CPUCores     int
+	MemoryGB     float64
+	LowPowerMode bool
+	BatteryLevel float64
+	IsCharging   bool
 
 	// Media capabilities
 	SupportedCodecs      []string
@@ -70,6 +70,15 @@ func (qr *QualityRecommender) RecommendMultipleQualities(caps ClientCapabilities
 	allProfiles := GetAllAdaptiveProfiles()
 	recommendations := make([]*QualityRecommendation, 0, len(allProfiles))
 
+	qr.logger.Info("starting quality recommendation",
+		"network_mbps", caps.NetworkSpeedMbps,
+		"device", caps.DeviceType,
+		"screen_width", caps.ScreenWidth,
+		"screen_height", caps.ScreenHeight,
+		"supported_codecs", caps.SupportedCodecs,
+		"total_profiles", len(allProfiles),
+	)
+
 	for _, profile := range allProfiles {
 		score, reason := qr.scoreProfile(profile, caps)
 		if score > 0 {
@@ -78,6 +87,15 @@ func (qr *QualityRecommender) RecommendMultipleQualities(caps ClientCapabilities
 				Score:   score,
 				Reason:  reason,
 			})
+		} else {
+			// Log why profile was rejected (only for 1080p+ profiles to reduce noise)
+			if profile.Height >= 1080 {
+				qr.logger.Debug("profile rejected",
+					"profile", profile.ID,
+					"height", profile.Height,
+					"reason", reason,
+				)
+			}
 		}
 	}
 
@@ -91,12 +109,18 @@ func (qr *QualityRecommender) RecommendMultipleQualities(caps ClientCapabilities
 		recommendations = recommendations[:count]
 	}
 
-	qr.logger.Info("quality recommendations generated",
-		"count", len(recommendations),
-		"device", caps.DeviceType,
-		"network_mbps", caps.NetworkSpeedMbps,
-		"screen", map[string]int{"width": caps.ScreenWidth, "height": caps.ScreenHeight},
-	)
+	// Log top recommendations
+	if len(recommendations) > 0 {
+		top := recommendations[0]
+		qr.logger.Info("quality recommendation result",
+			"top_profile", top.Profile.ID,
+			"top_score", top.Score,
+			"top_height", top.Profile.Height,
+			"total_valid", len(recommendations),
+		)
+	} else {
+		qr.logger.Warn("no valid profiles found, will use fallback")
+	}
 
 	return recommendations
 }
@@ -154,6 +178,13 @@ func (qr *QualityRecommender) scoreProfile(profile *AdaptiveProfile, caps Client
 func (qr *QualityRecommender) scoreNetwork(profile *AdaptiveProfile, caps ClientCapabilities) float64 {
 	requiredMbps := profile.MinNetworkMbps
 	availableMbps := caps.NetworkSpeedMbps
+
+	// If network speed is unknown/failed (-1 or 0), assume a decent connection
+	// This prevents defaulting to lowest quality when measurement fails
+	// Actual quality will adapt during playback based on real throughput
+	if availableMbps <= 0 {
+		availableMbps = 50.0 // Assume 50 Mbps as reasonable default
+	}
 
 	// Need at least the minimum
 	if availableMbps < requiredMbps {
@@ -218,8 +249,15 @@ func (qr *QualityRecommender) scoreDeviceType(profile *AdaptiveProfile, caps Cli
 
 // scoreCodec evaluates codec compatibility.
 func (qr *QualityRecommender) scoreCodec(profile *AdaptiveProfile, caps ClientCapabilities) float64 {
+	// If no codecs reported, assume h264 is supported (universal compatibility)
+	// This handles cases where codec detection failed on the client
+	supportedCodecs := caps.SupportedCodecs
+	if len(supportedCodecs) == 0 {
+		supportedCodecs = []string{"h264"}
+	}
+
 	// Check if preferred codec is supported
-	for _, supportedCodec := range caps.SupportedCodecs {
+	for _, supportedCodec := range supportedCodecs {
 		if supportedCodec == profile.PreferredCodec {
 			return 1.0
 		}
@@ -227,7 +265,7 @@ func (qr *QualityRecommender) scoreCodec(profile *AdaptiveProfile, caps ClientCa
 
 	// Check if any fallback codec is supported
 	for _, fallbackCodec := range profile.FallbackCodecs {
-		for _, supportedCodec := range caps.SupportedCodecs {
+		for _, supportedCodec := range supportedCodecs {
 			if supportedCodec == fallbackCodec {
 				return 0.9 // Slightly lower score for fallback
 			}
@@ -244,9 +282,10 @@ func (qr *QualityRecommender) scorePower(profile *AdaptiveProfile, caps ClientCa
 
 	// Low power mode penalty for high-quality profiles
 	if caps.LowPowerMode {
-		if profile.QualityTier == "ultra" {
+		switch profile.QualityTier {
+		case "ultra":
 			score *= 0.5
-		} else if profile.QualityTier == "high" {
+		case "high":
 			score *= 0.8
 		}
 	}
@@ -334,4 +373,80 @@ func (qr *QualityRecommender) isInLadder(ladder []*AdaptiveProfile, profile *Ada
 		}
 	}
 	return false
+}
+
+// RecommendCodec recommends the best codec for the given client capabilities and hardware.
+// Prioritizes: AV1 > H.265 > VP9 > H.264 based on compression efficiency.
+// Falls back to H.264 if no modern codec is supported.
+func (qr *QualityRecommender) RecommendCodec(caps ClientCapabilities, hwAccel HardwareAccel) VideoCodec {
+	// Build a set of client-supported codecs for fast lookup
+	supported := make(map[string]bool)
+	for _, c := range caps.SupportedCodecs {
+		supported[c] = true
+	}
+
+	qr.logger.Debug("recommending codec",
+		"supported_codecs", caps.SupportedCodecs,
+		"hw_accel", hwAccel,
+		"device", caps.DeviceType,
+		"low_power", caps.LowPowerMode,
+	)
+
+	// For low power mode or metered connections, prefer more efficient codecs
+	preferEfficiency := caps.LowPowerMode || caps.IsMetered
+
+	// Check codecs in order of compression efficiency
+	// AV1 > H.265/VP9 > H.264
+
+	// Try AV1 (best compression, 30% better than H.265)
+	if supported["av1"] && IsCodecSupported(hwAccel, CodecAV1) {
+		qr.logger.Info("recommending codec", "codec", "av1", "reason", "best compression")
+		return CodecAV1
+	}
+
+	// Try H.265 (25% better compression than H.264, good browser support)
+	if supported["h265"] && IsCodecSupported(hwAccel, CodecH265) {
+		// H.265 is great for Safari and Edge
+		qr.logger.Info("recommending codec", "codec", "h265", "reason", "good compression, Safari/Edge support")
+		return CodecH265
+	}
+
+	// Try VP9 (similar to H.265, Chrome/Firefox preferred)
+	if supported["vp9"] && IsCodecSupported(hwAccel, CodecVP9) {
+		// VP9 is royalty-free and well-supported in Chrome/Firefox
+		qr.logger.Info("recommending codec", "codec", "vp9", "reason", "royalty-free, Chrome/Firefox support")
+		return CodecVP9
+	}
+
+	// Fall back to H.264 (universal compatibility)
+	// Note: preferEfficiency could be used for future enhancement where we might
+	// weight codecs differently based on power constraints
+	_ = preferEfficiency
+	qr.logger.Info("recommending codec", "codec", "h264", "reason", "universal fallback")
+	return CodecH264
+}
+
+// GetBestCodecForProfile returns the best codec for a specific quality profile.
+// It considers both client support and the profile's preferred/fallback codecs.
+func (qr *QualityRecommender) GetBestCodecForProfile(profile *AdaptiveProfile, caps ClientCapabilities, hwAccel HardwareAccel) VideoCodec {
+	// Build supported codec set
+	supported := make(map[string]bool)
+	for _, c := range caps.SupportedCodecs {
+		supported[c] = true
+	}
+
+	// Check if preferred codec is supported
+	if supported[profile.PreferredCodec] && IsCodecSupported(hwAccel, VideoCodec(profile.PreferredCodec)) {
+		return VideoCodec(profile.PreferredCodec)
+	}
+
+	// Check fallback codecs in order
+	for _, fallback := range profile.FallbackCodecs {
+		if supported[fallback] && IsCodecSupported(hwAccel, VideoCodec(fallback)) {
+			return VideoCodec(fallback)
+		}
+	}
+
+	// Last resort: H.264
+	return CodecH264
 }

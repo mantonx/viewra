@@ -1984,27 +1984,1567 @@ export function QualityPreferences() {
 **Duration**: 80-100 hours
 **Goal**: Real-time quality adaptation during playback
 
+### Implementation Note
+
+**Pattern**: All Phase 2 frontend code uses **functional patterns** instead of classes to align with React conventions:
+
+- Pure functions for business logic (e.g., `evaluateQuality`, `calculateStats`)
+- Immutable state objects (e.g., `NetworkMonitorState`, `PlaybackAnalyticsState`)
+- React hooks for stateful integration (e.g., `useNetworkMonitor`, `useAutoQuality`)
+
+This approach improves testability, aligns with React's functional paradigm, and avoids class-related complexity.
+
 ### Task 2.1: Network Monitoring Service (20 hours)
 
 **Location**: `web/src/lib/network/NetworkMonitor.ts`
 
-[Detailed implementation similar to Phase 1 structure...]
+**Purpose**: Continuously monitor network conditions during playback to enable intelligent quality switching. This service observes actual download performance rather than relying solely on initial capability detection.
+
+**Implementation**:
+
+```typescript
+// web/src/lib/network/NetworkMonitor.ts
+
+export interface NetworkSample {
+  timestamp: number
+  bytesDownloaded: number
+  durationMs: number
+  throughputMbps: number
+  latencyMs: number
+  wasStall: boolean
+}
+
+export interface NetworkStats {
+  currentThroughputMbps: number      // Most recent measurement
+  averageThroughputMbps: number      // Rolling average (last 30s)
+  minThroughputMbps: number          // Minimum in window
+  maxThroughputMbps: number          // Maximum in window
+  stability: number                   // 0-1 (1 = very stable)
+  stallCount: number                  // Number of buffer underruns
+  lastStallTime: number | null       // Timestamp of last stall
+  trend: 'improving' | 'stable' | 'degrading'
+  connectionType: string              // wifi, cellular, ethernet, etc.
+  isMetered: boolean
+}
+
+export interface NetworkMonitorConfig {
+  sampleWindowMs: number              // How long to keep samples (default: 30000)
+  minSamplesForStats: number          // Min samples before reporting (default: 3)
+  stabilityThreshold: number          // Variance threshold for stability (default: 0.3)
+  onStatsUpdate?: (stats: NetworkStats) => void
+  onQualityRecommendation?: (quality: string, reason: string) => void
+}
+
+export class NetworkMonitor {
+  private samples: NetworkSample[] = []
+  private config: NetworkMonitorConfig
+  private isMonitoring: boolean = false
+  private updateInterval: ReturnType<typeof setInterval> | null = null
+
+  constructor(config: Partial<NetworkMonitorConfig> = {}) {
+    this.config = {
+      sampleWindowMs: 30000,
+      minSamplesForStats: 3,
+      stabilityThreshold: 0.3,
+      ...config
+    }
+  }
+
+  // Start monitoring - call when playback begins
+  start(): void {
+    if (this.isMonitoring) return
+    this.isMonitoring = true
+    this.samples = []
+
+    // Periodic stats calculation
+    this.updateInterval = setInterval(() => {
+      this.pruneOldSamples()
+      if (this.samples.length >= this.config.minSamplesForStats) {
+        const stats = this.calculateStats()
+        this.config.onStatsUpdate?.(stats)
+        this.checkQualityRecommendation(stats)
+      }
+    }, 2000)
+  }
+
+  // Stop monitoring - call when playback ends
+  stop(): void {
+    this.isMonitoring = false
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval)
+      this.updateInterval = null
+    }
+  }
+
+  // Record a network sample - call from HLS.js fragment load events
+  recordSample(bytesDownloaded: number, durationMs: number, wasStall: boolean = false): void {
+    if (!this.isMonitoring) return
+
+    const throughputMbps = (bytesDownloaded * 8) / (durationMs * 1000) // bits to Mbps
+
+    this.samples.push({
+      timestamp: Date.now(),
+      bytesDownloaded,
+      durationMs,
+      throughputMbps,
+      latencyMs: 0, // Can be populated from fetch timing
+      wasStall
+    })
+  }
+
+  // Record a buffer stall event
+  recordStall(): void {
+    if (this.samples.length > 0) {
+      this.samples[this.samples.length - 1].wasStall = true
+    }
+  }
+
+  // Get current network statistics
+  getStats(): NetworkStats | null {
+    if (this.samples.length < this.config.minSamplesForStats) {
+      return null
+    }
+    return this.calculateStats()
+  }
+
+  private pruneOldSamples(): void {
+    const cutoff = Date.now() - this.config.sampleWindowMs
+    this.samples = this.samples.filter(s => s.timestamp > cutoff)
+  }
+
+  private calculateStats(): NetworkStats {
+    const throughputs = this.samples.map(s => s.throughputMbps)
+    const sum = throughputs.reduce((a, b) => a + b, 0)
+    const avg = sum / throughputs.length
+    const min = Math.min(...throughputs)
+    const max = Math.max(...throughputs)
+
+    // Calculate stability (inverse of coefficient of variation)
+    const variance = throughputs.reduce((sum, t) => sum + Math.pow(t - avg, 2), 0) / throughputs.length
+    const stdDev = Math.sqrt(variance)
+    const cv = avg > 0 ? stdDev / avg : 1
+    const stability = Math.max(0, 1 - cv)
+
+    // Count stalls
+    const stallCount = this.samples.filter(s => s.wasStall).length
+    const lastStall = this.samples.filter(s => s.wasStall).pop()
+
+    // Calculate trend (compare first half to second half)
+    const midpoint = Math.floor(this.samples.length / 2)
+    const firstHalfAvg = throughputs.slice(0, midpoint).reduce((a, b) => a + b, 0) / midpoint
+    const secondHalfAvg = throughputs.slice(midpoint).reduce((a, b) => a + b, 0) / (throughputs.length - midpoint)
+
+    let trend: 'improving' | 'stable' | 'degrading' = 'stable'
+    if (secondHalfAvg > firstHalfAvg * 1.15) trend = 'improving'
+    else if (secondHalfAvg < firstHalfAvg * 0.85) trend = 'degrading'
+
+    // Get connection info from Navigator API
+    const connection = (navigator as any).connection
+
+    return {
+      currentThroughputMbps: throughputs[throughputs.length - 1],
+      averageThroughputMbps: avg,
+      minThroughputMbps: min,
+      maxThroughputMbps: max,
+      stability,
+      stallCount,
+      lastStallTime: lastStall?.timestamp ?? null,
+      trend,
+      connectionType: connection?.effectiveType ?? 'unknown',
+      isMetered: connection?.saveData ?? false
+    }
+  }
+
+  private checkQualityRecommendation(stats: NetworkStats): void {
+    // Quality recommendations based on network stats
+    // Using conservative bitrate targets (70% of throughput)
+    const safeBitrateMbps = stats.averageThroughputMbps * 0.7
+
+    let recommendedQuality: string
+    let reason: string
+
+    if (stats.stallCount > 2 || stats.trend === 'degrading') {
+      // Network issues - recommend lower quality
+      recommendedQuality = safeBitrateMbps < 2 ? '360p' : safeBitrateMbps < 4 ? '480p' : '720p'
+      reason = stats.stallCount > 2
+        ? `Buffering detected (${stats.stallCount} stalls)`
+        : 'Network speed decreasing'
+    } else if (stats.stability < 0.5) {
+      // Unstable network - be conservative
+      recommendedQuality = safeBitrateMbps < 3 ? '480p' : '720p'
+      reason = 'Unstable network - using conservative quality'
+    } else {
+      // Stable network - use normal recommendation
+      if (safeBitrateMbps >= 20) recommendedQuality = '4k'
+      else if (safeBitrateMbps >= 8) recommendedQuality = '1080p'
+      else if (safeBitrateMbps >= 4) recommendedQuality = '720p'
+      else if (safeBitrateMbps >= 1.5) recommendedQuality = '480p'
+      else recommendedQuality = '360p'
+      reason = `Network supports ${stats.averageThroughputMbps.toFixed(1)} Mbps`
+    }
+
+    this.config.onQualityRecommendation?.(recommendedQuality, reason)
+  }
+}
+
+export default NetworkMonitor
+```
+
+**React Hook**:
+
+```typescript
+// web/src/lib/hooks/useNetworkMonitor.ts
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { NetworkMonitor, NetworkStats, NetworkMonitorConfig } from '../network/NetworkMonitor'
+
+export interface UseNetworkMonitorOptions {
+  enabled?: boolean
+  onQualityRecommendation?: (quality: string, reason: string) => void
+}
+
+export const useNetworkMonitor = (options: UseNetworkMonitorOptions = {}) => {
+  const { enabled = true, onQualityRecommendation } = options
+  const [stats, setStats] = useState<NetworkStats | null>(null)
+  const [recommendedQuality, setRecommendedQuality] = useState<string | null>(null)
+  const monitorRef = useRef<NetworkMonitor | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const config: Partial<NetworkMonitorConfig> = {
+      onStatsUpdate: setStats,
+      onQualityRecommendation: (quality, reason) => {
+        setRecommendedQuality(quality)
+        onQualityRecommendation?.(quality, reason)
+      }
+    }
+
+    monitorRef.current = new NetworkMonitor(config)
+    monitorRef.current.start()
+
+    return () => {
+      monitorRef.current?.stop()
+      monitorRef.current = null
+    }
+  }, [enabled, onQualityRecommendation])
+
+  const recordSample = useCallback((bytes: number, durationMs: number, wasStall?: boolean) => {
+    monitorRef.current?.recordSample(bytes, durationMs, wasStall)
+  }, [])
+
+  const recordStall = useCallback(() => {
+    monitorRef.current?.recordStall()
+  }, [])
+
+  return {
+    stats,
+    recommendedQuality,
+    recordSample,
+    recordStall,
+    isMonitoring: !!monitorRef.current
+  }
+}
+```
+
+**Integration with HLS.js**:
+
+```typescript
+// In VideoPlayer.tsx, integrate with HLS events:
+
+// On fragment loaded - record network sample
+hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
+  const { frag, networkDetails } = data
+  if (networkDetails) {
+    const bytes = frag.stats?.total ?? 0
+    const duration = frag.stats?.loading?.end - frag.stats?.loading?.start ?? 0
+    networkMonitor.recordSample(bytes, duration)
+  }
+})
+
+// On buffer stall - record stall event
+hls.on(Hls.Events.ERROR, (_event, data) => {
+  if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+    networkMonitor.recordStall()
+  }
+})
+```
+
+**Testing**:
+- Unit tests for NetworkMonitor class
+- Test sample collection and pruning
+- Test statistics calculation (average, stability, trend)
+- Test quality recommendations at various throughput levels
+- Test stall detection and handling
+- Integration tests with mock HLS.js events
+
+---
 
 ### Task 2.2: Auto Quality Mode (24 hours)
 
-[Implementation details...]
+**Location**: `web/src/lib/streaming/AutoQualityController.ts`
+
+**Purpose**: Coordinate automatic quality switching during playback based on network conditions, buffer health, and user preferences. Works alongside HLS.js's native ABR while providing additional intelligence.
+
+**Implementation**:
+
+```typescript
+// web/src/lib/streaming/AutoQualityController.ts
+
+import type { NetworkStats } from '../network/NetworkMonitor'
+import type { VideoQualityPreferences } from '@/components/media/VideoPlayer/QualityPreferences'
+
+export interface QualityLevel {
+  index: number
+  height: number
+  bitrate: number
+  name: string
+}
+
+export interface AutoQualityConfig {
+  // Buffer thresholds (seconds)
+  minBufferForUpgrade: number      // Need this much buffer to consider upgrading (default: 15)
+  minBufferForDowngrade: number    // Below this, consider downgrading (default: 5)
+  criticalBuffer: number           // Emergency downgrade threshold (default: 2)
+
+  // Quality change behavior
+  upgradeDelayMs: number           // Wait this long before upgrading (default: 10000)
+  downgradeDelayMs: number         // Wait this long before downgrading (default: 3000)
+  emergencyDowngradeDelayMs: number // Critical situations (default: 500)
+
+  // Stability requirements
+  minStabilityForUpgrade: number   // Network stability threshold (default: 0.6)
+  maxStallsBeforeDowngrade: number // Stall count threshold (default: 2)
+}
+
+export interface QualityDecision {
+  action: 'upgrade' | 'downgrade' | 'maintain'
+  targetLevel: QualityLevel | null
+  reason: string
+  confidence: number // 0-1
+}
+
+export class AutoQualityController {
+  private config: AutoQualityConfig
+  private qualityLevels: QualityLevel[] = []
+  private currentLevelIndex: number = -1
+  private lastChangeTime: number = 0
+  private pendingDecision: QualityDecision | null = null
+  private preferences: VideoQualityPreferences | null = null
+
+  constructor(config: Partial<AutoQualityConfig> = {}) {
+    this.config = {
+      minBufferForUpgrade: 15,
+      minBufferForDowngrade: 5,
+      criticalBuffer: 2,
+      upgradeDelayMs: 10000,
+      downgradeDelayMs: 3000,
+      emergencyDowngradeDelayMs: 500,
+      minStabilityForUpgrade: 0.6,
+      maxStallsBeforeDowngrade: 2,
+      ...config
+    }
+  }
+
+  // Set available quality levels from HLS.js
+  setQualityLevels(levels: QualityLevel[]): void {
+    this.qualityLevels = levels.sort((a, b) => a.bitrate - b.bitrate)
+  }
+
+  // Update current quality level
+  setCurrentLevel(index: number): void {
+    this.currentLevelIndex = index
+  }
+
+  // Set user preferences
+  setPreferences(prefs: VideoQualityPreferences): void {
+    this.preferences = prefs
+  }
+
+  // Main decision function - call periodically during playback
+  evaluate(
+    networkStats: NetworkStats,
+    bufferLength: number,
+    isPlaying: boolean
+  ): QualityDecision {
+    if (!isPlaying || this.qualityLevels.length === 0) {
+      return { action: 'maintain', targetLevel: null, reason: 'Not playing', confidence: 1 }
+    }
+
+    const currentLevel = this.qualityLevels[this.currentLevelIndex]
+    if (!currentLevel) {
+      return { action: 'maintain', targetLevel: null, reason: 'No current level', confidence: 1 }
+    }
+
+    // Check for emergency downgrade (critical buffer)
+    if (bufferLength < this.config.criticalBuffer) {
+      const lowestLevel = this.qualityLevels[0]
+      if (lowestLevel && lowestLevel.index !== this.currentLevelIndex) {
+        return {
+          action: 'downgrade',
+          targetLevel: lowestLevel,
+          reason: `Critical buffer: ${bufferLength.toFixed(1)}s`,
+          confidence: 1
+        }
+      }
+    }
+
+    // Check for stall-based downgrade
+    if (networkStats.stallCount > this.config.maxStallsBeforeDowngrade) {
+      const targetLevel = this.findLowerLevel()
+      if (targetLevel) {
+        return {
+          action: 'downgrade',
+          targetLevel,
+          reason: `Too many stalls: ${networkStats.stallCount}`,
+          confidence: 0.9
+        }
+      }
+    }
+
+    // Check for low buffer downgrade
+    if (bufferLength < this.config.minBufferForDowngrade) {
+      const targetLevel = this.findLowerLevel()
+      if (targetLevel) {
+        return {
+          action: 'downgrade',
+          targetLevel,
+          reason: `Low buffer: ${bufferLength.toFixed(1)}s`,
+          confidence: 0.8
+        }
+      }
+    }
+
+    // Check for network degradation
+    if (networkStats.trend === 'degrading') {
+      const safeBitrate = networkStats.minThroughputMbps * 1_000_000 * 0.7
+      const targetLevel = this.findLevelForBitrate(safeBitrate)
+      if (targetLevel && targetLevel.index < this.currentLevelIndex) {
+        return {
+          action: 'downgrade',
+          targetLevel,
+          reason: 'Network degrading',
+          confidence: 0.7
+        }
+      }
+    }
+
+    // Check for upgrade opportunity
+    const timeSinceLastChange = Date.now() - this.lastChangeTime
+    if (
+      bufferLength >= this.config.minBufferForUpgrade &&
+      networkStats.stability >= this.config.minStabilityForUpgrade &&
+      networkStats.trend !== 'degrading' &&
+      timeSinceLastChange >= this.config.upgradeDelayMs
+    ) {
+      const safeBitrate = networkStats.averageThroughputMbps * 1_000_000 * 0.7
+      const targetLevel = this.findLevelForBitrate(safeBitrate)
+
+      // Apply user preferences
+      const maxLevel = this.getMaxAllowedLevel()
+
+      if (targetLevel && targetLevel.index > this.currentLevelIndex) {
+        // Don't exceed max allowed level
+        if (maxLevel && targetLevel.index > maxLevel.index) {
+          if (maxLevel.index > this.currentLevelIndex) {
+            return {
+              action: 'upgrade',
+              targetLevel: maxLevel,
+              reason: 'Network supports higher quality (limited by preference)',
+              confidence: 0.8
+            }
+          }
+        } else {
+          return {
+            action: 'upgrade',
+            targetLevel,
+            reason: `Network supports ${(safeBitrate / 1_000_000).toFixed(1)} Mbps`,
+            confidence: networkStats.stability
+          }
+        }
+      }
+    }
+
+    return {
+      action: 'maintain',
+      targetLevel: currentLevel,
+      reason: 'Conditions stable',
+      confidence: 0.9
+    }
+  }
+
+  // Apply a quality decision (with debouncing)
+  applyDecision(decision: QualityDecision, hlsInstance: any): boolean {
+    if (decision.action === 'maintain' || !decision.targetLevel) {
+      return false
+    }
+
+    const delay = decision.action === 'downgrade'
+      ? (decision.reason.includes('Critical') ? this.config.emergencyDowngradeDelayMs : this.config.downgradeDelayMs)
+      : this.config.upgradeDelayMs
+
+    const timeSinceLastChange = Date.now() - this.lastChangeTime
+    if (timeSinceLastChange < delay) {
+      return false
+    }
+
+    // Apply the change
+    hlsInstance.currentLevel = decision.targetLevel.index
+    this.currentLevelIndex = decision.targetLevel.index
+    this.lastChangeTime = Date.now()
+
+    return true
+  }
+
+  private findLowerLevel(): QualityLevel | null {
+    const currentIndex = this.currentLevelIndex
+    if (currentIndex > 0) {
+      return this.qualityLevels[currentIndex - 1]
+    }
+    return null
+  }
+
+  private findLevelForBitrate(targetBitrate: number): QualityLevel | null {
+    // Find highest level that fits within target bitrate
+    for (let i = this.qualityLevels.length - 1; i >= 0; i--) {
+      if (this.qualityLevels[i].bitrate <= targetBitrate) {
+        return this.qualityLevels[i]
+      }
+    }
+    return this.qualityLevels[0] || null
+  }
+
+  private getMaxAllowedLevel(): QualityLevel | null {
+    if (!this.preferences?.maxAutoQuality) return null
+
+    const maxHeight = this.parseQualityToHeight(this.preferences.maxAutoQuality)
+    if (!maxHeight) return null
+
+    for (let i = this.qualityLevels.length - 1; i >= 0; i--) {
+      if (this.qualityLevels[i].height <= maxHeight) {
+        return this.qualityLevels[i]
+      }
+    }
+    return null
+  }
+
+  private parseQualityToHeight(quality: string): number | null {
+    const match = quality.match(/(\d+)p?/i)
+    if (match) {
+      const value = parseInt(match[1], 10)
+      // Handle "4k" as 2160
+      if (quality.toLowerCase().includes('4k')) return 2160
+      return value
+    }
+    return null
+  }
+}
+```
+
+**React Hook**:
+
+```typescript
+// web/src/lib/hooks/useAutoQuality.ts
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { AutoQualityController, QualityLevel, QualityDecision } from '../streaming/AutoQualityController'
+import { useNetworkMonitor } from './useNetworkMonitor'
+import { loadPreferences, VideoQualityPreferences } from '@/components/media/VideoPlayer/QualityPreferences'
+import Hls from 'hls.js'
+
+export interface UseAutoQualityOptions {
+  enabled?: boolean
+  hlsInstance: Hls | null
+  onQualityChange?: (level: QualityLevel, reason: string) => void
+}
+
+export const useAutoQuality = (options: UseAutoQualityOptions) => {
+  const { enabled = true, hlsInstance, onQualityChange } = options
+  const [currentDecision, setCurrentDecision] = useState<QualityDecision | null>(null)
+  const [isAutoMode, setIsAutoMode] = useState(true)
+  const controllerRef = useRef<AutoQualityController | null>(null)
+  const evaluationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Network monitoring
+  const { stats: networkStats, recordSample, recordStall } = useNetworkMonitor({
+    enabled: enabled && isAutoMode
+  })
+
+  // Initialize controller
+  useEffect(() => {
+    controllerRef.current = new AutoQualityController()
+
+    // Load user preferences
+    const prefs = loadPreferences()
+    controllerRef.current.setPreferences(prefs)
+    setIsAutoMode(prefs.autoQualityEnabled)
+
+    return () => {
+      if (evaluationIntervalRef.current) {
+        clearInterval(evaluationIntervalRef.current)
+      }
+    }
+  }, [])
+
+  // Set up HLS.js integration
+  useEffect(() => {
+    if (!hlsInstance || !enabled) return
+
+    const controller = controllerRef.current
+    if (!controller) return
+
+    // Populate quality levels from HLS
+    const updateLevels = () => {
+      const levels: QualityLevel[] = hlsInstance.levels.map((level, index) => ({
+        index,
+        height: level.height,
+        bitrate: level.bitrate,
+        name: `${level.height}p`
+      }))
+      controller.setQualityLevels(levels)
+    }
+
+    // Handle fragment loaded - record network sample
+    const onFragLoaded = (_event: string, data: any) => {
+      const stats = data.frag?.stats
+      if (stats?.total && stats?.loading) {
+        const duration = stats.loading.end - stats.loading.start
+        recordSample(stats.total, duration)
+      }
+    }
+
+    // Handle level switch
+    const onLevelSwitched = (_event: string, data: any) => {
+      controller.setCurrentLevel(data.level)
+    }
+
+    // Handle buffer stall
+    const onError = (_event: string, data: any) => {
+      if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+        recordStall()
+      }
+    }
+
+    hlsInstance.on(Hls.Events.MANIFEST_PARSED, updateLevels)
+    hlsInstance.on(Hls.Events.FRAG_LOADED, onFragLoaded)
+    hlsInstance.on(Hls.Events.LEVEL_SWITCHED, onLevelSwitched)
+    hlsInstance.on(Hls.Events.ERROR, onError)
+
+    // Start periodic evaluation
+    evaluationIntervalRef.current = setInterval(() => {
+      if (!isAutoMode || !networkStats) return
+
+      const video = hlsInstance.media
+      if (!video || video.paused) return
+
+      // Get buffer length
+      const buffered = video.buffered
+      const bufferLength = buffered.length > 0
+        ? buffered.end(buffered.length - 1) - video.currentTime
+        : 0
+
+      // Evaluate and potentially apply decision
+      const decision = controller.evaluate(networkStats, bufferLength, !video.paused)
+      setCurrentDecision(decision)
+
+      if (decision.action !== 'maintain' && decision.targetLevel) {
+        const applied = controller.applyDecision(decision, hlsInstance)
+        if (applied) {
+          onQualityChange?.(decision.targetLevel, decision.reason)
+        }
+      }
+    }, 2000)
+
+    return () => {
+      hlsInstance.off(Hls.Events.MANIFEST_PARSED, updateLevels)
+      hlsInstance.off(Hls.Events.FRAG_LOADED, onFragLoaded)
+      hlsInstance.off(Hls.Events.LEVEL_SWITCHED, onLevelSwitched)
+      hlsInstance.off(Hls.Events.ERROR, onError)
+
+      if (evaluationIntervalRef.current) {
+        clearInterval(evaluationIntervalRef.current)
+      }
+    }
+  }, [hlsInstance, enabled, isAutoMode, networkStats, recordSample, recordStall, onQualityChange])
+
+  // Toggle auto mode
+  const toggleAutoMode = useCallback((enabled: boolean) => {
+    setIsAutoMode(enabled)
+    if (hlsInstance) {
+      hlsInstance.currentLevel = enabled ? -1 : hlsInstance.currentLevel
+    }
+  }, [hlsInstance])
+
+  // Manual quality selection
+  const setQuality = useCallback((levelIndex: number) => {
+    if (hlsInstance) {
+      setIsAutoMode(false)
+      hlsInstance.currentLevel = levelIndex
+      controllerRef.current?.setCurrentLevel(levelIndex)
+    }
+  }, [hlsInstance])
+
+  return {
+    isAutoMode,
+    currentDecision,
+    networkStats,
+    toggleAutoMode,
+    setQuality
+  }
+}
+```
+
+**Testing**:
+- Unit tests for AutoQualityController decision logic
+- Test upgrade conditions (buffer + stability + network)
+- Test downgrade triggers (buffer low, stalls, degrading network)
+- Test emergency downgrade at critical buffer levels
+- Test preference limits (max quality cap)
+- Test debouncing behavior (upgrade/downgrade delays)
+- Integration tests with mock HLS.js instance
+
+---
 
 ### Task 2.3: Analytics Collection (16 hours)
 
-[Implementation details...]
+**Location**:
+- `web/src/lib/analytics/PlaybackAnalytics.ts` - Client-side collection
+- `internal/api/handlers/analytics.go` - Backend API
+- `internal/infrastructure/database/queries/*/playback_events.sql` - Database queries
+
+**Purpose**: Collect playback quality metrics for:
+1. Debugging user-reported issues
+2. Identifying problematic content
+3. Optimizing transcoding profiles
+4. Understanding device/network distribution
+
+**Client-Side Implementation**:
+
+```typescript
+// web/src/lib/analytics/PlaybackAnalytics.ts
+
+export interface QualitySwitchEvent {
+  mediaId: number
+  sessionId: string
+  fromQuality: string | null
+  toQuality: string
+  switchReason: 'auto_bandwidth' | 'auto_buffer' | 'auto_stall' | 'user_manual' | 'initial'
+  positionSeconds: number
+  networkSpeedMbps: number | null
+  bufferSeconds: number | null
+  causedStall: boolean
+  deviceType: string
+  connectionType: string
+  timestamp: number
+}
+
+export interface PlaybackSession {
+  sessionId: string
+  mediaId: number
+  startTime: number
+  endTime: number | null
+  totalPlayTime: number
+  totalBufferTime: number
+  stallCount: number
+  qualitySwitchCount: number
+  averageQuality: string
+  deviceType: string
+  connectionType: string
+}
+
+export interface PlaybackAnalyticsConfig {
+  enabled: boolean
+  batchSize: number           // Send events in batches (default: 10)
+  flushIntervalMs: number     // Or flush every N ms (default: 30000)
+  endpoint: string            // API endpoint
+}
+
+export class PlaybackAnalytics {
+  private config: PlaybackAnalyticsConfig
+  private eventQueue: QualitySwitchEvent[] = []
+  private currentSession: PlaybackSession | null = null
+  private flushTimeout: ReturnType<typeof setTimeout> | null = null
+
+  constructor(config: Partial<PlaybackAnalyticsConfig> = {}) {
+    this.config = {
+      enabled: true,
+      batchSize: 10,
+      flushIntervalMs: 30000,
+      endpoint: '/api/analytics/playback',
+      ...config
+    }
+  }
+
+  // Start a new playback session
+  startSession(mediaId: number): string {
+    const sessionId = `${mediaId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+
+    this.currentSession = {
+      sessionId,
+      mediaId,
+      startTime: Date.now(),
+      endTime: null,
+      totalPlayTime: 0,
+      totalBufferTime: 0,
+      stallCount: 0,
+      qualitySwitchCount: 0,
+      averageQuality: '',
+      deviceType: this.getDeviceType(),
+      connectionType: this.getConnectionType()
+    }
+
+    this.scheduleFlush()
+    return sessionId
+  }
+
+  // End the current session
+  endSession(): void {
+    if (this.currentSession) {
+      this.currentSession.endTime = Date.now()
+      this.flush() // Flush remaining events
+    }
+    this.currentSession = null
+  }
+
+  // Record a quality switch event
+  recordQualitySwitch(
+    fromQuality: string | null,
+    toQuality: string,
+    reason: QualitySwitchEvent['switchReason'],
+    positionSeconds: number,
+    networkSpeedMbps: number | null,
+    bufferSeconds: number | null,
+    causedStall: boolean = false
+  ): void {
+    if (!this.config.enabled || !this.currentSession) return
+
+    const event: QualitySwitchEvent = {
+      mediaId: this.currentSession.mediaId,
+      sessionId: this.currentSession.sessionId,
+      fromQuality,
+      toQuality,
+      switchReason: reason,
+      positionSeconds,
+      networkSpeedMbps,
+      bufferSeconds,
+      causedStall,
+      deviceType: this.currentSession.deviceType,
+      connectionType: this.getConnectionType(),
+      timestamp: Date.now()
+    }
+
+    this.eventQueue.push(event)
+    this.currentSession.qualitySwitchCount++
+
+    if (this.eventQueue.length >= this.config.batchSize) {
+      this.flush()
+    }
+  }
+
+  // Record a stall event
+  recordStall(durationMs: number): void {
+    if (this.currentSession) {
+      this.currentSession.stallCount++
+      this.currentSession.totalBufferTime += durationMs
+    }
+  }
+
+  // Record play time
+  recordPlayTime(durationMs: number): void {
+    if (this.currentSession) {
+      this.currentSession.totalPlayTime += durationMs
+    }
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushTimeout) {
+      clearTimeout(this.flushTimeout)
+    }
+    this.flushTimeout = setTimeout(() => {
+      this.flush()
+      this.scheduleFlush()
+    }, this.config.flushIntervalMs)
+  }
+
+  private async flush(): Promise<void> {
+    if (this.eventQueue.length === 0) return
+
+    const events = [...this.eventQueue]
+    this.eventQueue = []
+
+    try {
+      await fetch(this.config.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session: this.currentSession,
+          events
+        })
+      })
+    } catch (error) {
+      // Re-queue events on failure (with limit)
+      if (this.eventQueue.length < 100) {
+        this.eventQueue.unshift(...events)
+      }
+    }
+  }
+
+  private getDeviceType(): string {
+    const ua = navigator.userAgent
+    if (/tablet|ipad/i.test(ua)) return 'tablet'
+    if (/mobile|iphone|android/i.test(ua)) return 'mobile'
+    if (/smart-tv|smarttv|tv/i.test(ua)) return 'tv'
+    return 'desktop'
+  }
+
+  private getConnectionType(): string {
+    const connection = (navigator as any).connection
+    return connection?.effectiveType ?? 'unknown'
+  }
+}
+
+// Singleton instance
+export const playbackAnalytics = new PlaybackAnalytics()
+```
+
+**Backend API Handler**:
+
+```go
+// internal/api/handlers/analytics.go
+
+package handlers
+
+import (
+    "net/http"
+    "time"
+
+    "github.com/gin-gonic/gin"
+)
+
+// PlaybackEventRequest represents incoming analytics data
+type PlaybackEventRequest struct {
+    Session *PlaybackSessionData    `json:"session"`
+    Events  []QualitySwitchEventData `json:"events"`
+}
+
+type PlaybackSessionData struct {
+    SessionID         string `json:"sessionId"`
+    MediaID           int64  `json:"mediaId"`
+    StartTime         int64  `json:"startTime"`
+    EndTime           *int64 `json:"endTime"`
+    TotalPlayTime     int64  `json:"totalPlayTime"`
+    TotalBufferTime   int64  `json:"totalBufferTime"`
+    StallCount        int    `json:"stallCount"`
+    QualitySwitchCount int   `json:"qualitySwitchCount"`
+    DeviceType        string `json:"deviceType"`
+    ConnectionType    string `json:"connectionType"`
+}
+
+type QualitySwitchEventData struct {
+    MediaID         int64   `json:"mediaId"`
+    SessionID       string  `json:"sessionId"`
+    FromQuality     *string `json:"fromQuality"`
+    ToQuality       string  `json:"toQuality"`
+    SwitchReason    string  `json:"switchReason"`
+    PositionSeconds float64 `json:"positionSeconds"`
+    NetworkSpeedMbps *float64 `json:"networkSpeedMbps"`
+    BufferSeconds    *float64 `json:"bufferSeconds"`
+    CausedStall     bool    `json:"causedStall"`
+    DeviceType      string  `json:"deviceType"`
+    ConnectionType  string  `json:"connectionType"`
+    Timestamp       int64   `json:"timestamp"`
+}
+
+type AnalyticsHandler struct {
+    repo AnalyticsRepository // Interface for database operations
+}
+
+func NewAnalyticsHandler(repo AnalyticsRepository) *AnalyticsHandler {
+    return &AnalyticsHandler{repo: repo}
+}
+
+// RecordPlaybackEvents records playback quality events
+// POST /api/analytics/playback
+func (h *AnalyticsHandler) RecordPlaybackEvents(c *gin.Context) {
+    var req PlaybackEventRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request"})
+        return
+    }
+
+    // Store events in database
+    ctx := c.Request.Context()
+
+    for _, event := range req.Events {
+        if err := h.repo.SaveQualitySwitchEvent(ctx, event); err != nil {
+            // Log error but don't fail the request
+            // Analytics shouldn't block playback
+            continue
+        }
+    }
+
+    c.JSON(http.StatusAccepted, gin.H{"received": len(req.Events)})
+}
+
+// GetPlaybackStats returns aggregated playback statistics
+// GET /api/analytics/stats
+func (h *AnalyticsHandler) GetPlaybackStats(c *gin.Context) {
+    mediaID := c.Query("media_id")
+    period := c.DefaultQuery("period", "24h")
+
+    ctx := c.Request.Context()
+    stats, err := h.repo.GetAggregatedStats(ctx, mediaID, period)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get stats"})
+        return
+    }
+
+    c.JSON(http.StatusOK, stats)
+}
+```
+
+**Database Schema** (already partially added in Phase 1 migration):
+
+```sql
+-- Query to get quality switch distribution
+-- name: GetQualitySwitchDistribution :many
+SELECT
+    switch_reason,
+    to_quality,
+    COUNT(*) as count,
+    AVG(CASE WHEN caused_stall THEN 1 ELSE 0 END) as stall_rate
+FROM playback_quality_events
+WHERE created_at > datetime('now', '-24 hours')
+GROUP BY switch_reason, to_quality
+ORDER BY count DESC;
+
+-- Query to get device/connection breakdown
+-- name: GetDeviceConnectionBreakdown :many
+SELECT
+    device_type,
+    connection_type,
+    COUNT(DISTINCT session_id) as session_count,
+    AVG(network_speed_mbps) as avg_speed
+FROM playback_quality_events
+WHERE created_at > datetime('now', '-7 days')
+GROUP BY device_type, connection_type;
+```
+
+**Testing**:
+- Unit tests for PlaybackAnalytics class
+- Test event batching and flush behavior
+- Test session lifecycle (start/end)
+- Backend API tests with mock data
+- Database query tests
+- Integration test: full event flow from client to database
+
+---
 
 ### Task 2.4: Enhanced Player Controls (20 hours)
 
-[Implementation details...]
+**Location**:
+- `web/src/components/media/VideoPlayer/VideoControls.tsx` - Update existing
+- `web/src/components/media/VideoPlayer/NetworkOverlay.tsx` - New component
+- `web/src/components/media/VideoPlayer/BufferIndicator.tsx` - New component
+
+**Purpose**: Provide users with visibility into adaptive streaming behavior and manual override controls.
+
+**NetworkOverlay Component**:
+
+```typescript
+// web/src/components/media/VideoPlayer/NetworkOverlay.tsx
+
+import type { NetworkStats } from '@/lib/network/NetworkMonitor'
+import type { QualityDecision } from '@/lib/streaming/AutoQualityController'
+
+interface NetworkOverlayProps {
+  stats: NetworkStats | null
+  decision: QualityDecision | null
+  currentQuality: string
+  isVisible: boolean
+}
+
+export const NetworkOverlay = ({
+  stats,
+  decision,
+  currentQuality,
+  isVisible
+}: NetworkOverlayProps) => {
+  if (!isVisible || !stats) return null
+
+  const getTrendIcon = () => {
+    switch (stats.trend) {
+      case 'improving': return '↑'
+      case 'degrading': return '↓'
+      default: return '→'
+    }
+  }
+
+  const getTrendColor = () => {
+    switch (stats.trend) {
+      case 'improving': return 'text-green-400'
+      case 'degrading': return 'text-red-400'
+      default: return 'text-white/70'
+    }
+  }
+
+  return (
+    <div className="absolute top-16 left-4 z-30 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-xs font-mono text-white/90 space-y-1 min-w-48">
+      {/* Network speed */}
+      <div className="flex justify-between">
+        <span className="text-white/60">Speed:</span>
+        <span className={getTrendColor()}>
+          {stats.averageThroughputMbps.toFixed(1)} Mbps {getTrendIcon()}
+        </span>
+      </div>
+
+      {/* Stability */}
+      <div className="flex justify-between">
+        <span className="text-white/60">Stability:</span>
+        <span className={stats.stability > 0.7 ? 'text-green-400' : stats.stability > 0.4 ? 'text-yellow-400' : 'text-red-400'}>
+          {(stats.stability * 100).toFixed(0)}%
+        </span>
+      </div>
+
+      {/* Current quality */}
+      <div className="flex justify-between">
+        <span className="text-white/60">Quality:</span>
+        <span>{currentQuality}</span>
+      </div>
+
+      {/* Connection type */}
+      <div className="flex justify-between">
+        <span className="text-white/60">Connection:</span>
+        <span>{stats.connectionType}</span>
+      </div>
+
+      {/* Stalls */}
+      {stats.stallCount > 0 && (
+        <div className="flex justify-between text-red-400">
+          <span>Stalls:</span>
+          <span>{stats.stallCount}</span>
+        </div>
+      )}
+
+      {/* Decision */}
+      {decision && decision.action !== 'maintain' && (
+        <div className="mt-2 pt-2 border-t border-white/20">
+          <div className="text-yellow-400">
+            {decision.action === 'upgrade' ? '↑ Upgrading' : '↓ Downgrading'}
+          </div>
+          <div className="text-white/50 text-[10px]">{decision.reason}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+**BufferIndicator Component**:
+
+```typescript
+// web/src/components/media/VideoPlayer/BufferIndicator.tsx
+
+interface BufferIndicatorProps {
+  bufferLength: number      // Seconds of buffered content ahead
+  minBuffer: number         // Threshold for warning (default: 5)
+  criticalBuffer: number    // Threshold for critical (default: 2)
+  isVisible: boolean
+}
+
+export const BufferIndicator = ({
+  bufferLength,
+  minBuffer = 5,
+  criticalBuffer = 2,
+  isVisible
+}: BufferIndicatorProps) => {
+  if (!isVisible) return null
+
+  const getBufferColor = () => {
+    if (bufferLength < criticalBuffer) return 'bg-red-500'
+    if (bufferLength < minBuffer) return 'bg-yellow-500'
+    return 'bg-green-500'
+  }
+
+  const getBufferWidth = () => {
+    // Show buffer as percentage of 30 seconds (target buffer)
+    const percentage = Math.min(100, (bufferLength / 30) * 100)
+    return `${percentage}%`
+  }
+
+  return (
+    <div className="absolute bottom-24 left-4 right-4 z-20">
+      {/* Buffer bar (thin line above main progress bar) */}
+      <div className="h-0.5 bg-white/20 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${getBufferColor()} transition-all duration-300`}
+          style={{ width: getBufferWidth() }}
+        />
+      </div>
+
+      {/* Buffer time label (only show when low) */}
+      {bufferLength < minBuffer && (
+        <div className={`absolute -top-5 left-0 text-xs ${
+          bufferLength < criticalBuffer ? 'text-red-400' : 'text-yellow-400'
+        }`}>
+          Buffer: {bufferLength.toFixed(1)}s
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+**Updated VideoControls Integration**:
+
+```typescript
+// Additions to VideoControls.tsx
+
+interface VideoControlsProps {
+  // ... existing props ...
+
+  // New props for adaptive streaming
+  networkStats?: NetworkStats | null
+  autoQualityDecision?: QualityDecision | null
+  isAutoMode?: boolean
+  bufferLength?: number
+  onAutoModeToggle?: (enabled: boolean) => void
+  showDebugOverlay?: boolean
+  onDebugToggleChange?: (show: boolean) => void
+}
+
+// In the component, add debug toggle button:
+<button
+  onClick={() => onDebugToggleChange?.(!showDebugOverlay)}
+  className={`hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer ${
+    showDebugOverlay ? 'bg-white/30' : ''
+  }`}
+  aria-label="Toggle network debug overlay"
+  title="Show network stats (D)"
+>
+  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+  </svg>
+</button>
+
+// Add keyboard shortcut 'D' for debug overlay toggle
+case 'd':
+case 'D':
+  e.preventDefault()
+  onDebugToggleChange?.(!showDebugOverlay)
+  break
+```
+
+**Testing**:
+- Visual regression tests for new components
+- Test NetworkOverlay rendering with various stats
+- Test BufferIndicator color transitions
+- Test keyboard shortcut integration
+- Test debug overlay toggle behavior
+- Accessibility tests (screen reader announcements)
+
+---
 
 ### Task 2.5: Testing & Optimization (20 hours)
 
-[Testing details...]
+**Purpose**: Comprehensive testing of the adaptive streaming system and performance optimization.
+
+**Test Categories**:
+
+1. **Unit Tests** (8 hours)
+   - NetworkMonitor statistics calculation
+   - AutoQualityController decision logic
+   - PlaybackAnalytics event batching
+   - Edge cases (empty data, null values, boundary conditions)
+
+2. **Integration Tests** (6 hours)
+   - Full playback flow with quality switches
+   - Network simulation (throttling, disconnects)
+   - Analytics event delivery
+   - HLS.js event integration
+
+3. **Performance Tests** (4 hours)
+   - Memory usage during long playback sessions
+   - CPU usage of monitoring/analytics
+   - Network overhead of analytics events
+   - React re-render optimization
+
+4. **Manual Testing Scenarios** (2 hours)
+   - Test on various devices (desktop, mobile, tablet)
+   - Test on different networks (WiFi, 4G, 3G simulation)
+   - Test with various content types (SD, HD, 4K)
+   - Test preference combinations
+
+**Network Simulation Test Setup**:
+
+```typescript
+// web/src/lib/network/__tests__/NetworkMonitor.test.ts
+
+import { NetworkMonitor, NetworkStats } from '../NetworkMonitor'
+
+describe('NetworkMonitor', () => {
+  let monitor: NetworkMonitor
+
+  beforeEach(() => {
+    monitor = new NetworkMonitor({
+      sampleWindowMs: 10000,
+      minSamplesForStats: 3
+    })
+  })
+
+  afterEach(() => {
+    monitor.stop()
+  })
+
+  describe('statistics calculation', () => {
+    it('calculates average throughput correctly', () => {
+      monitor.start()
+
+      // Simulate 3 samples: 1MB in 1s each = 8 Mbps
+      monitor.recordSample(1_000_000, 1000) // 8 Mbps
+      monitor.recordSample(1_000_000, 1000) // 8 Mbps
+      monitor.recordSample(1_000_000, 1000) // 8 Mbps
+
+      const stats = monitor.getStats()
+      expect(stats?.averageThroughputMbps).toBeCloseTo(8, 1)
+    })
+
+    it('detects degrading network trend', () => {
+      monitor.start()
+
+      // First half: fast
+      monitor.recordSample(2_000_000, 1000) // 16 Mbps
+      monitor.recordSample(2_000_000, 1000)
+
+      // Second half: slow
+      monitor.recordSample(500_000, 1000) // 4 Mbps
+      monitor.recordSample(500_000, 1000)
+
+      const stats = monitor.getStats()
+      expect(stats?.trend).toBe('degrading')
+    })
+
+    it('calculates stability correctly', () => {
+      monitor.start()
+
+      // Stable: consistent throughput
+      for (let i = 0; i < 5; i++) {
+        monitor.recordSample(1_000_000, 1000) // 8 Mbps each
+      }
+
+      const stats = monitor.getStats()
+      expect(stats?.stability).toBeGreaterThan(0.9)
+    })
+
+    it('detects low stability with variable throughput', () => {
+      monitor.start()
+
+      // Unstable: varying throughput
+      monitor.recordSample(500_000, 1000)  // 4 Mbps
+      monitor.recordSample(2_000_000, 1000) // 16 Mbps
+      monitor.recordSample(250_000, 1000)  // 2 Mbps
+      monitor.recordSample(1_500_000, 1000) // 12 Mbps
+
+      const stats = monitor.getStats()
+      expect(stats?.stability).toBeLessThan(0.5)
+    })
+
+    it('counts stalls correctly', () => {
+      monitor.start()
+
+      monitor.recordSample(1_000_000, 1000, true) // stall
+      monitor.recordSample(1_000_000, 1000, false)
+      monitor.recordSample(1_000_000, 1000, true) // stall
+
+      const stats = monitor.getStats()
+      expect(stats?.stallCount).toBe(2)
+    })
+  })
+})
+```
+
+**AutoQualityController Tests**:
+
+```typescript
+// web/src/lib/streaming/__tests__/AutoQualityController.test.ts
+
+import { AutoQualityController, QualityLevel } from '../AutoQualityController'
+import { NetworkStats } from '../../network/NetworkMonitor'
+
+describe('AutoQualityController', () => {
+  let controller: AutoQualityController
+  const mockLevels: QualityLevel[] = [
+    { index: 0, height: 360, bitrate: 800_000, name: '360p' },
+    { index: 1, height: 480, bitrate: 1_800_000, name: '480p' },
+    { index: 2, height: 720, bitrate: 4_000_000, name: '720p' },
+    { index: 3, height: 1080, bitrate: 8_000_000, name: '1080p' },
+  ]
+
+  beforeEach(() => {
+    controller = new AutoQualityController({
+      minBufferForUpgrade: 15,
+      minBufferForDowngrade: 5,
+      criticalBuffer: 2,
+      upgradeDelayMs: 0, // Disable delay for testing
+      downgradeDelayMs: 0
+    })
+    controller.setQualityLevels(mockLevels)
+    controller.setCurrentLevel(2) // Start at 720p
+  })
+
+  describe('downgrade decisions', () => {
+    it('triggers emergency downgrade at critical buffer', () => {
+      const stats = createMockStats({ averageThroughputMbps: 10, stability: 0.8 })
+      const decision = controller.evaluate(stats, 1.5, true) // Buffer < 2s
+
+      expect(decision.action).toBe('downgrade')
+      expect(decision.targetLevel?.height).toBe(360) // Lowest
+      expect(decision.reason).toContain('Critical buffer')
+    })
+
+    it('triggers downgrade on excessive stalls', () => {
+      const stats = createMockStats({ stallCount: 3 })
+      const decision = controller.evaluate(stats, 10, true)
+
+      expect(decision.action).toBe('downgrade')
+      expect(decision.reason).toContain('stalls')
+    })
+
+    it('triggers downgrade on low buffer', () => {
+      const stats = createMockStats({ averageThroughputMbps: 5 })
+      const decision = controller.evaluate(stats, 3, true) // Buffer < 5s
+
+      expect(decision.action).toBe('downgrade')
+      expect(decision.reason).toContain('Low buffer')
+    })
+  })
+
+  describe('upgrade decisions', () => {
+    it('upgrades when network and buffer support it', () => {
+      controller.setCurrentLevel(1) // 480p
+      const stats = createMockStats({
+        averageThroughputMbps: 15,
+        stability: 0.8,
+        trend: 'stable'
+      })
+
+      const decision = controller.evaluate(stats, 20, true) // Good buffer
+
+      expect(decision.action).toBe('upgrade')
+      expect(decision.targetLevel?.height).toBeGreaterThan(480)
+    })
+
+    it('does not upgrade with degrading network', () => {
+      controller.setCurrentLevel(1)
+      const stats = createMockStats({
+        averageThroughputMbps: 15,
+        stability: 0.8,
+        trend: 'degrading'
+      })
+
+      const decision = controller.evaluate(stats, 20, true)
+
+      expect(decision.action).not.toBe('upgrade')
+    })
+
+    it('does not upgrade with low stability', () => {
+      controller.setCurrentLevel(1)
+      const stats = createMockStats({
+        averageThroughputMbps: 15,
+        stability: 0.3, // Low stability
+        trend: 'stable'
+      })
+
+      const decision = controller.evaluate(stats, 20, true)
+
+      expect(decision.action).not.toBe('upgrade')
+    })
+  })
+
+  describe('preference limits', () => {
+    it('respects max quality preference', () => {
+      controller.setCurrentLevel(0) // 360p
+      controller.setPreferences({
+        autoQualityEnabled: true,
+        maxAutoQuality: '720p',
+        // ... other prefs
+      })
+
+      const stats = createMockStats({ averageThroughputMbps: 50 })
+      const decision = controller.evaluate(stats, 20, true)
+
+      // Should not recommend 1080p even though network supports it
+      if (decision.action === 'upgrade' && decision.targetLevel) {
+        expect(decision.targetLevel.height).toBeLessThanOrEqual(720)
+      }
+    })
+  })
+})
+
+function createMockStats(overrides: Partial<NetworkStats> = {}): NetworkStats {
+  return {
+    currentThroughputMbps: 10,
+    averageThroughputMbps: 10,
+    minThroughputMbps: 8,
+    maxThroughputMbps: 12,
+    stability: 0.8,
+    stallCount: 0,
+    lastStallTime: null,
+    trend: 'stable',
+    connectionType: 'wifi',
+    isMetered: false,
+    ...overrides
+  }
+}
+```
+
+**Performance Optimization Checklist**:
+
+- [ ] NetworkMonitor: Use requestAnimationFrame instead of setInterval for stats updates
+- [ ] Analytics: Implement exponential backoff for failed event submissions
+- [ ] React: Memoize NetworkOverlay and BufferIndicator components
+- [ ] React: Use useCallback for all event handlers passed to child components
+- [ ] HLS.js: Tune buffer configuration based on device type
+- [ ] Memory: Implement sample pruning in NetworkMonitor to prevent unbounded growth
+- [ ] CPU: Throttle stats calculations during background tab
+
+---
+
+### Phase 2 Completion Checklist
+
+Before proceeding to Phase 3, verify:
+
+**Core Functionality**:
+- [x] NetworkMonitor collects accurate throughput samples from HLS.js
+- [x] NetworkMonitor detects stalls and reports them correctly
+- [x] AutoQualityController makes appropriate upgrade/downgrade decisions
+- [ ] Quality switches are smooth (no visible stuttering) - *needs manual testing*
+- [x] User preferences are respected (max quality limits, cellular restrictions)
+
+**Analytics**:
+- [x] PlaybackAnalytics batches and sends events reliably
+- [x] Backend stores events in database (migration 000021, SQLC queries, repository)
+- [x] Events survive page navigation (sendBeacon fallback)
+- [ ] Analytics overhead is minimal (<1% CPU, <100KB/hour network) - *needs profiling*
+
+**UI/UX**:
+- [x] NetworkOverlay displays accurate real-time stats (draggable, with throughput graph)
+- [x] BufferIndicator shows buffer health (removed per user preference - info in NetworkOverlay)
+- [x] Debug overlay toggle works (keyboard shortcut 'D', NerdMenu gear icon)
+- [x] Quality selector shows auto mode status
+- [ ] Smooth transitions between quality levels - *needs manual testing*
+
+**Testing**:
+- [ ] All unit tests pass - *needs test suite run*
+- [ ] Integration tests pass - *needs test suite run*
+- [ ] Manual testing on desktop, mobile, tablet completed
+- [ ] Network throttling scenarios tested
+- [ ] Memory usage stable during 2+ hour playback
+
+**Documentation**:
+- [x] API endpoints documented in OpenAPI spec (Swagger annotations on handler)
+- [x] Analytics event schema documented (types in handler and repository)
+- [ ] User-facing help text for quality settings
 
 ---
 

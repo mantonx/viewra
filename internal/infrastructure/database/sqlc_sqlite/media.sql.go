@@ -174,6 +174,39 @@ func (q *Queries) DeleteMedia(ctx context.Context, id int64) error {
 	return err
 }
 
+const getFilePathCache = `-- name: GetFilePathCache :many
+SELECT id, file_path FROM media
+WHERE library_id = ?
+`
+
+type GetFilePathCacheRow struct {
+	ID       int64  `json:"id"`
+	FilePath string `json:"file_path"`
+}
+
+func (q *Queries) GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error) {
+	rows, err := q.db.QueryContext(ctx, getFilePathCache, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetFilePathCacheRow{}
+	for rows.Next() {
+		var i GetFilePathCacheRow
+		if err := rows.Scan(&i.ID, &i.FilePath); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMediaByFilePath = `-- name: GetMediaByFilePath :one
 SELECT id, library_id, title, file_path, file_size, file_hash, container_format, duration, width, height, aspect_ratio, codec, codec_profile, bit_rate, frame_rate, scan_type, hdr_format, color_space, color_primaries, thumbnail_path, type, source_type, resolution_label, quality_score, is_3d, stereo_mode, has_dash, dash_manifest_path, transcoding_status, date_added, date_modified, created_at, updated_at, is_extra, audio_codec FROM media
 WHERE library_id = ? AND file_path = ?

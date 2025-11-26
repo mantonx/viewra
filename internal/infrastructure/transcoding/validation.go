@@ -78,7 +78,7 @@ func ValidateInputFile(path string) error {
 }
 
 // ValidateTranscodeRequest performs comprehensive validation before starting a transcode.
-func ValidateTranscodeRequest(inputPath string, outputDir string, profile *QualityProfile, allowedBasePaths []string) error {
+func ValidateTranscodeRequest(inputPath string, outputDir string, profile *AdaptiveProfile, allowedBasePaths []string) error {
 	// Validate and sanitize input path
 	sanitizedInput, err := ValidateAndSanitizePath(inputPath, allowedBasePaths)
 	if err != nil {

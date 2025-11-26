@@ -70,7 +70,7 @@ func NewTranscodeSession(
 
 // Start begins the FFmpeg transcoding process.
 // FFmpeg will run continuously, writing segments progressively to the output directory.
-func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) error {
+func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) error {
 	// Create output directory
 	if err := os.MkdirAll(s.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -153,8 +153,8 @@ func (s *TranscodeSession) Start(inputPath string, profile *QualityProfile, stra
 				// Only log errors, suppress verbose FFmpeg output
 				output := string(chunk)
 				if strings.Contains(strings.ToLower(output), "error") ||
-				   strings.Contains(strings.ToLower(output), "failed") ||
-				   strings.Contains(strings.ToLower(output), "invalid") {
+					strings.Contains(strings.ToLower(output), "failed") ||
+					strings.Contains(strings.ToLower(output), "invalid") {
 					s.logger.Error("FFmpeg error detected", "session_id", s.ID, "output", output)
 				}
 				// Verbose FFmpeg output suppressed - full stderr only logged if process fails
@@ -313,7 +313,13 @@ func (s *TranscodeSession) UpdateLastAccessed() {
 
 // buildFFmpegArgs builds the FFmpeg command arguments for progressive HLS transcoding.
 // Supports hardware acceleration for Transcode strategy.
-func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *QualityProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) []string {
+func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptiveProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) []string {
+	// Determine target codec from profile (e.g., h265 for 4K profiles)
+	targetCodec := CodecH264 // Default fallback
+	if profile != nil && profile.PreferredCodec != "" {
+		targetCodec = VideoCodec(profile.PreferredCodec)
+	}
+
 	// Create TranscodeOptions from session data
 	opts := TranscodeOptions{
 		InputPath:                  inputPath,
@@ -327,6 +333,7 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *QualityPro
 		ToneMappingBackend:         config.ToneMappingBackend,
 		LibPlaceboPeakDetect:       config.LibPlaceboPeakDetect,
 		LibPlaceboContrastRecovery: config.LibPlaceboContrastRecovery,
+		VideoCodec:                 targetCodec,
 	}
 
 	// Build arguments based on strategy
@@ -365,15 +372,23 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *QualityPro
 		builder.AddVideoCodec("copy", "").AddAudioDownmix()
 
 	case Transcode:
-		// Get codec and preset based on hardware acceleration
-		videoCodec, videoPreset := GetVideoCodecAndPreset(hwAccel)
+		// Get encoder and preset based on hardware acceleration and target codec
+		// targetCodec was computed at function start and set in opts.VideoCodec
+		videoEncoder, videoPreset := GetVideoCodecAndPresetForCodec(hwAccel, targetCodec)
 
 		// For real-time progressive transcoding, override software preset to veryfast
 		if hwAccel == AccelNone {
 			videoPreset = "veryfast"
 		}
 
-		builder.AddVideoCodec(videoCodec, videoPreset)
+		s.logger.Debug("Selected video encoder",
+			"session_id", s.ID,
+			"target_codec", targetCodec,
+			"encoder", videoEncoder,
+			"preset", videoPreset,
+			"hw_accel", hwAccel)
+
+		builder.AddVideoCodec(videoEncoder, videoPreset)
 
 		// Use hardware or software encoding
 		if hwAccel != AccelNone {

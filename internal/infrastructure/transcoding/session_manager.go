@@ -71,7 +71,7 @@ func (m *SessionManager) GetOrCreateSession(
 	quality string,
 	startPosition float64,
 	inputPath string,
-	profile *QualityProfile,
+	profile *AdaptiveProfile,
 	strategy StreamStrategy,
 	outputDir string,
 	videoInfo *VideoInfo,

@@ -7,6 +7,8 @@
  */
 
 export interface InternalApiHandlersTranscodeJobResponse {
+  /** Video codec: h264, h265, vp9, av1 */
+  codec?: string
   completed_at?: string
   created_at?: string
   error?: string

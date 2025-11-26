@@ -165,6 +165,56 @@ type MusicTrack struct {
 	ArtistID            sql.NullInt64  `json:"artist_id"`
 }
 
+type PlaybackQualityEvent struct {
+	ID               int64           `json:"id"`
+	TranscodeJobID   sql.NullInt64   `json:"transcode_job_id"`
+	MediaID          int64           `json:"media_id"`
+	UserIdentifier   sql.NullString  `json:"user_identifier"`
+	FromQuality      sql.NullString  `json:"from_quality"`
+	ToQuality        sql.NullString  `json:"to_quality"`
+	SwitchReason     string          `json:"switch_reason"`
+	PositionSeconds  sql.NullFloat64 `json:"position_seconds"`
+	NetworkSpeedMbps sql.NullFloat64 `json:"network_speed_mbps"`
+	BufferSeconds    sql.NullFloat64 `json:"buffer_seconds"`
+	CausedStall      sql.NullBool    `json:"caused_stall"`
+	DeviceType       sql.NullString  `json:"device_type"`
+	ConnectionType   sql.NullString  `json:"connection_type"`
+	CreatedAt        sql.NullTime    `json:"created_at"`
+}
+
+type PlaybackSession struct {
+	ID                 int64          `json:"id"`
+	SessionID          string         `json:"session_id"`
+	MediaID            int64          `json:"media_id"`
+	StartTime          int64          `json:"start_time"`
+	EndTime            sql.NullInt64  `json:"end_time"`
+	TotalPlayTimeMs    sql.NullInt64  `json:"total_play_time_ms"`
+	TotalBufferTimeMs  sql.NullInt64  `json:"total_buffer_time_ms"`
+	StallCount         sql.NullInt64  `json:"stall_count"`
+	QualitySwitchCount sql.NullInt64  `json:"quality_switch_count"`
+	AverageQuality     sql.NullString `json:"average_quality"`
+	DeviceType         sql.NullString `json:"device_type"`
+	ConnectionType     sql.NullString `json:"connection_type"`
+	CreatedAt          sql.NullTime   `json:"created_at"`
+}
+
+type QualitySwitchEvent struct {
+	ID               int64           `json:"id"`
+	SessionID        string          `json:"session_id"`
+	MediaID          int64           `json:"media_id"`
+	FromQuality      sql.NullString  `json:"from_quality"`
+	ToQuality        string          `json:"to_quality"`
+	SwitchReason     string          `json:"switch_reason"`
+	PositionSeconds  float64         `json:"position_seconds"`
+	NetworkSpeedMbps sql.NullFloat64 `json:"network_speed_mbps"`
+	BufferSeconds    sql.NullFloat64 `json:"buffer_seconds"`
+	CausedStall      sql.NullInt64   `json:"caused_stall"`
+	DeviceType       sql.NullString  `json:"device_type"`
+	ConnectionType   sql.NullString  `json:"connection_type"`
+	Timestamp        int64           `json:"timestamp"`
+	CreatedAt        sql.NullTime    `json:"created_at"`
+}
+
 type ScanCheckpoint struct {
 	ID            int64          `json:"id"`
 	ScanJobID     int64          `json:"scan_job_id"`
@@ -237,21 +287,26 @@ type TaskExecution struct {
 }
 
 type TranscodeJob struct {
-	ID             int64          `json:"id"`
-	MediaID        int64          `json:"media_id"`
-	Quality        string         `json:"quality"`
-	Status         string         `json:"status"`
-	Progress       sql.NullInt64  `json:"progress"`
-	Error          sql.NullString `json:"error"`
-	StartedAt      sql.NullTime   `json:"started_at"`
-	CompletedAt    sql.NullTime   `json:"completed_at"`
-	CreatedAt      sql.NullTime   `json:"created_at"`
-	Type           string         `json:"type"`
-	FilePath       sql.NullString `json:"file_path"`
-	FileSizeBytes  sql.NullInt64  `json:"file_size_bytes"`
-	LastAccessedAt sql.NullTime   `json:"last_accessed_at"`
-	AccessCount    sql.NullInt64  `json:"access_count"`
-	StartPosition  int64          `json:"start_position"`
+	ID                 int64           `json:"id"`
+	MediaID            int64           `json:"media_id"`
+	Quality            string          `json:"quality"`
+	Type               string          `json:"type"`
+	Status             string          `json:"status"`
+	Progress           sql.NullInt64   `json:"progress"`
+	Error              sql.NullString  `json:"error"`
+	StartedAt          sql.NullTime    `json:"started_at"`
+	CompletedAt        sql.NullTime    `json:"completed_at"`
+	CreatedAt          sql.NullTime    `json:"created_at"`
+	FilePath           sql.NullString  `json:"file_path"`
+	FileSizeBytes      sql.NullInt64   `json:"file_size_bytes"`
+	LastAccessedAt     sql.NullTime    `json:"last_accessed_at"`
+	AccessCount        sql.NullInt64   `json:"access_count"`
+	StartPosition      sql.NullFloat64 `json:"start_position"`
+	Codec              sql.NullString  `json:"codec"`
+	ClientDeviceType   sql.NullString  `json:"client_device_type"`
+	ClientNetworkType  sql.NullString  `json:"client_network_type"`
+	RecommendedQuality sql.NullString  `json:"recommended_quality"`
+	StreamingStrategy  sql.NullString  `json:"streaming_strategy"`
 }
 
 type TvEpisode struct {
@@ -309,6 +364,22 @@ type TvShow struct {
 	TvdbID           sql.NullInt64  `json:"tvdb_id"`
 	CreatedAt        sql.NullTime   `json:"created_at"`
 	UpdatedAt        sql.NullTime   `json:"updated_at"`
+}
+
+type UserVideoPreference struct {
+	ID                 int64          `json:"id"`
+	UserIdentifier     string         `json:"user_identifier"`
+	QualityPreference  sql.NullString `json:"quality_preference"`
+	PreferDataSaving   sql.NullBool   `json:"prefer_data_saving"`
+	PreferQuality      sql.NullBool   `json:"prefer_quality"`
+	AllowCellularHd    sql.NullBool   `json:"allow_cellular_hd"`
+	AllowCellular4k    sql.NullBool   `json:"allow_cellular_4k"`
+	PreferredCodec     sql.NullString `json:"preferred_codec"`
+	AutoQualityEnabled sql.NullBool   `json:"auto_quality_enabled"`
+	MaxAutoQuality     sql.NullString `json:"max_auto_quality"`
+	MinAutoQuality     sql.NullString `json:"min_auto_quality"`
+	CreatedAt          sql.NullTime   `json:"created_at"`
+	UpdatedAt          sql.NullTime   `json:"updated_at"`
 }
 
 type WatchProgress struct {

@@ -34,8 +34,7 @@ func DetermineStreamStrategy(videoInfo *VideoInfo) (StreamStrategy, string) {
 	// Note: ffprobe returns formats like "mov,mp4,m4a,3gp,3g2,mj2" or "matroska,webm"
 	// We need to check if it contains the web format but exclude matroska
 	containerLower := strings.ToLower(videoInfo.ContainerFormat)
-	isWebContainer := !strings.Contains(containerLower, "matroska") && (
-		strings.Contains(containerLower, "mp4") ||
+	isWebContainer := !strings.Contains(containerLower, "matroska") && (strings.Contains(containerLower, "mp4") ||
 		strings.Contains(containerLower, "webm") ||
 		strings.Contains(containerLower, "mov"))
 
@@ -82,7 +81,7 @@ func DetermineStreamStrategy(videoInfo *VideoInfo) (StreamStrategy, string) {
 // ShouldTranscode determines if transcoding is necessary based on current codec/resolution vs target.
 // Returns true if transcoding is needed, false if source already matches target.
 // This function checks VIDEO transcoding needs only - audio is handled separately by DetermineStreamStrategy.
-func ShouldTranscode(videoInfo *VideoInfo, profile *QualityProfile) (bool, string) {
+func ShouldTranscode(videoInfo *VideoInfo, profile *AdaptiveProfile) (bool, string) {
 	// Always transcode if we can't determine source codec/resolution
 	if videoInfo == nil || videoInfo.Codec == "" {
 		return true, "unable to determine source codec"
@@ -134,10 +133,10 @@ func ShouldTranscode(videoInfo *VideoInfo, profile *QualityProfile) (bool, strin
 
 	// Check bitrate - if source bitrate is already lower than target, no need to transcode
 	if videoInfo.Bitrate > 0 {
-		targetBitrate, _ := parseBitrate(profile.VideoBitrate)
-		if uint64(videoInfo.Bitrate) < targetBitrate {
+		// AdaptiveProfile uses integer bitrates (bits per second)
+		if videoInfo.Bitrate < int64(profile.VideoBitrate) {
 			return false, fmt.Sprintf("source bitrate %d is already lower than target %d",
-				videoInfo.Bitrate, targetBitrate)
+				videoInfo.Bitrate, profile.VideoBitrate)
 		}
 	}
 

@@ -20,6 +20,7 @@ type Handlers struct {
 	Transcode *handlers.TranscodeHandler
 	Images    *handlers.ImagesHandler
 	Scheduler *handlers.SchedulerHandler
+	Analytics *handlers.AnalyticsHandler
 }
 
 // BuildHandlers creates all HTTP handler instances
@@ -66,6 +67,9 @@ func BuildHandlers(
 	// Create scheduler handler
 	schedulerHandler := handlers.NewSchedulerHandler(taskScheduler)
 
+	// Create analytics handler
+	analyticsHandler := handlers.NewAnalyticsHandler(repos.Analytics, logger)
+
 	return &Handlers{
 		Health:    healthHandler,
 		Browser:   browserHandler,
@@ -74,5 +78,6 @@ func BuildHandlers(
 		Transcode: transcodeHandler,
 		Images:    imagesHandler,
 		Scheduler: schedulerHandler,
+		Analytics: analyticsHandler,
 	}
 }

@@ -3,6 +3,7 @@ package repositories
 import (
 	"database/sql"
 
+	analyticsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/analytics"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 	imageRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/image"
 	libraryRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/library"
@@ -30,6 +31,7 @@ type Repositories struct {
 	TV         *tvRepo.Repository
 	Music      *musicRepo.Repository
 	Image      *imageRepo.Repository
+	Analytics  *analyticsRepo.Repository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -55,6 +57,9 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create image repository
 	imageRepository := imageRepo.NewRepository(baseRepo)
 
+	// Create analytics repository
+	analyticsRepository := analyticsRepo.NewRepository(db, driver)
+
 	return &Repositories{
 		Library:    libraryRepository,
 		Media:      mediaRepository,
@@ -67,5 +72,6 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		TV:         tvRepository,
 		Music:      musicRepository,
 		Image:      imageRepository,
+		Analytics:  analyticsRepository,
 	}
 }

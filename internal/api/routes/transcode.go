@@ -18,6 +18,9 @@ func RegisterTranscodeRoutes(router *gin.RouterGroup, handler *handlers.Transcod
 	// GET /api/media/:id/transcode/:quality - Get transcode job status
 	router.GET("/media/:id/transcode/:quality", handler.GetTranscodeStatus)
 
+	// GET /api/media/:id/hls/master.m3u8 - Serve HLS master playlist with all quality variants
+	router.GET("/media/:id/hls/master.m3u8", handler.ServeMasterPlaylist)
+
 	// GET /api/media/:id/hls/:quality/playlist.m3u8 - Serve HLS playlist (with on-demand transcoding)
 	router.GET("/media/:id/hls/:quality/playlist.m3u8", handler.ServePlaylist)
 

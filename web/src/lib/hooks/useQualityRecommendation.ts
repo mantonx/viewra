@@ -52,30 +52,58 @@ export const useQualityRecommendation = (options: UseQualityRecommendationOption
    * Convert ClientCapabilities to API request format
    */
   const mapCapabilitiesToRequest = useCallback(
-    (caps: ClientCapabilities): Parameters<typeof adaptiveApi.recommendQuality>[0] => ({
-      // Network (required)
-      networkSpeedMbps: caps.networkSpeedMbps,
-      connectionType: caps.connectionType,
-      isMetered: caps.isMetered,
+    (caps: ClientCapabilities): Parameters<typeof adaptiveApi.recommendQuality>[0] => {
+      // Build supported codecs list from the new CodecSupport structure
+      const supportedCodecs: string[] = []
+      if (caps.codecSupport) {
+        // Add codecs in preferred order (already sorted by compression efficiency)
+        for (const codec of caps.codecSupport.preferredOrder) {
+          if (caps.codecSupport[codec]?.supported) {
+            supportedCodecs.push(codec)
+          }
+        }
+      }
 
-      // Device (required)
-      deviceType: caps.deviceType,
-      screenWidth: caps.screenWidth,
-      screenHeight: caps.screenHeight,
-      pixelRatio: caps.pixelRatio,
+      // If network speed measurement failed (-1), assume a decent connection
+      // This prevents defaulting to lowest quality when speedtest fails
+      // The actual quality will be adjusted during playback based on real throughput
+      const networkSpeed = caps.networkSpeedMbps > 0 ? caps.networkSpeedMbps : 50
 
-      // Performance (optional)
-      cpuCores: caps.cpuCores,
-      memoryGB: caps.memoryGB > 0 ? caps.memoryGB : undefined,
-      batteryLevel: caps.batteryLevel > 0 ? caps.batteryLevel : undefined,
-      lowPowerMode: caps.lowPowerMode,
-      isCharging: caps.isCharging,
+      const request = {
+        // Network (required)
+        networkSpeedMbps: networkSpeed,
+        connectionType: caps.connectionType,
+        isMetered: caps.isMetered,
 
-      // Media capabilities (optional)
-      supportedCodecs: caps.supportedCodecs.length > 0 ? caps.supportedCodecs : undefined,
-      hardwareAcceleration: caps.hardwareAcceleration,
-      maxDecodingProfile: caps.maxDecodingProfile || undefined,
-    }),
+        // Device (required)
+        deviceType: caps.deviceType,
+        screenWidth: caps.screenWidth,
+        screenHeight: caps.screenHeight,
+        pixelRatio: caps.pixelRatio,
+
+        // Performance (optional)
+        cpuCores: caps.cpuCores,
+        memoryGB: caps.memoryGB > 0 ? caps.memoryGB : undefined,
+        batteryLevel: caps.batteryLevel > 0 ? caps.batteryLevel : undefined,
+        lowPowerMode: caps.lowPowerMode,
+        isCharging: caps.isCharging,
+
+        // Media capabilities (optional)
+        supportedCodecs: supportedCodecs.length > 0 ? supportedCodecs : undefined,
+        hardwareAcceleration: caps.hardwareAcceleration,
+        maxDecodingProfile: caps.maxDecodingProfile || undefined,
+      }
+
+      console.log('[QualityRecommendation] Sending request:', {
+        networkSpeedMbps: request.networkSpeedMbps,
+        deviceType: request.deviceType,
+        screenWidth: request.screenWidth,
+        screenHeight: request.screenHeight,
+        supportedCodecs: request.supportedCodecs,
+      })
+
+      return request
+    },
     []
   )
 
@@ -87,23 +115,17 @@ export const useQualityRecommendation = (options: UseQualityRecommendationOption
       setState((prev) => ({ ...prev, loading: true, error: null }))
 
       try {
-        console.log('[QualityRecommendation] Starting capability detection...')
-
         // Step 1: Detect client capabilities
         const capabilities = await capabilityDetector.detectCapabilities(
           forceCapabilityRefresh || forceRefresh
         )
-        console.log('[QualityRecommendation] Capabilities detected:', capabilities)
 
         // Step 2: Map to API request format
         const request = mapCapabilitiesToRequest(capabilities)
-        console.log('[QualityRecommendation] API request:', request)
 
         // Step 3: Get recommendation or ladder from backend
         if (useLadder) {
-          console.log('[QualityRecommendation] Requesting ladder...')
           const ladder = await adaptiveApi.getAdaptiveLadder(request)
-          console.log('[QualityRecommendation] Ladder received:', ladder)
           setState({
             capabilities,
             recommendation: null,
@@ -113,9 +135,14 @@ export const useQualityRecommendation = (options: UseQualityRecommendationOption
             detectedAt: new Date(),
           })
         } else {
-          console.log('[QualityRecommendation] Requesting recommendation...')
           const recommendation = await adaptiveApi.recommendQuality(request)
-          console.log('[QualityRecommendation] Recommendation received:', recommendation)
+          console.log('[QualityRecommendation] Got recommendation:', {
+            profileId: recommendation.profileId,
+            height: recommendation.height,
+            displayName: recommendation.displayName,
+            score: recommendation.score,
+            reason: recommendation.reason,
+          })
           setState({
             capabilities,
             recommendation,

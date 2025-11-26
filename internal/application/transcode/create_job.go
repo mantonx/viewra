@@ -11,6 +11,7 @@ import (
 type CreateJobRequest struct {
 	MediaID       int64
 	Quality       string
+	Codec         string // Optional: h264, h265, vp9, av1 (defaults to h264)
 	Type          string // Optional: remux, remux_audio, or transcode (defaults to transcode)
 	StartPosition int    // Optional: start position in seconds (for seek-based transcoding, 0 = from beginning)
 }
@@ -48,6 +49,12 @@ func CreateJob(ctx context.Context, repo transcode.Repository, req CreateJobRequ
 	job, err := transcode.NewTranscodeJob(req.MediaID, req.Quality, jobType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcode job: %w", err)
+	}
+
+	// Set codec (default to h264 if not specified)
+	job.Codec = req.Codec
+	if job.Codec == "" {
+		job.Codec = "h264"
 	}
 
 	// Set start position if provided

@@ -1,10 +1,13 @@
 import { Button } from '@/components/ui'
 import { useProgressUpdater } from '@/lib/hooks/useProgress'
 import { useQualityRecommendation } from '@/lib/hooks/useQualityRecommendation'
+import { useAutoQuality } from '@/lib/hooks/useAutoQuality'
+import { usePlaybackAnalytics } from '@/lib/hooks/usePlaybackAnalytics'
 import { logger } from '@/lib/utils/logger'
 import Hls from 'hls.js'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { VideoControls } from './VideoControls'
+import { NetworkOverlay } from './NetworkOverlay'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 
@@ -94,6 +97,7 @@ export const VideoPlayer = ({
     Array<{ id: number; name: string; language: string }>
   >([])
   const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1)
+  const [showDebugOverlay, setShowDebugOverlay] = useState(false)
   const progressUpdaterRef = useRef<ReturnType<typeof useProgressUpdater> | null>(null)
   const lastTimeUpdateRef = useRef<number>(0)
 
@@ -112,7 +116,56 @@ export const VideoPlayer = ({
 
   // Get quality recommendation based on client capabilities
   const qualityRecommendation = useQualityRecommendation()
+  const qualityRecommendationRef = useRef(qualityRecommendation)
+  qualityRecommendationRef.current = qualityRecommendation // Keep ref in sync
   const [recommendedQuality, setRecommendedQuality] = useState<QualityRecommendationResponse | null>(null)
+
+  // Auto quality control - monitors network and adapts quality
+  const handleAutoQualityChange = useCallback((level: { name: string; height: number }, reason: string) => {
+    logger.info(`[AutoQuality] Switched to ${level.name}: ${reason}`)
+    setCurrentQuality(level.height)
+  }, [])
+
+  const {
+    isAutoMode,
+    setAutoMode,
+    currentDecision,
+    recordSample,
+    recordStall,
+    networkStats,
+    bufferLength,
+    sampleCount,
+  } = useAutoQuality({
+    enabled: isHlsStream,
+    hlsInstance: hlsRef.current,
+    onQualityChange: handleAutoQualityChange,
+  })
+
+  // Handle toggling auto mode from UI
+  const handleAutoToggle = useCallback(() => {
+    const hls = hlsRef.current
+    if (!hls) {
+      return
+    }
+
+    if (isAutoMode) {
+      // Currently auto - stay on current level but disable auto switching
+      setAutoMode(false)
+    } else {
+      // Enable auto mode - let HLS.js handle quality selection
+      hls.currentLevel = -1
+      setAutoMode(true)
+      setCurrentQuality(null)
+    }
+  }, [isAutoMode, setAutoMode])
+
+  // Playback analytics - tracks quality switches and playback metrics
+  const {
+    startSession,
+    endSession,
+    recordQualitySwitch,
+    recordStall: recordAnalyticsStall,
+  } = usePlaybackAnalytics({ enabled: true })
 
   // Initialize HLS player for HLS streams
   useEffect(() => {
@@ -203,8 +256,8 @@ export const VideoPlayer = ({
 
     // Handle manifest parsed - extract quality levels and audio tracks
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      console.log('[VideoPlayer] HLS manifest loaded from:', streamUrl)
-      console.log('[VideoPlayer] Available HLS levels:', hls.levels)
+      logger.debug('[VideoPlayer] HLS manifest loaded from:', streamUrl)
+      logger.debug('[VideoPlayer] Available HLS levels:', hls.levels)
 
       const levels = hls.levels
       if (levels && levels.length > 0) {
@@ -224,9 +277,10 @@ export const VideoPlayer = ({
 
         setAvailableQualities(uniqueQualities)
 
-        // Apply recommended quality if available
-        if (qualityRecommendation.recommendation && qualityRecommendation.isReady) {
-          const rec = qualityRecommendation.recommendation
+        // Apply recommended quality if available (use ref to avoid re-running effect on recommendation changes)
+        const qr = qualityRecommendationRef.current
+        if (qr.recommendation && qr.isReady) {
+          const rec = qr.recommendation
           setRecommendedQuality(rec)
 
           // Find matching quality level by height (exact match or closest available)
@@ -235,34 +289,42 @@ export const VideoPlayer = ({
 
             // If no exact match, find closest quality (prefer lower to avoid buffering)
             if (levelIndex === -1) {
-              console.log(
-                `[VideoPlayer] No exact match for ${rec.height}p, finding closest quality...`,
-                `Available levels:`,
+              logger.debug(
+                `[VideoPlayer] No exact match for ${rec.height}p, finding closest quality. Available:`,
                 hls.levels.map((l) => `${l.height}p`)
               )
 
               // Filter out auto quality (height 0) and find closest real quality
+              const recHeight = rec.height // TypeScript narrowing
               const sortedLevels = hls.levels
                 .map((level, index) => ({
                   level,
                   index,
-                  diff: Math.abs(level.height - rec.height),
-                  isLower: level.height < rec.height
+                  diff: Math.abs(level.height - recHeight),
+                  isHigher: level.height >= recHeight
                 }))
                 .filter((item) => item.level.height > 0) // Exclude auto quality
                 .sort((a, b) => {
-                  // Prefer lower quality over higher (to avoid buffering)
-                  if (a.isLower && !b.isLower) return -1
-                  if (!a.isLower && b.isLower) return 1
-                  // If both lower or both higher, sort by difference
+                  // For high-quality recommendations (4K class: 1440p+), prefer higher over lower
+                  // because the recommendation already accounts for capabilities
+                  // For lower recommendations, prefer lower to avoid buffering
+                  const is4KClass = recHeight >= 1440
+
+                  if (is4KClass) {
+                    // For 4K recommendations, prefer higher quality if close enough
+                    // (e.g., prefer 2160p over 1080p for a 1606p recommendation)
+                    if (a.isHigher && !b.isHigher) { return -1 }
+                    if (!a.isHigher && b.isHigher) { return 1 }
+                  }
+
+                  // Otherwise sort by difference - closest quality wins
                   return a.diff - b.diff
                 })
 
               if (sortedLevels.length > 0) {
                 levelIndex = sortedLevels[0].index
-                console.log(
-                  `[VideoPlayer] Using closest available: ${hls.levels[levelIndex].height}p ` +
-                  `(recommended was ${rec.height}p)`
+                logger.debug(
+                  `[VideoPlayer] Using closest available: ${hls.levels[levelIndex].height}p (recommended was ${rec.height}p)`
                 )
               }
             }
@@ -322,10 +384,21 @@ export const VideoPlayer = ({
       setCurrentAudioTrack(data.id)
     })
 
-    // Clear error on successful fragment load
-    hls.on(Hls.Events.FRAG_LOADED, () => {
+    // Clear error on successful fragment load and record network sample
+    hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
       if (error) {
         setError(null)
+      }
+      // Record network sample for adaptive quality monitoring
+      if (data.frag?.stats) {
+        const stats = data.frag.stats
+        const bytes = stats.total || 0
+        const durationMs = stats.loading?.end && stats.loading?.start
+          ? stats.loading.end - stats.loading.start
+          : 0
+        if (bytes > 0 && durationMs > 0) {
+          recordSample(bytes, durationMs)
+        }
       }
     })
 
@@ -361,7 +434,7 @@ export const VideoPlayer = ({
         hlsRef.current = null
       }
     }
-  }, [streamUrl, initialPosition, isHlsStream, error, qualityRecommendation.recommendation, qualityRecommendation.isReady])
+  }, [streamUrl, initialPosition, isHlsStream, error, recordSample])
 
   // Set up video event handlers for progress tracking
   useEffect(() => {
@@ -392,6 +465,9 @@ export const VideoPlayer = ({
     const handlePlay = () => {
       setIsPlaying(true)
       ensureVideoUnmuted(video)
+
+      // Start analytics session on first play
+      startSession(mediaId)
 
       if (progressUpdaterRef.current && videoDuration > 0) {
         progressUpdaterRef.current.startTracking(video.currentTime)
@@ -428,6 +504,9 @@ export const VideoPlayer = ({
     // Handle video ended - mark as complete (100%)
     const handleEnded = () => {
       setIsPlaying(false)
+      // End analytics session
+      endSession()
+
       if (progressUpdaterRef.current && videoDuration > 0) {
         progressUpdaterRef.current.stopTracking()
         // Mark as watched by updating to full duration
@@ -437,11 +516,23 @@ export const VideoPlayer = ({
     }
 
     // Handle buffering events
+    const stallStartRef = { current: 0 }
     const handleWaiting = () => {
       setIsBuffering(true)
+      stallStartRef.current = Date.now()
+      // Record stall for network monitoring
+      recordStall()
     }
 
     const handleCanPlay = () => {
+      // Record stall duration for analytics if we were buffering
+      if (stallStartRef.current > 0) {
+        const stallDuration = Date.now() - stallStartRef.current
+        if (stallDuration > 100) { // Only record stalls > 100ms
+          recordAnalyticsStall(stallDuration)
+        }
+        stallStartRef.current = 0
+      }
       setIsBuffering(false)
       // Ensure video is unmuted when ready to play
       ensureVideoUnmuted(video)
@@ -497,7 +588,7 @@ export const VideoPlayer = ({
         progressUpdaterRef.current.stopTracking()
       }
     }
-  }, [videoDuration, isPlaying, duration])
+  }, [videoDuration, isPlaying, duration, mediaId, onTimeUpdate, startSession, endSession, recordStall, recordAnalyticsStall])
 
   // Note: We don't need to recreate the progress updater when duration changes
   // The hook is already called at the top level with the initial duration
@@ -565,6 +656,11 @@ export const VideoPlayer = ({
           e.preventDefault()
           video.currentTime = video.duration || videoDuration
           break
+        case 'd':
+        case 'D': // Toggle debug overlay
+          e.preventDefault()
+          setShowDebugOverlay(prev => !prev)
+          break
       }
 
       // Number keys 1-9 for seeking to percentage
@@ -609,20 +705,43 @@ export const VideoPlayer = ({
   // Handle quality selection
   const handleQualityChange = (height: number) => {
     const hls = hlsRef.current
+    const video = videoRef.current
     if (!hls) {
       return
     }
+
+    const previousQuality = currentQuality ? `${currentQuality}p` : null
 
     if (height === 0) {
       // Auto quality - enable ABR
       hls.currentLevel = -1
       setCurrentQuality(0)
+      setAutoMode(true)
+      // Record manual switch to auto
+      recordQualitySwitch(
+        previousQuality,
+        'auto',
+        'user_manual',
+        video?.currentTime || 0,
+        null,
+        null
+      )
     } else {
       // Lock to specific quality
       const levelIndex = hls.levels.findIndex((level) => level.height === height)
       if (levelIndex !== -1) {
         hls.currentLevel = levelIndex
         setCurrentQuality(height)
+        setAutoMode(false)
+        // Record manual quality switch
+        recordQualitySwitch(
+          previousQuality,
+          `${height}p`,
+          'user_manual',
+          video?.currentTime || 0,
+          null,
+          null
+        )
       }
     }
   }
@@ -830,6 +949,18 @@ export const VideoPlayer = ({
           Your browser does not support the video tag.
         </video>
 
+        {/* Debug overlay - toggle with 'D' key */}
+        <NetworkOverlay
+          stats={networkStats}
+          decision={currentDecision}
+          currentQuality={currentQuality ? `${currentQuality}p` : 'Auto'}
+          bufferLength={bufferLength}
+          sampleCount={sampleCount}
+          isVisible={showDebugOverlay}
+          onClose={() => setShowDebugOverlay(false)}
+        />
+
+
         {/* Custom video controls */}
         <VideoControls
           videoRef={videoRef}
@@ -843,10 +974,12 @@ export const VideoPlayer = ({
           availableQualities={availableQualities}
           currentQuality={currentQuality}
           recommendedQuality={recommendedQuality}
+          autoMode={isAutoMode}
           availableAudioTracks={availableAudioTracks}
           currentAudioTrack={currentAudioTrack}
           playbackSpeed={playbackSpeed}
           metadata={metadata}
+          showStats={showDebugOverlay}
           onPlayPause={handlePlayPause}
           onSeek={handleSeek}
           onVolumeChange={handleVolumeChangeControl}
@@ -854,9 +987,11 @@ export const VideoPlayer = ({
           onFullscreenToggle={handleFullscreenToggle}
           onPiPToggle={handlePiPToggle}
           onQualityChange={handleQualityChange}
+          onAutoToggle={handleAutoToggle}
           onAudioTrackChange={handleAudioTrackChange}
           onSpeedChange={handlePlaybackSpeedChange}
           onSkip={handleSkip}
+          onToggleStats={() => setShowDebugOverlay(prev => !prev)}
         />
       </div>
     </div>

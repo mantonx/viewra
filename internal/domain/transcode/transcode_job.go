@@ -30,13 +30,13 @@ const (
 
 // Common errors
 var (
-	ErrJobNotFound         = errors.New("transcode job not found")
-	ErrJobAlreadyExists    = errors.New("transcode job already exists for this media and quality")
-	ErrInvalidQuality      = errors.New("invalid quality level")
-	ErrInvalidStatus       = errors.New("invalid status")
-	ErrInvalidMediaID      = errors.New("invalid media ID")
-	ErrInvalidProgress     = errors.New("progress must be between 0 and 100")
-	ErrInvalidType         = errors.New("invalid job type")
+	ErrJobNotFound      = errors.New("transcode job not found")
+	ErrJobAlreadyExists = errors.New("transcode job already exists for this media and quality")
+	ErrInvalidQuality   = errors.New("invalid quality level")
+	ErrInvalidStatus    = errors.New("invalid status")
+	ErrInvalidMediaID   = errors.New("invalid media ID")
+	ErrInvalidProgress  = errors.New("progress must be between 0 and 100")
+	ErrInvalidType      = errors.New("invalid job type")
 )
 
 // TranscodeJob represents a transcoding job in the system.
@@ -44,10 +44,11 @@ type TranscodeJob struct {
 	ID             int64
 	MediaID        int64
 	Quality        string
-	Type           string    // Job type: remux, remux_audio, or transcode
+	Codec          string // Video codec: h264, h265, vp9, av1 (defaults to h264)
+	Type           string // Job type: remux, remux_audio, or transcode
 	Status         string
-	Progress       int       // 0-100
-	Error          string    // Error message if failed
+	Progress       int    // 0-100
+	Error          string // Error message if failed
 	StartedAt      time.Time
 	CompletedAt    time.Time
 	CreatedAt      time.Time

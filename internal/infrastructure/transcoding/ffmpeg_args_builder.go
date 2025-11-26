@@ -13,6 +13,12 @@ type FFmpegArgsBuilder struct {
 	opts TranscodeOptions
 }
 
+// formatBitrate converts an integer bitrate (bits per second) to FFmpeg format string.
+// e.g., 5000000 -> "5000k", 15000000 -> "15000k"
+func formatBitrate(bps int) string {
+	return fmt.Sprintf("%dk", bps/1000)
+}
+
 // NewFFmpegArgsBuilder creates a new FFmpeg arguments builder.
 func NewFFmpegArgsBuilder(opts TranscodeOptions) *FFmpegArgsBuilder {
 	return &FFmpegArgsBuilder{
@@ -92,22 +98,20 @@ func (b *FFmpegArgsBuilder) AddVideoCodec(codec, preset string) *FFmpegArgsBuild
 }
 
 // AddVideoEncoding adds full video encoding settings (profile, level, bitrate, etc).
-// This is for software encoding (libx264) - hardware encoders should use AddHardwareVideoEncoding.
+// This is for software encoding - hardware encoders should use AddHardwareVideoEncoding.
+// Supports H.264, H.265, VP9, and AV1 codecs.
 func (b *FFmpegArgsBuilder) AddVideoEncoding() *FFmpegArgsBuilder {
 	p := b.opts.Profile
+	codec := b.getVideoCodec()
 
-	// Common video settings
-	b.args = append(b.args,
-		"-profile:v", "high",
-		"-level", "4.1",
-		"-pix_fmt", "yuv420p",
-	)
+	// Add codec-specific profile and settings
+	b.addCodecProfile(codec, AccelNone)
 
 	// Video bitrate control
 	b.args = append(b.args,
-		"-b:v", p.VideoBitrate,
-		"-maxrate", p.VideoMaxRate,
-		"-bufsize", p.VideoBufSize,
+		"-b:v", formatBitrate(p.VideoBitrate),
+		"-maxrate", formatBitrate(p.VideoMaxRate),
+		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
 
 	// Build filter chain: tone mapping (if needed) + scaling
@@ -124,20 +128,95 @@ func (b *FFmpegArgsBuilder) AddVideoEncoding() *FFmpegArgsBuilder {
 	return b
 }
 
+// getVideoCodec returns the video codec to use, defaulting to H.264 if not specified
+func (b *FFmpegArgsBuilder) getVideoCodec() VideoCodec {
+	if b.opts.VideoCodec == "" {
+		return CodecH264
+	}
+	return b.opts.VideoCodec
+}
+
+// addCodecProfile adds codec-specific profile, level, and pixel format settings
+func (b *FFmpegArgsBuilder) addCodecProfile(codec VideoCodec, hwAccel HardwareAccel) {
+	switch codec {
+	case CodecH265:
+		b.addH265Profile(hwAccel)
+	case CodecVP9:
+		b.addVP9Profile(hwAccel)
+	case CodecAV1:
+		b.addAV1Profile(hwAccel)
+	default: // CodecH264
+		b.addH264Profile(hwAccel)
+	}
+}
+
+// addH264Profile adds H.264-specific encoding parameters
+func (b *FFmpegArgsBuilder) addH264Profile(_ HardwareAccel) {
+	b.args = append(b.args,
+		"-profile:v", "high",
+		"-level", "4.1",
+		"-pix_fmt", "yuv420p",
+	)
+}
+
+// addH265Profile adds H.265/HEVC-specific encoding parameters
+func (b *FFmpegArgsBuilder) addH265Profile(hwAccel HardwareAccel) {
+	// H.265 Main profile for broad compatibility
+	// Main10 profile would support 10-bit but requires more decoder support
+	b.args = append(b.args,
+		"-profile:v", "main",
+		"-level", "5.1", // Level 5.1 supports up to 4K@60fps
+		"-pix_fmt", "yuv420p",
+	)
+	// H.265 specific: use x265 params for software encoding
+	if hwAccel == AccelNone {
+		b.args = append(b.args, "-x265-params", "log-level=error")
+	}
+}
+
+// addVP9Profile adds VP9-specific encoding parameters
+func (b *FFmpegArgsBuilder) addVP9Profile(hwAccel HardwareAccel) {
+	// VP9 doesn't have traditional profiles like H.264/H.265
+	b.args = append(b.args,
+		"-pix_fmt", "yuv420p",
+		"-quality", "good", // good/best/realtime - good is balanced
+		"-speed", "2", // 0-5 for good quality, lower = slower but better
+	)
+	// For software VP9, set row-mt for better multi-threading
+	if hwAccel == AccelNone {
+		b.args = append(b.args, "-row-mt", "1")
+	}
+}
+
+// addAV1Profile adds AV1-specific encoding parameters
+func (b *FFmpegArgsBuilder) addAV1Profile(hwAccel HardwareAccel) {
+	b.args = append(b.args,
+		"-pix_fmt", "yuv420p",
+	)
+	// SVT-AV1 specific parameters for software encoding
+	if hwAccel == AccelNone {
+		b.args = append(b.args,
+			"-preset", "6", // 0-13, 6 is balanced speed/quality for SVT-AV1
+		)
+	}
+}
+
 // AddHardwareVideoEncoding adds hardware-specific video encoding settings.
 // Handles NVENC, QSV, VAAPI, and VideoToolbox with appropriate parameters.
+// Supports H.264, H.265, VP9, and AV1 codecs based on hardware support.
 func (b *FFmpegArgsBuilder) AddHardwareVideoEncoding(hwAccel HardwareAccel) *FFmpegArgsBuilder {
 	p := b.opts.Profile
+	codec := b.getVideoCodec()
 
 	switch hwAccel {
 	case AccelNVENC:
-		b.addNVENCEncoding(p)
+		b.addNVENCEncoding(p, codec)
 	case AccelQSV:
-		b.addQSVEncoding(p)
+		b.addQSVEncoding(p, codec)
 	case AccelVAAPI:
-		b.addVAAPIEncoding(p)
+		b.addVAAPIEncoding(p, codec)
 	case AccelVideoToolbox:
-		b.addVideoToolboxEncoding(p)
+		b.addVideoToolboxEncoding(p, codec)
 	default:
 		// Fallback to software encoding
 		b.AddVideoEncoding()
@@ -148,21 +227,29 @@ func (b *FFmpegArgsBuilder) AddHardwareVideoEncoding(hwAccel HardwareAccel) *FFm
 
 // addNVENCEncoding adds NVIDIA NVENC-specific encoding parameters.
 // Optimized for full GPU pipeline: NVDEC (decode) → libplacebo/scale_cuda → pad_cuda → NVENC (encode)
-func (b *FFmpegArgsBuilder) addNVENCEncoding(p *QualityProfile) {
+func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCodec) {
 	// NVENC preset (p1-p7, where p1=fastest, p7=slowest/best quality)
 	// Use p2 (faster) for real-time streaming - excellent speed/quality balance
-	// p2 is ~15-20x faster than software while maintaining good quality
 	b.args = append(b.args,
 		"-preset", "p2",
-		"-tune", "hq", // High quality tuning
-		"-profile:v", "high",
-		"-level", "4.1",
-		"-rc", "vbr", // Variable bitrate
-		"-cq", "23", // Constant quality (0-51, lower=better, 23 is good default)
-		"-b:v", p.VideoBitrate,
-		"-maxrate", p.VideoMaxRate,
-		"-bufsize", p.VideoBufSize,
+		"-tune", "hq",
+		"-rc", "vbr",
+		"-cq", "23",
+		"-b:v", formatBitrate(p.VideoBitrate),
+		"-maxrate", formatBitrate(p.VideoMaxRate),
+		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
+
+	// Add codec-specific profile/level
+	switch codec {
+	case CodecH265:
+		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
+	case CodecAV1:
+		// AV1 NVENC (RTX 40 series+) doesn't use profile/level the same way
+		b.args = append(b.args, "-tier", "main")
+	default: // H.264
+		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
 	filterChain := b.buildToneMappingFilter(AccelNVENC) + b.buildScalingFilter(AccelNVENC, true)
@@ -179,16 +266,27 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *QualityProfile) {
 // Note: QSV has a limitation - no pad_qsv filter exists and scale_qsv doesn't support
 // force_original_aspect_ratio. We use scale_qsv with -1 for adaptive dimension to maintain
 // aspect ratio, then let the encoder handle any necessary padding.
-func (b *FFmpegArgsBuilder) addQSVEncoding(p *QualityProfile) {
+func (b *FFmpegArgsBuilder) addQSVEncoding(p *AdaptiveProfile, codec VideoCodec) {
 	b.args = append(b.args,
-		"-preset", "medium", // QSV preset: veryfast, faster, fast, medium, slow, slower, veryslow
-		"-profile:v", "high",
-		"-level", "4.1",
-		"-global_quality", "23", // Quality (0-51, lower=better)
-		"-b:v", p.VideoBitrate,
-		"-maxrate", p.VideoMaxRate,
-		"-bufsize", p.VideoBufSize,
+		"-preset", "medium",
+		"-global_quality", "23",
+		"-b:v", formatBitrate(p.VideoBitrate),
+		"-maxrate", formatBitrate(p.VideoMaxRate),
+		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
+
+	// Add codec-specific profile/level
+	switch codec {
+	case CodecH265:
+		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
+	case CodecVP9:
+		// VP9 QSV doesn't use profile/level
+	case CodecAV1:
+		// AV1 QSV (Intel Arc/12th gen+)
+		b.args = append(b.args, "-tier", "main")
+	default: // H.264
+		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
 	filterChain := b.buildToneMappingFilter(AccelQSV) + b.buildScalingFilter(AccelQSV, false)
@@ -203,15 +301,26 @@ func (b *FFmpegArgsBuilder) addQSVEncoding(p *QualityProfile) {
 
 // addVAAPIEncoding adds VAAPI (Intel/AMD) encoding parameters.
 // Optimized for full GPU pipeline: VAAPI decode → scale_vaapi → pad_vaapi → VAAPI encode
-func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *QualityProfile) {
+func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *AdaptiveProfile, codec VideoCodec) {
 	b.args = append(b.args,
-		"-profile:v", "high",
-		"-level", "4.1",
-		"-quality", "4", // Quality (1-8, lower=better, 4=balanced)
-		"-b:v", p.VideoBitrate,
-		"-maxrate", p.VideoMaxRate,
-		"-bufsize", p.VideoBufSize,
+		"-quality", "4",
+		"-b:v", formatBitrate(p.VideoBitrate),
+		"-maxrate", formatBitrate(p.VideoMaxRate),
+		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
+
+	// Add codec-specific profile/level
+	switch codec {
+	case CodecH265:
+		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
+	case CodecVP9:
+		// VP9 VAAPI doesn't use profile/level
+	case CodecAV1:
+		// AV1 VAAPI
+		b.args = append(b.args, "-tier", "main")
+	default: // H.264
+		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
 	filterChain := b.buildToneMappingFilter(AccelVAAPI) + b.buildScalingFilter(AccelVAAPI, false)
@@ -239,14 +348,20 @@ func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *QualityProfile) {
 //
 // This is a limitation of FFmpeg's VideoToolbox implementation, not our code.
 // Apple's AVFoundation framework supports hardware scaling, but FFmpeg doesn't expose it.
-func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *QualityProfile) {
+func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *AdaptiveProfile, codec VideoCodec) {
 	b.args = append(b.args,
-		"-profile:v", "high",
-		"-level", "4.1",
-		"-b:v", p.VideoBitrate,
-		"-maxrate", p.VideoMaxRate,
-		"-bufsize", p.VideoBufSize,
+		"-b:v", formatBitrate(p.VideoBitrate),
+		"-maxrate", formatBitrate(p.VideoMaxRate),
+		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
+
+	// Add codec-specific profile/level
+	switch codec {
+	case CodecH265:
+		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
+	default: // H.264 (VideoToolbox doesn't support VP9 or AV1 encoding)
+		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
 	// Note: VideoToolbox doesn't support hardware scaling in FFmpeg, so CPU filters are used
@@ -272,7 +387,7 @@ func (b *FFmpegArgsBuilder) AddAudioEncoding() *FFmpegArgsBuilder {
 
 	b.args = append(b.args,
 		"-c:a", "aac",
-		"-b:a", p.AudioBitrate,
+		"-b:a", formatBitrate(p.AudioBitrate),
 		"-ac", strconv.Itoa(p.AudioChannels),
 		"-ar", strconv.Itoa(p.AudioSampleRate),
 	)
@@ -286,7 +401,7 @@ func (b *FFmpegArgsBuilder) AddAudioDownmix() *FFmpegArgsBuilder {
 
 	b.args = append(b.args,
 		"-c:a", "aac",
-		"-b:a", p.AudioBitrate,
+		"-b:a", formatBitrate(p.AudioBitrate),
 		"-ac", "2", // Force stereo - FFmpeg auto-downmixes
 		"-ar", strconv.Itoa(p.AudioSampleRate),
 	)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { BadgePreferences } from '@/lib/types/preferences'
 import { DEFAULT_BADGE_PREFERENCES } from '@/lib/types/preferences'
 

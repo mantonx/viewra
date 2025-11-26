@@ -7,6 +7,8 @@
  */
 
 export interface InternalApiHandlersCreateTranscodeJobRequest {
+  /** Optional: h264, h265, vp9, av1 (defaults to h264) */
+  codec?: string
   quality: string
   /** Optional: start position in seconds for seek-based transcoding */
   start_position?: number

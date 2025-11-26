@@ -41,5 +41,51 @@ This file contains project-specific preferences and guidelines for Claude Code w
 ## Rationale
 Keep the codebase lean and focused. Documentation should be concise and integrated into the code itself or in planned documentation files (like PROJECT_PLAN.md, ARCHITECTURE.md, etc.). Avoid creating supplementary files that won't be maintained or used in production.
 
+## Frontend Conventions
+
+### No Classes
+
+- **NEVER use classes in frontend code** - use functional patterns instead
+- Use pure functions with state objects instead of class instances
+- Use React hooks for stateful integration
+- Exception: Extending `Error` for custom error types is acceptable
+
+**Instead of:**
+
+```typescript
+class NetworkMonitor {
+  private state: State
+  constructor() { this.state = initialState }
+  update() { /* mutates this.state */ }
+}
+```
+
+**Use:**
+
+```typescript
+interface NetworkState { /* ... */ }
+const createNetworkState = (): NetworkState => ({ /* ... */ })
+const updateNetwork = (state: NetworkState): NetworkState => ({ /* ... */ })
+```
+
+### Why Functional?
+
+- Aligns with React's functional paradigm
+- Pure functions are easier to test
+- Immutable state prevents subtle bugs
+- Better tree-shaking and dead code elimination
+
+### No Backwards Compatibility Shims
+
+- We are in dev mode - don't create backwards compatibility wrappers
+- Just refactor consumers to use the new API directly
+- Tech debt from compatibility layers compounds quickly
+
+### No Plan/Phase References in Code
+
+- Don't mention "Phase 1", "Phase 2", ADR numbers, or plan details in code or comments
+- Code should be self-documenting without referencing planning artifacts
+- Comments should describe what the code does, not when it was planned
+
 ## Last Updated
-2025-11-16
+2025-11-25

@@ -148,64 +148,86 @@ func (c *Client) ExtractMetadata(ctx context.Context, filePath string) (*VideoMe
 	}
 
 	// Extract video and audio stream information
+	// Track best video stream (highest resolution, excluding embedded thumbnails)
+	var bestVideoStream *videoStream
+	bestVideoResolution := 0
+
 	for _, stream := range probe.Streams {
 		switch stream.CodecType {
 		case "video":
-			metadata.VideoCodec = stream.CodecName
-			metadata.Width = stream.Width
-			metadata.Height = stream.Height
+			// Skip MJPEG streams - these are typically embedded thumbnails/cover art in MKV files
+			// Also skip PNG and BMP which can be used for cover art
+			codecLower := strings.ToLower(stream.CodecName)
+			if codecLower == "mjpeg" || codecLower == "png" || codecLower == "bmp" || codecLower == "gif" {
+				continue
+			}
 
-			// Parse frame rate (format: "num/den")
-			if stream.RFrameRate != "" {
-				parts := strings.Split(stream.RFrameRate, "/")
-				if len(parts) == 2 {
-					num, err1 := strconv.ParseFloat(parts[0], 64)
-					den, err2 := strconv.ParseFloat(parts[1], 64)
-					if err1 == nil && err2 == nil && den != 0 {
-						metadata.FrameRate = num / den
-					}
+			// Calculate resolution (width * height)
+			resolution := stream.Width * stream.Height
+
+			// Keep track of the highest resolution video stream
+			if resolution > bestVideoResolution {
+				bestVideoResolution = resolution
+				bestVideoStream = &videoStream{
+					CodecType:      stream.CodecType,
+					CodecName:      stream.CodecName,
+					Profile:        stream.Profile,
+					Width:          stream.Width,
+					Height:         stream.Height,
+					RFrameRate:     stream.RFrameRate,
+					BitRate:        stream.BitRate,
+					FieldOrder:     stream.FieldOrder,
+					ColorSpace:     stream.ColorSpace,
+					ColorPrimaries: stream.ColorPrimaries,
+					ColorTransfer:  stream.ColorTransfer,
+					SideDataList:   stream.SideDataList,
+					Tags:           stream.Tags,
 				}
 			}
-
-			// Extract codec profile
-			if stream.Profile != "" {
-				metadata.CodecProfile = stream.Profile
-			}
-
-			// Extract scan type (progressive/interlaced)
-			metadata.ScanType = determineScanType(stream.FieldOrder)
-
-			// Extract color metadata
-			if stream.ColorSpace != "" {
-				metadata.ColorSpace = stream.ColorSpace
-			}
-			if stream.ColorPrimaries != "" {
-				metadata.ColorPrimaries = stream.ColorPrimaries
-			}
-
-			// Detect HDR format
-			vs := videoStream{
-				CodecType:      stream.CodecType,
-				CodecName:      stream.CodecName,
-				Profile:        stream.Profile,
-				Width:          stream.Width,
-				Height:         stream.Height,
-				RFrameRate:     stream.RFrameRate,
-				BitRate:        stream.BitRate,
-				FieldOrder:     stream.FieldOrder,
-				ColorSpace:     stream.ColorSpace,
-				ColorPrimaries: stream.ColorPrimaries,
-				ColorTransfer:  stream.ColorTransfer,
-				SideDataList:   stream.SideDataList,
-				Tags:           stream.Tags,
-			}
-			metadata.HDRFormat = detectHDRFormat(vs)
 
 		case "audio":
 			if metadata.AudioCodec == "" { // Take first audio stream
 				metadata.AudioCodec = stream.CodecName
 			}
 		}
+	}
+
+	// Apply best video stream metadata
+	if bestVideoStream != nil {
+		metadata.VideoCodec = bestVideoStream.CodecName
+		metadata.Width = bestVideoStream.Width
+		metadata.Height = bestVideoStream.Height
+
+		// Parse frame rate (format: "num/den")
+		if bestVideoStream.RFrameRate != "" {
+			parts := strings.Split(bestVideoStream.RFrameRate, "/")
+			if len(parts) == 2 {
+				num, err1 := strconv.ParseFloat(parts[0], 64)
+				den, err2 := strconv.ParseFloat(parts[1], 64)
+				if err1 == nil && err2 == nil && den != 0 {
+					metadata.FrameRate = num / den
+				}
+			}
+		}
+
+		// Extract codec profile
+		if bestVideoStream.Profile != "" {
+			metadata.CodecProfile = bestVideoStream.Profile
+		}
+
+		// Extract scan type (progressive/interlaced)
+		metadata.ScanType = determineScanType(bestVideoStream.FieldOrder)
+
+		// Extract color metadata
+		if bestVideoStream.ColorSpace != "" {
+			metadata.ColorSpace = bestVideoStream.ColorSpace
+		}
+		if bestVideoStream.ColorPrimaries != "" {
+			metadata.ColorPrimaries = bestVideoStream.ColorPrimaries
+		}
+
+		// Detect HDR format
+		metadata.HDRFormat = detectHDRFormat(*bestVideoStream)
 	}
 
 	return metadata, nil

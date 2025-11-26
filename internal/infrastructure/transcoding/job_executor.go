@@ -43,8 +43,8 @@ func (e *jobExecutor) execute(
 		return fmt.Errorf("job must be in queued or processing status, got: %s", job.Status)
 	}
 
-	// Get quality profile
-	profile, err := GetQualityProfile(job.Quality)
+	// Get adaptive profile for this quality level
+	profile, err := GetAdaptiveProfileForQuality(job.Quality)
 	if err != nil {
 		return e.failJob(ctx, job, fmt.Errorf("invalid quality profile: %w", err))
 	}
@@ -134,21 +134,17 @@ func (e *jobExecutor) checkDiskSpace(
 	ctx context.Context,
 	job *transcode.TranscodeJob,
 	outputDir string,
-	profile *QualityProfile,
+	profile *AdaptiveProfile,
 	videoInfo *VideoInfo,
 ) error {
 	if videoInfo == nil || videoInfo.Duration <= 0 {
 		return nil // Can't estimate without video info
 	}
 
-	estimatedSize, err := EstimateOutputSize(profile.VideoBitrate, profile.AudioBitrate, videoInfo.Duration)
-	if err != nil {
-		e.logger.Warn("failed to estimate output size",
-			slog.Int64("job_id", job.ID),
-			slog.String("error", err.Error()),
-		)
-		return nil
-	}
+	// Calculate estimated size using integer bitrates (bits per second)
+	totalBitsPerSecond := uint64(profile.VideoBitrate + profile.AudioBitrate)
+	totalBits := totalBitsPerSecond * uint64(videoInfo.Duration)
+	estimatedSize := (totalBits / 8) * 12 / 10 // Add 20% overhead
 
 	// Add 30% safety margin for HLS overhead (m3u8, multiple segments, etc.)
 	requiredBytes := uint64(float64(estimatedSize) * 1.3)
@@ -175,7 +171,7 @@ func (e *jobExecutor) checkDiskSpace(
 func (e *jobExecutor) prepareOptions(
 	job *transcode.TranscodeJob,
 	inputPath, outputDir string,
-	profile *QualityProfile,
+	profile *AdaptiveProfile,
 	videoInfo *VideoInfo,
 ) TranscodeOptions {
 	opts := TranscodeOptions{

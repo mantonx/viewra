@@ -47,20 +47,22 @@ func newFFmpegExecutorWithConfig(config *TranscodeConfig) (*ffmpegExecutor, erro
 
 // TranscodeOptions contains options for the transcode operation.
 type TranscodeOptions struct {
-	InputPath            string
-	OutputDir            string
-	Profile              *QualityProfile
-	ProgressHandler      func(progress int)
-	AudioTrackIndex      int    // Specific audio track to use (for -map 0:a:N)
-	UseSpecificAudioTrack bool   // If true, use AudioTrackIndex; if false, use default (first)
-	StartPosition         int    // Start position in seconds (for seek-based transcoding)
-	UseStartPosition      bool   // If true, use StartPosition for seeking
-	VideoInfo            *VideoInfo // Video metadata including HDR info (optional)
-	ToneMappingEnabled   bool   // Enable HDR to SDR tone mapping for HDR content
-	ToneMappingAlgorithm string // Tone mapping algorithm: none, linear, gamma, clip, reinhard, hable, mobius, bt.2390, bt.2446a, spline
-	ToneMappingBackend   string // Tone mapping backend: auto, libplacebo, opencl, vaapi, cpu
-	LibPlaceboPeakDetect bool   // Enable dynamic peak detection for libplacebo (default: true)
-	LibPlaceboContrastRecovery float64 // Contrast recovery for libplacebo (0.0-3.0, default: 0.3)
+	InputPath                  string
+	OutputDir                  string
+	Profile                    *AdaptiveProfile
+	ProgressHandler            func(progress int)
+	AudioTrackIndex            int        // Specific audio track to use (for -map 0:a:N)
+	UseSpecificAudioTrack      bool       // If true, use AudioTrackIndex; if false, use default (first)
+	StartPosition              int        // Start position in seconds (for seek-based transcoding)
+	UseStartPosition           bool       // If true, use StartPosition for seeking
+	VideoInfo                  *VideoInfo // Video metadata including HDR info (optional)
+	ToneMappingEnabled         bool       // Enable HDR to SDR tone mapping for HDR content
+	ToneMappingAlgorithm       string     // Tone mapping algorithm: none, linear, gamma, clip, reinhard, hable, mobius, bt.2390, bt.2446a, spline
+	ToneMappingBackend         string     // Tone mapping backend: auto, libplacebo, opencl, vaapi, cpu
+	LibPlaceboPeakDetect       bool       // Enable dynamic peak detection for libplacebo (default: true)
+	LibPlaceboContrastRecovery float64    // Contrast recovery for libplacebo (0.0-3.0, default: 0.3)
+	// Phase 3: Multi-codec support
+	VideoCodec VideoCodec // Target codec: h264, h265, vp9, av1 (default: h264)
 }
 
 // TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.
@@ -139,14 +141,23 @@ func (e *ffmpegExecutor) executeFFmpeg(ctx context.Context, opts TranscodeOption
 
 // buildFFmpegArgs constructs the FFmpeg command line arguments for HLS transcoding.
 func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
-	videoCodec, videoPreset := GetVideoCodecAndPreset(e.config.HardwareAccel)
+	// Get codec from profile's preferred codec (e.g., h265 for 4K profiles)
+	targetCodec := CodecH264 // Default fallback
+	if opts.Profile != nil && opts.Profile.PreferredCodec != "" {
+		targetCodec = VideoCodec(opts.Profile.PreferredCodec)
+	}
+
+	// Set the target codec in opts so builder's getVideoCodec() returns correct codec
+	opts.VideoCodec = targetCodec
+
+	videoEncoder, videoPreset := GetVideoCodecAndPresetForCodec(e.config.HardwareAccel, targetCodec)
 	builder := NewFFmpegArgsBuilder(opts).
 		AddLogLevel("error").
 		AddHardwareAccel(GetHardwareAccelArgsWithDevice(e.config.HardwareAccel, e.config.HardwareDevice)).
 		AddSeekPosition().
 		AddInput().
 		AddStreamMapping().
-		AddVideoCodec(videoCodec, videoPreset)
+		AddVideoCodec(videoEncoder, videoPreset)
 
 	// Use hardware or software encoding based on configuration
 	if e.config.HardwareAccel != AccelNone {

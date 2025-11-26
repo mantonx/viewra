@@ -87,8 +87,8 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	}
 
 	// Step 5: Get or create progressive transcode session
-	// Get quality profile
-	profile, err := transcoding.GetQualityProfile(req.Quality)
+	// Get adaptive profile for this quality level
+	profile, err := transcoding.GetAdaptiveProfileForQuality(req.Quality)
 	if err != nil {
 		return nil, fmt.Errorf("invalid quality: %w", err)
 	}

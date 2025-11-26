@@ -184,42 +184,59 @@ func (r *Repository) ListByLibrary(ctx context.Context, libraryID int64) ([]*med
 //
 // Memory estimate: ~200 bytes per file (150 byte avg path + map overhead).
 // For 100K files: ~20MB. For 500K files: ~100MB.
-//
-// The database/sql package streams rows, so we only hold one row in memory at a time
-// during iteration. The map itself is the main memory consumer.
 func (r *Repository) GetFilePathCache(ctx context.Context, libraryID int64) (map[string]int64, error) {
 	// First, get count to pre-allocate map (avoids repeated reallocation)
-	var count int64
-	err := r.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM media WHERE library_id = ?
-	`, libraryID).Scan(&count)
+	count, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.CountMediaInLibrary(ctx, int32(libraryID))
+		},
+		func() (any, error) {
+			return r.sqlite.CountMediaInLibrary(ctx, libraryID)
+		},
+	)
 	if err != nil {
 		// Non-fatal - continue with default allocation
-		count = 0
+		count = int64(0)
 	}
 
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, file_path
-		FROM media
-		WHERE library_id = ?
-	`, libraryID)
+	// Get file path cache rows
+	result, err := r.router.Route(
+		func() (any, error) {
+			return r.postgres.GetFilePathCache(ctx, int32(libraryID))
+		},
+		func() (any, error) {
+			return r.sqlite.GetFilePathCache(ctx, libraryID)
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	// Pre-allocate map based on count
-	cache := make(map[string]int64, count)
-	for rows.Next() {
-		var id int64
-		var filePath string
-		if err := rows.Scan(&id, &filePath); err != nil {
-			return nil, err
-		}
-		cache[filePath] = id
+	// Build map from results - handle both SQLite and PostgreSQL types
+	var mapSize int64
+	switch c := count.(type) {
+	case int64:
+		mapSize = c
+	case int32:
+		mapSize = int64(c)
+	default:
+		mapSize = 0
 	}
 
-	return cache, rows.Err()
+	cache := make(map[string]int64, mapSize)
+
+	switch rows := result.(type) {
+	case []sqlc_sqlite.GetFilePathCacheRow:
+		for _, row := range rows {
+			cache[row.FilePath] = row.ID
+		}
+	case []sqlc_postgres.GetFilePathCacheRow:
+		for _, row := range rows {
+			cache[row.FilePath] = int64(row.ID)
+		}
+	}
+
+	return cache, nil
 }
 
 // ListByType retrieves all media items of a specific type in a library

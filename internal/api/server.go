@@ -23,22 +23,23 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	router           *gin.Engine
-	logger           *slog.Logger
-	healthHandler    *handlers.HealthHandler
-	libraryHandler   *handlers.LibraryHandler
-	mediaHandler     *handlers.MediaHandler
-	streamHandler    *handlers.StreamHandler
-	browserHandler   *handlers.BrowserHandler
-	scanJobHandler   *handlers.ScanJobHandler
-	progressHandler  *handlers.ProgressHandler
-	transcodeHandler *handlers.TranscodeHandler
-	moviesHandler    *handlers.MoviesHandler
-	tvHandler        *handlers.TVHandler
-	musicHandler     *handlers.MusicHandler
-	imagesHandler    *handlers.ImagesHandler
-	schedulerHandler *handlers.SchedulerHandler
-	server           *http.Server
+	router            *gin.Engine
+	logger            *slog.Logger
+	healthHandler     *handlers.HealthHandler
+	libraryHandler    *handlers.LibraryHandler
+	mediaHandler      *handlers.MediaHandler
+	streamHandler     *handlers.StreamHandler
+	browserHandler    *handlers.BrowserHandler
+	scanJobHandler    *handlers.ScanJobHandler
+	progressHandler   *handlers.ProgressHandler
+	transcodeHandler  *handlers.TranscodeHandler
+	moviesHandler     *handlers.MoviesHandler
+	tvHandler         *handlers.TVHandler
+	musicHandler      *handlers.MusicHandler
+	imagesHandler     *handlers.ImagesHandler
+	schedulerHandler  *handlers.SchedulerHandler
+	analyticsHandler  *handlers.AnalyticsHandler
+	server            *http.Server
 }
 
 // ServerConfig holds server configuration
@@ -96,6 +97,7 @@ func NewServer(
 	transcodeHandler *handlers.TranscodeHandler,
 	imagesHandler *handlers.ImagesHandler,
 	schedulerHandler *handlers.SchedulerHandler,
+	analyticsHandler *handlers.AnalyticsHandler,
 	// Library use cases
 	libraryService *library.LibraryService,
 	scanLibrary *library.ScanLibraryUseCase,
@@ -185,21 +187,22 @@ func NewServer(
 	)
 
 	server := &Server{
-		router:           router,
-		logger:           logger,
-		healthHandler:    healthHandler,
-		libraryHandler:   libraryHandler,
-		mediaHandler:     mediaHandler,
-		streamHandler:    streamHandler,
-		browserHandler:   browserHandler,
-		scanJobHandler:   scanJobHandler,
-		progressHandler:  progressHandler,
-		transcodeHandler: transcodeHandler,
-		moviesHandler:    moviesHandler,
-		tvHandler:        tvHandler,
-		musicHandler:     musicHandler,
-		imagesHandler:    imagesHandler,
-		schedulerHandler: schedulerHandler,
+		router:            router,
+		logger:            logger,
+		healthHandler:     healthHandler,
+		libraryHandler:    libraryHandler,
+		mediaHandler:      mediaHandler,
+		streamHandler:     streamHandler,
+		browserHandler:    browserHandler,
+		scanJobHandler:    scanJobHandler,
+		progressHandler:   progressHandler,
+		transcodeHandler:  transcodeHandler,
+		moviesHandler:     moviesHandler,
+		tvHandler:         tvHandler,
+		musicHandler:      musicHandler,
+		imagesHandler:     imagesHandler,
+		schedulerHandler:  schedulerHandler,
+		analyticsHandler:  analyticsHandler,
 	}
 
 	// Setup routes
@@ -242,6 +245,9 @@ func (s *Server) setupRoutes() {
 
 	// Register adaptive quality routes
 	routes.RegisterAdaptiveQualityRoutes(s.router, s.logger)
+
+	// Register analytics routes
+	routes.RegisterAnalyticsRoutes(api, s.analyticsHandler)
 
 	// Register admin routes
 	admin := api.Group("/admin")

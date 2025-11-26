@@ -22,6 +22,7 @@ import type {
 } from '@tanstack/react-query'
 
 import type {
+  GetApiMediaMediaIdHlsMasterM3u8Params,
   GithubComMantonxViewraInternalApplicationTranscodeQueueStats,
   InternalApiHandlersCleanupRequest,
   InternalApiHandlersCleanupResponse,
@@ -35,6 +36,208 @@ import type {
 import { customInstance } from '../../mutator/index'
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
+
+/**
+ * Serves an HLS master playlist (.m3u8) that lists all available quality levels for adaptive streaming.
+The player uses this to select and switch between quality levels based on network conditions.
+ * @summary Serve HLS master playlist
+ */
+export type getApiMediaMediaIdHlsMasterM3u8Response200 = {
+  data: Blob
+  status: 200
+}
+
+export type getApiMediaMediaIdHlsMasterM3u8Response400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMediaMediaIdHlsMasterM3u8Response404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiMediaMediaIdHlsMasterM3u8Response500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiMediaMediaIdHlsMasterM3u8ResponseSuccess =
+  getApiMediaMediaIdHlsMasterM3u8Response200 & {
+    headers: Headers
+  }
+export type getApiMediaMediaIdHlsMasterM3u8ResponseError = (
+  | getApiMediaMediaIdHlsMasterM3u8Response400
+  | getApiMediaMediaIdHlsMasterM3u8Response404
+  | getApiMediaMediaIdHlsMasterM3u8Response500
+) & {
+  headers: Headers
+}
+
+export type getApiMediaMediaIdHlsMasterM3u8Response =
+  | getApiMediaMediaIdHlsMasterM3u8ResponseSuccess
+  | getApiMediaMediaIdHlsMasterM3u8ResponseError
+
+export const getGetApiMediaMediaIdHlsMasterM3u8Url = (
+  mediaId: number,
+  params?: GetApiMediaMediaIdHlsMasterM3u8Params
+) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/media/${mediaId}/hls/master.m3u8?${stringifiedParams}`
+    : `/api/media/${mediaId}/hls/master.m3u8`
+}
+
+export const getApiMediaMediaIdHlsMasterM3u8 = async (
+  mediaId: number,
+  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  options?: RequestInit
+): Promise<getApiMediaMediaIdHlsMasterM3u8Response> => {
+  return customInstance<getApiMediaMediaIdHlsMasterM3u8Response>(
+    getGetApiMediaMediaIdHlsMasterM3u8Url(mediaId, params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiMediaMediaIdHlsMasterM3u8QueryKey = (
+  mediaId?: number,
+  params?: GetApiMediaMediaIdHlsMasterM3u8Params
+) => {
+  return [`/api/media/${mediaId}/hls/master.m3u8`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiMediaMediaIdHlsMasterM3u8QueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiMediaMediaIdHlsMasterM3u8QueryKey(mediaId, params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>> = ({
+    signal,
+  }) => getApiMediaMediaIdHlsMasterM3u8(mediaId, params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!mediaId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaMediaIdHlsMasterM3u8QueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>
+>
+export type GetApiMediaMediaIdHlsMasterM3u8QueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMediaMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  params: undefined | GetApiMediaMediaIdHlsMasterM3u8Params,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Serve HLS master playlist
+ */
+
+export function useGetApiMediaMediaIdHlsMasterM3u8<
+  TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  mediaId: number,
+  params?: GetApiMediaMediaIdHlsMasterM3u8Params,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaMediaIdHlsMasterM3u8QueryOptions(mediaId, params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
 
 /**
  * Serves the HLS playlist (.m3u8) file for adaptive streaming. Generates complete manifest instantly

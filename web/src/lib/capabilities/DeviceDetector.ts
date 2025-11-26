@@ -1,109 +1,109 @@
 import type { BatteryInfo, DeviceType, PerformanceInfo, ScreenInfo } from './types'
 import type { ExtendedNavigator } from './browser-types'
 
-export class DeviceDetector {
-  private static readonly MOBILE_BREAKPOINT = 768
-  private static readonly TABLET_MIN_BREAKPOINT = 768
-  private static readonly TABLET_MAX_BREAKPOINT = 1024
-  private static readonly LOW_BATTERY_THRESHOLD = 0.2
+const MOBILE_BREAKPOINT = 768
+const TABLET_MIN_BREAKPOINT = 768
+const TABLET_MAX_BREAKPOINT = 1024
+const LOW_BATTERY_THRESHOLD = 0.2
 
-  detectDeviceType(): DeviceType {
-    const ua = navigator.userAgent.toLowerCase()
-    const { width, height } = window.screen
-    const minDimension = Math.min(width, height)
+const isTVDevice = (ua: string): boolean => {
+  const tvKeywords = ['tv', 'smarttv', 'googletv', 'appletv']
+  return tvKeywords.some(keyword => ua.includes(keyword))
+}
 
-    if (this.isTVDevice(ua)) {
-      return 'tv'
-    }
+const isMobileOrTablet = (ua: string): boolean => {
+  return /android|iphone|ipod|mobile/.test(ua)
+}
 
-    if (this.isMobileOrTablet(ua)) {
-      return minDimension < DeviceDetector.MOBILE_BREAKPOINT ? 'mobile' : 'tablet'
-    }
+const isIPad = (ua: string): boolean => {
+  return /ipad|macintosh/.test(ua) && navigator.maxTouchPoints > 1
+}
 
-    if (this.isIPad(ua)) {
-      return 'tablet'
-    }
+const isTabletByScreenSize = (minDimension: number): boolean => {
+  return (
+    minDimension >= TABLET_MIN_BREAKPOINT &&
+    minDimension < TABLET_MAX_BREAKPOINT &&
+    window.matchMedia('(pointer: coarse)').matches
+  )
+}
 
-    if (this.isTabletByScreenSize(minDimension)) {
-      return 'tablet'
-    }
+export const detectDeviceType = (): DeviceType => {
+  const ua = navigator.userAgent.toLowerCase()
+  const { width, height } = window.screen
+  const minDimension = Math.min(width, height)
 
-    return 'desktop'
+  if (isTVDevice(ua)) {
+    return 'tv'
   }
 
-  private isTVDevice(ua: string): boolean {
-    const tvKeywords = ['tv', 'smarttv', 'googletv', 'appletv']
-    return tvKeywords.some(keyword => ua.includes(keyword))
+  if (isMobileOrTablet(ua)) {
+    return minDimension < MOBILE_BREAKPOINT ? 'mobile' : 'tablet'
   }
 
-  private isMobileOrTablet(ua: string): boolean {
-    return /android|iphone|ipod|mobile/.test(ua)
+  if (isIPad(ua)) {
+    return 'tablet'
   }
 
-  private isIPad(ua: string): boolean {
-    return /ipad|macintosh/.test(ua) && navigator.maxTouchPoints > 1
+  if (isTabletByScreenSize(minDimension)) {
+    return 'tablet'
   }
 
-  private isTabletByScreenSize(minDimension: number): boolean {
-    return (
-      minDimension >= DeviceDetector.TABLET_MIN_BREAKPOINT &&
-      minDimension < DeviceDetector.TABLET_MAX_BREAKPOINT &&
-      window.matchMedia('(pointer: coarse)').matches
-    )
-  }
+  return 'desktop'
+}
 
-  getScreenInfo(): ScreenInfo {
-    return {
-      width: window.screen.width,
-      height: window.screen.height,
-      pixelRatio: window.devicePixelRatio || 1,
-      availWidth: window.screen.availWidth,
-      availHeight: window.screen.availHeight,
-      orientation: window.screen.orientation?.type || 'unknown',
-    }
-  }
+export const getScreenInfo = (): ScreenInfo => ({
+  width: window.screen.width,
+  height: window.screen.height,
+  pixelRatio: window.devicePixelRatio || 1,
+  availWidth: window.screen.availWidth,
+  availHeight: window.screen.availHeight,
+  orientation: window.screen.orientation?.type || 'unknown',
+})
 
-  getPerformanceInfo(): PerformanceInfo {
-    const extendedNav = navigator as ExtendedNavigator
-    return {
-      cpuCores: navigator.hardwareConcurrency || 2,
-      memoryGB: extendedNav.deviceMemory ?? -1,
-      isTouchDevice: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
-    }
-  }
-
-  async getBatteryInfo(): Promise<BatteryInfo> {
-    const extendedNav = navigator as ExtendedNavigator
-
-    if (!extendedNav.getBattery) {
-      return this.getDefaultBatteryInfo()
-    }
-
-    try {
-      const battery = await extendedNav.getBattery()
-      return {
-        level: battery.level,
-        charging: battery.charging,
-        chargingTime: battery.chargingTime,
-        dischargingTime: battery.dischargingTime,
-      }
-    } catch {
-      return this.getDefaultBatteryInfo()
-    }
-  }
-
-  private getDefaultBatteryInfo(): BatteryInfo {
-    return { level: -1, charging: false, chargingTime: -1, dischargingTime: -1 }
-  }
-
-  isLowPowerMode(batteryInfo: BatteryInfo): boolean {
-    // iOS 9+ Low Power Mode detection (indirect)
-    // When enabled, requestAnimationFrame throttles to ~30fps
-    // We use battery level as a heuristic
-    return (
-      batteryInfo.level > 0 &&
-      batteryInfo.level < DeviceDetector.LOW_BATTERY_THRESHOLD &&
-      !batteryInfo.charging
-    )
+export const getPerformanceInfo = (): PerformanceInfo => {
+  const extendedNav = navigator as ExtendedNavigator
+  return {
+    cpuCores: navigator.hardwareConcurrency || 2,
+    memoryGB: extendedNav.deviceMemory ?? -1,
+    isTouchDevice: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
   }
 }
+
+const getDefaultBatteryInfo = (): BatteryInfo => ({
+  level: -1,
+  charging: false,
+  chargingTime: -1,
+  dischargingTime: -1,
+})
+
+export const getBatteryInfo = async (): Promise<BatteryInfo> => {
+  const extendedNav = navigator as ExtendedNavigator
+
+  if (!extendedNav.getBattery) {
+    return getDefaultBatteryInfo()
+  }
+
+  try {
+    const battery = await extendedNav.getBattery()
+    return {
+      level: battery.level,
+      charging: battery.charging,
+      chargingTime: battery.chargingTime,
+      dischargingTime: battery.dischargingTime,
+    }
+  } catch {
+    return getDefaultBatteryInfo()
+  }
+}
+
+export const isLowPowerMode = (batteryInfo: BatteryInfo): boolean => {
+  // iOS 9+ Low Power Mode detection (indirect)
+  // When enabled, requestAnimationFrame throttles to ~30fps
+  // We use battery level as a heuristic
+  return (
+    batteryInfo.level > 0 &&
+    batteryInfo.level < LOW_BATTERY_THRESHOLD &&
+    !batteryInfo.charging
+  )
+}
+

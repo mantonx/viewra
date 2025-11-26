@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { selectBestQuality } from '../utils/quality'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
@@ -65,9 +64,10 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
       }
     }
 
-    // Select quality and build manifest URL with resume position
-    const quality = selectBestQuality(_media)
-    let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/${quality}/playlist.m3u8`
+    // Build master manifest URL with resume position
+    // Master playlist provides all available quality levels for adaptive bitrate streaming
+    // HLS.js will parse all variants and enable quality switching in the player
+    let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/master.m3u8`
     if (resumePosition > 0) {
       manifestUrl += `?start=${resumePosition}`
     }

@@ -2,6 +2,16 @@ import { useState, useRef, useEffect } from 'react'
 import { formatTime } from '@/lib/utils'
 import { bg } from '@/styles/semantic'
 import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
+import { NerdMenu } from './NerdMenu'
+import { QualitySelector } from './QualitySelector'
+
+// Format bandwidth to human readable string
+const formatBandwidth = (bps: number): string => {
+  if (bps >= 1_000_000) {
+    return `${(bps / 1_000_000).toFixed(1)} Mbps`
+  }
+  return `${(bps / 1_000).toFixed(0)} kbps`
+}
 
 interface MediaMetadata {
   title: string
@@ -21,10 +31,12 @@ interface VideoControlsProps {
   availableQualities: Array<{ height: number; bandwidth: number }>
   currentQuality: number | null
   recommendedQuality: QualityRecommendationResponse | null
+  autoMode: boolean
   availableAudioTracks: Array<{ id: number; name: string; language: string }>
   currentAudioTrack: number
   playbackSpeed: number
   metadata?: MediaMetadata
+  showStats: boolean
   onPlayPause: () => void
   onSeek: (time: number) => void
   onVolumeChange: (volume: number) => void
@@ -32,9 +44,11 @@ interface VideoControlsProps {
   onFullscreenToggle: () => void
   onPiPToggle: () => void
   onQualityChange: (height: number) => void
+  onAutoToggle: () => void
   onAudioTrackChange: (trackId: number) => void
   onSpeedChange: (speed: number) => void
   onSkip: (seconds: number) => void
+  onToggleStats: () => void
 }
 
 export const VideoControls = ({
@@ -49,10 +63,12 @@ export const VideoControls = ({
   availableQualities,
   currentQuality,
   recommendedQuality,
+  autoMode,
   availableAudioTracks,
   currentAudioTrack,
   playbackSpeed,
   metadata,
+  showStats,
   onPlayPause,
   onSeek,
   onVolumeChange,
@@ -60,9 +76,11 @@ export const VideoControls = ({
   onFullscreenToggle,
   onPiPToggle,
   onQualityChange,
+  onAutoToggle,
   onAudioTrackChange,
   onSpeedChange,
   onSkip,
+  onToggleStats,
 }: VideoControlsProps) => {
   const [showControls, setShowControls] = useState(true)
   const [isDragging, setIsDragging] = useState(false)
@@ -324,6 +342,24 @@ export const VideoControls = ({
                 <span className="text-white/60 ml-2 hidden md:inline">• Ends at {getEndTime()}</span>
               )}
             </div>
+
+            {/* Current quality indicator - subtle display of what's playing */}
+            {currentQuality && currentQuality > 0 && (() => {
+              const currentLevel = availableQualities.find(q => q.height === currentQuality)
+              return (
+                <div className="text-xs text-white/50 hidden lg:flex items-center gap-1.5 ml-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span>
+                    {currentQuality}p
+                    {currentLevel?.bandwidth && (
+                      <span className="text-white/40 ml-1">
+                        ({formatBandwidth(currentLevel.bandwidth)})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Right controls */}
@@ -364,41 +400,14 @@ export const VideoControls = ({
 
             {/* Quality selector */}
             {availableQualities.length > 0 && (
-              <div className="relative group">
-                <select
-                  value={currentQuality || 0}
-                  onChange={(e) => onQualityChange(Number(e.target.value))}
-                  className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                  style={{ minWidth: '70px' }}
-                  aria-label="Video quality"
-                  title={recommendedQuality?.reason || 'Select video quality'}
-                >
-                  <option value={0} className={bg.secondary}>
-                    Auto
-                  </option>
-                  {availableQualities.map((quality) => {
-                    const isRecommended = recommendedQuality?.height === quality.height
-                    return (
-                      <option key={quality.height} value={quality.height} className={bg.secondary}>
-                        {quality.height}p{isRecommended ? ' ★' : ''}
-                      </option>
-                    )
-                  })}
-                </select>
-                {recommendedQuality && (
-                  <div className="hidden group-hover:block absolute bottom-full left-0 mb-2 w-64 bg-black/90 backdrop-blur-sm text-white text-xs rounded-md p-3 shadow-lg border border-white/20 pointer-events-none z-50">
-                    <div className="font-semibold mb-1">
-                      Recommended: {recommendedQuality.displayName}
-                    </div>
-                    <div className="text-white/70">{recommendedQuality.reason}</div>
-                    {recommendedQuality.dataUsageMBPerHour && (
-                      <div className="text-white/50 mt-1 text-[10px]">
-                        ~{recommendedQuality.dataUsageMBPerHour.toFixed(0)} MB/hr
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <QualitySelector
+                currentQuality={currentQuality}
+                availableQualities={availableQualities}
+                recommendedQuality={recommendedQuality}
+                autoMode={autoMode}
+                onQualityChange={onQualityChange}
+                onAutoToggle={onAutoToggle}
+              />
             )}
 
             {/* Audio track selector */}
@@ -417,6 +426,9 @@ export const VideoControls = ({
                 ))}
               </select>
             )}
+
+            {/* Nerd Menu */}
+            <NerdMenu showStats={showStats} onToggleStats={onToggleStats} />
 
             {/* Picture-in-Picture */}
             {document.pictureInPictureEnabled && (
