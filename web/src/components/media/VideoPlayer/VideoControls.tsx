@@ -221,7 +221,6 @@ export const VideoControls = ({
           <div
             ref={timelineRef}
             className="relative h-2 md:h-1 bg-white/30 rounded-full cursor-pointer group hover:h-2 transition-all touch-none"
-            onClick={handleTimelineInteraction}
             onMouseMove={handleTimelineMouseMove}
             onMouseLeave={() => setHoverTime(null)}
             onMouseDown={(e) => {

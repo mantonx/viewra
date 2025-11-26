@@ -1,5 +1,6 @@
 import type { NetworkStats } from '../network/NetworkMonitor'
 import type { VideoQualityPreferences } from '@/lib/preferences'
+import { logger } from '@/lib/utils/logger'
 
 export interface QualityLevel {
   index: number
@@ -124,24 +125,6 @@ export const evaluateQuality = (
   const networkCanHandleQuality = networkStats && currentLevel &&
     (networkStats.averageThroughputMbps * 1_000_000) > (currentLevel.bitrate * 3)
 
-  // Debug logging
-  console.log('[AutoQuality] Evaluating:', {
-    currentLevel: currentLevel.name,
-    currentBitrateMbps: (currentLevel.bitrate / 1_000_000).toFixed(1),
-    bufferLength: bufferLength.toFixed(1),
-    networkAvgMbps: networkStats?.averageThroughputMbps.toFixed(1) ?? 'N/A',
-    networkMinMbps: networkStats?.minThroughputMbps.toFixed(1) ?? 'N/A',
-    stallCount: networkStats?.stallCount ?? 0,
-    trend: networkStats?.trend ?? 'N/A',
-    isStartupPeriod,
-    timeSinceStartSec: (timeSinceStart / 1000).toFixed(1),
-    networkCanHandleQuality,
-    thresholds: {
-      criticalBuffer: config.criticalBuffer,
-      minBufferForDowngrade: config.minBufferForDowngrade,
-      minBufferForUpgrade: config.minBufferForUpgrade,
-    }
-  })
 
   // Emergency: critical buffer - but be more careful
   // During startup, don't panic-downgrade as the buffer is still filling
@@ -166,7 +149,7 @@ export const evaluateQuality = (
     const lowerIndex = currentLevelIndex > 0 ? currentLevelIndex - 1 : 0
     const lowerLevel = levels[lowerIndex]
     if (lowerLevel && lowerLevel.index !== currentLevelIndex) {
-      console.log('[AutoQuality] DOWNGRADE: Critical buffer', {
+      logger.debug('[AutoQuality] DOWNGRADE: Critical buffer', {
         from: currentLevel.name,
         to: lowerLevel.name,
         bufferLength: bufferLength.toFixed(1),
@@ -191,7 +174,7 @@ export const evaluateQuality = (
   if (networkStats.stallCount > config.maxStallsBeforeDowngrade && !networkCanHandleQuality) {
     const lower = currentLevelIndex > 0 ? levels[currentLevelIndex - 1] : null
     if (lower) {
-      console.log('[AutoQuality] DOWNGRADE: Too many stalls', {
+      logger.debug('[AutoQuality] DOWNGRADE: Too many stalls', {
         from: currentLevel.name,
         to: lower.name,
         stallCount: networkStats.stallCount,
@@ -222,7 +205,7 @@ export const evaluateQuality = (
 
     const lower = currentLevelIndex > 0 ? levels[currentLevelIndex - 1] : null
     if (lower) {
-      console.log('[AutoQuality] DOWNGRADE: Low buffer', {
+      logger.debug('[AutoQuality] DOWNGRADE: Low buffer', {
         from: currentLevel.name,
         to: lower.name,
         bufferLength: bufferLength.toFixed(1),
@@ -253,7 +236,7 @@ export const evaluateQuality = (
     const safeBitrate = networkStats.averageThroughputMbps * 1_000_000 * 0.7
     const target = findLevelForBitrate(levels, safeBitrate)
     if (target && target.index < currentLevelIndex) {
-      console.log('[AutoQuality] DOWNGRADE: Network degrading', {
+      logger.debug('[AutoQuality] DOWNGRADE: Network degrading', {
         from: currentLevel.name,
         to: target.name,
         avgMbps: networkStats.averageThroughputMbps.toFixed(1),

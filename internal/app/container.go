@@ -83,6 +83,7 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 		cases.Library.Scan,
 		cases.Media.Get,
 		cases.Media.List,
+		cases.Media.StreamInfo,
 		cases.Movies.List,
 		cases.Movies.Get,
 		cases.Movies.Search,

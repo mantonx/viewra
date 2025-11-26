@@ -9,18 +9,21 @@ import (
 
 // MediaHandler handles HTTP requests for media
 type MediaHandler struct {
-	getMedia  media.GetMediaExecutor
-	listMedia media.ListMediaExecutor
+	getMedia   media.GetMediaExecutor
+	listMedia  media.ListMediaExecutor
+	streamInfo media.StreamInfoExecutor
 }
 
 // NewMediaHandler creates a new media handler
 func NewMediaHandler(
 	getMedia media.GetMediaExecutor,
 	listMedia media.ListMediaExecutor,
+	streamInfo media.StreamInfoExecutor,
 ) *MediaHandler {
 	return &MediaHandler{
-		getMedia:  getMedia,
-		listMedia: listMedia,
+		getMedia:   getMedia,
+		listMedia:  listMedia,
+		streamInfo: streamInfo,
 	}
 }
 
@@ -99,4 +102,34 @@ func (h *MediaHandler) Get(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, media.GetMediaResponse{Media: resp})
+}
+
+// GetStreamInfo handles GET /api/media/:id/stream-info
+// @Summary Get detailed stream information for a media item
+// @Description Returns detailed technical information about video and audio streams for the stats panel
+// @Tags media
+// @Produce json
+// @Param id path int true "Media ID"
+// @Success 200 {object} media.StreamInfoResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/media/{id}/stream-info [get]
+func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
+	id, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid media ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.streamInfo.Execute(c.Request.Context(), id)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }

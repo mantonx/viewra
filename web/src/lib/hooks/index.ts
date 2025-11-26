@@ -28,3 +28,5 @@ export type { UseAutoQualityOptions, UseAutoQualityReturn } from './useAutoQuali
 export { usePlaybackAnalytics } from './usePlaybackAnalytics'
 export type { UsePlaybackAnalyticsOptions, UsePlaybackAnalyticsReturn } from './usePlaybackAnalytics'
 export { useBadgePreferences } from './useBadgePreferences'
+export { useStreamStats } from './useStreamStats'
+export type { UseStreamStatsOptions, UseStreamStatsReturn } from './useStreamStats'

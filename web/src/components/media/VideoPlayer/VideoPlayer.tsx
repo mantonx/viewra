@@ -3,11 +3,12 @@ import { useProgressUpdater } from '@/lib/hooks/useProgress'
 import { useQualityRecommendation } from '@/lib/hooks/useQualityRecommendation'
 import { useAutoQuality } from '@/lib/hooks/useAutoQuality'
 import { usePlaybackAnalytics } from '@/lib/hooks/usePlaybackAnalytics'
+import { useStreamStats } from '@/lib/hooks/useStreamStats'
 import { logger } from '@/lib/utils/logger'
 import Hls from 'hls.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VideoControls } from './VideoControls'
-import { NetworkOverlay } from './NetworkOverlay'
+import { StatsPanel } from './StatsPanel'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 
@@ -30,18 +31,8 @@ const HLS_CONFIG = {
 
 // Helper functions for video element manipulation
 const ensureVideoUnmuted = (video: HTMLVideoElement) => {
-  logger.debug('[VideoPlayer] ensureVideoUnmuted called', {
-    currentMuted: video.muted,
-    currentVolume: video.volume,
-    readyState: video.readyState,
-    networkState: video.networkState,
-  })
   video.muted = false
   video.volume = 1.0
-  logger.debug('[VideoPlayer] After unmute', {
-    muted: video.muted,
-    volume: video.volume,
-  })
 }
 
 // HLS transcoded streams: Backend starts at ?start=X, but stream reports time=0.
@@ -112,6 +103,9 @@ export const VideoPlayer = ({
   const progressUpdaterRef = useRef<ReturnType<typeof useProgressUpdater> | null>(null)
   const lastTimeUpdateRef = useRef<number>(0)
 
+  // Flag to prevent handleTimeUpdate from overriding time during a seek operation
+  const isSeekingRef = useRef<boolean>(false)
+
   // Track stream offset for progressive transcoding with seeking
   // When we seek to position X, FFmpeg restarts at that position, but the new stream starts at 0
   // We need to add this offset to display the correct time to the user
@@ -132,24 +126,32 @@ export const VideoPlayer = ({
   const [recommendedQuality, setRecommendedQuality] = useState<QualityRecommendationResponse | null>(null)
 
   // Auto quality control - monitors network and adapts quality
-  const handleAutoQualityChange = useCallback((level: { name: string; height: number }, reason: string) => {
-    logger.info(`[AutoQuality] Switched to ${level.name}: ${reason}`)
+  const handleAutoQualityChange = useCallback((level: { name: string; height: number }, _reason: string) => {
     setCurrentQuality(level.height)
   }, [])
 
   const {
     isAutoMode,
     setAutoMode,
-    currentDecision,
     recordSample,
     recordStall,
     networkStats,
-    bufferLength,
-    sampleCount,
   } = useAutoQuality({
     enabled: isHlsStream,
     hlsInstance: hlsRef.current,
     onQualityChange: handleAutoQualityChange,
+  })
+
+  // Stream stats for "Stats for Nerds" panel
+  const { stats: streamStats, isLoading: streamStatsLoading } = useStreamStats({
+    mediaId,
+    videoRef,
+    hlsRef,
+    networkStats,
+    isPlaying,
+    playbackMode: isHlsStream ? 'transcode' : 'direct',
+    streamOffset: streamOffsetRef.current,
+    enabled: showDebugOverlay,
   })
 
   // Handle toggling auto mode from UI
@@ -267,9 +269,6 @@ export const VideoPlayer = ({
 
     // Handle manifest parsed - extract quality levels and audio tracks
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      logger.debug('[VideoPlayer] HLS manifest loaded from:', streamUrl)
-      logger.debug('[VideoPlayer] Available HLS levels:', hls.levels)
-
       const levels = hls.levels
       if (levels && levels.length > 0) {
         const qualities = levels
@@ -300,11 +299,6 @@ export const VideoPlayer = ({
 
             // If no exact match, find closest quality (prefer lower to avoid buffering)
             if (levelIndex === -1) {
-              logger.debug(
-                `[VideoPlayer] No exact match for ${rec.height}p, finding closest quality. Available:`,
-                hls.levels.map((l) => `${l.height}p`)
-              )
-
               // Filter out auto quality (height 0) and find closest real quality
               const recHeight = rec.height // TypeScript narrowing
               const sortedLevels = hls.levels
@@ -334,20 +328,12 @@ export const VideoPlayer = ({
 
               if (sortedLevels.length > 0) {
                 levelIndex = sortedLevels[0].index
-                logger.debug(
-                  `[VideoPlayer] Using closest available: ${hls.levels[levelIndex].height}p (recommended was ${rec.height}p)`
-                )
               }
             }
 
             if (levelIndex !== -1) {
               hls.currentLevel = levelIndex
               setCurrentQuality(hls.levels[levelIndex].height)
-              logger.info(
-                `Applied recommended quality: ${hls.levels[levelIndex].height}p ` +
-                `(${rec.displayName})`,
-                `Reason: ${rec.reason}`
-              )
             }
           }
         }
@@ -355,11 +341,6 @@ export const VideoPlayer = ({
 
       // Extract audio tracks if available
       const audioTracks = hls.audioTracks
-      logger.info('[VideoPlayer] HLS audio tracks:', {
-        count: audioTracks?.length || 0,
-        tracks: audioTracks?.map(t => ({ name: t.name, lang: t.lang, id: t.id })),
-        currentTrack: hls.audioTrack,
-      })
       if (audioTracks && audioTracks.length > 0) {
         const tracks = audioTracks.map((track, index) => ({
           id: index,
@@ -370,25 +351,20 @@ export const VideoPlayer = ({
 
         // Set initial audio track (HLS.js defaults to track 0)
         setCurrentAudioTrack(hls.audioTrack)
-      } else {
-        logger.warn('[VideoPlayer] No HLS audio tracks found - audio may be embedded in video')
       }
 
       initializeStreamOffset(streamOffsetRef, initialPosition)
 
       // Start muted to allow autoplay, will unmute on first play event
-      logger.info('[VideoPlayer] Starting video muted for autoplay')
       video.muted = true
       video
         .play()
         .then(() => {
           // Successfully started - unmute immediately
-          logger.info('[VideoPlayer] Autoplay succeeded, unmuting video')
           ensureVideoUnmuted(video)
         })
-        .catch((e) => {
+        .catch(() => {
           // Autoplay blocked - user will need to click play
-          logger.warn('[VideoPlayer] Autoplay blocked, user will click play', e)
         })
     })
 
@@ -403,20 +379,7 @@ export const VideoPlayer = ({
 
     // Track audio track changes
     hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
-      logger.info('[VideoPlayer] Audio track switched to:', data.id)
       setCurrentAudioTrack(data.id)
-    })
-
-    // Monitor for audio issues
-    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_event, data) => {
-      logger.info('[VideoPlayer] Audio tracks updated:', {
-        count: data.audioTracks.length,
-        tracks: data.audioTracks.map(t => ({ name: t.name, lang: t.lang, id: t.id, groupId: t.groupId })),
-      })
-    })
-
-    hls.on(Hls.Events.AUDIO_TRACK_LOADING, (_event, data) => {
-      logger.debug('[VideoPlayer] Loading audio track:', data)
     })
 
     // Clear error on successful fragment load and record network sample
@@ -520,6 +483,11 @@ export const VideoPlayer = ({
     // Handle time update - track current time for periodic updates
     // Throttle to once per second to reduce re-renders (timeupdate fires 4-15x per second)
     const handleTimeUpdate = () => {
+      // Skip time updates while seeking to prevent race conditions
+      if (isSeekingRef.current) {
+        return
+      }
+
       const currentSecond = Math.floor(video.currentTime)
       if (currentSecond !== lastTimeUpdateRef.current) {
         lastTimeUpdateRef.current = currentSecond
@@ -834,60 +802,67 @@ export const VideoPlayer = ({
       return
     }
 
+    // Set seeking flag to prevent handleTimeUpdate from overriding our time
+    isSeekingRef.current = true
+
     // Save progress immediately to prevent loss if user closes video after seeking
     if (progressUpdaterRef.current && videoDuration > 0) {
       progressUpdaterRef.current.updateCurrentTime(time)
       progressUpdaterRef.current.immediateUpdate()
     }
 
+    // Update displayed time immediately
+    setCurrentTime(time)
+
     const actualTime = video.currentTime + streamOffsetRef.current
     const seekDistance = Math.abs(time - actualTime)
     const isLargeSeek = seekDistance > LARGE_SEEK_THRESHOLD_SECONDS
+    const potentialStreamTime = time - streamOffsetRef.current
 
-    if (isHlsStream && hls?.url && isLargeSeek) {
-      // Large seek: Reload manifest to restart FFmpeg session at new position
-      // Update stream offset to the new seek position
-      streamOffsetRef.current = time
+    // We need a stream restart if:
+    // 1. The seek distance is large (>30 seconds), OR
+    // 2. The target time is before the current stream's start point
+    const needsStreamRestart = isLargeSeek || potentialStreamTime < 0
 
-      // Extract base URL and add start parameter
-      const currentUrl = hls.url
-      const baseUrl = currentUrl.split('?')[0]
+    if (isHlsStream && hls?.url && needsStreamRestart) {
+      // Large seek: Reload manifest to restart FFmpeg at new position
+      const targetTime = time
+      const baseUrl = hls.url.split('?')[0]
       const newUrl = `${baseUrl}?start=${time}`
 
-      // Reload with new URL
       hls.loadSource(newUrl)
 
-      // After manifest loads, HLS.js will start from beginning of new session
-      // Resume playback with audio
-      const seekAfterManifest = () => {
-        video.currentTime = 0 // New session starts at seek position (segment 0 = time X in actual video)
+      // Wait for first fragment to buffer before calculating offset.
+      // The backend may serve cached segments, so video.currentTime won't necessarily be 0.
+      // We calculate: offset = targetTime - video.currentTime
+      // So that: displayedTime = video.currentTime + offset = targetTime
+      const onFragBuffered = () => {
+        streamOffsetRef.current = targetTime - video.currentTime
+        lastTimeUpdateRef.current = Math.floor(video.currentTime)
+        isSeekingRef.current = false
+        hls.off(Hls.Events.FRAG_BUFFERED, onFragBuffered)
+      }
+      hls.on(Hls.Events.FRAG_BUFFERED, onFragBuffered)
 
-        // Update displayed time immediately to match seek position
-        setCurrentTime(time)
-
-        // Resume playback if we were playing before
+      // Start playback after manifest loads
+      const onManifestParsed = () => {
         if (!video.paused) {
-          video.play().then(() => {
-            ensureVideoUnmuted(video)
-          }).catch(() => {
-            // Failed to resume playback after seek
-          })
+          video.play().then(() => ensureVideoUnmuted(video)).catch(() => {})
         } else {
-          // Even if paused, ensure we're unmuted for when user hits play
           ensureVideoUnmuted(video)
         }
-
-        hls.off(Hls.Events.MANIFEST_PARSED, seekAfterManifest)
+        hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed)
       }
-      hls.on(Hls.Events.MANIFEST_PARSED, seekAfterManifest)
+      hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed)
     } else {
-      // Small seek: Normal seek within current stream
-      // Convert from actual video time to stream time
+      // Small seek within current stream
       const streamTime = time - streamOffsetRef.current
       video.currentTime = streamTime
 
-      // Update displayed time immediately to match seek position
-      setCurrentTime(time)
+      // Clear seeking flag after video has had time to update
+      setTimeout(() => {
+        isSeekingRef.current = false
+      }, 100)
     }
   }
 
@@ -997,15 +972,13 @@ export const VideoPlayer = ({
           Your browser does not support the video tag.
         </video>
 
-        {/* Debug overlay - toggle with 'D' key */}
-        <NetworkOverlay
-          stats={networkStats}
-          decision={currentDecision}
-          currentQuality={currentQuality ? `${currentQuality}p` : 'Auto'}
-          bufferLength={bufferLength}
-          sampleCount={sampleCount}
+        {/* Stats for Nerds panel - toggle with 'D' key */}
+        <StatsPanel
+          stats={streamStats}
+          networkStats={networkStats}
           isVisible={showDebugOverlay}
           onClose={() => setShowDebugOverlay(false)}
+          isLoading={streamStatsLoading}
         />
 
 

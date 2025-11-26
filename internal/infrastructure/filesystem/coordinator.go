@@ -291,6 +291,10 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 			result.Year = &tvInfo.Year
 			result.SeasonNumber = &tvInfo.Season
 			result.EpisodeNumber = &tvInfo.Episode
+			// Track multi-episode files (e.g., S01E01-E02)
+			if tvInfo.EpisodeEnd > 0 {
+				result.EpisodeEndNumber = &tvInfo.EpisodeEnd
+			}
 		} else {
 			// Fallback to movie parser if TV parsing fails
 			if movieInfo, err := c.parser.ParseMovie(fileInfo.Path); err == nil && movieInfo != nil {

@@ -384,7 +384,7 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		}
 	}
 
-	builder.AddSeekPosition().AddInput()
+	builder.AddSeekPosition().AddInput().AddTimestampReset()
 
 	// Note: Progressive transcoding doesn't use stream mapping - it transcodes all streams
 	// Add encoding based on strategy

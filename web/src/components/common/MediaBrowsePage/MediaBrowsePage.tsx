@@ -359,7 +359,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
 
       {/* Items grid or empty state */}
       <div
-        className={`flex-1 min-h-0 pb-32 ${viewMode === 'list' || sortedItems.length === 0 ? 'overflow-auto px-4' : 'px-2'}`}
+        className={`flex-1 min-h-0 ${viewMode === 'list' || sortedItems.length === 0 ? 'overflow-auto px-4 pb-32' : 'px-2'}`}
         onScroll={(e) => {
           // Track scroll for header minimization in list view and empty states
           if (viewMode === 'list' || sortedItems.length === 0) {

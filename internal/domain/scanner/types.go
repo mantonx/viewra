@@ -73,20 +73,21 @@ const (
 
 // ScanResult represents the outcome of processing a file
 type ScanResult struct {
-	FilePath       string
-	MediaType      MediaType
-	Title          string
-	Year           *int
-	SeasonNumber   *int   // TV episodes only
-	EpisodeNumber  *int   // TV episodes only
-	ShowName       string // TV show name (to avoid duplicate parsing)
-	Artist         string
-	Album          string
-	TrackNumber    *int
-	Duration       int64 // Seconds
-	Hash           string
-	Error          error
-	BytesProcessed int64
+	FilePath         string
+	MediaType        MediaType
+	Title            string
+	Year             *int
+	SeasonNumber     *int   // TV episodes only
+	EpisodeNumber    *int   // TV episodes only
+	EpisodeEndNumber *int   // TV episodes only - for multi-episode files (e.g., S01E01-E02)
+	ShowName         string // TV show name (to avoid duplicate parsing)
+	Artist           string
+	Album            string
+	TrackNumber      *int
+	Duration         int64 // Seconds
+	Hash             string
+	Error            error
+	BytesProcessed   int64
 
 	// Warning tracking for non-fatal issues (e.g., metadata extraction failures)
 	Warning         error  // Non-fatal warning message

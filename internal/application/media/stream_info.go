@@ -1,0 +1,232 @@
+package media
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+
+	"github.com/mantonx/viewra/internal/domain/library"
+	"github.com/mantonx/viewra/internal/domain/media"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+)
+
+// StreamInfoUseCase handles retrieving detailed stream information for a media file
+type StreamInfoUseCase struct {
+	mediaRepo   media.Repository
+	libraryRepo library.Repository
+}
+
+// NewStreamInfoUseCase creates a new instance of StreamInfoUseCase
+func NewStreamInfoUseCase(mediaRepo media.Repository, libraryRepo library.Repository) *StreamInfoUseCase {
+	return &StreamInfoUseCase{
+		mediaRepo:   mediaRepo,
+		libraryRepo: libraryRepo,
+	}
+}
+
+// AudioTrackInfo represents detailed audio track information
+type AudioTrackInfo struct {
+	Index        int    `json:"index"`
+	Codec        string `json:"codec"`
+	Channels     int    `json:"channels"`
+	ChannelLabel string `json:"channel_label"` // "stereo", "5.1", "7.1", etc.
+	Bitrate      int64  `json:"bitrate,omitempty"`
+	Language     string `json:"language,omitempty"`
+	Title        string `json:"title,omitempty"`
+	IsDefault    bool   `json:"is_default"`
+	IsCommentary bool   `json:"is_commentary"`
+}
+
+// VideoStreamInfo represents detailed video stream information
+type VideoStreamInfo struct {
+	Codec          string  `json:"codec"`
+	Profile        string  `json:"profile,omitempty"`
+	Width          int     `json:"width"`
+	Height         int     `json:"height"`
+	Bitrate        int64   `json:"bitrate,omitempty"`
+	FrameRate      float64 `json:"frame_rate"`
+	BitDepth       int     `json:"bit_depth"`
+	IsHDR          bool    `json:"is_hdr"`
+	HDRFormat      string  `json:"hdr_format,omitempty"` // "HDR10", "HLG", "Dolby Vision", etc.
+	ColorSpace     string  `json:"color_space,omitempty"`
+	ColorPrimaries string  `json:"color_primaries,omitempty"`
+	PixelFormat    string  `json:"pixel_format,omitempty"`
+}
+
+// StreamInfoResponse contains detailed stream information for the stats panel
+type StreamInfoResponse struct {
+	// Source file info
+	Container string `json:"container"`
+	FileSize  int64  `json:"file_size"`
+	Duration  int    `json:"duration"`
+	Bitrate   int64  `json:"bitrate"`
+
+	// Video stream info
+	Video VideoStreamInfo `json:"video"`
+
+	// Audio tracks (all available)
+	AudioTracks         []AudioTrackInfo `json:"audio_tracks"`
+	SelectedAudioIndex  int              `json:"selected_audio_index"`
+}
+
+// Execute retrieves detailed stream information for a media file
+func (uc *StreamInfoUseCase) Execute(ctx context.Context, mediaID int64) (*StreamInfoResponse, error) {
+	// Get media record
+	m, err := uc.mediaRepo.GetByID(ctx, mediaID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get media: %w", err)
+	}
+
+	// Determine full file path
+	// If file_path is already absolute, use it directly
+	// Otherwise, join with library path
+	var fullPath string
+	if filepath.IsAbs(m.FilePath) {
+		fullPath = m.FilePath
+	} else {
+		lib, err := uc.libraryRepo.GetByID(ctx, m.LibraryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get library: %w", err)
+		}
+		fullPath = filepath.Join(lib.Path, m.FilePath)
+	}
+
+	// Get detailed video info using ffprobe (cached)
+	videoInfo, err := transcoding.GetVideoInfo(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get video info: %w", err)
+	}
+
+	// Build response
+	response := &StreamInfoResponse{
+		Container: normalizeContainer(videoInfo.ContainerFormat),
+		FileSize:  m.FileSize,
+		Duration:  m.Duration,
+		Bitrate:   videoInfo.Bitrate,
+		Video: VideoStreamInfo{
+			Codec:          videoInfo.Codec,
+			Width:          videoInfo.Width,
+			Height:         videoInfo.Height,
+			Bitrate:        videoInfo.Bitrate, // Video bitrate (overall for now)
+			FrameRate:      m.FrameRate,
+			BitDepth:       videoInfo.BitDepth,
+			IsHDR:          videoInfo.IsHDR,
+			HDRFormat:      getHDRFormat(videoInfo),
+			ColorSpace:     videoInfo.ColorSpace,
+			ColorPrimaries: videoInfo.ColorPrimaries,
+			PixelFormat:    videoInfo.PixelFormat,
+		},
+		AudioTracks:        make([]AudioTrackInfo, 0, len(videoInfo.AudioTracks)),
+		SelectedAudioIndex: videoInfo.SelectedAudioTrackIndex,
+	}
+
+	// Convert audio tracks
+	for i, track := range videoInfo.AudioTracks {
+		audioInfo := AudioTrackInfo{
+			Index:        track.Index,
+			Codec:        track.Codec,
+			Channels:     track.Channels,
+			ChannelLabel: getChannelLabel(track.Channels),
+			Bitrate:      track.Bitrate,
+			Language:     track.Language,
+			Title:        track.Title,
+			IsDefault:    i == 0 || track.Index == videoInfo.SelectedAudioTrackIndex,
+			IsCommentary: track.IsCommentary,
+		}
+		response.AudioTracks = append(response.AudioTracks, audioInfo)
+	}
+
+	return response, nil
+}
+
+// normalizeContainer converts ffprobe format names to user-friendly names
+func normalizeContainer(format string) string {
+	// ffprobe returns multiple formats like "matroska,webm"
+	// We want to show the primary container name
+	switch {
+	case contains(format, "matroska"):
+		return "MKV"
+	case contains(format, "mp4"):
+		return "MP4"
+	case contains(format, "avi"):
+		return "AVI"
+	case contains(format, "mov"):
+		return "MOV"
+	case contains(format, "webm"):
+		return "WebM"
+	case contains(format, "mpegts"):
+		return "MPEG-TS"
+	case contains(format, "mpeg"):
+		return "MPEG"
+	default:
+		return format
+	}
+}
+
+// getChannelLabel converts channel count to human-readable label
+func getChannelLabel(channels int) string {
+	switch channels {
+	case 1:
+		return "Mono"
+	case 2:
+		return "Stereo"
+	case 6:
+		return "5.1"
+	case 8:
+		return "7.1"
+	default:
+		return fmt.Sprintf("%d ch", channels)
+	}
+}
+
+// getHDRFormat determines the HDR format name from video info
+func getHDRFormat(info *transcoding.VideoInfo) string {
+	if !info.IsHDR {
+		return ""
+	}
+
+	switch info.ColorTransfer {
+	case "smpte2084":
+		return "HDR10"
+	case "arib-std-b67":
+		return "HLG"
+	default:
+		if info.ColorPrimaries == "bt2020" {
+			return "HDR"
+		}
+		return ""
+	}
+}
+
+// contains checks if a string contains a substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsIgnoreCase(s, substr))
+}
+
+func containsIgnoreCase(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if equalIgnoreCase(s[i:i+len(substr)], substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func equalIgnoreCase(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		ca, cb := a[i], b[i]
+		if ca >= 'A' && ca <= 'Z' {
+			ca += 'a' - 'A'
+		}
+		if cb >= 'A' && cb <= 'Z' {
+			cb += 'a' - 'A'
+		}
+		if ca != cb {
+			return false
+		}
+	}
+	return true
+}

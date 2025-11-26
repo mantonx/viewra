@@ -12,10 +12,12 @@ import (
 
 // TV show filename patterns in order of preference (most specific to least specific)
 var tvPatterns = []*regexp.Regexp{
-	// S01E01 format with optional episode title
+	// S01E01 format with optional episode title and multi-episode support
 	// Examples: "Show.Name.S01E01.mkv", "Show Name - S01E01 - Episode Title.mp4"
+	//           "Show - S01E01E02 - Title.mkv", "Show - S01E01-02 - Title.mkv"
 	// Note: Supports 1-4 digit seasons to handle year-based seasons like S1933E21 (Looney Tunes)
-	regexp.MustCompile(`(?i)^(.+?)[\s._-]+[Ss](\d{1,4})[Ee](\d{1,3})(?:[\s._-]*(?:[Ee](\d{1,3}))?)?(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
+	// Multi-episode: matches both S01E01E02 format and S01E01-02 format
+	regexp.MustCompile(`(?i)^(.+?)[\s._-]+[Ss](\d{1,4})[Ee](\d{1,3})(?:[\s._-]*(?:[Ee-](\d{1,3}))?)?(?:[\s._-]+(.+?))?(?:\.\w+)?$`),
 
 	// Season X Episode Y format
 	// Examples: "Show.Name.Season.1.Episode.01.mkv"
@@ -208,7 +210,7 @@ func extractShowNameFromPath(path string) string {
 	return ""
 }
 
-// cleanShowName removes quality tags and normalizes the show name
+// cleanShowName removes quality tags and normalizes the show name for consistent matching
 func cleanShowName(name string) string {
 	// Replace underscores with spaces
 	name = strings.ReplaceAll(name, "_", " ")
@@ -271,11 +273,40 @@ func cleanShowName(name string) string {
 	// Remove year in parentheses if present (e.g., "Show Name (2020)")
 	name = regexp.MustCompile(`\s*\(\d{4}\)\s*$`).ReplaceAllString(name, "")
 
+	// Remove year after hyphen/dash at end (e.g., "Show Name - 2013", "Show Name -2014")
+	// This catches variations like: " - 2013", " -2013", "- 2013", "-2013"
+	name = regexp.MustCompile(`\s*-\s*\d{4}\s*$`).ReplaceAllString(name, "")
+
 	name = strings.TrimSpace(name)
+
+	// Normalize the title for consistent matching by applying normalizeShowTitle
+	name = normalizeShowTitle(name)
 
 	// Ensure trailing dots on abbreviations are preserved
 	// (they might get trimmed, so we need to check the original)
 	return name
+}
+
+// normalizeShowTitle normalizes a show title for consistent database matching.
+// This handles variations like "Star Trek - Voyager" vs "Star Trek Voyager".
+func normalizeShowTitle(title string) string {
+	// Replace various dash/hyphen characters with a standard space
+	// This normalizes: "Star Trek - Voyager" and "Star Trek Voyager" to the same thing
+	// Unicode dashes: en-dash (–), em-dash (—), hyphen (-)
+	title = strings.ReplaceAll(title, " - ", " ")
+	title = strings.ReplaceAll(title, " – ", " ") // en-dash
+	title = strings.ReplaceAll(title, " — ", " ") // em-dash
+	title = strings.ReplaceAll(title, "-", " ")
+	title = strings.ReplaceAll(title, "–", " ") // en-dash
+	title = strings.ReplaceAll(title, "—", " ") // em-dash
+
+	// Normalize multiple spaces to single space
+	title = regexp.MustCompile(`\s+`).ReplaceAllString(title, " ")
+
+	// Trim whitespace
+	title = strings.TrimSpace(title)
+
+	return title
 }
 
 // isSingleLetter returns true if the string is a single alphabetic character (a-z, A-Z)

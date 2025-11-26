@@ -148,6 +148,7 @@ func TestMediaHandler_List(t *testing.T) {
 			handler := NewMediaHandler(
 				nil, // getMedia not used in this test
 				mockList,
+				nil, // streamInfo not used in this test
 			)
 
 			c, w := setupTestContext(http.MethodGet, "/api/media?library_id="+tt.libraryID, nil)
@@ -252,6 +253,7 @@ func TestMediaHandler_Get(t *testing.T) {
 			handler := NewMediaHandler(
 				mockGet,
 				nil, // listMedia not used in this test
+				nil, // streamInfo not used in this test
 			)
 
 			c, w := setupTestContext(http.MethodGet, "/api/media/"+tt.mediaID, nil)

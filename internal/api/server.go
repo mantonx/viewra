@@ -104,6 +104,7 @@ func NewServer(
 	// Media use cases
 	getMedia *media.GetMediaUseCase,
 	listMedia *media.ListMediaUseCase,
+	streamInfo *media.StreamInfoUseCase,
 	// Movie use cases
 	listMovies *movies.ListMoviesUseCase,
 	getMovie *movies.GetMovieUseCase,
@@ -157,6 +158,7 @@ func NewServer(
 	mediaHandler := handlers.NewMediaHandler(
 		getMedia,
 		listMedia,
+		streamInfo,
 	)
 	streamService := streaming.NewService()
 	streamHandler := handlers.NewStreamHandler(getMedia, streamService, logger)

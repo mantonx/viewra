@@ -36,9 +36,10 @@ type LibraryUseCases struct {
 
 // MediaUseCases holds media-related use cases
 type MediaUseCases struct {
-	Get    *media.GetMediaUseCase
-	List   *media.ListMediaUseCase
-	Delete *media.DeleteMediaUseCase
+	Get        *media.GetMediaUseCase
+	List       *media.ListMediaUseCase
+	Delete     *media.DeleteMediaUseCase
+	StreamInfo *media.StreamInfoUseCase
 }
 
 // MovieUseCases holds movie-related use cases
@@ -189,9 +190,10 @@ func buildMediaUseCases(
 	imageCleanup := images.NewCleanupUseCase(repos.Image, imageCacheDir, logger)
 
 	return &MediaUseCases{
-		Get:    media.NewGetMediaUseCase(repos.Media),
-		List:   media.NewListMediaUseCase(repos.Media),
-		Delete: media.NewDeleteMediaUseCase(repos.Media, repos.Image, imageCleanup, logger),
+		Get:        media.NewGetMediaUseCase(repos.Media),
+		List:       media.NewListMediaUseCase(repos.Media),
+		Delete:     media.NewDeleteMediaUseCase(repos.Media, repos.Image, imageCleanup, logger),
+		StreamInfo: media.NewStreamInfoUseCase(repos.Media, repos.Library),
 	}
 }
 

@@ -12,3 +12,8 @@ type ListMediaExecutor interface {
 	ExecuteAll(ctx context.Context) (ListMediaResponse, error)
 	Execute(ctx context.Context, libraryID int64) (ListMediaResponse, error)
 }
+
+// StreamInfoExecutor defines the interface for getting detailed stream info
+type StreamInfoExecutor interface {
+	Execute(ctx context.Context, mediaID int64) (*StreamInfoResponse, error)
+}

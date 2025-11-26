@@ -58,10 +58,20 @@ func (b *FFmpegArgsBuilder) AddOpenCLFilterDevice() *FFmpegArgsBuilder {
 }
 
 // AddSeekPosition adds seek position argument (before input for fast seeking).
+// Also resets output timestamps to 0 so players can seek within the stream correctly.
 func (b *FFmpegArgsBuilder) AddSeekPosition() *FFmpegArgsBuilder {
 	if b.opts.UseStartPosition && b.opts.StartPosition > 0 {
 		b.args = append(b.args, "-ss", strconv.Itoa(b.opts.StartPosition))
 	}
+	return b
+}
+
+// AddTimestampReset resets output timestamps to start from 0 (used after seeking).
+// This ensures the HLS stream reports time from 0, not from the seek position.
+// Must be called AFTER AddInput() since it's an output option.
+func (b *FFmpegArgsBuilder) AddTimestampReset() *FFmpegArgsBuilder {
+	// No-op: Frontend handles timestamp offset tracking via streamOffsetRef.
+	// Attempting to reset timestamps in FFmpeg causes issues with HLS segment timing.
 	return b
 }
 

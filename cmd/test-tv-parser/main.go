@@ -24,5 +24,8 @@ func main() {
 	fmt.Printf("Show Name: '%s'\n", info.ShowName)
 	fmt.Printf("Season: %d\n", info.Season)
 	fmt.Printf("Episode: %d\n", info.Episode)
+	if info.EpisodeEnd > 0 {
+		fmt.Printf("Episode End: %d\n", info.EpisodeEnd)
+	}
 	fmt.Printf("Episode Title: '%s'\n", info.EpisodeTitle)
 }

@@ -14,6 +14,7 @@ import (
 )
 
 // processTVEpisode creates or updates a TV episode entry
+// For multi-episode files (e.g., S01E01-E02), it creates records for all episodes in the range
 func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID int64, result *scanner.ScanResult, checkpoint *scanner.ScanCheckpoint, existingMediaCache *sync.Map) (*int64, error) {
 	// Handle nil checkpoint (legacy code path or tests)
 	if checkpoint == nil {
@@ -36,6 +37,7 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 	showTitle := result.ShowName
 	season := 0
 	episodeNumber := 0
+	episodeEndNumber := 0
 	episodeTitle := result.Title
 
 	// Use coordinator's parsed season/episode numbers
@@ -45,6 +47,10 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 
 	if result.EpisodeNumber != nil {
 		episodeNumber = *result.EpisodeNumber
+	}
+
+	if result.EpisodeEndNumber != nil {
+		episodeEndNumber = *result.EpisodeEndNumber
 	}
 
 	// Fallback: If coordinator didn't populate show name, parse as last resort
@@ -62,9 +68,19 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		if episodeNumber == 0 {
 			episodeNumber = tvInfo.Episode
 		}
+		if episodeEndNumber == 0 && tvInfo.EpisodeEnd > 0 {
+			episodeEndNumber = tvInfo.EpisodeEnd
+		}
 		if episodeTitle == "" {
 			episodeTitle = tvInfo.EpisodeTitle
 		}
+	}
+
+	// Handle multi-episode files (e.g., S01E01-E02)
+	// Create episode records for all episodes in the range
+	if episodeEndNumber > episodeNumber {
+		return uc.processMultiEpisodeFile(ctx, libraryID, result, checkpoint, existingMediaCache,
+			showTitle, season, episodeNumber, episodeEndNumber, episodeTitle)
 	}
 
 	episode := &media.TVEpisode{
@@ -251,4 +267,121 @@ func (uc *ScanLibraryUseCase) enrichTVShowMetadataFromNFO(ctx context.Context, s
 			"nfo_path", nfoPath,
 			"error", err)
 	}
+}
+
+// processMultiEpisodeFile handles files that contain multiple episodes (e.g., S01E01-E02)
+// It creates a media record for each episode in the range using virtual file paths
+// (e.g., "/path/to/file.mkv#ep2" for the second episode)
+// This allows the UI to display each episode separately while they all point to the same physical file
+func (uc *ScanLibraryUseCase) processMultiEpisodeFile(
+	ctx context.Context,
+	libraryID int64,
+	result *scanner.ScanResult,
+	checkpoint *scanner.ScanCheckpoint,
+	existingMediaCache *sync.Map,
+	showTitle string,
+	season int,
+	episodeStart int,
+	episodeEnd int,
+	episodeTitle string,
+) (*int64, error) {
+	var firstMediaID *int64
+
+	// Create an episode record for each episode in the range
+	for epNum := episodeStart; epNum <= episodeEnd; epNum++ {
+		// Generate a unique file path for each episode
+		// First episode uses the real path, subsequent episodes use virtual paths
+		filePath := result.FilePath
+		if epNum > episodeStart {
+			// Use a virtual path with episode marker (e.g., "/path/file.mkv#ep2")
+			// This satisfies the UNIQUE constraint on file_path while clearly indicating
+			// this is part of a multi-episode file
+			filePath = fmt.Sprintf("%s#ep%d", result.FilePath, epNum)
+		}
+
+		// Generate episode title with part number for multi-episode files
+		epTitle := episodeTitle
+		if episodeTitle != "" && episodeEnd > episodeStart {
+			partNum := epNum - episodeStart + 1
+			epTitle = fmt.Sprintf("%s (Part %d)", episodeTitle, partNum)
+		}
+
+		episode := &media.TVEpisode{
+			Media: media.Media{
+				LibraryID:       libraryID,
+				Title:           epTitle,
+				FilePath:        filePath,
+				FileSize:        checkpoint.FileSize,
+				FileHash:        checkpoint.FileHash,
+				Duration:        int(result.Duration),
+				IsExtra:         isExtra(result.FilePath),
+				Width:           result.Width,
+				Height:          result.Height,
+				VideoCodec:      result.VideoCodec,
+				AudioCodec:      result.AudioCodec,
+				Bitrate:         result.Bitrate,
+				FrameRate:       result.FrameRate,
+				ContainerFormat: result.ContainerFormat,
+				CreatedAt:       time.Now(),
+				UpdatedAt:       time.Now(),
+			},
+			ShowTitle:    showTitle,
+			Season:       season,
+			Episode:      epNum,
+			EpisodeTitle: epTitle,
+		}
+
+		// Check if this episode already exists in cache
+		if value, found := existingMediaCache.Load(filePath); found {
+			episode.Media.ID = value.(int64)
+			episode.Media.Type = "tv_episode"
+			if err := uc.mediaRepos.Media.Update(ctx, &episode.Media); err != nil {
+				uc.logger.Warn("failed to update multi-episode media record",
+					"file_path", filePath,
+					"episode", epNum,
+					"error", err)
+				continue
+			}
+			if err := uc.mediaRepos.TV.UpdateTVEpisode(ctx, episode); err != nil {
+				uc.logger.Warn("failed to update multi-episode TV episode metadata",
+					"file_path", filePath,
+					"episode", epNum,
+					"error", err)
+				continue
+			}
+			if firstMediaID == nil {
+				firstMediaID = &episode.Media.ID
+			}
+			continue
+		}
+
+		// Create new episode record
+		episode.Media.Type = "tv_episode"
+		if err := uc.mediaRepos.TV.CreateTVEpisode(ctx, episode); err != nil {
+			// Handle UNIQUE constraint - episode may already exist
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
+				uc.logger.Debug("multi-episode already exists, skipping",
+					"file_path", filePath,
+					"season", season,
+					"episode", epNum)
+				continue
+			}
+			uc.logger.Warn("failed to create multi-episode record",
+				"file_path", filePath,
+				"episode", epNum,
+				"error", err)
+			continue
+		}
+
+		// Cache the newly created episode
+		existingMediaCache.Store(filePath, episode.Media.ID)
+
+		if firstMediaID == nil {
+			firstMediaID = &episode.Media.ID
+			// Extract images only for the first episode (they're shared anyway)
+			uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
+		}
+	}
+
+	return firstMediaID, nil
 }

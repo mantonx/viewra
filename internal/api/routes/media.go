@@ -10,4 +10,5 @@ func RegisterMediaRoutes(rg *gin.RouterGroup, handler *handlers.MediaHandler) {
 	media := rg.Group("/media")
 	media.GET("", handler.List)
 	media.GET("/:id", handler.Get)
+	media.GET("/:id/stream-info", handler.GetStreamInfo)
 }
