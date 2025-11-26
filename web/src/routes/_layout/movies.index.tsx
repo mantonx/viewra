@@ -225,19 +225,20 @@ const Movies = () => {
     logger.debug('✅ Found movie:', movie.title)
 
     // Update URL with movie ID and optional time position
+    // Preserve existing search params to avoid re-rendering the browse page
     navigate({
       to: '/movies',
       search: {
         id: movieId,
         t: startTime && startTime > 0 ? Math.floor(startTime) : undefined,
-        q: undefined,
-        sort: undefined,
-        genres: undefined,
-        yearMin: undefined,
-        yearMax: undefined,
-        qualities: undefined,
-        watched: undefined,
-        view: undefined
+        q: search.q ?? undefined,
+        sort: search.sort ?? undefined,
+        genres: search.genres ?? undefined,
+        yearMin: search.yearMin ?? undefined,
+        yearMax: search.yearMax ?? undefined,
+        qualities: search.qualities ?? undefined,
+        watched: search.watched ?? undefined,
+        view: search.view ?? undefined,
       }
     })
 
