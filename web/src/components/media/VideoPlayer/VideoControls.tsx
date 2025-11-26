@@ -4,6 +4,7 @@ import { bg } from '@/styles/semantic'
 import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 import { NerdMenu } from './NerdMenu'
 import { QualitySelector } from './QualitySelector'
+import { SpeedSelector } from './SpeedSelector'
 
 // Format bandwidth to human readable string
 const formatBandwidth = (bps: number): string => {
@@ -30,6 +31,7 @@ interface VideoControlsProps {
   isPiP: boolean
   availableQualities: Array<{ height: number; bandwidth: number }>
   currentQuality: number | null
+  currentBandwidth?: number | null
   recommendedQuality: QualityRecommendationResponse | null
   autoMode: boolean
   availableAudioTracks: Array<{ id: number; name: string; language: string }>
@@ -43,7 +45,7 @@ interface VideoControlsProps {
   onMuteToggle: () => void
   onFullscreenToggle: () => void
   onPiPToggle: () => void
-  onQualityChange: (height: number) => void
+  onQualityChange: (height: number, bandwidth?: number) => void
   onAutoToggle: () => void
   onAudioTrackChange: (trackId: number) => void
   onSpeedChange: (speed: number) => void
@@ -62,6 +64,7 @@ export const VideoControls = ({
   isPiP,
   availableQualities,
   currentQuality,
+  currentBandwidth,
   recommendedQuality,
   autoMode,
   availableAudioTracks,
@@ -365,43 +368,13 @@ export const VideoControls = ({
           {/* Right controls */}
           <div className="flex items-center gap-1 sm:gap-2">
             {/* Speed selector */}
-            <select
-              value={playbackSpeed}
-              onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
-              className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              style={{ minWidth: '60px' }}
-              aria-label="Playback speed"
-            >
-              <option value={0.25} className={bg.secondary}>
-                0.25x
-              </option>
-              <option value={0.5} className={bg.secondary}>
-                0.5x
-              </option>
-              <option value={0.75} className={bg.secondary}>
-                0.75x
-              </option>
-              <option value={1} className={bg.secondary}>
-                Normal
-              </option>
-              <option value={1.25} className={bg.secondary}>
-                1.25x
-              </option>
-              <option value={1.5} className={bg.secondary}>
-                1.5x
-              </option>
-              <option value={1.75} className={bg.secondary}>
-                1.75x
-              </option>
-              <option value={2} className={bg.secondary}>
-                2x
-              </option>
-            </select>
+            <SpeedSelector playbackSpeed={playbackSpeed} onSpeedChange={onSpeedChange} />
 
             {/* Quality selector */}
             {availableQualities.length > 0 && (
               <QualitySelector
                 currentQuality={currentQuality}
+                currentBandwidth={currentBandwidth}
                 availableQualities={availableQualities}
                 recommendedQuality={recommendedQuality}
                 autoMode={autoMode}

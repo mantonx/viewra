@@ -5,6 +5,10 @@ export { QualityPreferences } from './QualityPreferences'
 export { NetworkOverlay } from './NetworkOverlay'
 export { BufferIndicator } from './BufferIndicator'
 export { NerdMenu } from './NerdMenu'
+export { DropdownBase } from './DropdownBase'
+export { DropdownSelector } from './DropdownSelector'
+export type { DropdownOption } from './DropdownSelector'
+export { SpeedSelector } from './SpeedSelector'
 
 // Re-export preferences from shared module
 export {

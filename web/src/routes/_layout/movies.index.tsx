@@ -274,8 +274,14 @@ const Movies = () => {
     }
   }
 
+  // Refs for auto-play control
+  const lastPlayedIdRef = useRef<number | undefined>(undefined)
+  const isClosingRef = useRef(false)
+
   // Handle closing the player
   const handleClosePlayer = () => {
+    // Set closing flag to prevent auto-play effect from re-triggering
+    isClosingRef.current = true
     stopPlayback()
     // Clear URL parameters if present
     if (urlMovieId) {
@@ -298,13 +304,23 @@ const Movies = () => {
   }
 
   // Auto-play when URL contains movie ID
-  const lastPlayedIdRef = useRef<number | undefined>(undefined)
   useEffect(() => {
+    // Don't auto-play if we're in the process of closing
+    if (isClosingRef.current) {
+      return
+    }
     if (urlMovieId && urlMovieId !== lastPlayedIdRef.current && !playbackState.isPlaying) {
       lastPlayedIdRef.current = urlMovieId
       handlePlayMovie(urlMovieId, urlTimePosition)
     }
   }, [urlMovieId, urlTimePosition, playbackState.isPlaying, handlePlayMovie])
+
+  // Reset closing flag when URL movie ID is cleared
+  useEffect(() => {
+    if (!urlMovieId) {
+      isClosingRef.current = false
+    }
+  }, [urlMovieId])
 
   // Render video player if playing
   const videoPlayer = (

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Card, CardContent, Button } from '@/components/ui'
 import { EpisodeCard } from '@/components/tv'
 import { VideoPlayerContainer } from '@/components/media'
@@ -76,8 +76,15 @@ const SeasonDetail = () => {
     return seasonEpisodes[currentIndex + 1]
   }, [playingEpisode, seasonEpisodes])
 
+  // Ref to prevent auto-play from triggering during close
+  const isClosingRef = useRef(false)
+
   // Auto-play episode if ID is in URL (only on initial load)
   useEffect(() => {
+    // Don't auto-play if we're in the process of closing
+    if (isClosingRef.current) {
+      return
+    }
     if (urlEpisodeId && !playbackState.isPlaying && !playbackState.mediaId && seasonEpisodes.length > 0) {
       const episode = seasonEpisodes.find((ep) => ep.id === urlEpisodeId)
       if (episode) {
@@ -86,6 +93,13 @@ const SeasonDetail = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlEpisodeId, seasonEpisodes.length])
+
+  // Reset closing flag when URL episode ID is cleared
+  useEffect(() => {
+    if (!urlEpisodeId) {
+      isClosingRef.current = false
+    }
+  }, [urlEpisodeId])
 
   const handlePlayEpisode = async (episode: TVEpisodeResponse, startTime?: number) => {
     logger.debug('Playing episode:', episode.show_title, `S${  episode.season  }E${  episode.episode}`)
@@ -124,6 +138,8 @@ const SeasonDetail = () => {
   }
 
   const handleClosePlayer = () => {
+    // Set closing flag to prevent auto-play effect from re-triggering
+    isClosingRef.current = true
     stopPlayback()
     // Clear URL parameters if present
     if (urlEpisodeId) {

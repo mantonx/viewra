@@ -86,6 +86,7 @@ export const VideoPlayer = ({
     Array<{ height: number; bandwidth: number }>
   >([])
   const [currentQuality, setCurrentQuality] = useState<number | null>(null)
+  const [currentBandwidth, setCurrentBandwidth] = useState<number | null>(null)
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const [isBuffering, setIsBuffering] = useState<boolean>(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -376,6 +377,7 @@ export const VideoPlayer = ({
       const currentLevel = hls.levels[data.level]
       if (currentLevel && currentLevel.height) {
         setCurrentQuality(currentLevel.height)
+        setCurrentBandwidth(currentLevel.bitrate || null)
       }
     })
 
@@ -703,7 +705,7 @@ export const VideoPlayer = ({
   }, [mediaId, currentTime, videoDuration])
 
   // Handle quality selection
-  const handleQualityChange = (height: number) => {
+  const handleQualityChange = (height: number, bandwidth?: number) => {
     const hls = hlsRef.current
     const video = videoRef.current
     if (!hls) {
@@ -716,6 +718,7 @@ export const VideoPlayer = ({
       // Auto quality - enable ABR
       hls.currentLevel = -1
       setCurrentQuality(0)
+      setCurrentBandwidth(null)
       setAutoMode(true)
       // Record manual switch to auto
       recordQualitySwitch(
@@ -727,11 +730,23 @@ export const VideoPlayer = ({
         null
       )
     } else {
-      // Lock to specific quality
-      const levelIndex = hls.levels.findIndex((level) => level.height === height)
+      // Lock to specific quality - find by height and optionally bandwidth
+      let levelIndex: number
+      if (bandwidth) {
+        // Find exact match by height AND bandwidth
+        levelIndex = hls.levels.findIndex(
+          (level) => level.height === height && level.bitrate === bandwidth
+        )
+      } else {
+        // Fall back to just height match
+        levelIndex = hls.levels.findIndex((level) => level.height === height)
+      }
+
       if (levelIndex !== -1) {
         hls.currentLevel = levelIndex
+        const selectedLevel = hls.levels[levelIndex]
         setCurrentQuality(height)
+        setCurrentBandwidth(selectedLevel.bitrate || null)
         setAutoMode(false)
         // Record manual quality switch
         recordQualitySwitch(
@@ -973,6 +988,7 @@ export const VideoPlayer = ({
           isPiP={isPiP}
           availableQualities={availableQualities}
           currentQuality={currentQuality}
+          currentBandwidth={currentBandwidth}
           recommendedQuality={recommendedQuality}
           autoMode={isAutoMode}
           availableAudioTracks={availableAudioTracks}
