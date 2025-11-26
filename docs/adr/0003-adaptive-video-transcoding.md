@@ -1,7 +1,9 @@
 # ADR 0003: Adaptive Video Transcoding System
 
 ## Status
-**Proposed** - 2025-11-24
+
+**Accepted** - 2025-11-24
+**Implemented** - 2025-11-26
 
 ## Context
 
@@ -1737,28 +1739,20 @@ CREATE TABLE user_video_preferences (
    - ✅ Display all quality options with metadata
    - ✅ Add data usage estimates
 
-6. **HLS Master Playlist Implementation** (backend) **[CRITICAL - BLOCKING]**
-   - ⏳ Add master playlist endpoint: `GET /api/media/:id/hls/master.m3u8`
-   - ⏳ Generate HLS master playlist with all quality variants
-   - ⏳ Include bandwidth and resolution metadata for each variant
-   - ⏳ Support `?start=` parameter for resume-from-timestamp
-   - ⏳ Update frontend to use master playlist URL
-
-   **Why Required**: Current implementation serves single-quality playlists (`/720p/playlist.m3u8`),
-   which prevents HLS.js from accessing multiple quality levels. The master playlist is the standard
-   HLS approach that enables:
-   - Multi-quality selection in video player
-   - Quality recommendations to be applied after manifest loads
-   - User override of recommended quality
-   - Foundation for Phase 2 adaptive streaming
+6. **HLS Master Playlist Implementation** (backend)
+   - ✅ Add master playlist endpoint: `GET /api/media/:id/hls/master.m3u8`
+   - ✅ Generate HLS master playlist with all quality variants
+   - ✅ Include bandwidth and resolution metadata for each variant
+   - ✅ Support `?start=` parameter for resume-from-timestamp
+   - ✅ Update frontend to use master playlist URL
 
 **Deliverables**:
 - ✅ Client can detect its own capabilities
 - ✅ Server recommends optimal quality
 - ✅ UI shows recommendation with reasoning (star indicator + hover tooltip)
 - ✅ Fuzzy quality matching when exact height unavailable
-- ⏳ Master playlist enables multi-quality streaming
-- ⏳ Database tracks recommendation accuracy
+- ✅ Master playlist enables multi-quality streaming
+- ✅ Database tracks recommendation accuracy
 
 **Success Metrics**:
 - Recommendation accuracy > 80% (users don't override)

@@ -270,22 +270,32 @@ export const VideoPlayer = ({
     // Handle manifest parsed - extract quality levels and audio tracks
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       const levels = hls.levels
+
       if (levels && levels.length > 0) {
         const qualities = levels
-          .map((level, index) => ({
-            height: level.height,
-            bandwidth: level.bitrate,
-            index,
-          }))
+          .map((level, index) => {
+            // Check if this is the "original" quality by looking at the URL or name
+            // The master playlist sets NAME="original" for the source quality variant
+            const url = level.url?.[0] || ''
+            const isOriginal = url.includes('/original/') || level.name === 'original'
+            return {
+              height: level.height,
+              bandwidth: level.bitrate,
+              index,
+              isOriginal,
+            }
+          })
           .filter((q) => q.height > 0)
-          .sort((a, b) => b.height - a.height)
+          // Sort by height descending, then by bandwidth descending for same height
+          .sort((a, b) => {
+            if (b.height !== a.height) {
+              return b.height - a.height
+            }
+            return b.bandwidth - a.bandwidth
+          })
 
-        // Remove duplicates by height
-        const uniqueQualities = qualities.filter(
-          (quality, index, self) => index === self.findIndex((q) => q.height === quality.height)
-        )
-
-        setAvailableQualities(uniqueQualities)
+        // Keep all bitrate variants - QualitySelector groups by resolution and shows bitrate options
+        setAvailableQualities(qualities)
 
         // Apply recommended quality if available (use ref to avoid re-running effect on recommendation changes)
         const qr = qualityRecommendationRef.current

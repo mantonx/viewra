@@ -619,29 +619,73 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	// Filter based on source resolution (don't upscale)
 	sourceHeight := mediaItem.Height
 	sourceWidth := mediaItem.Width
+	sourceBitrate := mediaItem.Bitrate // bits per second
 
-	// Log source resolution for debugging
+	// Log source info for debugging
 	slog.Debug("building master playlist",
 		"media_id", mediaID,
 		"source_width", sourceWidth,
 		"source_height", sourceHeight,
+		"source_bitrate_mbps", float64(sourceBitrate)/1_000_000,
 	)
 
-	// Default ABR ladder - a subset of profiles that work well together
-	// These are selected to provide good coverage without too many variants
-	abrLadder := []struct {
+	// Comprehensive ABR ladder with many bitrate tiers
+	// Organized by resolution, then by bitrate within each resolution
+	type abrVariant struct {
 		quality   string
 		bandwidth int
 		width     int
 		height    int
 		codecs    string
-	}{
-		// Start with lower qualities for poor connections
+	}
+
+	abrLadder := []abrVariant{
+		// 360p - Low quality for poor connections
 		{"360p", 800_000, 640, 360, "avc1.4d401e,mp4a.40.2"},
-		{"480p", 1_800_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
+
+		// 480p - SD quality
+		{"480p", 1_500_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
+		{"480p-2m", 2_000_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
+
+		// 720p - HD quality (multiple bitrate tiers)
+		{"720p-3m", 3_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
 		{"720p", 4_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
+		{"720p-6m", 6_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
+
+		// 1080p - Full HD (multiple bitrate tiers)
+		{"1080p-6m", 6_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
 		{"1080p", 8_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"4k", 25_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"1080p-12m", 12_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
+		{"1080p-15m", 15_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
+		{"1080p-20m", 20_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
+
+		// 4K - Ultra HD (many bitrate tiers for high-quality sources)
+		{"4k-20m", 20_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"4k-25m", 25_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"4k-35m", 35_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"4k-50m", 50_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"4k-60m", 60_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"4k-80m", 80_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"4k-100m", 100_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+		{"4k-120m", 120_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
+	}
+
+	// Add "Original" quality if we know the source bitrate
+	// This allows users to get the highest quality transcode matching the source
+	if sourceBitrate > 0 && sourceWidth > 0 && sourceHeight > 0 {
+		// Round source bitrate up to nearest 5 Mbps for cleaner display
+		originalBitrate := ((sourceBitrate / 5_000_000) + 1) * 5_000_000
+		if originalBitrate < sourceBitrate {
+			originalBitrate = sourceBitrate
+		}
+
+		abrLadder = append(abrLadder, abrVariant{
+			quality:   "original",
+			bandwidth: int(originalBitrate),
+			width:     sourceWidth,
+			height:    sourceHeight,
+			codecs:    "avc1.640033,mp4a.40.2",
+		})
 	}
 
 	// Build master playlist
@@ -649,17 +693,40 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	playlist += "#EXT-X-VERSION:4\n"
 	playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n\n"
 
-	// Filter qualities based on source resolution
+	// Track which variants we've added to avoid duplicates
+	addedVariants := make(map[string]bool)
+
+	// Filter qualities based on source resolution and bitrate
+	// Use width as primary indicator for 4K capability (ultrawide 4K has full 3840 width but reduced height)
 	for _, variant := range abrLadder {
+		// Skip if we've already added this quality name
+		if addedVariants[variant.quality] {
+			continue
+		}
+
+		// Skip variants with bitrate higher than source (except for "original")
+		// No point transcoding to higher bitrate than source
+		if variant.quality != "original" && sourceBitrate > 0 && int64(variant.bandwidth) > sourceBitrate {
+			continue
+		}
+
 		// Skip qualities higher than source ONLY if we know the source resolution
 		// If source resolution is unknown (0), include all qualities up to 1080p as a safe default
 		if sourceHeight > 0 && sourceWidth > 0 {
-			// Skip qualities higher than source
-			if variant.height > sourceHeight {
+			// For 4K detection, use width as primary indicator
+			// Ultrawide 4K content (e.g., 3840x1600 at 2.39:1) has full 4K width but reduced height
+			// The transcoder will maintain aspect ratio and letterbox/pillarbox as needed
+			is4KSource := sourceWidth >= 3840
+			is4KVariant := variant.width >= 3840
+
+			// Skip 4K variants if source is not 4K (except "original" which uses source dimensions)
+			if is4KVariant && !is4KSource && variant.quality != "original" {
 				continue
 			}
-			// Also check width
-			if variant.width > sourceWidth {
+
+			// For non-4K variants, use height-based comparison (traditional approach)
+			// This works because non-4K content has standard aspect ratios
+			if !is4KVariant && variant.height > sourceHeight && variant.quality != "original" {
 				continue
 			}
 		} else {
@@ -673,6 +740,8 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 				continue
 			}
 		}
+
+		addedVariants[variant.quality] = true
 
 		// Add variant stream
 		playlist += fmt.Sprintf(

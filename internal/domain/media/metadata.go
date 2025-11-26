@@ -36,12 +36,28 @@ func CalculateAspectRatio(width, height int) string {
 // CalculateResolutionLabel returns resolution label from height
 // Returns 4K, 1080p, 720p, 480p, or SD
 // This is domain logic - how we categorize video resolutions
+// Deprecated: Use CalculateResolutionLabelFromDimensions for accurate 4K detection
 func CalculateResolutionLabel(height int) string {
+	return CalculateResolutionLabelFromDimensions(0, height)
+}
+
+// CalculateResolutionLabelFromDimensions returns resolution label from width and height
+// Uses width as the primary indicator for 4K (ultrawide content has full 4K width but reduced height)
+// Returns 4K, 1080p, 720p, 480p, or SD
+func CalculateResolutionLabelFromDimensions(width, height int) string {
+	// 4K detection: use width as primary indicator
+	// UHD 4K is 3840 wide, DCI 4K is 4096 wide
+	// Ultrawide 4K (2.39:1) has 3840x1600 - still 4K content
+	if width >= 3840 {
+		return "4K"
+	}
+
+	// For non-4K, use height-based detection
 	resolutions := []struct {
 		minHeight int
 		label     string
 	}{
-		{2160, "4K"},
+		{2160, "4K"}, // Fallback for cases where only height is provided
 		{1080, "1080p"},
 		{720, "720p"},
 		{480, "480p"},

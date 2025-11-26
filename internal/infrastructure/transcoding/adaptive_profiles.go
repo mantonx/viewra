@@ -612,26 +612,83 @@ func FilterProfilesByNetworkSpeed(profiles []*AdaptiveProfile, speedMbps float64
 	return filtered
 }
 
-// GetAdaptiveProfileForQuality maps legacy quality strings (360p, 720p, 1080p, 4k)
-// to standard AdaptiveProfile IDs. This maintains backward compatibility with the
-// domain layer's quality constants while using granular AdaptiveProfiles internally.
+// GetAdaptiveProfileForQuality maps quality strings to AdaptiveProfile instances.
+// Supports multiple formats:
+//   - New bitrate-specific format: "4k-60m", "1080p-12m", "720p-6m"
+//   - Legacy format: "360p", "720p", "1080p", "4k"
+//   - Internal IDs: "4k-60000k", "1080p-12000k"
+//   - Special "original" quality (uses highest available 4K profile)
 func GetAdaptiveProfileForQuality(quality string) (*AdaptiveProfile, error) {
-	var profileID string
+	// Handle "original" quality - use the highest 4K profile as base
+	// The session manager will adjust parameters based on source media
+	if quality == "original" {
+		// Use the highest 4K profile (120Mbps) as base for "original" quality
+		// This ensures we get maximum quality transcoding
+		return GetAdaptiveProfile(Quality4k120000k)
+	}
+
+	// First, try direct lookup (handles internal IDs like "4k-60000k")
+	if profile, exists := adaptiveProfiles[quality]; exists {
+		return profile, nil
+	}
+
+	// Try converting user-friendly format (e.g., "4k-60m") to internal ID (e.g., "4k-60000k")
+	profileID := convertQualityToProfileID(quality)
+	if profile, exists := adaptiveProfiles[profileID]; exists {
+		return profile, nil
+	}
+
+	// Fall back to legacy quality mapping
 	switch quality {
 	case transcode.Quality360p:
 		profileID = Quality360p800k
 	case transcode.Quality480p:
 		profileID = Quality480p1800k
 	case transcode.Quality720p:
-		profileID = Quality720p2500k
+		profileID = Quality720p4000k // Use 4Mbps as default for "720p"
 	case transcode.Quality1080p:
-		profileID = Quality1080p6000k
+		profileID = Quality1080p8000k // Use 8Mbps as default for "1080p"
 	case transcode.Quality4K:
-		profileID = Quality4k25000k
+		profileID = Quality4k25000k // Use 25Mbps as default for "4k"
 	default:
 		return nil, fmt.Errorf("%w: %s", transcode.ErrInvalidQuality, quality)
 	}
 	return GetAdaptiveProfile(profileID)
+}
+
+// convertQualityToProfileID converts user-friendly quality names to internal profile IDs.
+// e.g., "4k-60m" -> "4k-60000k", "1080p-12m" -> "1080p-12000k"
+func convertQualityToProfileID(quality string) string {
+	// Map of user-friendly suffixes to internal format
+	bitrateMapping := map[string]string{
+		// 480p variants
+		"480p-2m": Quality480p1800k, // closest match
+
+		// 720p variants
+		"720p-3m": Quality720p2500k,
+		"720p-6m": Quality720p5500k, // closest match
+
+		// 1080p variants
+		"1080p-6m":  Quality1080p6000k,
+		"1080p-12m": Quality1080p12000k,
+		"1080p-15m": Quality1080p16000k, // closest match
+		"1080p-20m": Quality1080p16000k, // closest match
+
+		// 4K variants
+		"4k-20m":  Quality4k16000k, // closest match
+		"4k-25m":  Quality4k25000k,
+		"4k-35m":  Quality4k35000k,
+		"4k-50m":  Quality4k50000k,
+		"4k-60m":  Quality4k50000k, // closest match
+		"4k-80m":  Quality4k80000k,
+		"4k-100m": Quality4k100000k,
+		"4k-120m": Quality4k120000k,
+	}
+
+	if profileID, exists := bitrateMapping[quality]; exists {
+		return profileID
+	}
+	return quality
 }
 
 // applyAudioSettings configures audio parameters based on quality tier and resolution.

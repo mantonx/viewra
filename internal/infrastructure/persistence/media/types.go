@@ -105,7 +105,7 @@ func buildPostgresCreateParams(m *media.Media) sqlc_postgres.CreateMediaParams {
 		ColorPrimaries:    common.NullString(m.ColorPrimaries),
 		ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-		ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
+		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
 		QualityScore:      sql.NullInt32{},    // TODO: Calculate heuristic
 		Is3d:              common.NullBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
 		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),
@@ -141,7 +141,7 @@ func buildSQLiteCreateParams(m *media.Media) sqlc_sqlite.CreateMediaParams {
 		ColorPrimaries:    common.NullString(m.ColorPrimaries),
 		ThumbnailPath:     sql.NullString{},   // TODO: Generate during scan
 		SourceType:        common.NullString(media.DetectSourceType(m.FilePath)),
-		ResolutionLabel:   common.NullString(media.CalculateResolutionLabel(m.Height)),
+		ResolutionLabel:   common.NullString(media.CalculateResolutionLabelFromDimensions(m.Width, m.Height)),
 		QualityScore:      sql.NullInt64{},    // TODO: Calculate heuristic
 		Is3d:              common.NullBool(func() bool { is3d, _ := media.Detect3D(m.FilePath); return is3d }()),
 		StereoMode:        common.NullString(func() string { _, stereoMode := media.Detect3D(m.FilePath); return stereoMode }()),

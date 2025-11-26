@@ -10,6 +10,7 @@ export interface QualityOption {
   canDirectPlay?: boolean
   needsTranscode?: boolean
   isRecommended?: boolean
+  isOriginal?: boolean  // True if this is the source/original quality
   description?: string
   index?: number
 }
@@ -111,12 +112,24 @@ export const QualitySelector = ({
 
   const getQualityKey = (q: QualityOption) => `${q.height}-${q.bandwidth}`
 
+  // Check if the current quality is the original
+  const isCurrentOriginal = useMemo(() => {
+    if (!currentQuality || !currentBandwidth) return false
+    const currentOption = availableQualities.find(
+      q => q.height === currentQuality && q.bandwidth === currentBandwidth
+    )
+    return currentOption?.isOriginal ?? false
+  }, [currentQuality, currentBandwidth, availableQualities])
+
   const getQualityDisplayText = () => {
     if (autoMode) {
       return currentQuality ? `Auto (${currentQuality}p)` : 'Auto'
     }
     if (currentQuality && currentBandwidth) {
       const mbps = currentBandwidth / 1_000_000
+      if (isCurrentOriginal) {
+        return `${currentQuality}p Original`
+      }
       if (mbps >= 1) {
         return `${currentQuality}p ${mbps.toFixed(0)}M`
       }
@@ -157,7 +170,12 @@ export const QualitySelector = ({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             {isNested ? (
-              <span className="text-white text-sm">{formatBandwidth(quality.bandwidth)}</span>
+              <>
+                <span className="text-white text-sm">{formatBandwidth(quality.bandwidth)}</span>
+                {quality.isOriginal && (
+                  <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
+                )}
+              </>
             ) : (
               <span className="text-white text-sm font-medium">{quality.height}p</span>
             )}
