@@ -8,6 +8,7 @@ import (
 // Quality levels for transcoding
 const (
 	Quality360p  = "360p"
+	Quality480p  = "480p"
 	Quality720p  = "720p"
 	Quality1080p = "1080p"
 	Quality4K    = "4k"

@@ -1,6 +1,6 @@
 import { useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import { useContext, useEffect, useRef, useState } from 'react'
-import { text, bg, glassStyles } from '@/styles/semantic'
+import { text, bg, glassStyles, animation, animationStyles } from '@/styles/semantic'
 import { ThemeContext } from '@/contexts/ThemeContext'
 import { cn } from '@/lib/utils'
 import type { AudioPlayerProps } from './AudioPlayer.types'
@@ -20,6 +20,8 @@ import {
   VolumeX,
   Loader2,
   ListMusic,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 const formatTime = (seconds: number): string => {
@@ -45,6 +47,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
     duration,
     repeatMode,
     isShuffle,
+    isMinimized,
     togglePlayPause,
     playNext,
     playPrevious,
@@ -53,6 +56,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
     toggleMute,
     toggleRepeat,
     toggleShuffle,
+    toggleMinimized,
+    setMinimized,
   } = useAudioPlayer()
 
   const [isSeeking, setIsSeeking] = useState(false)
@@ -188,6 +193,138 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
     return <Volume2 size={18} />
   }
 
+  // Minimized player view - full width translucent bar
+  if (isMinimized) {
+    return (
+      <div
+        className={cn(
+          'fixed bottom-0 left-0 right-0 z-50 border-t shadow-lg',
+          bg.elevated,
+          'border-neutral-200 dark:border-neutral-800',
+          animation.classes.slideUpMedium,
+          className
+        )}
+        style={{
+          ...glassStyles.medium(theme === 'dark'),
+          ...animationStyles.slideUp(animation.duration.moderate),
+        }}
+      >
+        {/* Progress bar at top */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-200 dark:bg-neutral-700">
+          <div
+            className="h-full bg-primary-500 transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <div className="max-w-screen-2xl mx-auto px-4 py-2">
+          <div className="flex items-center gap-3">
+            {/* Album art */}
+            <div
+              className={cn(
+                'w-10 h-10 rounded overflow-hidden shrink-0',
+                bg.tertiary
+              )}
+            >
+              <MediaPoster
+                mediaId={currentTrack.id}
+                mediaType="media"
+                alt={currentTrack.album || currentTrack.title}
+                className="w-full h-full object-cover"
+                preset="thumb"
+                aspectRatio="square"
+                fallbackIcon="🎵"
+              />
+            </div>
+
+            {/* Track info */}
+            <div className="flex-1 min-w-0">
+              <p className={cn('text-sm font-medium truncate', text.primary)}>
+                {currentTrack.title}
+              </p>
+              <p className={cn('text-xs truncate', text.tertiary)}>
+                {currentTrack.artist || 'Unknown Artist'}
+              </p>
+            </div>
+
+            {/* Playback controls */}
+            <div className="flex items-center gap-1">
+              {/* Previous */}
+              <button
+                onClick={playPrevious}
+                className={cn(
+                  'p-2 rounded cursor-pointer',
+                  animation.button.pronounced,
+                  bg.hover.default,
+                  text.tertiary
+                )}
+                title="Previous"
+                aria-label="Previous track"
+              >
+                <SkipBack size={18} />
+              </button>
+
+              {/* Play/Pause */}
+              <button
+                onClick={togglePlayPause}
+                className={cn(
+                  'p-2 min-h-10 min-w-10 flex items-center justify-center bg-primary-600 rounded-full',
+                  'hover:bg-primary-700 text-white cursor-pointer',
+                  animation.button.subtle
+                )}
+                title={isLoading ? 'Loading...' : isPlaying ? 'Pause' : 'Play'}
+                aria-label={isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'}
+              >
+                {isLoading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : isPlaying ? (
+                  <Pause size={18} />
+                ) : (
+                  <Play size={18} className="ml-0.5" />
+                )}
+              </button>
+
+              {/* Next */}
+              <button
+                onClick={playNext}
+                className={cn(
+                  'p-2 rounded cursor-pointer',
+                  animation.button.pronounced,
+                  bg.hover.default,
+                  text.tertiary
+                )}
+                title="Next"
+                aria-label="Next track"
+              >
+                <SkipForward size={18} />
+              </button>
+            </div>
+
+            {/* Time display */}
+            <div className={cn('text-xs tabular-nums hidden sm:block', text.tertiary)}>
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </div>
+
+            {/* Expand button */}
+            <button
+              onClick={() => setMinimized(false)}
+              className={cn(
+                'p-2 rounded cursor-pointer',
+                animation.button.pronounced,
+                bg.hover.default,
+                text.tertiary
+              )}
+              title="Expand player"
+              aria-label="Expand player"
+            >
+              <ChevronUp size={18} className="transition-transform hover:-translate-y-0.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <div
@@ -196,10 +333,12 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
           bg.elevated,
           'border-neutral-200 dark:border-neutral-800',
           'shadow-2xl',
+          animation.classes.slideUpLarge,
           className
         )}
         style={{
           ...glassStyles.medium(theme === 'dark'),
+          ...animationStyles.slideUp(animation.duration.slow),
         }}
       >
         <div className="max-w-screen-2xl mx-auto px-6 py-3">
@@ -237,7 +376,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               <button
                 onClick={() => setShowAlbumArt(true)}
                 className={cn(
-                  'w-20 h-20 rounded-lg overflow-hidden flex-shrink-0',
+                  'w-20 h-20 rounded-lg overflow-hidden shrink-0',
                   'transition-transform hover:scale-105 cursor-pointer',
                   'shadow-lg',
                   bg.tertiary
@@ -274,7 +413,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               <button
                 onClick={toggleShuffle}
                 className={cn(
-                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
+                  animation.button.pronounced,
                   bg.hover.default,
                   isShuffle ? 'text-primary-500' : text.tertiary
                 )}
@@ -288,7 +428,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               <button
                 onClick={playPrevious}
                 className={cn(
-                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
+                  animation.button.pronounced,
                   bg.hover.default,
                   text.primary
                 )}
@@ -301,7 +442,11 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               {/* Play/Pause */}
               <button
                 onClick={togglePlayPause}
-                className="p-3 min-h-[52px] min-w-[52px] flex items-center justify-center bg-primary-600 rounded-full hover:bg-primary-700 transition-colors text-white cursor-pointer"
+                className={cn(
+                  'p-3 min-h-[52px] min-w-[52px] flex items-center justify-center bg-primary-600 rounded-full',
+                  'hover:bg-primary-700 text-white cursor-pointer',
+                  animation.button.subtle
+                )}
                 title={isLoading ? 'Loading...' : isPlaying ? 'Pause' : 'Play'}
                 aria-label={isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'}
                 disabled={isLoading}
@@ -319,7 +464,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               <button
                 onClick={playNext}
                 className={cn(
-                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
+                  animation.button.pronounced,
                   bg.hover.default,
                   text.primary
                 )}
@@ -333,7 +479,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               <button
                 onClick={toggleRepeat}
                 className={cn(
-                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
+                  animation.button.pronounced,
                   bg.hover.default,
                   repeatMode !== 'off' ? 'text-primary-500' : text.tertiary
                 )}
@@ -348,7 +495,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
             <button
               onClick={() => setShowQueue(!showQueue)}
               className={cn(
-                'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
+                animation.button.pronounced,
                 bg.hover.default,
                 showQueue ? 'text-primary-500' : text.tertiary
               )}
@@ -363,7 +511,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               <button
                 onClick={toggleMute}
                 className={cn(
-                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded transition-colors cursor-pointer',
+                  'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
+                  animation.button.pronounced,
                   bg.hover.default,
                   isMuted ? 'text-primary-500' : text.tertiary
                 )}
@@ -375,7 +524,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               <button
                 onClick={() => setShowVolumeSlider(!showVolumeSlider)}
                 className={cn(
-                  'text-xs px-2 py-1 rounded transition-colors cursor-pointer',
+                  'text-xs px-2 py-1 rounded cursor-pointer',
+                  animation.button.subtle,
                   bg.hover.default,
                   text.tertiary
                 )}
@@ -389,9 +539,14 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
                 <div
                   className={cn(
                     'absolute bottom-full right-0 mb-2 rounded-lg shadow-xl p-4 border',
+                    animation.classes.slideUpSmall,
                     bg.elevated,
                     'border-neutral-200 dark:border-neutral-800'
                   )}
+                  style={{
+                    ...glassStyles.medium(theme === 'dark'),
+                    ...animationStyles.popup(),
+                  }}
                 >
                   <input
                     type="range"
@@ -415,6 +570,21 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
                 </div>
               )}
             </div>
+
+            {/* Minimize button */}
+            <button
+              onClick={toggleMinimized}
+              className={cn(
+                'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
+                animation.button.pronounced,
+                bg.hover.default,
+                text.tertiary
+              )}
+              title="Minimize player"
+              aria-label="Minimize player"
+            >
+              <ChevronDown size={18} className="transition-transform hover:translate-y-0.5" />
+            </button>
           </div>
         </div>
 
@@ -450,7 +620,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
       {/* Album Art Modal */}
       {showAlbumArt && currentTrack && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
           onClick={() => setShowAlbumArt(false)}
         >
           <div className="relative w-[85vw] h-[85vh] max-w-5xl p-8 animate-in zoom-in-95 duration-300">

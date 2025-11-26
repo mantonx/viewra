@@ -159,7 +159,7 @@ const SeasonDetail = () => {
     <div className="fixed bottom-24 right-8 z-50">
       <button
         onClick={handlePlayNextEpisode}
-        className="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
+        className="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-semibold"
       >
         <span>Next Episode</span>
         <span>→</span>

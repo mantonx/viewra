@@ -620,6 +620,8 @@ func GetAdaptiveProfileForQuality(quality string) (*AdaptiveProfile, error) {
 	switch quality {
 	case transcode.Quality360p:
 		profileID = Quality360p800k
+	case transcode.Quality480p:
+		profileID = Quality480p1800k
 	case transcode.Quality720p:
 		profileID = Quality720p2500k
 	case transcode.Quality1080p:

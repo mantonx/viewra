@@ -96,6 +96,7 @@ export const VirtualMediaGrid = <T extends { id: number }>({
           height: `${totalHeight + 24}px`,
           width: '100%',
           position: 'relative',
+          paddingBottom: '8rem', // Space for audio player
         }}
       >
         {virtualRows.map((virtualRow: VirtualItem) => {

@@ -267,3 +267,83 @@ export const patterns = {
   /** Glass panel - for search bars, toolbars */
   glassPanel: `${glass.light.full} rounded-lg`,
 } as const
+
+/**
+ * Animation Utilities
+ *
+ * Hardware-accelerated CSS animations for smooth UI transitions.
+ * All animations use transform and opacity for GPU acceleration.
+ */
+export const animation = {
+  /** Easing functions */
+  easing: {
+    /** Smooth ease-out curve - great for entrances */
+    easeOut: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    /** Ease-in-out for balanced motion */
+    easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    /** Spring-like bounce effect */
+    spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+  },
+
+  /** Durations */
+  duration: {
+    /** Fast micro-interactions (150ms) */
+    fast: '150ms',
+    /** Standard animations (250ms) */
+    normal: '250ms',
+    /** Moderate animations (350ms) */
+    moderate: '350ms',
+    /** Slow animations for larger elements (400ms) */
+    slow: '400ms',
+  },
+
+  /** Pre-composed Tailwind animation classes for common patterns */
+  classes: {
+    /** Slide up from bottom - small (for popups, tooltips) */
+    slideUpSmall: 'animate-in slide-in-from-bottom-1 fade-in fill-mode-both',
+    /** Slide up from bottom - medium (for modals, panels) */
+    slideUpMedium: 'animate-in slide-in-from-bottom-2 fade-in fill-mode-both',
+    /** Slide up from bottom - large (for full panels, sidebars) */
+    slideUpLarge: 'animate-in slide-in-from-bottom-4 fade-in fill-mode-both',
+    /** Fade in only */
+    fadeIn: 'animate-in fade-in fill-mode-both',
+    /** Scale up with fade (for modals) */
+    scaleIn: 'animate-in zoom-in-95 fade-in fill-mode-both',
+  },
+
+  /** Button interaction styles */
+  button: {
+    /** Subtle scale effect on hover/active */
+    subtle: 'transition-transform hover:scale-105 active:scale-95',
+    /** More pronounced scale effect */
+    pronounced: 'transition-transform hover:scale-110 active:scale-95',
+  },
+} as const
+
+/**
+ * Animation Style Objects (for inline styles when needed)
+ *
+ * Use these when you need fine-grained control over animation properties.
+ */
+export const animationStyles = {
+  /** Get animation style for slide-up animations */
+  slideUp: (duration: string = animation.duration.moderate) => ({
+    willChange: 'transform, opacity',
+    animationDuration: duration,
+    animationTimingFunction: animation.easing.easeOut,
+  }),
+
+  /** Get animation style for popups/tooltips (faster) */
+  popup: () => ({
+    willChange: 'transform, opacity',
+    animationDuration: animation.duration.normal,
+    animationTimingFunction: animation.easing.easeOut,
+  }),
+
+  /** Get animation style for modals (slower, more dramatic) */
+  modal: () => ({
+    willChange: 'transform, opacity',
+    animationDuration: animation.duration.slow,
+    animationTimingFunction: animation.easing.easeOut,
+  }),
+} as const

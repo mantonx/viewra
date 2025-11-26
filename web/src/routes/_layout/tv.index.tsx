@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { TVShowCard, TVShowListItem } from '@/components/tv'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
-import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvider } from '@/lib/hooks'
+import { useLibraryFilter, useInfiniteTVShows, flattenTVShows, BatchImagesProvider, useDebounce } from '@/lib/hooks'
 import { tvApi } from '@/lib/api/tv'
-import type { ViewMode } from '@/components/common'
+import type { FilterState, ViewMode } from '@/components/common'
 import type { GithubComMantonxViewraInternalApplicationTvTVShowSummary } from '@/lib/api/generated/models'
 import type { TVShowSummary } from '@/lib/types/tv'
 
@@ -13,6 +13,10 @@ const TVShows = () => {
   const search = Route.useSearch() as {
     q?: string
     sort?: string
+    genres?: string
+    yearMin?: number
+    yearMax?: number
+    watched?: string
     view?: ViewMode
   }
 
@@ -23,7 +27,15 @@ const TVShows = () => {
   const handleSearchChange = (q: string) => {
     navigate({
       to: '/tv',
-      search: { q: q || undefined, sort: search.sort || undefined, view: search.view },
+      search: {
+        q: q || undefined,
+        sort: search.sort || undefined,
+        genres: search.genres,
+        yearMin: search.yearMin,
+        yearMax: search.yearMax,
+        watched: search.watched,
+        view: search.view,
+      },
       replace: true,
     })
   }
@@ -31,7 +43,31 @@ const TVShows = () => {
   const handleSortChange = (sort: string) => {
     navigate({
       to: '/tv',
-      search: { q: search.q || undefined, sort: sort === 'title-asc' ? undefined : sort, view: search.view },
+      search: {
+        q: search.q || undefined,
+        sort: sort === 'title-asc' ? undefined : sort,
+        genres: search.genres,
+        yearMin: search.yearMin,
+        yearMax: search.yearMax,
+        watched: search.watched,
+        view: search.view,
+      },
+      replace: true,
+    })
+  }
+
+  const handleFiltersChange = (filters: FilterState) => {
+    navigate({
+      to: '/tv',
+      search: {
+        q: search.q || undefined,
+        sort: search.sort || undefined,
+        genres: filters.genres && filters.genres.length > 0 ? filters.genres.join(',') : undefined,
+        yearMin: filters.yearMin,
+        yearMax: filters.yearMax,
+        watched: filters.watchedFilter !== 'all' ? filters.watchedFilter : undefined,
+        view: search.view,
+      },
       replace: true,
     })
   }
@@ -39,7 +75,15 @@ const TVShows = () => {
   const handleViewModeChange = (viewMode: ViewMode) => {
     navigate({
       to: '/tv',
-      search: { q: search.q || undefined, sort: search.sort || undefined, view: viewMode === 'grid' ? undefined : viewMode },
+      search: {
+        q: search.q || undefined,
+        sort: search.sort || undefined,
+        genres: search.genres,
+        yearMin: search.yearMin,
+        yearMax: search.yearMax,
+        watched: search.watched,
+        view: viewMode === 'grid' ? undefined : viewMode,
+      },
       replace: true,
     })
   }
@@ -48,7 +92,10 @@ const TVShows = () => {
   // Always use a sort value (default to title_asc) to ensure consistent query keys
   const apiSort = (search.sort || 'title-asc').replace(/-/g, '_')
 
-  // Use infinite scroll for TV shows
+  // Debounce search query to avoid too many API calls while typing
+  const debouncedSearch = useDebounce(search.q || '', 300)
+
+  // Use infinite scroll for TV shows with server-side search
   const {
     data,
     isLoading,
@@ -56,9 +103,43 @@ const TVShows = () => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteTVShows({ libraryId, sort: apiSort })
+  } = useInfiniteTVShows({ libraryId, sort: apiSort, search: debouncedSearch })
 
   const allShows = data ? flattenTVShows(data.pages as Array<{ shows?: GithubComMantonxViewraInternalApplicationTvTVShowSummary[] }>) : []
+
+  // Extract unique genres and year range from shows
+  const { genres, yearRange } = useMemo(() => {
+    const genreSet = new Set<string>()
+    let minYear = Infinity
+    let maxYear = -Infinity
+
+    allShows.forEach((show) => {
+      // Collect genres
+      if (show.genre) {
+        show.genre.forEach((g) => genreSet.add(g))
+      }
+
+      // Track year range
+      if (show.year) {
+        minYear = Math.min(minYear, show.year)
+        maxYear = Math.max(maxYear, show.year)
+      }
+    })
+
+    return {
+      genres: Array.from(genreSet).sort(),
+      yearRange: minYear !== Infinity ? { min: minYear, max: maxYear } : undefined,
+    }
+  }, [allShows])
+
+  // Parse initial filters from URL
+  const initialFilters: FilterState = useMemo(() => ({
+    genres: search.genres ? search.genres.split(',') : [],
+    yearMin: search.yearMin,
+    yearMax: search.yearMax,
+    qualities: [],
+    watchedFilter: (search.watched as 'all' | 'watched' | 'unwatched') || 'all',
+  }), [search.genres, search.yearMin, search.yearMax, search.watched])
 
   // Calculate responsive columns and estimated row height for virtualization
   const [columns, setColumns] = useState(6)
@@ -151,12 +232,21 @@ const TVShows = () => {
         )}
         onItemSelect={(show) => handleShowClick(show.id)}
         getItemSearchText={(show) => show.title || ''}
-        initialSearch={search.q}
+        initialSearch={search.q || ''}
         initialSort={search.sort || 'title-asc'}
+        initialFilters={initialFilters}
         initialViewMode={search.view || 'grid'}
         onSearchChange={handleSearchChange}
         onSortChange={handleSortChange}
+        onFiltersChange={handleFiltersChange}
         onViewModeChange={handleViewModeChange}
+        serverSideSearch={true}
+        enableAdvancedFilters={true}
+        genres={genres}
+        yearRange={yearRange}
+        showWatchedFilter={true}
+        getItemGenres={(show) => show.genre}
+        getItemYear={(show) => show.year}
         customGridRenderer={
           <VirtualMediaGrid
             items={allShows}
@@ -187,11 +277,19 @@ export const Route = createFileRoute('/_layout/tv/')({
   validateSearch: (search: Record<string, unknown>) => {
     const q = typeof search.q === 'string' ? search.q : undefined
     const sort = typeof search.sort === 'string' ? search.sort : undefined
+    const genres = typeof search.genres === 'string' ? search.genres : undefined
+    const yearMin = typeof search.yearMin === 'number' ? search.yearMin : typeof search.yearMin === 'string' ? parseInt(search.yearMin, 10) : undefined
+    const yearMax = typeof search.yearMax === 'number' ? search.yearMax : typeof search.yearMax === 'string' ? parseInt(search.yearMax, 10) : undefined
+    const watched = typeof search.watched === 'string' ? search.watched : undefined
     const view = typeof search.view === 'string' && (search.view === 'grid' || search.view === 'list') ? search.view as ViewMode : undefined
 
     return {
       q,
       sort,
+      genres,
+      yearMin: yearMin && !isNaN(yearMin) ? yearMin : undefined,
+      yearMax: yearMax && !isNaN(yearMax) ? yearMax : undefined,
+      watched,
       view,
     }
   },

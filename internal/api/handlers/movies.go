@@ -37,6 +37,7 @@ func NewMoviesHandler(
 // @Tags movies
 // @Produce json
 // @Param library_id query int true "Library ID to filter movies"
+// @Param q query string false "Search query to filter movies by title"
 // @Param limit query int false "Number of items per page (default: 50, max: 200)"
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
@@ -57,6 +58,21 @@ func (h *MoviesHandler) List(c *gin.Context) {
 	sortBy := c.Query("sort")
 	if sortBy == "" {
 		sortBy = "title_asc"
+	}
+
+	// Parse optional search query
+	query := c.Query("q")
+
+	// If search query is provided, use search endpoint
+	if query != "" {
+		paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sortBy)
+		resp, err := h.searchMovies.ExecuteWithPagination(c.Request.Context(), libraryID, query, paginationParams)
+		if err != nil {
+			handleError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+		return
 	}
 
 	// If pagination parameters were provided, use paginated endpoint

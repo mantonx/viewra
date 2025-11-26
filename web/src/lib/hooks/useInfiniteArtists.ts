@@ -13,14 +13,15 @@ import type {
 export interface UseInfiniteArtistsOptions {
   libraryId: number
   sort?: string
+  search?: string
   enabled?: boolean
   pageSize?: number
 }
 
-export const useInfiniteArtists = ({ libraryId, sort, enabled = true, pageSize }: UseInfiniteArtistsOptions) => {
+export const useInfiniteArtists = ({ libraryId, sort, search, enabled = true, pageSize }: UseInfiniteArtistsOptions) => {
   // Wrapper function to ensure proper typing for useInfiniteMedia
   const queryFn = async (
-    params: { library_id: number; sort?: string; limit?: number; offset?: number },
+    params: { library_id: number; sort?: string; q?: string; limit?: number; offset?: number },
     options?: RequestInit
   ): Promise<{ data: GithubComMantonxViewraInternalApplicationMusicListArtistsResponse; status: number; headers: Headers }> => {
     const response = await getApiMusicArtists(params, options)
@@ -28,9 +29,10 @@ export const useInfiniteArtists = ({ libraryId, sort, enabled = true, pageSize }
   }
 
   return useInfiniteMedia({
-    queryKey: ['music', 'artists', sort || 'title_asc'],
+    // Include search in query key so results are cached separately per search term
+    queryKey: ['music', 'artists', sort || 'title_asc', search || ''],
     queryFn,
-    params: { library_id: libraryId, sort },
+    params: { library_id: libraryId, sort, q: search || undefined },
     enabled,
     pageSize,
   })

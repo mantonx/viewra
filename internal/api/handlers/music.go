@@ -43,8 +43,10 @@ func NewMusicHandler(
 // @Tags music
 // @Produce json
 // @Param library_id query int true "Library ID to filter artists"
+// @Param q query string false "Search query to filter artists by name"
 // @Param limit query int false "Number of items per page (default: 50, max: 200)"
 // @Param offset query int false "Number of items to skip (default: 0)"
+// @Param sort query string false "Sort order: title_asc or title_desc (default: title_asc)"
 // @Success 200 {object} music.ListArtistsResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
@@ -58,9 +60,27 @@ func (h *MusicHandler) ListArtists(c *gin.Context) {
 	// Parse optional pagination and sort parameters
 	pagination := parsePaginationParams(c)
 	sort := c.Query("sort")
+	if sort == "" {
+		sort = "title_asc"
+	}
+
+	// Parse optional search query
+	query := c.Query("q")
+
+	// If search query is provided, use search endpoint
+	if query != "" {
+		paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sort)
+		resp, err := h.listArtists.ExecuteWithSearch(c.Request.Context(), libraryID, query, paginationParams)
+		if err != nil {
+			handleError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+		return
+	}
 
 	// If pagination parameters were provided, use paginated endpoint
-	if c.Query("limit") != "" || c.Query("offset") != "" || sort != "" {
+	if c.Query("limit") != "" || c.Query("offset") != "" {
 		paginationParams := common.NewPaginationParamsWithSort(pagination.limit, pagination.offset, sort)
 		resp, err := h.listArtists.ExecuteWithPagination(c.Request.Context(), libraryID, paginationParams)
 		if err != nil {

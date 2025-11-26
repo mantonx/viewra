@@ -72,7 +72,7 @@ const ShowDetail = () => {
   }
 
   const handleBackClick = () => {
-    navigate({ to: '/tv', search: { q: undefined, sort: undefined, view: undefined } })
+    navigate({ to: '/tv', search: { q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, watched: undefined, view: undefined } })
   }
 
   if (isLoading) {

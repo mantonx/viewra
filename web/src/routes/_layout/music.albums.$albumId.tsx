@@ -12,7 +12,7 @@ const AlbumDetail = () => {
   const navigate = useNavigate()
   const { albumId } = Route.useParams()
   const albumIdNum = parseInt(albumId, 10)
-  const { playTrack, playQueue, currentTrack } = useAudioPlayer()
+  const { playQueue, currentTrack } = useAudioPlayer()
 
   const {
     data: tracksData,
@@ -43,9 +43,15 @@ const AlbumDetail = () => {
   const albumName = albumMetadata?.album || 'Album'
   const artistName = albumMetadata?.album_artist || albumMetadata?.artist || 'Unknown Artist'
 
-  // Handle clicking on a track
+  // Handle clicking on a track - queue all tracks starting from clicked one
   const handleTrackClick = (track: MusicTrackResponse) => {
-    playTrack(track)
+    const trackIndex = sortedTracks.findIndex((t) => t.id === track.id)
+    if (trackIndex !== -1) {
+      playQueue(sortedTracks as MusicTrackResponse[], trackIndex)
+    } else {
+      // Fallback to single track if not found (shouldn't happen)
+      playQueue([track], 0)
+    }
   }
 
   // Handle play all

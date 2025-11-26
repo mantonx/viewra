@@ -31,7 +31,7 @@ const Index = () => {
           </Link>
           <Link
             to="/tv"
-            search={{ q: undefined, sort: undefined, view: undefined }}
+            search={{ q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, watched: undefined, view: undefined }}
             className="px-4 py-2 bg-neutral-600 dark:bg-neutral-700 text-white rounded hover:bg-neutral-700 dark:hover:bg-neutral-600 transition-colors"
           >
             Browse TV Shows

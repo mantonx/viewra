@@ -124,8 +124,8 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     }
 
     // Build master manifest URL with resume position
-    // Master playlist provides all available quality levels for adaptive bitrate streaming
-    // HLS.js will parse all variants and enable quality switching in the player
+    // Master playlist provides all available quality levels for ABR (Adaptive Bitrate) streaming.
+    // HLS.js will automatically switch between qualities based on network conditions.
     let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/master.m3u8`
     if (resumePosition > 0) {
       manifestUrl += `?start=${resumePosition}`

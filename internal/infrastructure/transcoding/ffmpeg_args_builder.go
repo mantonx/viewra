@@ -65,6 +65,19 @@ func (b *FFmpegArgsBuilder) AddSeekPosition() *FFmpegArgsBuilder {
 	return b
 }
 
+// AddFastInputOptions adds options to speed up input file analysis.
+// This reduces startup latency by limiting how much FFmpeg analyzes before starting.
+func (b *FFmpegArgsBuilder) AddFastInputOptions() *FFmpegArgsBuilder {
+	b.args = append(b.args,
+		// Limit input analysis to 5 seconds / 5MB for faster startup
+		"-analyzeduration", "5000000",
+		"-probesize", "5000000",
+		// Generate timestamps and discard corrupt frames for smoother playback
+		"-fflags", "+genpts+discardcorrupt+fastseek",
+	)
+	return b
+}
+
 // AddInput adds the input file argument.
 func (b *FFmpegArgsBuilder) AddInput() *FFmpegArgsBuilder {
 	b.args = append(b.args, "-i", b.opts.InputPath)
@@ -409,7 +422,15 @@ func (b *FFmpegArgsBuilder) AddAudioDownmix() *FFmpegArgsBuilder {
 	return b
 }
 
+// AddCopyTimestamps preserves original timestamps when copying streams.
+// This reduces processing overhead for remux operations.
+func (b *FFmpegArgsBuilder) AddCopyTimestamps() *FFmpegArgsBuilder {
+	b.args = append(b.args, "-copyts")
+	return b
+}
+
 // AddHLSOutput adds HLS output settings (without output file - use AddOutputFile() separately).
+// Uses MPEG-TS segments for maximum compatibility and fast startup.
 func (b *FFmpegArgsBuilder) AddHLSOutput() *FFmpegArgsBuilder {
 	p := b.opts.Profile
 	segmentPath := filepath.Join(b.opts.OutputDir, SegmentFilenameFormat)
@@ -425,7 +446,9 @@ func (b *FFmpegArgsBuilder) AddHLSOutput() *FFmpegArgsBuilder {
 		"-hls_time", strconv.Itoa(p.SegmentDuration),
 		"-hls_playlist_type", "event",
 		"-hls_segment_filename", segmentPath,
+		// Use MPEG-TS for fast startup (each segment is self-contained)
 		"-hls_segment_type", "mpegts",
+		// independent_segments: each segment can be decoded independently
 		"-hls_flags", "independent_segments",
 		"-start_number", strconv.Itoa(startSegmentNum),
 	)

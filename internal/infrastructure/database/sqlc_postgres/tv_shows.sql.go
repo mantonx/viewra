@@ -2079,6 +2079,93 @@ func (q *Queries) SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchT
 	return items, nil
 }
 
+const searchTVShowsWithCountsByTitlePaginated = `-- name: SearchTVShowsWithCountsByTitlePaginated :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
+WHERE s.library_id = $1
+  AND (s.title ILIKE $2 OR s.original_title ILIKE $3)
+  AND (med.is_extra = false OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+ORDER BY COALESCE(s.sort_title, s.title) ASC
+LIMIT $4 OFFSET $5
+`
+
+type SearchTVShowsWithCountsByTitlePaginatedParams struct {
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	OriginalTitle sql.NullString `json:"original_title"`
+	Limit         int32          `json:"limit"`
+	Offset        int32          `json:"offset"`
+}
+
+type SearchTVShowsWithCountsByTitlePaginatedRow struct {
+	ID            int32          `json:"id"`
+	LibraryID     int32          `json:"library_id"`
+	Title         string         `json:"title"`
+	Year          sql.NullInt32  `json:"year"`
+	Genre         sql.NullString `json:"genre"`
+	Plot          sql.NullString `json:"plot"`
+	ContentRating sql.NullString `json:"content_rating"`
+	ImdbID        sql.NullString `json:"imdb_id"`
+	TmdbID        sql.NullInt32  `json:"tmdb_id"`
+	SeasonCount   int64          `json:"season_count"`
+	EpisodeCount  int64          `json:"episode_count"`
+}
+
+func (q *Queries) SearchTVShowsWithCountsByTitlePaginated(ctx context.Context, arg SearchTVShowsWithCountsByTitlePaginatedParams) ([]SearchTVShowsWithCountsByTitlePaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchTVShowsWithCountsByTitlePaginated,
+		arg.LibraryID,
+		arg.Title,
+		arg.OriginalTitle,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchTVShowsWithCountsByTitlePaginatedRow{}
+	for rows.Next() {
+		var i SearchTVShowsWithCountsByTitlePaginatedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Title,
+			&i.Year,
+			&i.Genre,
+			&i.Plot,
+			&i.ContentRating,
+			&i.ImdbID,
+			&i.TmdbID,
+			&i.SeasonCount,
+			&i.EpisodeCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTVEpisode = `-- name: UpdateTVEpisode :exec
 UPDATE tv_episodes
 SET show_id = $1,

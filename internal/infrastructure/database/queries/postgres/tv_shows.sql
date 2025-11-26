@@ -509,6 +509,29 @@ WHERE library_id = $1
 ORDER BY sort_title, title
 LIMIT $4 OFFSET $5;
 
+-- name: SearchTVShowsWithCountsByTitlePaginated :many
+SELECT
+    s.id,
+    s.library_id,
+    s.title,
+    s.year,
+    s.genre,
+    s.plot,
+    s.content_rating,
+    s.imdb_id,
+    s.tmdb_id,
+    COUNT(DISTINCT e.season_number) as season_count,
+    COUNT(*) as episode_count
+FROM tv_shows s
+LEFT JOIN tv_episodes e ON s.id = e.show_id
+LEFT JOIN media med ON e.media_id = med.id
+WHERE s.library_id = $1
+  AND (s.title ILIKE $2 OR s.original_title ILIKE $3)
+  AND (med.is_extra = false OR med.is_extra IS NULL)
+GROUP BY s.id, s.library_id, s.title, s.year, s.genre, s.plot, s.content_rating, s.imdb_id, s.tmdb_id
+ORDER BY COALESCE(s.sort_title, s.title) ASC
+LIMIT $4 OFFSET $5;
+
 -- name: ListTVShowIDsByLibraryPaginated :many
 SELECT id
 FROM tv_shows

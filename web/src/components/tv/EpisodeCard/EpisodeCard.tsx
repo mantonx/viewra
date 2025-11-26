@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { MediaPoster } from '@/components/media/MediaPoster'
+import { MediaBadges } from '@/components/media/MediaBadges'
 import { ProgressBar } from '@/components/media/ProgressBar'
 import { HoverPlayButton } from '@/components/common'
-import { useBatchProgress } from '@/lib/hooks'
+import { useBatchProgress, useBadgePreferences } from '@/lib/hooks'
 import { getProgressPercentage, cn } from '@/lib/utils'
 import { formatDuration } from '@/lib/utils/format'
-import { getCodecBadgeColor } from '@/lib/utils/media'
 import { formatResolutionLabel } from '@/lib/utils/quality'
 import { bg, text, shadow } from '@/styles/semantic'
 import type { EpisodeCardProps } from './EpisodeCard.types'
@@ -13,6 +13,7 @@ import type { EpisodeCardProps } from './EpisodeCard.types'
 const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
   const [isHovered, setIsHovered] = useState(false)
   const { progress } = useBatchProgress(episode.id ?? 0)
+  const { preferences } = useBadgePreferences()
 
   const handleClick = () => {
     onClick?.()
@@ -66,24 +67,17 @@ const EpisodeCard = ({ episode, onClick }: EpisodeCardProps) => {
         {/* Badges overlay */}
         <div className="absolute top-2 left-2 right-2 flex justify-between z-10">
           <div className="flex gap-1">
-            <span className="px-2 py-1 text-xs font-semibold bg-indigo-600 text-white rounded">
+            <span className="px-2 py-1 text-xs font-semibold bg-blue-600 text-white rounded">
               {episodeNumber}
             </span>
-            {resolution && (
-              <span className="px-2 py-1 text-xs font-semibold bg-black bg-opacity-75 text-white rounded">
-                {resolution}
-              </span>
-            )}
+            <MediaBadges
+              preferences={preferences}
+              badges={{
+                resolution: resolution ?? undefined,
+                codec: episode.video_codec ?? undefined,
+              }}
+            />
           </div>
-          {episode.video_codec && (
-            <span
-              className={`px-2 py-1 text-xs font-semibold text-white rounded ${getCodecBadgeColor(
-                episode.video_codec
-              )}`}
-            >
-              {episode.video_codec.toUpperCase()}
-            </span>
-          )}
         </div>
         <ProgressBar progress={progress} />
       </div>

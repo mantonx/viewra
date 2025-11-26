@@ -239,7 +239,7 @@ func (s *TranscodeSession) watchSegments() {
 		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
-			// Scan output directory for .ts files
+			// Scan output directory for MPEG-TS segment files
 			pattern := filepath.Join(s.OutputDir, "seg_*.ts")
 			files, err := filepath.Glob(pattern)
 			if err != nil {
@@ -269,7 +269,7 @@ func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration)
 		s.segmentMutex.RUnlock()
 
 		if exists {
-			segmentPath := filepath.Join(s.OutputDir, fmt.Sprintf("seg_%06d.ts", segmentNum))
+			segmentPath := filepath.Join(s.OutputDir, SegmentFilename(segmentNum))
 			return segmentPath, nil
 		}
 
@@ -306,6 +306,30 @@ func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
 	}
 
 	return fmt.Errorf("timeout waiting for manifest file to be created")
+}
+
+// WaitForInitSegment blocks until the fMP4 init segment exists or timeout occurs.
+// Returns the path to the init segment file.
+func (s *TranscodeSession) WaitForInitSegment(timeout time.Duration) (string, error) {
+	initPath := filepath.Join(s.OutputDir, InitSegmentFilename)
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		// Check if init segment exists
+		if _, err := os.Stat(initPath); err == nil {
+			return initPath, nil
+		}
+
+		// Check if process has died
+		if s.FFmpegCmd != nil && s.FFmpegCmd.ProcessState != nil && s.FFmpegCmd.ProcessState.Exited() {
+			return "", fmt.Errorf("ffmpeg process exited before creating init segment")
+		}
+
+		// Poll every 50ms
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return "", fmt.Errorf("timeout waiting for init segment")
 }
 
 // UpdateLastAccessed updates the last accessed timestamp.

@@ -57,6 +57,9 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   getItemYear,
   getItemQuality,
 
+  // Server-side search flag
+  serverSideSearch = false,
+
   // Optional overrides
   additionalFilters,
   customHeader,
@@ -180,10 +183,11 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
 
   // Filter items by debounced search query and advanced filters
   const filteredItems = data.filter((item) => {
-    // Text search filter
-    if (debouncedSearchQuery !== '') {
+    // Text search filter (skip if serverSideSearch is enabled - data is already filtered)
+    if (!serverSideSearch && debouncedSearchQuery !== '') {
       const searchText = getItemSearchText ? getItemSearchText(item) : (item.title || item.name || '')
-      if (!searchText.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) {
+      const matches = searchText.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      if (!matches) {
         return false
       }
     }
@@ -282,7 +286,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   }
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col relative">
+    <div className="h-full overflow-hidden flex flex-col relative">
       <div className={`sticky top-0 z-10 flex-shrink-0 transition-all duration-300 ease-in-out ${isHeaderMinimized ? 'py-2 px-4' : 'p-4 pb-0'}`} style={{ background: 'transparent' }}>
       {/* Page header */}
       <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isHeaderMinimized ? 'max-h-0 opacity-0' : 'max-h-32 opacity-100'}`}>
@@ -355,7 +359,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
 
       {/* Items grid or empty state */}
       <div
-        className={`flex-1 min-h-0 ${viewMode === 'list' || sortedItems.length === 0 ? 'overflow-auto px-4' : 'px-2'}`}
+        className={`flex-1 min-h-0 pb-32 ${viewMode === 'list' || sortedItems.length === 0 ? 'overflow-auto px-4' : 'px-2'}`}
         onScroll={(e) => {
           // Track scroll for header minimization in list view and empty states
           if (viewMode === 'list' || sortedItems.length === 0) {
@@ -386,8 +390,10 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
           </div>
         ) : (
           // Virtual grid renderer (TanStack Virtual handles its own scroll)
+          // Pass filtered/sorted items to the custom grid renderer
           isValidElement(customGridRenderer)
-            ? cloneElement(customGridRenderer as React.ReactElement<{ onScroll?: (scrollTop: number) => void }>, {
+            ? cloneElement(customGridRenderer as React.ReactElement<{ items?: T[]; onScroll?: (scrollTop: number) => void }>, {
+                items: sortedItems,
                 onScroll: (scrollTop: number) => {
                   setIsHeaderMinimized(scrollTop > 100)
                 },

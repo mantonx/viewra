@@ -4,7 +4,7 @@ import { MovieCard } from '@/components/movies'
 import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
-import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider } from '@/lib/hooks'
+import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider, useDebounce } from '@/lib/hooks'
 import { logger } from '@/lib/utils/logger'
 import type { FilterState, ViewMode } from '@/components/common'
 import type { Movie } from '@/lib/types/movies'
@@ -112,7 +112,10 @@ const Movies = () => {
   // Convert sort format from URL (title-asc) to API format (title_asc)
   const apiSort = search.sort?.replace(/-/g, '_')
 
-  // Use infinite scroll for movies
+  // Debounce search query to avoid too many API calls while typing
+  const debouncedSearch = useDebounce(search.q || '', 300)
+
+  // Use infinite scroll for movies with server-side search
   const {
     data,
     isLoading,
@@ -120,7 +123,7 @@ const Movies = () => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteMovies({ libraryId, sort: apiSort, pageSize: 100 })
+  } = useInfiniteMovies({ libraryId, sort: apiSort, search: debouncedSearch, pageSize: 100 })
 
   const allMovies = useMemo(() => data ? flattenMovies(data.pages) : [], [data])
 
@@ -377,6 +380,7 @@ const Movies = () => {
         onSortChange={handleSortChange}
         onFiltersChange={handleFiltersChange}
         onViewModeChange={handleViewModeChange}
+        serverSideSearch={true}
         enableAdvancedFilters={true}
         genres={genres}
         yearRange={yearRange}

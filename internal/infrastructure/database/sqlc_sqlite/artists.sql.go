@@ -22,6 +22,25 @@ func (q *Queries) CountArtistsInLibrary(ctx context.Context, libraryID int64) (i
 	return count, err
 }
 
+const countSearchArtistsByName = `-- name: CountSearchArtistsByName :one
+SELECT COUNT(*) FROM music_artists
+WHERE library_id = ?
+  AND (name LIKE ? OR sort_name LIKE ?)
+`
+
+type CountSearchArtistsByNameParams struct {
+	LibraryID int64          `json:"library_id"`
+	Name      string         `json:"name"`
+	SortName  sql.NullString `json:"sort_name"`
+}
+
+func (q *Queries) CountSearchArtistsByName(ctx context.Context, arg CountSearchArtistsByNameParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSearchArtistsByName, arg.LibraryID, arg.Name, arg.SortName)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createArtist = `-- name: CreateArtist :one
 INSERT INTO music_artists (
     library_id,
@@ -176,6 +195,243 @@ func (q *Queries) GetArtistByMusicBrainzID(ctx context.Context, musicbrainzArtis
 	return i, err
 }
 
+const getArtistsWithCountsByLibrary = `-- name: GetArtistsWithCountsByLibrary :many
+
+SELECT
+    a.id,
+    a.library_id,
+    a.name,
+    a.sort_name,
+    a.musicbrainz_artist_id,
+    a.bio,
+    a.country,
+    a.formed_year,
+    a.genre,
+    a.image_path,
+    COUNT(DISTINCT al.id) as album_count,
+    COUNT(DISTINCT mt.media_id) as track_count
+FROM music_artists a
+LEFT JOIN music_albums al ON a.id = al.artist_id
+LEFT JOIN music_tracks mt ON a.id = mt.artist_id
+WHERE a.library_id = ?
+GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
+ORDER BY a.sort_name, a.name
+`
+
+type GetArtistsWithCountsByLibraryRow struct {
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
+	Name                string         `json:"name"`
+	SortName            sql.NullString `json:"sort_name"`
+	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
+	Bio                 sql.NullString `json:"bio"`
+	Country             sql.NullString `json:"country"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
+	Genre               sql.NullString `json:"genre"`
+	ImagePath           sql.NullString `json:"image_path"`
+	AlbumCount          int64          `json:"album_count"`
+	TrackCount          int64          `json:"track_count"`
+}
+
+// ============================================================================
+// Aggregation Queries for API (optimized)
+// ============================================================================
+func (q *Queries) GetArtistsWithCountsByLibrary(ctx context.Context, libraryID int64) ([]GetArtistsWithCountsByLibraryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getArtistsWithCountsByLibrary, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetArtistsWithCountsByLibraryRow{}
+	for rows.Next() {
+		var i GetArtistsWithCountsByLibraryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Name,
+			&i.SortName,
+			&i.MusicbrainzArtistID,
+			&i.Bio,
+			&i.Country,
+			&i.FormedYear,
+			&i.Genre,
+			&i.ImagePath,
+			&i.AlbumCount,
+			&i.TrackCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getArtistsWithCountsByLibraryPaginated = `-- name: GetArtistsWithCountsByLibraryPaginated :many
+SELECT
+    a.id,
+    a.library_id,
+    a.name,
+    a.sort_name,
+    a.musicbrainz_artist_id,
+    a.bio,
+    a.country,
+    a.formed_year,
+    a.genre,
+    a.image_path,
+    COUNT(DISTINCT al.id) as album_count,
+    COUNT(DISTINCT mt.media_id) as track_count
+FROM music_artists a
+LEFT JOIN music_albums al ON a.id = al.artist_id
+LEFT JOIN music_tracks mt ON a.id = mt.artist_id
+WHERE a.library_id = ?
+GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
+ORDER BY COALESCE(a.sort_name, a.name) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type GetArtistsWithCountsByLibraryPaginatedParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type GetArtistsWithCountsByLibraryPaginatedRow struct {
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
+	Name                string         `json:"name"`
+	SortName            sql.NullString `json:"sort_name"`
+	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
+	Bio                 sql.NullString `json:"bio"`
+	Country             sql.NullString `json:"country"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
+	Genre               sql.NullString `json:"genre"`
+	ImagePath           sql.NullString `json:"image_path"`
+	AlbumCount          int64          `json:"album_count"`
+	TrackCount          int64          `json:"track_count"`
+}
+
+func (q *Queries) GetArtistsWithCountsByLibraryPaginated(ctx context.Context, arg GetArtistsWithCountsByLibraryPaginatedParams) ([]GetArtistsWithCountsByLibraryPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getArtistsWithCountsByLibraryPaginated, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetArtistsWithCountsByLibraryPaginatedRow{}
+	for rows.Next() {
+		var i GetArtistsWithCountsByLibraryPaginatedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Name,
+			&i.SortName,
+			&i.MusicbrainzArtistID,
+			&i.Bio,
+			&i.Country,
+			&i.FormedYear,
+			&i.Genre,
+			&i.ImagePath,
+			&i.AlbumCount,
+			&i.TrackCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getArtistsWithCountsByLibraryPaginatedDesc = `-- name: GetArtistsWithCountsByLibraryPaginatedDesc :many
+SELECT
+    a.id,
+    a.library_id,
+    a.name,
+    a.sort_name,
+    a.musicbrainz_artist_id,
+    a.bio,
+    a.country,
+    a.formed_year,
+    a.genre,
+    a.image_path,
+    COUNT(DISTINCT al.id) as album_count,
+    COUNT(DISTINCT mt.media_id) as track_count
+FROM music_artists a
+LEFT JOIN music_albums al ON a.id = al.artist_id
+LEFT JOIN music_tracks mt ON a.id = mt.artist_id
+WHERE a.library_id = ?
+GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
+ORDER BY COALESCE(a.sort_name, a.name) COLLATE NOCASE DESC
+LIMIT ? OFFSET ?
+`
+
+type GetArtistsWithCountsByLibraryPaginatedDescParams struct {
+	LibraryID int64 `json:"library_id"`
+	Limit     int64 `json:"limit"`
+	Offset    int64 `json:"offset"`
+}
+
+type GetArtistsWithCountsByLibraryPaginatedDescRow struct {
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
+	Name                string         `json:"name"`
+	SortName            sql.NullString `json:"sort_name"`
+	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
+	Bio                 sql.NullString `json:"bio"`
+	Country             sql.NullString `json:"country"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
+	Genre               sql.NullString `json:"genre"`
+	ImagePath           sql.NullString `json:"image_path"`
+	AlbumCount          int64          `json:"album_count"`
+	TrackCount          int64          `json:"track_count"`
+}
+
+func (q *Queries) GetArtistsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetArtistsWithCountsByLibraryPaginatedDescParams) ([]GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
+	rows, err := q.db.QueryContext(ctx, getArtistsWithCountsByLibraryPaginatedDesc, arg.LibraryID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetArtistsWithCountsByLibraryPaginatedDescRow{}
+	for rows.Next() {
+		var i GetArtistsWithCountsByLibraryPaginatedDescRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Name,
+			&i.SortName,
+			&i.MusicbrainzArtistID,
+			&i.Bio,
+			&i.Country,
+			&i.FormedYear,
+			&i.Genre,
+			&i.ImagePath,
+			&i.AlbumCount,
+			&i.TrackCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listArtistsByLibrary = `-- name: ListArtistsByLibrary :many
 SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at FROM music_artists
 WHERE library_id = ?
@@ -204,6 +460,153 @@ func (q *Queries) ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]
 			&i.ImagePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchArtistsByName = `-- name: SearchArtistsByName :many
+SELECT id, library_id, name, sort_name, musicbrainz_artist_id, bio, country, formed_year, genre, image_path, created_at, updated_at FROM music_artists
+WHERE library_id = ?
+  AND (name LIKE ? OR sort_name LIKE ?)
+ORDER BY sort_name, name
+LIMIT ? OFFSET ?
+`
+
+type SearchArtistsByNameParams struct {
+	LibraryID int64          `json:"library_id"`
+	Name      string         `json:"name"`
+	SortName  sql.NullString `json:"sort_name"`
+	Limit     int64          `json:"limit"`
+	Offset    int64          `json:"offset"`
+}
+
+func (q *Queries) SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error) {
+	rows, err := q.db.QueryContext(ctx, searchArtistsByName,
+		arg.LibraryID,
+		arg.Name,
+		arg.SortName,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MusicArtist{}
+	for rows.Next() {
+		var i MusicArtist
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Name,
+			&i.SortName,
+			&i.MusicbrainzArtistID,
+			&i.Bio,
+			&i.Country,
+			&i.FormedYear,
+			&i.Genre,
+			&i.ImagePath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchArtistsWithCountsByNamePaginated = `-- name: SearchArtistsWithCountsByNamePaginated :many
+SELECT
+    a.id,
+    a.library_id,
+    a.name,
+    a.sort_name,
+    a.musicbrainz_artist_id,
+    a.bio,
+    a.country,
+    a.formed_year,
+    a.genre,
+    a.image_path,
+    COUNT(DISTINCT al.id) as album_count,
+    COUNT(DISTINCT mt.media_id) as track_count
+FROM music_artists a
+LEFT JOIN music_albums al ON a.id = al.artist_id
+LEFT JOIN music_tracks mt ON a.id = mt.artist_id
+WHERE a.library_id = ?
+  AND (a.name LIKE ? OR a.sort_name LIKE ?)
+GROUP BY a.id, a.library_id, a.name, a.sort_name, a.musicbrainz_artist_id, a.bio, a.country, a.formed_year, a.genre, a.image_path
+ORDER BY COALESCE(a.sort_name, a.name) COLLATE NOCASE ASC
+LIMIT ? OFFSET ?
+`
+
+type SearchArtistsWithCountsByNamePaginatedParams struct {
+	LibraryID int64          `json:"library_id"`
+	Name      string         `json:"name"`
+	SortName  sql.NullString `json:"sort_name"`
+	Limit     int64          `json:"limit"`
+	Offset    int64          `json:"offset"`
+}
+
+type SearchArtistsWithCountsByNamePaginatedRow struct {
+	ID                  int64          `json:"id"`
+	LibraryID           int64          `json:"library_id"`
+	Name                string         `json:"name"`
+	SortName            sql.NullString `json:"sort_name"`
+	MusicbrainzArtistID sql.NullString `json:"musicbrainz_artist_id"`
+	Bio                 sql.NullString `json:"bio"`
+	Country             sql.NullString `json:"country"`
+	FormedYear          sql.NullInt64  `json:"formed_year"`
+	Genre               sql.NullString `json:"genre"`
+	ImagePath           sql.NullString `json:"image_path"`
+	AlbumCount          int64          `json:"album_count"`
+	TrackCount          int64          `json:"track_count"`
+}
+
+func (q *Queries) SearchArtistsWithCountsByNamePaginated(ctx context.Context, arg SearchArtistsWithCountsByNamePaginatedParams) ([]SearchArtistsWithCountsByNamePaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchArtistsWithCountsByNamePaginated,
+		arg.LibraryID,
+		arg.Name,
+		arg.SortName,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchArtistsWithCountsByNamePaginatedRow{}
+	for rows.Next() {
+		var i SearchArtistsWithCountsByNamePaginatedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LibraryID,
+			&i.Name,
+			&i.SortName,
+			&i.MusicbrainzArtistID,
+			&i.Bio,
+			&i.Country,
+			&i.FormedYear,
+			&i.Genre,
+			&i.ImagePath,
+			&i.AlbumCount,
+			&i.TrackCount,
 		); err != nil {
 			return nil, err
 		}

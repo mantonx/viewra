@@ -10,6 +10,7 @@ import (
 type ListArtistsExecutor interface {
 	Execute(ctx context.Context, libraryID int64) (ListArtistsResponse, error)
 	ExecuteWithPagination(ctx context.Context, libraryID int64, pagination *common.PaginationParams) (ListArtistsResponse, error)
+	ExecuteWithSearch(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) (ListArtistsResponse, error)
 }
 
 // ListAlbumsByArtistIDExecutor defines the interface for listing albums by artist ID

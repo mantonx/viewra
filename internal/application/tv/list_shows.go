@@ -106,3 +106,46 @@ func (uc *ListTVShowsUseCase) ExecuteWithPagination(ctx context.Context, library
 		Pagination: common.NewPaginationMetadata(total, pagination),
 	}, nil
 }
+
+// ExecuteWithSearch searches for TV shows by title with pagination
+func (uc *ListTVShowsUseCase) ExecuteWithSearch(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) (ListTVShowsResponse, error) {
+	if pagination == nil {
+		pagination = common.DefaultPaginationParams()
+	}
+
+	// Get total count of matching shows
+	total, err := uc.repo.CountSearchTVShowsByTitle(ctx, libraryID, query)
+	if err != nil {
+		return ListTVShowsResponse{}, fmt.Errorf("failed to count TV shows: %w", err)
+	}
+
+	// Get paginated search results with counts
+	shows, err := uc.repo.SearchTVShowsWithCountsByTitlePaginated(ctx, libraryID, query, pagination)
+	if err != nil {
+		return ListTVShowsResponse{}, fmt.Errorf("failed to search TV shows: %w", err)
+	}
+
+	// Convert to response
+	responses := make([]TVShowSummary, len(shows))
+	for i, show := range shows {
+		responses[i] = TVShowSummary{
+			ID:            show.ID,
+			LibraryID:     show.LibraryID,
+			Title:         show.Title,
+			Year:          show.Year,
+			Genre:         show.Genre,
+			Plot:          show.Plot,
+			IMDbID:        show.IMDbID,
+			TMDbID:        show.TMDbID,
+			ContentRating: show.ContentRating,
+			SeasonCount:   int(show.SeasonCount),
+			EpisodeCount:  int(show.EpisodeCount),
+		}
+	}
+
+	return ListTVShowsResponse{
+		Shows:      responses,
+		Total:      len(responses),
+		Pagination: common.NewPaginationMetadata(total, pagination),
+	}, nil
+}

@@ -8,14 +8,18 @@ import (
 )
 
 const (
-	// SegmentDuration is the duration of each HLS segment in seconds
-	SegmentDuration = 6
+	// SegmentDuration is the duration of each HLS segment in seconds.
+	// 2 seconds provides faster startup while maintaining reasonable file count.
+	SegmentDuration = 2
 
 	// SegmentFilenameFormat is the format string for segment filenames
 	SegmentFilenameFormat = "seg_%06d.ts"
 
 	// SegmentFilenamePattern is the regex pattern for parsing segment filenames
 	SegmentFilenamePattern = `^seg_(\d{6})\.ts$`
+
+	// InitSegmentFilename is kept for backwards compatibility (not used with MPEG-TS)
+	InitSegmentFilename = "init.mp4"
 )
 
 var segmentFilenameRegex = regexp.MustCompile(SegmentFilenamePattern)

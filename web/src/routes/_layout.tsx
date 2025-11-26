@@ -43,7 +43,7 @@ const Layout = () => {
             </Link>
             <Link
               to="/tv"
-              search={{ q: undefined, sort: undefined, view: undefined }}
+              search={{ q: undefined, sort: undefined, genres: undefined, yearMin: undefined, yearMax: undefined, watched: undefined, view: undefined }}
               className="flex items-center gap-3 px-4 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
               activeProps={{ className: 'bg-neutral-100 dark:bg-neutral-800' }}
             >
@@ -91,7 +91,7 @@ const Layout = () => {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto pb-32">
+        <main className="flex-1 overflow-hidden">
           <Outlet />
         </main>
 

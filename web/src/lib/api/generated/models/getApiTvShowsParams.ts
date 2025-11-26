@@ -12,6 +12,10 @@ export type GetApiTvShowsParams = {
    */
   library_id: number
   /**
+   * Search query to filter shows by title
+   */
+  q?: string
+  /**
    * Number of items per page (default: 50, max: 200)
    */
   limit?: number

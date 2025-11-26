@@ -154,6 +154,7 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	builder := NewFFmpegArgsBuilder(opts).
 		AddLogLevel("error").
 		AddHardwareAccel(GetHardwareAccelArgsWithDevice(e.config.HardwareAccel, e.config.HardwareDevice)).
+		AddFastInputOptions().
 		AddSeekPosition().
 		AddInput().
 		AddStreamMapping().
@@ -177,9 +178,11 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 
 // buildRemuxArgs constructs FFmpeg arguments for remuxing to HLS (copying streams without re-encoding).
 // This is used when video is already H.264 and audio is stereo, but container format needs conversion.
+// Note: Do NOT use -copyts here - it breaks HLS playback when seeking because timestamps won't start at 0.
 func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 	return NewFFmpegArgsBuilder(opts).
 		AddLogLevel("error").
+		AddFastInputOptions().
 		AddSeekPosition().
 		AddInput().
 		AddStreamMapping().
@@ -194,9 +197,11 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 
 // buildRemuxWithAudioDownmixArgs constructs FFmpeg arguments for remuxing with audio downmix.
 // This copies the video stream but re-encodes multi-channel audio to stereo for browser compatibility.
+// Note: Do NOT use -copyts here - it breaks HLS playback when seeking because timestamps won't start at 0.
 func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) []string {
 	return NewFFmpegArgsBuilder(opts).
 		AddLogLevel("error").
+		AddFastInputOptions().
 		AddSeekPosition().
 		AddInput().
 		AddStreamMapping().

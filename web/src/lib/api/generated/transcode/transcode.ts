@@ -40,11 +40,17 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 /**
  * Serves an HLS master playlist (.m3u8) that lists all available quality levels for adaptive streaming.
 The player uses this to select and switch between quality levels based on network conditions.
+If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
  * @summary Serve HLS master playlist
  */
 export type getApiMediaMediaIdHlsMasterM3u8Response200 = {
   data: Blob
   status: 200
+}
+
+export type getApiMediaMediaIdHlsMasterM3u8Response302 = {
+  data: void
+  status: 302
 }
 
 export type getApiMediaMediaIdHlsMasterM3u8Response400 = {
@@ -67,6 +73,7 @@ export type getApiMediaMediaIdHlsMasterM3u8ResponseSuccess =
     headers: Headers
   }
 export type getApiMediaMediaIdHlsMasterM3u8ResponseError = (
+  | getApiMediaMediaIdHlsMasterM3u8Response302
   | getApiMediaMediaIdHlsMasterM3u8Response400
   | getApiMediaMediaIdHlsMasterM3u8Response404
   | getApiMediaMediaIdHlsMasterM3u8Response500
@@ -120,7 +127,7 @@ export const getGetApiMediaMediaIdHlsMasterM3u8QueryKey = (
 
 export const getGetApiMediaMediaIdHlsMasterM3u8QueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = void | InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
   params?: GetApiMediaMediaIdHlsMasterM3u8Params,
@@ -150,11 +157,11 @@ export const getGetApiMediaMediaIdHlsMasterM3u8QueryOptions = <
 export type GetApiMediaMediaIdHlsMasterM3u8QueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>
 >
-export type GetApiMediaMediaIdHlsMasterM3u8QueryError = InternalApiHandlersErrorResponse
+export type GetApiMediaMediaIdHlsMasterM3u8QueryError = void | InternalApiHandlersErrorResponse
 
 export function useGetApiMediaMediaIdHlsMasterM3u8<
   TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = void | InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
   params: undefined | GetApiMediaMediaIdHlsMasterM3u8Params,
@@ -176,7 +183,7 @@ export function useGetApiMediaMediaIdHlsMasterM3u8<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaMediaIdHlsMasterM3u8<
   TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = void | InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
   params?: GetApiMediaMediaIdHlsMasterM3u8Params,
@@ -198,7 +205,7 @@ export function useGetApiMediaMediaIdHlsMasterM3u8<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiMediaMediaIdHlsMasterM3u8<
   TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = void | InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
   params?: GetApiMediaMediaIdHlsMasterM3u8Params,
@@ -216,7 +223,7 @@ export function useGetApiMediaMediaIdHlsMasterM3u8<
 
 export function useGetApiMediaMediaIdHlsMasterM3u8<
   TData = Awaited<ReturnType<typeof getApiMediaMediaIdHlsMasterM3u8>>,
-  TError = InternalApiHandlersErrorResponse,
+  TError = void | InternalApiHandlersErrorResponse,
 >(
   mediaId: number,
   params?: GetApiMediaMediaIdHlsMasterM3u8Params,

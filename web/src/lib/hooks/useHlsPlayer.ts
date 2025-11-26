@@ -10,10 +10,7 @@ const HLS_CONFIG = {
   MAX_BUFFER_HOLE: 2.0, // Maximum gap tolerance (2s for keyframe alignment)
   ENABLE_WORKER: false, // Disable worker - can cause audio issues
   LOW_LATENCY_MODE: false,
-  DEBUG: false, // Disable debug logging for production
-  // Startup optimization: start at lowest quality, switch to auto after buffer fills
-  START_LEVEL: 0, // Start at lowest quality for fast initial buffering
-  AUTO_SWITCH_DELAY_MS: 3000, // Switch to auto ABR after 3 seconds
+  DEBUG: true, // Enable debug logging to diagnose quality drops
 } as const
 
 export interface QualityLevel {
@@ -82,7 +79,8 @@ export const useHlsPlayer = (
       return
     }
 
-    // Create HLS instance
+    // Create HLS instance with ABR enabled
+    // HLS.js will automatically switch between qualities based on network conditions
     const hls = new Hls({
       debug: HLS_CONFIG.DEBUG,
       enableWorker: HLS_CONFIG.ENABLE_WORKER,
@@ -100,27 +98,16 @@ export const useHlsPlayer = (
 
     // Wait for manifest to be parsed
     hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-      // Extract quality levels
+      // Extract quality levels from master playlist
       const qualities = data.levels.map((level, _index) => ({
         height: level.height,
         bandwidth: level.bitrate,
       }))
       setAvailableQualities(qualities)
 
-      // Start at lowest quality for fast initial buffering, then switch to auto
-      // This prevents long initial buffering when starting at high quality
-      hls.startLevel = HLS_CONFIG.START_LEVEL
-      hls.currentLevel = HLS_CONFIG.START_LEVEL
-      setCurrentQuality(HLS_CONFIG.START_LEVEL)
-
-      // Switch to auto ABR after initial buffer fills (3 seconds)
-      // This allows HLS.js to adapt to actual network conditions
-      setTimeout(() => {
-        if (hlsRef.current) {
-          hlsRef.current.currentLevel = -1 // -1 = auto ABR
-          setCurrentQuality(-1)
-        }
-      }, HLS_CONFIG.AUTO_SWITCH_DELAY_MS)
+      // Start with auto ABR - HLS.js will select based on network conditions
+      // currentQuality of -1 indicates auto mode
+      setCurrentQuality(-1)
 
       // Extract audio tracks
       if (data.audioTracks && data.audioTracks.length > 0) {
@@ -171,6 +158,26 @@ export const useHlsPlayer = (
       setCurrentAudioTrack(data.id)
     })
 
+    // Track level switching for debugging quality drops
+    hls.on(Hls.Events.LEVEL_SWITCHING, (_event, data) => {
+      console.log('[HLS] LEVEL_SWITCHING:', {
+        level: data.level,
+        height: hls.levels[data.level]?.height,
+        currentLevel: hls.currentLevel,
+        loadLevel: hls.loadLevel,
+        nextLevel: hls.nextLevel,
+      })
+    })
+
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+      console.log('[HLS] LEVEL_SWITCHED:', {
+        level: data.level,
+        height: hls.levels[data.level]?.height,
+      })
+      // Update our tracked current quality
+      setCurrentQuality(data.level)
+    })
+
     // Cleanup on unmount
     return () => {
       if (hlsRef.current) {
@@ -180,9 +187,10 @@ export const useHlsPlayer = (
     }
   }, [streamUrl, initialPosition, isHlsStream, videoRef, onBuffering, onError])
 
-  // Handle quality change
+  // Handle quality change - supports both auto (-1) and manual (0+) modes
   const handleQualityChange = (level: number) => {
     if (hlsRef.current) {
+      // level -1 = auto ABR, level >= 0 = locked to specific quality
       hlsRef.current.currentLevel = level
       setCurrentQuality(level)
     }

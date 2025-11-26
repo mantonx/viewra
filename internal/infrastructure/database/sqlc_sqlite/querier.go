@@ -34,6 +34,7 @@ type Querier interface {
 	CountMoviesByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountMusicTracksByLibrary(ctx context.Context, libraryID int64) (int64, error)
 	CountScanJobsByLibrary(ctx context.Context, libraryID int64) (int64, error)
+	CountSearchArtistsByName(ctx context.Context, arg CountSearchArtistsByNameParams) (int64, error)
 	CountSearchMoviesByTitle(ctx context.Context, arg CountSearchMoviesByTitleParams) (int64, error)
 	CountSearchTVShowsByTitle(ctx context.Context, arg CountSearchTVShowsByTitleParams) (int64, error)
 	// ============================================================================
@@ -100,6 +101,12 @@ type Querier interface {
 	GetAllRecentExecutions(ctx context.Context, limit int64) ([]TaskExecution, error)
 	GetArtistByID(ctx context.Context, id int64) (MusicArtist, error)
 	GetArtistByMusicBrainzID(ctx context.Context, musicbrainzArtistID sql.NullString) (MusicArtist, error)
+	// ============================================================================
+	// Aggregation Queries for API (optimized)
+	// ============================================================================
+	GetArtistsWithCountsByLibrary(ctx context.Context, libraryID int64) ([]GetArtistsWithCountsByLibraryRow, error)
+	GetArtistsWithCountsByLibraryPaginated(ctx context.Context, arg GetArtistsWithCountsByLibraryPaginatedParams) ([]GetArtistsWithCountsByLibraryPaginatedRow, error)
+	GetArtistsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetArtistsWithCountsByLibraryPaginatedDescParams) ([]GetArtistsWithCountsByLibraryPaginatedDescRow, error)
 	GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error)
 	GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error)
 	GetImageByFilePath(ctx context.Context, filePath sql.NullString) (MediaImage, error)
@@ -213,12 +220,15 @@ type Querier interface {
 	LogTaskExecution(ctx context.Context, arg LogTaskExecutionParams) (TaskExecution, error)
 	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (int64, error)
 	ResetFailedScanCheckpoints(ctx context.Context, scanJobID int64) error
+	SearchArtistsByName(ctx context.Context, arg SearchArtistsByNameParams) ([]MusicArtist, error)
+	SearchArtistsWithCountsByNamePaginated(ctx context.Context, arg SearchArtistsWithCountsByNamePaginatedParams) ([]SearchArtistsWithCountsByNamePaginatedRow, error)
 	SearchMoviesByTitle(ctx context.Context, arg SearchMoviesByTitleParams) ([]SearchMoviesByTitleRow, error)
 	SearchMoviesByTitlePaginated(ctx context.Context, arg SearchMoviesByTitlePaginatedParams) ([]SearchMoviesByTitlePaginatedRow, error)
 	SearchMusicTracks(ctx context.Context, arg SearchMusicTracksParams) ([]SearchMusicTracksRow, error)
 	SearchTVEpisodesByTitle(ctx context.Context, arg SearchTVEpisodesByTitleParams) ([]SearchTVEpisodesByTitleRow, error)
 	SearchTVShowsByTitle(ctx context.Context, arg SearchTVShowsByTitleParams) ([]TvShow, error)
 	SearchTVShowsByTitlePaginated(ctx context.Context, arg SearchTVShowsByTitlePaginatedParams) ([]TvShow, error)
+	SearchTVShowsWithCountsByTitlePaginated(ctx context.Context, arg SearchTVShowsWithCountsByTitlePaginatedParams) ([]SearchTVShowsWithCountsByTitlePaginatedRow, error)
 	SetScanStateError(ctx context.Context, arg SetScanStateErrorParams) error
 	SetScanStateWarning(ctx context.Context, arg SetScanStateWarningParams) error
 	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error

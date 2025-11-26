@@ -468,6 +468,43 @@ func sqliteShowWithCountsDescToDomain(row sqlc_sqlite.GetTVShowsWithCountsByLibr
 	}
 }
 
+// Search with counts converters
+func postgresSearchShowWithCountsToDomain(row sqlc_postgres.SearchTVShowsWithCountsByTitlePaginatedRow) media.TVShowWithCounts {
+	return media.TVShowWithCounts{
+		TVShow: media.TVShow{
+			ID:            int64(row.ID),
+			LibraryID:     int64(row.LibraryID),
+			Title:         row.Title,
+			Year:          int(common.ParseNullInt32(row.Year)),
+			Genre:         parseGenres(common.ParseNullString(row.Genre)),
+			Plot:          common.ParseNullString(row.Plot),
+			IMDbID:        common.ParseNullString(row.ImdbID),
+			TMDbID:        int(common.ParseNullInt32(row.TmdbID)),
+			ContentRating: common.ParseNullString(row.ContentRating),
+		},
+		SeasonCount:  row.SeasonCount,
+		EpisodeCount: row.EpisodeCount,
+	}
+}
+
+func sqliteSearchShowWithCountsToDomain(row sqlc_sqlite.SearchTVShowsWithCountsByTitlePaginatedRow) media.TVShowWithCounts {
+	return media.TVShowWithCounts{
+		TVShow: media.TVShow{
+			ID:            row.ID,
+			LibraryID:     row.LibraryID,
+			Title:         row.Title,
+			Year:          int(common.ParseNullInt64(row.Year)),
+			Genre:         parseGenres(common.ParseNullString(row.Genre)),
+			Plot:          common.ParseNullString(row.Plot),
+			IMDbID:        common.ParseNullString(row.ImdbID),
+			TMDbID:        int(common.ParseNullInt64(row.TmdbID)),
+			ContentRating: common.ParseNullString(row.ContentRating),
+		},
+		SeasonCount:  row.SeasonCount,
+		EpisodeCount: row.EpisodeCount,
+	}
+}
+
 // ========================================
 // TV Season Converters
 // ========================================

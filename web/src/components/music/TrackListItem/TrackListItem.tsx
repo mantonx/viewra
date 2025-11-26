@@ -18,7 +18,7 @@ const TrackListItem = ({ track, isPlaying, onClick }: TrackListItemProps) => {
       className={cn(
         'flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all',
         isPlaying
-          ? 'bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-950/50'
+          ? 'bg-primary-50 dark:bg-primary-950/30 hover:bg-primary-100 dark:hover:bg-primary-950/50'
           : cn(bg.hover.subtle, 'hover:scale-[1.01] hover:shadow-md dark:hover:shadow-neutral-950/50')
       )}
       onClick={handleClick}
@@ -26,7 +26,7 @@ const TrackListItem = ({ track, isPlaying, onClick }: TrackListItemProps) => {
       {/* Track number / playing indicator */}
       <div className="w-8 text-center shrink-0">
         {isPlaying ? (
-          <span className="text-rose-600 dark:text-rose-500 font-semibold">▶</span>
+          <span className="text-primary-600 dark:text-primary-500 font-semibold">▶</span>
         ) : (
           <span className={cn('text-sm', text.tertiary)}>{track.track_number || '-'}</span>
         )}
@@ -34,7 +34,7 @@ const TrackListItem = ({ track, isPlaying, onClick }: TrackListItemProps) => {
 
       {/* Track info */}
       <div className="flex-1 min-w-0">
-        <h4 className={cn('text-sm font-medium truncate', isPlaying ? 'text-rose-600 dark:text-rose-500' : text.primary)}>
+        <h4 className={cn('text-sm font-medium truncate', isPlaying ? 'text-primary-600 dark:text-primary-500' : text.primary)}>
           {track.title}
         </h4>
         <div className="flex items-center gap-2 mt-1">

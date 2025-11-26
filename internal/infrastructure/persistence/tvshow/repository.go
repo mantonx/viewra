@@ -456,6 +456,39 @@ func (r *Repository) SearchTVShowsByTitlePaginated(ctx context.Context, libraryI
 	)
 }
 
+// SearchTVShowsWithCountsByTitlePaginated searches for TV shows by title with counts and pagination
+func (r *Repository) SearchTVShowsWithCountsByTitlePaginated(ctx context.Context, libraryID int64, query string, pagination *domainCommon.PaginationParams) ([]media.TVShowWithCounts, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	searchPattern := "%" + query + "%"
+
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.SearchTVShowsWithCountsByTitlePaginatedRow, error) {
+			return r.Postgres().SearchTVShowsWithCountsByTitlePaginated(ctx, sqlc_postgres.SearchTVShowsWithCountsByTitlePaginatedParams{
+				LibraryID:     int32(libraryID),
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+				Limit:         int32(pagination.Limit),
+				Offset:        int32(pagination.Offset),
+			})
+		},
+		func() ([]sqlc_sqlite.SearchTVShowsWithCountsByTitlePaginatedRow, error) {
+			return r.SQLite().SearchTVShowsWithCountsByTitlePaginated(ctx, sqlc_sqlite.SearchTVShowsWithCountsByTitlePaginatedParams{
+				LibraryID:     libraryID,
+				Title:         searchPattern,
+				OriginalTitle: common.NullString(searchPattern),
+				Limit:         int64(pagination.Limit),
+				Offset:        int64(pagination.Offset),
+			})
+		},
+		postgresSearchShowWithCountsToDomain,
+		sqliteSearchShowWithCountsToDomain,
+	)
+}
+
 // ListTVShowIDsByLibraryPaginated retrieves only TV show IDs in a library with pagination
 func (r *Repository) ListTVShowIDsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]int64, error) {
 	if pagination == nil {

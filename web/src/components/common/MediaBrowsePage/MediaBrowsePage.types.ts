@@ -36,6 +36,10 @@ export interface MediaBrowsePageProps<T extends { id: number; title?: string; na
   initialFilters?: FilterState
   initialViewMode?: ViewMode
 
+  // Server-side search flag - when true, client-side search filtering is disabled
+  // (data is expected to already be filtered by the server)
+  serverSideSearch?: boolean
+
   // Advanced filters configuration
   enableAdvancedFilters?: boolean
   genres?: string[]

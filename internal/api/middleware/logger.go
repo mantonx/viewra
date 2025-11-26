@@ -51,8 +51,10 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 			logger.Error("HTTP request", attrs...)
 		case status >= 400:
 			// HLS segment 404s are normal - player probes for next segment
-			// Don't log them as warnings to avoid noise
-			if status == 404 && strings.Contains(path, "/hls/") && strings.HasSuffix(path, ".ts") {
+			// Don't log them as warnings to avoid noise (supports both .ts and .m4s segments)
+			isHLSSegment := strings.Contains(path, "/hls/") &&
+				(strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".m4s"))
+			if status == 404 && isHLSSegment {
 				logger.Debug("HTTP request", attrs...)
 			} else {
 				logger.Warn("HTTP request", attrs...)

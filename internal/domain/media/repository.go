@@ -243,6 +243,12 @@ type MusicRepository interface {
 	// ListArtistsByLibrary retrieves all artist entities in a library
 	ListArtistsByLibrary(ctx context.Context, libraryID int64) ([]*Artist, error)
 
+	// SearchArtistsByName searches for artists by name with pagination
+	SearchArtistsByName(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]*Artist, error)
+
+	// CountSearchArtistsByName returns the count of artists matching a search query
+	CountSearchArtistsByName(ctx context.Context, libraryID int64, query string) (int64, error)
+
 	// CreateMusicTrackWithEntities atomically creates a music track along with artist and album entities if needed
 	// This operation is transactional - all entities are created or none are created
 	// Parameters:

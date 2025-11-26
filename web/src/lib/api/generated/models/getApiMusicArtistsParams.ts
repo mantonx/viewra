@@ -12,6 +12,10 @@ export type GetApiMusicArtistsParams = {
    */
   library_id: number
   /**
+   * Search query to filter artists by name
+   */
+  q?: string
+  /**
    * Number of items per page (default: 50, max: 200)
    */
   limit?: number
@@ -19,4 +23,8 @@ export type GetApiMusicArtistsParams = {
    * Number of items to skip (default: 0)
    */
   offset?: number
+  /**
+   * Sort order: title_asc or title_desc (default: title_asc)
+   */
+  sort?: string
 }

@@ -638,6 +638,206 @@ func (r *Repository) ListArtistsByLibrary(ctx context.Context, libraryID int64) 
 	)
 }
 
+// SearchArtistsByName searches for artists by name with pagination
+func (r *Repository) SearchArtistsByName(ctx context.Context, libraryID int64, query string, pagination *domainCommon.PaginationParams) ([]*media.Artist, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	searchPattern := "%" + query + "%"
+
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.MusicArtist, error) {
+			return r.Postgres().SearchArtistsByName(ctx, sqlc_postgres.SearchArtistsByNameParams{
+				LibraryID: int32(libraryID),
+				Name:      searchPattern,
+				SortName:  common.NullString(searchPattern),
+				Limit:     int32(pagination.Limit),
+				Offset:    int32(pagination.Offset),
+			})
+		},
+		func() ([]sqlc_sqlite.MusicArtist, error) {
+			return r.SQLite().SearchArtistsByName(ctx, sqlc_sqlite.SearchArtistsByNameParams{
+				LibraryID: libraryID,
+				Name:      searchPattern,
+				SortName:  common.NullString(searchPattern),
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+		postgresArtistToDomain,
+		sqliteArtistToDomain,
+	)
+}
+
+// CountSearchArtistsByName returns the count of artists matching a search query
+func (r *Repository) CountSearchArtistsByName(ctx context.Context, libraryID int64, query string) (int64, error) {
+	searchPattern := "%" + query + "%"
+
+	return common.QueryScalar(
+		r.BaseRepository, ctx,
+		func() (int64, error) {
+			return r.Postgres().CountSearchArtistsByName(ctx, sqlc_postgres.CountSearchArtistsByNameParams{
+				LibraryID: int32(libraryID),
+				Name:      searchPattern,
+				SortName:  common.NullString(searchPattern),
+			})
+		},
+		func() (int64, error) {
+			return r.SQLite().CountSearchArtistsByName(ctx, sqlc_sqlite.CountSearchArtistsByNameParams{
+				LibraryID: libraryID,
+				Name:      searchPattern,
+				SortName:  common.NullString(searchPattern),
+			})
+		},
+	)
+}
+
+// ArtistWithCounts represents an artist with album and track counts from the database
+type ArtistWithCounts struct {
+	ID         int64
+	LibraryID  int64
+	Name       string
+	AlbumCount int
+	TrackCount int
+}
+
+// GetArtistsWithCountsByLibraryPaginated retrieves artists with album/track counts using database-level aggregation
+func (r *Repository) GetArtistsWithCountsByLibraryPaginated(ctx context.Context, libraryID int64, pagination *domainCommon.PaginationParams) ([]ArtistWithCounts, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	sortBy := pagination.SortBy
+	if sortBy == "" {
+		sortBy = "title_asc"
+	}
+
+	if sortBy == "title_desc" {
+		return common.QueryMany(
+			r.BaseRepository, ctx,
+			func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
+				return r.Postgres().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescParams{
+					LibraryID: int32(libraryID),
+					Limit:     int32(pagination.Limit),
+					Offset:    int32(pagination.Offset),
+				})
+			},
+			func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow, error) {
+				return r.SQLite().GetArtistsWithCountsByLibraryPaginatedDesc(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescParams{
+					LibraryID: libraryID,
+					Limit:     int64(pagination.Limit),
+					Offset:    int64(pagination.Offset),
+				})
+			},
+			func(row sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedDescRow) ArtistWithCounts {
+				return ArtistWithCounts{
+					ID:         int64(row.ID),
+					LibraryID:  int64(row.LibraryID),
+					Name:       row.Name,
+					AlbumCount: int(row.AlbumCount),
+					TrackCount: int(row.TrackCount),
+				}
+			},
+			func(row sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedDescRow) ArtistWithCounts {
+				return ArtistWithCounts{
+					ID:         row.ID,
+					LibraryID:  row.LibraryID,
+					Name:       row.Name,
+					AlbumCount: int(row.AlbumCount),
+					TrackCount: int(row.TrackCount),
+				}
+			},
+		)
+	}
+
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow, error) {
+			return r.Postgres().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedParams{
+				LibraryID: int32(libraryID),
+				Limit:     int32(pagination.Limit),
+				Offset:    int32(pagination.Offset),
+			})
+		},
+		func() ([]sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow, error) {
+			return r.SQLite().GetArtistsWithCountsByLibraryPaginated(ctx, sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedParams{
+				LibraryID: libraryID,
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+		func(row sqlc_postgres.GetArtistsWithCountsByLibraryPaginatedRow) ArtistWithCounts {
+			return ArtistWithCounts{
+				ID:         int64(row.ID),
+				LibraryID:  int64(row.LibraryID),
+				Name:       row.Name,
+				AlbumCount: int(row.AlbumCount),
+				TrackCount: int(row.TrackCount),
+			}
+		},
+		func(row sqlc_sqlite.GetArtistsWithCountsByLibraryPaginatedRow) ArtistWithCounts {
+			return ArtistWithCounts{
+				ID:         row.ID,
+				LibraryID:  row.LibraryID,
+				Name:       row.Name,
+				AlbumCount: int(row.AlbumCount),
+				TrackCount: int(row.TrackCount),
+			}
+		},
+	)
+}
+
+// SearchArtistsWithCountsByNamePaginated searches for artists by name and returns counts
+func (r *Repository) SearchArtistsWithCountsByNamePaginated(ctx context.Context, libraryID int64, query string, pagination *domainCommon.PaginationParams) ([]ArtistWithCounts, error) {
+	if pagination == nil {
+		pagination = domainCommon.DefaultPaginationParams()
+	}
+
+	searchPattern := "%" + query + "%"
+
+	return common.QueryMany(
+		r.BaseRepository, ctx,
+		func() ([]sqlc_postgres.SearchArtistsWithCountsByNamePaginatedRow, error) {
+			return r.Postgres().SearchArtistsWithCountsByNamePaginated(ctx, sqlc_postgres.SearchArtistsWithCountsByNamePaginatedParams{
+				LibraryID: int32(libraryID),
+				Name:      searchPattern,
+				SortName:  common.NullString(searchPattern),
+				Limit:     int32(pagination.Limit),
+				Offset:    int32(pagination.Offset),
+			})
+		},
+		func() ([]sqlc_sqlite.SearchArtistsWithCountsByNamePaginatedRow, error) {
+			return r.SQLite().SearchArtistsWithCountsByNamePaginated(ctx, sqlc_sqlite.SearchArtistsWithCountsByNamePaginatedParams{
+				LibraryID: libraryID,
+				Name:      searchPattern,
+				SortName:  common.NullString(searchPattern),
+				Limit:     int64(pagination.Limit),
+				Offset:    int64(pagination.Offset),
+			})
+		},
+		func(row sqlc_postgres.SearchArtistsWithCountsByNamePaginatedRow) ArtistWithCounts {
+			return ArtistWithCounts{
+				ID:         int64(row.ID),
+				LibraryID:  int64(row.LibraryID),
+				Name:       row.Name,
+				AlbumCount: int(row.AlbumCount),
+				TrackCount: int(row.TrackCount),
+			}
+		},
+		func(row sqlc_sqlite.SearchArtistsWithCountsByNamePaginatedRow) ArtistWithCounts {
+			return ArtistWithCounts{
+				ID:         row.ID,
+				LibraryID:  row.LibraryID,
+				Name:       row.Name,
+				AlbumCount: int(row.AlbumCount),
+				TrackCount: int(row.TrackCount),
+			}
+		},
+	)
+}
+
 // CreateMusicTrackWithEntities atomically creates a music track along with artist and album entities if needed.
 // This operation is transactional - all entities are created or none are created.
 // If any step fails, the entire transaction is rolled back to prevent orphaned records.

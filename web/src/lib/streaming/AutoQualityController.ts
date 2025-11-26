@@ -154,9 +154,11 @@ export const evaluateQuality = (
     }
 
     // If network is proven fast, don't downgrade - the issue is transcoding latency
-    // Only downgrade if we've had actual stalls indicating real playback issues
-    if (networkCanHandleQuality && (!networkStats || networkStats.stallCount === 0)) {
-      return maintain(`Buffer low but network fast (${networkStats?.averageThroughputMbps.toFixed(0)} Mbps)`, 0.6)
+    // This is the key fix: when network throughput is 3x+ the bitrate needs,
+    // stalls and low buffer are caused by waiting for transcoding, not network issues.
+    // Downgrading quality won't help because transcoding latency is the bottleneck.
+    if (networkCanHandleQuality) {
+      return maintain(`Buffer low but network fast (${networkStats?.averageThroughputMbps.toFixed(0)} Mbps) - waiting for transcode`, 0.6)
     }
 
     // Downgrade one step instead of jumping to lowest
@@ -184,8 +186,9 @@ export const evaluateQuality = (
     return maintain('No network stats', 0.5)
   }
 
-  // Too many stalls
-  if (networkStats.stallCount > config.maxStallsBeforeDowngrade) {
+  // Too many stalls - but only if network is actually the problem
+  // If network is fast (3x+ bitrate needs), stalls are from transcoding latency, not network
+  if (networkStats.stallCount > config.maxStallsBeforeDowngrade && !networkCanHandleQuality) {
     const lower = currentLevelIndex > 0 ? levels[currentLevelIndex - 1] : null
     if (lower) {
       console.log('[AutoQuality] DOWNGRADE: Too many stalls', {
@@ -211,10 +214,10 @@ export const evaluateQuality = (
       return maintain(`Buffer building: ${bufferLength.toFixed(1)}s (startup)`, 0.7)
     }
 
-    // If network is fast and we haven't had stalls, don't downgrade
-    // The buffer will recover once transcoding catches up
-    if (networkCanHandleQuality && networkStats.stallCount === 0) {
-      return maintain(`Buffer recovering: ${bufferLength.toFixed(1)}s (network fast)`, 0.6)
+    // If network is fast (3x+ bitrate needs), don't downgrade - transcoding latency is the issue
+    // Stalls during seek are expected while waiting for transcoder, not a network problem
+    if (networkCanHandleQuality) {
+      return maintain(`Buffer recovering: ${bufferLength.toFixed(1)}s (network fast, waiting for transcode)`, 0.6)
     }
 
     const lower = currentLevelIndex > 0 ? levels[currentLevelIndex - 1] : null
@@ -238,18 +241,16 @@ export const evaluateQuality = (
   }
 
   // Network degrading - but only act if it actually affects playability
+  // IMPORTANT: Use averageThroughputMbps, not minThroughputMbps for this check
+  // minThroughputMbps gets polluted by stall samples (low/zero throughput during seeks)
   if (networkStats.trend === 'degrading') {
-    const safeBitrate = networkStats.minThroughputMbps * 1_000_000 * 0.7
-
-    // If even the minimum throughput is well above current bitrate needs, ignore degrading trend
-    // (e.g., dropping from 400 Mbps to 200 Mbps on a local network is still fine for 25 Mbps stream)
-    const minNetworkCanHandle = currentLevel &&
-      (networkStats.minThroughputMbps * 1_000_000) > (currentLevel.bitrate * 2)
-
-    if (minNetworkCanHandle) {
-      return maintain(`Network degrading but still fast (min ${networkStats.minThroughputMbps.toFixed(0)} Mbps)`, 0.7)
+    // If average throughput is still 3x+ what we need, network is fine
+    // The "degrading" trend might just be noise from seek stalls
+    if (networkCanHandleQuality) {
+      return maintain(`Network degrading but still fast (avg ${networkStats.averageThroughputMbps.toFixed(0)} Mbps)`, 0.7)
     }
 
+    const safeBitrate = networkStats.averageThroughputMbps * 1_000_000 * 0.7
     const target = findLevelForBitrate(levels, safeBitrate)
     if (target && target.index < currentLevelIndex) {
       console.log('[AutoQuality] DOWNGRADE: Network degrading', {
@@ -258,7 +259,7 @@ export const evaluateQuality = (
         avgMbps: networkStats.averageThroughputMbps.toFixed(1),
         minMbps: networkStats.minThroughputMbps.toFixed(1),
         safeBitrateMbps: (safeBitrate / 1_000_000).toFixed(1),
-        minNetworkCanHandle,
+        networkCanHandleQuality,
       })
       return {
         action: 'downgrade',

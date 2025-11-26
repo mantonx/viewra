@@ -16,6 +16,7 @@ interface AudioPlayerContextType {
   duration: number
   isShuffle: boolean
   repeatMode: 'off' | 'one' | 'all'
+  isMinimized: boolean
 
   // Actions
   playTrack: (track: MusicTrackResponse) => void
@@ -30,6 +31,8 @@ interface AudioPlayerContextType {
   toggleRepeat: () => void
   clearQueue: () => void
   removeFromQueue: (index: number) => void
+  setMinimized: (minimized: boolean) => void
+  toggleMinimized: () => void
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined)
@@ -51,6 +54,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const volumeBeforeMuteRef = useRef<number>(0.8)
+  const handleTrackEndedRef = useRef<() => void>(() => {})
 
   // Load volume from localStorage or use default
   const getInitialVolume = () => {
@@ -73,6 +77,11 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const [duration, setDuration] = useState(0)
   const [isShuffle, setIsShuffle] = useState(false)
   const [repeatMode, setRepeatMode] = useState<'off' | 'one' | 'all'>('off')
+  const [isMinimized, setIsMinimized] = useState(false)
+  const autoMinimizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastUserInteractionRef = useRef<number>(Date.now())
+  const userExpandedManuallyRef = useRef<boolean>(false) // Track if user manually expanded
+  const consecutiveAutoMinimizesRef = useRef<number>(0) // Track auto-minimize patterns
 
   // Initialize audio element
   useEffect(() => {
@@ -98,7 +107,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
         setIsLoading(false)
       })
 
-      audioRef.current.addEventListener('ended', handleTrackEnded)
+      audioRef.current.addEventListener('ended', () => handleTrackEndedRef.current())
 
       audioRef.current.addEventListener('error', (e) => {
         // Only log errors if there's an actual source (ignore errors from empty src)
@@ -122,7 +131,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [volume])
+  }, []) // Only run once on mount - volume changes handled by separate effect
 
   // Update volume when changed and save to localStorage
   useEffect(() => {
@@ -178,25 +187,28 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     }
   }
 
-  const handleTrackEnded = () => {
-    // Report final progress
-    reportProgress()
+  // Keep the track ended handler ref updated to avoid stale closures
+  useEffect(() => {
+    handleTrackEndedRef.current = () => {
+      // Report final progress
+      reportProgress()
 
-    // Handle repeat modes
-    if (repeatMode === 'one') {
-      // Replay current track
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0
-        audioRef.current.play()
+      // Handle repeat modes
+      if (repeatMode === 'one') {
+        // Replay current track
+        if (audioRef.current) {
+          audioRef.current.currentTime = 0
+          audioRef.current.play()
+        }
+      } else if (repeatMode === 'all' && currentIndex === queue.length - 1) {
+        // Loop back to first track
+        playQueueAtIndex(0)
+      } else {
+        // Play next track
+        playNext()
       }
-    } else if (repeatMode === 'all' && currentIndex === queue.length - 1) {
-      // Loop back to first track
-      playQueueAtIndex(0)
-    } else {
-      // Play next track
-      playNext()
     }
-  }
+  })
 
   const playTrack = (track: MusicTrackResponse) => {
     setCurrentTrack(track)
@@ -380,6 +392,85 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     }
   }
 
+  const toggleMinimized = () => {
+    setIsMinimized((prev) => {
+      const newValue = !prev
+      // Track if user manually expanded (was minimized, now expanded)
+      if (prev && !newValue) {
+        userExpandedManuallyRef.current = true
+        // Reset consecutive auto-minimizes since user is actively engaging
+        consecutiveAutoMinimizesRef.current = 0
+      }
+      return newValue
+    })
+    // Reset auto-minimize timer when user interacts
+    lastUserInteractionRef.current = Date.now()
+  }
+
+  // Smart auto-minimize logic
+  useEffect(() => {
+    // Base delay: 2 minutes
+    const BASE_AUTO_MINIMIZE_DELAY = 2 * 60 * 1000
+
+    // If user manually expanded recently, use longer delay (5 minutes)
+    // This respects user intent - they expanded it for a reason
+    const getAutoMinimizeDelay = () => {
+      if (userExpandedManuallyRef.current) {
+        return 5 * 60 * 1000 // 5 minutes if manually expanded
+      }
+      // After 3 consecutive auto-minimizes without user expanding,
+      // the user seems to prefer minimized - use shorter delay (1 minute)
+      if (consecutiveAutoMinimizesRef.current >= 3) {
+        return 1 * 60 * 1000 // 1 minute
+      }
+      return BASE_AUTO_MINIMIZE_DELAY
+    }
+
+    const checkAndMinimize = () => {
+      const timeSinceInteraction = Date.now() - lastUserInteractionRef.current
+      const delay = getAutoMinimizeDelay()
+
+      if (isPlaying && !isMinimized && timeSinceInteraction >= delay) {
+        setIsMinimized(true)
+        consecutiveAutoMinimizesRef.current += 1
+        // Reset manual expand flag after auto-minimize
+        userExpandedManuallyRef.current = false
+      }
+    }
+
+    // Clear existing timer
+    if (autoMinimizeTimerRef.current) {
+      clearTimeout(autoMinimizeTimerRef.current)
+      autoMinimizeTimerRef.current = null
+    }
+
+    // Only set timer if playing and not minimized
+    if (isPlaying && !isMinimized) {
+      const delay = getAutoMinimizeDelay()
+      autoMinimizeTimerRef.current = setTimeout(checkAndMinimize, delay)
+    }
+
+    return () => {
+      if (autoMinimizeTimerRef.current) {
+        clearTimeout(autoMinimizeTimerRef.current)
+      }
+    }
+  }, [isPlaying, isMinimized])
+
+  // Expand player when a new track starts (but be smart about it)
+  useEffect(() => {
+    if (currentTrack) {
+      // Only auto-expand on new track if:
+      // 1. User hasn't established a pattern of preferring minimized (< 3 consecutive auto-minimizes)
+      // 2. OR it's a brand new listening session (queue was empty before)
+      const shouldExpand = consecutiveAutoMinimizesRef.current < 3
+      if (shouldExpand) {
+        setIsMinimized(false)
+      }
+      lastUserInteractionRef.current = Date.now()
+    }
+  }, [currentTrack?.id])
+
   const value: AudioPlayerContextType = {
     currentTrack,
     queue,
@@ -392,6 +483,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     duration,
     isShuffle,
     repeatMode,
+    isMinimized,
     playTrack,
     playQueue,
     togglePlayPause,
@@ -404,6 +496,8 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     toggleRepeat,
     clearQueue,
     removeFromQueue,
+    setMinimized: setIsMinimized,
+    toggleMinimized,
   }
 
   return <AudioPlayerContext.Provider value={value}>{children}</AudioPlayerContext.Provider>

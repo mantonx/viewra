@@ -95,7 +95,7 @@ const DisplaySettings = () => {
                 <span className="px-2 py-1 text-xs font-semibold bg-black bg-opacity-75 text-white rounded">
                   4K
                 </span>
-                <span className="px-2 py-1 text-xs font-semibold bg-indigo-600 text-white rounded">
+                <span className="px-2 py-1 text-xs font-semibold bg-green-600 text-white rounded">
                   H265
                 </span>
                 <span className="px-2 py-1 text-xs font-semibold bg-neutral-800 dark:bg-neutral-700 bg-opacity-90 text-white rounded border border-neutral-600 dark:border-neutral-500">

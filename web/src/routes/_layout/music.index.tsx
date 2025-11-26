@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { ArtistCard, ArtistListItem } from '@/components/music'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
-import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider } from '@/lib/hooks'
+import { useLibraryFilter, useInfiniteArtists, flattenArtists, BatchImagesProvider, useDebounce } from '@/lib/hooks'
 import type { ViewMode } from '@/components/common'
 import type { GithubComMantonxViewraInternalApplicationMusicArtistSummary } from '@/lib/api/generated/models'
 import type { ArtistSummary } from '@/lib/types/music'
@@ -46,7 +46,10 @@ const Music = () => {
   // Convert sort format from URL (title-asc) to API format (title_asc)
   const apiSort = (search.sort || 'title-asc').replace(/-/g, '_')
 
-  // Use infinite scroll for artists
+  // Debounce search query to avoid too many API calls while typing
+  const debouncedSearch = useDebounce(search.q || '', 300)
+
+  // Use infinite scroll for artists with server-side search
   const {
     data,
     isLoading,
@@ -54,7 +57,7 @@ const Music = () => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteArtists({ libraryId, sort: apiSort, pageSize: 100 })
+  } = useInfiniteArtists({ libraryId, sort: apiSort, search: debouncedSearch, pageSize: 100 })
 
   const allArtists = data ? flattenArtists(data.pages) : []
 
@@ -118,12 +121,13 @@ const Music = () => {
         )}
         onItemSelect={(artist) => handleArtistClick(artist.id)}
         getItemSearchText={(artist) => artist.name || ''}
-        initialSearch={search.q}
+        initialSearch={search.q || ''}
         initialSort={search.sort || 'title-asc'}
         initialViewMode={search.view || 'grid'}
         onSearchChange={handleSearchChange}
         onSortChange={handleSortChange}
         onViewModeChange={handleViewModeChange}
+        serverSideSearch={true}
         customGridRenderer={
           <VirtualMediaGrid
             items={allArtists}

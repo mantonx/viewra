@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -283,17 +284,33 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 		return
 	}
 
-	// Parse segment number from filename
-	segmentNum := transcoding.ParseSegmentNumber(filename)
-	if segmentNum < 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid segment filename"})
-		return
-	}
-
 	// Get active transcode session
 	session, err := h.sessionManager.GetSession(mediaID, quality)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "No active transcode session"})
+		return
+	}
+
+	// Handle init segment for fMP4
+	if filename == transcoding.InitSegmentFilename {
+		initPath, err := session.WaitForInitSegment(10 * time.Second)
+		if err != nil {
+			c.JSON(http.StatusRequestTimeout, ErrorResponse{
+				Error: "Init segment not available",
+			})
+			return
+		}
+		session.UpdateLastAccessed()
+		c.Header("Content-Type", "video/mp4")
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.File(initPath)
+		return
+	}
+
+	// Parse segment number from filename
+	segmentNum := transcoding.ParseSegmentNumber(filename)
+	if segmentNum < 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid segment filename"})
 		return
 	}
 
@@ -309,8 +326,13 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	// Update session last accessed time
 	session.UpdateLastAccessed()
 
-	// Serve the segment
-	c.Header("Content-Type", "video/mp2t")
+	// Serve the segment with appropriate content type
+	// fMP4 segments use video/mp4, MPEG-TS uses video/mp2t
+	contentType := "video/mp4"
+	if strings.HasSuffix(segmentPath, ".ts") {
+		contentType = "video/mp2t"
+	}
+	c.Header("Content-Type", contentType)
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.File(segmentPath)
 }

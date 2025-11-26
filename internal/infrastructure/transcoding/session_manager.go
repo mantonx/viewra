@@ -3,7 +3,6 @@ package transcoding
 import (
 	"fmt"
 	"log/slog"
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -64,8 +63,8 @@ func (m *SessionManager) cleanupOutputDir(path string, sessionID string) {
 }
 
 // GetOrCreateSession returns an existing session or creates a new one.
-// If a session exists but the seek position is significantly different (>30s),
-// the old session is stopped and a new one is created from the new position.
+// Sessions are reused when possible to avoid re-transcoding segments that already exist.
+// Multiple quality sessions can coexist to support ABR (Adaptive Bitrate) streaming.
 func (m *SessionManager) GetOrCreateSession(
 	mediaID int64,
 	quality string,
@@ -82,32 +81,25 @@ func (m *SessionManager) GetOrCreateSession(
 	// When user switches to a different video, clean up the old one immediately
 	m.stopOtherMediaSessions(mediaID)
 
-	// Check for existing session
+	// NOTE: We intentionally do NOT stop other quality sessions for the same media.
+	// This allows ABR to work properly - HLS.js can switch between qualities without
+	// causing transcode sessions to be killed and restarted.
+
+	// Check for existing session - ALWAYS reuse if one exists for this quality
+	// This is critical for ABR: HLS.js requests playlists without position info,
+	// and we should never kill a working session just because of missing parameters.
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
+		session.UpdateLastAccessed()
 
-		// If seek position is far from current position, restart session
-		seekThreshold := 30.0 // seconds
-		if math.Abs(startPosition-session.StartPosition) > seekThreshold {
-			m.logger.Info("Restarting session for seek",
-				"media_id", mediaID,
-				"quality", quality,
-				"old_position", session.StartPosition,
-				"new_position", startPosition)
+		m.logger.Debug("Reusing existing transcode session",
+			"session_id", session.ID,
+			"media_id", mediaID,
+			"quality", quality,
+			"session_start", session.StartPosition,
+			"requested_start", startPosition)
 
-			// Stop old session and clean up immediately
-			session.Stop()
-			m.sessions.Delete(key)
-
-			// Clean up output directory immediately to free disk space
-			m.cleanupOutputDir(session.OutputDir, session.ID)
-
-			// Fall through to create new session
-		} else {
-			// Reuse existing session
-			session.UpdateLastAccessed()
-			return session, nil
-		}
+		return session, nil
 	}
 
 	// Create new session
@@ -279,6 +271,46 @@ func (m *SessionManager) stopOtherMediaSessions(currentMediaID int64) {
 				"session_id", session.ID,
 				"media_id", session.MediaID,
 				"current_media_id", currentMediaID)
+
+			session.Stop()
+			m.sessions.Delete(key)
+
+			// Clean up output directory immediately
+			m.cleanupOutputDir(session.OutputDir, session.ID)
+		}
+	}
+}
+
+// stopOtherQualitySessions stops actively transcoding sessions for the same media but different qualities.
+// This prevents resource contention when HLS.js requests multiple qualities after seeking.
+// Completed sessions are kept so their segments remain available for playback.
+func (m *SessionManager) stopOtherQualitySessions(currentMediaID int64, currentQuality string) {
+	var toStop []string
+
+	// Collect ACTIVE sessions to stop (can't delete while iterating sync.Map)
+	m.sessions.Range(func(key, value interface{}) bool {
+		session := value.(*TranscodeSession)
+		// Only stop sessions that are still actively transcoding
+		// Keep completed sessions so their segments remain available
+		if session.MediaID == currentMediaID && session.Quality != currentQuality {
+			// Check if FFmpeg process is still running
+			if session.FFmpegCmd != nil && session.FFmpegCmd.ProcessState == nil {
+				toStop = append(toStop, key.(string))
+			}
+		}
+		return true
+	})
+
+	// Stop and clean up only ACTIVE sessions
+	for _, key := range toStop {
+		if existing, ok := m.sessions.Load(key); ok {
+			session := existing.(*TranscodeSession)
+
+			m.logger.Info("Stopping active quality session to reduce contention",
+				"stopped_session", session.ID,
+				"stopped_quality", session.Quality,
+				"current_quality", currentQuality,
+				"media_id", currentMediaID)
 
 			session.Stop()
 			m.sessions.Delete(key)
