@@ -242,11 +242,20 @@ func (uc *ScanLibraryUseCase) markStuckScanCompleted(ctx context.Context, job *s
 	uc.logger.Info("stuck scan has no pending files, marking as completed",
 		"scan_id", job.ID,
 		"files_found", job.FilesFound)
+	uc.completeJobFromStats(ctx, job.ID, job.FilesFound, stats)
+}
 
+// markScanCompleted marks a scan as completed using checkpoint stats
+func (uc *ScanLibraryUseCase) markScanCompleted(ctx context.Context, jobID int64, stats *scanner.CheckpointStats) {
+	uc.completeJobFromStats(ctx, jobID, stats.TotalFiles, stats)
+}
+
+// completeJobFromStats marks a scan job as completed using checkpoint statistics
+func (uc *ScanLibraryUseCase) completeJobFromStats(ctx context.Context, jobID int64, filesFound int64, stats *scanner.CheckpointStats) {
 	completedJob := &scanner.ScanJob{
-		ID:             job.ID,
+		ID:             jobID,
 		Status:         scanner.ScanStatusCompleted,
-		FilesFound:     job.FilesFound,
+		FilesFound:     filesFound,
 		FilesProcessed: stats.ProcessedFiles,
 		ErrorCount:     stats.FailedFiles,
 		WarningCount:   stats.WarningFiles,
@@ -335,11 +344,26 @@ func (uc *ScanLibraryUseCase) initializeScanSession(ctx context.Context, lib *li
 }
 
 // canResumeFromCheckpoints checks if checkpoints exist and are valid for resuming.
-// Returns true if scan was resumed from checkpoints, false if fresh scan needed.
+// Returns true if scan was resumed from checkpoints or already complete, false if fresh scan needed.
 func (uc *ScanLibraryUseCase) canResumeFromCheckpoints(ctx context.Context, jobID int64, currentJob *scanner.ScanJob, lib *library.Library) bool {
 	stats, err := uc.scanRepos.Checkpoint.GetStats(ctx, jobID)
-	if err != nil || stats.PendingFiles == 0 {
+	if err != nil {
 		return false
+	}
+
+	// No checkpoints at all - need fresh scan
+	if stats.TotalFiles == 0 {
+		return false
+	}
+
+	// All checkpoints processed - scan is complete, mark it and return
+	if stats.PendingFiles == 0 {
+		uc.logger.Info("scan already complete from checkpoints",
+			"job_id", jobID,
+			"files_found", currentJob.FilesFound,
+			"processed", stats.ProcessedFiles)
+		uc.markScanCompleted(ctx, jobID, stats)
+		return true
 	}
 
 	if uc.validateCheckpointCompleteness(ctx, jobID, currentJob, stats) {
