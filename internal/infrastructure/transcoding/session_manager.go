@@ -85,21 +85,54 @@ func (m *SessionManager) GetOrCreateSession(
 	// This allows ABR to work properly - HLS.js can switch between qualities without
 	// causing transcode sessions to be killed and restarted.
 
-	// Check for existing session - ALWAYS reuse if one exists for this quality
-	// This is critical for ABR: HLS.js requests playlists without position info,
-	// and we should never kill a working session just because of missing parameters.
+	// Check for existing session
+	// Reuse if start position is close enough or if no position specified (ABR quality switch)
+	// This balances ABR functionality with proper seek support.
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
-		session.UpdateLastAccessed()
 
-		m.logger.Debug("Reusing existing transcode session",
+		// Calculate if the requested position is reachable from the current session
+		// A session starting at position S can serve content from S onwards
+		// If requested position < session start, we need a new session (can't go backwards)
+		positionDiff := startPosition - session.StartPosition
+
+		// Reuse session if:
+		// 1. No specific start position requested (ABR quality switch, position=0 means "use existing")
+		// 2. Requested position is within the session's range:
+		//    - Position must be >= session start (can't go backwards from where FFmpeg started)
+		//    - Small seeks forward are fine (within 30 seconds ahead of session start)
+		canReuse := startPosition == 0 || // No specific position requested (ABR switch)
+			(positionDiff >= 0 && positionDiff <= 30) // Forward seek within reasonable range
+
+		if canReuse {
+			session.UpdateLastAccessed()
+
+			m.logger.Debug("Reusing existing transcode session",
+				"session_id", session.ID,
+				"media_id", mediaID,
+				"quality", quality,
+				"session_start", session.StartPosition,
+				"requested_start", startPosition,
+				"position_diff", positionDiff)
+
+			return session, nil
+		}
+
+		// Position is outside reusable range - need to restart session
+		m.logger.Info("Restarting session for seek operation",
 			"session_id", session.ID,
 			"media_id", mediaID,
 			"quality", quality,
 			"session_start", session.StartPosition,
-			"requested_start", startPosition)
+			"requested_start", startPosition,
+			"position_diff", positionDiff)
 
-		return session, nil
+		// Stop the old session
+		session.Stop()
+		m.sessions.Delete(key)
+
+		// Clean up output directory
+		m.cleanupOutputDir(session.OutputDir, session.ID)
 	}
 
 	// Create new session
