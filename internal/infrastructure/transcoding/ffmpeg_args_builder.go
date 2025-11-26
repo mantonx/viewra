@@ -19,6 +19,23 @@ func formatBitrate(bps int) string {
 	return fmt.Sprintf("%dk", bps/1000)
 }
 
+// getH264Level returns the appropriate H.264 level for a given resolution.
+// H.264 levels define maximum resolution, bitrate, and macroblocks per second.
+// Level 4.1: up to 1920x1080@30fps or 1280x720@60fps
+// Level 5.0: up to 2560x1920@30fps
+// Level 5.1: up to 4096x2160@30fps (4K)
+// Level 5.2: up to 4096x2160@60fps
+func getH264Level(width, height int) string {
+	pixels := width * height
+	if pixels > 2073600 { // > 1920x1080
+		return "5.1" // Required for 4K (3840x2160)
+	}
+	if pixels > 921600 { // > 1280x720
+		return "4.1" // 1080p
+	}
+	return "4.0" // 720p and below
+}
+
 // NewFFmpegArgsBuilder creates a new FFmpeg arguments builder.
 func NewFFmpegArgsBuilder(opts TranscodeOptions) *FFmpegArgsBuilder {
 	return &FFmpegArgsBuilder{
@@ -175,9 +192,11 @@ func (b *FFmpegArgsBuilder) addCodecProfile(codec VideoCodec, hwAccel HardwareAc
 
 // addH264Profile adds H.264-specific encoding parameters
 func (b *FFmpegArgsBuilder) addH264Profile(_ HardwareAccel) {
+	// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
+	h264Level := getH264Level(b.opts.Profile.Width, b.opts.Profile.Height)
 	b.args = append(b.args,
 		"-profile:v", "high",
-		"-level", "4.1",
+		"-level", h264Level,
 		"-pix_fmt", "yuv420p",
 	)
 }
@@ -271,7 +290,9 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCode
 		// AV1 NVENC (RTX 40 series+) doesn't use profile/level the same way
 		b.args = append(b.args, "-tier", "main")
 	default: // H.264
-		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
+		h264Level := getH264Level(p.Width, p.Height)
+		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
@@ -308,7 +329,9 @@ func (b *FFmpegArgsBuilder) addQSVEncoding(p *AdaptiveProfile, codec VideoCodec)
 		// AV1 QSV (Intel Arc/12th gen+)
 		b.args = append(b.args, "-tier", "main")
 	default: // H.264
-		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
+		h264Level := getH264Level(p.Width, p.Height)
+		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
@@ -342,7 +365,9 @@ func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *AdaptiveProfile, codec VideoCode
 		// AV1 VAAPI
 		b.args = append(b.args, "-tier", "main")
 	default: // H.264
-		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
+		h264Level := getH264Level(p.Width, p.Height)
+		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
@@ -383,7 +408,9 @@ func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *AdaptiveProfile, codec Vi
 	case CodecH265:
 		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
 	default: // H.264 (VideoToolbox doesn't support VP9 or AV1 encoding)
-		b.args = append(b.args, "-profile:v", "high", "-level", "4.1")
+		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
+		h264Level := getH264Level(p.Width, p.Height)
+		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
 	// Build filter chain: tone mapping (if needed) + scaling
@@ -524,8 +551,12 @@ func (b *FFmpegArgsBuilder) buildToneMappingFilter(hwAccel HardwareAccel) string
 
 	switch hwAccel {
 	case AccelNVENC:
-		// NVENC with OpenCL: CUDA → OpenCL → CUDA
-		return fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0,hwdownload,format=nv12,hwupload_cuda,", algorithm)
+		// NVENC with OpenCL: CUDA → OpenCL (tonemap) → CUDA (scale)
+		// tonemap_opencl handles HDR→SDR conversion on GPU
+		// Scaling is done via scale_cuda after uploading back to CUDA
+		// Note: The output format from tonemap_opencl should be nv12 with bt709 colorspace
+		return fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0:t=bt709:m=bt709:p=bt709,hwdownload,format=nv12,hwupload_cuda,",
+			algorithm)
 	case AccelQSV:
 		// QSV with OpenCL: QSV → OpenCL → QSV
 		return fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0,hwdownload,format=nv12,hwupload=extra_hw_frames=64,", algorithm)
@@ -551,9 +582,16 @@ func (b *FFmpegArgsBuilder) buildScalingFilter(hwAccel HardwareAccel, skipIfLibP
 		return ""
 	}
 
+	// For NVENC with HDR tone mapping, the input is already in nv12 from tonemap_opencl
+	// Just need to scale and pad on CUDA (no format conversion needed)
+	if hwAccel == AccelNVENC && b.needsHDRToneMapping() {
+		return fmt.Sprintf("scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
+			p.Width, p.Height, p.Width, p.Height)
+	}
+
 	switch hwAccel {
 	case AccelNVENC:
-		// NVENC: GPU-accelerated scaling and padding
+		// NVENC: GPU-accelerated scaling and padding (non-HDR path)
 		// Add format=nv12 to scale_cuda to convert 10-bit (yuv420p10le) to 8-bit (nv12)
 		// pad_cuda doesn't support 10-bit input, so conversion must happen in scale_cuda
 		return fmt.Sprintf("scale_cuda=%d:%d:format=nv12:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
@@ -596,11 +634,26 @@ func (b *FFmpegArgsBuilder) needsHDRToneMapping() bool {
 
 // getToneMappingAlgorithm returns the configured tone mapping algorithm, defaulting to "hable" if not set.
 // This is used for OpenCL, VAAPI, and CPU-based tone mapping.
+// Maps advanced algorithms (bt.2390, etc) to closest available OpenCL equivalents.
 func (b *FFmpegArgsBuilder) getToneMappingAlgorithm() string {
-	if b.opts.ToneMappingAlgorithm == "" {
+	algorithm := b.opts.ToneMappingAlgorithm
+	if algorithm == "" {
 		return "hable" // Default to Uncharted 2 filmic tone mapping
 	}
-	return b.opts.ToneMappingAlgorithm
+
+	// OpenCL/VAAPI/CPU support: none, linear, gamma, clip, reinhard, hable, mobius
+	// Map advanced algorithms to their closest equivalents
+	switch algorithm {
+	case "bt.2390", "bt2390", "bt.2446a", "bt2446a", "st2094-40", "st2094-10", "spline":
+		// These advanced algorithms don't exist in OpenCL, use mobius as closest
+		// mobius provides good highlight rolloff similar to bt.2390
+		return "mobius"
+	case "reinhard", "hable", "mobius", "linear", "gamma", "clip", "none":
+		// Direct pass-through for supported algorithms
+		return algorithm
+	default:
+		return "hable" // Safe default
+	}
 }
 
 // getToneMappingLibPlaceboAlgorithm returns the tone mapping algorithm name for libplacebo.
@@ -644,7 +697,11 @@ func (b *FFmpegArgsBuilder) getToneMappingLibPlaceboAlgorithm() string {
 // Returns true if:
 //  1. Tone mapping backend is "libplacebo" or "auto"
 //  2. libplacebo filter is available in FFmpeg
-//  3. We're using NVENC or software encoding (libplacebo works best here)
+//  3. We're using software encoding (libplacebo works best here without GPU transfer overhead)
+//
+// NOTE: For NVENC, we prefer tonemap_opencl over libplacebo because:
+// - libplacebo requires: CUDA → CPU → Vulkan → CPU → CUDA (4 transfers)
+// - tonemap_opencl requires: CUDA → OpenCL → CUDA (2 transfers, OpenCL shares memory with CUDA)
 func (b *FFmpegArgsBuilder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
 	backend := b.opts.ToneMappingBackend
 	if backend == "" {
@@ -661,13 +718,16 @@ func (b *FFmpegArgsBuilder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
 		return false
 	}
 
-	// Auto mode: Use libplacebo for NVENC and software encoding
+	// Auto mode: Only use libplacebo for software encoding
+	// NVENC should use tonemap_opencl for better performance (no CPU staging)
 	// VAAPI has native tonemap_vaapi which works well
 	// QSV will use OpenCL (similar to current implementation)
 	switch hwAccel {
-	case AccelNVENC, AccelNone:
+	case AccelNone:
+		// Software encoding: libplacebo provides best quality
 		return CheckFFmpegFilter("libplacebo")
 	default:
+		// Hardware encoding: use native tone mapping (OpenCL/VAAPI)
 		return false
 	}
 }

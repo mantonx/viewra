@@ -70,14 +70,15 @@ func NewTranscodeSession(
 
 // Start begins the FFmpeg transcoding process.
 // FFmpeg will run continuously, writing segments progressively to the output directory.
-func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) error {
+// clientSupportedCodecs is used to select the best codec from the profile's preferred/fallback list.
+func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig, clientSupportedCodecs []string) error {
 	// Create output directory
 	if err := os.MkdirAll(s.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Build FFmpeg arguments
-	args := s.buildFFmpegArgs(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, config)
+	args := s.buildFFmpegArgs(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, config, clientSupportedCodecs)
 
 	// FFmpeg command available via debug logging if needed
 	s.logger.Debug("Starting FFmpeg process",
@@ -339,12 +340,19 @@ func (s *TranscodeSession) UpdateLastAccessed() {
 
 // buildFFmpegArgs builds the FFmpeg command arguments for progressive HLS transcoding.
 // Supports hardware acceleration for Transcode strategy.
-func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptiveProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig) []string {
-	// Determine target codec from profile (e.g., h265 for 4K profiles)
-	targetCodec := CodecH264 // Default fallback
-	if profile != nil && profile.PreferredCodec != "" {
-		targetCodec = VideoCodec(profile.PreferredCodec)
-	}
+// clientSupportedCodecs is used to select the best codec from the profile's preferred/fallback list.
+func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptiveProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig, clientSupportedCodecs []string) []string {
+	// Determine target codec based on client support and profile preferences
+	// This ensures we encode to a codec the client can actually play
+	targetCodec := selectBestCodec(profile, clientSupportedCodecs, hwAccel)
+
+	s.logger.Debug("Selected target codec for transcoding",
+		"session_id", s.ID,
+		"target_codec", targetCodec,
+		"profile_preferred", profile.PreferredCodec,
+		"profile_fallbacks", profile.FallbackCodecs,
+		"client_codecs", clientSupportedCodecs,
+		"hw_accel", hwAccel)
 
 	// Create TranscodeOptions from session data
 	opts := TranscodeOptions{
@@ -370,7 +378,7 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		builder.AddHardwareAccel(GetHardwareAccelArgsWithDevice(hwAccel, hwDevice))
 
 		// For NVENC and QSV with HDR content, initialize OpenCL device for GPU tone mapping
-		// Both use tonemap_opencl for algorithm selection (matches Jellyfin/Emby approach)
+		// Both use tonemap_opencl for fast HDR→SDR conversion
 		// Only needed if not using libplacebo (which uses Vulkan instead)
 		if (hwAccel == AccelNVENC || hwAccel == AccelQSV) && config.ToneMappingEnabled && videoInfo != nil && videoInfo.IsHDR {
 			// Check if we need OpenCL (not using libplacebo)
@@ -378,7 +386,9 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 			if backend == "" {
 				backend = "auto"
 			}
-			if backend == "opencl" || (backend == "auto" && hwAccel == AccelQSV) {
+			// In auto mode, both NVENC and QSV use OpenCL tone mapping (not libplacebo)
+			// libplacebo is only used for software encoding due to GPU transfer overhead
+			if backend == "opencl" || backend == "auto" {
 				builder.AddOpenCLDevice().AddOpenCLFilterDevice()
 			}
 		}
@@ -435,4 +445,42 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 	args = append(args, s.ManifestPath)
 
 	return args
+}
+
+// selectBestCodec selects the best codec for transcoding based on:
+// 1. Client's supported codecs (what the browser can decode)
+// 2. Profile's preferred codec and fallbacks
+// 3. Hardware acceleration support
+// Returns H.264 as the ultimate fallback for universal compatibility.
+func selectBestCodec(profile *AdaptiveProfile, clientSupportedCodecs []string, hwAccel HardwareAccel) VideoCodec {
+	// If no client codecs provided, assume H.264 only (most conservative)
+	if len(clientSupportedCodecs) == 0 {
+		clientSupportedCodecs = []string{"h264"}
+	}
+
+	// Build a set for fast lookup
+	supported := make(map[string]bool)
+	for _, codec := range clientSupportedCodecs {
+		supported[codec] = true
+	}
+
+	// If profile is nil, return H.264
+	if profile == nil {
+		return CodecH264
+	}
+
+	// Check if preferred codec is supported by both client and hardware
+	if supported[profile.PreferredCodec] && IsCodecSupported(hwAccel, VideoCodec(profile.PreferredCodec)) {
+		return VideoCodec(profile.PreferredCodec)
+	}
+
+	// Check fallback codecs in order of preference
+	for _, fallback := range profile.FallbackCodecs {
+		if supported[fallback] && IsCodecSupported(hwAccel, VideoCodec(fallback)) {
+			return VideoCodec(fallback)
+		}
+	}
+
+	// Ultimate fallback: H.264 (universally supported)
+	return CodecH264
 }

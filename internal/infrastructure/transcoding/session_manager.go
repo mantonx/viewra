@@ -65,6 +65,8 @@ func (m *SessionManager) cleanupOutputDir(path string, sessionID string) {
 // GetOrCreateSession returns an existing session or creates a new one.
 // Sessions are reused when possible to avoid re-transcoding segments that already exist.
 // Multiple quality sessions can coexist to support ABR (Adaptive Bitrate) streaming.
+// clientSupportedCodecs is a list of video codecs the client can decode (e.g., ["h264", "h265", "vp9"]).
+// This is used to select the best codec from the profile's preferred/fallback list.
 func (m *SessionManager) GetOrCreateSession(
 	mediaID int64,
 	quality string,
@@ -74,6 +76,7 @@ func (m *SessionManager) GetOrCreateSession(
 	strategy StreamStrategy,
 	outputDir string,
 	videoInfo *VideoInfo,
+	clientSupportedCodecs []string,
 ) (*TranscodeSession, error) {
 	key := sessionKey(mediaID, quality)
 
@@ -141,7 +144,7 @@ func (m *SessionManager) GetOrCreateSession(
 	// Start FFmpeg process with hardware acceleration and HDR tone mapping
 	hwAccel := m.config.HardwareAccel
 	hwDevice := m.config.HardwareDevice
-	if err := session.Start(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, m.config); err != nil {
+	if err := session.Start(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, m.config, clientSupportedCodecs); err != nil {
 		// Check if this is a hardware error and fallback if needed
 		if m.fallbackManager.RecordFailure(hwAccel, err) {
 			m.logger.Info("Retrying with fallback acceleration",
@@ -149,7 +152,7 @@ func (m *SessionManager) GetOrCreateSession(
 				"to", m.config.HardwareAccel,
 			)
 			// Retry with new hardware acceleration setting
-			if err := session.Start(inputPath, profile, strategy, m.config.HardwareAccel, hwDevice, videoInfo, m.config); err != nil {
+			if err := session.Start(inputPath, profile, strategy, m.config.HardwareAccel, hwDevice, videoInfo, m.config, clientSupportedCodecs); err != nil {
 				return nil, fmt.Errorf("failed to start transcode session after fallback: %w", err)
 			}
 		} else {

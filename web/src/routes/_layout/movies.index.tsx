@@ -5,6 +5,7 @@ import { MovieListItem } from '@/components/movies'
 import { VideoPlayerContainer } from '@/components/media'
 import { MediaBrowsePage, VirtualMediaGrid } from '@/components/common'
 import { useMediaPlayback, useLibraryFilter, useInfiniteMovies, flattenMovies, BatchImagesProvider, BatchProgressProvider, useDebounce } from '@/lib/hooks'
+import { moviesApi } from '@/lib/api/movies'
 import { logger } from '@/lib/utils/logger'
 import type { FilterState, ViewMode } from '@/components/common'
 import type { Movie } from '@/lib/types/movies'
@@ -109,6 +110,9 @@ const Movies = () => {
   // Use the playback hook
   const { playbackState, playMedia, stopPlayback } = useMediaPlayback()
 
+  // Track movie fetched by direct URL navigation (not in infinite scroll list)
+  const [directPlayMovie, setDirectPlayMovie] = useState<Movie | null>(null)
+
   // Convert sort format from URL (title-asc) to API format (title_asc)
   const apiSort = search.sort?.replace(/-/g, '_')
 
@@ -211,18 +215,53 @@ const Movies = () => {
     return () => window.removeEventListener('resize', updateLayout)
   }, [])
 
-  // Find currently playing movie
+  // Find currently playing movie (check both loaded list and directly fetched movie)
   const playingMovie = allMovies.find((m) => m.id === playbackState.mediaId)
+    || (directPlayMovie?.id === playbackState.mediaId ? directPlayMovie : null)
 
   // Handle playing a movie
   const handlePlayMovie = useCallback(async (movieId: number, startTime?: number) => {
     logger.debug('🔔 handlePlayMovie called with movieId:', movieId, 'startTime:', startTime)
-    const movie = allMovies.find((m) => m.id === movieId)
+    let movie = allMovies.find((m) => m.id === movieId)
+
+    // If movie not in loaded list (e.g., direct URL navigation), fetch it
     if (!movie) {
-      logger.warn('❌ Movie not found for ID:', movieId)
-      return
+      logger.debug('Movie not in list, fetching by ID:', movieId)
+      try {
+        const response = await moviesApi.getMovie(movieId)
+        if (response.status !== 200 || !response.data) {
+          logger.warn('❌ Movie not found for ID:', movieId)
+          return
+        }
+        // Map the API response to our Movie type
+        const movieData = response.data
+        const fetchedMovie: Movie = {
+          id: movieData.id ?? 0,
+          library_id: movieData.library_id ?? 0,
+          title: movieData.title ?? '',
+          file_path: movieData.file_path ?? '',
+          duration: movieData.duration ?? 0,
+          year: movieData.year,
+          genre: movieData.genre,
+          height: movieData.height,
+          width: movieData.width,
+          is_extra: movieData.is_extra ?? false,
+          created_at: movieData.created_at ?? '',
+          updated_at: movieData.updated_at ?? '',
+        }
+        movie = fetchedMovie
+        // Store the fetched movie so playingMovie can find it
+        setDirectPlayMovie(fetchedMovie)
+        logger.debug('✅ Fetched movie:', movie.title)
+      } catch (error) {
+        logger.error('❌ Failed to fetch movie:', error)
+        return
+      }
+    } else {
+      logger.debug('✅ Found movie in list:', movie.title)
+      // Clear any previously fetched movie
+      setDirectPlayMovie(null)
     }
-    logger.debug('✅ Found movie:', movie.title)
 
     // Update URL with movie ID and optional time position
     // Preserve existing search params to avoid re-rendering the browse page
@@ -254,7 +293,7 @@ const Movies = () => {
 
     // Trigger playback via hook, passing URL time if available
     await playMedia(movieId, mediaItem, startTime)
-  }, [allMovies, navigate, playMedia])
+  }, [allMovies, navigate, playMedia, setDirectPlayMovie])
 
   // Handle time position updates from video player
   const handleTimeUpdate = (time: number) => {
@@ -287,6 +326,8 @@ const Movies = () => {
     // Set closing flag to prevent auto-play effect from re-triggering
     isClosingRef.current = true
     stopPlayback()
+    // Clear directly fetched movie
+    setDirectPlayMovie(null)
     // Clear URL parameters if present
     if (urlMovieId) {
       navigate({

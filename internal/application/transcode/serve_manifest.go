@@ -105,6 +105,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	}
 
 	// Create or reuse transcode session
+	// Pass client's supported video codecs for intelligent codec selection
 	session, err := uc.sessionManager.GetOrCreateSession(
 		req.MediaID,
 		req.Quality,
@@ -114,6 +115,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		strategy,
 		req.OutputDir,
 		videoInfo,
+		req.SupportedVideoCodecs,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcode session: %w", err)
