@@ -192,7 +192,21 @@ func (uc *ScanLibraryUseCase) handleStuckScan(ctx context.Context, job *scanner.
 	}
 
 	stats, err := uc.scanRepos.Checkpoint.GetStats(ctx, job.ID)
-	if err != nil || stats.PendingFiles == 0 {
+	if err != nil {
+		// Can't get stats - resume the scan to figure out state
+		uc.logger.Warn("failed to get checkpoint stats for stuck scan, resuming anyway",
+			"scan_id", job.ID,
+			"error", err)
+		uc.startScanBackground(job.ID, lib, "resumed stuck scan goroutine panicked")
+		return
+	}
+
+	// Check if scan is truly complete by comparing processed files to files found
+	// Note: PendingFiles == 0 is not sufficient because checkpoints are created in batches,
+	// so there may be files that haven't been batched yet
+	actuallyComplete := stats.PendingFiles == 0 && job.FilesFound > 0 && stats.ProcessedFiles >= job.FilesFound
+
+	if actuallyComplete {
 		uc.markStuckScanCompleted(ctx, job, stats)
 		return
 	}
@@ -200,8 +214,9 @@ func (uc *ScanLibraryUseCase) handleStuckScan(ctx context.Context, job *scanner.
 	uc.logger.Info("resuming stuck scan",
 		"scan_id", job.ID,
 		"library_id", lib.ID,
-		"pending", stats.PendingFiles,
-		"completed", stats.CompletedFiles)
+		"files_found", job.FilesFound,
+		"pending_checkpoints", stats.PendingFiles,
+		"processed_checkpoints", stats.ProcessedFiles)
 
 	uc.startScanBackground(job.ID, lib, "resumed stuck scan goroutine panicked")
 }
