@@ -11,6 +11,9 @@ const HLS_CONFIG = {
   ENABLE_WORKER: false, // Disable worker - can cause audio issues
   LOW_LATENCY_MODE: false,
   DEBUG: false, // Disable debug logging for production
+  // Startup optimization: start at lowest quality, switch to auto after buffer fills
+  START_LEVEL: 0, // Start at lowest quality for fast initial buffering
+  AUTO_SWITCH_DELAY_MS: 3000, // Switch to auto ABR after 3 seconds
 } as const
 
 export interface QualityLevel {
@@ -104,8 +107,20 @@ export const useHlsPlayer = (
       }))
       setAvailableQualities(qualities)
 
-      // Set initial quality to highest (-1 = auto)
-      setCurrentQuality(-1)
+      // Start at lowest quality for fast initial buffering, then switch to auto
+      // This prevents long initial buffering when starting at high quality
+      hls.startLevel = HLS_CONFIG.START_LEVEL
+      hls.currentLevel = HLS_CONFIG.START_LEVEL
+      setCurrentQuality(HLS_CONFIG.START_LEVEL)
+
+      // Switch to auto ABR after initial buffer fills (3 seconds)
+      // This allows HLS.js to adapt to actual network conditions
+      setTimeout(() => {
+        if (hlsRef.current) {
+          hlsRef.current.currentLevel = -1 // -1 = auto ABR
+          setCurrentQuality(-1)
+        }
+      }, HLS_CONFIG.AUTO_SWITCH_DELAY_MS)
 
       // Extract audio tracks
       if (data.audioTracks && data.audioTracks.length > 0) {

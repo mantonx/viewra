@@ -3,9 +3,12 @@ package transcoding
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 // AudioTrack represents a single audio track in a video file
@@ -42,6 +45,71 @@ type VideoInfo struct {
 	IsHDR          bool   // True if video is HDR (computed from color metadata)
 }
 
+// videoInfoCache provides thread-safe caching of video metadata to avoid repeated ffprobe calls.
+// Cache entries are keyed by file path and invalidated if the file's modification time changes.
+type videoInfoCache struct {
+	mu      sync.RWMutex
+	entries map[string]*videoInfoCacheEntry
+}
+
+type videoInfoCacheEntry struct {
+	info    *VideoInfo
+	modTime time.Time // File modification time when cached
+	cachedAt time.Time // When this entry was created
+}
+
+// Global cache instance
+var globalVideoInfoCache = &videoInfoCache{
+	entries: make(map[string]*videoInfoCacheEntry),
+}
+
+// cacheMaxAge is the maximum age for cache entries (24 hours)
+const cacheMaxAge = 24 * time.Hour
+
+// get retrieves a cached VideoInfo if valid, or nil if not cached/stale.
+func (c *videoInfoCache) get(path string) *VideoInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, exists := c.entries[path]
+	if !exists {
+		return nil
+	}
+
+	// Check if cache entry is too old
+	if time.Since(entry.cachedAt) > cacheMaxAge {
+		return nil
+	}
+
+	// Check if file has been modified since caching
+	stat, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	if !stat.ModTime().Equal(entry.modTime) {
+		return nil
+	}
+
+	return entry.info
+}
+
+// set stores a VideoInfo in the cache.
+func (c *videoInfoCache) set(path string, info *VideoInfo) {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return // Don't cache if we can't stat the file
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.entries[path] = &videoInfoCacheEntry{
+		info:    info,
+		modTime: stat.ModTime(),
+		cachedAt: time.Now(),
+	}
+}
+
 // ffprobeOutput represents the JSON structure returned by ffprobe
 type ffprobeOutput struct {
 	Streams []struct {
@@ -70,7 +138,13 @@ type ffprobeOutput struct {
 }
 
 // GetVideoInfo extracts video metadata using ffprobe.
+// Results are cached to avoid repeated ffprobe calls for the same file.
 func GetVideoInfo(inputPath string) (*VideoInfo, error) {
+	// Check cache first
+	if cached := globalVideoInfoCache.get(inputPath); cached != nil {
+		return cached, nil
+	}
+
 	ffprobePath, err := exec.LookPath("ffprobe")
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe not found: %w", err)
@@ -169,6 +243,9 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 	if ffprobe.Format.BitRate != "" {
 		info.Bitrate, _ = strconv.ParseInt(ffprobe.Format.BitRate, 10, 64)
 	}
+
+	// Cache the result for future requests
+	globalVideoInfoCache.set(inputPath, info)
 
 	return info, nil
 }

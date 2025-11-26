@@ -217,12 +217,20 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		}
 	}
 
+	// Parse client codec capabilities from headers
+	// X-Supported-Video-Codecs: h264,h265,vp9,av1
+	// X-Supported-Containers: mp4,webm,matroska
+	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
+	supportedContainers := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
+
 	// Use the serve manifest use case
 	response, err := h.serveManifestUseCase.Execute(c.Request.Context(), transcode.ServeManifestRequest{
-		MediaID:       mediaID,
-		Quality:       quality,
-		OutputDir:     h.outputDir,
-		StartPosition: startPosition,
+		MediaID:              mediaID,
+		Quality:              quality,
+		OutputDir:            h.outputDir,
+		StartPosition:        startPosition,
+		SupportedVideoCodecs: supportedVideoCodecs,
+		SupportedContainers:  supportedContainers,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
@@ -510,11 +518,15 @@ type MasterPlaylistResponse struct {
 // @Summary Serve HLS master playlist
 // @Description Serves an HLS master playlist (.m3u8) that lists all available quality levels for adaptive streaming.
 // @Description The player uses this to select and switch between quality levels based on network conditions.
+// @Description If the video is compatible for direct play (right codec, audio, container), returns 302 redirect.
 // @Tags transcode
 // @Produce application/vnd.apple.mpegurl,application/json
 // @Param media_id path int true "Media ID"
 // @Param start query number false "Start position in seconds for seeking"
+// @Header 200,302 {string} X-Supported-Video-Codecs "Client-supported video codecs (h264,h265,vp9,av1)"
+// @Header 200,302 {string} X-Supported-Containers "Client-supported containers (mp4,webm,matroska)"
 // @Success 200 {file} file "HLS master playlist with all quality variants"
+// @Success 302 "Redirect to direct stream (for compatible files)"
 // @Failure 400 {object} handlers.ErrorResponse
 // @Failure 404 {object} handlers.ErrorResponse
 // @Failure 500 {object} handlers.ErrorResponse
@@ -538,6 +550,47 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Media not found"})
 		return
+	}
+
+	// Parse client codec capabilities from headers for direct play decision
+	// X-Supported-Video-Codecs: h264,h265,vp9,av1
+	// X-Supported-Containers: mp4,webm,matroska
+	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
+	supportedContainers := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
+
+	// Check if direct play is possible by analyzing the video
+	videoInfo, err := transcoding.GetVideoInfo(mediaItem.FilePath)
+	if err == nil && videoInfo != nil {
+		// Build client capabilities
+		var clientCaps *transcoding.ClientCapabilitiesForStrategy
+		if len(supportedVideoCodecs) > 0 || len(supportedContainers) > 0 {
+			clientCaps = &transcoding.ClientCapabilitiesForStrategy{
+				SupportedVideoCodecs: supportedVideoCodecs,
+				SupportedContainers:  supportedContainers,
+			}
+		}
+
+		// Determine streaming strategy
+		strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
+
+		slog.Debug("master playlist strategy decision",
+			"media_id", mediaID,
+			"strategy", strategy,
+			"reason", reason,
+			"video_codec", videoInfo.Codec,
+			"audio_codec", videoInfo.AudioCodec,
+			"audio_channels", videoInfo.AudioChannels,
+			"container", videoInfo.ContainerFormat,
+			"client_video_codecs", supportedVideoCodecs,
+			"client_containers", supportedContainers,
+		)
+
+		// If direct play is possible, redirect to direct stream
+		if strategy == transcoding.DirectPlay {
+			directURL := fmt.Sprintf("/api/stream/%d", mediaID)
+			c.Redirect(http.StatusFound, directURL)
+			return
+		}
 	}
 
 	// Build list of quality profiles appropriate for this media

@@ -35,7 +35,7 @@ type QueueConfig struct {
 func DefaultQueueConfig() *QueueConfig {
 	return &QueueConfig{
 		WorkerCount:   2,                                 // 2 concurrent transcodes by default
-		PollInterval:  10 * time.Second,                  // Check for new jobs every 10 seconds
+		PollInterval:  2 * time.Second,                   // Check for new jobs every 2 seconds (reduced from 10s for faster startup)
 		IdleTimeout:   5 * time.Minute,                   // Cancel transcode after 5 minutes of no activity
 		OutputBaseDir: transcoding.GetDefaultOutputDir(), // /data/hls or ./data/hls
 	}

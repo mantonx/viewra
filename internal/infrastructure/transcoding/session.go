@@ -278,7 +278,8 @@ func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration)
 			return "", fmt.Errorf("ffmpeg process has exited")
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		// Poll every 50ms for faster segment delivery (reduced from 100ms)
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	return "", fmt.Errorf("timeout waiting for segment %d", segmentNum)
@@ -300,7 +301,8 @@ func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
 			return fmt.Errorf("ffmpeg process exited before creating manifest")
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		// Poll every 50ms for faster startup (reduced from 100ms)
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	return fmt.Errorf("timeout waiting for manifest file to be created")

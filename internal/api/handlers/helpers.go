@@ -48,6 +48,15 @@ func splitCSV(s string) []string {
 	return result
 }
 
+// parseCommaSeparatedHeader parses a comma-separated HTTP header value into a slice of strings.
+// Returns nil if the header is empty.
+func parseCommaSeparatedHeader(header string) []string {
+	if header == "" {
+		return nil
+	}
+	return splitCSV(header)
+}
+
 // parseInt parses a string to int
 func parseInt(s string) (int, error) {
 	var i int

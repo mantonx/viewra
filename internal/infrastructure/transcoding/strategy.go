@@ -19,44 +19,57 @@ const (
 	Transcode StreamStrategy = "transcode"
 )
 
+// ClientCapabilitiesForStrategy contains codec support info from the client browser.
+// This allows the server to make informed decisions about direct play.
+type ClientCapabilitiesForStrategy struct {
+	// SupportedVideoCodecs lists video codecs the client can decode (e.g., "h264", "h265", "vp9", "av1")
+	SupportedVideoCodecs []string
+	// SupportedContainers lists container formats the client can play (e.g., "mp4", "webm", "matroska")
+	SupportedContainers []string
+}
+
 // DetermineStreamStrategy analyzes video metadata and determines the optimal streaming strategy.
 // Returns the strategy and a human-readable reason for the decision.
+// This version assumes only H.264 support (legacy behavior).
 func DetermineStreamStrategy(videoInfo *VideoInfo) (StreamStrategy, string) {
+	return DetermineStreamStrategyWithCapabilities(videoInfo, nil)
+}
+
+// DetermineStreamStrategyWithCapabilities analyzes video metadata against client capabilities
+// to determine the optimal streaming strategy. When clientCaps is provided, it enables
+// direct play for modern codecs (H.265, VP9, AV1) if the client supports them.
+func DetermineStreamStrategyWithCapabilities(videoInfo *VideoInfo, clientCaps *ClientCapabilitiesForStrategy) (StreamStrategy, string) {
 	// Safety check
 	if videoInfo == nil {
 		return Transcode, "no video info available, defaulting to transcode"
 	}
 
-	// Check video codec compatibility (H.264 is web-compatible)
-	isH264 := videoInfo.Codec == "h264" || videoInfo.Codec == "H264" || videoInfo.Codec == "avc1"
+	// Normalize video codec name
+	videoCodecLower := strings.ToLower(videoInfo.Codec)
 
-	// Check container format compatibility (MP4, WebM, MOV are web-compatible)
-	// Note: ffprobe returns formats like "mov,mp4,m4a,3gp,3g2,mj2" or "matroska,webm"
-	// We need to check if it contains the web format but exclude matroska
-	containerLower := strings.ToLower(videoInfo.ContainerFormat)
-	isWebContainer := !strings.Contains(containerLower, "matroska") && (strings.Contains(containerLower, "mp4") ||
-		strings.Contains(containerLower, "webm") ||
-		strings.Contains(containerLower, "mov"))
+	// Check if client supports the video codec
+	isVideoCodecSupported := isCodecSupportedByClient(videoCodecLower, clientCaps)
+
+	// Check container format compatibility
+	isWebContainer := isWebCompatibleContainer(videoInfo.ContainerFormat, clientCaps)
 
 	// Check audio codec compatibility (browsers support: AAC, MP3, Opus, Vorbis)
-	// Incompatible: TrueHD, DTS, DTS-HD, EAC3, FLAC, PCM, etc.
-	audioCodecLower := strings.ToLower(videoInfo.AudioCodec)
-	isWebAudioCodec := audioCodecLower == "aac" ||
-		audioCodecLower == "mp3" ||
-		audioCodecLower == "opus" ||
-		audioCodecLower == "vorbis" ||
-		strings.Contains(audioCodecLower, "mp4a") // AAC variants
+	isWebAudioCodec := isWebCompatibleAudioCodec(videoInfo.AudioCodec)
 
-	// Check audio compatibility (stereo or mono is web-compatible, 5.1/7.1 is not)
+	// Check audio channel compatibility (stereo or mono is web-compatible, 5.1/7.1 is not)
 	isStereoOrLess := videoInfo.AudioChannels <= 2
 	hasMultiChannelAudio := videoInfo.AudioChannels > 2
 
-	// Tier 1: Direct Play - H.264 + web-compatible audio codec + stereo + web container
+	// Tier 1: Direct Play - supported video codec + web-compatible audio + stereo + web container
 	// This is instant, no processing needed
-	if isH264 && isWebAudioCodec && isStereoOrLess && isWebContainer {
-		return DirectPlay, fmt.Sprintf("H.264 video with %s %d-channel audio in %s container - direct playback",
-			videoInfo.AudioCodec, videoInfo.AudioChannels, videoInfo.ContainerFormat)
+	if isVideoCodecSupported && isWebAudioCodec && isStereoOrLess && isWebContainer {
+		return DirectPlay, fmt.Sprintf("%s video with %s %d-channel audio in %s container - direct playback",
+			videoInfo.Codec, videoInfo.AudioCodec, videoInfo.AudioChannels, videoInfo.ContainerFormat)
 	}
+
+	// For non-H.264 codecs that need processing, we must transcode the video
+	// (remux only works when we can copy the video stream as-is)
+	isH264 := videoCodecLower == "h264" || videoCodecLower == "avc1"
 
 	// Tier 2: Remux - H.264 + web-compatible audio + stereo but wrong container (e.g., MKV)
 	// Copy streams to HLS without re-encoding (2-5 minutes)
@@ -76,6 +89,103 @@ func DetermineStreamStrategy(videoInfo *VideoInfo) (StreamStrategy, string) {
 	// Re-encode both video and audio (20-60 minutes)
 	return Transcode, fmt.Sprintf("video codec %s incompatible, needs full transcode to H.264",
 		videoInfo.Codec)
+}
+
+// isCodecSupportedByClient checks if the video codec is supported by the client.
+// If no client capabilities are provided, only H.264 is assumed to be supported.
+func isCodecSupportedByClient(videoCodecLower string, clientCaps *ClientCapabilitiesForStrategy) bool {
+	// H.264 variants - universally supported
+	if videoCodecLower == "h264" || videoCodecLower == "avc1" || videoCodecLower == "avc" {
+		return true
+	}
+
+	// If no client capabilities provided, only H.264 is safe
+	if clientCaps == nil || len(clientCaps.SupportedVideoCodecs) == 0 {
+		return false
+	}
+
+	// Check if client explicitly supports this codec
+	for _, supported := range clientCaps.SupportedVideoCodecs {
+		supportedLower := strings.ToLower(supported)
+
+		// H.265/HEVC variants
+		if (videoCodecLower == "hevc" || videoCodecLower == "h265" || videoCodecLower == "hev1") &&
+			(supportedLower == "h265" || supportedLower == "hevc" || supportedLower == "hev1") {
+			return true
+		}
+
+		// VP9
+		if videoCodecLower == "vp9" && supportedLower == "vp9" {
+			return true
+		}
+
+		// AV1
+		if (videoCodecLower == "av1" || videoCodecLower == "av01") &&
+			(supportedLower == "av1" || supportedLower == "av01") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isWebCompatibleContainer checks if the container format is web-compatible.
+// Properly parses ffprobe format strings like "mov,mp4,m4a,3gp,3g2,mj2" or "matroska,webm".
+// IMPORTANT: FFprobe returns "matroska,webm" for ALL Matroska files (MKV and WebM alike)
+// because WebM is technically a subset of Matroska. We cannot distinguish them by container
+// alone - we must check codecs at a higher level. So we treat all matroska containers as
+// NOT web-compatible and let them go through HLS transcoding.
+func isWebCompatibleContainer(containerFormat string, clientCaps *ClientCapabilitiesForStrategy) bool {
+	containerLower := strings.ToLower(containerFormat)
+
+	// Parse comma-separated format list from ffprobe
+	formats := strings.Split(containerLower, ",")
+
+	// Check for Matroska (MKV/WebM) - requires special handling
+	// FFprobe returns "matroska,webm" for ALL Matroska files, even MKV with H.264+FLAC
+	// We cannot determine true WebM from container format alone - must check codecs
+	// So we treat ALL matroska containers as NOT directly playable
+	for _, format := range formats {
+		format = strings.TrimSpace(format)
+		if strings.Contains(format, "matroska") || format == "webm" || format == "mkv" {
+			// Client explicitly supports matroska/mkv?
+			if clientCaps != nil {
+				for _, supported := range clientCaps.SupportedContainers {
+					if strings.ToLower(supported) == "matroska" || strings.ToLower(supported) == "mkv" {
+						return true
+					}
+				}
+			}
+			return false
+		}
+	}
+
+	// Check for standard web containers
+	webFormats := []string{"mp4", "m4v", "m4a", "mov", "3gp", "3g2"}
+	for _, format := range formats {
+		format = strings.TrimSpace(format)
+		for _, webFormat := range webFormats {
+			if format == webFormat {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isWebCompatibleAudioCodec checks if the audio codec is compatible with HLS/fMP4 streaming.
+// Note: This is specifically for HLS compatibility (fragmented MP4 segments), NOT general browser support.
+// FLAC is NOT included because browsers cannot play FLAC in fMP4/HLS segments, even though
+// they can play standalone FLAC files or FLAC in WebM containers.
+func isWebCompatibleAudioCodec(audioCodec string) bool {
+	audioCodecLower := strings.ToLower(audioCodec)
+	return audioCodecLower == "aac" ||
+		audioCodecLower == "mp3" ||
+		audioCodecLower == "opus" ||
+		audioCodecLower == "vorbis" ||
+		strings.Contains(audioCodecLower, "mp4a") || // AAC variants
+		strings.Contains(audioCodecLower, "aac") // Other AAC variants like aac_latm
 }
 
 // ShouldTranscode determines if transcoding is necessary based on current codec/resolution vs target.

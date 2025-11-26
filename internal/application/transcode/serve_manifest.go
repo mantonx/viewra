@@ -15,6 +15,10 @@ type ServeManifestRequest struct {
 	Quality       string
 	OutputDir     string
 	StartPosition float64 // Optional: start position in seconds for seeking
+
+	// Client capabilities for smart direct play decisions
+	SupportedVideoCodecs []string // e.g., ["h264", "h265", "vp9", "av1"]
+	SupportedContainers  []string // e.g., ["mp4", "webm", "matroska"]
 }
 
 // ServeManifestResponse represents the result of a serve manifest request.
@@ -74,8 +78,15 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		return nil, fmt.Errorf("failed to analyze video: %w", err)
 	}
 
-	// Step 3: Determine streaming strategy
-	strategy, reason := transcoding.DetermineStreamStrategy(videoInfo)
+	// Step 3: Determine streaming strategy with client capabilities
+	var clientCaps *transcoding.ClientCapabilitiesForStrategy
+	if len(req.SupportedVideoCodecs) > 0 || len(req.SupportedContainers) > 0 {
+		clientCaps = &transcoding.ClientCapabilitiesForStrategy{
+			SupportedVideoCodecs: req.SupportedVideoCodecs,
+			SupportedContainers:  req.SupportedContainers,
+		}
+	}
+	strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
 
 	// Step 4: Handle DirectPlay (no transcoding needed)
 	if strategy == transcoding.DirectPlay {

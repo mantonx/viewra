@@ -45,7 +45,7 @@ func TestDetermineStreamStrategy(t *testing.T) {
 				Height:          1080,
 				AudioCodec:      "aac",
 				AudioChannels:   2,
-				ContainerFormat: "matroska,webm", // MKV
+				ContainerFormat: "matroska", // Pure MKV (not WebM)
 			},
 			expectedStrategy: Remux,
 			expectedReason:   "container remux",
@@ -85,6 +85,45 @@ func TestDetermineStreamStrategy(t *testing.T) {
 				AudioCodec:      "dts",
 				AudioChannels:   8, // 7.1 surround
 				ContainerFormat: "matroska,webm",
+			},
+			expectedStrategy: RemuxWithAudioDownmix,
+			expectedReason:   "audio needs transcode",
+		},
+		{
+			name: "Remux with Audio Downmix - H.264 + DTS stereo + MKV (incompatible audio codec)",
+			videoInfo: &VideoInfo{
+				Codec:           "h264",
+				Width:           1920,
+				Height:          1080,
+				AudioCodec:      "dts", // DTS is NOT web-compatible even in stereo
+				AudioChannels:   2,     // stereo
+				ContainerFormat: "matroska",
+			},
+			expectedStrategy: RemuxWithAudioDownmix,
+			expectedReason:   "audio needs transcode",
+		},
+		{
+			name: "Remux with Audio Downmix - H.264 + AC3 stereo + MP4 (incompatible audio codec)",
+			videoInfo: &VideoInfo{
+				Codec:           "h264",
+				Width:           1920,
+				Height:          1080,
+				AudioCodec:      "ac3", // AC3/Dolby Digital NOT web-compatible
+				AudioChannels:   2,
+				ContainerFormat: "mp4",
+			},
+			expectedStrategy: RemuxWithAudioDownmix,
+			expectedReason:   "audio needs transcode",
+		},
+		{
+			name: "Remux with Audio Downmix - H.264 + TrueHD stereo + MKV (incompatible audio codec)",
+			videoInfo: &VideoInfo{
+				Codec:           "h264",
+				Width:           1920,
+				Height:          1080,
+				AudioCodec:      "truehd", // TrueHD NOT web-compatible
+				AudioChannels:   2,
+				ContainerFormat: "matroska",
 			},
 			expectedStrategy: RemuxWithAudioDownmix,
 			expectedReason:   "audio needs transcode",

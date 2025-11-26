@@ -30,8 +30,18 @@ const HLS_CONFIG = {
 
 // Helper functions for video element manipulation
 const ensureVideoUnmuted = (video: HTMLVideoElement) => {
+  logger.debug('[VideoPlayer] ensureVideoUnmuted called', {
+    currentMuted: video.muted,
+    currentVolume: video.volume,
+    readyState: video.readyState,
+    networkState: video.networkState,
+  })
   video.muted = false
   video.volume = 1.0
+  logger.debug('[VideoPlayer] After unmute', {
+    muted: video.muted,
+    volume: video.volume,
+  })
 }
 
 // HLS transcoded streams: Backend starts at ?start=X, but stream reports time=0.
@@ -345,6 +355,11 @@ export const VideoPlayer = ({
 
       // Extract audio tracks if available
       const audioTracks = hls.audioTracks
+      logger.info('[VideoPlayer] HLS audio tracks:', {
+        count: audioTracks?.length || 0,
+        tracks: audioTracks?.map(t => ({ name: t.name, lang: t.lang, id: t.id })),
+        currentTrack: hls.audioTrack,
+      })
       if (audioTracks && audioTracks.length > 0) {
         const tracks = audioTracks.map((track, index) => ({
           id: index,
@@ -355,20 +370,25 @@ export const VideoPlayer = ({
 
         // Set initial audio track (HLS.js defaults to track 0)
         setCurrentAudioTrack(hls.audioTrack)
+      } else {
+        logger.warn('[VideoPlayer] No HLS audio tracks found - audio may be embedded in video')
       }
 
       initializeStreamOffset(streamOffsetRef, initialPosition)
 
       // Start muted to allow autoplay, will unmute on first play event
+      logger.info('[VideoPlayer] Starting video muted for autoplay')
       video.muted = true
       video
         .play()
         .then(() => {
           // Successfully started - unmute immediately
+          logger.info('[VideoPlayer] Autoplay succeeded, unmuting video')
           ensureVideoUnmuted(video)
         })
-        .catch(() => {
+        .catch((e) => {
           // Autoplay blocked - user will need to click play
+          logger.warn('[VideoPlayer] Autoplay blocked, user will click play', e)
         })
     })
 
@@ -383,7 +403,20 @@ export const VideoPlayer = ({
 
     // Track audio track changes
     hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
+      logger.info('[VideoPlayer] Audio track switched to:', data.id)
       setCurrentAudioTrack(data.id)
+    })
+
+    // Monitor for audio issues
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_event, data) => {
+      logger.info('[VideoPlayer] Audio tracks updated:', {
+        count: data.audioTracks.length,
+        tracks: data.audioTracks.map(t => ({ name: t.name, lang: t.lang, id: t.id, groupId: t.groupId })),
+      })
+    })
+
+    hls.on(Hls.Events.AUDIO_TRACK_LOADING, (_event, data) => {
+      logger.debug('[VideoPlayer] Loading audio track:', data)
     })
 
     // Clear error on successful fragment load and record network sample
