@@ -65,14 +65,6 @@ func (uc *ScanLibraryUseCase) extractImagesForEpisode(ctx context.Context, episo
 		showDir = filepath.Dir(episodeDir)
 	}
 
-	uc.logger.Info("extracting show images",
-		"show_title", episode.ShowTitle,
-		"episode_file", filePath,
-		"episode_dir", episodeDir,
-		"episode_dir_name", episodeDirName,
-		"show_dir", showDir,
-		"has_season_subdir", strings.HasPrefix(strings.ToLower(episodeDirName), "season"))
-
 	uc.extractTVShowAndSeasonImages(ctx, episode.ShowTitle, libraryID, showDir, episode.Season)
 }
 
@@ -155,22 +147,12 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 
 	// Extract show images
 	if uc.showImageExtractor != nil {
-		uc.logger.Info("calling image extractor for show",
-			"show_title", showTitle,
-			"show_id", show.ID,
-			"show_dir", showDir,
-			"media_type", images.MediaTypeTVShow)
-
 		if err := uc.showImageExtractor.Execute(ctx, showDir, images.MediaTypeTVShow, int(show.ID)); err != nil {
 			uc.logger.Warn("failed to extract images for show",
 				"show_title", showTitle,
 				"show_dir", showDir,
 				"error", err)
 			// Show/season image extraction failures don't get tracked per-file since they're per-show/season
-		} else {
-			uc.logger.Info("successfully extracted images for show",
-				"show_title", showTitle,
-				"show_id", show.ID)
 		}
 	}
 

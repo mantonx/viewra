@@ -128,10 +128,6 @@ func NewExtractTVShowImagesUseCase(repo images.Repository, cacheService *infraIm
 // Execute extracts images for a TV show and stores them in the database
 func (uc *ExtractTVShowImagesUseCase) Execute(ctx context.Context, showDir string, mediaType images.MediaType, entityID int) error {
 	log := logger.DefaultIfNil(nil)
-	log.Info("ExtractTVShowImagesUseCase Execute called",
-		"show_dir", showDir,
-		"media_type", mediaType,
-		"entity_id", entityID)
 
 	// Extract image paths
 	extracted, err := uc.extractor.ExtractTVShowImages(showDir)
@@ -141,10 +137,6 @@ func (uc *ExtractTVShowImagesUseCase) Execute(ctx context.Context, showDir strin
 			"error", err)
 		return fmt.Errorf("failed to extract show images: %w", err)
 	}
-
-	log.Info("extracted images from filesystem",
-		"show_dir", showDir,
-		"image_count", len(extracted.Images))
 
 	// Process and save all extracted images (shows don't have media_id, so pass nil)
 	return ProcessAndSaveImages(ctx, nil, uc.repo, uc.metadataExtractor, uc.cacheService, uc.transformer, extracted, mediaType, entityID, nil)

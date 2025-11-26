@@ -27,14 +27,8 @@ func ProcessAndSaveImages(
 	log = logger.DefaultIfNil(log)
 
 	if extractedImages == nil || len(extractedImages.Images) == 0 {
-		log.Info("no images extracted", "media_type", mediaType, "entity_id", entityID)
 		return nil
 	}
-
-	log.Info("processing extracted images",
-		"media_type", mediaType,
-		"entity_id", entityID,
-		"image_count", len(extractedImages.Images))
 
 	// Process each image
 	for _, imgInfo := range extractedImages.Images {
@@ -71,22 +65,10 @@ func ProcessAndSaveImages(
 					}
 				}
 
-				// If we found a matching image, check if we can reuse it
+				// If we found a matching image, skip processing
 				if existingImage != nil {
-					// Image already exists with same hash - skip processing
-					log.Debug("reusing existing image with matching hash",
-						"path", imgInfo.Path,
-						"hash", *metadata.FileHash,
-						"existing_id", existingImage.ID,
-						"cache_path", existingImage.LocalCachePath)
 					continue
 				}
-
-				// If hash exists but for different media/entity, we can still reuse the cache
-				// by copying the cache path from the existing image
-				log.Debug("found existing image with same hash for different media",
-					"hash", *metadata.FileHash,
-					"existing_count", len(existingImages))
 			}
 		}
 
@@ -103,14 +85,10 @@ func ProcessAndSaveImages(
 			if err == nil && len(existingImages) > 0 {
 				for _, existing := range existingImages {
 					if existing.LocalCachePath != nil && *existing.LocalCachePath != "" {
-						// Reuse the cache path from existing image
 						localCachePath = existing.LocalCachePath
 						if existing.MimeType != nil {
 							cachedMimeType = existing.MimeType
 						}
-						log.Debug("reusing cache from existing image with same hash",
-							"hash", *metadata.FileHash,
-							"cache_path", *localCachePath)
 						break
 					}
 				}
@@ -142,10 +120,6 @@ func ProcessAndSaveImages(
 				}
 				webpMime := "image/webp"
 				cachedMimeType = &webpMime // All presets are WebP
-				log.Debug("image presets generated",
-					"path", imgInfo.Path,
-					"image_type", imgInfo.Type,
-					"preset_count", len(presetPaths))
 			}
 		}
 
@@ -182,11 +156,6 @@ func ProcessAndSaveImages(
 				"error", err)
 			continue
 		}
-
-		log.Debug("image cataloged",
-			"path", imgInfo.Path,
-			"type", imgInfo.Type,
-			"media_type", mediaType)
 	}
 
 	return nil

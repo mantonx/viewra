@@ -434,16 +434,22 @@ func parseInterfaceTime(v interface{}) *time.Time {
 	case *time.Time:
 		return t
 	case string:
-		// SQLite returns timestamps as strings
-		parsed, err := time.Parse("2006-01-02 15:04:05", t)
-		if err != nil {
-			// Try ISO 8601 format
-			parsed, err = time.Parse(time.RFC3339, t)
-			if err != nil {
-				return nil
+		// SQLite returns timestamps as strings in various formats
+		// Try formats from most specific to least specific
+		formats := []string{
+			"2006-01-02 15:04:05.999999999-07:00", // With nanoseconds and timezone
+			"2006-01-02 15:04:05.999999999",       // With nanoseconds, no timezone
+			"2006-01-02 15:04:05-07:00",           // With timezone, no subseconds
+			"2006-01-02 15:04:05",                 // Basic format
+			time.RFC3339Nano,                      // ISO 8601 with T separator
+			time.RFC3339,                          // ISO 8601 basic
+		}
+		for _, format := range formats {
+			if parsed, err := time.Parse(format, t); err == nil {
+				return &parsed
 			}
 		}
-		return &parsed
+		return nil
 	default:
 		return nil
 	}

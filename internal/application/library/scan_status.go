@@ -80,7 +80,7 @@ func (uc *ScanLibraryUseCase) GetScanStatus(ctx context.Context, libraryID int64
 
 	// Calculate ETA for running scans
 	if job.Status == scanner.ScanStatusRunning {
-		uc.enrichWithETA(ctx, job.ID, status)
+		uc.enrichWithETA(ctx, job.ID, job.FilesFound, status)
 	}
 
 	return status, nil
@@ -114,8 +114,8 @@ func (uc *ScanLibraryUseCase) enrichWithScanState(ctx context.Context, libraryID
 }
 
 // enrichWithETA calculates and adds ETA for running scans
-func (uc *ScanLibraryUseCase) enrichWithETA(ctx context.Context, jobID int64, status *ScanStatusResult) {
+func (uc *ScanLibraryUseCase) enrichWithETA(ctx context.Context, jobID int64, filesFound int64, status *ScanStatusResult) {
 	if stats, err := uc.scanRepos.Checkpoint.GetStats(ctx, jobID); err == nil && stats != nil {
-		status.ETASeconds = stats.EstimateRemainingSeconds()
+		status.ETASeconds = stats.EstimateRemainingSeconds(filesFound)
 	}
 }

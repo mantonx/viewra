@@ -75,12 +75,15 @@ func (s *CheckpointStats) GetProgress() float64 {
 // EstimateRemainingSeconds calculates the estimated time remaining for the scan.
 // Returns nil if ETA cannot be calculated (no processing started or no files remaining).
 // Uses FirstProcessedAt for accurate timing - job.StartedAt includes discovery/hashing overhead.
-func (s *CheckpointStats) EstimateRemainingSeconds() *int64 {
-	if s.ProcessedFiles == 0 || s.TotalFiles == 0 || s.FirstProcessedAt == nil {
+//
+// actualTotal: The actual total files to process (from job.FilesFound), not the checkpoint count.
+// Checkpoints are created in batches, so TotalFiles from checkpoints may be less than actual total.
+func (s *CheckpointStats) EstimateRemainingSeconds(actualTotal int64) *int64 {
+	if s.ProcessedFiles == 0 || actualTotal == 0 || s.FirstProcessedAt == nil {
 		return nil
 	}
 
-	remaining := s.TotalFiles - s.ProcessedFiles
+	remaining := actualTotal - s.ProcessedFiles
 	if remaining <= 0 {
 		return nil
 	}
