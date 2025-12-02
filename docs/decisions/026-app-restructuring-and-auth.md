@@ -1,4 +1,4 @@
-# ADR 026: App Package Restructuring, Authentication, and Settings Infrastructure
+# ADR 026: App Package Restructuring
 
 ## Status
 
@@ -10,118 +10,201 @@ December 2, 2025
 
 ## Context
 
-The ViewRA codebase has grown organically and now has several pain points:
+The ViewRA codebase has grown organically and now has several structural pain points:
 
 1. **`NewServer` has 30+ parameters** - Individual use cases passed instead of an aggregate
 2. **Inconsistent handler creation** - Some handlers created in `NewServer`, others in `app/handlers`
 3. **Wasted rebuilds** - `startup.go` rebuilds repos/services/usecases just to recover stuck scans
-4. **No authentication** - Single-user only, no multi-user support
-5. **No runtime settings** - All config requires restart
+4. **No clear dependency graph** - Hard to understand what depends on what
 
-These are interconnected: clean app structure makes auth easier, auth enables per-user settings.
+This restructuring is a prerequisite for cleanly adding authentication (ADR 028) and settings (ADR 029).
 
 ## Decision
 
-Implement three initiatives in order:
+Restructure the `internal/app/` package to provide clear dependency wiring and a simplified server initialization.
 
-### 1. App Package Restructuring
-
-**Target structure:**
+### Target Structure
 
 ```text
 internal/app/
 ├── config/           # Split config by domain
+│   ├── server.go
+│   ├── database.go
+│   ├── transcoding.go
+│   └── scanning.go
 ├── wire/             # Dependency wiring
 │   ├── repositories.go
 │   ├── services.go
-│   ├── usecases.go   # Aggregate struct
-│   └── handlers.go   # -> *api.Handlers
+│   ├── usecases.go
+│   └── handlers.go
 ├── tasks/            # Scheduled task registration
+│   ├── registry.go
+│   └── cleanup.go
 └── container.go      # Main container
 ```
 
-**Key changes:**
+### Key Changes
 
-- Create `api.Handlers` aggregate struct
-- Simplify `NewServer(config, logger, handlers)`
-- Move all wiring to `app/wire/`
-- Extract task registration to `app/tasks/`
-- Fix startup to reuse container instead of rebuilding
+#### 1. Create `api.Handlers` Aggregate Struct
 
-### 2. User Authentication
+```go
+// internal/api/handlers.go
+type Handlers struct {
+    Health     *HealthHandler
+    Libraries  *LibraryHandler
+    Media      *MediaHandler
+    Transcode  *TranscodeHandler
+    Progress   *ProgressHandler
+    // ... all handlers
+}
+```
 
-**Approach:** JWT access tokens (15 min) + database-backed refresh tokens (7 days)
+#### 2. Simplify `NewServer`
 
-**New tables:**
+Before:
+```go
+func NewServer(
+    config *Config,
+    logger *slog.Logger,
+    healthHandler *HealthHandler,
+    libraryHandler *LibraryHandler,
+    mediaHandler *MediaHandler,
+    // ... 30+ more parameters
+) *Server
+```
 
-- `users` - username, email, password_hash, is_admin
-- `sessions` - refresh token tracking, enables revocation
+After:
+```go
+func NewServer(config *Config, logger *slog.Logger, handlers *Handlers) *Server
+```
 
-**Components:**
+#### 3. Move Wiring to `app/wire/`
 
-- Argon2id password hashing
-- JWT service for token generation/validation
-- Auth middleware (`RequireAuth`, `RequireAdmin`)
-- Login/logout/register/refresh endpoints
+```go
+// internal/app/wire/handlers.go
+func NewHandlers(usecases *UseCases, logger *slog.Logger) *api.Handlers {
+    return &api.Handlers{
+        Health:    handlers.NewHealthHandler(usecases.Health),
+        Libraries: handlers.NewLibraryHandler(usecases.Library, logger),
+        // ...
+    }
+}
+```
 
-**Migration:** Add `user_id` to `watch_progress` for per-user tracking
+#### 4. Extract Task Registration
 
-### 3. Settings Infrastructure
+```go
+// internal/app/tasks/registry.go
+type TaskRegistry struct {
+    scheduler *scheduler.Scheduler
+    tasks     []Task
+}
 
-**Approach:** Database-backed settings with in-memory cache, runtime reloadable
+func (r *TaskRegistry) RegisterAll(container *Container) {
+    r.Register(NewTranscodeCleanupTask(container.TranscodeService))
+    r.Register(NewSessionCleanupTask(container.SessionService))  // Future
+    // ...
+}
+```
 
-**Features:**
+#### 5. Fix Startup to Reuse Container
 
-- System-wide settings (admin only)
-- Per-user settings (after auth)
-- Change subscribers for live updates
-- Schema endpoint for future settings UI
+Current `startup.go` rebuilds repositories and services just to call `RecoverStuckScans`. Instead:
 
-**Categories:** Server, Transcoding, Scanning, Library, Playback, UI
+```go
+// internal/app/startup.go
+func RunStartupTasks(container *Container) error {
+    // Reuse existing services from container
+    return container.ScanService.RecoverStuckScans(ctx)
+}
+```
+
+### Container Interface
+
+```go
+// internal/app/container.go
+type Container struct {
+    Config      *Config
+    Logger      *slog.Logger
+    DB          *database.DB
+
+    // Repositories
+    Repos       *wire.Repositories
+
+    // Services
+    Services    *wire.Services
+
+    // Use Cases
+    UseCases    *wire.UseCases
+
+    // Handlers
+    Handlers    *api.Handlers
+
+    // Tasks
+    Tasks       *tasks.TaskRegistry
+}
+
+func NewContainer(config *Config, logger *slog.Logger) (*Container, error) {
+    // Build dependency graph in order
+}
+
+func (c *Container) Close() error {
+    // Cleanup in reverse order
+}
+```
 
 ## Consequences
 
 ### Positive
 
-- Cleaner dependency management
-- Multi-user support
-- Per-user watch progress and preferences
-- Runtime configuration without restarts
-- Foundation for settings UI
+- Clear dependency graph
+- Single place to understand wiring (`app/wire/`)
+- Simplified server initialization
+- No duplicate service creation
+- Easier to add new handlers/services
+- Foundation for auth and settings
 
 ### Negative
 
-- Significant refactoring effort (7-10 days)
-- Migration complexity for existing single-user data
-- More moving parts in auth flow
+- Significant refactoring effort (2-3 days)
+- Temporary code churn
+- Need to update tests that mock individual handlers
 
 ### Neutral
 
-- Breaking API change (auth headers required)
-- First-run experience changes (admin setup)
+- No external API changes
+- No database changes
+- No user-visible changes
 
 ## Alternatives Considered
 
-### Session-only auth (no JWT)
+### Keep Current Structure
 
-Simpler but requires DB lookup on every request. JWT allows stateless validation for most requests.
+Could add auth without restructuring, but:
+- Would add more parameters to already-bloated `NewServer`
+- Would continue pattern of duplicate service creation
+- Technical debt compounds
 
-### File-based settings
+### Dependency Injection Framework (Wire, Fx)
 
-Simpler but no per-user settings, requires restart for changes.
+More automated but:
+- Adds external dependency
+- Learning curve for contributors
+- Manual wiring is clear enough for current size
 
-### Gradual restructuring
+## Implementation
 
-Could do auth first without restructuring, but would make the code messier before cleaning it up.
+1. Create `api.Handlers` aggregate struct
+2. Create `app/wire/` package with repository/service/usecase wiring
+3. Update `NewServer` to accept `*Handlers`
+4. Create `app/tasks/` for scheduled task registration
+5. Update `startup.go` to use container
+6. Update tests
 
-## Implementation Order
-
-1. **Phase 1: App Restructuring** (2-3 days) - Prerequisite for clean auth
-2. **Phase 2: Authentication** (3-4 days) - Enables multi-user
-3. **Phase 3: Settings** (2-3 days) - Runtime config
+**Effort**: 2-3 days
 
 ## References
 
-- [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
-- [JWT Best Practices RFC 8725](https://datatracker.ietf.org/doc/html/rfc8725)
 - Current: `internal/app/`, `internal/api/`, `cmd/viewra/bootstrap/`
+- Related: [ADR 028 - User Authentication](028-user-authentication.md)
+- Related: [ADR 029 - Settings Infrastructure](029-settings-infrastructure.md)

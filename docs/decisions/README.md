@@ -48,8 +48,10 @@ Create an ADR when making decisions about:
 | [021](021-progressive-hls-transcoding.md) | Progressive HLS Transcoding (Jellyfin-Style) | Proposed | 2025-11-XX | transcoding, streaming |
 | [022](022-library-package-refactoring.md) | Library Package Refactoring and Simplification | Proposed | 2025-11-22 | architecture, refactoring, complexity |
 | [025](025-resilient-library-scanner-v2.md) | Resilient Library Scanner V2 - Checkpoint Recovery | Accepted | 2025-11-22 | scanner, reliability |
-| [026](026-app-restructuring-and-auth.md) | App Restructuring, Authentication, and Settings | Proposed | 2025-12-02 | architecture, auth, settings |
+| [026](026-app-restructuring-and-auth.md) | App Package Restructuring | Proposed | 2025-12-02 | architecture, refactoring |
 | [027](027-plugin-system-architecture.md) | Plugin System Architecture | Proposed | 2025-12-02 | plugins, metadata, extensibility |
+| [028](028-user-authentication.md) | User Authentication | Proposed | 2025-12-02 | auth, security, users |
+| [029](029-settings-infrastructure.md) | Settings Infrastructure | Proposed | 2025-12-02 | settings, configuration |
 
 ---
 
@@ -130,7 +132,7 @@ What other options did we evaluate?
 
 ### 1. Find the Next Number
 
-Check the index above for the next available number. Currently: **028**
+Check the index above for the next available number. Currently: **030**
 
 ### 2. Create the File
 

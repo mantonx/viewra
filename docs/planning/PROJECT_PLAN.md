@@ -32,7 +32,7 @@ Changes:
 
 **Priority**: High
 **Effort**: 3-4 days
-**ADR**: [026-app-restructuring-and-auth.md](../decisions/026-app-restructuring-and-auth.md)
+**ADR**: [028-user-authentication.md](../decisions/028-user-authentication.md)
 
 - JWT access tokens (15 min) + refresh tokens (7 days)
 - Argon2id password hashing
@@ -45,7 +45,7 @@ Changes:
 
 **Priority**: Medium
 **Effort**: 2-3 days
-**ADR**: [026-app-restructuring-and-auth.md](../decisions/026-app-restructuring-and-auth.md)
+**ADR**: [029-settings-infrastructure.md](../decisions/029-settings-infrastructure.md)
 
 - Database-backed settings with in-memory cache
 - System-wide settings (admin) and per-user settings
