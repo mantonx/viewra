@@ -1,21 +1,36 @@
+/**
+ * useHlsPlayer Hook
+ * Manages HLS.js instance lifecycle, quality levels, audio tracks, and error handling.
+ * Extracted from VideoPlayer to improve maintainability.
+ */
+
+import { useEffect, useRef, useState, useCallback } from 'react'
 import Hls from 'hls.js'
-import { useEffect, useRef, useState } from 'react'
+import { getAuthHeaders } from '@/lib/utils/authFetch'
+import { logger } from '@/lib/utils/logger'
 
 // HLS configuration constants
-// CRITICAL: Ultra-conservative buffer limits to prevent bufferFullError
 const HLS_CONFIG = {
-  MAX_BUFFER_LENGTH: 30, // Buffer 30 seconds ahead (5 segments)
-  MAX_MAX_BUFFER_LENGTH: 60, // Maximum buffer of 1 minute
-  MAX_BUFFER_SIZE: 100 * 1000 * 1000, // 100MB max buffer size
-  MAX_BUFFER_HOLE: 2.0, // Maximum gap tolerance (2s for keyframe alignment)
-  ENABLE_WORKER: false, // Disable worker - can cause audio issues
+  MAX_BUFFER_LENGTH: 30,
+  MAX_MAX_BUFFER_LENGTH: 60,
+  MAX_BUFFER_SIZE: 100 * 1000 * 1000,
+  MAX_BUFFER_HOLE: 2.0,
+  ENABLE_WORKER: false,
   LOW_LATENCY_MODE: false,
-  DEBUG: true, // Enable debug logging to diagnose quality drops
+  DEBUG: false,
+  BACK_BUFFER_LENGTH: 90,
+  HIGH_BUFFER_WATCHDOG_PERIOD: 1,
+  FRAG_LOADING_MAX_RETRY: 6,
+  FRAG_LOADING_MAX_RETRY_TIMEOUT: 64000,
+  NUDGE_OFFSET: 0.1,
+  NUDGE_MAX_RETRY: 10,
 } as const
 
 export interface QualityLevel {
   height: number
   bandwidth: number
+  index?: number
+  isOriginal?: boolean
 }
 
 export interface AudioTrack {
@@ -24,63 +39,171 @@ export interface AudioTrack {
   language: string
 }
 
-export interface UseHlsPlayerReturn {
-  hlsRef: React.MutableRefObject<Hls | null>
-  availableQualities: QualityLevel[]
-  currentQuality: number | null
-  availableAudioTracks: AudioTrack[]
-  currentAudioTrack: number
-  handleQualityChange: (level: number) => void
-  handleAudioTrackChange: (trackId: number) => void
+export interface UseHlsPlayerOptions {
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  streamUrl: string
+  initialPosition: number
+  isHlsStream: boolean
+  onError: (error: string | null) => void
+  onFragLoaded?: (bytes: number, durationMs: number) => void
+  qualityRecommendation?: {
+    height?: number
+    isReady?: boolean
+  } | null
 }
 
-/**
- * Hook for managing HLS.js player lifecycle and quality/audio track selection.
- * Handles initialization, quality detection, track management, and cleanup.
- */
-export const useHlsPlayer = (
-  videoRef: React.RefObject<HTMLVideoElement>,
-  streamUrl: string,
-  initialPosition: number,
-  isHlsStream: boolean,
-  onBuffering: (buffering: boolean) => void,
-  onError: (error: string) => void
-): UseHlsPlayerReturn => {
+export interface UseHlsPlayerReturn {
+  hlsRef: React.RefObject<Hls | null>
+  availableQualities: QualityLevel[]
+  currentQuality: number | null
+  currentBandwidth: number | null
+  availableAudioTracks: AudioTrack[]
+  currentAudioTrack: number
+  streamOffsetRef: React.RefObject<number>
+  setCurrentQuality: (quality: number | null) => void
+  setCurrentBandwidth: (bandwidth: number | null) => void
+  setCurrentAudioTrack: (trackId: number) => void
+  changeQuality: (height: number, bandwidth?: number) => number | null
+  changeAudioTrack: (trackId: number) => void
+  loadSource: (url: string) => void
+}
+
+// Helper to ensure video is unmuted
+const ensureVideoUnmuted = (video: HTMLVideoElement) => {
+  video.muted = false
+  video.volume = 1.0
+}
+
+// Initialize stream offset for progressive transcoding
+const initializeStreamOffset = (
+  streamOffsetRef: { current: number },
+  initialPosition: number
+) => {
+  if (initialPosition > 0 && streamOffsetRef.current === 0) {
+    streamOffsetRef.current = initialPosition
+  }
+}
+
+export const useHlsPlayer = ({
+  videoRef,
+  streamUrl,
+  initialPosition,
+  isHlsStream,
+  onError,
+  onFragLoaded,
+  qualityRecommendation,
+}: UseHlsPlayerOptions): UseHlsPlayerReturn => {
   const hlsRef = useRef<Hls | null>(null)
+  const streamOffsetRef = useRef<number>(0)
+
   const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([])
   const [currentQuality, setCurrentQuality] = useState<number | null>(null)
+  const [currentBandwidth, setCurrentBandwidth] = useState<number | null>(null)
   const [availableAudioTracks, setAvailableAudioTracks] = useState<AudioTrack[]>([])
   const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1)
 
-  // Initialize HLS player for HLS streams
+  // Store callbacks in refs to avoid effect re-runs when callbacks change
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
+  const onFragLoadedRef = useRef(onFragLoaded)
+  onFragLoadedRef.current = onFragLoaded
+
+  // Store recommendation in ref to avoid effect re-runs
+  const qualityRecommendationRef = useRef(qualityRecommendation)
+  qualityRecommendationRef.current = qualityRecommendation
+
+  // Change quality level
+  const changeQuality = useCallback((height: number, bandwidth?: number): number | null => {
+    const hls = hlsRef.current
+    if (!hls) {
+      return null
+    }
+
+    if (height === 0) {
+      // Auto quality - enable ABR
+      hls.currentLevel = -1
+      setCurrentQuality(0)
+      setCurrentBandwidth(null)
+      return -1
+    }
+
+    // Find matching level
+    let levelIndex: number
+    if (bandwidth) {
+      levelIndex = hls.levels.findIndex(
+        (level) => level.height === height && level.bitrate === bandwidth
+      )
+    } else {
+      levelIndex = hls.levels.findIndex((level) => level.height === height)
+    }
+
+    if (levelIndex !== -1) {
+      hls.currentLevel = levelIndex
+      const selectedLevel = hls.levels[levelIndex]
+      setCurrentQuality(height)
+      setCurrentBandwidth(selectedLevel.bitrate || null)
+      return levelIndex
+    }
+
+    return null
+  }, [])
+
+  // Change audio track
+  const changeAudioTrack = useCallback((trackId: number) => {
+    const hls = hlsRef.current
+    if (hls) {
+      hls.audioTrack = trackId
+      setCurrentAudioTrack(trackId)
+    }
+  }, [])
+
+  // Load a new source URL
+  const loadSource = useCallback((url: string) => {
+    const hls = hlsRef.current
+    if (hls) {
+      hls.loadSource(url)
+    }
+  }, [])
+
+  // Initialize HLS player
   useEffect(() => {
     const video = videoRef.current
-    if (!video) {return}
-
-    // If streamUrl is empty, show buffering indicator and wait
-    if (!streamUrl) {
-      onBuffering(true)
+    if (!video || !streamUrl) {
       return
     }
 
-    // Direct stream (non-HLS) - use native video element
+    // For direct streams, use native HTML5 video
     if (!isHlsStream) {
       video.src = streamUrl
       if (initialPosition > 0) {
         video.currentTime = initialPosition
       }
-      video.load()
+      video.muted = true
+      video.play()
+        .then(() => ensureVideoUnmuted(video))
+        .catch(() => { /* Autoplay blocked */ })
       return
     }
 
-    // HLS stream - use HLS.js
+    // Check for native HLS support (Safari/iOS)
+    const canPlayHls = video.canPlayType('application/vnd.apple.mpegurl')
+    if (canPlayHls) {
+      video.src = streamUrl
+      initializeStreamOffset(streamOffsetRef, initialPosition)
+      video.muted = true
+      video.play()
+        .then(() => ensureVideoUnmuted(video))
+        .catch(() => { /* Autoplay blocked */ })
+      return
+    }
+
+    // Use hls.js for browsers without native HLS support
     if (!Hls.isSupported()) {
-      onError('HLS is not supported in this browser')
+      onErrorRef.current('Browser does not support HLS streaming')
       return
     }
 
-    // Create HLS instance with ABR enabled
-    // HLS.js will automatically switch between qualities based on network conditions
+    // Create hls.js instance
     const hls = new Hls({
       debug: HLS_CONFIG.DEBUG,
       enableWorker: HLS_CONFIG.ENABLE_WORKER,
@@ -89,127 +212,185 @@ export const useHlsPlayer = (
       maxMaxBufferLength: HLS_CONFIG.MAX_MAX_BUFFER_LENGTH,
       maxBufferSize: HLS_CONFIG.MAX_BUFFER_SIZE,
       maxBufferHole: HLS_CONFIG.MAX_BUFFER_HOLE,
+      backBufferLength: HLS_CONFIG.BACK_BUFFER_LENGTH,
+      highBufferWatchdogPeriod: HLS_CONFIG.HIGH_BUFFER_WATCHDOG_PERIOD,
+      fragLoadingMaxRetry: HLS_CONFIG.FRAG_LOADING_MAX_RETRY,
+      fragLoadingMaxRetryTimeout: HLS_CONFIG.FRAG_LOADING_MAX_RETRY_TIMEOUT,
+      nudgeOffset: HLS_CONFIG.NUDGE_OFFSET,
+      nudgeMaxRetry: HLS_CONFIG.NUDGE_MAX_RETRY,
+      xhrSetup: (xhr, _url) => {
+        const authHeaders = getAuthHeaders()
+        if (authHeaders['Authorization']) {
+          xhr.setRequestHeader('Authorization', authHeaders['Authorization'])
+        }
+      },
     })
     hlsRef.current = hls
 
-    // Load stream
+    // Load source and attach to video
     hls.loadSource(streamUrl)
     hls.attachMedia(video)
 
-    // Wait for manifest to be parsed
-    hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-      // Extract quality levels from master playlist
-      const qualities = data.levels.map((level, _index) => ({
-        height: level.height,
-        bandwidth: level.bitrate,
-      }))
-      setAvailableQualities(qualities)
+    // Handle manifest parsed - extract quality levels and audio tracks
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      const levels = hls.levels
 
-      // Start with auto ABR - HLS.js will select based on network conditions
-      // currentQuality of -1 indicates auto mode
-      setCurrentQuality(-1)
+      if (levels && levels.length > 0) {
+        const qualities = levels
+          .map((level, index) => {
+            const url = level.url?.[0] || ''
+            const isOriginal = url.includes('/original/') || level.name === 'original'
+            return {
+              height: level.height,
+              bandwidth: level.bitrate,
+              index,
+              isOriginal,
+            }
+          })
+          .filter((q) => q.height > 0)
+          .sort((a, b) => {
+            if (b.height !== a.height) {
+              return b.height - a.height
+            }
+            return b.bandwidth - a.bandwidth
+          })
+
+        setAvailableQualities(qualities)
+
+        // Apply recommended quality if available
+        const rec = qualityRecommendationRef.current
+        if (rec?.height && rec?.isReady) {
+          let levelIndex = hls.levels.findIndex((level) => level.height === rec.height)
+
+          if (levelIndex === -1) {
+            const recHeight = rec.height
+            const sortedLevels = hls.levels
+              .map((level, index) => ({
+                level,
+                index,
+                diff: Math.abs(level.height - recHeight),
+                isHigher: level.height >= recHeight
+              }))
+              .filter((item) => item.level.height > 0)
+              .sort((a, b) => {
+                const is4KClass = recHeight >= 1440
+                if (is4KClass) {
+                  if (a.isHigher && !b.isHigher) {
+                    return -1
+                  }
+                  if (!a.isHigher && b.isHigher) {
+                    return 1
+                  }
+                }
+                return a.diff - b.diff
+              })
+
+            if (sortedLevels.length > 0) {
+              levelIndex = sortedLevels[0].index
+            }
+          }
+
+          if (levelIndex !== -1) {
+            hls.currentLevel = levelIndex
+            setCurrentQuality(hls.levels[levelIndex].height)
+          }
+        }
+      }
 
       // Extract audio tracks
-      if (data.audioTracks && data.audioTracks.length > 0) {
-        const tracks = data.audioTracks.map((track, idx) => ({
-          id: idx,
-          name: track.name || `Track ${idx + 1}`,
-          language: track.lang || 'unknown',
+      const audioTracks = hls.audioTracks
+      if (audioTracks && audioTracks.length > 0) {
+        const tracks = audioTracks.map((track, index) => ({
+          id: index,
+          name: track.name || `Track ${index + 1}`,
+          language: track.lang || 'Unknown',
         }))
         setAvailableAudioTracks(tracks)
+        setCurrentAudioTrack(hls.audioTrack)
       }
 
-      // Seek to initial position if specified
-      if (initialPosition > 0 && video.readyState >= 2) {
-        video.currentTime = initialPosition
+      initializeStreamOffset(streamOffsetRef, initialPosition)
+
+      video.muted = true
+      video.play()
+        .then(() => ensureVideoUnmuted(video))
+        .catch(() => { /* Autoplay blocked */ })
+    })
+
+    // Track quality level changes
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+      const level = hls.levels[data.level]
+      if (level?.height) {
+        setCurrentQuality(level.height)
+        setCurrentBandwidth(level.bitrate || null)
       }
-
-      // Start playback
-      video.play().catch(() => {
-        // Autoplay blocked - user will need to click play
-      })
     })
 
-    // Handle fragment loaded (for buffering indicator)
-    hls.on(Hls.Events.FRAG_LOADED, () => {
-      onBuffering(false)
+    // Track audio track changes
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
+      setCurrentAudioTrack(data.id)
     })
 
-    // Handle errors
+    // Handle fragment loaded - for network sampling
+    hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
+      onErrorRef.current(null) // Clear any previous error
+      if (onFragLoadedRef.current && data.frag?.stats) {
+        const stats = data.frag.stats
+        const bytes = stats.total || 0
+        const durationMs = stats.loading?.end && stats.loading?.start
+          ? stats.loading.end - stats.loading.start
+          : 0
+        if (bytes > 0 && durationMs > 0) {
+          onFragLoadedRef.current(bytes, durationMs)
+        }
+      }
+    })
+
+    // Error handling
     hls.on(Hls.Events.ERROR, (_event, data) => {
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
+            onErrorRef.current('Network issue: Retrying...')
             hls.startLoad()
             break
           case Hls.ErrorTypes.MEDIA_ERROR:
+            onErrorRef.current('Media error: Recovering...')
             hls.recoverMediaError()
             break
           default:
-            onError('Fatal HLS error - cannot recover')
+            logger.error('Fatal HLS error:', data.details)
+            onErrorRef.current(`Playback error: ${data.details || 'Unknown error'}`)
             hls.destroy()
+            hlsRef.current = null
             break
         }
       }
     })
 
-    // Track current audio track
-    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
-      setCurrentAudioTrack(data.id)
-    })
-
-    // Track level switching for debugging quality drops
-    hls.on(Hls.Events.LEVEL_SWITCHING, (_event, data) => {
-      console.log('[HLS] LEVEL_SWITCHING:', {
-        level: data.level,
-        height: hls.levels[data.level]?.height,
-        currentLevel: hls.currentLevel,
-        loadLevel: hls.loadLevel,
-        nextLevel: hls.nextLevel,
-      })
-    })
-
-    hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
-      console.log('[HLS] LEVEL_SWITCHED:', {
-        level: data.level,
-        height: hls.levels[data.level]?.height,
-      })
-      // Update our tracked current quality
-      setCurrentQuality(data.level)
-    })
-
-    // Cleanup on unmount
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
+      if (hls) {
+        hls.destroy()
         hlsRef.current = null
       }
     }
-  }, [streamUrl, initialPosition, isHlsStream, videoRef, onBuffering, onError])
-
-  // Handle quality change - supports both auto (-1) and manual (0+) modes
-  const handleQualityChange = (level: number) => {
-    if (hlsRef.current) {
-      // level -1 = auto ABR, level >= 0 = locked to specific quality
-      hlsRef.current.currentLevel = level
-      setCurrentQuality(level)
-    }
-  }
-
-  // Handle audio track change
-  const handleAudioTrackChange = (trackId: number) => {
-    if (hlsRef.current) {
-      hlsRef.current.audioTrack = trackId
-    }
-  }
+  // Note: onError and onFragLoaded are stored in refs to avoid triggering re-initialization
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamUrl, initialPosition, isHlsStream, videoRef])
 
   return {
     hlsRef,
     availableQualities,
     currentQuality,
+    currentBandwidth,
     availableAudioTracks,
     currentAudioTrack,
-    handleQualityChange,
-    handleAudioTrackChange,
+    streamOffsetRef,
+    setCurrentQuality,
+    setCurrentBandwidth,
+    setCurrentAudioTrack,
+    changeQuality,
+    changeAudioTrack,
+    loadSource,
   }
 }
