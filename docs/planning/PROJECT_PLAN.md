@@ -55,29 +55,53 @@ Changes:
 ### 4. Plugin System
 
 **Priority**: Medium
-**Effort**: 10-14 days
+**Effort**: 19-25 days
 **ADR**: [027-plugin-system-architecture.md](../decisions/027-plugin-system-architecture.md)
 
-Extensible metadata provider system using Hashicorp go-plugin + gRPC:
+Extensible plugin system using Hashicorp go-plugin + gRPC:
 
-**Phase 1: Foundation (3-4 days)**
-- Plugin manager and process lifecycle
-- gRPC protocol definitions (protobuf)
-- Basic MetadataProvider interface
+**Phase 1: Foundation (4-5 days)**
+
+- Plugin manager, process lifecycle, adaptive warm pool
+- PluginCore gRPC definitions (identity, lifecycle, settings, events)
+- MetadataProvider interface with TV/Music extensions
+- Host services (HostData, HostStorage)
 - NFO plugin as first implementation
+- Permission system with category defaults
 
-**Phase 2: Integration (2-3 days)**
+**Phase 2: Metadata Integration (3-4 days)**
+
 - Hook into library scanner
-- Metadata merging logic with field-level priority
-- Settings storage for plugins
+- Search flow with confidence scores
+- Metadata merging (field-level priority)
+- External IDs table, source tracking
+- Match locking
 
-**Phase 3: Built-in Providers (3-4 days)**
-- TMDb plugin for movies/TV
-- MusicBrainz plugin for music
+**Phase 3: Built-in Providers (4-5 days)**
+
+- TMDb plugin for movies/TV (series-first matching)
+- MusicBrainz plugin for music (album-first matching)
+- Plugin SQLite databases with quotas
 - Remove hardcoded provider code
 
-**Phase 4: Polish (2-3 days)**
+**Phase 4: Events & Notifications (3-4 days)**
+
+- Event dispatcher (library, playback, user, system events)
+- NotificationSink category
+- Webhook plugin as example
+- Event queue for reliability
+
+**Phase 5: UI Extensions (3-4 days)**
+
+- Extension points (settings, tabs, menus, widgets, navigation, player)
+- JSON schema UI rendering
+- React component loading
+- Settings page generation
+
+**Phase 6: Polish (2-3 days)**
+
 - Plugin CLI commands (install, update, list)
+- Registry integration, update notifications
 - Developer test harness
 - Documentation and template repo
 
