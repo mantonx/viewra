@@ -8,18 +8,51 @@ For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Upcoming Work
 
-### 1. User Authentication
+### 1. App Package Restructuring
+
+**Priority**: High (prerequisite for auth)
+**Effort**: 2-3 days
+**ADR**: [026-app-restructuring-and-auth.md](../decisions/026-app-restructuring-and-auth.md)
+
+Current problems:
+
+- `NewServer` has 30+ parameters
+- Inconsistent handler creation
+- `startup.go` rebuilds repos/services just to recover stuck scans
+
+Changes:
+
+- Create `api.Handlers` aggregate struct
+- Simplify `NewServer(config, logger, handlers)`
+- New `app/wire/` package for dependency wiring
+- New `app/tasks/` package for scheduled task registration
+- Fix startup to reuse container
+
+### 2. User Authentication
 
 **Priority**: High
-**Effort**: 20-25 hours
+**Effort**: 3-4 days
+**ADR**: [026-app-restructuring-and-auth.md](../decisions/026-app-restructuring-and-auth.md)
 
-- Users table and JWT tokens
-- Login/logout/register endpoints
+- JWT access tokens (15 min) + refresh tokens (7 days)
+- Argon2id password hashing
+- `users` and `sessions` tables
 - Auth middleware for protected routes
-- Per-user watch progress
-- Frontend login UI
+- Per-user watch progress (`user_id` on `watch_progress`)
+- Initial admin creation on first run
 
-### 2. External Metadata APIs
+### 3. Settings Infrastructure
+
+**Priority**: Medium
+**Effort**: 2-3 days
+**ADR**: [026-app-restructuring-and-auth.md](../decisions/026-app-restructuring-and-auth.md)
+
+- Database-backed settings with in-memory cache
+- System-wide settings (admin) and per-user settings
+- Runtime reloadable without restart
+- Schema endpoint for future settings UI
+
+### 4. External Metadata APIs
 
 **Priority**: Medium
 **Effort**: 25-30 hours
@@ -28,16 +61,6 @@ For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 - MusicBrainz for music metadata
 - Automatic poster/backdrop downloads
 - Manual match override UI
-
-### 3. Production Readiness
-
-**Priority**: Medium
-**Effort**: 12-15 hours
-
-- Structured logging (slog)
-- Health check endpoints
-- Graceful shutdown
-- Docker images
 
 ---
 
