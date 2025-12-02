@@ -34,9 +34,10 @@ type TranscodeSession struct {
 	generatedSegments map[int]bool // Track which segments have been generated
 
 	// Process management
-	ctx    context.Context
-	cancel context.CancelFunc
-	logger *slog.Logger
+	ctx      context.Context
+	cancel   context.CancelFunc
+	logger   *slog.Logger
+	waitOnce sync.Once // Ensure Wait() is only called once
 }
 
 // NewTranscodeSession creates a new transcode session but does not start it.
@@ -178,17 +179,19 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 
 	// Monitor process exit status in background
 	go func() {
-		err := s.FFmpegCmd.Wait()
-		if err != nil {
-			s.logger.Error("FFmpeg process exited with error",
-				"session_id", s.ID,
-				"media_id", s.MediaID,
-				"error", err)
-		} else {
-			s.logger.Info("FFmpeg process completed successfully",
-				"session_id", s.ID,
-				"media_id", s.MediaID)
-		}
+		s.waitOnce.Do(func() {
+			err := s.FFmpegCmd.Wait()
+			if err != nil {
+				s.logger.Error("FFmpeg process exited with error",
+					"session_id", s.ID,
+					"media_id", s.MediaID,
+					"error", err)
+			} else {
+				s.logger.Info("FFmpeg process completed successfully",
+					"session_id", s.ID,
+					"media_id", s.MediaID)
+			}
+		})
 	}()
 
 	s.logger.Info("Transcode session started",
@@ -228,10 +231,13 @@ func (s *TranscodeSession) Stop() error {
 
 		// CRITICAL: Wait for process to prevent zombie processes
 		// This reaps the process and cleans up the OS process table entry
+		// Use waitOnce to avoid "no child processes" error if monitoring goroutine already called Wait()
 		go func() {
-			if err := s.FFmpegCmd.Wait(); err != nil {
-				s.logger.Debug("FFmpeg process wait completed", "error", err)
-			}
+			s.waitOnce.Do(func() {
+				if err := s.FFmpegCmd.Wait(); err != nil {
+					s.logger.Debug("FFmpeg process wait completed", "error", err)
+				}
+			})
 		}()
 	}
 
