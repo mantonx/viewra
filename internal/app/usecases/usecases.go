@@ -6,12 +6,15 @@ import (
 	"github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/app/services"
+	"github.com/mantonx/viewra/internal/application/analytics"
 	"github.com/mantonx/viewra/internal/application/common"
 	"github.com/mantonx/viewra/internal/application/images"
 	"github.com/mantonx/viewra/internal/application/library"
 	"github.com/mantonx/viewra/internal/application/media"
 	"github.com/mantonx/viewra/internal/application/movies"
 	"github.com/mantonx/viewra/internal/application/music"
+	"github.com/mantonx/viewra/internal/application/progress"
+	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/application/tv"
 )
@@ -26,6 +29,9 @@ type UseCases struct {
 	Music     *MusicUseCases
 	Images    *ImageUseCases
 	Transcode *TranscodeUseCases
+	Progress  *progress.Service
+	Analytics *analytics.Service
+	ScanJob   *scanjob.Service
 }
 
 // LibraryUseCases holds library-related use cases
@@ -88,9 +94,10 @@ type ImageUseCases struct {
 
 // TranscodeUseCases holds transcoding-related use cases
 type TranscodeUseCases struct {
-	CreateJob     *transcode.CreateJobUseCase
-	GetStatus     *transcode.GetJobStatusUseCase
-	ServeManifest *transcode.ServeManifestUseCase
+	CreateJob           *transcode.CreateJobUseCase
+	GetStatus           *transcode.GetJobStatusUseCase
+	ServeManifest       *transcode.ServeManifestUseCase
+	ServeMasterPlaylist *transcode.ServeMasterPlaylistUseCase
 }
 
 // BuildUseCases creates and wires all use case instances grouped by domain.
@@ -110,6 +117,9 @@ func BuildUseCases(
 		Music:     buildMusicUseCases(repos),
 		Images:    buildImageUseCases(repos, svcs, logger, cfg.Images.CacheDir),
 		Transcode: buildTranscodeUseCases(repos, svcs),
+		Progress:  progress.NewService(repos.Progress),
+		Analytics: analytics.NewService(repos.Analytics, logger),
+		ScanJob:   scanjob.NewService(repos.ScanJob, repos.Checkpoint, repos.ScanState, logger),
 	}
 }
 
@@ -266,10 +276,12 @@ func buildTranscodeUseCases(
 	createJob := transcode.NewCreateJobUseCase(repos.Transcode, svcs.TranscodeQueue)
 	getStatus := transcode.NewGetJobStatusUseCase(repos.Transcode)
 	serveManifest := transcode.NewServeManifestUseCase(repos.Media, svcs.SessionManager)
+	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media)
 
 	return &TranscodeUseCases{
-		CreateJob:     createJob,
-		GetStatus:     getStatus,
-		ServeManifest: serveManifest,
+		CreateJob:           createJob,
+		GetStatus:           getStatus,
+		ServeManifest:       serveManifest,
+		ServeMasterPlaylist: serveMasterPlaylist,
 	}
 }

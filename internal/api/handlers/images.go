@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -134,22 +133,16 @@ func (h *ImagesHandler) ServeImage(c *gin.Context) {
 		return
 	}
 
-	// Construct cache path for requested preset
-	// Format: {first2}/{next2}/{hash}_{imageType}_{preset}.webp
+	// Get preset path from cache service
 	hash := *img.FileHash
-	if len(hash) < 4 {
+	presetPath, err := h.cacheService.GetPresetPath(hash, img.ImageType, preset)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "Invalid image hash",
-			Message: "Image hash too short",
+			Message: err.Error(),
 		})
 		return
 	}
-
-	level1 := hash[0:2]
-	level2 := hash[2:4]
-	filename := fmt.Sprintf("%s_%s_%s.webp", hash, img.ImageType, preset)
-	relativePath := filepath.Join(level1, level2, filename)
-	presetPath := h.cacheService.GetCachedPath(relativePath)
 
 	// Check if preset file exists
 	if _, err := os.Stat(presetPath); os.IsNotExist(err) {

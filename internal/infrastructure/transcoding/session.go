@@ -151,11 +151,20 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 				chunk := buf[:n]
 				stderrBuffer = append(stderrBuffer, chunk...)
 
-				// Only log errors, suppress verbose FFmpeg output
+				// Classify FFmpeg output: real errors vs informational warnings
 				output := string(chunk)
-				if strings.Contains(strings.ToLower(output), "error") ||
-					strings.Contains(strings.ToLower(output), "failed") ||
-					strings.Contains(strings.ToLower(output), "invalid") {
+				lowerOutput := strings.ToLower(output)
+
+				// Known non-fatal warnings that shouldn't be logged as errors
+				isNonFatalWarning := strings.Contains(output, "Invalid Block Addition") || // Dolby Vision metadata
+					strings.Contains(output, "Discarding interleaved") ||
+					strings.Contains(output, "discarding unsupported")
+
+				if isNonFatalWarning {
+					s.logger.Warn("FFmpeg warning", "session_id", s.ID, "output", output)
+				} else if strings.Contains(lowerOutput, "error") ||
+					strings.Contains(lowerOutput, "failed") ||
+					strings.Contains(lowerOutput, "invalid") {
 					s.logger.Error("FFmpeg error detected", "session_id", s.ID, "output", output)
 				}
 				// Verbose FFmpeg output suppressed - full stderr only logged if process fails

@@ -13,33 +13,14 @@ import (
 	"github.com/mantonx/viewra/internal/api/handlers"
 	"github.com/mantonx/viewra/internal/api/middleware"
 	"github.com/mantonx/viewra/internal/api/routes"
-	"github.com/mantonx/viewra/internal/application/library"
-	"github.com/mantonx/viewra/internal/application/media"
-	"github.com/mantonx/viewra/internal/application/movies"
-	"github.com/mantonx/viewra/internal/application/music"
-	"github.com/mantonx/viewra/internal/application/tv"
-	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
 
 // Server represents the HTTP server
 type Server struct {
-	router            *gin.Engine
-	logger            *slog.Logger
-	healthHandler     *handlers.HealthHandler
-	libraryHandler    *handlers.LibraryHandler
-	mediaHandler      *handlers.MediaHandler
-	streamHandler     *handlers.StreamHandler
-	browserHandler    *handlers.BrowserHandler
-	scanJobHandler    *handlers.ScanJobHandler
-	progressHandler   *handlers.ProgressHandler
-	transcodeHandler  *handlers.TranscodeHandler
-	moviesHandler     *handlers.MoviesHandler
-	tvHandler         *handlers.TVHandler
-	musicHandler      *handlers.MusicHandler
-	imagesHandler     *handlers.ImagesHandler
-	schedulerHandler  *handlers.SchedulerHandler
-	analyticsHandler  *handlers.AnalyticsHandler
-	server            *http.Server
+	router   *gin.Engine
+	logger   *slog.Logger
+	handlers *Handlers
+	server   *http.Server
 }
 
 // ServerConfig holds server configuration
@@ -86,49 +67,27 @@ func DefaultServerConfig() ServerConfig {
 	}
 }
 
-// NewServer creates a new HTTP server
-func NewServer(
-	config ServerConfig,
-	logger *slog.Logger,
-	healthHandler *handlers.HealthHandler,
-	browserHandler *handlers.BrowserHandler,
-	scanJobHandler *handlers.ScanJobHandler,
-	progressHandler *handlers.ProgressHandler,
-	transcodeHandler *handlers.TranscodeHandler,
-	imagesHandler *handlers.ImagesHandler,
-	schedulerHandler *handlers.SchedulerHandler,
-	analyticsHandler *handlers.AnalyticsHandler,
-	// Library use cases
-	libraryService *library.LibraryService,
-	scanLibrary *library.ScanLibraryUseCase,
-	// Media use cases
-	getMedia *media.GetMediaUseCase,
-	listMedia *media.ListMediaUseCase,
-	streamInfo *media.StreamInfoUseCase,
-	// Movie use cases
-	listMovies *movies.ListMoviesUseCase,
-	getMovie *movies.GetMovieUseCase,
-	searchMovies *movies.SearchMoviesUseCase,
-	listMovieIDs *movies.ListMovieIDsUseCase,
-	// TV use cases
-	listTVShows *tv.ListTVShowsUseCase,
-	getTVShow *tv.GetTVShowUseCase,
-	listTVEpisodes *tv.ListTVEpisodesUseCase,
-	getTVEpisode *tv.GetTVEpisodeUseCase,
-	searchTVEpisodes *tv.SearchTVEpisodesUseCase,
-	listTVShowIDs *tv.ListTVShowIDsUseCase,
-	getNextEpisode *tv.GetNextEpisodeUseCase,
-	// Music use cases
-	listArtists *music.ListArtistsUseCase,
-	listAlbumsByArtistID *music.ListAlbumsByArtistIDUseCase,
-	listTracksByAlbumID *music.ListTracksByAlbumIDUseCase,
-	getTrack *music.GetTrackUseCase,
-	searchTracks *music.SearchTracksUseCase,
-	listArtistIDs *music.ListArtistIDsUseCase,
-) *Server {
-	// Set Gin to release mode in production
-	// gin.SetMode(gin.ReleaseMode)
+// Handlers holds all HTTP handlers. This type alias allows the api package
+// to accept handlers without importing the app/handlers package.
+type Handlers struct {
+	Health    *handlers.HealthHandler
+	Browser   *handlers.BrowserHandler
+	Scheduler *handlers.SchedulerHandler
+	Analytics *handlers.AnalyticsHandler
+	Library   *handlers.LibraryHandler
+	ScanJob   *handlers.ScanJobHandler
+	Media     *handlers.MediaHandler
+	Stream    *handlers.StreamHandler
+	Progress  *handlers.ProgressHandler
+	Images    *handlers.ImagesHandler
+	Transcode *handlers.TranscodeHandler
+	Movies    *handlers.MoviesHandler
+	TV        *handlers.TVHandler
+	Music     *handlers.MusicHandler
+}
 
+// NewServer creates a new HTTP server with the provided configuration and handlers.
+func NewServer(config ServerConfig, logger *slog.Logger, h *Handlers) *Server {
 	// Create router without default middleware
 	router := gin.New()
 
@@ -150,61 +109,10 @@ func NewServer(
 	// Add our custom logging middleware
 	router.Use(middleware.Logger(logger))
 
-	// Create handlers with services
-	libraryHandler := handlers.NewLibraryHandler(
-		libraryService,
-		scanLibrary,
-	)
-	mediaHandler := handlers.NewMediaHandler(
-		getMedia,
-		listMedia,
-		streamInfo,
-	)
-	streamService := streaming.NewService()
-	streamHandler := handlers.NewStreamHandler(getMedia, streamService, logger)
-
-	// Create media-type specific handlers
-	moviesHandler := handlers.NewMoviesHandler(
-		listMovies,
-		getMovie,
-		searchMovies,
-		listMovieIDs,
-	)
-	tvHandler := handlers.NewTVHandler(
-		listTVShows,
-		getTVShow,
-		listTVEpisodes,
-		getTVEpisode,
-		searchTVEpisodes,
-		listTVShowIDs,
-		getNextEpisode,
-	)
-	musicHandler := handlers.NewMusicHandler(
-		listArtists,
-		listAlbumsByArtistID,
-		listTracksByAlbumID,
-		getTrack,
-		searchTracks,
-		listArtistIDs,
-	)
-
 	server := &Server{
-		router:            router,
-		logger:            logger,
-		healthHandler:     healthHandler,
-		libraryHandler:    libraryHandler,
-		mediaHandler:      mediaHandler,
-		streamHandler:     streamHandler,
-		browserHandler:    browserHandler,
-		scanJobHandler:    scanJobHandler,
-		progressHandler:   progressHandler,
-		transcodeHandler:  transcodeHandler,
-		moviesHandler:     moviesHandler,
-		tvHandler:         tvHandler,
-		musicHandler:      musicHandler,
-		imagesHandler:     imagesHandler,
-		schedulerHandler:  schedulerHandler,
-		analyticsHandler:  analyticsHandler,
+		router:   router,
+		logger:   logger,
+		handlers: h,
 	}
 
 	// Setup routes
@@ -223,37 +131,39 @@ func NewServer(
 
 // setupRoutes configures all API routes
 func (s *Server) setupRoutes() {
+	h := s.handlers
+
 	// Health check
-	s.router.GET("/health", s.healthHandler.Check)
+	s.router.GET("/health", h.Health.Check)
 
 	// API v1 routes
 	api := s.router.Group("/api")
 
 	// Register route groups
-	routes.RegisterLibraryRoutes(api, s.libraryHandler, s.scanJobHandler)
-	routes.RegisterMediaRoutes(api, s.mediaHandler)
-	routes.RegisterStreamRoutes(api, s.streamHandler)
-	routes.RegisterBrowserRoutes(api, s.browserHandler)
-	routes.RegisterProgressRoutes(api, s.progressHandler)
-	routes.RegisterTranscodeRoutes(api, s.transcodeHandler)
+	routes.RegisterLibraryRoutes(api, h.Library, h.ScanJob)
+	routes.RegisterMediaRoutes(api, h.Media)
+	routes.RegisterStreamRoutes(api, h.Stream)
+	routes.RegisterBrowserRoutes(api, h.Browser)
+	routes.RegisterProgressRoutes(api, h.Progress)
+	routes.RegisterTranscodeRoutes(api, h.Transcode)
 
 	// Register media-type specific routes
-	routes.RegisterMoviesRoutes(api, s.moviesHandler)
-	routes.RegisterTVRoutes(api, s.tvHandler)
-	routes.RegisterMusicRoutes(api, s.musicHandler)
+	routes.RegisterMoviesRoutes(api, h.Movies)
+	routes.RegisterTVRoutes(api, h.TV)
+	routes.RegisterMusicRoutes(api, h.Music)
 
 	// Register image routes
-	routes.RegisterImageRoutes(s.router, s.imagesHandler)
+	routes.RegisterImageRoutes(s.router, h.Images)
 
 	// Register adaptive quality routes
 	routes.RegisterAdaptiveQualityRoutes(s.router, s.logger)
 
 	// Register analytics routes
-	routes.RegisterAnalyticsRoutes(api, s.analyticsHandler)
+	routes.RegisterAnalyticsRoutes(api, h.Analytics)
 
 	// Register admin routes
 	admin := api.Group("/admin")
-	routes.RegisterSchedulerRoutes(admin, s.schedulerHandler)
+	routes.RegisterSchedulerRoutes(admin, h.Scheduler)
 }
 
 // Start starts the HTTP server

@@ -15,20 +15,20 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	"github.com/mantonx/viewra/internal/api"
 	"github.com/mantonx/viewra/internal/app"
 	appconfig "github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/pkg/logger"
 	"github.com/mantonx/viewra/web"
 )
 
-// Application holds all application dependencies
+// Application holds all application dependencies and manages lifecycle.
+// Config, Logger, Database handle runtime concerns.
+// Container holds the dependency injection graph for business logic.
 type Application struct {
-	Config           *appconfig.Config
-	Logger           *slog.Logger
-	Database         *DatabaseConnection
-	Server           *api.Server
-	Container        *app.Container
+	Config    *appconfig.Config
+	Logger    *slog.Logger
+	Database  *DatabaseConnection
+	Container *app.Container
 }
 
 // Initialize sets up the application with all dependencies
@@ -49,15 +49,18 @@ func Initialize() (*Application, error) {
 		return nil, err
 	}
 
-	// Run startup tasks
+	// Run pre-container startup tasks (system profiling, migrations)
 	ctx := context.Background()
-	if err := RunStartupTasksFromConfig(ctx, dbConn.DB, dbConn.Driver, cfg, lgr); err != nil {
+	if err := RunPreContainerTasks(ctx, dbConn.DB, cfg, lgr); err != nil {
 		dbConn.Close(lgr)
 		return nil, err
 	}
 
 	// Initialize application container with all dependencies
 	container := app.NewContainer(dbConn.DB, dbConn.Driver, cfg, lgr)
+
+	// Run post-container startup tasks (reuses container's services)
+	RunPostContainerTasks(ctx, container.UseCases.Library.Scan, lgr)
 
 	// Add Swagger documentation endpoint
 	container.Server.Router().GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -86,7 +89,6 @@ func Initialize() (*Application, error) {
 		Config:    cfg,
 		Logger:    lgr,
 		Database:  dbConn,
-		Server:    container.Server,
 		Container: container,
 	}, nil
 }
@@ -123,7 +125,7 @@ func (a *Application) Run() error {
 		a.Logger.Info("HTTP server starting",
 			"port", a.Config.Server.Port,
 			"swagger", fmt.Sprintf("http://localhost:%d/swagger/index.html", a.Config.Server.Port))
-		if err := a.Server.Start(); err != nil {
+		if err := a.Container.Server.Start(); err != nil {
 			a.Logger.Error("Server error", "error", err)
 		}
 	}()

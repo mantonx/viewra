@@ -1,15 +1,12 @@
 package handlers
 
 import (
-	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/transcode"
-	"github.com/mantonx/viewra/internal/domain/media"
 	transcodeDomain "github.com/mantonx/viewra/internal/domain/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 	"github.com/mantonx/viewra/internal/pkg/format"
@@ -17,14 +14,14 @@ import (
 
 // TranscodeHandler handles transcode-related HTTP requests.
 type TranscodeHandler struct {
-	createJobUseCase     *transcode.CreateJobUseCase
-	getStatusUseCase     *transcode.GetJobStatusUseCase
-	serveManifestUseCase *transcode.ServeManifestUseCase
-	queue                *transcode.Queue
-	cleanupService       *transcode.CleanupService
-	sessionManager       *transcoding.SessionManager
-	mediaRepo            media.Repository
-	outputDir            string
+	createJobUseCase           *transcode.CreateJobUseCase
+	getStatusUseCase           *transcode.GetJobStatusUseCase
+	serveManifestUseCase       *transcode.ServeManifestUseCase
+	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase
+	queue                      *transcode.Queue
+	cleanupService             *transcode.CleanupService
+	sessionManager             *transcoding.SessionManager
+	outputDir                  string
 }
 
 // NewTranscodeHandler creates a new transcode handler.
@@ -32,21 +29,21 @@ func NewTranscodeHandler(
 	createJobUseCase *transcode.CreateJobUseCase,
 	getStatusUseCase *transcode.GetJobStatusUseCase,
 	serveManifestUseCase *transcode.ServeManifestUseCase,
+	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase,
 	queue *transcode.Queue,
 	cleanupService *transcode.CleanupService,
 	sessionManager *transcoding.SessionManager,
-	mediaRepo media.Repository,
 	outputDir string,
 ) *TranscodeHandler {
 	return &TranscodeHandler{
-		createJobUseCase:     createJobUseCase,
-		getStatusUseCase:     getStatusUseCase,
-		serveManifestUseCase: serveManifestUseCase,
-		queue:                queue,
-		cleanupService:       cleanupService,
-		sessionManager:       sessionManager,
-		mediaRepo:            mediaRepo,
-		outputDir:            outputDir,
+		createJobUseCase:           createJobUseCase,
+		getStatusUseCase:           getStatusUseCase,
+		serveManifestUseCase:       serveManifestUseCase,
+		serveMasterPlaylistUseCase: serveMasterPlaylistUseCase,
+		queue:                      queue,
+		cleanupService:             cleanupService,
+		sessionManager:             sessionManager,
+		outputDir:                  outputDir,
 	}
 }
 
@@ -527,13 +524,6 @@ func (h *TranscodeHandler) CleanupTranscodes(c *gin.Context) {
 	})
 }
 
-// MasterPlaylistResponse is returned when master playlist generation fails but we have metadata
-type MasterPlaylistResponse struct {
-	MediaID            int64    `json:"media_id"`
-	AvailableQualities []string `json:"available_qualities"`
-	Error              string   `json:"error,omitempty"`
-}
-
 // ServeMasterPlaylist serves an HLS master playlist with all available quality variants.
 // This enables adaptive bitrate streaming where the player can switch between quality levels.
 //
@@ -554,216 +544,42 @@ type MasterPlaylistResponse struct {
 // @Failure 500 {object} handlers.ErrorResponse
 // @Router /api/media/{media_id}/hls/master.m3u8 [get]
 func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
-	mediaIDStr := c.Param("id")
-	mediaID, err := parseID(mediaIDStr)
+	mediaID, err := parseID(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
 		return
 	}
 
-	// Parse optional start position query parameter for seeking
-	startPosition := ""
-	if startStr := c.Query("start"); startStr != "" {
-		startPosition = startStr
-	}
-
-	// Get media info to determine source resolution and properties
-	mediaItem, err := h.mediaRepo.GetByID(c.Request.Context(), mediaID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Media not found"})
-		return
-	}
-
-	// Parse client codec capabilities from headers for direct play decision
-	// X-Supported-Video-Codecs: h264,h265,vp9,av1
-	// X-Supported-Containers: mp4,webm,matroska
+	// Parse client codec capabilities from headers
 	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
 	supportedContainers := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
 
-	// Check if direct play is possible by analyzing the video
-	videoInfo, err := transcoding.GetVideoInfo(mediaItem.FilePath)
-	if err == nil && videoInfo != nil {
-		// Build client capabilities
-		var clientCaps *transcoding.ClientCapabilitiesForStrategy
-		if len(supportedVideoCodecs) > 0 || len(supportedContainers) > 0 {
-			clientCaps = &transcoding.ClientCapabilitiesForStrategy{
-				SupportedVideoCodecs: supportedVideoCodecs,
-				SupportedContainers:  supportedContainers,
-			}
-		}
-
-		// Determine streaming strategy
-		strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
-
-		slog.Debug("master playlist strategy decision",
-			"media_id", mediaID,
-			"strategy", strategy,
-			"reason", reason,
-			"video_codec", videoInfo.Codec,
-			"audio_codec", videoInfo.AudioCodec,
-			"audio_channels", videoInfo.AudioChannels,
-			"container", videoInfo.ContainerFormat,
-			"client_video_codecs", supportedVideoCodecs,
-			"client_containers", supportedContainers,
-		)
-
-		// If direct play is possible, redirect to direct stream
-		if strategy == transcoding.DirectPlay {
-			directURL := fmt.Sprintf("/api/stream/%d", mediaID)
-			c.Redirect(http.StatusFound, directURL)
-			return
-		}
+	// Use the serve master playlist use case
+	response, err := h.serveMasterPlaylistUseCase.Execute(c.Request.Context(), transcode.ServeMasterPlaylistRequest{
+		MediaID:              mediaID,
+		SupportedVideoCodecs: supportedVideoCodecs,
+		SupportedContainers:  supportedContainers,
+		StartPosition:        c.Query("start"),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
 	}
 
-	// Build list of quality profiles appropriate for this media
-	// Filter based on source resolution (don't upscale)
-	sourceHeight := mediaItem.Height
-	sourceWidth := mediaItem.Width
-	sourceBitrate := mediaItem.Bitrate // bits per second
+	// Handle response based on strategy
+	switch response.Strategy {
+	case transcode.StrategyMasterDirectPlay:
+		// Video is compatible - redirect to direct stream
+		c.Redirect(http.StatusFound, response.DirectPlayURL)
 
-	// Log source info for debugging
-	slog.Debug("building master playlist",
-		"media_id", mediaID,
-		"source_width", sourceWidth,
-		"source_height", sourceHeight,
-		"source_bitrate_mbps", float64(sourceBitrate)/1_000_000,
-	)
+	case transcode.StrategyServePlaylist:
+		// Serve the generated master playlist
+		c.Header("Content-Type", "application/vnd.apple.mpegurl")
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Cache-Control", "no-cache")
+		c.String(http.StatusOK, response.PlaylistContent)
 
-	// Comprehensive ABR ladder with many bitrate tiers
-	// Organized by resolution, then by bitrate within each resolution
-	type abrVariant struct {
-		quality   string
-		bandwidth int
-		width     int
-		height    int
-		codecs    string
+	default:
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Unknown streaming strategy"})
 	}
-
-	abrLadder := []abrVariant{
-		// 360p - Low quality for poor connections
-		{"360p", 800_000, 640, 360, "avc1.4d401e,mp4a.40.2"},
-
-		// 480p - SD quality
-		{"480p", 1_500_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
-		{"480p-2m", 2_000_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
-
-		// 720p - HD quality (multiple bitrate tiers)
-		{"720p-3m", 3_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
-		{"720p", 4_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
-		{"720p-6m", 6_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
-
-		// 1080p - Full HD (multiple bitrate tiers)
-		{"1080p-6m", 6_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p", 8_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p-12m", 12_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p-15m", 15_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p-20m", 20_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-
-		// 4K - Ultra HD (many bitrate tiers for high-quality sources)
-		{"4k-20m", 20_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-25m", 25_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-35m", 35_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-50m", 50_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-60m", 60_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-80m", 80_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-100m", 100_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-120m", 120_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	}
-
-	// Add "Original" quality if we know the source bitrate
-	// This allows users to get the highest quality transcode matching the source
-	if sourceBitrate > 0 && sourceWidth > 0 && sourceHeight > 0 {
-		// Round source bitrate up to nearest 5 Mbps for cleaner display
-		originalBitrate := ((sourceBitrate / 5_000_000) + 1) * 5_000_000
-		if originalBitrate < sourceBitrate {
-			originalBitrate = sourceBitrate
-		}
-
-		abrLadder = append(abrLadder, abrVariant{
-			quality:   "original",
-			bandwidth: int(originalBitrate),
-			width:     sourceWidth,
-			height:    sourceHeight,
-			codecs:    "avc1.640033,mp4a.40.2",
-		})
-	}
-
-	// Build master playlist
-	playlist := "#EXTM3U\n"
-	playlist += "#EXT-X-VERSION:4\n"
-	playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n\n"
-
-	// Track which variants we've added to avoid duplicates
-	addedVariants := make(map[string]bool)
-
-	// Filter qualities based on source resolution and bitrate
-	// Use width as primary indicator for 4K capability (ultrawide 4K has full 3840 width but reduced height)
-	for _, variant := range abrLadder {
-		// Skip if we've already added this quality name
-		if addedVariants[variant.quality] {
-			continue
-		}
-
-		// Skip variants with bitrate higher than source (except for "original")
-		// No point transcoding to higher bitrate than source
-		if variant.quality != "original" && sourceBitrate > 0 && int64(variant.bandwidth) > sourceBitrate {
-			continue
-		}
-
-		// Skip qualities higher than source ONLY if we know the source resolution
-		// If source resolution is unknown (0), include all qualities up to 1080p as a safe default
-		if sourceHeight > 0 && sourceWidth > 0 {
-			// For 4K detection, use width as primary indicator
-			// Ultrawide 4K content (e.g., 3840x1600 at 2.39:1) has full 4K width but reduced height
-			// The transcoder will maintain aspect ratio and letterbox/pillarbox as needed
-			is4KSource := sourceWidth >= 3840
-			is4KVariant := variant.width >= 3840
-
-			// Skip 4K variants if source is not 4K (except "original" which uses source dimensions)
-			if is4KVariant && !is4KSource && variant.quality != "original" {
-				continue
-			}
-
-			// For non-4K variants, use height-based comparison (traditional approach)
-			// This works because non-4K content has standard aspect ratios
-			if !is4KVariant && variant.height > sourceHeight && variant.quality != "original" {
-				continue
-			}
-		} else {
-			// Source resolution unknown - include up to 1080p as safe default
-			// This prevents offering 4K when we don't know if the source supports it
-			if variant.height > 1080 {
-				slog.Debug("skipping quality (unknown source resolution)",
-					"quality", variant.quality,
-					"variant_height", variant.height,
-				)
-				continue
-			}
-		}
-
-		addedVariants[variant.quality] = true
-
-		// Add variant stream
-		playlist += fmt.Sprintf(
-			"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\",NAME=\"%s\"\n",
-			variant.bandwidth,
-			variant.width,
-			variant.height,
-			variant.codecs,
-			variant.quality,
-		)
-
-		// Variant stream URL
-		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.quality)
-		if startPosition != "" {
-			variantURL += "?start=" + startPosition
-		}
-		playlist += variantURL + "\n\n"
-	}
-
-	// Set headers for HLS
-	c.Header("Content-Type", "application/vnd.apple.mpegurl")
-	c.Header("Access-Control-Allow-Origin", "*")
-	c.Header("Cache-Control", "no-cache")
-	c.String(http.StatusOK, playlist)
 }

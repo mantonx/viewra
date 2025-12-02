@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (Implemented December 2, 2025)
 
 ## Date
 

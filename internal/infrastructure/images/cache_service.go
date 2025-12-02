@@ -101,6 +101,22 @@ func (s *CacheService) GetCachedPath(relativePath string) string {
 	return filepath.Join(s.cacheDir, relativePath)
 }
 
+// GetPresetPath returns the full path to a preset image file.
+// Format: {cacheDir}/{first2}/{next2}/{hash}_{imageType}_{preset}.webp
+// Returns empty string and error if hash is too short.
+func (s *CacheService) GetPresetPath(hash, imageType, preset string) (string, error) {
+	if len(hash) < 4 {
+		return "", fmt.Errorf("hash too short: %s", hash)
+	}
+
+	level1 := hash[0:2]
+	level2 := hash[2:4]
+	filename := fmt.Sprintf("%s_%s_%s.webp", hash, imageType, preset)
+	relativePath := filepath.Join(level1, level2, filename)
+
+	return filepath.Join(s.cacheDir, relativePath), nil
+}
+
 // FileExists checks if a cached file exists
 func (s *CacheService) FileExists(relativePath string) bool {
 	fullPath := s.GetCachedPath(relativePath)

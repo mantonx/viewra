@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/mantonx/viewra/internal/application/analytics"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_postgres"
 	"github.com/mantonx/viewra/internal/infrastructure/database/sqlc_sqlite"
 	"github.com/mantonx/viewra/internal/infrastructure/persistence/common"
 )
 
 // Repository handles playback analytics persistence.
+// Implements analytics.Repository interface.
 type Repository struct {
 	db              *sql.DB
 	dbType          string
@@ -33,39 +35,8 @@ func NewRepository(db *sql.DB, dbType string) *Repository {
 	return r
 }
 
-// PlaybackSession represents a playback session.
-type PlaybackSession struct {
-	SessionID          string
-	MediaID            int64
-	StartTime          int64
-	EndTime            *int64
-	TotalPlayTimeMs    int64
-	TotalBufferTimeMs  int64
-	StallCount         int
-	QualitySwitchCount int
-	AverageQuality     string
-	DeviceType         string
-	ConnectionType     string
-}
-
-// QualitySwitchEvent represents a quality switch event.
-type QualitySwitchEvent struct {
-	SessionID        string
-	MediaID          int64
-	FromQuality      *string
-	ToQuality        string
-	SwitchReason     string
-	PositionSeconds  float64
-	NetworkSpeedMbps *float64
-	BufferSeconds    *float64
-	CausedStall      bool
-	DeviceType       string
-	ConnectionType   string
-	Timestamp        int64
-}
-
 // UpsertSession creates or updates a playback session.
-func (r *Repository) UpsertSession(ctx context.Context, session *PlaybackSession) error {
+func (r *Repository) UpsertSession(ctx context.Context, session *analytics.PlaybackSession) error {
 	if r.dbType == "sqlite" {
 		_, err := r.sqliteQuerier.UpsertPlaybackSession(ctx, sqlc_sqlite.UpsertPlaybackSessionParams{
 			SessionID:          session.SessionID,
@@ -101,7 +72,7 @@ func (r *Repository) UpsertSession(ctx context.Context, session *PlaybackSession
 }
 
 // CreateEvent creates a new quality switch event.
-func (r *Repository) CreateEvent(ctx context.Context, event *QualitySwitchEvent) error {
+func (r *Repository) CreateEvent(ctx context.Context, event *analytics.QualitySwitchEvent) error {
 	causedStall := int64(0)
 	if event.CausedStall {
 		causedStall = 1
@@ -144,7 +115,7 @@ func (r *Repository) CreateEvent(ctx context.Context, event *QualitySwitchEvent)
 }
 
 // CreateEvents creates multiple quality switch events in a batch.
-func (r *Repository) CreateEvents(ctx context.Context, events []QualitySwitchEvent) error {
+func (r *Repository) CreateEvents(ctx context.Context, events []analytics.QualitySwitchEvent) error {
 	for _, event := range events {
 		if err := r.CreateEvent(ctx, &event); err != nil {
 			return err

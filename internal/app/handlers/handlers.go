@@ -4,42 +4,47 @@ import (
 	"database/sql"
 	"log/slog"
 
+	"github.com/mantonx/viewra/internal/api"
 	"github.com/mantonx/viewra/internal/api/handlers"
-	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/app/services"
 	"github.com/mantonx/viewra/internal/app/usecases"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
+	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
 
-// Handlers holds all HTTP handlers grouped by domain
-type Handlers struct {
-	Health    *handlers.HealthHandler
-	Browser   *handlers.BrowserHandler
-	ScanJob   *handlers.ScanJobHandler
-	Progress  *handlers.ProgressHandler
-	Transcode *handlers.TranscodeHandler
-	Images    *handlers.ImagesHandler
-	Scheduler *handlers.SchedulerHandler
-	Analytics *handlers.AnalyticsHandler
+// InfrastructureDeps holds infrastructure dependencies needed by some handlers.
+// These are for handlers that interact directly with infrastructure (health checks,
+// file serving, transcoding) rather than pure business logic.
+type InfrastructureDeps struct {
+	DB                 *sql.DB
+	Scheduler          *scheduler.Scheduler
+	TranscodeOutputDir string
 }
 
-// BuildHandlers creates all HTTP handler instances
+// BuildHandlers creates all HTTP handler instances.
+// This is the single place where all handlers are instantiated.
+// Returns *api.Handlers directly to avoid duplicate struct definitions.
 func BuildHandlers(
-	db *sql.DB,
-	repos *repositories.Repositories,
+	infra *InfrastructureDeps,
 	svcs *services.Services,
 	cases *usecases.UseCases,
-	taskScheduler *scheduler.Scheduler,
-	transcodeOutputDir string,
 	logger *slog.Logger,
-) *Handlers {
-	// Create basic handlers
-	healthHandler := handlers.NewHealthHandler(db, taskScheduler, svcs.TranscodeQueue)
+) *api.Handlers {
+	// Infrastructure handlers
+	healthHandler := handlers.NewHealthHandler(infra.DB, infra.Scheduler, svcs.TranscodeQueue)
 	browserHandler := handlers.NewBrowserHandler(svcs.PathBrowser)
-	scanJobHandler := handlers.NewScanJobHandler(repos.ScanJob, repos.Checkpoint, repos.ScanState, cases.Library.Scan, cases.Library.Scan, logger)
-	progressHandler := handlers.NewProgressHandler(repos.Progress)
+	schedulerHandler := handlers.NewSchedulerHandler(infra.Scheduler)
+	analyticsHandler := handlers.NewAnalyticsHandler(cases.Analytics)
 
-	// Create image handler
+	// Library handlers
+	libraryHandler := handlers.NewLibraryHandler(cases.Library.Service, cases.Library.Scan)
+	scanJobHandler := handlers.NewScanJobHandler(cases.ScanJob, cases.Library.Scan, cases.Library.Scan, logger)
+
+	// Media handlers
+	mediaHandler := handlers.NewMediaHandler(cases.Media.Get, cases.Media.List, cases.Media.StreamInfo)
+	streamService := streaming.NewService()
+	streamHandler := handlers.NewStreamHandler(cases.Media.Get, streamService, logger)
+	progressHandler := handlers.NewProgressHandler(cases.Progress)
 	imagesHandler := handlers.NewImagesHandler(
 		cases.Images.Get,
 		cases.Images.GetMedia,
@@ -49,35 +54,60 @@ func BuildHandlers(
 		svcs.ImageCache,
 	)
 
-	// Create transcode handler (if transcode is enabled)
+	// Transcode handler (if transcode is enabled)
 	var transcodeHandler *handlers.TranscodeHandler
 	if svcs.TranscodeQueue != nil && cases.Transcode.CreateJob != nil {
 		transcodeHandler = handlers.NewTranscodeHandler(
 			cases.Transcode.CreateJob,
 			cases.Transcode.GetStatus,
 			cases.Transcode.ServeManifest,
+			cases.Transcode.ServeMasterPlaylist,
 			svcs.TranscodeQueue,
 			svcs.CleanupService,
 			svcs.SessionManager,
-			repos.Media,
-			transcodeOutputDir,
+			infra.TranscodeOutputDir,
 		)
 	}
 
-	// Create scheduler handler
-	schedulerHandler := handlers.NewSchedulerHandler(taskScheduler)
+	// Media-type specific handlers
+	moviesHandler := handlers.NewMoviesHandler(
+		cases.Movies.List,
+		cases.Movies.Get,
+		cases.Movies.Search,
+		cases.Movies.ListIDs,
+	)
+	tvHandler := handlers.NewTVHandler(
+		cases.TV.ListShows,
+		cases.TV.GetShow,
+		cases.TV.ListEpisodes,
+		cases.TV.GetEpisode,
+		cases.TV.SearchEpisodes,
+		cases.TV.ListShowIDs,
+		cases.TV.GetNextEpisode,
+	)
+	musicHandler := handlers.NewMusicHandler(
+		cases.Music.ListArtists,
+		cases.Music.ListAlbumsByArtist,
+		cases.Music.ListTracksByAlbum,
+		cases.Music.GetTrack,
+		cases.Music.SearchTracks,
+		cases.Music.ListArtistIDs,
+	)
 
-	// Create analytics handler
-	analyticsHandler := handlers.NewAnalyticsHandler(repos.Analytics, logger)
-
-	return &Handlers{
+	return &api.Handlers{
 		Health:    healthHandler,
 		Browser:   browserHandler,
-		ScanJob:   scanJobHandler,
-		Progress:  progressHandler,
-		Transcode: transcodeHandler,
-		Images:    imagesHandler,
 		Scheduler: schedulerHandler,
 		Analytics: analyticsHandler,
+		Library:   libraryHandler,
+		ScanJob:   scanJobHandler,
+		Media:     mediaHandler,
+		Stream:    streamHandler,
+		Progress:  progressHandler,
+		Images:    imagesHandler,
+		Transcode: transcodeHandler,
+		Movies:    moviesHandler,
+		TV:        tvHandler,
+		Music:     musicHandler,
 	}
 }

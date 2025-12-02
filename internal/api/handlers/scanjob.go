@@ -10,64 +10,37 @@ import (
 
 	"github.com/gin-gonic/gin"
 	appLibrary "github.com/mantonx/viewra/internal/application/library"
+	"github.com/mantonx/viewra/internal/application/scanjob"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
-// ScanJobRepository defines the interface for scan job data access
-type ScanJobRepository interface {
-	GetLatestByLibrary(ctx context.Context, libraryID int64) (*scanner.ScanJob, error)
-	ListByLibrary(ctx context.Context, libraryID int64, limit int32) ([]*scanner.ScanJob, error)
-	GetByID(ctx context.Context, jobID int64) (*scanner.ScanJob, error)
-	UpdateStatus(ctx context.Context, jobID int64, status scanner.ScanStatus) error
-}
-
-// CheckpointRepository defines the interface for checkpoint data access
-type CheckpointRepository interface {
-	GetStats(ctx context.Context, jobID int64) (*scanner.CheckpointStats, error)
-	ListFailed(ctx context.Context, jobID int64, limit int) ([]*scanner.ScanCheckpoint, error)
-	ResetFailed(ctx context.Context, jobID int64) (int64, error)
-}
-
-// ScanStateRepository defines the interface for scan state data access
-type ScanStateRepository interface {
-	GetLibraryIssues(ctx context.Context, libraryID int64) ([]*scanner.ScanState, error)
-	CountLibraryIssues(ctx context.Context, libraryID int64) (*scanner.LibraryIssueCounts, error)
-	CountByLibrary(ctx context.Context, libraryID int64) (int64, error)
-}
-
-// ScanLibraryExecutor defines the interface for resuming scans
+// ScanLibraryExecutor defines the interface for resuming scans.
 type ScanLibraryExecutor interface {
 	ResumeScan(ctx context.Context, jobID int64) error
 }
 
-// ScanStatusProvider defines the interface for getting enriched scan status
+// ScanStatusProvider defines the interface for getting enriched scan status.
 type ScanStatusProvider interface {
 	GetScanStatus(ctx context.Context, libraryID int64) (*appLibrary.ScanStatusResult, error)
 }
 
-// ScanJobHandler handles scan job-related HTTP requests
+// ScanJobHandler handles scan job-related HTTP requests.
 type ScanJobHandler struct {
-	scanJobRepo    ScanJobRepository
-	checkpointRepo CheckpointRepository
-	scanStateRepo  ScanStateRepository
+	service        *scanjob.Service
 	scanLibrary    ScanLibraryExecutor
 	statusProvider ScanStatusProvider
 	logger         *slog.Logger
 }
 
-// NewScanJobHandler creates a new scan job handler
+// NewScanJobHandler creates a new scan job handler.
 func NewScanJobHandler(
-	scanJobRepo ScanJobRepository,
-	checkpointRepo CheckpointRepository,
-	scanStateRepo ScanStateRepository,
+	service *scanjob.Service,
 	scanLibrary ScanLibraryExecutor,
 	statusProvider ScanStatusProvider,
 	logger *slog.Logger,
 ) *ScanJobHandler {
 	return &ScanJobHandler{
-		scanJobRepo:    scanJobRepo,
-		checkpointRepo: checkpointRepo,
-		scanStateRepo:  scanStateRepo,
+		service:        service,
 		scanLibrary:    scanLibrary,
 		statusProvider: statusProvider,
 		logger:         logger,
@@ -218,7 +191,7 @@ func (h *ScanJobHandler) GetHistory(c *gin.Context) {
 	}
 
 	// Get scan history
-	jobs, err := h.scanJobRepo.ListByLibrary(c.Request.Context(), libraryID, int32(limit))
+	jobs, err := h.service.ListByLibrary(c.Request.Context(), libraryID, int32(limit))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get scan history"})
 		return
@@ -298,7 +271,7 @@ func (h *ScanJobHandler) StreamProgress(c *gin.Context) {
 			return
 		case <-ticker.C:
 			// Get current scan status
-			job, err := h.scanJobRepo.GetLatestByLibrary(c.Request.Context(), libraryID)
+			job, err := h.service.GetLatestByLibrary(c.Request.Context(), libraryID)
 			if err != nil {
 				if err == scanner.ErrNotFound {
 					// No scan found - send error and close
@@ -401,7 +374,7 @@ func (h *ScanJobHandler) GetScanErrors(c *gin.Context) {
 	}
 
 	// Get failed checkpoints (limit to 1000 to prevent memory issues)
-	failed, err := h.checkpointRepo.ListFailed(c.Request.Context(), jobID, 1000)
+	failed, err := h.service.ListFailed(c.Request.Context(), jobID, 1000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve scan errors"})
 		return
@@ -461,7 +434,7 @@ func (h *ScanJobHandler) GetLibraryIssues(c *gin.Context) {
 	}
 
 	// Get all files with warnings or errors from scan_state
-	issues, err := h.scanStateRepo.GetLibraryIssues(c.Request.Context(), libraryID)
+	issues, err := h.service.GetLibraryIssues(c.Request.Context(), libraryID)
 	if err != nil {
 		h.logger.Error("failed to get library issues",
 			"library_id", libraryID,
@@ -545,7 +518,7 @@ func (h *ScanJobHandler) RetryFailedFiles(c *gin.Context) {
 	}
 
 	// Reset failed checkpoints to pending
-	count, err := h.checkpointRepo.ResetFailed(c.Request.Context(), jobID)
+	count, err := h.service.ResetFailed(c.Request.Context(), jobID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to reset failed files"})
 		return
@@ -594,7 +567,7 @@ func (h *ScanJobHandler) PauseScan(c *gin.Context) {
 	}
 
 	// Get the scan job
-	job, err := h.scanJobRepo.GetByID(c.Request.Context(), jobID)
+	job, err := h.service.GetByID(c.Request.Context(), jobID)
 	if err != nil {
 		if err == scanner.ErrNotFound {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Scan job not found"})
@@ -611,7 +584,7 @@ func (h *ScanJobHandler) PauseScan(c *gin.Context) {
 	}
 
 	// Update status to paused
-	if err := h.scanJobRepo.UpdateStatus(c.Request.Context(), jobID, scanner.ScanStatusPaused); err != nil {
+	if err := h.service.UpdateStatus(c.Request.Context(), jobID, scanner.ScanStatusPaused); err != nil {
 		h.logger.Error("failed to pause scan",
 			"job_id", jobID,
 			"library_id", libraryID,

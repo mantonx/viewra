@@ -10,13 +10,13 @@ import (
 
 // ProgressHandler handles watch progress-related HTTP requests.
 type ProgressHandler struct {
-	repo progressDomain.Repository
+	service *progress.Service
 }
 
 // NewProgressHandler creates a new progress handler.
-func NewProgressHandler(repo progressDomain.Repository) *ProgressHandler {
+func NewProgressHandler(service *progress.Service) *ProgressHandler {
 	return &ProgressHandler{
-		repo: repo,
+		service: service,
 	}
 }
 
@@ -47,7 +47,7 @@ func (h *ProgressHandler) UpdateProgress(c *gin.Context) {
 		req.UserID = 1
 	}
 
-	response, err := progress.UpdateProgress(c.Request.Context(), h.repo, &req)
+	response, err := h.service.Execute(c.Request.Context(), &req)
 	if err != nil {
 		switch err {
 		case progressDomain.ErrInvalidMediaID,
@@ -85,7 +85,7 @@ func (h *ProgressHandler) GetProgress(c *gin.Context) {
 
 	userID := getCurrentUserID()
 
-	response, err := progress.GetProgressByMediaIDAndUserID(c.Request.Context(), h.repo, mediaID, userID)
+	response, err := h.service.GetProgress(c.Request.Context(), mediaID, userID)
 	if err != nil {
 		if err == progressDomain.ErrProgressNotFound {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "Progress not found"})
@@ -124,7 +124,7 @@ func (h *ProgressHandler) GetBatchProgress(c *gin.Context) {
 
 	userID := getCurrentUserID()
 
-	response, err := progress.GetBatchProgressByMediaIDs(c.Request.Context(), h.repo, mediaIDs, userID)
+	response, err := h.service.GetBatchProgress(c.Request.Context(), mediaIDs, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get batch progress"})
 		return
@@ -148,7 +148,7 @@ func (h *ProgressHandler) ListProgress(c *gin.Context) {
 	userID := getCurrentUserID()
 	params := parsePaginationParams(c)
 
-	response, err := progress.ListProgressByUserID(c.Request.Context(), h.repo, userID, params.limit, params.offset)
+	response, err := h.service.ListProgress(c.Request.Context(), userID, params.limit, params.offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list progress"})
 		return
@@ -172,7 +172,7 @@ func (h *ProgressHandler) ListWatched(c *gin.Context) {
 	userID := getCurrentUserID()
 	params := parsePaginationParams(c)
 
-	response, err := progress.ListWatchedByUserID(c.Request.Context(), h.repo, userID, params.limit, params.offset)
+	response, err := h.service.ListWatched(c.Request.Context(), userID, params.limit, params.offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list watched items"})
 		return
@@ -196,7 +196,7 @@ func (h *ProgressHandler) ListInProgress(c *gin.Context) {
 	userID := getCurrentUserID()
 	params := parsePaginationParams(c)
 
-	response, err := progress.ListInProgressByUserID(c.Request.Context(), h.repo, userID, params.limit, params.offset)
+	response, err := h.service.ListInProgress(c.Request.Context(), userID, params.limit, params.offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to list in-progress items"})
 		return
@@ -229,7 +229,7 @@ func (h *ProgressHandler) MarkWatched(c *gin.Context) {
 		req.UserID = 1
 	}
 
-	response, err := progress.MarkWatched(c.Request.Context(), h.repo, &req)
+	response, err := h.service.MarkWatched(c.Request.Context(), &req)
 	if err != nil {
 		if err == progressDomain.ErrInvalidMediaID {
 			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
@@ -267,7 +267,7 @@ func (h *ProgressHandler) MarkUnwatched(c *gin.Context) {
 		req.UserID = 1
 	}
 
-	response, err := progress.MarkUnwatched(c.Request.Context(), h.repo, &req)
+	response, err := h.service.MarkUnwatched(c.Request.Context(), &req)
 	if err != nil {
 		switch err {
 		case progressDomain.ErrInvalidMediaID:
@@ -304,7 +304,7 @@ func (h *ProgressHandler) DeleteProgress(c *gin.Context) {
 
 	userID := getCurrentUserID()
 
-	err = progress.DeleteProgress(c.Request.Context(), h.repo, mediaID, userID)
+	err = h.service.DeleteProgress(c.Request.Context(), mediaID, userID)
 	if err != nil {
 		switch err {
 		case progressDomain.ErrInvalidMediaID:

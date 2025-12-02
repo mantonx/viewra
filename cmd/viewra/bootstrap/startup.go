@@ -7,35 +7,14 @@ import (
 	"log/slog"
 
 	appconfig "github.com/mantonx/viewra/internal/app/config"
-	"github.com/mantonx/viewra/internal/app/repositories"
-	"github.com/mantonx/viewra/internal/app/services"
-	"github.com/mantonx/viewra/internal/app/usecases"
-	"github.com/mantonx/viewra/internal/application/common"
+	"github.com/mantonx/viewra/internal/application/library"
 	"github.com/mantonx/viewra/internal/infrastructure/database"
 	"github.com/mantonx/viewra/internal/infrastructure/system"
 )
 
-// recoverStuckScans automatically resumes scans that were interrupted by server restart or crash
-func recoverStuckScans(ctx context.Context, db *sql.DB, driver string, cfg *appconfig.Config, logger *slog.Logger) error {
-	// Build dependencies needed for scan resumption
-	repos := repositories.BuildRepositories(db, driver)
-	svcs, err := services.BuildServices(cfg, repos, logger)
-	if err != nil {
-		return fmt.Errorf("failed to build services for scan recovery: %w", err)
-	}
-
-	// Create transaction manager
-	txManager := common.NewTxManager(db)
-
-	// Build use cases
-	cases := usecases.BuildUseCases(cfg, repos, svcs, txManager, logger)
-
-	// Resume stuck scans automatically
-	return cases.Library.Scan.ResumeStuckScans(ctx)
-}
-
-// RunStartupTasksFromConfig executes all startup tasks using the new config structure
-func RunStartupTasksFromConfig(ctx context.Context, db *sql.DB, driver string, cfg *appconfig.Config, logger *slog.Logger) error {
+// RunPreContainerTasks executes startup tasks that must run before the container is created.
+// This includes system profiling and database migrations.
+func RunPreContainerTasks(ctx context.Context, db *sql.DB, cfg *appconfig.Config, logger *slog.Logger) error {
 	// Profile system resources for optimal performance (fast: <100ms)
 	profile, err := system.ProfileSystem(ctx)
 	if err != nil {
@@ -89,11 +68,15 @@ func RunStartupTasksFromConfig(ctx context.Context, db *sql.DB, driver string, c
 		}
 	}
 
-	// Resume stuck scans automatically (non-critical)
-	if err := recoverStuckScans(ctx, db, driver, cfg, logger); err != nil {
-		logger.Error("Failed to resume stuck scans", "error", err)
-		// Don't return error - this is not critical
-	}
-
 	return nil
+}
+
+// RunPostContainerTasks executes startup tasks that require the container's services.
+// This reuses the already-built services instead of rebuilding them.
+func RunPostContainerTasks(ctx context.Context, scanUseCase *library.ScanLibraryUseCase, logger *slog.Logger) {
+	// Resume stuck scans automatically (non-critical)
+	if err := scanUseCase.ResumeStuckScans(ctx); err != nil {
+		logger.Error("Failed to resume stuck scans", "error", err)
+		// Don't propagate error - this is not critical
+	}
 }

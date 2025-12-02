@@ -10,10 +10,18 @@ import (
 	"github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/application/transcode"
+	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 )
+
+// DiskMonitoringRepo defines the repository interface needed for disk monitoring cleanup.
+// This matches the inline interface in transcode.PerformDiskMonitoring.
+type DiskMonitoringRepo interface {
+	GetTotalSize(ctx context.Context) (int64, error)
+	ListByLRU(ctx context.Context, limit int) ([]*domaintranscode.TranscodeJob, error)
+}
 
 // Services holds all infrastructure and domain services.
 // Groups all service implementations for dependency injection.
@@ -28,6 +36,9 @@ type Services struct {
 	TranscodeQueue   *transcode.Queue
 	CleanupService   *transcode.CleanupService
 	SessionManager   *transcoding.SessionManager
+
+	// Transcode repository (for disk monitoring cleanup tasks)
+	TranscodeRepo DiskMonitoringRepo
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -125,6 +136,7 @@ func BuildServices(
 		TranscodeQueue:   transcodeQueue,
 		CleanupService:   cleanupService,
 		SessionManager:   sessionManager,
+		TranscodeRepo:    repos.Transcode,
 	}, nil
 }
 

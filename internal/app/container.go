@@ -24,6 +24,9 @@ type Container struct {
 	// Background services
 	Scheduler      *scheduler.Scheduler
 	TranscodeQueue *transcode.Queue
+
+	// Use cases (exposed for startup tasks)
+	UseCases *usecases.UseCases
 }
 
 // NewContainer creates and wires up all application dependencies
@@ -53,60 +56,25 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 
 	// Register scheduled tasks with unified scheduler
 	if taskScheduler != nil {
-		registerTasks(taskScheduler, cfg, cases, repos, svcs, logger)
+		registerTasks(taskScheduler, cfg, cases, svcs, logger)
 	}
 
-	// Build handlers
-	handlers := apphandlers.BuildHandlers(
-		db,
-		repos,
-		svcs,
-		cases,
-		taskScheduler,
-		cfg.Media.TranscodeOutputDir,
-		logger,
-	)
+	// Build handlers (returns *api.Handlers directly)
+	infra := &apphandlers.InfrastructureDeps{
+		DB:                 db,
+		Scheduler:          taskScheduler,
+		TranscodeOutputDir: cfg.Media.TranscodeOutputDir,
+	}
+	handlers := apphandlers.BuildHandlers(infra, svcs, cases, logger)
 
 	// Create HTTP server
-	server := api.NewServer(
-		cfg.Server.ToAPIServerConfig(),
-		logger,
-		handlers.Health,
-		handlers.Browser,
-		handlers.ScanJob,
-		handlers.Progress,
-		handlers.Transcode,
-		handlers.Images,
-		handlers.Scheduler,
-		handlers.Analytics,
-		cases.Library.Service,
-		cases.Library.Scan,
-		cases.Media.Get,
-		cases.Media.List,
-		cases.Media.StreamInfo,
-		cases.Movies.List,
-		cases.Movies.Get,
-		cases.Movies.Search,
-		cases.Movies.ListIDs,
-		cases.TV.ListShows,
-		cases.TV.GetShow,
-		cases.TV.ListEpisodes,
-		cases.TV.GetEpisode,
-		cases.TV.SearchEpisodes,
-		cases.TV.ListShowIDs,
-		cases.TV.GetNextEpisode,
-		cases.Music.ListArtists,
-		cases.Music.ListAlbumsByArtist,
-		cases.Music.ListTracksByAlbum,
-		cases.Music.GetTrack,
-		cases.Music.SearchTracks,
-		cases.Music.ListArtistIDs,
-	)
+	server := api.NewServer(cfg.Server.ToAPIServerConfig(), logger, handlers)
 
 	return &Container{
 		Server:         server,
 		Scheduler:      taskScheduler,
 		TranscodeQueue: svcs.TranscodeQueue,
+		UseCases:       cases,
 	}
 }
 
@@ -134,12 +102,12 @@ func (c *Container) Shutdown(ctx context.Context) error {
 	return firstErr
 }
 
-// registerTasks registers all scheduled tasks with the unified scheduler
+// registerTasks registers all scheduled tasks with the unified scheduler.
+// Uses use cases for business logic and services for infrastructure operations.
 func registerTasks(
 	taskScheduler *scheduler.Scheduler,
 	cfg *appconfig.Config,
 	cases *usecases.UseCases,
-	repos *repositories.Repositories,
 	svcs *services.Services,
 	logger *slog.Logger,
 ) {
@@ -154,15 +122,15 @@ func registerTasks(
 			retentionMinutes := cfg.Media.ScanJobRetentionMinutes
 			logger.Info("Running scan job cleanup", "retention_minutes", retentionMinutes)
 
-			// Get all libraries and clean up their old scan jobs
-			libraries, err := repos.Library.List(ctx)
+			// Get all libraries via use case
+			resp, err := cases.Library.Service.List(ctx)
 			if err != nil {
 				return err
 			}
 
-			for _, lib := range libraries {
-				// The repository's DeleteOld method handles CASCADE deletion of checkpoints
-				if err := repos.ScanJob.DeleteOld(ctx, lib.ID, retentionMinutes); err != nil {
+			for _, lib := range resp.Libraries {
+				// Clean up old scan jobs via use case
+				if err := cases.ScanJob.DeleteOld(ctx, lib.ID, retentionMinutes); err != nil {
 					logger.Error("Failed to clean scan jobs for library",
 						"library_id", lib.ID,
 						"error", err)
@@ -170,7 +138,7 @@ func registerTasks(
 				}
 			}
 
-			logger.Info("Scan job cleanup completed", "libraries_processed", len(libraries))
+			logger.Info("Scan job cleanup completed", "libraries_processed", len(resp.Libraries))
 			return nil
 		},
 	})
@@ -209,15 +177,15 @@ func registerTasks(
 			Handler: func(ctx context.Context) error {
 				logger.Info("Starting automatic library scan")
 
-				// Get all libraries
-				libraries, err := repos.Library.List(ctx)
+				// Get all libraries via use case
+				resp, err := cases.Library.Service.List(ctx)
 				if err != nil {
 					logger.Error("Failed to list libraries for auto scan", "error", err)
 					return err
 				}
 
 				// Scan each library (incremental scan will detect changes efficiently)
-				for _, lib := range libraries {
+				for _, lib := range resp.Libraries {
 					logger.Info("Auto-scanning library",
 						"library_id", lib.ID,
 						"name", lib.Name,
@@ -238,7 +206,7 @@ func registerTasks(
 						"library_name", lib.Name)
 				}
 
-				logger.Info("Automatic library scan completed", "libraries_scanned", len(libraries))
+				logger.Info("Automatic library scan completed", "libraries_scanned", len(resp.Libraries))
 				return nil
 			},
 		})
@@ -252,7 +220,7 @@ func registerTasks(
 	}
 
 	// Register transcode cleanup tasks (if transcode is enabled)
-	if repos.Transcode != nil && svcs.CleanupService != nil {
+	if svcs.CleanupService != nil {
 		cleanupConfig := cfg.Transcode.ToCleanupSchedulerConfig()
 
 		// Task 1: Policy-based cleanup (failed, old, idle, orphans)
@@ -283,7 +251,7 @@ func registerTasks(
 				return transcode.PerformDiskMonitoring(
 					ctx,
 					svcs.CleanupService,
-					repos.Transcode,
+					svcs.TranscodeRepo,
 					cleanupConfig,
 					cfg.Media.TranscodeOutputDir,
 				)
