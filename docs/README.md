@@ -1,177 +1,32 @@
 # ViewRA Documentation
 
-**Navigation hub for all ViewRA documentation**
+## Essential Docs
 
----
+| Document | Purpose |
+|----------|---------|
+| [PROJECT_STATUS.md](planning/PROJECT_STATUS.md) | What's working, what's not |
+| [PROJECT_PLAN.md](planning/PROJECT_PLAN.md) | Upcoming work |
+| [ARCHITECTURE.md](core/ARCHITECTURE.md) | System design and layers |
+| [CONVENTIONS.md](development/CONVENTIONS.md) | Code style and patterns |
 
-## Quick Start
+## Architecture Decisions
 
-**New to ViewRA?** Start here:
-1. **[README.md](../README.md)** - Project overview
-2. **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - Current status and what's actually working
-3. **[ARCHITECTURE.md](core/ARCHITECTURE.md)** - Understand the system design
-4. **[QUICK_REFERENCE.md](development/QUICK_REFERENCE.md)** - Essential commands
-
----
-
-## Core Documentation (Architecture & Design)
-
-**Understand how ViewRA works**
-
-- **[ARCHITECTURE.md](core/ARCHITECTURE.md)** - System architecture, DDD layers, clean architecture patterns
-- **[DATABASE_SCHEMA.md](core/DATABASE_SCHEMA.md)** - Complete database schema for SQLite and PostgreSQL
-- **[API_SPECIFICATION.md](core/API_SPECIFICATION.md)** - REST API endpoints, requests, responses
-- **[TECH_STACK.md](core/TECH_STACK.md)** - Technology choices and rationale
-- **[DATABASE_SETUP.md](core/DATABASE_SETUP.md)** - Database configuration guide
-- **[PLUGIN_ARCHITECTURE.md](core/PLUGIN_ARCHITECTURE.md)** - Plugin system design (Phase 8)
-
----
-
-## Development Guides
-
-**How to work on ViewRA**
-
-- **[QUICK_REFERENCE.md](development/QUICK_REFERENCE.md)** - Command cheat sheet for daily development
-- **[CONVENTIONS.md](development/CONVENTIONS.md)** - Code style, naming conventions, best practices
-- **[TESTING.md](development/TESTING.md)** - Testing strategy, patterns, coverage guidelines
-- **[PORT_CONFIGURATION.md](development/PORT_CONFIGURATION.md)** - Service ports and networking
-
----
-
-## Project Planning & Status
-
-**Where we are and where we're going**
-
-- **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - Single source of truth for current status
-- **[PROJECT_PLAN.md](planning/PROJECT_PLAN.md)** - Remaining work and future phases
-- **[ROADMAP.md](archive/ROADMAP.md)** - Historical timeline (archived)
-
----
-
-## Architecture Decision Records (ADRs)
-
-**Why we made specific technical decisions**
-
-See **[decisions/README.md](decisions/README.md)** for the complete index.
+See [decisions/README.md](decisions/README.md) for all ADRs.
 
 Key decisions:
-- [005: On-Demand Transcoding Strategy](decisions/005-on-demand-transcoding-strategy.md)
-- [006: Image Handling Strategy](decisions/006-image-handling-strategy.md)
-- [007: Unified Task Scheduler](decisions/007-unified-task-scheduler.md)
+
+- [005: On-Demand Transcoding](decisions/005-on-demand-transcoding-strategy.md)
 - [012: Music Database Architecture](decisions/012-music-database-architecture.md)
-- [014: Library Scanner Resilience Improvements](decisions/014-library-scanner-resilience-improvements.md)
-- [020: Segment-Based Transcoding](decisions/020-segment-based-on-demand-transcoding.md) (REJECTED)
-- [021: Progressive HLS Transcoding](decisions/021-progressive-hls-transcoding.md) (Proposed)
+- [014: Scanner Resilience](decisions/014-library-scanner-resilience-improvements.md)
+- [021: Progressive HLS](decisions/021-progressive-hls-transcoding.md)
+
+## Other Docs
+
+| Category | Files |
+|----------|-------|
+| Planning | [TECHNICAL_DEBT.md](planning/TECHNICAL_DEBT.md) |
+| Features | [HARDWARE_ACCELERATION.md](features/HARDWARE_ACCELERATION.md), [TONE_MAPPING.md](features/TONE_MAPPING.md) |
 
 ---
 
-## Feature Documentation
-
-**Implementation details for complex features**
-
-- **[HARDWARE_ACCELERATION.md](features/HARDWARE_ACCELERATION.md)** - GPU transcoding with VAAPI/NVENC/QSV
-- **[FFMPEG_7_8_FEATURES.md](features/FFMPEG_7_8_FEATURES.md)** - FFmpeg 7.x/8.x feature usage
-- **[TONE_MAPPING.md](features/TONE_MAPPING.md)** - HDR to SDR tone mapping
-- **[LIBPLACEBO_IMPLEMENTATION_SUMMARY.md](features/LIBPLACEBO_IMPLEMENTATION_SUMMARY.md)** - High-quality tone mapping
-- **[SCALING.md](features/SCALING.md)** - Performance scaling strategies
-- **[TRANSCODE_CLEANUP.md](features/TRANSCODE_CLEANUP.md)** - Transcode cleanup tools and automation
-
----
-
-## Research & Analysis
-
-**Data and investigations that informed design decisions**
-
-- **[filename-parsing-patterns.md](research/filename-parsing-patterns.md)** - Media filename parsing patterns
-- **[real-world-filename-analysis.md](research/real-world-filename-analysis.md)** - Analysis of real media files
-- **[REAL_WORLD_VALIDATION.md](research/REAL_WORLD_VALIDATION.md)** - Scanner validation results
-- **[scanner-v1-analysis.md](research/scanner-v1-analysis.md)** - Scanner v1 architecture analysis
-
----
-
-## Code Reviews
-
-**Comprehensive reviews of codebase quality and architecture**
-
-- **[Backend Code Review (Nov 21, 2025)](reviews/backend-code-review-2025-11-21.md)** - Complete backend analysis, test infrastructure improvements, Phase 1/2/3 work summary
-
----
-
-## For AI Agents
-
-**Essential reading for Claude and other AI assistants**
-
-### Core Understanding
-1. **[PROJECT_STATUS.md](planning/PROJECT_STATUS.md)** - What actually works vs what doesn't (reality-checked)
-2. **[ARCHITECTURE.md](core/ARCHITECTURE.md)** - Understand DDD layers, file organization, dependency flow
-3. **[CONVENTIONS.md](development/CONVENTIONS.md)** - Code style rules, naming patterns, file structure
-4. **[DATABASE_SCHEMA.md](core/DATABASE_SCHEMA.md)** - Table structures, relationships, query patterns
-
-### Code Organization Rules
-- **Domain layer**: NO external dependencies, only business logic and interfaces
-- **Application layer**: Use cases orchestrate domain + infrastructure
-- **Infrastructure layer**: External concerns (DB, filesystem, FFmpeg, etc.)
-- **API layer**: HTTP handlers, thin wrappers around use cases
-
-### File Naming Patterns
-- Use cases: `<verb>_<noun>.go` (e.g., `create_library.go`, `scan_library.go`)
-- Repositories: `<entity>_repository.go` (interfaces in domain, implementations in infrastructure)
-- Handlers: `<resource>.go` (e.g., `library.go`, `media.go`)
-
-### Database Compatibility
-- **CRITICAL**: All SQL must work on BOTH SQLite and PostgreSQL
-- Use `$1, $2` placeholders (PostgreSQL style), sqlc generates correct bindings
-- Test migrations on both databases
-- Use QueryRouter in repositories for database-specific logic
-
-### Common Patterns
-See [CONVENTIONS.md](development/CONVENTIONS.md) for detailed examples of:
-- Entity definitions with validation
-- Repository interfaces and implementations
-- Use case structure with error handling
-- Handler patterns with Gin
-
----
-
-## Documentation Guidelines
-
-### When to Update Docs
-
-**Always update these when making changes:**
-- `PROJECT_STATUS.md` - After completing significant features
-- `ADRs` - When making architectural decisions
-- `CONVENTIONS.md` - When establishing new patterns
-- `API_SPECIFICATION.md` - When adding/changing endpoints
-
-**Never create:**
-- Duplicate documentation
-- One-off status reports (update PROJECT_STATUS instead)
-- Implementation work logs (let git history speak)
-
-### Creating New ADRs
-
-See [decisions/README.md](decisions/README.md) for the ADR template and numbering convention.
-
----
-
----
-
-## Recent Changes (Nov 22, 2025)
-
-**Documentation Reorganization**:
-- Moved ROADMAP.md to archive (historical reference)
-- Updated PROJECT_STATUS.md with honest, evidence-based assessments
-- Simplified PROJECT_PLAN.md to focus on remaining work
-- Established three-tier status system: ✅ Complete | ⚠️ Partial | ❌ Not Started
-
-**Key Insights**:
-- Type-specific repositories fully implemented (Nov 22, 2025) - metadata now persisted
-- Image caching is working perfectly (16,300+ cached WebP files)
-- Test infrastructure is solid (188+ tests, 100% passing)
-- Clean Architecture patterns consistently applied throughout
-
-See [PROJECT_STATUS.md](planning/PROJECT_STATUS.md) for full details.
-
----
-
-**Last Updated**: 2025-11-22
+**For AI assistants**: Start with [../CLAUDE.md](../CLAUDE.md), then [PROJECT_STATUS.md](planning/PROJECT_STATUS.md).

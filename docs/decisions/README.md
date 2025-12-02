@@ -47,6 +47,7 @@ Create an ADR when making decisions about:
 | [020](020-segment-based-on-demand-transcoding.md) | Segment-Based On-Demand Transcoding | **REJECTED** | 2025-01-20 | transcoding, streaming |
 | [021](021-progressive-hls-transcoding.md) | Progressive HLS Transcoding (Jellyfin-Style) | Proposed | 2025-11-XX | transcoding, streaming |
 | [022](022-library-package-refactoring.md) | Library Package Refactoring and Simplification | Proposed | 2025-11-22 | architecture, refactoring, complexity |
+| [025](025-resilient-library-scanner-v2.md) | Resilient Library Scanner V2 - Checkpoint Recovery | Accepted | 2025-11-22 | scanner, reliability |
 
 ---
 
@@ -127,7 +128,7 @@ What other options did we evaluate?
 
 ### 1. Find the Next Number
 
-Check the index above for the next available number. Currently: **022**
+Check the index above for the next available number. Currently: **026**
 
 ### 2. Create the File
 
@@ -229,4 +230,4 @@ A: Enough to show you did your homework. 2-3 sentences per alternative is usuall
 
 ---
 
-**Last Updated**: 2025-11-21
+**Last Updated**: December 2, 2025

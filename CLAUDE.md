@@ -1,33 +1,57 @@
 # ViewRA - Media Server
 
-## Project Overview
-ViewRA is a self-hosted media server built with Go (backend) and React/TypeScript (frontend).
+## Quick Context
+
+ViewRA is a self-hosted media server for organizing and streaming personal media collections.
+
+- **Architecture**: Clean Architecture / DDD
+- **Database**: SQLite (default) or PostgreSQL
+- **Streaming**: HLS with on-demand transcoding via FFmpeg
 
 ## Database Location
-The SQLite database is located at `./data/viewra.db`, NOT in the project root.
 
-When running migrations or database commands, use:
+SQLite database: `./data/viewra.db`
+
 ```bash
+# Run migrations
+make migrate-up
+# Or manually:
 ~/go/bin/migrate -database "sqlite3://./data/viewra.db" -path ./migrations up
 ```
 
 ## Project Structure
-- `internal/` - Go backend code
-  - `internal/api/` - HTTP handlers and routes
-  - `internal/application/` - Application services
-  - `internal/domain/` - Domain models and interfaces
-  - `internal/infrastructure/` - Database, persistence, external services
-- `web/` - React/TypeScript frontend
-- `migrations/` - SQLite migrations
-- `migrations/postgres/` - PostgreSQL migrations
-- `data/` - Runtime data (database, thumbnails, transcoded files)
 
-## Build Commands
-- `make build` - Build frontend and backend
-- `make dev` - Run development server
-- `make migrate-up` - Run database migrations
+```text
+internal/
+├── domain/          # Business logic (NO external deps)
+├── application/     # Use cases
+├── infrastructure/  # DB, FFmpeg, filesystem
+├── api/             # HTTP handlers
+└── app/             # Dependency wiring
+web/                 # React frontend
+migrations/          # SQLite migrations
+migrations/postgres/ # PostgreSQL migrations
+data/                # Runtime data (db, cache, transcodes)
+```
+
+## Development
+
+```bash
+make dev          # Start backend (8080) + frontend (5173)
+make build        # Production build
+make test         # Run tests
+```
 
 ## Code Generation
-- `make openapi` - Generate OpenAPI spec from handlers
-- `make api-client-gen` - Generate TypeScript API client from OpenAPI spec
-- `~/go/bin/sqlc generate` - Generate Go code from SQL queries
+
+```bash
+make openapi          # Generate OpenAPI spec
+make api-client-gen   # Generate TypeScript API client
+~/go/bin/sqlc generate # Generate Go code from SQL
+```
+
+## Key Rules
+
+1. **Dual DB**: All SQL must work on SQLite AND PostgreSQL
+2. **Domain purity**: Domain layer imports only stdlib
+3. **TypeScript**: Use arrow functions, exports at end of file
