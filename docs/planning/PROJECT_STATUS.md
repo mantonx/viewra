@@ -38,6 +38,11 @@ ViewRA is a functional self-hosted media server with working streaming, transcod
 
 ## Recent Work (Nov 22 - Dec 2)
 
+- **App Package Restructuring** (Dec 2)
+  - Simplified `NewServer` from 43 params to 3 params
+  - Created layered wiring: `repositories/`, `services/`, `usecases/`, `handlers/`
+  - Extracted business logic from handlers to use cases
+  - Fixed FFmpeg process Wait race condition
 - Adaptive streaming with quality selection
 - Stats for Nerds panel
 - 4K HDR transcoding fixes

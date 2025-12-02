@@ -6,29 +6,29 @@ For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ---
 
-## Upcoming Work
+## Recently Completed
 
-### 1. App Package Restructuring
+### ✅ App Package Restructuring
 
-**Priority**: High (prerequisite for auth)
-**Effort**: 2-3 days
+**Completed**: December 2, 2025
 **ADR**: [026-app-restructuring-and-auth.md](../decisions/026-app-restructuring-and-auth.md)
 
-Current problems:
+Implemented:
 
-- `NewServer` has 30+ parameters
-- Inconsistent handler creation
-- `startup.go` rebuilds repos/services just to recover stuck scans
+- Created `api.Handlers` aggregate struct - `NewServer` now takes 3 params instead of 43
+- Created `app/repositories/`, `app/services/`, `app/usecases/`, `app/handlers/` packages
+- Moved scheduled task registration to `container.go`
+- Fixed startup to reuse container instead of rebuilding dependencies
+- Extracted business logic from handlers to use cases:
+  - `ServeMasterPlaylistUseCase` - ABR ladder filtering and master playlist generation
+  - `CacheService.GetPresetPath()` - Image cache path construction
+- Fixed FFmpeg process management (Wait race condition, log classification)
 
-Changes:
+---
 
-- Create `api.Handlers` aggregate struct
-- Simplify `NewServer(config, logger, handlers)`
-- New `app/wire/` package for dependency wiring
-- New `app/tasks/` package for scheduled task registration
-- Fix startup to reuse container
+## Upcoming Work
 
-### 2. User Authentication
+### 1. User Authentication
 
 **Priority**: High
 **Effort**: 3-4 days
