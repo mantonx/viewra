@@ -115,6 +115,39 @@ Extensible plugin system using Hashicorp go-plugin + gRPC, backed by Event Bus a
 - Plugin CLI commands (install, update, list)
 - Documentation and template repo
 
+### 5. Multi-Language Audio & Subtitles
+
+**Priority**: Medium
+**Effort**: 8-12 days
+**ADR**: [030-multi-language-audio-subtitles.md](../decisions/030-multi-language-audio-subtitles.md)
+
+Comprehensive audio track and subtitle support:
+
+**Phase 1: Database & Scanning (2-3 days)**
+
+- Add `media_audio_tracks` and `media_subtitle_tracks` tables
+- Extend scanner to extract embedded track metadata
+- External subtitle file discovery (.srt, .vtt, .ass)
+
+**Phase 2: API & Track Metadata (1-2 days)**
+
+- Track metadata API endpoints
+- Library language preference settings
+- Extended media response with tracks
+
+**Phase 3: Multi-Audio HLS (2-3 days)**
+
+- Multi-audio master playlists with EXT-X-MEDIA tags
+- Separate audio-only playlists per language
+- Frontend audio track selector
+
+**Phase 4: Subtitle Support (3-4 days)**
+
+- Subtitle extraction and WebVTT conversion
+- Segmented subtitle playlists for HLS
+- Frontend subtitle selector with SDH/forced indicators
+- Auto-selection based on content language vs. preference
+
 ---
 
 ## Future Features
@@ -127,8 +160,6 @@ Extensible plugin system using Hashicorp go-plugin + gRPC, backed by Event Bus a
 
 ### Advanced Playback
 
-- Subtitle support (SRT, ASS, VTT)
-- Multiple audio track selection
 - Chapter markers
 - Intro skip
 

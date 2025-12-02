@@ -52,6 +52,7 @@ Create an ADR when making decisions about:
 | [027](027-plugin-system-architecture.md) | Plugin System Architecture | Proposed | 2025-12-02 | plugins, metadata, extensibility |
 | [028](028-user-authentication.md) | User Authentication | Proposed | 2025-12-02 | auth, security, users |
 | [029](029-settings-infrastructure.md) | Settings Infrastructure | Proposed | 2025-12-02 | settings, configuration |
+| [030](030-multi-language-audio-subtitles.md) | Multi-Language Audio & Subtitles | Proposed | 2025-11-26 | playback, subtitles, audio |
 
 ---
 
@@ -132,7 +133,7 @@ What other options did we evaluate?
 
 ### 1. Find the Next Number
 
-Check the index above for the next available number. Currently: **030**
+Check the index above for the next available number. Currently: **031**
 
 ### 2. Create the File
 
