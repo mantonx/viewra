@@ -1,2 +1,4 @@
 export { ThemeProvider, ThemeContext, type ThemeContextType } from './ThemeContext'
 export { useTheme } from './useTheme'
+export { AuthProvider, useAuth } from './AuthContext'
+export type { User, AuthTokens, AuthState, AuthContextValue } from './AuthContext'

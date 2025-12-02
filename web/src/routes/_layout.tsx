@@ -1,9 +1,43 @@
-import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { AudioPlayerProvider } from '@/lib/contexts/AudioPlayerContext'
 import { AudioPlayer } from '@/components/music'
-import { Home, Library, Film, Tv, Music, Clock, Eye } from 'lucide-react'
+import { useAuth } from '@/contexts'
+import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User } from 'lucide-react'
 
 const Layout = () => {
+  const navigate = useNavigate()
+  const { isAuthenticated, isLoading, needsSetup, user, logout } = useAuth()
+
+  // Redirect to login/setup if not authenticated
+  useEffect(() => {
+    if (!isLoading) {
+      if (needsSetup) {
+        navigate({ to: '/setup' })
+      } else if (!isAuthenticated) {
+        navigate({ to: '/login' })
+      }
+    }
+  }, [isAuthenticated, isLoading, needsSetup, navigate])
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-neutral-950">
+        <div className="animate-pulse text-neutral-500 dark:text-neutral-400">Loading...</div>
+      </div>
+    )
+  }
+
+  // Don't render layout if not authenticated
+  if (!isAuthenticated) {
+    return null
+  }
+
+  const handleLogout = async () => {
+    await logout()
+    navigate({ to: '/login' })
+  }
 
   return (
     <AudioPlayerProvider>
@@ -84,7 +118,22 @@ const Layout = () => {
           </nav>
 
           <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
-            <div className="text-sm text-neutral-500 dark:text-neutral-400">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <User className="w-4 h-4 shrink-0 text-neutral-500 dark:text-neutral-400" />
+                <span className="text-sm text-neutral-700 dark:text-neutral-300 truncate">
+                  {user?.display_name || user?.username}
+                </span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+              </button>
+            </div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-500">
               <p>Version 0.0.1</p>
             </div>
           </div>

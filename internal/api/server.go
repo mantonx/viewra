@@ -84,6 +84,14 @@ type Handlers struct {
 	Movies    *handlers.MoviesHandler
 	TV        *handlers.TVHandler
 	Music     *handlers.MusicHandler
+	Auth      *handlers.AuthHandler
+	Users     *handlers.UsersHandler
+
+	// AuthValidator is used by routes to set up auth middleware
+	AuthValidator middleware.AuthValidator
+
+	// AuthRateLimiters provides rate limiting for auth endpoints
+	AuthRateLimiters *middleware.AuthRateLimiters
 }
 
 // NewServer creates a new HTTP server with the provided configuration and handlers.
@@ -133,37 +141,62 @@ func NewServer(config ServerConfig, logger *slog.Logger, h *Handlers) *Server {
 func (s *Server) setupRoutes() {
 	h := s.handlers
 
-	// Health check
+	// Health check (public)
 	s.router.GET("/health", h.Health.Check)
 
 	// API v1 routes
 	api := s.router.Group("/api")
 
-	// Register route groups
-	routes.RegisterLibraryRoutes(api, h.Library, h.ScanJob)
-	routes.RegisterMediaRoutes(api, h.Media)
-	routes.RegisterStreamRoutes(api, h.Stream)
-	routes.RegisterBrowserRoutes(api, h.Browser)
-	routes.RegisterProgressRoutes(api, h.Progress)
-	routes.RegisterTranscodeRoutes(api, h.Transcode)
+	// Register auth routes first (public endpoints for login/setup)
+	if h.Auth != nil && h.AuthValidator != nil {
+		rateLimiters := h.AuthRateLimiters
+		if rateLimiters == nil {
+			rateLimiters = middleware.NewAuthRateLimiters()
+		}
+		routes.RegisterAuthRoutes(api, h.Auth, h.Users, h.AuthValidator, rateLimiters)
+	}
 
-	// Register media-type specific routes
-	routes.RegisterMoviesRoutes(api, h.Movies)
-	routes.RegisterTVRoutes(api, h.TV)
-	routes.RegisterMusicRoutes(api, h.Music)
+	// Create protected route group (requires authentication)
+	var protected *gin.RouterGroup
+	if h.AuthValidator != nil {
+		protected = api.Group("")
+		protected.Use(middleware.RequireAuth(h.AuthValidator))
+	} else {
+		// If auth is not configured, routes are public
+		protected = api
+	}
 
-	// Register image routes
+	// Register protected route groups
+	routes.RegisterLibraryRoutes(protected, h.Library, h.ScanJob)
+	routes.RegisterMediaRoutes(protected, h.Media)
+	routes.RegisterStreamRoutes(protected, h.Stream)
+	routes.RegisterBrowserRoutes(protected, h.Browser)
+	routes.RegisterProgressRoutes(protected, h.Progress)
+	routes.RegisterTranscodeRoutes(protected, h.Transcode)
+
+	// Register media-type specific routes (protected)
+	routes.RegisterMoviesRoutes(protected, h.Movies)
+	routes.RegisterTVRoutes(protected, h.TV)
+	routes.RegisterMusicRoutes(protected, h.Music)
+
+	// Register analytics routes (protected)
+	routes.RegisterAnalyticsRoutes(protected, h.Analytics)
+
+	// Register image routes (protected via api group)
 	routes.RegisterImageRoutes(s.router, h.Images)
 
 	// Register adaptive quality routes
 	routes.RegisterAdaptiveQualityRoutes(s.router, s.logger)
 
-	// Register analytics routes
-	routes.RegisterAnalyticsRoutes(api, h.Analytics)
-
-	// Register admin routes
-	admin := api.Group("/admin")
-	routes.RegisterSchedulerRoutes(admin, h.Scheduler)
+	// Register admin routes (requires admin)
+	if h.AuthValidator != nil {
+		admin := api.Group("/admin")
+		admin.Use(middleware.RequireAdmin(h.AuthValidator))
+		routes.RegisterSchedulerRoutes(admin, h.Scheduler)
+	} else {
+		admin := api.Group("/admin")
+		routes.RegisterSchedulerRoutes(admin, h.Scheduler)
+	}
 }
 
 // Start starts the HTTP server

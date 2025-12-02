@@ -11,6 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/app/services"
 	"github.com/mantonx/viewra/internal/app/usecases"
+	"github.com/mantonx/viewra/internal/application/auth"
 	"github.com/mantonx/viewra/internal/application/common"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
@@ -56,14 +57,19 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 
 	// Register scheduled tasks with unified scheduler
 	if taskScheduler != nil {
-		registerTasks(taskScheduler, cfg, cases, svcs, logger)
+		registerTasks(taskScheduler, cfg, cases, svcs, repos, logger)
 	}
+
+	// Seed dev user in development mode (before handlers so auth works immediately)
+	seedDevUser(context.Background(), cfg, repos, svcs, logger)
 
 	// Build handlers (returns *api.Handlers directly)
 	infra := &apphandlers.InfrastructureDeps{
 		DB:                 db,
 		Scheduler:          taskScheduler,
 		TranscodeOutputDir: cfg.Media.TranscodeOutputDir,
+		Repos:              repos,
+		Config:             cfg,
 	}
 	handlers := apphandlers.BuildHandlers(infra, svcs, cases, logger)
 
@@ -109,6 +115,7 @@ func registerTasks(
 	cfg *appconfig.Config,
 	cases *usecases.UseCases,
 	svcs *services.Services,
+	repos *repositories.Repositories,
 	logger *slog.Logger,
 ) {
 	// Register scan job cleanup task
@@ -263,4 +270,90 @@ func registerTasks(
 			logger.Info("Registered transcode disk monitor task with scheduler")
 		}
 	}
+
+	// Register expired session cleanup task
+	err = taskScheduler.RegisterTask(scheduler.Task{
+		ID:          "session-cleanup",
+		Name:        "Session Cleanup",
+		Description: "Remove expired user sessions from the database",
+		Schedule:    "0 * * * *", // Every hour at :00
+		Enabled:     true,
+		Handler: func(ctx context.Context) error {
+			logger.Info("Running expired session cleanup")
+			deleted, err := repos.Session.DeleteExpired(ctx)
+			if err != nil {
+				logger.Error("Failed to clean expired sessions", "error", err)
+				return err
+			}
+			logger.Info("Expired session cleanup completed", "deleted_count", deleted)
+			return nil
+		},
+	})
+	if err != nil {
+		logger.Error("Failed to register session cleanup task", "error", err)
+	} else {
+		logger.Info("Registered session cleanup task with scheduler")
+	}
+}
+
+// seedDevUser creates a development user if running in development mode and no users exist.
+// This reduces friction during local development by providing ready-to-use credentials.
+// Dev credentials: username "dev", password "devdev00"
+func seedDevUser(
+	ctx context.Context,
+	cfg *appconfig.Config,
+	repos *repositories.Repositories,
+	svcs *services.Services,
+	logger *slog.Logger,
+) {
+	// Only seed in development environment
+	if cfg.Environment != "development" {
+		return
+	}
+
+	// Skip if user repository not available
+	if repos.User == nil {
+		return
+	}
+
+	// Check if any users exist
+	exists, err := repos.User.ExistsAny(ctx)
+	if err != nil {
+		logger.Warn("Failed to check for existing users during dev seed", "error", err)
+		return
+	}
+
+	// Don't seed if users already exist
+	if exists {
+		logger.Debug("Dev user seeding skipped - users already exist")
+		return
+	}
+
+	logger.Info("Seeding development user (no users exist)")
+
+	// Create auth service for registration
+	authService := auth.NewService(
+		repos.User,
+		repos.Session,
+		svcs.PasswordHasher,
+		svcs.TokenService,
+		cfg.Auth.MaxSessionsPerUser,
+	)
+
+	// Register dev user (password must be 8+ characters)
+	_, err = authService.Register(ctx, &auth.RegisterRequest{
+		Username:    "dev",
+		DisplayName: "Developer",
+		Password:    "devdev00",
+		IsAdmin:     true,
+	})
+	if err != nil {
+		logger.Error("Failed to create dev user", "error", err)
+		return
+	}
+
+	logger.Info("Development user created",
+		"username", "dev",
+		"password", "devdev00",
+		"note", "Only in development mode when no users exist")
 }

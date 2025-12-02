@@ -275,6 +275,18 @@ type ScanState struct {
 	ErrorCategory   sql.NullString `json:"error_category"`
 }
 
+type Session struct {
+	ID               int64          `json:"id"`
+	PublicID         string         `json:"public_id"`
+	UserID           int64          `json:"user_id"`
+	RefreshTokenHash string         `json:"refresh_token_hash"`
+	UserAgent        sql.NullString `json:"user_agent"`
+	IpAddress        sql.NullString `json:"ip_address"`
+	CreatedAt        string         `json:"created_at"`
+	LastUsedAt       string         `json:"last_used_at"`
+	ExpiresAt        string         `json:"expires_at"`
+}
+
 type TaskExecution struct {
 	ID         int64          `json:"id"`
 	TaskID     string         `json:"task_id"`
@@ -364,6 +376,18 @@ type TvShow struct {
 	TvdbID           sql.NullInt64  `json:"tvdb_id"`
 	CreatedAt        sql.NullTime   `json:"created_at"`
 	UpdatedAt        sql.NullTime   `json:"updated_at"`
+}
+
+type User struct {
+	ID           int64  `json:"id"`
+	PublicID     string `json:"public_id"`
+	Username     string `json:"username"`
+	DisplayName  string `json:"display_name"`
+	PasswordHash string `json:"password_hash"`
+	IsAdmin      int64  `json:"is_admin"`
+	IsDisabled   int64  `json:"is_disabled"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }
 
 type UserVideoPreference struct {

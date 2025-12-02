@@ -8,11 +8,11 @@ import (
 // Tracks how much of a video has been watched and completion status.
 type WatchProgress struct {
 	ID              int64
-	UserID          int64  // For future multi-user support
-	MediaID         int64  // Foreign key to media table
+	UserID          int64   // Foreign key to users table
+	MediaID         int64   // Foreign key to media table
 	ProgressSeconds float64 // Current playback position in seconds (float for sub-second precision)
 	DurationSeconds float64 // Total duration at time of viewing (cached for percentage calculation)
-	IsWatched       bool   // True if user explicitly marked as watched or >90% complete
+	IsWatched       bool    // True if user explicitly marked as watched or >90% complete
 	LastWatchedAt   time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

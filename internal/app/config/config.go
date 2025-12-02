@@ -23,7 +23,16 @@ type Config struct {
 	Media         MediaConfig
 	Transcode     TranscodeConfig
 	Images        ImagesConfig
+	Auth          AuthConfig
 	SystemProfile *system.Profile // Detected system profile for auto-tuning
+}
+
+// AuthConfig holds authentication configuration.
+type AuthConfig struct {
+	JWTSecret        string        // Secret for signing JWTs (generated if empty)
+	AccessTokenTTL   time.Duration // Access token lifetime (default: 15m)
+	RefreshTokenTTL  time.Duration // Refresh token lifetime (default: 7d)
+	MaxSessionsPerUser int         // Maximum concurrent sessions per user (0 = unlimited)
 }
 
 // DatabaseConfig holds database connection and migration configuration.
@@ -107,6 +116,7 @@ func Load() (*Config, error) {
 		Media:       loadMediaConfig(logger),
 		Transcode:   loadTranscodeConfig(logger),
 		Images:      loadImagesConfig(),
+		Auth:        loadAuthConfig(logger),
 	}
 
 	// Validate configuration
@@ -190,12 +200,22 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("image cache directory is required")
 	}
 
+	// Auth validation - require JWT_SECRET in production
+	if c.IsProduction() && c.Auth.JWTSecret == "" {
+		return fmt.Errorf("JWT_SECRET environment variable is required in production mode")
+	}
+
 	// Auto scan validation
 	if c.Media.AutoScanEnabled && c.Media.AutoScanInterval == "" {
 		return fmt.Errorf("auto scan interval is required when auto scan is enabled")
 	}
 
 	return nil
+}
+
+// IsProduction returns true if running in production mode.
+func (c *Config) IsProduction() bool {
+	return c.Environment == "production"
 }
 
 // loadDatabaseConfig loads database configuration from environment
@@ -285,6 +305,16 @@ func loadTranscodeConfig(logger *slog.Logger) TranscodeConfig {
 func loadImagesConfig() ImagesConfig {
 	return ImagesConfig{
 		CacheDir: getEnv("IMAGE_CACHE_DIR", "./data/cache/images"),
+	}
+}
+
+// loadAuthConfig loads authentication configuration from environment
+func loadAuthConfig(logger *slog.Logger) AuthConfig {
+	return AuthConfig{
+		JWTSecret:          getEnv("JWT_SECRET", ""), // Will be generated if empty
+		AccessTokenTTL:     getEnvDurationWithLog(logger, "ACCESS_TOKEN_TTL", 15*time.Minute),
+		RefreshTokenTTL:    getEnvDurationWithLog(logger, "REFRESH_TOKEN_TTL", 7*24*time.Hour),
+		MaxSessionsPerUser: getEnvIntWithLog(logger, "MAX_SESSIONS_PER_USER", 10),
 	}
 }
 

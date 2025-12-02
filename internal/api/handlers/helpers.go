@@ -167,3 +167,16 @@ func getPathInt64(c *gin.Context, paramName string) (int64, bool) {
 	}
 	return value, true
 }
+
+// getQueryInt extracts an int query parameter with a default value.
+func getQueryInt(c *gin.Context, paramName string, defaultValue int) int {
+	valueStr := c.Query(paramName)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}

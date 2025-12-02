@@ -49,6 +49,6 @@ const Index = () => {
   )
 }
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/_layout/')({
   component: Index,
 })

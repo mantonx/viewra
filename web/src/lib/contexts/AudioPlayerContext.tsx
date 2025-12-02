@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useRef, useEffect, type ReactNode 
 import type { MusicTrackResponse } from '@/lib/types/music'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
+import { authFetch } from '@/lib/utils/authFetch'
 
 interface AudioPlayerContextType {
   // State
@@ -174,7 +175,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
 
     try {
       const position = Math.floor(audioRef.current.currentTime)
-      await fetch(`${API_BASE_URL}/api/progress/${currentTrack.id}`, {
+      await authFetch(`/api/progress/${currentTrack.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -6,8 +6,11 @@ import (
 
 	"github.com/mantonx/viewra/internal/api"
 	"github.com/mantonx/viewra/internal/api/handlers"
+	"github.com/mantonx/viewra/internal/app/config"
+	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/app/services"
 	"github.com/mantonx/viewra/internal/app/usecases"
+	appauth "github.com/mantonx/viewra/internal/application/auth"
 	"github.com/mantonx/viewra/internal/infrastructure/scheduler"
 	"github.com/mantonx/viewra/internal/infrastructure/streaming"
 )
@@ -19,6 +22,8 @@ type InfrastructureDeps struct {
 	DB                 *sql.DB
 	Scheduler          *scheduler.Scheduler
 	TranscodeOutputDir string
+	Repos              *repositories.Repositories
+	Config             *config.Config
 }
 
 // BuildHandlers creates all HTTP handler instances.
@@ -94,20 +99,49 @@ func BuildHandlers(
 		cases.Music.ListArtistIDs,
 	)
 
+	// Auth handlers
+	var authHandler *handlers.AuthHandler
+	var usersHandler *handlers.UsersHandler
+	var authService *appauth.Service
+
+	if infra.Repos != nil && infra.Repos.User != nil && svcs.TokenService != nil {
+		// Create auth service
+		authService = appauth.NewService(
+			infra.Repos.User,
+			infra.Repos.Session,
+			svcs.PasswordHasher,
+			svcs.TokenService,
+			infra.Config.Auth.MaxSessionsPerUser,
+		)
+
+		// Create admin service
+		adminService := appauth.NewAdminService(
+			infra.Repos.User,
+			infra.Repos.Session,
+			svcs.PasswordHasher,
+		)
+
+		authHandler = handlers.NewAuthHandler(authService)
+		usersHandler = handlers.NewUsersHandler(adminService)
+	}
+
 	return &api.Handlers{
-		Health:    healthHandler,
-		Browser:   browserHandler,
-		Scheduler: schedulerHandler,
-		Analytics: analyticsHandler,
-		Library:   libraryHandler,
-		ScanJob:   scanJobHandler,
-		Media:     mediaHandler,
-		Stream:    streamHandler,
-		Progress:  progressHandler,
-		Images:    imagesHandler,
-		Transcode: transcodeHandler,
-		Movies:    moviesHandler,
-		TV:        tvHandler,
-		Music:     musicHandler,
+		Health:        healthHandler,
+		Browser:       browserHandler,
+		Scheduler:     schedulerHandler,
+		Analytics:     analyticsHandler,
+		Library:       libraryHandler,
+		ScanJob:       scanJobHandler,
+		Media:         mediaHandler,
+		Stream:        streamHandler,
+		Progress:      progressHandler,
+		Images:        imagesHandler,
+		Transcode:     transcodeHandler,
+		Movies:        moviesHandler,
+		TV:            tvHandler,
+		Music:         musicHandler,
+		Auth:          authHandler,
+		Users:         usersHandler,
+		AuthValidator: authService,
 	}
 }

@@ -5,6 +5,7 @@
 
 import { getApiTvShows, getApiTvShowsId, getApiTvEpisodesId, getApiTvShowsIdEpisodes, getApiTvSearch } from './generated/tv/tv'
 import type { GetApiTvShowsParams, GetApiTvSearchParams } from './generated/models'
+import { authFetch } from '@/lib/utils/authFetch'
 
 export const tvApi = {
   /**
@@ -38,7 +39,7 @@ export const tvApi = {
    * or first episode if all are watched
    */
   getNextEpisode: async (showId: number) => {
-    const response = await fetch(`/api/tv/shows/${showId}/next-episode`)
+    const response = await authFetch(`/api/tv/shows/${showId}/next-episode`)
     if (!response.ok) {
       throw new Error(`Failed to get next episode: ${response.statusText}`)
     }

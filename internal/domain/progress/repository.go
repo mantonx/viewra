@@ -18,7 +18,6 @@ type Repository interface {
 
 	// GetByMediaIDAndUserID retrieves watch progress for a specific media item and user.
 	// Returns ErrProgressNotFound if no progress exists.
-	// For future multi-user support.
 	GetByMediaIDAndUserID(ctx context.Context, mediaID, userID int64) (*WatchProgress, error)
 
 	// GetBatchByMediaIDs retrieves watch progress for multiple media items.

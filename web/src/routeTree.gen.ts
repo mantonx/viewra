@@ -9,8 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LayoutRouteImport } from './routes/_layout'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutLibrariesRouteImport } from './routes/_layout/libraries'
 import { Route as LayoutTvIndexRouteImport } from './routes/_layout/tv.index'
 import { Route as LayoutMusicIndexRouteImport } from './routes/_layout/music.index'
@@ -22,14 +24,24 @@ import { Route as LayoutMusicArtistsArtistIdRouteImport } from './routes/_layout
 import { Route as LayoutMusicAlbumsAlbumIdRouteImport } from './routes/_layout/music.albums.$albumId'
 import { Route as LayoutTvShowIdSeasonSeasonNumberRouteImport } from './routes/_layout/tv.$showId.season.$seasonNumber'
 
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const LayoutIndexRoute = LayoutIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutLibrariesRoute = LayoutLibrariesRouteImport.update({
   id: '/libraries',
@@ -86,8 +98,10 @@ const LayoutTvShowIdSeasonSeasonNumberRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/setup': typeof SetupRoute
   '/libraries': typeof LayoutLibrariesRoute
+  '/': typeof LayoutIndexRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
   '/movies': typeof LayoutMoviesIndexRoute
@@ -99,8 +113,10 @@ export interface FileRoutesByFullPath {
   '/tv/$showId/season/$seasonNumber': typeof LayoutTvShowIdSeasonSeasonNumberRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/setup': typeof SetupRoute
   '/libraries': typeof LayoutLibrariesRoute
+  '/': typeof LayoutIndexRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
   '/movies': typeof LayoutMoviesIndexRoute
@@ -113,9 +129,11 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/_layout': typeof LayoutRouteWithChildren
+  '/login': typeof LoginRoute
+  '/setup': typeof SetupRoute
   '/_layout/libraries': typeof LayoutLibrariesRoute
+  '/_layout/': typeof LayoutIndexRoute
   '/_layout/settings/display': typeof LayoutSettingsDisplayRoute
   '/_layout/settings/scheduler': typeof LayoutSettingsSchedulerRoute
   '/_layout/movies/': typeof LayoutMoviesIndexRoute
@@ -129,8 +147,10 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
+    | '/login'
+    | '/setup'
     | '/libraries'
+    | '/'
     | '/settings/display'
     | '/settings/scheduler'
     | '/movies'
@@ -142,8 +162,10 @@ export interface FileRouteTypes {
     | '/tv/$showId/season/$seasonNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
+    | '/login'
+    | '/setup'
     | '/libraries'
+    | '/'
     | '/settings/display'
     | '/settings/scheduler'
     | '/movies'
@@ -155,9 +177,11 @@ export interface FileRouteTypes {
     | '/tv/$showId/season/$seasonNumber'
   id:
     | '__root__'
-    | '/'
     | '/_layout'
+    | '/login'
+    | '/setup'
     | '/_layout/libraries'
+    | '/_layout/'
     | '/_layout/settings/display'
     | '/_layout/settings/scheduler'
     | '/_layout/movies/'
@@ -170,12 +194,27 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   LayoutRoute: typeof LayoutRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  SetupRoute: typeof SetupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_layout': {
       id: '/_layout'
       path: ''
@@ -183,12 +222,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_layout/': {
+      id: '/_layout/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof LayoutIndexRouteImport
+      parentRoute: typeof LayoutRoute
     }
     '/_layout/libraries': {
       id: '/_layout/libraries'
@@ -265,6 +304,7 @@ declare module '@tanstack/react-router' {
 
 interface LayoutRouteChildren {
   LayoutLibrariesRoute: typeof LayoutLibrariesRoute
+  LayoutIndexRoute: typeof LayoutIndexRoute
   LayoutSettingsDisplayRoute: typeof LayoutSettingsDisplayRoute
   LayoutSettingsSchedulerRoute: typeof LayoutSettingsSchedulerRoute
   LayoutMoviesIndexRoute: typeof LayoutMoviesIndexRoute
@@ -278,6 +318,7 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutLibrariesRoute: LayoutLibrariesRoute,
+  LayoutIndexRoute: LayoutIndexRoute,
   LayoutSettingsDisplayRoute: LayoutSettingsDisplayRoute,
   LayoutSettingsSchedulerRoute: LayoutSettingsSchedulerRoute,
   LayoutMoviesIndexRoute: LayoutMoviesIndexRoute,
@@ -293,8 +334,9 @@ const LayoutRouteWithChildren =
   LayoutRoute._addFileChildren(LayoutRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   LayoutRoute: LayoutRouteWithChildren,
+  LoginRoute: LoginRoute,
+  SetupRoute: SetupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

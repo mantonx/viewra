@@ -24,3 +24,8 @@ sql:
         emit_interface: true
         emit_exact_table_names: false
         emit_empty_slices: true
+        overrides:
+          - column: "users.id"
+            go_type: "int32"
+          - column: "sessions.id"
+            go_type: "int32"

@@ -15,6 +15,7 @@ import (
 	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
+	userRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/user"
 )
 
 // Repositories holds all data access layer implementations.
@@ -32,6 +33,8 @@ type Repositories struct {
 	Music      *musicRepo.Repository
 	Image      *imageRepo.Repository
 	Analytics  *analyticsRepo.Repository
+	User       *userRepo.UserRepository
+	Session    *userRepo.SessionRepository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -60,6 +63,10 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	// Create analytics repository
 	analyticsRepository := analyticsRepo.NewRepository(db, driver)
 
+	// Create user repositories
+	userRepository := userRepo.NewUserRepository(db, driver)
+	sessionRepository := userRepo.NewSessionRepository(db, driver)
+
 	return &Repositories{
 		Library:    libraryRepository,
 		Media:      mediaRepository,
@@ -73,5 +80,7 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 		Music:      musicRepository,
 		Image:      imageRepository,
 		Analytics:  analyticsRepository,
+		User:       userRepository,
+		Session:    sessionRepository,
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/auth"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
@@ -39,6 +40,10 @@ type Services struct {
 
 	// Transcode repository (for disk monitoring cleanup tasks)
 	TranscodeRepo DiskMonitoringRepo
+
+	// Auth services
+	PasswordHasher *auth.PasswordHasher
+	TokenService   *auth.TokenService
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -128,6 +133,32 @@ func BuildServices(
 		cfg.Media.TranscodeOutputDir,
 	)
 
+	// Initialize auth services
+	passwordHasher := auth.NewPasswordHasher(nil) // Use default Argon2id params
+
+	// Get or generate JWT secret
+	jwtSecret := []byte(cfg.Auth.JWTSecret)
+	if len(jwtSecret) == 0 {
+		// In production, this should have been caught by config validation.
+		// In development, generate a temporary secret with a warning.
+		var err error
+		jwtSecret, err = auth.GenerateSecret()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
+		}
+		logger.Warn("Generated temporary JWT secret for development",
+			"hint", "Sessions will be invalidated on restart. Set JWT_SECRET env var for persistence.",
+			"note", "In production mode (ENVIRONMENT=production), JWT_SECRET is required.")
+	}
+
+	tokenConfig := &auth.TokenConfig{
+		Secret:          jwtSecret,
+		AccessTokenTTL:  cfg.Auth.AccessTokenTTL,
+		RefreshTokenTTL: cfg.Auth.RefreshTokenTTL,
+		Issuer:          "viewra",
+	}
+	tokenService := auth.NewTokenService(tokenConfig)
+
 	return &Services{
 		ImageCache:       imageCacheService,
 		ImageTransformer: imageTransformer,
@@ -137,6 +168,8 @@ func BuildServices(
 		CleanupService:   cleanupService,
 		SessionManager:   sessionManager,
 		TranscodeRepo:    repos.Transcode,
+		PasswordHasher:   passwordHasher,
+		TokenService:     tokenService,
 	}, nil
 }
 

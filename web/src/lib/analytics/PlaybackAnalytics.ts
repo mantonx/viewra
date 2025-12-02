@@ -5,6 +5,7 @@
  */
 
 import { detectDeviceType, getConnectionType } from '@/lib/capabilities'
+import { authFetch } from '@/lib/utils/authFetch'
 
 export interface QualitySwitchEvent {
   mediaId: number
@@ -248,7 +249,7 @@ export const flushEvents = async (
   }
 
   try {
-    const response = await fetch(config.endpoint, {
+    const response = await authFetch(config.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session, events }),

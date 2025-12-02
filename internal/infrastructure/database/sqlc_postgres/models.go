@@ -280,6 +280,18 @@ type ScanState struct {
 	ErrorCategory   sql.NullString `json:"error_category"`
 }
 
+type Session struct {
+	RefreshTokenHash string         `json:"refresh_token_hash"`
+	UserAgent        sql.NullString `json:"user_agent"`
+	IpAddress        sql.NullString `json:"ip_address"`
+	CreatedAt        time.Time      `json:"created_at"`
+	LastUsedAt       time.Time      `json:"last_used_at"`
+	ExpiresAt        time.Time      `json:"expires_at"`
+	UserID           int32          `json:"user_id"`
+	PublicID         string         `json:"public_id"`
+	ID               int32          `json:"id"`
+}
+
 type TranscodeJob struct {
 	ID                 int32          `json:"id"`
 	MediaID            int32          `json:"media_id"`
@@ -358,6 +370,18 @@ type TvShow struct {
 	TvdbID           sql.NullInt32  `json:"tvdb_id"`
 	CreatedAt        sql.NullTime   `json:"created_at"`
 	UpdatedAt        sql.NullTime   `json:"updated_at"`
+}
+
+type User struct {
+	PublicID     string    `json:"public_id"`
+	Username     string    `json:"username"`
+	DisplayName  string    `json:"display_name"`
+	PasswordHash string    `json:"password_hash"`
+	IsAdmin      bool      `json:"is_admin"`
+	IsDisabled   bool      `json:"is_disabled"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	ID           int32     `json:"id"`
 }
 
 type UserVideoPreference struct {

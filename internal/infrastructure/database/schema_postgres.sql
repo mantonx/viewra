@@ -127,3 +127,35 @@ CREATE TABLE IF NOT EXISTS media_images (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
 );
+
+-- Users table with dual ID pattern (INTEGER PK + opaque public_id)
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    public_id TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+-- Sessions table for refresh token management
+CREATE TABLE IF NOT EXISTS sessions (
+    id SERIAL PRIMARY KEY,
+    public_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    refresh_token_hash TEXT NOT NULL UNIQUE,
+    user_agent TEXT,
+    ip_address TEXT,
+    created_at TIMESTAMP NOT NULL,
+    last_used_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_public_id ON users(public_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_public_id ON sessions(public_id);

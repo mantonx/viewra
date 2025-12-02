@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { imagesApi } from '@/lib/api'
 import { API_BASE_URL } from '@/lib/config'
+import { authFetch } from '@/lib/utils/authFetch'
 import type { Image } from '@/lib/types/images'
 
 const BATCH_SIZE = 50
@@ -69,7 +70,7 @@ export const useBatchImagesPrefetch = ({
   const nextPageIDsQuery = useQuery({
     queryKey: ['prefetch-ids', contentType, libraryId, nextPageOffset, sort],
     queryFn: async (): Promise<IDsResponse> => {
-      const endpoint = `${API_BASE_URL}/api/${contentType}/ids`
+      const endpoint = `/api/${contentType}/ids`
       const params = new URLSearchParams({
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         library_id: libraryId!.toString(),
@@ -77,7 +78,7 @@ export const useBatchImagesPrefetch = ({
         offset: nextPageOffset.toString(),
         ...(sort && { sort }),
       })
-      const response = await fetch(`${endpoint}?${params}`)
+      const response = await authFetch(`${endpoint}?${params}`)
       if (!response.ok) {throw new Error('Failed to fetch next page IDs')}
       return response.json()
     },

@@ -5,6 +5,7 @@ import { useAutoQuality } from '@/lib/hooks/useAutoQuality'
 import { usePlaybackAnalytics } from '@/lib/hooks/usePlaybackAnalytics'
 import { useStreamStats } from '@/lib/hooks/useStreamStats'
 import { logger } from '@/lib/utils/logger'
+import { getAuthHeaders } from '@/lib/utils/authFetch'
 import Hls from 'hls.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VideoControls } from './VideoControls'
@@ -260,6 +261,13 @@ export const VideoPlayer = ({
       // Nudge forward on stalls
       nudgeOffset: 0.1,
       nudgeMaxRetry: 10,
+      // Add auth headers to all HLS.js requests (manifests and segments)
+      xhrSetup: (xhr, _url) => {
+        const authHeaders = getAuthHeaders()
+        if (authHeaders['Authorization']) {
+          xhr.setRequestHeader('Authorization', authHeaders['Authorization'])
+        }
+      },
     })
     hlsRef.current = hls
 

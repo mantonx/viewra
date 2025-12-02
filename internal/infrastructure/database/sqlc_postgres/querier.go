@@ -7,6 +7,7 @@ package sqlc_postgres
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 type Querier interface {
@@ -36,11 +37,13 @@ type Querier interface {
 	CountSearchArtistsByName(ctx context.Context, arg CountSearchArtistsByNameParams) (int64, error)
 	CountSearchMoviesByTitle(ctx context.Context, arg CountSearchMoviesByTitleParams) (int64, error)
 	CountSearchTVShowsByTitle(ctx context.Context, arg CountSearchTVShowsByTitleParams) (int64, error)
+	CountSessionsByUserID(ctx context.Context, userID int32) (int64, error)
 	// ============================================================================
 	// Pagination Support Queries
 	// ============================================================================
 	CountTVShowsByLibrary(ctx context.Context, libraryID int32) (int64, error)
 	CountTranscodeJobsByStatus(ctx context.Context, status string) (int64, error)
+	CountUsers(ctx context.Context) (int64, error)
 	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (MusicAlbum, error)
 	CreateArtist(ctx context.Context, arg CreateArtistParams) (MusicArtist, error)
 	CreateImage(ctx context.Context, arg CreateImageParams) (MediaImage, error)
@@ -54,6 +57,8 @@ type Querier interface {
 	CreateScanCheckpoint(ctx context.Context, arg CreateScanCheckpointParams) (ScanCheckpoint, error)
 	CreateScanCheckpointBatch(ctx context.Context, arg CreateScanCheckpointBatchParams) error
 	CreateScanJob(ctx context.Context, arg CreateScanJobParams) (ScanJob, error)
+	// Session queries for PostgreSQL
+	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// ============================================================================
 	// TV Episodes
 	// ============================================================================
@@ -67,9 +72,12 @@ type Querier interface {
 	// ============================================================================
 	CreateTVShow(ctx context.Context, arg CreateTVShowParams) (TvShow, error)
 	CreateTranscodeJob(ctx context.Context, arg CreateTranscodeJobParams) (TranscodeJob, error)
+	// User queries for PostgreSQL
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWatchProgress(ctx context.Context, arg CreateWatchProgressParams) (WatchProgress, error)
 	DeleteAlbum(ctx context.Context, id int32) error
 	DeleteArtist(ctx context.Context, id int32) error
+	DeleteExpiredSessions(ctx context.Context, expiresAt time.Time) (int64, error)
 	DeleteImage(ctx context.Context, id int32) error
 	DeleteImagesByEntity(ctx context.Context, arg DeleteImagesByEntityParams) error
 	DeleteImagesByHash(ctx context.Context, fileHash sql.NullString) error
@@ -86,13 +94,17 @@ type Querier interface {
 	DeleteScanJob(ctx context.Context, id int32) error
 	DeleteScanStateByLibrary(ctx context.Context, libraryID int32) error
 	DeleteScanStateByPath(ctx context.Context, arg DeleteScanStateByPathParams) error
+	DeleteSession(ctx context.Context, id int32) error
+	DeleteSessionsByUserID(ctx context.Context, userID int32) error
 	DeleteTVEpisode(ctx context.Context, mediaID int32) error
 	DeleteTVSeason(ctx context.Context, id int32) error
 	DeleteTVShow(ctx context.Context, id int32) error
 	DeleteTranscodeJob(ctx context.Context, id int32) error
 	DeleteTranscodeJobsByMediaID(ctx context.Context, mediaID int32) error
+	DeleteUser(ctx context.Context, id int32) error
 	DeleteWatchProgress(ctx context.Context, id int32) error
 	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int32) error
+	ExistsAnyUser(ctx context.Context) (bool, error)
 	FindAlbumByTitle(ctx context.Context, arg FindAlbumByTitleParams) (MusicAlbum, error)
 	FindArtistByName(ctx context.Context, arg FindArtistByNameParams) (MusicArtist, error)
 	GetAlbumByID(ctx context.Context, id int32) (MusicAlbum, error)
@@ -136,6 +148,10 @@ type Querier interface {
 	GetScanJobStats(ctx context.Context, libraryID int32) (GetScanJobStatsRow, error)
 	GetScanStateByPath(ctx context.Context, arg GetScanStateByPathParams) (ScanState, error)
 	GetScanStateModifiedSince(ctx context.Context, arg GetScanStateModifiedSinceParams) ([]ScanState, error)
+	GetSessionByID(ctx context.Context, id int32) (Session, error)
+	GetSessionByPublicID(ctx context.Context, publicID string) (Session, error)
+	GetSessionByTokenHash(ctx context.Context, refreshTokenHash string) (Session, error)
+	GetSessionsByUserID(ctx context.Context, userID int32) ([]Session, error)
 	GetTVEpisodeByMediaID(ctx context.Context, mediaID int32) (GetTVEpisodeByMediaIDRow, error)
 	GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg GetTVEpisodeByShowSeasonEpisodeParams) (GetTVEpisodeByShowSeasonEpisodeRow, error)
 	GetTVSeasonByID(ctx context.Context, id int32) (TvSeason, error)
@@ -151,6 +167,9 @@ type Querier interface {
 	GetTotalTranscodeSize(ctx context.Context) (interface{}, error)
 	GetTranscodeJobByID(ctx context.Context, id int32) (TranscodeJob, error)
 	GetTranscodeJobByMediaIDAndQuality(ctx context.Context, arg GetTranscodeJobByMediaIDAndQualityParams) (TranscodeJob, error)
+	GetUserByID(ctx context.Context, id int32) (User, error)
+	GetUserByPublicID(ctx context.Context, publicID string) (User, error)
+	GetUserByUsername(ctx context.Context, lower string) (User, error)
 	GetWatchProgressByID(ctx context.Context, id int32) (WatchProgress, error)
 	GetWatchProgressByMediaID(ctx context.Context, mediaID int32) (WatchProgress, error)
 	GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg GetWatchProgressByMediaIDAndUserIDParams) (WatchProgress, error)
@@ -211,6 +230,7 @@ type Querier interface {
 	ListTranscodeJobsByLRU(ctx context.Context, limit int32) ([]TranscodeJob, error)
 	ListTranscodeJobsByMediaID(ctx context.Context, mediaID int32) ([]TranscodeJob, error)
 	ListTranscodeJobsByStatus(ctx context.Context, status string) ([]TranscodeJob, error)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	ListWatchProgressByUserID(ctx context.Context, arg ListWatchProgressByUserIDParams) ([]WatchProgress, error)
 	ListWatchedByUserID(ctx context.Context, arg ListWatchedByUserIDParams) ([]WatchProgress, error)
 	MediaExistsInLibrary(ctx context.Context, arg MediaExistsInLibraryParams) (bool, error)
@@ -237,12 +257,15 @@ type Querier interface {
 	UpdateScanCheckpointStatus(ctx context.Context, arg UpdateScanCheckpointStatusParams) error
 	UpdateScanJobProgress(ctx context.Context, arg UpdateScanJobProgressParams) error
 	UpdateScanJobStatus(ctx context.Context, arg UpdateScanJobStatusParams) error
+	UpdateSessionLastUsed(ctx context.Context, arg UpdateSessionLastUsedParams) error
 	UpdateTVEpisode(ctx context.Context, arg UpdateTVEpisodeParams) error
 	UpdateTVSeason(ctx context.Context, arg UpdateTVSeasonParams) error
 	UpdateTVShow(ctx context.Context, arg UpdateTVShowParams) error
 	UpdateTranscodeJob(ctx context.Context, arg UpdateTranscodeJobParams) error
 	UpdateTranscodeJobAccess(ctx context.Context, arg UpdateTranscodeJobAccessParams) error
 	UpdateTranscodeJobAccessByMediaAndQuality(ctx context.Context, arg UpdateTranscodeJobAccessByMediaAndQualityParams) error
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
 	UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error)
 	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error

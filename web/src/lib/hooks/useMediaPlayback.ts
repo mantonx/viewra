@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
+import { authFetch, getAuthHeaders } from '@/lib/utils/authFetch'
 import { detectCodecSupport } from '@/lib/capabilities'
 import type { CodecSupport } from '@/lib/capabilities'
 import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
@@ -108,7 +109,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     } else {
       // Fetch progress to determine resume position (usually fast, <50ms from cache)
       try {
-        const response = await fetch(`${API_BASE_URL}/api/progress/${id}`)
+        const response = await authFetch(`/api/progress/${id}`)
         const progressData = response.ok ? await response.json() : null
         const progressSecs = progressData ? getProgressSeconds(progressData) : 0
         const durationSecs = progressData?.duration_seconds ?? 0
@@ -143,7 +144,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
 
     // Fetch manifest with codec capability headers (enables direct play for H.265/VP9/AV1)
     try {
-      const response = await fetch(manifestUrl, {
+      const response = await authFetch(manifestUrl, {
         redirect: 'manual',
         headers: {
           'X-Supported-Video-Codecs': getSupportedCodecsHeader(codecSupport),
