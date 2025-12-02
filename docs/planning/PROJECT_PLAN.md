@@ -55,54 +55,64 @@ Changes:
 ### 4. Plugin System
 
 **Priority**: Medium
-**Effort**: 19-25 days
+**Effort**: 26-33 days
 **ADR**: [027-plugin-system-architecture.md](../decisions/027-plugin-system-architecture.md)
 
-Extensible plugin system using Hashicorp go-plugin + gRPC:
+Extensible plugin system using Hashicorp go-plugin + gRPC, backed by Event Bus and Enrichment Queue:
 
-**Phase 1: Foundation (4-5 days)**
+**Phase 1: Core Infrastructure (5-6 days)**
 
-- Plugin manager, process lifecycle, adaptive warm pool
+- Event Bus with ring buffer, slog integration, WebSocket streaming
+- Enrichment Queue tables and operations (persistent async jobs)
+- Pipeline Manager with user-configurable stages per media type
+- Per-stage worker pools (high concurrency for local, rate-limited for remote)
+
+**Phase 2: Plugin Foundation (4-5 days)**
+
+- Plugin manager and process lifecycle (adaptive warm pool)
 - PluginCore gRPC definitions (identity, lifecycle, settings, events)
-- MetadataProvider interface with TV/Music extensions
+- Enricher interface with single `Enrich()` call and rich capabilities
+- SDK Base struct with compile-time enforcement
 - Host services (HostData, HostStorage)
-- NFO plugin as first implementation
 - Permission system with category defaults
 
-**Phase 2: Metadata Integration (3-4 days)**
+**Phase 3: First Enrichers (4-5 days)**
 
-- Hook into library scanner
-- Search flow with confidence scores
-- Metadata merging (field-level priority)
-- External IDs table, source tracking
-- Match locking
+- NFO plugin (local file parsing)
+- Local Images plugin (poster.jpg, fanart.jpg detection)
+- Scanner integration (enqueue on discovery)
+- Progress tracking (library-level and item-level)
+- ID propagation between stages
 
-**Phase 3: Built-in Providers (4-5 days)**
+**Phase 4: Remote Enrichers (4-5 days)**
 
-- TMDb plugin for movies/TV (series-first matching)
-- MusicBrainz plugin for music (album-first matching)
+- TMDb plugin for movies/TV
+- MusicBrainz plugin for music
+- Rate limiting and retry logic with exponential backoff
 - Plugin SQLite databases with quotas
 - Remove hardcoded provider code
 
-**Phase 4: Events & Notifications (3-4 days)**
+**Phase 5: Events & Notifications (3-4 days)**
 
-- Event dispatcher (library, playback, user, system events)
+- Event delivery to plugins via OnEvent RPC
 - NotificationSink category
 - Webhook plugin as example
-- Event queue for reliability
+- Playback events integration
 
-**Phase 5: UI Extensions (3-4 days)**
+**Phase 6: Observability (3-4 days)**
 
-- Extension points (settings, tabs, menus, widgets, navigation, player)
-- JSON schema UI rendering
-- React component loading
-- Settings page generation
+- Correlation IDs across app/gRPC/plugin boundaries
+- gRPC debug mode (VIEWRA_PLUGIN_DEBUG=1)
+- Plugin health monitoring (healthy/degraded/unhealthy)
+- Error categorization (network, rate_limit, not_found, parsing)
+- Diagnostic export bundles
 
-**Phase 6: Polish (2-3 days)**
+**Phase 7: UI & Polish (3-4 days)**
 
+- Pipeline configuration UI with apply scopes
+- Progress visibility UI (library + item level)
+- UI extension points (settings, tabs, menus, widgets)
 - Plugin CLI commands (install, update, list)
-- Registry integration, update notifications
-- Developer test harness
 - Documentation and template repo
 
 ---
