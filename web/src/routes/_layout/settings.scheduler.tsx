@@ -356,7 +356,7 @@ const SchedulerSettings = () => {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-8 page-enter">
       <PageHeader
         title="Scheduler"
         description="View and manage scheduled tasks. Tasks run automatically on their configured schedule."

@@ -17,8 +17,10 @@ import { Route as LayoutLibrariesRouteImport } from './routes/_layout/libraries'
 import { Route as LayoutTvIndexRouteImport } from './routes/_layout/tv.index'
 import { Route as LayoutMusicIndexRouteImport } from './routes/_layout/music.index'
 import { Route as LayoutMoviesIndexRouteImport } from './routes/_layout/movies.index'
+import { Route as LayoutSettingsUsersRouteImport } from './routes/_layout/settings.users'
 import { Route as LayoutSettingsSchedulerRouteImport } from './routes/_layout/settings.scheduler'
 import { Route as LayoutSettingsDisplayRouteImport } from './routes/_layout/settings.display'
+import { Route as LayoutSettingsAccountRouteImport } from './routes/_layout/settings.account'
 import { Route as LayoutTvShowIdIndexRouteImport } from './routes/_layout/tv.$showId.index'
 import { Route as LayoutMusicArtistsArtistIdRouteImport } from './routes/_layout/music.artists.$artistId'
 import { Route as LayoutMusicAlbumsAlbumIdRouteImport } from './routes/_layout/music.albums.$albumId'
@@ -63,6 +65,11 @@ const LayoutMoviesIndexRoute = LayoutMoviesIndexRouteImport.update({
   path: '/movies/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSettingsUsersRoute = LayoutSettingsUsersRouteImport.update({
+  id: '/settings/users',
+  path: '/settings/users',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsSchedulerRoute = LayoutSettingsSchedulerRouteImport.update({
   id: '/settings/scheduler',
   path: '/settings/scheduler',
@@ -71,6 +78,11 @@ const LayoutSettingsSchedulerRoute = LayoutSettingsSchedulerRouteImport.update({
 const LayoutSettingsDisplayRoute = LayoutSettingsDisplayRouteImport.update({
   id: '/settings/display',
   path: '/settings/display',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSettingsAccountRoute = LayoutSettingsAccountRouteImport.update({
+  id: '/settings/account',
+  path: '/settings/account',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutTvShowIdIndexRoute = LayoutTvShowIdIndexRouteImport.update({
@@ -102,8 +114,10 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/libraries': typeof LayoutLibrariesRoute
   '/': typeof LayoutIndexRoute
+  '/settings/account': typeof LayoutSettingsAccountRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/settings/users': typeof LayoutSettingsUsersRoute
   '/movies': typeof LayoutMoviesIndexRoute
   '/music': typeof LayoutMusicIndexRoute
   '/tv': typeof LayoutTvIndexRoute
@@ -117,8 +131,10 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/libraries': typeof LayoutLibrariesRoute
   '/': typeof LayoutIndexRoute
+  '/settings/account': typeof LayoutSettingsAccountRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/settings/users': typeof LayoutSettingsUsersRoute
   '/movies': typeof LayoutMoviesIndexRoute
   '/music': typeof LayoutMusicIndexRoute
   '/tv': typeof LayoutTvIndexRoute
@@ -134,8 +150,10 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/_layout/libraries': typeof LayoutLibrariesRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/settings/account': typeof LayoutSettingsAccountRoute
   '/_layout/settings/display': typeof LayoutSettingsDisplayRoute
   '/_layout/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/_layout/settings/users': typeof LayoutSettingsUsersRoute
   '/_layout/movies/': typeof LayoutMoviesIndexRoute
   '/_layout/music/': typeof LayoutMusicIndexRoute
   '/_layout/tv/': typeof LayoutTvIndexRoute
@@ -151,8 +169,10 @@ export interface FileRouteTypes {
     | '/setup'
     | '/libraries'
     | '/'
+    | '/settings/account'
     | '/settings/display'
     | '/settings/scheduler'
+    | '/settings/users'
     | '/movies'
     | '/music'
     | '/tv'
@@ -166,8 +186,10 @@ export interface FileRouteTypes {
     | '/setup'
     | '/libraries'
     | '/'
+    | '/settings/account'
     | '/settings/display'
     | '/settings/scheduler'
+    | '/settings/users'
     | '/movies'
     | '/music'
     | '/tv'
@@ -182,8 +204,10 @@ export interface FileRouteTypes {
     | '/setup'
     | '/_layout/libraries'
     | '/_layout/'
+    | '/_layout/settings/account'
     | '/_layout/settings/display'
     | '/_layout/settings/scheduler'
+    | '/_layout/settings/users'
     | '/_layout/movies/'
     | '/_layout/music/'
     | '/_layout/tv/'
@@ -257,6 +281,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutMoviesIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/settings/users': {
+      id: '/_layout/settings/users'
+      path: '/settings/users'
+      fullPath: '/settings/users'
+      preLoaderRoute: typeof LayoutSettingsUsersRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings/scheduler': {
       id: '/_layout/settings/scheduler'
       path: '/settings/scheduler'
@@ -269,6 +300,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/display'
       fullPath: '/settings/display'
       preLoaderRoute: typeof LayoutSettingsDisplayRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/settings/account': {
+      id: '/_layout/settings/account'
+      path: '/settings/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof LayoutSettingsAccountRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/tv/$showId/': {
@@ -305,8 +343,10 @@ declare module '@tanstack/react-router' {
 interface LayoutRouteChildren {
   LayoutLibrariesRoute: typeof LayoutLibrariesRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
+  LayoutSettingsAccountRoute: typeof LayoutSettingsAccountRoute
   LayoutSettingsDisplayRoute: typeof LayoutSettingsDisplayRoute
   LayoutSettingsSchedulerRoute: typeof LayoutSettingsSchedulerRoute
+  LayoutSettingsUsersRoute: typeof LayoutSettingsUsersRoute
   LayoutMoviesIndexRoute: typeof LayoutMoviesIndexRoute
   LayoutMusicIndexRoute: typeof LayoutMusicIndexRoute
   LayoutTvIndexRoute: typeof LayoutTvIndexRoute
@@ -319,8 +359,10 @@ interface LayoutRouteChildren {
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutLibrariesRoute: LayoutLibrariesRoute,
   LayoutIndexRoute: LayoutIndexRoute,
+  LayoutSettingsAccountRoute: LayoutSettingsAccountRoute,
   LayoutSettingsDisplayRoute: LayoutSettingsDisplayRoute,
   LayoutSettingsSchedulerRoute: LayoutSettingsSchedulerRoute,
+  LayoutSettingsUsersRoute: LayoutSettingsUsersRoute,
   LayoutMoviesIndexRoute: LayoutMoviesIndexRoute,
   LayoutMusicIndexRoute: LayoutMusicIndexRoute,
   LayoutTvIndexRoute: LayoutTvIndexRoute,

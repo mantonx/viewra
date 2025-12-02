@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { MediaPoster } from '@/components/media/MediaPoster'
 import { HoverPlayButton } from '@/components/common'
-import { bg, shadow } from '@/styles/semantic'
 import { cn } from '@/lib/utils'
 import type { MediaCardProps } from './MediaCard.types'
 
@@ -50,11 +49,17 @@ export const MediaCard = ({
   return (
     <div
       className={cn(
-        bg.elevated,
-        shadow.default,
-        'rounded-lg overflow-hidden cursor-pointer transition-all duration-200 relative',
-        'hover:shadow-xl hover:scale-105 hover:z-50',
-        'dark:hover:shadow-neutral-950'
+        'rounded-xl overflow-hidden cursor-pointer relative',
+        'bg-white dark:bg-neutral-900',
+        'shadow-sm dark:shadow-none',
+        'border border-neutral-200/50 dark:border-white/5',
+        'transition-all duration-200 ease-out',
+        // Hover effects - refined lift with glow
+        'hover:scale-[1.03] hover:z-50',
+        'hover:shadow-xl hover:shadow-neutral-900/10',
+        'hover:border-neutral-300/50',
+        'dark:hover:shadow-2xl dark:hover:shadow-primary-500/10',
+        'dark:hover:border-primary-500/20'
       )}
       onClick={handleCardClick}
       onMouseEnter={() => setIsHovered(true)}

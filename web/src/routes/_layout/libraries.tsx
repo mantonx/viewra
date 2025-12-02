@@ -22,7 +22,7 @@ const Libraries = () => {
   const libraryList = extractLibraries(libraries)
 
   return (
-    <div className="p-8">
+    <div className="p-8 page-enter">
       <PageHeader
         title="Libraries"
         description="Manage your media libraries. Add folders to scan for movies, TV shows, and music."

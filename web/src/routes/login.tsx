@@ -1,11 +1,15 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, type FormEvent } from 'react'
 import { useAuth } from '@/contexts'
-import { Button, Input, Card, Alert } from '@/components/ui'
+import { useTheme } from '@/contexts'
+import { Button, Input, Alert, Loading } from '@/components/ui'
+import { cn } from '@/lib/utils'
 
 const LoginPage = () => {
   const navigate = useNavigate()
   const { login, isAuthenticated, isLoading: authLoading, needsSetup } = useAuth()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -43,31 +47,54 @@ const LoginPage = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-neutral-950">
-        <div className="animate-pulse text-neutral-500">Loading...</div>
+      <div className={cn(
+        'flex items-center justify-center p-4',
+        isDark ? 'auth-background' : 'auth-background-light'
+      )}>
+        <Loading size="lg" text="Loading..." />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-neutral-950 p-4">
-      <Card className="w-full max-w-md p-8">
+    <div className={cn(
+      'flex items-center justify-center p-4 relative overflow-hidden',
+      isDark ? 'auth-background' : 'auth-background-light'
+    )}>
+      {/* Ambient glow effect */}
+      <div className="auth-glow -top-20 -left-20" />
+      <div className="auth-glow -bottom-20 -right-20" style={{ animationDelay: '4s' }} />
+
+      {/* Login card */}
+      <div className={cn(
+        'w-full max-w-md p-8 rounded-2xl relative z-10',
+        isDark ? 'auth-card' : 'auth-card-light'
+      )}>
+        {/* Logo and heading */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">
+          <h1 className={cn(
+            'text-4xl auth-logo',
+            !isDark && 'auth-logo-light'
+          )}>
             ViewRA
           </h1>
-          <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-            Sign in to your account
+          <p className={cn(
+            'mt-3 text-sm',
+            isDark ? 'text-neutral-400' : 'text-neutral-600'
+          )}>
+            Sign in to your media server
           </p>
         </div>
 
+        {/* Error alert */}
         {error && (
           <Alert variant="error" className="mb-6">
             {error}
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Form with staggered animation */}
+        <form onSubmit={handleSubmit} className="auth-form-enter space-y-5">
           <Input
             label="Username"
             type="text"
@@ -76,6 +103,7 @@ const LoginPage = () => {
             required
             autoComplete="username"
             autoFocus
+            variant="glass"
           />
 
           <Input
@@ -85,18 +113,20 @@ const LoginPage = () => {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
+            variant="glass"
           />
 
           <Button
             type="submit"
-            className="w-full"
+            size="lg"
+            className="w-full mt-4 rounded-lg font-semibold"
             isLoading={isLoading}
             disabled={!username || !password}
           >
             Sign In
           </Button>
         </form>
-      </Card>
+      </div>
     </div>
   )
 }

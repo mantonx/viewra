@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatTime } from '@/lib/utils'
-import { bg } from '@/styles/semantic'
 import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 import { NerdMenu } from './NerdMenu'
 import { QualitySelector } from './QualitySelector'
@@ -179,28 +178,31 @@ export const VideoControls = ({
 
   return (
     <>
-      {/* Top metadata bar */}
+      {/* Top metadata bar with gradient scrim */}
       {metadata && (
         <div
           className={`absolute top-0 left-0 right-0 transition-opacity duration-300 ${
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
-          <div className="px-6 pt-4 pb-6">
+          {/* Gradient scrim for legibility */}
+          <div className="absolute inset-0 bg-linear-to-b from-black/70 via-black/40 to-transparent pointer-events-none" />
+
+          <div className="relative px-6 pt-4 pb-12">
             <div className="flex items-start gap-4">
               {/* Poster artwork */}
               {metadata.posterUrl && (
                 <img
                   src={metadata.posterUrl}
                   alt={metadata.title}
-                  className="w-16 h-24 object-cover rounded shadow-lg"
+                  className="w-16 h-24 object-cover rounded-lg shadow-xl ring-1 ring-white/10"
                 />
               )}
               {/* Title and subtitle */}
               <div className="flex-1">
-                <h2 className="text-white text-xl font-semibold">{metadata.title}</h2>
+                <h2 className="text-white text-xl font-semibold drop-shadow-lg">{metadata.title}</h2>
                 {metadata.subtitle && (
-                  <p className="text-white/80 text-sm mt-1">{metadata.subtitle}</p>
+                  <p className="text-white/80 text-sm mt-1 drop-shadow-md">{metadata.subtitle}</p>
                 )}
               </div>
             </div>
@@ -214,13 +216,16 @@ export const VideoControls = ({
           showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
+        {/* Gradient scrim for legibility */}
+        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/50 to-transparent pointer-events-none" />
+
         {/* Controls container */}
-        <div className="px-6 pb-6 pt-8">
+        <div className="relative px-6 pb-6 pt-16">
         {/* Timeline */}
         <div className="mb-3">
           <div
             ref={timelineRef}
-            className="relative h-2 md:h-1 bg-white/30 rounded-full cursor-pointer group hover:h-2 transition-all touch-none"
+            className="relative h-1.5 bg-white/20 rounded-full cursor-pointer group hover:h-2 transition-all touch-none backdrop-blur-sm"
             onMouseMove={handleTimelineMouseMove}
             onMouseLeave={() => setHoverTime(null)}
             onMouseDown={(e) => {
@@ -229,16 +234,19 @@ export const VideoControls = ({
             }}
             onMouseUp={() => setIsDragging(false)}
           >
-            {/* Progress bar */}
+            {/* Buffered indicator (subtle) */}
+            <div className="absolute h-full bg-white/10 rounded-full pointer-events-none" style={{ width: '100%' }} />
+
+            {/* Progress bar with glow */}
             <div
-              className="absolute h-full bg-primary-500 rounded-full pointer-events-none"
+              className="absolute h-full bg-primary-500 rounded-full pointer-events-none shadow-[0_0_12px_rgba(59,130,246,0.5)]"
               style={{ width: `${progress}%` }}
             />
 
-            {/* Hover preview */}
+            {/* Hover preview tooltip */}
             {hoverTime !== null && (
               <div
-                className="absolute bottom-full mb-2 px-2 py-1 bg-black/90 text-white text-xs rounded whitespace-nowrap pointer-events-none"
+                className="absolute bottom-full mb-3 px-3 py-1.5 bg-black/90 backdrop-blur-md text-white text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none border border-white/10 shadow-xl"
                 style={{
                   left: `${(hoverTime / duration) * 100}%`,
                   transform: 'translateX(-50%)',
@@ -248,9 +256,9 @@ export const VideoControls = ({
               </div>
             )}
 
-            {/* Scrubber */}
+            {/* Scrubber with glow effect */}
             <div
-              className={`absolute w-5 h-5 md:w-4 md:h-4 bg-primary-500 rounded-full shadow-lg transition-all pointer-events-none group-hover:scale-125 ${
+              className={`absolute w-4 h-4 bg-white rounded-full shadow-[0_0_0_4px_rgba(59,130,246,0.3),0_2px_8px_rgba(0,0,0,0.3)] transition-all pointer-events-none group-hover:scale-125 group-hover:shadow-[0_0_0_6px_rgba(59,130,246,0.4),0_2px_12px_rgba(0,0,0,0.4)] ${
                 showControls ? 'opacity-100' : 'opacity-0'
               }`}
               style={{ left: `${progress}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
@@ -387,12 +395,12 @@ export const VideoControls = ({
               <select
                 value={currentAudioTrack}
                 onChange={(e) => onAudioTrackChange(Number(e.target.value))}
-                className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50 hidden sm:block"
+                className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50 hidden sm:block"
                 style={{ minWidth: '90px' }}
                 aria-label="Audio track"
               >
                 {availableAudioTracks.map((track) => (
-                  <option key={track.id} value={track.id} className={bg.secondary}>
+                  <option key={track.id} value={track.id} className="bg-neutral-900 text-white">
                     {track.name} ({track.language})
                   </option>
                 ))}

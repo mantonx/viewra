@@ -158,6 +158,7 @@
      TYPOGRAPHY
      ====================== */
   --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-display: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Fira Code", "JetBrains Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   --text-xs: 0.75rem;
@@ -227,6 +228,15 @@
   --color-button-primary-hover: 29 78 216; /* blue-700 */
   --color-button-secondary: 245 245 245; /* neutral-100 */
   --color-button-secondary-hover: 229 229 229; /* neutral-200 */
+
+  /* Light theme - Atmospheric colors */
+  --color-glow-blue: 59 130 246; /* primary-500 */
+  --color-glow-purple: 139 92 246; /* violet-500 */
+  --color-glow-blue-opacity: 0.06;
+  --color-glow-purple-opacity: 0.04;
+  --color-surface-glass: 255 255 255;
+  --color-surface-glass-opacity: 0.85;
+  --color-surface-glass-border-opacity: 0.1;
 }
 
 .dark {
@@ -252,6 +262,15 @@
   --color-button-primary-hover: 59 130 246; /* blue-500 */
   --color-button-secondary: 38 38 38; /* neutral-800 */
   --color-button-secondary-hover: 64 64 64; /* neutral-700 */
+
+  /* Dark theme - Atmospheric colors */
+  --color-glow-blue: 59 130 246; /* primary-500 */
+  --color-glow-purple: 139 92 246; /* violet-500 */
+  --color-glow-blue-opacity: 0.12;
+  --color-glow-purple-opacity: 0.08;
+  --color-surface-glass: 23 23 23;
+  --color-surface-glass-opacity: 0.7;
+  --color-surface-glass-border-opacity: 0.08;
 }
 
 body {
@@ -289,4 +308,294 @@ body {
 
 .modal-content {
   animation: modalSlideIn 300ms ease-out;
+}
+
+/* ======================
+   AUTH PAGE STYLES
+   Cinematic, premium streaming aesthetic
+   ====================== */
+
+.auth-background {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(139, 92, 246, 0.1), transparent),
+    linear-gradient(to bottom, #0a0a0a, #171717);
+  min-height: 100vh;
+}
+
+.auth-background-light {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(139, 92, 246, 0.05), transparent),
+    linear-gradient(to bottom, #f5f5f5, #fafafa);
+  min-height: 100vh;
+}
+
+.auth-card {
+  background: rgba(23, 23, 23, 0.7);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.auth-card-light {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+}
+
+/* Ambient glow effect behind the card */
+.auth-glow {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  animation: pulse-glow 8s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+/* Brand logo styling */
+.auth-logo {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #ffffff 0%, #a3a3a3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.auth-logo-light {
+  background: linear-gradient(135deg, #171717 0%, #525252 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Staggered form animation */
+.auth-form-enter > * {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: stagger-in 0.5s ease-out forwards;
+}
+
+.auth-form-enter > *:nth-child(1) { animation-delay: 0.1s; }
+.auth-form-enter > *:nth-child(2) { animation-delay: 0.15s; }
+.auth-form-enter > *:nth-child(3) { animation-delay: 0.2s; }
+.auth-form-enter > *:nth-child(4) { animation-delay: 0.25s; }
+.auth-form-enter > *:nth-child(5) { animation-delay: 0.3s; }
+.auth-form-enter > *:nth-child(6) { animation-delay: 0.35s; }
+
+@keyframes stagger-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ======================
+   MAIN APP STYLES
+   Subtle cinematic atmosphere for the main application
+   ====================== */
+
+/* Main app background - subtle atmospheric gradient */
+.app-background {
+  background:
+    radial-gradient(
+      ellipse 100% 60% at 50% -20%,
+      rgba(var(--color-glow-blue) / var(--color-glow-blue-opacity)),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 80% 40% at 100% 100%,
+      rgba(var(--color-glow-purple) / var(--color-glow-purple-opacity)),
+      transparent
+    ),
+    rgb(var(--color-bg-primary));
+}
+
+/* Glass card effect - for elevated surfaces */
+.glass-card {
+  background: rgba(var(--color-surface-glass) / var(--color-surface-glass-opacity));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(var(--color-border-primary) / var(--color-surface-glass-border-opacity));
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+
+.dark .glass-card {
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+
+/* Glass sidebar - slightly different treatment for navigation */
+.glass-sidebar {
+  background: rgba(var(--color-surface-glass) / 0.92);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border-right: 1px solid rgba(var(--color-border-primary) / 0.5);
+}
+
+.dark .glass-sidebar {
+  background: rgba(var(--color-surface-glass) / 0.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Subtle ambient glow for the sidebar top */
+.sidebar-glow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 100px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(var(--color-glow-blue) / 0.08),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.dark .sidebar-glow {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(var(--color-glow-blue) / 0.15),
+    transparent 70%
+  );
+}
+
+/* ======================
+   REFINED ANIMATIONS
+   Subtle, Apple-like transitions
+   ====================== */
+
+/* Smooth page content fade-in */
+.page-enter {
+  animation: page-fade-in 0.3s ease-out;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Card hover lift effect */
+.hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 30px -8px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.dark .hover-lift:hover {
+  box-shadow:
+    0 8px 30px -8px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+/* Focus glow for interactive elements */
+.focus-glow:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgb(var(--color-bg-primary)),
+    0 0 0 4px rgba(var(--color-glow-blue) / 0.5);
+}
+
+/* Modal enter animation */
+.animate-in {
+  animation: modal-enter 0.2s ease-out;
+}
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Skeleton shimmer effect */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .skeleton-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .hover-lift,
+  .animate-in,
+  .skeleton-shimmer::after,
+  .auth-form-enter > *,
+  .auth-glow,
+  .modal-content,
+  .modal-overlay {
+    animation: none;
+    transition: none;
+  }
 }

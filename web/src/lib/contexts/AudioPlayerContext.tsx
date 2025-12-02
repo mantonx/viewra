@@ -56,6 +56,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const volumeBeforeMuteRef = useRef<number>(0.8)
   const handleTrackEndedRef = useRef<() => void>(() => {})
+  const currentBlobUrlRef = useRef<string | null>(null)
 
   // Load volume from localStorage or use default
   const getInitialVolume = () => {
@@ -129,6 +130,11 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       }
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current)
+      }
+      // Revoke blob URL to prevent memory leaks
+      if (currentBlobUrlRef.current) {
+        URL.revokeObjectURL(currentBlobUrlRef.current)
+        currentBlobUrlRef.current = null
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,10 +243,25 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     if (!audioRef.current) {return}
 
     setIsLoading(true)
-    const streamUrl = `${API_BASE_URL}/api/stream/${track.id}`
-    audioRef.current.src = streamUrl
+
+    // Revoke previous blob URL to prevent memory leaks
+    if (currentBlobUrlRef.current) {
+      URL.revokeObjectURL(currentBlobUrlRef.current)
+      currentBlobUrlRef.current = null
+    }
 
     try {
+      // Fetch stream with authentication headers
+      const response = await authFetch(`/api/stream/${track.id}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch audio stream: ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      currentBlobUrlRef.current = blobUrl
+
+      audioRef.current.src = blobUrl
       await audioRef.current.play()
       setIsPlaying(true)
     } catch (error) {
@@ -366,6 +387,11 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       // Don't set src to empty string - it causes error events
       audioRef.current.removeAttribute('src')
       audioRef.current.load() // Reset the media element
+    }
+    // Revoke blob URL to prevent memory leaks
+    if (currentBlobUrlRef.current) {
+      URL.revokeObjectURL(currentBlobUrlRef.current)
+      currentBlobUrlRef.current = null
     }
     setQueue([])
     setCurrentTrack(null)

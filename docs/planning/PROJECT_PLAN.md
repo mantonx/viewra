@@ -8,6 +8,20 @@ For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Recently Completed
 
+### ✅ Design System Improvements - All Phases Complete
+
+**Completed**: December 2, 2025
+**ADR**: [031-design-system-improvements.md](../decisions/031-design-system-improvements.md)
+
+Implemented "Cinema at Home" design vision across all phases:
+
+- **Phase 1: Foundation** - Atmospheric CSS variables, glass utilities, refined animations
+- **Phase 2: Sidebar** - Glass sidebar with ambient glow, refined nav states
+- **Phase 3: Dashboard** - Cinematic hero with ambient glows, glass stat cards, library counts
+- **Phase 4: Media Cards** - Premium hover effects, glass badges, resolution color hierarchy
+- **Phase 5: Components** - Modal glass treatment, button/input refinements
+- **Phase 6: Micro-interactions** - Modal animations, skeleton shimmer, page transitions
+
 ### ✅ App Package Restructuring
 
 **Completed**: December 2, 2025
@@ -28,20 +42,7 @@ Implemented:
 
 ## Upcoming Work
 
-### 1. User Authentication
-
-**Priority**: High
-**Effort**: 3-4 days
-**ADR**: [028-user-authentication.md](../decisions/028-user-authentication.md)
-
-- JWT access tokens (15 min) + refresh tokens (7 days)
-- Argon2id password hashing
-- `users` and `sessions` tables
-- Auth middleware for protected routes
-- Per-user watch progress (`user_id` on `watch_progress`)
-- Initial admin creation on first run
-
-### 3. Settings Infrastructure
+### 1. Settings Infrastructure
 
 **Priority**: Medium
 **Effort**: 2-3 days
@@ -52,7 +53,7 @@ Implemented:
 - Runtime reloadable without restart
 - Schema endpoint for future settings UI
 
-### 4. Plugin System
+### 2. Plugin System
 
 **Priority**: Medium
 **Effort**: 26-33 days
@@ -115,7 +116,7 @@ Extensible plugin system using Hashicorp go-plugin + gRPC, backed by Event Bus a
 - Plugin CLI commands (install, update, list)
 - Documentation and template repo
 
-### 5. Multi-Language Audio & Subtitles
+### 3. Multi-Language Audio & Subtitles
 
 **Priority**: Medium
 **Effort**: 8-12 days

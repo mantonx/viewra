@@ -53,6 +53,7 @@ Create an ADR when making decisions about:
 | [028](028-user-authentication.md) | User Authentication | Proposed | 2025-12-02 | auth, security, users |
 | [029](029-settings-infrastructure.md) | Settings Infrastructure | Proposed | 2025-12-02 | settings, configuration |
 | [030](030-multi-language-audio-subtitles.md) | Multi-Language Audio & Subtitles | Proposed | 2025-11-26 | playback, subtitles, audio |
+| [031](031-design-system-improvements.md) | Design System Improvements | Proposed | 2025-12-02 | frontend, design, ux |
 
 ---
 
@@ -133,7 +134,7 @@ What other options did we evaluate?
 
 ### 1. Find the Next Number
 
-Check the index above for the next available number. Currently: **031**
+Check the index above for the next available number. Currently: **032**
 
 ### 2. Create the File
 

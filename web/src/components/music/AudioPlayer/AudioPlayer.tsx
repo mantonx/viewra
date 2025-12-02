@@ -538,15 +538,12 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
               {showVolumeSlider && (
                 <div
                   className={cn(
-                    'absolute bottom-full right-0 mb-2 rounded-lg shadow-xl p-4 border',
+                    'absolute bottom-full right-0 mb-2 rounded-xl shadow-2xl p-4 border',
                     animation.classes.slideUpSmall,
-                    bg.elevated,
-                    'border-neutral-200 dark:border-neutral-800'
+                    'bg-neutral-900/95 backdrop-blur-xl',
+                    'border-white/10'
                   )}
-                  style={{
-                    ...glassStyles.medium(theme === 'dark'),
-                    ...animationStyles.popup(),
-                  }}
+                  style={animationStyles.popup()}
                 >
                   <input
                     type="range"
@@ -555,16 +552,13 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
                     step="0.01"
                     value={volume}
                     onChange={handleVolumeChange}
-                    className={cn(
-                      'w-24 h-1 rounded-lg appearance-none cursor-pointer slider',
-                      'bg-neutral-200 dark:bg-neutral-700'
-                    )}
+                    className="w-24 h-1.5 rounded-full appearance-none cursor-pointer volume-slider"
                     style={{
-                      background: `linear-gradient(to right, var(--color-primary-500) 0%, var(--color-primary-500) ${volume * 100}%, ${theme === 'dark' ? 'var(--color-neutral-700)' : 'var(--color-neutral-200)'} ${volume * 100}%, ${theme === 'dark' ? 'var(--color-neutral-700)' : 'var(--color-neutral-200)'} 100%)`,
+                      background: `linear-gradient(to right, var(--color-primary-500) 0%, var(--color-primary-500) ${volume * 100}%, rgba(255,255,255,0.2) ${volume * 100}%, rgba(255,255,255,0.2) 100%)`,
                     }}
                     aria-label="Volume slider"
                   />
-                  <div className={cn('text-xs text-center mt-1', text.tertiary)}>
+                  <div className="text-xs text-center mt-2 text-neutral-400 font-medium">
                     {Math.round(volume * 100)}%
                   </div>
                 </div>
@@ -591,22 +585,47 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
         <style>{`
           .slider::-webkit-slider-thumb {
             appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: box-shadow 0.15s ease;
+          }
+
+          .slider::-webkit-slider-thumb:hover {
+            box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.4), 0 2px 12px rgba(0, 0, 0, 0.4);
+          }
+
+          .slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+          }
+
+          .volume-slider::-webkit-slider-thumb {
+            appearance: none;
             width: 12px;
             height: 12px;
             border-radius: 50%;
             background: white;
             cursor: pointer;
-            box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3), 0 1px 4px rgba(0, 0, 0, 0.3);
           }
 
-          .slider::-moz-range-thumb {
+          .volume-slider::-moz-range-thumb {
             width: 12px;
             height: 12px;
             border-radius: 50%;
             background: white;
             cursor: pointer;
             border: none;
-            box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3), 0 1px 4px rgba(0, 0, 0, 0.3);
           }
         `}</style>
       </div>

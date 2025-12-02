@@ -23,13 +23,13 @@ interface PageHeaderProps {
  */
 const PageHeader = ({ title, description, actions, className = '' }: PageHeaderProps) => {
   return (
-    <div className={`mb-6 ${className}`}>
+    <div className={`mb-8 ${className}`}>
       <div className="flex justify-between items-start">
         <div>
-          <h1 className={cn('text-3xl font-bold mb-2', text.primary)}>{title}</h1>
-          {description && <p className={cn(text.secondary)}>{description}</p>}
+          <h1 className={cn('text-3xl font-semibold mb-2 font-display tracking-tight leading-tight', text.primary)}>{title}</h1>
+          {description && <p className={cn('text-base leading-relaxed', text.secondary)}>{description}</p>}
         </div>
-        {actions && <div className="flex gap-2">{actions}</div>}
+        {actions && <div className="flex gap-3">{actions}</div>}
       </div>
     </div>
   )

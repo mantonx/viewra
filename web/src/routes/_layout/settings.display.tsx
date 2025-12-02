@@ -44,7 +44,7 @@ const DisplaySettings = () => {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-8 page-enter">
       <PageHeader
         title="Display Settings"
         description="Customize the appearance and display preferences for your media library"

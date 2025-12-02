@@ -38,14 +38,14 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
     <div className="fixed inset-0 z-[60] flex items-end justify-end pointer-events-none">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 pointer-events-auto"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto animate-in fade-in duration-200"
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <div className="relative w-full max-w-md h-[70vh] bg-neutral-900 shadow-2xl pointer-events-auto overflow-hidden flex flex-col">
+      {/* Panel with glass treatment */}
+      <div className="relative w-full max-w-md h-[70vh] bg-neutral-900/95 backdrop-blur-xl shadow-2xl pointer-events-auto overflow-hidden flex flex-col border-l border-white/10 animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
           <div>
             <h2 className="text-lg font-semibold text-white">Queue</h2>
             <p className={cn('text-xs', text.tertiary)}>
@@ -55,7 +55,7 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
           <button
             onClick={onClose}
             className={cn(
-              'p-2 rounded hover:bg-neutral-800 transition-colors',
+              'p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer',
               text.tertiary
             )}
             aria-label="Close queue"
@@ -68,11 +68,11 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
         <div className="flex-1 overflow-y-auto">
           {queue.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-8">
-              <Music2 size={48} className={text.tertiary} />
-              <p className={cn('mt-4 text-sm', text.secondary)}>No tracks in queue</p>
+              <Music2 size={48} className="text-neutral-600" />
+              <p className="mt-4 text-sm text-neutral-400">No tracks in queue</p>
             </div>
           ) : (
-            <div className="divide-y divide-neutral-800">
+            <div className="divide-y divide-white/5">
               {queue.map((track: MusicTrackResponse, index: number) => {
                 const isCurrentTrack = index === currentIndex && track.id === currentTrack?.id
 
@@ -81,10 +81,10 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
                     key={`${track.id}-${index}`}
                     onClick={() => handleTrackClick(index)}
                     className={cn(
-                      'flex items-center gap-3 p-3 cursor-pointer transition-colors group',
+                      'flex items-center gap-3 p-3 cursor-pointer transition-all group',
                       isCurrentTrack
-                        ? 'bg-primary-500/10 border-l-2 border-primary-500'
-                        : 'hover:bg-neutral-800/50'
+                        ? 'bg-primary-500/15 border-l-2 border-primary-500'
+                        : 'hover:bg-white/5'
                     )}
                   >
                     {/* Drag handle (visual only for now) */}
@@ -127,11 +127,7 @@ export const QueuePanel = ({ isOpen, onClose }: QueuePanelProps) => {
                     {/* Remove button */}
                     <button
                       onClick={(e) => handleRemove(index, e)}
-                      className={cn(
-                        'p-1 rounded hover:bg-neutral-700 transition-colors opacity-0 group-hover:opacity-100',
-                        text.tertiary,
-                        'hover:text-primary-500 cursor-pointer'
-                      )}
+                      className="p-1.5 rounded-lg hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-red-400 cursor-pointer"
                       aria-label="Remove from queue"
                     >
                       <X size={16} />

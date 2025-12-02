@@ -45,15 +45,17 @@ export const ContinueWatching = () => {
   }
 
   return (
-    <section className="mb-8">
-      <h2 className="text-2xl font-bold mb-4 text-neutral-900 dark:text-neutral-50">Continue Watching</h2>
+    <section>
+      <h2 className="text-xl font-semibold mb-5 text-neutral-900 dark:text-neutral-50 font-display tracking-tight">
+        Continue Watching
+      </h2>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loading size="lg" text="Loading your progress..." />
         </div>
       ) : (
-        <div className="overflow-x-auto -mx-4 px-4 pb-4">
+        <div className="overflow-x-auto -mx-4 px-4 pb-2">
           <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
             {sortedMedia
               .filter((media) => media.id !== undefined)
