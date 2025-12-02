@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (Implemented December 2, 2025)
+
+Note: Event publishing (Phase 2D) deferred until plugin system (ADR 027) is implemented.
 
 ## Date
 
