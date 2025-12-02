@@ -51,7 +51,7 @@ Implement a plugin system using Hashicorp's go-plugin library with gRPC for comm
 │                               │                                      │
 │  ┌────────────────────────────┴───────────────────────────────────┐ │
 │  │                  Host Services (gRPC)                           │ │
-│  │      HostData | HostStorage | HostCache | HostEvents            │ │
+│  │   HostData | HostStorage | HostUserMetadata | HostEvents        │ │
 │  └────────────────────────────┬───────────────────────────────────┘ │
 │                               │                                      │
 │                         gRPC over stdio                              │
@@ -556,6 +556,38 @@ service HostStorage {
   rpc RegisterSchema(SchemaVersion) returns (Empty);
   rpc GetDatabaseStats(Empty) returns (DatabaseStats);
 }
+
+// Per-user metadata storage for plugins (see ADR 028)
+service HostUserMetadata {
+  // Get plugin-specific data for a user
+  rpc Get(UserMetadataKey) returns (UserMetadataValue);
+  // Set plugin-specific data for a user
+  rpc Set(UserMetadataEntry) returns (Empty);
+  // Delete plugin-specific data for a user
+  rpc Delete(UserMetadataKey) returns (Empty);
+  // List all keys for a user
+  rpc ListKeys(UserId) returns (UserMetadataKeyList);
+}
+
+message UserMetadataKey {
+  string user_id = 1;
+  string key = 2;
+}
+
+message UserMetadataValue {
+  bytes value = 1;
+  bool exists = 2;
+}
+
+message UserMetadataEntry {
+  string user_id = 1;
+  string key = 2;
+  bytes value = 3;
+}
+
+message UserMetadataKeyList {
+  repeated string keys = 1;
+}
 ```
 
 ### Permission Model
@@ -567,6 +599,7 @@ permissions:
   - network                 # Make HTTP requests
   - storage:kv              # Use key-value storage
   - storage:database        # Use SQLite database
+  - storage:user_metadata   # Store per-user data
   - data:media:read         # Read media information
   - data:metadata:write     # Write metadata results
   - data:progress:read      # Read watch progress
@@ -583,6 +616,72 @@ permissions:
 - User passwords, tokens, sessions
 - Other plugins' storage
 - System configuration paths
+
+### Plugin API Keys
+
+For server-to-server communication or scheduled tasks (not on behalf of a user), plugins can request API keys:
+
+```go
+type PluginAPIKey struct {
+    PluginID    string
+    Key         string      // Stored hashed (SHA-256)
+    Permissions []string    // Scoped to plugin's declared permissions
+    ExpiresAt   *time.Time  // Optional expiration
+    CreatedAt   time.Time
+}
+```
+
+**Use Cases:**
+- Background sync jobs (e.g., webhook retry queue)
+- Scheduled metadata refresh
+- Inter-plugin communication (if approved)
+
+**Database Schema:**
+
+```sql
+CREATE TABLE plugin_api_keys (
+    id TEXT PRIMARY KEY,
+    plugin_id TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    permissions TEXT NOT NULL,  -- JSON array
+    expires_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_plugin_api_keys_plugin ON plugin_api_keys(plugin_id);
+```
+
+**Security:**
+- Keys are scoped to the plugin's declared permissions (cannot escalate)
+- Keys can be revoked by admin or plugin uninstall
+- Requests authenticated via `X-Plugin-API-Key` header
+- Rate limited separately from user requests
+
+### User Metadata Storage
+
+Plugins store per-user data via `HostUserMetadata` RPC (see [ADR 028](028-user-authentication.md)):
+
+**Database Schema:**
+
+```sql
+CREATE TABLE plugin_user_metadata (
+    plugin_id TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    value BLOB NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (plugin_id, user_id, key)
+);
+
+CREATE INDEX idx_plugin_user_metadata_user ON plugin_user_metadata(user_id);
+```
+
+**Notes:**
+- Keys are namespaced by plugin ID automatically
+- Data is cleaned up when users are deleted (CASCADE)
+- Data is cleaned up when plugins are uninstalled
+- Requires `storage:user_metadata` permission
 
 ---
 
