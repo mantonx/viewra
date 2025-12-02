@@ -52,15 +52,34 @@ Changes:
 - Runtime reloadable without restart
 - Schema endpoint for future settings UI
 
-### 4. External Metadata APIs
+### 4. Plugin System
 
 **Priority**: Medium
-**Effort**: 25-30 hours
+**Effort**: 10-14 days
+**ADR**: [027-plugin-system-architecture.md](../decisions/027-plugin-system-architecture.md)
 
-- TMDb integration for movies/TV
-- MusicBrainz for music metadata
-- Automatic poster/backdrop downloads
-- Manual match override UI
+Extensible metadata provider system using Hashicorp go-plugin + gRPC:
+
+**Phase 1: Foundation (3-4 days)**
+- Plugin manager and process lifecycle
+- gRPC protocol definitions (protobuf)
+- Basic MetadataProvider interface
+- NFO plugin as first implementation
+
+**Phase 2: Integration (2-3 days)**
+- Hook into library scanner
+- Metadata merging logic with field-level priority
+- Settings storage for plugins
+
+**Phase 3: Built-in Providers (3-4 days)**
+- TMDb plugin for movies/TV
+- MusicBrainz plugin for music
+- Remove hardcoded provider code
+
+**Phase 4: Polish (2-3 days)**
+- Plugin CLI commands (install, update, list)
+- Developer test harness
+- Documentation and template repo
 
 ---
 
