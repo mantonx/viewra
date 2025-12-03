@@ -19,6 +19,10 @@ type ServeManifestRequest struct {
 	// Client capabilities for smart direct play decisions
 	SupportedVideoCodecs []string // e.g., ["h264", "h265", "vp9", "av1"]
 	SupportedContainers  []string // e.g., ["mp4", "webm", "matroska"]
+
+	// Subtitle burn-in options for PGS/bitmap subtitles
+	BurnInSubtitle      bool // Whether to burn subtitles into the video
+	SubtitleStreamIndex int  // Relative index among subtitle streams (0-based)
 }
 
 // ServeManifestResponse represents the result of a serve manifest request.
@@ -106,6 +110,13 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 
 	// Create or reuse transcode session
 	// Pass client's supported video codecs for intelligent codec selection
+	var subtitleOpts *transcoding.SubtitleBurnInOptions
+	if req.BurnInSubtitle {
+		subtitleOpts = &transcoding.SubtitleBurnInOptions{
+			Enabled:     true,
+			StreamIndex: req.SubtitleStreamIndex,
+		}
+	}
 	session, err := uc.sessionManager.GetOrCreateSession(
 		req.MediaID,
 		req.Quality,
@@ -116,6 +127,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		req.OutputDir,
 		videoInfo,
 		req.SupportedVideoCodecs,
+		subtitleOpts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcode session: %w", err)

@@ -21,6 +21,14 @@ func RegisterTranscodeRoutes(router *gin.RouterGroup, handler *handlers.Transcod
 	// GET /api/media/:id/hls/master.m3u8 - Serve HLS master playlist with all quality variants
 	router.GET("/media/:id/hls/master.m3u8", handler.ServeMasterPlaylist)
 
+	// Audio-only routes MUST be registered BEFORE the generic :quality routes
+	// Otherwise /hls/audio/1/file.ts matches :quality=audio, :filename=1
+	// GET /api/media/:id/hls/audio/:trackIndex/playlist.m3u8 - Serve audio-only HLS playlist
+	router.GET("/media/:id/hls/audio/:trackIndex/playlist.m3u8", handler.ServeAudioPlaylist)
+
+	// GET /api/media/:id/hls/audio/:trackIndex/:filename - Serve audio-only HLS segments
+	router.GET("/media/:id/hls/audio/:trackIndex/:filename", handler.ServeAudioSegment)
+
 	// GET /api/media/:id/hls/:quality/playlist.m3u8 - Serve HLS playlist (with on-demand transcoding)
 	router.GET("/media/:id/hls/:quality/playlist.m3u8", handler.ServePlaylist)
 

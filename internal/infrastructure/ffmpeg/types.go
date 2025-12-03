@@ -64,3 +64,38 @@ type ThumbnailOptions struct {
 	// Quality is the output quality (1-31, lower is better, default 2)
 	Quality int
 }
+
+// AudioTrackInfo contains metadata for an audio stream.
+type AudioTrackInfo struct {
+	StreamIndex   int
+	Codec         string
+	CodecProfile  string
+	Channels      int
+	ChannelLayout string
+	SampleRate    int
+	BitRate       int
+	Language      string
+	Title         string
+	IsDefault     bool
+	IsCommentary  bool
+	IsDescriptive bool
+}
+
+// SubtitleTrackInfo contains metadata for a subtitle stream.
+type SubtitleTrackInfo struct {
+	StreamIndex  int
+	Codec        string
+	Language     string
+	Title        string
+	IsDefault    bool
+	IsForced     bool
+	IsSDH        bool
+	IsCommentary bool
+	IsBitmap     bool
+}
+
+// MediaTracksInfo contains all audio and subtitle tracks from a media file.
+type MediaTracksInfo struct {
+	AudioTracks    []AudioTrackInfo
+	SubtitleTracks []SubtitleTrackInfo
+}

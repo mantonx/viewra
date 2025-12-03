@@ -11,4 +11,5 @@ func RegisterMediaRoutes(rg *gin.RouterGroup, handler *handlers.MediaHandler) {
 	media.GET("", handler.List)
 	media.GET("/:id", handler.Get)
 	media.GET("/:id/stream-info", handler.GetStreamInfo)
+	media.GET("/:id/tracks", handler.GetTracks)
 }

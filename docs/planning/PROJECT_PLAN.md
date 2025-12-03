@@ -1,6 +1,6 @@
 # ViewRA Project Plan
 
-**Last Updated**: December 2, 2025
+**Last Updated**: December 3, 2025
 
 For current status, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
@@ -38,20 +38,26 @@ Implemented:
   - `CacheService.GetPresetPath()` - Image cache path construction
 - Fixed FFmpeg process management (Wait race condition, log classification)
 
+### ✅ Settings Infrastructure v2
+
+**Completed**: December 3, 2025
+**ADRs**:
+
+- [032-settings-infrastructure-v2.md](../decisions/032-settings-infrastructure-v2.md) - Backend
+- [033-settings-ux-improvements.md](../decisions/033-settings-ux-improvements.md) - UX/UI
+
+Implemented comprehensive settings system with environment variable awareness:
+
+- **Phase 1**: Enhanced backend with env var awareness, source tracking, read-only display
+- **Phase 2**: System profile integration (CPU, memory, GPU detection)
+- **Phase 3**: Frontend redesign with source badges, system info card
+- **Phase 3.5**: Settings UX improvements - category-level save, visual grouping, restart badges
+- **Phase 4**: User settings preferences page (playback, UI preferences)
+- **Phase 5**: Config integration - dynamic transcoding settings via `ConfigProvider`
+
 ---
 
 ## Upcoming Work
-
-### 1. Settings Infrastructure
-
-**Priority**: Medium
-**Effort**: 2-3 days
-**ADR**: [029-settings-infrastructure.md](../decisions/029-settings-infrastructure.md)
-
-- Database-backed settings with in-memory cache
-- System-wide settings (admin) and per-user settings
-- Runtime reloadable without restart
-- Schema endpoint for future settings UI
 
 ### 2. Plugin System
 

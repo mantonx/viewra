@@ -22,6 +22,10 @@ type TranscodeSession struct {
 	Quality       string
 	StartPosition float64 // Start position in seconds
 
+	// Subtitle burn-in options
+	SubtitleStreamIndex int  // Relative index among subtitle streams (0-based)
+	BurnInSubtitle      bool // Whether to burn in subtitles
+
 	FFmpegCmd    *exec.Cmd
 	OutputDir    string
 	ManifestPath string
@@ -383,6 +387,8 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		LibPlaceboPeakDetect:       config.LibPlaceboPeakDetect,
 		LibPlaceboContrastRecovery: config.LibPlaceboContrastRecovery,
 		VideoCodec:                 targetCodec,
+		SubtitleStreamIndex:        s.SubtitleStreamIndex,
+		BurnInSubtitle:             s.BurnInSubtitle,
 	}
 
 	// Build arguments based on strategy
@@ -460,6 +466,131 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 	args = append(args, s.ManifestPath)
 
 	return args
+}
+
+// StartAudioOnly begins an audio-only FFmpeg transcoding process.
+// This is used for HLS multi-audio support where each audio track gets its own playlist.
+func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int, config *TranscodeConfig, videoInfo *VideoInfo) error {
+	// Create output directory
+	if err := os.MkdirAll(s.OutputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Build FFmpeg arguments for audio-only transcoding
+	args := s.buildAudioOnlyFFmpegArgs(inputPath, audioTrackIndex, config, videoInfo)
+
+	s.logger.Debug("Starting audio-only FFmpeg process",
+		"session_id", s.ID,
+		"audio_track", audioTrackIndex,
+		"command", fmt.Sprintf("ffmpeg %s", strings.Join(args, " ")))
+
+	// Create FFmpeg command
+	s.FFmpegCmd = exec.CommandContext(s.ctx, "ffmpeg", args...)
+
+	// Capture stderr for error logging
+	stderr, err := s.FFmpegCmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	// Start the process
+	if err := s.FFmpegCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start ffmpeg: %w", err)
+	}
+
+	// Log FFmpeg stderr in background
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := stderr.Read(buf)
+			if n > 0 {
+				output := string(buf[:n])
+				lowerOutput := strings.ToLower(output)
+				if strings.Contains(lowerOutput, "error") || strings.Contains(lowerOutput, "failed") {
+					s.logger.Error("FFmpeg audio error", "session_id", s.ID, "output", output)
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Monitor process exit in background
+	go func() {
+		s.waitOnce.Do(func() {
+			err := s.FFmpegCmd.Wait()
+			if err != nil {
+				s.logger.Error("FFmpeg audio process exited with error",
+					"session_id", s.ID,
+					"error", err)
+			} else {
+				s.logger.Info("FFmpeg audio process completed",
+					"session_id", s.ID)
+			}
+		})
+	}()
+
+	s.logger.Info("Audio transcode session started",
+		"session_id", s.ID,
+		"media_id", s.MediaID,
+		"audio_track", audioTrackIndex,
+		"start_position", s.StartPosition)
+
+	// Start watching for generated segments (required for WaitForSegment to work)
+	go s.watchSegments()
+
+	return nil
+}
+
+// buildAudioOnlyFFmpegArgs builds FFmpeg arguments for audio-only HLS transcoding.
+func (s *TranscodeSession) buildAudioOnlyFFmpegArgs(inputPath string, audioTrackIndex int, config *TranscodeConfig, videoInfo *VideoInfo) []string {
+	args := []string{}
+
+	// Seek position (before input for fast seeking)
+	if s.StartPosition > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%d", int(s.StartPosition)))
+	}
+
+	// Input file
+	args = append(args, "-i", inputPath)
+
+	// Map only the specified audio track (0:a:N selects the Nth audio stream)
+	args = append(args, "-map", fmt.Sprintf("0:a:%d", audioTrackIndex))
+
+	// No video
+	args = append(args, "-vn")
+
+	// Audio encoding: AAC at 128kbps stereo for broad compatibility
+	args = append(args,
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-ac", "2", // Stereo downmix for compatibility
+	)
+
+	// HLS output settings (use 6-digit segment numbers to match SegmentFilenameFormat)
+	args = append(args,
+		"-f", "hls",
+		"-hls_time", "4",
+		"-hls_list_size", "0", // Keep all segments in playlist
+		"-hls_flags", "independent_segments",
+		"-hls_segment_type", "mpegts",
+		"-hls_segment_filename", filepath.Join(s.OutputDir, SegmentFilenameFormat),
+	)
+
+	// Overwrite output
+	args = append(args, "-y")
+
+	// Output manifest path
+	args = append(args, s.ManifestPath)
+
+	return args
+}
+
+// AudioQualityKey returns the quality key used for audio-only sessions.
+// This matches the key format used by GetOrCreateAudioSession.
+func AudioQualityKey(audioTrackIndex int) string {
+	return fmt.Sprintf("audio_%d", audioTrackIndex)
 }
 
 // selectBestCodec selects the best codec for transcoding based on:

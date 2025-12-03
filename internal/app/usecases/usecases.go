@@ -46,6 +46,7 @@ type MediaUseCases struct {
 	List       *media.ListMediaUseCase
 	Delete     *media.DeleteMediaUseCase
 	StreamInfo *media.StreamInfoUseCase
+	GetTracks  *media.GetTracksUseCase
 }
 
 // MovieUseCases holds movie-related use cases
@@ -94,10 +95,11 @@ type ImageUseCases struct {
 
 // TranscodeUseCases holds transcoding-related use cases
 type TranscodeUseCases struct {
-	CreateJob           *transcode.CreateJobUseCase
-	GetStatus           *transcode.GetJobStatusUseCase
-	ServeManifest       *transcode.ServeManifestUseCase
-	ServeMasterPlaylist *transcode.ServeMasterPlaylistUseCase
+	CreateJob            *transcode.CreateJobUseCase
+	GetStatus            *transcode.GetJobStatusUseCase
+	ServeManifest        *transcode.ServeManifestUseCase
+	ServeMasterPlaylist  *transcode.ServeMasterPlaylistUseCase
+	ServeAudioPlaylist   *transcode.ServeAudioPlaylistUseCase
 }
 
 // BuildUseCases creates and wires all use case instances grouped by domain.
@@ -204,6 +206,7 @@ func buildMediaUseCases(
 		List:       media.NewListMediaUseCase(repos.Media),
 		Delete:     media.NewDeleteMediaUseCase(repos.Media, repos.Image, imageCleanup, logger),
 		StreamInfo: media.NewStreamInfoUseCase(repos.Media, repos.Library),
+		GetTracks:  media.NewGetTracksUseCase(repos.Media),
 	}
 }
 
@@ -277,11 +280,13 @@ func buildTranscodeUseCases(
 	getStatus := transcode.NewGetJobStatusUseCase(repos.Transcode)
 	serveManifest := transcode.NewServeManifestUseCase(repos.Media, svcs.SessionManager)
 	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media)
+	serveAudioPlaylist := transcode.NewServeAudioPlaylistUseCase(repos.Media, svcs.SessionManager)
 
 	return &TranscodeUseCases{
-		CreateJob:           createJob,
-		GetStatus:           getStatus,
-		ServeManifest:       serveManifest,
-		ServeMasterPlaylist: serveMasterPlaylist,
+		CreateJob:            createJob,
+		GetStatus:            getStatus,
+		ServeManifest:        serveManifest,
+		ServeMasterPlaylist:  serveMasterPlaylist,
+		ServeAudioPlaylist:   serveAudioPlaylist,
 	}
 }

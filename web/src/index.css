@@ -599,3 +599,20 @@ body {
     transition: none;
   }
 }
+
+/* ======================
+   VIDEO SUBTITLE STYLES
+   Clean, readable subtitle styling
+   ====================== */
+
+video::cue {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: white;
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 0.3em 0.6em;
+  border-radius: 4px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}

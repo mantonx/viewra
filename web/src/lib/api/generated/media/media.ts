@@ -21,6 +21,7 @@ import type {
 import type {
   GetApiMediaParams,
   GithubComMantonxViewraInternalApplicationMediaGetMediaResponse,
+  GithubComMantonxViewraInternalApplicationMediaGetTracksResponse,
   GithubComMantonxViewraInternalApplicationMediaListMediaResponse,
   GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse,
   InternalApiHandlersErrorResponse,
@@ -507,6 +508,171 @@ export function useGetApiMediaIdStreamInfo<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiMediaIdStreamInfoQueryOptions(id, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Returns all audio and subtitle tracks (both embedded and external) for a specific media item
+ * @summary Get audio and subtitle tracks for a media item
+ */
+export type getApiMediaIdTracksResponse200 = {
+  data: GithubComMantonxViewraInternalApplicationMediaGetTracksResponse
+  status: 200
+}
+
+export type getApiMediaIdTracksResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMediaIdTracksResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiMediaIdTracksResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiMediaIdTracksResponseSuccess = getApiMediaIdTracksResponse200 & {
+  headers: Headers
+}
+export type getApiMediaIdTracksResponseError = (
+  | getApiMediaIdTracksResponse400
+  | getApiMediaIdTracksResponse404
+  | getApiMediaIdTracksResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiMediaIdTracksResponse =
+  | getApiMediaIdTracksResponseSuccess
+  | getApiMediaIdTracksResponseError
+
+export const getGetApiMediaIdTracksUrl = (id: number) => {
+  return `/api/media/${id}/tracks`
+}
+
+export const getApiMediaIdTracks = async (
+  id: number,
+  options?: RequestInit
+): Promise<getApiMediaIdTracksResponse> => {
+  return customInstance<getApiMediaIdTracksResponse>(getGetApiMediaIdTracksUrl(id), {
+    ...options,
+    method: 'GET',
+  })
+}
+
+export const getGetApiMediaIdTracksQueryKey = (id?: number) => {
+  return [`/api/media/${id}/tracks`] as const
+}
+
+export const getGetApiMediaIdTracksQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTracks>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdTracksQueryKey(id)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdTracks>>> = ({ signal }) =>
+    getApiMediaIdTracks(id, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaIdTracksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdTracks>>
+>
+export type GetApiMediaIdTracksQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMediaIdTracks<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTracks>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdTracks>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdTracks<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTracks>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdTracks>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdTracks<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTracks>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get audio and subtitle tracks for a media item
+ */
+
+export function useGetApiMediaIdTracks<
+  TData = Awaited<ReturnType<typeof getApiMediaIdTracks>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdTracks>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaIdTracksQueryOptions(id, options)
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

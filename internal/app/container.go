@@ -63,6 +63,15 @@ func NewContainer(db *sql.DB, dbDriver string, cfg *appconfig.Config, logger *sl
 	// Seed dev user in development mode (before handlers so auth works immediately)
 	seedDevUser(context.Background(), cfg, repos, svcs, logger)
 
+	// Warm settings cache on startup
+	if svcs.Settings != nil {
+		if err := svcs.Settings.WarmCache(context.Background()); err != nil {
+			logger.Warn("Failed to warm settings cache", "error", err)
+		} else {
+			logger.Info("Settings cache warmed")
+		}
+	}
+
 	// Build handlers (returns *api.Handlers directly)
 	infra := &apphandlers.InfrastructureDeps{
 		DB:                 db,

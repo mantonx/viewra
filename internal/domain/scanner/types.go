@@ -109,6 +109,39 @@ type ScanResult struct {
 	HDRFormat      string
 	ColorSpace     string
 	ColorPrimaries string
+
+	// Multi-language audio and subtitle tracks
+	AudioTracks    []AudioTrackInfo
+	SubtitleTracks []SubtitleTrackInfo
+}
+
+// AudioTrackInfo contains metadata for an audio stream.
+type AudioTrackInfo struct {
+	StreamIndex   int
+	Codec         string
+	CodecProfile  string
+	Channels      int
+	ChannelLayout string
+	SampleRate    int
+	BitRate       int
+	Language      string
+	Title         string
+	IsDefault     bool
+	IsCommentary  bool
+	IsDescriptive bool
+}
+
+// SubtitleTrackInfo contains metadata for a subtitle stream.
+type SubtitleTrackInfo struct {
+	StreamIndex  int
+	Codec        string
+	Language     string
+	Title        string
+	IsDefault    bool
+	IsForced     bool
+	IsSDH        bool
+	IsCommentary bool
+	IsBitmap     bool
 }
 
 // Progress tracks scanning progress with thread-safe counters

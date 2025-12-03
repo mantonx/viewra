@@ -63,6 +63,9 @@ type TranscodeOptions struct {
 	LibPlaceboContrastRecovery float64    // Contrast recovery for libplacebo (0.0-3.0, default: 0.3)
 	// Phase 3: Multi-codec support
 	VideoCodec VideoCodec // Target codec: h264, h265, vp9, av1 (default: h264)
+	// Subtitle burn-in support for PGS/bitmap subtitles
+	SubtitleStreamIndex int  // Stream index of subtitle to burn in (e.g., 2 for the 3rd stream)
+	BurnInSubtitle      bool // If true, burn the specified subtitle into the video
 }
 
 // TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.

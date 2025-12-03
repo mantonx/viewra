@@ -4,6 +4,8 @@ import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 import { NerdMenu } from './NerdMenu'
 import { QualitySelector } from './QualitySelector'
 import { SpeedSelector } from './SpeedSelector'
+import { SubtitleSelector, type SubtitleTrack, type SubtitleSelection } from './SubtitleSelector'
+import { AudioSelector, type AudioTrack } from './AudioSelector'
 
 // Format bandwidth to human readable string
 const formatBandwidth = (bps: number): string => {
@@ -33,8 +35,10 @@ interface VideoControlsProps {
   currentBandwidth?: number | null
   recommendedQuality: QualityRecommendationResponse | null
   autoMode: boolean
-  availableAudioTracks: Array<{ id: number; name: string; language: string }>
+  availableAudioTracks: AudioTrack[]
   currentAudioTrack: number
+  availableSubtitles: SubtitleTrack[]
+  currentSubtitle: number | null
   playbackSpeed: number
   metadata?: MediaMetadata
   showStats: boolean
@@ -47,6 +51,7 @@ interface VideoControlsProps {
   onQualityChange: (height: number, bandwidth?: number) => void
   onAutoToggle: () => void
   onAudioTrackChange: (trackId: number) => void
+  onSubtitleChange: (trackId: number | null, selection?: SubtitleSelection) => void
   onSpeedChange: (speed: number) => void
   onSkip: (seconds: number) => void
   onToggleStats: () => void
@@ -68,6 +73,8 @@ export const VideoControls = ({
   autoMode,
   availableAudioTracks,
   currentAudioTrack,
+  availableSubtitles,
+  currentSubtitle,
   playbackSpeed,
   metadata,
   showStats,
@@ -80,6 +87,7 @@ export const VideoControls = ({
   onQualityChange,
   onAutoToggle,
   onAudioTrackChange,
+  onSubtitleChange,
   onSpeedChange,
   onSkip,
   onToggleStats,
@@ -390,21 +398,22 @@ export const VideoControls = ({
               />
             )}
 
+            {/* Subtitle selector */}
+            {availableSubtitles.length > 0 && (
+              <SubtitleSelector
+                availableSubtitles={availableSubtitles}
+                currentSubtitle={currentSubtitle}
+                onSubtitleChange={onSubtitleChange}
+              />
+            )}
+
             {/* Audio track selector */}
             {availableAudioTracks.length > 1 && (
-              <select
-                value={currentAudioTrack}
-                onChange={(e) => onAudioTrackChange(Number(e.target.value))}
-                className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50 hidden sm:block"
-                style={{ minWidth: '90px' }}
-                aria-label="Audio track"
-              >
-                {availableAudioTracks.map((track) => (
-                  <option key={track.id} value={track.id} className="bg-neutral-900 text-white">
-                    {track.name} ({track.language})
-                  </option>
-                ))}
-              </select>
+              <AudioSelector
+                availableAudioTracks={availableAudioTracks}
+                currentAudioTrack={currentAudioTrack}
+                onAudioTrackChange={onAudioTrackChange}
+              />
             )}
 
             {/* Nerd Menu */}

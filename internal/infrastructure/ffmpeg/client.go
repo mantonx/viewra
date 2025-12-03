@@ -43,21 +43,40 @@ type ffprobeOutput struct {
 		FormatName string            `json:"format_name"`
 		Tags       map[string]string `json:"tags"`
 	} `json:"format"`
-	Streams []struct {
-		CodecType       string            `json:"codec_type"`
-		CodecName       string            `json:"codec_name"`
-		Profile         string            `json:"profile"`
-		Width           int               `json:"width"`
-		Height          int               `json:"height"`
-		RFrameRate      string            `json:"r_frame_rate"`
-		BitRate         string            `json:"bit_rate"`
-		FieldOrder      string            `json:"field_order"`
-		ColorSpace      string            `json:"color_space"`
-		ColorPrimaries  string            `json:"color_primaries"`
-		ColorTransfer   string            `json:"color_transfer"`
-		SideDataList    []sideData        `json:"side_data_list,omitempty"`
-		Tags            map[string]string `json:"tags"`
-	} `json:"streams"`
+	Streams []ffprobeStream `json:"streams"`
+}
+
+// ffprobeStream represents a single stream in ffprobe output.
+type ffprobeStream struct {
+	Index          int               `json:"index"`
+	CodecType      string            `json:"codec_type"`
+	CodecName      string            `json:"codec_name"`
+	Profile        string            `json:"profile"`
+	Width          int               `json:"width"`
+	Height         int               `json:"height"`
+	RFrameRate     string            `json:"r_frame_rate"`
+	BitRate        string            `json:"bit_rate"`
+	FieldOrder     string            `json:"field_order"`
+	ColorSpace     string            `json:"color_space"`
+	ColorPrimaries string            `json:"color_primaries"`
+	ColorTransfer  string            `json:"color_transfer"`
+	SideDataList   []sideData        `json:"side_data_list,omitempty"`
+	Tags           map[string]string `json:"tags"`
+	// Audio-specific fields
+	Channels      int    `json:"channels"`
+	ChannelLayout string `json:"channel_layout"`
+	SampleRate    string `json:"sample_rate"`
+	// Stream disposition flags
+	Disposition ffprobeDisposition `json:"disposition"`
+}
+
+// ffprobeDisposition represents stream disposition flags.
+type ffprobeDisposition struct {
+	Default         int `json:"default"`
+	Forced          int `json:"forced"`
+	Comment         int `json:"comment"`
+	HearingImpaired int `json:"hearing_impaired"`
+	VisualImpaired  int `json:"visual_impaired"`
 }
 
 // sideData represents side data in video streams (used for HDR metadata)
@@ -350,4 +369,157 @@ func detectHDRFormat(stream videoStream) string {
 	}
 
 	return "" // No HDR detected
+}
+
+// ExtractTracks extracts audio and subtitle track information from a media file.
+func (c *Client) ExtractTracks(ctx context.Context, filePath string) (*MediaTracksInfo, error) {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, ErrInvalidFile
+	}
+
+	cmd := exec.CommandContext(ctx, c.ffprobePath,
+		"-v", "quiet",
+		"-print_format", "json",
+		"-show_streams",
+		filePath,
+	)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to create stdout pipe: %v", ErrMetadataExtraction, err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
+	}
+
+	var probe ffprobeOutput
+	decoder := json.NewDecoder(stdout)
+	if err := decoder.Decode(&probe); err != nil {
+		cmd.Wait()
+		return nil, fmt.Errorf("%w: failed to parse ffprobe output: %v", ErrMetadataExtraction, err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrMetadataExtraction, err)
+	}
+
+	tracks := &MediaTracksInfo{
+		AudioTracks:    make([]AudioTrackInfo, 0),
+		SubtitleTracks: make([]SubtitleTrackInfo, 0),
+	}
+
+	for _, stream := range probe.Streams {
+		switch stream.CodecType {
+		case "audio":
+			track := parseAudioStream(stream)
+			tracks.AudioTracks = append(tracks.AudioTracks, track)
+		case "subtitle":
+			track := parseSubtitleStream(stream)
+			tracks.SubtitleTracks = append(tracks.SubtitleTracks, track)
+		}
+	}
+
+	return tracks, nil
+}
+
+// parseAudioStream extracts audio track info from an ffprobe stream.
+func parseAudioStream(stream ffprobeStream) AudioTrackInfo {
+	track := AudioTrackInfo{
+		StreamIndex:   stream.Index,
+		Codec:         stream.CodecName,
+		CodecProfile:  stream.Profile,
+		Channels:      stream.Channels,
+		ChannelLayout: stream.ChannelLayout,
+		IsDefault:     stream.Disposition.Default == 1,
+		IsCommentary:  stream.Disposition.Comment == 1,
+		IsDescriptive: stream.Disposition.VisualImpaired == 1,
+	}
+
+	// Parse sample rate
+	if stream.SampleRate != "" {
+		if sr, err := strconv.Atoi(stream.SampleRate); err == nil {
+			track.SampleRate = sr
+		}
+	}
+
+	// Parse bitrate
+	if stream.BitRate != "" {
+		if br, err := strconv.Atoi(stream.BitRate); err == nil {
+			track.BitRate = br
+		}
+	}
+
+	// Extract language and title from tags
+	if stream.Tags != nil {
+		if lang, ok := stream.Tags["language"]; ok {
+			track.Language = lang
+		}
+		if title, ok := stream.Tags["title"]; ok {
+			track.Title = title
+			// Detect commentary from title
+			titleLower := strings.ToLower(title)
+			if strings.Contains(titleLower, "commentary") ||
+				strings.Contains(titleLower, "comment") {
+				track.IsCommentary = true
+			}
+			// Detect audio description from title
+			if strings.Contains(titleLower, "description") ||
+				strings.Contains(titleLower, "descriptive") ||
+				strings.Contains(titleLower, "visually impaired") {
+				track.IsDescriptive = true
+			}
+		}
+	}
+
+	return track
+}
+
+// parseSubtitleStream extracts subtitle track info from an ffprobe stream.
+func parseSubtitleStream(stream ffprobeStream) SubtitleTrackInfo {
+	track := SubtitleTrackInfo{
+		StreamIndex: stream.Index,
+		Codec:       stream.CodecName,
+		IsDefault:   stream.Disposition.Default == 1,
+		IsForced:    stream.Disposition.Forced == 1,
+		IsSDH:       stream.Disposition.HearingImpaired == 1,
+		IsCommentary: stream.Disposition.Comment == 1,
+	}
+
+	// Detect bitmap-based subtitles
+	codecLower := strings.ToLower(stream.CodecName)
+	track.IsBitmap = codecLower == "hdmv_pgs_subtitle" ||
+		codecLower == "dvd_subtitle" ||
+		codecLower == "dvdsub" ||
+		codecLower == "pgssub" ||
+		codecLower == "xsub"
+
+	// Extract language and title from tags
+	if stream.Tags != nil {
+		if lang, ok := stream.Tags["language"]; ok {
+			track.Language = lang
+		}
+		if title, ok := stream.Tags["title"]; ok {
+			track.Title = title
+			titleLower := strings.ToLower(title)
+			// Detect SDH from title
+			if strings.Contains(titleLower, "sdh") ||
+				strings.Contains(titleLower, "hearing impaired") ||
+				strings.Contains(titleLower, "cc") {
+				track.IsSDH = true
+			}
+			// Detect forced from title
+			if strings.Contains(titleLower, "forced") ||
+				strings.Contains(titleLower, "signs") ||
+				strings.Contains(titleLower, "foreign") {
+				track.IsForced = true
+			}
+			// Detect commentary from title
+			if strings.Contains(titleLower, "commentary") {
+				track.IsCommentary = true
+			}
+		}
+	}
+
+	return track
 }

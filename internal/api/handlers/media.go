@@ -12,6 +12,7 @@ type MediaHandler struct {
 	getMedia   media.GetMediaExecutor
 	listMedia  media.ListMediaExecutor
 	streamInfo media.StreamInfoExecutor
+	getTracks  media.GetTracksExecutor
 }
 
 // NewMediaHandler creates a new media handler
@@ -19,11 +20,13 @@ func NewMediaHandler(
 	getMedia media.GetMediaExecutor,
 	listMedia media.ListMediaExecutor,
 	streamInfo media.StreamInfoExecutor,
+	getTracks media.GetTracksExecutor,
 ) *MediaHandler {
 	return &MediaHandler{
 		getMedia:   getMedia,
 		listMedia:  listMedia,
 		streamInfo: streamInfo,
+		getTracks:  getTracks,
 	}
 }
 
@@ -126,6 +129,36 @@ func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 	}
 
 	resp, err := h.streamInfo.Execute(c.Request.Context(), id)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// GetTracks handles GET /api/media/:id/tracks
+// @Summary Get audio and subtitle tracks for a media item
+// @Description Returns all audio and subtitle tracks (both embedded and external) for a specific media item
+// @Tags media
+// @Produce json
+// @Param id path int true "Media ID"
+// @Success 200 {object} media.GetTracksResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/media/{id}/tracks [get]
+func (h *MediaHandler) GetTracks(c *gin.Context) {
+	id, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid media ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.getTracks.Execute(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return

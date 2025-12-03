@@ -10,12 +10,33 @@ import (
 )
 
 type Library struct {
-	ID        int32        `json:"id"`
-	Name      string       `json:"name"`
-	Path      string       `json:"path"`
-	Type      string       `json:"type"`
-	CreatedAt sql.NullTime `json:"created_at"`
-	UpdatedAt sql.NullTime `json:"updated_at"`
+	ID                    int32          `json:"id"`
+	Name                  string         `json:"name"`
+	Path                  string         `json:"path"`
+	Type                  string         `json:"type"`
+	CreatedAt             sql.NullTime   `json:"created_at"`
+	UpdatedAt             sql.NullTime   `json:"updated_at"`
+	PreferredAudioLang    sql.NullString `json:"preferred_audio_lang"`
+	PreferredSubtitleLang sql.NullString `json:"preferred_subtitle_lang"`
+	AutoEnableSubtitles   sql.NullString `json:"auto_enable_subtitles"`
+}
+
+type MediaAudioTrack struct {
+	ID            int32          `json:"id"`
+	MediaID       int32          `json:"media_id"`
+	StreamIndex   int32          `json:"stream_index"`
+	Codec         string         `json:"codec"`
+	CodecProfile  sql.NullString `json:"codec_profile"`
+	Channels      int32          `json:"channels"`
+	ChannelLayout sql.NullString `json:"channel_layout"`
+	SampleRate    sql.NullInt32  `json:"sample_rate"`
+	BitRate       sql.NullInt32  `json:"bit_rate"`
+	Language      sql.NullString `json:"language"`
+	Title         sql.NullString `json:"title"`
+	IsDefault     sql.NullBool   `json:"is_default"`
+	IsCommentary  sql.NullBool   `json:"is_commentary"`
+	IsDescriptive sql.NullBool   `json:"is_descriptive"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 }
 
 type MediaImage struct {
@@ -37,6 +58,23 @@ type MediaImage struct {
 	Priority       sql.NullInt32  `json:"priority"`
 	CreatedAt      sql.NullTime   `json:"created_at"`
 	UpdatedAt      sql.NullTime   `json:"updated_at"`
+}
+
+type MediaSubtitleTrack struct {
+	ID           int32          `json:"id"`
+	MediaID      int32          `json:"media_id"`
+	StreamIndex  sql.NullInt32  `json:"stream_index"`
+	SourceType   string         `json:"source_type"`
+	Codec        sql.NullString `json:"codec"`
+	Language     sql.NullString `json:"language"`
+	Title        sql.NullString `json:"title"`
+	FilePath     sql.NullString `json:"file_path"`
+	IsDefault    sql.NullBool   `json:"is_default"`
+	IsForced     sql.NullBool   `json:"is_forced"`
+	IsSdh        sql.NullBool   `json:"is_sdh"`
+	IsCommentary sql.NullBool   `json:"is_commentary"`
+	IsBitmap     sql.NullBool   `json:"is_bitmap"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
 }
 
 type Medium struct {
@@ -292,6 +330,16 @@ type Session struct {
 	ID               int32          `json:"id"`
 }
 
+type SystemSetting struct {
+	Key         string         `json:"key"`
+	Value       string         `json:"value"`
+	ValueType   string         `json:"value_type"`
+	Category    string         `json:"category"`
+	Description sql.NullString `json:"description"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	UpdatedBy   sql.NullString `json:"updated_by"`
+}
+
 type TranscodeJob struct {
 	ID                 int32          `json:"id"`
 	MediaID            int32          `json:"media_id"`
@@ -382,6 +430,13 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	ID           int32     `json:"id"`
+}
+
+type UserSetting struct {
+	UserID    string    `json:"user_id"`
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type UserVideoPreference struct {

@@ -9,11 +9,14 @@ import (
 
 	"github.com/mantonx/viewra/internal/app/config"
 	"github.com/mantonx/viewra/internal/app/repositories"
+	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
+	apptranscoding "github.com/mantonx/viewra/internal/application/transcoding"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
+	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 )
 
@@ -32,11 +35,12 @@ type Services struct {
 	ImageTransformer *infraimages.Transformer
 
 	// Media services
-	PathBrowser      *pathbrowser.Service
-	TranscodeService transcoding.Service
-	TranscodeQueue   *transcode.Queue
-	CleanupService   *transcode.CleanupService
-	SessionManager   *transcoding.SessionManager
+	PathBrowser        *pathbrowser.Service
+	TranscodeService   transcoding.Service
+	TranscodeQueue     *transcode.Queue
+	CleanupService     *transcode.CleanupService
+	SessionManager     *transcoding.SessionManager
+	SubtitleConverter  *subtitles.Converter
 
 	// Transcode repository (for disk monitoring cleanup tasks)
 	TranscodeRepo DiskMonitoringRepo
@@ -44,6 +48,9 @@ type Services struct {
 	// Auth services
 	PasswordHasher *auth.PasswordHasher
 	TokenService   *auth.TokenService
+
+	// Settings service
+	Settings *settings.Service
 }
 
 // BuildServices creates and initializes all infrastructure services.
@@ -159,17 +166,36 @@ func BuildServices(
 	}
 	tokenService := auth.NewTokenService(tokenConfig)
 
+	// Initialize settings service
+	settingsService := settings.NewService(repos.SystemSettings, repos.UserSettings)
+
+	// Wire system profile into settings service for read-only system info
+	if cfg.SystemProfile != nil {
+		settingsService.SetSystemProfile(cfg.SystemProfile)
+	}
+
+	// Wire settings service into session manager for dynamic config
+	// This enables runtime changes to tone mapping settings without restart
+	configProvider := apptranscoding.NewSettingsConfigProvider(settingsService, transcodeConfig)
+	sessionManager.SetConfigProvider(configProvider)
+
+	// Initialize subtitle converter (for WebVTT conversion)
+	subtitleCacheDir := cfg.Media.TranscodeOutputDir // Reuse transcode output dir for subtitle cache
+	subtitleConverter := subtitles.NewConverter("ffmpeg", subtitleCacheDir)
+
 	return &Services{
-		ImageCache:       imageCacheService,
-		ImageTransformer: imageTransformer,
-		PathBrowser:      browserService,
-		TranscodeService: transcodeService,
-		TranscodeQueue:   transcodeQueue,
-		CleanupService:   cleanupService,
-		SessionManager:   sessionManager,
-		TranscodeRepo:    repos.Transcode,
-		PasswordHasher:   passwordHasher,
-		TokenService:     tokenService,
+		ImageCache:        imageCacheService,
+		ImageTransformer:  imageTransformer,
+		PathBrowser:       browserService,
+		TranscodeService:  transcodeService,
+		TranscodeQueue:    transcodeQueue,
+		CleanupService:    cleanupService,
+		SessionManager:    sessionManager,
+		SubtitleConverter: subtitleConverter,
+		TranscodeRepo:     repos.Transcode,
+		PasswordHasher:    passwordHasher,
+		TokenService:      tokenService,
+		Settings:          settingsService,
 	}, nil
 }
 

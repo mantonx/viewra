@@ -81,11 +81,13 @@ type Handlers struct {
 	Progress  *handlers.ProgressHandler
 	Images    *handlers.ImagesHandler
 	Transcode *handlers.TranscodeHandler
+	Subtitle  *handlers.SubtitleHandler
 	Movies    *handlers.MoviesHandler
 	TV        *handlers.TVHandler
 	Music     *handlers.MusicHandler
 	Auth      *handlers.AuthHandler
 	Users     *handlers.UsersHandler
+	Settings  *handlers.SettingsHandler
 
 	// AuthValidator is used by routes to set up auth middleware
 	AuthValidator middleware.AuthValidator
@@ -169,6 +171,7 @@ func (s *Server) setupRoutes() {
 	// Register protected route groups
 	routes.RegisterLibraryRoutes(protected, h.Library, h.ScanJob)
 	routes.RegisterMediaRoutes(protected, h.Media)
+	routes.RegisterSubtitleRoutes(protected, h.Subtitle)
 	routes.RegisterStreamRoutes(protected, h.Stream)
 	routes.RegisterBrowserRoutes(protected, h.Browser)
 	routes.RegisterProgressRoutes(protected, h.Progress)
@@ -181,6 +184,9 @@ func (s *Server) setupRoutes() {
 
 	// Register analytics routes (protected)
 	routes.RegisterAnalyticsRoutes(protected, h.Analytics)
+
+	// Register settings routes (protected, with admin requirement for system settings)
+	routes.RegisterSettingsRoutes(protected, h.Settings, h.AuthValidator)
 
 	// Register image routes (protected via api group)
 	routes.RegisterImageRoutes(s.router, h.Images)

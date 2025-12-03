@@ -51,6 +51,15 @@ type Repository interface {
 	// Transaction-aware methods
 	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int64) error
 	ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, libraryID int64) ([]*Media, error)
+
+	// Audio and subtitle track methods
+	InsertAudioTrack(ctx context.Context, track *AudioTrack) error
+	GetAudioTracksByMediaID(ctx context.Context, mediaID int64) ([]*AudioTrack, error)
+	DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error
+	InsertSubtitleTrack(ctx context.Context, track *SubtitleTrack) error
+	GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64) ([]*SubtitleTrack, error)
+	DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error
+	DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) error
 }
 
 // MovieRepository extends Repository with movie-specific operations

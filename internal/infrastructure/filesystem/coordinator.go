@@ -350,6 +350,49 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 
 			// Determine container format from file extension (remove dot)
 			result.ContainerFormat = strings.TrimPrefix(fileInfo.Extension, ".")
+
+			// Extract audio and subtitle tracks for video files
+			if mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode {
+				tracks, err := c.ffmpegClient.ExtractTracks(ctx, fileInfo.Path)
+				if err != nil {
+					c.logger.Warn("Failed to extract audio/subtitle tracks",
+						"file_path", fileInfo.Path,
+						"error", err)
+				} else {
+					// Convert FFmpeg track info to scanner track info
+					result.AudioTracks = make([]scanner.AudioTrackInfo, len(tracks.AudioTracks))
+					for i, t := range tracks.AudioTracks {
+						result.AudioTracks[i] = scanner.AudioTrackInfo{
+							StreamIndex:   t.StreamIndex,
+							Codec:         t.Codec,
+							CodecProfile:  t.CodecProfile,
+							Channels:      t.Channels,
+							ChannelLayout: t.ChannelLayout,
+							SampleRate:    t.SampleRate,
+							BitRate:       t.BitRate,
+							Language:      t.Language,
+							Title:         t.Title,
+							IsDefault:     t.IsDefault,
+							IsCommentary:  t.IsCommentary,
+							IsDescriptive: t.IsDescriptive,
+						}
+					}
+					result.SubtitleTracks = make([]scanner.SubtitleTrackInfo, len(tracks.SubtitleTracks))
+					for i, t := range tracks.SubtitleTracks {
+						result.SubtitleTracks[i] = scanner.SubtitleTrackInfo{
+							StreamIndex:  t.StreamIndex,
+							Codec:        t.Codec,
+							Language:     t.Language,
+							Title:        t.Title,
+							IsDefault:    t.IsDefault,
+							IsForced:     t.IsForced,
+							IsSDH:        t.IsSDH,
+							IsCommentary: t.IsCommentary,
+							IsBitmap:     t.IsBitmap,
+						}
+					}
+				}
+			}
 		}
 	}
 

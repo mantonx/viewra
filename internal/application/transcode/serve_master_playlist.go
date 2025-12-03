@@ -3,6 +3,7 @@ package transcode
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
@@ -18,6 +19,14 @@ type ServeMasterPlaylistRequest struct {
 
 	// StartPosition for seeking (passed through to variant URLs)
 	StartPosition string
+
+	// Subtitle burn-in options (passed through to variant URLs)
+	BurnInSubtitle      bool
+	SubtitleStreamIndex int
+
+	// User preferences for track selection
+	PreferredAudioLanguage    string // ISO 639-2 code (eng, fra, jpn, etc.)
+	PreferredSubtitleLanguage string // ISO 639-2 code or "off"
 }
 
 // ServeMasterPlaylistResponse represents the result.
@@ -75,6 +84,13 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		return nil, fmt.Errorf("media not found: %w", err)
 	}
 
+	// Get audio tracks for multi-audio support
+	audioTracks, err := uc.mediaRepo.GetAudioTracksByMediaID(ctx, req.MediaID)
+	if err != nil {
+		// Non-fatal: continue without audio track info
+		audioTracks = nil
+	}
+
 	// Check if direct play is possible
 	videoInfo, err := transcoding.GetVideoInfo(mediaItem.FilePath)
 	if err == nil && videoInfo != nil {
@@ -97,18 +113,18 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		}
 	}
 
-	// Build master playlist
-	playlist := uc.buildMasterPlaylist(mediaItem, req.StartPosition)
+	// Build master playlist with audio track information
+	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, req.StartPosition, req.PreferredAudioLanguage, req.BurnInSubtitle, req.SubtitleStreamIndex)
 
 	return &ServeMasterPlaylistResponse{
 		Strategy:        StrategyServePlaylist,
 		PlaylistContent: playlist,
-		Reason:          "Master playlist generated with quality variants",
+		Reason:          "Master playlist generated with quality variants and audio tracks",
 	}, nil
 }
 
-// buildMasterPlaylist creates the HLS master playlist content.
-func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, startPosition string) string {
+// buildMasterPlaylist creates the HLS master playlist content with multi-audio support.
+func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, startPosition string, preferredAudioLang string, burnInSubtitle bool, subtitleStreamIndex int) string {
 	sourceHeight := mediaItem.Height
 	sourceWidth := mediaItem.Width
 	sourceBitrate := mediaItem.Bitrate
@@ -116,14 +132,23 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 	// Get ABR ladder filtered for this source
 	variants := uc.getFilteredABRLadder(sourceWidth, sourceHeight, sourceBitrate)
 
-	// Build playlist
+	// Build playlist header
 	playlist := "#EXTM3U\n"
 	playlist += "#EXT-X-VERSION:4\n"
 	playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n\n"
 
+	// Add audio track renditions if we have multiple audio tracks
+	audioGroupID := ""
+	if len(audioTracks) > 1 {
+		audioGroupID = "audio"
+		playlist += uc.buildAudioRenditions(audioTracks, preferredAudioLang, startPosition)
+		playlist += "\n"
+	}
+
+	// Build video stream variants
 	for _, variant := range variants {
-		playlist += fmt.Sprintf(
-			"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\",NAME=\"%s\"\n",
+		streamInf := fmt.Sprintf(
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"%s\",NAME=\"%s\"",
 			variant.Bandwidth,
 			variant.Width,
 			variant.Height,
@@ -131,14 +156,214 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 			variant.Quality,
 		)
 
+		// Reference audio group if we have multiple audio tracks
+		if audioGroupID != "" {
+			streamInf += fmt.Sprintf(",AUDIO=\"%s\"", audioGroupID)
+		}
+
+		playlist += streamInf + "\n"
+
+		// Build variant URL with query parameters
 		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.Quality)
+		params := []string{}
 		if startPosition != "" {
-			variantURL += "?start=" + startPosition
+			params = append(params, "start="+startPosition)
+		}
+		if burnInSubtitle {
+			params = append(params, fmt.Sprintf("sub=%d", subtitleStreamIndex))
+		}
+		if len(params) > 0 {
+			variantURL += "?" + strings.Join(params, "&")
 		}
 		playlist += variantURL + "\n\n"
 	}
 
 	return playlist
+}
+
+// buildAudioRenditions generates EXT-X-MEDIA tags for audio track selection.
+func (uc *ServeMasterPlaylistUseCase) buildAudioRenditions(audioTracks []*media.AudioTrack, preferredLang string, startPosition string) string {
+	var result strings.Builder
+
+	// Determine which track should be default
+	defaultTrackIdx := 0
+	for i, track := range audioTracks {
+		// Prefer user's language
+		if track.Language == preferredLang && !track.IsCommentary {
+			defaultTrackIdx = i
+			break
+		}
+		// Fall back to track marked as default
+		if track.IsDefault && !track.IsCommentary {
+			defaultTrackIdx = i
+		}
+	}
+
+	for i, track := range audioTracks {
+		isDefault := i == defaultTrackIdx
+
+		// Build track name
+		name := uc.buildAudioTrackName(track)
+
+		// Convert ISO 639-2 to ISO 639-1 for HLS LANGUAGE attribute
+		lang := convertToISO6391(track.Language)
+
+		// Build characteristics for accessibility
+		characteristics := ""
+		if track.IsDescriptive {
+			characteristics = ",CHARACTERISTICS=\"public.accessibility.describes-video\""
+		}
+
+		// Use relative audio index (i) for the URI, not the absolute FFmpeg stream index.
+		// This matches FFmpeg's -map 0:a:N selector which uses relative audio indices,
+		// and aligns with HLS.js's audioTracks array indexing.
+		audioURI := fmt.Sprintf("audio/%d/playlist.m3u8", i)
+		if startPosition != "" {
+			audioURI += "?start=" + startPosition
+		}
+
+		result.WriteString(fmt.Sprintf(
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"%s\",LANGUAGE=\"%s\",DEFAULT=%s,AUTOSELECT=%s%s,URI=\"%s\"\n",
+			name,
+			lang,
+			boolToYesNo(isDefault),
+			boolToYesNo(isDefault),
+			characteristics,
+			audioURI,
+		))
+	}
+
+	return result.String()
+}
+
+// buildAudioTrackName creates a human-readable name for an audio track.
+func (uc *ServeMasterPlaylistUseCase) buildAudioTrackName(track *media.AudioTrack) string {
+	// Use title if available
+	if track.Title != "" {
+		return track.Title
+	}
+
+	// Build name from language and characteristics
+	name := getLanguageName(track.Language)
+
+	// Add channel layout info
+	if track.Channels > 0 {
+		switch track.Channels {
+		case 1:
+			name += " (Mono)"
+		case 2:
+			name += " (Stereo)"
+		case 6:
+			name += " (5.1)"
+		case 8:
+			name += " (7.1)"
+		}
+	}
+
+	// Add special track types
+	if track.IsCommentary {
+		name += " - Commentary"
+	}
+	if track.IsDescriptive {
+		name += " - Audio Description"
+	}
+
+	return name
+}
+
+// boolToYesNo converts a boolean to HLS YES/NO format.
+func boolToYesNo(b bool) string {
+	if b {
+		return "YES"
+	}
+	return "NO"
+}
+
+// convertToISO6391 converts ISO 639-2 (3-letter) to ISO 639-1 (2-letter) codes.
+func convertToISO6391(iso6392 string) string {
+	mapping := map[string]string{
+		"eng": "en",
+		"spa": "es",
+		"fra": "fr",
+		"deu": "de",
+		"ita": "it",
+		"por": "pt",
+		"jpn": "ja",
+		"kor": "ko",
+		"zho": "zh",
+		"rus": "ru",
+		"ara": "ar",
+		"hin": "hi",
+		"tha": "th",
+		"vie": "vi",
+		"nld": "nl",
+		"pol": "pl",
+		"swe": "sv",
+		"nor": "no",
+		"dan": "da",
+		"fin": "fi",
+		"tur": "tr",
+		"ell": "el",
+		"heb": "he",
+		"ind": "id",
+		"ces": "cs",
+		"hun": "hu",
+		"ron": "ro",
+		"ukr": "uk",
+		"und": "und", // Undetermined
+	}
+
+	if code, ok := mapping[iso6392]; ok {
+		return code
+	}
+	// Return first 2 chars as fallback
+	if len(iso6392) >= 2 {
+		return iso6392[:2]
+	}
+	return "und"
+}
+
+// getLanguageName returns the human-readable name for an ISO 639-2 language code.
+func getLanguageName(iso6392 string) string {
+	names := map[string]string{
+		"eng": "English",
+		"spa": "Spanish",
+		"fra": "French",
+		"deu": "German",
+		"ita": "Italian",
+		"por": "Portuguese",
+		"jpn": "Japanese",
+		"kor": "Korean",
+		"zho": "Chinese",
+		"rus": "Russian",
+		"ara": "Arabic",
+		"hin": "Hindi",
+		"tha": "Thai",
+		"vie": "Vietnamese",
+		"nld": "Dutch",
+		"pol": "Polish",
+		"swe": "Swedish",
+		"nor": "Norwegian",
+		"dan": "Danish",
+		"fin": "Finnish",
+		"tur": "Turkish",
+		"ell": "Greek",
+		"heb": "Hebrew",
+		"ind": "Indonesian",
+		"ces": "Czech",
+		"hun": "Hungarian",
+		"ron": "Romanian",
+		"ukr": "Ukrainian",
+		"und": "Unknown",
+	}
+
+	if name, ok := names[iso6392]; ok {
+		return name
+	}
+	if iso6392 != "" {
+		return strings.ToUpper(iso6392)
+	}
+	return "Unknown"
 }
 
 // getFilteredABRLadder returns quality variants appropriate for the source media.

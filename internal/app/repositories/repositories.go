@@ -13,6 +13,7 @@ import (
 	progressRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/progress"
 	scanJobRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanjob"
 	scanStateRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/scanstate"
+	settingsRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/settings"
 	transcodeRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/transcode"
 	tvRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/tvshow"
 	userRepo "github.com/mantonx/viewra/internal/infrastructure/persistence/user"
@@ -21,20 +22,22 @@ import (
 // Repositories holds all data access layer implementations.
 // Groups all persistence repositories for dependency injection.
 type Repositories struct {
-	Library    *libraryRepo.Repository
-	Media      *mediaRepo.Repository
-	Progress   *progressRepo.Repository
-	ScanJob    *scanJobRepo.Repository
-	Checkpoint *scanJobRepo.CheckpointRepo
-	ScanState  *scanStateRepo.Repository
-	Transcode  *transcodeRepo.Repository
-	Movie      *movieRepo.Repository
-	TV         *tvRepo.Repository
-	Music      *musicRepo.Repository
-	Image      *imageRepo.Repository
-	Analytics  *analyticsRepo.Repository
-	User       *userRepo.UserRepository
-	Session    *userRepo.SessionRepository
+	Library        *libraryRepo.Repository
+	Media          *mediaRepo.Repository
+	Progress       *progressRepo.Repository
+	ScanJob        *scanJobRepo.Repository
+	Checkpoint     *scanJobRepo.CheckpointRepo
+	ScanState      *scanStateRepo.Repository
+	Transcode      *transcodeRepo.Repository
+	Movie          *movieRepo.Repository
+	TV             *tvRepo.Repository
+	Music          *musicRepo.Repository
+	Image          *imageRepo.Repository
+	Analytics      *analyticsRepo.Repository
+	User           *userRepo.UserRepository
+	Session        *userRepo.SessionRepository
+	SystemSettings *settingsRepo.SystemRepository
+	UserSettings   *settingsRepo.UserRepository
 }
 
 // BuildRepositories creates and wires all repository instances using the provided database connection.
@@ -67,20 +70,26 @@ func BuildRepositories(db *sql.DB, driver string) *Repositories {
 	userRepository := userRepo.NewUserRepository(db, driver)
 	sessionRepository := userRepo.NewSessionRepository(db, driver)
 
+	// Create settings repositories
+	systemSettingsRepository := settingsRepo.NewSystemRepository(db, driver)
+	userSettingsRepository := settingsRepo.NewUserRepository(db, driver)
+
 	return &Repositories{
-		Library:    libraryRepository,
-		Media:      mediaRepository,
-		Progress:   progressRepository,
-		ScanJob:    scanJobRepository,
-		Checkpoint: checkpointRepository,
-		ScanState:  scanStateRepository,
-		Transcode:  transcodeRepository,
-		Movie:      movieRepository,
-		TV:         tvRepository,
-		Music:      musicRepository,
-		Image:      imageRepository,
-		Analytics:  analyticsRepository,
-		User:       userRepository,
-		Session:    sessionRepository,
+		Library:        libraryRepository,
+		Media:          mediaRepository,
+		Progress:       progressRepository,
+		ScanJob:        scanJobRepository,
+		Checkpoint:     checkpointRepository,
+		ScanState:      scanStateRepository,
+		Transcode:      transcodeRepository,
+		Movie:          movieRepository,
+		TV:             tvRepository,
+		Music:          musicRepository,
+		Image:          imageRepository,
+		Analytics:      analyticsRepository,
+		User:           userRepository,
+		Session:        sessionRepository,
+		SystemSettings: systemSettingsRepository,
+		UserSettings:   userSettingsRepository,
 	}
 }

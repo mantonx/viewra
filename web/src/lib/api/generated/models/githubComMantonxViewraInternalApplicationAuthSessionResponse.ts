@@ -8,6 +8,7 @@
 
 export interface GithubComMantonxViewraInternalApplicationAuthSessionResponse {
   created_at?: string
+  /** Public ID for API */
   id?: string
   ip_address?: string
   is_current?: boolean

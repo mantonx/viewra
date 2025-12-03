@@ -155,6 +155,8 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		}
 		// Extract and catalog images (even for existing episodes to populate cache)
 		uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
+		// Persist audio and subtitle tracks
+		uc.persistMediaTracks(ctx, episode.Media.ID, result)
 		return &episode.Media.ID, nil
 	}
 
@@ -188,6 +190,8 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 				return nil, fmt.Errorf("failed to update TV episode metadata after collision: %w", updateErr)
 			}
 			uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
+			// Persist audio and subtitle tracks
+			uc.persistMediaTracks(ctx, episode.Media.ID, result)
 			return &episode.Media.ID, nil
 		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
@@ -199,6 +203,8 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 	// Extract and catalog images for the episode, show, and season
 	// NOTE: Image extraction also triggers show metadata enrichment from NFO files
 	uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
+	// Persist audio and subtitle tracks
+	uc.persistMediaTracks(ctx, episode.Media.ID, result)
 	return &episode.Media.ID, nil
 }
 

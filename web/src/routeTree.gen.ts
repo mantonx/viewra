@@ -18,7 +18,9 @@ import { Route as LayoutTvIndexRouteImport } from './routes/_layout/tv.index'
 import { Route as LayoutMusicIndexRouteImport } from './routes/_layout/music.index'
 import { Route as LayoutMoviesIndexRouteImport } from './routes/_layout/movies.index'
 import { Route as LayoutSettingsUsersRouteImport } from './routes/_layout/settings.users'
+import { Route as LayoutSettingsSystemRouteImport } from './routes/_layout/settings.system'
 import { Route as LayoutSettingsSchedulerRouteImport } from './routes/_layout/settings.scheduler'
+import { Route as LayoutSettingsPreferencesRouteImport } from './routes/_layout/settings.preferences'
 import { Route as LayoutSettingsDisplayRouteImport } from './routes/_layout/settings.display'
 import { Route as LayoutSettingsAccountRouteImport } from './routes/_layout/settings.account'
 import { Route as LayoutTvShowIdIndexRouteImport } from './routes/_layout/tv.$showId.index'
@@ -70,11 +72,22 @@ const LayoutSettingsUsersRoute = LayoutSettingsUsersRouteImport.update({
   path: '/settings/users',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSettingsSystemRoute = LayoutSettingsSystemRouteImport.update({
+  id: '/settings/system',
+  path: '/settings/system',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsSchedulerRoute = LayoutSettingsSchedulerRouteImport.update({
   id: '/settings/scheduler',
   path: '/settings/scheduler',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSettingsPreferencesRoute =
+  LayoutSettingsPreferencesRouteImport.update({
+    id: '/settings/preferences',
+    path: '/settings/preferences',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutSettingsDisplayRoute = LayoutSettingsDisplayRouteImport.update({
   id: '/settings/display',
   path: '/settings/display',
@@ -116,7 +129,9 @@ export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
+  '/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/settings/system': typeof LayoutSettingsSystemRoute
   '/settings/users': typeof LayoutSettingsUsersRoute
   '/movies': typeof LayoutMoviesIndexRoute
   '/music': typeof LayoutMusicIndexRoute
@@ -133,7 +148,9 @@ export interface FileRoutesByTo {
   '/': typeof LayoutIndexRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
   '/settings/display': typeof LayoutSettingsDisplayRoute
+  '/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/settings/system': typeof LayoutSettingsSystemRoute
   '/settings/users': typeof LayoutSettingsUsersRoute
   '/movies': typeof LayoutMoviesIndexRoute
   '/music': typeof LayoutMusicIndexRoute
@@ -152,7 +169,9 @@ export interface FileRoutesById {
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/settings/account': typeof LayoutSettingsAccountRoute
   '/_layout/settings/display': typeof LayoutSettingsDisplayRoute
+  '/_layout/settings/preferences': typeof LayoutSettingsPreferencesRoute
   '/_layout/settings/scheduler': typeof LayoutSettingsSchedulerRoute
+  '/_layout/settings/system': typeof LayoutSettingsSystemRoute
   '/_layout/settings/users': typeof LayoutSettingsUsersRoute
   '/_layout/movies/': typeof LayoutMoviesIndexRoute
   '/_layout/music/': typeof LayoutMusicIndexRoute
@@ -171,7 +190,9 @@ export interface FileRouteTypes {
     | '/'
     | '/settings/account'
     | '/settings/display'
+    | '/settings/preferences'
     | '/settings/scheduler'
+    | '/settings/system'
     | '/settings/users'
     | '/movies'
     | '/music'
@@ -188,7 +209,9 @@ export interface FileRouteTypes {
     | '/'
     | '/settings/account'
     | '/settings/display'
+    | '/settings/preferences'
     | '/settings/scheduler'
+    | '/settings/system'
     | '/settings/users'
     | '/movies'
     | '/music'
@@ -206,7 +229,9 @@ export interface FileRouteTypes {
     | '/_layout/'
     | '/_layout/settings/account'
     | '/_layout/settings/display'
+    | '/_layout/settings/preferences'
     | '/_layout/settings/scheduler'
+    | '/_layout/settings/system'
     | '/_layout/settings/users'
     | '/_layout/movies/'
     | '/_layout/music/'
@@ -288,11 +313,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsUsersRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/settings/system': {
+      id: '/_layout/settings/system'
+      path: '/settings/system'
+      fullPath: '/settings/system'
+      preLoaderRoute: typeof LayoutSettingsSystemRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings/scheduler': {
       id: '/_layout/settings/scheduler'
       path: '/settings/scheduler'
       fullPath: '/settings/scheduler'
       preLoaderRoute: typeof LayoutSettingsSchedulerRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/settings/preferences': {
+      id: '/_layout/settings/preferences'
+      path: '/settings/preferences'
+      fullPath: '/settings/preferences'
+      preLoaderRoute: typeof LayoutSettingsPreferencesRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/settings/display': {
@@ -345,7 +384,9 @@ interface LayoutRouteChildren {
   LayoutIndexRoute: typeof LayoutIndexRoute
   LayoutSettingsAccountRoute: typeof LayoutSettingsAccountRoute
   LayoutSettingsDisplayRoute: typeof LayoutSettingsDisplayRoute
+  LayoutSettingsPreferencesRoute: typeof LayoutSettingsPreferencesRoute
   LayoutSettingsSchedulerRoute: typeof LayoutSettingsSchedulerRoute
+  LayoutSettingsSystemRoute: typeof LayoutSettingsSystemRoute
   LayoutSettingsUsersRoute: typeof LayoutSettingsUsersRoute
   LayoutMoviesIndexRoute: typeof LayoutMoviesIndexRoute
   LayoutMusicIndexRoute: typeof LayoutMusicIndexRoute
@@ -361,7 +402,9 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutIndexRoute: LayoutIndexRoute,
   LayoutSettingsAccountRoute: LayoutSettingsAccountRoute,
   LayoutSettingsDisplayRoute: LayoutSettingsDisplayRoute,
+  LayoutSettingsPreferencesRoute: LayoutSettingsPreferencesRoute,
   LayoutSettingsSchedulerRoute: LayoutSettingsSchedulerRoute,
+  LayoutSettingsSystemRoute: LayoutSettingsSystemRoute,
   LayoutSettingsUsersRoute: LayoutSettingsUsersRoute,
   LayoutMoviesIndexRoute: LayoutMoviesIndexRoute,
   LayoutMusicIndexRoute: LayoutMusicIndexRoute,

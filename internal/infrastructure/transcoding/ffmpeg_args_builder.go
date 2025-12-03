@@ -154,9 +154,19 @@ func (b *FFmpegArgsBuilder) AddVideoEncoding() *FFmpegArgsBuilder {
 		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
 
-	// Build filter chain: tone mapping (if needed) + scaling
+	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
 	filterChain := b.buildToneMappingFilter(AccelNone) + b.buildScalingFilter(AccelNone, true)
-	b.args = append(b.args, "-vf", filterChain)
+
+	if b.needsSubtitleBurnIn() {
+		// Use filter_complex for subtitle overlay
+		// Format: [0:v]<filters>[v];[0:s:N]scale=<width>:<height>[s];[v][s]overlay
+		// The subtitle needs to be scaled to match the output resolution
+		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay",
+			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		b.args = append(b.args, "-filter_complex", subtitleFilter)
+	} else {
+		b.args = append(b.args, "-vf", filterChain)
+	}
 
 	// GOP structure for HLS
 	b.args = append(b.args,
@@ -295,9 +305,22 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCode
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling
+	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
 	filterChain := b.buildToneMappingFilter(AccelNVENC) + b.buildScalingFilter(AccelNVENC, true)
-	b.args = append(b.args, "-vf", filterChain)
+
+	if b.needsSubtitleBurnIn() {
+		// For hardware encoding with subtitle burn-in, we need to:
+		// 1. Download from GPU to CPU for subtitle overlay
+		// 2. Scale subtitle to match output resolution
+		// 3. Overlay subtitle onto video
+		// 4. Upload back to GPU for encoding
+		// This is less efficient but necessary for PGS subtitle burn-in
+		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay,hwupload_cuda",
+			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		b.args = append(b.args, "-filter_complex", subtitleFilter)
+	} else {
+		b.args = append(b.args, "-vf", filterChain)
+	}
 
 	// GOP structure
 	b.args = append(b.args,
@@ -334,9 +357,16 @@ func (b *FFmpegArgsBuilder) addQSVEncoding(p *AdaptiveProfile, codec VideoCodec)
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling
+	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
 	filterChain := b.buildToneMappingFilter(AccelQSV) + b.buildScalingFilter(AccelQSV, false)
-	b.args = append(b.args, "-vf", filterChain)
+
+	if b.needsSubtitleBurnIn() {
+		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay,hwupload=extra_hw_frames=64",
+			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		b.args = append(b.args, "-filter_complex", subtitleFilter)
+	} else {
+		b.args = append(b.args, "-vf", filterChain)
+	}
 
 	// GOP structure
 	b.args = append(b.args,
@@ -370,9 +400,16 @@ func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *AdaptiveProfile, codec VideoCode
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling
+	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
 	filterChain := b.buildToneMappingFilter(AccelVAAPI) + b.buildScalingFilter(AccelVAAPI, false)
-	b.args = append(b.args, "-vf", filterChain)
+
+	if b.needsSubtitleBurnIn() {
+		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay,hwupload",
+			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		b.args = append(b.args, "-filter_complex", subtitleFilter)
+	} else {
+		b.args = append(b.args, "-vf", filterChain)
+	}
 
 	// GOP structure
 	b.args = append(b.args,
@@ -413,10 +450,18 @@ func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *AdaptiveProfile, codec Vi
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling
+	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
 	// Note: VideoToolbox doesn't support hardware scaling in FFmpeg, so CPU filters are used
 	filterChain := b.buildToneMappingFilter(AccelVideoToolbox) + b.buildScalingFilter(AccelVideoToolbox, false)
-	b.args = append(b.args, "-vf", filterChain)
+
+	if b.needsSubtitleBurnIn() {
+		// VideoToolbox already uses CPU for scaling, so subtitle overlay is straightforward
+		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay",
+			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		b.args = append(b.args, "-filter_complex", subtitleFilter)
+	} else {
+		b.args = append(b.args, "-vf", filterChain)
+	}
 
 	// GOP structure
 	b.args = append(b.args,
@@ -610,6 +655,16 @@ func (b *FFmpegArgsBuilder) buildScalingFilter(hwAccel HardwareAccel, skipIfLibP
 	}
 
 	return ""
+}
+
+// needsSubtitleBurnIn returns true if subtitle burn-in is requested.
+func (b *FFmpegArgsBuilder) needsSubtitleBurnIn() bool {
+	return b.opts.BurnInSubtitle
+}
+
+// getSubtitleStreamIndex returns the relative subtitle stream index (0-based among subtitle streams).
+func (b *FFmpegArgsBuilder) getSubtitleStreamIndex() int {
+	return b.opts.SubtitleStreamIndex
 }
 
 // needsHDRToneMapping determines if HDR tone mapping should be applied.

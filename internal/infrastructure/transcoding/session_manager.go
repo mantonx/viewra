@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ type SessionManager struct {
 	sessions        sync.Map // map[string]*TranscodeSession (key: "mediaID_quality")
 	logger          *slog.Logger
 	config          *TranscodeConfig
+	configProvider  ConfigProvider // Optional: for dynamic config from settings
 	fallbackManager *HardwareFallbackManager
 }
 
@@ -44,6 +46,21 @@ func NewSessionManager(config *TranscodeConfig, logger *slog.Logger) *SessionMan
 	return mgr
 }
 
+// SetConfigProvider sets a dynamic config provider for runtime settings.
+// When set, GetOrCreateSession will fetch fresh config from the provider
+// for settings like tone mapping that can change without restart.
+func (m *SessionManager) SetConfigProvider(provider ConfigProvider) {
+	m.configProvider = provider
+}
+
+// getEffectiveConfig returns the current configuration, using provider if available.
+func (m *SessionManager) getEffectiveConfig(ctx context.Context) *TranscodeConfig {
+	if m.configProvider != nil {
+		return m.configProvider.GetConfig(ctx)
+	}
+	return m.config
+}
+
 // cleanupOutputDir removes a session's output directory and logs any errors.
 // This centralizes cleanup logic to avoid duplication across the codebase.
 // sessionID is optional and used for logging context.
@@ -62,11 +79,18 @@ func (m *SessionManager) cleanupOutputDir(path string, sessionID string) {
 	}
 }
 
+// SubtitleBurnInOptions contains options for subtitle burn-in during transcoding.
+type SubtitleBurnInOptions struct {
+	Enabled     bool // Whether to burn in subtitles
+	StreamIndex int  // Relative index among subtitle streams (0-based)
+}
+
 // GetOrCreateSession returns an existing session or creates a new one.
 // Sessions are reused when possible to avoid re-transcoding segments that already exist.
 // Multiple quality sessions can coexist to support ABR (Adaptive Bitrate) streaming.
 // clientSupportedCodecs is a list of video codecs the client can decode (e.g., ["h264", "h265", "vp9"]).
 // This is used to select the best codec from the profile's preferred/fallback list.
+// subtitleOpts specifies optional subtitle burn-in settings for PGS/bitmap subtitles.
 func (m *SessionManager) GetOrCreateSession(
 	mediaID int64,
 	quality string,
@@ -77,8 +101,14 @@ func (m *SessionManager) GetOrCreateSession(
 	outputDir string,
 	videoInfo *VideoInfo,
 	clientSupportedCodecs []string,
+	subtitleOpts *SubtitleBurnInOptions,
 ) (*TranscodeSession, error) {
-	key := sessionKey(mediaID, quality)
+	// Include subtitle info in session key so changing subtitles triggers new session
+	subtitleKey := ""
+	if subtitleOpts != nil && subtitleOpts.Enabled {
+		subtitleKey = fmt.Sprintf("_sub%d", subtitleOpts.StreamIndex)
+	}
+	key := sessionKey(mediaID, quality) + subtitleKey
 
 	// Stop all sessions for OTHER media to prevent resource hogging
 	// When user switches to a different video, clean up the old one immediately
@@ -141,18 +171,32 @@ func (m *SessionManager) GetOrCreateSession(
 	// Create new session
 	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger)
 
+	// Set subtitle burn-in options if provided
+	if subtitleOpts != nil && subtitleOpts.Enabled {
+		session.BurnInSubtitle = true
+		session.SubtitleStreamIndex = subtitleOpts.StreamIndex
+		m.logger.Info("Creating session with subtitle burn-in",
+			"media_id", mediaID,
+			"quality", quality,
+			"subtitle_stream_index", subtitleOpts.StreamIndex,
+			"session_key", key)
+	}
+
+	// Get effective config (dynamic settings like tone mapping may have changed)
+	effectiveConfig := m.getEffectiveConfig(context.Background())
+
 	// Start FFmpeg process with hardware acceleration and HDR tone mapping
-	hwAccel := m.config.HardwareAccel
-	hwDevice := m.config.HardwareDevice
-	if err := session.Start(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, m.config, clientSupportedCodecs); err != nil {
+	hwAccel := effectiveConfig.HardwareAccel
+	hwDevice := effectiveConfig.HardwareDevice
+	if err := session.Start(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, effectiveConfig, clientSupportedCodecs); err != nil {
 		// Check if this is a hardware error and fallback if needed
 		if m.fallbackManager.RecordFailure(hwAccel, err) {
 			m.logger.Info("Retrying with fallback acceleration",
 				"from", hwAccel,
 				"to", m.config.HardwareAccel,
 			)
-			// Retry with new hardware acceleration setting
-			if err := session.Start(inputPath, profile, strategy, m.config.HardwareAccel, hwDevice, videoInfo, m.config, clientSupportedCodecs); err != nil {
+			// Retry with new hardware acceleration setting (use base config for fallback)
+			if err := session.Start(inputPath, profile, strategy, m.config.HardwareAccel, hwDevice, videoInfo, effectiveConfig, clientSupportedCodecs); err != nil {
 				return nil, fmt.Errorf("failed to start transcode session after fallback: %w", err)
 			}
 		} else {
@@ -173,13 +217,40 @@ func (m *SessionManager) GetOrCreateSession(
 }
 
 // GetSession retrieves an existing session by media ID and quality.
-func (m *SessionManager) GetSession(mediaID int64, quality string) (*TranscodeSession, error) {
-	key := sessionKey(mediaID, quality)
+// If subtitleIndex is >= 0, it will look for a session with that specific subtitle burn-in.
+// If subtitleIndex is < 0, it will try to find any session (first without subtitle, then with).
+func (m *SessionManager) GetSession(mediaID int64, quality string, subtitleIndex int) (*TranscodeSession, error) {
+	// Build the session key based on whether subtitle is specified
+	var key string
+	if subtitleIndex >= 0 {
+		key = sessionKey(mediaID, quality) + fmt.Sprintf("_sub%d", subtitleIndex)
+	} else {
+		key = sessionKey(mediaID, quality)
+	}
 
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
 		session.UpdateLastAccessed()
 		return session, nil
+	}
+
+	// If no subtitle specified, also try to find a session with any subtitle (fallback)
+	if subtitleIndex < 0 {
+		// Scan for any session matching the mediaID and quality prefix
+		var found *TranscodeSession
+		prefix := sessionKey(mediaID, quality)
+		m.sessions.Range(func(k, v interface{}) bool {
+			keyStr := k.(string)
+			if keyStr == prefix || (len(keyStr) > len(prefix) && keyStr[:len(prefix)] == prefix && keyStr[len(prefix)] == '_') {
+				found = v.(*TranscodeSession)
+				found.UpdateLastAccessed()
+				return false // stop iteration
+			}
+			return true
+		})
+		if found != nil {
+			return found, nil
+		}
 	}
 
 	return nil, fmt.Errorf("no active transcode session for media %d quality %s", mediaID, quality)
@@ -282,6 +353,80 @@ func (m *SessionManager) GetSessionOutputPath(mediaID int64, quality string) (st
 // sessionKey generates a unique key for a media/quality combination.
 func sessionKey(mediaID int64, quality string) string {
 	return fmt.Sprintf("%d:%s", mediaID, quality)
+}
+
+// audioSessionKey generates a unique key for an audio-only session.
+func audioSessionKey(mediaID int64, audioTrackIndex int) string {
+	return fmt.Sprintf("%d:audio:%d", mediaID, audioTrackIndex)
+}
+
+// GetAudioSession retrieves an existing audio-only transcode session.
+func (m *SessionManager) GetAudioSession(mediaID int64, audioTrackIndex int) (*TranscodeSession, error) {
+	key := audioSessionKey(mediaID, audioTrackIndex)
+
+	if existing, ok := m.sessions.Load(key); ok {
+		session := existing.(*TranscodeSession)
+		return session, nil
+	}
+
+	return nil, fmt.Errorf("no active audio session for media %d track %d", mediaID, audioTrackIndex)
+}
+
+// GetOrCreateAudioSession returns an existing audio-only session or creates a new one.
+// Audio-only sessions transcode a specific audio track to AAC for HLS delivery.
+func (m *SessionManager) GetOrCreateAudioSession(
+	mediaID int64,
+	audioTrackIndex int,
+	startPosition float64,
+	inputPath string,
+	outputDir string,
+	videoInfo *VideoInfo,
+) (*TranscodeSession, error) {
+	key := audioSessionKey(mediaID, audioTrackIndex)
+
+	// Check for existing session
+	if existing, ok := m.sessions.Load(key); ok {
+		session := existing.(*TranscodeSession)
+
+		// Reuse if start position is compatible
+		positionDiff := startPosition - session.StartPosition
+		if startPosition == 0 || (positionDiff >= 0 && positionDiff <= 30) {
+			session.UpdateLastAccessed()
+			m.logger.Debug("Reusing existing audio session",
+				"session_id", session.ID,
+				"media_id", mediaID,
+				"audio_track", audioTrackIndex)
+			return session, nil
+		}
+
+		// Need to restart for different position
+		session.Stop()
+		m.sessions.Delete(key)
+		m.cleanupOutputDir(session.OutputDir, session.ID)
+	}
+
+	// Create new audio-only session
+	quality := fmt.Sprintf("audio_%d", audioTrackIndex)
+	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger)
+
+	// Get effective config
+	effectiveConfig := m.getEffectiveConfig(context.Background())
+
+	// Start audio-only FFmpeg process
+	if err := session.StartAudioOnly(inputPath, audioTrackIndex, effectiveConfig, videoInfo); err != nil {
+		return nil, fmt.Errorf("failed to start audio transcode session: %w", err)
+	}
+
+	// Store session
+	m.sessions.Store(key, session)
+
+	m.logger.Debug("Created new audio transcode session",
+		"session_id", session.ID,
+		"media_id", mediaID,
+		"audio_track", audioTrackIndex,
+		"start_position", startPosition)
+
+	return session, nil
 }
 
 // stopOtherMediaSessions stops all sessions for media IDs other than the specified one.

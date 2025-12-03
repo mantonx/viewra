@@ -75,8 +75,11 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWatchProgress(ctx context.Context, arg CreateWatchProgressParams) (WatchProgress, error)
 	DeleteAlbum(ctx context.Context, id int64) error
+	DeleteAllUserSettings(ctx context.Context, userID string) error
 	DeleteArtist(ctx context.Context, id int64) error
+	DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error
 	DeleteExpiredSessions(ctx context.Context, expiresAt string) (int64, error)
+	DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) error
 	DeleteImage(ctx context.Context, id int64) error
 	DeleteImagesByEntity(ctx context.Context, arg DeleteImagesByEntityParams) error
 	DeleteImagesByHash(ctx context.Context, fileHash sql.NullString) error
@@ -95,12 +98,15 @@ type Querier interface {
 	DeleteScanStateByPath(ctx context.Context, arg DeleteScanStateByPathParams) error
 	DeleteSession(ctx context.Context, id int64) error
 	DeleteSessionsByUserID(ctx context.Context, userID int64) error
+	DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error
+	DeleteSystemSetting(ctx context.Context, key string) error
 	DeleteTVEpisode(ctx context.Context, mediaID int64) error
 	DeleteTVSeason(ctx context.Context, id int64) error
 	DeleteTVShow(ctx context.Context, id int64) error
 	DeleteTranscodeJob(ctx context.Context, id int64) error
 	DeleteTranscodeJobsByMediaID(ctx context.Context, mediaID int64) error
 	DeleteUser(ctx context.Context, id int64) error
+	DeleteUserSetting(ctx context.Context, arg DeleteUserSettingParams) error
 	DeleteWatchProgress(ctx context.Context, id int64) error
 	DeleteWatchProgressByMediaID(ctx context.Context, mediaID int64) error
 	ExistsAnyUser(ctx context.Context) (int64, error)
@@ -110,6 +116,8 @@ type Querier interface {
 	GetAlbumByMusicBrainzID(ctx context.Context, musicbrainzAlbumID sql.NullString) (MusicAlbum, error)
 	GetAllFileHashes(ctx context.Context) ([]sql.NullString, error)
 	GetAllRecentExecutions(ctx context.Context, limit int64) ([]TaskExecution, error)
+	GetAllSystemSettings(ctx context.Context) ([]SystemSetting, error)
+	GetAllUserSettings(ctx context.Context, userID string) ([]UserSetting, error)
 	GetArtistByID(ctx context.Context, id int64) (MusicArtist, error)
 	GetArtistByMusicBrainzID(ctx context.Context, musicbrainzArtistID sql.NullString) (MusicArtist, error)
 	// ============================================================================
@@ -118,7 +126,10 @@ type Querier interface {
 	GetArtistsWithCountsByLibrary(ctx context.Context, libraryID int64) ([]GetArtistsWithCountsByLibraryRow, error)
 	GetArtistsWithCountsByLibraryPaginated(ctx context.Context, arg GetArtistsWithCountsByLibraryPaginatedParams) ([]GetArtistsWithCountsByLibraryPaginatedRow, error)
 	GetArtistsWithCountsByLibraryPaginatedDesc(ctx context.Context, arg GetArtistsWithCountsByLibraryPaginatedDescParams) ([]GetArtistsWithCountsByLibraryPaginatedDescRow, error)
+	GetAudioTracksByMediaID(ctx context.Context, mediaID int64) ([]MediaAudioTrack, error)
 	GetBatchWatchProgressByMediaIDs(ctx context.Context, arg GetBatchWatchProgressByMediaIDsParams) ([]WatchProgress, error)
+	GetEmbeddedSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
+	GetExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
 	GetFilePathCache(ctx context.Context, libraryID int64) ([]GetFilePathCacheRow, error)
 	GetImageByFilePath(ctx context.Context, filePath sql.NullString) (MediaImage, error)
 	GetImageByID(ctx context.Context, id int64) (MediaImage, error)
@@ -153,6 +164,10 @@ type Querier interface {
 	GetSessionByPublicID(ctx context.Context, publicID string) (Session, error)
 	GetSessionByTokenHash(ctx context.Context, refreshTokenHash string) (Session, error)
 	GetSessionsByUserID(ctx context.Context, userID int64) ([]Session, error)
+	GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64) ([]MediaSubtitleTrack, error)
+	// Settings queries for SQLite
+	GetSystemSetting(ctx context.Context, key string) (SystemSetting, error)
+	GetSystemSettingsByCategory(ctx context.Context, category string) ([]SystemSetting, error)
 	GetTVEpisodeByMediaID(ctx context.Context, mediaID int64) (GetTVEpisodeByMediaIDRow, error)
 	GetTVEpisodeByShowSeasonEpisode(ctx context.Context, arg GetTVEpisodeByShowSeasonEpisodeParams) (GetTVEpisodeByShowSeasonEpisodeRow, error)
 	GetTVSeasonByID(ctx context.Context, id int64) (TvSeason, error)
@@ -173,10 +188,14 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByPublicID(ctx context.Context, publicID string) (User, error)
 	GetUserByUsername(ctx context.Context, lower string) (User, error)
+	GetUserSetting(ctx context.Context, arg GetUserSettingParams) (UserSetting, error)
 	GetWatchProgressByID(ctx context.Context, id int64) (WatchProgress, error)
 	GetWatchProgressByMediaID(ctx context.Context, mediaID int64) (WatchProgress, error)
 	GetWatchProgressByMediaIDAndUserID(ctx context.Context, arg GetWatchProgressByMediaIDAndUserIDParams) (WatchProgress, error)
 	IncrementSeasonEpisodeCount(ctx context.Context, id int64) error
+	// Audio and subtitle track queries for multi-language support
+	InsertAudioTrack(ctx context.Context, arg InsertAudioTrackParams) (InsertAudioTrackRow, error)
+	InsertSubtitleTrack(ctx context.Context, arg InsertSubtitleTrackParams) (InsertSubtitleTrackRow, error)
 	LibraryExistsByID(ctx context.Context, id int64) (int64, error)
 	LibraryExistsByPath(ctx context.Context, path string) (int64, error)
 	ListAlbumsByArtist(ctx context.Context, arg ListAlbumsByArtistParams) ([]MusicAlbum, error)
@@ -273,6 +292,8 @@ type Querier interface {
 	UpdateWatchProgress(ctx context.Context, arg UpdateWatchProgressParams) (WatchProgress, error)
 	UpsertPlaybackSession(ctx context.Context, arg UpsertPlaybackSessionParams) (PlaybackSession, error)
 	UpsertScanState(ctx context.Context, arg UpsertScanStateParams) error
+	UpsertSystemSetting(ctx context.Context, arg UpsertSystemSettingParams) error
+	UpsertUserSetting(ctx context.Context, arg UpsertUserSettingParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) (WatchProgress, error)
 }
 

@@ -46,10 +46,11 @@ func BuildHandlers(
 	scanJobHandler := handlers.NewScanJobHandler(cases.ScanJob, cases.Library.Scan, cases.Library.Scan, logger)
 
 	// Media handlers
-	mediaHandler := handlers.NewMediaHandler(cases.Media.Get, cases.Media.List, cases.Media.StreamInfo)
+	mediaHandler := handlers.NewMediaHandler(cases.Media.Get, cases.Media.List, cases.Media.StreamInfo, cases.Media.GetTracks)
 	streamService := streaming.NewService()
 	streamHandler := handlers.NewStreamHandler(cases.Media.Get, streamService, logger)
 	progressHandler := handlers.NewProgressHandler(cases.Progress)
+	subtitleHandler := handlers.NewSubtitleHandler(cases.Media.Get, infra.Repos.Media, svcs.SubtitleConverter)
 	imagesHandler := handlers.NewImagesHandler(
 		cases.Images.Get,
 		cases.Images.GetMedia,
@@ -67,6 +68,7 @@ func BuildHandlers(
 			cases.Transcode.GetStatus,
 			cases.Transcode.ServeManifest,
 			cases.Transcode.ServeMasterPlaylist,
+			cases.Transcode.ServeAudioPlaylist,
 			svcs.TranscodeQueue,
 			svcs.CleanupService,
 			svcs.SessionManager,
@@ -125,6 +127,12 @@ func BuildHandlers(
 		usersHandler = handlers.NewUsersHandler(adminService)
 	}
 
+	// Settings handler
+	var settingsHandler *handlers.SettingsHandler
+	if svcs.Settings != nil {
+		settingsHandler = handlers.NewSettingsHandler(svcs.Settings)
+	}
+
 	return &api.Handlers{
 		Health:        healthHandler,
 		Browser:       browserHandler,
@@ -135,6 +143,7 @@ func BuildHandlers(
 		Media:         mediaHandler,
 		Stream:        streamHandler,
 		Progress:      progressHandler,
+		Subtitle:      subtitleHandler,
 		Images:        imagesHandler,
 		Transcode:     transcodeHandler,
 		Movies:        moviesHandler,
@@ -142,6 +151,7 @@ func BuildHandlers(
 		Music:         musicHandler,
 		Auth:          authHandler,
 		Users:         usersHandler,
+		Settings:      settingsHandler,
 		AuthValidator: authService,
 	}
 }

@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { AudioPlayerProvider, useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import { AudioPlayer } from '@/components/music'
 import { useAuth } from '@/contexts'
-import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User, Users, KeyRound } from 'lucide-react'
+import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User, Users, KeyRound, Settings2, SlidersHorizontal } from 'lucide-react'
 
 // Component that listens to route changes and notifies the audio player
 const RouteChangeListener = () => {
@@ -131,6 +131,14 @@ const Layout = () => {
                 <span>Scheduler</span>
               </Link>
               <Link
+                to="/settings/preferences"
+                className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                activeProps={{ className: 'bg-neutral-100 dark:bg-white/10' }}
+              >
+                <SlidersHorizontal className="w-5 h-5" />
+                <span>Preferences</span>
+              </Link>
+              <Link
                 to="/settings/account"
                 className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
                 activeProps={{ className: 'bg-neutral-100 dark:bg-white/10' }}
@@ -139,14 +147,24 @@ const Layout = () => {
                 <span>Account</span>
               </Link>
               {user?.is_admin && (
-                <Link
-                  to="/settings/users"
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
-                  activeProps={{ className: 'bg-neutral-100 dark:bg-white/10' }}
-                >
-                  <Users className="w-5 h-5" />
-                  <span>Users</span>
-                </Link>
+                <>
+                  <Link
+                    to="/settings/users"
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                    activeProps={{ className: 'bg-neutral-100 dark:bg-white/10' }}
+                  >
+                    <Users className="w-5 h-5" />
+                    <span>Users</span>
+                  </Link>
+                  <Link
+                    to="/settings/system"
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                    activeProps={{ className: 'bg-neutral-100 dark:bg-white/10' }}
+                  >
+                    <Settings2 className="w-5 h-5" />
+                    <span>System</span>
+                  </Link>
+                </>
               )}
             </div>
           </nav>

@@ -7,17 +7,14 @@ import { Film, Tv, Music, Library, Play } from 'lucide-react'
 const Index = () => {
   const { data: librariesData } = useQuery(getGetApiLibrariesQueryOptions())
 
-  // Calculate library stats
-  const libraries = librariesData?.libraries ?? []
-  const movieCount = libraries
-    .filter(l => l.type === 'movie')
-    .reduce((sum, l) => sum + (l.item_count ?? 0), 0)
-  const tvCount = libraries
-    .filter(l => l.type === 'tv')
-    .reduce((sum, l) => sum + (l.item_count ?? 0), 0)
-  const musicCount = libraries
-    .filter(l => l.type === 'music')
-    .reduce((sum, l) => sum + (l.item_count ?? 0), 0)
+  // Calculate library stats - handle union type from API response
+  const libraries = (librariesData?.status === 200 && 'libraries' in librariesData.data)
+    ? librariesData.data.libraries ?? []
+    : []
+  // Count libraries by type (item counts would need separate API calls)
+  const movieCount = libraries.filter((l) => l.type === 'movie').length
+  const tvCount = libraries.filter((l) => l.type === 'tv').length
+  const musicCount = libraries.filter((l) => l.type === 'music').length
 
   return (
     <div className="h-full overflow-auto">

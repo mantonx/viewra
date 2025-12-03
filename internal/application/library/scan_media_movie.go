@@ -112,6 +112,8 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 		}
 		// Extract and catalog images (even for existing movies to populate cache)
 		uc.extractImagesForMovie(ctx, movie, result.FilePath)
+		// Persist audio and subtitle tracks
+		uc.persistMediaTracks(ctx, movie.Media.ID, result)
 		return &movie.Media.ID, nil
 	}
 
@@ -144,6 +146,8 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 				return nil, fmt.Errorf("failed to update movie metadata after collision: %w", updateErr)
 			}
 			uc.extractImagesForMovie(ctx, movie, result.FilePath)
+			// Persist audio and subtitle tracks
+			uc.persistMediaTracks(ctx, movie.Media.ID, result)
 			return &movie.Media.ID, nil
 		}
 		return nil, fmt.Errorf("failed to create base media record: %w", err)
@@ -154,5 +158,7 @@ func (uc *ScanLibraryUseCase) processMovie(ctx context.Context, libraryID int64,
 
 	// Extract and catalog images for the movie
 	uc.extractImagesForMovie(ctx, movie, result.FilePath)
+	// Persist audio and subtitle tracks
+	uc.persistMediaTracks(ctx, movie.Media.ID, result)
 	return &movie.Media.ID, nil
 }
