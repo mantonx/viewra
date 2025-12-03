@@ -1,9 +1,22 @@
-import { createFileRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { AudioPlayerProvider } from '@/lib/contexts/AudioPlayerContext'
+import { AudioPlayerProvider, useAudioPlayer } from '@/lib/contexts/AudioPlayerContext'
 import { AudioPlayer } from '@/components/music'
 import { useAuth } from '@/contexts'
 import { Home, Library, Film, Tv, Music, Clock, Eye, LogOut, User, Users, KeyRound } from 'lucide-react'
+
+// Component that listens to route changes and notifies the audio player
+const RouteChangeListener = () => {
+  const { notifyRouteChange } = useAudioPlayer()
+  const routerState = useRouterState()
+  const pathname = routerState.location.pathname
+
+  useEffect(() => {
+    notifyRouteChange(pathname)
+  }, [pathname, notifyRouteChange])
+
+  return null
+}
 
 const Layout = () => {
   const navigate = useNavigate()
@@ -164,6 +177,9 @@ const Layout = () => {
         <main className="flex-1 overflow-hidden">
           <Outlet />
         </main>
+
+        {/* Route change listener for audio player visibility */}
+        <RouteChangeListener />
 
         {/* Persistent audio player */}
         <AudioPlayer />

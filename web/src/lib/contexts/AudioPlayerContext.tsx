@@ -1,8 +1,13 @@
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from 'react'
 import type { MusicTrackResponse } from '@/lib/types/music'
-import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 import { authFetch } from '@/lib/utils/authFetch'
+
+// Visibility states for the audio player
+// - expanded: Full player UI visible
+// - minimized: Compact player bar visible
+// - hidden: Player completely hidden (but audio may still be playing)
+type PlayerVisibility = 'expanded' | 'minimized' | 'hidden'
 
 interface AudioPlayerContextType {
   // State
@@ -18,6 +23,8 @@ interface AudioPlayerContextType {
   isShuffle: boolean
   repeatMode: 'off' | 'one' | 'all'
   isMinimized: boolean
+  visibility: PlayerVisibility
+  isOnMusicPage: boolean
 
   // Actions
   playTrack: (track: MusicTrackResponse) => void
@@ -34,6 +41,8 @@ interface AudioPlayerContextType {
   removeFromQueue: (index: number) => void
   setMinimized: (minimized: boolean) => void
   toggleMinimized: () => void
+  setVisibility: (visibility: PlayerVisibility) => void
+  notifyRouteChange: (pathname: string) => void
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined)
@@ -80,10 +89,13 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   const [isShuffle, setIsShuffle] = useState(false)
   const [repeatMode, setRepeatMode] = useState<'off' | 'one' | 'all'>('off')
   const [isMinimized, setIsMinimized] = useState(false)
+  const [visibility, setVisibilityState] = useState<PlayerVisibility>('expanded')
+  const [isOnMusicPage, setIsOnMusicPage] = useState(false)
   const autoMinimizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastUserInteractionRef = useRef<number>(Date.now())
   const userExpandedManuallyRef = useRef<boolean>(false) // Track if user manually expanded
   const consecutiveAutoMinimizesRef = useRef<number>(0) // Track auto-minimize patterns
+  const wasPlayingBeforeNavRef = useRef<boolean>(false) // Track if was playing before navigation
 
   // Initialize audio element
   useEffect(() => {
@@ -493,10 +505,95 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       const shouldExpand = consecutiveAutoMinimizesRef.current < 3
       if (shouldExpand) {
         setIsMinimized(false)
+        setVisibilityState('expanded')
       }
       lastUserInteractionRef.current = Date.now()
     }
   }, [currentTrack?.id])
+
+  // Helper to check if a path is a music page
+  const isMusicPath = (pathname: string): boolean => {
+    return pathname.startsWith('/music')
+  }
+
+  // Handle visibility based on playback state and page location
+  const setVisibility = (newVisibility: PlayerVisibility) => {
+    setVisibilityState(newVisibility)
+    // Sync with isMinimized for backward compatibility
+    if (newVisibility === 'minimized') {
+      setIsMinimized(true)
+    } else if (newVisibility === 'expanded') {
+      setIsMinimized(false)
+    }
+  }
+
+  // Called when route changes - manages player visibility smartly
+  const notifyRouteChange = (pathname: string) => {
+    const onMusicPage = isMusicPath(pathname)
+    const wasOnMusicPage = isOnMusicPage
+    setIsOnMusicPage(onMusicPage)
+
+    // No track loaded - nothing to show
+    if (!currentTrack) {
+      return
+    }
+
+    // Navigating TO a music page
+    if (onMusicPage && !wasOnMusicPage) {
+      // Show the player, restore to expanded if was playing
+      if (isPlaying) {
+        setVisibilityState('expanded')
+        setIsMinimized(false)
+      } else if (visibility === 'hidden') {
+        // Was hidden, show minimized
+        setVisibilityState('minimized')
+        setIsMinimized(true)
+      }
+      return
+    }
+
+    // Navigating AWAY from a music page
+    if (!onMusicPage && wasOnMusicPage) {
+      wasPlayingBeforeNavRef.current = isPlaying
+
+      if (isPlaying) {
+        // Still playing - minimize but keep visible
+        setVisibilityState('minimized')
+        setIsMinimized(true)
+      } else {
+        // Not playing - hide completely
+        setVisibilityState('hidden')
+      }
+      return
+    }
+
+    // Staying on non-music pages
+    if (!onMusicPage) {
+      if (!isPlaying && visibility !== 'hidden') {
+        // Paused while on non-music page - hide after a short delay
+        // This allows the user to quickly resume if they accidentally paused
+        setTimeout(() => {
+          if (!isPlaying && !isMusicPath(pathname)) {
+            setVisibilityState('hidden')
+          }
+        }, 3000) // 3 second grace period
+      }
+    }
+  }
+
+  // When playback stops, consider hiding if not on music page
+  useEffect(() => {
+    if (!isPlaying && !isOnMusicPage && currentTrack && visibility !== 'hidden') {
+      // Give a grace period before hiding
+      const hideTimer = setTimeout(() => {
+        if (!isPlaying && !isOnMusicPage) {
+          setVisibilityState('hidden')
+        }
+      }, 5000) // 5 seconds after pause before hiding
+
+      return () => clearTimeout(hideTimer)
+    }
+  }, [isPlaying, isOnMusicPage, currentTrack, visibility])
 
   const value: AudioPlayerContextType = {
     currentTrack,
@@ -511,6 +608,8 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     isShuffle,
     repeatMode,
     isMinimized,
+    visibility,
+    isOnMusicPage,
     playTrack,
     playQueue,
     togglePlayPause,
@@ -525,6 +624,8 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
     removeFromQueue,
     setMinimized: setIsMinimized,
     toggleMinimized,
+    setVisibility,
+    notifyRouteChange,
   }
 
   return <AudioPlayerContext.Provider value={value}>{children}</AudioPlayerContext.Provider>

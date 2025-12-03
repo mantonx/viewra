@@ -48,6 +48,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
     repeatMode,
     isShuffle,
     isMinimized,
+    visibility,
     togglePlayPause,
     playNext,
     playPrevious,
@@ -58,6 +59,7 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
     toggleShuffle,
     toggleMinimized,
     setMinimized,
+    setVisibility,
   } = useAudioPlayer()
 
   const [isSeeking, setIsSeeking] = useState(false)
@@ -136,7 +138,8 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
     return () => document.removeEventListener('keydown', handleKeyPress)
   }, [currentTime, duration, volume, showAlbumArt, togglePlayPause, toggleMute, seek, setVolume])
 
-  if (!currentTrack) {
+  // Don't render if no track or visibility is hidden
+  if (!currentTrack || visibility === 'hidden') {
     return null
   }
 
@@ -307,7 +310,10 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
 
             {/* Expand button */}
             <button
-              onClick={() => setMinimized(false)}
+              onClick={() => {
+                setMinimized(false)
+                setVisibility('expanded')
+              }}
               className={cn(
                 'p-2 rounded cursor-pointer',
                 animation.button.pronounced,
@@ -567,7 +573,10 @@ const AudioPlayer = ({ className = '' }: AudioPlayerProps) => {
 
             {/* Minimize button */}
             <button
-              onClick={toggleMinimized}
+              onClick={() => {
+                toggleMinimized()
+                setVisibility('minimized')
+              }}
               className={cn(
                 'p-2 min-h-11 min-w-11 flex items-center justify-center rounded cursor-pointer',
                 animation.button.pronounced,
