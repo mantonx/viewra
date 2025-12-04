@@ -1,6 +1,7 @@
 mod cluster_cache;
 mod ebml;
 mod mkv;
+mod mp4;
 
 use anyhow::Result;
 use std::io::Write;
@@ -10,6 +11,7 @@ pub use cluster_cache::ClusterCache;
 #[allow(unused_imports)]
 pub use ebml::{ClusterIndex, EbmlScanner, FrameStreamer, RawFrame};
 pub use mkv::MkvContainer;
+pub use mp4::Mp4Container;
 
 /// Information about a track in a container
 #[derive(Debug, Clone, serde::Serialize)]
@@ -79,7 +81,7 @@ impl StreamFormat {
 /// Enum-based container dispatch (avoids dyn trait issues with generics)
 pub enum MediaContainer {
     Mkv(MkvContainer),
-    // Future: Mp4(Mp4Container),
+    Mp4(Mp4Container),
     // Future: Ts(TsContainer),
 }
 
@@ -94,7 +96,7 @@ impl MediaContainer {
 
         match ext.as_str() {
             "mkv" | "webm" => Ok(Self::Mkv(MkvContainer::open(path)?)),
-            "mp4" | "m4v" | "mov" => anyhow::bail!("MP4 support not yet implemented"),
+            "mp4" | "m4v" | "mov" => Ok(Self::Mp4(Mp4Container::open(path)?)),
             "avi" => anyhow::bail!("AVI support not yet implemented"),
             "ts" | "m2ts" | "mts" => anyhow::bail!("MPEG-TS support not yet implemented"),
             _ => anyhow::bail!("Unsupported container format: .{}", ext),
@@ -105,6 +107,7 @@ impl MediaContainer {
     pub fn tracks(&self) -> Result<Vec<TrackInfo>> {
         match self {
             Self::Mkv(c) => c.tracks(),
+            Self::Mp4(c) => c.tracks(),
         }
     }
 
@@ -117,6 +120,7 @@ impl MediaContainer {
     ) -> Result<()> {
         match self {
             Self::Mkv(c) => c.extract_track(track_num, format, out),
+            Self::Mp4(c) => c.extract_track(track_num, format, out),
         }
     }
 
@@ -131,6 +135,7 @@ impl MediaContainer {
     ) -> Result<()> {
         match self {
             Self::Mkv(c) => c.stream_track(track_num, start_ms, end_ms, format, out),
+            Self::Mp4(c) => c.stream_track(track_num, start_ms, end_ms, format, out),
         }
     }
 }
