@@ -124,7 +124,14 @@ impl Mp4Container {
             writeln!(out)?;
         }
 
-        for sample_id in 1..=sample_count {
+        // Find starting sample using binary search if start_ms > 0
+        let start_sample = if start_ms > 0 {
+            Self::find_sample_at_time(&mut mp4, track_id, start_ms, timescale, sample_count)?
+        } else {
+            1
+        };
+
+        for sample_id in start_sample..=sample_count {
             // Read sample data (includes timing info)
             let sample = match mp4.read_sample(track_id, sample_id)? {
                 Some(s) => s,
@@ -140,7 +147,8 @@ impl Mp4Container {
                 break;
             }
 
-            if sample_offset_ms < start_ms {
+            // Skip frames before start time (for edge cases where binary search lands slightly early)
+            if sample_offset_ms + duration_ms < start_ms {
                 continue;
             }
 
@@ -189,6 +197,45 @@ impl Mp4Container {
         }
 
         Ok(())
+    }
+
+    /// Binary search to find the sample ID at or before the given time
+    /// Uses actual sample reads (log N I/O operations) to find the target
+    fn find_sample_at_time(
+        mp4: &mut Mp4Reader<BufReader<File>>,
+        track_id: u32,
+        target_ms: u64,
+        timescale: u32,
+        sample_count: u32,
+    ) -> Result<u32> {
+        // Binary search through samples (log N reads)
+        let mut low = 1u32;
+        let mut high = sample_count;
+
+        while low < high {
+            let mid = low + (high - low).div_ceil(2);
+
+            // Read sample to get its time
+            let sample = mp4.read_sample(track_id, mid)?;
+            let sample_ms = match sample {
+                Some(s) => (s.start_time * 1000) / timescale as u64,
+                None => {
+                    // Sample not found, search lower half
+                    high = mid - 1;
+                    continue;
+                }
+            };
+
+            if sample_ms <= target_ms {
+                low = mid;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        // Return the found sample, but go back a few samples for safety
+        // (to catch any subtitle that spans our target time)
+        Ok(low.saturating_sub(5).max(1))
     }
 
     /// Extract text from tx3g format (2 bytes length + UTF-8 text)

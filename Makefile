@@ -1,4 +1,4 @@
-.PHONY: help dev dev-debug dev-clean stop build clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
+.PHONY: help dev dev-debug dev-clean stop build build-tools clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -80,7 +80,18 @@ stop: ## Stop all development servers
 	@rm -f .overmind.sock
 	@echo "✓ Stopped"
 
-build: ## Build production binaries with version info
+build-tools: ## Build Rust helper tools (subtitle-extractor)
+	@echo "Building subtitle-extractor..."
+	@if ! command -v cargo >/dev/null 2>&1; then \
+		echo "❌ Rust/Cargo not found. Install from https://rustup.rs/"; \
+		exit 1; \
+	fi
+	@mkdir -p bin
+	cd tools/subtitle-extractor && cargo build --release
+	cp tools/subtitle-extractor/target/release/subtitle-extractor bin/
+	@echo "✓ subtitle-extractor built: bin/subtitle-extractor"
+
+build: build-tools ## Build production binaries with version info
 	@echo "Building frontend..."
 	cd web && npm run build
 	@echo "Building backend with embedded frontend..."
@@ -89,12 +100,13 @@ build: ## Build production binaries with version info
 	BUILD_DATE=$$(date -u '+%Y-%m-%d_%H:%M:%S'); \
 	echo "Version: $$VERSION, Commit: $$COMMIT, Built: $$BUILD_DATE"; \
 	go build -ldflags "-X github.com/mantonx/viewra/internal/version.Version=$$VERSION -X github.com/mantonx/viewra/internal/version.Commit=$$COMMIT -X github.com/mantonx/viewra/internal/version.BuildDate=$$BUILD_DATE" -o bin/viewra ./cmd/viewra
-	@echo "✓ Build complete! Binary: bin/viewra (includes embedded frontend)"
+	@echo "✓ Build complete! Binaries: bin/viewra, bin/subtitle-extractor"
 
 clean: ## Clean build artifacts and temporary files
 	rm -rf tmp/
 	rm -rf bin/
 	rm -rf web/dist/
+	rm -rf tools/subtitle-extractor/target/
 	@echo "Cleaned build artifacts"
 
 test: ## Run tests
@@ -124,6 +136,12 @@ api-client-gen: swagger-gen ## Generate TypeScript API client from Swagger
 
 setup: install-tools ## Initial project setup
 	@echo "Setting up project..."
+	@echo "Checking Rust toolchain..."
+	@if ! command -v cargo >/dev/null 2>&1; then \
+		echo "⚠️  Rust/Cargo not found. Install from https://rustup.rs/ for subtitle extraction support."; \
+	else \
+		echo "✓ Rust toolchain found"; \
+	fi
 	mkdir -p data
 	mkdir -p tmp
 	cd web && npm install

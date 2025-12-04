@@ -29,18 +29,50 @@ internal/
 ├── api/             # HTTP handlers
 └── app/             # Dependency wiring
 web/                 # React frontend
+tools/
+└── subtitle-extractor/  # Rust tool for fast subtitle extraction
 migrations/          # SQLite migrations
 migrations/postgres/ # PostgreSQL migrations
 data/                # Runtime data (db, cache, transcodes)
+bin/                 # Built binaries (viewra + subtitle-extractor)
 ```
 
 ## Development
 
 ```bash
+make setup        # Initial setup (installs Go tools, checks Rust)
+make build-tools  # Build subtitle-extractor (requires Rust)
 make dev          # Start backend (8080) + frontend (5173)
-make build        # Production build
 make test         # Run tests
 ```
+
+## Production Build
+
+```bash
+make build        # Builds everything: subtitle-extractor, frontend, backend
+```
+
+Output: `bin/viewra` + `bin/subtitle-extractor`
+
+### Build Requirements
+
+- **Go 1.21+**: Main backend
+- **Node.js 18+**: Frontend build
+- **Rust/Cargo**: subtitle-extractor tool (install from <https://rustup.rs/>)
+- **FFmpeg**: Runtime dependency for transcoding
+
+### Deployment
+
+Deploy both binaries together in the same directory:
+
+```text
+/opt/viewra/
+├── viewra              # Main server
+├── subtitle-extractor  # Subtitle extraction helper
+└── data/               # Database and cache
+```
+
+The `viewra` binary automatically finds `subtitle-extractor` in the same directory.
 
 ## Code Generation
 

@@ -332,6 +332,10 @@ impl EbmlScanner {
 }
 
 /// Frame streamer that can seek to clusters and extract frames
+///
+/// This is optimized for subtitle extraction: when a target track is set,
+/// it skips reading block data for non-matching tracks entirely, making it
+/// much faster than iterating all frames with matroska-demuxer.
 pub struct FrameStreamer {
     reader: BufReader<File>,
     file_size: u64,
@@ -340,6 +344,10 @@ pub struct FrameStreamer {
     cluster_timestamp_ms: u64,
     /// End of current cluster
     cluster_end: u64,
+    /// Target track number to filter for (None = return all frames)
+    target_track: Option<u64>,
+    /// Maximum timestamp (ms) - stop iterating when cluster timestamp exceeds this
+    end_ms: Option<u64>,
 }
 
 impl FrameStreamer {
@@ -358,6 +366,8 @@ impl FrameStreamer {
             timestamp_scale,
             cluster_timestamp_ms: 0,
             cluster_end: 0,
+            target_track: None,
+            end_ms: None,
         })
     }
 
@@ -365,6 +375,24 @@ impl FrameStreamer {
     #[allow(dead_code)]
     pub fn timestamp_scale(&self) -> u64 {
         self.timestamp_scale
+    }
+
+    /// Set the target track to filter for
+    ///
+    /// When set, blocks for other tracks will be skipped without reading their data.
+    /// This is a significant optimization for subtitle extraction from large files.
+    pub fn set_target_track(&mut self, track: u64) {
+        self.target_track = Some(track);
+    }
+
+    /// Set maximum timestamp - stop when cluster timestamp exceeds this
+    ///
+    /// This prevents scanning through the entire file when looking for sparse
+    /// subtitle frames in a specific time range.
+    pub fn set_end_ms(&mut self, end_ms: u64) {
+        if end_ms > 0 {
+            self.end_ms = Some(end_ms);
+        }
     }
 
     /// Seek to a specific byte offset (cluster data start position)
@@ -396,12 +424,26 @@ impl FrameStreamer {
     /// Read the next frame from the current cluster, or scan forward to find more clusters
     pub fn next_frame(&mut self, frame: &mut RawFrame) -> Result<bool> {
         loop {
+            // Check if we've passed the end time at cluster level
+            // This prevents scanning the entire file when subtitle frames are sparse
+            if let Some(end) = self.end_ms {
+                if self.cluster_timestamp_ms > end {
+                    return Ok(false);
+                }
+            }
+
             // Check if we're past the current cluster
             let pos = self.reader.stream_position()?;
             if pos >= self.cluster_end {
                 // Try to find next cluster
                 if !self.find_next_cluster()? {
                     return Ok(false);
+                }
+                // Check end time after finding new cluster
+                if let Some(end) = self.end_ms {
+                    if self.cluster_timestamp_ms > end {
+                        return Ok(false);
+                    }
                 }
                 continue;
             }
@@ -421,13 +463,60 @@ impl FrameStreamer {
             match id {
                 SIMPLE_BLOCK => {
                     // SimpleBlock: track + timecode + flags + data
-                    if Self::parse_simple_block(&mut self.reader, size, self.cluster_timestamp_ms, frame)? {
+                    // Optimization: peek track number first, skip if not target
+                    if let Some(target) = self.target_track {
+                        if let Some(matched) = Self::parse_simple_block_filtered(
+                            &mut self.reader,
+                            size,
+                            self.cluster_timestamp_ms,
+                            target,
+                            frame,
+                        )? {
+                            if matched {
+                                return Ok(true);
+                            }
+                            // Not our track, continue to next block
+                            continue;
+                        }
+                    } else if Self::parse_simple_block(&mut self.reader, size, self.cluster_timestamp_ms, frame)? {
                         return Ok(true);
                     }
                 }
                 BLOCK_GROUP => {
                     // BlockGroup contains Block + optional BlockDuration
                     let group_end = self.reader.stream_position()? + size;
+
+                    // If filtering, peek at Block track first
+                    if let Some(target) = self.target_track {
+                        // Find and peek the Block element to check track
+                        let group_start = self.reader.stream_position()?;
+                        let mut found_target = false;
+
+                        while self.reader.stream_position()? < group_end {
+                            let (sub_id, sub_size) = Self::read_element_header(&mut self.reader)?;
+                            if sub_id == BLOCK && sub_size >= 1 {
+                                // Peek track number
+                                let (track, _) = Self::read_vint_from(&mut self.reader)?;
+                                if track == target {
+                                    found_target = true;
+                                }
+                                break;
+                            } else {
+                                self.reader.seek(SeekFrom::Current(sub_size as i64))?;
+                            }
+                        }
+
+                        if !found_target {
+                            // Skip entire block group
+                            self.reader.seek(SeekFrom::Start(group_end))?;
+                            continue;
+                        }
+
+                        // Reset and parse fully
+                        self.reader.seek(SeekFrom::Start(group_start))?;
+                    }
+
+                    // Parse block group fully
                     let mut block_data: Option<(u64, Vec<u8>)> = None;
                     let mut block_duration: Option<u64> = None;
 
@@ -473,7 +562,63 @@ impl FrameStreamer {
         }
     }
 
-    /// Parse a SimpleBlock element (static method)
+    /// Parse a SimpleBlock element with track filtering
+    ///
+    /// Returns:
+    /// - Ok(Some(true)) if this block matches the target track and was parsed
+    /// - Ok(Some(false)) if this block doesn't match (data was skipped)
+    /// - Ok(None) if block is invalid
+    fn parse_simple_block_filtered(
+        reader: &mut BufReader<File>,
+        size: u64,
+        cluster_ts_ms: u64,
+        target_track: u64,
+        frame: &mut RawFrame,
+    ) -> Result<Option<bool>> {
+        if size < 4 {
+            return Ok(None);
+        }
+
+        let _block_start = reader.stream_position()?;
+
+        // Read track number first (variable length)
+        let (track, track_len) = Self::read_vint_from(reader)?;
+
+        // Check if this is our target track
+        if track != target_track {
+            // Skip the rest of this block - don't read the data
+            let skip_size = size - track_len;
+            reader.seek(SeekFrom::Current(skip_size as i64))?;
+            return Ok(Some(false));
+        }
+
+        // This is our track - parse it fully
+        // Read relative timecode (signed 16-bit)
+        let mut tc_buf = [0u8; 2];
+        reader.read_exact(&mut tc_buf)?;
+        let timecode = i16::from_be_bytes(tc_buf);
+
+        // Read flags (1 byte)
+        let mut flags = [0u8; 1];
+        reader.read_exact(&mut flags)?;
+
+        // Read frame data
+        let data_size = size - track_len - 3;
+        let mut data = vec![0u8; data_size as usize];
+        reader.read_exact(&mut data)?;
+
+        // Calculate absolute timestamp
+        let timestamp = cluster_ts_ms as i64 + timecode as i64;
+
+        frame.track = track;
+        frame.timestamp = timestamp.max(0) as u64;
+        frame.duration = None;
+        frame.data = data;
+
+        Ok(Some(true))
+    }
+
+    /// Parse a SimpleBlock element (static method) - no filtering
     fn parse_simple_block(reader: &mut BufReader<File>, size: u64, cluster_ts_ms: u64, frame: &mut RawFrame) -> Result<bool> {
         if size < 4 {
             return Ok(false);
