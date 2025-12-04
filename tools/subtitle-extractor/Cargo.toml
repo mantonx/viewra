@@ -8,6 +8,7 @@ description = "Fast subtitle track extractor for multiple container formats"
 # Container demuxers
 matroska-demuxer = "0.7"
 mp4 = "0.14"
+mpeg2ts-reader = "0.18"
 
 # PGS subtitle decoding
 pgs-rs = "0.1"

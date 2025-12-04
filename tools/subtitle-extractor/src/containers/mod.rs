@@ -2,6 +2,7 @@ mod cluster_cache;
 mod ebml;
 mod mkv;
 mod mp4;
+mod ts;
 
 use anyhow::Result;
 use std::io::Write;
@@ -12,6 +13,7 @@ pub use cluster_cache::ClusterCache;
 pub use ebml::{ClusterIndex, EbmlScanner, FrameStreamer, RawFrame};
 pub use mkv::MkvContainer;
 pub use mp4::Mp4Container;
+pub use ts::TsContainer;
 
 /// Information about a track in a container
 #[derive(Debug, Clone, serde::Serialize)]
@@ -82,7 +84,7 @@ impl StreamFormat {
 pub enum MediaContainer {
     Mkv(MkvContainer),
     Mp4(Mp4Container),
-    // Future: Ts(TsContainer),
+    Ts(TsContainer),
 }
 
 impl MediaContainer {
@@ -97,8 +99,8 @@ impl MediaContainer {
         match ext.as_str() {
             "mkv" | "webm" => Ok(Self::Mkv(MkvContainer::open(path)?)),
             "mp4" | "m4v" | "mov" => Ok(Self::Mp4(Mp4Container::open(path)?)),
+            "ts" | "m2ts" | "mts" => Ok(Self::Ts(TsContainer::open(path)?)),
             "avi" => anyhow::bail!("AVI support not yet implemented"),
-            "ts" | "m2ts" | "mts" => anyhow::bail!("MPEG-TS support not yet implemented"),
             _ => anyhow::bail!("Unsupported container format: .{}", ext),
         }
     }
@@ -108,6 +110,7 @@ impl MediaContainer {
         match self {
             Self::Mkv(c) => c.tracks(),
             Self::Mp4(c) => c.tracks(),
+            Self::Ts(c) => c.tracks(),
         }
     }
 
@@ -121,6 +124,7 @@ impl MediaContainer {
         match self {
             Self::Mkv(c) => c.extract_track(track_num, format, out),
             Self::Mp4(c) => c.extract_track(track_num, format, out),
+            Self::Ts(c) => c.extract_track(track_num, format, out),
         }
     }
 
@@ -136,6 +140,7 @@ impl MediaContainer {
         match self {
             Self::Mkv(c) => c.stream_track(track_num, start_ms, end_ms, format, out),
             Self::Mp4(c) => c.stream_track(track_num, start_ms, end_ms, format, out),
+            Self::Ts(c) => c.stream_track(track_num, start_ms, end_ms, format, out),
         }
     }
 }
