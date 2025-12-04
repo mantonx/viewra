@@ -59,7 +59,7 @@ enum Commands {
         #[arg(long, default_value = "0")]
         end: u64,
 
-        /// Output format: jsonl (JSON lines with timing), raw
+        /// Output format: jsonl (JSON lines with timing), raw, webvtt
         #[arg(short, long, default_value = "jsonl")]
         format: String,
     },

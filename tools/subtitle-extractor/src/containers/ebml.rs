@@ -362,6 +362,7 @@ impl FrameStreamer {
     }
 
     /// Get timestamp scale
+    #[allow(dead_code)]
     pub fn timestamp_scale(&self) -> u64 {
         self.timestamp_scale
     }

@@ -13,16 +13,37 @@ import (
 
 // Converter handles subtitle extraction and conversion to WebVTT format.
 type Converter struct {
-	ffmpegPath  string
-	cacheDir    string
+	subtitleExtractorPath string
+	cacheDir              string
 }
 
 // NewConverter creates a new subtitle converter.
-func NewConverter(ffmpegPath string, cacheDir string) *Converter {
+func NewConverter(cacheDir string) *Converter {
 	return &Converter{
-		ffmpegPath: ffmpegPath,
-		cacheDir:   cacheDir,
+		subtitleExtractorPath: findSubtitleExtractor(),
+		cacheDir:              cacheDir,
 	}
+}
+
+// findSubtitleExtractor locates the subtitle-extractor binary.
+// It looks in the same directory as the viewra binary first, then PATH.
+func findSubtitleExtractor() string {
+	// Try to find in the same directory as the executable
+	if execPath, err := os.Executable(); err == nil {
+		binDir := filepath.Dir(execPath)
+		extractorPath := filepath.Join(binDir, "subtitle-extractor")
+		if _, err := os.Stat(extractorPath); err == nil {
+			return extractorPath
+		}
+	}
+
+	// Fall back to PATH lookup
+	if path, err := exec.LookPath("subtitle-extractor"); err == nil {
+		return path
+	}
+
+	// Default: assume it's in bin/ relative to working directory
+	return "bin/subtitle-extractor"
 }
 
 // ExtractAndConvert extracts an embedded subtitle track and converts it to WebVTT.
@@ -42,30 +63,31 @@ func (c *Converter) ExtractAndConvert(ctx context.Context, mediaPath string, str
 		return outputPath, nil
 	}
 
-	// Extract and convert using FFmpeg
-	cmd := exec.CommandContext(ctx, c.ffmpegPath,
-		"-i", mediaPath,
-		"-map", fmt.Sprintf("0:%d", streamIndex),
-		"-c:s", "webvtt",
-		"-y",
-		outputPath,
+	// Use subtitle-extractor
+	// MKV track numbers are 1-based, FFmpeg stream indices are 0-based
+	trackNumber := streamIndex + 1
+
+	cmd := exec.CommandContext(ctx, c.subtitleExtractorPath,
+		"stream",
+		"--track", fmt.Sprintf("%d", trackNumber),
+		"--format", "webvtt",
+		mediaPath,
 	)
 
-	output, err := cmd.CombinedOutput()
+	output, err := cmd.Output()
 	if err != nil {
-		// Clean up empty file if extraction failed
-		os.Remove(outputPath)
-		return "", fmt.Errorf("ffmpeg subtitle extraction failed: %w, output: %s", err, string(output))
+		return "", fmt.Errorf("subtitle-extractor failed: %w", err)
 	}
 
-	// Verify the output file has content (extraction can produce empty files on timeout)
-	info, err := os.Stat(outputPath)
-	if err != nil {
-		return "", fmt.Errorf("subtitle file not created: %w", err)
+	// Write output to file
+	if err := os.WriteFile(outputPath, output, 0644); err != nil {
+		return "", fmt.Errorf("failed to write WebVTT file: %w", err)
 	}
-	if info.Size() == 0 {
+
+	// Verify non-empty output (at least WEBVTT header + some content)
+	if len(output) < 10 {
 		os.Remove(outputPath)
-		return "", fmt.Errorf("subtitle extraction produced empty file")
+		return "", fmt.Errorf("subtitle-extractor produced empty output")
 	}
 
 	return outputPath, nil
@@ -104,7 +126,7 @@ func (c *Converter) ConvertSRTToWebVTT(ctx context.Context, srtPath string) (str
 	return outputPath, nil
 }
 
-// ConvertASSToWebVTT converts an ASS/SSA file to WebVTT format using FFmpeg.
+// ConvertASSToWebVTT converts an ASS/SSA file to WebVTT format.
 func (c *Converter) ConvertASSToWebVTT(ctx context.Context, assPath string) (string, error) {
 	// Create cache directory
 	assHash := hashPath(assPath)
@@ -120,17 +142,16 @@ func (c *Converter) ConvertASSToWebVTT(ctx context.Context, assPath string) (str
 		return outputPath, nil
 	}
 
-	// Use FFmpeg for ASS conversion (preserves timing, strips styling)
-	cmd := exec.CommandContext(ctx, c.ffmpegPath,
-		"-i", assPath,
-		"-c:s", "webvtt",
-		"-y",
-		outputPath,
-	)
-
-	output, err := cmd.CombinedOutput()
+	// Read ASS file and convert in-process
+	assContent, err := os.ReadFile(assPath)
 	if err != nil {
-		return "", fmt.Errorf("ffmpeg ASS conversion failed: %w, output: %s", err, string(output))
+		return "", fmt.Errorf("failed to read ASS file: %w", err)
+	}
+
+	vttContent := ASSToWebVTT(string(assContent))
+
+	if err := os.WriteFile(outputPath, []byte(vttContent), 0644); err != nil {
+		return "", fmt.Errorf("failed to write WebVTT file: %w", err)
 	}
 
 	return outputPath, nil
@@ -213,6 +234,89 @@ func SRTToWebVTT(srtContent string) string {
 	}
 
 	return result.String()
+}
+
+// ASSToWebVTT converts ASS/SSA content to WebVTT format.
+func ASSToWebVTT(assContent string) string {
+	var result strings.Builder
+
+	// WebVTT header
+	result.WriteString("WEBVTT\n\n")
+
+	// Normalize line endings
+	content := strings.ReplaceAll(assContent, "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
+
+	// Remove BOM if present
+	content = strings.TrimPrefix(content, "\ufeff")
+
+	lines := strings.Split(content, "\n")
+
+	// Parse ASS dialogue lines
+	// Format: Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+	dialogueRegex := regexp.MustCompile(`^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,(.*)$`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		matches := dialogueRegex.FindStringSubmatch(line)
+		if matches == nil {
+			continue
+		}
+
+		startTime := convertASSTimestamp(matches[1])
+		endTime := convertASSTimestamp(matches[2])
+		text := stripASSTags(matches[3])
+
+		if text == "" {
+			continue
+		}
+
+		result.WriteString(fmt.Sprintf("%s --> %s\n", startTime, endTime))
+		result.WriteString(text)
+		result.WriteString("\n\n")
+	}
+
+	return result.String()
+}
+
+// convertASSTimestamp converts ASS timestamp (H:MM:SS.cc) to WebVTT (HH:MM:SS.mmm)
+func convertASSTimestamp(assTime string) string {
+	// ASS format: H:MM:SS.cc (centiseconds)
+	// WebVTT format: HH:MM:SS.mmm (milliseconds)
+	parts := strings.Split(assTime, ":")
+	if len(parts) != 3 {
+		return assTime
+	}
+
+	hours := parts[0]
+	minutes := parts[1]
+	secParts := strings.Split(parts[2], ".")
+	if len(secParts) != 2 {
+		return assTime
+	}
+
+	seconds := secParts[0]
+	centiseconds := secParts[1]
+
+	// Pad hours to 2 digits
+	if len(hours) == 1 {
+		hours = "0" + hours
+	}
+
+	// Convert centiseconds to milliseconds (multiply by 10)
+	ms := centiseconds + "0"
+
+	return fmt.Sprintf("%s:%s:%s.%s", hours, minutes, seconds, ms)
+}
+
+// stripASSTags removes ASS formatting tags from text
+func stripASSTags(text string) string {
+	// Remove {...} tags
+	result := regexp.MustCompile(`\{[^}]*\}`).ReplaceAllString(text, "")
+	// Convert \N and \n to actual newlines
+	result = strings.ReplaceAll(result, "\\N", "\n")
+	result = strings.ReplaceAll(result, "\\n", "\n")
+	return strings.TrimSpace(result)
 }
 
 // hashPath creates a simple hash from a file path for caching.

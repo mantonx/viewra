@@ -181,7 +181,7 @@ func BuildServices(
 
 	// Initialize subtitle converter (for WebVTT conversion)
 	subtitleCacheDir := cfg.Media.TranscodeOutputDir // Reuse transcode output dir for subtitle cache
-	subtitleConverter := subtitles.NewConverter("ffmpeg", subtitleCacheDir)
+	subtitleConverter := subtitles.NewConverter(subtitleCacheDir)
 
 	return &Services{
 		ImageCache:        imageCacheService,

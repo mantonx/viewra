@@ -74,6 +74,8 @@ func BuildHandlers(
 			svcs.CleanupService,
 			svcs.SessionManager,
 			infra.TranscodeOutputDir,
+			svcs.SubtitleConverter,
+			infra.Repos.Media,
 		)
 	}
 

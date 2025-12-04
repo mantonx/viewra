@@ -124,6 +124,7 @@ impl MkvContainer {
     }
 
     /// Stream using matroska-demuxer (when Cues work)
+    #[allow(clippy::too_many_arguments)]
     fn stream_with_demuxer<W: Write>(
         &mut self,
         track_num: u64,
@@ -134,6 +135,12 @@ impl MkvContainer {
         format: StreamFormat,
         out: &mut W,
     ) -> Result<()> {
+        // Write WebVTT header if needed
+        if matches!(format, StreamFormat::WebVtt) {
+            writeln!(out, "WEBVTT")?;
+            writeln!(out)?;
+        }
+
         let mut frame = Frame::default();
 
         while self.mkv.next_frame(&mut frame)? {
@@ -161,6 +168,7 @@ impl MkvContainer {
     }
 
     /// Stream using cluster cache + custom frame parser (when Cues fail)
+    #[allow(clippy::too_many_arguments)]
     fn stream_with_cache<W: Write>(
         &mut self,
         track_num: u64,
@@ -171,6 +179,12 @@ impl MkvContainer {
         format: StreamFormat,
         out: &mut W,
     ) -> Result<()> {
+        // Write WebVTT header if needed
+        if matches!(format, StreamFormat::WebVtt) {
+            writeln!(out, "WEBVTT")?;
+            writeln!(out)?;
+        }
+
         // Initialize cluster cache
         if self.cluster_cache.is_none() {
             self.cluster_cache = Some(ClusterCache::open(&self.path)?);
@@ -220,6 +234,7 @@ impl MkvContainer {
     }
 
     /// Write a subtitle frame to output
+    #[allow(clippy::too_many_arguments)]
     fn write_subtitle_frame<W: Write>(
         &self,
         out: &mut W,
@@ -252,6 +267,17 @@ impl MkvContainer {
             }
             StreamFormat::Raw => {
                 out.write_all(data)?;
+            }
+            StreamFormat::WebVtt => {
+                if is_text {
+                    let text = extract_text_content(data, codec)?;
+                    let start_time = format_timestamp(start_ms, true);
+                    let end_time = format_timestamp(end_ms, true);
+                    writeln!(out, "{} --> {}", start_time, end_time)?;
+                    writeln!(out, "{}", text)?;
+                    writeln!(out)?;
+                }
+                // Skip non-text subtitles for WebVTT format
             }
         }
         out.flush()?;

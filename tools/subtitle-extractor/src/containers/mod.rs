@@ -8,6 +8,7 @@ use anyhow::Result;
 use std::io::Write;
 use std::path::Path;
 
+#[allow(unused_imports)]
 pub use cluster_cache::ClusterCache;
 #[allow(unused_imports)]
 pub use ebml::{ClusterIndex, EbmlScanner, FrameStreamer, RawFrame};
@@ -68,6 +69,7 @@ impl OutputFormat {
 pub enum StreamFormat {
     Jsonl,
     Raw,
+    WebVtt,
 }
 
 impl StreamFormat {
@@ -75,9 +77,23 @@ impl StreamFormat {
         match s {
             "jsonl" => Ok(Self::Jsonl),
             "raw" => Ok(Self::Raw),
+            "webvtt" | "vtt" => Ok(Self::WebVtt),
             _ => anyhow::bail!("Unknown stream format: {}", s),
         }
     }
+}
+
+/// Format a timestamp in WebVTT format (HH:MM:SS.mmm)
+pub fn format_vtt_timestamp(ms: u64) -> String {
+    let hours = ms / 3_600_000;
+    let minutes = (ms % 3_600_000) / 60_000;
+    let seconds = (ms % 60_000) / 1_000;
+    let millis = ms % 1_000;
+
+    format!(
+        "{:02}:{:02}:{:02}.{:03}",
+        hours, minutes, seconds, millis
+    )
 }
 
 /// Enum-based container dispatch (avoids dyn trait issues with generics)

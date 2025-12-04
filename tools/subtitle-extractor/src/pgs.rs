@@ -158,6 +158,7 @@ fn ycbcr_to_rgba(y: u8, cb: u8, cr: u8, a: u8) -> (u8, u8, u8, u8) {
 }
 
 /// Encode RGBA buffer as PNG
+#[allow(dead_code)]
 pub fn encode_png(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>> {
     let mut png_data = Vec::new();
 

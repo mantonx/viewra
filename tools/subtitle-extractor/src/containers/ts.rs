@@ -35,6 +35,7 @@ struct SubtitlePacket {
 
 /// Shared state for collecting track info and packets
 struct TsState {
+    #[allow(dead_code)]
     streams: Vec<SubtitleStreamInfo>,
     packets: HashMap<u16, Vec<SubtitlePacket>>,
     target_pid: Option<u16>,
@@ -108,6 +109,7 @@ impl TsDemuxContext {
 /// Consumer for subtitle elementary streams
 pub struct SubtitleStreamConsumer {
     pid: packet::Pid,
+    #[allow(dead_code)]
     stream_type: StreamType,
     current_packet: Vec<u8>,
     current_pts: Option<u64>,
@@ -128,6 +130,7 @@ impl SubtitleStreamConsumer {
         TsFilterSwitch::Pes(filter)
     }
 
+    #[allow(dead_code)]
     fn with_state(
         stream_info: &psi::pmt::StreamInfo,
         stream_type: StreamType,
@@ -181,20 +184,17 @@ impl pes::ElementaryStreamConsumer<TsDemuxContext> for SubtitleStreamConsumer {
             let pid_val = u16::from(self.pid);
 
             // Only collect if this is our target PID and within time range
-            if target.map_or(true, |t| t == pid_val) {
-                if pts_ms >= start && (end == 0 || pts_ms <= end) {
-                    let packet = SubtitlePacket {
-                        pts_ms,
-                        data: std::mem::take(&mut self.current_packet),
-                    };
+            if target.is_none_or(|t| t == pid_val)
+                && pts_ms >= start
+                && (end == 0 || pts_ms <= end)
+            {
+                let packet = SubtitlePacket {
+                    pts_ms,
+                    data: std::mem::take(&mut self.current_packet),
+                };
 
-                    let mut state = self.state.borrow_mut();
-                    state
-                        .packets
-                        .entry(pid_val)
-                        .or_insert_with(Vec::new)
-                        .push(packet);
-                }
+                let mut state = self.state.borrow_mut();
+                state.packets.entry(pid_val).or_default().push(packet);
             }
         }
 
@@ -224,8 +224,6 @@ impl TsContainer {
     fn scan_streams(path: &Path) -> Result<Vec<SubtitleStreamInfo>> {
         let file = File::open(path).context("Failed to open TS file")?;
         let mut reader = BufReader::new(file);
-        let mut streams = Vec::new();
-
         // Read first few MB to find PMT with subtitle streams
         let mut buf = vec![0u8; 188 * 1024];
         let mut total_read = 0;
@@ -248,9 +246,7 @@ impl TsContainer {
         // Extract stream info from PMT
         // Since we can't easily get this from the demux context,
         // we'll use a simpler approach: parse PMT manually
-        streams = Self::parse_pmt_for_subtitles(path)?;
-
-        Ok(streams)
+        Self::parse_pmt_for_subtitles(path)
     }
 
     fn parse_pmt_for_subtitles(path: &Path) -> Result<Vec<SubtitleStreamInfo>> {
@@ -274,18 +270,17 @@ impl TsContainer {
             TS_PACKET_SIZE // Plain TS
         } else {
             // Try to find sync byte
-            let mut found = false;
-            for i in 0..bytes_read.saturating_sub(TS_PACKET_SIZE) {
-                if detect_buf[i] == 0x47 {
-                    file.seek(std::io::SeekFrom::Start(i as u64))?;
-                    found = true;
-                    break;
+            let sync_pos = detect_buf
+                .iter()
+                .take(bytes_read.saturating_sub(TS_PACKET_SIZE))
+                .position(|&b| b == 0x47);
+            match sync_pos {
+                Some(pos) => {
+                    file.seek(std::io::SeekFrom::Start(pos as u64))?;
+                    TS_PACKET_SIZE
                 }
+                None => anyhow::bail!("Could not find TS sync byte"),
             }
-            if !found {
-                anyhow::bail!("Could not find TS sync byte");
-            }
-            TS_PACKET_SIZE
         };
 
         let offset = if packet_size == M2TS_PACKET_SIZE {
@@ -475,6 +470,15 @@ impl TsContainer {
         // Read and extract subtitle packets
         let packets = self.extract_packets(target_pid, start_ms, end_ms)?;
 
+        // Write WebVTT header if needed (though TS subtitles are typically bitmap/PGS)
+        if matches!(format, StreamFormat::WebVtt) {
+            writeln!(out, "WEBVTT")?;
+            writeln!(out)?;
+            // PGS subtitles cannot be converted to WebVTT (bitmap format)
+            // Return empty WebVTT file - caller should handle this by burning in subs
+            return Ok(());
+        }
+
         for packet in packets {
             match format {
                 StreamFormat::Jsonl => {
@@ -488,6 +492,9 @@ impl TsContainer {
                 }
                 StreamFormat::Raw => {
                     out.write_all(&packet.data)?;
+                }
+                StreamFormat::WebVtt => {
+                    // Already handled above - PGS can't be converted to text
                 }
             }
             out.flush()?;
@@ -624,13 +631,11 @@ impl TsContainer {
 
         // Don't forget last packet
         if let Some(pts) = current_pts {
-            if !current_pes.is_empty() {
-                if pts >= start_ms && (end_ms == 0 || pts <= end_ms) {
-                    packets.push(SubtitlePacket {
-                        pts_ms: pts,
-                        data: current_pes,
-                    });
-                }
+            if !current_pes.is_empty() && pts >= start_ms && (end_ms == 0 || pts <= end_ms) {
+                packets.push(SubtitlePacket {
+                    pts_ms: pts,
+                    data: current_pes,
+                });
             }
         }
 
@@ -720,15 +725,18 @@ impl TsContainer {
             let payload = &packet[payload_offset..];
 
             // Check for PES packet with PTS
-            if payload.len() >= 14 && payload[0] == 0 && payload[1] == 0 && payload[2] == 1 {
-                if (payload[7] & 0x80) != 0 {
-                    let pts = ((payload[9] as u64 & 0x0e) << 29)
-                        | ((payload[10] as u64) << 22)
-                        | ((payload[11] as u64 & 0xfe) << 14)
-                        | ((payload[12] as u64) << 7)
-                        | ((payload[13] as u64) >> 1);
-                    return Ok(Some(pts / 90)); // Convert to ms
-                }
+            if payload.len() >= 14
+                && payload[0] == 0
+                && payload[1] == 0
+                && payload[2] == 1
+                && (payload[7] & 0x80) != 0
+            {
+                let pts = ((payload[9] as u64 & 0x0e) << 29)
+                    | ((payload[10] as u64) << 22)
+                    | ((payload[11] as u64 & 0xfe) << 14)
+                    | ((payload[12] as u64) << 7)
+                    | ((payload[13] as u64) >> 1);
+                return Ok(Some(pts / 90)); // Convert to ms
             }
         }
 
@@ -763,14 +771,3 @@ impl TsContainer {
 }
 
 use std::io::Seek;
-
-trait SeekRelative {
-    fn seek_relative(&mut self, offset: i64) -> std::io::Result<()>;
-}
-
-impl<R: Read + Seek> SeekRelative for BufReader<R> {
-    fn seek_relative(&mut self, offset: i64) -> std::io::Result<()> {
-        self.seek(std::io::SeekFrom::Current(offset))?;
-        Ok(())
-    }
-}

@@ -62,6 +62,7 @@ pub struct ClusterCache {
     clusters: BTreeMap<u64, CachedCluster>,
 
     /// Track if we've fully indexed the file
+    #[allow(dead_code)]
     fully_indexed: bool,
 }
 
@@ -140,7 +141,7 @@ impl ClusterCache {
         const MAX_ITERATIONS: usize = 10;
         let mut best_cluster: Option<CachedCluster> = None;
 
-        for iteration in 0..MAX_ITERATIONS {
+        for _iteration in 0..MAX_ITERATIONS {
             if high_pos <= low_pos || high_pos - low_pos < 512 * 1024 {
                 // Close enough, final refinement
                 break;
@@ -266,6 +267,7 @@ impl ClusterCache {
     }
 
     /// Instance method wrapper for find_cluster_near_static
+    #[allow(dead_code)]
     fn find_cluster_near(&self, reader: &mut BufReader<File>, pos: u64) -> Result<Option<CachedCluster>> {
         Self::find_cluster_near_static(reader, pos, self.timestamp_scale)
     }
@@ -359,6 +361,7 @@ impl ClusterCache {
     }
 
     /// Index a region around the current playback position (for prefetching)
+    #[allow(dead_code)]
     pub fn index_region(&mut self, center_ms: u64, radius_ms: u64) -> Result<usize> {
         let start_ms = center_ms.saturating_sub(radius_ms);
         let end_ms = center_ms + radius_ms;
@@ -432,11 +435,13 @@ impl ClusterCache {
     }
 
     /// Get the byte offset to seek to for a given timestamp
+    #[allow(dead_code)]
     pub fn get_seek_offset(&mut self, target_ms: u64) -> Result<Option<u64>> {
         Ok(self.find_cluster(target_ms)?.map(|c| c.data_offset))
     }
 
     /// Get cache statistics
+    #[allow(dead_code)]
     pub fn stats(&self) -> (usize, bool) {
         (self.clusters.len(), self.fully_indexed)
     }

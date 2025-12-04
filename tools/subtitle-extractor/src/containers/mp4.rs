@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 
-use super::{OutputFormat, StreamFormat, SubtitleFrame, TrackInfo, TrackType};
+use super::{format_vtt_timestamp, OutputFormat, StreamFormat, SubtitleFrame, TrackInfo, TrackType};
 
 pub struct Mp4Container {
     path: PathBuf,
@@ -75,7 +75,7 @@ impl Mp4Container {
     pub fn extract_track<W: Write>(
         &mut self,
         track_num: u64,
-        format: OutputFormat,
+        _format: OutputFormat,
         out: &mut W,
     ) -> Result<()> {
         // For now, just stream all frames
@@ -118,6 +118,12 @@ impl Mp4Container {
         // Read all samples for the track
         let sample_count = mp4.sample_count(track_id)?;
 
+        // Write WebVTT header if needed
+        if matches!(format, StreamFormat::WebVtt) {
+            writeln!(out, "WEBVTT")?;
+            writeln!(out)?;
+        }
+
         for sample_id in 1..=sample_count {
             // Read sample data (includes timing info)
             let sample = match mp4.read_sample(track_id, sample_id)? {
@@ -144,17 +150,7 @@ impl Mp4Container {
                 StreamFormat::Jsonl => {
                     let sub_frame = if is_text {
                         // tx3g format: 2 bytes length + UTF-8 text
-                        let text = if sample.bytes.len() >= 2 {
-                            let text_len =
-                                u16::from_be_bytes([sample.bytes[0], sample.bytes[1]]) as usize;
-                            if sample.bytes.len() >= 2 + text_len {
-                                String::from_utf8_lossy(&sample.bytes[2..2 + text_len]).to_string()
-                            } else {
-                                String::from_utf8_lossy(&sample.bytes[2..]).to_string()
-                            }
-                        } else {
-                            String::new()
-                        };
+                        let text = Self::extract_tx3g_text(&sample.bytes);
 
                         SubtitleFrame {
                             start_ms: sample_offset_ms,
@@ -175,10 +171,37 @@ impl Mp4Container {
                 StreamFormat::Raw => {
                     out.write_all(&sample.bytes)?;
                 }
+                StreamFormat::WebVtt => {
+                    if is_text {
+                        let text = Self::extract_tx3g_text(&sample.bytes);
+                        if !text.is_empty() {
+                            let start_time = format_vtt_timestamp(sample_offset_ms);
+                            let end_time = format_vtt_timestamp(frame_end_ms);
+                            writeln!(out, "{} --> {}", start_time, end_time)?;
+                            writeln!(out, "{}", text)?;
+                            writeln!(out)?;
+                        }
+                    }
+                    // Skip non-text subtitles for WebVTT format
+                }
             }
             out.flush()?;
         }
 
         Ok(())
+    }
+
+    /// Extract text from tx3g format (2 bytes length + UTF-8 text)
+    fn extract_tx3g_text(data: &[u8]) -> String {
+        if data.len() >= 2 {
+            let text_len = u16::from_be_bytes([data[0], data[1]]) as usize;
+            if data.len() >= 2 + text_len {
+                String::from_utf8_lossy(&data[2..2 + text_len]).to_string()
+            } else {
+                String::from_utf8_lossy(&data[2..]).to_string()
+            }
+        } else {
+            String::new()
+        }
     }
 }

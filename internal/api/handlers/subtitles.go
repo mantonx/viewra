@@ -1,19 +1,14 @@
 package handlers
 
 import (
-	"io"
 	"net/http"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/media"
 	domainMedia "github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
 )
-
-// Note: io, os/exec, and strconv are still used by StreamTextSubtitle
 
 // SubtitleHandler handles subtitle streaming requests.
 type SubtitleHandler struct {
@@ -224,7 +219,7 @@ func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 
 // StreamTextSubtitle handles GET /api/media/:id/subtitles/text/:index/stream
 // @Summary Stream embedded text subtitle as WebVTT
-// @Description Streams the embedded subtitle stream, converting SRT to WebVTT on-the-fly
+// @Description Streams the embedded subtitle stream, converting to WebVTT
 // @Tags subtitles
 // @Produce text/vtt
 // @Param id path int true "Media ID"
@@ -244,11 +239,38 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 
-	streamIndex, err := parseID(c.Param("index"))
+	relativeIndex, err := parseID(c.Param("index"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error:   "Invalid stream index",
 			Message: err.Error(),
+		})
+		return
+	}
+
+	// Get subtitle tracks to convert relative index to absolute stream index
+	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	// Filter to only text (non-bitmap) subtitles and find the one at relative index
+	textTrackCount := int64(0)
+	var targetTrack *domainMedia.SubtitleTrack
+	for _, t := range tracks {
+		if !t.IsBitmap && t.StreamIndex != nil {
+			if textTrackCount == relativeIndex {
+				targetTrack = t
+				break
+			}
+			textTrackCount++
+		}
+	}
+
+	if targetTrack == nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "Subtitle track not found",
 		})
 		return
 	}
@@ -260,70 +282,28 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Stream the subtitle using FFmpeg
-	// Extract as SRT (fast demux) and convert to WebVTT on-the-fly
-	ctx := c.Request.Context()
-
-	// Use FFmpeg to extract subtitle as SRT
-	// -map 0:s:N selects the Nth subtitle stream (0-based)
-	// -c:s srt copies as SRT format (fast, just demuxing)
-	cmd := exec.CommandContext(ctx, "ffmpeg",
-		"-i", mediaResp.FilePath,
-		"-map", "0:s:"+strconv.FormatInt(streamIndex, 10),
-		"-c:s", "srt",
-		"-f", "srt",
-		"pipe:1",
-	)
-
-	// Get stdout pipe for streaming
-	stdout, err := cmd.StdoutPipe()
+	// Use the converter which handles subtitle-extractor with FFmpeg fallback
+	vttPath, err := h.converter.ExtractAndConvert(c.Request.Context(), mediaResp.FilePath, *targetTrack.StreamIndex)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to create pipe",
+			Error:   "Failed to extract subtitle",
 			Message: err.Error(),
 		})
 		return
 	}
 
-	// Start the command
-	if err := cmd.Start(); err != nil {
+	// Read and serve the WebVTT content
+	vttContent, err := subtitles.GetWebVTTContent(vttPath)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to start FFmpeg",
+			Error:   "Failed to read subtitle file",
 			Message: err.Error(),
 		})
 		return
 	}
 
-	// Set headers for WebVTT streaming
 	c.Header("Content-Type", "text/vtt; charset=utf-8")
 	c.Header("Cache-Control", "public, max-age=86400")
-
-	// Read all SRT content from FFmpeg (fast, just demuxing)
-	srtContent, err := io.ReadAll(stdout)
-	if err != nil {
-		cmd.Wait()
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to read subtitle stream",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	// Wait for FFmpeg to finish
-	if err := cmd.Wait(); err != nil {
-		// Check if we got any content - sometimes FFmpeg returns error but still outputs
-		if len(srtContent) == 0 {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "FFmpeg subtitle extraction failed",
-				Message: err.Error(),
-			})
-			return
-		}
-	}
-
-	// Convert SRT to WebVTT
-	vttContent := subtitles.SRTToWebVTT(string(srtContent))
-
 	c.String(http.StatusOK, vttContent)
 }
 
