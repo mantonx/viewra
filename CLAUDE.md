@@ -50,6 +50,24 @@ make api-client-gen   # Generate TypeScript API client
 ~/go/bin/sqlc generate # Generate Go code from SQL
 ```
 
+## API Testing
+
+Dev credentials: `dev` / `dev`
+
+```bash
+# Helper script with auto-auth (caches token for 10 min)
+./scripts/api /api/media/147440              # GET request
+./scripts/api /api/media/147440/tracks       # GET tracks
+./scripts/api POST /api/libraries/1/scan     # POST request
+./scripts/api /health                        # Health check
+
+# Manual curl (if needed)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"dev","password":"dev"}' | jq -r '.AccessToken')
+curl -s http://localhost:8080/api/media/147440 -H "Authorization: Bearer $TOKEN"
+```
+
 ## Key Rules
 
 1. **Dual DB**: All SQL must work on SQLite AND PostgreSQL

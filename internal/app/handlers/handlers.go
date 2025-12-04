@@ -69,6 +69,7 @@ func BuildHandlers(
 			cases.Transcode.ServeManifest,
 			cases.Transcode.ServeMasterPlaylist,
 			cases.Transcode.ServeAudioPlaylist,
+			cases.Media.Get,
 			svcs.TranscodeQueue,
 			svcs.CleanupService,
 			svcs.SessionManager,

@@ -52,6 +52,7 @@ func (p *SettingsConfigProvider) GetConfig(ctx context.Context) *transcoding.Tra
 		ToneMappingBackend:         p.baseConfig.ToneMappingBackend,
 		LibPlaceboPeakDetect:       p.baseConfig.LibPlaceboPeakDetect,
 		LibPlaceboContrastRecovery: p.baseConfig.LibPlaceboContrastRecovery,
+		SubtitleBurnIn:             p.baseConfig.SubtitleBurnIn,
 	}
 
 	// If no settings service, return base config
@@ -80,6 +81,13 @@ func (p *SettingsConfigProvider) GetConfig(ctx context.Context) *transcoding.Tra
 	if effectiveValue, err := p.settingsService.GetEffectiveSystemValue(ctx, "transcoding.min_free_disk_gb"); err == nil {
 		if minDisk, ok := effectiveValue.Value.(int); ok {
 			config.MinFreeDiskGB = int64(minDisk)
+		}
+	}
+
+	// Subtitle burn-in (default: false)
+	if effectiveValue, err := p.settingsService.GetEffectiveSystemValue(ctx, "transcoding.subtitle_burn_in"); err == nil {
+		if burnIn, ok := effectiveValue.Value.(bool); ok {
+			config.SubtitleBurnIn = burnIn
 		}
 	}
 

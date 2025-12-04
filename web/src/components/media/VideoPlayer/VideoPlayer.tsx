@@ -15,6 +15,7 @@ import { useVideoEvents } from '@/lib/hooks/useVideoEvents'
 import { useVideoKeyboard } from '@/lib/hooks/useVideoKeyboard'
 import { useVideoControls } from '@/lib/hooks/useVideoControls'
 import { useSubtitles, type SubtitleSelection } from '@/lib/hooks/useSubtitles'
+import { calculateRelativeStreamIndex } from '@/lib/types/subtitles'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VideoControls } from './VideoControls'
 import { StatsPanel } from './StatsPanel'
@@ -51,26 +52,28 @@ export const VideoPlayer = ({
   const [isPiP, setIsPiP] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const [showDebugOverlay, setShowDebugOverlay] = useState(false)
-  const [recommendedQuality, setRecommendedQuality] = useState<QualityRecommendationResponse | null>(null)
+  const [recommendedQuality, setRecommendedQuality] =
+    useState<QualityRecommendationResponse | null>(null)
 
   // Fetch subtitle tracks from API
   const { data: tracksData } = useGetApiMediaIdTracks(mediaId)
-  const subtitleTracksFromApi = tracksData?.status === 200 ? tracksData.data.subtitle_tracks || [] : []
+  const subtitleTracksFromApi =
+    tracksData?.status === 200 ? tracksData.data.subtitle_tracks || [] : []
 
   // Track burn-in subtitle state for stream URL modification
+  // PGS/bitmap subtitles always use burn-in (Emby-style approach)
   const [burnInSelection, setBurnInSelection] = useState<SubtitleSelection | null>(null)
 
   // Handle burn-in subtitle changes - requires new stream URL
   const handleBurnInSubtitleChange = useCallback((selection: SubtitleSelection | null) => {
+    console.log('[VideoPlayer] Burn-in subtitle change received:', selection)
     setBurnInSelection(selection)
   }, [])
 
   // Subtitle track management
-  const {
-    availableSubtitles,
-    currentSubtitle,
-    setCurrentSubtitle,
-  } = useSubtitles({
+  // PGS/bitmap subtitles use burn-in during transcode (Emby-style approach)
+  // Text subtitles use HLS native subtitle support or direct VTT overlay
+  const { availableSubtitles, currentSubtitle, setCurrentSubtitle } = useSubtitles({
     subtitleTracks: subtitleTracksFromApi,
     preferredLanguage: 'eng', // TODO: Get from user settings
     preferSDH: false,
@@ -114,7 +117,10 @@ export const VideoPlayer = ({
     onError: setError,
     onFragLoaded: (bytes, durationMs) => recordSample(bytes, durationMs),
     qualityRecommendation: qualityRecommendation.recommendation
-      ? { height: qualityRecommendation.recommendation.height, isReady: qualityRecommendation.isReady }
+      ? {
+          height: qualityRecommendation.recommendation.height,
+          isReady: qualityRecommendation.isReady,
+        }
       : null,
   })
 
@@ -127,6 +133,19 @@ export const VideoPlayer = ({
 
   // Track the currently loaded stream URL to detect when burn-in changes require reload
   const currentLoadedUrlRef = useRef<string>(effectiveStreamUrl)
+
+  // Helper to build HLS URL with subtitle and optional start position
+  const buildHlsUrlWithParams = useCallback(
+    (streamIndex: number, startPosition?: number): string => {
+      const params = new URLSearchParams()
+      params.set('sub', String(streamIndex))
+      if (startPosition !== undefined && startPosition > 0) {
+        params.set('start', String(Math.floor(startPosition)))
+      }
+      return `/api/media/${mediaId}/hls/master.m3u8?${params.toString()}`
+    },
+    [mediaId]
+  )
 
   // Handle burn-in subtitle changes - reload stream with subtitle parameter
   // For DirectPlay streams, we need to switch to HLS to enable burn-in
@@ -145,13 +164,17 @@ export const VideoPlayer = ({
 
     // If we're in DirectPlay mode, we need to switch to HLS for burn-in
     if (!isHlsStream && !hlsUrlForBurnIn) {
-      // Build HLS URL with burn-in subtitle
-      // The original streamUrl is like /api/stream/{id}, we need /api/media/{id}/hls/master.m3u8
-      const hlsUrl = `/api/media/${mediaId}/hls/master.m3u8?sub=${streamIndex}`
+      // Build HLS URL with burn-in subtitle and current position
+      // Use initialPosition for first load, or current video time if already playing
+      const video = videoRef.current
+      const currentPos = video && video.currentTime > 0 ? video.currentTime : initialPosition
+
+      const hlsUrl = buildHlsUrlWithParams(streamIndex, currentPos)
       console.log('[VideoPlayer] Switching from DirectPlay to HLS for burn-in subtitle:', {
         originalUrl: streamUrl,
         hlsUrl,
         streamIndex,
+        startPosition: currentPos,
       })
       setHlsUrlForBurnIn(hlsUrl)
       currentLoadedUrlRef.current = hlsUrl
@@ -196,20 +219,29 @@ export const VideoPlayer = ({
         video.addEventListener('canplay', handleCanPlay)
       }
     }
-  }, [burnInSelection, streamUrl, isHlsStream, loadSource, hlsRef, videoRef, streamOffsetRef, mediaId, hlsUrlForBurnIn, effectiveStreamUrl])
+  }, [
+    burnInSelection,
+    streamUrl,
+    isHlsStream,
+    loadSource,
+    hlsRef,
+    videoRef,
+    streamOffsetRef,
+    hlsUrlForBurnIn,
+    effectiveStreamUrl,
+    initialPosition,
+    buildHlsUrlWithParams,
+  ])
 
   // Auto quality control
-  const handleAutoQualityChange = useCallback((level: { name: string; height: number }, _reason: string) => {
-    setCurrentQuality(level.height)
-  }, [setCurrentQuality])
+  const handleAutoQualityChange = useCallback(
+    (level: { name: string; height: number }, _reason: string) => {
+      setCurrentQuality(level.height)
+    },
+    [setCurrentQuality]
+  )
 
-  const {
-    isAutoMode,
-    setAutoMode,
-    recordSample,
-    recordStall,
-    networkStats,
-  } = useAutoQuality({
+  const { isAutoMode, setAutoMode, recordSample, recordStall, networkStats } = useAutoQuality({
     enabled: isHlsStream,
     hlsInstance: hlsRef.current,
     onQualityChange: handleAutoQualityChange,
@@ -308,7 +340,7 @@ export const VideoPlayer = ({
     videoRef,
     containerRef: videoContainerRef,
     videoDuration,
-    onToggleDebug: () => setShowDebugOverlay(prev => !prev),
+    onToggleDebug: () => setShowDebugOverlay((prev) => !prev),
   })
 
   // Browser close progress save
@@ -347,33 +379,56 @@ export const VideoPlayer = ({
   }, [isAutoMode, setAutoMode, setCurrentQuality, hlsRef])
 
   // Handle quality change with analytics
-  const handleQualityChange = useCallback((height: number, bandwidth?: number) => {
-    const video = videoRef.current
-    const previousQuality = currentQuality ? `${currentQuality}p` : null
+  const handleQualityChange = useCallback(
+    (height: number, bandwidth?: number) => {
+      const video = videoRef.current
+      const previousQuality = currentQuality ? `${currentQuality}p` : null
 
-    if (height === 0) {
-      changeQuality(0)
-      setAutoMode(true)
-      recordQualitySwitch(previousQuality, 'auto', 'user_manual', video?.currentTime || 0, null, null)
-    } else {
-      const levelIndex = changeQuality(height, bandwidth)
-      if (levelIndex !== null) {
-        setAutoMode(false)
-        recordQualitySwitch(previousQuality, `${height}p`, 'user_manual', video?.currentTime || 0, null, null)
+      if (height === 0) {
+        changeQuality(0)
+        setAutoMode(true)
+        recordQualitySwitch(
+          previousQuality,
+          'auto',
+          'user_manual',
+          video?.currentTime || 0,
+          null,
+          null
+        )
+      } else {
+        const levelIndex = changeQuality(height, bandwidth)
+        if (levelIndex !== null) {
+          setAutoMode(false)
+          recordQualitySwitch(
+            previousQuality,
+            `${height}p`,
+            'user_manual',
+            video?.currentTime || 0,
+            null,
+            null
+          )
+        }
       }
-    }
-  }, [changeQuality, currentQuality, recordQualitySwitch, setAutoMode])
+    },
+    [changeQuality, currentQuality, recordQualitySwitch, setAutoMode]
+  )
 
   // Handle audio track change
-  const handleAudioTrackChange = useCallback((trackId: number) => {
-    changeAudioTrack(trackId)
-  }, [changeAudioTrack])
+  const handleAudioTrackChange = useCallback(
+    (trackId: number) => {
+      changeAudioTrack(trackId)
+    },
+    [changeAudioTrack]
+  )
 
   // Handle playback speed with state update
-  const handleSpeedChange = useCallback((speed: number) => {
-    handlePlaybackSpeedChange(speed)
-    setPlaybackSpeed(speed)
-  }, [handlePlaybackSpeedChange])
+  const handleSpeedChange = useCallback(
+    (speed: number) => {
+      handlePlaybackSpeedChange(speed)
+      setPlaybackSpeed(speed)
+    },
+    [handlePlaybackSpeedChange]
+  )
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -429,14 +484,28 @@ export const VideoPlayer = ({
           Your browser does not support the video tag.
         </video>
 
-        {/* Subtitle overlay - positioned above controls */}
-        {/* Only render for text subtitles; bitmap subtitles use burn-in */}
-        <SubtitleOverlay
-          videoRef={videoRef}
-          mediaId={mediaId}
-          trackId={burnInSelection?.requiresBurnIn ? null : currentSubtitle}
-          streamOffsetRef={streamOffsetRef}
-        />
+        {/* Subtitle overlay - only for DirectPlay mode */}
+        {/* HLS streams use native browser subtitle rendering via HLS.js textTracks */}
+        {/* PGS/bitmap subtitles use burn-in during transcode (no overlay needed) */}
+        {!effectiveIsHlsStream && !burnInSelection?.requiresBurnIn && (
+          <SubtitleOverlay
+            videoRef={videoRef}
+            mediaId={mediaId}
+            trackId={currentSubtitle}
+            streamIndex={
+              // Get stream index for the current text subtitle (enables fast streaming extraction)
+              currentSubtitle
+                ? (() => {
+                    const track = availableSubtitles.find(t => t.id === currentSubtitle)
+                    if (!track) return undefined
+                    const idx = calculateRelativeStreamIndex(track, availableSubtitles)
+                    return idx >= 0 ? idx : undefined
+                  })()
+                : undefined
+            }
+            streamOffsetRef={streamOffsetRef}
+          />
+        )}
 
         {/* Stats panel */}
         <StatsPanel
@@ -481,7 +550,7 @@ export const VideoPlayer = ({
           onSubtitleChange={setCurrentSubtitle}
           onSpeedChange={handleSpeedChange}
           onSkip={handleSkip}
-          onToggleStats={() => setShowDebugOverlay(prev => !prev)}
+          onToggleStats={() => setShowDebugOverlay((prev) => !prev)}
         />
       </div>
     </div>

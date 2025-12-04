@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -90,8 +92,9 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 		"session_id", s.ID,
 		"command", fmt.Sprintf("ffmpeg %s", strings.Join(args, " ")))
 
-	// Create FFmpeg command
-	s.FFmpegCmd = exec.CommandContext(s.ctx, "ffmpeg", args...)
+	// Create FFmpeg command with memory limits via systemd-run (if available)
+	// This provides a hard cgroup limit as a safety net against memory spikes
+	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config.MaxMemoryMB, s.logger)
 
 	// Capture both stdout and stderr
 	stderr, err := s.FFmpegCmd.StderrPipe()
@@ -395,7 +398,11 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 	builder := NewFFmpegArgsBuilder(opts)
 
 	// Add hardware acceleration args (if not None)
-	if hwAccel != AccelNone && strategy == Transcode {
+	// IMPORTANT: Skip hardware decoding when subtitle burn-in is requested.
+	// PGS subtitle overlay requires CPU-based processing, and mixing CUDA hwdownload
+	// with overlay causes "Input frame is not in the configured hwframe context" errors.
+	// We still use the hardware ENCODER (h264_nvenc, etc.) but decode in software.
+	if hwAccel != AccelNone && strategy == Transcode && !s.BurnInSubtitle {
 		builder.AddHardwareAccel(GetHardwareAccelArgsWithDevice(hwAccel, hwDevice))
 
 		// For NVENC and QSV with HDR content, initialize OpenCL device for GPU tone mapping
@@ -414,6 +421,11 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 			}
 		}
 	}
+
+	// Add memory safety options for ALL transcoding operations to prevent OOM crashes
+	// Memory-intensive operations include: PGS subtitle burn-in, HDR tone mapping (especially
+	// libplacebo with peak_detect), 4K scaling, and complex filter chains
+	builder.AddMemorySafetyOptions(config.MaxMemoryMB)
 
 	builder.AddSeekPosition().AddInput().AddTimestampReset()
 
@@ -448,10 +460,13 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		builder.AddVideoCodec(videoEncoder, videoPreset)
 
 		// Use hardware or software encoding
-		if hwAccel != AccelNone {
+		// When subtitle burn-in is enabled, use software filters even with hardware encoder
+		// because PGS overlay requires CPU-based processing
+		if hwAccel != AccelNone && !s.BurnInSubtitle {
 			builder.AddHardwareVideoEncoding(hwAccel)
 		} else {
-			// Software encoding - use veryfast preset for real-time
+			// Software encoding path - also used for hardware encoder with subtitle burn-in
+			// The encoder (h264_nvenc, etc.) is still hardware, but filters are software-based
 			builder.AddVideoEncoding()
 		}
 
@@ -484,8 +499,8 @@ func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int,
 		"audio_track", audioTrackIndex,
 		"command", fmt.Sprintf("ffmpeg %s", strings.Join(args, " ")))
 
-	// Create FFmpeg command
-	s.FFmpegCmd = exec.CommandContext(s.ctx, "ffmpeg", args...)
+	// Create FFmpeg command with memory limits via systemd-run (if available)
+	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config.MaxMemoryMB, s.logger)
 
 	// Capture stderr for error logging
 	stderr, err := s.FFmpegCmd.StderrPipe()
@@ -591,6 +606,56 @@ func (s *TranscodeSession) buildAudioOnlyFFmpegArgs(inputPath string, audioTrack
 // This matches the key format used by GetOrCreateAudioSession.
 func AudioQualityKey(audioTrackIndex int) string {
 	return fmt.Sprintf("audio_%d", audioTrackIndex)
+}
+
+
+// createFFmpegCommand creates an FFmpeg command with memory limits via systemd-run (if available).
+// On Linux with systemd, this wraps FFmpeg with cgroup memory limits as a hard safety net
+// against memory spikes from subtitle burn-in, HDR tone mapping, or complex filter chains.
+// Falls back to regular exec.CommandContext on other platforms or when systemd-run isn't available.
+func createFFmpegCommand(ctx context.Context, args []string, maxMemoryMB int, logger *slog.Logger) *exec.Cmd {
+	// On Linux with systemd, use systemd-run to apply memory limits
+	if runtime.GOOS == "linux" && maxMemoryMB > 0 {
+		if _, err := exec.LookPath("systemd-run"); err == nil {
+			// Apply 2x multiplier for virtual memory headroom (shared libs, mmap, etc.)
+			// The -max_alloc FFmpeg flag handles the tight limit; this is a safety net
+			limitMB := maxMemoryMB * 2
+
+			// Build systemd-run command with memory limit
+			// --scope: Run as a transient scope unit (not a service)
+			// --user: Run in user session (no root required)
+			// -p MemoryMax: Hard memory limit
+			// -p MemorySwapMax=0: Prevent swapping (fail fast rather than thrash)
+			systemdArgs := []string{
+				"--scope",
+				"--user",
+				"-p", fmt.Sprintf("MemoryMax=%dM", limitMB),
+				"-p", "MemorySwapMax=0",
+				"--", // End of systemd-run options
+				"ffmpeg",
+			}
+			systemdArgs = append(systemdArgs, args...)
+
+			logger.Debug("Using systemd-run for memory-limited FFmpeg",
+				"memory_limit_mb", limitMB,
+				"ffmpeg_max_alloc_mb", maxMemoryMB)
+
+			cmd := exec.CommandContext(ctx, "systemd-run", systemdArgs...)
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Setpgid: true, // Create new process group for clean shutdown
+			}
+			return cmd
+		}
+	}
+
+	// Fallback: no system-level memory limit, rely on FFmpeg's -max_alloc
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	if runtime.GOOS != "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setpgid: true,
+		}
+	}
+	return cmd
 }
 
 // selectBestCodec selects the best codec for transcoding based on:

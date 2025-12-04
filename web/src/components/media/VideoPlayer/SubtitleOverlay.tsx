@@ -17,6 +17,8 @@ interface SubtitleOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement | null>
   mediaId: number
   trackId: number | null
+  /** Stream index for embedded subtitles - enables fast streaming extraction */
+  streamIndex?: number
   streamOffsetRef: React.RefObject<number>
   /** Manual subtitle timing adjustment in seconds (positive = delay subtitles, negative = advance) */
   subtitleDelay?: number
@@ -73,16 +75,19 @@ const parseVTT = (content: string): Cue[] => {
   return cues
 }
 
-export const SubtitleOverlay = ({ videoRef, mediaId, trackId, streamOffsetRef, subtitleDelay = 0 }: SubtitleOverlayProps) => {
+export const SubtitleOverlay = ({ videoRef, mediaId, trackId, streamIndex, streamOffsetRef, subtitleDelay = 0 }: SubtitleOverlayProps) => {
   const [cues, setCues] = useState<Cue[]>([])
   const [currentText, setCurrentText] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const lastTrackIdRef = useRef<number | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Fetch and parse subtitle when track changes
   useEffect(() => {
     if (trackId === null) {
       setCues([])
       setCurrentText('')
+      setIsLoading(false)
       lastTrackIdRef.current = null
       return
     }
@@ -92,25 +97,55 @@ export const SubtitleOverlay = ({ videoRef, mediaId, trackId, streamOffsetRef, s
       return
     }
 
+    // Abort previous request if still in progress
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
     lastTrackIdRef.current = trackId
+    setIsLoading(true)
+    setCues([]) // Clear old cues while loading
+
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
 
     const fetchSubtitle = async () => {
       try {
-        const response = await authFetch(`/api/media/${mediaId}/subtitles/${trackId}`)
+        // Use fast streaming endpoint when streamIndex is available (embedded subtitles)
+        // This extracts via demuxing rather than scanning the entire file
+        // Fall back to trackId endpoint for external subtitles (no streamIndex)
+        const url =
+          streamIndex !== undefined
+            ? `/api/media/${mediaId}/subtitles/text/${streamIndex}/stream`
+            : `/api/media/${mediaId}/subtitles/${trackId}`
+
+        const response = await authFetch(url, {
+          signal: abortController.signal,
+        })
         if (!response.ok) {
+          setIsLoading(false)
           return
         }
 
         const vttContent = await response.text()
         const parsedCues = parseVTT(vttContent)
         setCues(parsedCues)
+        setIsLoading(false)
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return // Request was aborted, ignore
+        }
         console.error('Failed to load subtitle:', err)
+        setIsLoading(false)
       }
     }
 
     fetchSubtitle()
-  }, [mediaId, trackId])
+
+    return () => {
+      abortController.abort()
+    }
+  }, [mediaId, trackId, streamIndex])
 
   // Use requestAnimationFrame for precise subtitle timing
   useEffect(() => {

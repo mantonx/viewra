@@ -92,6 +92,14 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	}
 	strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
 
+	// Step 3b: Force transcode if subtitle burn-in is requested
+	// Subtitle burn-in requires video re-encoding - can't be done with remux (copy)
+	// PGS/bitmap subtitles ALWAYS use burn-in (client-side extraction is too slow)
+	if req.BurnInSubtitle && (strategy == transcoding.Remux || strategy == transcoding.RemuxWithAudioDownmix || strategy == transcoding.DirectPlay) {
+		strategy = transcoding.Transcode
+		reason = fmt.Sprintf("subtitle burn-in requested, forcing transcode (was: %s)", reason)
+	}
+
 	// Step 4: Handle DirectPlay (no transcoding needed)
 	if strategy == transcoding.DirectPlay {
 		return &ServeManifestResponse{
@@ -110,6 +118,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 
 	// Create or reuse transcode session
 	// Pass client's supported video codecs for intelligent codec selection
+	// Pass subtitle burn-in options if requested (always enabled for bitmap subtitles)
 	var subtitleOpts *transcoding.SubtitleBurnInOptions
 	if req.BurnInSubtitle {
 		subtitleOpts = &transcoding.SubtitleBurnInOptions{
@@ -134,7 +143,9 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	}
 
 	// Wait for FFmpeg to create the manifest file (should be very quick - 1-2 seconds max)
-	if err := session.WaitForManifest(5 * time.Second); err != nil {
+	// Wait for FFmpeg to create manifest. 4K HDR content with seeking can take 10-15s
+	// to decode the first keyframe and start producing output.
+	if err := session.WaitForManifest(20 * time.Second); err != nil {
 		return nil, fmt.Errorf("manifest file not created: %w", err)
 	}
 

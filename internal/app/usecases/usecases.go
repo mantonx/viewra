@@ -80,11 +80,11 @@ type MusicUseCases struct {
 
 // ImageUseCases holds image-related use cases
 type ImageUseCases struct {
-	Get         *images.GetImageUseCase
-	GetMedia    *images.GetMediaImagesUseCase
-	GetEntity   *images.GetEntityImagesUseCase
-	GetBatch    *images.GetBatchMediaImagesUseCase
-	Cleanup     *images.CleanupUseCase
+	Get            *images.GetImageUseCase
+	GetMedia       *images.GetMediaImagesUseCase
+	GetEntity      *images.GetEntityImagesUseCase
+	GetBatch       *images.GetBatchMediaImagesUseCase
+	Cleanup        *images.CleanupUseCase
 	ExtractMovie   *images.ExtractMovieImagesUseCase
 	ExtractEpisode *images.ExtractTVEpisodeImagesUseCase
 	ExtractShow    *images.ExtractTVShowImagesUseCase
@@ -95,11 +95,11 @@ type ImageUseCases struct {
 
 // TranscodeUseCases holds transcoding-related use cases
 type TranscodeUseCases struct {
-	CreateJob            *transcode.CreateJobUseCase
-	GetStatus            *transcode.GetJobStatusUseCase
-	ServeManifest        *transcode.ServeManifestUseCase
-	ServeMasterPlaylist  *transcode.ServeMasterPlaylistUseCase
-	ServeAudioPlaylist   *transcode.ServeAudioPlaylistUseCase
+	CreateJob           *transcode.CreateJobUseCase
+	GetStatus           *transcode.GetJobStatusUseCase
+	ServeManifest       *transcode.ServeManifestUseCase
+	ServeMasterPlaylist *transcode.ServeMasterPlaylistUseCase
+	ServeAudioPlaylist  *transcode.ServeAudioPlaylistUseCase
 }
 
 // BuildUseCases creates and wires all use case instances grouped by domain.
@@ -279,14 +279,14 @@ func buildTranscodeUseCases(
 	createJob := transcode.NewCreateJobUseCase(repos.Transcode, svcs.TranscodeQueue)
 	getStatus := transcode.NewGetJobStatusUseCase(repos.Transcode)
 	serveManifest := transcode.NewServeManifestUseCase(repos.Media, svcs.SessionManager)
-	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media)
+	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media, svcs.SessionManager)
 	serveAudioPlaylist := transcode.NewServeAudioPlaylistUseCase(repos.Media, svcs.SessionManager)
 
 	return &TranscodeUseCases{
-		CreateJob:            createJob,
-		GetStatus:            getStatus,
-		ServeManifest:        serveManifest,
-		ServeMasterPlaylist:  serveMasterPlaylist,
-		ServeAudioPlaylist:   serveAudioPlaylist,
+		CreateJob:           createJob,
+		GetStatus:           getStatus,
+		ServeManifest:       serveManifest,
+		ServeMasterPlaylist: serveMasterPlaylist,
+		ServeAudioPlaylist:  serveAudioPlaylist,
 	}
 }

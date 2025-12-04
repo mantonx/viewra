@@ -37,8 +37,8 @@ func (c *Converter) ExtractAndConvert(ctx context.Context, mediaPath string, str
 
 	outputPath := filepath.Join(subtitleDir, fmt.Sprintf("stream_%d.vtt", streamIndex))
 
-	// Check if already cached
-	if _, err := os.Stat(outputPath); err == nil {
+	// Check if already cached and has content
+	if info, err := os.Stat(outputPath); err == nil && info.Size() > 0 {
 		return outputPath, nil
 	}
 
@@ -53,7 +53,19 @@ func (c *Converter) ExtractAndConvert(ctx context.Context, mediaPath string, str
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		// Clean up empty file if extraction failed
+		os.Remove(outputPath)
 		return "", fmt.Errorf("ffmpeg subtitle extraction failed: %w, output: %s", err, string(output))
+	}
+
+	// Verify the output file has content (extraction can produce empty files on timeout)
+	info, err := os.Stat(outputPath)
+	if err != nil {
+		return "", fmt.Errorf("subtitle file not created: %w", err)
+	}
+	if info.Size() == 0 {
+		os.Remove(outputPath)
+		return "", fmt.Errorf("subtitle extraction produced empty file")
 	}
 
 	return outputPath, nil
@@ -70,8 +82,8 @@ func (c *Converter) ConvertSRTToWebVTT(ctx context.Context, srtPath string) (str
 
 	outputPath := filepath.Join(subtitleDir, srtHash+".vtt")
 
-	// Check if already cached
-	if _, err := os.Stat(outputPath); err == nil {
+	// Check if already cached and has content
+	if info, err := os.Stat(outputPath); err == nil && info.Size() > 0 {
 		return outputPath, nil
 	}
 
@@ -82,7 +94,7 @@ func (c *Converter) ConvertSRTToWebVTT(ctx context.Context, srtPath string) (str
 	}
 
 	// Convert to WebVTT
-	vttContent := srtToWebVTT(string(srtContent))
+	vttContent := SRTToWebVTT(string(srtContent))
 
 	// Write WebVTT file
 	if err := os.WriteFile(outputPath, []byte(vttContent), 0644); err != nil {
@@ -103,8 +115,8 @@ func (c *Converter) ConvertASSToWebVTT(ctx context.Context, assPath string) (str
 
 	outputPath := filepath.Join(subtitleDir, assHash+".vtt")
 
-	// Check if already cached
-	if _, err := os.Stat(outputPath); err == nil {
+	// Check if already cached and has content
+	if info, err := os.Stat(outputPath); err == nil && info.Size() > 0 {
 		return outputPath, nil
 	}
 
@@ -142,8 +154,8 @@ func (c *Converter) ConvertExternalSubtitle(ctx context.Context, subtitlePath st
 	}
 }
 
-// srtToWebVTT converts SRT content to WebVTT format.
-func srtToWebVTT(srtContent string) string {
+// SRTToWebVTT converts SRT content to WebVTT format.
+func SRTToWebVTT(srtContent string) string {
 	var result strings.Builder
 
 	// WebVTT header

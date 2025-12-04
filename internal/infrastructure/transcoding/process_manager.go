@@ -23,20 +23,69 @@ func NewProcessManager(config *TranscodeConfig) *ProcessManager {
 	}
 }
 
-// PrepareCommand prepares an exec.Cmd with proper process group settings.
-// On Unix systems, this creates a new process group to ensure all children can be killed together.
+// PrepareCommand prepares an exec.Cmd with proper process group settings and resource limits.
+// On Unix systems, this creates a new process group to ensure all children can be killed together,
+// and applies memory limits to prevent runaway processes from crashing the system.
 func (pm *ProcessManager) PrepareCommand(ctx context.Context, name string, args []string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, name, args...)
 
-	// On Unix systems, create a new process group
-	// This allows us to kill the entire process tree
-	if runtime.GOOS != "windows" && pm.config.ProcessGroupKill {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setpgid: true, // Create new process group
+	// On Unix systems, configure process group and resource limits
+	if runtime.GOOS != "windows" {
+		sysProcAttr := &syscall.SysProcAttr{}
+
+		// Create new process group for clean shutdown
+		if pm.config.ProcessGroupKill {
+			sysProcAttr.Setpgid = true
 		}
+
+		cmd.SysProcAttr = sysProcAttr
 	}
 
 	return cmd
+}
+
+// PrepareCommandWithMemoryLimit prepares an exec.Cmd with memory limits for subtitle burn-in.
+// On Linux, this wraps the command with systemd-run --scope to apply memory limits,
+// providing a hard safety net to prevent OOM from crashing the system.
+func (pm *ProcessManager) PrepareCommandWithMemoryLimit(ctx context.Context, name string, args []string) *exec.Cmd {
+	// On Linux with systemd, use systemd-run to apply memory limits
+	// This is more reliable than trying to set rlimits directly
+	if runtime.GOOS == "linux" && pm.config.MaxMemoryMB > 0 {
+		if _, err := exec.LookPath("systemd-run"); err == nil {
+			// Apply 2x multiplier for virtual memory headroom (shared libs, mmap, etc.)
+			// The -max_alloc FFmpeg flag handles the tight limit; this is a safety net
+			limitMB := pm.config.MaxMemoryMB * 2
+
+			// Build systemd-run command with memory limit
+			// --scope: Run as a transient scope unit (not a service)
+			// --user: Run in user session (no root required)
+			// -p MemoryMax: Hard memory limit
+			// -p MemorySwapMax=0: Prevent swapping (fail fast rather than thrash)
+			systemdArgs := []string{
+				"--scope",
+				"--user",
+				"-p", fmt.Sprintf("MemoryMax=%dM", limitMB),
+				"-p", "MemorySwapMax=0",
+				"--", // End of systemd-run options
+				name,
+			}
+			systemdArgs = append(systemdArgs, args...)
+
+			cmd := exec.CommandContext(ctx, "systemd-run", systemdArgs...)
+
+			// Still set process group for clean shutdown
+			if pm.config.ProcessGroupKill {
+				cmd.SysProcAttr = &syscall.SysProcAttr{
+					Setpgid: true,
+				}
+			}
+
+			return cmd
+		}
+	}
+
+	// Fallback: no system-level memory limit, rely on FFmpeg's -max_alloc
+	return pm.PrepareCommand(ctx, name, args)
 }
 
 // KillProcessGroup kills the process and all its children.

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 )
 
 // HardwareAccel represents hardware acceleration type.
@@ -82,6 +83,11 @@ type TranscodeConfig struct {
 	// Higher values preserve more highlight detail at the cost of local contrast
 	// Environment variable: LIBPLACEBO_CONTRAST_RECOVERY (default: 0.3)
 	LibPlaceboContrastRecovery float64
+
+	// SubtitleBurnIn controls whether bitmap subtitles (PGS, VobSub) are burned into the video.
+	// When false (default), subtitles are extracted and rendered client-side, avoiding transcoding.
+	// When true, subtitles are overlaid onto the video stream, requiring video transcoding.
+	SubtitleBurnIn bool
 }
 
 // DefaultTranscodeConfig returns sensible defaults.
@@ -145,7 +151,7 @@ func DefaultTranscodeConfigFromProfile(hwAccelType string) *TranscodeConfig {
 		OutputBaseDir:              GetDefaultOutputDir(),      // /data/dash or ./data/dash
 		MinFreeDiskGB:              10,                         // Require 10GB free space
 		MaxCPUPercent:              0,                          // Unlimited by default
-		MaxMemoryMB:                0,                          // Unlimited by default
+		MaxMemoryMB:                getDefaultMaxMemoryMB(),    // Based on system RAM
 		ProcessGroupKill:           true,                       // Always kill process group
 		ToneMappingEnabled:         toneMappingEnabled,         // Enable tone mapping by default
 		ToneMappingAlgorithm:       toneMappingAlgorithm,       // Default: bt.2390 (ITU-R BT.2390)
@@ -208,4 +214,36 @@ func GetDefaultOutputDir() string {
 
 	// Fall back to relative ./data/dash (development)
 	return "./data/dash"
+}
+
+// getDefaultMaxMemoryMB calculates a sensible memory limit based on system RAM.
+// This limits per-process FFmpeg memory to prevent OOM crashes during complex
+// operations like HDR tone mapping with libplacebo or PGS subtitle burn-in.
+//
+// Strategy: Assume up to 4 concurrent transcodes, reserve 25% for system.
+// Per-process limit = (totalRAM * 0.75) / 4, capped at 4GB.
+func getDefaultMaxMemoryMB() int {
+	var sysinfo syscall.Sysinfo_t
+	if err := syscall.Sysinfo(&sysinfo); err != nil {
+		// Can't detect system memory, use conservative 2GB default
+		return 2048
+	}
+
+	totalRAM := sysinfo.Totalram * uint64(sysinfo.Unit)
+	totalMB := totalRAM / (1024 * 1024)
+
+	// Reserve 25% for system, divide rest among 4 potential transcodes
+	availableMB := (totalMB * 75) / 100
+	maxMemMB := int(availableMB / 4)
+
+	// Clamp between 1GB and 4GB per process
+	// 4GB is plenty for any single FFmpeg operation
+	if maxMemMB < 1024 {
+		maxMemMB = 1024 // Minimum 1GB
+	}
+	if maxMemMB > 4096 {
+		maxMemMB = 4096 // Maximum 4GB per process
+	}
+
+	return maxMemMB
 }

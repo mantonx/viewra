@@ -105,6 +105,35 @@ func (b *FFmpegArgsBuilder) AddFastInputOptions() *FFmpegArgsBuilder {
 	return b
 }
 
+// AddMemorySafetyOptions adds options to prevent excessive memory usage during transcoding.
+// This is especially important for subtitle burn-in with PGS/bitmap subtitles, which can
+// cause memory spikes that crash the system. These options limit FFmpeg's internal buffers.
+// See: Jellyfin #11052 for similar memory issues with subtitle burn-in.
+//
+// maxAllocMB: Maximum single allocation size in MB (0 = use default of 25% system RAM, capped at 4GB)
+func (b *FFmpegArgsBuilder) AddMemorySafetyOptions(maxAllocMB int) *FFmpegArgsBuilder {
+	// Convert MB to bytes for FFmpeg's -max_alloc option
+	var maxAllocBytes int64
+	if maxAllocMB > 0 {
+		maxAllocBytes = int64(maxAllocMB) * 1024 * 1024
+	} else {
+		// Default: 2GB - reasonable for most systems
+		// This will be overridden by callers who have access to system profile
+		maxAllocBytes = 2 * 1024 * 1024 * 1024
+	}
+
+	b.args = append(b.args,
+		// Limit maximum allocation size - prevents single massive allocations
+		// that could exhaust system memory. Default is unlimited.
+		"-max_alloc", strconv.FormatInt(maxAllocBytes, 10),
+		// Limit thread queue size to 512 packets per stream - prevents unbounded
+		// buffering when filter processing is slower than demuxing.
+		// Critical for subtitle overlay which can cause filter bottlenecks.
+		"-thread_queue_size", "512",
+	)
+	return b
+}
+
 // AddInput adds the input file argument.
 func (b *FFmpegArgsBuilder) AddInput() *FFmpegArgsBuilder {
 	b.args = append(b.args, "-i", b.opts.InputPath)
@@ -159,10 +188,12 @@ func (b *FFmpegArgsBuilder) AddVideoEncoding() *FFmpegArgsBuilder {
 
 	if b.needsSubtitleBurnIn() {
 		// Use filter_complex for subtitle overlay
-		// Format: [0:v]<filters>[v];[0:s:N]scale=<width>:<height>[s];[v][s]overlay
-		// The subtitle needs to be scaled to match the output resolution
-		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay",
-			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		// For PGS/bitmap subtitles: scale video first, then overlay the subtitle
+		// Format: [0:v]<filters>[v];[v][0:s:N]overlay
+		// PGS subtitles are already rendered at their native resolution and
+		// the overlay filter handles positioning automatically
+		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[v][0:s:%d]overlay",
+			filterChain, b.getSubtitleStreamIndex())
 		b.args = append(b.args, "-filter_complex", subtitleFilter)
 	} else {
 		b.args = append(b.args, "-vf", filterChain)
@@ -311,12 +342,13 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCode
 	if b.needsSubtitleBurnIn() {
 		// For hardware encoding with subtitle burn-in, we need to:
 		// 1. Download from GPU to CPU for subtitle overlay
-		// 2. Scale subtitle to match output resolution
-		// 3. Overlay subtitle onto video
-		// 4. Upload back to GPU for encoding
+		// 2. Overlay PGS subtitle onto video (PGS is already bitmap, no scaling needed)
+		// 3. Upload back to GPU for encoding
 		// This is less efficient but necessary for PGS subtitle burn-in
-		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay,hwupload_cuda",
-			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		// extra_hw_frames=64 allocates sufficient frame buffers for the complex overlay
+		// operation - prevents "Cannot allocate memory" errors (see Jellyfin #11052)
+		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[v][0:s:%d]overlay,hwupload_cuda=extra_hw_frames=64",
+			filterChain, b.getSubtitleStreamIndex())
 		b.args = append(b.args, "-filter_complex", subtitleFilter)
 	} else {
 		b.args = append(b.args, "-vf", filterChain)
@@ -361,8 +393,14 @@ func (b *FFmpegArgsBuilder) addQSVEncoding(p *AdaptiveProfile, codec VideoCodec)
 	filterChain := b.buildToneMappingFilter(AccelQSV) + b.buildScalingFilter(AccelQSV, false)
 
 	if b.needsSubtitleBurnIn() {
-		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay,hwupload=extra_hw_frames=64",
-			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		// For hardware encoding with subtitle burn-in:
+		// 1. Download from GPU to CPU for subtitle overlay
+		// 2. Overlay PGS subtitle onto video (PGS is already bitmap, no scaling needed)
+		// 3. Upload back to GPU for encoding
+		// extra_hw_frames=64 allocates sufficient frame buffers for the complex overlay
+		// operation - prevents "Cannot allocate memory" errors (see Jellyfin #11052)
+		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[v][0:s:%d]overlay,hwupload=extra_hw_frames=64",
+			filterChain, b.getSubtitleStreamIndex())
 		b.args = append(b.args, "-filter_complex", subtitleFilter)
 	} else {
 		b.args = append(b.args, "-vf", filterChain)
@@ -404,8 +442,14 @@ func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *AdaptiveProfile, codec VideoCode
 	filterChain := b.buildToneMappingFilter(AccelVAAPI) + b.buildScalingFilter(AccelVAAPI, false)
 
 	if b.needsSubtitleBurnIn() {
-		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay,hwupload",
-			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		// For hardware encoding with subtitle burn-in:
+		// 1. Download from GPU to CPU for subtitle overlay
+		// 2. Overlay PGS subtitle onto video (PGS is already bitmap, no scaling needed)
+		// 3. Upload back to GPU for encoding
+		// extra_hw_frames=64 allocates sufficient frame buffers for the complex overlay
+		// operation - prevents "Cannot allocate memory" errors (see Jellyfin #11052)
+		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[v][0:s:%d]overlay,hwupload=extra_hw_frames=64",
+			filterChain, b.getSubtitleStreamIndex())
 		b.args = append(b.args, "-filter_complex", subtitleFilter)
 	} else {
 		b.args = append(b.args, "-vf", filterChain)
@@ -456,8 +500,9 @@ func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *AdaptiveProfile, codec Vi
 
 	if b.needsSubtitleBurnIn() {
 		// VideoToolbox already uses CPU for scaling, so subtitle overlay is straightforward
-		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[0:s:%d]scale=%d:%d[s];[v][s]overlay",
-			filterChain, b.getSubtitleStreamIndex(), p.Width, p.Height)
+		// PGS subtitles are already bitmap images - just overlay them directly
+		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[v][0:s:%d]overlay",
+			filterChain, b.getSubtitleStreamIndex())
 		b.args = append(b.args, "-filter_complex", subtitleFilter)
 	} else {
 		b.args = append(b.args, "-vf", filterChain)

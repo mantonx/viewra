@@ -157,8 +157,14 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	builder := NewFFmpegArgsBuilder(opts).
 		AddLogLevel("error").
 		AddHardwareAccel(GetHardwareAccelArgsWithDevice(e.config.HardwareAccel, e.config.HardwareDevice)).
-		AddFastInputOptions().
-		AddSeekPosition().
+		AddFastInputOptions()
+
+	// Add memory safety options for ALL transcoding operations to prevent OOM crashes
+	// Memory-intensive operations include: PGS subtitle burn-in, HDR tone mapping (especially
+	// libplacebo with peak_detect), 4K scaling, and complex filter chains
+	builder.AddMemorySafetyOptions(e.config.MaxMemoryMB)
+
+	builder.AddSeekPosition().
 		AddInput().
 		AddTimestampReset().
 		AddStreamMapping().

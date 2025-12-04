@@ -1,0 +1,69 @@
+#!/bin/bash
+# ViewRA API helper for development
+# Usage: ./scripts/api <endpoint> [curl-options...]
+# Example: ./scripts/api /api/media/147440
+#          ./scripts/api /api/media/147440/tracks
+#          ./scripts/api POST /api/auth/logout
+
+set -e
+
+BASE_URL="${VIEWRA_URL:-http://localhost:8080}"
+TOKEN_FILE="/tmp/.viewra_token"
+
+# Get or refresh token
+get_token() {
+    # Check if we have a valid cached token (less than 10 minutes old)
+    if [[ -f "$TOKEN_FILE" ]]; then
+        local age=$(($(date +%s) - $(stat -c %Y "$TOKEN_FILE" 2>/dev/null || echo 0)))
+        if [[ $age -lt 600 ]]; then
+            cat "$TOKEN_FILE"
+            return
+        fi
+    fi
+    
+    # Get new token
+    local response=$(curl -s -X POST "$BASE_URL/api/auth/login" \
+        -H "Content-Type: application/json" \
+        -d '{"username":"dev","password":"dev"}')
+    
+    local token=$(echo "$response" | jq -r '.AccessToken // empty')
+    if [[ -z "$token" ]]; then
+        echo "Failed to authenticate: $response" >&2
+        exit 1
+    fi
+    
+    echo "$token" > "$TOKEN_FILE"
+    echo "$token"
+}
+
+# Parse arguments
+METHOD="GET"
+ENDPOINT="$1"
+shift || true
+
+# Check if first arg is a method
+if [[ "$ENDPOINT" =~ ^(GET|POST|PUT|DELETE|PATCH)$ ]]; then
+    METHOD="$ENDPOINT"
+    ENDPOINT="$1"
+    shift || true
+fi
+
+if [[ -z "$ENDPOINT" ]]; then
+    echo "Usage: api <endpoint> [curl-options...]"
+    echo "       api <METHOD> <endpoint> [curl-options...]"
+    echo ""
+    echo "Examples:"
+    echo "  api /api/media/147440"
+    echo "  api /api/media/147440/tracks"
+    echo "  api POST /api/libraries/1/scan"
+    echo "  api /health"
+    exit 1
+fi
+
+TOKEN=$(get_token)
+
+# Make the request
+curl -s -X "$METHOD" "${BASE_URL}${ENDPOINT}" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    "$@"

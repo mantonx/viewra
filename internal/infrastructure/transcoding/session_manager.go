@@ -61,6 +61,14 @@ func (m *SessionManager) getEffectiveConfig(ctx context.Context) *TranscodeConfi
 	return m.config
 }
 
+// IsSubtitleBurnInEnabled returns whether subtitle burn-in is enabled in settings.
+// When false (default), bitmap subtitles are extracted and rendered client-side.
+// When true, they are burned into the video stream (requires video transcoding).
+func (m *SessionManager) IsSubtitleBurnInEnabled(ctx context.Context) bool {
+	config := m.getEffectiveConfig(ctx)
+	return config.SubtitleBurnIn
+}
+
 // cleanupOutputDir removes a session's output directory and logs any errors.
 // This centralizes cleanup logic to avoid duplication across the codebase.
 // sessionID is optional and used for logging context.
@@ -428,6 +436,7 @@ func (m *SessionManager) GetOrCreateAudioSession(
 
 	return session, nil
 }
+
 
 // stopOtherMediaSessions stops all sessions for media IDs other than the specified one.
 // This prevents resource hogging when users switch between different videos.

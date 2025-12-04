@@ -39,6 +39,12 @@ export interface AudioTrack {
   language: string
 }
 
+export interface SubtitleTrack {
+  id: number
+  name: string
+  language: string
+}
+
 export interface UseHlsPlayerOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>
   streamUrl: string
@@ -59,12 +65,15 @@ export interface UseHlsPlayerReturn {
   currentBandwidth: number | null
   availableAudioTracks: AudioTrack[]
   currentAudioTrack: number
+  availableSubtitleTracks: SubtitleTrack[]
+  currentSubtitleTrack: number
   streamOffsetRef: React.RefObject<number>
   setCurrentQuality: (quality: number | null) => void
   setCurrentBandwidth: (bandwidth: number | null) => void
   setCurrentAudioTrack: (trackId: number) => void
   changeQuality: (height: number, bandwidth?: number) => number | null
   changeAudioTrack: (trackId: number) => void
+  changeSubtitleTrack: (trackId: number) => void
   loadSource: (url: string) => void
 }
 
@@ -101,6 +110,8 @@ export const useHlsPlayer = ({
   const [currentBandwidth, setCurrentBandwidth] = useState<number | null>(null)
   const [availableAudioTracks, setAvailableAudioTracks] = useState<AudioTrack[]>([])
   const [currentAudioTrack, setCurrentAudioTrack] = useState<number>(-1)
+  const [availableSubtitleTracks, setAvailableSubtitleTracks] = useState<SubtitleTrack[]>([])
+  const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState<number>(-1)
 
   // Store callbacks in refs to avoid effect re-runs when callbacks change
   const onErrorRef = useRef(onError)
@@ -154,6 +165,15 @@ export const useHlsPlayer = ({
     if (hls) {
       hls.audioTrack = trackId
       setCurrentAudioTrack(trackId)
+    }
+  }, [])
+
+  // Change subtitle track (-1 = off)
+  const changeSubtitleTrack = useCallback((trackId: number) => {
+    const hls = hlsRef.current
+    if (hls) {
+      hls.subtitleTrack = trackId
+      setCurrentSubtitleTrack(trackId)
     }
   }, [])
 
@@ -309,6 +329,25 @@ export const useHlsPlayer = ({
         setCurrentAudioTrack(hls.audioTrack)
       }
 
+      // Extract subtitle tracks and enable native subtitle rendering
+      const subtitleTracks = hls.subtitleTracks
+      if (subtitleTracks && subtitleTracks.length > 0) {
+        const tracks = subtitleTracks.map((track, index) => ({
+          id: index,
+          name: track.name || `Subtitle ${index + 1}`,
+          language: track.lang || 'Unknown',
+        }))
+        setAvailableSubtitleTracks(tracks)
+        // Enable subtitle display so HLS.js loads the VTT and adds to video.textTracks
+        hls.subtitleDisplay = true
+        // Set default subtitle track if one is marked default
+        const defaultTrack = subtitleTracks.findIndex(t => t.default)
+        if (defaultTrack >= 0) {
+          hls.subtitleTrack = defaultTrack
+          setCurrentSubtitleTrack(defaultTrack)
+        }
+      }
+
       initializeStreamOffset(streamOffsetRef, initialPosition)
 
       video.muted = true
@@ -329,6 +368,11 @@ export const useHlsPlayer = ({
     // Track audio track changes
     hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
       setCurrentAudioTrack(data.id)
+    })
+
+    // Track subtitle track changes
+    hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_event, data) => {
+      setCurrentSubtitleTrack(data.id)
     })
 
     // Handle fragment loaded - for network sampling
@@ -385,12 +429,15 @@ export const useHlsPlayer = ({
     currentBandwidth,
     availableAudioTracks,
     currentAudioTrack,
+    availableSubtitleTracks,
+    currentSubtitleTrack,
     streamOffsetRef,
     setCurrentQuality,
     setCurrentBandwidth,
     setCurrentAudioTrack,
     changeQuality,
     changeAudioTrack,
+    changeSubtitleTrack,
     loadSource,
   }
 }

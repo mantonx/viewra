@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
+	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mantonx/viewra/internal/application/media"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	transcodeDomain "github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
 	"github.com/mantonx/viewra/internal/pkg/format"
 )
@@ -19,6 +24,7 @@ type TranscodeHandler struct {
 	serveManifestUseCase       *transcode.ServeManifestUseCase
 	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase
 	serveAudioPlaylistUseCase  *transcode.ServeAudioPlaylistUseCase
+	getMediaUseCase            *media.GetMediaUseCase
 	queue                      *transcode.Queue
 	cleanupService             *transcode.CleanupService
 	sessionManager             *transcoding.SessionManager
@@ -32,6 +38,7 @@ func NewTranscodeHandler(
 	serveManifestUseCase *transcode.ServeManifestUseCase,
 	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase,
 	serveAudioPlaylistUseCase *transcode.ServeAudioPlaylistUseCase,
+	getMediaUseCase *media.GetMediaUseCase,
 	queue *transcode.Queue,
 	cleanupService *transcode.CleanupService,
 	sessionManager *transcoding.SessionManager,
@@ -43,6 +50,7 @@ func NewTranscodeHandler(
 		serveManifestUseCase:       serveManifestUseCase,
 		serveMasterPlaylistUseCase: serveMasterPlaylistUseCase,
 		serveAudioPlaylistUseCase:  serveAudioPlaylistUseCase,
+		getMediaUseCase:            getMediaUseCase,
 		queue:                      queue,
 		cleanupService:             cleanupService,
 		sessionManager:             sessionManager,
@@ -727,4 +735,91 @@ func (h *TranscodeHandler) ServeAudioSegment(c *gin.Context) {
 	c.Header("Content-Type", "video/mp2t")
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.File(segmentPath)
+}
+
+// ServeSubtitle serves a subtitle WebVTT file for HLS playback.
+// This uses fast FFmpeg demuxing to stream text subtitles on-the-fly.
+//
+// @Summary Serve subtitle WebVTT file
+// @Description Streams a text subtitle as WebVTT for HLS playback (fast demux, no full file scan)
+// @Tags transcode
+// @Produce text/vtt
+// @Param media_id path int true "Media ID"
+// @Param trackIndex path int true "Subtitle track index (0-based, among text subtitles only)"
+// @Param start query number false "Start position in seconds (for seeking)"
+// @Success 200 {file} file "WebVTT subtitle file"
+// @Failure 400 {object} handlers.ErrorResponse
+// @Failure 404 {object} handlers.ErrorResponse
+// @Failure 500 {object} handlers.ErrorResponse
+// @Router /api/media/{media_id}/hls/subtitle/{trackIndex}/subtitles.vtt [get]
+func (h *TranscodeHandler) ServeSubtitle(c *gin.Context) {
+	mediaID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
+		return
+	}
+
+	trackIndex, err := parseInt(c.Param("trackIndex"))
+	if err != nil || trackIndex < 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid track index"})
+		return
+	}
+
+	// Get media file path
+	mediaResp, err := h.getMediaUseCase.Execute(c.Request.Context(), mediaID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Media not found"})
+		return
+	}
+
+	// Stream the subtitle using FFmpeg (fast demux, no full file scan)
+	// -map 0:s:N selects the Nth subtitle stream (0-based)
+	// -c:s srt copies as SRT format (fast, just demuxing)
+	ctx := c.Request.Context()
+	cmd := exec.CommandContext(ctx, "ffmpeg",
+		"-i", mediaResp.FilePath,
+		"-map", "0:s:"+strconv.Itoa(trackIndex),
+		"-c:s", "srt",
+		"-f", "srt",
+		"pipe:1",
+	)
+
+	// Get stdout pipe for streaming
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create pipe"})
+		return
+	}
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to start FFmpeg"})
+		return
+	}
+
+	// Read all SRT content from FFmpeg (fast, just demuxing)
+	srtContent, err := io.ReadAll(stdout)
+	if err != nil {
+		cmd.Wait()
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to read subtitle stream"})
+		return
+	}
+
+	// Wait for FFmpeg to finish
+	if err := cmd.Wait(); err != nil {
+		// Check if we got any content - sometimes FFmpeg returns error but still outputs
+		if len(srtContent) == 0 {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "FFmpeg subtitle extraction failed"})
+			return
+		}
+	}
+
+	// Convert SRT to WebVTT
+	vttContent := subtitles.SRTToWebVTT(string(srtContent))
+
+	// Serve the WebVTT content
+	c.Header("Content-Type", "text/vtt; charset=utf-8")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
+	c.String(http.StatusOK, vttContent)
 }

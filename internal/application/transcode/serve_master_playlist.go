@@ -64,15 +64,22 @@ type ABRVariant struct {
 	Codecs    string
 }
 
+// SubtitleBurnInChecker provides access to subtitle burn-in settings.
+type SubtitleBurnInChecker interface {
+	IsSubtitleBurnInEnabled(ctx context.Context) bool
+}
+
 // ServeMasterPlaylistUseCase handles generating the HLS master playlist.
 type ServeMasterPlaylistUseCase struct {
-	mediaRepo media.Repository
+	mediaRepo     media.Repository
+	burnInChecker SubtitleBurnInChecker
 }
 
 // NewServeMasterPlaylistUseCase creates a new use case.
-func NewServeMasterPlaylistUseCase(mediaRepo media.Repository) *ServeMasterPlaylistUseCase {
+func NewServeMasterPlaylistUseCase(mediaRepo media.Repository, burnInChecker SubtitleBurnInChecker) *ServeMasterPlaylistUseCase {
 	return &ServeMasterPlaylistUseCase{
-		mediaRepo: mediaRepo,
+		mediaRepo:     mediaRepo,
+		burnInChecker: burnInChecker,
 	}
 }
 
@@ -91,6 +98,13 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		audioTracks = nil
 	}
 
+	// Get subtitle tracks for HLS subtitle support
+	subtitleTracks, err := uc.mediaRepo.GetSubtitleTracksByMediaID(ctx, req.MediaID)
+	if err != nil {
+		// Non-fatal: continue without subtitle track info
+		subtitleTracks = nil
+	}
+
 	// Check if direct play is possible
 	videoInfo, err := transcoding.GetVideoInfo(mediaItem.FilePath)
 	if err == nil && videoInfo != nil {
@@ -104,7 +118,12 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 
 		strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
 
-		if strategy == transcoding.DirectPlay {
+		// Don't allow DirectPlay if subtitle burn-in is requested AND enabled in settings
+		// Subtitle burn-in requires video re-encoding
+		// When burn-in is disabled (default), subtitles are extracted client-side so DirectPlay is fine
+		burnInEnabled := uc.burnInChecker != nil && uc.burnInChecker.IsSubtitleBurnInEnabled(ctx)
+		blockDirectPlay := req.BurnInSubtitle && burnInEnabled
+		if strategy == transcoding.DirectPlay && !blockDirectPlay {
 			return &ServeMasterPlaylistResponse{
 				Strategy:      StrategyMasterDirectPlay,
 				DirectPlayURL: fmt.Sprintf("/api/stream/%d", req.MediaID),
@@ -113,8 +132,8 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		}
 	}
 
-	// Build master playlist with audio track information
-	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, req.StartPosition, req.PreferredAudioLanguage, req.BurnInSubtitle, req.SubtitleStreamIndex)
+	// Build master playlist with audio and subtitle track information
+	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, req.StartPosition, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage, req.BurnInSubtitle, req.SubtitleStreamIndex)
 
 	return &ServeMasterPlaylistResponse{
 		Strategy:        StrategyServePlaylist,
@@ -123,8 +142,8 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 	}, nil
 }
 
-// buildMasterPlaylist creates the HLS master playlist content with multi-audio support.
-func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, startPosition string, preferredAudioLang string, burnInSubtitle bool, subtitleStreamIndex int) string {
+// buildMasterPlaylist creates the HLS master playlist content with multi-audio and subtitle support.
+func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, startPosition string, preferredAudioLang string, preferredSubtitleLang string, burnInSubtitle bool, subtitleStreamIndex int) string {
 	sourceHeight := mediaItem.Height
 	sourceWidth := mediaItem.Width
 	sourceBitrate := mediaItem.Bitrate
@@ -145,6 +164,16 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 		playlist += "\n"
 	}
 
+	// Add subtitle track renditions for text-based subtitles (not bitmap)
+	// Bitmap subtitles (PGS, VobSub) must be burned in, not served via HLS
+	subtitleGroupID := ""
+	textSubtitles := uc.filterTextSubtitles(subtitleTracks)
+	if len(textSubtitles) > 0 && !burnInSubtitle {
+		subtitleGroupID = "subs"
+		playlist += uc.buildSubtitleRenditions(textSubtitles, preferredSubtitleLang, startPosition)
+		playlist += "\n"
+	}
+
 	// Build video stream variants
 	for _, variant := range variants {
 		streamInf := fmt.Sprintf(
@@ -159,6 +188,11 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 		// Reference audio group if we have multiple audio tracks
 		if audioGroupID != "" {
 			streamInf += fmt.Sprintf(",AUDIO=\"%s\"", audioGroupID)
+		}
+
+		// Reference subtitle group if we have text subtitles
+		if subtitleGroupID != "" {
+			streamInf += fmt.Sprintf(",SUBTITLES=\"%s\"", subtitleGroupID)
 		}
 
 		playlist += streamInf + "\n"
@@ -179,6 +213,107 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 	}
 
 	return playlist
+}
+
+// filterTextSubtitles returns only text-based subtitles that can be converted to WebVTT.
+func (uc *ServeMasterPlaylistUseCase) filterTextSubtitles(subtitleTracks []*media.SubtitleTrack) []*media.SubtitleTrack {
+	var textTracks []*media.SubtitleTrack
+	for _, track := range subtitleTracks {
+		if !track.IsBitmap {
+			textTracks = append(textTracks, track)
+		}
+	}
+	return textTracks
+}
+
+// buildSubtitleRenditions generates EXT-X-MEDIA tags for subtitle track selection.
+func (uc *ServeMasterPlaylistUseCase) buildSubtitleRenditions(subtitleTracks []*media.SubtitleTrack, preferredLang string, startPosition string) string {
+	var result strings.Builder
+
+	// Determine which track should be default
+	defaultTrackIdx := -1 // -1 means no default (subtitles off by default)
+	for i, track := range subtitleTracks {
+		// Prefer user's language if specified
+		if preferredLang != "" && preferredLang != "off" && track.Language == preferredLang {
+			// Prefer forced subtitles if available
+			if track.IsForced {
+				defaultTrackIdx = i
+				break
+			}
+			// Otherwise use first non-commentary track in preferred language
+			if defaultTrackIdx == -1 && !track.IsCommentary {
+				defaultTrackIdx = i
+			}
+		}
+	}
+
+	// Build relative index map (among text subtitles only)
+	// This is needed because the HLS URI uses the relative text subtitle index
+	for i, track := range subtitleTracks {
+		isDefault := i == defaultTrackIdx
+
+		// Build track name
+		name := uc.buildSubtitleTrackName(track)
+
+		// Convert ISO 639-2 to ISO 639-1 for HLS LANGUAGE attribute
+		lang := convertToISO6391(track.Language)
+
+		// Build characteristics for accessibility
+		characteristics := ""
+		if track.IsSDH {
+			characteristics = ",CHARACTERISTICS=\"public.accessibility.transcribes-spoken-dialog,public.accessibility.describes-music-and-sound\""
+		}
+
+		// Forced subtitles handling
+		forced := ""
+		if track.IsForced {
+			forced = ",FORCED=YES"
+		}
+
+		// The URI points to the subtitle WebVTT file
+		// Use the relative subtitle index (position among text subtitles)
+		subtitleURI := fmt.Sprintf("subtitle/%d/subtitles.vtt", i)
+		if startPosition != "" {
+			subtitleURI += "?start=" + startPosition
+		}
+
+		result.WriteString(fmt.Sprintf(
+			"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"%s\",LANGUAGE=\"%s\",DEFAULT=%s,AUTOSELECT=%s%s%s,URI=\"%s\"\n",
+			name,
+			lang,
+			boolToYesNo(isDefault),
+			boolToYesNo(isDefault),
+			forced,
+			characteristics,
+			subtitleURI,
+		))
+	}
+
+	return result.String()
+}
+
+// buildSubtitleTrackName creates a human-readable name for a subtitle track.
+func (uc *ServeMasterPlaylistUseCase) buildSubtitleTrackName(track *media.SubtitleTrack) string {
+	// Use title if available
+	if track.Title != "" {
+		return track.Title
+	}
+
+	// Build name from language and characteristics
+	name := getLanguageName(track.Language)
+
+	// Add special track types
+	if track.IsForced {
+		name += " (Forced)"
+	}
+	if track.IsSDH {
+		name += " (SDH)"
+	}
+	if track.IsCommentary {
+		name += " (Commentary)"
+	}
+
+	return name
 }
 
 // buildAudioRenditions generates EXT-X-MEDIA tags for audio track selection.
