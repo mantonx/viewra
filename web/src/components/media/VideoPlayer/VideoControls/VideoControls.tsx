@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatTime } from '@/lib/utils'
-import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
-import { NerdMenu } from './NerdMenu'
-import { QualitySelector } from './QualitySelector'
-import { SpeedSelector } from './SpeedSelector'
-import { SubtitleSelector, type SubtitleTrack } from './SubtitleSelector'
-import { AudioSelector, type AudioTrack } from './AudioSelector'
+import { NerdMenu } from '../NerdMenu'
+import { QualitySelector } from '../QualitySelector'
+import { SpeedSelector } from '../SpeedSelector'
+import { SubtitleSelector } from '../SubtitleSelector'
+import { AudioSelector } from '../AudioSelector'
+import type { VideoControlsProps } from './VideoControls.types'
 
 // Format bandwidth to human readable string
 const formatBandwidth = (bps: number): string => {
@@ -13,48 +13,6 @@ const formatBandwidth = (bps: number): string => {
     return `${(bps / 1_000_000).toFixed(1)} Mbps`
   }
   return `${(bps / 1_000).toFixed(0)} kbps`
-}
-
-interface MediaMetadata {
-  title: string
-  subtitle?: string
-  posterUrl?: string
-}
-
-interface VideoControlsProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>
-  isPlaying: boolean
-  currentTime: number
-  duration: number
-  volume: number
-  isMuted: boolean
-  isFullscreen: boolean
-  isPiP: boolean
-  availableQualities: Array<{ height: number; bandwidth: number }>
-  currentQuality: number | null
-  currentBandwidth?: number | null
-  recommendedQuality: QualityRecommendationResponse | null
-  autoMode: boolean
-  availableAudioTracks: AudioTrack[]
-  currentAudioTrack: number
-  availableSubtitles: SubtitleTrack[]
-  currentSubtitle: number | null
-  playbackSpeed: number
-  metadata?: MediaMetadata
-  showStats: boolean
-  onPlayPause: () => void
-  onSeek: (time: number) => void
-  onVolumeChange: (volume: number) => void
-  onMuteToggle: () => void
-  onFullscreenToggle: () => void
-  onPiPToggle: () => void
-  onQualityChange: (height: number, bandwidth?: number) => void
-  onAutoToggle: () => void
-  onAudioTrackChange: (trackId: number) => void
-  onSubtitleChange: (trackId: number | null) => void
-  onSpeedChange: (speed: number) => void
-  onSkip: (seconds: number) => void
-  onToggleStats: () => void
 }
 
 export const VideoControls = ({

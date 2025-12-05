@@ -1,17 +1,7 @@
 import { memo, useEffect, useRef, useState, useCallback } from 'react'
 import { X, GripHorizontal } from 'lucide-react'
 import type { NetworkStats } from '@/lib/network/NetworkMonitor'
-import type { QualityDecision } from '@/lib/streaming/AutoQualityController'
-
-interface NetworkOverlayProps {
-  stats: NetworkStats | null
-  decision: QualityDecision | null
-  currentQuality: string
-  bufferLength: number
-  sampleCount: number
-  isVisible: boolean
-  onClose: () => void
-}
+import type { NetworkOverlayProps } from './NetworkOverlay.types'
 
 // Keep last 60 samples for the graph (30 seconds at 2s intervals)
 const MAX_GRAPH_SAMPLES = 60

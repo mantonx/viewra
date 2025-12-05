@@ -1,20 +1,7 @@
 import { useMemo } from 'react'
-import { DropdownBase } from './DropdownBase'
-
-export interface AudioTrack {
-  id: number
-  name: string
-  language: string
-  isDefault?: boolean
-  codec?: string
-  channels?: number
-}
-
-interface AudioSelectorProps {
-  availableAudioTracks: AudioTrack[]
-  currentAudioTrack: number
-  onAudioTrackChange: (trackId: number) => void
-}
+import { DropdownBase } from '../DropdownBase'
+import type { AudioTrack } from '@/lib/types/video'
+import type { AudioSelectorProps } from './AudioSelector.types'
 
 // Language code to display name mapping
 const languageNames: Record<string, string> = {

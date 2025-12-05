@@ -1,10 +1,6 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import { Settings, Check } from 'lucide-react'
-
-interface NerdMenuProps {
-  showStats: boolean
-  onToggleStats: () => void
-}
+import type { NerdMenuProps } from './NerdMenu.types'
 
 /**
  * NerdMenu - Advanced settings menu for video player

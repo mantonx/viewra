@@ -107,6 +107,63 @@ func (c *Converter) ExtractAndConvert(ctx context.Context, mediaID int64, mediaP
 	return outputPath, nil
 }
 
+// textWindowCachePath returns the cache path for a text subtitle window.
+func (c *Converter) textWindowCachePath(mediaID int64, streamIndex int, startMS, endMS int64) string {
+	subtitleDir := c.getSubtitleCacheDir(mediaID)
+	return filepath.Join(subtitleDir, fmt.Sprintf("text_s%d_%d-%d.vtt", streamIndex, startMS, endMS))
+}
+
+// StreamTextSubtitleWindow extracts a time window of text subtitles and returns WebVTT content.
+// Each window is cached to disk for fast subsequent requests.
+// If startMS and endMS are both 0, extracts the entire subtitle track.
+func (c *Converter) StreamTextSubtitleWindow(ctx context.Context, mediaID int64, mediaPath string, streamIndex int, startMS, endMS int64) ([]byte, error) {
+	// If no time bounds, use the full extraction (with its own caching)
+	if startMS == 0 && endMS == 0 {
+		vttPath, err := c.ExtractAndConvert(ctx, mediaID, mediaPath, streamIndex)
+		if err != nil {
+			return nil, err
+		}
+		return os.ReadFile(vttPath)
+	}
+
+	// Check if this window is already cached
+	windowPath := c.textWindowCachePath(mediaID, streamIndex, startMS, endMS)
+	if info, err := os.Stat(windowPath); err == nil && info.Size() > 0 {
+		return os.ReadFile(windowPath)
+	}
+
+	// Get the correct track number for this container
+	trackNumber, err := c.findTrackNumber(ctx, mediaPath, streamIndex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find track number: %w", err)
+	}
+
+	// Extract the window
+	cmd := exec.CommandContext(ctx, c.subtitleExtractorPath,
+		"stream",
+		"--track", fmt.Sprintf("%d", trackNumber),
+		"--start", fmt.Sprintf("%d", startMS),
+		"--end", fmt.Sprintf("%d", endMS),
+		"--format", "webvtt",
+		mediaPath,
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("subtitle-extractor failed: %w", err)
+	}
+
+	// Only cache if there's actual content (not just "WEBVTT\n\n" header)
+	if len(output) > 10 {
+		subtitleDir := c.getSubtitleCacheDir(mediaID)
+		if err := os.MkdirAll(subtitleDir, 0755); err == nil {
+			_ = os.WriteFile(windowPath, output, 0644)
+		}
+	}
+
+	return output, nil
+}
+
 // ConvertSRTToWebVTT converts an SRT file to WebVTT format.
 func (c *Converter) ConvertSRTToWebVTT(ctx context.Context, srtPath string) (string, error) {
 	// Create cache directory - external subtitles use hash of subtitle path

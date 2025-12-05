@@ -1,6 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react'
 import { X, GripHorizontal, ChevronDown, ChevronRight } from 'lucide-react'
-import type { StreamStats } from '@/lib/types/streamStats'
 import type { NetworkStats } from '@/lib/network/NetworkMonitor'
 import {
   formatBitrate,
@@ -9,26 +8,12 @@ import {
   formatFrameRate,
   getCodecDisplayName,
 } from '@/lib/types/streamStats'
+import type { StatRowProps, SectionProps, StatsPanelProps } from './StatsPanel.types'
 
 // Graph constants
 const MAX_GRAPH_SAMPLES = 60
 const GRAPH_WIDTH = 240
 const GRAPH_HEIGHT = 50
-
-interface StatsPanelProps {
-  stats: StreamStats | null
-  networkStats: NetworkStats | null
-  isVisible: boolean
-  onClose: () => void
-  isLoading?: boolean
-}
-
-interface StatRowProps {
-  label: string
-  value: string | number | undefined | null
-  valueColor?: string
-  subValue?: string
-}
 
 const StatRow = memo(({ label, value, valueColor = 'text-white/90', subValue }: StatRowProps) => {
   if (value === undefined || value === null || value === '') {
@@ -45,12 +30,6 @@ const StatRow = memo(({ label, value, valueColor = 'text-white/90', subValue }: 
   )
 })
 StatRow.displayName = 'StatRow'
-
-interface SectionProps {
-  title: string
-  children: React.ReactNode
-  defaultOpen?: boolean
-}
 
 const Section = memo(({ title, children, defaultOpen = false }: SectionProps) => {
   const [isOpen, setIsOpen] = useState(defaultOpen)

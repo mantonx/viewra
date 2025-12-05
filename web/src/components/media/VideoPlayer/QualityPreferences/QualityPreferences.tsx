@@ -5,12 +5,7 @@ import {
   DEFAULT_VIDEO_PREFERENCES,
 } from '@/lib/preferences'
 import type { VideoQualityPreferences } from '@/lib/preferences'
-
-interface QualityPreferencesProps {
-  isOpen: boolean
-  onClose: () => void
-  onPreferencesChange?: (prefs: VideoQualityPreferences) => void
-}
+import type { QualityPreferencesProps } from './QualityPreferences.types'
 
 export const QualityPreferences = ({
   isOpen,

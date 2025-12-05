@@ -1,14 +1,30 @@
+// Main component
 export { VideoPlayer } from './VideoPlayer'
-export type { VideoPlayerProps, MediaMetadata } from './VideoPlayer.types'
+export type { VideoPlayerProps } from './VideoPlayer'
+
+// Control components
+export { VideoControls } from './VideoControls'
 export { QualitySelector } from './QualitySelector'
 export { QualityPreferences } from './QualityPreferences'
+export { AudioSelector } from './AudioSelector'
+export { SubtitleSelector } from './SubtitleSelector'
+export { SpeedSelector } from './SpeedSelector'
+export { NerdMenu } from './NerdMenu'
+
+// Overlay components
+export { SubtitleOverlay } from './SubtitleOverlay'
 export { NetworkOverlay } from './NetworkOverlay'
 export { BufferIndicator } from './BufferIndicator'
-export { NerdMenu } from './NerdMenu'
+export { StatsPanel } from './StatsPanel'
+
+// Base components
 export { DropdownBase } from './DropdownBase'
 export { DropdownSelector } from './DropdownSelector'
 export type { DropdownOption } from './DropdownSelector'
-export { SpeedSelector } from './SpeedSelector'
+
+// Re-export shared types from lib
+export type { MediaMetadata, AudioTrack, QualityOption } from '@/lib/types/video'
+export type { SubtitleTrack } from '@/lib/types/subtitles'
 
 // Re-export preferences from shared module
 export {

@@ -18,11 +18,438 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query'
 
-import type { InternalApiHandlersErrorResponse } from '.././models'
+import type {
+  GetApiMediaIdSubtitlesPgsIndexStreamParams,
+  GetApiMediaIdSubtitlesTextIndexStreamParams,
+  GithubComMantonxViewraInternalInfrastructureSubtitlesPGSFrame,
+  InternalApiHandlersErrorResponse,
+} from '.././models'
 
 import { customInstance } from '../../mutator/index'
 
+interface TypedResponse<T> extends Response {
+  json(): Promise<T>
+}
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
+
+/**
+ * Extracts all PGS subtitle frames and returns them as a JSON array with base64-encoded WebP images
+ * @summary Get all PGS subtitle frames as JSON array
+ */
+export type getApiMediaIdSubtitlesPgsIndexResponse200 = {
+  data: GithubComMantonxViewraInternalInfrastructureSubtitlesPGSFrame[]
+  status: 200
+}
+
+export type getApiMediaIdSubtitlesPgsIndexResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMediaIdSubtitlesPgsIndexResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiMediaIdSubtitlesPgsIndexResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiMediaIdSubtitlesPgsIndexResponseSuccess =
+  getApiMediaIdSubtitlesPgsIndexResponse200 & {
+    headers: Headers
+  }
+export type getApiMediaIdSubtitlesPgsIndexResponseError = (
+  | getApiMediaIdSubtitlesPgsIndexResponse400
+  | getApiMediaIdSubtitlesPgsIndexResponse404
+  | getApiMediaIdSubtitlesPgsIndexResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiMediaIdSubtitlesPgsIndexResponse =
+  | getApiMediaIdSubtitlesPgsIndexResponseSuccess
+  | getApiMediaIdSubtitlesPgsIndexResponseError
+
+export const getGetApiMediaIdSubtitlesPgsIndexUrl = (id: number, index: number) => {
+  return `/api/media/${id}/subtitles/pgs/${index}`
+}
+
+export const getApiMediaIdSubtitlesPgsIndex = async (
+  id: number,
+  index: number,
+  options?: RequestInit
+): Promise<getApiMediaIdSubtitlesPgsIndexResponse> => {
+  return customInstance<getApiMediaIdSubtitlesPgsIndexResponse>(
+    getGetApiMediaIdSubtitlesPgsIndexUrl(id, index),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiMediaIdSubtitlesPgsIndexQueryKey = (id?: number, index?: number) => {
+  return [`/api/media/${id}/subtitles/pgs/${index}`] as const
+}
+
+export const getGetApiMediaIdSubtitlesPgsIndexQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiMediaIdSubtitlesPgsIndexQueryKey(id, index)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>> = ({
+    signal,
+  }) => getApiMediaIdSubtitlesPgsIndex(id, index, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!(id && index), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaIdSubtitlesPgsIndexQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>
+>
+export type GetApiMediaIdSubtitlesPgsIndexQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMediaIdSubtitlesPgsIndex<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdSubtitlesPgsIndex<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdSubtitlesPgsIndex<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get all PGS subtitle frames as JSON array
+ */
+
+export function useGetApiMediaIdSubtitlesPgsIndex<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndex>>, TError, TData>
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaIdSubtitlesPgsIndexQueryOptions(id, index, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Extracts PGS subtitle frames and returns them as JSON lines with base64-encoded WebP images. Use start/end params to request frames in time windows for efficient playback.
+ * @summary Stream PGS subtitle frames as WebP images
+ */
+export type getApiMediaIdSubtitlesPgsIndexStreamResponse200 = {
+  stream: TypedResponse<GithubComMantonxViewraInternalInfrastructureSubtitlesPGSFrame>
+  status: 200
+}
+
+export type getApiMediaIdSubtitlesPgsIndexStreamResponse400 = {
+  stream: TypedResponse<InternalApiHandlersErrorResponse>
+  status: 400
+}
+
+export type getApiMediaIdSubtitlesPgsIndexStreamResponse404 = {
+  stream: TypedResponse<InternalApiHandlersErrorResponse>
+  status: 404
+}
+
+export type getApiMediaIdSubtitlesPgsIndexStreamResponse500 = {
+  stream: TypedResponse<InternalApiHandlersErrorResponse>
+  status: 500
+}
+
+export type getApiMediaIdSubtitlesPgsIndexStreamResponseSuccess =
+  getApiMediaIdSubtitlesPgsIndexStreamResponse200 & {
+    headers: Headers
+  }
+export type getApiMediaIdSubtitlesPgsIndexStreamResponseError = (
+  | getApiMediaIdSubtitlesPgsIndexStreamResponse400
+  | getApiMediaIdSubtitlesPgsIndexStreamResponse404
+  | getApiMediaIdSubtitlesPgsIndexStreamResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiMediaIdSubtitlesPgsIndexStreamResponse =
+  | getApiMediaIdSubtitlesPgsIndexStreamResponseSuccess
+  | getApiMediaIdSubtitlesPgsIndexStreamResponseError
+
+export const getGetApiMediaIdSubtitlesPgsIndexStreamUrl = (
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesPgsIndexStreamParams
+) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/media/${id}/subtitles/pgs/${index}/stream?${stringifiedParams}`
+    : `/api/media/${id}/subtitles/pgs/${index}/stream`
+}
+
+export const getApiMediaIdSubtitlesPgsIndexStream = async (
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesPgsIndexStreamParams,
+  options?: RequestInit
+): Promise<getApiMediaIdSubtitlesPgsIndexStreamResponse> => {
+  return customInstance<getApiMediaIdSubtitlesPgsIndexStreamResponse>(
+    getGetApiMediaIdSubtitlesPgsIndexStreamUrl(id, index, params),
+    {
+      ...options,
+      method: 'GET',
+      headers: { Accept: 'application/x-ndjson', ...options?.headers },
+    }
+  )
+}
+
+export const getGetApiMediaIdSubtitlesPgsIndexStreamQueryKey = (
+  id?: number,
+  index?: number,
+  params?: GetApiMediaIdSubtitlesPgsIndexStreamParams
+) => {
+  return [`/api/media/${id}/subtitles/pgs/${index}/stream`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiMediaIdSubtitlesPgsIndexStreamQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesPgsIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiMediaIdSubtitlesPgsIndexStreamQueryKey(id, index, params)
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>
+  > = ({ signal }) =>
+    getApiMediaIdSubtitlesPgsIndexStream(id, index, params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!(id && index), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaIdSubtitlesPgsIndexStreamQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>
+>
+export type GetApiMediaIdSubtitlesPgsIndexStreamQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMediaIdSubtitlesPgsIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params: undefined | GetApiMediaIdSubtitlesPgsIndexStreamParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdSubtitlesPgsIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesPgsIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdSubtitlesPgsIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesPgsIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream PGS subtitle frames as WebP images
+ */
+
+export function useGetApiMediaIdSubtitlesPgsIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesPgsIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesPgsIndexStream>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaIdSubtitlesPgsIndexStreamQueryOptions(
+    id,
+    index,
+    params,
+    options
+  )
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
 
 /**
  * Extracts and converts an embedded subtitle stream to WebVTT format
@@ -196,6 +623,241 @@ export function useGetApiMediaIdSubtitlesStreamIndex<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiMediaIdSubtitlesStreamIndexQueryOptions(id, index, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
+}
+
+/**
+ * Streams the embedded subtitle stream, converting to WebVTT. Supports time-windowed extraction for faster initial load.
+ * @summary Stream embedded text subtitle as WebVTT
+ */
+export type getApiMediaIdSubtitlesTextIndexStreamResponse200 = {
+  data: string
+  status: 200
+}
+
+export type getApiMediaIdSubtitlesTextIndexStreamResponse400 = {
+  data: InternalApiHandlersErrorResponse
+  status: 400
+}
+
+export type getApiMediaIdSubtitlesTextIndexStreamResponse404 = {
+  data: InternalApiHandlersErrorResponse
+  status: 404
+}
+
+export type getApiMediaIdSubtitlesTextIndexStreamResponse500 = {
+  data: InternalApiHandlersErrorResponse
+  status: 500
+}
+
+export type getApiMediaIdSubtitlesTextIndexStreamResponseSuccess =
+  getApiMediaIdSubtitlesTextIndexStreamResponse200 & {
+    headers: Headers
+  }
+export type getApiMediaIdSubtitlesTextIndexStreamResponseError = (
+  | getApiMediaIdSubtitlesTextIndexStreamResponse400
+  | getApiMediaIdSubtitlesTextIndexStreamResponse404
+  | getApiMediaIdSubtitlesTextIndexStreamResponse500
+) & {
+  headers: Headers
+}
+
+export type getApiMediaIdSubtitlesTextIndexStreamResponse =
+  | getApiMediaIdSubtitlesTextIndexStreamResponseSuccess
+  | getApiMediaIdSubtitlesTextIndexStreamResponseError
+
+export const getGetApiMediaIdSubtitlesTextIndexStreamUrl = (
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesTextIndexStreamParams
+) => {
+  const normalizedParams = new URLSearchParams()
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  })
+
+  const stringifiedParams = normalizedParams.toString()
+
+  return stringifiedParams.length > 0
+    ? `/api/media/${id}/subtitles/text/${index}/stream?${stringifiedParams}`
+    : `/api/media/${id}/subtitles/text/${index}/stream`
+}
+
+export const getApiMediaIdSubtitlesTextIndexStream = async (
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesTextIndexStreamParams,
+  options?: RequestInit
+): Promise<getApiMediaIdSubtitlesTextIndexStreamResponse> => {
+  return customInstance<getApiMediaIdSubtitlesTextIndexStreamResponse>(
+    getGetApiMediaIdSubtitlesTextIndexStreamUrl(id, index, params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  )
+}
+
+export const getGetApiMediaIdSubtitlesTextIndexStreamQueryKey = (
+  id?: number,
+  index?: number,
+  params?: GetApiMediaIdSubtitlesTextIndexStreamParams
+) => {
+  return [`/api/media/${id}/subtitles/text/${index}/stream`, ...(params ? [params] : [])] as const
+}
+
+export const getGetApiMediaIdSubtitlesTextIndexStreamQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesTextIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiMediaIdSubtitlesTextIndexStreamQueryKey(id, index, params)
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>
+  > = ({ signal }) =>
+    getApiMediaIdSubtitlesTextIndexStream(id, index, params, { signal, ...requestOptions })
+
+  return { queryKey, queryFn, enabled: !!(id && index), ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiMediaIdSubtitlesTextIndexStreamQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>
+>
+export type GetApiMediaIdSubtitlesTextIndexStreamQueryError = InternalApiHandlersErrorResponse
+
+export function useGetApiMediaIdSubtitlesTextIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params: undefined | GetApiMediaIdSubtitlesTextIndexStreamParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdSubtitlesTextIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesTextIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+          TError,
+          Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiMediaIdSubtitlesTextIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesTextIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream embedded text subtitle as WebVTT
+ */
+
+export function useGetApiMediaIdSubtitlesTextIndexStream<
+  TData = Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+  TError = InternalApiHandlersErrorResponse,
+>(
+  id: number,
+  index: number,
+  params?: GetApiMediaIdSubtitlesTextIndexStreamParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiMediaIdSubtitlesTextIndexStream>>,
+        TError,
+        TData
+      >
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiMediaIdSubtitlesTextIndexStreamQueryOptions(
+    id,
+    index,
+    params,
+    options
+  )
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>

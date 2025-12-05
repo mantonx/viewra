@@ -16,9 +16,9 @@ import { useVideoKeyboard } from '@/lib/hooks/useVideoKeyboard'
 import { useVideoControls } from '@/lib/hooks/useVideoControls'
 import { useSubtitles } from '@/lib/hooks/useSubtitles'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { VideoControls } from './VideoControls'
-import { StatsPanel } from './StatsPanel'
-import { SubtitleOverlay } from './SubtitleOverlay'
+import { VideoControls } from '../VideoControls'
+import { StatsPanel } from '../StatsPanel'
+import { SubtitleOverlay } from '../SubtitleOverlay'
 import type { VideoPlayerProps } from './VideoPlayer.types'
 import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 import { useGetApiMediaIdTracks } from '@/lib/api/generated/media/media'
@@ -428,4 +428,3 @@ export const VideoPlayer = ({
   )
 }
 
-export type { VideoPlayerProps, MediaMetadata } from './VideoPlayer.types'

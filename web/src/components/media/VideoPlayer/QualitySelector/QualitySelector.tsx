@@ -1,30 +1,7 @@
 import { useState, useMemo } from 'react'
-import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
-import { DropdownBase } from './DropdownBase'
-
-export interface QualityOption {
-  height: number
-  bandwidth: number
-  displayName?: string
-  dataUsageMBPerHour?: number
-  canDirectPlay?: boolean
-  needsTranscode?: boolean
-  isRecommended?: boolean
-  isOriginal?: boolean  // True if this is the source/original quality
-  description?: string
-  index?: number
-}
-
-interface QualitySelectorProps {
-  currentQuality: number | null
-  currentBandwidth?: number | null
-  availableQualities: QualityOption[]
-  recommendedQuality: QualityRecommendationResponse | null
-  autoMode: boolean
-  onQualityChange: (height: number, bandwidth?: number) => void
-  onAutoToggle: () => void
-  showBitrateVariants?: boolean
-}
+import { DropdownBase } from '../DropdownBase'
+import type { QualityOption } from '@/lib/types/video'
+import type { QualitySelectorProps } from './QualitySelector.types'
 
 const formatBandwidth = (bps: number): string => {
   if (bps >= 1_000_000) {

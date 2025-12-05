@@ -1,14 +1,7 @@
 import { useMemo } from 'react'
-import { DropdownBase } from './DropdownBase'
-import { type SubtitleTrack } from '@/lib/types/subtitles'
-
-export type { SubtitleTrack }
-
-interface SubtitleSelectorProps {
-  availableSubtitles: SubtitleTrack[]
-  currentSubtitle: number | null // null means "Off"
-  onSubtitleChange: (trackId: number | null) => void
-}
+import { DropdownBase } from '../DropdownBase'
+import type { SubtitleTrack } from '@/lib/types/subtitles'
+import type { SubtitleSelectorProps } from './SubtitleSelector.types'
 
 // Language code to display name mapping
 const languageNames: Record<string, string> = {

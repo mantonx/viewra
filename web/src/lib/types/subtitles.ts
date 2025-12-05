@@ -1,7 +1,67 @@
 /**
  * Shared subtitle types used across the application.
+ * SubtitleTrack is a camelCase mapping of the API response for internal use.
  */
 
+import type {
+  GithubComMantonxViewraInternalApplicationMediaSubtitleTrackResponse as ApiSubtitleTrack,
+  GithubComMantonxViewraInternalInfrastructureSubtitlesPGSFrame as ApiPGSFrame,
+} from '@/lib/api/generated/models'
+import {
+  getGetApiMediaIdSubtitlesPgsIndexStreamUrl,
+  getGetApiMediaIdSubtitlesTextIndexStreamUrl,
+  getGetApiMediaIdSubtitlesTrackIdUrl,
+} from '@/lib/api/generated/subtitles/subtitles'
+
+// Re-export the API type for consumers that need it
+export type { ApiSubtitleTrack }
+
+/**
+ * PGS (bitmap) subtitle frame with all required fields.
+ * The backend always sends all fields (Go JSON marshaling includes zero values),
+ * so we use Required<> to reflect the actual runtime behavior.
+ */
+export type PGSFrame = Required<ApiPGSFrame>
+
+/**
+ * Text subtitle cue (parsed from WebVTT).
+ */
+export interface TextCue {
+  start: number // seconds
+  end: number // seconds
+  text: string
+}
+
+/**
+ * Time window parameters for subtitle streaming endpoints.
+ */
+export interface SubtitleTimeWindow {
+  start?: number // milliseconds
+  end?: number // milliseconds
+}
+
+/**
+ * URL builders for subtitle streaming endpoints.
+ * These wrap the generated URL builders for cleaner usage.
+ */
+export const subtitleUrls = {
+  /** Get PGS subtitle stream URL with time window */
+  pgsStream: (mediaId: number, bitmapIndex: number, window?: SubtitleTimeWindow): string =>
+    getGetApiMediaIdSubtitlesPgsIndexStreamUrl(mediaId, bitmapIndex, window),
+
+  /** Get text subtitle stream URL with time window */
+  textStream: (mediaId: number, textIndex: number, window?: SubtitleTimeWindow): string =>
+    getGetApiMediaIdSubtitlesTextIndexStreamUrl(mediaId, textIndex, window),
+
+  /** Get subtitle by track ID (full WebVTT conversion) */
+  byTrackId: (mediaId: number, trackId: number): string =>
+    getGetApiMediaIdSubtitlesTrackIdUrl(mediaId, trackId),
+}
+
+/**
+ * Internal subtitle track type with camelCase properties.
+ * Mapped from API response via mapApiToSubtitleTrack in useSubtitles hook.
+ */
 export interface SubtitleTrack {
   id: number
   language: string
@@ -12,7 +72,7 @@ export interface SubtitleTrack {
   isCommentary?: boolean
   isBitmap?: boolean
   sourceType?: 'embedded' | 'external'
-  streamIndex?: number // Absolute stream index in the file (for FFmpeg)
+  streamIndex?: number
 }
 
 /**

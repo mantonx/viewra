@@ -1,11 +1,5 @@
 import { memo } from 'react'
-
-interface BufferIndicatorProps {
-  bufferLength: number
-  minBuffer?: number
-  criticalBuffer?: number
-  isVisible: boolean
-}
+import type { BufferIndicatorProps } from './BufferIndicator.types'
 
 const getBufferStatus = (
   bufferLength: number,

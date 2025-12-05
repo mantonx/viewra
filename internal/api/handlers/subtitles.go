@@ -215,11 +215,13 @@ func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 
 // StreamTextSubtitle handles GET /api/media/:id/subtitles/text/:index/stream
 // @Summary Stream embedded text subtitle as WebVTT
-// @Description Streams the embedded subtitle stream, converting to WebVTT
+// @Description Streams the embedded subtitle stream, converting to WebVTT. Supports time-windowed extraction for faster initial load.
 // @Tags subtitles
 // @Produce text/vtt
 // @Param id path int true "Media ID"
 // @Param index path int true "Stream Index (relative, 0-based among subtitle streams)"
+// @Param start query int false "Start time in milliseconds (default: 0, extracts full file)"
+// @Param end query int false "End time in milliseconds (default: 0, extracts full file)"
 // @Success 200 {string} string "WebVTT content"
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -244,6 +246,21 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 
+	// Parse optional time window parameters
+	startMS := int64(0)
+	if startParam := c.Query("start"); startParam != "" {
+		if parsed, err := parseID(startParam); err == nil {
+			startMS = parsed
+		}
+	}
+
+	endMS := int64(0)
+	if endParam := c.Query("end"); endParam != "" {
+		if parsed, err := parseID(endParam); err == nil {
+			endMS = parsed
+		}
+	}
+
 	// Find text track at this relative index
 	targetTrack, err := h.tracksUseCase.GetSubtitleTrackByRelativeIndex(c.Request.Context(), mediaID, int(relativeIndex), false)
 	if err != nil {
@@ -264,8 +281,8 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Use subtitle-extractor to extract and convert to WebVTT
-	vttPath, err := h.converter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex)
+	// Use windowed extraction (or full extraction if no time bounds)
+	vttContent, err := h.converter.StreamTextSubtitleWindow(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex, startMS, endMS)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "Failed to extract subtitle",
@@ -274,19 +291,14 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Read and serve the WebVTT content
-	vttContent, err := subtitles.GetWebVTTContent(vttPath)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to read subtitle file",
-			Message: err.Error(),
-		})
-		return
-	}
-
 	c.Header("Content-Type", "text/vtt; charset=utf-8")
-	c.Header("Cache-Control", "public, max-age=86400")
-	c.String(http.StatusOK, vttContent)
+	// Only cache full extractions (no time bounds) - windowed extractions are dynamic
+	if startMS == 0 && endMS == 0 {
+		c.Header("Cache-Control", "public, max-age=86400")
+	} else {
+		c.Header("Cache-Control", "public, max-age=3600") // Cache windows for 1 hour
+	}
+	c.String(http.StatusOK, string(vttContent))
 }
 
 // StreamPGSSubtitle handles GET /api/media/:id/subtitles/pgs/:index/stream

@@ -1,10 +1,6 @@
 import { useMemo } from 'react'
-import { DropdownSelector, type DropdownOption } from './DropdownSelector'
-
-interface SpeedSelectorProps {
-  playbackSpeed: number
-  onSpeedChange: (speed: number) => void
-}
+import { DropdownSelector, type DropdownOption } from '../DropdownSelector'
+import type { SpeedSelectorProps } from './SpeedSelector.types'
 
 const SPEED_OPTIONS = [
   { value: 0.25, label: '0.25x', sublabel: 'Very slow' },

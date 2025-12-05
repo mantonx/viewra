@@ -1,8 +1,4 @@
-export interface MediaMetadata {
-  title: string
-  subtitle?: string // For TV: "S01E02 - Episode Title", for Movies: year
-  posterUrl?: string
-}
+import type { MediaMetadata } from '@/lib/types/video'
 
 export interface VideoPlayerProps {
   mediaId: number
