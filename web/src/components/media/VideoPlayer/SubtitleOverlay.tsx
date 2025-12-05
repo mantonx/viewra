@@ -256,8 +256,10 @@ const TextSubtitleRenderer = ({
   )
 }
 
-// Window size for progressive PGS fetching (2 minutes in ms)
-// Smaller windows reduce initial load time when seeking (6s vs 13s for network filesystems)
+// Micro-window for immediate subtitle display after seek (5 seconds)
+// This gives near-instant feedback while the full window loads in background
+const PGS_MICRO_WINDOW_MS = 5 * 1000
+// Full window size for progressive PGS fetching (2 minutes in ms)
 const PGS_WINDOW_MS = 2 * 60 * 1000
 // Prefetch threshold - start fetching next window when this close to end (60 seconds)
 const PGS_PREFETCH_THRESHOLD_MS = 60 * 1000
@@ -284,8 +286,10 @@ const PGSSubtitleRenderer = ({
   // Current display dimensions of the video element (changes on resize)
   const [elementSize, setElementSize] = useState({ width: 0, height: 0 })
   const abortControllerRef = useRef<AbortController | null>(null)
-  // Track which time windows we've already fetched
+  // Track which full windows we've already fetched
   const fetchedWindowsRef = useRef<Set<number>>(new Set())
+  // Track which micro-windows we've fetched (for immediate display after seek)
+  const fetchedMicroWindowsRef = useRef<Set<string>>(new Set())
 
   // Keep framesRef in sync with frames state
   useEffect(() => {
@@ -310,44 +314,63 @@ const PGSSubtitleRenderer = ({
     return await parseNDJSON(response)
   }
 
+  // Merge new frames into state, avoiding duplicates
+  const mergeFrames = (newFrames: PGSFrame[]) => {
+    if (newFrames.length === 0) return
+    setFrames((prev) => {
+      const existingStarts = new Set(prev.map((f) => f.start_ms))
+      const uniqueNew = newFrames.filter((f) => !existingStarts.has(f.start_ms))
+      if (uniqueNew.length === 0) return prev
+      const merged = [...prev, ...uniqueNew]
+      return merged.sort((a, b) => a.start_ms - b.start_ms)
+    })
+  }
+
   // Calculate which window a timestamp falls into
   const getWindowStart = (timeMs: number): number => {
     return Math.floor(timeMs / PGS_WINDOW_MS) * PGS_WINDOW_MS
   }
 
-  // Fetch frames for a window if not already fetched
-  const ensureWindowLoaded = async (windowStart: number, signal: AbortSignal, bmpIndex: number) => {
-    // Check if already fetched
+  // Two-phase fetching: micro-window first for instant display, then full window in background
+  // actualTimeMs is the current playback position for micro-window targeting
+  const ensureWindowLoaded = async (windowStart: number, signal: AbortSignal, bmpIndex: number, actualTimeMs?: number) => {
+    // Check if full window already fetched
     if (fetchedWindowsRef.current.has(windowStart)) {
       return
     }
-    // Mark as fetched IMMEDIATELY to prevent duplicate calls
-    fetchedWindowsRef.current.add(windowStart)
 
-    try {
-      const windowEnd = windowStart + PGS_WINDOW_MS
-      const newFrames = await fetchWindow(windowStart, windowEnd, signal, bmpIndex)
+    const windowEnd = windowStart + PGS_WINDOW_MS
+    // Use actual position for micro-window if provided, otherwise use window start
+    const microStart = actualTimeMs !== undefined ? Math.floor(actualTimeMs / 1000) * 1000 : windowStart
+    const microKey = `${microStart}-micro`
 
-      // Check if aborted before updating state (signal may have been aborted during fetch)
-      if (signal.aborted) {
-        return
+    // Phase 1: Fetch micro-window immediately for fast subtitle display
+    if (!fetchedMicroWindowsRef.current.has(microKey)) {
+      fetchedMicroWindowsRef.current.add(microKey)
+      try {
+        const microEnd = microStart + PGS_MICRO_WINDOW_MS
+        const microFrames = await fetchWindow(microStart, microEnd, signal, bmpIndex)
+        if (!signal.aborted) {
+          mergeFrames(microFrames)
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return
+        console.error('Failed to fetch PGS micro-window:', err)
       }
+    }
 
-      if (newFrames.length > 0) {
-        setFrames((prev) => {
-          // Merge new frames, avoiding duplicates and keeping sorted
-          const existingStarts = new Set(prev.map((f) => f.start_ms))
-          const uniqueNew = newFrames.filter((f) => !existingStarts.has(f.start_ms))
-          const merged = [...prev, ...uniqueNew]
-          return merged.sort((a, b) => a.start_ms - b.start_ms)
-        })
+    // Phase 2: Fetch full window in background (will include micro-window frames too, but we dedupe)
+    if (!fetchedWindowsRef.current.has(windowStart)) {
+      fetchedWindowsRef.current.add(windowStart)
+      try {
+        const fullFrames = await fetchWindow(windowStart, windowEnd, signal, bmpIndex)
+        if (!signal.aborted) {
+          mergeFrames(fullFrames)
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return
+        console.error('Failed to fetch PGS window:', err)
       }
-    } catch (err) {
-      // Ignore abort errors - they're expected when component unmounts or track changes
-      if (err instanceof Error && err.name === 'AbortError') {
-        return
-      }
-      console.error('Failed to fetch PGS window:', err)
     }
   }
 
@@ -357,6 +380,7 @@ const PGSSubtitleRenderer = ({
       setFrames([])
       setCurrentFrame(null)
       fetchedWindowsRef.current.clear()
+      fetchedMicroWindowsRef.current.clear()
       return
     }
 
@@ -368,6 +392,7 @@ const PGSSubtitleRenderer = ({
     setFrames([])
     setCurrentFrame(null)
     fetchedWindowsRef.current.clear()
+    fetchedMicroWindowsRef.current.clear()
 
     const abortController = new AbortController()
     abortControllerRef.current = abortController
@@ -438,12 +463,13 @@ const PGSSubtitleRenderer = ({
       const timeUntilNextWindow = nextWindow - actualTimeMs
 
       if (timeUntilNextWindow < PGS_PREFETCH_THRESHOLD_MS && abortControllerRef.current && bitmapIndex !== undefined) {
-        ensureWindowLoaded(nextWindow, abortControllerRef.current.signal, bitmapIndex)
+        ensureWindowLoaded(nextWindow, abortControllerRef.current.signal, bitmapIndex, nextWindow)
       }
 
       // Also ensure current window is loaded (for seeks)
+      // Pass actualTimeMs so micro-window targets the exact seek position
       if (!fetchedWindowsRef.current.has(currentWindow) && abortControllerRef.current && bitmapIndex !== undefined) {
-        ensureWindowLoaded(currentWindow, abortControllerRef.current.signal, bitmapIndex)
+        ensureWindowLoaded(currentWindow, abortControllerRef.current.signal, bitmapIndex, actualTimeMs)
       }
 
       // Find active frame
