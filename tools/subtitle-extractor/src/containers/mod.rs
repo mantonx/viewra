@@ -2,6 +2,7 @@ mod cluster_cache;
 mod ebml;
 mod mkv;
 mod mp4;
+mod pgs_index;
 mod ts;
 
 use anyhow::Result;
@@ -14,6 +15,8 @@ pub use cluster_cache::ClusterCache;
 pub use ebml::{ClusterIndex, EbmlScanner, FrameStreamer, RawFrame};
 pub use mkv::MkvContainer;
 pub use mp4::Mp4Container;
+#[allow(unused_imports)]
+pub use pgs_index::{PgsFrameEntry, PgsIndex, PgsIndexBuilder};
 pub use ts::TsContainer;
 
 /// Information about a track in a container

@@ -446,6 +446,11 @@ impl ClusterCache {
         (self.clusters.len(), self.fully_indexed)
     }
 
+    /// Get the timestamp scale (nanoseconds per unit)
+    pub fn timestamp_scale(&self) -> u64 {
+        self.timestamp_scale
+    }
+
     // --- Header parsing ---
 
     fn parse_header(reader: &mut BufReader<File>) -> Result<(u64, Option<u64>, u64)> {

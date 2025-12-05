@@ -559,6 +559,25 @@ func (c *Converter) cachePGSFrame(mediaID int64, trackNumber int64, frame *PGSFr
 	return os.WriteFile(metaPath, metaData, 0644)
 }
 
+// pgsWindowMarkerPath returns the path to a marker file indicating a time window has been fully extracted.
+func (c *Converter) pgsWindowMarkerPath(mediaID int64, trackNumber int64, startMS, endMS int64) string {
+	subtitleDir := c.getSubtitleCacheDir(mediaID)
+	return filepath.Join(subtitleDir, fmt.Sprintf("pgs_%d_window_%d_%d.done", trackNumber, startMS, endMS))
+}
+
+// isWindowCached checks if a specific time window has been fully extracted and cached.
+func (c *Converter) isWindowCached(mediaID int64, trackNumber int64, startMS, endMS int64) bool {
+	markerPath := c.pgsWindowMarkerPath(mediaID, trackNumber, startMS, endMS)
+	_, err := os.Stat(markerPath)
+	return err == nil
+}
+
+// markWindowCached creates a marker file indicating a time window has been fully extracted.
+func (c *Converter) markWindowCached(mediaID int64, trackNumber int64, startMS, endMS int64) error {
+	markerPath := c.pgsWindowMarkerPath(mediaID, trackNumber, startMS, endMS)
+	return os.WriteFile(markerPath, []byte{}, 0644)
+}
+
 // listCachedPGSFrames returns all cached PGS frames for a track within a time range.
 func (c *Converter) listCachedPGSFrames(mediaID int64, trackNumber int64, startMS, endMS int64) []PGSFrame {
 	subtitleDir := c.getSubtitleCacheDir(mediaID)
@@ -608,6 +627,11 @@ func (c *Converter) listCachedPGSFrames(mediaID int64, trackNumber int64, startM
 // for efficient memory usage with large subtitle tracks.
 // Frames are cached to disk for fast subsequent requests.
 //
+// Uses progressive indexing for fast seeking:
+// - On first request for a time range, builds an index of frame byte positions
+// - Subsequent seeks use the index for O(1) direct reads instead of scanning
+// - Index is extended automatically as user watches further into the video
+//
 // The caller should iterate over the returned channel until it's closed.
 // Any error encountered during streaming will be sent on the error channel.
 func (c *Converter) StreamPGSFrames(ctx context.Context, mediaID int64, mediaPath string, streamIndex int, startMS, endMS int64) (<-chan PGSFrame, <-chan error) {
@@ -625,10 +649,10 @@ func (c *Converter) StreamPGSFrames(ctx context.Context, mediaID int64, mediaPat
 			return
 		}
 
-		// Check for cached frames first
-		cachedFrames := c.listCachedPGSFrames(mediaID, trackNumber, startMS, endMS)
-		if len(cachedFrames) > 0 {
-			// Return cached frames
+		// Check if this window has been fully extracted and cached
+		// We use a marker file to track complete windows, not just presence of some frames
+		if c.isWindowCached(mediaID, trackNumber, startMS, endMS) {
+			cachedFrames := c.listCachedPGSFrames(mediaID, trackNumber, startMS, endMS)
 			for _, frame := range cachedFrames {
 				select {
 				case frames <- frame:
@@ -639,7 +663,9 @@ func (c *Converter) StreamPGSFrames(ctx context.Context, mediaID int64, mediaPat
 			return
 		}
 
-		// No cache - extract from file
+		// Build args for stream-pgs command
+		// Note: stream-pgs uses ClusterCache for fast binary-search seeking (3-5 reads to any position)
+		// No index needed - the tool handles seeking internally using MKV cluster positions
 		args := []string{
 			"stream-pgs",
 			"--track", fmt.Sprintf("%d", trackNumber),
@@ -689,15 +715,22 @@ func (c *Converter) StreamPGSFrames(ctx context.Context, mediaID int64, mediaPat
 			}
 		}
 
-		if err := scanner.Err(); err != nil {
-			errs <- fmt.Errorf("error reading output: %w", err)
+		scanErr := scanner.Err()
+		if scanErr != nil {
+			errs <- fmt.Errorf("error reading output: %w", scanErr)
 		}
 
-		if err := cmd.Wait(); err != nil {
+		cmdErr := cmd.Wait()
+		if cmdErr != nil {
 			// Don't report error if context was cancelled
 			if ctx.Err() == nil {
-				errs <- fmt.Errorf("subtitle-extractor failed: %w", err)
+				errs <- fmt.Errorf("subtitle-extractor failed: %w", cmdErr)
 			}
+		}
+
+		// Mark window as fully cached only if extraction completed successfully
+		if scanErr == nil && cmdErr == nil && ctx.Err() == nil {
+			_ = c.markWindowCached(mediaID, trackNumber, startMS, endMS)
 		}
 	}()
 

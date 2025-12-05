@@ -355,7 +355,8 @@ impl FrameStreamer {
     pub fn open(path: &Path) -> Result<Self> {
         let file = File::open(path).context("Failed to open file")?;
         let file_size = file.metadata()?.len();
-        let mut reader = BufReader::with_capacity(256 * 1024, file);
+        // Use 512KB buffer - balances network round trips with memory usage
+        let mut reader = BufReader::with_capacity(512 * 1024, file);
 
         // Parse timestamp scale from header
         let timestamp_scale = Self::parse_timestamp_scale(&mut reader)?;

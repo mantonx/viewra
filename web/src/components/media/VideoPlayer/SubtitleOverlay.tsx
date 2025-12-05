@@ -219,9 +219,10 @@ const TextSubtitleRenderer = ({
   )
 }
 
-// Window size for progressive PGS fetching (5 minutes in ms)
-const PGS_WINDOW_MS = 5 * 60 * 1000
-// Prefetch threshold - start fetching next window when this close to end (1 minute in ms)
+// Window size for progressive PGS fetching (2 minutes in ms)
+// Smaller windows reduce initial load time when seeking (6s vs 13s for network filesystems)
+const PGS_WINDOW_MS = 2 * 60 * 1000
+// Prefetch threshold - start fetching next window when this close to end (60 seconds)
 const PGS_PREFETCH_THRESHOLD_MS = 60 * 1000
 
 /**

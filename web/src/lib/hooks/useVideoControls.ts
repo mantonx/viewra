@@ -109,11 +109,18 @@ export const useVideoControls = ({
       hls.loadSource(newUrl)
 
       const onFragBuffered = () => {
-        (streamOffsetRef as React.MutableRefObject<number>).current = targetTime - video.currentTime
-        lastTimeUpdateRef.current = Math.floor(video.currentTime)
-        if (isSeekingRef.current !== undefined) {
-          (isSeekingRef as React.MutableRefObject<boolean>).current = false
-        }
+        // Wait a frame for video.currentTime to be updated from the buffered data.
+        // The HLS stream timestamps start from the seek position, so video.currentTime
+        // will reflect the actual stream timestamp. streamOffset = targetTime - video.currentTime
+        // will be close to 0 if timestamps are preserved, or will be targetTime if timestamps
+        // were reset to 0.
+        requestAnimationFrame(() => {
+          (streamOffsetRef as React.MutableRefObject<number>).current = targetTime - video.currentTime
+          lastTimeUpdateRef.current = Math.floor(video.currentTime)
+          if (isSeekingRef.current !== undefined) {
+            (isSeekingRef as React.MutableRefObject<boolean>).current = false
+          }
+        })
         hls.off(Hls.Events.FRAG_BUFFERED, onFragBuffered)
       }
       hls.on(Hls.Events.FRAG_BUFFERED, onFragBuffered)
