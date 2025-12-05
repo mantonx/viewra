@@ -1,17 +1,13 @@
 import { useMemo } from 'react'
 import { DropdownBase } from './DropdownBase'
-import {
-  type SubtitleTrack,
-  type SubtitleSelection,
-  calculateRelativeStreamIndex,
-} from '@/lib/types/subtitles'
+import { type SubtitleTrack } from '@/lib/types/subtitles'
 
-export type { SubtitleTrack, SubtitleSelection }
+export type { SubtitleTrack }
 
 interface SubtitleSelectorProps {
   availableSubtitles: SubtitleTrack[]
   currentSubtitle: number | null // null means "Off"
-  onSubtitleChange: (trackId: number | null, selection?: SubtitleSelection) => void
+  onSubtitleChange: (trackId: number | null) => void
 }
 
 // Language code to display name mapping
@@ -81,17 +77,7 @@ export const SubtitleSelector = ({
     return availableSubtitles.filter((sub) => sub.isBitmap)
   }, [availableSubtitles])
 
-  /**
-   * Check if a track can be burned in.
-   * Only embedded bitmap subtitles with valid stream indices can be burned in.
-   */
-  const canBurnIn = (track: SubtitleTrack): boolean => {
-    return (
-      track.isBitmap === true && track.sourceType !== 'external' && track.streamIndex !== undefined
-    )
-  }
-
-  // Build display name for a subtitle track
+// Build display name for a subtitle track
   const getTrackDisplayName = (track: SubtitleTrack): string => {
     if (track.title) {
       return track.title
@@ -161,8 +147,7 @@ export const SubtitleSelector = ({
   const renderSubtitleOption = (
     track: SubtitleTrack,
     close: () => void,
-    showLanguage: boolean,
-    isBurnIn: boolean = false
+    showLanguage: boolean
   ) => {
     const isSelected = currentSubtitle === track.id
     const displayName = showLanguage
@@ -170,28 +155,7 @@ export const SubtitleSelector = ({
       : track.title || buildTrackDescription(track)
 
     const handleClick = () => {
-      if (isBurnIn && canBurnIn(track)) {
-        // For embedded bitmap subtitles, set up burn-in
-        const streamIndex = calculateRelativeStreamIndex(track, availableSubtitles)
-        if (streamIndex >= 0) {
-          const selection: SubtitleSelection = {
-            trackId: track.id,
-            requiresBurnIn: true,
-            streamIndex,
-          }
-          onSubtitleChange(track.id, selection)
-        } else {
-          // Fallback: shouldn't happen if canBurnIn is correct
-          console.warn('Cannot use bitmap subtitle: invalid stream index', track)
-          onSubtitleChange(track.id, { trackId: track.id, requiresBurnIn: false })
-        }
-      } else {
-        // For text subtitles or external bitmap subtitles
-        onSubtitleChange(track.id, {
-          trackId: track.id,
-          requiresBurnIn: false,
-        })
-      }
+      onSubtitleChange(track.id)
       close()
     }
 
@@ -260,7 +224,7 @@ export const SubtitleSelector = ({
             {/* Off option */}
             <button
               onClick={() => {
-                onSubtitleChange(null, { trackId: null, requiresBurnIn: false })
+                onSubtitleChange(null)
                 close()
               }}
               className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${
@@ -280,7 +244,7 @@ export const SubtitleSelector = ({
               <>
                 {/* If only one language, show flat list */}
                 {sortedLanguages.length === 1
-                  ? textSubtitles.map((track) => renderSubtitleOption(track, close, true, false))
+                  ? textSubtitles.map((track) => renderSubtitleOption(track, close, true))
                   : /* Multiple languages - group by language */
                     sortedLanguages.map((lang) => {
                       const tracks = subtitlesByLanguage.get(lang) || []
@@ -294,7 +258,7 @@ export const SubtitleSelector = ({
                           </div>
                           {/* Tracks for this language */}
                           {tracks.map((track) =>
-                            renderSubtitleOption(track, close, !hasMultipleTracks, false)
+                            renderSubtitleOption(track, close, !hasMultipleTracks)
                           )}
                         </div>
                       )
@@ -302,21 +266,17 @@ export const SubtitleSelector = ({
               </>
             )}
 
-            {/* Bitmap subtitles section (burn-in only) */}
+            {/* Bitmap subtitles section (PGS/VobSub - rendered as image overlay) */}
             {bitmapSubtitles.length > 0 && (
               <>
-                <div className="px-3 py-1.5 text-xs font-medium uppercase tracking-wider border-t border-white/10 flex items-center gap-1.5 text-amber-400/80 bg-amber-500/10">
-                  {/* Warning icon for burn-in */}
+                <div className="px-3 py-1.5 text-xs font-medium uppercase tracking-wider border-t border-white/10 flex items-center gap-1.5 text-white/60 bg-white/5">
+                  {/* Image icon for bitmap */}
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
+                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                   </svg>
-                  Burn-in (PGS/DVD)
+                  Image Subtitles (PGS)
                 </div>
-                {bitmapSubtitles.map((track) => renderSubtitleOption(track, close, true, true))}
+                {bitmapSubtitles.map((track) => renderSubtitleOption(track, close, true))}
               </>
             )}
           </div>

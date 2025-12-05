@@ -15,22 +15,16 @@ export interface SubtitleTrack {
   streamIndex?: number // Absolute stream index in the file (for FFmpeg)
 }
 
-export interface SubtitleSelection {
-  trackId: number | null
-  requiresBurnIn: boolean
-  streamIndex?: number
-}
-
 /**
  * Calculate the relative stream index for a subtitle track.
- * FFmpeg's [0:s:N] notation uses 0-based indexing among subtitle streams only.
+ * This is used for API endpoints that expect a 0-based index among subtitle streams only.
  * Returns -1 for external subtitles (they don't have stream indices).
  */
 export const calculateRelativeStreamIndex = (
   track: SubtitleTrack,
   allTracks: SubtitleTrack[]
 ): number => {
-  // External subtitles don't have stream indices - can't be burned in via FFmpeg stream selector
+  // External subtitles don't have stream indices
   if (track.sourceType === 'external' || track.streamIndex === undefined) {
     return -1
   }
@@ -42,4 +36,42 @@ export const calculateRelativeStreamIndex = (
 
   // Find this track's position (0-based relative index)
   return embeddedTracks.findIndex((t) => t.id === track.id)
+}
+
+/**
+ * Calculate the relative index among bitmap (PGS) subtitle tracks.
+ * Returns -1 if the track is not a bitmap track.
+ */
+export const calculateBitmapIndex = (
+  track: SubtitleTrack,
+  allTracks: SubtitleTrack[]
+): number => {
+  if (!track.isBitmap || track.streamIndex === undefined) {
+    return -1
+  }
+
+  const bitmapTracks = allTracks
+    .filter((t) => t.isBitmap && t.streamIndex !== undefined)
+    .sort((a, b) => (a.streamIndex ?? 0) - (b.streamIndex ?? 0))
+
+  return bitmapTracks.findIndex((t) => t.id === track.id)
+}
+
+/**
+ * Calculate the relative index among text (non-bitmap) subtitle tracks.
+ * Returns -1 if the track is a bitmap track or external.
+ */
+export const calculateTextIndex = (
+  track: SubtitleTrack,
+  allTracks: SubtitleTrack[]
+): number => {
+  if (track.isBitmap || track.sourceType === 'external' || track.streamIndex === undefined) {
+    return -1
+  }
+
+  const textTracks = allTracks
+    .filter((t) => !t.isBitmap && t.streamIndex !== undefined && t.sourceType !== 'external')
+    .sort((a, b) => (a.streamIndex ?? 0) - (b.streamIndex ?? 0))
+
+  return textTracks.findIndex((t) => t.id === track.id)
 }

@@ -23,8 +23,9 @@ func RegisterSubtitleRoutes(rg *gin.RouterGroup, handler *handlers.SubtitleHandl
 	// Text subtitle streaming: fast demux + SRT-to-WebVTT conversion on-the-fly
 	media.GET("/:id/subtitles/text/:index/stream", handler.StreamTextSubtitle)
 
-	// Note: PGS/bitmap subtitles are handled via burn-in during transcode.
-	// The standalone extraction endpoint was removed because it requires scanning
-	// the entire video file (too slow for interactive use).
-	// For HLS subtitle support, see /api/media/:id/hls/subtitle/:trackIndex/subtitles.vtt
+	// PGS/bitmap subtitle streaming: renders to WebP images for client-side overlay
+	// Returns all frames as JSON array (for caching/preloading)
+	media.GET("/:id/subtitles/pgs/:index", handler.GetAllPGSFrames)
+	// Returns frames as streaming JSON lines (for progressive loading)
+	media.GET("/:id/subtitles/pgs/:index/stream", handler.StreamPGSSubtitle)
 }

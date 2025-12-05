@@ -279,7 +279,7 @@ func buildTranscodeUseCases(
 	createJob := transcode.NewCreateJobUseCase(repos.Transcode, svcs.TranscodeQueue)
 	getStatus := transcode.NewGetJobStatusUseCase(repos.Transcode)
 	serveManifest := transcode.NewServeManifestUseCase(repos.Media, svcs.SessionManager)
-	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media, svcs.SessionManager)
+	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media)
 	serveAudioPlaylist := transcode.NewServeAudioPlaylistUseCase(repos.Media, svcs.SessionManager)
 
 	return &TranscodeUseCases{

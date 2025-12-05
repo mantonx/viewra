@@ -206,7 +206,6 @@ func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 // @Produce application/vnd.apple.mpegurl,application/json
 // @Param media_id path int true "Media ID"
 // @Param quality path string true "Quality level (360p, 720p, 1080p, 4k)"
-// @Param sub query int false "Subtitle stream index to burn in (0-based among subtitle streams)"
 // @Success 200 {file} file "HLS playlist file - segments generated on-demand"
 // @Success 302 "Redirect to direct stream (for compatible files)"
 // @Failure 400 {object} handlers.ErrorResponse
@@ -231,17 +230,6 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		}
 	}
 
-	// Parse optional subtitle burn-in parameter
-	// ?sub=0 means burn in the first subtitle stream (0-based among subtitle streams)
-	burnInSubtitle := false
-	subtitleStreamIndex := 0
-	if subStr := c.Query("sub"); subStr != "" {
-		if subIdx, err := parseInt(subStr); err == nil && subIdx >= 0 {
-			burnInSubtitle = true
-			subtitleStreamIndex = subIdx
-		}
-	}
-
 	// Parse client codec capabilities from headers
 	// X-Supported-Video-Codecs: h264,h265,vp9,av1
 	// X-Supported-Containers: mp4,webm,matroska
@@ -256,8 +244,6 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		StartPosition:        startPosition,
 		SupportedVideoCodecs: supportedVideoCodecs,
 		SupportedContainers:  supportedContainers,
-		BurnInSubtitle:       burnInSubtitle,
-		SubtitleStreamIndex:  subtitleStreamIndex,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
@@ -584,25 +570,12 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
 	supportedContainers := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
 
-	// Parse optional subtitle burn-in parameter
-	// ?sub=0 means burn in the first subtitle stream (0-based among subtitle streams)
-	burnInSubtitle := false
-	subtitleStreamIndex := 0
-	if subStr := c.Query("sub"); subStr != "" {
-		if subIdx, err := parseInt(subStr); err == nil && subIdx >= 0 {
-			burnInSubtitle = true
-			subtitleStreamIndex = subIdx
-		}
-	}
-
 	// Use the serve master playlist use case
 	response, err := h.serveMasterPlaylistUseCase.Execute(c.Request.Context(), transcode.ServeMasterPlaylistRequest{
 		MediaID:              mediaID,
 		SupportedVideoCodecs: supportedVideoCodecs,
 		SupportedContainers:  supportedContainers,
 		StartPosition:        c.Query("start"),
-		BurnInSubtitle:       burnInSubtitle,
-		SubtitleStreamIndex:  subtitleStreamIndex,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
@@ -802,7 +775,7 @@ func (h *TranscodeHandler) ServeSubtitle(c *gin.Context) {
 	}
 
 	// Use the converter which handles subtitle-extractor with FFmpeg fallback
-	vttPath, err := h.subtitleConverter.ExtractAndConvert(c.Request.Context(), mediaResp.FilePath, *targetTrack.StreamIndex)
+	vttPath, err := h.subtitleConverter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to extract subtitle"})
 		return

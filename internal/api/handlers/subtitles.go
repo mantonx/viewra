@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"path/filepath"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/media"
@@ -124,7 +127,7 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 			return
 		}
 
-		vttPath, err = h.converter.ExtractAndConvert(c.Request.Context(), mediaResp.FilePath, *track.StreamIndex)
+		vttPath, err = h.converter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, *track.StreamIndex)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Error:   "Failed to extract subtitle",
@@ -193,7 +196,7 @@ func (h *SubtitleHandler) GetSubtitleByStreamIndex(c *gin.Context) {
 	}
 
 	// Extract and convert
-	vttPath, err := h.converter.ExtractAndConvert(c.Request.Context(), mediaResp.FilePath, int(streamIndex))
+	vttPath, err := h.converter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, int(streamIndex))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "Failed to extract subtitle",
@@ -282,8 +285,8 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Use the converter which handles subtitle-extractor with FFmpeg fallback
-	vttPath, err := h.converter.ExtractAndConvert(c.Request.Context(), mediaResp.FilePath, *targetTrack.StreamIndex)
+	// Use subtitle-extractor to extract and convert to WebVTT
+	vttPath, err := h.converter.ExtractAndConvert(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "Failed to extract subtitle",
@@ -307,14 +310,209 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 	c.String(http.StatusOK, vttContent)
 }
 
-// Note: GetPGSSup endpoint was removed.
-// PGS/bitmap subtitle extraction requires scanning the entire video file,
-// which takes several minutes for large files. This is unacceptable for
-// interactive use.
-//
-// Instead, PGS subtitles are now handled via burn-in during HLS transcode:
-// - The client requests transcode with ?sub=N parameter
-// - FFmpeg overlays the PGS subtitle directly onto the video during encode
-// - This adds no extra latency since FFmpeg is already reading the file
-//
-// For reference, this is the same approach used by Emby and Jellyfin.
+// StreamPGSSubtitle handles GET /api/media/:id/subtitles/pgs/:index/stream
+// @Summary Stream PGS subtitle frames as WebP images
+// @Description Extracts PGS subtitle frames and returns them as JSON lines with base64-encoded WebP images. Use start/end params to request frames in time windows for efficient playback.
+// @Tags subtitles
+// @Produce application/x-ndjson
+// @Param id path int true "Media ID"
+// @Param index path int true "Stream Index (relative, 0-based among bitmap subtitle streams)"
+// @Param start query int false "Start time in milliseconds (default: 0)"
+// @Param end query int false "End time in milliseconds (default: 5 minutes from start). Use 0 for unlimited (not recommended for large files)."
+// @Success 200 {object} subtitles.PGSFrame "JSON lines of PGS frames"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/media/{id}/subtitles/pgs/{index}/stream [get]
+func (h *SubtitleHandler) StreamPGSSubtitle(c *gin.Context) {
+	mediaID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid media ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	relativeIndex, err := parseID(c.Param("index"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid stream index",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Parse time window parameters
+	startMS := int64(0)
+	if startParam := c.Query("start"); startParam != "" {
+		if parsed, err := parseID(startParam); err == nil {
+			startMS = parsed
+		}
+	}
+
+	// Default to 5 minutes from start if no end specified
+	const defaultWindowMS = 5 * 60 * 1000 // 5 minutes
+	endMS := startMS + defaultWindowMS
+	if endParam := c.Query("end"); endParam != "" {
+		if parsed, err := parseID(endParam); err == nil {
+			endMS = parsed
+			// Allow explicit 0 to mean "unlimited" but warn in docs
+		}
+	}
+
+	// Get subtitle tracks to convert relative index to absolute stream index
+	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	// Filter to only bitmap (PGS) subtitles and sort by stream index for consistent ordering
+	var bitmapTracks []*domainMedia.SubtitleTrack
+	for _, t := range tracks {
+		if t.IsBitmap && t.StreamIndex != nil {
+			bitmapTracks = append(bitmapTracks, t)
+		}
+	}
+	sort.Slice(bitmapTracks, func(i, j int) bool {
+		return *bitmapTracks[i].StreamIndex < *bitmapTracks[j].StreamIndex
+	})
+
+	// Find the track at the requested relative index
+	var targetTrack *domainMedia.SubtitleTrack
+	if relativeIndex >= 0 && relativeIndex < int64(len(bitmapTracks)) {
+		targetTrack = bitmapTracks[relativeIndex]
+	}
+
+	if targetTrack == nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "PGS subtitle track not found",
+		})
+		return
+	}
+
+	// Get media file path
+	mediaResp, err := h.mediaRepo.Execute(c.Request.Context(), mediaID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	// Stream PGS frames for the requested time window
+	frames, errs := h.converter.StreamPGSFrames(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex, startMS, endMS)
+
+	// Set headers for streaming JSON lines
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
+	c.Header("Transfer-Encoding", "chunked")
+
+	// Stream frames as JSON lines
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case frame, ok := <-frames:
+			if !ok {
+				return false // Channel closed, stop streaming
+			}
+			// Write JSON line
+			data, err := json.Marshal(frame)
+			if err != nil {
+				return false
+			}
+			w.Write(data)
+			w.Write([]byte("\n"))
+			return true
+		case err := <-errs:
+			if err != nil {
+				// Log error but don't break the stream
+				// Client will see incomplete data
+			}
+			return false
+		case <-c.Request.Context().Done():
+			return false
+		}
+	})
+}
+
+// GetAllPGSFrames handles GET /api/media/:id/subtitles/pgs/:index
+// @Summary Get all PGS subtitle frames as JSON array
+// @Description Extracts all PGS subtitle frames and returns them as a JSON array with base64-encoded WebP images
+// @Tags subtitles
+// @Produce application/json
+// @Param id path int true "Media ID"
+// @Param index path int true "Stream Index (relative, 0-based among bitmap subtitle streams)"
+// @Success 200 {array} subtitles.PGSFrame "Array of PGS frames"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/media/{id}/subtitles/pgs/{index} [get]
+func (h *SubtitleHandler) GetAllPGSFrames(c *gin.Context) {
+	mediaID, err := parseID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid media ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	relativeIndex, err := parseID(c.Param("index"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid stream index",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Get subtitle tracks to convert relative index to absolute stream index
+	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	// Filter to only bitmap (PGS) subtitles and sort by stream index for consistent ordering
+	var bitmapTracks []*domainMedia.SubtitleTrack
+	for _, t := range tracks {
+		if t.IsBitmap && t.StreamIndex != nil {
+			bitmapTracks = append(bitmapTracks, t)
+		}
+	}
+	sort.Slice(bitmapTracks, func(i, j int) bool {
+		return *bitmapTracks[i].StreamIndex < *bitmapTracks[j].StreamIndex
+	})
+
+	// Find the track at the requested relative index
+	var targetTrack *domainMedia.SubtitleTrack
+	if relativeIndex >= 0 && relativeIndex < int64(len(bitmapTracks)) {
+		targetTrack = bitmapTracks[relativeIndex]
+	}
+
+	if targetTrack == nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "PGS subtitle track not found",
+		})
+		return
+	}
+
+	// Get media file path
+	mediaResp, err := h.mediaRepo.Execute(c.Request.Context(), mediaID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	// Get all PGS frames
+	frames, err := h.converter.GetAllPGSFrames(c.Request.Context(), mediaID, mediaResp.FilePath, *targetTrack.StreamIndex)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to extract PGS subtitle",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.JSON(http.StatusOK, frames)
+}

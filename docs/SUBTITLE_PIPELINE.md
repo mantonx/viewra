@@ -8,8 +8,10 @@ ViewRA supports two categories of subtitles:
 
 | Category | Formats | Extraction Method | Delivery |
 |----------|---------|-------------------|----------|
-| **Text** | SRT, ASS/SSA, WebVTT, tx3g (mov_text) | subtitle-extractor → WebVTT | Native browser `<track>` or overlay |
-| **Bitmap** | PGS (Blu-ray), VobSub (DVD) | subtitle-extractor render-pgs → PNG | Image overlay (TODO) or FFmpeg burn-in |
+| **Text** | SRT, ASS/SSA, WebVTT, tx3g (mov_text) | subtitle-extractor → WebVTT | Client-side overlay |
+| **Bitmap** | PGS (Blu-ray), VobSub (DVD) | subtitle-extractor stream-pgs → WebP | Client-side image overlay |
+
+Both subtitle types are rendered client-side, avoiding the need for video transcoding.
 
 ## Components
 
@@ -21,7 +23,7 @@ A fast, purpose-built tool for subtitle extraction that supports:
 
 - **Containers**: MKV (Matroska), MP4/M4V/MOV, MPEG-TS/M2TS
 - **Text codecs**: SRT, ASS/SSA, WebVTT, tx3g
-- **Bitmap codecs**: PGS (hdmv_pgs_subtitle)
+- **Bitmap codecs**: PGS (hdmv_pgs_subtitle), VobSub (dvd_subtitle)
 
 #### Commands
 
@@ -38,8 +40,11 @@ subtitle-extractor stream --track <N> --start <ms> --end <ms> --format <jsonl|ra
 # Build cluster index for a file (bypasses broken Cues)
 subtitle-extractor index --track <N> <FILE>
 
-# Render PGS subtitles to PNG files
-subtitle-extractor render-pgs --track <N> --output <DIR> --start <ms> --end <ms> --limit <N> <FILE>
+# Stream PGS subtitles as WebP images (JSON lines to stdout)
+subtitle-extractor stream-pgs --track <N> --start <ms> --end <ms> <FILE>
+
+# [Debug] Render PGS subtitles to image files in a directory
+subtitle-extractor debug-render-pgs --track <N> --output <DIR> --start <ms> --end <ms> --limit <N> <FILE>
 ```
 
 #### Track Numbering
@@ -57,6 +62,7 @@ The Go layer provides:
 - **Caching**: WebVTT files are cached by path hash
 - **Format conversion**: Native Go SRT→WebVTT and ASS→WebVTT for external files
 - **Embedded extraction**: Calls subtitle-extractor for embedded tracks
+- **PGS streaming**: Streams WebP frames for bitmap subtitles
 
 ```go
 type Converter struct {
@@ -75,6 +81,12 @@ func (c *Converter) ConvertASSToWebVTT(ctx context.Context, assPath string) (str
 
 // Auto-detect format and convert
 func (c *Converter) ConvertExternalSubtitle(ctx context.Context, subtitlePath string) (string, error)
+
+// Stream PGS frames as WebP images
+func (c *Converter) StreamPGSFrames(ctx context.Context, mediaPath string, streamIndex int, startMS, endMS int64) (<-chan PGSFrame, <-chan error)
+
+// Get all PGS frames at once (for non-streaming use)
+func (c *Converter) GetAllPGSFrames(ctx context.Context, mediaPath string, streamIndex int) ([]PGSFrame, error)
 ```
 
 ### 3. API Endpoints
@@ -84,16 +96,20 @@ func (c *Converter) ConvertExternalSubtitle(ctx context.Context, subtitlePath st
 | `GET /api/media/:id/subtitles/:trackId` | Get subtitle by database track ID |
 | `GET /api/media/:id/subtitles/stream/:index` | Get embedded subtitle by absolute stream index |
 | `GET /api/media/:id/subtitles/text/:index/stream` | Get text subtitle by relative index (among text tracks) |
+| `GET /api/media/:id/subtitles/pgs/:index` | Get all PGS frames as JSON array (WebP images) |
+| `GET /api/media/:id/subtitles/pgs/:index/stream` | Stream PGS frames as JSON lines (NDJSON) |
 
 ### 4. Frontend Components
 
-- **SubtitleOverlay.tsx**: Renders text subtitles as positioned overlay
+- **SubtitleOverlay.tsx**: Renders both text and bitmap subtitles as positioned overlays
+  - `TextSubtitleRenderer`: Parses WebVTT and renders styled text
+  - `PGSSubtitleRenderer`: Displays WebP images with proper scaling/positioning
 - **useSubtitles.ts**: Manages subtitle track selection and preferences
-- **SubtitleSelector.tsx**: UI for selecting subtitle tracks
+- **SubtitleSelector.tsx**: UI for selecting subtitle tracks (both text and bitmap)
 
-## Current Implementation Status
+## Architecture
 
-### ✅ Text Subtitles (Complete)
+### Text Subtitles
 
 ```
 ┌─────────────────┐     ┌───────────────────┐     ┌─────────────┐     ┌─────────┐
@@ -112,80 +128,33 @@ func (c *Converter) ConvertExternalSubtitle(ctx context.Context, subtitlePath st
 - Embedded: SRT, ASS/SSA, WebVTT (in MKV), tx3g (in MP4)
 - External: .srt, .ass, .ssa, .vtt files
 
-### 🚧 Bitmap Subtitles (In Progress)
-
-**Current state:** Uses FFmpeg burn-in during HLS transcode
-
-```
-┌─────────────────┐     ┌───────────────────┐     ┌─────────────┐
-│ Media File      │────▶│ FFmpeg transcode  │────▶│ HLS Stream  │
-│ + PGS subtitle  │     │ with overlay      │     │ (burned in) │
-└─────────────────┘     └───────────────────┘     └─────────────┘
-```
-
-**Target state:** Use subtitle-extractor render-pgs with client-side overlay
+### Bitmap Subtitles (PGS)
 
 ```
 ┌─────────────────┐     ┌───────────────────┐     ┌─────────────┐     ┌─────────┐
-│ Media File      │────▶│ subtitle-extractor│────▶│ PNG Cache + │────▶│ Browser │
-│ (MKV with PGS)  │     │ render-pgs        │     │ manifest    │     │ Overlay │
+│ Media File      │────▶│ subtitle-extractor│────▶│ JSON Array  │────▶│ Browser │
+│ (MKV with PGS)  │     │ stream-pgs        │     │ + WebP imgs │     │ Img     │
+│                 │     │ (WebP encoding)   │     │ (base64)    │     │ Overlay │
 └─────────────────┘     └───────────────────┘     └─────────────┘     └─────────┘
 ```
 
-## TODO: Complete PGS Pipeline
-
-### Phase 1: Backend Endpoint
-
-Add `GET /api/media/:id/subtitles/pgs/:streamIndex/render`
-
-```go
-// Response format
-type PGSManifest struct {
-    VideoWidth  int         `json:"video_width"`
-    VideoHeight int         `json:"video_height"`
-    Frames      []PGSFrame  `json:"frames"`
-}
-
-type PGSFrame struct {
-    Index    int    `json:"index"`
-    StartMS  int64  `json:"start_ms"`
-    EndMS    int64  `json:"end_ms"`
-    Width    int    `json:"width"`
-    Height   int    `json:"height"`
-    X        int    `json:"x"`
-    Y        int    `json:"y"`
-    ImageURL string `json:"image_url"`  // Relative URL to PNG
+**WebP Output Format:**
+```json
+{
+  "start_ms": 5000,
+  "end_ms": 8000,
+  "x": 100,
+  "y": 800,
+  "width": 1720,
+  "height": 80,
+  "image_base64": "UklGRiQA...base64 WebP data..."
 }
 ```
 
-Implementation:
-1. Check cache for existing render
-2. Call `subtitle-extractor render-pgs --track N --output <cache_dir> <file>`
-3. Read `metadata.json` from output directory
-4. Return manifest with image URLs
-
-### Phase 2: Frontend Image Overlay
-
-Modify `SubtitleOverlay.tsx`:
-
-```tsx
-// For bitmap subtitles, fetch manifest instead of WebVTT
-if (track.isBitmap) {
-    const manifest = await fetchPGSManifest(mediaId, streamIndex)
-    // Render <img> elements at correct times
-}
-```
-
-### Phase 3: Remove FFmpeg Burn-in
-
-1. Delete from `ffmpeg_args_builder.go`:
-   - `needsSubtitleBurnIn()` function
-   - All `filter_complex` subtitle overlay logic
-   - `SubtitleStreamIndex` from `TranscodeOptions`
-
-2. Update `useSubtitles.ts`:
-   - Remove `requiresBurnIn: true` logic
-   - Treat bitmap subtitles same as text (overlay-based)
+**Client-side rendering:**
+- WebP images are decoded and positioned using CSS transforms
+- Position/size scaled to match video's display dimensions
+- requestAnimationFrame ensures smooth timing synchronization
 
 ## Performance Considerations
 
@@ -206,10 +175,6 @@ The `ClusterCache` module (`containers/cluster_cache.rs`) provides:
 - `stream` command with time bounds uses seeking
 - Full extraction (no bounds) still reads sequentially
 
-**Potential improvement:**
-- Add `--full-extract` flag that builds index first, then extracts
-- Background indexing during library scan
-
 ### Network File Performance
 
 For files on network shares:
@@ -220,13 +185,20 @@ For files on network shares:
 | Seek + 10s extract | <200ms | <1s |
 | Full sequential read (50GB) | ~30s | 5-10 min |
 
+### PGS Memory Considerations
+
+- WebP encoding uses lossless mode (preserves subtitle quality)
+- Base64 encoding adds ~33% overhead to image data
+- Typical PGS frame: 50-200KB after WebP compression
+- Full movie subtitle track: 5-50MB total (varies by subtitle density)
+
 ## File Locations
 
 ```
 tools/subtitle-extractor/
 ├── src/
 │   ├── main.rs              # CLI entry point
-│   ├── pgs.rs               # PGS decoder and PNG renderer
+│   ├── pgs.rs               # PGS decoder and WebP renderer
 │   └── containers/
 │       ├── mod.rs           # Container dispatcher
 │       ├── mkv.rs           # MKV/WebM support
@@ -242,11 +214,14 @@ internal/api/handlers/
 ├── subtitles.go             # Subtitle API endpoints
 
 web/src/components/media/VideoPlayer/
-├── SubtitleOverlay.tsx      # Renders subtitles over video
+├── SubtitleOverlay.tsx      # Renders subtitles over video (text + bitmap)
 ├── SubtitleSelector.tsx     # Track selection UI
 
 web/src/lib/hooks/
 ├── useSubtitles.ts          # Subtitle state management
+
+web/src/lib/types/
+├── subtitles.ts             # Shared subtitle types
 ```
 
 ## Building
@@ -270,6 +245,22 @@ make build
 # Extract ASS to WebVTT
 ./bin/subtitle-extractor stream --track 3 --format webvtt /path/to/movie.mkv
 
-# Render PGS to PNGs
-./bin/subtitle-extractor render-pgs --track 4 --output /tmp/pgs_test --limit 10 /path/to/movie.mkv
+# Stream PGS to WebP (JSON lines)
+./bin/subtitle-extractor stream-pgs --track 4 /path/to/movie.mkv | head -1
+
+# Debug: Render PGS to files
+./bin/subtitle-extractor debug-render-pgs --track 4 --output /tmp/pgs_test --limit 10 /path/to/movie.mkv
+```
+
+## API Usage Examples
+
+```bash
+# Get text subtitle as WebVTT
+curl http://localhost:8080/api/media/123/subtitles/text/0/stream
+
+# Get all PGS frames (JSON array)
+curl http://localhost:8080/api/media/123/subtitles/pgs/0
+
+# Stream PGS frames (JSON lines)
+curl http://localhost:8080/api/media/123/subtitles/pgs/0/stream
 ```

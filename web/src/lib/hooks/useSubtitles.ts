@@ -1,32 +1,32 @@
 /**
  * useSubtitles Hook
  * Manages subtitle track selection. Rendering is handled by SubtitleOverlay component.
- * Text subtitles are rendered as overlay, bitmap subtitles use burn-in during transcode.
+ *
+ * All subtitle types (text and bitmap/PGS) are rendered as client-side overlays.
+ * Text subtitles use WebVTT, bitmap subtitles use WebP images.
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import type { GithubComMantonxViewraInternalApplicationMediaSubtitleTrackResponse } from '@/lib/api/generated/models'
-import {
-  type SubtitleTrack,
-  type SubtitleSelection,
-  calculateRelativeStreamIndex,
-} from '@/lib/types/subtitles'
+import { type SubtitleTrack, calculateBitmapIndex, calculateTextIndex } from '@/lib/types/subtitles'
 
-export type { SubtitleTrack, SubtitleSelection }
+export type { SubtitleTrack }
 
 export interface UseSubtitlesOptions {
   subtitleTracks: GithubComMantonxViewraInternalApplicationMediaSubtitleTrackResponse[]
   preferredLanguage?: string
   preferSDH?: boolean
   preferForced?: boolean
-  onBurnInSubtitleChange?: (selection: SubtitleSelection | null) => void
 }
 
 export interface UseSubtitlesReturn {
   availableSubtitles: SubtitleTrack[]
-  currentSubtitle: number | null
-  setCurrentSubtitle: (trackId: number | null, selection?: SubtitleSelection) => void
-  currentBurnIn: SubtitleSelection | null
+  currentSubtitle: SubtitleTrack | null
+  setCurrentSubtitle: (trackId: number | null) => void
+  /** Relative index among text subtitle tracks (for text streaming API) */
+  textStreamIndex: number | undefined
+  /** Relative index among bitmap subtitle tracks (for PGS API) */
+  bitmapStreamIndex: number | undefined
 }
 
 const mapApiToSubtitleTrack = (
@@ -49,11 +49,8 @@ export const useSubtitles = ({
   preferredLanguage = 'eng',
   preferSDH = false,
   preferForced = true,
-  onBurnInSubtitleChange,
 }: UseSubtitlesOptions): UseSubtitlesReturn => {
-  const [currentSubtitle, setCurrentSubtitleState] = useState<number | null>(null)
-  const [currentBurnIn, setCurrentBurnIn] = useState<SubtitleSelection | null>(null)
-  // Track if we've done initial auto-selection to avoid re-triggering
+  const [currentSubtitleId, setCurrentSubtitleId] = useState<number | null>(null)
   const [hasAutoSelected, setHasAutoSelected] = useState(false)
 
   const availableSubtitles: SubtitleTrack[] = useMemo(
@@ -61,19 +58,26 @@ export const useSubtitles = ({
     [subtitleTracks]
   )
 
-  const textSubtitles = useMemo(
-    () => availableSubtitles.filter((track) => !track.isBitmap),
-    [availableSubtitles]
+  const currentSubtitle = useMemo(
+    () => availableSubtitles.find((t) => t.id === currentSubtitleId) ?? null,
+    [availableSubtitles, currentSubtitleId]
   )
 
-  const bitmapSubtitles = useMemo(
-    () => availableSubtitles.filter((track) => track.isBitmap),
-    [availableSubtitles]
-  )
+  // Calculate relative stream indices for API calls (sorted by streamIndex for consistency)
+  const textStreamIndex = useMemo(() => {
+    if (!currentSubtitle || currentSubtitle.isBitmap) return undefined
+    const index = calculateTextIndex(currentSubtitle, availableSubtitles)
+    return index >= 0 ? index : undefined
+  }, [currentSubtitle, availableSubtitles])
+
+  const bitmapStreamIndex = useMemo(() => {
+    if (!currentSubtitle || !currentSubtitle.isBitmap) return undefined
+    const index = calculateBitmapIndex(currentSubtitle, availableSubtitles)
+    return index >= 0 ? index : undefined
+  }, [currentSubtitle, availableSubtitles])
 
   /**
    * Find the best default track from a list of subtitle tracks.
-   * Used for both text and bitmap subtitle selection.
    */
   const findBestTrackFromList = useCallback(
     (tracks: SubtitleTrack[]): SubtitleTrack | null => {
@@ -95,7 +99,9 @@ export const useSubtitles = ({
       }
 
       // 3. Look for preferred language (excluding commentary)
-      const matchingLang = tracks.filter((t) => t.language === preferredLanguage && !t.isCommentary)
+      const matchingLang = tracks.filter(
+        (t) => t.language === preferredLanguage && !t.isCommentary
+      )
 
       if (matchingLang.length > 0) {
         // Prefer SDH if user wants it
@@ -119,7 +125,14 @@ export const useSubtitles = ({
         return defaultTrack
       }
 
-      return null
+      // 5. Fall back to first non-commentary track
+      const firstTrack = tracks.find((t) => !t.isCommentary)
+      if (firstTrack) {
+        return firstTrack
+      }
+
+      // 6. Last resort: any track
+      return tracks[0] ?? null
     },
     [preferredLanguage, preferSDH, preferForced]
   )
@@ -127,96 +140,57 @@ export const useSubtitles = ({
   /**
    * Find the default subtitle track to auto-select.
    * Prioritizes text subtitles, but falls back to bitmap subtitles if no text available.
-   * Returns both the track and whether it requires burn-in.
    */
-  const findDefaultTrack = useCallback((): {
-    track: SubtitleTrack | null
-    requiresBurnIn: boolean
-  } => {
-    // First, try to find a text subtitle (preferred - no transcoding needed)
+  const findDefaultTrack = useCallback((): SubtitleTrack | null => {
+    const textSubtitles = availableSubtitles.filter((track) => !track.isBitmap)
+    const bitmapSubtitles = availableSubtitles.filter((track) => track.isBitmap)
+
+    // First, try to find a text subtitle (preferred - faster loading)
     const textTrack = findBestTrackFromList(textSubtitles)
     if (textTrack) {
-      return { track: textTrack, requiresBurnIn: false }
+      return textTrack
     }
 
-    // No text subtitles available - try bitmap subtitles (requires burn-in)
+    // No text subtitles available - try bitmap subtitles
     const bitmapTrack = findBestTrackFromList(bitmapSubtitles)
     if (bitmapTrack) {
-      return { track: bitmapTrack, requiresBurnIn: true }
+      return bitmapTrack
     }
 
-    return { track: null, requiresBurnIn: false }
-  }, [textSubtitles, bitmapSubtitles, findBestTrackFromList])
+    return null
+  }, [availableSubtitles, findBestTrackFromList])
 
   // Auto-select default subtitle when tracks become available
   useEffect(() => {
-    // Only auto-select once, and only if we have tracks and no current selection
-    if (hasAutoSelected || availableSubtitles.length === 0 || currentSubtitle !== null) {
+    if (hasAutoSelected || availableSubtitles.length === 0 || currentSubtitleId !== null) {
       return
     }
 
-    const { track, requiresBurnIn } = findDefaultTrack()
+    const track = findDefaultTrack()
 
     if (track) {
-      setCurrentSubtitleState(track.id)
-      setHasAutoSelected(true)
-
-      // If it's a bitmap subtitle, set up burn-in
-      if (requiresBurnIn) {
-        const streamIndex = calculateRelativeStreamIndex(track, availableSubtitles)
-        if (streamIndex >= 0) {
-          const selection: SubtitleSelection = {
-            trackId: track.id,
-            requiresBurnIn: true,
-            streamIndex,
-          }
-          setCurrentBurnIn(selection)
-          onBurnInSubtitleChange?.(selection)
-        }
-      }
-    } else {
-      // No suitable track found, but mark as attempted
-      setHasAutoSelected(true)
+      setCurrentSubtitleId(track.id)
     }
-  }, [
-    availableSubtitles,
-    currentSubtitle,
-    hasAutoSelected,
-    findDefaultTrack,
-    onBurnInSubtitleChange,
-  ])
+    setHasAutoSelected(true)
+  }, [availableSubtitles, currentSubtitleId, hasAutoSelected, findDefaultTrack])
 
   // Reset auto-selection state when tracks change completely (e.g., new media)
   useEffect(() => {
     if (subtitleTracks.length === 0) {
       setHasAutoSelected(false)
-      setCurrentSubtitleState(null)
-      setCurrentBurnIn(null)
+      setCurrentSubtitleId(null)
     }
   }, [subtitleTracks.length])
 
-  const setCurrentSubtitle = useCallback(
-    (trackId: number | null, selection?: SubtitleSelection) => {
-      setCurrentSubtitleState(trackId)
-
-      if (selection?.requiresBurnIn) {
-        setCurrentBurnIn(selection)
-        onBurnInSubtitleChange?.(selection)
-      } else {
-        // Text subtitle or off - clear burn-in
-        if (currentBurnIn !== null) {
-          setCurrentBurnIn(null)
-          onBurnInSubtitleChange?.(null)
-        }
-      }
-    },
-    [currentBurnIn, onBurnInSubtitleChange]
-  )
+  const setCurrentSubtitle = useCallback((trackId: number | null) => {
+    setCurrentSubtitleId(trackId)
+  }, [])
 
   return {
     availableSubtitles,
     currentSubtitle,
     setCurrentSubtitle,
-    currentBurnIn,
+    textStreamIndex: textStreamIndex !== undefined && textStreamIndex >= 0 ? textStreamIndex : undefined,
+    bitmapStreamIndex: bitmapStreamIndex !== undefined && bitmapStreamIndex >= 0 ? bitmapStreamIndex : undefined,
   }
 }

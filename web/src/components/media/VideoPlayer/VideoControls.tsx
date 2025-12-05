@@ -4,7 +4,7 @@ import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 import { NerdMenu } from './NerdMenu'
 import { QualitySelector } from './QualitySelector'
 import { SpeedSelector } from './SpeedSelector'
-import { SubtitleSelector, type SubtitleTrack, type SubtitleSelection } from './SubtitleSelector'
+import { SubtitleSelector, type SubtitleTrack } from './SubtitleSelector'
 import { AudioSelector, type AudioTrack } from './AudioSelector'
 
 // Format bandwidth to human readable string
@@ -51,7 +51,7 @@ interface VideoControlsProps {
   onQualityChange: (height: number, bandwidth?: number) => void
   onAutoToggle: () => void
   onAudioTrackChange: (trackId: number) => void
-  onSubtitleChange: (trackId: number | null, selection?: SubtitleSelection) => void
+  onSubtitleChange: (trackId: number | null) => void
   onSpeedChange: (speed: number) => void
   onSkip: (seconds: number) => void
   onToggleStats: () => void

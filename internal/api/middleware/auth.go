@@ -2,11 +2,17 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
 )
+
+// devModeEnabled returns true if VIEWRA_DEV_MODE=1 is set
+func devModeEnabled() bool {
+	return os.Getenv("VIEWRA_DEV_MODE") == "1"
+}
 
 // Context keys for user information
 const (
@@ -23,8 +29,17 @@ type AuthValidator interface {
 // RequireAuth returns middleware that requires a valid access token.
 // It extracts the token from the Authorization header (Bearer scheme)
 // and validates it. If valid, user info is added to the context.
+// In dev mode (VIEWRA_DEV_MODE=1), auth is bypassed with admin access.
 func RequireAuth(validator AuthValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Dev mode bypass - grant admin access without token
+		if devModeEnabled() {
+			c.Set(ContextKeyUserID, int64(1))
+			c.Set(ContextKeyIsAdmin, true)
+			c.Next()
+			return
+		}
+
 		token := extractBearerToken(c)
 		if token == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -54,8 +69,17 @@ func RequireAuth(validator AuthValidator) gin.HandlerFunc {
 
 // RequireAdmin returns middleware that requires a valid admin token.
 // It first validates the token, then checks if the user is an admin.
+// In dev mode (VIEWRA_DEV_MODE=1), auth is bypassed with admin access.
 func RequireAdmin(validator AuthValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Dev mode bypass - grant admin access without token
+		if devModeEnabled() {
+			c.Set(ContextKeyUserID, int64(1))
+			c.Set(ContextKeyIsAdmin, true)
+			c.Next()
+			return
+		}
+
 		token := extractBearerToken(c)
 		if token == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{

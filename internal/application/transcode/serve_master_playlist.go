@@ -20,10 +20,6 @@ type ServeMasterPlaylistRequest struct {
 	// StartPosition for seeking (passed through to variant URLs)
 	StartPosition string
 
-	// Subtitle burn-in options (passed through to variant URLs)
-	BurnInSubtitle      bool
-	SubtitleStreamIndex int
-
 	// User preferences for track selection
 	PreferredAudioLanguage    string // ISO 639-2 code (eng, fra, jpn, etc.)
 	PreferredSubtitleLanguage string // ISO 639-2 code or "off"
@@ -64,22 +60,15 @@ type ABRVariant struct {
 	Codecs    string
 }
 
-// SubtitleBurnInChecker provides access to subtitle burn-in settings.
-type SubtitleBurnInChecker interface {
-	IsSubtitleBurnInEnabled(ctx context.Context) bool
-}
-
 // ServeMasterPlaylistUseCase handles generating the HLS master playlist.
 type ServeMasterPlaylistUseCase struct {
-	mediaRepo     media.Repository
-	burnInChecker SubtitleBurnInChecker
+	mediaRepo media.Repository
 }
 
 // NewServeMasterPlaylistUseCase creates a new use case.
-func NewServeMasterPlaylistUseCase(mediaRepo media.Repository, burnInChecker SubtitleBurnInChecker) *ServeMasterPlaylistUseCase {
+func NewServeMasterPlaylistUseCase(mediaRepo media.Repository) *ServeMasterPlaylistUseCase {
 	return &ServeMasterPlaylistUseCase{
-		mediaRepo:     mediaRepo,
-		burnInChecker: burnInChecker,
+		mediaRepo: mediaRepo,
 	}
 }
 
@@ -118,12 +107,8 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 
 		strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
 
-		// Don't allow DirectPlay if subtitle burn-in is requested AND enabled in settings
-		// Subtitle burn-in requires video re-encoding
-		// When burn-in is disabled (default), subtitles are extracted client-side so DirectPlay is fine
-		burnInEnabled := uc.burnInChecker != nil && uc.burnInChecker.IsSubtitleBurnInEnabled(ctx)
-		blockDirectPlay := req.BurnInSubtitle && burnInEnabled
-		if strategy == transcoding.DirectPlay && !blockDirectPlay {
+		// DirectPlay is allowed - subtitles are handled client-side via overlay
+		if strategy == transcoding.DirectPlay {
 			return &ServeMasterPlaylistResponse{
 				Strategy:      StrategyMasterDirectPlay,
 				DirectPlayURL: fmt.Sprintf("/api/stream/%d", req.MediaID),
@@ -133,7 +118,7 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 	}
 
 	// Build master playlist with audio and subtitle track information
-	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, req.StartPosition, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage, req.BurnInSubtitle, req.SubtitleStreamIndex)
+	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, req.StartPosition, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
 
 	return &ServeMasterPlaylistResponse{
 		Strategy:        StrategyServePlaylist,
@@ -143,7 +128,7 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 }
 
 // buildMasterPlaylist creates the HLS master playlist content with multi-audio and subtitle support.
-func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, startPosition string, preferredAudioLang string, preferredSubtitleLang string, burnInSubtitle bool, subtitleStreamIndex int) string {
+func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, startPosition string, preferredAudioLang string, preferredSubtitleLang string) string {
 	sourceHeight := mediaItem.Height
 	sourceWidth := mediaItem.Width
 	sourceBitrate := mediaItem.Bitrate
@@ -164,11 +149,11 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 		playlist += "\n"
 	}
 
-	// Add subtitle track renditions for text-based subtitles (not bitmap)
-	// Bitmap subtitles (PGS, VobSub) must be burned in, not served via HLS
+	// Add subtitle track renditions for text-based subtitles
+	// Bitmap subtitles (PGS, VobSub) are handled client-side via WebP overlay
 	subtitleGroupID := ""
 	textSubtitles := uc.filterTextSubtitles(subtitleTracks)
-	if len(textSubtitles) > 0 && !burnInSubtitle {
+	if len(textSubtitles) > 0 {
 		subtitleGroupID = "subs"
 		playlist += uc.buildSubtitleRenditions(textSubtitles, preferredSubtitleLang, startPosition)
 		playlist += "\n"
@@ -199,15 +184,8 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 
 		// Build variant URL with query parameters
 		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.Quality)
-		params := []string{}
 		if startPosition != "" {
-			params = append(params, "start="+startPosition)
-		}
-		if burnInSubtitle {
-			params = append(params, fmt.Sprintf("sub=%d", subtitleStreamIndex))
-		}
-		if len(params) > 0 {
-			variantURL += "?" + strings.Join(params, "&")
+			variantURL += "?start=" + startPosition
 		}
 		playlist += variantURL + "\n\n"
 	}

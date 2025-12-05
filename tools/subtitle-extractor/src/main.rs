@@ -75,8 +75,17 @@ enum Commands {
         track: u64,
     },
 
-    /// Render PGS subtitles to PNG files in a directory
-    RenderPgs {
+    /// Stream PGS subtitle frames as WebP images (for API integration)
+    ///
+    /// Outputs JSON lines to stdout, each containing a rendered WebP frame:
+    /// {"start_ms": 1234, "end_ms": 5678, "x": 100, "y": 800, "width": 480, "height": 50, "canvas_width": 1920, "canvas_height": 1080, "image_base64": "..."}
+    ///
+    /// The canvas_width/canvas_height fields indicate the PGS authoring resolution.
+    /// For 4K videos with 1080p subtitles, the frontend should scale x/y/width/height
+    /// from canvas resolution to video resolution before applying to the display.
+    ///
+    /// The Go API can pipe this directly to clients or cache individual frames.
+    StreamPgs {
         /// Path to the media file
         #[arg(value_name = "FILE")]
         file: PathBuf,
@@ -85,7 +94,34 @@ enum Commands {
         #[arg(short, long)]
         track: u64,
 
-        /// Output directory for PNG files
+        /// Start time in milliseconds
+        #[arg(long, default_value = "0")]
+        start: u64,
+
+        /// End time in milliseconds (0 = until end)
+        #[arg(long, default_value = "0")]
+        end: u64,
+
+        /// Maximum number of frames to output (0 = unlimited)
+        #[arg(long, default_value = "0")]
+        limit: usize,
+    },
+
+    /// [Debug] Render PGS subtitles to image files in a directory
+    ///
+    /// This is primarily for debugging and batch processing. For API integration,
+    /// use `stream-pgs` which outputs to stdout.
+    #[command(name = "debug-render-pgs")]
+    DebugRenderPgs {
+        /// Path to the media file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Track number (must be PGS subtitle track)
+        #[arg(short, long)]
+        track: u64,
+
+        /// Output directory for image files
         #[arg(short, long)]
         output: PathBuf,
 
@@ -100,6 +136,14 @@ enum Commands {
         /// Maximum number of frames to render
         #[arg(long, default_value = "100")]
         limit: usize,
+
+        /// Output image format: webp (default, smaller files) or png
+        #[arg(long, default_value = "webp")]
+        image_format: String,
+
+        /// WebP quality (1-100, only for webp format; 100 = lossless)
+        #[arg(long, default_value = "100")]
+        quality: u8,
     },
 }
 
@@ -188,21 +232,149 @@ fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&output)?);
         }
 
-        Commands::RenderPgs {
+        Commands::StreamPgs {
+            file,
+            track,
+            start,
+            end,
+            limit,
+        } => {
+            use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+            use std::io::Write;
+
+            let mut container = MediaContainer::open(&file)?;
+
+            // Stream raw PGS frames from container
+            let mut jsonl_data = Vec::new();
+            {
+                let mut out = std::io::Cursor::new(&mut jsonl_data);
+                container.stream_track(track, start, end, StreamFormat::Jsonl, &mut out)?;
+            }
+
+            // Parse JSONL to get frames with timestamps
+            let jsonl_str = String::from_utf8_lossy(&jsonl_data);
+            let mut frames: Vec<(u64, Vec<u8>)> = Vec::new();
+
+            for line in jsonl_str.lines() {
+                if line.is_empty() {
+                    continue;
+                }
+                let frame: serde_json::Value = serde_json::from_str(line)?;
+                let start_ms = frame["start_ms"].as_u64().unwrap_or(0);
+                if let Some(data_b64) = frame["data_base64"].as_str() {
+                    if let Ok(data) = BASE64.decode(data_b64) {
+                        frames.push((start_ms, data));
+                    }
+                }
+            }
+
+            // Convert MKV frames to SUP format for pgs-rs
+            let mut sup_data = pgs::mkv_to_sup(&frames);
+
+            // Parse SUP data
+            let pgs_data = match pgs_rs::parse::parse_pgs(&mut sup_data) {
+                Ok(p) => p,
+                Err(e) => {
+                    anyhow::bail!("Failed to parse PGS data: {:?}", e);
+                }
+            };
+
+            // Group into display sets and render
+            let display_sets = pgs_rs::render::DisplaySetIterator::new(&pgs_data);
+            let mut count = 0;
+            let mut prev_pts: Option<u64> = None;
+            let mut pending_output: Option<serde_json::Value> = None;
+            let stdout = io::stdout();
+            let mut out = stdout.lock();
+
+            for display_set in display_sets {
+                // Check limit
+                if limit > 0 && count >= limit {
+                    break;
+                }
+
+                // Get timing - PTS is in 90kHz clock ticks, convert to ms
+                let pts = display_set.presentation_timestamp as u64 / 90;
+
+                // If we have a pending frame, set its end_ms to current pts
+                if let Some(mut pending) = pending_output.take() {
+                    pending["end_ms"] = serde_json::json!(pts);
+                    writeln!(out, "{}", pending)?;
+                }
+
+                // Skip empty display sets (clear commands) - they just mark end times
+                if display_set.is_empty() {
+                    prev_pts = Some(pts);
+                    continue;
+                }
+
+                // Render to cropped RGBA with position info
+                match pgs::render_display_set(&display_set) {
+                    Ok(Some(rendered)) => {
+                        // Encode as WebP
+                        let webp_data = pgs::encode_webp(&rendered.rgba, rendered.width, rendered.height, 100)?;
+                        let image_b64 = BASE64.encode(&webp_data);
+
+                        // Queue this frame (end_ms will be set when we see the next frame)
+                        // Include canvas dimensions so frontend can scale correctly for 4K video with 1080p subs
+                        pending_output = Some(serde_json::json!({
+                            "start_ms": pts,
+                            "end_ms": 0,  // Will be updated
+                            "x": rendered.x,
+                            "y": rendered.y,
+                            "width": rendered.width,
+                            "height": rendered.height,
+                            "canvas_width": display_set.width,
+                            "canvas_height": display_set.height,
+                            "image_base64": image_b64,
+                        }));
+
+                        count += 1;
+                        prev_pts = Some(pts);
+                    }
+                    Ok(None) => continue, // Empty render result
+                    Err(_) => continue,
+                }
+            }
+
+            // Output final pending frame with estimated end time
+            if let Some(mut pending) = pending_output.take() {
+                // Use last pts + 5 seconds as default duration for final subtitle
+                let end_ms = prev_pts.unwrap_or(0) + 5000;
+                pending["end_ms"] = serde_json::json!(end_ms);
+                writeln!(out, "{}", pending)?;
+            }
+        }
+
+        Commands::DebugRenderPgs {
             file,
             track,
             output,
             start,
             end,
             limit,
+            image_format,
+            quality,
         } => {
             use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
             use std::time::Instant;
 
+            // Validate image format
+            let use_webp = match image_format.to_lowercase().as_str() {
+                "webp" => true,
+                "png" => false,
+                _ => anyhow::bail!("Invalid image format '{}'. Use 'webp' or 'png'.", image_format),
+            };
+
+            let ext = if use_webp { "webp" } else { "png" };
+
             // Create output directory
             std::fs::create_dir_all(&output).context("Failed to create output directory")?;
 
-            eprintln!("Rendering PGS subtitles from track {} to {:?}...", track, output);
+            eprintln!(
+                "Rendering PGS subtitles from track {} to {:?} (format: {})...",
+                track, output, ext
+            );
             let start_time = Instant::now();
 
             let mut container = MediaContainer::open(&file)?;
@@ -262,41 +434,29 @@ fn main() -> Result<()> {
                 // Get timing - PTS is in 90kHz clock ticks
                 let pts = display_set.presentation_timestamp as u64 / 90;
 
-                // Get position from first composition object
-                let (x, y) = display_set
-                    .composition_objects
-                    .first()
-                    .map(|obj| (obj.horizontal_position, obj.vertical_position))
-                    .unwrap_or((0, 0));
-
-                // Render to RGBA using our custom renderer (handles missing palette entries)
+                // Render to cropped RGBA using our custom renderer (handles missing palette entries)
                 match pgs::render_display_set(&display_set) {
-                    Ok(rgba) => {
-                        if rgba.is_empty() {
-                            continue;
-                        }
-
-                        let width = display_set.width as u32;
-                        let height = display_set.height as u32;
-
-                        if width == 0 || height == 0 {
-                            continue;
-                        }
-
-                        // Save PNG
-                        let filename = format!("sub_{:06}_{}.png", pts, count);
+                    Ok(Some(rendered)) => {
+                        // Save image in requested format
+                        let filename = format!("sub_{:06}_{}.{}", pts, count, ext);
                         let path = output.join(&filename);
 
-                        pgs::save_png(&rgba, width, height, &path)?;
+                        if use_webp {
+                            pgs::save_webp(&rendered.rgba, rendered.width, rendered.height, &path, quality)?;
+                        } else {
+                            pgs::save_png(&rendered.rgba, rendered.width, rendered.height, &path)?;
+                        }
 
                         metadata.push(serde_json::json!({
                             "index": count,
                             "start_ms": pts,
                             "end_ms": 0,
-                            "width": width,
-                            "height": height,
-                            "x": x,
-                            "y": y,
+                            "width": rendered.width,
+                            "height": rendered.height,
+                            "x": rendered.x,
+                            "y": rendered.y,
+                            "canvas_width": display_set.width,
+                            "canvas_height": display_set.height,
                             "file": filename,
                         }));
 
@@ -305,6 +465,7 @@ fn main() -> Result<()> {
                             eprint!(".");
                         }
                     }
+                    Ok(None) => continue, // Empty render result
                     Err(e) => {
                         eprintln!("\nWarning: Failed to render display set: {:?}", e);
                     }

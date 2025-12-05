@@ -83,11 +83,6 @@ type TranscodeConfig struct {
 	// Higher values preserve more highlight detail at the cost of local contrast
 	// Environment variable: LIBPLACEBO_CONTRAST_RECOVERY (default: 0.3)
 	LibPlaceboContrastRecovery float64
-
-	// SubtitleBurnIn controls whether bitmap subtitles (PGS, VobSub) are burned into the video.
-	// When false (default), subtitles are extracted and rendered client-side, avoiding transcoding.
-	// When true, subtitles are overlaid onto the video stream, requiring video transcoding.
-	SubtitleBurnIn bool
 }
 
 // DefaultTranscodeConfig returns sensible defaults.

@@ -223,17 +223,6 @@ var SystemSettingDefinitions = []Definition{
 		AdminOnly:   true,
 		Restartable: false,
 	},
-	{
-		Key:         "transcoding.subtitle_burn_in",
-		Type:        TypeBool,
-		Category:    CategoryTranscoding,
-		Label:       "Burn-in Bitmap Subtitles",
-		Description: "Burn bitmap subtitles (PGS, VobSub) directly into the video stream. When disabled, subtitles are extracted and rendered by the client, which avoids video transcoding but may cause brief delays during extraction.",
-		Default:     false,
-		AdminOnly:   true,
-		Restartable: false,
-	},
-
 	// ============================================================
 	// SCANNING
 	// ============================================================
