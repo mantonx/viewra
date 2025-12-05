@@ -45,6 +45,43 @@ interface SubtitleOverlayProps {
   subtitleDelay?: number
 }
 
+// Allowed HTML tags in subtitles (VTT supports formatting)
+const ALLOWED_TAGS = ['b', 'i', 'u', 'c', 'ruby', 'rt', 'v', 'lang']
+
+/**
+ * Sanitize subtitle text to prevent XSS while preserving allowed formatting.
+ * Strips all tags except those in ALLOWED_TAGS, then converts newlines to <br/>.
+ */
+const sanitizeSubtitleText = (text: string): string => {
+  // First, escape any raw < or > that aren't part of valid tags
+  // Then strip disallowed tags while keeping allowed ones
+  const tagPattern = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g
+
+  const sanitized = text.replace(tagPattern, (match, tagName) => {
+    const tag = tagName.toLowerCase()
+    if (ALLOWED_TAGS.includes(tag)) {
+      // Keep the tag but strip attributes (except class for <c>)
+      if (tag === 'c') {
+        // VTT <c> tags can have class for styling
+        const classMatch = match.match(/class="([^"]*)"/)
+        return classMatch ? `<span class="${classMatch[1]}">` : '<span>'
+      }
+      // Self-closing or end tag
+      return match.startsWith('</') ? `</${tag}>` : `<${tag}>`
+    }
+    // Strip disallowed tags by returning empty string
+    return ''
+  })
+
+  // Convert newlines to <br/> and escape any remaining dangerous characters
+  return sanitized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/&lt;(\/?(b|i|u|span|ruby|rt|v|lang))&gt;/g, '<$1>') // Restore allowed tags
+    .replace(/\n/g, '<br/>')
+}
+
 // Parse VTT timestamp to seconds
 const parseTimestamp = (ts: string): number => {
   const parts = ts.split(':')
@@ -213,7 +250,7 @@ const TextSubtitleRenderer = ({
           letterSpacing: '0.02em',
           textShadow: '0 0 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.7), 2px 2px 4px rgba(0,0,0,0.9)',
         }}
-        dangerouslySetInnerHTML={{ __html: currentText.replace(/\n/g, '<br/>') }}
+        dangerouslySetInnerHTML={{ __html: sanitizeSubtitleText(currentText) }}
       />
     </div>
   )

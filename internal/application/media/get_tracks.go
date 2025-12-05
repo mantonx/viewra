@@ -63,6 +63,44 @@ type GetTracksResponse struct {
 	SubtitleTracks []SubtitleTrackResponse `json:"subtitle_tracks"`
 }
 
+// GetSubtitleTrackByID finds a subtitle track by its database ID.
+// Returns nil if no track found with that ID.
+func (uc *GetTracksUseCase) GetSubtitleTrackByID(ctx context.Context, mediaID int64, trackID int64) (*media.SubtitleTrack, error) {
+	tracks, err := uc.repo.GetSubtitleTracksByMediaID(ctx, mediaID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subtitle tracks: %w", err)
+	}
+
+	for _, t := range tracks {
+		if t.ID == trackID {
+			return t, nil
+		}
+	}
+	return nil, nil
+}
+
+// GetSubtitleTrackByRelativeIndex finds a subtitle track by its relative index among tracks of the same type.
+// If bitmap is true, searches among bitmap (PGS) tracks; otherwise searches among text tracks.
+// Tracks are sorted by stream index. Returns nil if no track found at the given index.
+func (uc *GetTracksUseCase) GetSubtitleTrackByRelativeIndex(ctx context.Context, mediaID int64, relativeIndex int, bitmap bool) (*media.SubtitleTrack, error) {
+	tracks, err := uc.repo.GetSubtitleTracksByMediaID(ctx, mediaID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subtitle tracks: %w", err)
+	}
+
+	// Filter by type and count to relative index
+	count := 0
+	for _, t := range tracks {
+		if t.IsBitmap == bitmap && t.StreamIndex != nil {
+			if count == relativeIndex {
+				return t, nil
+			}
+			count++
+		}
+	}
+	return nil, nil
+}
+
 // Execute retrieves all audio and subtitle tracks for a media item
 func (uc *GetTracksUseCase) Execute(ctx context.Context, mediaID int64) (*GetTracksResponse, error) {
 	// Verify media exists

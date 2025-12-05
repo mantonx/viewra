@@ -627,10 +627,8 @@ func (c *Converter) listCachedPGSFrames(mediaID int64, trackNumber int64, startM
 // for efficient memory usage with large subtitle tracks.
 // Frames are cached to disk for fast subsequent requests.
 //
-// Uses progressive indexing for fast seeking:
-// - On first request for a time range, builds an index of frame byte positions
-// - Subsequent seeks use the index for O(1) direct reads instead of scanning
-// - Index is extended automatically as user watches further into the video
+// Uses ClusterCache binary-search seeking for fast access (3-5 reads to any position).
+// Window-level caching tracks which time ranges have been fully extracted.
 //
 // The caller should iterate over the returned channel until it's closed.
 // Any error encountered during streaming will be sent on the error channel.

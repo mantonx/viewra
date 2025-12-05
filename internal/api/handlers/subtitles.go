@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
-	"sort"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/media"
@@ -15,22 +14,38 @@ import (
 
 // SubtitleHandler handles subtitle streaming requests.
 type SubtitleHandler struct {
-	mediaRepo media.GetMediaExecutor
-	trackRepo domainMedia.Repository
-	converter *subtitles.Converter
+	mediaRepo     media.GetMediaExecutor
+	tracksUseCase *media.GetTracksUseCase
+	converter     *subtitles.Converter
 }
 
 // NewSubtitleHandler creates a new subtitle handler.
 func NewSubtitleHandler(
 	mediaRepo media.GetMediaExecutor,
-	trackRepo domainMedia.Repository,
+	tracksUseCase *media.GetTracksUseCase,
 	converter *subtitles.Converter,
 ) *SubtitleHandler {
 	return &SubtitleHandler{
-		mediaRepo: mediaRepo,
-		trackRepo: trackRepo,
-		converter: converter,
+		mediaRepo:     mediaRepo,
+		tracksUseCase: tracksUseCase,
+		converter:     converter,
 	}
+}
+
+// serveVTTContent reads a VTT file and serves it with appropriate headers.
+func serveVTTContent(c *gin.Context, vttPath string) {
+	vttContent, err := subtitles.GetWebVTTContent(vttPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to read subtitle file",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.Header("Content-Type", "text/vtt; charset=utf-8")
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.String(http.StatusOK, vttContent)
 }
 
 // GetSubtitle handles GET /api/media/:id/subtitles/:trackId
@@ -64,22 +79,12 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Get subtitle tracks for this media
-	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	// Find the requested track by ID
+	track, err := h.tracksUseCase.GetSubtitleTrackByID(c.Request.Context(), mediaID, trackID)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
-
-	// Find the requested track
-	var track *domainMedia.SubtitleTrack
-	for _, t := range tracks {
-		if t.ID == trackID {
-			track = t
-			break
-		}
-	}
-
 	if track == nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "Subtitle track not found",
@@ -142,19 +147,7 @@ func (h *SubtitleHandler) GetSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Read and serve the WebVTT content
-	vttContent, err := subtitles.GetWebVTTContent(vttPath)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to read subtitle file",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	c.Header("Content-Type", "text/vtt; charset=utf-8")
-	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
-	c.String(http.StatusOK, vttContent)
+	serveVTTContent(c, vttPath)
 }
 
 // GetSubtitleByStreamIndex handles GET /api/media/:id/subtitles/stream/:index
@@ -251,26 +244,12 @@ func (h *SubtitleHandler) StreamTextSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Get subtitle tracks to convert relative index to absolute stream index
-	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	// Find text track at this relative index
+	targetTrack, err := h.tracksUseCase.GetSubtitleTrackByRelativeIndex(c.Request.Context(), mediaID, int(relativeIndex), false)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
-
-	// Filter to only text (non-bitmap) subtitles and find the one at relative index
-	textTrackCount := int64(0)
-	var targetTrack *domainMedia.SubtitleTrack
-	for _, t := range tracks {
-		if !t.IsBitmap && t.StreamIndex != nil {
-			if textTrackCount == relativeIndex {
-				targetTrack = t
-				break
-			}
-			textTrackCount++
-		}
-	}
-
 	if targetTrack == nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "Subtitle track not found",
@@ -361,30 +340,12 @@ func (h *SubtitleHandler) StreamPGSSubtitle(c *gin.Context) {
 		}
 	}
 
-	// Get subtitle tracks to convert relative index to absolute stream index
-	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	// Find the bitmap track at the requested relative index
+	targetTrack, err := h.tracksUseCase.GetSubtitleTrackByRelativeIndex(c.Request.Context(), mediaID, int(relativeIndex), true)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
-
-	// Filter to only bitmap (PGS) subtitles and sort by stream index for consistent ordering
-	var bitmapTracks []*domainMedia.SubtitleTrack
-	for _, t := range tracks {
-		if t.IsBitmap && t.StreamIndex != nil {
-			bitmapTracks = append(bitmapTracks, t)
-		}
-	}
-	sort.Slice(bitmapTracks, func(i, j int) bool {
-		return *bitmapTracks[i].StreamIndex < *bitmapTracks[j].StreamIndex
-	})
-
-	// Find the track at the requested relative index
-	var targetTrack *domainMedia.SubtitleTrack
-	if relativeIndex >= 0 && relativeIndex < int64(len(bitmapTracks)) {
-		targetTrack = bitmapTracks[relativeIndex]
-	}
-
 	if targetTrack == nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "PGS subtitle track not found",
@@ -465,30 +426,12 @@ func (h *SubtitleHandler) GetAllPGSFrames(c *gin.Context) {
 		return
 	}
 
-	// Get subtitle tracks to convert relative index to absolute stream index
-	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	// Find the bitmap track at the requested relative index
+	targetTrack, err := h.tracksUseCase.GetSubtitleTrackByRelativeIndex(c.Request.Context(), mediaID, int(relativeIndex), true)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
-
-	// Filter to only bitmap (PGS) subtitles and sort by stream index for consistent ordering
-	var bitmapTracks []*domainMedia.SubtitleTrack
-	for _, t := range tracks {
-		if t.IsBitmap && t.StreamIndex != nil {
-			bitmapTracks = append(bitmapTracks, t)
-		}
-	}
-	sort.Slice(bitmapTracks, func(i, j int) bool {
-		return *bitmapTracks[i].StreamIndex < *bitmapTracks[j].StreamIndex
-	})
-
-	// Find the track at the requested relative index
-	var targetTrack *domainMedia.SubtitleTrack
-	if relativeIndex >= 0 && relativeIndex < int64(len(bitmapTracks)) {
-		targetTrack = bitmapTracks[relativeIndex]
-	}
-
 	if targetTrack == nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "PGS subtitle track not found",

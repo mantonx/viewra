@@ -15,6 +15,7 @@ use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use super::cluster_cache::ClusterCache;
+use super::ebml_primitives::{read_element_header, read_uint, read_vint, ids};
 
 /// A single PGS frame entry in the index
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,12 +149,8 @@ impl PgsIndexBuilder {
             reader.seek(SeekFrom::Start(scan_start))?;
         }
 
-        // EBML element IDs we care about
-        const CLUSTER: u32 = 0x1F43B675;
-        const CLUSTER_TIMESTAMP: u32 = 0xE7;
-        const SIMPLE_BLOCK: u32 = 0xA3;
-        const BLOCK_GROUP: u32 = 0xA0;
-        const BLOCK: u32 = 0xA1;
+        // Use shared EBML element IDs
+        use ids::{CLUSTER, CLUSTER_TIMESTAMP, SIMPLE_BLOCK, BLOCK_GROUP, BLOCK};
 
         let mut cluster_timestamp_ms: u64 = 0;
         let mut last_timestamp_ms: u64 = 0;
@@ -300,97 +297,6 @@ impl PgsIndexBuilder {
 
         Ok(())
     }
-}
-
-/// Read an EBML element header (ID + size)
-fn read_element_header<R: Read>(reader: &mut R) -> Result<(u32, u64)> {
-    let (id, _) = read_element_id(reader)?;
-    let (size, _) = read_vint(reader)?;
-    Ok((id, size))
-}
-
-/// Read variable-length element ID
-fn read_element_id<R: Read>(reader: &mut R) -> Result<(u32, u64)> {
-    let mut first = [0u8; 1];
-    reader.read_exact(&mut first)?;
-    let first = first[0];
-
-    let (len, mask) = if first & 0x80 != 0 {
-        (1, 0x7F)
-    } else if first & 0x40 != 0 {
-        (2, 0x3F)
-    } else if first & 0x20 != 0 {
-        (3, 0x1F)
-    } else if first & 0x10 != 0 {
-        (4, 0x0F)
-    } else {
-        anyhow::bail!("Invalid EBML element ID");
-    };
-
-    let mut id = (first & mask) as u32;
-    for _ in 1..len {
-        let mut b = [0u8; 1];
-        reader.read_exact(&mut b)?;
-        id = (id << 8) | (b[0] as u32);
-    }
-
-    // Reconstruct full ID with length marker
-    let full_id = match len {
-        1 => 0x80 | id,
-        2 => 0x4000 | id,
-        3 => 0x200000 | id,
-        4 => 0x10000000 | id,
-        _ => id,
-    };
-
-    Ok((full_id, len))
-}
-
-/// Read variable-length integer
-fn read_vint<R: Read>(reader: &mut R) -> Result<(u64, u64)> {
-    let mut first = [0u8; 1];
-    reader.read_exact(&mut first)?;
-    let first = first[0];
-
-    let (len, mask) = if first & 0x80 != 0 {
-        (1, 0x7F)
-    } else if first & 0x40 != 0 {
-        (2, 0x3F)
-    } else if first & 0x20 != 0 {
-        (3, 0x1F)
-    } else if first & 0x10 != 0 {
-        (4, 0x0F)
-    } else if first & 0x08 != 0 {
-        (5, 0x07)
-    } else if first & 0x04 != 0 {
-        (6, 0x03)
-    } else if first & 0x02 != 0 {
-        (7, 0x01)
-    } else if first & 0x01 != 0 {
-        (8, 0x00)
-    } else {
-        anyhow::bail!("Invalid VINT");
-    };
-
-    let mut value = (first & mask) as u64;
-    for _ in 1..len {
-        let mut b = [0u8; 1];
-        reader.read_exact(&mut b)?;
-        value = (value << 8) | (b[0] as u64);
-    }
-
-    Ok((value, len))
-}
-
-/// Read unsigned integer of given size
-fn read_uint<R: Read>(reader: &mut R, size: u64) -> Result<u64> {
-    let mut value: u64 = 0;
-    for _ in 0..size {
-        let mut b = [0u8; 1];
-        reader.read_exact(&mut b)?;
-        value = (value << 8) | (b[0] as u64);
-    }
-    Ok(value)
 }
 
 #[cfg(test)]

@@ -27,14 +27,10 @@ use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-// EBML Element IDs
-const CLUSTER: u32 = 0x1F43B675;
-const CLUSTER_TIMESTAMP: u32 = 0xE7;
-const SEGMENT: u32 = 0x18538067;
-const SEGMENT_INFO: u32 = 0x1549A966;
-const TIMESTAMP_SCALE: u32 = 0x2AD7B1;
-const EBML_HEADER: u32 = 0x1A45DFA3;
-const DURATION: u32 = 0x4489;
+use super::ebml_primitives::{
+    read_element_header, read_element_id, read_float, read_uint, read_vint,
+    ids::{CLUSTER, CLUSTER_TIMESTAMP, DURATION, EBML_HEADER, SEGMENT, SEGMENT_INFO, TIMESTAMP_SCALE},
+};
 
 /// A cached cluster entry
 #[derive(Debug, Clone)]
@@ -281,7 +277,7 @@ impl ClusterCache {
         reader.seek(SeekFrom::Start(element_offset))?;
 
         // Read element ID
-        let (id, _) = match Self::read_element_id(reader) {
+        let (id, _) = match read_element_id(reader) {
             Ok(v) => v,
             Err(_) => return Ok(None),
         };
@@ -291,7 +287,7 @@ impl ClusterCache {
         }
 
         // Read size
-        let (size, _) = match Self::read_vint(reader) {
+        let (size, _) = match read_vint(reader) {
             Ok(v) => v,
             Err(_) => return Ok(None),
         };
@@ -303,13 +299,13 @@ impl ClusterCache {
         let peek_end = data_offset + size.min(64);
 
         while reader.stream_position()? < peek_end {
-            let (sub_id, sub_size) = match Self::read_element_header(reader) {
+            let (sub_id, sub_size) = match read_element_header(reader) {
                 Ok(v) => v,
                 Err(_) => break,
             };
 
             if sub_id == CLUSTER_TIMESTAMP {
-                let raw_ts = Self::read_uint(reader, sub_size)?;
+                let raw_ts = read_uint(reader, sub_size)?;
                 timestamp_ms = (raw_ts * timestamp_scale) / 1_000_000;
                 break;
             } else {
@@ -384,7 +380,7 @@ impl ClusterCache {
         while reader.stream_position()? < self.file_size {
             let element_offset = reader.stream_position()?;
 
-            let (id, size) = match Self::read_element_header(&mut reader) {
+            let (id, size) = match read_element_header(&mut reader) {
                 Ok(v) => v,
                 Err(_) => break,
             };
@@ -397,13 +393,13 @@ impl ClusterCache {
                 let peek_end = data_offset + size.min(64);
 
                 while reader.stream_position()? < peek_end {
-                    let (sub_id, sub_size) = match Self::read_element_header(&mut reader) {
+                    let (sub_id, sub_size) = match read_element_header(&mut reader) {
                         Ok(v) => v,
                         Err(_) => break,
                     };
 
                     if sub_id == CLUSTER_TIMESTAMP {
-                        let raw_ts = Self::read_uint(&mut reader, sub_size)?;
+                        let raw_ts = read_uint(&mut reader, sub_size)?;
                         timestamp_ms = (raw_ts * self.timestamp_scale) / 1_000_000;
                         break;
                     } else {
@@ -455,14 +451,14 @@ impl ClusterCache {
 
     fn parse_header(reader: &mut BufReader<File>) -> Result<(u64, Option<u64>, u64)> {
         // Skip EBML header
-        let (id, size) = Self::read_element_header(reader)?;
+        let (id, size) = read_element_header(reader)?;
         if id != EBML_HEADER {
             anyhow::bail!("Not an EBML file");
         }
         reader.seek(SeekFrom::Current(size as i64))?;
 
         // Find Segment
-        let (id, _seg_size) = Self::read_element_header(reader)?;
+        let (id, _seg_size) = read_element_header(reader)?;
         if id != SEGMENT {
             anyhow::bail!("No Segment element found");
         }
@@ -477,7 +473,7 @@ impl ClusterCache {
         let scan_limit = segment_start + 10 * 1024 * 1024; // First 10MB
 
         while reader.stream_position()? < scan_limit {
-            let (id, size) = match Self::read_element_header(reader) {
+            let (id, size) = match read_element_header(reader) {
                 Ok(v) => v,
                 Err(_) => break,
             };
@@ -486,15 +482,15 @@ impl ClusterCache {
                 let info_end = reader.stream_position()? + size;
 
                 while reader.stream_position()? < info_end {
-                    let (sub_id, sub_size) = Self::read_element_header(reader)?;
+                    let (sub_id, sub_size) = read_element_header(reader)?;
 
                     match sub_id {
                         TIMESTAMP_SCALE => {
-                            timestamp_scale = Self::read_uint(reader, sub_size)?;
+                            timestamp_scale = read_uint(reader, sub_size)?;
                         }
                         DURATION => {
                             // Duration is stored as float
-                            let raw = Self::read_float(reader, sub_size)?;
+                            let raw = read_float(reader, sub_size)?;
                             duration_ms = Some(((raw * timestamp_scale as f64) / 1_000_000.0) as u64);
                         }
                         _ => {
@@ -512,107 +508,6 @@ impl ClusterCache {
         }
 
         Ok((timestamp_scale, duration_ms, segment_start))
-    }
-
-    // --- EBML primitives ---
-
-    fn read_element_header(reader: &mut BufReader<File>) -> Result<(u32, u64)> {
-        let (id, _) = Self::read_element_id(reader)?;
-        let (size, _) = Self::read_vint(reader)?;
-        Ok((id, size))
-    }
-
-    fn read_element_id(reader: &mut BufReader<File>) -> Result<(u32, u64)> {
-        let first = Self::read_byte(reader)?;
-
-        let (len, mask) = if first & 0x80 != 0 {
-            (1, 0x7F)
-        } else if first & 0x40 != 0 {
-            (2, 0x3F)
-        } else if first & 0x20 != 0 {
-            (3, 0x1F)
-        } else if first & 0x10 != 0 {
-            (4, 0x0F)
-        } else {
-            anyhow::bail!("Invalid EBML element ID");
-        };
-
-        let mut id = (first & mask) as u32;
-        for _ in 1..len {
-            id = (id << 8) | (Self::read_byte(reader)? as u32);
-        }
-
-        // Reconstruct full ID with length marker
-        let full_id = match len {
-            1 => 0x80 | id,
-            2 => 0x4000 | id,
-            3 => 0x200000 | id,
-            4 => 0x10000000 | id,
-            _ => id,
-        };
-
-        Ok((full_id, len))
-    }
-
-    fn read_vint(reader: &mut BufReader<File>) -> Result<(u64, u64)> {
-        let first = Self::read_byte(reader)?;
-
-        let (len, mask) = if first & 0x80 != 0 {
-            (1, 0x7F)
-        } else if first & 0x40 != 0 {
-            (2, 0x3F)
-        } else if first & 0x20 != 0 {
-            (3, 0x1F)
-        } else if first & 0x10 != 0 {
-            (4, 0x0F)
-        } else if first & 0x08 != 0 {
-            (5, 0x07)
-        } else if first & 0x04 != 0 {
-            (6, 0x03)
-        } else if first & 0x02 != 0 {
-            (7, 0x01)
-        } else if first & 0x01 != 0 {
-            (8, 0x00)
-        } else {
-            anyhow::bail!("Invalid VINT");
-        };
-
-        let mut value = (first & mask) as u64;
-        for _ in 1..len {
-            value = (value << 8) | (Self::read_byte(reader)? as u64);
-        }
-
-        Ok((value, len))
-    }
-
-    fn read_uint(reader: &mut BufReader<File>, size: u64) -> Result<u64> {
-        let mut value: u64 = 0;
-        for _ in 0..size {
-            value = (value << 8) | (Self::read_byte(reader)? as u64);
-        }
-        Ok(value)
-    }
-
-    fn read_float(reader: &mut BufReader<File>, size: u64) -> Result<f64> {
-        match size {
-            4 => {
-                let mut buf = [0u8; 4];
-                reader.read_exact(&mut buf)?;
-                Ok(f32::from_be_bytes(buf) as f64)
-            }
-            8 => {
-                let mut buf = [0u8; 8];
-                reader.read_exact(&mut buf)?;
-                Ok(f64::from_be_bytes(buf))
-            }
-            _ => anyhow::bail!("Invalid float size: {}", size),
-        }
-    }
-
-    fn read_byte(reader: &mut BufReader<File>) -> Result<u8> {
-        let mut buf = [0u8; 1];
-        reader.read_exact(&mut buf)?;
-        Ok(buf[0])
     }
 }
 

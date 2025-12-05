@@ -50,7 +50,7 @@ func BuildHandlers(
 	streamService := streaming.NewService()
 	streamHandler := handlers.NewStreamHandler(cases.Media.Get, streamService, logger)
 	progressHandler := handlers.NewProgressHandler(cases.Progress)
-	subtitleHandler := handlers.NewSubtitleHandler(cases.Media.Get, infra.Repos.Media, svcs.SubtitleConverter)
+	subtitleHandler := handlers.NewSubtitleHandler(cases.Media.Get, cases.Media.GetTracks, svcs.SubtitleConverter)
 	imagesHandler := handlers.NewImagesHandler(
 		cases.Images.Get,
 		cases.Images.GetMedia,
@@ -70,12 +70,12 @@ func BuildHandlers(
 			cases.Transcode.ServeMasterPlaylist,
 			cases.Transcode.ServeAudioPlaylist,
 			cases.Media.Get,
+			cases.Media.GetTracks,
 			svcs.TranscodeQueue,
 			svcs.CleanupService,
 			svcs.SessionManager,
 			infra.TranscodeOutputDir,
 			svcs.SubtitleConverter,
-			infra.Repos.Media,
 		)
 	}
 

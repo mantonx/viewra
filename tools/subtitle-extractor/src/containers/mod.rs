@@ -1,5 +1,6 @@
 mod cluster_cache;
 mod ebml;
+mod ebml_primitives;
 mod mkv;
 mod mp4;
 mod pgs_index;

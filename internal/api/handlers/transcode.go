@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/media"
 	"github.com/mantonx/viewra/internal/application/transcode"
-	domainMedia "github.com/mantonx/viewra/internal/domain/media"
 	transcodeDomain "github.com/mantonx/viewra/internal/domain/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
@@ -23,12 +22,12 @@ type TranscodeHandler struct {
 	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase
 	serveAudioPlaylistUseCase  *transcode.ServeAudioPlaylistUseCase
 	getMediaUseCase            *media.GetMediaUseCase
+	getTracksUseCase           *media.GetTracksUseCase
 	queue                      *transcode.Queue
 	cleanupService             *transcode.CleanupService
 	sessionManager             *transcoding.SessionManager
 	outputDir                  string
 	subtitleConverter          *subtitles.Converter
-	trackRepo                  domainMedia.Repository
 }
 
 // NewTranscodeHandler creates a new transcode handler.
@@ -39,12 +38,12 @@ func NewTranscodeHandler(
 	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase,
 	serveAudioPlaylistUseCase *transcode.ServeAudioPlaylistUseCase,
 	getMediaUseCase *media.GetMediaUseCase,
+	getTracksUseCase *media.GetTracksUseCase,
 	queue *transcode.Queue,
 	cleanupService *transcode.CleanupService,
 	sessionManager *transcoding.SessionManager,
 	outputDir string,
 	subtitleConverter *subtitles.Converter,
-	trackRepo domainMedia.Repository,
 ) *TranscodeHandler {
 	return &TranscodeHandler{
 		createJobUseCase:           createJobUseCase,
@@ -53,12 +52,12 @@ func NewTranscodeHandler(
 		serveMasterPlaylistUseCase: serveMasterPlaylistUseCase,
 		serveAudioPlaylistUseCase:  serveAudioPlaylistUseCase,
 		getMediaUseCase:            getMediaUseCase,
+		getTracksUseCase:           getTracksUseCase,
 		queue:                      queue,
 		cleanupService:             cleanupService,
 		sessionManager:             sessionManager,
 		outputDir:                  outputDir,
 		subtitleConverter:          subtitleConverter,
-		trackRepo:                  trackRepo,
 	}
 }
 
@@ -742,26 +741,12 @@ func (h *TranscodeHandler) ServeSubtitle(c *gin.Context) {
 		return
 	}
 
-	// Get subtitle tracks to convert relative index to absolute stream index
-	tracks, err := h.trackRepo.GetSubtitleTracksByMediaID(c.Request.Context(), mediaID)
+	// Find text track at this relative index
+	targetTrack, err := h.getTracksUseCase.GetSubtitleTrackByRelativeIndex(c.Request.Context(), mediaID, relativeIndex, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to get subtitle tracks"})
 		return
 	}
-
-	// Filter to only text (non-bitmap) subtitles and find the one at relative index
-	textTrackCount := 0
-	var targetTrack *domainMedia.SubtitleTrack
-	for _, t := range tracks {
-		if !t.IsBitmap && t.StreamIndex != nil {
-			if textTrackCount == relativeIndex {
-				targetTrack = t
-				break
-			}
-			textTrackCount++
-		}
-	}
-
 	if targetTrack == nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Subtitle track not found"})
 		return

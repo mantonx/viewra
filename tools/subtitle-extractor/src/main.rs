@@ -8,6 +8,33 @@ use std::path::PathBuf;
 
 use containers::{MediaContainer, OutputFormat, StreamFormat};
 
+use base64::prelude::*;
+
+/// Parse JSONL output from stream_track into (start_ms, raw_data) tuples.
+///
+/// The JSONL format has lines like:
+/// {"start_ms": 1234, "end_ms": 5678, "data_base64": "..."}
+fn parse_jsonl_frames(jsonl_data: &[u8]) -> Vec<(u64, Vec<u8>)> {
+    let jsonl_str = String::from_utf8_lossy(jsonl_data);
+    let mut frames = Vec::new();
+
+    for line in jsonl_str.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        if let Ok(frame) = serde_json::from_str::<serde_json::Value>(line) {
+            let start_ms = frame["start_ms"].as_u64().unwrap_or(0);
+            if let Some(data_b64) = frame["data_base64"].as_str() {
+                if let Ok(data) = BASE64_STANDARD.decode(data_b64) {
+                    frames.push((start_ms, data));
+                }
+            }
+        }
+    }
+
+    frames
+}
+
 #[derive(Parser)]
 #[command(name = "subtitle-extractor")]
 #[command(about = "Fast subtitle track extractor for multiple container formats")]
@@ -281,7 +308,6 @@ fn main() -> Result<()> {
             limit,
             index,
         } => {
-            use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
             use std::io::Write;
 
             // Collect frames - either from index or by scanning
@@ -344,23 +370,7 @@ fn main() -> Result<()> {
                     container.stream_track(track, start, end, StreamFormat::Jsonl, &mut out)?;
                 }
 
-                let jsonl_str = String::from_utf8_lossy(&jsonl_data);
-                let mut frames = Vec::new();
-
-                for line in jsonl_str.lines() {
-                    if line.is_empty() {
-                        continue;
-                    }
-                    let frame: serde_json::Value = serde_json::from_str(line)?;
-                    let start_ms = frame["start_ms"].as_u64().unwrap_or(0);
-                    if let Some(data_b64) = frame["data_base64"].as_str() {
-                        if let Ok(data) = BASE64.decode(data_b64) {
-                            frames.push((start_ms, data));
-                        }
-                    }
-                }
-
-                frames
+                parse_jsonl_frames(&jsonl_data)
             };
 
             // Convert to SUP and render
@@ -399,7 +409,7 @@ fn main() -> Result<()> {
                 match pgs::render_display_set(&display_set) {
                     Ok(Some(rendered)) => {
                         let webp_data = pgs::encode_webp(&rendered.rgba, rendered.width, rendered.height, 100)?;
-                        let image_b64 = BASE64.encode(&webp_data);
+                        let image_b64 = BASE64_STANDARD.encode(&webp_data);
 
                         pending_output = Some(serde_json::json!({
                             "start_ms": pts,
@@ -437,7 +447,6 @@ fn main() -> Result<()> {
             image_format,
             quality,
         } => {
-            use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
             use std::time::Instant;
 
             let use_webp = match image_format.to_lowercase().as_str() {
@@ -461,22 +470,7 @@ fn main() -> Result<()> {
             let mut out_cursor = std::io::Cursor::new(&mut jsonl_data);
             container.stream_track(track, start, end, StreamFormat::Jsonl, &mut out_cursor)?;
 
-            let jsonl_str = String::from_utf8_lossy(&jsonl_data);
-            let mut frames: Vec<(u64, Vec<u8>)> = Vec::new();
-
-            for line in jsonl_str.lines() {
-                if line.is_empty() {
-                    continue;
-                }
-                let frame: serde_json::Value = serde_json::from_str(line)?;
-                let start_ms = frame["start_ms"].as_u64().unwrap_or(0);
-                if let Some(data_b64) = frame["data_base64"].as_str() {
-                    if let Ok(data) = BASE64.decode(data_b64) {
-                        frames.push((start_ms, data));
-                    }
-                }
-            }
-
+            let frames = parse_jsonl_frames(&jsonl_data);
             eprintln!("Collected {} MKV frames", frames.len());
 
             let mut sup_data = pgs::mkv_to_sup(&frames);
