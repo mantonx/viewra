@@ -13,19 +13,29 @@ import (
 )
 
 // NewClient creates a new FFmpeg client.
-// It checks for the presence of ffmpeg and ffprobe executables in the system PATH.
+// It checks for VIEWRA_FFMPEG_PATH and VIEWRA_FFPROBE_PATH environment variables first,
+// then falls back to the executables in the system PATH.
 // NOTE: This should only be called once and the client reused to avoid repeated PATH searches.
 // The Coordinator creates this once and reuses it for all files.
 func NewClient() (*Client, error) {
-	// Cache the paths so they're only looked up once per client instance
-	ffmpegPath, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		return nil, ErrFFmpegNotFound
+	// Check for custom FFmpeg path (e.g., patched viewra-ffmpeg)
+	ffmpegPath := os.Getenv("VIEWRA_FFMPEG_PATH")
+	if ffmpegPath == "" {
+		var err error
+		ffmpegPath, err = exec.LookPath("ffmpeg")
+		if err != nil {
+			return nil, ErrFFmpegNotFound
+		}
 	}
 
-	ffprobePath, err := exec.LookPath("ffprobe")
-	if err != nil {
-		return nil, ErrFFprobeNotFound
+	// Check for custom FFprobe path
+	ffprobePath := os.Getenv("VIEWRA_FFPROBE_PATH")
+	if ffprobePath == "" {
+		var err error
+		ffprobePath, err = exec.LookPath("ffprobe")
+		if err != nil {
+			return nil, ErrFFprobeNotFound
+		}
 	}
 
 	return &Client{

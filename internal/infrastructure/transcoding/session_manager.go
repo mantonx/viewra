@@ -496,6 +496,12 @@ func (m *SessionManager) GetOrCreateAudioSession(
 
 // stopOtherMediaSessions stops all sessions for media IDs other than the specified one.
 // This prevents resource hogging when users switch between different videos.
+// Note: We only stop the FFmpeg process and remove from session tracking.
+// Segments are NOT deleted immediately - they're cleaned up by periodic LRU cleanup.
+// This allows:
+// - Users to switch back to a video without re-transcoding
+// - Multiple clients/tabs to share cached segments
+// - Debugging and analysis of transcoded segments
 func (m *SessionManager) stopOtherMediaSessions(currentMediaID int64) {
 	var toStop []string
 
@@ -508,12 +514,12 @@ func (m *SessionManager) stopOtherMediaSessions(currentMediaID int64) {
 		return true
 	})
 
-	// Stop and clean up sessions for other media
+	// Stop sessions but keep segments for potential reuse
 	for _, key := range toStop {
 		if existing, ok := m.sessions.Load(key); ok {
 			session := existing.(*TranscodeSession)
 
-			m.logger.Info("Stopping session for different media",
+			m.logger.Info("Stopping session for different media (keeping segments)",
 				"session_id", session.ID,
 				"media_id", session.MediaID,
 				"current_media_id", currentMediaID)
@@ -521,15 +527,22 @@ func (m *SessionManager) stopOtherMediaSessions(currentMediaID int64) {
 			session.Stop()
 			m.sessions.Delete(key)
 
-			// Clean up output directory immediately
-			m.cleanupOutputDir(session.OutputDir, session.ID)
+			// Close log writer if present
+			if m.logStore != nil {
+				m.logStore.CloseLogWriter(session.ID)
+			}
+
+			// NOTE: We intentionally do NOT clean up the output directory here.
+			// Segments are left for potential reuse and cleaned up by:
+			// - CleanupOldTranscodes (periodic LRU cleanup based on age)
+			// - CleanupIdleSessions won't find these since they're removed from sessions map
 		}
 	}
 }
 
 // stopOtherQualitySessions stops actively transcoding sessions for the same media but different qualities.
 // This prevents resource contention when HLS.js requests multiple qualities after seeking.
-// Completed sessions are kept so their segments remain available for playback.
+// Segments are kept for potential reuse (ABR quality switching).
 func (m *SessionManager) stopOtherQualitySessions(currentMediaID int64, currentQuality string) {
 	var toStop []string
 
@@ -547,12 +560,12 @@ func (m *SessionManager) stopOtherQualitySessions(currentMediaID int64, currentQ
 		return true
 	})
 
-	// Stop and clean up only ACTIVE sessions
+	// Stop FFmpeg processes but keep segments for ABR
 	for _, key := range toStop {
 		if existing, ok := m.sessions.Load(key); ok {
 			session := existing.(*TranscodeSession)
 
-			m.logger.Info("Stopping active quality session to reduce contention",
+			m.logger.Info("Stopping active quality session (keeping segments for ABR)",
 				"stopped_session", session.ID,
 				"stopped_quality", session.Quality,
 				"current_quality", currentQuality,
@@ -561,8 +574,12 @@ func (m *SessionManager) stopOtherQualitySessions(currentMediaID int64, currentQ
 			session.Stop()
 			m.sessions.Delete(key)
 
-			// Clean up output directory immediately
-			m.cleanupOutputDir(session.OutputDir, session.ID)
+			// Close log writer if present
+			if m.logStore != nil {
+				m.logStore.CloseLogWriter(session.ID)
+			}
+
+			// NOTE: Segments are kept for ABR quality switching
 		}
 	}
 }

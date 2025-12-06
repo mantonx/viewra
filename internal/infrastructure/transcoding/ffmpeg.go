@@ -28,10 +28,16 @@ func newFFmpegExecutor() (*ffmpegExecutor, error) {
 }
 
 // newFFmpegExecutorWithConfig creates a new FFmpeg executor with custom config.
+// It checks for VIEWRA_FFMPEG_PATH environment variable first, then falls back to system PATH.
 func newFFmpegExecutorWithConfig(config *TranscodeConfig) (*ffmpegExecutor, error) {
-	ffmpegPath, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		return nil, fmt.Errorf("ffmpeg executable not found in system PATH: %w", err)
+	// Check for custom FFmpeg path (e.g., patched viewra-ffmpeg)
+	ffmpegPath := os.Getenv("VIEWRA_FFMPEG_PATH")
+	if ffmpegPath == "" {
+		var err error
+		ffmpegPath, err = exec.LookPath("ffmpeg")
+		if err != nil {
+			return nil, fmt.Errorf("ffmpeg executable not found in system PATH: %w", err)
+		}
 	}
 
 	if config == nil {

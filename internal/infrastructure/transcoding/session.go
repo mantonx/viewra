@@ -294,7 +294,9 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 	return nil
 }
 
-// Stop kills the FFmpeg process gracefully.
+// Stop kills the FFmpeg process gracefully and waits for it to exit.
+// This method blocks until the FFmpeg process has fully terminated to ensure
+// it's safe to clean up output files afterward.
 func (s *TranscodeSession) Stop() error {
 	s.logger.Info("Stopping transcode session", "session_id", s.ID)
 
@@ -325,16 +327,14 @@ func (s *TranscodeSession) Stop() error {
 			s.logger.Debug("Process kill failed (may have already exited)", "error", err)
 		}
 
-		// CRITICAL: Wait for process to prevent zombie processes
-		// This reaps the process and cleans up the OS process table entry
+		// CRITICAL: Wait synchronously for process to fully exit before returning.
+		// This ensures the output directory can be safely cleaned up afterward.
 		// Use waitOnce to avoid "no child processes" error if monitoring goroutine already called Wait()
-		go func() {
-			s.waitOnce.Do(func() {
-				if err := s.FFmpegCmd.Wait(); err != nil {
-					s.logger.Debug("FFmpeg process wait completed", "error", err)
-				}
-			})
-		}()
+		s.waitOnce.Do(func() {
+			if err := s.FFmpegCmd.Wait(); err != nil {
+				s.logger.Debug("FFmpeg process wait completed", "error", err)
+			}
+		})
 	}
 
 	return nil
@@ -695,28 +695,51 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 	// with peak_detect), 4K scaling, and complex filter chains
 	builder.AddMemorySafetyOptions(config.MaxMemoryMB)
 
-	builder.AddSeekPosition().AddInput().AddTimestampReset()
+	// Determine if we need -noaccurate_seek for A/V sync.
+	// When copying video but transcoding audio, FFmpeg seeks video to the nearest keyframe
+	// but starts audio from the exact seek position without this flag.
+	needNoAccurateSeek := strategy == RemuxWithAudioDownmix || strategy == RemuxHEVC
+
+	builder.AddSeekPosition()
+	if needNoAccurateSeek {
+		builder.AddNoAccurateSeek()
+	}
+	builder.AddInput().AddTimestampReset()
 
 	// Add encoding based on strategy
 	// IMPORTANT: Always add explicit stream mapping to prevent FFmpeg from auto-selecting
 	// all streams (including subtitles), which breaks HLS output by creating separate .vtt files
+	//
+	// For remux strategies, we use the segment muxer instead of HLS muxer for better
+	// timestamp handling when seeking. This requires patched FFmpeg (viewra-ffmpeg)
+	// with start_pts tracking fix for correct A/V sync.
+	useSegmentMuxer := false
+
 	switch strategy {
 	case Remux:
-		// Copy both streams (no re-encoding)
-		builder.AddStreamMapping().AddVideoCodec("copy", "").AddAudioCodec("copy")
+		// Copy both streams with H.264 bitstream filter for MPEG-TS compatibility
+		// Use segment muxer for proper A/V sync when seeking
+		// Note: Don't use -copyts here - let FFmpeg reset timestamps naturally
+		// The segment muxer works better when output timestamps start from 0
+		builder.AddStreamMapping().AddH264Copy().AddAudioCodec("copy")
+		useSegmentMuxer = true
 
 	case RemuxWithAudioDownmix:
-		// Copy video, downmix audio
-		builder.AddStreamMapping().AddVideoCodec("copy", "").AddAudioDownmix()
+		// Copy video with H.264 bitstream filter, transcode audio to AAC
+		// Use -noaccurate_seek (added above) to align audio with video keyframe
+		builder.AddStreamMapping().AddH264Copy().AddAudioDownmix()
+		useSegmentMuxer = true
 
 	case RemuxHEVC:
 		// Copy HEVC video with bitstream filter, transcode audio to AAC
 		// This is extremely fast (~50x realtime) since no video encoding happens
 		// The hevc_mp4toannexb filter converts NAL units for MPEG-TS compatibility
+		// Use -noaccurate_seek (added above) to align audio with video keyframe
 		s.logger.Info("Using HEVC remux strategy",
 			"session_id", s.ID,
 			"media_id", s.MediaID)
 		builder.AddStreamMapping().AddHEVCCopy().AddAudioDownmix()
+		useSegmentMuxer = true
 
 	case Transcode:
 		// Get encoder and preset based on hardware acceleration and target codec
@@ -749,12 +772,19 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		// already ensure frame 0 is a keyframe since it's the start of the first GOP.
 	}
 
-	// Add HLS output settings and manifest path
-	builder.AddHLSOutput().AddOverwriteOutput()
-
-	// Progressive sessions write directly to manifest path (not using AddOutputFile)
-	args := builder.Build()
-	args = append(args, s.ManifestPath)
+	// Add output settings based on muxer type
+	var args []string
+	if useSegmentMuxer {
+		// Use segment muxer for remux strategies (requires patched FFmpeg)
+		// This provides proper A/V sync when seeking into the middle of files
+		builder.AddSegmentMuxerOutput().AddOverwriteOutput().AddSegmentMuxerOutputFile()
+		args = builder.Build()
+	} else {
+		// Use HLS muxer for transcode (generates new keyframes, so timing is controlled)
+		builder.AddHLSOutput().AddOverwriteOutput()
+		args = builder.Build()
+		args = append(args, s.ManifestPath)
+	}
 
 	return args
 }

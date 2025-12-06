@@ -3,6 +3,7 @@ package transcoding
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"syscall"
@@ -26,8 +27,14 @@ func NewProcessManager(config *TranscodeConfig) *ProcessManager {
 // PrepareCommand prepares an exec.Cmd with proper process group settings and resource limits.
 // On Unix systems, this creates a new process group to ensure all children can be killed together,
 // and applies memory limits to prevent runaway processes from crashing the system.
+// If VIEWRA_FFMPEG_LIB_PATH is set, it adds it to LD_LIBRARY_PATH for the patched FFmpeg.
 func (pm *ProcessManager) PrepareCommand(ctx context.Context, name string, args []string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, name, args...)
+
+	// If using custom FFmpeg libraries, set LD_LIBRARY_PATH
+	if libPath := os.Getenv("VIEWRA_FFMPEG_LIB_PATH"); libPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+libPath)
+	}
 
 	// On Unix systems, configure process group and resource limits
 	if runtime.GOOS != "windows" {

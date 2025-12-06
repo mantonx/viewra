@@ -83,6 +83,18 @@ func (b *FFmpegArgsBuilder) AddSeekPosition() *FFmpegArgsBuilder {
 	return b
 }
 
+// AddNoAccurateSeek disables accurate seek to align audio with video keyframes.
+// When copying video but transcoding audio, FFmpeg seeks video to the nearest keyframe
+// but starts audio from the exact seek position, causing A/V desync. This flag makes
+// audio also start from the keyframe position, ensuring A/V sync.
+// Must be called AFTER AddSeekPosition() and BEFORE AddInput().
+func (b *FFmpegArgsBuilder) AddNoAccurateSeek() *FFmpegArgsBuilder {
+	if b.opts.UseStartPosition && b.opts.StartPosition > 0 {
+		b.args = append(b.args, "-noaccurate_seek")
+	}
+	return b
+}
+
 // AddTimestampReset resets output timestamps to start from 0 (used after seeking).
 // This ensures the HLS stream reports time from 0, not from the seek position.
 // Must be called AFTER AddInput() since it's an output option.
@@ -165,6 +177,18 @@ func (b *FFmpegArgsBuilder) AddVideoCodec(codec, preset string) *FFmpegArgsBuild
 		b.args = append(b.args, "-preset", preset)
 	}
 
+	return b
+}
+
+// AddH264Copy adds H.264 video stream copy with the h264_mp4toannexb bitstream filter.
+// This converts H.264 NAL units from length-prefixed (MP4/MKV) to Annex B format (MPEG-TS).
+// Required for HLS with MPEG-TS segments when copying H.264 streams.
+// This is extremely fast (~50x realtime) compared to full transcode (~1x realtime).
+func (b *FFmpegArgsBuilder) AddH264Copy() *FFmpegArgsBuilder {
+	b.args = append(b.args,
+		"-c:v", "copy",
+		"-bsf:v", "h264_mp4toannexb",
+	)
 	return b
 }
 
@@ -521,6 +545,7 @@ func (b *FFmpegArgsBuilder) AddAudioEncoding() *FFmpegArgsBuilder {
 }
 
 // AddAudioDownmix adds audio downmix to stereo settings.
+// A/V sync is handled by -noaccurate_seek in the calling code when copying video.
 func (b *FFmpegArgsBuilder) AddAudioDownmix() *FFmpegArgsBuilder {
 	p := b.opts.Profile
 
@@ -538,6 +563,17 @@ func (b *FFmpegArgsBuilder) AddAudioDownmix() *FFmpegArgsBuilder {
 // This reduces processing overhead for remux operations.
 func (b *FFmpegArgsBuilder) AddCopyTimestamps() *FFmpegArgsBuilder {
 	b.args = append(b.args, "-copyts")
+	return b
+}
+
+// AddCopyTimestampsWithReset preserves original timestamps but resets output to start at 0.
+// This is the recommended approach for remux with seeking:
+// - -copyts: Preserve original PTS values from input
+// - -start_at_zero: Shift output timestamps so first frame starts at 0
+// This combination ensures the patched segment muxer correctly tracks start_pts
+// for proper A/V sync when seeking into the middle of a file.
+func (b *FFmpegArgsBuilder) AddCopyTimestampsWithReset() *FFmpegArgsBuilder {
+	b.args = append(b.args, "-copyts", "-start_at_zero")
 	return b
 }
 
@@ -579,6 +615,51 @@ func (b *FFmpegArgsBuilder) AddHLSOutput() *FFmpegArgsBuilder {
 // Note: AddForceFirstKeyframe was removed.
 // The GOP settings (-g/-keyint_min) already ensure frame 0 is a keyframe since it starts the first GOP.
 // Using -force_key_frames added unnecessary overhead as FFmpeg had to evaluate the expression on every frame.
+
+// AddSegmentMuxerOutput adds segment muxer output settings for HLS.
+// This uses FFmpeg's segment muxer instead of the HLS muxer, which provides better
+// control over segment timing when seeking. Requires patched FFmpeg (viewra-ffmpeg)
+// with start_pts tracking fix for correct A/V sync.
+//
+// The segment muxer with -segment_list_type m3u8 generates HLS-compatible output
+// but with proper timestamp handling for mid-stream seeks.
+//
+// Based on Emby/Jellyfin's approach to HLS segment generation.
+func (b *FFmpegArgsBuilder) AddSegmentMuxerOutput() *FFmpegArgsBuilder {
+	p := b.opts.Profile
+	playlistPath := filepath.Join(b.opts.OutputDir, "playlist.m3u8")
+
+	// Calculate start segment number based on seek position
+	startSegmentNum := 0
+	if b.opts.UseStartPosition && b.opts.StartPosition > 0 {
+		startSegmentNum = b.opts.StartPosition / p.SegmentDuration
+	}
+
+	b.args = append(b.args,
+		// Eliminate muxer buffering delay for tighter A/V sync
+		"-muxdelay", "0",
+		"-muxpreload", "0",
+		// Use segment muxer instead of HLS muxer for better seek handling
+		"-f", "segment",
+		"-segment_format", "mpegts",
+		"-segment_list", playlistPath,
+		"-segment_list_type", "m3u8",
+		"-segment_time", strconv.Itoa(p.SegmentDuration),
+		"-segment_start_number", strconv.Itoa(startSegmentNum),
+		// Use live mode to write accurate segment durations as they complete
+		"-segment_list_flags", "+live",
+	)
+
+	return b
+}
+
+// AddSegmentMuxerOutputFile adds the segment output file pattern.
+// Must be called after AddSegmentMuxerOutput().
+func (b *FFmpegArgsBuilder) AddSegmentMuxerOutputFile() *FFmpegArgsBuilder {
+	segmentPath := filepath.Join(b.opts.OutputDir, SegmentFilenameFormat)
+	b.args = append(b.args, segmentPath)
+	return b
+}
 
 // AddProgressReporting adds progress reporting arguments.
 func (b *FFmpegArgsBuilder) AddProgressReporting() *FFmpegArgsBuilder {

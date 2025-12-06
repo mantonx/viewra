@@ -1,0 +1,46 @@
+From: ViewRA <viewra@localhost>
+Subject: [PATCH] avcodec/libx265: fix API compatibility with x265 4.1+
+
+x265 4.1 (build 215+) reverted the encoder_encode signature back to
+using x265_picture* instead of x265_picture** for the output picture.
+This adjusts the build threshold to match the actual API.
+
+The API changed:
+- Build 210-214: x265_picture** (array of layer pointers)
+- Build 215+: x265_picture* (single pointer, layers handled internally)
+
+---
+ libavcodec/libx265.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+Index: FFmpeg/libavcodec/libx265.c
+===================================================================
+--- FFmpeg.orig/libavcodec/libx265.c
++++ FFmpeg/libavcodec/libx265.c
+@@ -662,7 +662,7 @@ static int libx265_encode_frame(AVCodecC
+ {
+     libx265Context *ctx = avctx->priv_data;
+     x265_picture x265pic;
+-#if X265_BUILD >= 210
++#if X265_BUILD >= 210 && X265_BUILD < 215
+     x265_picture x265pic_layers_out[MAX_SCALABLE_LAYERS];
+     x265_picture* x265pic_lyrptr_out[MAX_SCALABLE_LAYERS];
+ #else
+@@ -805,7 +805,7 @@ static int libx265_encode_frame(AVCodecC
+ #endif
+     }
+
+-#if X265_BUILD >= 210
++#if X265_BUILD >= 210 && X265_BUILD < 215
+     for (i = 0; i < MAX_SCALABLE_LAYERS; i++)
+         x265pic_lyrptr_out[i] = &x265pic_layers_out[i];
+
+@@ -843,7 +843,7 @@ static int libx265_encode_frame(AVCodecC
+     for (i = 0; i < nnal; i++)
+         payload += nal[i].sizeBytes;
+
+-#if X265_BUILD >= 210
++#if X265_BUILD >= 210 && X265_BUILD < 215
+     x265pic_out = x265pic_lyrptr_out[0];
+ #else
+     x265pic_out = &x265pic_solo_out;
