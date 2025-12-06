@@ -163,13 +163,17 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 	playlist += "#EXT-X-VERSION:4\n"
 	playlist += "#EXT-X-INDEPENDENT-SEGMENTS\n\n"
 
-	// Add audio track renditions if we have multiple audio tracks
+	// NOTE: We intentionally do NOT add separate audio renditions (EXT-X-MEDIA:TYPE=AUDIO).
+	// The video segments already contain muxed audio with perfect A/V sync.
+	// Separate audio renditions cause sync issues because:
+	// 1. They require separate FFmpeg sessions with independent seeking
+	// 2. Audio keyframe alignment differs from video keyframe alignment
+	// 3. HLS.js ignores muxed audio when separate renditions are declared
+	//
+	// For multi-audio track selection, the frontend should request a new transcode
+	// session with the desired audio track muxed into the video segments.
 	audioGroupID := ""
-	if len(audioTracks) > 1 {
-		audioGroupID = "audio"
-		playlist += uc.buildAudioRenditions(audioTracks, preferredAudioLang, params.startPosition)
-		playlist += "\n"
-	}
+	_ = audioTracks // Available for future use (track switching via session restart)
 
 	// Add subtitle track renditions for text-based subtitles
 	// Bitmap subtitles (PGS, VobSub) are handled client-side via WebP overlay

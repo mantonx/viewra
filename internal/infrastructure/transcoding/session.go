@@ -906,12 +906,19 @@ func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int,
 }
 
 // buildAudioOnlyFFmpegArgs builds FFmpeg arguments for audio-only HLS transcoding.
+// IMPORTANT: Audio-only sessions are used when video has separate audio renditions (multi-audio files).
+// The audio must start at the same keyframe position as video to maintain A/V sync.
 func (s *TranscodeSession) buildAudioOnlyFFmpegArgs(inputPath string, audioTrackIndex int, config *TranscodeConfig, videoInfo *VideoInfo) []string {
 	args := []string{}
 
 	// Seek position (before input for fast seeking)
+	// CRITICAL: Use -noaccurate_seek to match video's keyframe-aligned seeking.
+	// Without this, audio seeks to the exact position while video seeks to the nearest
+	// keyframe, causing A/V desync. The -noaccurate_seek flag makes audio also start
+	// from the keyframe position, ensuring proper A/V alignment.
 	if s.StartPosition > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%d", int(s.StartPosition)))
+		args = append(args, "-noaccurate_seek")
 	}
 
 	// Input file
