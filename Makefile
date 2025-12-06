@@ -1,4 +1,4 @@
-.PHONY: help dev dev-debug dev-clean stop build build-tools clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
+.PHONY: help dev dev-debug dev-clean stop build build-tools build-ffmpeg clean-ffmpeg clean test migrate-up migrate-down migrate-create sqlc-gen swagger-gen api-client-gen install-tools setup
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -90,6 +90,25 @@ build-tools: ## Build Rust helper tools (subtitle-extractor)
 	cd tools/subtitle-extractor && cargo build --release
 	cp tools/subtitle-extractor/target/release/subtitle-extractor bin/
 	@echo "✓ subtitle-extractor built: bin/subtitle-extractor"
+
+build-ffmpeg: ## Build patched FFmpeg with ViewRA fixes (optional, ~10min build)
+	@echo "Building patched FFmpeg 7.1..."
+	@if [ -f bin/ffmpeg-viewra ]; then \
+		echo "✓ FFmpeg already built: bin/ffmpeg-viewra (use 'make clean-ffmpeg' to rebuild)"; \
+	else \
+		cd tools/ffmpeg-viewra && ./build.sh && \
+		mkdir -p $(CURDIR)/bin/ffmpeg-lib && \
+		cp dist/bin/ffmpeg $(CURDIR)/bin/ffmpeg-viewra && \
+		cp dist/bin/ffprobe $(CURDIR)/bin/ffprobe-viewra && \
+		cp -a dist/lib/*.so* $(CURDIR)/bin/ffmpeg-lib/ && \
+		echo "✓ Patched FFmpeg built: bin/ffmpeg-viewra"; \
+	fi
+
+clean-ffmpeg: ## Clean FFmpeg build artifacts
+	rm -rf tools/ffmpeg-viewra/build tools/ffmpeg-viewra/dist
+	rm -f bin/ffmpeg-viewra bin/ffprobe-viewra
+	rm -rf bin/ffmpeg-lib
+	@echo "✓ FFmpeg build cleaned"
 
 build: build-tools ## Build production binaries with version info
 	@echo "Building frontend..."
