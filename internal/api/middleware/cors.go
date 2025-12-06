@@ -26,7 +26,7 @@ func CORS(config CORSConfig) gin.HandlerFunc {
 			}
 		}
 
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Supported-Video-Codecs, X-Supported-Containers")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Supported-Video-Codecs, X-Supported-Containers, X-Network-Speed-Mbps, X-Screen-Height, X-Screen-Width, X-Connection-Type, X-Is-Metered, X-Device-Type")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
 		if c.Request.Method == "OPTIONS" {

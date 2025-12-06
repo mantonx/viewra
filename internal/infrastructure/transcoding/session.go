@@ -669,16 +669,17 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 
 	builder.AddSeekPosition().AddInput().AddTimestampReset()
 
-	// Note: Progressive transcoding doesn't use stream mapping - it transcodes all streams
 	// Add encoding based on strategy
+	// IMPORTANT: Always add explicit stream mapping to prevent FFmpeg from auto-selecting
+	// all streams (including subtitles), which breaks HLS output by creating separate .vtt files
 	switch strategy {
 	case Remux:
 		// Copy both streams (no re-encoding)
-		builder.AddVideoCodec("copy", "").AddAudioCodec("copy")
+		builder.AddStreamMapping().AddVideoCodec("copy", "").AddAudioCodec("copy")
 
 	case RemuxWithAudioDownmix:
 		// Copy video, downmix audio
-		builder.AddVideoCodec("copy", "").AddAudioDownmix()
+		builder.AddStreamMapping().AddVideoCodec("copy", "").AddAudioDownmix()
 
 	case Transcode:
 		// Get encoder and preset based on hardware acceleration and target codec
@@ -697,7 +698,7 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 			"preset", videoPreset,
 			"hw_accel", hwAccel)
 
-		builder.AddVideoCodec(videoEncoder, videoPreset)
+		builder.AddStreamMapping().AddVideoCodec(videoEncoder, videoPreset)
 
 		// Use hardware or software encoding
 		if hwAccel != AccelNone {
