@@ -16,6 +16,7 @@ type ListMediaExecutor interface {
 // StreamInfoExecutor defines the interface for getting detailed stream info
 type StreamInfoExecutor interface {
 	Execute(ctx context.Context, mediaID int64) (*StreamInfoResponse, error)
+	ExecuteWithCapabilities(ctx context.Context, mediaID int64, supportedVideoCodecs []string) (*StreamInfoResponse, error)
 }
 
 // GetTracksExecutor defines the interface for getting audio and subtitle tracks

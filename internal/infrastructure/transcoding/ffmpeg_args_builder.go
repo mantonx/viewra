@@ -168,6 +168,18 @@ func (b *FFmpegArgsBuilder) AddVideoCodec(codec, preset string) *FFmpegArgsBuild
 	return b
 }
 
+// AddHEVCCopy adds HEVC video stream copy with the hevc_mp4toannexb bitstream filter.
+// This converts HEVC NAL units from length-prefixed (MP4/MKV) to Annex B format (MPEG-TS).
+// Required for HLS with MPEG-TS segments when copying HEVC streams.
+// This is extremely fast (~50x realtime) compared to full transcode (~1x realtime).
+func (b *FFmpegArgsBuilder) AddHEVCCopy() *FFmpegArgsBuilder {
+	b.args = append(b.args,
+		"-c:v", "copy",
+		"-bsf:v", "hevc_mp4toannexb",
+	)
+	return b
+}
+
 // AddVideoEncoding adds full video encoding settings (profile, level, bitrate, etc).
 // This is for software encoding - hardware encoders should use AddHardwareVideoEncoding.
 // Supports H.264, H.265, VP9, and AV1 codecs.
@@ -545,9 +557,10 @@ func (b *FFmpegArgsBuilder) AddHLSOutput() *FFmpegArgsBuilder {
 
 	b.args = append(b.args,
 		"-f", "hls",
-		// Ultra-short initial segment (0.5s) for fastest time-to-first-frame
-		// GOP settings ensure frame 0 is a keyframe, enabling immediate playback
-		"-hls_init_time", "0.5",
+		// Initial segment of 1s balances fast startup with proper audio initialization.
+		// Shorter values (0.5s) can cause incomplete AAC ADTS headers in the first segment
+		// after seeking, leading to bufferAppendError in browsers.
+		"-hls_init_time", "1",
 		"-hls_time", strconv.Itoa(p.SegmentDuration),
 		"-hls_playlist_type", "event",
 		"-hls_segment_filename", segmentPath,

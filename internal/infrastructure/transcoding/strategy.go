@@ -15,6 +15,9 @@ const (
 	Remux StreamStrategy = "remux"
 	// RemuxWithAudioDownmix copies video and downmixes multi-channel audio to stereo (5-10 min)
 	RemuxWithAudioDownmix StreamStrategy = "remux_audio"
+	// RemuxHEVC copies HEVC video stream to HLS with only audio transcoding (very fast)
+	// Used when client supports HEVC but audio needs conversion (e.g., AC3 → AAC)
+	RemuxHEVC StreamStrategy = "remux_hevc"
 	// Transcode re-encodes incompatible video/audio (20-60 min)
 	Transcode StreamStrategy = "transcode"
 )
@@ -67,9 +70,9 @@ func DetermineStreamStrategyWithCapabilities(videoInfo *VideoInfo, clientCaps *C
 			videoInfo.Codec, videoInfo.AudioCodec, videoInfo.AudioChannels, videoInfo.ContainerFormat)
 	}
 
-	// For non-H.264 codecs that need processing, we must transcode the video
-	// (remux only works when we can copy the video stream as-is)
+	// Check codec types for remux decisions
 	isH264 := videoCodecLower == "h264" || videoCodecLower == "avc1"
+	isHEVC := videoCodecLower == "hevc" || videoCodecLower == "h265" || videoCodecLower == "hev1"
 
 	// Tier 2: Remux - H.264 + web-compatible audio + stereo but wrong container (e.g., MKV)
 	// Copy streams to HLS without re-encoding (2-5 minutes)
@@ -85,7 +88,15 @@ func DetermineStreamStrategyWithCapabilities(videoInfo *VideoInfo, clientCaps *C
 			videoInfo.AudioCodec, videoInfo.AudioChannels)
 	}
 
-	// Tier 4: Full Transcode - Incompatible video codec or other issues
+	// Tier 4: HEVC Remux - Client supports HEVC, copy video stream with bitstream filter
+	// This is much faster than full transcode (~50x realtime vs ~1x realtime)
+	// Audio still needs transcoding (AC3/DTS → AAC) for browser compatibility
+	if isHEVC && isVideoCodecSupported {
+		return RemuxHEVC, fmt.Sprintf("HEVC video supported by client, remuxing to HLS with %s audio transcode to AAC",
+			videoInfo.AudioCodec)
+	}
+
+	// Tier 5: Full Transcode - Incompatible video codec or other issues
 	// Re-encode both video and audio (20-60 minutes)
 	return Transcode, fmt.Sprintf("video codec %s incompatible, needs full transcode to H.264",
 		videoInfo.Codec)

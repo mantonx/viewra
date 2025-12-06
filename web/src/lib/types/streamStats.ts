@@ -33,7 +33,13 @@ export interface SourceAudioInfo {
 }
 
 // Output/playback information
-export type PlaybackMode = 'direct' | 'remux' | 'transcode'
+// Playback modes from the backend strategy:
+// - direct: File played as-is (no processing)
+// - remux: H.264 video copied to HLS container
+// - remux_audio: H.264 video copied, audio transcoded to AAC
+// - remux_hevc: HEVC video copied with bitstream filter, audio transcoded (video direct play)
+// - transcode: Full video re-encoding
+export type PlaybackMode = 'direct' | 'remux' | 'remux_audio' | 'remux_hevc' | 'transcode'
 
 export interface OutputStreamInfo {
   mode: PlaybackMode

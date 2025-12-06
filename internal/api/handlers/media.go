@@ -109,10 +109,13 @@ func (h *MediaHandler) Get(c *gin.Context) {
 
 // GetStreamInfo handles GET /api/media/:id/stream-info
 // @Summary Get detailed stream information for a media item
-// @Description Returns detailed technical information about video and audio streams for the stats panel
+// @Description Returns detailed technical information about video and audio streams for the stats panel.
+// @Description The strategy field indicates how the video will be processed (direct, remux, transcode).
+// @Description Include X-Supported-Video-Codecs header for accurate strategy detection.
 // @Tags media
 // @Produce json
 // @Param id path int true "Media ID"
+// @Header 200 {string} X-Supported-Video-Codecs "Client-supported video codecs (h264,h265,vp9,av1)"
 // @Success 200 {object} media.StreamInfoResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -128,7 +131,15 @@ func (h *MediaHandler) GetStreamInfo(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.streamInfo.Execute(c.Request.Context(), id)
+	// Parse client codec capabilities from headers (same format as transcode endpoints)
+	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
+
+	var resp *media.StreamInfoResponse
+	if len(supportedVideoCodecs) > 0 {
+		resp, err = h.streamInfo.ExecuteWithCapabilities(c.Request.Context(), id, supportedVideoCodecs)
+	} else {
+		resp, err = h.streamInfo.Execute(c.Request.Context(), id)
+	}
 	if err != nil {
 		handleError(c, err)
 		return

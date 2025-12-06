@@ -1,51 +1,64 @@
 import type { CodecCapability, CodecSupport } from './types'
 
-// Codec test configurations with multiple profiles per codec
-const CODEC_CONFIGS = {
-  h264: {
-    mimeType: 'video/mp4; codecs="avc1.64001F"', // H.264 High Profile
-    profiles: [
-      { width: 1920, height: 1080, fps: 30, bitrate: 5_000_000 },
-      { width: 1920, height: 1080, fps: 60, bitrate: 8_000_000 },
-      { width: 3840, height: 2160, fps: 30, bitrate: 15_000_000 },
-      { width: 3840, height: 2160, fps: 60, bitrate: 25_000_000 },
-    ],
-  },
-  h265: {
-    mimeType: 'video/mp4; codecs="hev1.1.6.L153.B0"', // HEVC Main 10, Level 5.1 (4K60)
-    profiles: [
-      { width: 1920, height: 1080, fps: 30, bitrate: 3_000_000 },
-      { width: 1920, height: 1080, fps: 60, bitrate: 5_000_000 },
-      { width: 3840, height: 2160, fps: 30, bitrate: 10_000_000 },
-      { width: 3840, height: 2160, fps: 60, bitrate: 15_000_000 },
-    ],
-  },
-  vp9: {
-    mimeType: 'video/webm; codecs="vp9"',
-    profiles: [
-      { width: 1920, height: 1080, fps: 30, bitrate: 3_000_000 },
-      { width: 1920, height: 1080, fps: 60, bitrate: 5_000_000 },
-      { width: 3840, height: 2160, fps: 30, bitrate: 10_000_000 },
-      { width: 3840, height: 2160, fps: 60, bitrate: 15_000_000 },
-    ],
-  },
-  av1: {
-    mimeType: 'video/mp4; codecs="av01.0.12M.08"', // AV1 Main Profile, Level 5.1
-    profiles: [
-      { width: 1920, height: 1080, fps: 30, bitrate: 2_500_000 },
-      { width: 1920, height: 1080, fps: 60, bitrate: 4_000_000 },
-      { width: 3840, height: 2160, fps: 30, bitrate: 8_000_000 },
-      { width: 3840, height: 2160, fps: 60, bitrate: 12_000_000 },
-    ],
-  },
+// Codec variants to probe - multiple profiles per codec for broad compatibility
+const CODEC_VARIANTS = {
+  // Video codecs
+  h264: [
+    'video/mp4; codecs="avc1.640028"', // High 4.0
+    'video/mp4; codecs="avc1.64002a"', // High 4.2
+    'video/mp4; codecs="avc1.64001F"', // High 3.1
+  ],
+  h265: [
+    'video/mp4; codecs="hvc1.1.4.L120.B0"', // Main 8-bit
+    'video/mp4; codecs="hvc1.2.4.L120.B0"', // Main 10-bit
+    'video/mp4; codecs="hev1.1.6.L153.B0"', // Main 10 Level 5.1
+  ],
+  av1: [
+    'video/mp4; codecs="av01.0.08M.08"', // Main 8-bit
+    'video/mp4; codecs="av01.0.08M.10"', // Main 10-bit
+    'video/mp4; codecs="av01.0.12M.08"', // Main Profile Level 5.1
+  ],
+  vp9: [
+    'video/webm; codecs="vp09.00.30.08"',
+    'video/webm; codecs="vp9"',
+  ],
 } as const
+
+// Audio codecs for future use
+const AUDIO_CODEC_VARIANTS = {
+  aac: ['audio/mp4; codecs="mp4a.40.2"'],
+  ac3: ['audio/mp4; codecs="ac-3"'],
+  eac3: ['audio/mp4; codecs="ec-3"'],
+  opus: ['audio/webm; codecs="opus"'],
+  flac: ['audio/mp4; codecs="flac"'],
+} as const
+
+// Resolution/fps profiles for capability testing
+const CAPABILITY_PROFILES = [
+  { width: 1920, height: 1080, fps: 30, bitrate: 5_000_000 },
+  { width: 1920, height: 1080, fps: 60, bitrate: 8_000_000 },
+  { width: 3840, height: 2160, fps: 30, bitrate: 15_000_000 },
+  { width: 3840, height: 2160, fps: 60, bitrate: 25_000_000 },
+] as const
 
 type CodecName = 'h264' | 'h265' | 'vp9' | 'av1'
 
-const canPlayCodec = (mimeType: string): boolean => {
-  const video = document.createElement('video')
-  const canPlay = video.canPlayType(mimeType)
-  return canPlay === 'probably' || canPlay === 'maybe'
+// Check if MediaSource supports a codec (what HLS.js actually uses)
+const isMediaSourceSupported = (mimeType: string): boolean => {
+  if (typeof MediaSource === 'undefined') {
+    return false
+  }
+  return MediaSource.isTypeSupported(mimeType)
+}
+
+// Check if any variant of a codec is supported
+const probeCodecSupport = (variants: readonly string[]): { supported: boolean; supportedVariant: string | null } => {
+  for (const variant of variants) {
+    if (isMediaSourceSupported(variant)) {
+      return { supported: true, supportedVariant: variant }
+    }
+  }
+  return { supported: false, supportedVariant: null }
 }
 
 const createUnsupportedCodec = (codec: CodecCapability['codec']): CodecCapability => ({
@@ -59,12 +72,12 @@ const createUnsupportedCodec = (codec: CodecCapability['codec']): CodecCapabilit
   maxFps: 0,
 })
 
-// Detect detailed capability for a single codec using Media Capabilities API
+// Detect detailed capability for a single codec
 const detectCodecCapability = async (codec: CodecName): Promise<CodecCapability> => {
-  const config = CODEC_CONFIGS[codec]
+  const variants = CODEC_VARIANTS[codec]
+  const { supported, supportedVariant } = probeCodecSupport(variants)
 
-  // First check basic support with canPlayType
-  if (!canPlayCodec(config.mimeType)) {
+  if (!supported || !supportedVariant) {
     return createUnsupportedCodec(codec)
   }
 
@@ -91,14 +104,14 @@ const detectCodecCapability = async (codec: CodecName): Promise<CodecCapability>
   let smooth = false
 
   // Test profiles in reverse order (highest first)
-  const profiles = [...config.profiles].reverse()
+  const profiles = [...CAPABILITY_PROFILES].reverse()
 
   for (const profile of profiles) {
     try {
       const result = await navigator.mediaCapabilities.decodingInfo({
-        type: 'file',
+        type: 'media-source', // Use media-source type for HLS compatibility
         video: {
-          contentType: config.mimeType,
+          contentType: supportedVariant,
           width: profile.width,
           height: profile.height,
           bitrate: profile.bitrate,
@@ -132,7 +145,7 @@ const detectCodecCapability = async (codec: CodecName): Promise<CodecCapability>
     }
   }
 
-  // If no profiles were supported via Media Capabilities, use canPlayType result
+  // If no profiles were supported via Media Capabilities, use basic detection result
   if (maxWidth === 0) {
     return {
       codec,
@@ -190,6 +203,21 @@ const getCodecNotes = (codec: CodecName): string | undefined => {
   return undefined
 }
 
+// Probe all codec support (lightweight, for debugging)
+export const probeAllCodecSupport = (): Record<string, Array<{ codec: string; supported: boolean }>> => {
+  const allVariants = { ...CODEC_VARIANTS, ...AUDIO_CODEC_VARIANTS }
+  const support: Record<string, Array<{ codec: string; supported: boolean }>> = {}
+
+  for (const [name, variants] of Object.entries(allVariants)) {
+    support[name] = variants.map((codec) => ({
+      codec,
+      supported: isMediaSourceSupported(codec),
+    }))
+  }
+
+  return support
+}
+
 // Detect detailed codec support for all codecs
 export const detectCodecSupport = async (): Promise<CodecSupport> => {
   // Detect all codecs in parallel
@@ -219,7 +247,7 @@ export const detectCodecSupport = async (): Promise<CodecSupport> => {
   ]
 
   const preferredOrder = codecs
-    .filter(c => c.cap.supported)
+    .filter((c) => c.cap.supported)
     .sort((a, b) => {
       // Primary sort: compression ratio (higher is better)
       if (a.compression !== b.compression) {
@@ -235,7 +263,7 @@ export const detectCodecSupport = async (): Promise<CodecSupport> => {
       }
       return 0
     })
-    .map(c => c.name)
+    .map((c) => c.name)
 
   // Ensure h264 is always last as fallback (if supported)
   const h264Index = preferredOrder.indexOf('h264')
@@ -258,11 +286,16 @@ export const detectHardwareAcceleration = async (): Promise<boolean> => {
     return false
   }
 
+  const { supportedVariant } = probeCodecSupport(CODEC_VARIANTS.h264)
+  if (!supportedVariant) {
+    return false
+  }
+
   try {
     const result = await navigator.mediaCapabilities.decodingInfo({
-      type: 'file',
+      type: 'media-source',
       video: {
-        contentType: CODEC_CONFIGS.h264.mimeType,
+        contentType: supportedVariant,
         width: 1920,
         height: 1080,
         bitrate: 5_000_000,
@@ -281,6 +314,11 @@ export const detectMaxDecodingProfile = async (): Promise<string> => {
     return '1080p-30fps'
   }
 
+  const { supportedVariant } = probeCodecSupport(CODEC_VARIANTS.h264)
+  if (!supportedVariant) {
+    return '1080p-30fps'
+  }
+
   const profiles = [
     { width: 1920, height: 1080, fps: 30, name: '1080p-30fps' },
     { width: 1920, height: 1080, fps: 60, name: '1080p-60fps' },
@@ -293,9 +331,9 @@ export const detectMaxDecodingProfile = async (): Promise<string> => {
   for (const profile of profiles) {
     try {
       const result = await navigator.mediaCapabilities.decodingInfo({
-        type: 'file',
+        type: 'media-source',
         video: {
-          contentType: CODEC_CONFIGS.h264.mimeType,
+          contentType: supportedVariant,
           width: profile.width,
           height: profile.height,
           bitrate: (profile.width * profile.height * profile.fps) / 10,

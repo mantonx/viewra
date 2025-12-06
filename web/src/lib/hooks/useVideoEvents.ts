@@ -183,6 +183,19 @@ export const useVideoEvents = ({
       ensureVideoUnmuted(video)
     }
 
+    // 'playing' event is the most reliable indicator that playback has resumed
+    // This catches cases where 'canplay' fires but buffering indicator stays stuck
+    const handlePlaying = () => {
+      if (stallStartRef.current > 0) {
+        const stallDuration = Date.now() - stallStartRef.current
+        onBufferingEndRef.current(stallDuration)
+        stallStartRef.current = 0
+      } else {
+        // Always clear buffering state when actually playing
+        onBufferingEndRef.current(0)
+      }
+    }
+
     const handleVolumeChange = () => {
       onVolumeChangeRef.current(video.volume, video.muted)
     }
@@ -206,6 +219,7 @@ export const useVideoEvents = ({
     video.addEventListener('ended', handleEnded)
     video.addEventListener('waiting', handleWaiting)
     video.addEventListener('canplay', handleCanPlay)
+    video.addEventListener('playing', handlePlaying)
     video.addEventListener('volumechange', handleVolumeChange)
     video.addEventListener('enterpictureinpicture', handlePiPEnter)
     video.addEventListener('leavepictureinpicture', handlePiPExit)
@@ -219,6 +233,7 @@ export const useVideoEvents = ({
       video.removeEventListener('ended', handleEnded)
       video.removeEventListener('waiting', handleWaiting)
       video.removeEventListener('canplay', handleCanPlay)
+      video.removeEventListener('playing', handlePlaying)
       video.removeEventListener('volumechange', handleVolumeChange)
       video.removeEventListener('enterpictureinpicture', handlePiPEnter)
       video.removeEventListener('leavepictureinpicture', handlePiPExit)

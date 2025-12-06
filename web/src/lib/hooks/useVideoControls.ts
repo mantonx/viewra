@@ -29,6 +29,8 @@ export interface UseVideoControlsOptions {
     immediateUpdate: () => void
   } | null
   onTimeUpdate: (time: number) => void
+  /** Called when a large seek completes (stream was restarted) */
+  onLargeSeekComplete?: () => void
 }
 
 export interface VideoControlHandlers {
@@ -48,6 +50,7 @@ export const useVideoControls = ({
   hlsRef,
   streamOffsetRef,
   isSeekingRef,
+  onLargeSeekComplete,
   isHlsStream,
   videoDuration,
   progressUpdater,
@@ -60,6 +63,8 @@ export const useVideoControls = ({
   videoDurationRef.current = videoDuration
   const onTimeUpdateRef = useRef(onTimeUpdate)
   onTimeUpdateRef.current = onTimeUpdate
+  const onLargeSeekCompleteRef = useRef(onLargeSeekComplete)
+  onLargeSeekCompleteRef.current = onLargeSeekComplete
 
   const handlePlayPause = useCallback(() => {
     const video = videoRef.current
@@ -103,11 +108,19 @@ export const useVideoControls = ({
 
     if (isHlsStream && hls?.url && needsStreamRestart) {
       const targetTime = time
-      const baseUrl = hls.url.split('?')[0]
-      const newUrl = `${baseUrl}?start=${time}`
 
-      hls.loadSource(newUrl)
+      // Preserve existing query params (strategy, codecs) when seeking
+      // These are needed to maintain the correct transcoding strategy
+      const urlObj = new URL(hls.url, window.location.origin)
+      urlObj.searchParams.set('start', String(time))
+      const newUrl = urlObj.pathname + urlObj.search
 
+      // Stop current loading and detach media to clear buffer state
+      // This prevents bufferAppendError from timestamp discontinuities
+      hls.stopLoad()
+      hls.detachMedia()
+
+      // Register event handlers BEFORE loading to ensure we catch all events
       const onFragBuffered = () => {
         // Wait a frame for video.currentTime to be updated from the buffered data.
         // The HLS stream timestamps start from the seek position, so video.currentTime
@@ -120,6 +133,12 @@ export const useVideoControls = ({
           if (isSeekingRef.current !== undefined) {
             (isSeekingRef as React.MutableRefObject<boolean>).current = false
           }
+          // Notify that large seek is complete - subtitles need to re-sync
+          // Use another rAF to ensure the offset ref is fully committed before
+          // React re-renders the subtitle component
+          requestAnimationFrame(() => {
+            onLargeSeekCompleteRef.current?.()
+          })
         })
         hls.off(Hls.Events.FRAG_BUFFERED, onFragBuffered)
       }
@@ -134,6 +153,14 @@ export const useVideoControls = ({
         hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed)
       }
       hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed)
+
+      // Now load the new source and attach media
+      // Order: loadSource -> attachMedia -> startLoad
+      hls.loadSource(newUrl)
+      if (video) {
+        hls.attachMedia(video)
+      }
+      hls.startLoad()
     } else {
       const streamTime = time - streamOffset
       video.currentTime = streamTime

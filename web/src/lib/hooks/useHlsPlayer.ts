@@ -19,16 +19,16 @@ import { logger } from '@/lib/utils/logger'
 // HLS configuration constants
 // Optimized for progressive transcoding where segments are generated on-demand
 const HLS_CONFIG = {
-  // Buffer settings: Keep low for fast startup with progressive transcoding
-  // HLS.js will start playback once it has maxBufferLength seconds buffered
-  MAX_BUFFER_LENGTH: 4, // Reduced from 30s - start playback after ~2 segments (4s)
-  MAX_MAX_BUFFER_LENGTH: 20, // Reduced from 60s - cap total buffer
-  MAX_BUFFER_SIZE: 30 * 1000 * 1000, // Reduced from 100MB
-  MAX_BUFFER_HOLE: 2.0,
+  // Buffer settings: Minimize for fastest startup with progressive transcoding
+  // With 2-second segments, we can start playback after just 1 segment
+  MAX_BUFFER_LENGTH: 2, // Start playback after 1 segment (2s) - was 4s
+  MAX_MAX_BUFFER_LENGTH: 15, // Cap total buffer - was 20s
+  MAX_BUFFER_SIZE: 20 * 1000 * 1000, // Reduced from 30MB
+  MAX_BUFFER_HOLE: 1.0, // Reduced from 2.0 for tighter sync
   ENABLE_WORKER: true, // Enable for better performance
   LOW_LATENCY_MODE: true, // Reduces buffer requirements
   DEBUG: false,
-  BACK_BUFFER_LENGTH: 30, // Reduced from 90s
+  BACK_BUFFER_LENGTH: 20, // Reduced from 30s
   HIGH_BUFFER_WATCHDOG_PERIOD: 1,
   FRAG_LOADING_MAX_RETRY: 6,
   FRAG_LOADING_MAX_RETRY_TIMEOUT: 64000,
@@ -435,25 +435,67 @@ export const useHlsPlayer = ({
       }
     })
 
-    // Error handling
+    // Error handling with recovery limits
+    let mediaErrorRecoveryAttempts = 0
+    let streamReloadAttempts = 0
+    const MAX_MEDIA_ERROR_RECOVERY = 3
+    const MAX_STREAM_RELOAD = 1
+
     hls.on(Hls.Events.ERROR, (_event, data) => {
+      // Log all errors for debugging
+      logger.warn('[HLS] Error:', {
+        type: data.type,
+        details: data.details,
+        fatal: data.fatal,
+        url: data.url,
+        reason: data.reason,
+      })
+
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
+            logger.error('[HLS] Fatal network error, retrying...', data.details)
             onErrorRef.current('Network issue: Retrying...')
             hls.startLoad()
             break
           case Hls.ErrorTypes.MEDIA_ERROR:
-            onErrorRef.current('Media error: Recovering...')
-            hls.recoverMediaError()
+            mediaErrorRecoveryAttempts++
+            if (mediaErrorRecoveryAttempts <= MAX_MEDIA_ERROR_RECOVERY) {
+              logger.warn(`[HLS] Media error, recovery attempt ${mediaErrorRecoveryAttempts}/${MAX_MEDIA_ERROR_RECOVERY}`)
+              onErrorRef.current(`Media error: Recovering (${mediaErrorRecoveryAttempts}/${MAX_MEDIA_ERROR_RECOVERY})...`)
+              hls.recoverMediaError()
+            } else if (streamReloadAttempts < MAX_STREAM_RELOAD) {
+              // Try reloading the entire stream once as last resort
+              streamReloadAttempts++
+              mediaErrorRecoveryAttempts = 0
+              logger.error('[HLS] Media error recovery failed, reloading stream')
+              onErrorRef.current('Playback error: Reloading stream...')
+              const currentUrl = hls.url
+              if (currentUrl) {
+                hls.loadSource(currentUrl)
+              } else {
+                hls.destroy()
+                hlsRef.current = null
+                onErrorRef.current('Playback failed - please refresh the page')
+              }
+            } else {
+              // Give up - too many failures
+              logger.error('[HLS] Media error recovery exhausted, giving up')
+              onErrorRef.current('Playback failed - please try refreshing the page')
+              hls.destroy()
+              hlsRef.current = null
+            }
             break
           default:
-            logger.error('Fatal HLS error:', data.details)
+            logger.error('[HLS] Fatal error:', data.details)
             onErrorRef.current(`Playback error: ${data.details || 'Unknown error'}`)
             hls.destroy()
             hlsRef.current = null
             break
         }
+      } else {
+        // Non-fatal errors - just log them
+        logger.debug('[HLS] Non-fatal error:', data.details)
       }
     })
 

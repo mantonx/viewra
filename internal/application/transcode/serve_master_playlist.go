@@ -25,6 +25,13 @@ type ServeMasterPlaylistRequest struct {
 	PreferredSubtitleLanguage string // ISO 639-2 code or "off"
 }
 
+// buildVariantParams contains parameters passed to variant playlist URLs.
+type buildVariantParams struct {
+	startPosition        string
+	strategy             transcoding.StreamStrategy
+	supportedVideoCodecs []string
+}
+
 // ServeMasterPlaylistResponse represents the result.
 type ServeMasterPlaylistResponse struct {
 	// Strategy indicates what action to take
@@ -110,10 +117,30 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 				Reason:        reason,
 			}, nil
 		}
+
+		// Build master playlist with strategy encoded in variant URLs
+		// This ensures HLS.js requests use the correct strategy even without codec headers
+		variantParams := buildVariantParams{
+			startPosition:        req.StartPosition,
+			strategy:             strategy,
+			supportedVideoCodecs: req.SupportedVideoCodecs,
+		}
+		playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, variantParams, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
+
+		return &ServeMasterPlaylistResponse{
+			Strategy:        StrategyServePlaylist,
+			PlaylistContent: playlist,
+			Reason:          fmt.Sprintf("Master playlist generated with strategy: %s", strategy),
+		}, nil
 	}
 
-	// Build master playlist with audio and subtitle track information
-	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, req.StartPosition, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
+	// Fallback: build playlist without strategy (will default to transcode)
+	variantParams := buildVariantParams{
+		startPosition:        req.StartPosition,
+		strategy:             transcoding.Transcode,
+		supportedVideoCodecs: req.SupportedVideoCodecs,
+	}
+	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, variantParams, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
 
 	return &ServeMasterPlaylistResponse{
 		Strategy:        StrategyServePlaylist,
@@ -123,7 +150,7 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 }
 
 // buildMasterPlaylist creates the HLS master playlist content with multi-audio and subtitle support.
-func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, startPosition string, preferredAudioLang string, preferredSubtitleLang string) string {
+func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media, audioTracks []*media.AudioTrack, subtitleTracks []*media.SubtitleTrack, params buildVariantParams, preferredAudioLang string, preferredSubtitleLang string) string {
 	sourceHeight := mediaItem.Height
 	sourceWidth := mediaItem.Width
 	sourceBitrate := mediaItem.Bitrate
@@ -140,7 +167,7 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 	audioGroupID := ""
 	if len(audioTracks) > 1 {
 		audioGroupID = "audio"
-		playlist += uc.buildAudioRenditions(audioTracks, preferredAudioLang, startPosition)
+		playlist += uc.buildAudioRenditions(audioTracks, preferredAudioLang, params.startPosition)
 		playlist += "\n"
 	}
 
@@ -150,7 +177,7 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 	textSubtitles := uc.filterTextSubtitles(subtitleTracks)
 	if len(textSubtitles) > 0 {
 		subtitleGroupID = "subs"
-		playlist += uc.buildSubtitleRenditions(textSubtitles, preferredSubtitleLang, startPosition)
+		playlist += uc.buildSubtitleRenditions(textSubtitles, preferredSubtitleLang, params.startPosition)
 		playlist += "\n"
 	}
 
@@ -177,10 +204,21 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 
 		playlist += streamInf + "\n"
 
-		// Build variant URL with query parameters
+		// Build variant URL with query parameters including strategy and codecs
+		// This ensures HLS.js requests use the correct strategy without needing headers
 		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.ID)
-		if startPosition != "" {
-			variantURL += "?start=" + startPosition
+		queryParams := []string{}
+		if params.startPosition != "" {
+			queryParams = append(queryParams, "start="+params.startPosition)
+		}
+		if params.strategy != "" {
+			queryParams = append(queryParams, "strategy="+string(params.strategy))
+		}
+		if len(params.supportedVideoCodecs) > 0 {
+			queryParams = append(queryParams, "codecs="+strings.Join(params.supportedVideoCodecs, ","))
+		}
+		if len(queryParams) > 0 {
+			variantURL += "?" + strings.Join(queryParams, "&")
 		}
 		playlist += variantURL + "\n\n"
 	}

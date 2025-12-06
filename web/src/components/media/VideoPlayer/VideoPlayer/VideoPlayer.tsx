@@ -55,6 +55,9 @@ export const VideoPlayer = ({
   const [isPiP, setIsPiP] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const [showDebugOverlay, setShowDebugOverlay] = useState(false)
+  // Key that changes on large seeks to force subtitle components to remount
+  // This ensures subtitles re-initialize with the correct streamOffsetRef value
+  const [subtitleSeekKey, setSubtitleSeekKey] = useState(0)
 
   // Fetch subtitle tracks from API
   const { data: tracksData } = useGetApiMediaIdTracks(mediaId)
@@ -155,6 +158,10 @@ export const VideoPlayer = ({
       if (onTimeUpdate) {
         onTimeUpdate(time)
       }
+    },
+    onLargeSeekComplete: () => {
+      // Force subtitle components to remount with fresh streamOffsetRef value
+      setSubtitleSeekKey((prev) => prev + 1)
     },
   })
 
@@ -355,7 +362,9 @@ export const VideoPlayer = ({
         </video>
 
         {/* Subtitle overlay - renders all subtitle types (text and bitmap/PGS) */}
+        {/* Key changes on large seeks to force remount with fresh streamOffsetRef */}
         <SubtitleOverlay
+          key={subtitleSeekKey}
           videoRef={videoRef}
           mediaId={mediaId}
           trackId={currentSubtitle?.id ?? null}

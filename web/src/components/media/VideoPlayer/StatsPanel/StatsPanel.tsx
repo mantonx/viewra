@@ -272,16 +272,39 @@ export const StatsPanel = memo(({
     return null
   }
 
+  // Get color for playback mode - green for direct play modes, blue for remux, yellow for transcode
   const getModeColor = (mode: string) => {
     switch (mode) {
       case 'direct':
         return 'text-green-400'
       case 'remux':
         return 'text-blue-400'
+      case 'remux_audio':
+        return 'text-blue-400'
+      case 'remux_hevc':
+        return 'text-green-400' // HEVC video is direct play
       case 'transcode':
         return 'text-yellow-400'
       default:
         return 'text-white/90'
+    }
+  }
+
+  // Get display label for playback mode
+  const getModeLabel = (mode: string) => {
+    switch (mode) {
+      case 'direct':
+        return 'Direct Play'
+      case 'remux':
+        return 'Remux'
+      case 'remux_audio':
+        return 'Remux (Audio Trans.)'
+      case 'remux_hevc':
+        return 'Direct (HEVC)'
+      case 'transcode':
+        return 'Transcode'
+      default:
+        return mode.charAt(0).toUpperCase() + mode.slice(1)
     }
   }
 
@@ -354,7 +377,7 @@ export const StatsPanel = memo(({
               />
               <StatRow
                 label="Playback"
-                value={stats.output.stream.mode.charAt(0).toUpperCase() + stats.output.stream.mode.slice(1)}
+                value={getModeLabel(stats.output.stream.mode)}
                 valueColor={getModeColor(stats.output.stream.mode)}
               />
               {stats.output.stream.bitrate && (

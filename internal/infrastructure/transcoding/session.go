@@ -493,7 +493,8 @@ func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration)
 // This ensures HLS.js has actual playable content, not just an empty manifest.
 // Returns an error if the manifest doesn't become playable within the timeout.
 func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	callStartTime := time.Now()
+	deadline := callStartTime.Add(timeout)
 
 	// Calculate first segment number based on start position
 	// Must match FFmpeg's -start_number calculation
@@ -517,40 +518,67 @@ func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
 	firstSegmentExists := false
 
 	for time.Now().Before(deadline) {
-		// Check if manifest file exists
+		// Check if manifest file exists AND was created by THIS session
+		// (not a stale manifest from a previous session with different seek position)
 		if !manifestExists {
-			if _, err := os.Stat(s.ManifestPath); err == nil {
-				manifestExists = true
-				s.logger.Debug("Manifest file created, waiting for first segment",
-					"session_id", s.ID,
-					"manifest_path", s.ManifestPath)
+			if info, err := os.Stat(s.ManifestPath); err == nil {
+				// Only accept manifests created after FFmpeg started for this session
+				if info.ModTime().After(s.FFmpegStartedAt) || info.ModTime().Equal(s.FFmpegStartedAt) {
+					manifestExists = true
+					s.logger.Debug("Manifest file created, waiting for first segment",
+						"session_id", s.ID,
+						"manifest_path", s.ManifestPath)
+				}
 			}
 		}
 
 		// Check if first segment exists (this is what HLS.js actually needs)
+		// IMPORTANT: Verify the segment was created AFTER this session started.
+		// This prevents a race condition where old segments from a previous session
+		// (with the same segment numbers due to overlapping seek positions) are
+		// mistakenly detected as valid, causing the wrong manifest to be served.
 		if manifestExists && !firstSegmentExists {
 			if info, err := os.Stat(firstSegmentPath); err == nil && info.Size() > 0 {
-				firstSegmentExists = true
+				// Only accept segments created after FFmpeg started for this session
+				if info.ModTime().After(s.FFmpegStartedAt) || info.ModTime().Equal(s.FFmpegStartedAt) {
+					firstSegmentExists = true
+				}
 			}
 		}
 
 		// Ready when both manifest and first segment exist
 		if manifestExists && firstSegmentExists {
-			s.ManifestReadyAt = time.Now()
-			timeSinceCreation := s.ManifestReadyAt.Sub(s.CreatedAt)
-			timeSinceFFmpegStart := s.ManifestReadyAt.Sub(s.FFmpegStartedAt)
+			now := time.Now()
+			waitDuration := now.Sub(callStartTime)
 
-			s.logger.Info("Manifest ready with first segment",
-				"session_id", s.ID,
-				"first_segment", firstSegmentNum,
-				"time_total_ms", timeSinceCreation.Milliseconds(),
-				"time_from_ffmpeg_start_ms", timeSinceFFmpegStart.Milliseconds())
+			// Only log timing info on first manifest ready (when ManifestReadyAt is zero)
+			// This avoids misleading logs when session is reused
+			isFirstReady := s.ManifestReadyAt.IsZero()
+			if isFirstReady {
+				s.ManifestReadyAt = now
+				timeSinceCreation := now.Sub(s.CreatedAt)
+				timeSinceFFmpegStart := now.Sub(s.FFmpegStartedAt)
 
-			if s.logWriter != nil {
-				s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: Manifest ready at %s (%.0fms total, %.0fms after FFmpeg start)\n",
-					s.ManifestReadyAt.Format("15:04:05.000"),
-					float64(timeSinceCreation.Milliseconds()),
-					float64(timeSinceFFmpegStart.Milliseconds())))
+				s.logger.Info("Manifest ready with first segment",
+					"session_id", s.ID,
+					"first_segment", firstSegmentNum,
+					"wait_ms", waitDuration.Milliseconds(),
+					"time_since_session_ms", timeSinceCreation.Milliseconds(),
+					"time_from_ffmpeg_start_ms", timeSinceFFmpegStart.Milliseconds())
+
+				if s.logWriter != nil {
+					s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: Manifest ready at %s (%.0fms wait, %.0fms since session, %.0fms after FFmpeg start)\n",
+						now.Format("15:04:05.000"),
+						float64(waitDuration.Milliseconds()),
+						float64(timeSinceCreation.Milliseconds()),
+						float64(timeSinceFFmpegStart.Milliseconds())))
+				}
+			} else {
+				// Session already had manifest ready - this is a reused session
+				s.logger.Debug("Manifest already available (session reused)",
+					"session_id", s.ID,
+					"first_segment", firstSegmentNum,
+					"wait_ms", waitDuration.Milliseconds())
 			}
 			return nil
 		}
@@ -680,6 +708,15 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 	case RemuxWithAudioDownmix:
 		// Copy video, downmix audio
 		builder.AddStreamMapping().AddVideoCodec("copy", "").AddAudioDownmix()
+
+	case RemuxHEVC:
+		// Copy HEVC video with bitstream filter, transcode audio to AAC
+		// This is extremely fast (~50x realtime) since no video encoding happens
+		// The hevc_mp4toannexb filter converts NAL units for MPEG-TS compatibility
+		s.logger.Info("Using HEVC remux strategy",
+			"session_id", s.ID,
+			"media_id", s.MediaID)
+		builder.AddStreamMapping().AddHEVCCopy().AddAudioDownmix()
 
 	case Transcode:
 		// Get encoder and preset based on hardware acceleration and target codec

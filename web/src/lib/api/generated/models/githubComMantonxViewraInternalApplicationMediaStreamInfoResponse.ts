@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { GithubComMantonxViewraInternalApplicationMediaAudioTrackInfo } from './githubComMantonxViewraInternalApplicationMediaAudioTrackInfo'
+import type { GithubComMantonxViewraInternalApplicationMediaStreamingStrategy } from './githubComMantonxViewraInternalApplicationMediaStreamingStrategy'
 import type { GithubComMantonxViewraInternalApplicationMediaVideoStreamInfo } from './githubComMantonxViewraInternalApplicationMediaVideoStreamInfo'
 
 export interface GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse {
@@ -17,6 +18,8 @@ export interface GithubComMantonxViewraInternalApplicationMediaStreamInfoRespons
   duration?: number
   file_size?: number
   selected_audio_index?: number
+  /** Streaming strategy (what type of processing will be used) */
+  strategy?: GithubComMantonxViewraInternalApplicationMediaStreamingStrategy
   /** Video stream info */
   video?: GithubComMantonxViewraInternalApplicationMediaVideoStreamInfo
 }

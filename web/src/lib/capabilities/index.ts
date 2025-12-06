@@ -30,6 +30,7 @@ export {
   detectCodecSupport,
   detectHardwareAcceleration,
   detectMaxDecodingProfile,
+  probeAllCodecSupport,
 } from './MediaCapabilityDetector'
 
 // Shared utilities

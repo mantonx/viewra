@@ -136,8 +136,8 @@ func (m *SessionManager) GetOrCreateSession(
 	defer mu.Unlock()
 
 	// Check for existing session (now safe from race conditions)
-	// Reuse if start position is close enough or if no position specified (ABR quality switch)
-	// This balances ABR functionality with proper seek support.
+	// Reuse if start position is close enough to the session's start position.
+	// This balances segment reuse with proper seek support.
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
 
@@ -147,12 +147,16 @@ func (m *SessionManager) GetOrCreateSession(
 		positionDiff := startPosition - session.StartPosition
 
 		// Reuse session if:
-		// 1. No specific start position requested (ABR quality switch, position=0 means "use existing")
-		// 2. Requested position is within the session's range:
+		// 1. Requested position is within the session's range:
 		//    - Position must be >= session start (can't go backwards from where FFmpeg started)
 		//    - Small seeks forward are fine (within 30 seconds ahead of session start)
-		canReuse := startPosition == 0 || // No specific position requested (ABR switch)
-			(positionDiff >= 0 && positionDiff <= 30) // Forward seek within reasonable range
+		// 2. Special case: startPosition=0 and session also started from 0 (beginning)
+		//
+		// NOTE: We no longer treat startPosition=0 as "use any session". If user wants to
+		// start from beginning, we should only reuse a session that also started from beginning.
+		// This fixes the bug where restarting a video would incorrectly reuse a session that
+		// was seeked to a later position.
+		canReuse := (positionDiff >= 0 && positionDiff <= 30) // Forward seek within reasonable range
 
 		if canReuse {
 			session.UpdateLastAccessed()
@@ -177,12 +181,19 @@ func (m *SessionManager) GetOrCreateSession(
 			"requested_start", startPosition,
 			"position_diff", positionDiff)
 
-		// Stop the old session
+		// Stop the old session's FFmpeg process
 		session.Stop()
 		m.sessions.Delete(key)
 
-		// Clean up output directory
-		m.cleanupOutputDir(session.OutputDir, session.ID)
+		// DON'T cleanup segments here - they may still be useful:
+		// 1. HLS.js may have pending requests for old segments from cached manifest
+		// 2. User might seek back to a position we already transcoded
+		// 3. Segments are numbered by time position, so new seek creates different segment numbers
+		//
+		// Cleanup happens when:
+		// - User switches to a different media (stopOtherMediaSessions)
+		// - Periodic LRU cleanup (CleanupOldTranscodes)
+		// - Session idle timeout (CleanupIdleSessions)
 	}
 
 	// Create new session (without log writer initially)
@@ -429,9 +440,9 @@ func (m *SessionManager) GetOrCreateAudioSession(
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
 
-		// Reuse if start position is compatible
+		// Reuse if start position is compatible (same logic as video sessions)
 		positionDiff := startPosition - session.StartPosition
-		if startPosition == 0 || (positionDiff >= 0 && positionDiff <= 30) {
+		if positionDiff >= 0 && positionDiff <= 30 {
 			session.UpdateLastAccessed()
 			m.logger.Debug("Reusing existing audio session",
 				"session_id", session.ID,
@@ -443,7 +454,7 @@ func (m *SessionManager) GetOrCreateAudioSession(
 		// Need to restart for different position
 		session.Stop()
 		m.sessions.Delete(key)
-		m.cleanupOutputDir(session.OutputDir, session.ID)
+		// Don't cleanup segments - same rationale as video sessions
 	}
 
 	// Create new audio-only session

@@ -53,6 +53,12 @@ type VideoStreamInfo struct {
 	PixelFormat    string  `json:"pixel_format,omitempty"`
 }
 
+// StreamingStrategy contains information about the playback strategy
+type StreamingStrategy struct {
+	Mode   string `json:"mode"`   // "direct", "remux", "remux_audio", "remux_hevc", "transcode"
+	Reason string `json:"reason"` // Human-readable explanation
+}
+
 // StreamInfoResponse contains detailed stream information for the stats panel
 type StreamInfoResponse struct {
 	// Source file info
@@ -65,8 +71,11 @@ type StreamInfoResponse struct {
 	Video VideoStreamInfo `json:"video"`
 
 	// Audio tracks (all available)
-	AudioTracks         []AudioTrackInfo `json:"audio_tracks"`
-	SelectedAudioIndex  int              `json:"selected_audio_index"`
+	AudioTracks        []AudioTrackInfo `json:"audio_tracks"`
+	SelectedAudioIndex int              `json:"selected_audio_index"`
+
+	// Streaming strategy (what type of processing will be used)
+	Strategy StreamingStrategy `json:"strategy"`
 }
 
 // Execute retrieves detailed stream information for a media file
@@ -136,7 +145,115 @@ func (uc *StreamInfoUseCase) Execute(ctx context.Context, mediaID int64) (*Strea
 		response.AudioTracks = append(response.AudioTracks, audioInfo)
 	}
 
+	// Determine streaming strategy (default without client capabilities)
+	// This gives a baseline estimate - the actual strategy is determined when playback starts
+	// with client capability headers
+	strategy, reason := transcoding.DetermineStreamStrategy(videoInfo)
+	response.Strategy = StreamingStrategy{
+		Mode:   strategyToMode(strategy),
+		Reason: reason,
+	}
+
 	return response, nil
+}
+
+// ExecuteWithCapabilities retrieves stream information including strategy based on client capabilities
+func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaID int64, supportedVideoCodecs []string) (*StreamInfoResponse, error) {
+	// Get media record
+	m, err := uc.mediaRepo.GetByID(ctx, mediaID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get media: %w", err)
+	}
+
+	// Determine full file path
+	var fullPath string
+	if filepath.IsAbs(m.FilePath) {
+		fullPath = m.FilePath
+	} else {
+		lib, err := uc.libraryRepo.GetByID(ctx, m.LibraryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get library: %w", err)
+		}
+		fullPath = filepath.Join(lib.Path, m.FilePath)
+	}
+
+	// Get detailed video info using ffprobe (cached)
+	videoInfo, err := transcoding.GetVideoInfo(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get video info: %w", err)
+	}
+
+	// Build response
+	response := &StreamInfoResponse{
+		Container: normalizeContainer(videoInfo.ContainerFormat),
+		FileSize:  m.FileSize,
+		Duration:  m.Duration,
+		Bitrate:   videoInfo.Bitrate,
+		Video: VideoStreamInfo{
+			Codec:          videoInfo.Codec,
+			Width:          videoInfo.Width,
+			Height:         videoInfo.Height,
+			Bitrate:        videoInfo.Bitrate,
+			FrameRate:      m.FrameRate,
+			BitDepth:       videoInfo.BitDepth,
+			IsHDR:          videoInfo.IsHDR,
+			HDRFormat:      getHDRFormat(videoInfo),
+			ColorSpace:     videoInfo.ColorSpace,
+			ColorPrimaries: videoInfo.ColorPrimaries,
+			PixelFormat:    videoInfo.PixelFormat,
+		},
+		AudioTracks:        make([]AudioTrackInfo, 0, len(videoInfo.AudioTracks)),
+		SelectedAudioIndex: videoInfo.SelectedAudioTrackIndex,
+	}
+
+	// Convert audio tracks
+	for i, track := range videoInfo.AudioTracks {
+		audioInfo := AudioTrackInfo{
+			Index:        track.Index,
+			Codec:        track.Codec,
+			Channels:     track.Channels,
+			ChannelLabel: getChannelLabel(track.Channels),
+			Bitrate:      track.Bitrate,
+			Language:     track.Language,
+			Title:        track.Title,
+			IsDefault:    i == 0 || track.Index == videoInfo.SelectedAudioTrackIndex,
+			IsCommentary: track.IsCommentary,
+		}
+		response.AudioTracks = append(response.AudioTracks, audioInfo)
+	}
+
+	// Determine streaming strategy with client capabilities
+	var clientCaps *transcoding.ClientCapabilitiesForStrategy
+	if len(supportedVideoCodecs) > 0 {
+		clientCaps = &transcoding.ClientCapabilitiesForStrategy{
+			SupportedVideoCodecs: supportedVideoCodecs,
+		}
+	}
+	strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
+	response.Strategy = StreamingStrategy{
+		Mode:   strategyToMode(strategy),
+		Reason: reason,
+	}
+
+	return response, nil
+}
+
+// strategyToMode converts internal StreamStrategy to frontend-friendly mode string
+func strategyToMode(strategy transcoding.StreamStrategy) string {
+	switch strategy {
+	case transcoding.DirectPlay:
+		return "direct"
+	case transcoding.Remux:
+		return "remux"
+	case transcoding.RemuxWithAudioDownmix:
+		return "remux_audio"
+	case transcoding.RemuxHEVC:
+		return "remux_hevc"
+	case transcoding.Transcode:
+		return "transcode"
+	default:
+		return "transcode"
+	}
 }
 
 // normalizeContainer converts ffprobe format names to user-friendly names

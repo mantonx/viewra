@@ -347,7 +347,9 @@ export function useGetApiMediaId<
 }
 
 /**
- * Returns detailed technical information about video and audio streams for the stats panel
+ * Returns detailed technical information about video and audio streams for the stats panel.
+The strategy field indicates how the video will be processed (direct, remux, transcode).
+Include X-Supported-Video-Codecs header for accurate strategy detection.
  * @summary Get detailed stream information for a media item
  */
 export type getApiMediaIdStreamInfoResponse200 = {

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type Hls from 'hls.js'
 import { useGetApiMediaIdStreamInfo } from '@/lib/api/generated/media/media'
+import { detectCodecSupport } from '@/lib/capabilities'
+import type { CodecSupport } from '@/lib/capabilities'
 import type { NetworkStats } from '@/lib/network/NetworkMonitor'
 import type {
   StreamStats,
@@ -14,6 +16,27 @@ import type {
   SessionStats,
   PlaybackMode,
 } from '@/lib/types/streamStats'
+
+// Helper to convert CodecSupport to header value
+const getSupportedCodecsHeader = (codecSupport: CodecSupport | null): string => {
+  if (!codecSupport) {
+    return 'h264' // Safe fallback
+  }
+  const supported: string[] = []
+  if (codecSupport.h264.supported) {
+    supported.push('h264')
+  }
+  if (codecSupport.h265.supported) {
+    supported.push('h265')
+  }
+  if (codecSupport.vp9.supported) {
+    supported.push('vp9')
+  }
+  if (codecSupport.av1.supported) {
+    supported.push('av1')
+  }
+  return supported.join(',')
+}
 
 export interface UseStreamStatsOptions {
   mediaId: number | null
@@ -56,9 +79,17 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
 
   const [stats, setStats] = useState<StreamStats | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [codecSupport, setCodecSupport] = useState<CodecSupport | null>(null)
   const playbackStartTime = useRef<number>(Date.now())
 
-  // Fetch source stream info from API
+  // Detect codec support on mount
+  useEffect(() => {
+    detectCodecSupport().then(setCodecSupport).catch(() => {
+      // Ignore errors, will use fallback
+    })
+  }, [])
+
+  // Fetch source stream info from API with codec support headers
   const {
     data: apiResponse,
     isLoading,
@@ -68,6 +99,11 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
       enabled: enabled && mediaId !== null && mediaId > 0,
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
       refetchOnWindowFocus: false,
+    },
+    request: {
+      headers: {
+        'X-Supported-Video-Codecs': getSupportedCodecsHeader(codecSupport),
+      },
     },
   })
 
@@ -226,40 +262,62 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
   }, [apiData])
 
   // Build output info based on playback mode
+  // Uses strategy from API if available, otherwise falls back to passed-in playbackMode
   const buildOutputInfo = useCallback(() => {
     const hlsStats = getHLSStats()
 
+    // Get actual playback mode from API strategy (more accurate than frontend guess)
+    const actualMode: PlaybackMode = (apiData?.strategy?.mode as PlaybackMode) ?? playbackMode
+    const strategyReason = apiData?.strategy?.reason
+
     const stream: OutputStreamInfo = {
-      mode: playbackMode,
-      container: playbackMode === 'direct' ? 'Native' : 'HLS',
+      mode: actualMode,
+      container: actualMode === 'direct' ? 'Native' : 'HLS',
       bitrate: hlsStats?.currentLevelBitrate,
     }
 
-    // For transcode/remux, we may have transcoded video/audio info
-    // This would come from the transcode session info in the future
-    // For now, we just indicate the mode
+    // Determine video/audio output based on actual strategy
+    // - direct: No processing
+    // - remux: Video copied, audio copied
+    // - remux_audio: Video copied, audio transcoded to AAC
+    // - remux_hevc: HEVC video copied with bitstream filter, audio transcoded
+    // - transcode: Full video + audio transcode
+
+    const needsVideoTranscode = actualMode === 'transcode'
+    const needsAudioTranscode = actualMode === 'transcode' || actualMode === 'remux_audio' || actualMode === 'remux_hevc'
+    const isVideoCopied = actualMode === 'remux' || actualMode === 'remux_audio' || actualMode === 'remux_hevc'
 
     return {
       stream,
-      video:
-        playbackMode === 'transcode'
+      video: needsVideoTranscode
+        ? {
+            codec: 'H.264',
+            bitrate: hlsStats?.currentLevelBitrate,
+            height: hlsStats?.currentLevelHeight,
+            reason: strategyReason ?? 'Transcoding for compatibility',
+          }
+        : isVideoCopied
           ? {
-              codec: 'H.264', // Usually transcoded to H.264
-              bitrate: hlsStats?.currentLevelBitrate,
-              height: hlsStats?.currentLevelHeight,
-              reason: 'Transcoding for compatibility',
+              codec: apiData?.video?.codec ?? 'Copy',
+              bitrate: apiData?.video?.bitrate,
+              height: apiData?.video?.height,
+              reason: strategyReason ?? 'Video stream copied (direct play)',
             }
           : undefined,
-      audio:
-        playbackMode === 'transcode'
-          ? {
-              codec: 'AAC',
-              bitrate: 192000,
-              reason: 'Transcoding for compatibility',
-            }
-          : undefined,
+      audio: needsAudioTranscode
+        ? {
+            codec: 'AAC',
+            bitrate: 192000,
+            reason:
+              actualMode === 'remux_hevc'
+                ? 'Audio transcoded to AAC (video direct)'
+                : actualMode === 'remux_audio'
+                  ? 'Audio downmixed to stereo AAC'
+                  : 'Audio transcoded to AAC',
+          }
+        : undefined,
     }
-  }, [playbackMode, getHLSStats])
+  }, [playbackMode, apiData, getHLSStats])
 
   // Update stats periodically
   useEffect(() => {

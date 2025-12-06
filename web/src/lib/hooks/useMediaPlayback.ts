@@ -124,14 +124,6 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
       }
     }
 
-    // Build master manifest URL with resume position
-    // Master playlist provides all available quality levels for ABR (Adaptive Bitrate) streaming.
-    // HLS.js will automatically switch between qualities based on network conditions.
-    let manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/master.m3u8`
-    if (resumePosition > 0) {
-      manifestUrl += `?start=${resumePosition}`
-    }
-
     // Wait for codec detection if still in progress (should be fast, <100ms typically)
     let codecSupport = codecSupportRef.current
     if (!codecSupport && codecDetectionPromiseRef.current) {
@@ -142,14 +134,22 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
       }
     }
 
-    // Fetch manifest with codec capability headers (enables direct play for H.265/VP9/AV1)
+    // Build master manifest URL with query parameters
+    // We pass codec support via URL params because custom headers may not survive
+    // CORS preflight in all browsers, especially with redirect: 'manual'
+    const params = new URLSearchParams()
+    if (resumePosition > 0) {
+      params.set('start', String(resumePosition))
+    }
+    params.set('codecs', getSupportedCodecsHeader(codecSupport))
+    params.set('containers', getSupportedContainersHeader())
+
+    const manifestUrl = `${API_BASE_URL}/api/media/${id}/hls/master.m3u8?${params.toString()}`
+
+    // Fetch manifest (enables direct play for H.265/VP9/AV1)
     try {
       const response = await authFetch(manifestUrl, {
         redirect: 'manual',
-        headers: {
-          'X-Supported-Video-Codecs': getSupportedCodecsHeader(codecSupport),
-          'X-Supported-Containers': getSupportedContainersHeader(),
-        },
       })
 
       // Handle Direct Play (302 redirect) - compatible video, no transcoding needed

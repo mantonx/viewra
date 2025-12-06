@@ -212,6 +212,7 @@ func TestStreamStrategyConstants(t *testing.T) {
 		{DirectPlay, "direct_play"},
 		{Remux, "remux"},
 		{RemuxWithAudioDownmix, "remux_audio"},
+		{RemuxHEVC, "remux_hevc"},
 		{Transcode, "transcode"},
 	}
 
@@ -219,6 +220,110 @@ func TestStreamStrategyConstants(t *testing.T) {
 		if string(tt.strategy) != tt.expected {
 			t.Errorf("StreamStrategy constant mismatch: got %v, want %v", tt.strategy, tt.expected)
 		}
+	}
+}
+
+func TestDetermineStreamStrategyWithHEVCSupport(t *testing.T) {
+	// Test HEVC remux when client supports HEVC decoding
+	tests := []struct {
+		name             string
+		videoInfo        *VideoInfo
+		clientCaps       *ClientCapabilitiesForStrategy
+		expectedStrategy StreamStrategy
+		expectedReason   string
+	}{
+		{
+			name: "HEVC remux - client supports HEVC + AC3 audio",
+			videoInfo: &VideoInfo{
+				Codec:           "hevc",
+				Width:           1920,
+				Height:          1080,
+				AudioCodec:      "ac3",
+				AudioChannels:   6,
+				ContainerFormat: "matroska",
+			},
+			clientCaps: &ClientCapabilitiesForStrategy{
+				SupportedVideoCodecs: []string{"h264", "hevc"},
+			},
+			expectedStrategy: RemuxHEVC,
+			expectedReason:   "remuxing to HLS",
+		},
+		{
+			name: "HEVC remux - client supports H.265 variant + DTS audio",
+			videoInfo: &VideoInfo{
+				Codec:           "h265",
+				Width:           3840,
+				Height:          2160,
+				AudioCodec:      "dts",
+				AudioChannels:   8,
+				ContainerFormat: "mkv",
+			},
+			clientCaps: &ClientCapabilitiesForStrategy{
+				SupportedVideoCodecs: []string{"h264", "h265"},
+			},
+			expectedStrategy: RemuxHEVC,
+			expectedReason:   "remuxing to HLS",
+		},
+		{
+			name: "HEVC transcode - client does NOT support HEVC",
+			videoInfo: &VideoInfo{
+				Codec:           "hevc",
+				Width:           1920,
+				Height:          1080,
+				AudioCodec:      "ac3",
+				AudioChannels:   6,
+				ContainerFormat: "matroska",
+			},
+			clientCaps: &ClientCapabilitiesForStrategy{
+				SupportedVideoCodecs: []string{"h264"}, // Only H.264
+			},
+			expectedStrategy: Transcode,
+			expectedReason:   "incompatible",
+		},
+		{
+			name: "HEVC transcode - no client capabilities (legacy)",
+			videoInfo: &VideoInfo{
+				Codec:           "hevc",
+				Width:           1920,
+				Height:          1080,
+				AudioCodec:      "aac",
+				AudioChannels:   2,
+				ContainerFormat: "mp4",
+			},
+			clientCaps:       nil,
+			expectedStrategy: Transcode,
+			expectedReason:   "incompatible",
+		},
+		{
+			name: "HEVC direct play - client supports HEVC + AAC stereo + MP4",
+			videoInfo: &VideoInfo{
+				Codec:           "hevc",
+				Width:           1920,
+				Height:          1080,
+				AudioCodec:      "aac",
+				AudioChannels:   2,
+				ContainerFormat: "mp4",
+			},
+			clientCaps: &ClientCapabilitiesForStrategy{
+				SupportedVideoCodecs: []string{"h264", "hevc"},
+			},
+			expectedStrategy: DirectPlay,
+			expectedReason:   "direct playback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			strategy, reason := DetermineStreamStrategyWithCapabilities(tt.videoInfo, tt.clientCaps)
+
+			if strategy != tt.expectedStrategy {
+				t.Errorf("DetermineStreamStrategyWithCapabilities() strategy = %v, want %v", strategy, tt.expectedStrategy)
+			}
+
+			if !contains(reason, tt.expectedReason) {
+				t.Errorf("DetermineStreamStrategyWithCapabilities() reason = %v, want to contain %v", reason, tt.expectedReason)
+			}
+		})
 	}
 }
 

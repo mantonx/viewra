@@ -229,11 +229,16 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		}
 	}
 
-	// Parse client codec capabilities from headers
-	// X-Supported-Video-Codecs: h264,h265,vp9,av1
-	// X-Supported-Containers: mp4,webm,matroska
-	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
+	// Parse client codec capabilities from query params first (passed from master playlist)
+	// Fall back to headers if not present (direct requests)
+	supportedVideoCodecs := parseCommaSeparatedHeader(c.Query("codecs"))
+	if len(supportedVideoCodecs) == 0 {
+		supportedVideoCodecs = parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
+	}
 	supportedContainers := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
+
+	// Parse strategy from query params (passed from master playlist for consistency)
+	strategyHint := c.Query("strategy")
 
 	// Use the serve manifest use case
 	response, err := h.serveManifestUseCase.Execute(c.Request.Context(), transcode.ServeManifestRequest{
@@ -243,6 +248,7 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		StartPosition:        startPosition,
 		SupportedVideoCodecs: supportedVideoCodecs,
 		SupportedContainers:  supportedContainers,
+		StrategyHint:         strategyHint,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
@@ -565,9 +571,16 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		return
 	}
 
-	// Parse client codec capabilities from headers
-	supportedVideoCodecs := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
-	supportedContainers := parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
+	// Parse client codec capabilities from query params (preferred) or headers (fallback)
+	// Query params are more reliable for cross-origin requests with redirect: 'manual'
+	supportedVideoCodecs := parseCommaSeparatedHeader(c.Query("codecs"))
+	if len(supportedVideoCodecs) == 0 {
+		supportedVideoCodecs = parseCommaSeparatedHeader(c.GetHeader("X-Supported-Video-Codecs"))
+	}
+	supportedContainers := parseCommaSeparatedHeader(c.Query("containers"))
+	if len(supportedContainers) == 0 {
+		supportedContainers = parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
+	}
 
 	// Use the serve master playlist use case
 	response, err := h.serveMasterPlaylistUseCase.Execute(c.Request.Context(), transcode.ServeMasterPlaylistRequest{
