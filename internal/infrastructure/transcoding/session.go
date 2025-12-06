@@ -1,17 +1,22 @@
+// Package transcoding provides FFmpeg-based video transcoding capabilities.
+//
+// The TranscodeSession is split across multiple files for better organization:
+//   - session.go: Core struct, constructor, Start/Stop lifecycle (this file)
+//   - session_segment_watcher.go: Segment detection and waiting logic
+//   - session_ffmpeg.go: FFmpeg argument building and codec selection
 package transcoding
 
 import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -165,114 +170,11 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 	}
 
 	// Monitor stdout for HLS muxer progress (at DEBUG level)
-	go func() {
-		scanner := bufio.NewScanner(stdout)
-		segmentCount := 0
-		playlistUpdates := 0
-
-		for scanner.Scan() {
-			line := scanner.Text()
-
-			// Count segment creations (.ts files)
-			if strings.Contains(line, "Opening") && strings.Contains(line, ".ts'") {
-				segmentCount++
-				// Log every 10 segments to avoid spam
-				if segmentCount%10 == 0 {
-					s.logger.Debug("HLS encoding progress",
-						"session_id", s.ID,
-						"segments_created", segmentCount)
-				}
-			} else if strings.Contains(line, "playlist.m3u8") && strings.Contains(line, "Opening") {
-				// Playlist updates
-				playlistUpdates++
-				s.logger.Debug("HLS playlist updated",
-					"session_id", s.ID,
-					"update_num", playlistUpdates,
-					"total_segments", segmentCount)
-			}
-		}
-
-		// Log final stats when stdout closes
-		if segmentCount > 0 || playlistUpdates > 0 {
-			s.logger.Debug("HLS encoding completed",
-				"session_id", s.ID,
-				"total_segments", segmentCount,
-				"playlist_updates", playlistUpdates)
-		}
-	}()
+	go s.monitorStdout(stdout)
 
 	// Log FFmpeg stderr in background with better error visibility
 	// Also write to persistent log file for debugging
-	go func() {
-		buf := make([]byte, 4096)
-		var stderrBuffer []byte
-		for {
-			n, err := stderr.Read(buf)
-			if n > 0 {
-				chunk := buf[:n]
-				stderrBuffer = append(stderrBuffer, chunk...)
-
-				// Write to persistent log file (if available)
-				if s.logWriter != nil {
-					s.logWriter.Write(chunk)
-				}
-
-				// Track timing metrics from FFmpeg progress output
-				output := string(chunk)
-
-				// Detect first frame: look for "frame=" in progress output
-				if !s.firstFrameLogged && strings.Contains(output, "frame=") && !strings.Contains(output, "frame=    0") {
-					s.FirstFrameAt = time.Now()
-					s.firstFrameLogged = true
-					timeSinceStart := s.FirstFrameAt.Sub(s.FFmpegStartedAt)
-					s.logger.Info("FFmpeg first frame",
-						"session_id", s.ID,
-						"time_to_first_frame_ms", timeSinceStart.Milliseconds())
-					if s.logWriter != nil {
-						s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First frame at %s (%.0fms after FFmpeg start)\n",
-							s.FirstFrameAt.Format("15:04:05.000"),
-							float64(timeSinceStart.Milliseconds())))
-					}
-				}
-
-				// Detect first segment: look for seg_000000.ts being opened
-				if !s.firstSegmentLogged && strings.Contains(output, "seg_000000.ts") {
-					s.FirstSegmentAt = time.Now()
-					s.firstSegmentLogged = true
-					timeSinceStart := s.FirstSegmentAt.Sub(s.FFmpegStartedAt)
-					s.logger.Info("FFmpeg first segment",
-						"session_id", s.ID,
-						"time_to_first_segment_ms", timeSinceStart.Milliseconds())
-					if s.logWriter != nil {
-						s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First segment at %s (%.0fms after FFmpeg start)\n",
-							s.FirstSegmentAt.Format("15:04:05.000"),
-							float64(timeSinceStart.Milliseconds())))
-					}
-				}
-
-				// Classify FFmpeg output: real errors vs informational warnings
-				lowerOutput := strings.ToLower(output)
-
-				// Known non-fatal warnings that shouldn't be logged as errors
-				isNonFatalWarning := strings.Contains(output, "Invalid Block Addition") || // Dolby Vision metadata
-					strings.Contains(output, "Discarding interleaved") ||
-					strings.Contains(output, "discarding unsupported")
-
-				if isNonFatalWarning {
-					s.logger.Warn("FFmpeg warning", "session_id", s.ID, "output", output)
-				} else if strings.Contains(lowerOutput, "error") ||
-					strings.Contains(lowerOutput, "failed") ||
-					strings.Contains(lowerOutput, "invalid") {
-					s.logger.Error("FFmpeg error detected", "session_id", s.ID, "output", output)
-				}
-				// Verbose FFmpeg output suppressed - full stderr only logged if process fails
-			}
-			if err != nil {
-				// stderr pipe closed - don't log buffer here, wait for process exit status
-				return
-			}
-		}
-	}()
+	go s.monitorStderr(stderr)
 
 	// Monitor process exit status in background
 	go func() {
@@ -301,6 +203,113 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 	go s.watchSegments()
 
 	return nil
+}
+
+// monitorStdout monitors FFmpeg stdout for HLS muxer progress.
+func (s *TranscodeSession) monitorStdout(stdout io.Reader) {
+	scanner := bufio.NewScanner(stdout)
+	segmentCount := 0
+	playlistUpdates := 0
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Count segment creations (.ts files)
+		if strings.Contains(line, "Opening") && strings.Contains(line, ".ts'") {
+			segmentCount++
+			// Log every 10 segments to avoid spam
+			if segmentCount%10 == 0 {
+				s.logger.Debug("HLS encoding progress",
+					"session_id", s.ID,
+					"segments_created", segmentCount)
+			}
+		} else if strings.Contains(line, "playlist.m3u8") && strings.Contains(line, "Opening") {
+			// Playlist updates
+			playlistUpdates++
+			s.logger.Debug("HLS playlist updated",
+				"session_id", s.ID,
+				"update_num", playlistUpdates,
+				"total_segments", segmentCount)
+		}
+	}
+
+	// Log final stats when stdout closes
+	if segmentCount > 0 || playlistUpdates > 0 {
+		s.logger.Debug("HLS encoding completed",
+			"session_id", s.ID,
+			"total_segments", segmentCount,
+			"playlist_updates", playlistUpdates)
+	}
+}
+
+// monitorStderr monitors FFmpeg stderr for errors and timing metrics.
+func (s *TranscodeSession) monitorStderr(stderr io.Reader) {
+	buf := make([]byte, 4096)
+	for {
+		n, err := stderr.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+
+			// Write to persistent log file (if available)
+			if s.logWriter != nil {
+				s.logWriter.Write(chunk)
+			}
+
+			// Track timing metrics from FFmpeg progress output
+			output := string(chunk)
+
+			// Detect first frame: look for "frame=" in progress output
+			if !s.firstFrameLogged && strings.Contains(output, "frame=") && !strings.Contains(output, "frame=    0") {
+				s.FirstFrameAt = time.Now()
+				s.firstFrameLogged = true
+				timeSinceStart := s.FirstFrameAt.Sub(s.FFmpegStartedAt)
+				s.logger.Info("FFmpeg first frame",
+					"session_id", s.ID,
+					"time_to_first_frame_ms", timeSinceStart.Milliseconds())
+				if s.logWriter != nil {
+					s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First frame at %s (%.0fms after FFmpeg start)\n",
+						s.FirstFrameAt.Format("15:04:05.000"),
+						float64(timeSinceStart.Milliseconds())))
+				}
+			}
+
+			// Detect first segment: look for seg_000000.ts being opened
+			if !s.firstSegmentLogged && strings.Contains(output, "seg_000000.ts") {
+				s.FirstSegmentAt = time.Now()
+				s.firstSegmentLogged = true
+				timeSinceStart := s.FirstSegmentAt.Sub(s.FFmpegStartedAt)
+				s.logger.Info("FFmpeg first segment",
+					"session_id", s.ID,
+					"time_to_first_segment_ms", timeSinceStart.Milliseconds())
+				if s.logWriter != nil {
+					s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First segment at %s (%.0fms after FFmpeg start)\n",
+						s.FirstSegmentAt.Format("15:04:05.000"),
+						float64(timeSinceStart.Milliseconds())))
+				}
+			}
+
+			// Classify FFmpeg output: real errors vs informational warnings
+			lowerOutput := strings.ToLower(output)
+
+			// Known non-fatal warnings that shouldn't be logged as errors
+			isNonFatalWarning := strings.Contains(output, "Invalid Block Addition") || // Dolby Vision metadata
+				strings.Contains(output, "Discarding interleaved") ||
+				strings.Contains(output, "discarding unsupported")
+
+			if isNonFatalWarning {
+				s.logger.Warn("FFmpeg warning", "session_id", s.ID, "output", output)
+			} else if strings.Contains(lowerOutput, "error") ||
+				strings.Contains(lowerOutput, "failed") ||
+				strings.Contains(lowerOutput, "invalid") {
+				s.logger.Error("FFmpeg error detected", "session_id", s.ID, "output", output)
+			}
+			// Verbose FFmpeg output suppressed - full stderr only logged if process fails
+		}
+		if err != nil {
+			// stderr pipe closed - don't log buffer here, wait for process exit status
+			return
+		}
+	}
 }
 
 // Stop kills the FFmpeg process gracefully and waits for it to exit.
@@ -349,285 +358,6 @@ func (s *TranscodeSession) Stop() error {
 	return nil
 }
 
-// watchSegments monitors the output directory for newly generated segments.
-// Uses inotify (Linux) / fsnotify for instant detection, with polling fallback.
-func (s *TranscodeSession) watchSegments() {
-	// Try to set up inotify-based watching for instant segment detection
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		s.logger.Debug("Failed to create fsnotify watcher, falling back to polling",
-			"session_id", s.ID,
-			"error", err)
-		s.watchSegmentsPolling()
-		return
-	}
-
-	// Add watch on output directory
-	if err := watcher.Add(s.OutputDir); err != nil {
-		watcher.Close()
-		s.logger.Debug("Failed to watch output directory, falling back to polling",
-			"session_id", s.ID,
-			"path", s.OutputDir,
-			"error", err)
-		s.watchSegmentsPolling()
-		return
-	}
-
-	s.fsWatcher = watcher
-	s.logger.Debug("Using fsnotify for instant segment detection",
-		"session_id", s.ID,
-		"path", s.OutputDir)
-
-	defer watcher.Close()
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return
-			}
-
-			// Only process Create and Write events for .ts files
-			if event.Op&(fsnotify.Create|fsnotify.Write) != 0 {
-				filename := filepath.Base(event.Name)
-				if strings.HasPrefix(filename, "seg_") && strings.HasSuffix(filename, ".ts") {
-					segNum := ParseSegmentNumber(filename)
-					if segNum >= 0 {
-						s.segmentMutex.Lock()
-						if !s.generatedSegments[segNum] {
-							s.generatedSegments[segNum] = true
-							// Broadcast to all waiting goroutines
-							s.segmentCond.Broadcast()
-						}
-						s.segmentMutex.Unlock()
-					}
-				}
-			}
-
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return
-			}
-			s.logger.Warn("fsnotify error", "session_id", s.ID, "error", err)
-		}
-	}
-}
-
-// watchSegmentsPolling is the fallback polling-based segment watcher.
-// Used when inotify is not available (e.g., NFS mounts, or watcher creation fails).
-func (s *TranscodeSession) watchSegmentsPolling() {
-	ticker := time.NewTicker(100 * time.Millisecond) // Faster polling as fallback
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-ticker.C:
-			// Scan output directory for MPEG-TS segment files
-			pattern := filepath.Join(s.OutputDir, "seg_*.ts")
-			files, err := filepath.Glob(pattern)
-			if err != nil {
-				continue
-			}
-
-			s.segmentMutex.Lock()
-			newSegments := false
-			for _, file := range files {
-				segNum := ParseSegmentNumber(filepath.Base(file))
-				if segNum >= 0 && !s.generatedSegments[segNum] {
-					s.generatedSegments[segNum] = true
-					newSegments = true
-				}
-			}
-			if newSegments {
-				s.segmentCond.Broadcast()
-			}
-			s.segmentMutex.Unlock()
-		}
-	}
-}
-
-// WaitForSegment blocks until the specified segment is available or timeout occurs.
-// Uses condition variable for instant notification when inotify detects new segments.
-// Returns the absolute path to the segment file.
-func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration) (string, error) {
-	deadline := time.Now().Add(timeout)
-
-	s.segmentMutex.Lock()
-	defer s.segmentMutex.Unlock()
-
-	for {
-		// Check if segment exists
-		if s.generatedSegments[segmentNum] {
-			segmentPath := filepath.Join(s.OutputDir, SegmentFilename(segmentNum))
-			return segmentPath, nil
-		}
-
-		// Check if process has died
-		if s.FFmpegCmd != nil && s.FFmpegCmd.ProcessState != nil && s.FFmpegCmd.ProcessState.Exited() {
-			return "", fmt.Errorf("ffmpeg process has exited")
-		}
-
-		// Check timeout
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			break
-		}
-
-		// Wait for notification with timeout
-		// Use a goroutine to implement timeout since sync.Cond doesn't support it directly
-		done := make(chan struct{})
-		go func() {
-			select {
-			case <-time.After(remaining):
-				// Timeout - wake up the waiting goroutine
-				s.segmentCond.Broadcast()
-			case <-done:
-				// Segment arrived or context cancelled
-			}
-		}()
-
-		s.segmentCond.Wait()
-		close(done)
-	}
-
-	return "", fmt.Errorf("timeout waiting for segment %d", segmentNum)
-}
-
-// WaitForManifest blocks until the manifest AND first segment exist.
-// This ensures HLS.js has actual playable content, not just an empty manifest.
-// Returns an error if the manifest doesn't become playable within the timeout.
-func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
-	callStartTime := time.Now()
-	deadline := callStartTime.Add(timeout)
-
-	// Calculate first segment number based on start position
-	// Must match FFmpeg's -start_number calculation
-	segmentDuration := s.SegmentDurationSec
-	if segmentDuration <= 0 {
-		segmentDuration = SegmentDuration // Default to 2 seconds if not set
-	}
-	firstSegmentNum := 0
-	if s.StartPosition > 0 {
-		firstSegmentNum = int(s.StartPosition) / segmentDuration
-	}
-	firstSegmentPath := filepath.Join(s.OutputDir, SegmentFilename(firstSegmentNum))
-
-	s.logger.Debug("Waiting for manifest and first segment",
-		"session_id", s.ID,
-		"start_position", s.StartPosition,
-		"first_segment_num", firstSegmentNum,
-		"first_segment_path", firstSegmentPath)
-
-	manifestExists := false
-	firstSegmentExists := false
-
-	for time.Now().Before(deadline) {
-		// Check if manifest file exists AND was created by THIS session
-		// (not a stale manifest from a previous session with different seek position)
-		if !manifestExists {
-			if info, err := os.Stat(s.ManifestPath); err == nil {
-				// Only accept manifests created after FFmpeg started for this session
-				if info.ModTime().After(s.FFmpegStartedAt) || info.ModTime().Equal(s.FFmpegStartedAt) {
-					manifestExists = true
-					s.logger.Debug("Manifest file created, waiting for first segment",
-						"session_id", s.ID,
-						"manifest_path", s.ManifestPath)
-				}
-			}
-		}
-
-		// Check if first segment exists (this is what HLS.js actually needs)
-		// IMPORTANT: Verify the segment was created AFTER this session started.
-		// This prevents a race condition where old segments from a previous session
-		// (with the same segment numbers due to overlapping seek positions) are
-		// mistakenly detected as valid, causing the wrong manifest to be served.
-		if manifestExists && !firstSegmentExists {
-			if info, err := os.Stat(firstSegmentPath); err == nil && info.Size() > 0 {
-				// Only accept segments created after FFmpeg started for this session
-				if info.ModTime().After(s.FFmpegStartedAt) || info.ModTime().Equal(s.FFmpegStartedAt) {
-					firstSegmentExists = true
-				}
-			}
-		}
-
-		// Ready when both manifest and first segment exist
-		if manifestExists && firstSegmentExists {
-			now := time.Now()
-			waitDuration := now.Sub(callStartTime)
-
-			// Only log timing info on first manifest ready (when ManifestReadyAt is zero)
-			// This avoids misleading logs when session is reused
-			isFirstReady := s.ManifestReadyAt.IsZero()
-			if isFirstReady {
-				s.ManifestReadyAt = now
-				timeSinceCreation := now.Sub(s.CreatedAt)
-				timeSinceFFmpegStart := now.Sub(s.FFmpegStartedAt)
-
-				s.logger.Info("Manifest ready with first segment",
-					"session_id", s.ID,
-					"first_segment", firstSegmentNum,
-					"wait_ms", waitDuration.Milliseconds(),
-					"time_since_session_ms", timeSinceCreation.Milliseconds(),
-					"time_from_ffmpeg_start_ms", timeSinceFFmpegStart.Milliseconds())
-
-				if s.logWriter != nil {
-					s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: Manifest ready at %s (%.0fms wait, %.0fms since session, %.0fms after FFmpeg start)\n",
-						now.Format("15:04:05.000"),
-						float64(waitDuration.Milliseconds()),
-						float64(timeSinceCreation.Milliseconds()),
-						float64(timeSinceFFmpegStart.Milliseconds())))
-				}
-			} else {
-				// Session already had manifest ready - this is a reused session
-				s.logger.Debug("Manifest already available (session reused)",
-					"session_id", s.ID,
-					"first_segment", firstSegmentNum,
-					"wait_ms", waitDuration.Milliseconds())
-			}
-			return nil
-		}
-
-		// Check if process has died
-		if s.FFmpegCmd != nil && s.FFmpegCmd.ProcessState != nil && s.FFmpegCmd.ProcessState.Exited() {
-			return fmt.Errorf("ffmpeg process exited before creating manifest")
-		}
-
-		// Poll every 50ms for faster startup
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	return fmt.Errorf("timeout waiting for manifest file to be created")
-}
-
-// WaitForInitSegment blocks until the fMP4 init segment exists or timeout occurs.
-// Returns the path to the init segment file.
-func (s *TranscodeSession) WaitForInitSegment(timeout time.Duration) (string, error) {
-	initPath := filepath.Join(s.OutputDir, InitSegmentFilename)
-	deadline := time.Now().Add(timeout)
-
-	for time.Now().Before(deadline) {
-		// Check if init segment exists
-		if _, err := os.Stat(initPath); err == nil {
-			return initPath, nil
-		}
-
-		// Check if process has died
-		if s.FFmpegCmd != nil && s.FFmpegCmd.ProcessState != nil && s.FFmpegCmd.ProcessState.Exited() {
-			return "", fmt.Errorf("ffmpeg process exited before creating init segment")
-		}
-
-		// Poll every 50ms
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	return "", fmt.Errorf("timeout waiting for init segment")
-}
-
 // UpdateLastAccessed updates the last accessed timestamp.
 func (s *TranscodeSession) UpdateLastAccessed() {
 	s.LastAccessed = time.Now()
@@ -641,261 +371,4 @@ func (s *TranscodeSession) GetLogWriter() *LogWriter {
 // SetLogWriter sets the log writer for this session.
 func (s *TranscodeSession) SetLogWriter(w *LogWriter) {
 	s.logWriter = w
-}
-
-// buildFFmpegArgs builds the FFmpeg command arguments for progressive HLS transcoding.
-// Supports hardware acceleration for Transcode strategy.
-// clientSupportedCodecs is used to select the best codec from the profile's preferred/fallback list.
-func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptiveProfile, strategy StreamStrategy, hwAccel HardwareAccel, hwDevice string, videoInfo *VideoInfo, config *TranscodeConfig, clientSupportedCodecs []string) []string {
-	// Determine target codec based on client support and profile preferences
-	// This ensures we encode to a codec the client can actually play
-	targetCodec := selectBestCodec(profile, clientSupportedCodecs, hwAccel)
-
-	s.logger.Debug("Selected target codec for transcoding",
-		"session_id", s.ID,
-		"target_codec", targetCodec,
-		"profile_preferred", profile.PreferredCodec,
-		"profile_fallbacks", profile.FallbackCodecs,
-		"client_codecs", clientSupportedCodecs,
-		"hw_accel", hwAccel)
-
-	// Create TranscodeOptions from session data
-	opts := TranscodeOptions{
-		InputPath:                  inputPath,
-		OutputDir:                  s.OutputDir,
-		Profile:                    profile,
-		UseStartPosition:           s.StartPosition > 0,
-		StartPosition:              int(s.StartPosition),
-		AudioTrackIndex:            s.AudioTrackIndex,
-		UseSpecificAudioTrack:      s.AudioTrackIndex >= 0,
-		VideoInfo:                  videoInfo,
-		ToneMappingEnabled:         config.ToneMappingEnabled,
-		ToneMappingAlgorithm:       config.ToneMappingAlgorithm,
-		ToneMappingBackend:         config.ToneMappingBackend,
-		LibPlaceboPeakDetect:       config.LibPlaceboPeakDetect,
-		LibPlaceboContrastRecovery: config.LibPlaceboContrastRecovery,
-		VideoCodec:                 targetCodec,
-	}
-
-	// Build arguments based on strategy
-	builder := NewFFmpegArgsBuilder(opts)
-
-	// Add hardware acceleration args (if not None)
-	if hwAccel != AccelNone && strategy == Transcode {
-		builder.AddHardwareAccel(GetHardwareAccelArgsWithDevice(hwAccel, hwDevice))
-
-		// For NVENC and QSV with HDR content, initialize OpenCL device for GPU tone mapping
-		// Both use tonemap_opencl for fast HDR→SDR conversion
-		// Only needed if not using libplacebo (which uses Vulkan instead)
-		if (hwAccel == AccelNVENC || hwAccel == AccelQSV) && config.ToneMappingEnabled && videoInfo != nil && videoInfo.IsHDR {
-			// Check if we need OpenCL (not using libplacebo)
-			backend := config.ToneMappingBackend
-			if backend == "" {
-				backend = "auto"
-			}
-			// In auto mode, both NVENC and QSV use OpenCL tone mapping (not libplacebo)
-			// libplacebo is only used for software encoding due to GPU transfer overhead
-			if backend == "opencl" || backend == "auto" {
-				builder.AddOpenCLDevice().AddOpenCLFilterDevice()
-			}
-		}
-	}
-
-	// Add memory safety options for ALL transcoding operations to prevent OOM crashes
-	// Memory-intensive operations include: HDR tone mapping (especially libplacebo
-	// with peak_detect), 4K scaling, and complex filter chains
-	builder.AddMemorySafetyOptions(config.MaxMemoryMB)
-
-	// Determine if we need -noaccurate_seek for A/V sync.
-	// When copying video but transcoding audio, FFmpeg seeks video to the nearest keyframe
-	// but starts audio from the exact seek position without this flag.
-	needNoAccurateSeek := strategy == RemuxWithAudioDownmix || strategy == RemuxHEVC
-
-	builder.AddSeekPosition()
-	if needNoAccurateSeek {
-		builder.AddNoAccurateSeek()
-	}
-	builder.AddInput().AddTimestampReset()
-
-	// Add encoding based on strategy
-	// IMPORTANT: Always add explicit stream mapping to prevent FFmpeg from auto-selecting
-	// all streams (including subtitles), which breaks HLS output by creating separate .vtt files
-	//
-	// For remux strategies, we use the segment muxer instead of HLS muxer for better
-	// timestamp handling when seeking. This requires patched FFmpeg (viewra-ffmpeg)
-	// with start_pts tracking fix for correct A/V sync.
-	useSegmentMuxer := false
-
-	switch strategy {
-	case Remux:
-		// Copy both streams with H.264 bitstream filter for MPEG-TS compatibility
-		// Use segment muxer for proper A/V sync when seeking
-		// Note: Don't use -copyts here - let FFmpeg reset timestamps naturally
-		// The segment muxer works better when output timestamps start from 0
-		builder.AddStreamMapping().AddH264Copy().AddAudioCodec("copy")
-		useSegmentMuxer = true
-
-	case RemuxWithAudioDownmix:
-		// Copy video with H.264 bitstream filter, transcode audio to AAC
-		// Use -noaccurate_seek (added above) to align audio with video keyframe
-		builder.AddStreamMapping().AddH264Copy().AddAudioDownmix()
-		useSegmentMuxer = true
-
-	case RemuxHEVC:
-		// Copy HEVC video with bitstream filter, transcode audio to AAC
-		// This is extremely fast (~50x realtime) since no video encoding happens
-		// The hevc_mp4toannexb filter converts NAL units for MPEG-TS compatibility
-		// Use -noaccurate_seek (added above) to align audio with video keyframe
-		s.logger.Info("Using HEVC remux strategy",
-			"session_id", s.ID,
-			"media_id", s.MediaID)
-		builder.AddStreamMapping().AddHEVCCopy().AddAudioDownmix()
-		useSegmentMuxer = true
-
-	case Transcode:
-		// Get encoder and preset based on hardware acceleration and target codec
-		// targetCodec was computed at function start and set in opts.VideoCodec
-		videoEncoder, videoPreset := GetVideoCodecAndPresetForCodec(hwAccel, targetCodec)
-
-		// For real-time progressive transcoding, override software preset to veryfast
-		if hwAccel == AccelNone {
-			videoPreset = "veryfast"
-		}
-
-		s.logger.Debug("Selected video encoder",
-			"session_id", s.ID,
-			"target_codec", targetCodec,
-			"encoder", videoEncoder,
-			"preset", videoPreset,
-			"hw_accel", hwAccel)
-
-		builder.AddStreamMapping().AddVideoCodec(videoEncoder, videoPreset)
-
-		// Use hardware or software encoding
-		if hwAccel != AccelNone {
-			builder.AddHardwareVideoEncoding(hwAccel)
-		} else {
-			builder.AddVideoEncoding()
-		}
-
-		builder.AddAudioEncoding()
-		// Note: No need for force_key_frames - the GOP settings (-g/-keyint_min)
-		// already ensure frame 0 is a keyframe since it's the start of the first GOP.
-	}
-
-	// Add output settings based on muxer type
-	var args []string
-	if useSegmentMuxer {
-		// Use segment muxer for remux strategies (requires patched FFmpeg)
-		// This provides proper A/V sync when seeking into the middle of files
-		builder.AddSegmentMuxerOutput().AddOverwriteOutput().AddSegmentMuxerOutputFile()
-		args = builder.Build()
-	} else {
-		// Use HLS muxer for transcode (generates new keyframes, so timing is controlled)
-		builder.AddHLSOutput().AddOverwriteOutput()
-		args = builder.Build()
-		args = append(args, s.ManifestPath)
-	}
-
-	return args
-}
-
-// createFFmpegCommand creates an FFmpeg command with memory limits via systemd-run (if available).
-// On Linux with systemd, this wraps FFmpeg with cgroup memory limits as a hard safety net
-// against memory spikes from subtitle burn-in, HDR tone mapping, or complex filter chains.
-// Falls back to regular exec.CommandContext on other platforms or when systemd-run isn't available.
-func createFFmpegCommand(ctx context.Context, args []string, config *TranscodeConfig, logger *slog.Logger) *exec.Cmd {
-	paths := config.FFmpegPaths
-	maxMemoryMB := config.MaxMemoryMB
-
-	// On Linux with systemd, use systemd-run to apply memory limits
-	if runtime.GOOS == "linux" && maxMemoryMB > 0 {
-		if _, err := exec.LookPath("systemd-run"); err == nil {
-			// Apply 2x multiplier for virtual memory headroom (shared libs, mmap, etc.)
-			// The -max_alloc FFmpeg flag handles the tight limit; this is a safety net
-			limitMB := maxMemoryMB * 2
-
-			// Build systemd-run command with memory limit
-			// --scope: Run as a transient scope unit (not a service)
-			// --user: Run in user session (no root required)
-			// -p MemoryMax: Hard memory limit
-			// -p MemorySwapMax=0: Prevent swapping (fail fast rather than thrash)
-			// -E: Pass environment variable to the child process
-			systemdArgs := []string{
-				"--scope",
-				"--user",
-				"-p", fmt.Sprintf("MemoryMax=%dM", limitMB),
-				"-p", "MemorySwapMax=0",
-			}
-
-			// Pass LD_LIBRARY_PATH to FFmpeg via systemd-run's -E flag
-			// (setting cmd.Env doesn't work because systemd-run spawns a new process)
-			if paths.LibPath != "" {
-				systemdArgs = append(systemdArgs, "-E", "LD_LIBRARY_PATH="+paths.LibPath)
-			}
-
-			systemdArgs = append(systemdArgs, "--", paths.FFmpeg)
-			systemdArgs = append(systemdArgs, args...)
-
-			logger.Debug("Using systemd-run for memory-limited FFmpeg",
-				"memory_limit_mb", limitMB,
-				"ffmpeg_max_alloc_mb", maxMemoryMB,
-				"ffmpeg_path", paths.FFmpeg,
-				"lib_path", paths.LibPath)
-
-			cmd := exec.CommandContext(ctx, "systemd-run", systemdArgs...)
-			cmd.SysProcAttr = &syscall.SysProcAttr{
-				Setpgid: true, // Create new process group for clean shutdown
-			}
-			return cmd
-		}
-	}
-
-	// Fallback: no system-level memory limit, rely on FFmpeg's -max_alloc
-	// Use Paths.PrepareCommand to handle LD_LIBRARY_PATH consistently
-	cmd := paths.PrepareCommand("ffmpeg", args...)
-	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setpgid: true,
-		}
-	}
-	return cmd
-}
-
-// selectBestCodec selects the best codec for transcoding based on:
-// 1. Client's supported codecs (what the browser can decode)
-// 2. Profile's preferred codec and fallbacks
-// 3. Hardware acceleration support
-// Returns H.264 as the ultimate fallback for universal compatibility.
-func selectBestCodec(profile *AdaptiveProfile, clientSupportedCodecs []string, hwAccel HardwareAccel) VideoCodec {
-	// If no client codecs provided, assume H.264 only (most conservative)
-	if len(clientSupportedCodecs) == 0 {
-		clientSupportedCodecs = []string{"h264"}
-	}
-
-	// Build a set for fast lookup
-	supported := make(map[string]bool)
-	for _, codec := range clientSupportedCodecs {
-		supported[codec] = true
-	}
-
-	// If profile is nil, return H.264
-	if profile == nil {
-		return CodecH264
-	}
-
-	// Check if preferred codec is supported by both client and hardware
-	if supported[profile.PreferredCodec] && IsCodecSupported(hwAccel, VideoCodec(profile.PreferredCodec)) {
-		return VideoCodec(profile.PreferredCodec)
-	}
-
-	// Check fallback codecs in order of preference
-	for _, fallback := range profile.FallbackCodecs {
-		if supported[fallback] && IsCodecSupported(hwAccel, VideoCodec(fallback)) {
-			return VideoCodec(fallback)
-		}
-	}
-
-	// Ultimate fallback: H.264 (universally supported)
-	return CodecH264
 }
