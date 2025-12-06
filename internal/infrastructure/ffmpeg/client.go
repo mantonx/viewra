@@ -1,13 +1,11 @@
 package ffmpeg
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,54 +13,40 @@ import (
 )
 
 // NewClient creates a new FFmpeg client.
-// It checks for VIEWRA_FFMPEG_PATH and VIEWRA_FFPROBE_PATH environment variables first,
-// then falls back to the executables in the system PATH.
+// Uses the shared Paths type which handles environment variables and PATH lookup.
 // NOTE: This should only be called once and the client reused to avoid repeated PATH searches.
 // The Coordinator creates this once and reuses it for all files.
 func NewClient(logger *slog.Logger) (*Client, error) {
-	// Check for custom FFmpeg path (e.g., patched viewra-ffmpeg)
-	ffmpegPath := os.Getenv("VIEWRA_FFMPEG_PATH")
-	usingCustomFFmpeg := ffmpegPath != ""
-	if ffmpegPath == "" {
-		var err error
-		ffmpegPath, err = exec.LookPath("ffmpeg")
+	return NewClientWithPaths(nil, logger)
+}
+
+// NewClientWithPaths creates a new FFmpeg client with explicit paths.
+// If paths is nil, creates new Paths from environment/PATH.
+// Use this when you already have a Paths instance to avoid duplicate resolution.
+func NewClientWithPaths(paths *Paths, logger *slog.Logger) (*Client, error) {
+	var err error
+	if paths == nil {
+		paths, err = NewPaths()
 		if err != nil {
-			return nil, ErrFFmpegNotFound
+			return nil, err
 		}
 	}
 
-	// Check for custom FFprobe path
-	ffprobePath := os.Getenv("VIEWRA_FFPROBE_PATH")
-	if ffprobePath == "" {
-		var err error
-		ffprobePath, err = exec.LookPath("ffprobe")
-		if err != nil {
-			return nil, ErrFFprobeNotFound
-		}
-	}
+	client := &Client{paths: paths}
 
-	// Check for custom library path (needed for patched FFmpeg with shared libs)
-	libPath := os.Getenv("VIEWRA_FFMPEG_LIB_PATH")
-
-	client := &Client{
-		ffmpegPath:  ffmpegPath,
-		ffprobePath: ffprobePath,
-		libPath:     libPath,
-	}
-
-	// Get FFmpeg version and log configuration
-	version := client.getVersion()
+	// Log configuration once
 	if logger != nil {
-		if usingCustomFFmpeg {
-			logger.Info("FFmpeg configured",
-				"path", ffmpegPath,
+		version := paths.Version()
+		if paths.IsCustomBuild() {
+			logger.Info("FFmpeg client initialized",
+				"path", paths.FFmpeg,
 				"version", version,
 				"source", "custom (VIEWRA_FFMPEG_PATH)",
-				"lib_path", libPath,
+				"lib_path", paths.LibPath,
 			)
 		} else {
-			logger.Info("FFmpeg configured",
-				"path", ffmpegPath,
+			logger.Info("FFmpeg client initialized",
+				"path", paths.FFmpeg,
 				"version", version,
 				"source", "system PATH",
 			)
@@ -72,39 +56,9 @@ func NewClient(logger *slog.Logger) (*Client, error) {
 	return client, nil
 }
 
-// getVersion extracts the FFmpeg version string.
-func (c *Client) getVersion() string {
-	cmd := exec.Command(c.ffmpegPath, "-version")
-	if c.libPath != "" {
-		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+c.libPath)
-	}
-
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-
-	if err := cmd.Run(); err != nil {
-		return "unknown"
-	}
-
-	// Parse first line: "ffmpeg version 7.1 Copyright..."
-	output := stdout.String()
-	lines := strings.Split(output, "\n")
-	if len(lines) > 0 {
-		firstLine := lines[0]
-		// Extract version from "ffmpeg version X.Y ..."
-		if strings.HasPrefix(firstLine, "ffmpeg version ") {
-			parts := strings.Fields(firstLine)
-			if len(parts) >= 3 {
-				return parts[2]
-			}
-		}
-	}
-	return "unknown"
-}
-
-// GetPaths returns the configured FFmpeg and FFprobe paths.
-func (c *Client) GetPaths() (ffmpegPath, ffprobePath, libPath string) {
-	return c.ffmpegPath, c.ffprobePath, c.libPath
+// Paths returns the underlying Paths configuration.
+func (c *Client) Paths() *Paths {
+	return c.paths
 }
 
 // ffprobeOutput represents the JSON structure returned by ffprobe.
@@ -182,18 +136,13 @@ func (c *Client) ExtractMetadata(ctx context.Context, filePath string) (*VideoMe
 	}
 
 	// Run ffprobe with JSON output
-	cmd := exec.CommandContext(ctx, c.ffprobePath,
+	cmd := c.paths.PrepareCommand("ffprobe",
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
 		"-show_streams",
 		filePath,
 	)
-
-	// Set LD_LIBRARY_PATH for custom FFmpeg/FFprobe builds
-	if c.libPath != "" {
-		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+c.libPath)
-	}
 
 	// Stream parse JSON to avoid loading entire output into memory
 	stdout, err := cmd.StdoutPipe()
@@ -373,7 +322,7 @@ func (c *Client) GenerateThumbnail(ctx context.Context, videoPath, outputPath st
 
 	args = append(args, "-y", outputPath)
 
-	cmd := exec.CommandContext(ctx, c.ffmpegPath, args...)
+	cmd := c.paths.PrepareCommand("ffmpeg", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%w: %v: %s", ErrThumbnailGeneration, err, string(output))
 	}
@@ -455,17 +404,12 @@ func (c *Client) ExtractTracks(ctx context.Context, filePath string) (*MediaTrac
 		return nil, ErrInvalidFile
 	}
 
-	cmd := exec.CommandContext(ctx, c.ffprobePath,
+	cmd := c.paths.PrepareCommand("ffprobe",
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_streams",
 		filePath,
 	)
-
-	// Set LD_LIBRARY_PATH for custom FFmpeg/FFprobe builds
-	if c.libPath != "" {
-		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+c.libPath)
-	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -33,9 +32,9 @@ func newFFmpegExecutorWithConfig(config *TranscodeConfig) (*ffmpegExecutor, erro
 		config = DefaultTranscodeConfig()
 	}
 
-	// Verify FFmpeg is accessible
-	if config.FFmpegPath == "" {
-		return nil, fmt.Errorf("ffmpeg path not configured")
+	// Verify FFmpeg paths are configured
+	if config.FFmpegPaths == nil || config.FFmpegPaths.FFmpeg == "" {
+		return nil, fmt.Errorf("ffmpeg paths not configured")
 	}
 
 	return &ffmpegExecutor{
@@ -95,11 +94,11 @@ func (e *ffmpegExecutor) executeFFmpeg(ctx context.Context, opts TranscodeOption
 	}
 
 	// Create the command with proper process group management
-	cmd := e.processManager.PrepareCommand(ctx, e.config.FFmpegPath, args)
+	cmd := e.processManager.PrepareCommand(ctx, e.config.FFmpegPaths.FFmpeg, args)
 
 	// Set LD_LIBRARY_PATH for custom FFmpeg builds
-	if e.config.FFmpegLibPath != "" {
-		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+e.config.FFmpegLibPath)
+	if e.config.FFmpegPaths.LibPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+e.config.FFmpegPaths.LibPath)
 	}
 
 	// Get stderr pipe for progress monitoring
@@ -230,23 +229,13 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 // getVideoDuration extracts the duration of the video file using ffprobe.
 // Returns 0 if duration cannot be determined.
 func (e *ffmpegExecutor) getVideoDuration(inputPath string) (time.Duration, error) {
-	// Use ffprobe path from config (respects VIEWRA_FFPROBE_PATH)
-	ffprobePath := e.config.FFprobePath
-	if ffprobePath == "" {
-		return 0, fmt.Errorf("ffprobe path not configured")
-	}
-
-	cmd := exec.Command(ffprobePath,
+	// Use Paths.PrepareCommand for consistent path and library handling
+	cmd := e.config.FFmpegPaths.PrepareCommand("ffprobe",
 		"-v", "error",
 		"-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1",
 		inputPath,
 	)
-
-	// Set LD_LIBRARY_PATH for custom FFmpeg/FFprobe builds
-	if e.config.FFmpegLibPath != "" {
-		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+e.config.FFmpegLibPath)
-	}
 
 	output, err := cmd.Output()
 	if err != nil {

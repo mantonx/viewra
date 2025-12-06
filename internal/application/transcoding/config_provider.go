@@ -38,26 +38,9 @@ func NewSettingsConfigProvider(
 // - Hardware acceleration (determined at startup)
 // - Workers count (queue worker pool size)
 func (p *SettingsConfigProvider) GetConfig(ctx context.Context) *transcoding.TranscodeConfig {
-	// Start with a copy of base config
-	config := &transcoding.TranscodeConfig{
-		FFmpegPath:                 p.baseConfig.FFmpegPath,
-		FFprobePath:                p.baseConfig.FFprobePath,
-		FFmpegLibPath:              p.baseConfig.FFmpegLibPath,
-		HardwareAccel:              p.baseConfig.HardwareAccel,
-		HardwareDevice:             p.baseConfig.HardwareDevice,
-		OutputBaseDir:              p.baseConfig.OutputBaseDir,
-		MinFreeDiskGB:              p.baseConfig.MinFreeDiskGB,
-		MaxCPUPercent:              p.baseConfig.MaxCPUPercent,
-		MaxMemoryMB:                p.baseConfig.MaxMemoryMB,
-		ProcessGroupKill:           p.baseConfig.ProcessGroupKill,
-		ToneMappingEnabled:         p.baseConfig.ToneMappingEnabled,
-		ToneMappingAlgorithm:       p.baseConfig.ToneMappingAlgorithm,
-		ToneMappingBackend:         p.baseConfig.ToneMappingBackend,
-		LibPlaceboPeakDetect:       p.baseConfig.LibPlaceboPeakDetect,
-		LibPlaceboContrastRecovery: p.baseConfig.LibPlaceboContrastRecovery,
-		FFmpegLogEnabled:           p.baseConfig.FFmpegLogEnabled,
-		FFmpegLogRetentionHours:    p.baseConfig.FFmpegLogRetentionHours,
-	}
+	// Start with a full copy of base config (prevents missing new fields)
+	configCopy := *p.baseConfig
+	config := &configCopy
 
 	// If no settings service, return base config
 	if p.settingsService == nil {

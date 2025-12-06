@@ -973,8 +973,7 @@ func AudioQualityKey(audioTrackIndex int) string {
 // against memory spikes from subtitle burn-in, HDR tone mapping, or complex filter chains.
 // Falls back to regular exec.CommandContext on other platforms or when systemd-run isn't available.
 func createFFmpegCommand(ctx context.Context, args []string, config *TranscodeConfig, logger *slog.Logger) *exec.Cmd {
-	ffmpegPath := config.FFmpegPath
-	libPath := config.FFmpegLibPath
+	paths := config.FFmpegPaths
 	maxMemoryMB := config.MaxMemoryMB
 
 	// On Linux with systemd, use systemd-run to apply memory limits
@@ -999,18 +998,18 @@ func createFFmpegCommand(ctx context.Context, args []string, config *TranscodeCo
 
 			// Pass LD_LIBRARY_PATH to FFmpeg via systemd-run's -E flag
 			// (setting cmd.Env doesn't work because systemd-run spawns a new process)
-			if libPath != "" {
-				systemdArgs = append(systemdArgs, "-E", "LD_LIBRARY_PATH="+libPath)
+			if paths.LibPath != "" {
+				systemdArgs = append(systemdArgs, "-E", "LD_LIBRARY_PATH="+paths.LibPath)
 			}
 
-			systemdArgs = append(systemdArgs, "--", ffmpegPath)
+			systemdArgs = append(systemdArgs, "--", paths.FFmpeg)
 			systemdArgs = append(systemdArgs, args...)
 
 			logger.Debug("Using systemd-run for memory-limited FFmpeg",
 				"memory_limit_mb", limitMB,
 				"ffmpeg_max_alloc_mb", maxMemoryMB,
-				"ffmpeg_path", ffmpegPath,
-				"lib_path", libPath)
+				"ffmpeg_path", paths.FFmpeg,
+				"lib_path", paths.LibPath)
 
 			cmd := exec.CommandContext(ctx, "systemd-run", systemdArgs...)
 			cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -1021,15 +1020,12 @@ func createFFmpegCommand(ctx context.Context, args []string, config *TranscodeCo
 	}
 
 	// Fallback: no system-level memory limit, rely on FFmpeg's -max_alloc
-	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	// Use Paths.PrepareCommand to handle LD_LIBRARY_PATH consistently
+	cmd := paths.PrepareCommand("ffmpeg", args...)
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setpgid: true,
 		}
-	}
-	// Set LD_LIBRARY_PATH for custom FFmpeg builds
-	if libPath != "" {
-		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+libPath)
 	}
 	return cmd
 }
