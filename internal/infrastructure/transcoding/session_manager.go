@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -34,6 +36,23 @@ func NewSessionManager(config *TranscodeConfig, logger *slog.Logger) *SessionMan
 		fallbackManager: NewHardwareFallbackManager(config, logger),
 	}
 
+	// Log FFmpeg configuration at startup
+	ffmpegVersion := getFFmpegVersion(config)
+	if config.FFmpegLibPath != "" {
+		logger.Info("FFmpeg configured for transcoding",
+			"path", config.FFmpegPath,
+			"version", ffmpegVersion,
+			"source", "custom (VIEWRA_FFMPEG_PATH)",
+			"lib_path", config.FFmpegLibPath,
+		)
+	} else {
+		logger.Info("FFmpeg configured for transcoding",
+			"path", config.FFmpegPath,
+			"version", ffmpegVersion,
+			"source", "system PATH",
+		)
+	}
+
 	// Verify hardware acceleration is available
 	if config.HardwareAccel != AccelNone {
 		if err := mgr.fallbackManager.VerifyHardwareAvailability(config.HardwareAccel); err != nil {
@@ -46,6 +65,32 @@ func NewSessionManager(config *TranscodeConfig, logger *slog.Logger) *SessionMan
 	}
 
 	return mgr
+}
+
+// getFFmpegVersion extracts the FFmpeg version string.
+func getFFmpegVersion(config *TranscodeConfig) string {
+	cmd := exec.Command(config.FFmpegPath, "-version")
+	if config.FFmpegLibPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+config.FFmpegLibPath)
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+
+	// Parse first line: "ffmpeg version 7.1 Copyright..."
+	lines := strings.Split(string(output), "\n")
+	if len(lines) > 0 {
+		firstLine := lines[0]
+		if strings.HasPrefix(firstLine, "ffmpeg version ") {
+			parts := strings.Fields(firstLine)
+			if len(parts) >= 3 {
+				return parts[2]
+			}
+		}
+	}
+	return "unknown"
 }
 
 // SetConfigProvider sets a dynamic config provider for runtime settings.

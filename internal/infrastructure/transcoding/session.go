@@ -129,7 +129,7 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 
 	// Create FFmpeg command with memory limits via systemd-run (if available)
 	// This provides a hard cgroup limit as a safety net against memory spikes
-	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config.MaxMemoryMB, s.logger)
+	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config, s.logger)
 
 	// Capture both stdout and stderr
 	stderr, err := s.FFmpegCmd.StderrPipe()
@@ -816,7 +816,7 @@ func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int,
 	}
 
 	// Create FFmpeg command with memory limits via systemd-run (if available)
-	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config.MaxMemoryMB, s.logger)
+	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config, s.logger)
 
 	// Capture stderr for error logging
 	stderr, err := s.FFmpegCmd.StderrPipe()
@@ -972,7 +972,11 @@ func AudioQualityKey(audioTrackIndex int) string {
 // On Linux with systemd, this wraps FFmpeg with cgroup memory limits as a hard safety net
 // against memory spikes from subtitle burn-in, HDR tone mapping, or complex filter chains.
 // Falls back to regular exec.CommandContext on other platforms or when systemd-run isn't available.
-func createFFmpegCommand(ctx context.Context, args []string, maxMemoryMB int, logger *slog.Logger) *exec.Cmd {
+func createFFmpegCommand(ctx context.Context, args []string, config *TranscodeConfig, logger *slog.Logger) *exec.Cmd {
+	ffmpegPath := config.FFmpegPath
+	libPath := config.FFmpegLibPath
+	maxMemoryMB := config.MaxMemoryMB
+
 	// On Linux with systemd, use systemd-run to apply memory limits
 	if runtime.GOOS == "linux" && maxMemoryMB > 0 {
 		if _, err := exec.LookPath("systemd-run"); err == nil {
@@ -985,19 +989,28 @@ func createFFmpegCommand(ctx context.Context, args []string, maxMemoryMB int, lo
 			// --user: Run in user session (no root required)
 			// -p MemoryMax: Hard memory limit
 			// -p MemorySwapMax=0: Prevent swapping (fail fast rather than thrash)
+			// -E: Pass environment variable to the child process
 			systemdArgs := []string{
 				"--scope",
 				"--user",
 				"-p", fmt.Sprintf("MemoryMax=%dM", limitMB),
 				"-p", "MemorySwapMax=0",
-				"--", // End of systemd-run options
-				"ffmpeg",
 			}
+
+			// Pass LD_LIBRARY_PATH to FFmpeg via systemd-run's -E flag
+			// (setting cmd.Env doesn't work because systemd-run spawns a new process)
+			if libPath != "" {
+				systemdArgs = append(systemdArgs, "-E", "LD_LIBRARY_PATH="+libPath)
+			}
+
+			systemdArgs = append(systemdArgs, "--", ffmpegPath)
 			systemdArgs = append(systemdArgs, args...)
 
 			logger.Debug("Using systemd-run for memory-limited FFmpeg",
 				"memory_limit_mb", limitMB,
-				"ffmpeg_max_alloc_mb", maxMemoryMB)
+				"ffmpeg_max_alloc_mb", maxMemoryMB,
+				"ffmpeg_path", ffmpegPath,
+				"lib_path", libPath)
 
 			cmd := exec.CommandContext(ctx, "systemd-run", systemdArgs...)
 			cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -1008,11 +1021,15 @@ func createFFmpegCommand(ctx context.Context, args []string, maxMemoryMB int, lo
 	}
 
 	// Fallback: no system-level memory limit, rely on FFmpeg's -max_alloc
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setpgid: true,
 		}
+	}
+	// Set LD_LIBRARY_PATH for custom FFmpeg builds
+	if libPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+libPath)
 	}
 	return cmd
 }

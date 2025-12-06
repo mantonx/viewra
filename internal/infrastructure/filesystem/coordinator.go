@@ -67,7 +67,7 @@ func NewCoordinator(config CoordinatorConfig) *Coordinator {
 	// Use provided logger or default
 	logger := pkgLogger.DefaultIfNil(config.Logger)
 
-	ffmpegClient, err := ffmpeg.NewClient()
+	ffmpegClient, err := ffmpeg.NewClient(logger)
 	if err != nil {
 		// Log warning but don't fail - metadata extraction will be skipped
 		logger.Warn("FFmpeg not available, technical metadata extraction disabled", "error", err)

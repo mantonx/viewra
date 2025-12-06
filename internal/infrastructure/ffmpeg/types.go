@@ -6,6 +6,7 @@ import "time"
 type Client struct {
 	ffmpegPath  string
 	ffprobePath string
+	libPath     string // Custom library path for patched FFmpeg (LD_LIBRARY_PATH)
 }
 
 // VideoMetadata contains extracted metadata from a video file.

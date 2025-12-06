@@ -40,6 +40,9 @@ func NewSettingsConfigProvider(
 func (p *SettingsConfigProvider) GetConfig(ctx context.Context) *transcoding.TranscodeConfig {
 	// Start with a copy of base config
 	config := &transcoding.TranscodeConfig{
+		FFmpegPath:                 p.baseConfig.FFmpegPath,
+		FFprobePath:                p.baseConfig.FFprobePath,
+		FFmpegLibPath:              p.baseConfig.FFmpegLibPath,
 		HardwareAccel:              p.baseConfig.HardwareAccel,
 		HardwareDevice:             p.baseConfig.HardwareDevice,
 		OutputBaseDir:              p.baseConfig.OutputBaseDir,
@@ -52,6 +55,8 @@ func (p *SettingsConfigProvider) GetConfig(ctx context.Context) *transcoding.Tra
 		ToneMappingBackend:         p.baseConfig.ToneMappingBackend,
 		LibPlaceboPeakDetect:       p.baseConfig.LibPlaceboPeakDetect,
 		LibPlaceboContrastRecovery: p.baseConfig.LibPlaceboContrastRecovery,
+		FFmpegLogEnabled:           p.baseConfig.FFmpegLogEnabled,
+		FFmpegLogRetentionHours:    p.baseConfig.FFmpegLogRetentionHours,
 	}
 
 	// If no settings service, return base config

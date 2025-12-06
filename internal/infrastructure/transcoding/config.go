@@ -29,6 +29,18 @@ const (
 
 // TranscodeConfig holds transcoding configuration.
 type TranscodeConfig struct {
+	// FFmpegPath is the path to the FFmpeg binary
+	// Environment variable: VIEWRA_FFMPEG_PATH (falls back to system PATH)
+	FFmpegPath string
+
+	// FFprobePath is the path to the FFprobe binary
+	// Environment variable: VIEWRA_FFPROBE_PATH (falls back to system PATH)
+	FFprobePath string
+
+	// FFmpegLibPath is the library path for custom FFmpeg builds (LD_LIBRARY_PATH)
+	// Environment variable: VIEWRA_FFMPEG_LIB_PATH
+	FFmpegLibPath string
+
 	// HardwareAccel specifies which hardware acceleration to use
 	HardwareAccel HardwareAccel
 
@@ -103,6 +115,27 @@ func DefaultTranscodeConfig() *TranscodeConfig {
 // DefaultTranscodeConfigFromProfile returns transcode config based on system profile.
 // If profile is nil, falls back to hardware detection.
 func DefaultTranscodeConfigFromProfile(hwAccelType string) *TranscodeConfig {
+	// Get FFmpeg paths from environment or fall back to system PATH
+	ffmpegPath := os.Getenv("VIEWRA_FFMPEG_PATH")
+	if ffmpegPath == "" {
+		var err error
+		ffmpegPath, err = exec.LookPath("ffmpeg")
+		if err != nil {
+			ffmpegPath = "ffmpeg" // Will fail at runtime with clear error
+		}
+	}
+
+	ffprobePath := os.Getenv("VIEWRA_FFPROBE_PATH")
+	if ffprobePath == "" {
+		var err error
+		ffprobePath, err = exec.LookPath("ffprobe")
+		if err != nil {
+			ffprobePath = "ffprobe" // Will fail at runtime with clear error
+		}
+	}
+
+	ffmpegLibPath := os.Getenv("VIEWRA_FFMPEG_LIB_PATH")
+
 	// Use provided hardware acceleration or detect
 	var hwaccel HardwareAccel
 	if hwAccelType != "" {
@@ -164,6 +197,9 @@ func DefaultTranscodeConfigFromProfile(hwAccelType string) *TranscodeConfig {
 	}
 
 	return &TranscodeConfig{
+		FFmpegPath:                 ffmpegPath,
+		FFprobePath:                ffprobePath,
+		FFmpegLibPath:              ffmpegLibPath,
 		HardwareAccel:              hwaccel,
 		HardwareDevice:             hwDevice,
 		OutputBaseDir:              GetDefaultOutputDir(),      // /data/dash or ./data/dash

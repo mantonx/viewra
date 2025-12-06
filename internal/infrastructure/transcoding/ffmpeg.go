@@ -16,7 +16,6 @@ import (
 
 // ffmpegExecutor handles FFmpeg command execution with progress tracking.
 type ffmpegExecutor struct {
-	ffmpegPath     string
 	config         *TranscodeConfig
 	processManager *ProcessManager
 }
@@ -28,24 +27,18 @@ func newFFmpegExecutor() (*ffmpegExecutor, error) {
 }
 
 // newFFmpegExecutorWithConfig creates a new FFmpeg executor with custom config.
-// It checks for VIEWRA_FFMPEG_PATH environment variable first, then falls back to system PATH.
+// FFmpeg path is read from config (which gets it from VIEWRA_FFMPEG_PATH or system PATH).
 func newFFmpegExecutorWithConfig(config *TranscodeConfig) (*ffmpegExecutor, error) {
-	// Check for custom FFmpeg path (e.g., patched viewra-ffmpeg)
-	ffmpegPath := os.Getenv("VIEWRA_FFMPEG_PATH")
-	if ffmpegPath == "" {
-		var err error
-		ffmpegPath, err = exec.LookPath("ffmpeg")
-		if err != nil {
-			return nil, fmt.Errorf("ffmpeg executable not found in system PATH: %w", err)
-		}
-	}
-
 	if config == nil {
 		config = DefaultTranscodeConfig()
 	}
 
+	// Verify FFmpeg is accessible
+	if config.FFmpegPath == "" {
+		return nil, fmt.Errorf("ffmpeg path not configured")
+	}
+
 	return &ffmpegExecutor{
-		ffmpegPath:     ffmpegPath,
 		config:         config,
 		processManager: NewProcessManager(config),
 	}, nil
@@ -102,7 +95,12 @@ func (e *ffmpegExecutor) executeFFmpeg(ctx context.Context, opts TranscodeOption
 	}
 
 	// Create the command with proper process group management
-	cmd := e.processManager.PrepareCommand(ctx, e.ffmpegPath, args)
+	cmd := e.processManager.PrepareCommand(ctx, e.config.FFmpegPath, args)
+
+	// Set LD_LIBRARY_PATH for custom FFmpeg builds
+	if e.config.FFmpegLibPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+e.config.FFmpegLibPath)
+	}
 
 	// Get stderr pipe for progress monitoring
 	stderr, err := cmd.StderrPipe()
@@ -232,9 +230,10 @@ func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) [
 // getVideoDuration extracts the duration of the video file using ffprobe.
 // Returns 0 if duration cannot be determined.
 func (e *ffmpegExecutor) getVideoDuration(inputPath string) (time.Duration, error) {
-	ffprobePath, err := exec.LookPath("ffprobe")
-	if err != nil {
-		return 0, fmt.Errorf("ffprobe not found: %w", err)
+	// Use ffprobe path from config (respects VIEWRA_FFPROBE_PATH)
+	ffprobePath := e.config.FFprobePath
+	if ffprobePath == "" {
+		return 0, fmt.Errorf("ffprobe path not configured")
 	}
 
 	cmd := exec.Command(ffprobePath,
@@ -243,6 +242,11 @@ func (e *ffmpegExecutor) getVideoDuration(inputPath string) (time.Duration, erro
 		"-of", "default=noprint_wrappers=1:nokey=1",
 		inputPath,
 	)
+
+	// Set LD_LIBRARY_PATH for custom FFmpeg/FFprobe builds
+	if e.config.FFmpegLibPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+e.config.FFmpegLibPath)
+	}
 
 	output, err := cmd.Output()
 	if err != nil {

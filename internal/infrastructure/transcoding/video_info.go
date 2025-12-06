@@ -145,10 +145,18 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 		return cached, nil
 	}
 
-	ffprobePath, err := exec.LookPath("ffprobe")
-	if err != nil {
-		return nil, fmt.Errorf("ffprobe not found: %w", err)
+	// Check for custom FFprobe path (respects VIEWRA_FFPROBE_PATH)
+	ffprobePath := os.Getenv("VIEWRA_FFPROBE_PATH")
+	if ffprobePath == "" {
+		var err error
+		ffprobePath, err = exec.LookPath("ffprobe")
+		if err != nil {
+			return nil, fmt.Errorf("ffprobe not found: %w", err)
+		}
 	}
+
+	// Get library path for custom FFmpeg/FFprobe builds
+	libPath := os.Getenv("VIEWRA_FFMPEG_LIB_PATH")
 
 	// Run ffprobe with JSON output
 	cmd := exec.Command(ffprobePath,
@@ -158,6 +166,11 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 		"-show_streams",
 		inputPath,
 	)
+
+	// Set LD_LIBRARY_PATH for custom FFmpeg/FFprobe builds
+	if libPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+libPath)
+	}
 
 	output, err := cmd.Output()
 	if err != nil {
