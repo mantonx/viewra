@@ -256,3 +256,55 @@ func (b *FFmpegArgsBuilder) AddOverwriteOutput() *FFmpegArgsBuilder {
 	b.args = append(b.args, "-y")
 	return b
 }
+
+// addBitrateArgs adds video bitrate control arguments (bitrate, maxrate, bufsize).
+// Used by all encoders (software and hardware) to configure rate control.
+func (b *FFmpegArgsBuilder) addBitrateArgs() {
+	p := b.opts.Profile
+	b.args = append(b.args,
+		"-b:v", formatBitrate(p.VideoBitrate),
+		"-maxrate", formatBitrate(p.VideoMaxRate),
+		"-bufsize", formatBitrate(p.VideoBufSize),
+	)
+}
+
+// addCodecProfileArgs adds codec-specific profile and level arguments for hardware encoders.
+// This handles the profile/level logic that's duplicated across NVENC, QSV, VAAPI, and VideoToolbox.
+func (b *FFmpegArgsBuilder) addCodecProfileArgs(codec VideoCodec, hwAccel HardwareAccel) {
+	p := b.opts.Profile
+
+	switch codec {
+	case CodecH265:
+		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
+	case CodecVP9:
+		// VP9 with QSV/VAAPI doesn't use profile/level
+	case CodecAV1:
+		// AV1 uses tier instead of profile/level
+		b.args = append(b.args, "-tier", "main")
+	default: // H.264
+		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
+		h264Level := getH264Level(p.Width, p.Height)
+		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
+	}
+}
+
+// addGOPArgs adds GOP structure arguments for HLS compatibility.
+// Sets fixed GOP size with disabled scene detection for consistent segment alignment.
+func (b *FFmpegArgsBuilder) addGOPArgs(disableSceneDetection bool) {
+	p := b.opts.Profile
+	b.args = append(b.args,
+		"-g", strconv.Itoa(p.GOPSize),
+		"-keyint_min", strconv.Itoa(p.GOPSize),
+	)
+	if disableSceneDetection {
+		b.args = append(b.args, "-sc_threshold", "0")
+	}
+}
+
+// addVideoFilterChain builds and adds the complete video filter chain.
+// This combines tone mapping (if needed) and scaling filters based on hardware acceleration.
+// skipIfLibPlacebo: set to true for NVENC to skip filters when libplacebo tone mapping is used.
+func (b *FFmpegArgsBuilder) addVideoFilterChain(hwAccel HardwareAccel, skipIfLibPlacebo bool) {
+	filterChain := b.buildToneMappingFilter(hwAccel) + b.buildScalingFilter(hwAccel, skipIfLibPlacebo)
+	b.args = append(b.args, "-vf", filterChain)
+}

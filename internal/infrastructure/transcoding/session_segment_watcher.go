@@ -121,6 +121,26 @@ func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration)
 	s.segmentMutex.Lock()
 	defer s.segmentMutex.Unlock()
 
+	// Create a single timer for the entire wait operation
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	// Channel to signal when we're done waiting (either success or final timeout)
+	done := make(chan struct{})
+	defer close(done)
+
+	// Start a single goroutine that broadcasts on timer expiration
+	// This goroutine exits when done is closed
+	go func() {
+		select {
+		case <-timer.C:
+			// Timeout expired - wake up the waiting goroutine
+			s.segmentCond.Broadcast()
+		case <-done:
+			// Wait completed successfully or final timeout reached
+		}
+	}()
+
 	for {
 		// Check if segment exists
 		if s.generatedSegments[segmentNum] {
@@ -134,26 +154,12 @@ func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration)
 		}
 
 		// Check timeout
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
+		if time.Now().After(deadline) {
 			break
 		}
 
-		// Wait for notification with timeout
-		// Use a goroutine to implement timeout since sync.Cond doesn't support it directly
-		done := make(chan struct{})
-		go func() {
-			select {
-			case <-time.After(remaining):
-				// Timeout - wake up the waiting goroutine
-				s.segmentCond.Broadcast()
-			case <-done:
-				// Segment arrived or context cancelled
-			}
-		}()
-
+		// Wait for notification (will be woken by Broadcast from segment watcher or timer)
 		s.segmentCond.Wait()
-		close(done)
 	}
 
 	return "", fmt.Errorf("timeout waiting for segment %d", segmentNum)

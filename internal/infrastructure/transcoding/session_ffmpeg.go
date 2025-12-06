@@ -50,17 +50,17 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 	if hwAccel != AccelNone && strategy == Transcode {
 		builder.AddHardwareAccel(GetHardwareAccelArgsWithDevice(hwAccel, hwDevice))
 
-		// For NVENC and QSV with HDR content, initialize OpenCL device for GPU tone mapping
-		// Both use tonemap_opencl for fast HDR→SDR conversion
-		// Only needed if not using libplacebo (which uses Vulkan instead)
-		if (hwAccel == AccelNVENC || hwAccel == AccelQSV) && config.ToneMappingEnabled && videoInfo != nil && videoInfo.IsHDR {
+		// For QSV with HDR content, initialize OpenCL device for GPU tone mapping
+		// NVENC uses libplacebo (Vulkan) for better reliability than OpenCL
+		// Only QSV needs OpenCL initialization now
+		if hwAccel == AccelQSV && config.ToneMappingEnabled && videoInfo != nil && videoInfo.IsHDR {
 			// Check if we need OpenCL (not using libplacebo)
 			backend := config.ToneMappingBackend
 			if backend == "" {
 				backend = "auto"
 			}
-			// In auto mode, both NVENC and QSV use OpenCL tone mapping (not libplacebo)
-			// libplacebo is only used for software encoding due to GPU transfer overhead
+			// QSV uses OpenCL tone mapping in auto mode
+			// libplacebo is only used when explicitly requested for QSV
 			if backend == "opencl" || backend == "auto" {
 				builder.AddOpenCLDevice().AddOpenCLFilterDevice()
 			}

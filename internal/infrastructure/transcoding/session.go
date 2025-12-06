@@ -67,6 +67,9 @@ type TranscodeSession struct {
 
 	// FFmpeg log capture for debugging
 	logWriter *LogWriter
+
+	// Progress watchdog to detect stalled FFmpeg processes
+	watchdog *ProgressWatchdog
 }
 
 // NewTranscodeSession creates a new transcode session but does not start it.
@@ -168,6 +171,10 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 			s.FFmpegStartedAt.Format("15:04:05.000"),
 			float64(s.FFmpegStartedAt.Sub(s.CreatedAt).Microseconds())/1000))
 	}
+
+	// Start progress watchdog to detect stalled FFmpeg processes (30 second timeout)
+	s.watchdog = NewProgressWatchdog(s, 30*time.Second)
+	s.watchdog.Start()
 
 	// Monitor stdout for HLS muxer progress (at DEBUG level)
 	go s.monitorStdout(stdout)
@@ -273,6 +280,11 @@ func (s *TranscodeSession) monitorStderr(stderr io.Reader) {
 				}
 			}
 
+			// Update watchdog whenever we see progress output
+			if s.watchdog != nil && strings.Contains(output, "frame=") {
+				s.watchdog.UpdateProgress()
+			}
+
 			// Detect first segment: look for seg_000000.ts being opened
 			if !s.firstSegmentLogged && strings.Contains(output, "seg_000000.ts") {
 				s.FirstSegmentAt = time.Now()
@@ -321,9 +333,16 @@ func (s *TranscodeSession) Stop() error {
 	// Cancel context to stop watchers
 	s.cancel()
 
+	// Stop progress watchdog
+	if s.watchdog != nil {
+		s.watchdog.Stop()
+	}
+
 	// Close fsnotify watcher if active
 	if s.fsWatcher != nil {
-		s.fsWatcher.Close()
+		if err := s.fsWatcher.Close(); err != nil {
+			s.logger.Warn("Failed to close fsnotify watcher", "session_id", s.ID, "error", err)
+		}
 	}
 
 	// Wake up any waiting goroutines so they can exit

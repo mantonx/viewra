@@ -8,29 +8,19 @@ import (
 // This is for software encoding - hardware encoders should use AddHardwareVideoEncoding.
 // Supports H.264, H.265, VP9, and AV1 codecs.
 func (b *FFmpegArgsBuilder) AddVideoEncoding() *FFmpegArgsBuilder {
-	p := b.opts.Profile
 	codec := b.getVideoCodec()
 
 	// Add codec-specific profile and settings
 	b.addCodecProfile(codec, AccelNone)
 
 	// Video bitrate control
-	b.args = append(b.args,
-		"-b:v", formatBitrate(p.VideoBitrate),
-		"-maxrate", formatBitrate(p.VideoMaxRate),
-		"-bufsize", formatBitrate(p.VideoBufSize),
-	)
+	b.addBitrateArgs()
 
 	// Build filter chain: tone mapping (if needed) + scaling
-	filterChain := b.buildToneMappingFilter(AccelNone) + b.buildScalingFilter(AccelNone, true)
-	b.args = append(b.args, "-vf", filterChain)
+	b.addVideoFilterChain(AccelNone, true)
 
 	// GOP structure for HLS
-	b.args = append(b.args,
-		"-g", strconv.Itoa(p.GOPSize),
-		"-keyint_min", strconv.Itoa(p.GOPSize),
-		"-sc_threshold", "0",
-	)
+	b.addGOPArgs(true)
 
 	return b
 }

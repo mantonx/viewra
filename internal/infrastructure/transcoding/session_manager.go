@@ -12,6 +12,13 @@ import (
 	"sync"
 )
 
+// ConfigProvider provides transcoding configuration.
+// This minimal interface allows the SessionManager to work with dynamic config
+// from the application layer without creating import cycles.
+type ConfigProvider interface {
+	GetConfig(ctx context.Context) *TranscodeConfig
+}
+
 // SessionManager manages active transcode sessions.
 // Handles session lifecycle, cleanup, and restart logic for seeking.
 type SessionManager struct {

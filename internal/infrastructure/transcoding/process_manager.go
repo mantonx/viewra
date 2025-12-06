@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"syscall"
 )
 
@@ -196,14 +197,5 @@ func hasFFmpegEncoder(encoder string) bool {
 	}
 
 	// Simple string search - encoder names are prefixed with " V" for video
-	return containsString(string(output), encoder)
-}
-
-// containsString is a simple helper for string searching.
-func containsString(haystack, needle string) bool {
-	return len(haystack) >= len(needle) &&
-		(haystack == needle ||
-			len(haystack) > len(needle) &&
-				(haystack[:len(needle)] == needle ||
-					containsString(haystack[1:], needle)))
+	return strings.Contains(string(output), encoder)
 }

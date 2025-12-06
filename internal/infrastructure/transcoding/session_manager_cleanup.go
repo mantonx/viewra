@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -155,7 +156,7 @@ func (m *SessionManager) CleanupIdleSessions(idleTimeout time.Duration) int {
 // Returns a cancel function that should be called to stop the cleanup goroutine.
 func (m *SessionManager) StartIdleCleanup(interval time.Duration, idleTimeout time.Duration) func() {
 	ticker := time.NewTicker(interval)
-	done := make(chan bool)
+	done := make(chan struct{})
 
 	go func() {
 		for {
@@ -169,9 +170,12 @@ func (m *SessionManager) StartIdleCleanup(interval time.Duration, idleTimeout ti
 		}
 	}()
 
-	// Return cancel function
+	// Return cancel function (safe to call multiple times)
+	var once sync.Once
 	return func() {
-		done <- true
+		once.Do(func() {
+			close(done)
+		})
 	}
 }
 

@@ -1,9 +1,5 @@
 package transcoding
 
-import (
-	"strconv"
-)
-
 // AddHardwareVideoEncoding adds hardware-specific video encoding settings.
 // Handles NVENC, QSV, VAAPI, and VideoToolbox with appropriate parameters.
 // Supports H.264, H.265, VP9, and AV1 codecs based on hardware support.
@@ -40,23 +36,10 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCode
 		"-tune", "hq", // High quality: better for preserving fine details
 		"-rc", "vbr",
 		"-cq", "21", // Quality level (lower = better quality, 18-23 typical range)
-		"-b:v", formatBitrate(p.VideoBitrate),
-		"-maxrate", formatBitrate(p.VideoMaxRate),
-		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
 
-	// Add codec-specific profile/level
-	switch codec {
-	case CodecH265:
-		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
-	case CodecAV1:
-		// AV1 NVENC (RTX 40 series+) doesn't use profile/level the same way
-		b.args = append(b.args, "-tier", "main")
-	default: // H.264
-		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
-		h264Level := getH264Level(p.Width, p.Height)
-		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
-	}
+	b.addBitrateArgs()
+	b.addCodecProfileArgs(codec, AccelNVENC)
 
 	// NVENC quality optimizations:
 	// - spatial-aq: Adaptive quantization based on spatial complexity (reduces blocking in flat areas)
@@ -74,17 +57,11 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCode
 		"-bf", "3",
 	)
 
-	// Build filter chain: tone mapping (if needed) + scaling
-	filterChain := b.buildToneMappingFilter(AccelNVENC) + b.buildScalingFilter(AccelNVENC, true)
-	b.args = append(b.args, "-vf", filterChain)
+	b.addVideoFilterChain(AccelNVENC, true)
 
 	// GOP structure
 	// sc_threshold 0: Disable scene change detection (use fixed GOP for HLS compatibility)
-	b.args = append(b.args,
-		"-g", strconv.Itoa(p.GOPSize),
-		"-keyint_min", strconv.Itoa(p.GOPSize),
-		"-sc_threshold", "0",
-	)
+	b.addGOPArgs(true)
 }
 
 // addQSVEncoding adds Intel Quick Sync Video encoding parameters.
@@ -95,71 +72,23 @@ func (b *FFmpegArgsBuilder) addQSVEncoding(p *AdaptiveProfile, codec VideoCodec)
 	b.args = append(b.args,
 		"-preset", "medium",
 		"-global_quality", "23",
-		"-b:v", formatBitrate(p.VideoBitrate),
-		"-maxrate", formatBitrate(p.VideoMaxRate),
-		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
 
-	// Add codec-specific profile/level
-	switch codec {
-	case CodecH265:
-		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
-	case CodecVP9:
-		// VP9 QSV doesn't use profile/level
-	case CodecAV1:
-		// AV1 QSV (Intel Arc/12th gen+)
-		b.args = append(b.args, "-tier", "main")
-	default: // H.264
-		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
-		h264Level := getH264Level(p.Width, p.Height)
-		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
-	}
-
-	// Build filter chain: tone mapping (if needed) + scaling
-	filterChain := b.buildToneMappingFilter(AccelQSV) + b.buildScalingFilter(AccelQSV, false)
-	b.args = append(b.args, "-vf", filterChain)
-
-	// GOP structure
-	b.args = append(b.args,
-		"-g", strconv.Itoa(p.GOPSize),
-		"-keyint_min", strconv.Itoa(p.GOPSize),
-	)
+	b.addBitrateArgs()
+	b.addCodecProfileArgs(codec, AccelQSV)
+	b.addVideoFilterChain(AccelQSV, false)
+	b.addGOPArgs(false)
 }
 
 // addVAAPIEncoding adds VAAPI (Intel/AMD) encoding parameters.
 // Optimized for full GPU pipeline: VAAPI decode → scale_vaapi → pad_vaapi → VAAPI encode
 func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *AdaptiveProfile, codec VideoCodec) {
-	b.args = append(b.args,
-		"-quality", "4",
-		"-b:v", formatBitrate(p.VideoBitrate),
-		"-maxrate", formatBitrate(p.VideoMaxRate),
-		"-bufsize", formatBitrate(p.VideoBufSize),
-	)
+	b.args = append(b.args, "-quality", "4")
 
-	// Add codec-specific profile/level
-	switch codec {
-	case CodecH265:
-		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
-	case CodecVP9:
-		// VP9 VAAPI doesn't use profile/level
-	case CodecAV1:
-		// AV1 VAAPI
-		b.args = append(b.args, "-tier", "main")
-	default: // H.264
-		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
-		h264Level := getH264Level(p.Width, p.Height)
-		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
-	}
-
-	// Build filter chain: tone mapping (if needed) + scaling
-	filterChain := b.buildToneMappingFilter(AccelVAAPI) + b.buildScalingFilter(AccelVAAPI, false)
-	b.args = append(b.args, "-vf", filterChain)
-
-	// GOP structure
-	b.args = append(b.args,
-		"-g", strconv.Itoa(p.GOPSize),
-		"-keyint_min", strconv.Itoa(p.GOPSize),
-	)
+	b.addBitrateArgs()
+	b.addCodecProfileArgs(codec, AccelVAAPI)
+	b.addVideoFilterChain(AccelVAAPI, false)
+	b.addGOPArgs(false)
 }
 
 // addVideoToolboxEncoding adds Apple VideoToolbox encoding parameters.
@@ -178,30 +107,11 @@ func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *AdaptiveProfile, codec VideoCode
 // This is a limitation of FFmpeg's VideoToolbox implementation, not our code.
 // Apple's AVFoundation framework supports hardware scaling, but FFmpeg doesn't expose it.
 func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *AdaptiveProfile, codec VideoCodec) {
-	b.args = append(b.args,
-		"-b:v", formatBitrate(p.VideoBitrate),
-		"-maxrate", formatBitrate(p.VideoMaxRate),
-		"-bufsize", formatBitrate(p.VideoBufSize),
-	)
-
-	// Add codec-specific profile/level
-	switch codec {
-	case CodecH265:
-		b.args = append(b.args, "-profile:v", "main", "-level", "5.1")
-	default: // H.264 (VideoToolbox doesn't support VP9 or AV1 encoding)
-		// Use appropriate level for resolution: 4.1 for 1080p, 5.1 for 4K
-		h264Level := getH264Level(p.Width, p.Height)
-		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
-	}
+	b.addBitrateArgs()
+	b.addCodecProfileArgs(codec, AccelVideoToolbox)
 
 	// Build filter chain: tone mapping (if needed) + scaling
 	// Note: VideoToolbox doesn't support hardware scaling in FFmpeg, so CPU filters are used
-	filterChain := b.buildToneMappingFilter(AccelVideoToolbox) + b.buildScalingFilter(AccelVideoToolbox, false)
-	b.args = append(b.args, "-vf", filterChain)
-
-	// GOP structure
-	b.args = append(b.args,
-		"-g", strconv.Itoa(p.GOPSize),
-		"-keyint_min", strconv.Itoa(p.GOPSize),
-	)
+	b.addVideoFilterChain(AccelVideoToolbox, false)
+	b.addGOPArgs(false)
 }

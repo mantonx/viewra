@@ -7,6 +7,7 @@
  */
 import type { GithubComMantonxViewraInternalApplicationMediaAudioTrackInfo } from './githubComMantonxViewraInternalApplicationMediaAudioTrackInfo'
 import type { GithubComMantonxViewraInternalApplicationMediaStreamingStrategy } from './githubComMantonxViewraInternalApplicationMediaStreamingStrategy'
+import type { GithubComMantonxViewraInternalApplicationMediaToneMappingInfo } from './githubComMantonxViewraInternalApplicationMediaToneMappingInfo'
 import type { GithubComMantonxViewraInternalApplicationMediaVideoStreamInfo } from './githubComMantonxViewraInternalApplicationMediaVideoStreamInfo'
 
 export interface GithubComMantonxViewraInternalApplicationMediaStreamInfoResponse {
@@ -20,6 +21,8 @@ export interface GithubComMantonxViewraInternalApplicationMediaStreamInfoRespons
   selected_audio_index?: number
   /** Streaming strategy (what type of processing will be used) */
   strategy?: GithubComMantonxViewraInternalApplicationMediaStreamingStrategy
+  /** Tone mapping information (for HDR content) */
+  tone_mapping?: GithubComMantonxViewraInternalApplicationMediaToneMappingInfo
   /** Video stream info */
   video?: GithubComMantonxViewraInternalApplicationMediaVideoStreamInfo
 }

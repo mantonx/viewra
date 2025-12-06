@@ -478,6 +478,14 @@ export const StatsPanel = memo(({
                   valueColor="text-purple-400"
                 />
               )}
+              {stats.output.toneMapping?.enabled && (
+                <StatRow
+                  label="Tone Mapping"
+                  value={stats.output.toneMapping.algorithm?.toUpperCase() ?? 'Enabled'}
+                  valueColor="text-orange-400"
+                  subValue={stats.output.toneMapping.backend}
+                />
+              )}
               {stats.source.video.colorSpace && (
                 <StatRow
                   label="Color Space"

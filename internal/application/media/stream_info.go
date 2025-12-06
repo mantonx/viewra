@@ -59,6 +59,13 @@ type StreamingStrategy struct {
 	Reason string `json:"reason"` // Human-readable explanation
 }
 
+// ToneMappingInfo contains information about HDR to SDR tone mapping
+type ToneMappingInfo struct {
+	Enabled   bool   `json:"enabled"`             // Whether tone mapping is active for this stream
+	Algorithm string `json:"algorithm,omitempty"` // Algorithm being used (bt.2390, hable, mobius, etc.)
+	Backend   string `json:"backend,omitempty"`   // Backend being used (libplacebo, opencl, vaapi, cpu)
+}
+
 // StreamInfoResponse contains detailed stream information for the stats panel
 type StreamInfoResponse struct {
 	// Source file info
@@ -76,6 +83,9 @@ type StreamInfoResponse struct {
 
 	// Streaming strategy (what type of processing will be used)
 	Strategy StreamingStrategy `json:"strategy"`
+
+	// Tone mapping information (for HDR content)
+	ToneMapping *ToneMappingInfo `json:"tone_mapping,omitempty"`
 }
 
 // Execute retrieves detailed stream information for a media file
@@ -153,6 +163,9 @@ func (uc *StreamInfoUseCase) Execute(ctx context.Context, mediaID int64) (*Strea
 		Mode:   strategyToMode(strategy),
 		Reason: reason,
 	}
+
+	// Add tone mapping info for HDR content
+	response.ToneMapping = getToneMappingInfo(videoInfo, strategy)
 
 	return response, nil
 }
@@ -234,6 +247,9 @@ func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaI
 		Mode:   strategyToMode(strategy),
 		Reason: reason,
 	}
+
+	// Add tone mapping info for HDR content
+	response.ToneMapping = getToneMappingInfo(videoInfo, strategy)
 
 	return response, nil
 }
@@ -346,4 +362,59 @@ func equalIgnoreCase(a, b string) bool {
 		}
 	}
 	return true
+}
+
+// getToneMappingInfo returns tone mapping information for HDR content.
+// Returns nil if content is not HDR or doesn't require tone mapping.
+func getToneMappingInfo(videoInfo *transcoding.VideoInfo, strategy transcoding.StreamStrategy) *ToneMappingInfo {
+	// Only applicable for HDR content being transcoded
+	if videoInfo == nil || !videoInfo.IsHDR {
+		return nil
+	}
+
+	// Only transcode strategy performs tone mapping
+	// Direct play, remux modes don't process video
+	if strategy != transcoding.Transcode {
+		return nil
+	}
+
+	// Get current tone mapping config from defaults (reads env vars)
+	config := transcoding.DefaultTranscodeConfig()
+
+	if !config.ToneMappingEnabled {
+		return &ToneMappingInfo{
+			Enabled: false,
+		}
+	}
+
+	// Determine the backend being used
+	backend := config.ToneMappingBackend
+	if backend == "" || backend == "auto" {
+		// Auto mode: determine based on hardware acceleration
+		// NVENC uses libplacebo, VAAPI uses native, others use OpenCL/CPU
+		switch config.HardwareAccel {
+		case transcoding.AccelNVENC:
+			if transcoding.CheckFFmpegFilter("libplacebo") {
+				backend = "libplacebo"
+			} else {
+				backend = "opencl"
+			}
+		case transcoding.AccelVAAPI:
+			backend = "vaapi"
+		case transcoding.AccelNone:
+			if transcoding.CheckFFmpegFilter("libplacebo") {
+				backend = "libplacebo"
+			} else {
+				backend = "cpu"
+			}
+		default:
+			backend = "opencl"
+		}
+	}
+
+	return &ToneMappingInfo{
+		Enabled:   true,
+		Algorithm: config.ToneMappingAlgorithm,
+		Backend:   backend,
+	}
 }

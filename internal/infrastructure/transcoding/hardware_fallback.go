@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 )
 
 // HardwareFallbackManager handles automatic fallback from hardware to software encoding
@@ -11,6 +12,7 @@ import (
 type HardwareFallbackManager struct {
 	config        *TranscodeConfig
 	logger        *slog.Logger
+	mu            sync.Mutex // Protects failureCount map
 	failureCount  map[HardwareAccel]int
 	maxRetries    int
 	fallbackChain []HardwareAccel
@@ -45,15 +47,19 @@ func (m *HardwareFallbackManager) RecordFailure(hwAccel HardwareAccel, err error
 		return false
 	}
 
+	m.mu.Lock()
 	m.failureCount[hwAccel]++
+	count := m.failureCount[hwAccel]
+	m.mu.Unlock()
+
 	m.logger.Warn("Hardware encoding failure detected",
 		"hardware", hwAccel,
-		"failure_count", m.failureCount[hwAccel],
+		"failure_count", count,
 		"error", err,
 	)
 
 	// Check if we should fallback
-	if m.failureCount[hwAccel] >= m.maxRetries {
+	if count >= m.maxRetries {
 		return m.fallbackToNext(hwAccel)
 	}
 
@@ -157,6 +163,9 @@ func (m *HardwareFallbackManager) getEncoderForAccel(hwAccel HardwareAccel) (str
 
 // ResetFailureCount resets the failure count for successful encodes.
 func (m *HardwareFallbackManager) ResetFailureCount(hwAccel HardwareAccel) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.failureCount[hwAccel] > 0 {
 		m.logger.Debug("Resetting failure count", "hardware", hwAccel)
 		delete(m.failureCount, hwAccel)

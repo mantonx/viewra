@@ -153,10 +153,22 @@ else
     echo "  Missing: openssl/gnutls (HTTPS disabled)"
 fi
 
-# Hardware acceleration
-if [ -d /usr/local/cuda ] || [ -d /opt/cuda ] || check_lib cuda; then
-    echo "  Found: CUDA (enabling NVENC/NVDEC)"
-    EXTRA_FLAGS="${EXTRA_FLAGS} --enable-cuda-llvm --enable-nvenc --enable-nvdec"
+# Hardware acceleration - NVIDIA NVENC/NVDEC
+# Requires: nv-codec-headers (provides ffnvcodec pkg-config)
+# On Arch: pacman -S ffnvcodec-headers
+# On Ubuntu/Debian: apt install libnvidia-encode-* or build from source
+# On Fedora: dnf install nv-codec-headers
+if pkg-config --exists ffnvcodec 2>/dev/null; then
+    echo "  Found: ffnvcodec (enabling NVENC/NVDEC hardware encoding)"
+    # --enable-cuda-llvm uses clang for CUDA kernels (no nvcc needed)
+    # --enable-ffnvcodec enables the NVENC/NVDEC API
+    # --enable-cuvid enables NVIDIA CUVID (hardware decoding)
+    # Note: We don't need --enable-cuda-nvcc since we're not compiling CUDA kernels
+    EXTRA_FLAGS="${EXTRA_FLAGS} --enable-ffnvcodec --enable-cuda-llvm --enable-cuvid"
+else
+    echo "  Missing: ffnvcodec-headers (NVENC/NVDEC disabled)"
+    echo "           Install: pacman -S ffnvcodec-headers (Arch)"
+    echo "                    apt install libnvidia-encode-* (Ubuntu)"
 fi
 
 if check_lib libva; then

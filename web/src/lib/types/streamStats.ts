@@ -101,6 +101,13 @@ export interface SessionStats {
   timeSinceStart: number      // ms since playback started
 }
 
+// Tone mapping info (for HDR content)
+export interface ToneMappingInfo {
+  enabled: boolean            // Whether tone mapping is active
+  algorithm?: string          // Algorithm used (bt.2390, hable, mobius, etc.)
+  backend?: string            // Backend used (libplacebo, opencl, vaapi, cpu)
+}
+
 // Combined stats object
 export interface StreamStats {
   source: {
@@ -112,6 +119,7 @@ export interface StreamStats {
     stream: OutputStreamInfo
     video?: OutputVideoInfo
     audio?: OutputAudioInfo
+    toneMapping?: ToneMappingInfo  // Tone mapping info (HDR → SDR)
   }
   playback: PlaybackQualityStats
   hls?: HLSStats

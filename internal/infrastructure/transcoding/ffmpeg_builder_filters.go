@@ -201,10 +201,14 @@ func (b *FFmpegArgsBuilder) getToneMappingLibPlaceboAlgorithm() string {
 // Returns true if:
 //  1. Tone mapping backend is explicitly set to "libplacebo"
 //  2. libplacebo filter is available in FFmpeg
-//  3. We're using software encoding (where libplacebo has no GPU transfer overhead)
+//  3. We're using software encoding OR NVENC (where libplacebo works reliably)
 //
-// For hardware encoding (NVENC, VAAPI, QSV), OpenCL/native tone mapping is preferred
-// as libplacebo requires expensive GPU↔CPU transfers that impact performance.
+// For VAAPI and QSV, native tone mapping is preferred as it's fully GPU-based.
+// For NVENC, libplacebo is preferred because:
+//   - OpenCL tone mapping has reliability issues (memory allocation failures)
+//   - libplacebo uses Vulkan which is more stable on NVIDIA
+//   - Quality is excellent with bt.2390 algorithm
+//
 // Users can opt-in to libplacebo via TONE_MAPPING_BACKEND=libplacebo for better quality.
 func (b *FFmpegArgsBuilder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
 	backend := b.opts.ToneMappingBackend
@@ -222,14 +226,18 @@ func (b *FFmpegArgsBuilder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
 		return false
 	}
 
-	// Auto mode: Only use libplacebo for software encoding
-	// Hardware encoding should use OpenCL/native for performance
+	// Auto mode: Use libplacebo for software encoding and NVENC
+	// VAAPI/QSV have native tone mapping that's fully GPU-based
 	switch hwAccel {
 	case AccelNone:
 		// Software encoding: libplacebo provides best quality without transfer overhead
 		return CheckFFmpegFilter("libplacebo")
+	case AccelNVENC:
+		// NVENC: libplacebo via Vulkan is more reliable than OpenCL
+		// OpenCL has memory allocation issues on some systems
+		return CheckFFmpegFilter("libplacebo")
 	default:
-		// Hardware encoding: use OpenCL/native tone mapping for performance
+		// VAAPI/QSV: use native tone mapping for fully GPU-based processing
 		return false
 	}
 }

@@ -15,6 +15,7 @@ import type {
   BufferStats,
   SessionStats,
   PlaybackMode,
+  ToneMappingInfo,
 } from '@/lib/types/streamStats'
 
 // Helper to convert CodecSupport to header value
@@ -287,6 +288,16 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
     const needsAudioTranscode = actualMode === 'transcode' || actualMode === 'remux_audio' || actualMode === 'remux_hevc'
     const isVideoCopied = actualMode === 'remux' || actualMode === 'remux_audio' || actualMode === 'remux_hevc'
 
+    // Build tone mapping info from API response
+    let toneMapping: ToneMappingInfo | undefined
+    if (apiData?.tone_mapping) {
+      toneMapping = {
+        enabled: apiData.tone_mapping.enabled ?? false,
+        algorithm: apiData.tone_mapping.algorithm,
+        backend: apiData.tone_mapping.backend,
+      }
+    }
+
     return {
       stream,
       video: needsVideoTranscode
@@ -316,6 +327,7 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
                   : 'Audio transcoded to AAC',
           }
         : undefined,
+      toneMapping,
     }
   }, [playbackMode, apiData, getHLSStats])
 

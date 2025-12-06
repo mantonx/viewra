@@ -2,7 +2,6 @@ package transcoding
 
 import (
 	"log/slog"
-	"sort"
 )
 
 // ClientCapabilities represents the detected capabilities of a client device.
@@ -18,7 +17,7 @@ type ClientCapabilities struct {
 	ScreenHeight int
 	PixelRatio   float64
 
-	// Performance
+	// Performance (optional, not used for quality selection)
 	CPUCores     int
 	MemoryGB     float64
 	LowPowerMode bool
@@ -51,269 +50,170 @@ func NewQualityRecommender(logger *slog.Logger) *QualityRecommender {
 }
 
 // RecommendQuality recommends the best quality profile for given client capabilities.
+// This provides an initial quality hint to HLS.js, which will then adapt based on
+// actual network performance. Keep it simple - HLS.js does the heavy lifting.
 func (qr *QualityRecommender) RecommendQuality(caps ClientCapabilities) *QualityRecommendation {
-	recommendations := qr.RecommendMultipleQualities(caps, 1)
-	if len(recommendations) == 0 {
-		// Fallback to safest profile
-		profile, _ := GetAdaptiveProfile(Quality480p)
-		return &QualityRecommendation{
-			Profile: profile,
-			Score:   0.5,
-			Reason:  "fallback to safe default",
+	networkMbps := caps.NetworkSpeedMbps
+	screenHeight := caps.ScreenHeight
+
+	// If network speed is unknown/failed, assume a decent connection
+	// HLS.js will measure actual throughput and adapt accordingly
+	if networkMbps <= 0 {
+		networkMbps = 50.0
+	}
+
+	qr.logger.Info("recommending quality",
+		"network_mbps", networkMbps,
+		"screen_height", screenHeight,
+		"device", caps.DeviceType,
+	)
+
+	// Simple bandwidth + screen resolution selection
+	// HLS.js will adapt from this starting point based on real network performance
+	var profileID string
+	var reason string
+
+	switch {
+	// 4K selection - need fast network AND 4K screen
+	case networkMbps >= 60 && screenHeight >= 2160:
+		profileID = Quality4k60m
+		reason = "4K screen with excellent network"
+	case networkMbps >= 40 && screenHeight >= 2160:
+		profileID = Quality4k40m
+		reason = "4K screen with good network"
+	case networkMbps >= 25 && screenHeight >= 2160:
+		profileID = Quality4k25m
+		reason = "4K screen with moderate network"
+	case networkMbps >= 15 && screenHeight >= 2160:
+		profileID = Quality4k15m
+		reason = "4K screen with acceptable network"
+
+	// 1080p selection - most common case
+	case networkMbps >= 40 && screenHeight >= 1080:
+		profileID = Quality1080p40m
+		reason = "1080p screen with excellent network"
+	case networkMbps >= 20 && screenHeight >= 1080:
+		profileID = Quality1080p20m
+		reason = "1080p screen with good network"
+	case networkMbps >= 10 && screenHeight >= 1080:
+		profileID = Quality1080p10m
+		reason = "1080p screen with moderate network"
+	case networkMbps >= 4 && screenHeight >= 1080:
+		profileID = Quality1080p4m
+		reason = "1080p screen with limited network"
+
+	// 720p selection
+	case networkMbps >= 4 && screenHeight >= 720:
+		profileID = Quality720p4m
+		reason = "720p screen with moderate network"
+	case networkMbps >= 2 && screenHeight >= 720:
+		profileID = Quality720p2m
+		reason = "720p screen with limited network"
+
+	// SD fallbacks
+	case networkMbps >= 1:
+		profileID = Quality480p
+		reason = "SD fallback for poor network"
+	default:
+		profileID = Quality360p
+		reason = "lowest quality for very poor connection"
+	}
+
+	// Apply metered connection penalty - drop down one tier
+	if caps.IsMetered && networkMbps > 5 {
+		reason += " (reduced for metered connection)"
+		// Simple downgrade logic
+		switch profileID {
+		case Quality4k60m, Quality4k40m:
+			profileID = Quality4k25m
+		case Quality4k25m:
+			profileID = Quality4k15m
+		case Quality4k15m:
+			profileID = Quality1080p20m
+		case Quality1080p60m, Quality1080p40m:
+			profileID = Quality1080p20m
+		case Quality1080p20m:
+			profileID = Quality1080p10m
+		case Quality1080p10m:
+			profileID = Quality1080p4m
+		case Quality1080p4m:
+			profileID = Quality720p4m
+		case Quality720p4m:
+			profileID = Quality720p2m
 		}
 	}
-	return recommendations[0]
+
+	profile, err := GetAdaptiveProfile(profileID)
+	if err != nil {
+		// Fallback to safe default
+		profile, _ = GetAdaptiveProfile(Quality480p)
+		reason = "fallback to safe default"
+	}
+
+	qr.logger.Info("quality recommendation",
+		"selected_profile", profileID,
+		"height", profile.Height,
+		"reason", reason,
+	)
+
+	return &QualityRecommendation{
+		Profile: profile,
+		Score:   1.0,
+		Reason:  reason,
+	}
 }
 
 // RecommendMultipleQualities returns top N recommended quality profiles.
+// For adaptive streaming, this is simplified - just return profiles that fit
+// within the network and screen constraints.
 func (qr *QualityRecommender) RecommendMultipleQualities(caps ClientCapabilities, count int) []*QualityRecommendation {
-	allProfiles := GetAllAdaptiveProfiles()
-	recommendations := make([]*QualityRecommendation, 0, len(allProfiles))
-
-	qr.logger.Info("starting quality recommendation",
-		"network_mbps", caps.NetworkSpeedMbps,
-		"device", caps.DeviceType,
-		"screen_width", caps.ScreenWidth,
-		"screen_height", caps.ScreenHeight,
-		"supported_codecs", caps.SupportedCodecs,
-		"total_profiles", len(allProfiles),
-	)
-
-	for _, profile := range allProfiles {
-		score, reason := qr.scoreProfile(profile, caps)
-		if score > 0 {
-			recommendations = append(recommendations, &QualityRecommendation{
-				Profile: profile,
-				Score:   score,
-				Reason:  reason,
-			})
-		} else {
-			// Log why profile was rejected (only for 1080p+ profiles to reduce noise)
-			if profile.Height >= 1080 {
-				qr.logger.Debug("profile rejected",
-					"profile", profile.ID,
-					"height", profile.Height,
-					"reason", reason,
-				)
-			}
-		}
-	}
-
-	// Sort by score (descending)
-	sort.Slice(recommendations, func(i, j int) bool {
-		return recommendations[i].Score > recommendations[j].Score
-	})
-
-	// Return top N
-	if len(recommendations) > count {
-		recommendations = recommendations[:count]
-	}
-
-	// Log top recommendations
-	if len(recommendations) > 0 {
-		top := recommendations[0]
-		qr.logger.Info("quality recommendation result",
-			"top_profile", top.Profile.ID,
-			"top_score", top.Score,
-			"top_height", top.Profile.Height,
-			"total_valid", len(recommendations),
-		)
-	} else {
-		qr.logger.Warn("no valid profiles found, will use fallback")
-	}
-
-	return recommendations
-}
-
-// scoreProfile calculates a compatibility score (0-1) for a profile given client capabilities.
-// Network capability is the primary factor - if you have a fast connection, you get high quality.
-// Screen size is informational only and doesn't reject profiles.
-func (qr *QualityRecommender) scoreProfile(profile *AdaptiveProfile, caps ClientCapabilities) (float64, string) {
-	score := 1.0
-	reasons := []string{}
-
-	// 1. Network speed compatibility (critical - primary factor)
-	networkScore := qr.scoreNetwork(profile, caps)
-	if networkScore == 0 {
-		return 0, "insufficient network speed"
-	}
-	score *= networkScore
-
-	// 2. Codec compatibility (critical)
-	codecScore := qr.scoreCodec(profile, caps)
-	if codecScore == 0 {
-		return 0, "codec not supported"
-	}
-	score *= codecScore
-
-	// 3. Prefer higher quality when network allows
-	// This ensures fast connections get the highest quality regardless of screen size
-	qualityBonus := float64(profile.Height) / 2160.0 // Normalize to 4K
-	if qualityBonus > 1.0 {
-		qualityBonus = 1.0
-	}
-	score *= (0.8 + 0.2*qualityBonus) // 80-100% based on resolution
-
-	// 4. Device type compatibility (minor factor)
-	deviceScore := qr.scoreDeviceType(profile, caps)
-	score *= deviceScore
-
-	// 5. Power considerations (moderate - only affects mobile/battery)
-	powerScore := qr.scorePower(profile, caps)
-	score *= powerScore
-
-	// 6. Metered connection penalty (significant)
-	if caps.IsMetered && profile.MinNetworkMbps > 5.0 {
-		score *= 0.5
-		reasons = append(reasons, "metered connection penalty")
-	}
-
-	// Build reason string
-	reason := "optimal match"
-	if len(reasons) > 0 {
-		reason = reasons[0]
-	}
-
-	return score, reason
-}
-
-// scoreNetwork evaluates network speed compatibility.
-func (qr *QualityRecommender) scoreNetwork(profile *AdaptiveProfile, caps ClientCapabilities) float64 {
-	requiredMbps := profile.MinNetworkMbps
-	availableMbps := caps.NetworkSpeedMbps
-
-	// If network speed is unknown/failed (-1 or 0), assume a decent connection
-	// This prevents defaulting to lowest quality when measurement fails
-	// Actual quality will adapt during playback based on real throughput
-	if availableMbps <= 0 {
-		availableMbps = 50.0 // Assume 50 Mbps as reasonable default
-	}
-
-	// Need at least the minimum
-	if availableMbps < requiredMbps {
-		return 0
-	}
-
-	// Buffer factor: prefer profiles that use 60-80% of available bandwidth
-	usageRatio := requiredMbps / availableMbps
-
-	if usageRatio <= 0.6 {
-		// Under-utilizing bandwidth, but not a dealbreaker
-		return 0.8
-	} else if usageRatio <= 0.8 {
-		// Optimal range: 60-80% utilization
-		return 1.0
-	} else if usageRatio <= 0.95 {
-		// Close to max, but acceptable with buffer
-		return 0.9
-	} else {
-		// Too close to limit, potential buffering
-		return 0.7
-	}
-}
-
-// scoreDeviceType evaluates device type compatibility.
-func (qr *QualityRecommender) scoreDeviceType(profile *AdaptiveProfile, caps ClientCapabilities) float64 {
-	// Check if device type is in recommended list
-	for _, recommendedDevice := range profile.RecommendedFor {
-		if recommendedDevice == caps.DeviceType {
-			return 1.0
-		}
-	}
-
-	// Not explicitly recommended, but not disqualifying
-	return 0.8
-}
-
-// scoreCodec evaluates codec compatibility.
-func (qr *QualityRecommender) scoreCodec(profile *AdaptiveProfile, caps ClientCapabilities) float64 {
-	// If no codecs reported, assume h264 is supported (universal compatibility)
-	// This handles cases where codec detection failed on the client
-	supportedCodecs := caps.SupportedCodecs
-	if len(supportedCodecs) == 0 {
-		supportedCodecs = []string{"h264"}
-	}
-
-	// Check if preferred codec is supported
-	for _, supportedCodec := range supportedCodecs {
-		if supportedCodec == profile.PreferredCodec {
-			return 1.0
-		}
-	}
-
-	// Check if any fallback codec is supported
-	for _, fallbackCodec := range profile.FallbackCodecs {
-		for _, supportedCodec := range supportedCodecs {
-			if supportedCodec == fallbackCodec {
-				return 0.9 // Slightly lower score for fallback
-			}
-		}
-	}
-
-	// No compatible codec
-	return 0
-}
-
-// scorePower evaluates power/battery considerations.
-func (qr *QualityRecommender) scorePower(profile *AdaptiveProfile, caps ClientCapabilities) float64 {
-	score := 1.0
-
-	// Low power mode penalty for high-quality profiles
-	if caps.LowPowerMode {
-		switch profile.QualityTier {
-		case "ultra":
-			score *= 0.5
-		case "high":
-			score *= 0.8
-		}
-	}
-
-	// Low battery penalty for high bitrates (only if not charging)
-	if !caps.IsCharging && caps.BatteryLevel > 0 && caps.BatteryLevel < 0.2 {
-		if profile.VideoBitrate > 10_000_000 { // > 10 Mbps
-			score *= 0.6
-		}
-	}
-
-	// Hardware acceleration bonus for high-res profiles
-	if caps.HardwareAcceleration && (profile.Width >= 1920 || profile.FrameRate >= 60) {
-		score *= 1.1 // 10% bonus
-	}
-
-	return score
+	// For now, just return the single best recommendation
+	// HLS.js handles the adaptive ladder itself
+	recommendation := qr.RecommendQuality(caps)
+	return []*QualityRecommendation{recommendation}
 }
 
 // GetAdaptiveLadder returns a set of quality profiles for adaptive streaming (ABR ladder).
+// Returns a simplified ladder - HLS.js will select from available variants in the master playlist.
 func (qr *QualityRecommender) GetAdaptiveLadder(caps ClientCapabilities) []*AdaptiveProfile {
-	// Get all compatible profiles
-	allRecommendations := qr.RecommendMultipleQualities(caps, 100)
+	networkMbps := caps.NetworkSpeedMbps
+	if networkMbps <= 0 {
+		networkMbps = 50.0
+	}
 
-	// Build ladder with diverse quality levels
+	screenHeight := caps.ScreenHeight
+
+	// Build a simple ladder with key quality levels
 	ladder := make([]*AdaptiveProfile, 0, 6)
 
 	// Always include lowest quality for poor conditions
-	lowest, _ := GetAdaptiveProfile(Quality360p)
-	ladder = append(ladder, lowest)
-
-	// Include profiles at different bitrate levels
-	targetBitrates := []int{
-		1_000_000,  // ~1 Mbps (SD)
-		2_000_000,  // ~2 Mbps (720p low)
-		4_000_000,  // ~4 Mbps (720p/1080p)
-		10_000_000, // ~10 Mbps (1080p)
-		20_000_000, // ~20 Mbps (1080p high)
+	if profile, err := GetAdaptiveProfile(Quality360p); err == nil {
+		ladder = append(ladder, profile)
 	}
 
-	for _, targetBitrate := range targetBitrates {
-		closestProfile := qr.findClosestProfile(allRecommendations, targetBitrate)
-		if closestProfile != nil && !qr.isInLadder(ladder, closestProfile) {
-			ladder = append(ladder, closestProfile)
+	// Add intermediate qualities
+	if profile, err := GetAdaptiveProfile(Quality480p); err == nil {
+		ladder = append(ladder, profile)
+	}
+	if profile, err := GetAdaptiveProfile(Quality720p2m); err == nil {
+		ladder = append(ladder, profile)
+	}
+	if profile, err := GetAdaptiveProfile(Quality1080p4m); err == nil {
+		ladder = append(ladder, profile)
+	}
+
+	// Add high quality if network allows
+	if networkMbps >= 10 {
+		if profile, err := GetAdaptiveProfile(Quality1080p10m); err == nil {
+			ladder = append(ladder, profile)
 		}
 	}
 
-	// Add best quality profile as top rung
-	if len(allRecommendations) > 0 && !qr.isInLadder(ladder, allRecommendations[0].Profile) {
-		ladder = append(ladder, allRecommendations[0].Profile)
+	// Add 4K if screen and network support it
+	if networkMbps >= 20 && screenHeight >= 2160 {
+		if profile, err := GetAdaptiveProfile(Quality4k20m); err == nil {
+			ladder = append(ladder, profile)
+		}
 	}
 
 	qr.logger.Info("adaptive ladder generated",
@@ -322,35 +222,6 @@ func (qr *QualityRecommender) GetAdaptiveLadder(caps ClientCapabilities) []*Adap
 	)
 
 	return ladder
-}
-
-// findClosestProfile finds the profile closest to target bitrate.
-func (qr *QualityRecommender) findClosestProfile(recommendations []*QualityRecommendation, targetBitrate int) *AdaptiveProfile {
-	var closest *AdaptiveProfile
-	minDiff := int(^uint(0) >> 1) // max int
-
-	for _, rec := range recommendations {
-		diff := rec.Profile.VideoBitrate - targetBitrate
-		if diff < 0 {
-			diff = -diff
-		}
-		if diff < minDiff {
-			minDiff = diff
-			closest = rec.Profile
-		}
-	}
-
-	return closest
-}
-
-// isInLadder checks if a profile is already in the ladder.
-func (qr *QualityRecommender) isInLadder(ladder []*AdaptiveProfile, profile *AdaptiveProfile) bool {
-	for _, p := range ladder {
-		if p.ID == profile.ID {
-			return true
-		}
-	}
-	return false
 }
 
 // RecommendCodec recommends the best codec for the given client capabilities and hardware.
@@ -366,12 +237,7 @@ func (qr *QualityRecommender) RecommendCodec(caps ClientCapabilities, hwAccel Ha
 	qr.logger.Debug("recommending codec",
 		"supported_codecs", caps.SupportedCodecs,
 		"hw_accel", hwAccel,
-		"device", caps.DeviceType,
-		"low_power", caps.LowPowerMode,
 	)
-
-	// For low power mode or metered connections, prefer more efficient codecs
-	preferEfficiency := caps.LowPowerMode || caps.IsMetered
 
 	// Check codecs in order of compression efficiency
 	// AV1 > H.265/VP9 > H.264
@@ -384,22 +250,17 @@ func (qr *QualityRecommender) RecommendCodec(caps ClientCapabilities, hwAccel Ha
 
 	// Try H.265 (25% better compression than H.264, good browser support)
 	if supported["h265"] && IsCodecSupported(hwAccel, CodecH265) {
-		// H.265 is great for Safari and Edge
-		qr.logger.Info("recommending codec", "codec", "h265", "reason", "good compression, Safari/Edge support")
+		qr.logger.Info("recommending codec", "codec", "h265", "reason", "good compression")
 		return CodecH265
 	}
 
 	// Try VP9 (similar to H.265, Chrome/Firefox preferred)
 	if supported["vp9"] && IsCodecSupported(hwAccel, CodecVP9) {
-		// VP9 is royalty-free and well-supported in Chrome/Firefox
-		qr.logger.Info("recommending codec", "codec", "vp9", "reason", "royalty-free, Chrome/Firefox support")
+		qr.logger.Info("recommending codec", "codec", "vp9", "reason", "royalty-free")
 		return CodecVP9
 	}
 
 	// Fall back to H.264 (universal compatibility)
-	// Note: preferEfficiency could be used for future enhancement where we might
-	// weight codecs differently based on power constraints
-	_ = preferEfficiency
 	qr.logger.Info("recommending codec", "codec", "h264", "reason", "universal fallback")
 	return CodecH264
 }
