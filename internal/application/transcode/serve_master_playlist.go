@@ -20,6 +20,10 @@ type ServeMasterPlaylistRequest struct {
 	// StartPosition for seeking (passed through to variant URLs)
 	StartPosition string
 
+	// AudioTrackIndex specifies which audio track to mux into segments
+	// -1 means default (first audio track), >= 0 is the FFmpeg stream index
+	AudioTrackIndex int
+
 	// User preferences for track selection
 	PreferredAudioLanguage    string // ISO 639-2 code (eng, fra, jpn, etc.)
 	PreferredSubtitleLanguage string // ISO 639-2 code or "off"
@@ -30,6 +34,7 @@ type buildVariantParams struct {
 	startPosition        string
 	strategy             transcoding.StreamStrategy
 	supportedVideoCodecs []string
+	audioTrackIndex      int // -1 means default, >= 0 is FFmpeg stream index
 }
 
 // ServeMasterPlaylistResponse represents the result.
@@ -124,6 +129,7 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 			startPosition:        req.StartPosition,
 			strategy:             strategy,
 			supportedVideoCodecs: req.SupportedVideoCodecs,
+			audioTrackIndex:      req.AudioTrackIndex,
 		}
 		playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, variantParams, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
 
@@ -139,6 +145,7 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		startPosition:        req.StartPosition,
 		strategy:             transcoding.Transcode,
 		supportedVideoCodecs: req.SupportedVideoCodecs,
+		audioTrackIndex:      req.AudioTrackIndex,
 	}
 	playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, variantParams, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
 
@@ -208,7 +215,7 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 
 		playlist += streamInf + "\n"
 
-		// Build variant URL with query parameters including strategy and codecs
+		// Build variant URL with query parameters including strategy, codecs, and audio track
 		// This ensures HLS.js requests use the correct strategy without needing headers
 		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.ID)
 		queryParams := []string{}
@@ -220,6 +227,11 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 		}
 		if len(params.supportedVideoCodecs) > 0 {
 			queryParams = append(queryParams, "codecs="+strings.Join(params.supportedVideoCodecs, ","))
+		}
+		// Include audio track selection for multi-audio support
+		// Only include if non-default (>= 0) since -1 means use default first track
+		if params.audioTrackIndex >= 0 {
+			queryParams = append(queryParams, fmt.Sprintf("audioTrack=%d", params.audioTrackIndex))
 		}
 		if len(queryParams) > 0 {
 			variantURL += "?" + strings.Join(queryParams, "&")
@@ -326,96 +338,6 @@ func (uc *ServeMasterPlaylistUseCase) buildSubtitleTrackName(track *media.Subtit
 	}
 	if track.IsCommentary {
 		name += " (Commentary)"
-	}
-
-	return name
-}
-
-// buildAudioRenditions generates EXT-X-MEDIA tags for audio track selection.
-func (uc *ServeMasterPlaylistUseCase) buildAudioRenditions(audioTracks []*media.AudioTrack, preferredLang string, startPosition string) string {
-	var result strings.Builder
-
-	// Determine which track should be default
-	defaultTrackIdx := 0
-	for i, track := range audioTracks {
-		// Prefer user's language
-		if track.Language == preferredLang && !track.IsCommentary {
-			defaultTrackIdx = i
-			break
-		}
-		// Fall back to track marked as default
-		if track.IsDefault && !track.IsCommentary {
-			defaultTrackIdx = i
-		}
-	}
-
-	for i, track := range audioTracks {
-		isDefault := i == defaultTrackIdx
-
-		// Build track name
-		name := uc.buildAudioTrackName(track)
-
-		// Convert ISO 639-2 to ISO 639-1 for HLS LANGUAGE attribute
-		lang := convertToISO6391(track.Language)
-
-		// Build characteristics for accessibility
-		characteristics := ""
-		if track.IsDescriptive {
-			characteristics = ",CHARACTERISTICS=\"public.accessibility.describes-video\""
-		}
-
-		// Use relative audio index (i) for the URI, not the absolute FFmpeg stream index.
-		// This matches FFmpeg's -map 0:a:N selector which uses relative audio indices,
-		// and aligns with HLS.js's audioTracks array indexing.
-		audioURI := fmt.Sprintf("audio/%d/playlist.m3u8", i)
-		if startPosition != "" {
-			audioURI += "?start=" + startPosition
-		}
-
-		result.WriteString(fmt.Sprintf(
-			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"%s\",LANGUAGE=\"%s\",DEFAULT=%s,AUTOSELECT=%s%s,URI=\"%s\"\n",
-			name,
-			lang,
-			boolToYesNo(isDefault),
-			boolToYesNo(isDefault),
-			characteristics,
-			audioURI,
-		))
-	}
-
-	return result.String()
-}
-
-// buildAudioTrackName creates a human-readable name for an audio track.
-func (uc *ServeMasterPlaylistUseCase) buildAudioTrackName(track *media.AudioTrack) string {
-	// Use title if available
-	if track.Title != "" {
-		return track.Title
-	}
-
-	// Build name from language and characteristics
-	name := getLanguageName(track.Language)
-
-	// Add channel layout info
-	if track.Channels > 0 {
-		switch track.Channels {
-		case 1:
-			name += " (Mono)"
-		case 2:
-			name += " (Stereo)"
-		case 6:
-			name += " (5.1)"
-		case 8:
-			name += " (7.1)"
-		}
-	}
-
-	// Add special track types
-	if track.IsCommentary {
-		name += " - Commentary"
-	}
-	if track.IsDescriptive {
-		name += " - Audio Description"
 	}
 
 	return name

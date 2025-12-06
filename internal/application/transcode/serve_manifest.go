@@ -16,6 +16,10 @@ type ServeManifestRequest struct {
 	OutputDir     string
 	StartPosition float64 // Optional: start position in seconds for seeking
 
+	// AudioTrackIndex specifies which audio track to mux into the video segments.
+	// -1 means use default (first audio track), >= 0 is the FFmpeg stream index.
+	AudioTrackIndex int
+
 	// Client capabilities for smart direct play decisions
 	SupportedVideoCodecs []string // e.g., ["h264", "h265", "vp9", "av1"]
 	SupportedContainers  []string // e.g., ["mp4", "webm", "matroska"]
@@ -126,6 +130,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		req.MediaID,
 		req.Quality,
 		req.StartPosition,
+		req.AudioTrackIndex,
 		mediaEntity.FilePath,
 		profile,
 		strategy,

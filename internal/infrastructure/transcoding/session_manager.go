@@ -126,10 +126,12 @@ func (m *SessionManager) cleanupOutputDir(path string, sessionID string) {
 // Multiple quality sessions can coexist to support ABR (Adaptive Bitrate) streaming.
 // clientSupportedCodecs is a list of video codecs the client can decode (e.g., ["h264", "h265", "vp9"]).
 // This is used to select the best codec from the profile's preferred/fallback list.
+// audioTrackIndex specifies which audio track to mux (-1 means use default/first track).
 func (m *SessionManager) GetOrCreateSession(
 	mediaID int64,
 	quality string,
 	startPosition float64,
+	audioTrackIndex int,
 	inputPath string,
 	profile *AdaptiveProfile,
 	strategy StreamStrategy,
@@ -137,7 +139,7 @@ func (m *SessionManager) GetOrCreateSession(
 	videoInfo *VideoInfo,
 	clientSupportedCodecs []string,
 ) (*TranscodeSession, error) {
-	key := sessionKey(mediaID, quality)
+	key := sessionKey(mediaID, quality, audioTrackIndex)
 
 	// Stop all sessions for OTHER media to prevent resource hogging
 	// When user switches to a different video, clean up the old one immediately
@@ -217,7 +219,7 @@ func (m *SessionManager) GetOrCreateSession(
 	}
 
 	// Create new session (without log writer initially)
-	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger, nil)
+	session := NewTranscodeSession(mediaID, quality, startPosition, audioTrackIndex, outputDir, m.logger, nil)
 
 	// Create log writer for this session (if log store is configured)
 	// We do this after session creation so we can use the actual session ID
@@ -267,17 +269,10 @@ func (m *SessionManager) GetOrCreateSession(
 	return session, nil
 }
 
-// GetSession retrieves an existing session by media ID and quality.
-// If subtitleIndex is >= 0, it will look for a session with that specific subtitle burn-in.
-// If subtitleIndex is < 0, it will try to find any session (first without subtitle, then with).
-func (m *SessionManager) GetSession(mediaID int64, quality string, subtitleIndex int) (*TranscodeSession, error) {
-	// Build the session key based on whether subtitle is specified
-	var key string
-	if subtitleIndex >= 0 {
-		key = sessionKey(mediaID, quality) + fmt.Sprintf("_sub%d", subtitleIndex)
-	} else {
-		key = sessionKey(mediaID, quality)
-	}
+// GetSession retrieves an existing session by media ID, quality, and audio track.
+// audioTrackIndex specifies which audio track (-1 or 0 = default).
+func (m *SessionManager) GetSession(mediaID int64, quality string, audioTrackIndex int) (*TranscodeSession, error) {
+	key := sessionKey(mediaID, quality, audioTrackIndex)
 
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
@@ -285,22 +280,14 @@ func (m *SessionManager) GetSession(mediaID int64, quality string, subtitleIndex
 		return session, nil
 	}
 
-	// If no subtitle specified, also try to find a session with any subtitle (fallback)
-	if subtitleIndex < 0 {
-		// Scan for any session matching the mediaID and quality prefix
-		var found *TranscodeSession
-		prefix := sessionKey(mediaID, quality)
-		m.sessions.Range(func(k, v interface{}) bool {
-			keyStr := k.(string)
-			if keyStr == prefix || (len(keyStr) > len(prefix) && keyStr[:len(prefix)] == prefix && keyStr[len(prefix)] == '_') {
-				found = v.(*TranscodeSession)
-				found.UpdateLastAccessed()
-				return false // stop iteration
-			}
-			return true
-		})
-		if found != nil {
-			return found, nil
+	// If audio track not specified, also try to find a session with default audio
+	if audioTrackIndex < 0 {
+		// Try with audioTrackIndex = 0 (default track)
+		defaultKey := sessionKey(mediaID, quality, 0)
+		if existing, ok := m.sessions.Load(defaultKey); ok {
+			session := existing.(*TranscodeSession)
+			session.UpdateLastAccessed()
+			return session, nil
 		}
 	}
 
@@ -308,8 +295,9 @@ func (m *SessionManager) GetSession(mediaID int64, quality string, subtitleIndex
 }
 
 // StopSession stops a specific session and removes it from the manager.
-func (m *SessionManager) StopSession(mediaID int64, quality string) error {
-	key := sessionKey(mediaID, quality)
+// audioTrackIndex specifies which audio track (-1 or 0 = default).
+func (m *SessionManager) StopSession(mediaID int64, quality string, audioTrackIndex int) error {
+	key := sessionKey(mediaID, quality, audioTrackIndex)
 
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
@@ -405,114 +393,35 @@ func (m *SessionManager) GetStats() map[string]interface{} {
 
 // GetSessionOutputPath returns the path where a session's segments are stored.
 // Useful for serving segments without needing the full session object.
-func (m *SessionManager) GetSessionOutputPath(mediaID int64, quality string) (string, error) {
-	key := sessionKey(mediaID, quality)
+// audioTrackIndex specifies which audio track (-1 or 0 = default).
+func (m *SessionManager) GetSessionOutputPath(mediaID int64, quality string, audioTrackIndex int) (string, error) {
+	key := sessionKey(mediaID, quality, audioTrackIndex)
 
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
 		return session.OutputDir, nil
 	}
 
+	// If audio track not specified, also try with default
+	if audioTrackIndex < 0 {
+		defaultKey := sessionKey(mediaID, quality, 0)
+		if existing, ok := m.sessions.Load(defaultKey); ok {
+			session := existing.(*TranscodeSession)
+			return session.OutputDir, nil
+		}
+	}
+
 	return "", fmt.Errorf("no active session for media %d quality %s", mediaID, quality)
 }
 
-// sessionKey generates a unique key for a media/quality combination.
-func sessionKey(mediaID int64, quality string) string {
+// sessionKey generates a unique key for a media/quality/audio combination.
+// audioTrackIndex of -1 or 0 uses the default audio track (no suffix).
+func sessionKey(mediaID int64, quality string, audioTrackIndex int) string {
+	if audioTrackIndex > 0 {
+		return fmt.Sprintf("%d:%s:audio%d", mediaID, quality, audioTrackIndex)
+	}
 	return fmt.Sprintf("%d:%s", mediaID, quality)
 }
-
-// audioSessionKey generates a unique key for an audio-only session.
-func audioSessionKey(mediaID int64, audioTrackIndex int) string {
-	return fmt.Sprintf("%d:audio:%d", mediaID, audioTrackIndex)
-}
-
-// GetAudioSession retrieves an existing audio-only transcode session.
-func (m *SessionManager) GetAudioSession(mediaID int64, audioTrackIndex int) (*TranscodeSession, error) {
-	key := audioSessionKey(mediaID, audioTrackIndex)
-
-	if existing, ok := m.sessions.Load(key); ok {
-		session := existing.(*TranscodeSession)
-		return session, nil
-	}
-
-	return nil, fmt.Errorf("no active audio session for media %d track %d", mediaID, audioTrackIndex)
-}
-
-// GetOrCreateAudioSession returns an existing audio-only session or creates a new one.
-// Audio-only sessions transcode a specific audio track to AAC for HLS delivery.
-func (m *SessionManager) GetOrCreateAudioSession(
-	mediaID int64,
-	audioTrackIndex int,
-	startPosition float64,
-	inputPath string,
-	outputDir string,
-	videoInfo *VideoInfo,
-) (*TranscodeSession, error) {
-	key := audioSessionKey(mediaID, audioTrackIndex)
-
-	// Acquire per-key mutex to prevent race conditions where multiple requests
-	// concurrently create sessions for the same key.
-	mu := m.getSessionMutex(key)
-	mu.Lock()
-	defer mu.Unlock()
-
-	// Check for existing session (now safe from race conditions)
-	if existing, ok := m.sessions.Load(key); ok {
-		session := existing.(*TranscodeSession)
-
-		// Reuse if start position is compatible (same logic as video sessions)
-		positionDiff := startPosition - session.StartPosition
-		if positionDiff >= 0 && positionDiff <= 30 {
-			session.UpdateLastAccessed()
-			m.logger.Debug("Reusing existing audio session",
-				"session_id", session.ID,
-				"media_id", mediaID,
-				"audio_track", audioTrackIndex)
-			return session, nil
-		}
-
-		// Need to restart for different position
-		session.Stop()
-		m.sessions.Delete(key)
-		// Don't cleanup segments - same rationale as video sessions
-	}
-
-	// Create new audio-only session
-	quality := fmt.Sprintf("audio_%d", audioTrackIndex)
-	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger, nil)
-
-	// Create log writer for this session (if log store is configured)
-	if m.logStore != nil {
-		logWriter, err := m.logStore.CreateLogWriter(session.ID, mediaID, quality)
-		if err != nil {
-			m.logger.Warn("Failed to create FFmpeg log writer for audio session",
-				"session_id", session.ID,
-				"error", err)
-		} else {
-			session.SetLogWriter(logWriter)
-		}
-	}
-
-	// Get effective config
-	effectiveConfig := m.getEffectiveConfig(context.Background())
-
-	// Start audio-only FFmpeg process
-	if err := session.StartAudioOnly(inputPath, audioTrackIndex, effectiveConfig, videoInfo); err != nil {
-		return nil, fmt.Errorf("failed to start audio transcode session: %w", err)
-	}
-
-	// Store session
-	m.sessions.Store(key, session)
-
-	m.logger.Debug("Created new audio transcode session",
-		"session_id", session.ID,
-		"media_id", mediaID,
-		"audio_track", audioTrackIndex,
-		"start_position", startPosition)
-
-	return session, nil
-}
-
 
 // stopOtherMediaSessions stops all sessions for media IDs other than the specified one.
 // This prevents resource hogging when users switch between different videos.

@@ -21,10 +21,11 @@ import (
 // Implements the Jellyfin-style approach where a single FFmpeg process continuously
 // generates segments, and seeking is handled by killing and restarting the process.
 type TranscodeSession struct {
-	ID            string
-	MediaID       int64
-	Quality       string
-	StartPosition float64 // Start position in seconds
+	ID              string
+	MediaID         int64
+	Quality         string
+	StartPosition   float64 // Start position in seconds
+	AudioTrackIndex int     // Audio track index to mux (0 = first/default, -1 = not specified)
 
 	FFmpegCmd    *exec.Cmd
 	OutputDir    string
@@ -66,10 +67,12 @@ type TranscodeSession struct {
 // NewTranscodeSession creates a new transcode session but does not start it.
 // The logWriter parameter is optional - if nil, FFmpeg output will still be processed
 // but not persisted for later access.
+// audioTrackIndex specifies which audio track to mux (-1 means use default/first track).
 func NewTranscodeSession(
 	mediaID int64,
 	quality string,
 	startPosition float64,
+	audioTrackIndex int,
 	outputDir string,
 	logger *slog.Logger,
 	logWriter *LogWriter,
@@ -79,11 +82,17 @@ func NewTranscodeSession(
 	sessionID := fmt.Sprintf("%d_%s_%d", mediaID, quality, time.Now().Unix())
 	sessionOutputDir := filepath.Join(outputDir, fmt.Sprintf("%d", mediaID), quality)
 
+	// Include audio track in output dir if non-default to separate cached segments
+	if audioTrackIndex > 0 {
+		sessionOutputDir = filepath.Join(outputDir, fmt.Sprintf("%d", mediaID), fmt.Sprintf("%s_audio%d", quality, audioTrackIndex))
+	}
+
 	session := &TranscodeSession{
 		ID:                sessionID,
 		MediaID:           mediaID,
 		Quality:           quality,
 		StartPosition:     startPosition,
+		AudioTrackIndex:   audioTrackIndex,
 		OutputDir:         sessionOutputDir,
 		ManifestPath:      filepath.Join(sessionOutputDir, "playlist.m3u8"),
 		CreatedAt:         time.Now(),
@@ -657,6 +666,8 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		Profile:                    profile,
 		UseStartPosition:           s.StartPosition > 0,
 		StartPosition:              int(s.StartPosition),
+		AudioTrackIndex:            s.AudioTrackIndex,
+		UseSpecificAudioTrack:      s.AudioTrackIndex >= 0,
 		VideoInfo:                  videoInfo,
 		ToneMappingEnabled:         config.ToneMappingEnabled,
 		ToneMappingAlgorithm:       config.ToneMappingAlgorithm,
@@ -788,192 +799,6 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 
 	return args
 }
-
-// StartAudioOnly begins an audio-only FFmpeg transcoding process.
-// This is used for HLS multi-audio support where each audio track gets its own playlist.
-func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int, config *TranscodeConfig, videoInfo *VideoInfo) error {
-	// Create output directory
-	if err := os.MkdirAll(s.OutputDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Audio uses 4-second segments (set before building args for WaitForManifest)
-	s.SegmentDurationSec = 4
-
-	// Build FFmpeg arguments for audio-only transcoding
-	args := s.buildAudioOnlyFFmpegArgs(inputPath, audioTrackIndex, config, videoInfo)
-
-	// Log FFmpeg command for debugging
-	ffmpegCommand := fmt.Sprintf("ffmpeg %s", strings.Join(args, " "))
-	s.logger.Debug("Starting audio-only FFmpeg process",
-		"session_id", s.ID,
-		"audio_track", audioTrackIndex,
-		"command", ffmpegCommand)
-
-	// Write command to persistent log file
-	if s.logWriter != nil {
-		s.logWriter.WriteString(fmt.Sprintf("Audio-only transcode\nTrack: %d\nCommand: %s\n\n", audioTrackIndex, ffmpegCommand))
-	}
-
-	// Create FFmpeg command with memory limits via systemd-run (if available)
-	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config, s.logger)
-
-	// Capture stderr for error logging
-	stderr, err := s.FFmpegCmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create stderr pipe: %w", err)
-	}
-
-	// Start the process
-	s.FFmpegStartedAt = time.Now()
-	if err := s.FFmpegCmd.Start(); err != nil {
-		return fmt.Errorf("failed to start ffmpeg: %w", err)
-	}
-
-	// Log startup timing to persistent log
-	if s.logWriter != nil {
-		s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: FFmpeg started at %s (%.2fms after session creation)\n",
-			s.FFmpegStartedAt.Format("15:04:05.000"),
-			float64(s.FFmpegStartedAt.Sub(s.CreatedAt).Microseconds())/1000))
-	}
-
-	// Log FFmpeg stderr in background
-	go func() {
-		buf := make([]byte, 4096)
-		for {
-			n, err := stderr.Read(buf)
-			if n > 0 {
-				chunk := buf[:n]
-
-				// Write to persistent log file (if available)
-				if s.logWriter != nil {
-					s.logWriter.Write(chunk)
-				}
-
-				output := string(chunk)
-
-				// Detect first segment for audio (look for any .ts file being opened)
-				if !s.firstSegmentLogged && strings.Contains(output, ".ts'") && strings.Contains(output, "Opening") {
-					s.FirstSegmentAt = time.Now()
-					s.firstSegmentLogged = true
-					timeSinceStart := s.FirstSegmentAt.Sub(s.FFmpegStartedAt)
-					s.logger.Info("FFmpeg audio first segment",
-						"session_id", s.ID,
-						"time_to_first_segment_ms", timeSinceStart.Milliseconds())
-					if s.logWriter != nil {
-						s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First audio segment at %s (%.0fms after FFmpeg start)\n",
-							s.FirstSegmentAt.Format("15:04:05.000"),
-							float64(timeSinceStart.Milliseconds())))
-					}
-				}
-
-				lowerOutput := strings.ToLower(output)
-				if strings.Contains(lowerOutput, "error") || strings.Contains(lowerOutput, "failed") {
-					s.logger.Error("FFmpeg audio error", "session_id", s.ID, "output", output)
-				}
-			}
-			if err != nil {
-				return
-			}
-		}
-	}()
-
-	// Monitor process exit in background
-	go func() {
-		s.waitOnce.Do(func() {
-			err := s.FFmpegCmd.Wait()
-			if err != nil {
-				s.logger.Error("FFmpeg audio process exited with error",
-					"session_id", s.ID,
-					"error", err)
-			} else {
-				s.logger.Info("FFmpeg audio process completed",
-					"session_id", s.ID)
-			}
-		})
-	}()
-
-	s.logger.Info("Audio transcode session started",
-		"session_id", s.ID,
-		"media_id", s.MediaID,
-		"audio_track", audioTrackIndex,
-		"start_position", s.StartPosition)
-
-	// Start watching for generated segments (required for WaitForSegment to work)
-	go s.watchSegments()
-
-	return nil
-}
-
-// buildAudioOnlyFFmpegArgs builds FFmpeg arguments for audio-only HLS transcoding.
-// IMPORTANT: Audio-only sessions are used when video has separate audio renditions (multi-audio files).
-// The audio must start at the same keyframe position as video to maintain A/V sync.
-func (s *TranscodeSession) buildAudioOnlyFFmpegArgs(inputPath string, audioTrackIndex int, config *TranscodeConfig, videoInfo *VideoInfo) []string {
-	args := []string{}
-
-	// Seek position (before input for fast seeking)
-	// CRITICAL: Use -noaccurate_seek to match video's keyframe-aligned seeking.
-	// Without this, audio seeks to the exact position while video seeks to the nearest
-	// keyframe, causing A/V desync. The -noaccurate_seek flag makes audio also start
-	// from the keyframe position, ensuring proper A/V alignment.
-	if s.StartPosition > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%d", int(s.StartPosition)))
-		args = append(args, "-noaccurate_seek")
-	}
-
-	// Input file
-	args = append(args, "-i", inputPath)
-
-	// Map only the specified audio track (0:a:N selects the Nth audio stream)
-	args = append(args, "-map", fmt.Sprintf("0:a:%d", audioTrackIndex))
-
-	// No video
-	args = append(args, "-vn")
-
-	// Audio encoding: AAC at 128kbps stereo for broad compatibility
-	args = append(args,
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-ac", "2", // Stereo downmix for compatibility
-	)
-
-	// Calculate start segment number based on seek position
-	// Must match video's segment numbering for proper A/V sync
-	// Use 4-second audio segments (hls_time=4), matching video segment math
-	startSegmentNum := 0
-	if s.StartPosition > 0 {
-		// Audio uses 4-second segments, so divide by 4
-		startSegmentNum = int(s.StartPosition) / 4
-	}
-
-	// HLS output settings (use 6-digit segment numbers to match SegmentFilenameFormat)
-	// Use short initial segment (1s) for fast startup, then 4s segments
-	args = append(args,
-		"-f", "hls",
-		"-hls_init_time", "1",
-		"-hls_time", "4",
-		"-hls_list_size", "0", // Keep all segments in playlist
-		"-hls_flags", "independent_segments",
-		"-hls_segment_type", "mpegts",
-		"-hls_segment_filename", filepath.Join(s.OutputDir, SegmentFilenameFormat),
-		"-start_number", fmt.Sprintf("%d", startSegmentNum),
-	)
-
-	// Overwrite output
-	args = append(args, "-y")
-
-	// Output manifest path
-	args = append(args, s.ManifestPath)
-
-	return args
-}
-
-// AudioQualityKey returns the quality key used for audio-only sessions.
-// This matches the key format used by GetOrCreateAudioSession.
-func AudioQualityKey(audioTrackIndex int) string {
-	return fmt.Sprintf("audio_%d", audioTrackIndex)
-}
-
 
 // createFFmpegCommand creates an FFmpeg command with memory limits via systemd-run (if available).
 // On Linux with systemd, this wraps FFmpeg with cgroup memory limits as a hard safety net

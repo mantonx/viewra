@@ -59,10 +59,27 @@ export const VideoPlayer = ({
   // This ensures subtitles re-initialize with the correct streamOffsetRef value
   const [subtitleSeekKey, setSubtitleSeekKey] = useState(0)
 
-  // Fetch subtitle tracks from API
+  // Fetch tracks (audio and subtitle) from API
   const { data: tracksData } = useGetApiMediaIdTracks(mediaId)
   const subtitleTracksFromApi =
     tracksData?.status === 200 ? tracksData.data.subtitle_tracks || [] : []
+  const audioTracksFromApi =
+    tracksData?.status === 200 ? tracksData.data.audio_tracks || [] : []
+
+  // Track current audio stream index for URL construction
+  // -1 means default (first audio track)
+  const [currentAudioStreamIndex, setCurrentAudioStreamIndex] = useState<number>(-1)
+
+  // Position override for when we switch audio tracks - maintains playback position
+  const [audioSwitchPosition, setAudioSwitchPosition] = useState<number | null>(null)
+
+  // Build stream URL with audio track parameter if non-default
+  const effectiveStreamUrl = currentAudioStreamIndex > 0
+    ? `${streamUrl}${streamUrl.includes('?') ? '&' : '?'}audioTrack=${currentAudioStreamIndex}`
+    : streamUrl
+
+  // Use audio switch position if set, otherwise use initial position from props
+  const effectiveInitialPosition = audioSwitchPosition ?? initialPosition
 
   // Subtitle track management
   const { availableSubtitles, currentSubtitle, setCurrentSubtitle, textStreamIndex, bitmapStreamIndex } = useSubtitles({
@@ -79,22 +96,20 @@ export const VideoPlayer = ({
   // This runs in the background - we don't block HLS startup for it
   const qualityRecommendation = useQualityRecommendation()
 
-  // HLS player hook - handles HLS.js lifecycle, quality, audio
+  // HLS player hook - handles HLS.js lifecycle, quality
+  // Audio tracks are now managed via API, not HLS.js (since audio is muxed into video segments)
   // Start immediately with default bandwidth, recommendation enhances initial quality if ready in time
   const {
     hlsRef,
     availableQualities,
     currentQuality,
     currentBandwidth,
-    availableAudioTracks,
-    currentAudioTrack,
     streamOffsetRef,
     changeQuality,
-    changeAudioTrack,
   } = useHlsPlayer({
     videoRef,
-    streamUrl,
-    initialPosition,
+    streamUrl: effectiveStreamUrl,
+    initialPosition: effectiveInitialPosition,
     isHlsStream,
     onError: setError,
     onFragLoaded: (bytes, durationMs) => recordSample(bytes, durationMs),
@@ -107,6 +122,25 @@ export const VideoPlayer = ({
         }
       : null,
   })
+
+  // Convert API audio tracks to the format expected by VideoControls
+  // The id is the stream_index which is what we pass to the backend
+  // Filter out tracks without stream_index (shouldn't happen, but type-safe)
+  const availableAudioTracks = audioTracksFromApi
+    .filter((track): track is typeof track & { stream_index: number } =>
+      track.stream_index !== undefined
+    )
+    .map((track, index) => ({
+      id: track.stream_index,
+      name: track.title || `Track ${index + 1}`,
+      language: track.language || 'Unknown',
+    }))
+
+  // Current audio track for UI - this is the stream_index (matches track.id)
+  // Default to first track's stream_index if not explicitly set
+  const currentAudioTrack = currentAudioStreamIndex > 0
+    ? currentAudioStreamIndex
+    : (availableAudioTracks[0]?.id ?? 0)
 
   // Auto quality - manages auto/manual mode and network stats
   const { isAutoMode, setAutoMode, recordSample, recordStall, networkStats } = useAutoQuality({
@@ -283,11 +317,21 @@ export const VideoPlayer = ({
   )
 
   // Handle audio track change
+  // streamIndex is the FFmpeg stream index (passed as track.id from AudioSelector)
   const handleAudioTrackChange = useCallback(
-    (trackId: number) => {
-      changeAudioTrack(trackId)
+    (streamIndex: number) => {
+      // Capture current playback position before switching
+      const video = videoRef.current
+      if (video) {
+        // Calculate the actual media time (accounting for stream offset in progressive transcoding)
+        const actualTime = video.currentTime + (streamOffsetRef.current || 0)
+        setAudioSwitchPosition(actualTime)
+      }
+      // Setting stream index will update effectiveStreamUrl via state change
+      // which triggers HLS.js to reload with the new audio track
+      setCurrentAudioStreamIndex(streamIndex)
     },
-    [changeAudioTrack]
+    [streamOffsetRef]
   )
 
   // Handle playback speed with state update

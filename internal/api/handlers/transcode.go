@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"bufio"
+	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -20,7 +23,6 @@ type TranscodeHandler struct {
 	getStatusUseCase           *transcode.GetJobStatusUseCase
 	serveManifestUseCase       *transcode.ServeManifestUseCase
 	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase
-	serveAudioPlaylistUseCase  *transcode.ServeAudioPlaylistUseCase
 	getMediaUseCase            *media.GetMediaUseCase
 	getTracksUseCase           *media.GetTracksUseCase
 	queue                      *transcode.Queue
@@ -36,7 +38,6 @@ func NewTranscodeHandler(
 	getStatusUseCase *transcode.GetJobStatusUseCase,
 	serveManifestUseCase *transcode.ServeManifestUseCase,
 	serveMasterPlaylistUseCase *transcode.ServeMasterPlaylistUseCase,
-	serveAudioPlaylistUseCase *transcode.ServeAudioPlaylistUseCase,
 	getMediaUseCase *media.GetMediaUseCase,
 	getTracksUseCase *media.GetTracksUseCase,
 	queue *transcode.Queue,
@@ -50,7 +51,6 @@ func NewTranscodeHandler(
 		getStatusUseCase:           getStatusUseCase,
 		serveManifestUseCase:       serveManifestUseCase,
 		serveMasterPlaylistUseCase: serveMasterPlaylistUseCase,
-		serveAudioPlaylistUseCase:  serveAudioPlaylistUseCase,
 		getMediaUseCase:            getMediaUseCase,
 		getTracksUseCase:           getTracksUseCase,
 		queue:                      queue,
@@ -229,6 +229,15 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		}
 	}
 
+	// Parse optional audio track index for multi-audio selection
+	// -1 means use default (first audio track), >= 0 is the FFmpeg stream index
+	audioTrackIndex := -1
+	if audioTrackStr := c.Query("audioTrack"); audioTrackStr != "" {
+		if idx, err := parseInt(audioTrackStr); err == nil && idx >= 0 {
+			audioTrackIndex = int(idx)
+		}
+	}
+
 	// Parse client codec capabilities from query params first (passed from master playlist)
 	// Fall back to headers if not present (direct requests)
 	supportedVideoCodecs := parseCommaSeparatedHeader(c.Query("codecs"))
@@ -246,6 +255,7 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 		Quality:              quality,
 		OutputDir:            h.outputDir,
 		StartPosition:        startPosition,
+		AudioTrackIndex:      audioTrackIndex,
 		SupportedVideoCodecs: supportedVideoCodecs,
 		SupportedContainers:  supportedContainers,
 		StrategyHint:         strategyHint,
@@ -258,11 +268,22 @@ func (h *TranscodeHandler) ServePlaylist(c *gin.Context) {
 	// Handle response based on strategy
 	switch response.Strategy {
 	case transcode.StrategyServe:
-		// Manifest generated - serve it directly
-		// Segments will be generated on-demand as player requests them
+		// Manifest generated - serve it with audio track parameter injected into segment URLs
 		c.Header("Content-Type", "application/vnd.apple.mpegurl")
 		c.Header("Access-Control-Allow-Origin", "*") // CORS for HLS
-		c.File(response.ManifestPath)
+
+		// If audio track is specified, we need to rewrite segment URLs to include the parameter
+		// This ensures HLS.js requests segments with the correct audio track
+		if audioTrackIndex > 0 {
+			content, err := rewritePlaylistWithAudioTrack(response.ManifestPath, audioTrackIndex)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to process playlist"})
+				return
+			}
+			c.Data(http.StatusOK, "application/vnd.apple.mpegurl", content)
+		} else {
+			c.File(response.ManifestPath)
+		}
 
 	case transcode.StrategyDirectPlay:
 		// Video is compatible - redirect to direct stream
@@ -301,9 +322,18 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 		return
 	}
 
+	// Parse optional audio track index for multi-audio selection
+	// This must match the audioTrack used when creating the session via ServePlaylist
+	audioTrackIndex := -1
+	if audioTrackStr := c.Query("audioTrack"); audioTrackStr != "" {
+		if idx, err := parseInt(audioTrackStr); err == nil && idx >= 0 {
+			audioTrackIndex = int(idx)
+		}
+	}
+
 	// Get active transcode session
-	// Pass -1 for subtitleIndex to find any matching session (with or without burn-in)
-	session, err := h.sessionManager.GetSession(mediaID, quality, -1)
+	// audioTrackIndex is used to find the correct session for multi-audio support
+	session, err := h.sessionManager.GetSession(mediaID, quality, audioTrackIndex)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "No active transcode session"})
 		return
@@ -582,12 +612,22 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 		supportedContainers = parseCommaSeparatedHeader(c.GetHeader("X-Supported-Containers"))
 	}
 
+	// Parse optional audio track index for multi-audio selection
+	// -1 means use default (first audio track), >= 0 is the FFmpeg stream index
+	audioTrackIndex := -1
+	if audioTrackStr := c.Query("audioTrack"); audioTrackStr != "" {
+		if idx, err := parseInt(audioTrackStr); err == nil && idx >= 0 {
+			audioTrackIndex = int(idx)
+		}
+	}
+
 	// Use the serve master playlist use case
 	response, err := h.serveMasterPlaylistUseCase.Execute(c.Request.Context(), transcode.ServeMasterPlaylistRequest{
 		MediaID:              mediaID,
 		SupportedVideoCodecs: supportedVideoCodecs,
 		SupportedContainers:  supportedContainers,
 		StartPosition:        c.Query("start"),
+		AudioTrackIndex:      audioTrackIndex,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
@@ -610,120 +650,6 @@ func (h *TranscodeHandler) ServeMasterPlaylist(c *gin.Context) {
 	default:
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Unknown streaming strategy"})
 	}
-}
-
-// ServeAudioPlaylist serves an audio-only HLS playlist for multi-audio support.
-//
-// @Summary Serve audio-only HLS playlist
-// @Description Serves an audio-only HLS playlist for a specific audio track. Used by players for multi-audio switching.
-// @Tags transcode
-// @Produce application/vnd.apple.mpegurl,application/json
-// @Param media_id path int true "Media ID"
-// @Param trackIndex path int true "Audio track index (0-based)"
-// @Param start query number false "Start position in seconds"
-// @Success 200 {file} file "HLS audio playlist"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/audio/{trackIndex}/playlist.m3u8 [get]
-func (h *TranscodeHandler) ServeAudioPlaylist(c *gin.Context) {
-	mediaID, err := parseID(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
-		return
-	}
-
-	trackIndex, err := parseInt(c.Param("trackIndex"))
-	if err != nil || trackIndex < 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid track index"})
-		return
-	}
-
-	// Parse optional start position
-	startPosition := 0.0
-	if startStr := c.Query("start"); startStr != "" {
-		if start, err := parseFloat(startStr); err == nil {
-			startPosition = start
-		}
-	}
-
-	// Use the serve audio playlist use case
-	response, err := h.serveAudioPlaylistUseCase.Execute(c.Request.Context(), transcode.ServeAudioPlaylistRequest{
-		MediaID:         mediaID,
-		AudioTrackIndex: trackIndex,
-		OutputDir:       h.outputDir,
-		StartPosition:   startPosition,
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
-		return
-	}
-
-	// Serve the audio playlist
-	c.Header("Content-Type", "application/vnd.apple.mpegurl")
-	c.Header("Access-Control-Allow-Origin", "*")
-	c.File(response.ManifestPath)
-}
-
-// ServeAudioSegment serves audio-only HLS segment files.
-//
-// @Summary Serve audio-only HLS segment
-// @Description Serves audio-only HLS segment files (.ts) from audio transcoding sessions
-// @Tags transcode
-// @Produce video/mp2t
-// @Param media_id path int true "Media ID"
-// @Param trackIndex path int true "Audio track index (0-based)"
-// @Param filename path string true "Segment filename (e.g., seg_000123.ts)"
-// @Success 200 {file} file "Audio segment file"
-// @Failure 400 {object} handlers.ErrorResponse
-// @Failure 404 {object} handlers.ErrorResponse
-// @Failure 500 {object} handlers.ErrorResponse
-// @Router /api/media/{media_id}/hls/audio/{trackIndex}/{filename} [get]
-func (h *TranscodeHandler) ServeAudioSegment(c *gin.Context) {
-	mediaID, err := parseID(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid media ID"})
-		return
-	}
-
-	trackIndex, err := parseInt(c.Param("trackIndex"))
-	if err != nil || trackIndex < 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid track index"})
-		return
-	}
-
-	filename := c.Param("filename")
-
-	// Get active audio transcode session
-	session, err := h.sessionManager.GetAudioSession(mediaID, trackIndex)
-	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "No active audio transcode session"})
-		return
-	}
-
-	// Parse segment number from filename
-	segmentNum := transcoding.ParseSegmentNumber(filename)
-	if segmentNum < 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid segment filename"})
-		return
-	}
-
-	// Wait for segment to be generated (30 second timeout)
-	segmentPath, err := session.WaitForSegment(segmentNum, 30*time.Second)
-	if err != nil {
-		c.JSON(http.StatusRequestTimeout, ErrorResponse{
-			Error: "Audio segment not available - transcoding may be slow or failed",
-		})
-		return
-	}
-
-	// Update session last accessed time
-	session.UpdateLastAccessed()
-
-	// Serve the audio segment
-	c.Header("Content-Type", "video/mp2t")
-	c.Header("Access-Control-Allow-Origin", "*")
-	c.File(segmentPath)
 }
 
 // ServeSubtitle serves a subtitle WebVTT file for HLS playback.
@@ -791,4 +717,37 @@ func (h *TranscodeHandler) ServeSubtitle(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
 	c.String(http.StatusOK, vttContent)
+}
+
+// rewritePlaylistWithAudioTrack reads an HLS playlist and appends ?audioTrack=X to segment URLs.
+// This ensures HLS.js requests segments with the correct audio track parameter.
+func rewritePlaylistWithAudioTrack(playlistPath string, audioTrackIndex int) ([]byte, error) {
+	file, err := os.Open(playlistPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var result strings.Builder
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Check if this line is a segment URL (not a comment/directive)
+		// Segment URLs are lines that don't start with # and end with .ts or .m4s
+		if !strings.HasPrefix(line, "#") && (strings.HasSuffix(line, ".ts") || strings.HasSuffix(line, ".m4s")) {
+			// Append audio track query parameter
+			line = fmt.Sprintf("%s?audioTrack=%d", line, audioTrackIndex)
+		}
+
+		result.WriteString(line)
+		result.WriteString("\n")
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return []byte(result.String()), nil
 }

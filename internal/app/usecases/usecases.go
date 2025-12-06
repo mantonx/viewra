@@ -99,7 +99,6 @@ type TranscodeUseCases struct {
 	GetStatus           *transcode.GetJobStatusUseCase
 	ServeManifest       *transcode.ServeManifestUseCase
 	ServeMasterPlaylist *transcode.ServeMasterPlaylistUseCase
-	ServeAudioPlaylist  *transcode.ServeAudioPlaylistUseCase
 }
 
 // BuildUseCases creates and wires all use case instances grouped by domain.
@@ -280,13 +279,11 @@ func buildTranscodeUseCases(
 	getStatus := transcode.NewGetJobStatusUseCase(repos.Transcode)
 	serveManifest := transcode.NewServeManifestUseCase(repos.Media, svcs.SessionManager)
 	serveMasterPlaylist := transcode.NewServeMasterPlaylistUseCase(repos.Media)
-	serveAudioPlaylist := transcode.NewServeAudioPlaylistUseCase(repos.Media, svcs.SessionManager)
 
 	return &TranscodeUseCases{
 		CreateJob:           createJob,
 		GetStatus:           getStatus,
 		ServeManifest:       serveManifest,
 		ServeMasterPlaylist: serveMasterPlaylist,
-		ServeAudioPlaylist:  serveAudioPlaylist,
 	}
 }

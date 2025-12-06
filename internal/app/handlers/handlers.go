@@ -69,7 +69,6 @@ func BuildHandlers(
 			cases.Transcode.GetStatus,
 			cases.Transcode.ServeManifest,
 			cases.Transcode.ServeMasterPlaylist,
-			cases.Transcode.ServeAudioPlaylist,
 			cases.Media.Get,
 			cases.Media.GetTracks,
 			svcs.TranscodeQueue,

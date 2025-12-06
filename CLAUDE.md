@@ -105,3 +105,4 @@ curl -s http://localhost:8080/api/media/147440 -H "Authorization: Bearer $TOKEN"
 1. **Dual DB**: All SQL must work on SQLite AND PostgreSQL
 2. **Domain purity**: Domain layer imports only stdlib
 3. **TypeScript**: Use arrow functions, exports at end of file
+4. **DO NOT** run `make dev`, `make dev-clean`, or restart the server - the user manages the dev server themselves
