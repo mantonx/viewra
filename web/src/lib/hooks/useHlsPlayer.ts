@@ -1,7 +1,14 @@
 /**
  * useHlsPlayer Hook
+ *
  * Manages HLS.js instance lifecycle, quality levels, audio tracks, and error handling.
- * Extracted from VideoPlayer to improve maintainability.
+ *
+ * Quality Control Model (Simplified):
+ * - Backend recommendation sets `startLevel` (initial quality hint)
+ * - HLS.js ABR handles automatic quality switching (currentLevel = -1)
+ * - User can manually select quality (currentLevel = specific index)
+ *
+ * This removes the previous competing systems that caused race conditions.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -10,15 +17,18 @@ import { getAuthHeaders } from '@/lib/utils/authFetch'
 import { logger } from '@/lib/utils/logger'
 
 // HLS configuration constants
+// Optimized for progressive transcoding where segments are generated on-demand
 const HLS_CONFIG = {
-  MAX_BUFFER_LENGTH: 30,
-  MAX_MAX_BUFFER_LENGTH: 60,
-  MAX_BUFFER_SIZE: 100 * 1000 * 1000,
+  // Buffer settings: Keep low for fast startup with progressive transcoding
+  // HLS.js will start playback once it has maxBufferLength seconds buffered
+  MAX_BUFFER_LENGTH: 4, // Reduced from 30s - start playback after ~2 segments (4s)
+  MAX_MAX_BUFFER_LENGTH: 20, // Reduced from 60s - cap total buffer
+  MAX_BUFFER_SIZE: 30 * 1000 * 1000, // Reduced from 100MB
   MAX_BUFFER_HOLE: 2.0,
-  ENABLE_WORKER: false,
-  LOW_LATENCY_MODE: false,
+  ENABLE_WORKER: true, // Enable for better performance
+  LOW_LATENCY_MODE: true, // Reduces buffer requirements
   DEBUG: false,
-  BACK_BUFFER_LENGTH: 90,
+  BACK_BUFFER_LENGTH: 30, // Reduced from 90s
   HIGH_BUFFER_WATCHDOG_PERIOD: 1,
   FRAG_LOADING_MAX_RETRY: 6,
   FRAG_LOADING_MAX_RETRY_TIMEOUT: 64000,
@@ -54,6 +64,7 @@ export interface UseHlsPlayerOptions {
   onFragLoaded?: (bytes: number, durationMs: number) => void
   qualityRecommendation?: {
     height?: number
+    bandwidth?: number
     isReady?: boolean
   } | null
 }
@@ -68,9 +79,6 @@ export interface UseHlsPlayerReturn {
   availableSubtitleTracks: SubtitleTrack[]
   currentSubtitleTrack: number
   streamOffsetRef: React.RefObject<number>
-  setCurrentQuality: (quality: number | null) => void
-  setCurrentBandwidth: (bandwidth: number | null) => void
-  setCurrentAudioTrack: (trackId: number) => void
   changeQuality: (height: number, bandwidth?: number) => number | null
   changeAudioTrack: (trackId: number) => void
   changeSubtitleTrack: (trackId: number) => void
@@ -91,6 +99,54 @@ const initializeStreamOffset = (
   if (initialPosition > 0 && streamOffsetRef.current === 0) {
     streamOffsetRef.current = initialPosition
   }
+}
+
+/**
+ * Find the best matching HLS level for a quality recommendation
+ */
+const findRecommendedLevel = (
+  levels: Hls['levels'],
+  height: number,
+  bandwidth?: number
+): number => {
+  if (levels.length === 0) return -1
+
+  // Find all levels at the recommended height
+  const levelsAtHeight = levels
+    .map((level, index) => ({ level, index }))
+    .filter((item) => item.level.height === height)
+
+  if (levelsAtHeight.length > 0) {
+    if (bandwidth) {
+      // Try exact bandwidth match first
+      const exactMatch = levelsAtHeight.find((item) => item.level.bitrate === bandwidth)
+      if (exactMatch) return exactMatch.index
+
+      // Find closest bandwidth at this height
+      const sorted = [...levelsAtHeight].sort((a, b) =>
+        Math.abs(a.level.bitrate - bandwidth) - Math.abs(b.level.bitrate - bandwidth)
+      )
+      return sorted[0].index
+    }
+    // No bandwidth specified - pick highest bitrate at this height
+    const sorted = [...levelsAtHeight].sort((a, b) => b.level.bitrate - a.level.bitrate)
+    return sorted[0].index
+  }
+
+  // No levels at recommended height - find closest height
+  const sortedLevels = levels
+    .map((level, index) => ({
+      level,
+      index,
+      diff: Math.abs(level.height - height),
+    }))
+    .filter((item) => item.level.height > 0)
+    .sort((a, b) => {
+      if (a.diff !== b.diff) return a.diff - b.diff
+      return b.level.bitrate - a.level.bitrate
+    })
+
+  return sortedLevels.length > 0 ? sortedLevels[0].index : -1
 }
 
 export const useHlsPlayer = ({
@@ -119,40 +175,36 @@ export const useHlsPlayer = ({
   const onFragLoadedRef = useRef(onFragLoaded)
   onFragLoadedRef.current = onFragLoaded
 
-  // Store recommendation in ref to avoid effect re-runs
+  // Store recommendation in ref for use in HLS config
   const qualityRecommendationRef = useRef(qualityRecommendation)
   qualityRecommendationRef.current = qualityRecommendation
 
-  // Change quality level
+  /**
+   * Change quality level manually
+   * Setting height=0 enables auto mode (HLS.js ABR)
+   */
   const changeQuality = useCallback((height: number, bandwidth?: number): number | null => {
     const hls = hlsRef.current
-    if (!hls) {
-      return null
-    }
+    if (!hls) return null
 
     if (height === 0) {
-      // Auto quality - enable ABR
+      // Auto mode - enable HLS.js ABR
       hls.currentLevel = -1
-      setCurrentQuality(0)
-      setCurrentBandwidth(null)
+      logger.info('[HLS] Enabled auto quality (ABR)')
       return -1
     }
 
-    // Find matching level
-    let levelIndex: number
-    if (bandwidth) {
-      levelIndex = hls.levels.findIndex(
-        (level) => level.height === height && level.bitrate === bandwidth
-      )
-    } else {
-      levelIndex = hls.levels.findIndex((level) => level.height === height)
-    }
+    // Manual mode - find and set specific level
+    const levelIndex = findRecommendedLevel(hls.levels, height, bandwidth)
 
     if (levelIndex !== -1) {
       hls.currentLevel = levelIndex
       const selectedLevel = hls.levels[levelIndex]
-      setCurrentQuality(height)
-      setCurrentBandwidth(selectedLevel.bitrate || null)
+      logger.info('[HLS] Manual quality selected', {
+        height: selectedLevel.height,
+        bitrate: selectedLevel.bitrate,
+        levelIndex,
+      })
       return levelIndex
     }
 
@@ -188,9 +240,7 @@ export const useHlsPlayer = ({
   // Initialize HLS player
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !streamUrl) {
-      return
-    }
+    if (!video || !streamUrl) return
 
     // For direct streams, use native HTML5 video
     if (!isHlsStream) {
@@ -223,6 +273,22 @@ export const useHlsPlayer = ({
       return
     }
 
+    // Get bandwidth estimate from backend recommendation
+    // This tells HLS.js ABR what bandwidth to assume before measuring
+    const rec = qualityRecommendationRef.current
+    let abrBandwidthEstimate = 5_000_000 // Default 5 Mbps
+
+    if (rec?.isReady && rec?.bandwidth) {
+      // Use recommended bandwidth as the initial estimate
+      // Add 20% headroom so ABR picks the recommended quality
+      abrBandwidthEstimate = rec.bandwidth * 1.2
+      logger.info('[HLS] Using recommendation for ABR estimate', {
+        height: rec.height,
+        bandwidth: rec.bandwidth,
+        abrEstimate: abrBandwidthEstimate,
+      })
+    }
+
     // Create hls.js instance
     const hls = new Hls({
       debug: HLS_CONFIG.DEBUG,
@@ -238,6 +304,11 @@ export const useHlsPlayer = ({
       fragLoadingMaxRetryTimeout: HLS_CONFIG.FRAG_LOADING_MAX_RETRY_TIMEOUT,
       nudgeOffset: HLS_CONFIG.NUDGE_OFFSET,
       nudgeMaxRetry: HLS_CONFIG.NUDGE_MAX_RETRY,
+      // ABR configuration:
+      // - startLevel=-1: Let ABR choose based on bandwidth estimate
+      // - abrEwmaDefaultEstimate: Our backend-recommended bandwidth
+      startLevel: -1,
+      abrEwmaDefaultEstimate: abrBandwidthEstimate,
       xhrSetup: (xhr, _url) => {
         const authHeaders = getAuthHeaders()
         if (authHeaders['Authorization']) {
@@ -251,11 +322,12 @@ export const useHlsPlayer = ({
     hls.loadSource(streamUrl)
     hls.attachMedia(video)
 
-    // Handle manifest parsed - extract quality levels and audio tracks
+    // Handle manifest parsed - extract quality levels and apply recommendation
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       const levels = hls.levels
 
       if (levels && levels.length > 0) {
+        // Build quality list for UI
         const qualities = levels
           .map((level, index) => {
             const url = level.url?.[0] || ''
@@ -269,51 +341,21 @@ export const useHlsPlayer = ({
           })
           .filter((q) => q.height > 0)
           .sort((a, b) => {
-            if (b.height !== a.height) {
-              return b.height - a.height
-            }
+            if (b.height !== a.height) return b.height - a.height
             return b.bandwidth - a.bandwidth
           })
 
         setAvailableQualities(qualities)
 
-        // Apply recommended quality if available
-        const rec = qualityRecommendationRef.current
-        if (rec?.height && rec?.isReady) {
-          let levelIndex = hls.levels.findIndex((level) => level.height === rec.height)
-
-          if (levelIndex === -1) {
-            const recHeight = rec.height
-            const sortedLevels = hls.levels
-              .map((level, index) => ({
-                level,
-                index,
-                diff: Math.abs(level.height - recHeight),
-                isHigher: level.height >= recHeight
-              }))
-              .filter((item) => item.level.height > 0)
-              .sort((a, b) => {
-                const is4KClass = recHeight >= 1440
-                if (is4KClass) {
-                  if (a.isHigher && !b.isHigher) {
-                    return -1
-                  }
-                  if (!a.isHigher && b.isHigher) {
-                    return 1
-                  }
-                }
-                return a.diff - b.diff
-              })
-
-            if (sortedLevels.length > 0) {
-              levelIndex = sortedLevels[0].index
-            }
-          }
-
-          if (levelIndex !== -1) {
-            hls.currentLevel = levelIndex
-            setCurrentQuality(hls.levels[levelIndex].height)
-          }
+        // Log what ABR selected based on our bandwidth estimate
+        const currentLevel = hls.currentLevel >= 0 ? hls.currentLevel : hls.startLevel
+        if (currentLevel >= 0 && levels[currentLevel]) {
+          const level = levels[currentLevel]
+          logger.info('[HLS] ABR selected initial level', {
+            levelIndex: currentLevel,
+            height: level.height,
+            bitrate: level.bitrate,
+          })
         }
       }
 
@@ -329,7 +371,7 @@ export const useHlsPlayer = ({
         setCurrentAudioTrack(hls.audioTrack)
       }
 
-      // Extract subtitle tracks and enable native subtitle rendering
+      // Extract subtitle tracks
       const subtitleTracks = hls.subtitleTracks
       if (subtitleTracks && subtitleTracks.length > 0) {
         const tracks = subtitleTracks.map((track, index) => ({
@@ -338,9 +380,7 @@ export const useHlsPlayer = ({
           language: track.lang || 'Unknown',
         }))
         setAvailableSubtitleTracks(tracks)
-        // Enable subtitle display so HLS.js loads the VTT and adds to video.textTracks
         hls.subtitleDisplay = true
-        // Set default subtitle track if one is marked default
         const defaultTrack = subtitleTracks.findIndex(t => t.default)
         if (defaultTrack >= 0) {
           hls.subtitleTrack = defaultTrack
@@ -356,12 +396,17 @@ export const useHlsPlayer = ({
         .catch(() => { /* Autoplay blocked */ })
     })
 
-    // Track quality level changes
+    // Track quality level changes (from HLS.js ABR or manual selection)
     hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
       const level = hls.levels[data.level]
       if (level?.height) {
         setCurrentQuality(level.height)
         setCurrentBandwidth(level.bitrate || null)
+        logger.debug('[HLS] Level switched', {
+          height: level.height,
+          bitrate: level.bitrate,
+          isAuto: hls.currentLevel === -1,
+        })
       }
     })
 
@@ -432,9 +477,6 @@ export const useHlsPlayer = ({
     availableSubtitleTracks,
     currentSubtitleTrack,
     streamOffsetRef,
-    setCurrentQuality,
-    setCurrentBandwidth,
-    setCurrentAudioTrack,
     changeQuality,
     changeAudioTrack,
     changeSubtitleTrack,

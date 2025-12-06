@@ -55,7 +55,7 @@ func (qr *QualityRecommender) RecommendQuality(caps ClientCapabilities) *Quality
 	recommendations := qr.RecommendMultipleQualities(caps, 1)
 	if len(recommendations) == 0 {
 		// Fallback to safest profile
-		profile, _ := GetAdaptiveProfile(Quality480p1200k)
+		profile, _ := GetAdaptiveProfile(Quality480p)
 		return &QualityRecommendation{
 			Profile: profile,
 			Score:   0.5,
@@ -126,36 +126,39 @@ func (qr *QualityRecommender) RecommendMultipleQualities(caps ClientCapabilities
 }
 
 // scoreProfile calculates a compatibility score (0-1) for a profile given client capabilities.
+// Network capability is the primary factor - if you have a fast connection, you get high quality.
+// Screen size is informational only and doesn't reject profiles.
 func (qr *QualityRecommender) scoreProfile(profile *AdaptiveProfile, caps ClientCapabilities) (float64, string) {
 	score := 1.0
 	reasons := []string{}
 
-	// 1. Network speed compatibility (critical)
+	// 1. Network speed compatibility (critical - primary factor)
 	networkScore := qr.scoreNetwork(profile, caps)
 	if networkScore == 0 {
 		return 0, "insufficient network speed"
 	}
 	score *= networkScore
 
-	// 2. Screen resolution compatibility (important)
-	screenScore := qr.scoreScreen(profile, caps)
-	if screenScore < 0.3 {
-		return 0, "screen resolution mismatch"
-	}
-	score *= screenScore
-
-	// 3. Device type compatibility (moderate)
-	deviceScore := qr.scoreDeviceType(profile, caps)
-	score *= deviceScore
-
-	// 4. Codec compatibility (critical)
+	// 2. Codec compatibility (critical)
 	codecScore := qr.scoreCodec(profile, caps)
 	if codecScore == 0 {
 		return 0, "codec not supported"
 	}
 	score *= codecScore
 
-	// 5. Power considerations (moderate)
+	// 3. Prefer higher quality when network allows
+	// This ensures fast connections get the highest quality regardless of screen size
+	qualityBonus := float64(profile.Height) / 2160.0 // Normalize to 4K
+	if qualityBonus > 1.0 {
+		qualityBonus = 1.0
+	}
+	score *= (0.8 + 0.2*qualityBonus) // 80-100% based on resolution
+
+	// 4. Device type compatibility (minor factor)
+	deviceScore := qr.scoreDeviceType(profile, caps)
+	score *= deviceScore
+
+	// 5. Power considerations (moderate - only affects mobile/battery)
 	powerScore := qr.scorePower(profile, caps)
 	score *= powerScore
 
@@ -206,31 +209,6 @@ func (qr *QualityRecommender) scoreNetwork(profile *AdaptiveProfile, caps Client
 	} else {
 		// Too close to limit, potential buffering
 		return 0.7
-	}
-}
-
-// scoreScreen evaluates screen resolution compatibility.
-func (qr *QualityRecommender) scoreScreen(profile *AdaptiveProfile, caps ClientCapabilities) float64 {
-	screenPixels := caps.ScreenWidth * caps.ScreenHeight
-	profilePixels := profile.Width * profile.Height
-
-	ratio := float64(profilePixels) / float64(screenPixels)
-
-	if ratio <= 0.5 {
-		// Significant downscaling - not ideal but acceptable
-		return 0.7
-	} else if ratio <= 1.0 {
-		// Perfect fit or minor downscaling
-		return 1.0
-	} else if ratio <= 1.5 {
-		// Minor upscaling - still good on high DPI screens
-		return 0.95
-	} else if ratio <= 2.0 {
-		// Moderate upscaling - may look soft
-		return 0.6
-	} else {
-		// Excessive upscaling - wasteful
-		return 0.3
 	}
 }
 
@@ -314,16 +292,16 @@ func (qr *QualityRecommender) GetAdaptiveLadder(caps ClientCapabilities) []*Adap
 	ladder := make([]*AdaptiveProfile, 0, 6)
 
 	// Always include lowest quality for poor conditions
-	lowest, _ := GetAdaptiveProfile(Quality240p400k)
+	lowest, _ := GetAdaptiveProfile(Quality360p)
 	ladder = append(ladder, lowest)
 
 	// Include profiles at different bitrate levels
 	targetBitrates := []int{
-		1_200_000,  // ~1.2 Mbps (SD)
-		2_500_000,  // ~2.5 Mbps (SD high)
-		5_000_000,  // ~5 Mbps (720p)
-		8_000_000,  // ~8 Mbps (1080p)
-		16_000_000, // ~16 Mbps (1080p high / 1440p)
+		1_000_000,  // ~1 Mbps (SD)
+		2_000_000,  // ~2 Mbps (720p low)
+		4_000_000,  // ~4 Mbps (720p/1080p)
+		10_000_000, // ~10 Mbps (1080p)
+		20_000_000, // ~20 Mbps (1080p high)
 	}
 
 	for _, targetBitrate := range targetBitrates {

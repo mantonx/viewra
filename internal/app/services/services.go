@@ -128,6 +128,21 @@ func BuildServices(
 	}
 	sessionManager := transcoding.NewSessionManager(transcodeConfig, logger)
 
+	// Initialize FFmpeg log store for debugging (if enabled)
+	if transcodeConfig.FFmpegLogEnabled {
+		logRetention := time.Duration(transcodeConfig.FFmpegLogRetentionHours) * time.Hour
+		logStore, err := transcoding.NewFFmpegLogStore(cfg.Media.TranscodeOutputDir, logRetention, logger)
+		if err != nil {
+			logger.Warn("Failed to initialize FFmpeg log store",
+				"error", err,
+				"note", "FFmpeg logging will be disabled")
+		} else {
+			sessionManager.SetLogStore(logStore)
+			logger.Info("FFmpeg log store initialized",
+				"retention_hours", transcodeConfig.FFmpegLogRetentionHours)
+		}
+	}
+
 	// Start comprehensive background cleanup:
 	// 1. Idle sessions: Check every 15s, clean sessions idle >30s
 	// 2. Old transcode caches: Check every 5min, remove caches >1 hour old

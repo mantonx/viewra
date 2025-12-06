@@ -51,14 +51,9 @@ const (
 	StrategyMasterDirectPlay
 )
 
-// ABRVariant represents a single quality variant in the ABR ladder.
-type ABRVariant struct {
-	Quality   string
-	Bandwidth int
-	Width     int
-	Height    int
-	Codecs    string
-}
+// ABRVariant is imported from transcoding package - single source of truth
+// Re-export for use in this package
+type ABRVariant = transcoding.ABRVariant
 
 // ServeMasterPlaylistUseCase handles generating the HLS master playlist.
 type ServeMasterPlaylistUseCase struct {
@@ -167,7 +162,7 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 			variant.Width,
 			variant.Height,
 			variant.Codecs,
-			variant.Quality,
+			variant.ID,
 		)
 
 		// Reference audio group if we have multiple audio tracks
@@ -183,7 +178,7 @@ func (uc *ServeMasterPlaylistUseCase) buildMasterPlaylist(mediaItem *media.Media
 		playlist += streamInf + "\n"
 
 		// Build variant URL with query parameters
-		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.Quality)
+		variantURL := fmt.Sprintf("%s/playlist.m3u8", variant.ID)
 		if startPosition != "" {
 			variantURL += "?start=" + startPosition
 		}
@@ -480,90 +475,40 @@ func getLanguageName(iso6392 string) string {
 }
 
 // getFilteredABRLadder returns quality variants appropriate for the source media.
+// Sources are mapped to the nearest appropriate tier based on their resolution and bitrate.
+// No "original" quality - sources fall into the appropriate tier for consistent caching.
 func (uc *ServeMasterPlaylistUseCase) getFilteredABRLadder(sourceWidth, sourceHeight int, sourceBitrate int64) []ABRVariant {
-	// Comprehensive ABR ladder organized by resolution, then by bitrate
-	abrLadder := []ABRVariant{
-		// 360p - Low quality for poor connections
-		{"360p", 800_000, 640, 360, "avc1.4d401e,mp4a.40.2"},
-
-		// 480p - SD quality
-		{"480p", 1_500_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
-		{"480p-2m", 2_000_000, 854, 480, "avc1.4d401e,mp4a.40.2"},
-
-		// 720p - HD quality (multiple bitrate tiers)
-		{"720p-3m", 3_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
-		{"720p", 4_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
-		{"720p-6m", 6_000_000, 1280, 720, "avc1.64001f,mp4a.40.2"},
-
-		// 1080p - Full HD (multiple bitrate tiers)
-		{"1080p-6m", 6_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p", 8_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p-12m", 12_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p-15m", 15_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-		{"1080p-20m", 20_000_000, 1920, 1080, "avc1.640028,mp4a.40.2"},
-
-		// 4K - Ultra HD (many bitrate tiers for high-quality sources)
-		{"4k-20m", 20_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-25m", 25_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-35m", 35_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-50m", 50_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-60m", 60_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-80m", 80_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-100m", 100_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-		{"4k-120m", 120_000_000, 3840, 2160, "avc1.640033,mp4a.40.2"},
-	}
-
-	// Add "Original" quality if we know the source bitrate
-	if sourceBitrate > 0 && sourceWidth > 0 && sourceHeight > 0 {
-		// Round source bitrate up to nearest 5 Mbps for cleaner display
-		originalBitrate := ((sourceBitrate / 5_000_000) + 1) * 5_000_000
-		if originalBitrate < sourceBitrate {
-			originalBitrate = sourceBitrate
-		}
-
-		abrLadder = append(abrLadder, ABRVariant{
-			Quality:   "original",
-			Bandwidth: int(originalBitrate),
-			Width:     sourceWidth,
-			Height:    sourceHeight,
-			Codecs:    "avc1.640033,mp4a.40.2",
-		})
-	}
-
-	// Filter based on source resolution and bitrate
-	return uc.filterVariants(abrLadder, sourceWidth, sourceHeight, sourceBitrate)
+	// Use the shared ABR ladder from transcoding package (single source of truth)
+	return uc.filterVariants(transcoding.ABRLadder, sourceWidth, sourceHeight, sourceBitrate)
 }
 
-// filterVariants removes variants that don't make sense for the source media.
+// filterVariants selects the single best quality variant for the source media.
+// Only one video quality is included to minimize FFmpeg processes and ensure fast startup.
+// The player will use this single quality; ABR switching is not supported in this mode.
 func (uc *ServeMasterPlaylistUseCase) filterVariants(variants []ABRVariant, sourceWidth, sourceHeight int, sourceBitrate int64) []ABRVariant {
-	addedVariants := make(map[string]bool)
-	var filtered []ABRVariant
+	// Find the best matching variant for this source
+	var bestVariant *ABRVariant
 
-	for _, variant := range variants {
-		// Skip duplicates
-		if addedVariants[variant.Quality] {
-			continue
-		}
+	for i := range variants {
+		variant := &variants[i]
 
-		// Skip variants with bitrate higher than source (except "original")
-		if variant.Quality != "original" && sourceBitrate > 0 && int64(variant.Bandwidth) > sourceBitrate {
+		// Skip variants with bitrate significantly higher than source (allow 10% tolerance)
+		if sourceBitrate > 0 && int64(variant.Bandwidth) > (sourceBitrate*110/100) {
 			continue
 		}
 
 		// Skip qualities higher than source if we know resolution
 		if sourceHeight > 0 && sourceWidth > 0 {
-			// For 4K detection, use width as primary indicator
-			// Ultrawide 4K content has full 4K width but reduced height
 			is4KSource := sourceWidth >= 3840
 			is4KVariant := variant.Width >= 3840
 
 			// Skip 4K variants if source is not 4K
-			if is4KVariant && !is4KSource && variant.Quality != "original" {
+			if is4KVariant && !is4KSource {
 				continue
 			}
 
 			// For non-4K variants, use height-based comparison
-			if !is4KVariant && variant.Height > sourceHeight && variant.Quality != "original" {
+			if !is4KVariant && variant.Height > sourceHeight {
 				continue
 			}
 		} else {
@@ -573,9 +518,20 @@ func (uc *ServeMasterPlaylistUseCase) filterVariants(variants []ABRVariant, sour
 			}
 		}
 
-		addedVariants[variant.Quality] = true
-		filtered = append(filtered, variant)
+		// Select the highest quality variant that passes all filters
+		// Variants are ordered from lowest to highest in ABRLadder
+		bestVariant = variant
 	}
 
-	return filtered
+	// Return single best variant (or empty if none matched)
+	if bestVariant != nil {
+		return []ABRVariant{*bestVariant}
+	}
+
+	// Fallback: return the lowest quality if nothing matched
+	if len(variants) > 0 {
+		return []ABRVariant{variants[0]}
+	}
+
+	return nil
 }

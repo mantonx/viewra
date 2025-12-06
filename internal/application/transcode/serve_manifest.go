@@ -116,7 +116,6 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		req.OutputDir,
 		videoInfo,
 		req.SupportedVideoCodecs,
-		nil, // No subtitle burn-in - handled client-side
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcode session: %w", err)

@@ -27,7 +27,6 @@ export const VideoControls = ({
   availableQualities,
   currentQuality,
   currentBandwidth,
-  recommendedQuality,
   autoMode,
   availableAudioTracks,
   currentAudioTrack,
@@ -320,22 +319,19 @@ export const VideoControls = ({
             </div>
 
             {/* Current quality indicator - subtle display of what's playing */}
-            {currentQuality && currentQuality > 0 && (() => {
-              const currentLevel = availableQualities.find(q => q.height === currentQuality)
-              return (
-                <div className="text-xs text-white/50 hidden lg:flex items-center gap-1.5 ml-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  <span>
-                    {currentQuality}p
-                    {currentLevel?.bandwidth && (
-                      <span className="text-white/40 ml-1">
-                        ({formatBandwidth(currentLevel.bandwidth)})
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )
-            })()}
+            {currentQuality && currentQuality > 0 && (
+              <div className="text-xs text-white/50 hidden lg:flex items-center gap-1.5 ml-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span>
+                  {currentQuality}p
+                  {currentBandwidth && (
+                    <span className="text-white/40 ml-1">
+                      ({formatBandwidth(currentBandwidth)})
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Right controls */}
@@ -349,7 +345,6 @@ export const VideoControls = ({
                 currentQuality={currentQuality}
                 currentBandwidth={currentBandwidth}
                 availableQualities={availableQualities}
-                recommendedQuality={recommendedQuality}
                 autoMode={autoMode}
                 onQualityChange={onQualityChange}
                 onAutoToggle={onAutoToggle}

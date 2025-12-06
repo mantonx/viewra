@@ -62,6 +62,7 @@ func BuildHandlers(
 
 	// Transcode handler (if transcode is enabled)
 	var transcodeHandler *handlers.TranscodeHandler
+	var ffmpegLogsHandler *handlers.FFmpegLogsHandler
 	if svcs.TranscodeQueue != nil && cases.Transcode.CreateJob != nil {
 		transcodeHandler = handlers.NewTranscodeHandler(
 			cases.Transcode.CreateJob,
@@ -77,6 +78,9 @@ func BuildHandlers(
 			infra.TranscodeOutputDir,
 			svcs.SubtitleConverter,
 		)
+
+		// FFmpeg logs handler (requires session manager)
+		ffmpegLogsHandler = handlers.NewFFmpegLogsHandler(svcs.SessionManager)
 	}
 
 	// Media-type specific handlers
@@ -149,6 +153,7 @@ func BuildHandlers(
 		Subtitle:      subtitleHandler,
 		Images:        imagesHandler,
 		Transcode:     transcodeHandler,
+		FFmpegLogs:    ffmpegLogsHandler,
 		Movies:        moviesHandler,
 		TV:            tvHandler,
 		Music:         musicHandler,

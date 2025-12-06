@@ -14,10 +14,12 @@ import (
 // Handles session lifecycle, cleanup, and restart logic for seeking.
 type SessionManager struct {
 	sessions        sync.Map // map[string]*TranscodeSession (key: "mediaID_quality")
+	sessionMu       sync.Map // map[string]*sync.Mutex - per-session creation locks to prevent race conditions
 	logger          *slog.Logger
 	config          *TranscodeConfig
 	configProvider  ConfigProvider // Optional: for dynamic config from settings
 	fallbackManager *HardwareFallbackManager
+	logStore        *FFmpegLogStore // Optional: for persistent FFmpeg log capture
 }
 
 // NewSessionManager creates a new session manager.
@@ -53,12 +55,32 @@ func (m *SessionManager) SetConfigProvider(provider ConfigProvider) {
 	m.configProvider = provider
 }
 
+// SetLogStore sets the FFmpeg log store for persistent log capture.
+// When set, all new transcode sessions will have their FFmpeg output captured.
+func (m *SessionManager) SetLogStore(store *FFmpegLogStore) {
+	m.logStore = store
+}
+
+// GetLogStore returns the FFmpeg log store (may be nil if not configured).
+func (m *SessionManager) GetLogStore() *FFmpegLogStore {
+	return m.logStore
+}
+
 // getEffectiveConfig returns the current configuration, using provider if available.
 func (m *SessionManager) getEffectiveConfig(ctx context.Context) *TranscodeConfig {
 	if m.configProvider != nil {
 		return m.configProvider.GetConfig(ctx)
 	}
 	return m.config
+}
+
+// getSessionMutex returns a mutex for the given session key.
+// Creates a new mutex if one doesn't exist. This ensures only one goroutine
+// can create a session for a given key at a time, preventing duplicate FFmpeg processes.
+func (m *SessionManager) getSessionMutex(key string) *sync.Mutex {
+	mu := &sync.Mutex{}
+	actual, _ := m.sessionMu.LoadOrStore(key, mu)
+	return actual.(*sync.Mutex)
 }
 
 // cleanupOutputDir removes a session's output directory and logs any errors.
@@ -79,18 +101,11 @@ func (m *SessionManager) cleanupOutputDir(path string, sessionID string) {
 	}
 }
 
-// SubtitleBurnInOptions contains options for subtitle burn-in during transcoding.
-type SubtitleBurnInOptions struct {
-	Enabled     bool // Whether to burn in subtitles
-	StreamIndex int  // Relative index among subtitle streams (0-based)
-}
-
 // GetOrCreateSession returns an existing session or creates a new one.
 // Sessions are reused when possible to avoid re-transcoding segments that already exist.
 // Multiple quality sessions can coexist to support ABR (Adaptive Bitrate) streaming.
 // clientSupportedCodecs is a list of video codecs the client can decode (e.g., ["h264", "h265", "vp9"]).
 // This is used to select the best codec from the profile's preferred/fallback list.
-// subtitleOpts specifies optional subtitle burn-in settings for PGS/bitmap subtitles.
 func (m *SessionManager) GetOrCreateSession(
 	mediaID int64,
 	quality string,
@@ -101,14 +116,8 @@ func (m *SessionManager) GetOrCreateSession(
 	outputDir string,
 	videoInfo *VideoInfo,
 	clientSupportedCodecs []string,
-	subtitleOpts *SubtitleBurnInOptions,
 ) (*TranscodeSession, error) {
-	// Include subtitle info in session key so changing subtitles triggers new session
-	subtitleKey := ""
-	if subtitleOpts != nil && subtitleOpts.Enabled {
-		subtitleKey = fmt.Sprintf("_sub%d", subtitleOpts.StreamIndex)
-	}
-	key := sessionKey(mediaID, quality) + subtitleKey
+	key := sessionKey(mediaID, quality)
 
 	// Stop all sessions for OTHER media to prevent resource hogging
 	// When user switches to a different video, clean up the old one immediately
@@ -118,7 +127,15 @@ func (m *SessionManager) GetOrCreateSession(
 	// This allows ABR to work properly - HLS.js can switch between qualities without
 	// causing transcode sessions to be killed and restarted.
 
-	// Check for existing session
+	// Acquire per-key mutex to prevent race conditions where multiple requests
+	// concurrently create sessions for the same key. Without this lock, each request
+	// would see no existing session, create its own FFmpeg process, and the last one
+	// to call Store() would win - leaving orphaned FFmpeg processes.
+	mu := m.getSessionMutex(key)
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Check for existing session (now safe from race conditions)
 	// Reuse if start position is close enough or if no position specified (ABR quality switch)
 	// This balances ABR functionality with proper seek support.
 	if existing, ok := m.sessions.Load(key); ok {
@@ -168,18 +185,21 @@ func (m *SessionManager) GetOrCreateSession(
 		m.cleanupOutputDir(session.OutputDir, session.ID)
 	}
 
-	// Create new session
-	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger)
+	// Create new session (without log writer initially)
+	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger, nil)
 
-	// Set subtitle burn-in options if provided
-	if subtitleOpts != nil && subtitleOpts.Enabled {
-		session.BurnInSubtitle = true
-		session.SubtitleStreamIndex = subtitleOpts.StreamIndex
-		m.logger.Info("Creating session with subtitle burn-in",
-			"media_id", mediaID,
-			"quality", quality,
-			"subtitle_stream_index", subtitleOpts.StreamIndex,
-			"session_key", key)
+	// Create log writer for this session (if log store is configured)
+	// We do this after session creation so we can use the actual session ID
+	if m.logStore != nil {
+		logWriter, err := m.logStore.CreateLogWriter(session.ID, mediaID, quality)
+		if err != nil {
+			m.logger.Warn("Failed to create FFmpeg log writer",
+				"session_id", session.ID,
+				"error", err)
+			// Continue without logging - not a fatal error
+		} else {
+			session.SetLogWriter(logWriter)
+		}
 	}
 
 	// Get effective config (dynamic settings like tone mapping may have changed)
@@ -265,6 +285,11 @@ func (m *SessionManager) StopSession(mediaID int64, quality string) error {
 		session.Stop()
 		m.sessions.Delete(key)
 
+		// Close log writer if present
+		if m.logStore != nil {
+			m.logStore.CloseLogWriter(session.ID)
+		}
+
 		// Clean up output directory
 		m.cleanupOutputDir(session.OutputDir, session.ID)
 
@@ -279,9 +304,14 @@ func (m *SessionManager) StopSession(mediaID int64, quality string) error {
 func (m *SessionManager) StopAllSessions() {
 	m.logger.Info("Stopping all transcode sessions")
 
-	m.sessions.Range(func(key, value interface{}) bool {
+	m.sessions.Range(func(key, value any) bool {
 		session := value.(*TranscodeSession)
 		session.Stop()
+
+		// Close log writer if present
+		if m.logStore != nil {
+			m.logStore.CloseLogWriter(session.ID)
+		}
 
 		// Clean up output directory
 		m.cleanupOutputDir(session.OutputDir, session.ID)
@@ -298,7 +328,7 @@ func (m *SessionManager) StopAllSessions() {
 func (m *SessionManager) CleanupIdleSessions(idleTimeout time.Duration) int {
 	cleanedCount := 0
 
-	m.sessions.Range(func(key, value interface{}) bool {
+	m.sessions.Range(func(key, value any) bool {
 		session := value.(*TranscodeSession)
 
 		if time.Since(session.LastAccessed) > idleTimeout {
@@ -309,6 +339,11 @@ func (m *SessionManager) CleanupIdleSessions(idleTimeout time.Duration) int {
 			session.Stop()
 			m.sessions.Delete(key)
 			cleanedCount++
+
+			// Close log writer if present
+			if m.logStore != nil {
+				m.logStore.CloseLogWriter(session.ID)
+			}
 
 			// Clean up output directory
 			m.cleanupOutputDir(session.OutputDir, session.ID)
@@ -384,7 +419,13 @@ func (m *SessionManager) GetOrCreateAudioSession(
 ) (*TranscodeSession, error) {
 	key := audioSessionKey(mediaID, audioTrackIndex)
 
-	// Check for existing session
+	// Acquire per-key mutex to prevent race conditions where multiple requests
+	// concurrently create sessions for the same key.
+	mu := m.getSessionMutex(key)
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Check for existing session (now safe from race conditions)
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
 
@@ -407,7 +448,19 @@ func (m *SessionManager) GetOrCreateAudioSession(
 
 	// Create new audio-only session
 	quality := fmt.Sprintf("audio_%d", audioTrackIndex)
-	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger)
+	session := NewTranscodeSession(mediaID, quality, startPosition, outputDir, m.logger, nil)
+
+	// Create log writer for this session (if log store is configured)
+	if m.logStore != nil {
+		logWriter, err := m.logStore.CreateLogWriter(session.ID, mediaID, quality)
+		if err != nil {
+			m.logger.Warn("Failed to create FFmpeg log writer for audio session",
+				"session_id", session.ID,
+				"error", err)
+		} else {
+			session.SetLogWriter(logWriter)
+		}
+	}
 
 	// Get effective config
 	effectiveConfig := m.getEffectiveConfig(context.Background())
@@ -671,6 +724,18 @@ func (m *SessionManager) StartPeriodicCleanup(
 				m.CleanupIdleSessions(sessionIdleTimeout)
 			case <-transcodeTicker.C:
 				m.CleanupOldTranscodes(outputDir, transcodeMaxAge)
+
+				// Also cleanup old FFmpeg logs
+				if m.logStore != nil {
+					deletedCount, deletedBytes, err := m.logStore.CleanupOldLogs()
+					if err != nil {
+						m.logger.Warn("Failed to cleanup old FFmpeg logs", "error", err)
+					} else if deletedCount > 0 {
+						m.logger.Info("Cleaned up old FFmpeg logs",
+							"count", deletedCount,
+							"freed_bytes", deletedBytes)
+					}
+				}
 			}
 		}
 	}()

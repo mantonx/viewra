@@ -12,6 +12,8 @@ func RegisterTranscodeRoutes(router *gin.RouterGroup, handler *handlers.Transcod
 		return
 	}
 
+	// Note: FFmpeg log routes are registered separately via RegisterFFmpegLogRoutes
+
 	// POST /api/media/:id/transcode/:quality - Create transcode job
 	router.POST("/media/:id/transcode/:quality", handler.CreateTranscodeJob)
 
@@ -50,4 +52,30 @@ func RegisterTranscodeRoutes(router *gin.RouterGroup, handler *handlers.Transcod
 
 	// POST /api/transcode/cleanup - Cleanup transcode files
 	router.POST("/transcode/cleanup", handler.CleanupTranscodes)
+}
+
+// RegisterFFmpegLogRoutes registers routes for FFmpeg log access and debugging.
+func RegisterFFmpegLogRoutes(router *gin.RouterGroup, handler *handlers.FFmpegLogsHandler) {
+	// Skip route registration if handler is nil
+	if handler == nil {
+		return
+	}
+
+	// GET /api/media/:id/ffmpeg-logs - List FFmpeg logs for media
+	router.GET("/media/:id/ffmpeg-logs", handler.ListLogs)
+
+	// GET /api/media/:id/ffmpeg-logs/:session_id - Get specific log content
+	router.GET("/media/:id/ffmpeg-logs/:session_id", handler.GetLog)
+
+	// GET /api/media/:id/ffmpeg-logs/:session_id/info - Get log metadata
+	router.GET("/media/:id/ffmpeg-logs/:session_id/info", handler.GetLogInfo)
+
+	// GET /api/media/:id/ffmpeg-logs/:session_id/stream - Stream log in real-time (SSE)
+	router.GET("/media/:id/ffmpeg-logs/:session_id/stream", handler.StreamLog)
+
+	// DELETE /api/media/:id/ffmpeg-logs/:session_id - Delete specific log
+	router.DELETE("/media/:id/ffmpeg-logs/:session_id", handler.DeleteLog)
+
+	// GET /api/transcode/active-sessions - List active transcode sessions
+	router.GET("/transcode/active-sessions", handler.ListActiveSessions)
 }

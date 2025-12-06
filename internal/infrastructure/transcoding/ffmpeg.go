@@ -61,11 +61,7 @@ type TranscodeOptions struct {
 	ToneMappingBackend         string     // Tone mapping backend: auto, libplacebo, opencl, vaapi, cpu
 	LibPlaceboPeakDetect       bool       // Enable dynamic peak detection for libplacebo (default: true)
 	LibPlaceboContrastRecovery float64    // Contrast recovery for libplacebo (0.0-3.0, default: 0.3)
-	// Phase 3: Multi-codec support
-	VideoCodec VideoCodec // Target codec: h264, h265, vp9, av1 (default: h264)
-	// Subtitle burn-in support for PGS/bitmap subtitles
-	SubtitleStreamIndex int  // Stream index of subtitle to burn in (e.g., 2 for the 3rd stream)
-	BurnInSubtitle      bool // If true, burn the specified subtitle into the video
+	VideoCodec                 VideoCodec // Target codec: h264, h265, vp9, av1 (default: h264)
 }
 
 // TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.
@@ -177,6 +173,7 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		builder.AddVideoEncoding()
 	}
 
+	// Note: No force_key_frames needed - GOP settings ensure frame 0 is a keyframe
 	return builder.
 		AddAudioEncoding().
 		AddHLSOutput().
@@ -188,6 +185,7 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 
 // buildRemuxArgs constructs FFmpeg arguments for remuxing to HLS (copying streams without re-encoding).
 // This is used when video is already H.264 and audio is stereo, but container format needs conversion.
+// Note: force_key_frames doesn't apply to copy mode since we're not re-encoding.
 func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 	return NewFFmpegArgsBuilder(opts).
 		AddLogLevel("error").
@@ -207,6 +205,7 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 
 // buildRemuxWithAudioDownmixArgs constructs FFmpeg arguments for remuxing with audio downmix.
 // This copies the video stream but re-encodes multi-channel audio to stereo for browser compatibility.
+// Note: force_key_frames doesn't apply to copy mode since we're not re-encoding video.
 func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) []string {
 	return NewFFmpegArgsBuilder(opts).
 		AddLogLevel("error").

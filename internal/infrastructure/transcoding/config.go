@@ -83,6 +83,16 @@ type TranscodeConfig struct {
 	// Higher values preserve more highlight detail at the cost of local contrast
 	// Environment variable: LIBPLACEBO_CONTRAST_RECOVERY (default: 0.3)
 	LibPlaceboContrastRecovery float64
+
+	// FFmpegLogEnabled enables persistent FFmpeg log capture for debugging
+	// When true, FFmpeg stderr output is saved to files for later inspection
+	// Environment variable: FFMPEG_LOG_ENABLED (default: true)
+	FFmpegLogEnabled bool
+
+	// FFmpegLogRetentionHours specifies how long to keep FFmpeg log files (in hours)
+	// Logs older than this are automatically cleaned up
+	// Environment variable: FFMPEG_LOG_RETENTION_HOURS (default: 48)
+	FFmpegLogRetentionHours int
 }
 
 // DefaultTranscodeConfig returns sensible defaults.
@@ -140,6 +150,19 @@ func DefaultTranscodeConfigFromProfile(hwAccelType string) *TranscodeConfig {
 		}
 	}
 
+	// Get FFmpeg log settings
+	ffmpegLogEnabled := true
+	if envLogEnabled := os.Getenv("FFMPEG_LOG_ENABLED"); envLogEnabled != "" {
+		ffmpegLogEnabled = envLogEnabled == "true" || envLogEnabled == "1"
+	}
+
+	ffmpegLogRetentionHours := 48 // Default: 2 days
+	if envRetention := os.Getenv("FFMPEG_LOG_RETENTION_HOURS"); envRetention != "" {
+		if val, err := strconv.Atoi(envRetention); err == nil && val > 0 {
+			ffmpegLogRetentionHours = val
+		}
+	}
+
 	return &TranscodeConfig{
 		HardwareAccel:              hwaccel,
 		HardwareDevice:             hwDevice,
@@ -153,6 +176,8 @@ func DefaultTranscodeConfigFromProfile(hwAccelType string) *TranscodeConfig {
 		ToneMappingBackend:         toneMappingBackend,         // Default: auto
 		LibPlaceboPeakDetect:       libPlaceboPeakDetect,       // Default: true
 		LibPlaceboContrastRecovery: libPlaceboContrastRecovery, // Default: 0.3
+		FFmpegLogEnabled:           ffmpegLogEnabled,           // Default: true
+		FFmpegLogRetentionHours:    ffmpegLogRetentionHours,    // Default: 48 hours
 	}
 }
 

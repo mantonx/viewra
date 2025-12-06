@@ -13,7 +13,6 @@ export { NerdMenu } from './NerdMenu'
 
 // Overlay components
 export { SubtitleOverlay } from './SubtitleOverlay'
-export { NetworkOverlay } from './NetworkOverlay'
 export { BufferIndicator } from './BufferIndicator'
 export { StatsPanel } from './StatsPanel'
 

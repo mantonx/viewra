@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 // TranscodeSession represents a long-running FFmpeg process for progressive HLS transcoding.
@@ -24,10 +26,6 @@ type TranscodeSession struct {
 	Quality       string
 	StartPosition float64 // Start position in seconds
 
-	// Subtitle burn-in options
-	SubtitleStreamIndex int  // Relative index among subtitle streams (0-based)
-	BurnInSubtitle      bool // Whether to burn in subtitles
-
 	FFmpegCmd    *exec.Cmd
 	OutputDir    string
 	ManifestPath string
@@ -35,31 +33,53 @@ type TranscodeSession struct {
 	CreatedAt    time.Time
 	LastAccessed time.Time
 
+	// Segment configuration
+	SegmentDurationSec int // Segment duration in seconds (used to calculate first segment number)
+
+	// Timing metrics for debugging startup latency
+	FFmpegStartedAt    time.Time // When FFmpeg process was started
+	FirstFrameAt       time.Time // When first frame was processed
+	FirstSegmentAt     time.Time // When first segment was written
+	ManifestReadyAt    time.Time // When manifest became available
+	firstFrameLogged   bool      // Whether we've logged first frame timing
+	firstSegmentLogged bool      // Whether we've logged first segment timing
+
 	// Segment tracking
 	segmentMutex      sync.RWMutex
 	generatedSegments map[int]bool // Track which segments have been generated
+	segmentCond       *sync.Cond   // Condition variable for instant segment notification
+
+	// File system watcher for instant segment detection
+	// Uses inotify (Linux), FSEvents (macOS), or ReadDirectoryChangesW (Windows)
+	fsWatcher *fsnotify.Watcher
 
 	// Process management
 	ctx      context.Context
 	cancel   context.CancelFunc
 	logger   *slog.Logger
 	waitOnce sync.Once // Ensure Wait() is only called once
+
+	// FFmpeg log capture for debugging
+	logWriter *LogWriter
 }
 
 // NewTranscodeSession creates a new transcode session but does not start it.
+// The logWriter parameter is optional - if nil, FFmpeg output will still be processed
+// but not persisted for later access.
 func NewTranscodeSession(
 	mediaID int64,
 	quality string,
 	startPosition float64,
 	outputDir string,
 	logger *slog.Logger,
+	logWriter *LogWriter,
 ) *TranscodeSession {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sessionID := fmt.Sprintf("%d_%s_%d", mediaID, quality, time.Now().Unix())
 	sessionOutputDir := filepath.Join(outputDir, fmt.Sprintf("%d", mediaID), quality)
 
-	return &TranscodeSession{
+	session := &TranscodeSession{
 		ID:                sessionID,
 		MediaID:           mediaID,
 		Quality:           quality,
@@ -72,7 +92,13 @@ func NewTranscodeSession(
 		ctx:               ctx,
 		cancel:            cancel,
 		logger:            logger,
+		logWriter:         logWriter,
 	}
+
+	// Initialize condition variable for instant segment notification
+	session.segmentCond = sync.NewCond(&session.segmentMutex)
+
+	return session
 }
 
 // Start begins the FFmpeg transcoding process.
@@ -84,13 +110,22 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// Store segment duration for WaitForManifest calculation
+	s.SegmentDurationSec = profile.SegmentDuration
+
 	// Build FFmpeg arguments
 	args := s.buildFFmpegArgs(inputPath, profile, strategy, hwAccel, hwDevice, videoInfo, config, clientSupportedCodecs)
 
-	// FFmpeg command available via debug logging if needed
+	// Log FFmpeg command for debugging
+	ffmpegCommand := fmt.Sprintf("ffmpeg %s", strings.Join(args, " "))
 	s.logger.Debug("Starting FFmpeg process",
 		"session_id", s.ID,
-		"command", fmt.Sprintf("ffmpeg %s", strings.Join(args, " ")))
+		"command", ffmpegCommand)
+
+	// Write command to persistent log file
+	if s.logWriter != nil {
+		s.logWriter.WriteString(fmt.Sprintf("Command: %s\n\n", ffmpegCommand))
+	}
 
 	// Create FFmpeg command with memory limits via systemd-run (if available)
 	// This provides a hard cgroup limit as a safety net against memory spikes
@@ -108,8 +143,16 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 	}
 
 	// Start the process
+	s.FFmpegStartedAt = time.Now()
 	if err := s.FFmpegCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start ffmpeg: %w", err)
+	}
+
+	// Log startup timing to persistent log
+	if s.logWriter != nil {
+		s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: FFmpeg started at %s (%.2fms after session creation)\n",
+			s.FFmpegStartedAt.Format("15:04:05.000"),
+			float64(s.FFmpegStartedAt.Sub(s.CreatedAt).Microseconds())/1000))
 	}
 
 	// Monitor stdout for HLS muxer progress (at DEBUG level)
@@ -150,6 +193,7 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 	}()
 
 	// Log FFmpeg stderr in background with better error visibility
+	// Also write to persistent log file for debugging
 	go func() {
 		buf := make([]byte, 4096)
 		var stderrBuffer []byte
@@ -159,8 +203,45 @@ func (s *TranscodeSession) Start(inputPath string, profile *AdaptiveProfile, str
 				chunk := buf[:n]
 				stderrBuffer = append(stderrBuffer, chunk...)
 
-				// Classify FFmpeg output: real errors vs informational warnings
+				// Write to persistent log file (if available)
+				if s.logWriter != nil {
+					s.logWriter.Write(chunk)
+				}
+
+				// Track timing metrics from FFmpeg progress output
 				output := string(chunk)
+
+				// Detect first frame: look for "frame=" in progress output
+				if !s.firstFrameLogged && strings.Contains(output, "frame=") && !strings.Contains(output, "frame=    0") {
+					s.FirstFrameAt = time.Now()
+					s.firstFrameLogged = true
+					timeSinceStart := s.FirstFrameAt.Sub(s.FFmpegStartedAt)
+					s.logger.Info("FFmpeg first frame",
+						"session_id", s.ID,
+						"time_to_first_frame_ms", timeSinceStart.Milliseconds())
+					if s.logWriter != nil {
+						s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First frame at %s (%.0fms after FFmpeg start)\n",
+							s.FirstFrameAt.Format("15:04:05.000"),
+							float64(timeSinceStart.Milliseconds())))
+					}
+				}
+
+				// Detect first segment: look for seg_000000.ts being opened
+				if !s.firstSegmentLogged && strings.Contains(output, "seg_000000.ts") {
+					s.FirstSegmentAt = time.Now()
+					s.firstSegmentLogged = true
+					timeSinceStart := s.FirstSegmentAt.Sub(s.FFmpegStartedAt)
+					s.logger.Info("FFmpeg first segment",
+						"session_id", s.ID,
+						"time_to_first_segment_ms", timeSinceStart.Milliseconds())
+					if s.logWriter != nil {
+						s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First segment at %s (%.0fms after FFmpeg start)\n",
+							s.FirstSegmentAt.Format("15:04:05.000"),
+							float64(timeSinceStart.Milliseconds())))
+					}
+				}
+
+				// Classify FFmpeg output: real errors vs informational warnings
 				lowerOutput := strings.ToLower(output)
 
 				// Known non-fatal warnings that shouldn't be logged as errors
@@ -220,6 +301,14 @@ func (s *TranscodeSession) Stop() error {
 	// Cancel context to stop watchers
 	s.cancel()
 
+	// Close fsnotify watcher if active
+	if s.fsWatcher != nil {
+		s.fsWatcher.Close()
+	}
+
+	// Wake up any waiting goroutines so they can exit
+	s.segmentCond.Broadcast()
+
 	// Try graceful shutdown first
 	if s.FFmpegCmd != nil && s.FFmpegCmd.Process != nil {
 		// Send SIGTERM for graceful shutdown
@@ -252,9 +341,76 @@ func (s *TranscodeSession) Stop() error {
 }
 
 // watchSegments monitors the output directory for newly generated segments.
-// Runs in background and updates the generatedSegments map.
+// Uses inotify (Linux) / fsnotify for instant detection, with polling fallback.
 func (s *TranscodeSession) watchSegments() {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	// Try to set up inotify-based watching for instant segment detection
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		s.logger.Debug("Failed to create fsnotify watcher, falling back to polling",
+			"session_id", s.ID,
+			"error", err)
+		s.watchSegmentsPolling()
+		return
+	}
+
+	// Add watch on output directory
+	if err := watcher.Add(s.OutputDir); err != nil {
+		watcher.Close()
+		s.logger.Debug("Failed to watch output directory, falling back to polling",
+			"session_id", s.ID,
+			"path", s.OutputDir,
+			"error", err)
+		s.watchSegmentsPolling()
+		return
+	}
+
+	s.fsWatcher = watcher
+	s.logger.Debug("Using fsnotify for instant segment detection",
+		"session_id", s.ID,
+		"path", s.OutputDir)
+
+	defer watcher.Close()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+
+			// Only process Create and Write events for .ts files
+			if event.Op&(fsnotify.Create|fsnotify.Write) != 0 {
+				filename := filepath.Base(event.Name)
+				if strings.HasPrefix(filename, "seg_") && strings.HasSuffix(filename, ".ts") {
+					segNum := ParseSegmentNumber(filename)
+					if segNum >= 0 {
+						s.segmentMutex.Lock()
+						if !s.generatedSegments[segNum] {
+							s.generatedSegments[segNum] = true
+							// Broadcast to all waiting goroutines
+							s.segmentCond.Broadcast()
+						}
+						s.segmentMutex.Unlock()
+					}
+				}
+			}
+
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			s.logger.Warn("fsnotify error", "session_id", s.ID, "error", err)
+		}
+	}
+}
+
+// watchSegmentsPolling is the fallback polling-based segment watcher.
+// Used when inotify is not available (e.g., NFS mounts, or watcher creation fails).
+func (s *TranscodeSession) watchSegmentsPolling() {
+	ticker := time.NewTicker(100 * time.Millisecond) // Faster polling as fallback
 	defer ticker.Stop()
 
 	for {
@@ -270,11 +426,16 @@ func (s *TranscodeSession) watchSegments() {
 			}
 
 			s.segmentMutex.Lock()
+			newSegments := false
 			for _, file := range files {
 				segNum := ParseSegmentNumber(filepath.Base(file))
-				if segNum >= 0 {
+				if segNum >= 0 && !s.generatedSegments[segNum] {
 					s.generatedSegments[segNum] = true
+					newSegments = true
 				}
+			}
+			if newSegments {
+				s.segmentCond.Broadcast()
 			}
 			s.segmentMutex.Unlock()
 		}
@@ -282,16 +443,17 @@ func (s *TranscodeSession) watchSegments() {
 }
 
 // WaitForSegment blocks until the specified segment is available or timeout occurs.
+// Uses condition variable for instant notification when inotify detects new segments.
 // Returns the absolute path to the segment file.
 func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration) (string, error) {
 	deadline := time.Now().Add(timeout)
 
-	for time.Now().Before(deadline) {
-		s.segmentMutex.RLock()
-		exists := s.generatedSegments[segmentNum]
-		s.segmentMutex.RUnlock()
+	s.segmentMutex.Lock()
+	defer s.segmentMutex.Unlock()
 
-		if exists {
+	for {
+		// Check if segment exists
+		if s.generatedSegments[segmentNum] {
 			segmentPath := filepath.Join(s.OutputDir, SegmentFilename(segmentNum))
 			return segmentPath, nil
 		}
@@ -301,21 +463,95 @@ func (s *TranscodeSession) WaitForSegment(segmentNum int, timeout time.Duration)
 			return "", fmt.Errorf("ffmpeg process has exited")
 		}
 
-		// Poll every 50ms for faster segment delivery (reduced from 100ms)
-		time.Sleep(50 * time.Millisecond)
+		// Check timeout
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+
+		// Wait for notification with timeout
+		// Use a goroutine to implement timeout since sync.Cond doesn't support it directly
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-time.After(remaining):
+				// Timeout - wake up the waiting goroutine
+				s.segmentCond.Broadcast()
+			case <-done:
+				// Segment arrived or context cancelled
+			}
+		}()
+
+		s.segmentCond.Wait()
+		close(done)
 	}
 
 	return "", fmt.Errorf("timeout waiting for segment %d", segmentNum)
 }
 
-// WaitForManifest blocks until the manifest file exists or timeout occurs.
-// Returns an error if the manifest doesn't appear within the timeout.
+// WaitForManifest blocks until the manifest AND first segment exist.
+// This ensures HLS.js has actual playable content, not just an empty manifest.
+// Returns an error if the manifest doesn't become playable within the timeout.
 func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
+	// Calculate first segment number based on start position
+	// Must match FFmpeg's -start_number calculation
+	segmentDuration := s.SegmentDurationSec
+	if segmentDuration <= 0 {
+		segmentDuration = SegmentDuration // Default to 2 seconds if not set
+	}
+	firstSegmentNum := 0
+	if s.StartPosition > 0 {
+		firstSegmentNum = int(s.StartPosition) / segmentDuration
+	}
+	firstSegmentPath := filepath.Join(s.OutputDir, SegmentFilename(firstSegmentNum))
+
+	s.logger.Debug("Waiting for manifest and first segment",
+		"session_id", s.ID,
+		"start_position", s.StartPosition,
+		"first_segment_num", firstSegmentNum,
+		"first_segment_path", firstSegmentPath)
+
+	manifestExists := false
+	firstSegmentExists := false
+
 	for time.Now().Before(deadline) {
 		// Check if manifest file exists
-		if _, err := os.Stat(s.ManifestPath); err == nil {
+		if !manifestExists {
+			if _, err := os.Stat(s.ManifestPath); err == nil {
+				manifestExists = true
+				s.logger.Debug("Manifest file created, waiting for first segment",
+					"session_id", s.ID,
+					"manifest_path", s.ManifestPath)
+			}
+		}
+
+		// Check if first segment exists (this is what HLS.js actually needs)
+		if manifestExists && !firstSegmentExists {
+			if info, err := os.Stat(firstSegmentPath); err == nil && info.Size() > 0 {
+				firstSegmentExists = true
+			}
+		}
+
+		// Ready when both manifest and first segment exist
+		if manifestExists && firstSegmentExists {
+			s.ManifestReadyAt = time.Now()
+			timeSinceCreation := s.ManifestReadyAt.Sub(s.CreatedAt)
+			timeSinceFFmpegStart := s.ManifestReadyAt.Sub(s.FFmpegStartedAt)
+
+			s.logger.Info("Manifest ready with first segment",
+				"session_id", s.ID,
+				"first_segment", firstSegmentNum,
+				"time_total_ms", timeSinceCreation.Milliseconds(),
+				"time_from_ffmpeg_start_ms", timeSinceFFmpegStart.Milliseconds())
+
+			if s.logWriter != nil {
+				s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: Manifest ready at %s (%.0fms total, %.0fms after FFmpeg start)\n",
+					s.ManifestReadyAt.Format("15:04:05.000"),
+					float64(timeSinceCreation.Milliseconds()),
+					float64(timeSinceFFmpegStart.Milliseconds())))
+			}
 			return nil
 		}
 
@@ -324,7 +560,7 @@ func (s *TranscodeSession) WaitForManifest(timeout time.Duration) error {
 			return fmt.Errorf("ffmpeg process exited before creating manifest")
 		}
 
-		// Poll every 50ms for faster startup (reduced from 100ms)
+		// Poll every 50ms for faster startup
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -360,6 +596,16 @@ func (s *TranscodeSession) UpdateLastAccessed() {
 	s.LastAccessed = time.Now()
 }
 
+// GetLogWriter returns the log writer for this session (may be nil).
+func (s *TranscodeSession) GetLogWriter() *LogWriter {
+	return s.logWriter
+}
+
+// SetLogWriter sets the log writer for this session.
+func (s *TranscodeSession) SetLogWriter(w *LogWriter) {
+	s.logWriter = w
+}
+
 // buildFFmpegArgs builds the FFmpeg command arguments for progressive HLS transcoding.
 // Supports hardware acceleration for Transcode strategy.
 // clientSupportedCodecs is used to select the best codec from the profile's preferred/fallback list.
@@ -390,19 +636,13 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		LibPlaceboPeakDetect:       config.LibPlaceboPeakDetect,
 		LibPlaceboContrastRecovery: config.LibPlaceboContrastRecovery,
 		VideoCodec:                 targetCodec,
-		SubtitleStreamIndex:        s.SubtitleStreamIndex,
-		BurnInSubtitle:             s.BurnInSubtitle,
 	}
 
 	// Build arguments based on strategy
 	builder := NewFFmpegArgsBuilder(opts)
 
 	// Add hardware acceleration args (if not None)
-	// IMPORTANT: Skip hardware decoding when subtitle burn-in is requested.
-	// PGS subtitle overlay requires CPU-based processing, and mixing CUDA hwdownload
-	// with overlay causes "Input frame is not in the configured hwframe context" errors.
-	// We still use the hardware ENCODER (h264_nvenc, etc.) but decode in software.
-	if hwAccel != AccelNone && strategy == Transcode && !s.BurnInSubtitle {
+	if hwAccel != AccelNone && strategy == Transcode {
 		builder.AddHardwareAccel(GetHardwareAccelArgsWithDevice(hwAccel, hwDevice))
 
 		// For NVENC and QSV with HDR content, initialize OpenCL device for GPU tone mapping
@@ -423,8 +663,8 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 	}
 
 	// Add memory safety options for ALL transcoding operations to prevent OOM crashes
-	// Memory-intensive operations include: PGS subtitle burn-in, HDR tone mapping (especially
-	// libplacebo with peak_detect), 4K scaling, and complex filter chains
+	// Memory-intensive operations include: HDR tone mapping (especially libplacebo
+	// with peak_detect), 4K scaling, and complex filter chains
 	builder.AddMemorySafetyOptions(config.MaxMemoryMB)
 
 	builder.AddSeekPosition().AddInput().AddTimestampReset()
@@ -460,17 +700,15 @@ func (s *TranscodeSession) buildFFmpegArgs(inputPath string, profile *AdaptivePr
 		builder.AddVideoCodec(videoEncoder, videoPreset)
 
 		// Use hardware or software encoding
-		// When subtitle burn-in is enabled, use software filters even with hardware encoder
-		// because PGS overlay requires CPU-based processing
-		if hwAccel != AccelNone && !s.BurnInSubtitle {
+		if hwAccel != AccelNone {
 			builder.AddHardwareVideoEncoding(hwAccel)
 		} else {
-			// Software encoding path - also used for hardware encoder with subtitle burn-in
-			// The encoder (h264_nvenc, etc.) is still hardware, but filters are software-based
 			builder.AddVideoEncoding()
 		}
 
 		builder.AddAudioEncoding()
+		// Note: No need for force_key_frames - the GOP settings (-g/-keyint_min)
+		// already ensure frame 0 is a keyframe since it's the start of the first GOP.
 	}
 
 	// Add HLS output settings and manifest path
@@ -491,13 +729,23 @@ func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int,
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// Audio uses 4-second segments (set before building args for WaitForManifest)
+	s.SegmentDurationSec = 4
+
 	// Build FFmpeg arguments for audio-only transcoding
 	args := s.buildAudioOnlyFFmpegArgs(inputPath, audioTrackIndex, config, videoInfo)
 
+	// Log FFmpeg command for debugging
+	ffmpegCommand := fmt.Sprintf("ffmpeg %s", strings.Join(args, " "))
 	s.logger.Debug("Starting audio-only FFmpeg process",
 		"session_id", s.ID,
 		"audio_track", audioTrackIndex,
-		"command", fmt.Sprintf("ffmpeg %s", strings.Join(args, " ")))
+		"command", ffmpegCommand)
+
+	// Write command to persistent log file
+	if s.logWriter != nil {
+		s.logWriter.WriteString(fmt.Sprintf("Audio-only transcode\nTrack: %d\nCommand: %s\n\n", audioTrackIndex, ffmpegCommand))
+	}
 
 	// Create FFmpeg command with memory limits via systemd-run (if available)
 	s.FFmpegCmd = createFFmpegCommand(s.ctx, args, config.MaxMemoryMB, s.logger)
@@ -509,8 +757,16 @@ func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int,
 	}
 
 	// Start the process
+	s.FFmpegStartedAt = time.Now()
 	if err := s.FFmpegCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start ffmpeg: %w", err)
+	}
+
+	// Log startup timing to persistent log
+	if s.logWriter != nil {
+		s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: FFmpeg started at %s (%.2fms after session creation)\n",
+			s.FFmpegStartedAt.Format("15:04:05.000"),
+			float64(s.FFmpegStartedAt.Sub(s.CreatedAt).Microseconds())/1000))
 	}
 
 	// Log FFmpeg stderr in background
@@ -519,7 +775,30 @@ func (s *TranscodeSession) StartAudioOnly(inputPath string, audioTrackIndex int,
 		for {
 			n, err := stderr.Read(buf)
 			if n > 0 {
-				output := string(buf[:n])
+				chunk := buf[:n]
+
+				// Write to persistent log file (if available)
+				if s.logWriter != nil {
+					s.logWriter.Write(chunk)
+				}
+
+				output := string(chunk)
+
+				// Detect first segment for audio (look for any .ts file being opened)
+				if !s.firstSegmentLogged && strings.Contains(output, ".ts'") && strings.Contains(output, "Opening") {
+					s.FirstSegmentAt = time.Now()
+					s.firstSegmentLogged = true
+					timeSinceStart := s.FirstSegmentAt.Sub(s.FFmpegStartedAt)
+					s.logger.Info("FFmpeg audio first segment",
+						"session_id", s.ID,
+						"time_to_first_segment_ms", timeSinceStart.Milliseconds())
+					if s.logWriter != nil {
+						s.logWriter.WriteString(fmt.Sprintf("\n# TIMING: First audio segment at %s (%.0fms after FFmpeg start)\n",
+							s.FirstSegmentAt.Format("15:04:05.000"),
+							float64(timeSinceStart.Milliseconds())))
+					}
+				}
+
 				lowerOutput := strings.ToLower(output)
 				if strings.Contains(lowerOutput, "error") || strings.Contains(lowerOutput, "failed") {
 					s.logger.Error("FFmpeg audio error", "session_id", s.ID, "output", output)
@@ -583,14 +862,26 @@ func (s *TranscodeSession) buildAudioOnlyFFmpegArgs(inputPath string, audioTrack
 		"-ac", "2", // Stereo downmix for compatibility
 	)
 
+	// Calculate start segment number based on seek position
+	// Must match video's segment numbering for proper A/V sync
+	// Use 4-second audio segments (hls_time=4), matching video segment math
+	startSegmentNum := 0
+	if s.StartPosition > 0 {
+		// Audio uses 4-second segments, so divide by 4
+		startSegmentNum = int(s.StartPosition) / 4
+	}
+
 	// HLS output settings (use 6-digit segment numbers to match SegmentFilenameFormat)
+	// Use short initial segment (1s) for fast startup, then 4s segments
 	args = append(args,
 		"-f", "hls",
+		"-hls_init_time", "1",
 		"-hls_time", "4",
 		"-hls_list_size", "0", // Keep all segments in playlist
 		"-hls_flags", "independent_segments",
 		"-hls_segment_type", "mpegts",
 		"-hls_segment_filename", filepath.Join(s.OutputDir, SegmentFilenameFormat),
+		"-start_number", fmt.Sprintf("%d", startSegmentNum),
 	)
 
 	// Overwrite output

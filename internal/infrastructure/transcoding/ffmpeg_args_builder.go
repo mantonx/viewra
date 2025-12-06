@@ -100,7 +100,9 @@ func (b *FFmpegArgsBuilder) AddFastInputOptions() *FFmpegArgsBuilder {
 		"-analyzeduration", "5000000",
 		"-probesize", "5000000",
 		// Generate timestamps and discard corrupt frames for smoother playback
-		"-fflags", "+genpts+discardcorrupt+fastseek",
+		// Note: Removed +fastseek as it causes quality issues at seek points,
+		// especially with HDR content where tone mapping needs reference frames
+		"-fflags", "+genpts+discardcorrupt",
 	)
 	return b
 }
@@ -183,21 +185,9 @@ func (b *FFmpegArgsBuilder) AddVideoEncoding() *FFmpegArgsBuilder {
 		"-bufsize", formatBitrate(p.VideoBufSize),
 	)
 
-	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
+	// Build filter chain: tone mapping (if needed) + scaling
 	filterChain := b.buildToneMappingFilter(AccelNone) + b.buildScalingFilter(AccelNone, true)
-
-	if b.needsSubtitleBurnIn() {
-		// Use filter_complex for subtitle overlay
-		// For PGS/bitmap subtitles: scale video first, then overlay the subtitle
-		// Format: [0:v]<filters>[v];[v][0:s:N]overlay
-		// PGS subtitles are already rendered at their native resolution and
-		// the overlay filter handles positioning automatically
-		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[v][0:s:%d]overlay",
-			filterChain, b.getSubtitleStreamIndex())
-		b.args = append(b.args, "-filter_complex", subtitleFilter)
-	} else {
-		b.args = append(b.args, "-vf", filterChain)
-	}
+	b.args = append(b.args, "-vf", filterChain)
 
 	// GOP structure for HLS
 	b.args = append(b.args,
@@ -309,15 +299,17 @@ func (b *FFmpegArgsBuilder) AddHardwareVideoEncoding(hwAccel HardwareAccel) *FFm
 }
 
 // addNVENCEncoding adds NVIDIA NVENC-specific encoding parameters.
-// Optimized for full GPU pipeline: NVDEC (decode) → libplacebo/scale_cuda → pad_cuda → NVENC (encode)
+// Optimized for full GPU pipeline: NVDEC (decode) → tonemap_opencl → scale_cuda → NVENC (encode)
+// Uses p4 preset with hq tune for good balance of speed and quality.
 func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCodec) {
 	// NVENC preset (p1-p7, where p1=fastest, p7=slowest/best quality)
-	// Use p2 (faster) for real-time streaming - excellent speed/quality balance
+	// Use p4 (balanced) + hq (high quality) for better gradient/sky handling
+	// p1+ll caused visible grain artifacts in HDR→SDR tone mapped content
 	b.args = append(b.args,
-		"-preset", "p2",
-		"-tune", "hq",
+		"-preset", "p4",
+		"-tune", "hq", // High quality: better for preserving fine details
 		"-rc", "vbr",
-		"-cq", "23",
+		"-cq", "21", // Quality level (lower = better quality, 18-23 typical range)
 		"-b:v", formatBitrate(p.VideoBitrate),
 		"-maxrate", formatBitrate(p.VideoMaxRate),
 		"-bufsize", formatBitrate(p.VideoBufSize),
@@ -336,28 +328,32 @@ func (b *FFmpegArgsBuilder) addNVENCEncoding(p *AdaptiveProfile, codec VideoCode
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
-	filterChain := b.buildToneMappingFilter(AccelNVENC) + b.buildScalingFilter(AccelNVENC, true)
+	// NVENC quality optimizations:
+	// - spatial-aq: Adaptive quantization based on spatial complexity (reduces blocking in flat areas)
+	// - temporal-aq: Adaptive quantization based on temporal complexity (better motion handling)
+	// - aq-strength: How aggressively AQ redistributes bits (1-15, 8 is moderate)
+	// - rc-lookahead: Frames to look ahead for rate control decisions (improves quality consistency)
+	// - b_ref_mode middle: Use middle B-frame as reference (better compression)
+	// - bf 3: Use 3 B-frames between P-frames (good compression/latency balance)
+	b.args = append(b.args,
+		"-spatial-aq", "1",
+		"-temporal-aq", "1",
+		"-aq-strength", "8",
+		"-rc-lookahead", "32",
+		"-b_ref_mode", "middle",
+		"-bf", "3",
+	)
 
-	if b.needsSubtitleBurnIn() {
-		// For hardware encoding with subtitle burn-in, we need to:
-		// 1. Download from GPU to CPU for subtitle overlay
-		// 2. Overlay PGS subtitle onto video (PGS is already bitmap, no scaling needed)
-		// 3. Upload back to GPU for encoding
-		// This is less efficient but necessary for PGS subtitle burn-in
-		// extra_hw_frames=64 allocates sufficient frame buffers for the complex overlay
-		// operation - prevents "Cannot allocate memory" errors (see Jellyfin #11052)
-		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[v][0:s:%d]overlay,hwupload_cuda=extra_hw_frames=64",
-			filterChain, b.getSubtitleStreamIndex())
-		b.args = append(b.args, "-filter_complex", subtitleFilter)
-	} else {
-		b.args = append(b.args, "-vf", filterChain)
-	}
+	// Build filter chain: tone mapping (if needed) + scaling
+	filterChain := b.buildToneMappingFilter(AccelNVENC) + b.buildScalingFilter(AccelNVENC, true)
+	b.args = append(b.args, "-vf", filterChain)
 
 	// GOP structure
+	// sc_threshold 0: Disable scene change detection (use fixed GOP for HLS compatibility)
 	b.args = append(b.args,
 		"-g", strconv.Itoa(p.GOPSize),
 		"-keyint_min", strconv.Itoa(p.GOPSize),
+		"-sc_threshold", "0",
 	)
 }
 
@@ -389,22 +385,9 @@ func (b *FFmpegArgsBuilder) addQSVEncoding(p *AdaptiveProfile, codec VideoCodec)
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
+	// Build filter chain: tone mapping (if needed) + scaling
 	filterChain := b.buildToneMappingFilter(AccelQSV) + b.buildScalingFilter(AccelQSV, false)
-
-	if b.needsSubtitleBurnIn() {
-		// For hardware encoding with subtitle burn-in:
-		// 1. Download from GPU to CPU for subtitle overlay
-		// 2. Overlay PGS subtitle onto video (PGS is already bitmap, no scaling needed)
-		// 3. Upload back to GPU for encoding
-		// extra_hw_frames=64 allocates sufficient frame buffers for the complex overlay
-		// operation - prevents "Cannot allocate memory" errors (see Jellyfin #11052)
-		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[v][0:s:%d]overlay,hwupload=extra_hw_frames=64",
-			filterChain, b.getSubtitleStreamIndex())
-		b.args = append(b.args, "-filter_complex", subtitleFilter)
-	} else {
-		b.args = append(b.args, "-vf", filterChain)
-	}
+	b.args = append(b.args, "-vf", filterChain)
 
 	// GOP structure
 	b.args = append(b.args,
@@ -438,22 +421,9 @@ func (b *FFmpegArgsBuilder) addVAAPIEncoding(p *AdaptiveProfile, codec VideoCode
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
+	// Build filter chain: tone mapping (if needed) + scaling
 	filterChain := b.buildToneMappingFilter(AccelVAAPI) + b.buildScalingFilter(AccelVAAPI, false)
-
-	if b.needsSubtitleBurnIn() {
-		// For hardware encoding with subtitle burn-in:
-		// 1. Download from GPU to CPU for subtitle overlay
-		// 2. Overlay PGS subtitle onto video (PGS is already bitmap, no scaling needed)
-		// 3. Upload back to GPU for encoding
-		// extra_hw_frames=64 allocates sufficient frame buffers for the complex overlay
-		// operation - prevents "Cannot allocate memory" errors (see Jellyfin #11052)
-		subtitleFilter := fmt.Sprintf("[0:v]%s,hwdownload,format=nv12[v];[v][0:s:%d]overlay,hwupload=extra_hw_frames=64",
-			filterChain, b.getSubtitleStreamIndex())
-		b.args = append(b.args, "-filter_complex", subtitleFilter)
-	} else {
-		b.args = append(b.args, "-vf", filterChain)
-	}
+	b.args = append(b.args, "-vf", filterChain)
 
 	// GOP structure
 	b.args = append(b.args,
@@ -494,19 +464,10 @@ func (b *FFmpegArgsBuilder) addVideoToolboxEncoding(p *AdaptiveProfile, codec Vi
 		b.args = append(b.args, "-profile:v", "high", "-level", h264Level)
 	}
 
-	// Build filter chain: tone mapping (if needed) + scaling + subtitle burn-in
+	// Build filter chain: tone mapping (if needed) + scaling
 	// Note: VideoToolbox doesn't support hardware scaling in FFmpeg, so CPU filters are used
 	filterChain := b.buildToneMappingFilter(AccelVideoToolbox) + b.buildScalingFilter(AccelVideoToolbox, false)
-
-	if b.needsSubtitleBurnIn() {
-		// VideoToolbox already uses CPU for scaling, so subtitle overlay is straightforward
-		// PGS subtitles are already bitmap images - just overlay them directly
-		subtitleFilter := fmt.Sprintf("[0:v]%s[v];[v][0:s:%d]overlay",
-			filterChain, b.getSubtitleStreamIndex())
-		b.args = append(b.args, "-filter_complex", subtitleFilter)
-	} else {
-		b.args = append(b.args, "-vf", filterChain)
-	}
+	b.args = append(b.args, "-vf", filterChain)
 
 	// GOP structure
 	b.args = append(b.args,
@@ -522,13 +483,25 @@ func (b *FFmpegArgsBuilder) AddAudioCodec(codec string) *FFmpegArgsBuilder {
 }
 
 // AddAudioEncoding adds full audio encoding settings (bitrate, channels, sample rate).
+// Channel count is capped to source channels - we can't expand stereo to 7.1.
+// If source has fewer channels than target, FFmpeg would add silent channels which wastes bandwidth.
 func (b *FFmpegArgsBuilder) AddAudioEncoding() *FFmpegArgsBuilder {
 	p := b.opts.Profile
+
+	// Determine target channel count: min(profile target, source channels)
+	// This prevents expanding stereo to surround (which adds silent channels)
+	targetChannels := p.AudioChannels
+	if b.opts.VideoInfo != nil && b.opts.VideoInfo.AudioChannels > 0 {
+		sourceChannels := b.opts.VideoInfo.AudioChannels
+		if sourceChannels < targetChannels {
+			targetChannels = sourceChannels
+		}
+	}
 
 	b.args = append(b.args,
 		"-c:a", "aac",
 		"-b:a", formatBitrate(p.AudioBitrate),
-		"-ac", strconv.Itoa(p.AudioChannels),
+		"-ac", strconv.Itoa(targetChannels),
 		"-ar", strconv.Itoa(p.AudioSampleRate),
 	)
 
@@ -558,6 +531,8 @@ func (b *FFmpegArgsBuilder) AddCopyTimestamps() *FFmpegArgsBuilder {
 
 // AddHLSOutput adds HLS output settings (without output file - use AddOutputFile() separately).
 // Uses MPEG-TS segments for maximum compatibility and fast startup.
+// Implements ultra-short initial segment (0.5s) for fast time-to-first-frame,
+// followed by longer segments (2-4s) for efficient streaming.
 func (b *FFmpegArgsBuilder) AddHLSOutput() *FFmpegArgsBuilder {
 	p := b.opts.Profile
 	segmentPath := filepath.Join(b.opts.OutputDir, SegmentFilenameFormat)
@@ -570,18 +545,27 @@ func (b *FFmpegArgsBuilder) AddHLSOutput() *FFmpegArgsBuilder {
 
 	b.args = append(b.args,
 		"-f", "hls",
+		// Ultra-short initial segment (0.5s) for fastest time-to-first-frame
+		// GOP settings ensure frame 0 is a keyframe, enabling immediate playback
+		"-hls_init_time", "0.5",
 		"-hls_time", strconv.Itoa(p.SegmentDuration),
 		"-hls_playlist_type", "event",
 		"-hls_segment_filename", segmentPath,
 		// Use MPEG-TS for fast startup (each segment is self-contained)
 		"-hls_segment_type", "mpegts",
-		// independent_segments: each segment can be decoded independently
-		"-hls_flags", "independent_segments",
+		// HLS flags:
+		// - independent_segments: each segment can be decoded independently
+		// - split_by_time: split at exact time boundaries (more predictable segment duration)
+		"-hls_flags", "independent_segments+split_by_time",
 		"-start_number", strconv.Itoa(startSegmentNum),
 	)
 
 	return b
 }
+
+// Note: AddForceFirstKeyframe was removed.
+// The GOP settings (-g/-keyint_min) already ensure frame 0 is a keyframe since it starts the first GOP.
+// Using -force_key_frames added unnecessary overhead as FFmpeg had to evaluate the expression on every frame.
 
 // AddProgressReporting adds progress reporting arguments.
 func (b *FFmpegArgsBuilder) AddProgressReporting() *FFmpegArgsBuilder {
@@ -641,11 +625,15 @@ func (b *FFmpegArgsBuilder) buildToneMappingFilter(hwAccel HardwareAccel) string
 
 	switch hwAccel {
 	case AccelNVENC:
-		// NVENC with OpenCL: CUDA → OpenCL (tonemap) → CUDA (scale)
-		// tonemap_opencl handles HDR→SDR conversion on GPU
-		// Scaling is done via scale_cuda after uploading back to CUDA
-		// Note: The output format from tonemap_opencl should be nv12 with bt709 colorspace
-		return fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0:t=bt709:m=bt709:p=bt709,hwdownload,format=nv12,hwupload_cuda,",
+		// NVENC with OpenCL: CUDA → CPU → OpenCL (tonemap) → CPU → CUDA
+		// - hwdownload: transfer from CUDA to CPU
+		// - format=p010le: ensure 10-bit HDR format for tonemap input
+		// - hwupload: upload to OpenCL context (uses -filter_hw_device ocl)
+		// - tonemap_opencl: HDR→SDR with format=nv12 output
+		// - hwdownload,format=nv12: back to CPU in nv12 format
+		// - hwupload_cuda: transfer to CUDA for NVENC encoding (added by buildScalingFilter)
+		// Trailing comma allows scaling filter to be appended
+		return fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0:format=nv12:t=bt709:m=bt709:p=bt709,hwdownload,format=nv12,",
 			algorithm)
 	case AccelQSV:
 		// QSV with OpenCL: QSV → OpenCL → QSV
@@ -672,10 +660,21 @@ func (b *FFmpegArgsBuilder) buildScalingFilter(hwAccel HardwareAccel, skipIfLibP
 		return ""
 	}
 
-	// For NVENC with HDR tone mapping, the input is already in nv12 from tonemap_opencl
-	// Just need to scale and pad on CUDA (no format conversion needed)
+	// Skip scaling if source resolution matches target (avoid redundant processing)
+	// This is especially important for 4K→4K where scaling adds latency with no benefit
+	sourceMatchesTarget := b.opts.VideoInfo != nil &&
+		b.opts.VideoInfo.Width == p.Width &&
+		b.opts.VideoInfo.Height == p.Height
+
+	// For NVENC with HDR tone mapping, the input is nv12 on CPU from tonemap_opencl
+	// We need hwupload_cuda to transfer back to GPU, optionally with scaling
 	if hwAccel == AccelNVENC && b.needsHDRToneMapping() {
-		return fmt.Sprintf("scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
+		if sourceMatchesTarget {
+			// No scaling needed - just upload to CUDA for encoding
+			return "hwupload_cuda"
+		}
+		// Scale on CUDA then pad
+		return fmt.Sprintf("hwupload_cuda,scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
 			p.Width, p.Height, p.Width, p.Height)
 	}
 
@@ -700,16 +699,6 @@ func (b *FFmpegArgsBuilder) buildScalingFilter(hwAccel HardwareAccel, skipIfLibP
 	}
 
 	return ""
-}
-
-// needsSubtitleBurnIn returns true if subtitle burn-in is requested.
-func (b *FFmpegArgsBuilder) needsSubtitleBurnIn() bool {
-	return b.opts.BurnInSubtitle
-}
-
-// getSubtitleStreamIndex returns the relative subtitle stream index (0-based among subtitle streams).
-func (b *FFmpegArgsBuilder) getSubtitleStreamIndex() int {
-	return b.opts.SubtitleStreamIndex
 }
 
 // needsHDRToneMapping determines if HDR tone mapping should be applied.
@@ -795,13 +784,13 @@ func (b *FFmpegArgsBuilder) getToneMappingLibPlaceboAlgorithm() string {
 
 // shouldUseLibPlacebo determines if libplacebo should be used for tone mapping.
 // Returns true if:
-//  1. Tone mapping backend is "libplacebo" or "auto"
+//  1. Tone mapping backend is explicitly set to "libplacebo"
 //  2. libplacebo filter is available in FFmpeg
-//  3. We're using software encoding (libplacebo works best here without GPU transfer overhead)
+//  3. We're using software encoding (where libplacebo has no GPU transfer overhead)
 //
-// NOTE: For NVENC, we prefer tonemap_opencl over libplacebo because:
-// - libplacebo requires: CUDA → CPU → Vulkan → CPU → CUDA (4 transfers)
-// - tonemap_opencl requires: CUDA → OpenCL → CUDA (2 transfers, OpenCL shares memory with CUDA)
+// For hardware encoding (NVENC, VAAPI, QSV), OpenCL/native tone mapping is preferred
+// as libplacebo requires expensive GPU↔CPU transfers that impact performance.
+// Users can opt-in to libplacebo via TONE_MAPPING_BACKEND=libplacebo for better quality.
 func (b *FFmpegArgsBuilder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
 	backend := b.opts.ToneMappingBackend
 	if backend == "" {
@@ -819,15 +808,13 @@ func (b *FFmpegArgsBuilder) shouldUseLibPlacebo(hwAccel HardwareAccel) bool {
 	}
 
 	// Auto mode: Only use libplacebo for software encoding
-	// NVENC should use tonemap_opencl for better performance (no CPU staging)
-	// VAAPI has native tonemap_vaapi which works well
-	// QSV will use OpenCL (similar to current implementation)
+	// Hardware encoding should use OpenCL/native for performance
 	switch hwAccel {
 	case AccelNone:
-		// Software encoding: libplacebo provides best quality
+		// Software encoding: libplacebo provides best quality without transfer overhead
 		return CheckFFmpegFilter("libplacebo")
 	default:
-		// Hardware encoding: use native tone mapping (OpenCL/VAAPI)
+		// Hardware encoding: use OpenCL/native tone mapping for performance
 		return false
 	}
 }

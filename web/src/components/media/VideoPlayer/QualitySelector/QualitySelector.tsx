@@ -1,21 +1,21 @@
-import { useState, useMemo } from 'react'
+/**
+ * QualitySelector Component
+ *
+ * Dropdown for selecting video quality with two modes:
+ * - Auto: HLS.js ABR handles quality (shows current quality with "Auto" badge)
+ * - Manual: User selects specific quality (shows selected quality)
+ */
+
+import { useState, useMemo, useEffect } from 'react'
 import { DropdownBase } from '../DropdownBase'
 import type { QualityOption } from '@/lib/types/video'
 import type { QualitySelectorProps } from './QualitySelector.types'
 
 const formatBandwidth = (bps: number): string => {
   if (bps >= 1_000_000) {
-    return `${(bps / 1_000_000).toFixed(1)} Mbps`
+    return `${(bps / 1_000_000).toFixed(0)} Mbps`
   }
   return `${(bps / 1_000).toFixed(0)} kbps`
-}
-
-const estimateDataUsage = (bps: number): string => {
-  const mbPerMin = (bps / 8) * 60 / 1_000_000
-  if (mbPerMin >= 100) {
-    return `${mbPerMin.toFixed(0)} MB/min`
-  }
-  return `${mbPerMin.toFixed(1)} MB/min`
 }
 
 const SettingsIcon = () => (
@@ -30,12 +30,6 @@ const CheckIcon = () => (
   </svg>
 )
 
-const StarIcon = () => (
-  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-  </svg>
-)
-
 const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
   <svg className={`w-4 h-4 text-white/50 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -46,15 +40,27 @@ export const QualitySelector = ({
   currentQuality,
   currentBandwidth,
   availableQualities,
-  recommendedQuality,
   autoMode,
   onQualityChange,
   onAutoToggle,
   showBitrateVariants = true,
 }: QualitySelectorProps) => {
-  const [hoveredQuality, setHoveredQuality] = useState<string | null>(null)
+  // Track which resolution groups are expanded
   const [expandedResolutions, setExpandedResolutions] = useState<Set<number>>(new Set())
 
+  // Auto-expand the resolution group containing the selected quality
+  useEffect(() => {
+    if (currentQuality) {
+      setExpandedResolutions(prev => {
+        if (!prev.has(currentQuality)) {
+          return new Set([...prev, currentQuality])
+        }
+        return prev
+      })
+    }
+  }, [currentQuality])
+
+  // Group qualities by resolution
   const qualitiesByResolution = useMemo(() => {
     const grouped = new Map<number, QualityOption[]>()
     for (const q of availableQualities) {
@@ -62,6 +68,7 @@ export const QualitySelector = ({
       existing.push(q)
       grouped.set(q.height, existing)
     }
+    // Sort each group by bandwidth (highest first)
     for (const [height, options] of grouped) {
       grouped.set(height, options.sort((a, b) => b.bandwidth - a.bandwidth))
     }
@@ -70,9 +77,13 @@ export const QualitySelector = ({
 
   const hasMultipleBitrates = useMemo(() => {
     for (const options of qualitiesByResolution.values()) {
-      if (options.length > 1) {return true}
+      if (options.length > 1) return true
     }
     return false
+  }, [qualitiesByResolution])
+
+  const sortedHeights = useMemo(() => {
+    return Array.from(qualitiesByResolution.keys()).sort((a, b) => b - a)
   }, [qualitiesByResolution])
 
   const toggleExpanded = (height: number) => {
@@ -87,109 +98,65 @@ export const QualitySelector = ({
     })
   }
 
-  const getQualityKey = (q: QualityOption) => `${q.height}-${q.bandwidth}`
-
-  // Check if the current quality is the original
-  const isCurrentOriginal = useMemo(() => {
-    if (!currentQuality || !currentBandwidth) return false
-    const currentOption = availableQualities.find(
-      q => q.height === currentQuality && q.bandwidth === currentBandwidth
-    )
-    return currentOption?.isOriginal ?? false
-  }, [currentQuality, currentBandwidth, availableQualities])
-
+  // Get display text for the button
   const getQualityDisplayText = () => {
+    if (!currentQuality) {
+      return autoMode ? 'Auto' : 'Quality'
+    }
     if (autoMode) {
-      return currentQuality ? `Auto (${currentQuality}p)` : 'Auto'
+      return `Auto · ${currentQuality}p`
     }
-    if (currentQuality && currentBandwidth) {
-      const mbps = currentBandwidth / 1_000_000
-      if (isCurrentOriginal) {
-        return `${currentQuality}p Original`
-      }
-      if (mbps >= 1) {
-        return `${currentQuality}p ${mbps.toFixed(0)}M`
-      }
-      return `${currentQuality}p`
-    }
-    return currentQuality ? `${currentQuality}p` : 'Auto'
+    return `${currentQuality}p`
   }
 
-  const isRecommended = (height: number) => recommendedQuality?.height === height
-
-  const sortedHeights = useMemo(() => {
-    return Array.from(qualitiesByResolution.keys()).sort((a, b) => b - a)
-  }, [qualitiesByResolution])
-
-  const isQualitySelected = (q: QualityOption) => {
-    if (autoMode) {return false}
-    if (currentQuality !== q.height) {return false}
-    if (currentBandwidth && q.bandwidth !== currentBandwidth) {return false}
+  // Check if a specific quality option is currently active
+  const isQualityActive = (q: QualityOption) => {
+    if (currentQuality !== q.height) return false
+    if (currentBandwidth && q.bandwidth !== currentBandwidth) return false
     return true
   }
 
+  // Get the selected option within a resolution group
+  const getActiveOptionInGroup = (height: number): QualityOption | null => {
+    if (currentQuality !== height) return null
+    const options = qualitiesByResolution.get(height) || []
+    return options.find(q => q.bandwidth === currentBandwidth) || null
+  }
+
   const renderQualityOption = (quality: QualityOption, close: () => void, isNested = false) => {
-    const isSelected = isQualitySelected(quality)
-    const qualityKey = getQualityKey(quality)
-    const isHovered = hoveredQuality === qualityKey
-    const isRec = isRecommended(quality.height)
+    const isActive = isQualityActive(quality)
 
     return (
       <button
-        key={qualityKey}
-        onClick={(e) => { e.stopPropagation(); onQualityChange(quality.height, quality.bandwidth); close() }}
-        onMouseEnter={() => setHoveredQuality(qualityKey)}
-        onMouseLeave={() => setHoveredQuality(null)}
-        className={`w-full px-3 py-2 flex items-start justify-between hover:bg-white/10 transition-colors cursor-pointer ${isSelected ? 'bg-primary-500/20' : ''} ${isNested ? 'pl-6 bg-white/5' : ''}`}
+        key={`${quality.height}-${quality.bandwidth}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onQualityChange(quality.height, quality.bandwidth)
+          close()
+        }}
+        className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${isActive ? 'bg-primary-500/20' : ''} ${isNested ? 'pl-6 bg-white/5' : ''}`}
         role="option"
-        aria-selected={isSelected}
+        aria-selected={isActive}
       >
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            {isNested ? (
-              <>
-                <span className="text-white text-sm">{formatBandwidth(quality.bandwidth)}</span>
-                {quality.isOriginal && (
-                  <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
-                )}
-              </>
-            ) : (
-              <span className="text-white text-sm font-medium">{quality.height}p</span>
-            )}
-            {isRec && !isNested && (
-              <span className="text-primary-400 text-xs flex items-center gap-0.5">
-                <StarIcon />
-                Recommended
-              </span>
-            )}
-            {!isNested && (
-              <span className="text-white/50 text-xs">{formatBandwidth(quality.bandwidth)}</span>
-            )}
-          </div>
-          <div className={`overflow-hidden transition-all duration-200 ${isHovered || isSelected ? 'max-h-20 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-            <div className="text-white/60 text-xs space-y-0.5">
-              <div className="flex items-center gap-3">
-                <span>{estimateDataUsage(quality.bandwidth)}</span>
-                {quality.displayName && <span>{quality.displayName}</span>}
-              </div>
-              {quality.canDirectPlay !== undefined && (
-                <div className="flex items-center gap-1">
-                  {quality.canDirectPlay ? (
-                    <>
-                      <svg className="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-yellow-400">Direct play</span>
-                    </>
-                  ) : (
-                    <span className="text-white/40">Transcoding</span>
-                  )}
-                </div>
+        <div className="flex items-center gap-2">
+          {isNested ? (
+            <>
+              <span className="text-white text-sm">{formatBandwidth(quality.bandwidth)}</span>
+              {quality.isOriginal && (
+                <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
               )}
-            </div>
-          </div>
+            </>
+          ) : (
+            <>
+              <span className="text-white text-sm font-medium">{quality.height}p</span>
+              <span className="text-white/50 text-xs">{formatBandwidth(quality.bandwidth)}</span>
+              {quality.isOriginal && (
+                <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
+              )}
+            </>
+          )}
         </div>
-        {isSelected && <div className="shrink-0 mt-0.5"><CheckIcon /></div>}
+        {isActive && <CheckIcon />}
       </button>
     )
   }
@@ -198,26 +165,33 @@ export const QualitySelector = ({
     const options = qualitiesByResolution.get(height) || []
     const hasBitrateVariants = options.length > 1 && showBitrateVariants
     const isExpanded = expandedResolutions.has(height)
-    const isRec = isRecommended(height)
-    const anySelected = !autoMode && currentQuality === height
+    const activeOption = getActiveOptionInGroup(height)
+    const isGroupActive = activeOption !== null
 
+    // Single bitrate at this resolution - render as simple option
     if (!hasBitrateVariants) {
       return options[0] ? renderQualityOption(options[0], close) : null
     }
 
+    // Multiple bitrates - render as expandable group
     return (
       <div key={height}>
         <button
           onClick={() => toggleExpanded(height)}
-          className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${anySelected ? 'bg-primary-500/10' : ''}`}
+          className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${isGroupActive ? 'bg-primary-500/10' : ''}`}
         >
           <div className="flex items-center gap-2">
             <span className="text-white text-sm font-medium">{height}p</span>
-            {isRec && <span className="text-primary-400 text-xs flex items-center gap-0.5"><StarIcon /></span>}
-            <span className="text-white/50 text-xs">{options.length} bitrates</span>
+            {isGroupActive && !isExpanded ? (
+              <span className="text-primary-400 text-xs">
+                {formatBandwidth(activeOption.bandwidth)}
+              </span>
+            ) : (
+              <span className="text-white/50 text-xs">{options.length} bitrates</span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
-            {anySelected && <CheckIcon />}
+            {isGroupActive && <CheckIcon />}
             <ChevronIcon expanded={isExpanded} />
           </div>
         </button>
@@ -235,48 +209,44 @@ export const QualitySelector = ({
       buttonContent={getQualityDisplayText()}
       icon={<SettingsIcon />}
       minButtonWidth="80px"
-      panelWidth="w-80"
+      panelWidth="w-72"
       ariaLabel="Video quality"
     >
       {({ close }) => (
         <>
-          <div className="px-3 py-2 border-b border-white/10">
+          {/* Header */}
+          <div className="px-3 py-2.5 border-b border-white/10">
             <div className="text-white text-sm font-semibold">Video Quality</div>
-            {recommendedQuality && <div className="text-white/60 text-xs mt-0.5">{recommendedQuality.reason}</div>}
-            {hasMultipleBitrates && showBitrateVariants && <div className="text-white/40 text-xs mt-1">Tap resolution to see bitrate options</div>}
           </div>
 
           <div className="max-h-80 overflow-y-auto">
-            <button
-              onClick={() => { onAutoToggle(); close() }}
-              onMouseEnter={() => setHoveredQuality('auto')}
-              onMouseLeave={() => setHoveredQuality(null)}
-              className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${autoMode ? 'bg-primary-500/20' : ''}`}
-              role="option"
-              aria-selected={autoMode}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-white text-sm font-medium">Auto</span>
-                <span className="text-white/50 text-xs">{currentQuality ? `Currently ${currentQuality}p` : 'Adaptive'}</span>
+            {/* Auto mode toggle */}
+            <div className="px-3 py-3 flex items-center justify-between border-b border-white/10">
+              <div>
+                <div className="text-white text-sm font-medium">Auto</div>
+                <div className="text-white/50 text-xs">Adapts to network speed</div>
               </div>
-              {autoMode && <CheckIcon />}
-            </button>
-            <div className="border-t border-white/10" />
+              <button
+                onClick={() => onAutoToggle()}
+                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${autoMode ? 'bg-primary-500' : 'bg-white/20'}`}
+                role="switch"
+                aria-checked={autoMode}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${autoMode ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            {/* Quality options */}
             {sortedHeights.map((height) => renderResolutionGroup(height, close))}
           </div>
 
-          {(recommendedQuality?.dataUsageMBPerHour || currentBandwidth) && (
+          {/* Footer - current quality info */}
+          {currentQuality && currentBandwidth && (
             <div className="px-3 py-2 border-t border-white/10 bg-white/5">
-              <div className="text-white/50 text-xs flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
+              <div className="text-white/60 text-xs flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${autoMode ? 'bg-green-400' : 'bg-primary-400'}`} />
                 <span>
-                  {currentBandwidth
-                    ? `Current: ${formatBandwidth(currentBandwidth)} (~${estimateDataUsage(currentBandwidth)})`
-                    : recommendedQuality?.dataUsageMBPerHour
-                    ? `Current: ~${recommendedQuality.dataUsageMBPerHour.toFixed(0)} MB/hr`
-                    : null}
+                  {autoMode ? 'Auto' : 'Manual'}: {currentQuality}p @ {formatBandwidth(currentBandwidth)}
                 </span>
               </div>
             </div>

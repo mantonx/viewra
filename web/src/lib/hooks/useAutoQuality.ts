@@ -1,233 +1,99 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { evaluateQuality, canApplyDecision, DEFAULT_CONFIG } from '../streaming/AutoQualityController'
-import type { QualityLevel, QualityDecision, AutoQualityConfig } from '../streaming/AutoQualityController'
-import { useNetworkMonitor } from './useNetworkMonitor'
+/**
+ * useAutoQuality Hook
+ *
+ * Simplified hook that only handles:
+ * 1. Network monitoring (for stats display)
+ * 2. Auto mode state (whether HLS.js ABR is enabled)
+ *
+ * Quality switching is delegated entirely to HLS.js ABR when in auto mode.
+ * This removes the competing quality control systems that caused race conditions.
+ */
+
 import { loadVideoPreferences } from '@/lib/preferences'
-import type { VideoQualityPreferences } from '@/lib/preferences'
 import type Hls from 'hls.js'
+import { useCallback, useState } from 'react'
+import { useNetworkMonitor } from './useNetworkMonitor'
 
 export interface UseAutoQualityOptions {
   enabled?: boolean
   hlsInstance: Hls | null
-  config?: Partial<AutoQualityConfig>
-  onQualityChange?: (level: QualityLevel, reason: string) => void
 }
 
 export interface UseAutoQualityReturn {
-  currentDecision: QualityDecision | null
+  /** Whether auto quality (HLS.js ABR) is enabled */
   isAutoMode: boolean
+  /** Toggle auto mode on/off */
   setAutoMode: (auto: boolean) => void
-  qualityLevels: QualityLevel[]
-  currentLevelIndex: number
-  setManualQuality: (index: number) => void
+  /** Record a network sample (bytes downloaded, time taken) */
   recordSample: (bytes: number, durationMs: number, wasStall?: boolean) => void
+  /** Record a playback stall */
   recordStall: () => void
+  /** Current network statistics */
   networkStats: import('../network/NetworkMonitor').NetworkStats | null
-  bufferLength: number
+  /** Number of samples collected */
   sampleCount: number
 }
 
 /**
- * React hook for automatic quality control during video playback
+ * Simplified auto quality hook
  *
- * Combines network monitoring with quality switching logic to provide
- * smooth adaptive bitrate streaming.
+ * Previous implementation had a 2-second evaluation loop that competed with:
+ * - Backend quality recommendation
+ * - HLS.js internal ABR
+ * - User manual selection
  *
- * Usage:
- * ```tsx
- * const {
- *   isAutoMode,
- *   setAutoMode,
- *   currentDecision,
- *   recordSample,
- *   recordStall
- * } = useAutoQuality({
- *   hlsInstance: hls,
- *   onQualityChange: (level, reason) => console.log(`Switched to ${level.name}: ${reason}`)
- * })
- * ```
+ * New implementation:
+ * - Auto mode = HLS.js ABR (currentLevel = -1)
+ * - Manual mode = User's chosen level (currentLevel = specific index)
+ * - Network monitoring for stats display only
  */
 export const useAutoQuality = (options: UseAutoQualityOptions): UseAutoQualityReturn => {
-  const { enabled = true, hlsInstance, config, onQualityChange } = options
+  const { enabled = true, hlsInstance } = options
 
-  const [isAutoMode, setIsAutoMode] = useState(true)
-  const [qualityLevels, setQualityLevels] = useState<QualityLevel[]>([])
-  const [currentLevelIndex, setCurrentLevelIndex] = useState(-1)
-  const [currentDecision, setCurrentDecision] = useState<QualityDecision | null>(null)
-  const [bufferLength, setBufferLength] = useState(0)
+  // Load initial auto mode preference
+  const [isAutoMode, setIsAutoMode] = useState(() => {
+    const prefs = loadVideoPreferences()
+    return prefs.autoQualityEnabled
+  })
 
-  const lastChangeTimeRef = useRef(0)
-  const playbackStartTimeRef = useRef(0) // Track when playback started for startup grace period
-  const preferencesRef = useRef<VideoQualityPreferences | null>(null)
-  const configRef = useRef<AutoQualityConfig>({ ...DEFAULT_CONFIG, ...config })
-  const evaluationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  // Network monitoring - always enabled when hook is enabled so we can show stats in overlay
-  // even when auto quality switching is disabled
-  const { stats: networkStats, recordSample, recordStall, sampleCount } = useNetworkMonitor({
+  // Network monitoring - for stats display in debug overlay
+  const {
+    stats: networkStats,
+    recordSample,
+    recordStall,
+    sampleCount,
+  } = useNetworkMonitor({
     enabled,
   })
 
-  // Load preferences on mount
-  useEffect(() => {
-    const prefs = loadVideoPreferences()
-    preferencesRef.current = prefs
-    setIsAutoMode(prefs.autoQualityEnabled)
-  }, [])
+  // NOTE: We intentionally do NOT set hlsInstance.currentLevel = -1 on mount.
+  // HLS.js starts in auto mode by default with our abrEwmaDefaultEstimate.
+  // Setting currentLevel = -1 would reset the ABR estimate and cause it to
+  // start at low quality instead of the recommended quality.
 
-  // Sync quality levels from HLS.js
-  useEffect(() => {
-    if (!hlsInstance) {
-      return
-    }
+  const setAutoMode = useCallback(
+    (auto: boolean) => {
+      setIsAutoMode(auto)
 
-    const updateLevels = () => {
-      const levels: QualityLevel[] = hlsInstance.levels.map((level, index) => ({
-        index,
-        height: level.height,
-        bitrate: level.bitrate,
-        name: `${level.height}p`,
-      }))
-      // Sort by bitrate ascending for consistent indexing
-      levels.sort((a, b) => a.bitrate - b.bitrate)
-      setQualityLevels(levels)
-    }
-
-    const updateCurrentLevel = () => {
-      setCurrentLevelIndex(hlsInstance.currentLevel)
-    }
-
-    // Initial sync
-    if (hlsInstance.levels.length > 0) {
-      updateLevels()
-    }
-    updateCurrentLevel()
-
-    // Listen for level changes
-    hlsInstance.on('hlsManifestParsed' as Parameters<typeof hlsInstance.on>[0], updateLevels)
-    hlsInstance.on('hlsLevelSwitched' as Parameters<typeof hlsInstance.on>[0], updateCurrentLevel)
-
-    return () => {
-      hlsInstance.off('hlsManifestParsed' as Parameters<typeof hlsInstance.off>[0], updateLevels)
-      hlsInstance.off('hlsLevelSwitched' as Parameters<typeof hlsInstance.off>[0], updateCurrentLevel)
-    }
-  }, [hlsInstance])
-
-  // Auto quality evaluation loop
-  useEffect(() => {
-    if (!enabled || !isAutoMode || !hlsInstance || qualityLevels.length === 0) {
-      if (evaluationIntervalRef.current) {
-        clearInterval(evaluationIntervalRef.current)
-        evaluationIntervalRef.current = null
-      }
-      return
-    }
-
-    // Set playback start time when auto quality evaluation begins
-    // This gives us a proper grace period for initial buffering
-    if (playbackStartTimeRef.current === 0) {
-      playbackStartTimeRef.current = Date.now()
-    }
-
-    const evaluate = () => {
-      const video = hlsInstance.media
-      if (!video) {
-        return
-      }
-
-      const currentBufferLength = getBufferLength(video)
-      setBufferLength(currentBufferLength)
-      const isPlaying = !video.paused && !video.ended
-
-      const decision = evaluateQuality(
-        qualityLevels,
-        currentLevelIndex,
-        networkStats,
-        currentBufferLength,
-        isPlaying,
-        lastChangeTimeRef.current,
-        configRef.current,
-        preferencesRef.current,
-        playbackStartTimeRef.current
-      )
-
-      setCurrentDecision(decision)
-
-      // Apply decision if conditions are met
-      if (decision.action !== 'maintain' && decision.targetLevel) {
-        if (canApplyDecision(decision, lastChangeTimeRef.current, configRef.current)) {
-          hlsInstance.currentLevel = decision.targetLevel.index
-          lastChangeTimeRef.current = Date.now()
-          onQualityChange?.(decision.targetLevel, decision.reason)
+      if (hlsInstance) {
+        if (auto) {
+          // Enable HLS.js ABR
+          hlsInstance.currentLevel = -1
         }
-      }
-    }
-
-    // Evaluate every 2 seconds
-    evaluationIntervalRef.current = setInterval(evaluate, 2000)
-
-    // Initial evaluation
-    evaluate()
-
-    return () => {
-      if (evaluationIntervalRef.current) {
-        clearInterval(evaluationIntervalRef.current)
-        evaluationIntervalRef.current = null
-      }
-    }
-  }, [enabled, isAutoMode, hlsInstance, qualityLevels, currentLevelIndex, networkStats, onQualityChange])
-
-  const setAutoMode = useCallback((auto: boolean) => {
-    setIsAutoMode(auto)
-    if (auto) {
-      // Reset last change time to allow immediate evaluation
-      lastChangeTimeRef.current = 0
-    }
-  }, [])
-
-  const setManualQuality = useCallback(
-    (index: number) => {
-      if (hlsInstance && index >= 0 && index < qualityLevels.length) {
-        setIsAutoMode(false)
-        hlsInstance.currentLevel = index
-        lastChangeTimeRef.current = Date.now()
+        // If turning off auto, don't change level - user will select manually
       }
     },
-    [hlsInstance, qualityLevels.length]
+    [hlsInstance]
   )
 
   return {
-    currentDecision,
     isAutoMode,
     setAutoMode,
-    qualityLevels,
-    currentLevelIndex,
-    setManualQuality,
     recordSample,
     recordStall,
     networkStats,
-    bufferLength,
     sampleCount,
   }
-}
-
-/**
- * Calculate buffered time ahead of current playback position
- */
-const getBufferLength = (video: HTMLMediaElement): number => {
-  if (video.buffered.length === 0) {
-    return 0
-  }
-
-  const currentTime = video.currentTime
-  for (let i = 0; i < video.buffered.length; i++) {
-    const start = video.buffered.start(i)
-    const end = video.buffered.end(i)
-    if (currentTime >= start && currentTime <= end) {
-      return end - currentTime
-    }
-  }
-  return 0
 }
 
 export default useAutoQuality

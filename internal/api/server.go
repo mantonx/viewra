@@ -80,8 +80,9 @@ type Handlers struct {
 	Stream    *handlers.StreamHandler
 	Progress  *handlers.ProgressHandler
 	Images    *handlers.ImagesHandler
-	Transcode *handlers.TranscodeHandler
-	Subtitle  *handlers.SubtitleHandler
+	Transcode  *handlers.TranscodeHandler
+	FFmpegLogs *handlers.FFmpegLogsHandler
+	Subtitle   *handlers.SubtitleHandler
 	Movies    *handlers.MoviesHandler
 	TV        *handlers.TVHandler
 	Music     *handlers.MusicHandler
@@ -176,6 +177,7 @@ func (s *Server) setupRoutes() {
 	routes.RegisterBrowserRoutes(protected, h.Browser)
 	routes.RegisterProgressRoutes(protected, h.Progress)
 	routes.RegisterTranscodeRoutes(protected, h.Transcode)
+	routes.RegisterFFmpegLogRoutes(protected, h.FFmpegLogs)
 
 	// Register media-type specific routes (protected)
 	routes.RegisterMoviesRoutes(protected, h.Movies)

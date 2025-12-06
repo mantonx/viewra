@@ -1,4 +1,3 @@
-import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 import type { AudioTrack, MediaMetadata } from '@/lib/types/video'
 import type { SubtitleTrack } from '@/lib/types/subtitles'
 
@@ -14,7 +13,6 @@ export interface VideoControlsProps {
   availableQualities: Array<{ height: number; bandwidth: number }>
   currentQuality: number | null
   currentBandwidth?: number | null
-  recommendedQuality: QualityRecommendationResponse | null
   autoMode: boolean
   availableAudioTracks: AudioTrack[]
   currentAudioTrack: number

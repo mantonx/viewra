@@ -2,6 +2,11 @@
  * VideoPlayer Component
  * Full-featured video player with HLS streaming, quality selection,
  * keyboard controls, and progress tracking.
+ *
+ * Quality Control Model (Simplified):
+ * - Auto mode (default): HLS.js ABR handles quality switching
+ * - Manual mode: User selects specific quality, stays locked
+ * - Backend recommendation sets initial quality hint via startLevel
  */
 
 import { Button } from '@/components/ui'
@@ -20,7 +25,6 @@ import { VideoControls } from '../VideoControls'
 import { StatsPanel } from '../StatsPanel'
 import { SubtitleOverlay } from '../SubtitleOverlay'
 import type { VideoPlayerProps } from './VideoPlayer.types'
-import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 import { useGetApiMediaIdTracks } from '@/lib/api/generated/media/media'
 
 export const VideoPlayer = ({
@@ -51,8 +55,6 @@ export const VideoPlayer = ({
   const [isPiP, setIsPiP] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const [showDebugOverlay, setShowDebugOverlay] = useState(false)
-  const [recommendedQuality, setRecommendedQuality] =
-    useState<QualityRecommendationResponse | null>(null)
 
   // Fetch subtitle tracks from API
   const { data: tracksData } = useGetApiMediaIdTracks(mediaId)
@@ -60,10 +62,9 @@ export const VideoPlayer = ({
     tracksData?.status === 200 ? tracksData.data.subtitle_tracks || [] : []
 
   // Subtitle track management
-  // All subtitles (text and bitmap/PGS) are rendered as client-side overlays
   const { availableSubtitles, currentSubtitle, setCurrentSubtitle, textStreamIndex, bitmapStreamIndex } = useSubtitles({
     subtitleTracks: subtitleTracksFromApi,
-    preferredLanguage: 'eng', // TODO: Get from user settings
+    preferredLanguage: 'eng',
     preferSDH: false,
     preferForced: true,
   })
@@ -71,10 +72,12 @@ export const VideoPlayer = ({
   // Initialize progress updater
   const progressUpdater = useProgressUpdater(mediaId, videoDuration)
 
-  // Get quality recommendation
+  // Get quality recommendation (provides initial hint to HLS.js)
+  // This runs in the background - we don't block HLS startup for it
   const qualityRecommendation = useQualityRecommendation()
 
   // HLS player hook - handles HLS.js lifecycle, quality, audio
+  // Start immediately with default bandwidth, recommendation enhances initial quality if ready in time
   const {
     hlsRef,
     availableQualities,
@@ -83,7 +86,6 @@ export const VideoPlayer = ({
     availableAudioTracks,
     currentAudioTrack,
     streamOffsetRef,
-    setCurrentQuality,
     changeQuality,
     changeAudioTrack,
   } = useHlsPlayer({
@@ -93,33 +95,20 @@ export const VideoPlayer = ({
     isHlsStream,
     onError: setError,
     onFragLoaded: (bytes, durationMs) => recordSample(bytes, durationMs),
+    // Pass recommendation if available - HLS.js will use it for initial bandwidth estimate
     qualityRecommendation: qualityRecommendation.recommendation
       ? {
           height: qualityRecommendation.recommendation.height,
+          bandwidth: qualityRecommendation.recommendation.videoBitrate,
           isReady: qualityRecommendation.isReady,
         }
       : null,
   })
 
-  // Set recommended quality when available
-  useEffect(() => {
-    if (qualityRecommendation.recommendation && qualityRecommendation.isReady) {
-      setRecommendedQuality(qualityRecommendation.recommendation)
-    }
-  }, [qualityRecommendation.recommendation, qualityRecommendation.isReady])
-
-  // Auto quality control
-  const handleAutoQualityChange = useCallback(
-    (level: { name: string; height: number }, _reason: string) => {
-      setCurrentQuality(level.height)
-    },
-    [setCurrentQuality]
-  )
-
+  // Auto quality - manages auto/manual mode and network stats
   const { isAutoMode, setAutoMode, recordSample, recordStall, networkStats } = useAutoQuality({
     enabled: isHlsStream,
     hlsInstance: hlsRef.current,
-    onQualityChange: handleAutoQualityChange,
   })
 
   // Stream stats for debug panel
@@ -239,19 +228,15 @@ export const VideoPlayer = ({
 
   // Handle auto mode toggle
   const handleAutoToggle = useCallback(() => {
-    const hls = hlsRef.current
-    if (!hls) {
-      return
-    }
-
     if (isAutoMode) {
+      // Turning off auto - user will select manually
       setAutoMode(false)
     } else {
-      hls.currentLevel = -1
+      // Turning on auto - enable HLS.js ABR
+      changeQuality(0) // 0 = auto
       setAutoMode(true)
-      setCurrentQuality(null)
     }
-  }, [isAutoMode, setAutoMode, setCurrentQuality, hlsRef])
+  }, [isAutoMode, setAutoMode, changeQuality])
 
   // Handle quality change with analytics
   const handleQualityChange = useCallback(
@@ -260,6 +245,7 @@ export const VideoPlayer = ({
       const previousQuality = currentQuality ? `${currentQuality}p` : null
 
       if (height === 0) {
+        // Auto mode
         changeQuality(0)
         setAutoMode(true)
         recordQualitySwitch(
@@ -271,6 +257,7 @@ export const VideoPlayer = ({
           null
         )
       } else {
+        // Manual mode - specific quality selected
         const levelIndex = changeQuality(height, bandwidth)
         if (levelIndex !== null) {
           setAutoMode(false)
@@ -400,7 +387,6 @@ export const VideoPlayer = ({
           availableQualities={availableQualities}
           currentQuality={currentQuality}
           currentBandwidth={currentBandwidth}
-          recommendedQuality={recommendedQuality}
           autoMode={isAutoMode}
           availableAudioTracks={availableAudioTracks}
           currentAudioTrack={currentAudioTrack}
@@ -427,4 +413,3 @@ export const VideoPlayer = ({
     </div>
   )
 }
-
