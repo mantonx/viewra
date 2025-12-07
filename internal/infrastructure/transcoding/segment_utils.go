@@ -1,85 +1,63 @@
 package transcoding
 
 import (
-	"fmt"
-	"math"
-	"regexp"
-	"strconv"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/segment"
 )
 
+// Segment duration and filename constants.
+// Re-exported from segment subpackage for backward compatibility.
 const (
 	// SegmentDuration is the duration of each HLS segment in seconds.
-	// 2 seconds provides faster startup while maintaining reasonable file count.
-	SegmentDuration = 2
+	SegmentDuration = segment.Duration
 
 	// SegmentFilenameFormat is the format string for segment filenames
-	SegmentFilenameFormat = "seg_%06d.ts"
+	SegmentFilenameFormat = segment.FilenameFormat
 
 	// SegmentFilenamePattern is the regex pattern for parsing segment filenames
-	SegmentFilenamePattern = `^seg_(\d{6})\.ts$`
+	SegmentFilenamePattern = segment.FilenamePattern
 
 	// InitSegmentFilename is kept for backwards compatibility (not used with MPEG-TS)
-	InitSegmentFilename = "init.mp4"
+	InitSegmentFilename = segment.InitFilename
 )
 
-var segmentFilenameRegex = regexp.MustCompile(SegmentFilenamePattern)
-
 // SegmentNumber calculates the segment number from a timestamp in seconds.
-// Example: timestamp=37 → segment 6 (37 / 6 = 6.166... → floor = 6)
+// Re-exported from segment subpackage for backward compatibility.
 func SegmentNumber(timestampSeconds float64) int {
-	return int(math.Floor(timestampSeconds / SegmentDuration))
+	return segment.Number(timestampSeconds)
 }
 
 // SegmentStartTime calculates the start time in seconds for a given segment number.
-// Example: segment=6 → startTime=36 (6 * 6 = 36)
+// Re-exported from segment subpackage for backward compatibility.
 func SegmentStartTime(segmentNumber int) float64 {
-	return float64(segmentNumber * SegmentDuration)
+	return segment.StartTime(segmentNumber)
 }
 
 // SegmentEndTime calculates the end time in seconds for a given segment number.
-// Example: segment=6 → endTime=42 (36 + 6 = 42)
+// Re-exported from segment subpackage for backward compatibility.
 func SegmentEndTime(segmentNumber int) float64 {
-	return SegmentStartTime(segmentNumber) + SegmentDuration
+	return segment.EndTime(segmentNumber)
 }
 
 // SegmentFilename generates a filename for a segment number.
-// Example: segment=123 → "seg_000123.ts"
+// Re-exported from segment subpackage for backward compatibility.
 func SegmentFilename(segmentNumber int) string {
-	return fmt.Sprintf(SegmentFilenameFormat, segmentNumber)
+	return segment.Filename(segmentNumber)
 }
 
 // ParseSegmentNumber extracts the segment number from a filename.
-// Example: "seg_000123.ts" → 123
-// Returns -1 if the filename doesn't match the expected pattern.
+// Re-exported from segment subpackage for backward compatibility.
 func ParseSegmentNumber(filename string) int {
-	matches := segmentFilenameRegex.FindStringSubmatch(filename)
-	if len(matches) != 2 {
-		return -1
-	}
-
-	segmentNum, err := strconv.Atoi(matches[1])
-	if err != nil {
-		return -1
-	}
-
-	return segmentNum
+	return segment.ParseNumber(filename)
 }
 
 // SegmentRange calculates the range of segment numbers that cover a time range.
-// Example: startTime=35, duration=20 → segments 5-9 (35/6=5.8→5, 55/6=9.1→9)
+// Re-exported from segment subpackage for backward compatibility.
 func SegmentRange(startTimeSeconds, durationSeconds float64) (startSegment, endSegment int) {
-	startSegment = SegmentNumber(startTimeSeconds)
-	endTime := startTimeSeconds + durationSeconds
-	endSegment = SegmentNumber(endTime)
-	return startSegment, endSegment
+	return segment.Range(startTimeSeconds, durationSeconds)
 }
 
 // ValidateSegmentNumber checks if a segment number is valid for a given video duration.
+// Re-exported from segment subpackage for backward compatibility.
 func ValidateSegmentNumber(segmentNumber int, videoDurationSeconds float64) bool {
-	if segmentNumber < 0 {
-		return false
-	}
-
-	maxSegment := SegmentNumber(videoDurationSeconds)
-	return segmentNumber <= maxSegment
+	return segment.ValidateNumber(segmentNumber, videoDurationSeconds)
 }
