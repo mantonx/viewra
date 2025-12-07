@@ -12,7 +12,7 @@ import (
 	"github.com/mantonx/viewra/internal/application/media"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
 )
 
 // TranscodeHandler handles transcode-related HTTP requests.
@@ -25,7 +25,7 @@ type TranscodeHandler struct {
 	getTracksUseCase           *media.GetTracksUseCase
 	queue                      *transcode.Queue
 	cleanupService             *transcode.CleanupService
-	sessionManager             *transcoding.SessionManager
+	sessionManager             *session.Manager
 	outputDir                  string
 	subtitleConverter          *subtitles.Converter
 }
@@ -40,7 +40,7 @@ func NewTranscodeHandler(
 	getTracksUseCase *media.GetTracksUseCase,
 	queue *transcode.Queue,
 	cleanupService *transcode.CleanupService,
-	sessionManager *transcoding.SessionManager,
+	sessionManager *session.Manager,
 	outputDir string,
 	subtitleConverter *subtitles.Converter,
 ) *TranscodeHandler {

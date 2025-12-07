@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
 )
 
@@ -26,7 +26,7 @@ func (m *mockConfigProvider) GetConfig(ctx context.Context) *Config {
 func testManagerConfig() *ManagerConfig {
 	return &ManagerConfig{
 		HardwareAccel: "none",
-		FFmpegPaths: &ffmpeg.Paths{
+		FFmpegPaths: &hls.Paths{
 			FFmpeg:  "/usr/bin/ffmpeg",
 			FFprobe: "/usr/bin/ffprobe",
 		},

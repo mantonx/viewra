@@ -6,16 +6,17 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
 )
 
 // FFmpegLogsHandler handles FFmpeg log-related HTTP requests.
 type FFmpegLogsHandler struct {
-	sessionManager *transcoding.SessionManager
+	sessionManager *session.Manager
 }
 
 // NewFFmpegLogsHandler creates a new FFmpeg logs handler.
-func NewFFmpegLogsHandler(sessionManager *transcoding.SessionManager) *FFmpegLogsHandler {
+func NewFFmpegLogsHandler(sessionManager *session.Manager) *FFmpegLogsHandler {
 	return &FFmpegLogsHandler{
 		sessionManager: sessionManager,
 	}
@@ -23,9 +24,9 @@ func NewFFmpegLogsHandler(sessionManager *transcoding.SessionManager) *FFmpegLog
 
 // LogListResponse represents a list of logs for a media item.
 type LogListResponse struct {
-	MediaID int64                    `json:"media_id"`
-	Logs    []transcoding.LogInfo    `json:"logs"`
-	Count   int                      `json:"count"`
+	MediaID int64             `json:"media_id"`
+	Logs    []logging.LogInfo `json:"logs"`
+	Count   int               `json:"count"`
 }
 
 // LogContentResponse represents log content.

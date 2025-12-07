@@ -15,7 +15,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
@@ -41,14 +41,14 @@ func createTestProfile() *profile.AdaptiveProfile {
 
 func createTestConfig(command string) *Config {
 	return &Config{
-		FFmpegPaths: &ffmpeg.Paths{
+		FFmpegPaths: &hls.Paths{
 			FFmpeg: command,
 		},
 	}
 }
 
-func createTestVideoInfo(codec string, width, height int, isHDR bool) *ffmpeg.VideoInfo {
-	return &ffmpeg.VideoInfo{
+func createTestVideoInfo(codec string, width, height int, isHDR bool) *hls.VideoInfo {
+	return &hls.VideoInfo{
 		Codec:  codec,
 		Width:  width,
 		Height: height,

@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/strategy"
 )
 
 // ServeMasterPlaylistRequest represents a request for the master HLS playlist.
@@ -32,7 +34,7 @@ type ServeMasterPlaylistRequest struct {
 // buildVariantParams contains parameters passed to variant playlist URLs.
 type buildVariantParams struct {
 	startPosition        string
-	strategy             transcoding.StreamStrategy
+	strategy             strategy.StreamStrategy
 	supportedVideoCodecs []string
 	audioTrackIndex      int // -1 means default, >= 0 is FFmpeg stream index
 }
@@ -63,9 +65,9 @@ const (
 	StrategyMasterDirectPlay
 )
 
-// ABRVariant is imported from transcoding package - single source of truth
+// ABRVariant is imported from profile package - single source of truth
 // Re-export for use in this package
-type ABRVariant = transcoding.ABRVariant
+type ABRVariant = profile.ABRVariant
 
 // ServeMasterPlaylistUseCase handles generating the HLS master playlist.
 type ServeMasterPlaylistUseCase struct {
@@ -102,20 +104,20 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 	}
 
 	// Check if direct play is possible
-	videoInfo, err := transcoding.GetVideoInfo(mediaItem.FilePath)
+	videoInfo, err := videoinfo.GetVideoInfo(mediaItem.FilePath)
 	if err == nil && videoInfo != nil {
-		var clientCaps *transcoding.ClientCapabilitiesForStrategy
+		var clientCaps *strategy.ClientCapabilities
 		if len(req.SupportedVideoCodecs) > 0 || len(req.SupportedContainers) > 0 {
-			clientCaps = &transcoding.ClientCapabilitiesForStrategy{
+			clientCaps = &strategy.ClientCapabilities{
 				SupportedVideoCodecs: req.SupportedVideoCodecs,
 				SupportedContainers:  req.SupportedContainers,
 			}
 		}
 
-		strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
+		streamStrategy, reason := strategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
 
 		// DirectPlay is allowed - subtitles are handled client-side via overlay
-		if strategy == transcoding.DirectPlay {
+		if streamStrategy == strategy.DirectPlay {
 			return &ServeMasterPlaylistResponse{
 				Strategy:      StrategyMasterDirectPlay,
 				DirectPlayURL: fmt.Sprintf("/api/stream/%d", req.MediaID),
@@ -127,7 +129,7 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		// This ensures HLS.js requests use the correct strategy even without codec headers
 		variantParams := buildVariantParams{
 			startPosition:        req.StartPosition,
-			strategy:             strategy,
+			strategy:             streamStrategy,
 			supportedVideoCodecs: req.SupportedVideoCodecs,
 			audioTrackIndex:      req.AudioTrackIndex,
 		}
@@ -136,14 +138,14 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		return &ServeMasterPlaylistResponse{
 			Strategy:        StrategyServePlaylist,
 			PlaylistContent: playlist,
-			Reason:          fmt.Sprintf("Master playlist generated with strategy: %s", strategy),
+			Reason:          fmt.Sprintf("Master playlist generated with strategy: %s", streamStrategy),
 		}, nil
 	}
 
 	// Fallback: build playlist without strategy (will default to transcode)
 	variantParams := buildVariantParams{
 		startPosition:        req.StartPosition,
-		strategy:             transcoding.Transcode,
+		strategy:             strategy.Transcode,
 		supportedVideoCodecs: req.SupportedVideoCodecs,
 		audioTrackIndex:      req.AudioTrackIndex,
 	}
@@ -442,8 +444,8 @@ func getLanguageName(iso6392 string) string {
 // Sources are mapped to the nearest appropriate tier based on their resolution and bitrate.
 // No "original" quality - sources fall into the appropriate tier for consistent caching.
 func (uc *ServeMasterPlaylistUseCase) getFilteredABRLadder(sourceWidth, sourceHeight int, sourceBitrate int64) []ABRVariant {
-	// Use the shared ABR ladder from transcoding package (single source of truth)
-	return uc.filterVariants(transcoding.ABRLadder, sourceWidth, sourceHeight, sourceBitrate)
+	// Use the shared ABR ladder from profile package (single source of truth)
+	return uc.filterVariants(profile.ABRLadder, sourceWidth, sourceHeight, sourceBitrate)
 }
 
 // filterVariants selects the single best quality variant for the source media.

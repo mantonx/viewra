@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/transcode"
-	transcoding "github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/config"
 	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
@@ -37,7 +38,7 @@ func DefaultQueueConfig() *QueueConfig {
 		WorkerCount:   2,                                 // 2 concurrent transcodes by default
 		PollInterval:  2 * time.Second,                   // Check for new jobs every 2 seconds (reduced from 10s for faster startup)
 		IdleTimeout:   5 * time.Minute,                   // Cancel transcode after 5 minutes of no activity
-		OutputBaseDir: transcoding.GetDefaultOutputDir(), // /data/hls or ./data/hls
+		OutputBaseDir: config.GetDefaultOutputDir(), // /data/hls or ./data/hls
 	}
 }
 

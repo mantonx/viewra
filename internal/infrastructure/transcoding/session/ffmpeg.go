@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
 
@@ -27,15 +27,15 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 		"hw_accel", params.HWAccel)
 
 	// Create FFmpeg options
-	ffmpegOpts := ffmpeg.TranscodeOptions{
+	ffmpegOpts := hls.Options{
 		InputPath:                  params.InputPath,
 		OutputDir:                  s.OutputDir,
-		Profile:                    convertToFFmpegProfile(params.Profile),
+		Profile:                    convertToHLSProfile(params.Profile),
 		AudioTrackIndex:            s.AudioTrackIndex,
 		UseSpecificAudioTrack:      s.AudioTrackIndex >= 0,
 		StartPosition:              int(s.StartPosition),
 		UseStartPosition:           s.StartPosition > 0,
-		VideoInfo:                  params.VideoInfo,
+		VideoInfo:                  convertToHLSVideoInfo(params.VideoInfo),
 		ToneMappingEnabled:         params.Config.ToneMappingEnabled,
 		ToneMappingAlgorithm:       params.Config.ToneMappingAlgorithm,
 		ToneMappingBackend:         params.Config.ToneMappingBackend,
@@ -43,17 +43,17 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 		LibPlaceboContrastRecovery: params.Config.LibPlaceboContrastRecovery,
 		VideoCodec:                 targetCodec,
 	}
-	builder := ffmpeg.NewFFmpegArgsBuilder(ffmpegOpts)
+	builder := hls.NewBuilder(ffmpegOpts)
 
-	hwAccel := ffmpeg.HardwareAccel(params.HWAccel)
+	hwAccel := hls.HardwareAccel(params.HWAccel)
 	strategy := params.Strategy
 
 	// Add hardware acceleration args (if not None)
-	if hwAccel != ffmpeg.AccelNone && strategy == "transcode" {
-		builder.AddHardwareAccel(ffmpeg.GetHardwareAccelArgsWithDevice(hwAccel, params.HWDevice))
+	if hwAccel != hls.AccelNone && strategy == "transcode" {
+		builder.AddHardwareAccel(hls.GetHardwareAccelArgsWithDevice(hwAccel, params.HWDevice))
 
 		// For QSV with HDR content, initialize OpenCL device for GPU tone mapping
-		if hwAccel == ffmpeg.AccelQSV && params.Config.ToneMappingEnabled && params.VideoInfo != nil && params.VideoInfo.IsHDR {
+		if hwAccel == hls.AccelQSV && params.Config.ToneMappingEnabled && params.VideoInfo != nil && params.VideoInfo.IsHDR {
 			backend := params.Config.ToneMappingBackend
 			if backend == "" {
 				backend = "auto"
@@ -70,11 +70,11 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 	// Determine if we need -noaccurate_seek for A/V sync
 	needNoAccurateSeek := strategy == "remux_audio" || strategy == "remux_hevc"
 
-	builder.AddSeekPosition()
+	builder.AddSeekPosition(int(s.StartPosition))
 	if needNoAccurateSeek {
 		builder.AddNoAccurateSeek()
 	}
-	builder.AddInput().AddTimestampReset()
+	builder.AddInput().AddTimestampHandling()
 
 	// Add encoding based on strategy
 	useSegmentMuxer := false
@@ -96,10 +96,10 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 		useSegmentMuxer = true
 
 	case "transcode":
-		videoEncoder, videoPreset := ffmpeg.GetVideoCodecAndPresetForCodec(hwAccel, targetCodec)
+		videoEncoder, videoPreset := hls.GetVideoCodecAndPresetForCodec(hwAccel, targetCodec)
 
 		// For real-time progressive transcoding, override software preset to veryfast
-		if hwAccel == ffmpeg.AccelNone {
+		if hwAccel == hls.AccelNone {
 			videoPreset = "veryfast"
 		}
 
@@ -112,7 +112,7 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 
 		builder.AddStreamMapping().AddVideoCodec(videoEncoder, videoPreset)
 
-		if hwAccel != ffmpeg.AccelNone {
+		if hwAccel != hls.AccelNone {
 			builder.AddHardwareVideoEncoding(hwAccel)
 		} else {
 			builder.AddVideoEncoding()
@@ -184,7 +184,7 @@ func createFFmpegCommand(ctx context.Context, args []string, config *Config, log
 }
 
 // selectBestCodec selects the best codec for transcoding based on client support.
-func selectBestCodec(p *profile.AdaptiveProfile, clientSupportedCodecs []string, hwAccel string) ffmpeg.VideoCodec {
+func selectBestCodec(p *profile.AdaptiveProfile, clientSupportedCodecs []string, hwAccel string) hls.VideoCodec {
 	if len(clientSupportedCodecs) == 0 {
 		clientSupportedCodecs = []string{"h264"}
 	}
@@ -195,30 +195,35 @@ func selectBestCodec(p *profile.AdaptiveProfile, clientSupportedCodecs []string,
 	}
 
 	if p == nil {
-		return ffmpeg.CodecH264
+		return hls.CodecH264
 	}
 
-	hw := ffmpeg.HardwareAccel(hwAccel)
+	hw := hls.HardwareAccel(hwAccel)
 
-	if supported[p.PreferredCodec] && ffmpeg.IsCodecSupported(hw, ffmpeg.VideoCodec(p.PreferredCodec)) {
-		return ffmpeg.VideoCodec(p.PreferredCodec)
+	if supported[p.PreferredCodec] && hls.IsCodecSupported(hw, hls.VideoCodec(p.PreferredCodec)) {
+		return hls.VideoCodec(p.PreferredCodec)
 	}
 
 	for _, fallback := range p.FallbackCodecs {
-		if supported[fallback] && ffmpeg.IsCodecSupported(hw, ffmpeg.VideoCodec(fallback)) {
-			return ffmpeg.VideoCodec(fallback)
+		if supported[fallback] && hls.IsCodecSupported(hw, hls.VideoCodec(fallback)) {
+			return hls.VideoCodec(fallback)
 		}
 	}
 
-	return ffmpeg.CodecH264
+	return hls.CodecH264
 }
 
-// convertToFFmpegProfile converts a profile.AdaptiveProfile to ffmpeg.AdaptiveProfile
-func convertToFFmpegProfile(p *profile.AdaptiveProfile) *ffmpeg.AdaptiveProfile {
+// convertToHLSVideoInfo passes through hls.VideoInfo (already the correct type)
+func convertToHLSVideoInfo(v *hls.VideoInfo) *hls.VideoInfo {
+	return v
+}
+
+// convertToHLSProfile converts a profile.AdaptiveProfile to hls.Profile
+func convertToHLSProfile(p *profile.AdaptiveProfile) *hls.Profile {
 	if p == nil {
 		return nil
 	}
-	return &ffmpeg.AdaptiveProfile{
+	return &hls.Profile{
 		ID:               p.ID,
 		DisplayName:      p.DisplayName,
 		Width:            p.Width,

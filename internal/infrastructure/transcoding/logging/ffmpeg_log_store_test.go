@@ -713,3 +713,385 @@ func BenchmarkSubscriberNotify(b *testing.B) {
 		writer.Write(testData)
 	}
 }
+
+func TestNewLogWriterForTest(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("valid creation", func(t *testing.T) {
+		sessionID := "test_session"
+		writer, err := NewLogWriterForTest(sessionID, tempDir)
+		if err != nil {
+			t.Fatalf("NewLogWriterForTest() error = %v", err)
+		}
+		defer writer.Close()
+
+		if writer.sessionID != sessionID {
+			t.Errorf("sessionID = %s, want %s", writer.sessionID, sessionID)
+		}
+
+		if writer.filePath == "" {
+			t.Error("filePath should not be empty")
+		}
+
+		if writer.file == nil {
+			t.Error("file should not be nil")
+		}
+
+		if writer.subscribers == nil {
+			t.Error("subscribers map should be initialized")
+		}
+
+		// Test writing
+		testData := "test line\n"
+		if _, err := writer.WriteString(testData); err != nil {
+			t.Errorf("WriteString() error = %v", err)
+		}
+
+		// Verify file exists and contains data
+		content, err := os.ReadFile(writer.filePath)
+		if err != nil {
+			t.Fatalf("failed to read log file: %v", err)
+		}
+
+		if !strings.Contains(string(content), testData) {
+			t.Error("log file should contain written data")
+		}
+	})
+
+	t.Run("invalid directory", func(t *testing.T) {
+		// Try to create in an invalid path
+		_, err := NewLogWriterForTest("test", "/proc/invalid/cannot/create")
+		if err == nil {
+			t.Error("NewLogWriterForTest() should error for invalid directory")
+		}
+	})
+}
+
+func TestCreateLogWriterErrors(t *testing.T) {
+	store, err := NewFFmpegLogStore(t.TempDir(), 24*time.Hour, createTestLogger())
+	if err != nil {
+		t.Fatalf("failed to create log store: %v", err)
+	}
+
+	t.Run("invalid media directory", func(t *testing.T) {
+		// Create a file where a directory should be to trigger os.MkdirAll error
+		mediaID := int64(9999)
+		mediaPath := filepath.Join(store.baseDir, fmt.Sprintf("%d", mediaID))
+
+		// Create parent directory
+		if err := os.MkdirAll(filepath.Dir(mediaPath), 0o755); err != nil {
+			t.Fatalf("failed to create parent dir: %v", err)
+		}
+
+		// Create a file with the same name as the media directory
+		if err := os.WriteFile(mediaPath, []byte("blocking"), 0o644); err != nil {
+			t.Fatalf("failed to create blocking file: %v", err)
+		}
+
+		_, err := store.CreateLogWriter("test_session", mediaID, "720p")
+		if err == nil {
+			t.Error("CreateLogWriter() should fail when media dir cannot be created")
+		}
+
+		// Clean up
+		os.Remove(mediaPath)
+	})
+}
+
+func TestReadLogTailErrors(t *testing.T) {
+	store, err := NewFFmpegLogStore(t.TempDir(), 24*time.Hour, createTestLogger())
+	if err != nil {
+		t.Fatalf("failed to create log store: %v", err)
+	}
+
+	t.Run("scanner error", func(t *testing.T) {
+		// Create a log file with very long lines that exceed scanner buffer
+		sessionID := "scanner_error_test"
+		mediaID := int64(9000)
+		writer, _ := store.CreateLogWriter(sessionID, mediaID, "720p")
+
+		// Write a line that's much longer than the default scanner buffer (64KB)
+		longLine := strings.Repeat("a", 100*1024) + "\n"
+		writer.WriteString(longLine)
+		writer.Close()
+
+		// ReadLogTail should handle scanner errors
+		_, err := store.ReadLogTail(sessionID, mediaID, 10)
+		// Scanner may or may not error depending on buffer size, but it shouldn't panic
+		if err != nil {
+			// Error is acceptable for very long lines
+			t.Logf("ReadLogTail() error (expected for long lines) = %v", err)
+		}
+	})
+
+	t.Run("file not found", func(t *testing.T) {
+		_, err := store.ReadLogTail("nonexistent", 9999, 10)
+		if err == nil {
+			t.Error("ReadLogTail() should error for non-existent file")
+		}
+	})
+}
+
+func TestStreamLogErrors(t *testing.T) {
+	store, err := NewFFmpegLogStore(t.TempDir(), 24*time.Hour, createTestLogger())
+	if err != nil {
+		t.Fatalf("failed to create log store: %v", err)
+	}
+
+	t.Run("write error during follow", func(t *testing.T) {
+		sessionID := "stream_write_error"
+		mediaID := int64(9100)
+		writer, _ := store.CreateLogWriter(sessionID, mediaID, "720p")
+
+		writer.WriteString("Initial data\n")
+
+		// Create a writer that fails on Write
+		errWriter := &errorWriter{failAfter: 1}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		defer cancel()
+
+		// Should fail during the follow phase when writing new data
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- store.StreamLog(ctx, sessionID, mediaID, true, errWriter)
+		}()
+
+		time.Sleep(50 * time.Millisecond)
+		writer.WriteString("New data\n")
+		time.Sleep(50 * time.Millisecond)
+
+		// Close the writer to end the stream
+		writer.Close()
+
+		select {
+		case err := <-errCh:
+			if err != nil && !strings.Contains(err.Error(), "failed to write") && err != context.DeadlineExceeded {
+				// Either write error or context timeout is acceptable
+				t.Logf("StreamLog() error = %v", err)
+			}
+		case <-time.After(500 * time.Millisecond):
+			cancel() // Ensure context is cancelled
+			<-errCh  // Drain the channel
+		}
+	})
+
+	t.Run("follow inactive session", func(t *testing.T) {
+		sessionID := "inactive_follow"
+		mediaID := int64(9200)
+		writer, _ := store.CreateLogWriter(sessionID, mediaID, "720p")
+		writer.WriteString("Data\n")
+		writer.Close()
+
+		var buf bytes.Buffer
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		err := store.StreamLog(ctx, sessionID, mediaID, true, &buf)
+
+		// Should succeed since session is closed, no follow happens
+		if err != nil && err != context.DeadlineExceeded {
+			t.Errorf("StreamLog() error = %v", err)
+		}
+
+		if !strings.Contains(buf.String(), "Data") {
+			t.Error("StreamLog() should contain initial data")
+		}
+	})
+}
+
+func TestListLogsWithDirErrors(t *testing.T) {
+	store, err := NewFFmpegLogStore(t.TempDir(), 24*time.Hour, createTestLogger())
+	if err != nil {
+		t.Fatalf("failed to create log store: %v", err)
+	}
+
+	t.Run("non-log files ignored", func(t *testing.T) {
+		mediaID := int64(9300)
+		mediaDir := filepath.Join(store.baseDir, fmt.Sprintf("%d", mediaID))
+		if err := os.MkdirAll(mediaDir, 0o755); err != nil {
+			t.Fatalf("failed to create media dir: %v", err)
+		}
+
+		// Create non-log files and directories
+		os.WriteFile(filepath.Join(mediaDir, "readme.txt"), []byte("test"), 0o644)
+		os.Mkdir(filepath.Join(mediaDir, "subdir"), 0o755)
+
+		// Create one actual log file
+		writer, _ := store.CreateLogWriter("valid_session", mediaID, "720p")
+		writer.Close()
+
+		logs, err := store.ListLogs(mediaID)
+		if err != nil {
+			t.Errorf("ListLogs() error = %v", err)
+		}
+
+		if len(logs) != 1 {
+			t.Errorf("ListLogs() returned %d logs, want 1", len(logs))
+		}
+	})
+
+	t.Run("parse quality from session ID", func(t *testing.T) {
+		mediaID := int64(9400)
+
+		tests := []struct {
+			sessionID string
+			wantQuality string
+		}{
+			{"100_1080p_123456", "1080p"},
+			{"200_720p_789012", "720p"},
+			{"300_480p_345678", "480p"},
+			{"simple_quality", "quality"}, // Second part is quality
+			{"noseparator", ""}, // No quality extracted
+		}
+
+		for _, tt := range tests {
+			writer, _ := store.CreateLogWriter(tt.sessionID, mediaID, tt.wantQuality)
+			writer.Close()
+		}
+
+		logs, err := store.ListLogs(mediaID)
+		if err != nil {
+			t.Errorf("ListLogs() error = %v", err)
+		}
+
+		// Verify quality parsing
+		qualityMap := make(map[string]string)
+		for _, log := range logs {
+			qualityMap[log.SessionID] = log.Quality
+		}
+
+		for _, tt := range tests {
+			if got := qualityMap[tt.sessionID]; got != tt.wantQuality {
+				t.Errorf("quality for %s = %s, want %s", tt.sessionID, got, tt.wantQuality)
+			}
+		}
+	})
+}
+
+func TestGetLogInfoEdgeCases(t *testing.T) {
+	store, err := NewFFmpegLogStore(t.TempDir(), 24*time.Hour, createTestLogger())
+	if err != nil {
+		t.Fatalf("failed to create log store: %v", err)
+	}
+
+	t.Run("error detection", func(t *testing.T) {
+		sessionID := "9500_test_123"
+		mediaID := int64(9500)
+		writer, _ := store.CreateLogWriter(sessionID, mediaID, "test")
+
+		// Write lines with various error indicators
+		writer.WriteString("Normal line\n")
+		writer.WriteString("ERROR: Something went wrong\n")
+		writer.WriteString("Process failed with code 1\n")
+		writer.WriteString("Another normal line\n")
+		writer.WriteString("Fatal Error occurred\n")
+		writer.Close()
+
+		info, err := store.GetLogInfo(sessionID, mediaID)
+		if err != nil {
+			t.Fatalf("GetLogInfo() error = %v", err)
+		}
+
+		if !info.HasErrors {
+			t.Error("HasErrors should be true")
+		}
+
+		if info.ErrorCount < 2 {
+			t.Errorf("ErrorCount = %d, want at least 2", info.ErrorCount)
+		}
+	})
+
+	t.Run("stat error", func(t *testing.T) {
+		_, err := store.GetLogInfo("nonexistent", 9999)
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Error("GetLogInfo() should return 'not found' error")
+		}
+	})
+}
+
+func TestCleanupOldLogsEdgeCases(t *testing.T) {
+	t.Run("empty media directories removed", func(t *testing.T) {
+		store, err := NewFFmpegLogStore(t.TempDir(), 1*time.Hour, createTestLogger())
+		if err != nil {
+			t.Fatalf("failed to create log store: %v", err)
+		}
+
+		// Create and then delete a log to leave an empty directory
+		mediaID := int64(9600)
+		writer, _ := store.CreateLogWriter("temp_session", mediaID, "720p")
+		logPath := writer.FilePath()
+		mediaDir := filepath.Dir(logPath)
+		writer.Close()
+
+		// Delete the log file manually
+		os.Remove(logPath)
+
+		// Cleanup should remove the empty directory
+		store.CleanupOldLogs()
+
+		if _, err := os.Stat(mediaDir); !os.IsNotExist(err) {
+			t.Error("empty media directory should be removed")
+		}
+	})
+
+	t.Run("non-log files ignored", func(t *testing.T) {
+		store, err := NewFFmpegLogStore(t.TempDir(), 1*time.Millisecond, createTestLogger())
+		if err != nil {
+			t.Fatalf("failed to create log store: %v", err)
+		}
+
+		// Create non-log file
+		nonLogPath := filepath.Join(store.baseDir, "readme.txt")
+		os.WriteFile(nonLogPath, []byte("test"), 0o644)
+		time.Sleep(10 * time.Millisecond)
+
+		count, _, err := store.CleanupOldLogs()
+		if err != nil {
+			t.Errorf("CleanupOldLogs() error = %v", err)
+		}
+
+		// Should not count non-log files
+		if _, err := os.Stat(nonLogPath); os.IsNotExist(err) {
+			t.Error("non-log file should not be deleted")
+		}
+
+		// Verify the non-log file wasn't counted
+		if count != 0 {
+			t.Errorf("count = %d, want 0 (non-log file shouldn't be counted)", count)
+		}
+	})
+
+	t.Run("cleanup with walk errors continues gracefully", func(t *testing.T) {
+		store, err := NewFFmpegLogStore(t.TempDir(), 1*time.Hour, createTestLogger())
+		if err != nil {
+			t.Fatalf("failed to create log store: %v", err)
+		}
+
+		// Create a log file
+		writer, _ := store.CreateLogWriter("test", 9700, "720p")
+		writer.WriteString("content\n")
+		writer.Close()
+
+		// CleanupOldLogs should not return an error even if there are walk errors
+		// (it returns nil on walk errors to continue processing)
+		_, _, err = store.CleanupOldLogs()
+		if err != nil {
+			t.Errorf("CleanupOldLogs() should not error on walk errors: %v", err)
+		}
+	})
+}
+
+// errorWriter is a test writer that fails after a certain number of writes
+type errorWriter struct {
+	count     int
+	failAfter int
+}
+
+func (w *errorWriter) Write(p []byte) (n int, err error) {
+	w.count++
+	if w.count > w.failAfter {
+		return 0, fmt.Errorf("write error")
+	}
+	return len(p), nil
+}

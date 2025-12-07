@@ -37,6 +37,15 @@
       --accent-600: #0070e0;
       --accent-700: #0058b3;
 
+      /* Secondary accent - warm amber for highlights */
+      --warm-400: #fbbf24;
+      --warm-500: #f59e0b;
+      --warm-600: #d97706;
+
+      /* Success/positive */
+      --success-400: #34d399;
+      --success-500: #10b981;
+
       /* Text hierarchy */
       --text-primary: #ffffff;
       --text-secondary: rgba(255, 255, 255, 0.7);
@@ -47,9 +56,78 @@
       --font-display: 'Outfit', system-ui, sans-serif;
       --font-body: 'Geist', system-ui, sans-serif;
 
-      /* Shadows */
-      --shadow-glow: 0 0 80px -20px rgba(0, 144, 255, 0.3);
-      --shadow-card: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+      /* ======================
+         SHADOWS & GLOWS
+         ====================== */
+
+      /* Ambient glows */
+      --glow-accent: 0 0 80px -20px rgba(0, 144, 255, 0.4);
+      --glow-accent-soft: 0 0 120px -30px rgba(0, 144, 255, 0.25);
+      --glow-accent-intense: 0 0 60px -10px rgba(0, 144, 255, 0.6);
+      --glow-warm: 0 0 80px -20px rgba(251, 191, 36, 0.3);
+
+      /* Card shadows - layered for depth */
+      --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+      --shadow-md:
+        0 4px 12px -4px rgba(0, 0, 0, 0.5),
+        0 8px 24px -8px rgba(0, 0, 0, 0.3);
+      --shadow-lg:
+        0 8px 24px -8px rgba(0, 0, 0, 0.6),
+        0 16px 48px -16px rgba(0, 0, 0, 0.4);
+      --shadow-xl:
+        0 16px 48px -12px rgba(0, 0, 0, 0.7),
+        0 32px 80px -24px rgba(0, 0, 0, 0.5);
+      --shadow-2xl:
+        0 25px 60px -15px rgba(0, 0, 0, 0.8),
+        0 50px 100px -30px rgba(0, 0, 0, 0.6);
+
+      /* Inset shadows for depth */
+      --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      --shadow-inset-strong: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+
+      /* Legacy compatibility */
+      --shadow-glow: var(--glow-accent);
+      --shadow-card: var(--shadow-xl);
+
+      /* ======================
+         GLASSMORPHISM
+         ====================== */
+
+      --glass-bg: rgba(17, 17, 17, 0.6);
+      --glass-bg-dense: rgba(17, 17, 17, 0.8);
+      --glass-bg-light: rgba(255, 255, 255, 0.03);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-border-light: rgba(255, 255, 255, 0.12);
+      --glass-blur: blur(20px) saturate(180%);
+      --glass-blur-heavy: blur(40px) saturate(200%);
+
+      /* ======================
+         GRADIENTS
+         ====================== */
+
+      /* Mesh gradient colors for backgrounds */
+      --gradient-mesh-1: radial-gradient(ellipse at 20% 0%, rgba(0, 144, 255, 0.15) 0%, transparent 50%);
+      --gradient-mesh-2: radial-gradient(ellipse at 80% 50%, rgba(0, 112, 224, 0.1) 0%, transparent 40%);
+      --gradient-mesh-3: radial-gradient(ellipse at 40% 100%, rgba(0, 88, 179, 0.08) 0%, transparent 50%);
+
+      /* Surface gradients */
+      --gradient-surface: linear-gradient(180deg, var(--black-elevated) 0%, var(--black-soft) 100%);
+      --gradient-surface-subtle: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+      --gradient-surface-glow: linear-gradient(180deg, rgba(0, 144, 255, 0.05) 0%, transparent 60%);
+
+      /* Border gradients */
+      --gradient-border: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 100%);
+      --gradient-border-accent: linear-gradient(135deg, rgba(0, 144, 255, 0.3) 0%, rgba(0, 144, 255, 0.05) 100%);
+
+      /* ======================
+         BORDERS
+         ====================== */
+
+      --border-subtle: 1px solid rgba(255, 255, 255, 0.06);
+      --border-default: 1px solid var(--black-border);
+      --border-light: 1px solid rgba(255, 255, 255, 0.1);
+      --border-accent: 1px solid rgba(0, 144, 255, 0.3);
+      --border-glow: 1px solid rgba(0, 144, 255, 0.2);
     }
 
     * {
@@ -65,6 +143,252 @@
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ======================
+       GLASSMORPHISM PANELS
+       ====================== */
+
+    .glass {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+    }
+
+    .glass-dense {
+      background: var(--glass-bg-dense);
+      backdrop-filter: var(--glass-blur-heavy);
+      -webkit-backdrop-filter: var(--glass-blur-heavy);
+      border: 1px solid var(--glass-border-light);
+    }
+
+    .glass-card {
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.05) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(0, 0, 0, 0.1) 100%
+      );
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      box-shadow:
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    .glass-card:hover {
+      border-color: var(--glass-border-light);
+      box-shadow:
+        var(--shadow-xl),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    /* Frosted panel with subtle gradient */
+    .frosted-panel {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 40%),
+        var(--glass-bg-dense);
+      backdrop-filter: var(--glass-blur-heavy);
+      -webkit-backdrop-filter: var(--glass-blur-heavy);
+      border: 1px solid transparent;
+      border-image: var(--gradient-border) 1;
+      box-shadow: var(--shadow-xl);
+    }
+
+    /* ======================
+       GLOWING BORDERS
+       ====================== */
+
+    .border-glow {
+      position: relative;
+    }
+
+    .border-glow::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.4) 0%,
+        rgba(0, 144, 255, 0.1) 50%,
+        rgba(0, 144, 255, 0.3) 100%
+      );
+      border-radius: inherit;
+      z-index: -1;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .border-glow:hover::before {
+      opacity: 1;
+    }
+
+    /* Gradient border using mask technique */
+    .gradient-border {
+      position: relative;
+      background: var(--black-elevated);
+      border-radius: 16px;
+    }
+
+    .gradient-border::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.15) 0%,
+        rgba(255, 255, 255, 0.05) 50%,
+        rgba(255, 255, 255, 0.1) 100%
+      );
+      border-radius: inherit;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: xor;
+      -webkit-mask-composite: xor;
+      pointer-events: none;
+    }
+
+    /* ======================
+       AMBIENT GLOW EFFECTS
+       ====================== */
+
+    .ambient-glow {
+      position: relative;
+    }
+
+    .ambient-glow::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 150%;
+      height: 150%;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(0, 144, 255, 0.15) 0%,
+        transparent 60%
+      );
+      filter: blur(40px);
+      pointer-events: none;
+      z-index: -1;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .ambient-glow:hover::after {
+      opacity: 1;
+    }
+
+    /* ======================
+       MESH GRADIENT BACKGROUNDS
+       ====================== */
+
+    .mesh-bg {
+      position: relative;
+    }
+
+    .mesh-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        var(--gradient-mesh-1),
+        var(--gradient-mesh-2),
+        var(--gradient-mesh-3);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Animated mesh gradient */
+    .mesh-bg-animated::before {
+      animation: mesh-shift 20s ease-in-out infinite;
+    }
+
+    @keyframes mesh-shift {
+      0%, 100% {
+        background:
+          radial-gradient(ellipse at 20% 0%, rgba(0, 144, 255, 0.15) 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 50%, rgba(0, 112, 224, 0.1) 0%, transparent 40%),
+          radial-gradient(ellipse at 40% 100%, rgba(0, 88, 179, 0.08) 0%, transparent 50%);
+      }
+      33% {
+        background:
+          radial-gradient(ellipse at 60% 10%, rgba(0, 144, 255, 0.12) 0%, transparent 50%),
+          radial-gradient(ellipse at 20% 60%, rgba(0, 112, 224, 0.1) 0%, transparent 40%),
+          radial-gradient(ellipse at 80% 90%, rgba(0, 88, 179, 0.1) 0%, transparent 50%);
+      }
+      66% {
+        background:
+          radial-gradient(ellipse at 80% 20%, rgba(0, 144, 255, 0.1) 0%, transparent 50%),
+          radial-gradient(ellipse at 40% 80%, rgba(0, 112, 224, 0.12) 0%, transparent 40%),
+          radial-gradient(ellipse at 10% 40%, rgba(0, 88, 179, 0.08) 0%, transparent 50%);
+      }
+    }
+
+    /* ======================
+       SHIMMER & SHINE EFFECTS
+       ====================== */
+
+    /* Shimmer and shine effects removed for cleaner design */
+
+    /* ======================
+       DEPTH & ELEVATION
+       ====================== */
+
+    .elevated-sm {
+      box-shadow: var(--shadow-sm);
+    }
+
+    .elevated-md {
+      box-shadow: var(--shadow-md);
+    }
+
+    .elevated-lg {
+      box-shadow: var(--shadow-lg);
+    }
+
+    .elevated-xl {
+      box-shadow: var(--shadow-xl);
+    }
+
+    /* Floating effect */
+    .floating {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .floating:hover {
+      transform: translateY(-4px);
+      box-shadow:
+        var(--shadow-xl),
+        var(--glow-accent-soft);
+    }
+
+    /* ======================
+       NOISE TEXTURE OVERLAY
+       ====================== */
+
+    .noise-overlay {
+      position: relative;
+    }
+
+    .noise-overlay::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.03;
+      pointer-events: none;
+      mix-blend-mode: overlay;
     }
 
 
@@ -83,28 +407,73 @@
 
     .sidebar {
       width: 260px;
-      background: linear-gradient(180deg, var(--black-elevated) 0%, var(--black-soft) 100%);
-      border-right: 1px solid var(--black-border);
+      background: linear-gradient(
+        180deg,
+        rgba(17, 17, 17, 0.95) 0%,
+        rgba(10, 10, 10, 0.98) 100%
+      );
+      backdrop-filter: blur(20px) saturate(150%);
+      -webkit-backdrop-filter: blur(20px) saturate(150%);
+      border-right: 1px solid rgba(255, 255, 255, 0.04);
       display: flex;
       flex-direction: column;
       position: relative;
+      box-shadow:
+        4px 0 24px -8px rgba(0, 0, 0, 0.5),
+        inset -1px 0 0 rgba(255, 255, 255, 0.02);
     }
 
+    /* Ambient glow at top */
     .sidebar::before {
       content: '';
       position: absolute;
       top: 0;
       left: 50%;
       transform: translateX(-50%);
-      width: 180px;
-      height: 120px;
-      background: radial-gradient(ellipse at center, rgba(0, 144, 255, 0.1), transparent 70%);
+      width: 200px;
+      height: 150px;
+      background: radial-gradient(
+        ellipse at center top,
+        rgba(0, 144, 255, 0.12) 0%,
+        rgba(0, 144, 255, 0.04) 40%,
+        transparent 70%
+      );
       pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Subtle noise texture */
+    .sidebar::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.02;
+      pointer-events: none;
+      mix-blend-mode: overlay;
     }
 
     .logo {
       padding: 24px;
-      border-bottom: 1px solid var(--black-border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Gradient line under logo */
+    .logo::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 24px;
+      right: 24px;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(0, 144, 255, 0.3) 50%,
+        transparent
+      );
     }
 
     .logo-container {
@@ -151,6 +520,8 @@
     .nav {
       flex: 1;
       padding: 16px;
+      position: relative;
+      z-index: 1;
     }
 
     .nav-item {
@@ -163,31 +534,89 @@
       text-decoration: none;
       font-size: 14px;
       font-weight: 500;
-      transition: all 0.2s ease;
+      transition: all 0.25s ease;
       margin-bottom: 4px;
+      position: relative;
+      border: 1px solid transparent;
+    }
+
+    .nav-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 0;
+      background: linear-gradient(180deg, var(--accent-400), var(--accent-500));
+      border-radius: 0 2px 2px 0;
+      transition: height 0.25s ease;
     }
 
     .nav-item:hover {
-      background: var(--black-muted);
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 100%
+      );
       color: var(--text-primary);
+      border-color: rgba(255, 255, 255, 0.04);
     }
 
     .nav-item.active {
-      background: linear-gradient(135deg, rgba(0, 144, 255, 0.15) 0%, rgba(0, 144, 255, 0.05) 100%);
-      color: var(--accent-400);
-      border: 1px solid rgba(0, 144, 255, 0.25);
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.12) 0%,
+        rgba(0, 144, 255, 0.04) 100%
+      );
+      color: var(--accent-300);
+      border: 1px solid rgba(0, 144, 255, 0.2);
+      box-shadow:
+        0 4px 16px -8px rgba(0, 144, 255, 0.3),
+        inset 0 1px 0 rgba(0, 144, 255, 0.1);
+    }
+
+    .nav-item.active::before {
+      height: 24px;
+      box-shadow: 0 0 12px rgba(0, 144, 255, 0.5);
     }
 
     .nav-item svg {
       width: 20px;
       height: 20px;
-      opacity: 0.8;
+      opacity: 0.7;
+      transition: all 0.25s ease;
+    }
+
+    .nav-item:hover svg {
+      opacity: 1;
+    }
+
+    .nav-item.active svg {
+      opacity: 1;
+      filter: drop-shadow(0 0 6px rgba(0, 144, 255, 0.5));
     }
 
     .nav-section {
       margin-top: 24px;
       padding-top: 16px;
-      border-top: 1px solid var(--black-border);
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      position: relative;
+    }
+
+    .nav-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 16px;
+      right: 16px;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.08) 50%,
+        transparent
+      );
     }
 
     .nav-section-title {
@@ -217,15 +646,51 @@
       overflow: hidden;
     }
 
+    /* Mesh gradient background */
     .hero::before {
       content: '';
       position: absolute;
-      top: -50%;
-      left: 20%;
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(circle, rgba(0, 144, 255, 0.08) 0%, transparent 60%);
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 144, 255, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 50% at 80% 30%, rgba(0, 112, 224, 0.08) 0%, transparent 45%),
+        radial-gradient(ellipse 50% 40% at 40% 100%, rgba(0, 88, 179, 0.06) 0%, transparent 50%);
       pointer-events: none;
+      animation: hero-mesh-shift 25s ease-in-out infinite;
+    }
+
+    /* Secondary glow orb */
+    .hero::after {
+      content: '';
+      position: absolute;
+      top: -30%;
+      right: 10%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(0, 144, 255, 0.1) 0%, transparent 60%);
+      filter: blur(60px);
+      pointer-events: none;
+      animation: hero-float 15s ease-in-out infinite;
+    }
+
+    @keyframes hero-mesh-shift {
+      0%, 100% {
+        background:
+          radial-gradient(ellipse 80% 60% at 20% 0%, rgba(0, 144, 255, 0.12) 0%, transparent 50%),
+          radial-gradient(ellipse 60% 50% at 80% 30%, rgba(0, 112, 224, 0.08) 0%, transparent 45%),
+          radial-gradient(ellipse 50% 40% at 40% 100%, rgba(0, 88, 179, 0.06) 0%, transparent 50%);
+      }
+      50% {
+        background:
+          radial-gradient(ellipse 70% 55% at 30% 10%, rgba(0, 144, 255, 0.1) 0%, transparent 50%),
+          radial-gradient(ellipse 55% 45% at 70% 40%, rgba(0, 112, 224, 0.1) 0%, transparent 45%),
+          radial-gradient(ellipse 60% 45% at 50% 90%, rgba(0, 88, 179, 0.08) 0%, transparent 50%);
+      }
+    }
+
+    @keyframes hero-float {
+      0%, 100% { transform: translateY(0) translateX(0); opacity: 0.6; }
+      50% { transform: translateY(20px) translateX(-20px); opacity: 0.8; }
     }
 
     .hero-badge {
@@ -237,12 +702,25 @@
       border: 1px solid rgba(0, 144, 255, 0.3);
       border-radius: 100px;
       margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        0 2px 12px -4px rgba(0, 144, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    /* Shimmer effect on badge */
+    .hero-badge:hover {
+      border-color: rgba(0, 144, 255, 0.4);
     }
 
     .hero-badge svg {
       width: 16px;
       height: 16px;
       color: var(--accent-400);
+      filter: drop-shadow(0 0 4px rgba(0, 144, 255, 0.4));
+      position: relative;
     }
 
     .hero-badge span {
@@ -251,6 +729,7 @@
       letter-spacing: 0.05em;
       text-transform: uppercase;
       color: var(--accent-400);
+      position: relative;
     }
 
     .hero h2 {
@@ -274,21 +753,103 @@
       display: flex;
       gap: 16px;
       margin-top: 32px;
+      position: relative;
     }
 
     .stat-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--black-border);
+      position: relative;
+      background: linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.05) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(0, 0, 0, 0.1) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 16px;
       padding: 20px 28px;
-      backdrop-filter: blur(10px);
-      transition: all 0.3s ease;
+      backdrop-filter: blur(16px) saturate(150%);
+      -webkit-backdrop-filter: blur(16px) saturate(150%);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      box-shadow:
+        var(--shadow-md),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    /* Gradient border overlay */
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      background: linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.12) 0%,
+        transparent 40%,
+        transparent 70%,
+        rgba(255, 255, 255, 0.04) 100%
+      );
+      border-radius: inherit;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: xor;
+      -webkit-mask-composite: xor;
+      pointer-events: none;
+      opacity: 0.6;
+      transition: opacity 0.4s ease;
+    }
+
+    /* Shine effect on hover */
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -150%;
+      width: 50%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.08),
+        transparent
+      );
+      transform: skewX(-20deg);
+      transition: left 0.6s ease;
+      pointer-events: none;
     }
 
     .stat-card:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(0, 144, 255, 0.25);
-      transform: translateY(-2px);
+      background: linear-gradient(
+        165deg,
+        rgba(0, 144, 255, 0.08) 0%,
+        rgba(255, 255, 255, 0.04) 50%,
+        rgba(0, 0, 0, 0.05) 100%
+      );
+      border-color: rgba(0, 144, 255, 0.3);
+      transform: translateY(-4px);
+      box-shadow:
+        var(--shadow-xl),
+        0 0 40px -15px rgba(0, 144, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-card:hover::before {
+      opacity: 1;
+      background: linear-gradient(
+        165deg,
+        rgba(0, 144, 255, 0.3) 0%,
+        rgba(0, 144, 255, 0.1) 30%,
+        transparent 50%,
+        rgba(0, 144, 255, 0.05) 100%
+      );
+    }
+
+    .stat-card:hover::after {
+      left: 150%;
     }
 
     .stat-number {
@@ -350,21 +911,65 @@
 
     .media-card {
       position: relative;
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
-      background: var(--black-elevated);
+      background: linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.03) 0%,
+        var(--black-elevated) 40%,
+        var(--black-soft) 100%
+      );
       border: 1px solid var(--black-border);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
+      box-shadow: var(--shadow-md);
+    }
+
+    /* Gradient border overlay */
+    .media-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      background: linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        transparent 30%,
+        transparent 70%,
+        rgba(255, 255, 255, 0.03) 100%
+      );
+      border-radius: inherit;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: xor;
+      -webkit-mask-composite: xor;
+      pointer-events: none;
+      opacity: 0.5;
+      transition: opacity 0.4s ease;
     }
 
     .media-card:hover {
-      transform: scale(1.03) translateY(-4px);
-      border-color: rgba(0, 144, 255, 0.35);
+      transform: scale(1.04) translateY(-6px);
+      border-color: rgba(0, 144, 255, 0.4);
       box-shadow:
-        0 20px 40px -15px rgba(0, 0, 0, 0.8),
-        0 0 0 1px rgba(0, 144, 255, 0.15),
-        0 0 60px -20px rgba(0, 144, 255, 0.25);
+        var(--shadow-2xl),
+        0 0 0 1px rgba(0, 144, 255, 0.2),
+        0 0 80px -20px rgba(0, 144, 255, 0.35);
+    }
+
+    .media-card:hover::before {
+      opacity: 1;
+      background: linear-gradient(
+        165deg,
+        rgba(0, 144, 255, 0.3) 0%,
+        rgba(0, 144, 255, 0.1) 20%,
+        transparent 50%,
+        rgba(0, 144, 255, 0.05) 100%
+      );
     }
 
     .media-card:hover .media-poster::after {
@@ -386,9 +991,11 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%);
+      background:
+        linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.3) 30%, transparent 60%),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.4) 0%, transparent 20%);
       opacity: 0;
-      transition: opacity 0.3s;
+      transition: opacity 0.4s ease;
     }
 
     .media-poster img {
@@ -401,29 +1008,59 @@
       position: absolute;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -50%) scale(0.9);
-      width: 56px;
-      height: 56px;
-      background: rgba(0, 144, 255, 0.95);
+      transform: translate(-50%, -50%) scale(0.85);
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       opacity: 0;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 8px 32px rgba(0, 144, 255, 0.4);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 0 0 4px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
       z-index: 10;
+    }
+
+    .play-button::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 144, 255, 0.3) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .media-card:hover .play-button::before {
+      opacity: 1;
     }
 
     .play-button svg {
       width: 24px;
       height: 24px;
-      color: var(--black-pure);
-      margin-left: 2px;
+      color: var(--accent-600);
+      margin-left: 3px;
+      filter: drop-shadow(0 1px 2px rgba(0, 144, 255, 0.3));
     }
 
     .media-info {
       padding: 14px;
+      position: relative;
+    }
+
+    /* Subtle top highlight on info section */
+    .media-info::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 14px;
+      right: 14px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
     }
 
     .media-title {
@@ -528,144 +1165,73 @@
     .btn-play-cinematic {
       display: inline-flex;
       align-items: center;
-      gap: 14px;
-      padding: 18px 36px 18px 28px;
-      background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
+      gap: 10px;
+      padding: 12px 24px;
+      background: #ffffff;
       color: #0a0a0a;
-      font-family: var(--font-display);
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
       border: none;
-      border-radius: 50px;
+      border-radius: 6px;
       cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow:
-        0 4px 24px -4px rgba(255, 255, 255, 0.3),
-        0 0 0 1px rgba(255, 255, 255, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    }
-
-    .btn-play-cinematic::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(0, 144, 255, 0) 0%, rgba(0, 144, 255, 0.1) 100%);
-      opacity: 0;
-      transition: opacity 0.3s ease;
+      transition: background 0.15s ease, transform 0.1s ease;
     }
 
     .btn-play-cinematic:hover {
-      transform: translateY(-2px) scale(1.02);
-      box-shadow:
-        0 8px 40px -4px rgba(255, 255, 255, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.2),
-        0 0 60px -10px rgba(0, 144, 255, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
-    }
-
-    .btn-play-cinematic:hover::before {
-      opacity: 1;
+      background: #f0f0f0;
     }
 
     .btn-play-cinematic:active {
-      transform: translateY(0) scale(0.98);
+      transform: scale(0.98);
     }
 
     .btn-play-cinematic .play-icon {
-      width: 24px;
-      height: 24px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
-      border-radius: 50%;
-      box-shadow: 0 2px 8px rgba(0, 144, 255, 0.4);
-      transition: all 0.3s ease;
-    }
-
-    .btn-play-cinematic:hover .play-icon {
-      box-shadow: 0 4px 16px rgba(0, 144, 255, 0.6);
-      transform: scale(1.1);
     }
 
     .btn-play-cinematic .play-icon svg {
-      width: 10px;
-      height: 10px;
-      margin-left: 2px;
-      color: white;
+      width: 16px;
+      height: 16px;
+      color: #0a0a0a;
     }
 
     /* Alternative: Accent colored play button */
     .btn-play-accent {
       display: inline-flex;
       align-items: center;
-      gap: 12px;
-      padding: 16px 32px 16px 24px;
-      background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
+      gap: 10px;
+      padding: 12px 24px;
+      background: var(--accent-500);
       color: white;
-      font-family: var(--font-display);
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
       border: none;
-      border-radius: 12px;
+      border-radius: 6px;
       cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow:
-        0 4px 24px -4px rgba(0, 144, 255, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-
-    .btn-play-accent::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-      transition: left 0.5s ease;
-    }
-
-    .btn-play-accent:hover::before {
-      left: 100%;
+      transition: background 0.15s ease, transform 0.1s ease;
     }
 
     .btn-play-accent:hover {
-      transform: translateY(-2px);
-      box-shadow:
-        0 8px 32px -4px rgba(0, 144, 255, 0.6),
-        0 0 0 1px rgba(0, 144, 255, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      background: var(--accent-600);
+    }
+
+    .btn-play-accent:active {
+      transform: scale(0.98);
     }
 
     .btn-play-accent .play-icon-ring {
-      width: 28px;
-      height: 28px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(255, 255, 255, 0.2);
-      border: 2px solid rgba(255, 255, 255, 0.4);
-      border-radius: 50%;
-      transition: all 0.3s ease;
-    }
-
-    .btn-play-accent:hover .play-icon-ring {
-      background: rgba(255, 255, 255, 0.3);
-      border-color: rgba(255, 255, 255, 0.6);
-      transform: scale(1.1);
     }
 
     .btn-play-accent .play-icon-ring svg {
-      width: 12px;
-      height: 12px;
-      margin-left: 2px;
+      width: 16px;
+      height: 16px;
     }
 
     /* ======================
@@ -805,29 +1371,239 @@
     }
 
     /* ======================
-       PAGE TABS
+       GLOBAL APP SHELL
        ====================== */
 
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Global Sidebar */
+    .global-sidebar {
+      width: 240px;
+      background: var(--black-rich);
+      border-right: 1px solid var(--black-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 50;
+    }
+
+    .global-sidebar-logo {
+      padding: 20px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .global-sidebar-logo .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .global-sidebar-logo .logo-icon {
+      width: 36px;
+      height: 36px;
+    }
+
+    .global-sidebar-logo .logo-text {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .global-sidebar-logo .logo-text span {
+      color: var(--accent-400);
+    }
+
+    .global-sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+
+    .global-nav-section {
+      margin-bottom: 24px;
+    }
+
+    .global-nav-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0 20px;
+      margin-bottom: 8px;
+    }
+
+    .global-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .global-nav-item:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .global-nav-item.active {
+      color: var(--text-primary);
+      background: rgba(0, 144, 255, 0.08);
+      border-right: 2px solid var(--accent-500);
+    }
+
+    .global-nav-item svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+
+    .global-nav-item.active svg {
+      opacity: 1;
+      color: var(--accent-400);
+    }
+
+    /* Admin sub-navigation (expandable) */
+    .global-nav-submenu {
+      display: none;
+      padding-left: 20px;
+    }
+
+    .global-nav-submenu.expanded {
+      display: block;
+    }
+
+    .global-nav-submenu .global-nav-item {
+      padding: 8px 20px 8px 30px;
+      font-size: 13px;
+    }
+
+    .global-nav-item .nav-arrow {
+      margin-left: auto;
+      width: 16px;
+      height: 16px;
+      transition: transform 0.2s ease;
+    }
+
+    .global-nav-item.expanded .nav-arrow {
+      transform: rotate(90deg);
+    }
+
+    /* User profile at bottom of sidebar */
+    .global-sidebar-user {
+      padding: 16px 20px;
+      border-top: 1px solid var(--black-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .global-user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent-500);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .global-user-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .global-user-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .global-user-role {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .global-user-menu {
+      padding: 6px;
+      border-radius: 6px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .global-user-menu:hover {
+      background: var(--black-muted);
+      color: var(--text-primary);
+    }
+
+    .global-user-menu svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Main content area */
+    .global-main {
+      flex: 1;
+      margin-left: 240px;
+      background: var(--black-soft);
+      min-height: 100vh;
+    }
+
+    /* Page content containers */
+    .page-content {
+      display: none;
+    }
+
+    .page-content.active {
+      display: block;
+    }
+
+    /* Legacy page-tabs for mockup demo switching only */
     .page-tabs {
       display: flex;
-      gap: 8px;
-      padding: 16px;
+      gap: 6px;
+      padding: 12px 16px;
       background: var(--black-elevated);
       border-bottom: 1px solid var(--black-border);
       position: sticky;
       top: 0;
       z-index: 100;
+      flex-wrap: wrap;
     }
 
     .page-tab {
-      padding: 10px 20px;
+      padding: 6px 12px;
       background: transparent;
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
       font-family: var(--font-body);
-      font-size: 14px;
+      font-size: 11px;
       font-weight: 500;
-      color: var(--text-tertiary);
+      color: var(--text-muted);
       cursor: pointer;
       transition: all 0.2s;
     }
@@ -840,6 +1616,35 @@
     .page-tab.active {
       color: var(--accent-400);
       background: rgba(0, 144, 255, 0.1);
+    }
+
+    /* Page content wrappers */
+    .dashboard-content {
+      padding: 32px 40px;
+    }
+
+    .media-detail-content,
+    .episode-content {
+      /* No padding - hero sections go edge-to-edge */
+    }
+
+    .library-content-wrapper,
+    .preferences-content {
+      padding: 32px 40px;
+    }
+
+    .login-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 100px);
+      padding: 40px;
+    }
+
+    /* Admin page within global layout */
+    .admin-page {
+      display: flex;
+      min-height: calc(100vh - 57px);
     }
 
     /* ======================
@@ -991,11 +1796,52 @@
     }
 
     .settings-card {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--black-border);
-      border-radius: 16px;
+      position: relative;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.03) 0%,
+        rgba(255, 255, 255, 0.01) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 18px;
       overflow: hidden;
       margin-bottom: 24px;
+      transition: all 0.4s ease;
+      box-shadow:
+        var(--shadow-md),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    /* Gradient border overlay */
+    .settings-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        transparent 100%
+      );
+      border-radius: inherit;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: xor;
+      -webkit-mask-composite: xor;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    .settings-card:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow:
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }
 
     .settings-card-header {
@@ -1003,7 +1849,13 @@
       align-items: center;
       gap: 14px;
       padding: 20px 24px;
-      border-bottom: 1px solid var(--black-border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.02) 0%,
+        transparent 100%
+      );
+      position: relative;
     }
 
     .settings-card-icon {
@@ -1013,13 +1865,34 @@
       align-items: center;
       justify-content: center;
       border-radius: 10px;
-      background: linear-gradient(135deg, rgba(0, 144, 255, 0.15) 0%, rgba(0, 144, 255, 0.05) 100%);
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.2) 0%,
+        rgba(0, 144, 255, 0.08) 100%
+      );
+      border: 1px solid rgba(0, 144, 255, 0.2);
+      box-shadow:
+        0 2px 12px -4px rgba(0, 144, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .settings-card:hover .settings-card-icon {
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.25) 0%,
+        rgba(0, 144, 255, 0.12) 100%
+      );
+      box-shadow:
+        0 4px 16px -4px rgba(0, 144, 255, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
 
     .settings-card-icon svg {
       width: 20px;
       height: 20px;
       color: var(--accent-400);
+      filter: drop-shadow(0 0 4px rgba(0, 144, 255, 0.3));
     }
 
     .settings-card-header h3 {
@@ -1096,14 +1969,32 @@
       position: relative;
       width: 48px;
       height: 26px;
-      background: var(--black-muted);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.05) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 13px;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle:hover {
+      border-color: rgba(255, 255, 255, 0.15);
     }
 
     .toggle.active {
-      background: var(--accent-500);
+      background: linear-gradient(
+        135deg,
+        var(--accent-500) 0%,
+        var(--accent-600) 100%
+      );
+      border-color: rgba(0, 144, 255, 0.5);
+      box-shadow:
+        0 0 20px -6px rgba(0, 144, 255, 0.4),
+        inset 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     .toggle-knob {
@@ -1112,14 +2003,20 @@
       left: 3px;
       width: 20px;
       height: 20px;
-      background: white;
+      background: linear-gradient(180deg, #ffffff 0%, #f0f0f0 100%);
       border-radius: 50%;
-      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
     }
 
     .toggle.active .toggle-knob {
       transform: translateX(22px);
+      box-shadow:
+        0 2px 12px rgba(0, 144, 255, 0.3),
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
     }
 
     /* Select Dropdown */
@@ -1226,6 +2123,597 @@
     }
 
     /* ======================
+       ADMIN DASHBOARD
+       ====================== */
+
+    /* Admin page layout with sub-navigation */
+    .admin-page {
+      display: flex;
+      min-height: calc(100vh - 57px);
+    }
+
+    .admin-sidebar {
+      width: 220px;
+      background: var(--black-rich);
+      border-right: 1px solid var(--black-border);
+      padding: 24px 0;
+      flex-shrink: 0;
+    }
+
+    .admin-nav-section {
+      margin-bottom: 24px;
+    }
+
+    .admin-nav-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0 20px;
+      margin-bottom: 8px;
+    }
+
+    .admin-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .admin-nav-item:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .admin-nav-item.active {
+      color: var(--text-primary);
+      background: rgba(0, 144, 255, 0.08);
+      border-right: 2px solid var(--accent-500);
+    }
+
+    .admin-nav-item svg {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+    }
+
+    .admin-nav-item.active svg {
+      opacity: 1;
+      color: var(--accent-400);
+    }
+
+    .admin-main {
+      flex: 1;
+      background: var(--black-soft);
+      overflow-y: auto;
+      padding: 32px 40px;
+    }
+
+    .admin-header {
+      margin-bottom: 32px;
+    }
+
+    .admin-header h1 {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .admin-header p {
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+
+    /* System Info Stats Grid */
+    .system-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .system-stat-card {
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .system-stat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .system-stat-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 144, 255, 0.1);
+      border-radius: 8px;
+      color: var(--accent-400);
+    }
+
+    .system-stat-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .system-stat-icon.green {
+      background: rgba(52, 211, 153, 0.1);
+      color: #34d399;
+    }
+
+    .system-stat-icon.yellow {
+      background: rgba(251, 191, 36, 0.1);
+      color: #fbbf24;
+    }
+
+    .system-stat-icon.purple {
+      background: rgba(139, 92, 246, 0.1);
+      color: #8b5cf6;
+    }
+
+    .system-stat-status {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(52, 211, 153, 0.1);
+      color: #34d399;
+    }
+
+    .system-stat-status.warning {
+      background: rgba(251, 191, 36, 0.1);
+      color: #fbbf24;
+    }
+
+    .system-stat-value {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .system-stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .system-stat-bar {
+      height: 4px;
+      background: var(--black-muted);
+      border-radius: 2px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+
+    .system-stat-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--accent-500);
+    }
+
+    .system-stat-bar-fill.green {
+      background: #34d399;
+    }
+
+    .system-stat-bar-fill.yellow {
+      background: #fbbf24;
+    }
+
+    .system-stat-bar-fill.red {
+      background: #f87171;
+    }
+
+    /* Active Sessions Table */
+    .admin-section {
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      border-radius: 12px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .admin-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .admin-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .admin-section-title svg {
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+    }
+
+    .admin-section-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 10px;
+      background: rgba(0, 144, 255, 0.1);
+      color: var(--accent-400);
+    }
+
+    .admin-table {
+      width: 100%;
+    }
+
+    .admin-table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--black-border);
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .admin-table td {
+      padding: 14px 20px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .admin-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .admin-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* User row in table */
+    .user-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .user-avatar-sm {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .user-info-sm {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-name-sm {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .user-device {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Activity indicator */
+    .activity-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .activity-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #34d399;
+    }
+
+    .activity-dot.streaming {
+      background: var(--accent-500);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .activity-dot.idle {
+      background: var(--text-muted);
+    }
+
+    /* Stream info in table */
+    .stream-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stream-thumb {
+      width: 48px;
+      height: 28px;
+      border-radius: 4px;
+      background: var(--black-muted);
+      flex-shrink: 0;
+    }
+
+    .stream-info-sm {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .stream-title-sm {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stream-meta-sm {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Transcode badge */
+    .transcode-badge {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 3px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+
+    .transcode-badge.direct {
+      background: rgba(52, 211, 153, 0.1);
+      color: #34d399;
+    }
+
+    .transcode-badge.transcode {
+      background: rgba(251, 191, 36, 0.1);
+      color: #fbbf24;
+    }
+
+    /* Server Info Grid - Admin Dashboard */
+    .server-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .server-info-card {
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .server-info-card h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .info-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .info-item .info-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .info-item .info-value {
+      font-size: 12px;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    /* Stats card header */
+    .stat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .stat-icon {
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .stat-progress {
+      height: 4px;
+      background: var(--black-muted);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .stat-progress-bar {
+      height: 100%;
+      background: var(--accent-500);
+      border-radius: 2px;
+    }
+
+    .stat-progress-accent {
+      background: #34d399;
+    }
+
+    .stat-detail {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Admin section header h2 */
+    .admin-section-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* User cell in admin table */
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent-500);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .user-ip {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+    }
+
+    /* Stream cell in admin table */
+    .stream-poster {
+      width: 36px;
+      height: 54px;
+      border-radius: 4px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .stream-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stream-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .stream-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Device cell */
+    .device-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+    }
+
+    /* Quality badges */
+    .quality-badge {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .quality-transcode {
+      background: rgba(251, 191, 36, 0.1);
+      color: #fbbf24;
+    }
+
+    .quality-direct {
+      background: rgba(52, 211, 153, 0.1);
+      color: #34d399;
+    }
+
+    /* Progress cell */
+    .progress-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .progress-bar-small {
+      width: 60px;
+      height: 4px;
+      background: var(--black-muted);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent-500);
+      border-radius: 2px;
+    }
+
+    /* ======================
        MEDIA DETAIL PAGE
        ====================== */
 
@@ -1242,8 +2730,7 @@
 
     .media-hero {
       position: relative;
-      height: 560px;
-      overflow: hidden;
+      min-height: 560px;
     }
 
     .media-hero-backdrop {
@@ -1304,25 +2791,122 @@
 
     .media-badges {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 16px;
     }
 
     .media-badge {
+      position: relative;
       padding: 6px 12px;
-      background: rgba(255, 255, 255, 0.1);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.12) 0%,
+        rgba(255, 255, 255, 0.06) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.05em;
       text-transform: uppercase;
       color: var(--text-secondary);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: all 0.3s ease;
+      box-shadow:
+        0 2px 8px -2px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .media-badge:hover {
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.16) 0%,
+        rgba(255, 255, 255, 0.08) 100%
+      );
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+      box-shadow:
+        0 4px 12px -2px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
 
     .media-badge-accent {
-      background: linear-gradient(135deg, rgba(0, 144, 255, 0.2) 0%, rgba(0, 144, 255, 0.1) 100%);
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.25) 0%,
+        rgba(0, 144, 255, 0.1) 100%
+      );
       color: var(--accent-400);
-      border: 1px solid rgba(0, 144, 255, 0.3);
+      border: 1px solid rgba(0, 144, 255, 0.35);
+      box-shadow:
+        0 2px 12px -4px rgba(0, 144, 255, 0.35),
+        inset 0 1px 0 rgba(0, 144, 255, 0.2);
+    }
+
+    .media-badge-accent:hover {
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.3) 0%,
+        rgba(0, 144, 255, 0.15) 100%
+      );
+      border-color: rgba(0, 144, 255, 0.5);
+      box-shadow:
+        0 4px 20px -4px rgba(0, 144, 255, 0.45),
+        inset 0 1px 0 rgba(0, 144, 255, 0.3);
+    }
+
+    /* HDR/Dolby Vision badge - purple accent */
+    .media-badge-hdr {
+      background: linear-gradient(
+        135deg,
+        rgba(167, 139, 250, 0.25) 0%,
+        rgba(167, 139, 250, 0.1) 100%
+      );
+      color: #a78bfa;
+      border: 1px solid rgba(167, 139, 250, 0.35);
+      box-shadow:
+        0 2px 12px -4px rgba(167, 139, 250, 0.35),
+        inset 0 1px 0 rgba(167, 139, 250, 0.2);
+    }
+
+    .media-badge-hdr:hover {
+      background: linear-gradient(
+        135deg,
+        rgba(167, 139, 250, 0.3) 0%,
+        rgba(167, 139, 250, 0.15) 100%
+      );
+      border-color: rgba(167, 139, 250, 0.5);
+      box-shadow:
+        0 4px 20px -4px rgba(167, 139, 250, 0.45),
+        inset 0 1px 0 rgba(167, 139, 250, 0.3);
+    }
+
+    /* Dolby Atmos/audio badge - amber accent */
+    .media-badge-audio {
+      background: linear-gradient(
+        135deg,
+        rgba(251, 191, 36, 0.2) 0%,
+        rgba(251, 191, 36, 0.08) 100%
+      );
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      box-shadow:
+        0 2px 12px -4px rgba(251, 191, 36, 0.3),
+        inset 0 1px 0 rgba(251, 191, 36, 0.15);
+    }
+
+    .media-badge-audio:hover {
+      background: linear-gradient(
+        135deg,
+        rgba(251, 191, 36, 0.25) 0%,
+        rgba(251, 191, 36, 0.12) 100%
+      );
+      border-color: rgba(251, 191, 36, 0.45);
+      box-shadow:
+        0 4px 20px -4px rgba(251, 191, 36, 0.4),
+        inset 0 1px 0 rgba(251, 191, 36, 0.2);
     }
 
     .media-detail-title {
@@ -1356,20 +2940,130 @@
       border-radius: 50%;
     }
 
+    /* Ratings container */
+    .ratings-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* Base rating badge */
     .rating-badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: rgba(251, 191, 36, 0.15);
-      border-radius: 8px;
-      color: #fbbf24;
-      font-weight: 600;
+      gap: 5px;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
     }
 
     .rating-badge svg {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .rating-badge img {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    /* IMDb rating - yellow */
+    .rating-imdb {
+      background: rgba(245, 197, 24, 0.12);
+      color: #f5c518;
+    }
+
+    .rating-imdb .rating-source {
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }
+
+    /* Rotten Tomatoes - red tomato or green */
+    .rating-rt {
+      background: rgba(250, 50, 10, 0.1);
+      color: #fa320a;
+    }
+
+    .rating-rt.fresh {
+      background: rgba(250, 50, 10, 0.1);
+      color: #fa320a;
+    }
+
+    .rating-rt.certified-fresh {
+      background: rgba(250, 50, 10, 0.12);
+      color: #fa320a;
+    }
+
+    .rating-rt.rotten {
+      background: rgba(12, 181, 79, 0.1);
+      color: #0cb54f;
+    }
+
+    /* Audience score - popcorn */
+    .rating-audience {
+      background: rgba(250, 50, 10, 0.08);
+      color: #fa320a;
+    }
+
+    /* Metacritic - colored by score */
+    .rating-metacritic {
+      gap: 6px;
+    }
+
+    .rating-metacritic .mc-score {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .rating-metacritic .mc-score.green {
+      background: #66cc33;
+    }
+
+    .rating-metacritic .mc-score.yellow {
+      background: #ffcc33;
+      color: #000;
+    }
+
+    .rating-metacritic .mc-score.red {
+      background: #ff0000;
+    }
+
+    /* TMDB rating - teal */
+    .rating-tmdb {
+      background: rgba(1, 180, 171, 0.12);
+      color: #01b4ab;
+    }
+
+    /* Trakt rating - red */
+    .rating-trakt {
+      background: rgba(237, 29, 36, 0.1);
+      color: #ed1d24;
+    }
+
+    /* Content rating badges (PG-13, R, TV-MA, etc.) */
+    .content-rating {
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid var(--text-muted);
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--text-secondary);
     }
 
     .media-description {
@@ -1399,7 +3093,13 @@
 
     .media-credits {
       display: flex;
-      gap: 48px;
+      flex-wrap: wrap;
+      gap: 32px 48px;
+      margin-top: 24px;
+    }
+
+    .credit-group {
+      min-width: 120px;
     }
 
     .credit-group h4 {
@@ -1408,12 +3108,13 @@
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .credit-group p {
       font-size: 14px;
       color: var(--text-primary);
+      line-height: 1.4;
     }
 
     /* Cast Section */
@@ -1426,12 +3127,40 @@
       gap: 20px;
       overflow-x: auto;
       padding-bottom: 16px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+    }
+
+    .cast-grid::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .cast-grid::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .cast-grid::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
     }
 
     .cast-card {
       flex-shrink: 0;
       width: 140px;
       text-align: center;
+      padding: 16px 12px;
+      border-radius: 16px;
+      background: transparent;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .cast-card:hover {
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 100%
+      );
     }
 
     .cast-avatar {
@@ -1440,16 +3169,57 @@
       margin: 0 auto 12px;
       border-radius: 50%;
       background: linear-gradient(135deg, var(--black-muted) 0%, var(--black-elevated) 100%);
-      border: 2px solid var(--black-border);
+      border: 2px solid rgba(255, 255, 255, 0.08);
       overflow: hidden;
       position: relative;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:
+        0 4px 16px -4px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
 
-    .cast-avatar::after {
+    /* Gradient overlay */
+    .cast-avatar::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(135deg, rgba(0, 144, 255, 0.1) 0%, transparent 100%);
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        transparent 30%
+      );
+      opacity: 0.5;
+      transition: opacity 0.3s ease;
+    }
+
+    /* Accent glow on hover */
+    .cast-avatar::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.4) 0%,
+        rgba(0, 144, 255, 0.1) 50%,
+        rgba(0, 144, 255, 0.3) 100%
+      );
+      z-index: -1;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .cast-card:hover .cast-avatar {
+      border-color: rgba(0, 144, 255, 0.4);
+      transform: scale(1.05);
+      box-shadow:
+        0 8px 32px -8px rgba(0, 144, 255, 0.3),
+        0 0 0 1px rgba(0, 144, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .cast-card:hover .cast-avatar::after {
+      opacity: 1;
     }
 
     .cast-name {
@@ -1457,6 +3227,11 @@
       font-weight: 500;
       color: var(--text-primary);
       margin-bottom: 2px;
+      transition: color 0.3s ease;
+    }
+
+    .cast-card:hover .cast-name {
+      color: var(--accent-300);
     }
 
     .cast-role {
@@ -1473,30 +3248,38 @@
       display: flex;
       gap: 8px;
       margin-bottom: 24px;
+      padding: 4px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      width: fit-content;
     }
 
     .season-tab {
       padding: 10px 20px;
       background: transparent;
-      border: 1px solid var(--black-border);
+      border: 1px solid transparent;
       border-radius: 8px;
       font-family: var(--font-body);
       font-size: 14px;
       font-weight: 500;
       color: var(--text-tertiary);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s ease;
+      position: relative;
     }
 
     .season-tab:hover {
-      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
       color: var(--text-primary);
     }
 
     .season-tab.active {
-      background: var(--accent-500);
-      border-color: var(--accent-500);
+      background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
+      border-color: transparent;
       color: white;
+      box-shadow:
+        0 4px 16px -4px rgba(0, 144, 255, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
 
     .episode-list {
@@ -1506,20 +3289,69 @@
     }
 
     .episode-card {
+      position: relative;
       display: flex;
       align-items: center;
       gap: 20px;
       padding: 16px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--black-border);
-      border-radius: 12px;
+      background: linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.03) 0%,
+        rgba(255, 255, 255, 0.01) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      box-shadow:
+        0 2px 8px -2px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    /* Gradient border on hover */
+    .episode-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.3) 0%,
+        rgba(0, 144, 255, 0.1) 50%,
+        rgba(0, 144, 255, 0.2) 100%
+      );
+      border-radius: inherit;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: xor;
+      -webkit-mask-composite: xor;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
     }
 
     .episode-card:hover {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(0, 144, 255, 0.3);
+      background: linear-gradient(
+        165deg,
+        rgba(0, 144, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.03) 50%,
+        rgba(255, 255, 255, 0.02) 100%
+      );
+      border-color: rgba(0, 144, 255, 0.25);
+      transform: translateX(4px);
+      box-shadow:
+        0 8px 24px -8px rgba(0, 0, 0, 0.4),
+        0 0 40px -20px rgba(0, 144, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .episode-card:hover::before {
+      opacity: 1;
     }
 
     .episode-number {
@@ -1528,41 +3360,96 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--black-elevated);
-      border-radius: 8px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        rgba(255, 255, 255, 0.03) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
       font-family: var(--font-display);
       font-size: 16px;
       font-weight: 600;
       color: var(--text-secondary);
+      transition: all 0.3s ease;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .episode-card:hover .episode-number {
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.2) 0%,
+        rgba(0, 144, 255, 0.08) 100%
+      );
+      border-color: rgba(0, 144, 255, 0.3);
+      color: var(--accent-300);
     }
 
     .episode-thumb {
       width: 160px;
       height: 90px;
       flex-shrink: 0;
-      border-radius: 8px;
+      border-radius: 10px;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       position: relative;
       overflow: hidden;
+      box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.4);
+      transition: all 0.4s ease;
+    }
+
+    .episode-card:hover .episode-thumb {
+      box-shadow:
+        0 8px 20px -4px rgba(0, 0, 0, 0.5),
+        0 0 20px -10px rgba(0, 144, 255, 0.3);
     }
 
     .episode-thumb::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%);
+      background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.6) 0%,
+        rgba(0, 0, 0, 0.2) 30%,
+        transparent 60%
+      );
+    }
+
+    /* Play icon overlay on thumb */
+    .episode-thumb::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.8);
+      width: 36px;
+      height: 36px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 50%;
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 2;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .episode-card:hover .episode-thumb::before {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
     }
 
     .episode-duration {
       position: absolute;
       bottom: 6px;
       right: 6px;
-      padding: 3px 6px;
-      background: rgba(0, 0, 0, 0.8);
+      padding: 4px 8px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       border-radius: 4px;
       font-size: 11px;
-      font-weight: 500;
+      font-weight: 600;
       color: white;
+      letter-spacing: 0.02em;
       z-index: 5;
     }
 
@@ -1590,26 +3477,67 @@
     .episode-play-btn {
       width: 44px;
       height: 44px;
-      background: rgba(0, 144, 255, 0.1);
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.15) 0%,
+        rgba(0, 144, 255, 0.08) 100%
+      );
       border: 1px solid rgba(0, 144, 255, 0.3);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--accent-400);
-      transition: all 0.2s;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      box-shadow:
+        0 2px 12px -4px rgba(0, 144, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    /* Glow ring on hover */
+    .episode-play-btn::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        rgba(0, 144, 255, 0.3) 0%,
+        transparent 70%
+      );
+      opacity: 0;
+      transition: opacity 0.4s ease;
     }
 
     .episode-card:hover .episode-play-btn {
-      background: var(--accent-500);
-      border-color: var(--accent-500);
+      background: linear-gradient(
+        135deg,
+        var(--accent-500) 0%,
+        var(--accent-600) 100%
+      );
+      border-color: var(--accent-400);
       color: white;
+      transform: scale(1.1);
+      box-shadow:
+        0 4px 20px -4px rgba(0, 144, 255, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .episode-card:hover .episode-play-btn::before {
+      opacity: 1;
     }
 
     .episode-play-btn svg {
       width: 18px;
       height: 18px;
       margin-left: 2px;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+      transition: transform 0.3s ease;
+    }
+
+    .episode-card:hover .episode-play-btn svg {
+      transform: scale(1.1);
     }
 
     /* ======================
@@ -1632,12 +3560,34 @@
       align-items: center;
       justify-content: space-between;
       padding: 32px 48px;
-      border-bottom: 1px solid var(--black-border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       position: sticky;
       top: 0;
-      background: var(--black-soft);
+      background: linear-gradient(
+        180deg,
+        rgba(10, 10, 10, 0.95) 0%,
+        rgba(10, 10, 10, 0.9) 100%
+      );
       z-index: 50;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(20px) saturate(150%);
+      -webkit-backdrop-filter: blur(20px) saturate(150%);
+      box-shadow: 0 4px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Subtle gradient accent line */
+    .library-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 48px;
+      right: 48px;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(0, 144, 255, 0.2) 50%,
+        transparent
+      );
     }
 
     .library-header h2 {
@@ -1660,13 +3610,18 @@
     .search-box input {
       width: 280px;
       padding: 12px 16px 12px 44px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--black-border);
-      border-radius: 10px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.03) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
       font-family: var(--font-body);
       font-size: 14px;
       color: var(--text-primary);
-      transition: all 0.2s;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     }
 
     .search-box input::placeholder {
@@ -1675,8 +3630,16 @@
 
     .search-box input:focus {
       outline: none;
-      border-color: var(--accent-500);
-      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(0, 144, 255, 0.4);
+      background: linear-gradient(
+        135deg,
+        rgba(0, 144, 255, 0.08) 0%,
+        rgba(255, 255, 255, 0.05) 100%
+      );
+      box-shadow:
+        0 0 0 3px rgba(0, 144, 255, 0.15),
+        0 4px 12px -4px rgba(0, 144, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }
 
     .search-box svg {
@@ -1687,12 +3650,23 @@
       width: 18px;
       height: 18px;
       color: var(--text-muted);
+      transition: color 0.3s ease;
+    }
+
+    .search-box input:focus + svg,
+    .search-box:focus-within svg {
+      color: var(--accent-400);
     }
 
     .view-toggle {
       display: flex;
-      background: var(--black-elevated);
-      border-radius: 8px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 100%
+      );
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
       padding: 4px;
     }
 
@@ -1703,7 +3677,7 @@
       border-radius: 6px;
       color: var(--text-tertiary);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s ease;
     }
 
     .view-toggle-btn:hover {
@@ -2563,90 +4537,189 @@
 
     /* ======================
        TECHNICAL INFO PANEL
-       Detailed media info
+       Minimal, text-focused
        ====================== */
 
     .tech-info-panel {
-      background: var(--black-elevated);
-      border: 1px solid var(--black-border);
-      border-radius: 16px;
-      overflow: hidden;
       margin-top: 32px;
     }
 
-    .tech-info-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 24px;
-      background: rgba(255, 255, 255, 0.02);
-      border-bottom: 1px solid var(--black-border);
+    /* Ensure all SVGs in tech panel are sized */
+    .tech-info-panel svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
     }
 
-    .tech-info-header h3 {
-      font-family: var(--font-display);
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .tech-info-header h3 svg {
-      width: 18px;
-      height: 18px;
-      color: var(--accent-400);
-    }
-
-    .tech-info-tabs {
+    /* Tab navigation - horizontal pills */
+    .tech-info-nav {
       display: flex;
       gap: 4px;
+      padding: 4px;
+      background: var(--black-elevated);
+      border-radius: 8px;
+      margin-bottom: 24px;
+      width: fit-content;
     }
 
-    .tech-info-tab {
+    .tech-info-nav-tab {
       padding: 8px 16px;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 500;
       color: var(--text-tertiary);
       background: transparent;
-      border: 1px solid transparent;
-      border-radius: 8px;
+      border: none;
+      border-radius: 6px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .tech-info-tab:hover {
+    .tech-info-nav-tab:hover {
       color: var(--text-secondary);
       background: rgba(255, 255, 255, 0.03);
     }
 
-    .tech-info-tab.active {
+    .tech-info-nav-tab.active {
       color: var(--text-primary);
-      background: rgba(255, 255, 255, 0.05);
-      border-color: var(--black-border);
+      background: var(--black-surface);
     }
 
-    .tech-info-content {
-      padding: 24px;
+    .tech-info-nav-tab svg {
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      min-height: 14px;
+      flex-shrink: 0;
+      opacity: 0.6;
     }
 
-    /* Video track info */
+    .tech-info-nav-tab.active svg {
+      opacity: 1;
+    }
+
+    /* Section panels */
+    .tech-info-section {
+      display: none;
+    }
+
+    .tech-info-section.active {
+      display: block;
+    }
+
+    /* Section header */
+    .tech-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .tech-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .tech-section-count {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    /* Info grid for structured data */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px 32px;
+      margin-bottom: 24px;
+    }
+
+    .info-grid.three-col {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .info-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .info-label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .info-value {
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .info-value.mono {
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+      font-size: 13px;
+    }
+
+    .info-value.accent {
+      color: var(--accent-400);
+    }
+
+    /* Subsection dividers */
+    .tech-subsection {
+      margin-bottom: 24px;
+    }
+
+    .tech-subsection:last-child {
+      margin-bottom: 0;
+    }
+
+    .tech-subsection-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tech-subsection-title svg {
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      min-height: 14px;
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+
+    /* Track sections */
     .track-section {
-      margin-bottom: 28px;
+      margin-bottom: 20px;
     }
 
     .track-section:last-child {
       margin-bottom: 0;
     }
 
+    .track-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
     .track-section-title {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -2655,59 +4728,55 @@
     .track-section-title svg {
       width: 14px;
       height: 14px;
-      opacity: 0.6;
+      min-width: 14px;
+      min-height: 14px;
+      flex-shrink: 0;
+      color: var(--text-muted);
     }
 
-    /* Track item (audio/subtitle/video) */
+    .track-count {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      background: var(--black-elevated);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* Track items - clean rows with hover */
     .track-item {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 14px 18px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--black-border);
-      border-radius: 10px;
-      margin-bottom: 8px;
-      transition: all 0.2s ease;
+      gap: 12px;
+      padding: 10px 12px;
+      margin: 0 -12px;
+      border-radius: 6px;
+      transition: background 0.15s ease;
     }
 
     .track-item:hover {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.1);
-    }
-
-    .track-item:last-child {
-      margin-bottom: 0;
+      background: rgba(255, 255, 255, 0.02);
     }
 
     .track-item.primary {
-      border-color: rgba(0, 144, 255, 0.3);
-      background: linear-gradient(135deg, rgba(0, 144, 255, 0.08) 0%, rgba(0, 144, 255, 0.02) 100%);
+      background: rgba(0, 144, 255, 0.03);
+      border-left: 2px solid var(--accent-500);
+      margin-left: -14px;
+      padding-left: 12px;
+    }
+
+    .track-item.primary:hover {
+      background: rgba(0, 144, 255, 0.05);
+    }
+
+    .track-number {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      min-width: 20px;
     }
 
     .track-icon {
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      flex-shrink: 0;
-    }
-
-    .track-icon svg {
-      width: 18px;
-      height: 18px;
-      color: var(--text-secondary);
-    }
-
-    .track-item.primary .track-icon {
-      background: rgba(0, 144, 255, 0.15);
-    }
-
-    .track-item.primary .track-icon svg {
-      color: var(--accent-400);
+      display: none;
     }
 
     .track-info {
@@ -2717,87 +4786,98 @@
 
     .track-name {
       font-size: 14px;
-      font-weight: 500;
+      font-weight: 400;
       color: var(--text-primary);
-      margin-bottom: 3px;
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
     }
 
     .track-details {
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-tertiary);
+      margin-top: 2px;
     }
 
     .track-badge {
-      padding: 4px 10px;
+      padding: 2px 6px;
       font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      border-radius: 5px;
+      font-weight: 500;
+      border-radius: 3px;
       text-transform: uppercase;
+      letter-spacing: 0.02em;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-secondary);
     }
 
     .track-badge.default {
-      background: rgba(0, 144, 255, 0.15);
+      background: rgba(0, 144, 255, 0.12);
       color: var(--accent-400);
     }
 
     .track-badge.forced {
-      background: rgba(251, 191, 36, 0.15);
+      background: rgba(251, 191, 36, 0.12);
       color: #fbbf24;
     }
 
     .track-badge.sdh {
-      background: rgba(168, 85, 247, 0.15);
+      background: rgba(168, 85, 247, 0.12);
       color: #a855f7;
     }
 
     .track-badge.hdr {
-      background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 146, 60, 0.2) 100%);
+      background: rgba(251, 191, 36, 0.12);
       color: #fbbf24;
     }
 
     .track-badge.dolby {
-      background: rgba(52, 211, 153, 0.15);
+      background: rgba(52, 211, 153, 0.12);
       color: #34d399;
     }
 
     .track-badge.atmos {
-      background: linear-gradient(135deg, rgba(52, 211, 153, 0.15) 0%, rgba(45, 212, 191, 0.15) 100%);
+      background: rgba(45, 212, 191, 0.12);
       color: #2dd4bf;
+    }
+
+    .track-badge.lossless {
+      background: rgba(139, 92, 246, 0.12);
+      color: #8b5cf6;
     }
 
     .track-meta {
       display: flex;
-      gap: 8px;
+      gap: 16px;
       flex-shrink: 0;
     }
 
     .track-meta-item {
-      padding: 6px 12px;
-      font-size: 11px;
-      font-weight: 500;
+      font-size: 12px;
       color: var(--text-tertiary);
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--black-border);
+    }
+
+    /* File info specific styles */
+    .file-path {
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--black-elevated);
+      padding: 10px 12px;
       border-radius: 6px;
+      word-break: break-all;
+      line-height: 1.5;
     }
 
     /* Video quality details */
     .video-quality-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+      gap: 16px;
     }
 
     .quality-stat {
-      padding: 16px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--black-border);
-      border-radius: 10px;
-      text-align: center;
+      padding: 0;
     }
 
     .quality-stat-value {
@@ -3104,91 +5184,116 @@
   </style>
 </head>
 <body>
-  <!-- Page navigation tabs -->
-  <div class="page-tabs">
-    <button class="page-tab active" onclick="showPage('dashboard')">Dashboard</button>
-    <button class="page-tab" onclick="showPage('movie-detail')">Movie Detail</button>
-    <button class="page-tab" onclick="showPage('tv-detail')">TV Show Detail</button>
-    <button class="page-tab" onclick="showPage('episode-detail')">Episode Detail</button>
-    <button class="page-tab" onclick="showPage('library')">Library Browser</button>
-    <button class="page-tab" onclick="showPage('music')">Music Player</button>
-    <button class="page-tab" onclick="showPage('preferences')">Preferences</button>
-    <button class="page-tab" onclick="showPage('login')">Login</button>
-    <button class="page-tab" onclick="showPage('player')">Components</button>
-  </div>
-
-  <!-- DASHBOARD VIEW -->
-  <div id="dashboard-page" class="app-container">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
+  <div class="app-shell">
+    <!-- Global Sidebar -->
+    <aside class="global-sidebar">
+      <div class="global-sidebar-logo">
         <div class="logo-container">
-          <!-- Custom ViewRA Logo: A stylized lens/aperture with play button -->
           <div class="logo-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <!-- Outer ring with gradient -->
               <defs>
-                <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <linearGradient id="globalLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" style="stop-color:#36a9ff"/>
                   <stop offset="100%" style="stop-color:#0090ff"/>
                 </linearGradient>
-                <linearGradient id="logoGradientDark" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#0070e0"/>
-                  <stop offset="100%" style="stop-color:#0058b3"/>
-                </linearGradient>
               </defs>
-              <!-- Outer circle -->
-              <circle cx="24" cy="24" r="22" stroke="url(#logoGradient)" stroke-width="2.5" fill="none"/>
-              <!-- Inner aperture blades (stylized) -->
-              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#logoGradient)" opacity="0.6"/>
-              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#logoGradient)" opacity="0.6"/>
-              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#logoGradient)" opacity="0.6"/>
-              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#logoGradient)" opacity="0.6"/>
-              <!-- Center play button -->
-              <path d="M20 16 L20 32 L34 24 Z" fill="url(#logoGradient)"/>
+              <circle cx="24" cy="24" r="22" stroke="url(#globalLogoGradient)" stroke-width="2.5" fill="none"/>
+              <path d="M20 16 L20 32 L34 24 Z" fill="url(#globalLogoGradient)"/>
             </svg>
           </div>
-          <div>
-            <h1>View<span class="logo-accent">RA</span></h1>
-            <span>Media Server</span>
-          </div>
+          <div class="logo-text">View<span>RA</span></div>
         </div>
       </div>
 
-      <nav class="nav">
-        <a href="#" class="nav-item active">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-          Dashboard
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-          Libraries
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
-          Movies
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          TV Shows
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-          Music
-        </a>
+      <nav class="global-sidebar-nav">
+        <div class="global-nav-section">
+          <button class="global-nav-item active" onclick="showPage('dashboard')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            Home
+          </button>
+          <button class="global-nav-item" onclick="showPage('library')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+            Movies
+          </button>
+          <button class="global-nav-item" onclick="showPage('tv-detail')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            TV Shows
+          </button>
+          <button class="global-nav-item" onclick="showPage('music')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+            Music
+          </button>
+        </div>
 
-        <div class="nav-section">
-          <div class="nav-section-title">Settings</div>
-          <a href="#" class="nav-item">
+        <div class="global-nav-section">
+          <div class="global-nav-title">Library</div>
+          <button class="global-nav-item" onclick="showPage('movie-detail')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Recently Added
+          </button>
+          <button class="global-nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+            Favorites
+          </button>
+          <button class="global-nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            Collections
+          </button>
+        </div>
+
+        <div class="global-nav-section">
+          <div class="global-nav-title">Administration</div>
+          <button class="global-nav-item" onclick="showPage('admin')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+            Dashboard
+          </button>
+          <button class="global-nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            Users
+          </button>
+          <button class="global-nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+            System
+          </button>
+          <button class="global-nav-item" onclick="showPage('preferences')">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            Preferences
-          </a>
+            Settings
+          </button>
         </div>
       </nav>
+
+      <div class="global-sidebar-user">
+        <div class="global-user-avatar">JD</div>
+        <div class="global-user-info">
+          <div class="global-user-name">John Doe</div>
+          <div class="global-user-role">Administrator</div>
+        </div>
+        <button class="global-user-menu" onclick="showPage('login')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </button>
+      </div>
     </aside>
 
-    <!-- Main content -->
-    <main class="main">
+    <!-- Main Content Area -->
+    <main class="global-main">
+      <!-- Demo page switcher (for mockup purposes only) -->
+      <div class="page-tabs">
+        <span style="font-size: 10px; color: var(--text-muted); margin-right: 8px;">Demo:</span>
+        <button class="page-tab active" onclick="showPage('dashboard')">Home</button>
+        <button class="page-tab" onclick="showPage('movie-detail')">Movie</button>
+        <button class="page-tab" onclick="showPage('tv-detail')">TV Show</button>
+        <button class="page-tab" onclick="showPage('episode-detail')">Episode</button>
+        <button class="page-tab" onclick="showPage('library')">Library</button>
+        <button class="page-tab" onclick="showPage('music')">Music</button>
+        <button class="page-tab" onclick="showPage('preferences')">Settings</button>
+        <button class="page-tab" onclick="showPage('admin')">Admin</button>
+        <button class="page-tab" onclick="showPage('login')">Login</button>
+        <button class="page-tab" onclick="showPage('player')">Components</button>
+      </div>
+
+      <!-- DASHBOARD VIEW -->
+      <div id="dashboard-page" class="page-content active">
+        <div class="dashboard-content">
       <!-- Hero Section -->
       <section class="hero">
         <div class="hero-badge">
@@ -3394,50 +5499,12 @@
           </div>
         </div>
       </section>
-    </main>
-  </div>
-
-  <!-- MOVIE DETAIL PAGE -->
-  <div id="movie-detail-page" class="media-detail-page" style="display: none;">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <div class="logo-container">
-          <div class="logo-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="movieLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#36a9ff"/>
-                  <stop offset="100%" style="stop-color:#0090ff"/>
-                </linearGradient>
-              </defs>
-              <circle cx="24" cy="24" r="22" stroke="url(#movieLogoGradient)" stroke-width="2.5" fill="none"/>
-              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
-              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
-              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
-              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
-              <path d="M20 16 L20 32 L34 24 Z" fill="url(#movieLogoGradient)"/>
-            </svg>
-          </div>
-          <div>
-            <h1>View<span class="logo-accent">RA</span></h1>
-            <span>Media Server</span>
-          </div>
         </div>
       </div>
-      <nav class="nav">
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-          Dashboard
-        </a>
-        <a href="#" class="nav-item active">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
-          Movies
-        </a>
-      </nav>
-    </aside>
 
-    <main class="media-detail-main">
+      <!-- MOVIE DETAIL PAGE -->
+      <div id="movie-detail-page" class="page-content" style="display: none;">
+        <div class="media-detail-content">
       <!-- Hero with backdrop - Movie style with darker, more dramatic backdrop -->
       <section class="media-hero movie-hero">
         <div class="media-hero-backdrop" style="background: linear-gradient(135deg, #1b2838 0%, #2a475e 30%, #1a1a2e 100%);"></div>
@@ -3458,11 +5525,24 @@
               <div class="dot"></div>
               <span>Biography, Drama, History</span>
               <div class="dot"></div>
-              <span>R</span>
-              <div class="dot"></div>
-              <span class="rating-badge">
-                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <span class="content-rating">R</span>
+            </div>
+            <div class="ratings-group" style="margin-top: 12px;">
+              <span class="rating-badge rating-imdb">
+                <span class="rating-source">IMDb</span>
                 8.4
+              </span>
+              <span class="rating-badge rating-rt certified-fresh">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
+                93%
+              </span>
+              <span class="rating-badge rating-metacritic">
+                <span class="mc-score green">88</span>
+                Metacritic
+              </span>
+              <span class="rating-badge rating-tmdb">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                8.1
               </span>
             </div>
             <p class="media-description">
@@ -3497,50 +5577,6 @@
                 <h4>Studio</h4>
                 <p>Universal Pictures</p>
               </div>
-            </div>
-
-            <!-- Technical Specs - Movie specific -->
-            <div class="tech-specs">
-              <div class="tech-spec">
-                <div class="tech-spec-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                </div>
-                <div class="tech-spec-value">2160p</div>
-                <div class="tech-spec-label">Resolution</div>
-              </div>
-              <div class="tech-spec">
-                <div class="tech-spec-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
-                </div>
-                <div class="tech-spec-value">HDR10</div>
-                <div class="tech-spec-label">Dynamic Range</div>
-              </div>
-              <div class="tech-spec">
-                <div class="tech-spec-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
-                </div>
-                <div class="tech-spec-value">Atmos 7.1</div>
-                <div class="tech-spec-label">Audio</div>
-              </div>
-              <div class="tech-spec">
-                <div class="tech-spec-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
-                </div>
-                <div class="tech-spec-value">72.4 GB</div>
-                <div class="tech-spec-label">File Size</div>
-              </div>
-            </div>
-
-            <!-- Stream info banner -->
-            <div class="stream-info">
-              <div class="stream-info-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-              </div>
-              <div class="stream-info-text">
-                <h4>Direct Play Available</h4>
-                <p>Your device supports native playback · No transcoding required</p>
-              </div>
-              <span class="stream-info-badge">Best Quality</span>
             </div>
           </div>
         </div>
@@ -3585,38 +5621,45 @@
         </div>
       </section>
 
-      <!-- Technical Info Panel -->
+      <!-- Technical Info Panel - Comprehensive Layout -->
       <section style="padding: 0 64px 48px;">
         <div class="tech-info-panel">
-          <div class="tech-info-header">
-            <h3>
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+          <!-- Tab Navigation -->
+          <nav class="tech-info-nav">
+            <button class="tech-info-nav-tab active">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
               Media Information
-            </h3>
-            <div class="tech-info-tabs">
-              <button class="tech-info-tab active">Tracks</button>
-              <button class="tech-info-tab">Quality</button>
-              <button class="tech-info-tab">File Info</button>
-            </div>
-          </div>
-          <div class="tech-info-content">
+            </button>
+            <button class="tech-info-nav-tab">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              Quality Details
+            </button>
+            <button class="tech-info-nav-tab">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              File Information
+            </button>
+          </nav>
+
+          <!-- SECTION 1: Media Information (Tracks) -->
+          <div class="tech-info-section active">
             <!-- Video Track -->
             <div class="track-section">
-              <div class="track-section-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                Video
+              <div class="track-section-header">
+                <div class="track-section-title">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  Video
+                </div>
+                <span class="track-count">1 track</span>
               </div>
               <div class="track-item primary">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
-                </div>
+                <span class="track-number">#0</span>
                 <div class="track-info">
                   <div class="track-name">
                     HEVC Main 10
                     <span class="track-badge hdr">HDR10</span>
                     <span class="track-badge dolby">Dolby Vision</span>
                   </div>
-                  <div class="track-details">3840×2160 @ 23.976 fps · 10-bit · 62.4 Mbps</div>
+                  <div class="track-details">3840×2160 @ 23.976 fps · 10-bit · 62.4 Mbps · BT.2020 · SMPTE ST 2084</div>
                 </div>
                 <div class="track-meta">
                   <span class="track-meta-item">2160p</span>
@@ -3627,71 +5670,68 @@
 
             <!-- Audio Tracks -->
             <div class="track-section">
-              <div class="track-section-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
-                Audio (3 tracks)
+              <div class="track-section-header">
+                <div class="track-section-title">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                  Audio
+                </div>
+                <span class="track-count">3 tracks</span>
               </div>
               <div class="track-item primary">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-                </div>
+                <span class="track-number">#1</span>
                 <div class="track-info">
                   <div class="track-name">
                     English
                     <span class="track-badge default">Default</span>
                     <span class="track-badge atmos">Atmos</span>
+                    <span class="track-badge lossless">Lossless</span>
                   </div>
-                  <div class="track-details">TrueHD Atmos · 7.1 channels · 5.6 Mbps</div>
-                </div>
-                <div class="track-meta">
-                  <span class="track-meta-item">Lossless</span>
+                  <div class="track-details">TrueHD Atmos · 7.1 channels · 48 kHz · 24-bit · 5.6 Mbps</div>
                 </div>
               </div>
               <div class="track-item">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-                </div>
+                <span class="track-number">#2</span>
                 <div class="track-info">
                   <div class="track-name">English</div>
-                  <div class="track-details">EAC3 · 5.1 channels · 768 Kbps</div>
+                  <div class="track-details">E-AC3 · 5.1 channels · 48 kHz · 768 Kbps</div>
                 </div>
                 <div class="track-meta">
                   <span class="track-meta-item">Compatibility</span>
                 </div>
               </div>
               <div class="track-item">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-                </div>
+                <span class="track-number">#3</span>
                 <div class="track-info">
-                  <div class="track-name">English</div>
-                  <div class="track-details">AAC · 2.0 Stereo · 256 Kbps · Commentary by Christopher Nolan</div>
+                  <div class="track-name">
+                    English
+                    <span class="track-badge">Commentary</span>
+                  </div>
+                  <div class="track-details">AAC · 2.0 Stereo · 48 kHz · 256 Kbps · Christopher Nolan &amp; Emma Thomas</div>
                 </div>
               </div>
             </div>
 
             <!-- Subtitle Tracks -->
             <div class="track-section">
-              <div class="track-section-title">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
-                Subtitles (6 tracks)
+              <div class="track-section-header">
+                <div class="track-section-title">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                  Subtitles
+                </div>
+                <span class="track-count">6 tracks</span>
               </div>
               <div class="track-item primary">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
-                </div>
+                <span class="track-number">#4</span>
                 <div class="track-info">
                   <div class="track-name">
                     English
                     <span class="track-badge default">Default</span>
                   </div>
-                  <div class="track-details">PGS · Bitmap · Full</div>
+                  <div class="track-details">PGS · Bitmap · Full dialogue</div>
                 </div>
               </div>
               <div class="track-item">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
-                </div>
+                <span class="track-number">#5</span>
                 <div class="track-info">
                   <div class="track-name">
                     English
@@ -3701,9 +5741,7 @@
                 </div>
               </div>
               <div class="track-item">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
-                </div>
+                <span class="track-number">#6</span>
                 <div class="track-info">
                   <div class="track-name">
                     English
@@ -3713,30 +5751,262 @@
                 </div>
               </div>
               <div class="track-item">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
-                </div>
+                <span class="track-number">#7</span>
                 <div class="track-info">
                   <div class="track-name">Spanish (Español)</div>
-                  <div class="track-details">SRT · Text · Full</div>
+                  <div class="track-details">SRT · Text · Full dialogue</div>
                 </div>
               </div>
               <div class="track-item">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
-                </div>
+                <span class="track-number">#8</span>
                 <div class="track-info">
                   <div class="track-name">French (Français)</div>
-                  <div class="track-details">SRT · Text · Full</div>
+                  <div class="track-details">SRT · Text · Full dialogue</div>
                 </div>
               </div>
               <div class="track-item">
-                <div class="track-icon">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
-                </div>
+                <span class="track-number">#9</span>
                 <div class="track-info">
                   <div class="track-name">German (Deutsch)</div>
-                  <div class="track-details">PGS · Bitmap · Full</div>
+                  <div class="track-details">PGS · Bitmap · Full dialogue</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chapters -->
+            <div class="track-section">
+              <div class="track-section-header">
+                <div class="track-section-title">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+                  Chapters
+                </div>
+                <span class="track-count">32 chapters</span>
+              </div>
+              <div class="track-item">
+                <span class="track-number">1</span>
+                <div class="track-info">
+                  <div class="track-name">Prometheus</div>
+                  <div class="track-details">00:00:00</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <span class="track-number">2</span>
+                <div class="track-info">
+                  <div class="track-name">The Martian</div>
+                  <div class="track-details">00:05:42</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <span class="track-number">3</span>
+                <div class="track-info">
+                  <div class="track-name">A New Dawn</div>
+                  <div class="track-details">00:12:18</div>
+                </div>
+              </div>
+              <div style="padding: 8px 0; color: var(--text-muted); font-size: 12px;">
+                + 29 more chapters
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 2: Quality Details -->
+          <div class="tech-info-section" style="display: block;">
+            <!-- Video Quality -->
+            <div class="tech-subsection">
+              <div class="tech-subsection-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Video Quality
+              </div>
+              <div class="info-grid three-col">
+                <div class="info-row">
+                  <span class="info-label">Resolution</span>
+                  <span class="info-value">3840 × 2160</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Aspect Ratio</span>
+                  <span class="info-value">2.39:1 (Cinemascope)</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Frame Rate</span>
+                  <span class="info-value">23.976 fps</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Codec</span>
+                  <span class="info-value">HEVC Main 10</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Bit Depth</span>
+                  <span class="info-value">10-bit</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Bitrate</span>
+                  <span class="info-value accent">62.4 Mbps</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- HDR Information -->
+            <div class="tech-subsection">
+              <div class="tech-subsection-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                HDR Information
+              </div>
+              <div class="info-grid three-col">
+                <div class="info-row">
+                  <span class="info-label">HDR Format</span>
+                  <span class="info-value">Dolby Vision + HDR10</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">DV Profile</span>
+                  <span class="info-value">Profile 7 (MEL)</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Color Space</span>
+                  <span class="info-value">BT.2020</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Transfer</span>
+                  <span class="info-value">SMPTE ST 2084 (PQ)</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Max Luminance</span>
+                  <span class="info-value">4000 nits</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Color Primaries</span>
+                  <span class="info-value">BT.2020</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Audio Quality -->
+            <div class="tech-subsection">
+              <div class="tech-subsection-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                Primary Audio Quality
+              </div>
+              <div class="info-grid three-col">
+                <div class="info-row">
+                  <span class="info-label">Codec</span>
+                  <span class="info-value">TrueHD + Atmos</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Channels</span>
+                  <span class="info-value">7.1 (Object-based)</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Bitrate</span>
+                  <span class="info-value accent">5.6 Mbps</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Sample Rate</span>
+                  <span class="info-value">48 kHz</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Bit Depth</span>
+                  <span class="info-value">24-bit</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Compression</span>
+                  <span class="info-value">Lossless</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 3: File Information -->
+          <div class="tech-info-section" style="display: block;">
+            <!-- File Details -->
+            <div class="tech-subsection">
+              <div class="tech-subsection-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                File Details
+              </div>
+              <div class="info-grid">
+                <div class="info-row">
+                  <span class="info-label">Filename</span>
+                  <span class="info-value">Oppenheimer (2023) [imdbid-tt15398776] - [Remux-2160p][DV HDR10][TrueHD Atmos 7.1][HEVC]-FraMeSToR.mkv</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Container</span>
+                  <span class="info-value">Matroska (.mkv)</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">File Size</span>
+                  <span class="info-value accent">78.4 GB</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Duration</span>
+                  <span class="info-value">3h 0m 28s</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Overall Bitrate</span>
+                  <span class="info-value">58.7 Mbps</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Total Tracks</span>
+                  <span class="info-value">10 tracks</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- File Path -->
+            <div class="tech-subsection">
+              <div class="tech-subsection-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                File Location
+              </div>
+              <div class="file-path">/media/movies/Oppenheimer (2023)/Oppenheimer (2023) [imdbid-tt15398776] - [Remux-2160p][DV HDR10][TrueHD Atmos 7.1][HEVC]-FraMeSToR.mkv</div>
+            </div>
+
+            <!-- Metadata -->
+            <div class="tech-subsection">
+              <div class="tech-subsection-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                Metadata
+              </div>
+              <div class="info-grid">
+                <div class="info-row">
+                  <span class="info-label">Title</span>
+                  <span class="info-value">Oppenheimer</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">IMDB ID</span>
+                  <span class="info-value mono">tt15398776</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">TMDB ID</span>
+                  <span class="info-value mono">872585</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Release Group</span>
+                  <span class="info-value">FraMeSToR</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Added</span>
+                  <span class="info-value">December 5, 2024</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Last Scanned</span>
+                  <span class="info-value">December 7, 2024 at 2:34 PM</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hashes -->
+            <div class="tech-subsection">
+              <div class="tech-subsection-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                File Integrity
+              </div>
+              <div class="info-grid">
+                <div class="info-row">
+                  <span class="info-label">SHA-256</span>
+                  <span class="info-value mono">a3f2c8e1...b4d5f6a7</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">CRC32</span>
+                  <span class="info-value mono">8A3F2C1E</span>
                 </div>
               </div>
             </div>
@@ -3833,52 +6103,14 @@
           </div>
         </div>
       </section>
-    </main>
-  </div>
-
-  <!-- TV SHOW DETAIL PAGE -->
-  <div id="tv-detail-page" class="media-detail-page" style="display: none;">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <div class="logo-container">
-          <div class="logo-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="tvLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#36a9ff"/>
-                  <stop offset="100%" style="stop-color:#0090ff"/>
-                </linearGradient>
-              </defs>
-              <circle cx="24" cy="24" r="22" stroke="url(#tvLogoGradient)" stroke-width="2.5" fill="none"/>
-              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
-              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
-              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
-              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
-              <path d="M20 16 L20 32 L34 24 Z" fill="url(#tvLogoGradient)"/>
-            </svg>
-          </div>
-          <div>
-            <h1>View<span class="logo-accent">RA</span></h1>
-            <span>Media Server</span>
-          </div>
         </div>
       </div>
-      <nav class="nav">
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-          Dashboard
-        </a>
-        <a href="#" class="nav-item active">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          TV Shows
-        </a>
-      </nav>
-    </aside>
 
-    <main class="media-detail-main">
-      <!-- Hero with backdrop -->
-      <section class="media-hero">
+      <!-- TV SHOW DETAIL PAGE -->
+      <div id="tv-detail-page" class="page-content" style="display: none;">
+        <div class="media-detail-content">
+          <!-- Hero with backdrop -->
+          <section class="media-hero">
         <div class="media-hero-backdrop"></div>
         <div class="media-hero-content">
           <div class="media-poster-large"></div>
@@ -3898,9 +6130,24 @@
               <div class="dot"></div>
               <span>Drama, History</span>
               <div class="dot"></div>
-              <span class="rating-badge">
-                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <span class="content-rating">TV-MA</span>
+            </div>
+            <div class="ratings-group" style="margin-top: 12px;">
+              <span class="rating-badge rating-imdb">
+                <span class="rating-source">IMDb</span>
                 9.1
+              </span>
+              <span class="rating-badge rating-rt certified-fresh">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
+                99%
+              </span>
+              <span class="rating-badge rating-audience">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                91%
+              </span>
+              <span class="rating-badge rating-trakt">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                9.0
               </span>
             </div>
             <p class="media-description">
@@ -4261,13 +6508,13 @@
             </div>
           </div>
         </div>
-      </section>
-    </main>
-  </div>
+          </section>
+        </div>
+      </div>
 
-  <!-- EPISODE DETAIL PAGE -->
-  <div id="episode-detail-page" class="episode-detail-page" style="display: none;">
-    <main style="flex: 1; overflow-y: auto; background: var(--black-rich);">
+      <!-- EPISODE DETAIL PAGE -->
+      <div id="episode-detail-page" class="page-content" style="display: none;">
+        <div class="episode-content" style="background: var(--black-rich);">
       <!-- Episode Hero Section -->
       <div class="episode-hero">
         <div class="episode-hero-backdrop"></div>
@@ -4557,54 +6804,13 @@
             </div>
           </div>
         </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- LIBRARY BROWSER PAGE -->
-  <div id="library-page" class="library-page" style="display: none;">
-    <aside class="sidebar">
-      <div class="logo">
-        <div class="logo-container">
-          <div class="logo-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="libLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#36a9ff"/>
-                  <stop offset="100%" style="stop-color:#0090ff"/>
-                </linearGradient>
-              </defs>
-              <circle cx="24" cy="24" r="22" stroke="url(#libLogoGradient)" stroke-width="2.5" fill="none"/>
-              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
-              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
-              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
-              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
-              <path d="M20 16 L20 32 L34 24 Z" fill="url(#libLogoGradient)"/>
-            </svg>
-          </div>
-          <div>
-            <h1>View<span class="logo-accent">RA</span></h1>
-            <span>Media Server</span>
-          </div>
+        </div>
         </div>
       </div>
-      <nav class="nav">
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-          Dashboard
-        </a>
-        <a href="#" class="nav-item active">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
-          Movies
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          TV Shows
-        </a>
-      </nav>
-    </aside>
 
-    <main class="library-main">
+      <!-- LIBRARY BROWSER PAGE -->
+      <div id="library-page" class="page-content" style="display: none;">
+        <div class="library-content-wrapper">
       <header class="library-header">
         <h2>Movies</h2>
         <div class="library-controls">
@@ -4785,13 +6991,13 @@
             </div>
           </div>
         </div>
+        </div>
+        </div>
       </div>
-    </main>
-  </div>
 
-  <!-- MUSIC PLAYER PAGE -->
-  <div id="music-page" class="music-page" style="display: none;">
-    <div class="music-main">
+      <!-- MUSIC PLAYER PAGE -->
+      <div id="music-page" class="page-content" style="display: none;">
+        <div class="music-main">
       <aside class="music-sidebar">
         <div class="music-sidebar-header">
           <h3>Up Next</h3>
@@ -4922,77 +7128,17 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- PREFERENCES PAGE -->
-  <div id="preferences-page" class="preferences-page" style="display: none;">
-    <!-- Sidebar (same as dashboard) -->
-    <aside class="sidebar">
-      <div class="logo">
-        <div class="logo-container">
-          <div class="logo-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="prefsLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#36a9ff"/>
-                  <stop offset="100%" style="stop-color:#0090ff"/>
-                </linearGradient>
-              </defs>
-              <circle cx="24" cy="24" r="22" stroke="url(#prefsLogoGradient)" stroke-width="2.5" fill="none"/>
-              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
-              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
-              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
-              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
-              <path d="M20 16 L20 32 L34 24 Z" fill="url(#prefsLogoGradient)"/>
-            </svg>
-          </div>
-          <div>
-            <h1>View<span class="logo-accent">RA</span></h1>
-            <span>Media Server</span>
-          </div>
-        </div>
       </div>
 
-      <nav class="nav">
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-          Dashboard
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-          Libraries
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
-          Movies
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          TV Shows
-        </a>
-        <a href="#" class="nav-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-          Music
-        </a>
+      <!-- PREFERENCES PAGE -->
+      <div id="preferences-page" class="page-content" style="display: none;">
+        <div class="preferences-wrapper" style="padding: 32px 40px;">
+          <header class="preferences-header">
+            <h2>Preferences</h2>
+            <p>Customize your viewing experience</p>
+          </header>
 
-        <div class="nav-section">
-          <div class="nav-section-title">Settings</div>
-          <a href="#" class="nav-item active">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            Preferences
-          </a>
-        </div>
-      </nav>
-    </aside>
-
-    <!-- Main content -->
-    <main class="preferences-main">
-      <header class="preferences-header">
-        <h2>Preferences</h2>
-        <p>Customize your viewing experience</p>
-      </header>
-
-      <div class="preferences-content">
+          <div class="preferences-content">
         <!-- Playback Settings Card -->
         <div class="settings-card">
           <div class="settings-card-header">
@@ -5202,12 +7348,385 @@
             <button class="btn btn-primary" style="padding: 10px 20px; font-size: 13px;">Save</button>
           </div>
         </div>
+          </div>
+        </div>
       </div>
-    </main>
-  </div>
 
-  <!-- LOGIN PAGE -->
-  <div id="login-page" class="login-preview" style="display: none;">
+      <!-- ADMIN PAGE -->
+      <div id="admin-page" class="page-content" style="display: none;">
+        <div class="admin-page">
+      <!-- Admin Sidebar Navigation -->
+      <aside class="admin-sidebar">
+        <div class="admin-nav-section">
+          <div class="admin-nav-title">Overview</div>
+          <a href="#" class="admin-nav-item active">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+            Dashboard
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Activity
+          </a>
+        </div>
+
+        <div class="admin-nav-section">
+          <div class="admin-nav-title">Management</div>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            Users
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            Libraries
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            Devices
+          </a>
+        </div>
+
+        <div class="admin-nav-section">
+          <div class="admin-nav-title">Server</div>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Transcoding
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+            System
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Logs
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+            Backups
+          </a>
+        </div>
+
+        <div class="admin-nav-section">
+          <div class="admin-nav-title">Settings</div>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            General
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            Security
+          </a>
+          <a href="#" class="admin-nav-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            Notifications
+          </a>
+        </div>
+      </aside>
+
+      <!-- Admin Main Content -->
+      <main class="admin-main">
+        <header class="admin-header">
+          <h1>Dashboard</h1>
+          <p>Server overview and active sessions</p>
+        </header>
+
+        <!-- System Stats Grid -->
+        <div class="system-stats-grid">
+          <div class="system-stat-card">
+            <div class="stat-header">
+              <span class="stat-label">CPU Usage</span>
+              <span class="stat-icon">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+              </span>
+            </div>
+            <div class="stat-value">23%</div>
+            <div class="stat-progress">
+              <div class="stat-progress-bar" style="width: 23%;"></div>
+            </div>
+            <div class="stat-detail">AMD Ryzen 9 5900X</div>
+          </div>
+
+          <div class="system-stat-card">
+            <div class="stat-header">
+              <span class="stat-label">Memory</span>
+              <span class="stat-icon">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+              </span>
+            </div>
+            <div class="stat-value">12.4 GB</div>
+            <div class="stat-progress">
+              <div class="stat-progress-bar" style="width: 39%;"></div>
+            </div>
+            <div class="stat-detail">of 32 GB (39%)</div>
+          </div>
+
+          <div class="system-stat-card">
+            <div class="stat-header">
+              <span class="stat-label">Storage</span>
+              <span class="stat-icon">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+              </span>
+            </div>
+            <div class="stat-value">18.2 TB</div>
+            <div class="stat-progress">
+              <div class="stat-progress-bar" style="width: 62%;"></div>
+            </div>
+            <div class="stat-detail">of 30 TB (62%)</div>
+          </div>
+
+          <div class="system-stat-card">
+            <div class="stat-header">
+              <span class="stat-label">Active Streams</span>
+              <span class="stat-icon">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </span>
+            </div>
+            <div class="stat-value">3</div>
+            <div class="stat-progress">
+              <div class="stat-progress-bar stat-progress-accent" style="width: 30%;"></div>
+            </div>
+            <div class="stat-detail">2 transcoding, 1 direct</div>
+          </div>
+        </div>
+
+        <!-- Active Sessions Section -->
+        <section class="admin-section">
+          <div class="admin-section-header">
+            <h2>Active Sessions</h2>
+            <span class="admin-section-badge">3 users online</span>
+          </div>
+
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Now Playing</th>
+                <th>Device</th>
+                <th>Quality</th>
+                <th>Bandwidth</th>
+                <th>Progress</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="user-cell">
+                    <div class="user-avatar">JD</div>
+                    <div class="user-info">
+                      <span class="user-name">John Doe</span>
+                      <span class="user-ip">192.168.1.42</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="stream-cell">
+                    <img src="https://image.tmdb.org/t/p/w92/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg" alt="Oppenheimer" class="stream-poster">
+                    <div class="stream-info">
+                      <span class="stream-title">Oppenheimer</span>
+                      <span class="stream-meta">Movie • 2h 14m remaining</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="device-cell">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <span>Chrome • Windows</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="quality-badge quality-transcode">4K → 1080p</span>
+                </td>
+                <td>24.5 Mbps</td>
+                <td>
+                  <div class="progress-cell">
+                    <div class="progress-bar-small">
+                      <div class="progress-fill" style="width: 38%;"></div>
+                    </div>
+                    <span>38%</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="user-cell">
+                    <div class="user-avatar" style="background: #7c3aed;">SM</div>
+                    <div class="user-info">
+                      <span class="user-name">Sarah Miller</span>
+                      <span class="user-ip">192.168.1.105</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="stream-cell">
+                    <img src="https://image.tmdb.org/t/p/w92/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg" alt="The Bear" class="stream-poster">
+                    <div class="stream-info">
+                      <span class="stream-title">The Bear</span>
+                      <span class="stream-meta">S02E07 • 18m remaining</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="device-cell">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    <span>iPhone 15 Pro</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="quality-badge quality-transcode">1080p → 720p</span>
+                </td>
+                <td>8.2 Mbps</td>
+                <td>
+                  <div class="progress-cell">
+                    <div class="progress-bar-small">
+                      <div class="progress-fill" style="width: 72%;"></div>
+                    </div>
+                    <span>72%</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="user-cell">
+                    <div class="user-avatar" style="background: #059669;">MK</div>
+                    <div class="user-info">
+                      <span class="user-name">Mike Kim</span>
+                      <span class="user-ip">10.0.0.23</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="stream-cell">
+                    <img src="https://image.tmdb.org/t/p/w92/7Ns6tO3aYjppI5bFhyYZurOYGBT.jpg" alt="Shōgun" class="stream-poster">
+                    <div class="stream-info">
+                      <span class="stream-title">Shōgun</span>
+                      <span class="stream-meta">S01E05 • 42m remaining</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="device-cell">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <span>Apple TV 4K</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="quality-badge quality-direct">Direct Play</span>
+                </td>
+                <td>85.3 Mbps</td>
+                <td>
+                  <div class="progress-cell">
+                    <div class="progress-bar-small">
+                      <div class="progress-fill" style="width: 31%;"></div>
+                    </div>
+                    <span>31%</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Server Info Section -->
+        <section class="admin-section">
+          <div class="admin-section-header">
+            <h2>Server Information</h2>
+          </div>
+
+          <div class="server-info-grid">
+            <div class="server-info-card">
+              <h3>System</h3>
+              <div class="info-list">
+                <div class="info-item">
+                  <span class="info-label">Hostname</span>
+                  <span class="info-value">viewra-server</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Operating System</span>
+                  <span class="info-value">Ubuntu 22.04 LTS</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Kernel</span>
+                  <span class="info-value">6.2.0-39-generic</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Uptime</span>
+                  <span class="info-value">14 days, 7 hours</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="server-info-card">
+              <h3>ViewRA</h3>
+              <div class="info-list">
+                <div class="info-item">
+                  <span class="info-label">Version</span>
+                  <span class="info-value">2.1.0</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">FFmpeg</span>
+                  <span class="info-value">6.1.1</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Database</span>
+                  <span class="info-value">SQLite 3.45.0</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Cache Size</span>
+                  <span class="info-value">4.2 GB</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="server-info-card">
+              <h3>Hardware</h3>
+              <div class="info-list">
+                <div class="info-item">
+                  <span class="info-label">CPU</span>
+                  <span class="info-value">AMD Ryzen 9 5900X (12C/24T)</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">GPU</span>
+                  <span class="info-value">NVIDIA RTX 3080 (NVENC)</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">RAM</span>
+                  <span class="info-value">32 GB DDR4-3600</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Network</span>
+                  <span class="info-value">1 Gbps (856 Mbps available)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="server-info-card">
+              <h3>Library Stats</h3>
+              <div class="info-list">
+                <div class="info-item">
+                  <span class="info-label">Movies</span>
+                  <span class="info-value">1,247</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">TV Shows</span>
+                  <span class="info-value">89 (3,412 episodes)</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Music</span>
+                  <span class="info-value">8,923 tracks</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Total Size</span>
+                  <span class="info-value">18.2 TB</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        </div>
+      </div>
+
+      <!-- LOGIN PAGE -->
+      <div id="login-page" class="page-content" style="display: none;">
+        <div class="login-preview">
     <div class="login-card">
       <div class="login-logo">
         <div class="login-logo-icon">
@@ -5242,12 +7761,13 @@
         </div>
 
         <button type="button" class="btn btn-primary login-btn">Sign In</button>
-      </form>
-    </div>
-  </div>
+        </form>
+        </div>
+        </div>
+      </div>
 
-  <!-- VIDEO PLAYER PREVIEW -->
-  <div id="player-page" style="display: none; background: var(--black-soft); min-height: calc(100vh - 57px);">
+      <!-- VIDEO PLAYER PREVIEW / COMPONENTS PAGE -->
+      <div id="player-page" class="page-content" style="display: none; background: var(--black-soft);">
     <div class="player-preview">
       <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); height: 100%;"></div>
       <div class="player-controls">
@@ -5308,6 +7828,8 @@
         <div style="width: 60px; height: 60px; background: var(--accent-300); border-radius: 8px;"></div>
       </div>
     </div>
+      </div>
+    </main>
   </div>
 
   <script>
@@ -5320,6 +7842,7 @@
       document.getElementById('library-page').style.display = 'none';
       document.getElementById('music-page').style.display = 'none';
       document.getElementById('preferences-page').style.display = 'none';
+      document.getElementById('admin-page').style.display = 'none';
       document.getElementById('login-page').style.display = 'none';
       document.getElementById('player-page').style.display = 'none';
 
@@ -5328,16 +7851,32 @@
 
       // Show selected page
       const pageMap = {
-        'dashboard': { id: 'dashboard-page', display: 'flex', tabIndex: 0 },
-        'movie-detail': { id: 'movie-detail-page', display: 'flex', tabIndex: 1 },
-        'tv-detail': { id: 'tv-detail-page', display: 'flex', tabIndex: 2 },
-        'episode-detail': { id: 'episode-detail-page', display: 'flex', tabIndex: 3 },
-        'library': { id: 'library-page', display: 'flex', tabIndex: 4 },
-        'music': { id: 'music-page', display: 'flex', tabIndex: 5 },
-        'preferences': { id: 'preferences-page', display: 'flex', tabIndex: 6 },
-        'login': { id: 'login-page', display: 'flex', tabIndex: 7 },
-        'player': { id: 'player-page', display: 'block', tabIndex: 8 }
+        'dashboard': { id: 'dashboard-page', display: 'block', tabIndex: 0 },
+        'movie-detail': { id: 'movie-detail-page', display: 'block', tabIndex: 1 },
+        'tv-detail': { id: 'tv-detail-page', display: 'block', tabIndex: 2 },
+        'episode-detail': { id: 'episode-detail-page', display: 'block', tabIndex: 3 },
+        'library': { id: 'library-page', display: 'block', tabIndex: 4 },
+        'music': { id: 'music-page', display: 'block', tabIndex: 5 },
+        'preferences': { id: 'preferences-page', display: 'block', tabIndex: 6 },
+        'admin': { id: 'admin-page', display: 'block', tabIndex: 7 },
+        'login': { id: 'login-page', display: 'block', tabIndex: 8 },
+        'player': { id: 'player-page', display: 'block', tabIndex: 9 }
       };
+
+      // Update global sidebar active state
+      document.querySelectorAll('.global-nav-item').forEach(item => item.classList.remove('active'));
+      const navMap = {
+        'dashboard': 0,
+        'library': 1,
+        'tv-detail': 2,
+        'music': 3,
+        'movie-detail': 4,
+        'admin': 7,
+        'preferences': 10
+      };
+      if (navMap[page] !== undefined) {
+        document.querySelectorAll('.global-nav-item')[navMap[page]]?.classList.add('active');
+      }
 
       const pageConfig = pageMap[page];
       if (pageConfig) {

@@ -2,9 +2,12 @@
 set -e
 
 # ViewRA FFmpeg Build Script
-# Builds a patched FFmpeg with fixes for HLS segment timing
-#
-# Based on jellyfin-ffmpeg patches for proper A/V sync when seeking
+# Builds a patched FFmpeg with custom filters and fixes for HLS streaming
+
+# Add CUDA to PATH if available (common install locations)
+if [ -d "/opt/cuda/bin" ]; then
+    export PATH="/opt/cuda/bin:$PATH"
+fi
 
 FFMPEG_VERSION="${FFMPEG_VERSION:-7.1}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -155,20 +158,34 @@ fi
 
 # Hardware acceleration - NVIDIA NVENC/NVDEC
 # Requires: nv-codec-headers (provides ffnvcodec pkg-config)
-# On Arch: pacman -S ffnvcodec-headers
-# On Ubuntu/Debian: apt install libnvidia-encode-* or build from source
-# On Fedora: dnf install nv-codec-headers
+# On Arch: pacman -S ffnvcodec-headers cuda
+# On Ubuntu/Debian: apt install libnvidia-encode-* nvidia-cuda-toolkit
+# On Fedora: dnf install nv-codec-headers cuda
 if pkg-config --exists ffnvcodec 2>/dev/null; then
     echo "  Found: ffnvcodec (enabling NVENC/NVDEC hardware encoding)"
-    # --enable-cuda-llvm uses clang for CUDA kernels (no nvcc needed)
-    # --enable-ffnvcodec enables the NVENC/NVDEC API
-    # --enable-cuvid enables NVIDIA CUVID (hardware decoding)
-    # Note: We don't need --enable-cuda-nvcc since we're not compiling CUDA kernels
-    EXTRA_FLAGS="${EXTRA_FLAGS} --enable-ffnvcodec --enable-cuda-llvm --enable-cuvid"
+    EXTRA_FLAGS="${EXTRA_FLAGS} --enable-ffnvcodec --enable-cuvid"
+
+    # Check for CUDA toolkit (nvcc) - required for tonemap_cuda
+    if command -v nvcc &> /dev/null; then
+        echo "  Found: nvcc (enabling CUDA-native tone mapping)"
+        # Use compute_86 for RTX 30 series (Ampere), compute_89 for RTX 40 series (Ada)
+        # Older architectures (compute_60, compute_70) are dropped in CUDA 13+
+        NVCC_FLAGS="-gencode arch=compute_86,code=sm_86 -O2"
+        EXTRA_FLAGS="${EXTRA_FLAGS} --enable-cuda-nvcc"
+        CUDA_NVCC_AVAILABLE=1
+    else
+        echo "  Missing: nvcc (CUDA-native tone mapping disabled, using libplacebo fallback)"
+        echo "           Install: pacman -S cuda (Arch)"
+        echo "                    apt install nvidia-cuda-toolkit (Ubuntu)"
+        # Use clang for basic CUDA support without tonemap_cuda
+        EXTRA_FLAGS="${EXTRA_FLAGS} --enable-cuda-llvm"
+        CUDA_NVCC_AVAILABLE=0
+    fi
 else
     echo "  Missing: ffnvcodec-headers (NVENC/NVDEC disabled)"
     echo "           Install: pacman -S ffnvcodec-headers (Arch)"
     echo "                    apt install libnvidia-encode-* (Ubuntu)"
+    CUDA_NVCC_AVAILABLE=0
 fi
 
 if check_lib libva; then
@@ -186,6 +203,17 @@ if check_lib libplacebo; then
     EXTRA_FLAGS="${EXTRA_FLAGS} --enable-libplacebo"
 fi
 
+# OpenCL for GPU-accelerated tone mapping (tonemap_opencl)
+# Much faster than libplacebo for 4K content on NVIDIA
+if check_lib OpenCL; then
+    echo "  Found: OpenCL (GPU tone mapping)"
+    EXTRA_FLAGS="${EXTRA_FLAGS} --enable-opencl"
+else
+    echo "  Missing: OpenCL (GPU tone mapping disabled)"
+    echo "           Install: pacman -S ocl-icd opencl-headers (Arch)"
+    echo "                    apt install ocl-icd-opencl-dev (Ubuntu)"
+fi
+
 if check_lib libdrm; then
     echo "  Found: libdrm"
     EXTRA_FLAGS="${EXTRA_FLAGS} --enable-libdrm"
@@ -194,8 +222,9 @@ fi
 echo ""
 echo "Running configure..."
 
-./configure \
-    --prefix="${INSTALL_PREFIX}" \
+# Build configure command
+CONFIGURE_CMD="./configure \
+    --prefix=${INSTALL_PREFIX} \
     --enable-gpl \
     --enable-version3 \
     --enable-nonfree \
@@ -203,7 +232,14 @@ echo "Running configure..."
     --disable-static \
     --disable-debug \
     --disable-doc \
-    ${EXTRA_FLAGS}
+    ${EXTRA_FLAGS}"
+
+# Add nvccflags if CUDA nvcc is available
+if [ -n "${NVCC_FLAGS}" ]; then
+    CONFIGURE_CMD="${CONFIGURE_CMD} --nvccflags=\"${NVCC_FLAGS}\""
+fi
+
+eval ${CONFIGURE_CMD}
 
 # Build
 echo ""

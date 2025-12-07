@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/probe"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
 
@@ -29,13 +29,13 @@ type Manager struct {
 	hwAccel         string // Default hardware acceleration (from ManagerConfig)
 	hwDevice        string // Default hardware device (from ManagerConfig)
 	configProvider  ConfigProvider
-	fallbackManager *ffmpeg.HardwareFallbackManager
+	fallbackManager *hls.HardwareFallbackManager
 	logStore        *logging.FFmpegLogStore
 }
 
 // ManagerConfig contains all configuration needed for the session manager.
 type ManagerConfig struct {
-	FFmpegPaths                *ffmpeg.Paths
+	FFmpegPaths                *hls.Paths
 	HardwareAccel              string // "none", "vaapi", "nvenc", "qsv", "videotoolbox"
 	HardwareDevice             string
 	OutputBaseDir              string
@@ -69,10 +69,13 @@ func NewManager(config *ManagerConfig, logger *slog.Logger) *Manager {
 		LibPlaceboContrastRecovery: config.LibPlaceboContrastRecovery,
 	}
 
-	// Convert to ffmpeg config for fallback manager
-	ffmpegConfig := &ffmpeg.TranscodeConfig{
-		FFmpegPaths:   config.FFmpegPaths,
-		HardwareAccel: ffmpeg.HardwareAccel(config.HardwareAccel),
+	// Convert to hls config for fallback manager
+	hlsConfig := &hls.Config{
+		HardwareAccel: hls.HardwareAccel(config.HardwareAccel),
+	}
+	if config.FFmpegPaths != nil {
+		hlsConfig.FFmpegPath = config.FFmpegPaths.FFmpeg
+		hlsConfig.FFmpegLibPath = config.FFmpegPaths.LibPath
 	}
 
 	mgr := &Manager{
@@ -80,31 +83,12 @@ func NewManager(config *ManagerConfig, logger *slog.Logger) *Manager {
 		config:          sessionConfig,
 		hwAccel:         config.HardwareAccel,
 		hwDevice:        config.HardwareDevice,
-		fallbackManager: ffmpeg.NewHardwareFallbackManager(ffmpegConfig, logger),
-	}
-
-	// Log FFmpeg configuration at startup
-	if config.FFmpegPaths != nil {
-		version := config.FFmpegPaths.Version()
-		if config.FFmpegPaths.IsCustomBuild() {
-			logger.Info("FFmpeg configured for transcoding",
-				"path", config.FFmpegPaths.FFmpeg,
-				"version", version,
-				"source", "custom (VIEWRA_FFMPEG_PATH)",
-				"lib_path", config.FFmpegPaths.LibPath,
-			)
-		} else {
-			logger.Info("FFmpeg configured for transcoding",
-				"path", config.FFmpegPaths.FFmpeg,
-				"version", version,
-				"source", "system PATH",
-			)
-		}
+		fallbackManager: hls.NewHardwareFallbackManager(hlsConfig, logger),
 	}
 
 	// Verify hardware acceleration is available
-	hwAccel := ffmpeg.HardwareAccel(config.HardwareAccel)
-	if hwAccel != ffmpeg.AccelNone {
+	hwAccel := hls.HardwareAccel(config.HardwareAccel)
+	if hwAccel != hls.AccelNone {
 		if err := mgr.fallbackManager.VerifyHardwareAvailability(hwAccel); err != nil {
 			logger.Warn("Hardware acceleration verification failed, falling back to software",
 				"hardware", config.HardwareAccel,
@@ -156,7 +140,7 @@ type GetOrCreateSessionParams struct {
 	Profile               *profile.AdaptiveProfile
 	Strategy              string
 	OutputDir             string
-	VideoInfo             *probe.VideoInfo
+	VideoInfo             *videoinfo.VideoInfo
 	ClientSupportedCodecs []string
 	HWAccel               string
 	HWDevice              string
@@ -216,6 +200,15 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 
 		session.Stop()
 		m.sessions.Delete(key)
+
+		// Close log writer for old session
+		if m.logStore != nil {
+			m.logStore.CloseLogWriter(session.ID)
+		}
+
+		// Clean up old output directory before creating new session
+		// This prevents stale segments from interfering with the new session
+		m.cleanupOutputDir(session.OutputDir, session.ID)
 	}
 
 	// Create new session
@@ -244,10 +237,10 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 	// Get effective config
 	effectiveConfig := m.getEffectiveConfig(context.Background())
 
-	// Convert probe.VideoInfo to ffmpeg.VideoInfo
-	var videoInfo *ffmpeg.VideoInfo
+	// Convert videoinfo.VideoInfo to hls.VideoInfo
+	var videoInfo *hls.VideoInfo
 	if params.VideoInfo != nil {
-		videoInfo = convertProbeToFFmpegVideoInfo(params.VideoInfo)
+		videoInfo = convertProbeToHLSVideoInfo(params.VideoInfo)
 	}
 
 	// Start FFmpeg process
@@ -264,7 +257,7 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 
 	if err := session.Start(startParams); err != nil {
 		// Check if this is a hardware error and fallback if needed
-		hwAccelType := ffmpeg.HardwareAccel(hwAccel)
+		hwAccelType := hls.HardwareAccel(hwAccel)
 		if m.fallbackManager.RecordFailure(hwAccelType, err) {
 			m.logger.Info("Retrying with fallback acceleration",
 				"from", hwAccel,
@@ -397,12 +390,12 @@ func sessionKey(mediaID int64, quality string, audioTrackIndex int) string {
 	return fmt.Sprintf("%d:%s", mediaID, quality)
 }
 
-// convertProbeToFFmpegVideoInfo converts probe.VideoInfo to ffmpeg.VideoInfo
-func convertProbeToFFmpegVideoInfo(v *probe.VideoInfo) *ffmpeg.VideoInfo {
+// convertProbeToHLSVideoInfo converts videoinfo.VideoInfo to hls.VideoInfo
+func convertProbeToHLSVideoInfo(v *videoinfo.VideoInfo) *hls.VideoInfo {
 	if v == nil {
 		return nil
 	}
-	return &ffmpeg.VideoInfo{
+	return &hls.VideoInfo{
 		Codec:           v.Codec,
 		Width:           v.Width,
 		Height:          v.Height,

@@ -6,19 +6,19 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
 
 // AdaptiveQualityHandler handles adaptive quality recommendation requests.
 type AdaptiveQualityHandler struct {
-	recommender *transcoding.QualityRecommender
+	recommender *profile.QualityRecommender
 	logger      *slog.Logger
 }
 
 // NewAdaptiveQualityHandler creates a new adaptive quality handler.
 func NewAdaptiveQualityHandler(logger *slog.Logger) *AdaptiveQualityHandler {
 	return &AdaptiveQualityHandler{
-		recommender: transcoding.NewQualityRecommender(logger),
+		recommender: profile.NewQualityRecommender(logger),
 		logger:      logger,
 	}
 }
@@ -102,7 +102,7 @@ func (h *AdaptiveQualityHandler) RecommendQuality(c *gin.Context) {
 	}
 
 	// Convert to internal capabilities struct
-	caps := transcoding.ClientCapabilities{
+	caps := profile.ClientCapabilities{
 		NetworkSpeedMbps:     req.NetworkSpeedMbps,
 		ConnectionType:       req.ConnectionType,
 		IsMetered:            req.IsMetered,
@@ -163,7 +163,7 @@ func (h *AdaptiveQualityHandler) GetAdaptiveLadder(c *gin.Context) {
 	}
 
 	// Convert to internal capabilities struct
-	caps := transcoding.ClientCapabilities{
+	caps := profile.ClientCapabilities{
 		NetworkSpeedMbps:     req.NetworkSpeedMbps,
 		ConnectionType:       req.ConnectionType,
 		IsMetered:            req.IsMetered,

@@ -1,0 +1,100 @@
+// Package paths provides FFmpeg binary path resolution and command preparation.
+//
+// This package handles:
+//   - FFmpeg/FFprobe binary discovery (environment or PATH)
+//   - Custom library path configuration for patched builds
+//   - Command preparation with proper environment setup
+package paths
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+// Paths holds FFmpeg and FFprobe binary paths with optional library path.
+// This is the single source of truth for FFmpeg configuration across the application.
+type Paths struct {
+	FFmpeg  string // Path to FFmpeg binary
+	FFprobe string // Path to FFprobe binary
+	LibPath string // LD_LIBRARY_PATH for custom builds (empty for system FFmpeg)
+}
+
+// New resolves FFmpeg/FFprobe paths from environment or system PATH.
+// Priority: VIEWRA_FFMPEG_PATH > system PATH
+func New() (*Paths, error) {
+	p := &Paths{}
+
+	// FFmpeg path
+	p.FFmpeg = os.Getenv("VIEWRA_FFMPEG_PATH")
+	if p.FFmpeg == "" {
+		path, err := exec.LookPath("ffmpeg")
+		if err != nil {
+			return nil, fmt.Errorf("ffmpeg not found in PATH and VIEWRA_FFMPEG_PATH not set: %w", err)
+		}
+		p.FFmpeg = path
+	}
+
+	// FFprobe path
+	p.FFprobe = os.Getenv("VIEWRA_FFPROBE_PATH")
+	if p.FFprobe == "" {
+		path, err := exec.LookPath("ffprobe")
+		if err != nil {
+			return nil, fmt.Errorf("ffprobe not found in PATH and VIEWRA_FFPROBE_PATH not set: %w", err)
+		}
+		p.FFprobe = path
+	}
+
+	// Library path (optional - only needed for custom builds)
+	p.LibPath = os.Getenv("VIEWRA_FFMPEG_LIB_PATH")
+
+	return p, nil
+}
+
+// IsCustomBuild returns true if using a custom FFmpeg build (has lib path).
+func (p *Paths) IsCustomBuild() bool {
+	return p.LibPath != ""
+}
+
+// Version returns the FFmpeg version string.
+func (p *Paths) Version() string {
+	cmd := exec.Command(p.FFmpeg, "-version")
+	if p.LibPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+p.LibPath)
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+
+	lines := strings.Split(string(output), "\n")
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "ffmpeg version ") {
+		parts := strings.Fields(lines[0])
+		if len(parts) >= 3 {
+			return parts[2]
+		}
+	}
+	return "unknown"
+}
+
+// PrepareCommand creates an exec.Cmd with LD_LIBRARY_PATH set if needed.
+// The name should be "ffmpeg" or "ffprobe" to use the configured paths.
+func (p *Paths) PrepareCommand(name string, args ...string) *exec.Cmd {
+	var binary string
+	switch name {
+	case "ffmpeg":
+		binary = p.FFmpeg
+	case "ffprobe":
+		binary = p.FFprobe
+	default:
+		binary = name
+	}
+
+	cmd := exec.Command(binary, args...)
+	if p.LibPath != "" {
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+p.LibPath)
+	}
+	return cmd
+}

@@ -15,7 +15,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
@@ -124,7 +124,7 @@ type StartParams struct {
 	Strategy              string // StreamStrategy as string to avoid import cycle
 	HWAccel               string // HardwareAccel as string to avoid import cycle
 	HWDevice              string
-	VideoInfo             *ffmpeg.VideoInfo
+	VideoInfo             *hls.VideoInfo
 	Config                *Config
 	ClientSupportedCodecs []string
 }
@@ -132,7 +132,7 @@ type StartParams struct {
 // Config contains configuration needed for starting a session.
 // This is a subset of TranscodeConfig to avoid importing the full config package.
 type Config struct {
-	FFmpegPaths                *ffmpeg.Paths
+	FFmpegPaths                *hls.Paths
 	MaxMemoryMB                int
 	ToneMappingEnabled         bool
 	ToneMappingAlgorithm       string
@@ -417,10 +417,10 @@ func (s *TranscodeSession) SetLogWriter(w *logging.LogWriter) {
 // GetPlaylistMetadata reads and parses the playlist for custom extension tags.
 // Returns metadata about the actual keyframe start position (from patch 0007).
 // This is useful for knowing exactly where playback will start after a seek.
-func (s *TranscodeSession) GetPlaylistMetadata() (ffmpeg.PlaylistMetadata, error) {
+func (s *TranscodeSession) GetPlaylistMetadata() (hls.PlaylistMetadata, error) {
 	content, err := os.ReadFile(s.ManifestPath)
 	if err != nil {
-		return ffmpeg.PlaylistMetadata{}, fmt.Errorf("failed to read playlist: %w", err)
+		return hls.PlaylistMetadata{}, fmt.Errorf("failed to read playlist: %w", err)
 	}
-	return ffmpeg.ParsePlaylistMetadata(string(content)), nil
+	return hls.ParsePlaylistMetadata(string(content)), nil
 }

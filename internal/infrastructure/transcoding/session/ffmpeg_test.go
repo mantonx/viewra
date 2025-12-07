@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
 
@@ -19,14 +19,14 @@ func TestSelectBestCodec(t *testing.T) {
 		profile               *profile.AdaptiveProfile
 		clientSupportedCodecs []string
 		hwAccel               string
-		expectedCodec         ffmpeg.VideoCodec
+		expectedCodec         hls.VideoCodec
 	}{
 		{
 			name:                  "nil profile returns H.264",
 			profile:               nil,
 			clientSupportedCodecs: []string{"h264", "h265"},
 			hwAccel:               "none",
-			expectedCodec:         ffmpeg.CodecH264,
+			expectedCodec:         hls.CodecH264,
 		},
 		{
 			name: "empty client codecs defaults to H.264",
@@ -36,7 +36,7 @@ func TestSelectBestCodec(t *testing.T) {
 			},
 			clientSupportedCodecs: []string{},
 			hwAccel:               "none",
-			expectedCodec:         ffmpeg.CodecH264,
+			expectedCodec:         hls.CodecH264,
 		},
 		{
 			name: "client supports preferred codec and hardware supports it",
@@ -46,7 +46,7 @@ func TestSelectBestCodec(t *testing.T) {
 			},
 			clientSupportedCodecs: []string{"h264", "h265"},
 			hwAccel:               "nvenc",
-			expectedCodec:         ffmpeg.CodecH265,
+			expectedCodec:         hls.CodecH265,
 		},
 		{
 			name: "client doesn't support preferred codec, falls back to first supported",
@@ -56,7 +56,7 @@ func TestSelectBestCodec(t *testing.T) {
 			},
 			clientSupportedCodecs: []string{"h264", "h265"},
 			hwAccel:               "none",
-			expectedCodec:         ffmpeg.CodecH265,
+			expectedCodec:         hls.CodecH265,
 		},
 		{
 			name: "hardware doesn't support preferred codec, uses fallback",
@@ -66,7 +66,7 @@ func TestSelectBestCodec(t *testing.T) {
 			},
 			clientSupportedCodecs: []string{"vp9", "h264"},
 			hwAccel:               "nvenc", // NVENC doesn't support VP9
-			expectedCodec:         ffmpeg.CodecH264,
+			expectedCodec:         hls.CodecH264,
 		},
 		{
 			name: "VP9 with VAAPI (supported)",
@@ -76,7 +76,7 @@ func TestSelectBestCodec(t *testing.T) {
 			},
 			clientSupportedCodecs: []string{"vp9", "h264"},
 			hwAccel:               "vaapi",
-			expectedCodec:         ffmpeg.CodecVP9,
+			expectedCodec:         hls.CodecVP9,
 		},
 		{
 			name: "AV1 with client and hardware support",
@@ -86,7 +86,7 @@ func TestSelectBestCodec(t *testing.T) {
 			},
 			clientSupportedCodecs: []string{"av1", "h265", "h264"},
 			hwAccel:               "nvenc",
-			expectedCodec:         ffmpeg.CodecAV1,
+			expectedCodec:         hls.CodecAV1,
 		},
 		{
 			name: "no matching codecs ultimate fallback to H.264",
@@ -96,7 +96,7 @@ func TestSelectBestCodec(t *testing.T) {
 			},
 			clientSupportedCodecs: []string{"h264"},
 			hwAccel:               "none",
-			expectedCodec:         ffmpeg.CodecH264,
+			expectedCodec:         hls.CodecH264,
 		},
 	}
 
@@ -148,7 +148,7 @@ func TestCreateFFmpegCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{
-				FFmpegPaths: &ffmpeg.Paths{
+				FFmpegPaths: &hls.Paths{
 					FFmpeg:  "/usr/bin/ffmpeg",
 					FFprobe: "/usr/bin/ffprobe",
 					LibPath: tt.libPath,
@@ -199,7 +199,7 @@ func TestSessionBuildFFmpegArgs(t *testing.T) {
 		FallbackCodecs:  []string{},
 	}
 
-	videoInfo := &ffmpeg.VideoInfo{
+	videoInfo := &hls.VideoInfo{
 		Codec:         "h264",
 		Width:         1920,
 		Height:        1080,
@@ -209,7 +209,7 @@ func TestSessionBuildFFmpegArgs(t *testing.T) {
 	}
 
 	config := &Config{
-		FFmpegPaths: &ffmpeg.Paths{
+		FFmpegPaths: &hls.Paths{
 			FFmpeg:  "/usr/bin/ffmpeg",
 			FFprobe: "/usr/bin/ffprobe",
 		},

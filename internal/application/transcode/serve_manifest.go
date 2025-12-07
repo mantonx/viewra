@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
+	streamstrategy "github.com/mantonx/viewra/internal/infrastructure/transcoding/strategy"
 )
 
 // ServeManifestRequest represents a request to serve an HLS playlist.
@@ -58,13 +61,13 @@ const (
 // ServeManifestUseCase handles serving HLS playlists with progressive transcoding.
 type ServeManifestUseCase struct {
 	mediaRepo      media.Repository
-	sessionManager *transcoding.SessionManager
+	sessionManager *session.Manager
 }
 
 // NewServeManifestUseCase creates a new ServeManifestUseCase.
 func NewServeManifestUseCase(
 	mediaRepo media.Repository,
-	sessionManager *transcoding.SessionManager,
+	sessionManager *session.Manager,
 ) *ServeManifestUseCase {
 	return &ServeManifestUseCase{
 		mediaRepo:      mediaRepo,
@@ -81,7 +84,7 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	}
 
 	// Step 2: Analyze video to get duration and determine strategy
-	videoInfo, err := transcoding.GetVideoInfo(mediaEntity.FilePath)
+	videoInfo, err := videoinfo.GetVideoInfo(mediaEntity.FilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze video: %w", err)
 	}
@@ -89,27 +92,27 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	// Step 3: Determine streaming strategy
 	// Use strategy hint from master playlist if available (ensures consistency)
 	// Otherwise determine from client capabilities
-	var strategy transcoding.StreamStrategy
+	var streamStrategy streamstrategy.StreamStrategy
 	var reason string
 
 	if req.StrategyHint != "" {
 		// Use the strategy passed from master playlist
-		strategy = transcoding.StreamStrategy(req.StrategyHint)
-		reason = fmt.Sprintf("using strategy from master playlist: %s", strategy)
+		streamStrategy = streamstrategy.StreamStrategy(req.StrategyHint)
+		reason = fmt.Sprintf("using strategy from master playlist: %s", streamStrategy)
 	} else {
 		// Determine strategy from client capabilities (direct requests)
-		var clientCaps *transcoding.ClientCapabilitiesForStrategy
+		var clientCaps *streamstrategy.ClientCapabilities
 		if len(req.SupportedVideoCodecs) > 0 || len(req.SupportedContainers) > 0 {
-			clientCaps = &transcoding.ClientCapabilitiesForStrategy{
+			clientCaps = &streamstrategy.ClientCapabilities{
 				SupportedVideoCodecs: req.SupportedVideoCodecs,
 				SupportedContainers:  req.SupportedContainers,
 			}
 		}
-		strategy, reason = transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
+		streamStrategy, reason = streamstrategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
 	}
 
 	// Step 4: Handle DirectPlay (no transcoding needed)
-	if strategy == transcoding.DirectPlay {
+	if streamStrategy == streamstrategy.DirectPlay {
 		return &ServeManifestResponse{
 			Strategy:      StrategyDirectPlay,
 			DirectPlayURL: fmt.Sprintf("/api/stream/%d", req.MediaID),
@@ -119,21 +122,21 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 
 	// Step 5: Get or create progressive transcode session
 	// Get adaptive profile for this quality level
-	profile, err := transcoding.GetAdaptiveProfileForQuality(req.Quality)
+	adaptiveProfile, err := profile.GetAdaptiveProfileForQuality(req.Quality)
 	if err != nil {
 		return nil, fmt.Errorf("invalid quality: %w", err)
 	}
 
 	// Create or reuse transcode session
 	// Pass client's supported video codecs for intelligent codec selection
-	session, err := uc.sessionManager.GetOrCreateSession(transcoding.GetOrCreateSessionParams{
+	transcodeSession, err := uc.sessionManager.GetOrCreateSession(session.GetOrCreateSessionParams{
 		MediaID:               req.MediaID,
 		Quality:               req.Quality,
 		StartPosition:         req.StartPosition,
 		AudioTrackIndex:       req.AudioTrackIndex,
 		InputPath:             mediaEntity.FilePath,
-		Profile:               profile,
-		Strategy:              string(strategy),
+		Profile:               adaptiveProfile,
+		Strategy:              string(streamStrategy),
 		OutputDir:             req.OutputDir,
 		VideoInfo:             videoInfo,
 		ClientSupportedCodecs: req.SupportedVideoCodecs,
@@ -146,14 +149,14 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	// Wait for FFmpeg to create the manifest file (should be very quick - 1-2 seconds max)
 	// Wait for FFmpeg to create manifest. 4K HDR content with seeking can take 10-15s
 	// to decode the first keyframe and start producing output.
-	if err := session.WaitForManifest(20 * time.Second); err != nil {
+	if err := transcodeSession.WaitForManifest(20 * time.Second); err != nil {
 		return nil, fmt.Errorf("manifest file not created: %w", err)
 	}
 
 	// Return manifest path
 	return &ServeManifestResponse{
 		Strategy:     StrategyServe,
-		ManifestPath: session.ManifestPath,
-		Reason:       fmt.Sprintf("Progressive transcoding session started from position %.0fs", session.StartPosition),
+		ManifestPath: transcodeSession.ManifestPath,
+		Reason:       fmt.Sprintf("Progressive transcoding session started from position %.0fs", transcodeSession.StartPosition),
 	}, nil
 }

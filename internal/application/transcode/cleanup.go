@@ -9,7 +9,7 @@ import (
 
 	"github.com/mantonx/viewra/internal/domain/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/filesystem"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/paths"
 )
 
 // CleanupFilter defines criteria for selecting transcodes to clean
@@ -419,7 +419,7 @@ func (s *CleanupService) filterJobs(jobs []transcode.TranscodeJob, filter Cleanu
 }
 
 func (s *CleanupService) getOutputPath(mediaID int64, quality string) string {
-	return transcoding.GetHLSOutputPath(s.outputDir, mediaID, quality)
+	return paths.GetHLSOutputPath(s.outputDir, mediaID, quality)
 }
 func (s *CleanupService) deleteTranscodeFiles(outputPath string) error {
 	if _, err := os.Stat(outputPath); os.IsNotExist(err) {

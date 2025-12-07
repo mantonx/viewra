@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
@@ -210,8 +209,6 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 			defer func() { <-semaphore }() // Release semaphore
 
 			dirPath := filepath.Join(root, dirEntry.Name())
-			dirName := dirEntry.Name()
-			startTime := time.Now()
 
 			// Walk this directory tree with context (allows cancellation)
 			walkErr := w.walkDirFunc(dirPath, func(path string, d fs.DirEntry, err error) error {
@@ -269,13 +266,6 @@ func (w *Walker) walkParallel(ctx context.Context, root string, walkFn scanner.W
 				// Callers should track discovered files themselves based on their filtering logic.
 				return walkFn(fileInfo)
 			})
-
-			elapsed := time.Since(startTime)
-			if elapsed > 5*time.Second {
-				w.getLogger().Info("Completed directory scan",
-					"directory", dirName,
-					"elapsed_seconds", elapsed.Seconds())
-			}
 
 			// Capture first error
 			if walkErr != nil && walkErr != context.Canceled {

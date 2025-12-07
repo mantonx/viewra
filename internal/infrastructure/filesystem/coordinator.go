@@ -43,12 +43,12 @@ func DefaultCoordinatorConfig() CoordinatorConfig {
 
 // Coordinator orchestrates the scanning process with worker pool
 type Coordinator struct {
-	config       CoordinatorConfig
-	walker       scanner.FileWalker
-	filter       scanner.FileFilter
-	parser       scanner.FilenameParser
-	ffmpegClient *ffmpeg.Client
-	logger       *slog.Logger
+	config        CoordinatorConfig
+	walker        scanner.FileWalker
+	filter        scanner.FileFilter
+	parser        scanner.FilenameParser
+	ffmpegService *ffmpeg.Service
+	logger        *slog.Logger
 
 	// Progress tracking (atomic)
 	filesFound     atomic.Int64
@@ -67,7 +67,7 @@ func NewCoordinator(config CoordinatorConfig) *Coordinator {
 	// Use provided logger or default
 	logger := pkgLogger.DefaultIfNil(config.Logger)
 
-	ffmpegClient, err := ffmpeg.NewClient(logger)
+	ffmpegService, err := ffmpeg.NewService(logger)
 	if err != nil {
 		// Log warning but don't fail - metadata extraction will be skipped
 		logger.Warn("FFmpeg not available, technical metadata extraction disabled", "error", err)
@@ -77,12 +77,12 @@ func NewCoordinator(config CoordinatorConfig) *Coordinator {
 	metadataExtractor := music.NewExtractor()
 
 	return &Coordinator{
-		config:       config,
-		walker:       NewWalker(),
-		filter:       NewFilter(),
-		parser:       parsers.NewDefaultParserWithMetadata(metadataExtractor),
-		ffmpegClient: ffmpegClient,
-		logger:       logger,
+		config:        config,
+		walker:        NewWalker(),
+		filter:        NewFilter(),
+		parser:        parsers.NewDefaultParserWithMetadata(metadataExtractor),
+		ffmpegService: ffmpegService,
+		logger:        logger,
 	}
 }
 
@@ -317,8 +317,8 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 	}
 
 	// Extract technical metadata using FFmpeg (for all media files: video and audio)
-	if c.ffmpegClient != nil && (mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode || mediaType == scanner.MediaTypeTrack) {
-		metadata, err := c.ffmpegClient.ExtractMetadata(ctx, fileInfo.Path)
+	if c.ffmpegService != nil && (mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode || mediaType == scanner.MediaTypeTrack) {
+		metadata, err := c.ffmpegService.ExtractMetadata(ctx, fileInfo.Path)
 		if err != nil {
 			// Log warning but don't fail the entire scan
 			// Some files might be corrupted or in unsupported formats
@@ -353,7 +353,7 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 
 			// Extract audio and subtitle tracks for video files
 			if mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode {
-				tracks, err := c.ffmpegClient.ExtractTracks(ctx, fileInfo.Path)
+				tracks, err := c.ffmpegService.ExtractTracks(ctx, fileInfo.Path)
 				if err != nil {
 					c.logger.Warn("Failed to extract audio/subtitle tracks",
 						"file_path", fileInfo.Path,

@@ -7,7 +7,53 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/storage"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/strategy"
 )
+
+// ValidateTranscodeRequest performs comprehensive validation before starting a transcode.
+func ValidateTranscodeRequest(inputPath string, outputDir string, adaptiveProfile *profile.AdaptiveProfile, allowedBasePaths []string) error {
+	// Validate and sanitize input path
+	sanitizedInput, err := ValidateAndSanitizePath(inputPath, allowedBasePaths)
+	if err != nil {
+		return fmt.Errorf("invalid input path: %w", err)
+	}
+
+	// Validate file exists and is readable
+	if err := ValidateInputFile(sanitizedInput); err != nil {
+		return fmt.Errorf("input file validation failed: %w", err)
+	}
+
+	// Validate output directory (create if needed)
+	sanitizedOutput, err := ValidateAndSanitizePath(outputDir, nil)
+	if err != nil {
+		return fmt.Errorf("invalid output path: %w", err)
+	}
+
+	// Check disk space
+	if err := storage.CheckDiskSpace(sanitizedOutput, 10); err != nil {
+		return fmt.Errorf("insufficient disk space: %w", err)
+	}
+
+	// Get video info and check if transcoding is needed
+	videoInfo, err := videoinfo.GetVideoInfo(sanitizedInput)
+	if err != nil {
+		// Log warning but allow transcode to proceed
+		// Some videos may not parse correctly with ffprobe
+		return nil
+	}
+
+	// Check if transcoding is actually necessary
+	shouldTranscode, reason := strategy.ShouldTranscode(videoInfo, adaptiveProfile)
+	if !shouldTranscode {
+		return fmt.Errorf("transcoding not needed: %s", reason)
+	}
+
+	return nil
+}
 
 // ValidateAndSanitizePath validates and sanitizes a file path to prevent path traversal attacks.
 // Returns the absolute, cleaned path or an error.

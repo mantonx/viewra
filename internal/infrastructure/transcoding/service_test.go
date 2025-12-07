@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/transcode"
-	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/paths"
 )
 
 // mockRepository implements transcode.Repository for testing
@@ -208,7 +208,7 @@ func TestGetManifestPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GetManifestPath(tt.baseDir, tt.mediaID, tt.quality)
+			result := paths.GetHLSManifestPath(tt.baseDir, tt.mediaID, tt.quality)
 			if result != tt.expected {
 				t.Errorf("GetManifestPath() = %v, want %v", result, tt.expected)
 			}
@@ -264,7 +264,7 @@ func TestGetOutputDirectory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GetOutputDirectory(tt.baseDir, tt.mediaID, tt.quality)
+			result := paths.GetHLSOutputPath(tt.baseDir, tt.mediaID, tt.quality)
 			if result != tt.expected {
 				t.Errorf("GetOutputDirectory() = %v, want %v", result, tt.expected)
 			}
@@ -274,12 +274,6 @@ func TestGetOutputDirectory(t *testing.T) {
 
 // TestTranscodeToHLS tests the TranscodeToHLS method
 func TestTranscodeToHLS(t *testing.T) {
-	// Skip this test if FFmpeg is not available
-	paths, err := ffmpeg.NewPaths()
-	if err != nil {
-		t.Skip("FFmpeg not available in test environment")
-	}
-
 	tests := []struct {
 		name        string
 		job         *transcode.TranscodeJob
@@ -342,7 +336,7 @@ func TestTranscodeToHLS(t *testing.T) {
 				Status:  transcode.StatusQueued,
 			},
 			inputPath: "/nonexistent/video.mp4", // Will fail but tests the flow
-			outputDir: t.TempDir(),
+			outputDir: "",                        // Will be set in test
 			setupMock: func(m *mockRepository) {
 				m.updateFunc = func(ctx context.Context, job *transcode.TranscodeJob) error {
 					// Allow updates
@@ -360,23 +354,21 @@ func TestTranscodeToHLS(t *testing.T) {
 				tt.setupMock(repo)
 			}
 
-			// Create service with test config
-			config := &TranscodeConfig{
-				FFmpegPaths:      paths,
-				HardwareAccel:    AccelNone,
-				ProcessGroupKill: true,
-				MaxMemoryMB:      2048,
-			}
-
-			ffmpegExec, err := newFFmpegExecutorWithConfig(config)
+			// Create service through public constructor
+			svc, err := NewService(repo, slog.Default())
 			if err != nil {
-				t.Fatalf("Failed to create ffmpeg executor: %v", err)
+				if strings.Contains(err.Error(), "ffmpeg") {
+					t.Skip("FFmpeg not available in test environment")
+				}
+				t.Fatalf("Failed to create service: %v", err)
 			}
 
-			jobExec := newJobExecutor(repo, ffmpegExec, slog.Default())
-			svc := &service{executor: jobExec}
+			outputDir := tt.outputDir
+			if outputDir == "" {
+				outputDir = t.TempDir()
+			}
 
-			err = svc.TranscodeToHLS(context.Background(), tt.job, tt.inputPath, tt.outputDir)
+			err = svc.TranscodeToHLS(context.Background(), tt.job, tt.inputPath, outputDir)
 
 			if tt.shouldError {
 				if err == nil {
@@ -397,12 +389,6 @@ func TestTranscodeToHLS(t *testing.T) {
 
 // TestRemuxToHLS tests the RemuxToHLS method
 func TestRemuxToHLS(t *testing.T) {
-	// Skip this test if FFmpeg is not available
-	paths, err := ffmpeg.NewPaths()
-	if err != nil {
-		t.Skip("FFmpeg not available in test environment")
-	}
-
 	tests := []struct {
 		name        string
 		job         *transcode.TranscodeJob
@@ -431,7 +417,7 @@ func TestRemuxToHLS(t *testing.T) {
 				Status:  transcode.StatusQueued,
 			},
 			inputPath: "/nonexistent/video.mp4",
-			outputDir: t.TempDir(),
+			outputDir: "",
 			setupMock: func(m *mockRepository) {
 				m.updateFunc = func(ctx context.Context, job *transcode.TranscodeJob) error {
 					return nil
@@ -449,7 +435,7 @@ func TestRemuxToHLS(t *testing.T) {
 				Status:  transcode.StatusProcessing,
 			},
 			inputPath: "/nonexistent/video.mkv",
-			outputDir: t.TempDir(),
+			outputDir: "",
 			setupMock: func(m *mockRepository) {
 				m.updateFunc = func(ctx context.Context, job *transcode.TranscodeJob) error {
 					return nil
@@ -466,22 +452,20 @@ func TestRemuxToHLS(t *testing.T) {
 				tt.setupMock(repo)
 			}
 
-			config := &TranscodeConfig{
-				FFmpegPaths:      paths,
-				HardwareAccel:    AccelNone,
-				ProcessGroupKill: true,
-				MaxMemoryMB:      2048,
-			}
-
-			ffmpegExec, err := newFFmpegExecutorWithConfig(config)
+			svc, err := NewService(repo, slog.Default())
 			if err != nil {
-				t.Fatalf("Failed to create ffmpeg executor: %v", err)
+				if strings.Contains(err.Error(), "ffmpeg") {
+					t.Skip("FFmpeg not available in test environment")
+				}
+				t.Fatalf("Failed to create service: %v", err)
 			}
 
-			jobExec := newJobExecutor(repo, ffmpegExec, slog.Default())
-			svc := &service{executor: jobExec}
+			outputDir := tt.outputDir
+			if outputDir == "" {
+				outputDir = t.TempDir()
+			}
 
-			err = svc.RemuxToHLS(context.Background(), tt.job, tt.inputPath, tt.outputDir)
+			err = svc.RemuxToHLS(context.Background(), tt.job, tt.inputPath, outputDir)
 
 			if tt.shouldError {
 				if err == nil {
@@ -502,12 +486,6 @@ func TestRemuxToHLS(t *testing.T) {
 
 // TestRemuxWithAudioDownmixHLS tests the RemuxWithAudioDownmixHLS method
 func TestRemuxWithAudioDownmixHLS(t *testing.T) {
-	// Skip this test if FFmpeg is not available
-	paths, err := ffmpeg.NewPaths()
-	if err != nil {
-		t.Skip("FFmpeg not available in test environment")
-	}
-
 	tests := []struct {
 		name        string
 		job         *transcode.TranscodeJob
@@ -536,7 +514,7 @@ func TestRemuxWithAudioDownmixHLS(t *testing.T) {
 				Status:  transcode.StatusQueued,
 			},
 			inputPath: "/nonexistent/video.mp4",
-			outputDir: t.TempDir(),
+			outputDir: "",
 			setupMock: func(m *mockRepository) {
 				m.updateFunc = func(ctx context.Context, job *transcode.TranscodeJob) error {
 					return nil
@@ -554,7 +532,7 @@ func TestRemuxWithAudioDownmixHLS(t *testing.T) {
 				Status:  transcode.StatusQueued,
 			},
 			inputPath: "/nonexistent/video.mkv",
-			outputDir: t.TempDir(),
+			outputDir: "",
 			setupMock: func(m *mockRepository) {
 				m.updateFunc = func(ctx context.Context, job *transcode.TranscodeJob) error {
 					return errors.New("database error")
@@ -571,22 +549,20 @@ func TestRemuxWithAudioDownmixHLS(t *testing.T) {
 				tt.setupMock(repo)
 			}
 
-			config := &TranscodeConfig{
-				FFmpegPaths:      paths,
-				HardwareAccel:    AccelNone,
-				ProcessGroupKill: true,
-				MaxMemoryMB:      2048,
-			}
-
-			ffmpegExec, err := newFFmpegExecutorWithConfig(config)
+			svc, err := NewService(repo, slog.Default())
 			if err != nil {
-				t.Fatalf("Failed to create ffmpeg executor: %v", err)
+				if strings.Contains(err.Error(), "ffmpeg") {
+					t.Skip("FFmpeg not available in test environment")
+				}
+				t.Fatalf("Failed to create service: %v", err)
 			}
 
-			jobExec := newJobExecutor(repo, ffmpegExec, slog.Default())
-			svc := &service{executor: jobExec}
+			outputDir := tt.outputDir
+			if outputDir == "" {
+				outputDir = t.TempDir()
+			}
 
-			err = svc.RemuxWithAudioDownmixHLS(context.Background(), tt.job, tt.inputPath, tt.outputDir)
+			err = svc.RemuxWithAudioDownmixHLS(context.Background(), tt.job, tt.inputPath, outputDir)
 
 			if tt.shouldError {
 				if err == nil {
@@ -607,12 +583,6 @@ func TestRemuxWithAudioDownmixHLS(t *testing.T) {
 
 // TestServiceMethodsCallExecutor verifies that service methods properly delegate to executor
 func TestServiceMethodsCallExecutor(t *testing.T) {
-	// Skip this test if FFmpeg is not available
-	paths, err := ffmpeg.NewPaths()
-	if err != nil {
-		t.Skip("FFmpeg not available in test environment")
-	}
-
 	// Create a valid queued job
 	job := &transcode.TranscodeJob{
 		ID:      1,
@@ -628,20 +598,13 @@ func TestServiceMethodsCallExecutor(t *testing.T) {
 		},
 	}
 
-	config := &TranscodeConfig{
-		FFmpegPaths:      paths,
-		HardwareAccel:    AccelNone,
-		ProcessGroupKill: true,
-		MaxMemoryMB:      2048,
-	}
-
-	ffmpegExec, err := newFFmpegExecutorWithConfig(config)
+	svc, err := NewService(repo, slog.Default())
 	if err != nil {
-		t.Fatalf("Failed to create ffmpeg executor: %v", err)
+		if strings.Contains(err.Error(), "ffmpeg") {
+			t.Skip("FFmpeg not available in test environment")
+		}
+		t.Fatalf("Failed to create service: %v", err)
 	}
-
-	jobExec := newJobExecutor(repo, ffmpegExec, slog.Default())
-	svc := &service{executor: jobExec}
 
 	ctx := context.Background()
 	inputPath := "/nonexistent/video.mp4"
@@ -684,12 +647,6 @@ func TestServiceMethodsCallExecutor(t *testing.T) {
 
 // TestServiceWithContextCancellation tests that context cancellation is respected
 func TestServiceWithContextCancellation(t *testing.T) {
-	// Skip this test if FFmpeg is not available
-	paths, err := ffmpeg.NewPaths()
-	if err != nil {
-		t.Skip("FFmpeg not available in test environment")
-	}
-
 	job := &transcode.TranscodeJob{
 		ID:      1,
 		MediaID: 100,
@@ -704,20 +661,13 @@ func TestServiceWithContextCancellation(t *testing.T) {
 		},
 	}
 
-	config := &TranscodeConfig{
-		FFmpegPaths:      paths,
-		HardwareAccel:    AccelNone,
-		ProcessGroupKill: true,
-		MaxMemoryMB:      2048,
-	}
-
-	ffmpegExec, err := newFFmpegExecutorWithConfig(config)
+	svc, err := NewService(repo, slog.Default())
 	if err != nil {
-		t.Fatalf("Failed to create ffmpeg executor: %v", err)
+		if strings.Contains(err.Error(), "ffmpeg") {
+			t.Skip("FFmpeg not available in test environment")
+		}
+		t.Fatalf("Failed to create service: %v", err)
 	}
-
-	jobExec := newJobExecutor(repo, ffmpegExec, slog.Default())
-	svc := &service{executor: jobExec}
 
 	// Create a cancelled context
 	ctx, cancel := context.WithCancel(context.Background())

@@ -6,6 +6,9 @@ package strategy
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 )
 
 // StreamStrategy represents the type of streaming operation needed.
@@ -25,19 +28,9 @@ const (
 	Transcode StreamStrategy = "transcode"
 )
 
-// VideoInfo contains the video metadata needed for strategy determination.
-type VideoInfo struct {
-	Codec           string
-	Width           int
-	Height          int
-	Bitrate         int64
-	Duration        float64
-	AudioCodec      string
-	AudioBitrate    int64
-	AudioChannels   int
-	ContainerFormat string
-	IsHDR           bool
-}
+// VideoInfo is an alias for videoinfo.VideoInfo for strategy determination.
+// This allows consumers to use strategy.VideoInfo interchangeably with videoinfo.VideoInfo.
+type VideoInfo = videoinfo.VideoInfo
 
 // ClientCapabilities contains codec support info from the client browser.
 // This allows the server to make informed decisions about direct play.
@@ -230,13 +223,9 @@ func IsWebCompatibleAudioCodec(audioCodec string) bool {
 	return isWebCompatibleAudioCodec(audioCodec)
 }
 
-// AdaptiveProfile contains profile information for transcoding decisions.
-type AdaptiveProfile struct {
-	Width        int
-	Height       int
-	VideoBitrate int
-	AudioBitrate int
-}
+// AdaptiveProfile is an alias for profile.AdaptiveProfile for transcoding decisions.
+// This allows consumers to use strategy.AdaptiveProfile interchangeably with profile.AdaptiveProfile.
+type AdaptiveProfile = profile.AdaptiveProfile
 
 // ShouldTranscode determines if transcoding is necessary based on current codec/resolution vs target.
 // Returns true if transcoding is needed, false if source already matches target.

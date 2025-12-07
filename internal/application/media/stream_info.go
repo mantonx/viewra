@@ -7,7 +7,10 @@ import (
 
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/config"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/strategy"
 )
 
 // StreamInfoUseCase handles retrieving detailed stream information for a media file
@@ -111,7 +114,7 @@ func (uc *StreamInfoUseCase) Execute(ctx context.Context, mediaID int64) (*Strea
 	}
 
 	// Get detailed video info using ffprobe (cached)
-	videoInfo, err := transcoding.GetVideoInfo(fullPath)
+	videoInfo, err := videoinfo.GetVideoInfo(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get video info: %w", err)
 	}
@@ -158,14 +161,14 @@ func (uc *StreamInfoUseCase) Execute(ctx context.Context, mediaID int64) (*Strea
 	// Determine streaming strategy (default without client capabilities)
 	// This gives a baseline estimate - the actual strategy is determined when playback starts
 	// with client capability headers
-	strategy, reason := transcoding.DetermineStreamStrategy(videoInfo)
+	streamStrategy, reason := strategy.DetermineStrategy(videoInfo)
 	response.Strategy = StreamingStrategy{
-		Mode:   strategyToMode(strategy),
+		Mode:   strategyToMode(streamStrategy),
 		Reason: reason,
 	}
 
 	// Add tone mapping info for HDR content
-	response.ToneMapping = getToneMappingInfo(videoInfo, strategy)
+	response.ToneMapping = getToneMappingInfo(videoInfo, streamStrategy)
 
 	return response, nil
 }
@@ -191,7 +194,7 @@ func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaI
 	}
 
 	// Get detailed video info using ffprobe (cached)
-	videoInfo, err := transcoding.GetVideoInfo(fullPath)
+	videoInfo, err := videoinfo.GetVideoInfo(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get video info: %w", err)
 	}
@@ -236,36 +239,36 @@ func (uc *StreamInfoUseCase) ExecuteWithCapabilities(ctx context.Context, mediaI
 	}
 
 	// Determine streaming strategy with client capabilities
-	var clientCaps *transcoding.ClientCapabilitiesForStrategy
+	var clientCaps *strategy.ClientCapabilities
 	if len(supportedVideoCodecs) > 0 {
-		clientCaps = &transcoding.ClientCapabilitiesForStrategy{
+		clientCaps = &strategy.ClientCapabilities{
 			SupportedVideoCodecs: supportedVideoCodecs,
 		}
 	}
-	strategy, reason := transcoding.DetermineStreamStrategyWithCapabilities(videoInfo, clientCaps)
+	streamStrategy, reason := strategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
 	response.Strategy = StreamingStrategy{
-		Mode:   strategyToMode(strategy),
+		Mode:   strategyToMode(streamStrategy),
 		Reason: reason,
 	}
 
 	// Add tone mapping info for HDR content
-	response.ToneMapping = getToneMappingInfo(videoInfo, strategy)
+	response.ToneMapping = getToneMappingInfo(videoInfo, streamStrategy)
 
 	return response, nil
 }
 
 // strategyToMode converts internal StreamStrategy to frontend-friendly mode string
-func strategyToMode(strategy transcoding.StreamStrategy) string {
-	switch strategy {
-	case transcoding.DirectPlay:
+func strategyToMode(s strategy.StreamStrategy) string {
+	switch s {
+	case strategy.DirectPlay:
 		return "direct"
-	case transcoding.Remux:
+	case strategy.Remux:
 		return "remux"
-	case transcoding.RemuxWithAudioDownmix:
+	case strategy.RemuxWithAudioDownmix:
 		return "remux_audio"
-	case transcoding.RemuxHEVC:
+	case strategy.RemuxHEVC:
 		return "remux_hevc"
-	case transcoding.Transcode:
+	case strategy.Transcode:
 		return "transcode"
 	default:
 		return "transcode"
@@ -313,7 +316,7 @@ func getChannelLabel(channels int) string {
 }
 
 // getHDRFormat determines the HDR format name from video info
-func getHDRFormat(info *transcoding.VideoInfo) string {
+func getHDRFormat(info *videoinfo.VideoInfo) string {
 	if !info.IsHDR {
 		return ""
 	}
@@ -366,7 +369,7 @@ func equalIgnoreCase(a, b string) bool {
 
 // getToneMappingInfo returns tone mapping information for HDR content.
 // Returns nil if content is not HDR or doesn't require tone mapping.
-func getToneMappingInfo(videoInfo *transcoding.VideoInfo, strategy transcoding.StreamStrategy) *ToneMappingInfo {
+func getToneMappingInfo(videoInfo *videoinfo.VideoInfo, s strategy.StreamStrategy) *ToneMappingInfo {
 	// Only applicable for HDR content being transcoded
 	if videoInfo == nil || !videoInfo.IsHDR {
 		return nil
@@ -374,35 +377,35 @@ func getToneMappingInfo(videoInfo *transcoding.VideoInfo, strategy transcoding.S
 
 	// Only transcode strategy performs tone mapping
 	// Direct play, remux modes don't process video
-	if strategy != transcoding.Transcode {
+	if s != strategy.Transcode {
 		return nil
 	}
 
 	// Get current tone mapping config from defaults (reads env vars)
-	config := transcoding.DefaultTranscodeConfig()
+	cfg := config.Default()
 
-	if !config.ToneMappingEnabled {
+	if !cfg.ToneMappingEnabled {
 		return &ToneMappingInfo{
 			Enabled: false,
 		}
 	}
 
 	// Determine the backend being used
-	backend := config.ToneMappingBackend
+	backend := cfg.ToneMappingBackend
 	if backend == "" || backend == "auto" {
 		// Auto mode: determine based on hardware acceleration
 		// NVENC uses libplacebo, VAAPI uses native, others use OpenCL/CPU
-		switch config.HardwareAccel {
-		case transcoding.AccelNVENC:
-			if transcoding.CheckFFmpegFilter("libplacebo") {
+		switch cfg.HardwareAccel {
+		case config.AccelNVENC:
+			if hls.CheckFFmpegFilter("libplacebo") {
 				backend = "libplacebo"
 			} else {
 				backend = "opencl"
 			}
-		case transcoding.AccelVAAPI:
+		case config.AccelVAAPI:
 			backend = "vaapi"
-		case transcoding.AccelNone:
-			if transcoding.CheckFFmpegFilter("libplacebo") {
+		case config.AccelNone:
+			if hls.CheckFFmpegFilter("libplacebo") {
 				backend = "libplacebo"
 			} else {
 				backend = "cpu"
@@ -414,7 +417,7 @@ func getToneMappingInfo(videoInfo *transcoding.VideoInfo, strategy transcoding.S
 
 	return &ToneMappingInfo{
 		Enabled:   true,
-		Algorithm: config.ToneMappingAlgorithm,
+		Algorithm: cfg.ToneMappingAlgorithm,
 		Backend:   backend,
 	}
 }

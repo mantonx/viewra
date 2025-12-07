@@ -18,6 +18,9 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/pathbrowser"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	transcodeconfig "github.com/mantonx/viewra/internal/infrastructure/transcoding/config"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/logging"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
 )
 
 // DiskMonitoringRepo defines the repository interface needed for disk monitoring cleanup.
@@ -39,7 +42,7 @@ type Services struct {
 	TranscodeService  transcoding.Service
 	TranscodeQueue    *transcode.Queue
 	CleanupService    *transcode.CleanupService
-	SessionManager    *transcoding.SessionManager
+	SessionManager    *session.Manager
 	SubtitleConverter *subtitles.Converter
 
 	// Transcode repository (for disk monitoring cleanup tasks)
@@ -117,21 +120,35 @@ func BuildServices(
 
 	// Initialize session manager for progressive transcoding
 	// Use system profile for hardware acceleration if available
-	var transcodeConfig *transcoding.TranscodeConfig
+	var transcodeConfig *transcodeconfig.TranscodeConfig
 	if cfg.SystemProfile != nil {
 		settings := cfg.SystemProfile.Calculate()
-		transcodeConfig = transcoding.DefaultTranscodeConfigFromProfile(settings.HardwareAccel)
+		transcodeConfig = transcodeconfig.DefaultFromProfile(settings.HardwareAccel, nil)
 		logger.Info("Using profile-based transcode config",
 			"hardware_accel", settings.HardwareAccel)
 	} else {
-		transcodeConfig = transcoding.DefaultTranscodeConfig()
+		transcodeConfig = transcodeconfig.Default()
 	}
-	sessionManager := transcoding.NewSessionManager(transcodeConfig, logger)
+	sessionManager := session.NewManager(&session.ManagerConfig{
+		FFmpegPaths:                transcodeConfig.FFmpegPaths,
+		HardwareAccel:              string(transcodeConfig.HardwareAccel),
+		HardwareDevice:             transcodeConfig.HardwareDevice,
+		OutputBaseDir:              transcodeConfig.OutputBaseDir,
+		MinFreeDiskGB:              transcodeConfig.MinFreeDiskGB,
+		MaxCPUPercent:              transcodeConfig.MaxCPUPercent,
+		MaxMemoryMB:                transcodeConfig.MaxMemoryMB,
+		ProcessGroupKill:           transcodeConfig.ProcessGroupKill,
+		ToneMappingEnabled:         transcodeConfig.ToneMappingEnabled,
+		ToneMappingAlgorithm:       transcodeConfig.ToneMappingAlgorithm,
+		ToneMappingBackend:         transcodeConfig.ToneMappingBackend,
+		LibPlaceboPeakDetect:       transcodeConfig.LibPlaceboPeakDetect,
+		LibPlaceboContrastRecovery: transcodeConfig.LibPlaceboContrastRecovery,
+	}, logger)
 
 	// Initialize FFmpeg log store for debugging (if enabled)
 	if transcodeConfig.FFmpegLogEnabled {
 		logRetention := time.Duration(transcodeConfig.FFmpegLogRetentionHours) * time.Hour
-		logStore, err := transcoding.NewFFmpegLogStore(cfg.Media.TranscodeOutputDir, logRetention, logger)
+		logStore, err := logging.NewFFmpegLogStore(cfg.Media.TranscodeOutputDir, logRetention, logger)
 		if err != nil {
 			logger.Warn("Failed to initialize FFmpeg log store",
 				"error", err,
@@ -192,7 +209,7 @@ func BuildServices(
 	// Wire settings service into session manager for dynamic config
 	// This enables runtime changes to tone mapping settings without restart
 	configProvider := apptranscoding.NewSettingsConfigProvider(settingsService, transcodeConfig)
-	transcoding.SetConfigProvider(sessionManager, configProvider)
+	sessionManager.SetConfigProvider(configProvider)
 
 	// Initialize subtitle converter (for WebVTT conversion)
 	subtitleCacheDir := cfg.Media.TranscodeOutputDir // Reuse transcode output dir for subtitle cache

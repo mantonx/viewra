@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/paths"
 )
 
 // HardwareAccel represents hardware acceleration type.
@@ -34,7 +34,7 @@ const (
 type TranscodeConfig struct {
 	// FFmpegPaths contains FFmpeg/FFprobe binary paths and library path.
 	// This is the single source of truth for FFmpeg configuration.
-	FFmpegPaths *ffmpeg.Paths
+	FFmpegPaths *paths.Paths
 
 	// HardwareAccel specifies which hardware acceleration to use
 	HardwareAccel HardwareAccel
@@ -121,10 +121,10 @@ func DefaultWithChecker(encoderChecker EncoderChecker) *TranscodeConfig {
 // If encoderChecker is nil, uses a simple exec-based check.
 func DefaultFromProfile(hwAccelType string, encoderChecker EncoderChecker) *TranscodeConfig {
 	// Get FFmpeg paths using the shared Paths type (single source of truth)
-	ffmpegPaths, err := ffmpeg.NewPaths()
+	ffmpegPaths, err := paths.New()
 	if err != nil {
 		// Fall back to placeholder paths that will fail with clear error at runtime
-		ffmpegPaths = &ffmpeg.Paths{
+		ffmpegPaths = &paths.Paths{
 			FFmpeg:  "ffmpeg",
 			FFprobe: "ffprobe",
 		}
@@ -253,15 +253,25 @@ func DetectHardwareAccel(encoderChecker EncoderChecker) HardwareAccel {
 	return AccelNone
 }
 
-// simpleEncoderCheck is a basic encoder check using ffmpeg -encoders
+// simpleEncoderCheck is a basic encoder check using ffmpeg -encoders.
+// Uses paths.Paths to ensure consistent FFmpeg binary and library path configuration.
 func simpleEncoderCheck(encoderName string) bool {
-	cmd := exec.Command("ffmpeg", "-encoders")
+	// Get FFmpeg paths (same resolution logic as DefaultFromProfile)
+	p, err := paths.New()
+	if err != nil {
+		return false
+	}
+
+	// Check if encoder is listed in -encoders output
+	cmd := p.PrepareCommand("ffmpeg", "-encoders")
 	output, err := cmd.Output()
 	if err != nil {
 		return false
 	}
-	// Simple string search - not as robust as ffmpeg package check
-	return len(output) > 0 && exec.Command("ffmpeg", "-h", "encoder="+encoderName).Run() == nil
+
+	// Verify encoder is actually usable with -h encoder=name
+	helpCmd := p.PrepareCommand("ffmpeg", "-h", "encoder="+encoderName)
+	return len(output) > 0 && helpCmd.Run() == nil
 }
 
 // GetDefaultOutputDir returns the default transcode output directory.

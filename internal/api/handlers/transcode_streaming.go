@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mantonx/viewra/internal/application/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/subtitles"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/segment"
 )
 
 // ServePlaylist serves the HLS playlist file for a media item with on-demand segment generation.
@@ -158,7 +158,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	}
 
 	// Handle init segment for fMP4
-	if filename == transcoding.InitSegmentFilename {
+	if filename == segment.InitFilename {
 		initPath, err := session.WaitForInitSegment(10 * time.Second)
 		if err != nil {
 			c.JSON(http.StatusRequestTimeout, ErrorResponse{
@@ -174,7 +174,7 @@ func (h *TranscodeHandler) ServeHLSSegment(c *gin.Context) {
 	}
 
 	// Parse segment number from filename
-	segmentNum := transcoding.ParseSegmentNumber(filename)
+	segmentNum := segment.ParseNumber(filename)
 	if segmentNum < 0 {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid segment filename"})
 		return

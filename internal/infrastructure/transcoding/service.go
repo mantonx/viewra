@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/mantonx/viewra/internal/domain/transcode"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/executor"
 	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
@@ -42,51 +43,40 @@ type Service interface {
 
 // service implements the Service interface.
 type service struct {
-	executor *jobExecutor
+	jobExecutor *executor.JobExecutor
 }
 
 // NewService creates a new transcoding service.
 // It verifies that FFmpeg is available in the system PATH.
 func NewService(repo transcode.Repository, logger *slog.Logger) (Service, error) {
-	ffmpegExec, err := newFFmpegExecutor()
+	ffmpegExec, err := executor.NewFFmpegExecutor()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize ffmpeg executor: %w", err)
 	}
 
 	logger = pkgLogger.DefaultIfNil(logger)
 
-	jobExec := newJobExecutor(repo, ffmpegExec, logger)
+	jobExec := executor.NewJobExecutor(repo, ffmpegExec, logger)
 
 	return &service{
-		executor: jobExec,
+		jobExecutor: jobExec,
 	}, nil
 }
 
 // TranscodeToHLS implements the Service interface.
 func (s *service) TranscodeToHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
-	return s.executor.execute(ctx, job, inputPath, outputBaseDir, "transcode", s.executor.executor.TranscodeToHLS)
+	ffmpegExec := s.jobExecutor.FFmpegExecutorRef()
+	return s.jobExecutor.Execute(ctx, job, inputPath, outputBaseDir, "transcode", ffmpegExec.TranscodeToHLS)
 }
 
 // RemuxToHLS implements the Service interface for remuxing operations.
 func (s *service) RemuxToHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
-	return s.executor.execute(ctx, job, inputPath, outputBaseDir, "remux", s.executor.executor.RemuxToHLS)
+	ffmpegExec := s.jobExecutor.FFmpegExecutorRef()
+	return s.jobExecutor.Execute(ctx, job, inputPath, outputBaseDir, "remux", ffmpegExec.RemuxToHLS)
 }
 
 // RemuxWithAudioDownmixHLS implements the Service interface for remux with audio downmix operations.
 func (s *service) RemuxWithAudioDownmixHLS(ctx context.Context, job *transcode.TranscodeJob, inputPath, outputBaseDir string) error {
-	return s.executor.execute(ctx, job, inputPath, outputBaseDir, "remux with audio downmix", s.executor.executor.RemuxWithAudioDownmixHLS)
-}
-
-// GetManifestPath returns the path to the HLS playlist file for a given media and quality.
-// This is a utility function for consumers of the transcoding service.
-// Deprecated: Use GetHLSManifestPath from paths.go instead.
-func GetManifestPath(baseDir string, mediaID int64, quality string) string {
-	return GetHLSManifestPath(baseDir, mediaID, quality)
-}
-
-// GetOutputDirectory returns the output directory path for a given media and quality.
-// This is a utility function for consumers of the transcoding service.
-// Deprecated: Use GetHLSOutputPath from paths.go instead.
-func GetOutputDirectory(baseDir string, mediaID int64, quality string) string {
-	return GetHLSOutputPath(baseDir, mediaID, quality)
+	ffmpegExec := s.jobExecutor.FFmpegExecutorRef()
+	return s.jobExecutor.Execute(ctx, job, inputPath, outputBaseDir, "remux with audio downmix", ffmpegExec.RemuxWithAudioDownmixHLS)
 }
