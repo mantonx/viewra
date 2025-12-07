@@ -11,6 +11,7 @@ import { adaptiveApi } from '@/lib/api/adaptive'
 import { capabilityDetector } from '@/lib/capabilities/CapabilityDetector'
 import type { ClientCapabilities } from '@/lib/capabilities/types'
 import { useCallback, useEffect, useState } from 'react'
+import { logger } from '@/lib/utils/logger'
 
 export interface UseQualityRecommendationOptions {
   /** Skip initial automatic detection on mount */
@@ -94,7 +95,7 @@ export const useQualityRecommendation = (options: UseQualityRecommendationOption
         maxDecodingProfile: caps.maxDecodingProfile || undefined,
       }
 
-      console.log('[QualityRecommendation] Sending request:', {
+      logger.debug('[QualityRecommendation] Sending request:', {
         networkSpeedMbps: request.networkSpeedMbps,
         deviceType: request.deviceType,
         screenWidth: request.screenWidth,
@@ -136,7 +137,7 @@ export const useQualityRecommendation = (options: UseQualityRecommendationOption
           })
         } else {
           const recommendation = await adaptiveApi.recommendQuality(request)
-          console.log('[QualityRecommendation] Got recommendation:', {
+          logger.debug('[QualityRecommendation] Got recommendation:', {
             profileId: recommendation.profileId,
             height: recommendation.height,
             displayName: recommendation.displayName,

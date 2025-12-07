@@ -1,0 +1,5384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ViewRA - Cinematic Minimalism Design Mockup</title>
+
+  <!-- Fonts: Outfit for display, Geist for body (distinctive alternative to Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ======================
+       CINEMATIC MINIMALISM
+       Design System Preview
+       ====================== */
+
+    :root {
+      /* Jet Black Palette - deeper, more dramatic */
+      --black-pure: #000000;
+      --black-rich: #050505;
+      --black-soft: #0a0a0a;
+      --black-elevated: #111111;
+      --black-surface: #161616;
+      --black-border: #1f1f1f;
+      --black-muted: #2a2a2a;
+
+      /* Accent Blue - refined, cinematic (not default Tailwind) */
+      /* A cooler, more sophisticated blue with slight cyan undertone */
+      --accent-50: #f0f7ff;
+      --accent-100: #e0efff;
+      --accent-200: #b9ddff;
+      --accent-300: #7cc4ff;
+      --accent-400: #36a9ff;
+      --accent-500: #0090ff;
+      --accent-600: #0070e0;
+      --accent-700: #0058b3;
+
+      /* Text hierarchy */
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --text-tertiary: rgba(255, 255, 255, 0.5);
+      --text-muted: rgba(255, 255, 255, 0.35);
+
+      /* Typography */
+      --font-display: 'Outfit', system-ui, sans-serif;
+      --font-body: 'Geist', system-ui, sans-serif;
+
+      /* Shadows */
+      --shadow-glow: 0 0 80px -20px rgba(0, 144, 255, 0.3);
+      --shadow-card: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--black-rich);
+      color: var(--text-primary);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+
+    /* ======================
+       LAYOUT
+       ====================== */
+
+    .app-container {
+      display: flex;
+      min-height: calc(100vh - 57px); /* Account for page tabs height */
+    }
+
+    /* ======================
+       SIDEBAR
+       ====================== */
+
+    .sidebar {
+      width: 260px;
+      background: linear-gradient(180deg, var(--black-elevated) 0%, var(--black-soft) 100%);
+      border-right: 1px solid var(--black-border);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .sidebar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 180px;
+      height: 120px;
+      background: radial-gradient(ellipse at center, rgba(0, 144, 255, 0.1), transparent 70%);
+      pointer-events: none;
+    }
+
+    .logo {
+      padding: 24px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      position: relative;
+    }
+
+    .logo-icon svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .logo h1 {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .logo h1 .logo-accent {
+      background: linear-gradient(135deg, var(--accent-400) 0%, var(--accent-300) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo span {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: block;
+      margin-top: 2px;
+    }
+
+    .nav {
+      flex: 1;
+      padding: 16px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      margin-bottom: 4px;
+    }
+
+    .nav-item:hover {
+      background: var(--black-muted);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.15) 0%, rgba(0, 144, 255, 0.05) 100%);
+      color: var(--accent-400);
+      border: 1px solid rgba(0, 144, 255, 0.25);
+    }
+
+    .nav-item svg {
+      width: 20px;
+      height: 20px;
+      opacity: 0.8;
+    }
+
+    .nav-section {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--black-border);
+    }
+
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 16px;
+      margin-bottom: 8px;
+    }
+
+    /* ======================
+       MAIN CONTENT
+       ====================== */
+
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--black-soft);
+    }
+
+    /* Hero Section */
+    .hero {
+      position: relative;
+      padding: 48px;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: 20%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(0, 144, 255, 0.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.2) 0%, rgba(0, 144, 255, 0.05) 100%);
+      border: 1px solid rgba(0, 144, 255, 0.3);
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+
+    .hero-badge svg {
+      width: 16px;
+      height: 16px;
+      color: var(--accent-400);
+    }
+
+    .hero-badge span {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent-400);
+    }
+
+    .hero h2 {
+      font-family: var(--font-display);
+      font-size: 48px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 500px;
+      line-height: 1.6;
+    }
+
+    /* Stats Cards */
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--black-border);
+      border-radius: 16px;
+      padding: 20px 28px;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(0, 144, 255, 0.25);
+      transform: translateY(-2px);
+    }
+
+    .stat-number {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    /* Content Sections */
+    .section {
+      padding: 0 48px 48px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .section-link {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent-400);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: color 0.2s;
+    }
+
+    .section-link:hover {
+      color: var(--accent-300);
+    }
+
+    /* Media Cards Grid */
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 24px;
+    }
+
+    .media-card {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .media-card:hover {
+      transform: scale(1.03) translateY(-4px);
+      border-color: rgba(0, 144, 255, 0.35);
+      box-shadow:
+        0 20px 40px -15px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(0, 144, 255, 0.15),
+        0 0 60px -20px rgba(0, 144, 255, 0.25);
+    }
+
+    .media-card:hover .media-poster::after {
+      opacity: 1;
+    }
+
+    .media-card:hover .play-button {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .media-poster {
+      aspect-ratio: 2/3;
+      background: linear-gradient(135deg, var(--black-muted) 0%, var(--black-elevated) 100%);
+      position: relative;
+    }
+
+    .media-poster::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .media-poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .play-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      width: 56px;
+      height: 56px;
+      background: rgba(0, 144, 255, 0.95);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 32px rgba(0, 144, 255, 0.4);
+      z-index: 10;
+    }
+
+    .play-button svg {
+      width: 24px;
+      height: 24px;
+      color: var(--black-pure);
+      margin-left: 2px;
+    }
+
+    .media-info {
+      padding: 14px;
+    }
+
+    .media-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .media-meta {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    /* Progress indicator */
+    .media-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .media-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-500), var(--accent-400));
+      border-radius: 0 2px 2px 0;
+    }
+
+    /* Badges */
+    .badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 4px 8px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-4k {
+      color: var(--accent-400);
+      border: 1px solid rgba(0, 144, 255, 0.3);
+    }
+
+    .badge-hdr {
+      color: #a78bfa;
+      border: 1px solid rgba(167, 139, 250, 0.3);
+    }
+
+    /* ======================
+       BUTTONS
+       ====================== */
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
+      color: var(--text-primary);
+      box-shadow: 0 4px 20px -4px rgba(0, 144, 255, 0.4);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--accent-400) 0%, var(--accent-500) 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 30px -4px rgba(0, 144, 255, 0.5);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      border: 1px solid var(--black-border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Cinematic Play Button */
+    .btn-play-cinematic {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 36px 18px 28px;
+      background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
+      color: #0a0a0a;
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:
+        0 4px 24px -4px rgba(255, 255, 255, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    .btn-play-cinematic::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0) 0%, rgba(0, 144, 255, 0.1) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .btn-play-cinematic:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow:
+        0 8px 40px -4px rgba(255, 255, 255, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.2),
+        0 0 60px -10px rgba(0, 144, 255, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    .btn-play-cinematic:hover::before {
+      opacity: 1;
+    }
+
+    .btn-play-cinematic:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .btn-play-cinematic .play-icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0, 144, 255, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    .btn-play-cinematic:hover .play-icon {
+      box-shadow: 0 4px 16px rgba(0, 144, 255, 0.6);
+      transform: scale(1.1);
+    }
+
+    .btn-play-cinematic .play-icon svg {
+      width: 10px;
+      height: 10px;
+      margin-left: 2px;
+      color: white;
+    }
+
+    /* Alternative: Accent colored play button */
+    .btn-play-accent {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 32px 16px 24px;
+      background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
+      color: white;
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:
+        0 4px 24px -4px rgba(0, 144, 255, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-play-accent::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .btn-play-accent:hover::before {
+      left: 100%;
+    }
+
+    .btn-play-accent:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 8px 32px -4px rgba(0, 144, 255, 0.6),
+        0 0 0 1px rgba(0, 144, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-play-accent .play-icon-ring {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 50%;
+      transition: all 0.3s ease;
+    }
+
+    .btn-play-accent:hover .play-icon-ring {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.6);
+      transform: scale(1.1);
+    }
+
+    .btn-play-accent .play-icon-ring svg {
+      width: 12px;
+      height: 12px;
+      margin-left: 2px;
+    }
+
+    /* ======================
+       LOGIN PAGE PREVIEW
+       ====================== */
+
+    .login-preview {
+      background: var(--black-pure);
+      min-height: calc(100vh - 57px); /* Account for page tabs height */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-preview::before {
+      content: '';
+      position: absolute;
+      top: -20%;
+      left: 30%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(0, 144, 255, 0.15) 0%, transparent 60%);
+      filter: blur(60px);
+      animation: pulse-glow 8s ease-in-out infinite;
+    }
+
+    .login-preview::after {
+      content: '';
+      position: absolute;
+      bottom: -10%;
+      right: 20%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(0, 144, 255, 0.1) 0%, transparent 60%);
+      filter: blur(60px);
+      animation: pulse-glow 8s ease-in-out infinite 4s;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.1); }
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      padding: 48px;
+      background: rgba(17, 17, 17, 0.8);
+      backdrop-filter: blur(24px) saturate(150%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      box-shadow: var(--shadow-card);
+      position: relative;
+      z-index: 10;
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .login-logo-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+    }
+
+    .login-logo-icon svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .login-logo h1 {
+      font-family: var(--font-display);
+      font-size: 38px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .login-logo h1 .logo-accent {
+      background: linear-gradient(135deg, var(--accent-400) 0%, var(--accent-300) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .login-logo p {
+      font-size: 14px;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 16px;
+      color: var(--text-primary);
+      transition: all 0.2s;
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-500);
+      box-shadow: 0 0 0 3px rgba(0, 144, 255, 0.2);
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 16px;
+      margin-top: 8px;
+      font-size: 15px;
+    }
+
+    /* ======================
+       PAGE TABS
+       ====================== */
+
+    .page-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px;
+      background: var(--black-elevated);
+      border-bottom: 1px solid var(--black-border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .page-tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-tab:hover {
+      color: var(--text-primary);
+      background: var(--black-muted);
+    }
+
+    .page-tab.active {
+      color: var(--accent-400);
+      background: rgba(0, 144, 255, 0.1);
+    }
+
+    /* ======================
+       VIDEO PLAYER CONTROLS (Mini Preview)
+       ====================== */
+
+    .player-preview {
+      background: var(--black-pure);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 48px;
+      position: relative;
+      aspect-ratio: 16/9;
+    }
+
+    .player-preview::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 40%);
+    }
+
+    .player-controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 24px;
+    }
+
+    .player-timeline {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .player-timeline-progress {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 35%;
+      background: linear-gradient(90deg, var(--accent-500), var(--accent-400));
+      border-radius: 2px;
+      box-shadow: 0 0 12px rgba(0, 144, 255, 0.5);
+    }
+
+    .player-timeline-thumb {
+      position: absolute;
+      left: 35%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 0 0 4px rgba(0, 144, 255, 0.35), 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .player-buttons {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .player-btn {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+
+    .player-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .player-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .player-time {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    /* ======================
+       SECTION DIVIDER
+       ====================== */
+
+    .divider {
+      text-align: center;
+      padding: 60px 48px;
+      border-top: 1px solid var(--black-border);
+      margin-top: 40px;
+    }
+
+    .divider h3 {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ======================
+       PREFERENCES PAGE
+       ====================== */
+
+    .preferences-page {
+      display: flex;
+      min-height: calc(100vh - 57px); /* Account for page tabs height */
+    }
+
+    .preferences-main {
+      flex: 1;
+      background: var(--black-soft);
+      overflow-y: auto;
+    }
+
+    .preferences-header {
+      padding: 48px 48px 32px;
+    }
+
+    .preferences-header h2 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .preferences-header p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+    }
+
+    .preferences-content {
+      padding: 0 48px 48px;
+      max-width: 720px;
+    }
+
+    .settings-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--black-border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .settings-card-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .settings-card-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.15) 0%, rgba(0, 144, 255, 0.05) 100%);
+    }
+
+    .settings-card-icon svg {
+      width: 20px;
+      height: 20px;
+      color: var(--accent-400);
+    }
+
+    .settings-card-header h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .settings-card-header p {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--black-border);
+      transition: background 0.2s;
+    }
+
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+
+    .settings-row:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .settings-row-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .settings-row-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .settings-row-description {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    .settings-badge {
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      border-radius: 4px;
+    }
+
+    .settings-badge-default {
+      background: var(--black-muted);
+      color: var(--text-tertiary);
+    }
+
+    .settings-badge-saved {
+      background: rgba(52, 211, 153, 0.15);
+      color: #34d399;
+    }
+
+    /* Toggle Switch */
+    .toggle {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: var(--black-muted);
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle.active {
+      background: var(--accent-500);
+    }
+
+    .toggle-knob {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .toggle.active .toggle-knob {
+      transform: translateX(22px);
+    }
+
+    /* Select Dropdown */
+    .settings-select {
+      appearance: none;
+      padding: 10px 36px 10px 14px;
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 16px;
+    }
+
+    .settings-select:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .settings-select:focus {
+      outline: none;
+      border-color: var(--accent-500);
+      box-shadow: 0 0 0 3px rgba(0, 144, 255, 0.2);
+    }
+
+    /* Color Theme Picker */
+    .theme-picker {
+      display: flex;
+      gap: 8px;
+    }
+
+    .theme-option {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .theme-option:hover {
+      transform: scale(1.1);
+    }
+
+    .theme-option.active {
+      border-color: var(--accent-400);
+      box-shadow: 0 0 0 2px rgba(0, 144, 255, 0.3);
+    }
+
+    .theme-option.active::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='white' viewBox='0 0 24 24'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E") center/14px no-repeat;
+    }
+
+    .theme-dark { background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%); }
+    .theme-light { background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); }
+    .theme-auto { background: linear-gradient(135deg, #0a0a0a 0%, #0a0a0a 50%, #f5f5f5 50%, #ffffff 100%); }
+
+    /* Settings Footer Actions */
+    .settings-card-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 24px;
+      background: rgba(0, 0, 0, 0.2);
+      border-top: 1px solid var(--black-border);
+    }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+    }
+
+    .btn-ghost svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ======================
+       MEDIA DETAIL PAGE
+       ====================== */
+
+    .media-detail-page {
+      display: flex;
+      min-height: calc(100vh - 57px);
+    }
+
+    .media-detail-main {
+      flex: 1;
+      background: var(--black-soft);
+      overflow-y: auto;
+    }
+
+    .media-hero {
+      position: relative;
+      height: 560px;
+      overflow: hidden;
+    }
+
+    .media-hero-backdrop {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    }
+
+    .media-hero-backdrop::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        transparent 30%,
+        var(--black-soft) 100%
+      );
+    }
+
+    .media-hero-backdrop::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to right,
+        var(--black-soft) 0%,
+        transparent 40%,
+        transparent 100%
+      );
+    }
+
+    .media-hero-content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      gap: 48px;
+      padding: 80px 64px 48px;
+      max-width: 1400px;
+    }
+
+    .media-poster-large {
+      width: 280px;
+      flex-shrink: 0;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow:
+        0 25px 80px -20px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+      background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+      aspect-ratio: 2/3;
+    }
+
+    .media-details {
+      flex: 1;
+      padding-top: 40px;
+    }
+
+    .media-badges {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .media-badge {
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    .media-badge-accent {
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.2) 0%, rgba(0, 144, 255, 0.1) 100%);
+      color: var(--accent-400);
+      border: 1px solid rgba(0, 144, 255, 0.3);
+    }
+
+    .media-detail-title {
+      font-family: var(--font-display);
+      font-size: 56px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 16px;
+    }
+
+    .media-detail-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .media-detail-meta span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .media-detail-meta .dot {
+      width: 4px;
+      height: 4px;
+      background: var(--text-muted);
+      border-radius: 50%;
+    }
+
+    .rating-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(251, 191, 36, 0.15);
+      border-radius: 8px;
+      color: #fbbf24;
+      font-weight: 600;
+    }
+
+    .rating-badge svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .media-description {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin-bottom: 32px;
+    }
+
+    .media-actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .btn-large {
+      padding: 16px 32px;
+      font-size: 15px;
+      border-radius: 12px;
+    }
+
+    .btn-large svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .media-credits {
+      display: flex;
+      gap: 48px;
+    }
+
+    .credit-group h4 {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .credit-group p {
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    /* Cast Section */
+    .cast-section {
+      padding: 0 64px 48px;
+    }
+
+    .cast-grid {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 16px;
+    }
+
+    .cast-card {
+      flex-shrink: 0;
+      width: 140px;
+      text-align: center;
+    }
+
+    .cast-avatar {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 12px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--black-muted) 0%, var(--black-elevated) 100%);
+      border: 2px solid var(--black-border);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .cast-avatar::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.1) 0%, transparent 100%);
+    }
+
+    .cast-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .cast-role {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    /* Episode List */
+    .episodes-section {
+      padding: 0 64px 48px;
+    }
+
+    .season-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .season-tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid var(--black-border);
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .season-tab:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text-primary);
+    }
+
+    .season-tab.active {
+      background: var(--accent-500);
+      border-color: var(--accent-500);
+      color: white;
+    }
+
+    .episode-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .episode-card {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--black-border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .episode-card:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(0, 144, 255, 0.3);
+    }
+
+    .episode-number {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--black-elevated);
+      border-radius: 8px;
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .episode-thumb {
+      width: 160px;
+      height: 90px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .episode-thumb::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%);
+    }
+
+    .episode-duration {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      padding: 3px 6px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: white;
+      z-index: 5;
+    }
+
+    .episode-info {
+      flex: 1;
+    }
+
+    .episode-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .episode-description {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .episode-play-btn {
+      width: 44px;
+      height: 44px;
+      background: rgba(0, 144, 255, 0.1);
+      border: 1px solid rgba(0, 144, 255, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-400);
+      transition: all 0.2s;
+    }
+
+    .episode-card:hover .episode-play-btn {
+      background: var(--accent-500);
+      border-color: var(--accent-500);
+      color: white;
+    }
+
+    .episode-play-btn svg {
+      width: 18px;
+      height: 18px;
+      margin-left: 2px;
+    }
+
+    /* ======================
+       LIBRARY BROWSER PAGE
+       ====================== */
+
+    .library-page {
+      display: flex;
+      min-height: calc(100vh - 57px);
+    }
+
+    .library-main {
+      flex: 1;
+      background: var(--black-soft);
+      overflow-y: auto;
+    }
+
+    .library-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 32px 48px;
+      border-bottom: 1px solid var(--black-border);
+      position: sticky;
+      top: 0;
+      background: var(--black-soft);
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+
+    .library-header h2 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .library-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-box input {
+      width: 280px;
+      padding: 12px 16px 12px 44px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--black-border);
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text-primary);
+      transition: all 0.2s;
+    }
+
+    .search-box input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--accent-500);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .search-box svg {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      color: var(--text-muted);
+    }
+
+    .view-toggle {
+      display: flex;
+      background: var(--black-elevated);
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .view-toggle-btn {
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .view-toggle-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .view-toggle-btn.active {
+      background: var(--black-muted);
+      color: var(--text-primary);
+    }
+
+    .view-toggle-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 48px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .filter-chip {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--black-border);
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .filter-chip.active {
+      background: var(--accent-500);
+      border-color: var(--accent-500);
+      color: white;
+    }
+
+    .filter-chip svg {
+      width: 14px;
+      height: 14px;
+      margin-right: 6px;
+      display: inline;
+      vertical-align: -2px;
+    }
+
+    .library-content {
+      padding: 32px 48px;
+    }
+
+    .library-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 28px;
+    }
+
+    .library-info-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 48px 24px;
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .sort-dropdown {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .sort-dropdown:hover {
+      color: var(--text-primary);
+    }
+
+    .sort-dropdown svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ======================
+       MUSIC PLAYER PAGE
+       ====================== */
+
+    .music-page {
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 57px);
+      background: var(--black-pure);
+    }
+
+    .music-main {
+      flex: 1;
+      display: flex;
+    }
+
+    .music-sidebar {
+      width: 320px;
+      background: linear-gradient(180deg, rgba(17, 17, 17, 0.95) 0%, rgba(10, 10, 10, 0.98) 100%);
+      border-right: 1px solid var(--black-border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .music-sidebar-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .music-sidebar-header h3 {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .queue-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 12px;
+    }
+
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .queue-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .queue-item.active {
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.15) 0%, rgba(0, 144, 255, 0.05) 100%);
+    }
+
+    .queue-item-art {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #2a1a47 0%, #4a1942 100%);
+      flex-shrink: 0;
+    }
+
+    .queue-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .queue-item-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-item.active .queue-item-title {
+      color: var(--accent-400);
+    }
+
+    .queue-item-artist {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-item-duration {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .music-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .music-content::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(106, 42, 106, 0.3) 0%, transparent 60%);
+      filter: blur(80px);
+      pointer-events: none;
+    }
+
+    .album-art-large {
+      width: 360px;
+      height: 360px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #2a1a47 0%, #4a1942 50%, #7b2d5b 100%);
+      box-shadow:
+        0 40px 100px -20px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        0 0 120px -40px rgba(122, 45, 91, 0.5);
+      margin-bottom: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .album-art-large::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+    }
+
+    .now-playing-info {
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .now-playing-title {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .now-playing-artist {
+      font-size: 18px;
+      color: var(--text-secondary);
+    }
+
+    .now-playing-artist a {
+      color: var(--accent-400);
+      text-decoration: none;
+    }
+
+    .now-playing-artist a:hover {
+      text-decoration: underline;
+    }
+
+    .music-progress {
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 32px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .music-progress-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      margin-bottom: 12px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .music-progress-bar:hover {
+      height: 8px;
+      margin-top: -1px;
+      margin-bottom: 11px;
+    }
+
+    .music-progress-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 45%;
+      background: linear-gradient(90deg, var(--accent-500), #a855f7);
+      border-radius: 3px;
+    }
+
+    .music-progress-thumb {
+      position: absolute;
+      left: 45%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .music-progress-bar:hover .music-progress-thumb {
+      opacity: 1;
+    }
+
+    .music-progress-times {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .music-controls {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .music-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 12px;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    .music-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .music-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .music-btn-play {
+      width: 72px;
+      height: 72px;
+      background: var(--accent-500);
+      color: white;
+      box-shadow: 0 8px 32px rgba(0, 144, 255, 0.4);
+    }
+
+    .music-btn-play:hover {
+      background: var(--accent-400);
+      color: white;
+      transform: scale(1.05);
+    }
+
+    .music-btn-play svg {
+      width: 32px;
+      height: 32px;
+      margin-left: 3px;
+    }
+
+    .music-btn-small {
+      padding: 8px;
+    }
+
+    .music-btn-small svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .music-btn.active {
+      color: var(--accent-400);
+    }
+
+    /* Music Player Bottom Bar */
+    .music-player-bar {
+      background: rgba(17, 17, 17, 0.95);
+      backdrop-filter: blur(24px);
+      border-top: 1px solid var(--black-border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .mpb-now-playing {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: 280px;
+    }
+
+    .mpb-art {
+      width: 56px;
+      height: 56px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2a1a47 0%, #4a1942 100%);
+      flex-shrink: 0;
+    }
+
+    .mpb-info h4 {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .mpb-info p {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .mpb-controls {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .mpb-buttons {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .mpb-progress {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .mpb-progress-bar {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      position: relative;
+    }
+
+    .mpb-progress-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 45%;
+      background: var(--accent-500);
+      border-radius: 2px;
+    }
+
+    .mpb-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      width: 40px;
+    }
+
+    .mpb-time:last-child {
+      text-align: right;
+    }
+
+    .mpb-volume {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 160px;
+      justify-content: flex-end;
+    }
+
+    .mpb-volume-bar {
+      width: 100px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      position: relative;
+    }
+
+    .mpb-volume-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 70%;
+      background: white;
+      border-radius: 2px;
+    }
+
+    /* ======================
+       ANIMATIONS
+       ====================== */
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .album-art-large {
+      animation: float 6s ease-in-out infinite;
+    }
+
+    /* Vinyl animation for music player */
+    .vinyl-spin {
+      animation: spin 4s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* ======================
+       MOVIE DETAIL ENHANCEMENTS
+       ====================== */
+
+    .movie-hero {
+      height: 620px;
+    }
+
+    .movie-hero-backdrop {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #1b2838 0%, #by475e 30%, #2c5364 100%);
+    }
+
+    /* Technical specs grid */
+    .tech-specs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px solid var(--black-border);
+    }
+
+    .tech-spec {
+      text-align: center;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--black-border);
+      border-radius: 12px;
+    }
+
+    .tech-spec-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.15) 0%, rgba(0, 144, 255, 0.05) 100%);
+      border-radius: 10px;
+      color: var(--accent-400);
+    }
+
+    .tech-spec-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .tech-spec-value {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .tech-spec-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* Similar movies / recommendations */
+    .similar-section {
+      padding: 0 64px 48px;
+    }
+
+    .similar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 20px;
+    }
+
+    /* Streaming info banner */
+    .stream-info {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.1) 0%, rgba(0, 144, 255, 0.02) 100%);
+      border: 1px solid rgba(0, 144, 255, 0.2);
+      border-radius: 12px;
+      margin-top: 24px;
+    }
+
+    .stream-info-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-500);
+      border-radius: 10px;
+      color: white;
+    }
+
+    .stream-info-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .stream-info-text h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .stream-info-text p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .stream-info-badge {
+      margin-left: auto;
+      padding: 8px 16px;
+      background: rgba(52, 211, 153, 0.15);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #34d399;
+    }
+
+    /* Watch providers */
+    .watch-providers {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .provider-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+    }
+
+    /* TV Show specific - Season selector */
+    .season-selector {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .season-select {
+      appearance: none;
+      padding: 12px 40px 12px 16px;
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23888'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 18px;
+      min-width: 180px;
+    }
+
+    .season-select:focus {
+      outline: none;
+      border-color: var(--accent-500);
+    }
+
+    .season-info {
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+
+    /* Episode grid for TV shows */
+    .episode-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .episode-grid-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--black-border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .episode-grid-card:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(0, 144, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .episode-grid-thumb {
+      aspect-ratio: 16/9;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      position: relative;
+    }
+
+    .episode-grid-thumb::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%);
+    }
+
+    .episode-grid-number {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 32px;
+      height: 32px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      z-index: 5;
+    }
+
+    .episode-grid-duration {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      padding: 4px 8px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: white;
+      z-index: 5;
+    }
+
+    .episode-grid-play {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      width: 48px;
+      height: 48px;
+      background: rgba(0, 144, 255, 0.95);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+
+    .episode-grid-card:hover .episode-grid-play {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .episode-grid-play svg {
+      width: 20px;
+      height: 20px;
+      color: white;
+      margin-left: 2px;
+    }
+
+    .episode-grid-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.2);
+      z-index: 5;
+    }
+
+    .episode-grid-progress-bar {
+      height: 100%;
+      background: var(--accent-500);
+    }
+
+    .episode-grid-info {
+      padding: 16px;
+    }
+
+    .episode-grid-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .episode-grid-desc {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .episode-grid-card.watching {
+      border-color: rgba(0, 144, 255, 0.4);
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.08) 0%, rgba(0, 144, 255, 0.02) 100%);
+    }
+
+    .episode-grid-card.watching .episode-grid-number {
+      background: var(--accent-500);
+    }
+
+    /* ======================
+       TECHNICAL INFO PANEL
+       Detailed media info
+       ====================== */
+
+    .tech-info-panel {
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-top: 32px;
+    }
+
+    .tech-info-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .tech-info-header h3 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tech-info-header h3 svg {
+      width: 18px;
+      height: 18px;
+      color: var(--accent-400);
+    }
+
+    .tech-info-tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .tech-info-tab {
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tech-info-tab:hover {
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .tech-info-tab.active {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--black-border);
+    }
+
+    .tech-info-content {
+      padding: 24px;
+    }
+
+    /* Video track info */
+    .track-section {
+      margin-bottom: 28px;
+    }
+
+    .track-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .track-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .track-section-title svg {
+      width: 14px;
+      height: 14px;
+      opacity: 0.6;
+    }
+
+    /* Track item (audio/subtitle/video) */
+    .track-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--black-border);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .track-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .track-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .track-item.primary {
+      border-color: rgba(0, 144, 255, 0.3);
+      background: linear-gradient(135deg, rgba(0, 144, 255, 0.08) 0%, rgba(0, 144, 255, 0.02) 100%);
+    }
+
+    .track-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .track-icon svg {
+      width: 18px;
+      height: 18px;
+      color: var(--text-secondary);
+    }
+
+    .track-item.primary .track-icon {
+      background: rgba(0, 144, 255, 0.15);
+    }
+
+    .track-item.primary .track-icon svg {
+      color: var(--accent-400);
+    }
+
+    .track-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .track-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .track-details {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .track-badge {
+      padding: 4px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      border-radius: 5px;
+      text-transform: uppercase;
+    }
+
+    .track-badge.default {
+      background: rgba(0, 144, 255, 0.15);
+      color: var(--accent-400);
+    }
+
+    .track-badge.forced {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+    }
+
+    .track-badge.sdh {
+      background: rgba(168, 85, 247, 0.15);
+      color: #a855f7;
+    }
+
+    .track-badge.hdr {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 146, 60, 0.2) 100%);
+      color: #fbbf24;
+    }
+
+    .track-badge.dolby {
+      background: rgba(52, 211, 153, 0.15);
+      color: #34d399;
+    }
+
+    .track-badge.atmos {
+      background: linear-gradient(135deg, rgba(52, 211, 153, 0.15) 0%, rgba(45, 212, 191, 0.15) 100%);
+      color: #2dd4bf;
+    }
+
+    .track-meta {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .track-meta-item {
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--black-border);
+      border-radius: 6px;
+    }
+
+    /* Video quality details */
+    .video-quality-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .quality-stat {
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--black-border);
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .quality-stat-value {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .quality-stat-value.accent {
+      color: var(--accent-400);
+    }
+
+    .quality-stat-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* File info section */
+    .file-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .file-info-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .file-info-item:last-child {
+      border-bottom: none;
+    }
+
+    .file-info-label {
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .file-info-value {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* ======================
+       EPISODE DETAIL PAGE
+       Individual episode view
+       ====================== */
+
+    .episode-detail-page {
+      display: flex;
+      min-height: calc(100vh - 57px);
+    }
+
+    .episode-hero {
+      position: relative;
+      height: 500px;
+      overflow: hidden;
+    }
+
+    .episode-hero-backdrop {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #1a1f2c 0%, #2d3748 50%, #1a202c 100%);
+    }
+
+    .episode-hero-gradient {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, var(--black-rich) 0%, transparent 50%),
+                  linear-gradient(to right, rgba(0, 0, 0, 0.7) 0%, transparent 60%);
+    }
+
+    .episode-hero-content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      height: 100%;
+      padding: 48px 64px;
+      gap: 48px;
+    }
+
+    .episode-video-preview {
+      width: 560px;
+      aspect-ratio: 16/9;
+      background: var(--black-soft);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      flex-shrink: 0;
+      border: 1px solid var(--black-border);
+      box-shadow: var(--shadow-card);
+    }
+
+    .episode-video-preview::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    }
+
+    .episode-play-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .episode-play-overlay:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .episode-play-btn {
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-500);
+      border-radius: 50%;
+      color: white;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .episode-play-overlay:hover .episode-play-btn {
+      transform: scale(1.1);
+      box-shadow: 0 0 40px rgba(0, 144, 255, 0.5);
+    }
+
+    .episode-play-btn svg {
+      width: 32px;
+      height: 32px;
+      margin-left: 4px;
+    }
+
+    .episode-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .episode-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-bottom: 16px;
+    }
+
+    .episode-breadcrumb a {
+      color: var(--accent-400);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .episode-breadcrumb a:hover {
+      color: var(--accent-300);
+    }
+
+    .episode-breadcrumb svg {
+      width: 14px;
+      height: 14px;
+      opacity: 0.5;
+    }
+
+    .episode-number {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(0, 144, 255, 0.15);
+      border: 1px solid rgba(0, 144, 255, 0.3);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-400);
+      margin-bottom: 16px;
+      width: fit-content;
+    }
+
+    .episode-title {
+      font-family: var(--font-display);
+      font-size: 36px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .episode-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .episode-runtime {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .episode-runtime svg {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+    }
+
+    .episode-air-date {
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+
+    .episode-description {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin-bottom: 28px;
+    }
+
+    .episode-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    /* Episode navigation */
+    .episode-nav {
+      display: flex;
+      gap: 12px;
+      padding: 24px 64px;
+      border-bottom: 1px solid var(--black-border);
+    }
+
+    .episode-nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--black-elevated);
+      border: 1px solid var(--black-border);
+      border-radius: 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .episode-nav-btn:hover {
+      background: var(--black-surface);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+    }
+
+    .episode-nav-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .episode-nav-btn .nav-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .episode-nav-btn .nav-title {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Episode content sections */
+    .episode-content {
+      padding: 32px 64px;
+    }
+
+    .episode-section {
+      margin-bottom: 40px;
+    }
+
+    .episode-section-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Page navigation tabs -->
+  <div class="page-tabs">
+    <button class="page-tab active" onclick="showPage('dashboard')">Dashboard</button>
+    <button class="page-tab" onclick="showPage('movie-detail')">Movie Detail</button>
+    <button class="page-tab" onclick="showPage('tv-detail')">TV Show Detail</button>
+    <button class="page-tab" onclick="showPage('episode-detail')">Episode Detail</button>
+    <button class="page-tab" onclick="showPage('library')">Library Browser</button>
+    <button class="page-tab" onclick="showPage('music')">Music Player</button>
+    <button class="page-tab" onclick="showPage('preferences')">Preferences</button>
+    <button class="page-tab" onclick="showPage('login')">Login</button>
+    <button class="page-tab" onclick="showPage('player')">Components</button>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="dashboard-page" class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-container">
+          <!-- Custom ViewRA Logo: A stylized lens/aperture with play button -->
+          <div class="logo-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Outer ring with gradient -->
+              <defs>
+                <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#36a9ff"/>
+                  <stop offset="100%" style="stop-color:#0090ff"/>
+                </linearGradient>
+                <linearGradient id="logoGradientDark" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#0070e0"/>
+                  <stop offset="100%" style="stop-color:#0058b3"/>
+                </linearGradient>
+              </defs>
+              <!-- Outer circle -->
+              <circle cx="24" cy="24" r="22" stroke="url(#logoGradient)" stroke-width="2.5" fill="none"/>
+              <!-- Inner aperture blades (stylized) -->
+              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#logoGradient)" opacity="0.6"/>
+              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#logoGradient)" opacity="0.6"/>
+              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#logoGradient)" opacity="0.6"/>
+              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#logoGradient)" opacity="0.6"/>
+              <!-- Center play button -->
+              <path d="M20 16 L20 32 L34 24 Z" fill="url(#logoGradient)"/>
+            </svg>
+          </div>
+          <div>
+            <h1>View<span class="logo-accent">RA</span></h1>
+            <span>Media Server</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="#" class="nav-item active">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          Libraries
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+          Movies
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          TV Shows
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+          Music
+        </a>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Settings</div>
+          <a href="#" class="nav-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Preferences
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+      <!-- Hero Section -->
+      <section class="hero">
+        <div class="hero-badge">
+          <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <span>Media Server</span>
+        </div>
+        <h2>Welcome to ViewRA</h2>
+        <p>Your self-hosted media server for movies, TV shows, and music. Beautifully organized, instantly accessible.</p>
+
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-number">247</div>
+            <div class="stat-label">Movies</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">38</div>
+            <div class="stat-label">TV Shows</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">1,842</div>
+            <div class="stat-label">Albums</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Continue Watching -->
+      <section class="section">
+        <div class="section-header">
+          <h3 class="section-title">Continue Watching</h3>
+          <a href="#" class="section-link">
+            View All
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <div class="media-grid">
+          <!-- Card 1 -->
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div class="media-progress">
+                <div class="media-progress-bar" style="width: 65%;"></div>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Dune: Part Two</div>
+              <div class="media-meta">2024 · 2h 46m</div>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #2d132c 0%, #801336 50%, #c72c41 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div class="media-progress">
+                <div class="media-progress-bar" style="width: 30%;"></div>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">The Bear</div>
+              <div class="media-meta">S3 E4 · 32m left</div>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1b2838 0%, #2a475e 50%, #66c0f4 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div class="media-progress">
+                <div class="media-progress-bar" style="width: 85%;"></div>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Oppenheimer</div>
+              <div class="media-meta">2023 · 3h 1m</div>
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #4a4a4a 100%); height: 100%;"></div>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div class="media-progress">
+                <div class="media-progress-bar" style="width: 45%;"></div>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">True Detective</div>
+              <div class="media-meta">S4 E2 · 28m left</div>
+            </div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 50%, #415a77 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Shogun</div>
+              <div class="media-meta">2024 · 10 Episodes</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recently Added -->
+      <section class="section">
+        <div class="section-header">
+          <h3 class="section-title">Recently Added</h3>
+          <a href="#" class="section-link">
+            View All
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <div class="media-grid">
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #2e1a47 0%, #4a1942 50%, #7b2d5b 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Poor Things</div>
+              <div class="media-meta">2023 · 2h 21m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 50%, #4a4a6a 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">The Zone of Interest</div>
+              <div class="media-meta">2023 · 1h 45m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%); height: 100%;"></div>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Anatomy of a Fall</div>
+              <div class="media-meta">2023 · 2h 32m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a2634 0%, #2a3f4f 50%, #4a6a7a 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Killers of the Flower Moon</div>
+              <div class="media-meta">2023 · 3h 26m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #2d1810 0%, #4a2820 50%, #6a4030 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Past Lives</div>
+              <div class="media-meta">2023 · 1h 46m</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MOVIE DETAIL PAGE -->
+  <div id="movie-detail-page" class="media-detail-page" style="display: none;">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-container">
+          <div class="logo-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="movieLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#36a9ff"/>
+                  <stop offset="100%" style="stop-color:#0090ff"/>
+                </linearGradient>
+              </defs>
+              <circle cx="24" cy="24" r="22" stroke="url(#movieLogoGradient)" stroke-width="2.5" fill="none"/>
+              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
+              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
+              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
+              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#movieLogoGradient)" opacity="0.6"/>
+              <path d="M20 16 L20 32 L34 24 Z" fill="url(#movieLogoGradient)"/>
+            </svg>
+          </div>
+          <div>
+            <h1>View<span class="logo-accent">RA</span></h1>
+            <span>Media Server</span>
+          </div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </a>
+        <a href="#" class="nav-item active">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+          Movies
+        </a>
+      </nav>
+    </aside>
+
+    <main class="media-detail-main">
+      <!-- Hero with backdrop - Movie style with darker, more dramatic backdrop -->
+      <section class="media-hero movie-hero">
+        <div class="media-hero-backdrop" style="background: linear-gradient(135deg, #1b2838 0%, #2a475e 30%, #1a1a2e 100%);"></div>
+        <div class="media-hero-content">
+          <div class="media-poster-large" style="background: linear-gradient(135deg, #1b2838 0%, #2a475e 50%, #66c0f4 100%);"></div>
+          <div class="media-details">
+            <div class="media-badges">
+              <span class="media-badge media-badge-accent">4K Ultra HD</span>
+              <span class="media-badge">IMAX Enhanced</span>
+              <span class="media-badge">Dolby Atmos</span>
+              <span class="media-badge">HDR10</span>
+            </div>
+            <h1 class="media-detail-title">Oppenheimer</h1>
+            <div class="media-detail-meta">
+              <span>2023</span>
+              <div class="dot"></div>
+              <span>3h 1m</span>
+              <div class="dot"></div>
+              <span>Biography, Drama, History</span>
+              <div class="dot"></div>
+              <span>R</span>
+              <div class="dot"></div>
+              <span class="rating-badge">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                8.4
+              </span>
+            </div>
+            <p class="media-description">
+              The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb during World War II. A haunting exploration of genius, ambition, and the moral complexity of scientific discovery.
+            </p>
+            <div class="media-actions">
+              <button class="btn-play-cinematic">
+                <span class="play-icon">
+                  <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </span>
+                Play Movie
+              </button>
+              <button class="btn btn-secondary btn-large">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Download
+              </button>
+              <button class="btn btn-secondary btn-large">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add to List
+              </button>
+            </div>
+            <div class="media-credits">
+              <div class="credit-group">
+                <h4>Director</h4>
+                <p>Christopher Nolan</p>
+              </div>
+              <div class="credit-group">
+                <h4>Starring</h4>
+                <p>Cillian Murphy, Emily Blunt, Matt Damon</p>
+              </div>
+              <div class="credit-group">
+                <h4>Studio</h4>
+                <p>Universal Pictures</p>
+              </div>
+            </div>
+
+            <!-- Technical Specs - Movie specific -->
+            <div class="tech-specs">
+              <div class="tech-spec">
+                <div class="tech-spec-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <div class="tech-spec-value">2160p</div>
+                <div class="tech-spec-label">Resolution</div>
+              </div>
+              <div class="tech-spec">
+                <div class="tech-spec-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                </div>
+                <div class="tech-spec-value">HDR10</div>
+                <div class="tech-spec-label">Dynamic Range</div>
+              </div>
+              <div class="tech-spec">
+                <div class="tech-spec-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                </div>
+                <div class="tech-spec-value">Atmos 7.1</div>
+                <div class="tech-spec-label">Audio</div>
+              </div>
+              <div class="tech-spec">
+                <div class="tech-spec-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                </div>
+                <div class="tech-spec-value">72.4 GB</div>
+                <div class="tech-spec-label">File Size</div>
+              </div>
+            </div>
+
+            <!-- Stream info banner -->
+            <div class="stream-info">
+              <div class="stream-info-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <div class="stream-info-text">
+                <h4>Direct Play Available</h4>
+                <p>Your device supports native playback · No transcoding required</p>
+              </div>
+              <span class="stream-info-badge">Best Quality</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cast Section -->
+      <section class="cast-section">
+        <div class="section-header">
+          <h3 class="section-title">Cast & Crew</h3>
+        </div>
+        <div class="cast-grid">
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Cillian Murphy</div>
+            <div class="cast-role">J. Robert Oppenheimer</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Emily Blunt</div>
+            <div class="cast-role">Kitty Oppenheimer</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Matt Damon</div>
+            <div class="cast-role">Leslie Groves</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Robert Downey Jr.</div>
+            <div class="cast-role">Lewis Strauss</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Florence Pugh</div>
+            <div class="cast-role">Jean Tatlock</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Josh Hartnett</div>
+            <div class="cast-role">Ernest Lawrence</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Technical Info Panel -->
+      <section style="padding: 0 64px 48px;">
+        <div class="tech-info-panel">
+          <div class="tech-info-header">
+            <h3>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+              Media Information
+            </h3>
+            <div class="tech-info-tabs">
+              <button class="tech-info-tab active">Tracks</button>
+              <button class="tech-info-tab">Quality</button>
+              <button class="tech-info-tab">File Info</button>
+            </div>
+          </div>
+          <div class="tech-info-content">
+            <!-- Video Track -->
+            <div class="track-section">
+              <div class="track-section-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Video
+              </div>
+              <div class="track-item primary">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    HEVC Main 10
+                    <span class="track-badge hdr">HDR10</span>
+                    <span class="track-badge dolby">Dolby Vision</span>
+                  </div>
+                  <div class="track-details">3840×2160 @ 23.976 fps · 10-bit · 62.4 Mbps</div>
+                </div>
+                <div class="track-meta">
+                  <span class="track-meta-item">2160p</span>
+                  <span class="track-meta-item">IMAX</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Audio Tracks -->
+            <div class="track-section">
+              <div class="track-section-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                Audio (3 tracks)
+              </div>
+              <div class="track-item primary">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    English
+                    <span class="track-badge default">Default</span>
+                    <span class="track-badge atmos">Atmos</span>
+                  </div>
+                  <div class="track-details">TrueHD Atmos · 7.1 channels · 5.6 Mbps</div>
+                </div>
+                <div class="track-meta">
+                  <span class="track-meta-item">Lossless</span>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">English</div>
+                  <div class="track-details">EAC3 · 5.1 channels · 768 Kbps</div>
+                </div>
+                <div class="track-meta">
+                  <span class="track-meta-item">Compatibility</span>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">English</div>
+                  <div class="track-details">AAC · 2.0 Stereo · 256 Kbps · Commentary by Christopher Nolan</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subtitle Tracks -->
+            <div class="track-section">
+              <div class="track-section-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                Subtitles (6 tracks)
+              </div>
+              <div class="track-item primary">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    English
+                    <span class="track-badge default">Default</span>
+                  </div>
+                  <div class="track-details">PGS · Bitmap · Full</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    English
+                    <span class="track-badge sdh">SDH</span>
+                  </div>
+                  <div class="track-details">PGS · Bitmap · Hearing Impaired</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    English
+                    <span class="track-badge forced">Forced</span>
+                  </div>
+                  <div class="track-details">PGS · Bitmap · Foreign parts only</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">Spanish (Español)</div>
+                  <div class="track-details">SRT · Text · Full</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">French (Français)</div>
+                  <div class="track-details">SRT · Text · Full</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">German (Deutsch)</div>
+                  <div class="track-details">PGS · Bitmap · Full</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Similar Movies Section -->
+      <section class="similar-section">
+        <div class="section-header">
+          <h3 class="section-title">More Like This</h3>
+          <a href="#" class="section-link">
+            View All
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+        <div class="similar-grid">
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Interstellar</div>
+              <div class="media-meta">2014 · 2h 49m</div>
+            </div>
+          </div>
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 50%, #415a77 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Dunkirk</div>
+              <div class="media-meta">2017 · 1h 46m</div>
+            </div>
+          </div>
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #4a4a4a 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">The Imitation Game</div>
+              <div class="media-meta">2014 · 1h 54m</div>
+            </div>
+          </div>
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #232526 0%, #414345 100%); height: 100%;"></div>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">A Beautiful Mind</div>
+              <div class="media-meta">2001 · 2h 15m</div>
+            </div>
+          </div>
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #2d132c 0%, #801336 50%, #c72c41 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">First Man</div>
+              <div class="media-meta">2018 · 2h 21m</div>
+            </div>
+          </div>
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a2634 0%, #2a3f4f 50%, #4a6a7a 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Tenet</div>
+              <div class="media-meta">2020 · 2h 30m</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- TV SHOW DETAIL PAGE -->
+  <div id="tv-detail-page" class="media-detail-page" style="display: none;">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-container">
+          <div class="logo-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="tvLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#36a9ff"/>
+                  <stop offset="100%" style="stop-color:#0090ff"/>
+                </linearGradient>
+              </defs>
+              <circle cx="24" cy="24" r="22" stroke="url(#tvLogoGradient)" stroke-width="2.5" fill="none"/>
+              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
+              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
+              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
+              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#tvLogoGradient)" opacity="0.6"/>
+              <path d="M20 16 L20 32 L34 24 Z" fill="url(#tvLogoGradient)"/>
+            </svg>
+          </div>
+          <div>
+            <h1>View<span class="logo-accent">RA</span></h1>
+            <span>Media Server</span>
+          </div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </a>
+        <a href="#" class="nav-item active">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          TV Shows
+        </a>
+      </nav>
+    </aside>
+
+    <main class="media-detail-main">
+      <!-- Hero with backdrop -->
+      <section class="media-hero">
+        <div class="media-hero-backdrop"></div>
+        <div class="media-hero-content">
+          <div class="media-poster-large"></div>
+          <div class="media-details">
+            <div class="media-badges">
+              <span class="media-badge media-badge-accent">4K Ultra HD</span>
+              <span class="media-badge">HDR10+</span>
+              <span class="media-badge">Dolby Atmos</span>
+            </div>
+            <h1 class="media-detail-title">Shōgun</h1>
+            <div class="media-detail-meta">
+              <span>2024</span>
+              <div class="dot"></div>
+              <span>1 Season</span>
+              <div class="dot"></div>
+              <span>10 Episodes</span>
+              <div class="dot"></div>
+              <span>Drama, History</span>
+              <div class="dot"></div>
+              <span class="rating-badge">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                9.1
+              </span>
+            </div>
+            <p class="media-description">
+              In Japan in the year 1600, at the dawn of a century-defining civil war, Lord Yoshii Toranaga is fighting for his life as his enemies on the Council of Regents unite against him, when a mysterious European ship is found marooned in a nearby fishing village.
+            </p>
+            <div class="media-actions">
+              <button class="btn-play-accent">
+                <span class="play-icon-ring">
+                  <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </span>
+                Continue S1 E4
+              </button>
+              <button class="btn btn-secondary btn-large">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add to List
+              </button>
+            </div>
+            <div class="media-credits">
+              <div class="credit-group">
+                <h4>Created By</h4>
+                <p>Rachel Kondo, Justin Marks</p>
+              </div>
+              <div class="credit-group">
+                <h4>Starring</h4>
+                <p>Hiroyuki Sanada, Cosmo Jarvis, Anna Sawai</p>
+              </div>
+              <div class="credit-group">
+                <h4>Network</h4>
+                <p>FX / Hulu</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cast Section -->
+      <section class="cast-section">
+        <div class="section-header">
+          <h3 class="section-title">Cast & Crew</h3>
+        </div>
+        <div class="cast-grid">
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Hiroyuki Sanada</div>
+            <div class="cast-role">Lord Toranaga</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Cosmo Jarvis</div>
+            <div class="cast-role">John Blackthorne</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Anna Sawai</div>
+            <div class="cast-role">Toda Mariko</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Tadanobu Asano</div>
+            <div class="cast-role">Kashigi Yabushige</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Takehiro Hira</div>
+            <div class="cast-role">Ishido Kazunari</div>
+          </div>
+          <div class="cast-card">
+            <div class="cast-avatar"></div>
+            <div class="cast-name">Fumi Nikaido</div>
+            <div class="cast-role">Ochiba-no-kata</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Episodes Section with Grid Layout -->
+      <section class="episodes-section">
+        <div class="section-header">
+          <h3 class="section-title">Episodes</h3>
+        </div>
+
+        <!-- Season selector dropdown -->
+        <div class="season-selector">
+          <select class="season-select">
+            <option value="1">Season 1</option>
+          </select>
+          <span class="season-info">10 Episodes · 2024</span>
+        </div>
+
+        <!-- Episode Grid -->
+        <div class="episode-grid">
+          <div class="episode-grid-card">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+              <div class="episode-grid-number">1</div>
+              <div class="episode-grid-duration">1h 21m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title">Anjin</div>
+              <div class="episode-grid-desc">A mysterious ship arrives on the shores of feudal Japan, bringing with it a foreign pilot.</div>
+            </div>
+          </div>
+
+          <div class="episode-grid-card">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #1a2a3e 0%, #16304e 100%);">
+              <div class="episode-grid-number">2</div>
+              <div class="episode-grid-duration">58m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title">Servants of Two Masters</div>
+              <div class="episode-grid-desc">Blackthorne navigates the complex political landscape of Japan.</div>
+            </div>
+          </div>
+
+          <div class="episode-grid-card">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #2a1a2e 0%, #3a2a3e 100%);">
+              <div class="episode-grid-number">3</div>
+              <div class="episode-grid-duration">1h 2m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title">Tomorrow is Tomorrow</div>
+              <div class="episode-grid-desc">Lady Mariko finds herself torn between duty and desire.</div>
+            </div>
+          </div>
+
+          <div class="episode-grid-card watching">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #1a2838 0%, #2a3848 100%);">
+              <div class="episode-grid-number">4</div>
+              <div class="episode-grid-duration">1h 5m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <div class="episode-grid-progress">
+                <div class="episode-grid-progress-bar" style="width: 35%;"></div>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title" style="color: var(--accent-400);">The Eightfold Fence</div>
+              <div class="episode-grid-desc">Toranaga reveals his masterful strategy as alliances shift.</div>
+            </div>
+          </div>
+
+          <div class="episode-grid-card">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #1a1a28 0%, #2a2a38 100%);">
+              <div class="episode-grid-number">5</div>
+              <div class="episode-grid-duration">59m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title">Broken to the Fist</div>
+              <div class="episode-grid-desc">Blackthorne learns more about the samurai way of life.</div>
+            </div>
+          </div>
+
+          <div class="episode-grid-card">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #2a2028 0%, #3a3038 100%);">
+              <div class="episode-grid-number">6</div>
+              <div class="episode-grid-duration">1h 1m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title">Ladies of the Willow World</div>
+              <div class="episode-grid-desc">Secrets are revealed that could change everything.</div>
+            </div>
+          </div>
+
+          <div class="episode-grid-card">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #1a2028 0%, #2a3038 100%);">
+              <div class="episode-grid-number">7</div>
+              <div class="episode-grid-duration">57m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title">A Stick of Time</div>
+              <div class="episode-grid-desc">The situation grows more dire as war approaches.</div>
+            </div>
+          </div>
+
+          <div class="episode-grid-card">
+            <div class="episode-grid-thumb" style="background: linear-gradient(135deg, #281a28 0%, #382a38 100%);">
+              <div class="episode-grid-number">8</div>
+              <div class="episode-grid-duration">1h 3m</div>
+              <div class="episode-grid-play">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="episode-grid-info">
+              <div class="episode-grid-title">The Abyss of Life</div>
+              <div class="episode-grid-desc">A pivotal moment arrives for all involved.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Technical Info Panel for TV Show -->
+      <section style="padding: 0 64px 48px;">
+        <div class="tech-info-panel">
+          <div class="tech-info-header">
+            <h3>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+              Season 1 · Episode 4 Details
+            </h3>
+            <div class="tech-info-tabs">
+              <button class="tech-info-tab active">Tracks</button>
+              <button class="tech-info-tab">Quality</button>
+              <button class="tech-info-tab">File Info</button>
+            </div>
+          </div>
+          <div class="tech-info-content">
+            <!-- Video Track -->
+            <div class="track-section">
+              <div class="track-section-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Video
+              </div>
+              <div class="track-item primary">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    HEVC Main 10
+                    <span class="track-badge hdr">HDR10+</span>
+                    <span class="track-badge dolby">Dolby Vision</span>
+                  </div>
+                  <div class="track-details">3840×2160 @ 23.976 fps · 10-bit · 45.2 Mbps</div>
+                </div>
+                <div class="track-meta">
+                  <span class="track-meta-item">2160p</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Audio Tracks -->
+            <div class="track-section">
+              <div class="track-section-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                Audio (4 tracks)
+              </div>
+              <div class="track-item primary">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    Japanese (日本語)
+                    <span class="track-badge default">Default</span>
+                    <span class="track-badge atmos">Atmos</span>
+                  </div>
+                  <div class="track-details">TrueHD Atmos · 7.1 channels · 4.8 Mbps · Original Language</div>
+                </div>
+                <div class="track-meta">
+                  <span class="track-meta-item">Lossless</span>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">English</div>
+                  <div class="track-details">EAC3 Atmos · 5.1 channels · 768 Kbps · Dubbed</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">Spanish (Español)</div>
+                  <div class="track-details">AC3 · 5.1 channels · 448 Kbps · Dubbed</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">French (Français)</div>
+                  <div class="track-details">AC3 · 5.1 channels · 448 Kbps · Dubbed</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subtitle Tracks -->
+            <div class="track-section">
+              <div class="track-section-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                Subtitles (5 tracks)
+              </div>
+              <div class="track-item primary">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    English
+                    <span class="track-badge default">Default</span>
+                  </div>
+                  <div class="track-details">ASS · Text · Full subtitles with styling</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    English
+                    <span class="track-badge sdh">SDH</span>
+                  </div>
+                  <div class="track-details">SRT · Text · Hearing Impaired</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">
+                    English
+                    <span class="track-badge forced">Forced</span>
+                  </div>
+                  <div class="track-details">ASS · Text · Signs and songs</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">Spanish (Español)</div>
+                  <div class="track-details">SRT · Text · Full</div>
+                </div>
+              </div>
+              <div class="track-item">
+                <div class="track-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div class="track-info">
+                  <div class="track-name">Portuguese (Português)</div>
+                  <div class="track-details">SRT · Text · Full</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- EPISODE DETAIL PAGE -->
+  <div id="episode-detail-page" class="episode-detail-page" style="display: none;">
+    <main style="flex: 1; overflow-y: auto; background: var(--black-rich);">
+      <!-- Episode Hero Section -->
+      <div class="episode-hero">
+        <div class="episode-hero-backdrop"></div>
+        <div class="episode-hero-gradient"></div>
+        <div class="episode-hero-content">
+          <!-- Video Preview Thumbnail -->
+          <div class="episode-video-preview">
+            <div class="episode-play-overlay">
+              <div class="episode-play-btn">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Episode Info -->
+          <div class="episode-info">
+            <div class="episode-breadcrumb">
+              <a href="#">Shōgun</a>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              <a href="#">Season 1</a>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              <span>Episode 4</span>
+            </div>
+
+            <div class="episode-number">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4"/></svg>
+              Season 1 · Episode 4
+            </div>
+
+            <h1 class="episode-title">The Eightfold Fence</h1>
+
+            <div class="episode-meta-row">
+              <div class="episode-runtime">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                58 min
+              </div>
+              <span class="episode-air-date">Aired March 5, 2024</span>
+            </div>
+
+            <p class="episode-description">
+              Blackthorne earns a new title, but also gains a dangerous enemy. Toranaga makes a bold political move that shocks the Council of Regents.
+            </p>
+
+            <div class="episode-actions">
+              <button class="btn-play-cinematic">
+                <span class="play-icon">
+                  <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </span>
+                Play Episode
+              </button>
+              <button class="btn-secondary" style="padding: 14px 20px;">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              </button>
+              <button class="btn-secondary" style="padding: 14px 20px;">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Episode Navigation -->
+      <div class="episode-nav">
+        <button class="episode-nav-btn">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          <div>
+            <div class="nav-label">Previous</div>
+            <div class="nav-title">E3 · Tomorrow Is Tomorrow</div>
+          </div>
+        </button>
+        <button class="episode-nav-btn" style="margin-left: auto;">
+          <div style="text-align: right;">
+            <div class="nav-label">Next</div>
+            <div class="nav-title">E5 · Broken to the Fist</div>
+          </div>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <!-- Episode Content -->
+      <div class="episode-content">
+        <!-- Technical Info Panel -->
+        <div class="episode-section">
+          <h3 class="episode-section-title">Media Information</h3>
+          <div class="tech-info-panel" style="margin-top: 0;">
+            <div class="tech-info-header">
+              <h3>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                Episode Technical Details
+              </h3>
+              <div class="tech-info-tabs">
+                <button class="tech-info-tab active">Tracks</button>
+                <button class="tech-info-tab">Quality</button>
+                <button class="tech-info-tab">File Info</button>
+              </div>
+            </div>
+            <div class="tech-info-content">
+              <!-- Video Track -->
+              <div class="track-section">
+                <div class="track-section-title">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  Video
+                </div>
+                <div class="track-item primary">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">
+                      HEVC Main 10
+                      <span class="track-badge hdr">HDR10+</span>
+                      <span class="track-badge dolby">Dolby Vision</span>
+                    </div>
+                    <div class="track-details">3840×2160 @ 23.976 fps · 10-bit · 42.1 Mbps</div>
+                  </div>
+                  <div class="track-meta">
+                    <span class="track-meta-item">2160p</span>
+                    <span class="track-meta-item">Remux</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Audio Tracks -->
+              <div class="track-section">
+                <div class="track-section-title">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                  Audio (3 tracks)
+                </div>
+                <div class="track-item primary">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">
+                      Japanese (日本語)
+                      <span class="track-badge default">Default</span>
+                      <span class="track-badge atmos">Atmos</span>
+                    </div>
+                    <div class="track-details">TrueHD Atmos · 7.1 channels · 4.2 Mbps · Original</div>
+                  </div>
+                  <div class="track-meta">
+                    <span class="track-meta-item">Lossless</span>
+                  </div>
+                </div>
+                <div class="track-item">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">English</div>
+                    <div class="track-details">EAC3 Atmos · 5.1 channels · 640 Kbps · Dubbed</div>
+                  </div>
+                </div>
+                <div class="track-item">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">English</div>
+                    <div class="track-details">AAC · 2.0 Stereo · 256 Kbps · Audio Description</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Subtitle Tracks -->
+              <div class="track-section">
+                <div class="track-section-title">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                  Subtitles (4 tracks)
+                </div>
+                <div class="track-item primary">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">
+                      English
+                      <span class="track-badge default">Default</span>
+                    </div>
+                    <div class="track-details">ASS · Text · Full subtitles</div>
+                  </div>
+                </div>
+                <div class="track-item">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">
+                      English
+                      <span class="track-badge sdh">SDH</span>
+                    </div>
+                    <div class="track-details">SRT · Text · Hearing Impaired</div>
+                  </div>
+                </div>
+                <div class="track-item">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">
+                      English
+                      <span class="track-badge forced">Forced</span>
+                    </div>
+                    <div class="track-details">ASS · Text · Signs only</div>
+                  </div>
+                </div>
+                <div class="track-item">
+                  <div class="track-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                  </div>
+                  <div class="track-info">
+                    <div class="track-name">Spanish (Español)</div>
+                    <div class="track-details">SRT · Text · Full</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quality & File Info Grid -->
+        <div class="episode-section">
+          <h3 class="episode-section-title">Quality Details</h3>
+          <div class="video-quality-grid">
+            <div class="quality-stat">
+              <div class="quality-stat-value accent">3840×2160</div>
+              <div class="quality-stat-label">Resolution</div>
+            </div>
+            <div class="quality-stat">
+              <div class="quality-stat-value">HEVC</div>
+              <div class="quality-stat-label">Codec</div>
+            </div>
+            <div class="quality-stat">
+              <div class="quality-stat-value">10-bit</div>
+              <div class="quality-stat-label">Bit Depth</div>
+            </div>
+            <div class="quality-stat">
+              <div class="quality-stat-value">42.1 Mbps</div>
+              <div class="quality-stat-label">Bitrate</div>
+            </div>
+            <div class="quality-stat">
+              <div class="quality-stat-value">23.976</div>
+              <div class="quality-stat-label">Frame Rate</div>
+            </div>
+            <div class="quality-stat">
+              <div class="quality-stat-value accent">HDR10+ DV</div>
+              <div class="quality-stat-label">Dynamic Range</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- File Information -->
+        <div class="episode-section">
+          <h3 class="episode-section-title">File Information</h3>
+          <div class="tech-info-panel" style="margin-top: 0;">
+            <div class="tech-info-content">
+              <div class="file-info-grid">
+                <div>
+                  <div class="file-info-item">
+                    <span class="file-info-label">Container</span>
+                    <span class="file-info-value">MKV (Matroska)</span>
+                  </div>
+                  <div class="file-info-item">
+                    <span class="file-info-label">File Size</span>
+                    <span class="file-info-value">18.4 GB</span>
+                  </div>
+                  <div class="file-info-item">
+                    <span class="file-info-label">Duration</span>
+                    <span class="file-info-value">58:24</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="file-info-item">
+                    <span class="file-info-label">Added</span>
+                    <span class="file-info-value">Mar 6, 2024</span>
+                  </div>
+                  <div class="file-info-item">
+                    <span class="file-info-label">Last Played</span>
+                    <span class="file-info-value">Nov 28, 2025</span>
+                  </div>
+                  <div class="file-info-item">
+                    <span class="file-info-label">Play Count</span>
+                    <span class="file-info-value">3</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- LIBRARY BROWSER PAGE -->
+  <div id="library-page" class="library-page" style="display: none;">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-container">
+          <div class="logo-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="libLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#36a9ff"/>
+                  <stop offset="100%" style="stop-color:#0090ff"/>
+                </linearGradient>
+              </defs>
+              <circle cx="24" cy="24" r="22" stroke="url(#libLogoGradient)" stroke-width="2.5" fill="none"/>
+              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
+              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
+              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
+              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#libLogoGradient)" opacity="0.6"/>
+              <path d="M20 16 L20 32 L34 24 Z" fill="url(#libLogoGradient)"/>
+            </svg>
+          </div>
+          <div>
+            <h1>View<span class="logo-accent">RA</span></h1>
+            <span>Media Server</span>
+          </div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </a>
+        <a href="#" class="nav-item active">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+          Movies
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          TV Shows
+        </a>
+      </nav>
+    </aside>
+
+    <main class="library-main">
+      <header class="library-header">
+        <h2>Movies</h2>
+        <div class="library-controls">
+          <div class="search-box">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder="Search movies...">
+          </div>
+          <div class="view-toggle">
+            <button class="view-toggle-btn active">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            </button>
+            <button class="view-toggle-btn">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="filter-bar">
+        <span class="filter-chip active">All</span>
+        <span class="filter-chip">
+          <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          Highly Rated
+        </span>
+        <span class="filter-chip">4K</span>
+        <span class="filter-chip">HDR</span>
+        <span class="filter-chip">Dolby Atmos</span>
+        <span class="filter-chip">Recently Added</span>
+        <span class="filter-chip">Unwatched</span>
+      </div>
+
+      <div class="library-info-bar">
+        <span>247 movies</span>
+        <div class="sort-dropdown">
+          <span>Sort by: Title (A-Z)</span>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+      </div>
+
+      <div class="library-content">
+        <div class="library-grid">
+          <!-- Movie cards -->
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Dune: Part Two</div>
+              <div class="media-meta">2024 · 2h 46m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #2e1a47 0%, #4a1942 50%, #7b2d5b 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Poor Things</div>
+              <div class="media-meta">2023 · 2h 21m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1b2838 0%, #2a475e 50%, #66c0f4 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Oppenheimer</div>
+              <div class="media-meta">2023 · 3h 1m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a2634 0%, #2a3f4f 50%, #4a6a7a 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Killers of the Flower Moon</div>
+              <div class="media-meta">2023 · 3h 26m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 50%, #415a77 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">The Zone of Interest</div>
+              <div class="media-meta">2023 · 1h 45m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #2d1810 0%, #4a2820 50%, #6a4030 100%); height: 100%;"></div>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Past Lives</div>
+              <div class="media-meta">2023 · 1h 46m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #4a4a4a 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Anatomy of a Fall</div>
+              <div class="media-meta">2023 · 2h 32m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #2d132c 0%, #801336 50%, #c72c41 100%); height: 100%;"></div>
+              <span class="badge badge-hdr">HDR</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Barbie</div>
+              <div class="media-meta">2023 · 1h 54m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); height: 100%;"></div>
+              <span class="badge badge-4k">4K</span>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">Avatar: The Way of Water</div>
+              <div class="media-meta">2022 · 3h 12m</div>
+            </div>
+          </div>
+
+          <div class="media-card">
+            <div class="media-poster">
+              <div style="background: linear-gradient(135deg, #232526 0%, #414345 100%); height: 100%;"></div>
+              <div class="play-button">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">The Holdovers</div>
+              <div class="media-meta">2023 · 2h 13m</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MUSIC PLAYER PAGE -->
+  <div id="music-page" class="music-page" style="display: none;">
+    <div class="music-main">
+      <aside class="music-sidebar">
+        <div class="music-sidebar-header">
+          <h3>Up Next</h3>
+        </div>
+        <div class="queue-list">
+          <div class="queue-item">
+            <div class="queue-item-art"></div>
+            <div class="queue-item-info">
+              <div class="queue-item-title">Dawn Chorus</div>
+              <div class="queue-item-artist">Thom Yorke</div>
+            </div>
+            <div class="queue-item-duration">4:36</div>
+          </div>
+          <div class="queue-item active">
+            <div class="queue-item-art" style="background: linear-gradient(135deg, #2a1a47 0%, #4a1942 100%);"></div>
+            <div class="queue-item-info">
+              <div class="queue-item-title">Everything In Its Right Place</div>
+              <div class="queue-item-artist">Radiohead</div>
+            </div>
+            <div class="queue-item-duration">4:11</div>
+          </div>
+          <div class="queue-item">
+            <div class="queue-item-art" style="background: linear-gradient(135deg, #1a2a47 0%, #2a4a72 100%);"></div>
+            <div class="queue-item-info">
+              <div class="queue-item-title">Pyramid Song</div>
+              <div class="queue-item-artist">Radiohead</div>
+            </div>
+            <div class="queue-item-duration">4:50</div>
+          </div>
+          <div class="queue-item">
+            <div class="queue-item-art" style="background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);"></div>
+            <div class="queue-item-info">
+              <div class="queue-item-title">Idioteque</div>
+              <div class="queue-item-artist">Radiohead</div>
+            </div>
+            <div class="queue-item-duration">5:09</div>
+          </div>
+          <div class="queue-item">
+            <div class="queue-item-art" style="background: linear-gradient(135deg, #1a1a3a 0%, #2a2a5a 100%);"></div>
+            <div class="queue-item-info">
+              <div class="queue-item-title">Motion Picture Soundtrack</div>
+              <div class="queue-item-artist">Radiohead</div>
+            </div>
+            <div class="queue-item-duration">6:59</div>
+          </div>
+          <div class="queue-item">
+            <div class="queue-item-art" style="background: linear-gradient(135deg, #3a2a1a 0%, #5a4a2a 100%);"></div>
+            <div class="queue-item-info">
+              <div class="queue-item-title">How to Disappear Completely</div>
+              <div class="queue-item-artist">Radiohead</div>
+            </div>
+            <div class="queue-item-duration">5:56</div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="music-content">
+        <div class="album-art-large"></div>
+        <div class="now-playing-info">
+          <h2 class="now-playing-title">Everything In Its Right Place</h2>
+          <p class="now-playing-artist"><a href="#">Radiohead</a> · Kid A</p>
+        </div>
+        <div class="music-progress">
+          <div class="music-progress-bar">
+            <div class="music-progress-fill"></div>
+            <div class="music-progress-thumb"></div>
+          </div>
+          <div class="music-progress-times">
+            <span>1:51</span>
+            <span>4:11</span>
+          </div>
+        </div>
+        <div class="music-controls">
+          <button class="music-btn music-btn-small">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+          </button>
+          <button class="music-btn">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z"/></svg>
+          </button>
+          <button class="music-btn music-btn-play">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+          </button>
+          <button class="music-btn">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+          <button class="music-btn music-btn-small active">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Player Bar -->
+    <div class="music-player-bar">
+      <div class="mpb-now-playing">
+        <div class="mpb-art"></div>
+        <div class="mpb-info">
+          <h4>Everything In Its Right Place</h4>
+          <p>Radiohead · Kid A</p>
+        </div>
+      </div>
+      <div class="mpb-controls">
+        <div class="mpb-buttons">
+          <button class="music-btn music-btn-small">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z"/></svg>
+          </button>
+          <button class="music-btn" style="background: var(--accent-500); color: white; width: 40px; height: 40px;">
+            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+          </button>
+          <button class="music-btn music-btn-small">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
+        <div class="mpb-progress">
+          <span class="mpb-time">1:51</span>
+          <div class="mpb-progress-bar">
+            <div class="mpb-progress-fill"></div>
+          </div>
+          <span class="mpb-time">4:11</span>
+        </div>
+      </div>
+      <div class="mpb-volume">
+        <button class="music-btn music-btn-small">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+        </button>
+        <div class="mpb-volume-bar">
+          <div class="mpb-volume-fill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PREFERENCES PAGE -->
+  <div id="preferences-page" class="preferences-page" style="display: none;">
+    <!-- Sidebar (same as dashboard) -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-container">
+          <div class="logo-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="prefsLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#36a9ff"/>
+                  <stop offset="100%" style="stop-color:#0090ff"/>
+                </linearGradient>
+              </defs>
+              <circle cx="24" cy="24" r="22" stroke="url(#prefsLogoGradient)" stroke-width="2.5" fill="none"/>
+              <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
+              <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
+              <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
+              <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#prefsLogoGradient)" opacity="0.6"/>
+              <path d="M20 16 L20 32 L34 24 Z" fill="url(#prefsLogoGradient)"/>
+            </svg>
+          </div>
+          <div>
+            <h1>View<span class="logo-accent">RA</span></h1>
+            <span>Media Server</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          Libraries
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+          Movies
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          TV Shows
+        </a>
+        <a href="#" class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+          Music
+        </a>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Settings</div>
+          <a href="#" class="nav-item active">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Preferences
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="preferences-main">
+      <header class="preferences-header">
+        <h2>Preferences</h2>
+        <p>Customize your viewing experience</p>
+      </header>
+
+      <div class="preferences-content">
+        <!-- Playback Settings Card -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="settings-card-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <h3>Playback</h3>
+              <p>Control how media plays</p>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Autoplay Next Episode
+                <span class="settings-badge settings-badge-saved">Saved</span>
+              </div>
+              <div class="settings-row-description">Automatically play the next episode when one ends</div>
+            </div>
+            <div class="toggle active" onclick="this.classList.toggle('active')">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Skip Intros
+                <span class="settings-badge settings-badge-default">Default</span>
+              </div>
+              <div class="settings-row-description">Automatically skip intro sequences when detected</div>
+            </div>
+            <div class="toggle" onclick="this.classList.toggle('active')">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Default Quality
+                <span class="settings-badge settings-badge-default">Default</span>
+              </div>
+              <div class="settings-row-description">Preferred video quality when streaming</div>
+            </div>
+            <select class="settings-select">
+              <option value="auto">Auto</option>
+              <option value="4k">4K (2160p)</option>
+              <option value="1080p">1080p</option>
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Default Audio Language
+                <span class="settings-badge settings-badge-saved">Saved</span>
+              </div>
+              <div class="settings-row-description">Preferred audio track language</div>
+            </div>
+            <select class="settings-select">
+              <option value="en">English</option>
+              <option value="ja">Japanese</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="original">Original</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Default Subtitle Language
+                <span class="settings-badge settings-badge-default">Default</span>
+              </div>
+              <div class="settings-row-description">Preferred subtitle track language</div>
+            </div>
+            <select class="settings-select">
+              <option value="none">None</option>
+              <option value="en">English</option>
+              <option value="en-sdh">English (SDH)</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Appearance Settings Card -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="settings-card-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+            </div>
+            <div>
+              <h3>Appearance</h3>
+              <p>Customize the look and feel</p>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Theme
+                <span class="settings-badge settings-badge-saved">Saved</span>
+              </div>
+              <div class="settings-row-description">Choose your preferred color scheme</div>
+            </div>
+            <div class="theme-picker">
+              <div class="theme-option theme-dark active" title="Dark"></div>
+              <div class="theme-option theme-light" title="Light"></div>
+              <div class="theme-option theme-auto" title="System"></div>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Show Ratings
+                <span class="settings-badge settings-badge-default">Default</span>
+              </div>
+              <div class="settings-row-description">Display ratings on media cards and detail pages</div>
+            </div>
+            <div class="toggle active" onclick="this.classList.toggle('active')">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Cards Per Row
+                <span class="settings-badge settings-badge-default">Default</span>
+              </div>
+              <div class="settings-row-description">Number of media cards displayed per row</div>
+            </div>
+            <select class="settings-select">
+              <option value="auto">Auto (Responsive)</option>
+              <option value="4">4 Cards</option>
+              <option value="5">5 Cards</option>
+              <option value="6">6 Cards</option>
+              <option value="7">7 Cards</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Enable Animations
+                <span class="settings-badge settings-badge-default">Default</span>
+              </div>
+              <div class="settings-row-description">Enable smooth transitions and hover effects</div>
+            </div>
+            <div class="toggle active" onclick="this.classList.toggle('active')">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Example of a card with pending changes -->
+        <div class="settings-card" style="border-color: rgba(251, 191, 36, 0.3);">
+          <div class="settings-card-header">
+            <div class="settings-card-icon" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(251, 191, 36, 0.05) 100%);">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: #fbbf24;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            </div>
+            <div>
+              <h3>Notifications</h3>
+              <p>Manage alerts and notifications</p>
+            </div>
+          </div>
+
+          <div class="settings-row" style="background: rgba(251, 191, 36, 0.05); border-left: 2px solid #fbbf24; margin-left: -1px;">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                New Episode Alerts
+                <span class="settings-badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">Changed</span>
+              </div>
+              <div class="settings-row-description">Get notified when new episodes are available</div>
+            </div>
+            <div class="toggle active" onclick="this.classList.toggle('active')">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-row-info">
+              <div class="settings-row-label">
+                Scan Complete Alerts
+                <span class="settings-badge settings-badge-default">Default</span>
+              </div>
+              <div class="settings-row-description">Notify when library scans are complete</div>
+            </div>
+            <div class="toggle" onclick="this.classList.toggle('active')">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+
+          <!-- Footer with save/discard for changed settings -->
+          <div class="settings-card-footer">
+            <button class="btn-ghost">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Discard
+            </button>
+            <button class="btn btn-primary" style="padding: 10px 20px; font-size: 13px;">Save</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- LOGIN PAGE -->
+  <div id="login-page" class="login-preview" style="display: none;">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="login-logo-icon">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="loginLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#36a9ff"/>
+                <stop offset="100%" style="stop-color:#0090ff"/>
+              </linearGradient>
+            </defs>
+            <circle cx="24" cy="24" r="22" stroke="url(#loginLogoGradient)" stroke-width="2.5" fill="none"/>
+            <path d="M24 8 L28 16 L24 14 L20 16 Z" fill="url(#loginLogoGradient)" opacity="0.6"/>
+            <path d="M40 24 L32 28 L34 24 L32 20 Z" fill="url(#loginLogoGradient)" opacity="0.6"/>
+            <path d="M24 40 L20 32 L24 34 L28 32 Z" fill="url(#loginLogoGradient)" opacity="0.6"/>
+            <path d="M8 24 L16 20 L14 24 L16 28 Z" fill="url(#loginLogoGradient)" opacity="0.6"/>
+            <path d="M20 16 L20 32 L34 24 Z" fill="url(#loginLogoGradient)"/>
+          </svg>
+        </div>
+        <h1>View<span class="logo-accent">RA</span></h1>
+        <p>Sign in to your media server</p>
+      </div>
+
+      <form>
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input type="text" class="form-input" placeholder="Enter username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-input" placeholder="Enter password">
+        </div>
+
+        <button type="button" class="btn btn-primary login-btn">Sign In</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- VIDEO PLAYER PREVIEW -->
+  <div id="player-page" style="display: none; background: var(--black-soft); min-height: calc(100vh - 57px);">
+    <div class="player-preview">
+      <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); height: 100%;"></div>
+      <div class="player-controls">
+        <div class="player-timeline">
+          <div class="player-timeline-progress"></div>
+          <div class="player-timeline-thumb"></div>
+        </div>
+        <div class="player-buttons">
+          <button class="player-btn">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z"/></svg>
+          </button>
+          <button class="player-btn">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+          </button>
+          <button class="player-btn">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM14.5 12L6 18V6l8.5 6z"/></svg>
+          </button>
+          <div class="player-time" style="margin-left: 16px;">1:24:35 / 2:46:12</div>
+          <div style="flex: 1;"></div>
+          <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 12px;">Auto · 4K</button>
+          <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 12px;">English</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider">
+      <h3>Cinematic Minimalism Theme</h3>
+    </div>
+
+    <div style="padding: 48px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
+      <div>
+        <h4 style="color: var(--text-tertiary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">Primary Button</h4>
+        <button class="btn btn-primary">Watch Now</button>
+      </div>
+      <div>
+        <h4 style="color: var(--text-tertiary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">Secondary Button</h4>
+        <button class="btn btn-secondary">More Info</button>
+      </div>
+      <div>
+        <h4 style="color: var(--text-tertiary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">Form Input</h4>
+        <input type="text" class="form-input" placeholder="Search..." style="max-width: 240px;">
+      </div>
+    </div>
+
+    <div style="padding: 0 48px 48px;">
+      <h4 style="color: var(--text-tertiary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">Color Palette</h4>
+      <div style="display: flex; gap: 8px;">
+        <div style="width: 60px; height: 60px; background: var(--black-pure); border-radius: 8px; border: 1px solid var(--black-border);"></div>
+        <div style="width: 60px; height: 60px; background: var(--black-rich); border-radius: 8px; border: 1px solid var(--black-border);"></div>
+        <div style="width: 60px; height: 60px; background: var(--black-soft); border-radius: 8px; border: 1px solid var(--black-border);"></div>
+        <div style="width: 60px; height: 60px; background: var(--black-elevated); border-radius: 8px; border: 1px solid var(--black-border);"></div>
+        <div style="width: 60px; height: 60px; background: var(--black-surface); border-radius: 8px; border: 1px solid var(--black-border);"></div>
+        <div style="width: 20px;"></div>
+        <div style="width: 60px; height: 60px; background: var(--accent-700); border-radius: 8px;"></div>
+        <div style="width: 60px; height: 60px; background: var(--accent-600); border-radius: 8px;"></div>
+        <div style="width: 60px; height: 60px; background: var(--accent-500); border-radius: 8px;"></div>
+        <div style="width: 60px; height: 60px; background: var(--accent-400); border-radius: 8px;"></div>
+        <div style="width: 60px; height: 60px; background: var(--accent-300); border-radius: 8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showPage(page) {
+      // Hide all pages
+      document.getElementById('dashboard-page').style.display = 'none';
+      document.getElementById('movie-detail-page').style.display = 'none';
+      document.getElementById('tv-detail-page').style.display = 'none';
+      document.getElementById('episode-detail-page').style.display = 'none';
+      document.getElementById('library-page').style.display = 'none';
+      document.getElementById('music-page').style.display = 'none';
+      document.getElementById('preferences-page').style.display = 'none';
+      document.getElementById('login-page').style.display = 'none';
+      document.getElementById('player-page').style.display = 'none';
+
+      // Remove active class from all tabs
+      document.querySelectorAll('.page-tab').forEach(tab => tab.classList.remove('active'));
+
+      // Show selected page
+      const pageMap = {
+        'dashboard': { id: 'dashboard-page', display: 'flex', tabIndex: 0 },
+        'movie-detail': { id: 'movie-detail-page', display: 'flex', tabIndex: 1 },
+        'tv-detail': { id: 'tv-detail-page', display: 'flex', tabIndex: 2 },
+        'episode-detail': { id: 'episode-detail-page', display: 'flex', tabIndex: 3 },
+        'library': { id: 'library-page', display: 'flex', tabIndex: 4 },
+        'music': { id: 'music-page', display: 'flex', tabIndex: 5 },
+        'preferences': { id: 'preferences-page', display: 'flex', tabIndex: 6 },
+        'login': { id: 'login-page', display: 'flex', tabIndex: 7 },
+        'player': { id: 'player-page', display: 'block', tabIndex: 8 }
+      };
+
+      const pageConfig = pageMap[page];
+      if (pageConfig) {
+        document.getElementById(pageConfig.id).style.display = pageConfig.display;
+        document.querySelectorAll('.page-tab')[pageConfig.tabIndex].classList.add('active');
+      }
+    }
+
+    // Theme picker interactivity
+    document.querySelectorAll('.theme-option').forEach(option => {
+      option.addEventListener('click', function() {
+        this.parentElement.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+
+    // Filter chip interactivity
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', function() {
+        if (!this.classList.contains('active')) {
+          this.parentElement.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+          this.classList.add('active');
+        }
+      });
+    });
+
+    // View toggle interactivity
+    document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        this.parentElement.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+
+    // Season tab interactivity
+    document.querySelectorAll('.season-tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+        this.parentElement.querySelectorAll('.season-tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

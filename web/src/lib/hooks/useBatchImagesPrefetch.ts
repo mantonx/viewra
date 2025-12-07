@@ -7,7 +7,6 @@
 import { useEffect, useRef } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { imagesApi } from '@/lib/api'
-import { API_BASE_URL } from '@/lib/config'
 import { authFetch } from '@/lib/utils/authFetch'
 import type { Image } from '@/lib/types/images'
 

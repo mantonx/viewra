@@ -65,13 +65,13 @@ export const useSubtitles = ({
 
   // Calculate relative stream indices for API calls (sorted by streamIndex for consistency)
   const textStreamIndex = useMemo(() => {
-    if (!currentSubtitle || currentSubtitle.isBitmap) return undefined
+    if (!currentSubtitle || currentSubtitle.isBitmap) {return undefined}
     const index = calculateTextIndex(currentSubtitle, availableSubtitles)
     return index >= 0 ? index : undefined
   }, [currentSubtitle, availableSubtitles])
 
   const bitmapStreamIndex = useMemo(() => {
-    if (!currentSubtitle || !currentSubtitle.isBitmap) return undefined
+    if (!currentSubtitle || !currentSubtitle.isBitmap) {return undefined}
     const index = calculateBitmapIndex(currentSubtitle, availableSubtitles)
     return index >= 0 ? index : undefined
   }, [currentSubtitle, availableSubtitles])

@@ -1,60 +1,11 @@
 import { useMemo } from 'react'
+import { cn } from '@/lib/utils'
+import { videoOverlay } from '@/styles/semantic'
 import { DropdownBase } from '../DropdownBase'
+import { SubtitleIcon, CheckIcon } from '../icons'
+import { getLanguageName } from '@/lib/utils/language'
 import type { SubtitleTrack } from '@/lib/types/subtitles'
 import type { SubtitleSelectorProps } from './SubtitleSelector.types'
-
-// Language code to display name mapping
-const languageNames: Record<string, string> = {
-  eng: 'English',
-  spa: 'Spanish',
-  fra: 'French',
-  deu: 'German',
-  ita: 'Italian',
-  por: 'Portuguese',
-  jpn: 'Japanese',
-  kor: 'Korean',
-  zho: 'Chinese',
-  rus: 'Russian',
-  ara: 'Arabic',
-  hin: 'Hindi',
-  tha: 'Thai',
-  vie: 'Vietnamese',
-  nld: 'Dutch',
-  pol: 'Polish',
-  swe: 'Swedish',
-  nor: 'Norwegian',
-  dan: 'Danish',
-  fin: 'Finnish',
-  tur: 'Turkish',
-  ell: 'Greek',
-  heb: 'Hebrew',
-  ind: 'Indonesian',
-  ces: 'Czech',
-  hun: 'Hungarian',
-  ron: 'Romanian',
-  ukr: 'Ukrainian',
-  und: 'Unknown',
-}
-
-const getLanguageName = (code: string): string => {
-  return languageNames[code.toLowerCase()] || code.toUpperCase()
-}
-
-const SubtitleIcon = () => (
-  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm0 4h8v2H6v-2zm10 0h2v2h-2v-2zm-6-4h8v2h-8v-2z" />
-  </svg>
-)
-
-const CheckIcon = () => (
-  <svg className="w-4 h-4 text-primary-400" fill="currentColor" viewBox="0 0 20 20">
-    <path
-      fillRule="evenodd"
-      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-      clipRule="evenodd"
-    />
-  </svg>
-)
 
 export const SubtitleSelector = ({
   availableSubtitles,
@@ -70,7 +21,7 @@ export const SubtitleSelector = ({
     return availableSubtitles.filter((sub) => sub.isBitmap)
   }, [availableSubtitles])
 
-// Build display name for a subtitle track
+  // Build display name for a subtitle track
   const getTrackDisplayName = (track: SubtitleTrack): string => {
     if (track.title) {
       return track.title
@@ -80,10 +31,10 @@ export const SubtitleSelector = ({
 
     // Add special indicators
     const indicators: string[] = []
-    if (track.isForced) indicators.push('Forced')
-    if (track.isSDH) indicators.push('SDH')
-    if (track.isCommentary) indicators.push('Commentary')
-    if (track.sourceType === 'external') indicators.push('External')
+    if (track.isForced) { indicators.push('Forced') }
+    if (track.isSDH) { indicators.push('SDH') }
+    if (track.isCommentary) { indicators.push('Commentary') }
+    if (track.sourceType === 'external') { indicators.push('External') }
 
     if (indicators.length > 0) {
       name += ` (${indicators.join(', ')})`
@@ -109,9 +60,9 @@ export const SubtitleSelector = ({
     }
     // Short form for button
     const lang = getLanguageName(track.language)
-    if (isBitmap) return `${lang} (B)`
-    if (track.isForced) return `${lang} (F)`
-    if (track.isSDH) return `${lang} (SDH)`
+    if (isBitmap) { return `${lang} (B)` }
+    if (track.isForced) { return `${lang} (F)` }
+    if (track.isSDH) { return `${lang} (SDH)` }
     return lang
   }
 
@@ -131,8 +82,8 @@ export const SubtitleSelector = ({
   const sortedLanguages = useMemo(() => {
     const langs = Array.from(subtitlesByLanguage.keys())
     return langs.sort((a, b) => {
-      if (a === 'eng') return -1
-      if (b === 'eng') return 1
+      if (a === 'eng') { return -1 }
+      if (b === 'eng') { return 1 }
       return getLanguageName(a).localeCompare(getLanguageName(b))
     })
   }, [subtitlesByLanguage])
@@ -156,16 +107,18 @@ export const SubtitleSelector = ({
       <button
         key={track.id}
         onClick={handleClick}
-        className={`w-full px-3 py-2 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${
-          isSelected ? 'bg-primary-500/20' : ''
-        }`}
+        className={cn(
+          'w-full px-3 py-2 flex items-center justify-between cursor-pointer',
+          videoOverlay.patterns.listItem,
+          isSelected && videoOverlay.bg.active
+        )}
         role="option"
         aria-selected={isSelected}
       >
         <div className="flex items-center gap-2">
-          <span className="text-white text-sm">{displayName}</span>
+          <span className={cn('text-sm', videoOverlay.text.primary)}>{displayName}</span>
           {track.isDefault && !isSelected && (
-            <span className="text-white/40 text-xs">(Default)</span>
+            <span className={cn('text-xs', videoOverlay.text.disabled)}>(Default)</span>
           )}
         </div>
         {isSelected && <CheckIcon />}
@@ -176,10 +129,10 @@ export const SubtitleSelector = ({
   // Build description without language
   const buildTrackDescription = (track: SubtitleTrack): string => {
     const indicators: string[] = []
-    if (track.isForced) indicators.push('Forced')
-    if (track.isSDH) indicators.push('SDH')
-    if (track.isCommentary) indicators.push('Commentary')
-    if (track.sourceType === 'external') indicators.push('External')
+    if (track.isForced) { indicators.push('Forced') }
+    if (track.isSDH) { indicators.push('SDH') }
+    if (track.isCommentary) { indicators.push('Commentary') }
+    if (track.sourceType === 'external') { indicators.push('External') }
 
     if (indicators.length > 0) {
       return indicators.join(', ')
@@ -205,9 +158,9 @@ export const SubtitleSelector = ({
     >
       {({ close }) => (
         <>
-          <div className="px-3 py-2 border-b border-white/10">
-            <div className="text-white text-sm font-semibold">Subtitles</div>
-            <div className="text-white/50 text-xs mt-0.5">
+          <div className={cn('px-3 py-2 border-b', videoOverlay.border.subtle)}>
+            <div className={cn('text-sm font-semibold', videoOverlay.text.primary)}>Subtitles</div>
+            <div className={cn('text-xs mt-0.5', videoOverlay.text.tertiary)}>
               {availableSubtitles.length} track{availableSubtitles.length !== 1 ? 's' : ''}{' '}
               available
             </div>
@@ -220,17 +173,19 @@ export const SubtitleSelector = ({
                 onSubtitleChange(null)
                 close()
               }}
-              className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${
-                currentSubtitle === null ? 'bg-primary-500/20' : ''
-              }`}
+              className={cn(
+                'w-full px-3 py-2.5 flex items-center justify-between cursor-pointer',
+                videoOverlay.patterns.listItem,
+                currentSubtitle === null && videoOverlay.bg.active
+              )}
               role="option"
               aria-selected={currentSubtitle === null}
             >
-              <span className="text-white text-sm font-medium">Off</span>
+              <span className={cn('text-sm font-medium', videoOverlay.text.primary)}>Off</span>
               {currentSubtitle === null && <CheckIcon />}
             </button>
 
-            <div className="border-t border-white/10" />
+            <div className={cn('border-t', videoOverlay.border.subtle)} />
 
             {/* Text subtitles section */}
             {textSubtitles.length > 0 && (
@@ -246,7 +201,10 @@ export const SubtitleSelector = ({
                       return (
                         <div key={lang}>
                           {/* Language header */}
-                          <div className="px-3 py-1.5 text-white/60 text-xs font-medium uppercase tracking-wider bg-white/5">
+                          <div className={cn(
+                            'px-3 py-1.5 text-xs font-medium uppercase tracking-wider',
+                            videoOverlay.patterns.sectionHeader
+                          )}>
                             {getLanguageName(lang)}
                           </div>
                           {/* Tracks for this language */}
@@ -262,7 +220,11 @@ export const SubtitleSelector = ({
             {/* Bitmap subtitles section (PGS/VobSub - rendered as image overlay) */}
             {bitmapSubtitles.length > 0 && (
               <>
-                <div className="px-3 py-1.5 text-xs font-medium uppercase tracking-wider border-t border-white/10 flex items-center gap-1.5 text-white/60 bg-white/5">
+                <div className={cn(
+                  'px-3 py-1.5 text-xs font-medium uppercase tracking-wider border-t flex items-center gap-1.5',
+                  videoOverlay.border.subtle,
+                  videoOverlay.patterns.sectionHeader
+                )}>
                   {/* Image icon for bitmap */}
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
@@ -278,5 +240,3 @@ export const SubtitleSelector = ({
     </DropdownBase>
   )
 }
-
-export default SubtitleSelector

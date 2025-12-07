@@ -1,0 +1,73 @@
+From: ViewRA <viewra@localhost>
+Subject: [PATCH] avformat/segment: report actual start PTS in M3U8 playlist
+
+When seeking into a media file, FFmpeg seeks to the nearest keyframe
+before the requested position. The segment muxer already tracks this
+as start_pts (from patch 0001), but clients have no way to know the
+actual keyframe position from the playlist.
+
+This patch adds:
+1. -segment_start_pts_report (bool) - enables start PTS reporting
+2. -segment_seek_time (int64) - the requested seek time in microseconds
+3. When enabled, writes custom tags to M3U8:
+   - #EXT-X-START-PTS:<milliseconds> - actual first keyframe PTS
+   - #EXT-X-START-OFFSET:<seconds> - offset from requested seek time
+
+Example: Seeking to 3530s but keyframe lands at 3527.5s:
+  #EXT-X-START-PTS:3527500
+  #EXT-X-START-OFFSET:-2.500
+
+This enables media servers to:
+- Know exactly where playback will start after a seek
+- Report accurate playback position to frontends
+- Enable HEVC remuxing with accurate seek support
+
+Original patch for ViewRA media server.
+
+---
+ libavformat/segment.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+Index: FFmpeg/libavformat/segment.c
+===================================================================
+--- FFmpeg.orig/libavformat/segment.c
++++ FFmpeg/libavformat/segment.c
+@@ -72,6 +72,8 @@ typedef struct SegmentContext {
+     int segment_idx;       ///< index of the segment file to write, starting from 0
+     int segment_idx_wrap;  ///< number after which the index wraps
+     int segment_idx_wrap_nb;  ///< number of time the index has wraped
++    int start_pts_report;  ///< whether to report start PTS in playlist
++    int64_t seek_time;     ///< requested seek time for offset calculation
+     int segment_count;     ///< number of segment files already written
+     const AVOutputFormat *oformat;
+     AVFormatContext *avf;
+@@ -302,6 +304,20 @@ static int segment_list_open(AVFormatCon
+         for (entry = seg->segment_list_entries; entry; entry = entry->next)
+             max_duration = FFMAX(max_duration, entry->end_time - entry->start_time);
+         avio_printf(seg->list_pb, "#EXT-X-TARGETDURATION:%"PRId64"\n", (int64_t)ceil(max_duration));
++
++        // Report actual start PTS for accurate seek feedback
++        if (seg->start_pts_report && seg->start_pts != -1) {
++            // Calculate actual start time: seek_time + start_pts (since output starts near 0)
++            int64_t actual_start_us = seg->seek_time + seg->start_pts;
++            int64_t actual_start_ms = actual_start_us / 1000;
++            avio_printf(seg->list_pb, "#EXT-X-START-PTS:%"PRId64"\n", actual_start_ms);
++
++            // Calculate offset from requested seek time
++            if (seg->seek_time > 0) {
++                double offset_sec = (double)seg->start_pts / AV_TIME_BASE;
++                avio_printf(seg->list_pb, "#EXT-X-START-OFFSET:%.3f\n", offset_sec);
++            }
++        }
+     } else if (seg->list_type == LIST_TYPE_FFCONCAT) {
+         avio_printf(seg->list_pb, "ffconcat version 1.0\n");
+     }
+@@ -1094,6 +1110,8 @@ static const AVOption options[] = {
+     { "segment_list_entry_prefix", "set base url prefix for segments", OFFSET(entry_prefix), AV_OPT_TYPE_STRING,  {.str = NULL}, 0, 0, E },
+     { "segment_start_number", "set the sequence number of the first segment", OFFSET(segment_idx), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
+     { "segment_wrap_number", "set the number of wrap before the first segment", OFFSET(segment_idx_wrap_nb), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
++    { "segment_start_pts_report", "report actual start PTS in M3U8 playlist", OFFSET(start_pts_report), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, E },
++    { "segment_seek_time", "requested seek time in microseconds for offset calculation", OFFSET(seek_time), AV_OPT_TYPE_INT64, {.i64 = 0}, 0, INT64_MAX, E },
+     { "strftime",          "set filename expansion with strftime at segment creation", OFFSET(use_strftime), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, E },
+     { "increment_tc", "increment timecode between each segment", OFFSET(increment_tc), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, E },
+     { "break_non_keyframes", "allow breaking segments on non-keyframes", OFFSET(break_non_keyframes), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, E },

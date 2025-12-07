@@ -321,6 +321,76 @@ export const animation = {
 } as const
 
 /**
+ * Video Overlay Tokens
+ *
+ * Semantic tokens specifically designed for UI elements displayed over video content.
+ * These use light-on-dark styling since video overlays are always on dark backgrounds.
+ * Note: These intentionally don't use dark: variants since the video context is always dark.
+ */
+export const videoOverlay = {
+  /** Text colors for video overlay UI */
+  text: {
+    /** Primary text (white) */
+    primary: 'text-white',
+    /** Secondary/muted text (white/60) */
+    secondary: 'text-white/60',
+    /** Tertiary/subtle text (white/50) */
+    tertiary: 'text-white/50',
+    /** Disabled text (white/40) */
+    disabled: 'text-white/40',
+  },
+
+  /** Background colors for video overlay UI */
+  bg: {
+    /** Subtle background (white/10) */
+    subtle: 'bg-white/10',
+    /** Default background (white/15) */
+    default: 'bg-white/15',
+    /** Prominent background (white/20) */
+    prominent: 'bg-white/20',
+    /** Panel/dropdown background (black/95 with blur) */
+    panel: 'bg-black/95 backdrop-blur-md',
+    /** Hover state */
+    hover: 'hover:bg-white/20',
+    /** Active/selected state */
+    active: 'bg-primary-500/20',
+    /** Active hover state */
+    activeHover: 'hover:bg-primary-500/30',
+  },
+
+  /** Border colors for video overlay UI */
+  border: {
+    /** Default border (white/20) */
+    default: 'border-white/20',
+    /** Subtle border (white/10) */
+    subtle: 'border-white/10',
+    /** Prominent border (white/30) */
+    prominent: 'border-white/30',
+  },
+
+  /** Common component patterns for video overlays */
+  patterns: {
+    /** Button styling */
+    button: 'bg-white/10 backdrop-blur-sm text-white border border-white/20 hover:bg-white/20 transition-all',
+    /** Dropdown panel */
+    panel: 'bg-black/95 backdrop-blur-md border border-white/20 shadow-xl',
+    /** List item */
+    listItem: 'hover:bg-white/10 transition-colors',
+    /** Active list item */
+    listItemActive: 'bg-primary-500/20',
+    /** Section header */
+    sectionHeader: 'text-white/60 bg-white/5',
+    /** Divider */
+    divider: 'border-white/10',
+  },
+
+  /** Focus ring for video overlay */
+  ring: {
+    focus: 'focus:outline-none focus:ring-2 focus:ring-primary-500/50',
+  },
+} as const
+
+/**
  * Animation Style Objects (for inline styles when needed)
  *
  * Use these when you need fine-grained control over animation properties.

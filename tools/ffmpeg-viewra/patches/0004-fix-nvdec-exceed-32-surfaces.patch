@@ -1,0 +1,33 @@
+From: ViewRA <viewra@localhost>
+Subject: [PATCH] avcodec/nvdec: fix exceeding 32 surfaces limit
+
+NVDEC has a maximum of 32 decode surfaces. When decoding high-bitrate
+or 4K content, the initial_pool_size can exceed this limit, causing
+"Cannot allocate more than 32 surfaces" errors.
+
+This patch caps the surface pool at 32 while still guaranteeing the
+minimum 4 work surfaces needed for proper decoding.
+
+Based on jellyfin-ffmpeg patch 0016.
+
+---
+ libavcodec/nvdec.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+Index: FFmpeg/libavcodec/nvdec.c
+===================================================================
+--- FFmpeg.orig/libavcodec/nvdec.c
++++ FFmpeg/libavcodec/nvdec.c
+@@ -300,8 +300,10 @@ static int nvdec_init_hwframes(AVCodecCo
+     frames_ctx = (AVHWFramesContext*)(*out_frames_ref)->data;
+
+     if (dummy) {
+-        // Copied from ff_decode_get_hw_frames_ctx for compatibility
+-        frames_ctx->initial_pool_size += 3;
++        // The function above guarantees 1 work surface, We must guarantee 4 work surfaces.
++        // (the absolute minimum), so add the missing count without exceeding the maximum
++        // recommended for nvdec.
++        frames_ctx->initial_pool_size = FFMIN(frames_ctx->initial_pool_size + 3, 32);
+
+         frames_ctx->free = nvdec_free_dummy;
+         frames_ctx->pool = av_buffer_pool_init(0, nvdec_alloc_dummy);

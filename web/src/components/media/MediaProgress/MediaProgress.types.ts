@@ -1,5 +1,7 @@
+import type { GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse } from '@/lib/api/generated/models'
+
 export interface MediaProgressProps {
-  progress?: any // ProgressData type from existing hooks
+  progress?: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse
   showPercentage?: boolean
   showWatchedIndicator?: boolean
 }

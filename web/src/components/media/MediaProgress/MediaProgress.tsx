@@ -3,8 +3,8 @@ import type { MediaProgressProps } from './MediaProgress.types'
 
 export const MediaProgress = ({
   progress,
-  showPercentage = true,
-  showWatchedIndicator = true,
+  showPercentage: _showPercentage = true,
+  showWatchedIndicator: _showWatchedIndicator = true,
 }: MediaProgressProps) => {
   if (!progress) {return null}
 

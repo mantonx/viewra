@@ -34,7 +34,7 @@ export {
 } from './MediaCapabilityDetector'
 
 // Shared utilities
-export { getConnectionType, isMeteredConnection } from './utils'
+export { getConnectionType, isMeteredConnection, getSupportedCodecsHeader } from './utils'
 
 // Types
 export type {

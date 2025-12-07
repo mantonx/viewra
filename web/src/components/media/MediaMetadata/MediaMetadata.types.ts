@@ -1,3 +1,5 @@
+import type { GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse } from '@/lib/api/generated/models'
+
 export interface MediaMetadataProps {
   title: string
   year?: number
@@ -6,7 +8,7 @@ export interface MediaMetadataProps {
   plot?: string
   director?: string
   fileSize?: number
-  progress?: any // ProgressData type from existing hooks
+  progress?: GithubComMantonxViewraInternalApplicationProgressWatchProgressResponse | null
   links?: {
     imdb?: string
     tmdb?: string

@@ -1,5 +1,5 @@
 import { ScanErrorsDialog } from '@/components/library/ScanErrorsDialog'
-import { Button, ProgressBar } from '@/components/ui'
+import { Button, Progress } from '@/components/ui'
 import {
   useDeleteApiLibrariesId,
   useGetApiLibrariesIdScanStatus,
@@ -28,10 +28,13 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
   const toast = useToast()
   const { confirm } = useConfirm()
 
+  // Safe library ID with fallback (hooks require a number, but ID is optional in generated type)
+  const libraryId = library.id ?? 0
+
   // Get latest scan status to show error count
-  const { data: scanStatus } = useGetApiLibrariesIdScanStatus(library.id!, {
+  const { data: scanStatus } = useGetApiLibrariesIdScanStatus(libraryId, {
     query: {
-      enabled: !!library.id,
+      enabled: libraryId > 0,
       refetchInterval: SCAN_POLL_INTERVAL_MS,
     },
   })
@@ -248,8 +251,8 @@ const LibraryCard = ({ library }: LibraryCardProps) => {
         </div>
         {(isScanning || isPaused) && scanData && (
           <div className="px-4 pb-4">
-            <ProgressBar
-              progress={
+            <Progress
+              value={
                 scanData.phase === 'discovering' && !scanData.discovery_done ? 0 : scanData.progress ?? 0
               }
               label={

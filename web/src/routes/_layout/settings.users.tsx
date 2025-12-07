@@ -180,7 +180,8 @@ const UserManagement = () => {
   }
 
   const startEditing = (user: User) => {
-    setEditingUser(user.id!)
+    if (!user.id) { return }
+    setEditingUser(user.id)
     setEditDisplayName(user.display_name || '')
     setEditIsAdmin(user.is_admin || false)
   }
@@ -288,7 +289,7 @@ const UserManagement = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleEditUser(user.id!)}
+                          onClick={() => user.id && handleEditUser(user.id)}
                           className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
                         >
                           <Check className="w-4 h-4" />
@@ -315,7 +316,7 @@ const UserManagement = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleResetPassword(user.id!, user.username!)}
+                          onClick={() => user.id && user.username && handleResetPassword(user.id, user.username)}
                           title="Reset password"
                           className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
                         >
@@ -325,7 +326,7 @@ const UserManagement = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteUser(user.id!, user.username!)}
+                            onClick={() => user.id && user.username && handleDeleteUser(user.id, user.username)}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                             title="Delete user"
                           >

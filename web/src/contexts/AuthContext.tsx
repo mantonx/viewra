@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { logger } from '@/lib/utils/logger'
 
 // Auth types
 interface User {
@@ -152,7 +153,7 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
                 isLoading: false,
                 needsSetup: false,
               })
-              console.log('[Dev] Auto-logged in as dev user')
+              logger.debug('[Dev] Auto-logged in as dev user')
               return
             }
           } catch {
@@ -254,7 +255,7 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Auto-refresh token before expiry
   useEffect(() => {
-    if (!state.tokens) return
+    if (!state.tokens) {return}
 
     const timeUntilRefresh = state.tokens.expiresAt - Date.now() - REFRESH_BUFFER_MS
     if (timeUntilRefresh <= 0) {

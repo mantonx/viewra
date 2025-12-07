@@ -30,12 +30,12 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   error,
 
   // Item rendering
-  renderItem,
+  renderItem: _renderItem,
   renderListItem,
   getItemSearchText,
 
   // Interaction handlers
-  onItemSelect,
+  onItemSelect: _onItemSelect,
 
   // URL state preservation
   onSearchChange,
@@ -73,7 +73,7 @@ export const MediaBrowsePage = <T extends { id: number; title?: string; name?: s
   const [showHelpModal, setShowHelpModal] = useState(false)
   const [isHeaderMinimized, setIsHeaderMinimized] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const _scrollContainerRef = useRef<HTMLDivElement>(null)
   const { theme } = useTheme()
 
   // Auto-enable view toggle if renderListItem is provided

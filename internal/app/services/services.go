@@ -192,7 +192,7 @@ func BuildServices(
 	// Wire settings service into session manager for dynamic config
 	// This enables runtime changes to tone mapping settings without restart
 	configProvider := apptranscoding.NewSettingsConfigProvider(settingsService, transcodeConfig)
-	sessionManager.SetConfigProvider(configProvider)
+	transcoding.SetConfigProvider(sessionManager, configProvider)
 
 	// Initialize subtitle converter (for WebVTT conversion)
 	subtitleCacheDir := cfg.Media.TranscodeOutputDir // Reuse transcode output dir for subtitle cache

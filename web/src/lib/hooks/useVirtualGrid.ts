@@ -101,9 +101,12 @@ export const useVirtualGrid = ({
     overscan,
   })
 
+  // Get virtual items for auto-fetch check
+  const virtualItems = rowVirtualizer.getVirtualItems()
+
   // Auto-fetch when reaching end
   useEffect(() => {
-    const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse()
+    const [lastItem] = [...virtualItems].reverse()
 
     if (!lastItem) {return}
 
@@ -120,7 +123,7 @@ export const useVirtualGrid = ({
     fetchNextPage,
     rowCount,
     isFetchingNextPage,
-    rowVirtualizer.getVirtualItems(),
+    virtualItems,
   ])
 
   return {

@@ -1,10 +1,11 @@
 import { getProgressPercentage } from '@/lib/utils'
+import { Progress } from '@/components/ui/Progress'
 import type { ProgressBarProps } from './ProgressBar.types'
 
 /**
  * Progress bar overlay component for media cards
  * Shows playback progress at the bottom of media thumbnails
- * Shows when there is incomplete progress (not 100% complete)
+ * Automatically hides when there is no progress or when fully complete
  */
 export const ProgressBar = ({ progress }: ProgressBarProps) => {
   const percentage = getProgressPercentage(progress)
@@ -15,10 +16,11 @@ export const ProgressBar = ({ progress }: ProgressBarProps) => {
   }
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-30 z-10">
-      <div
-        className="h-full bg-blue-500 transition-all"
-        style={{ width: `${Math.min(percentage, 100)}%` }}
+    <div className="absolute bottom-0 left-0 right-0 z-10">
+      <Progress
+        value={percentage}
+        size="xs"
+        className="[&>div]:rounded-none [&>div]:bg-black/30 [&_[role=progressbar]]:rounded-none"
       />
     </div>
   )

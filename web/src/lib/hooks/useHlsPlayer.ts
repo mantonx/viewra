@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import Hls from 'hls.js'
 import { getAuthHeaders } from '@/lib/utils/authFetch'
 import { logger } from '@/lib/utils/logger'
+import { ensureVideoUnmuted } from '@/lib/utils/videoUtils'
 
 // HLS configuration constants
 // Optimized for progressive transcoding where segments are generated on-demand
@@ -85,11 +86,6 @@ export interface UseHlsPlayerReturn {
   loadSource: (url: string) => void
 }
 
-// Helper to ensure video is unmuted
-const ensureVideoUnmuted = (video: HTMLVideoElement) => {
-  video.muted = false
-  video.volume = 1.0
-}
 
 // Initialize stream offset for progressive transcoding
 const initializeStreamOffset = (
@@ -109,7 +105,7 @@ const findRecommendedLevel = (
   height: number,
   bandwidth?: number
 ): number => {
-  if (levels.length === 0) return -1
+  if (levels.length === 0) {return -1}
 
   // Find all levels at the recommended height
   const levelsAtHeight = levels
@@ -120,7 +116,7 @@ const findRecommendedLevel = (
     if (bandwidth) {
       // Try exact bandwidth match first
       const exactMatch = levelsAtHeight.find((item) => item.level.bitrate === bandwidth)
-      if (exactMatch) return exactMatch.index
+      if (exactMatch) {return exactMatch.index}
 
       // Find closest bandwidth at this height
       const sorted = [...levelsAtHeight].sort((a, b) =>
@@ -142,7 +138,7 @@ const findRecommendedLevel = (
     }))
     .filter((item) => item.level.height > 0)
     .sort((a, b) => {
-      if (a.diff !== b.diff) return a.diff - b.diff
+      if (a.diff !== b.diff) {return a.diff - b.diff}
       return b.level.bitrate - a.level.bitrate
     })
 
@@ -185,7 +181,7 @@ export const useHlsPlayer = ({
    */
   const changeQuality = useCallback((height: number, bandwidth?: number): number | null => {
     const hls = hlsRef.current
-    if (!hls) return null
+    if (!hls) {return null}
 
     if (height === 0) {
       // Auto mode - enable HLS.js ABR
@@ -240,7 +236,7 @@ export const useHlsPlayer = ({
   // Initialize HLS player
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !streamUrl) return
+    if (!video || !streamUrl) {return}
 
     // For direct streams, use native HTML5 video
     if (!isHlsStream) {
@@ -341,7 +337,7 @@ export const useHlsPlayer = ({
           })
           .filter((q) => q.height > 0)
           .sort((a, b) => {
-            if (b.height !== a.height) return b.height - a.height
+            if (b.height !== a.height) {return b.height - a.height}
             return b.bandwidth - a.bandwidth
           })
 
@@ -506,7 +502,7 @@ export const useHlsPlayer = ({
       }
     }
   // Note: onError and onFragLoaded are stored in refs to avoid triggering re-initialization
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [streamUrl, initialPosition, isHlsStream, videoRef])
 
   return {

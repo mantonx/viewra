@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetApiSettingsUser,
@@ -143,7 +143,7 @@ const SettingRow = ({
                 text.primary
               )}
             >
-              {definition.options!.map((opt) => (
+              {(definition.options ?? []).map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -185,7 +185,7 @@ const CategoryCard = ({
   isSaving: boolean
 }) => {
   const changedKeys = Object.keys(editedValues).filter((k) =>
-    k.startsWith(config.key + '.')
+    k.startsWith(`${config.key  }.`)
   )
   const hasChanges = changedKeys.length > 0
 
@@ -207,7 +207,8 @@ const CategoryCard = ({
 
       <CardContent className="space-y-1">
         {definitions.map((def) => {
-          const key = def.key!
+          const key = def.key ?? ''
+          if (!key) { return null }
           const editedValue = editedValues[key]
           const currentValue = currentValues[key]
           const defaultValue = defaultValues[key]
@@ -280,7 +281,7 @@ const PreferencesSettings = () => {
 
   // Get user setting definitions from schema
   const userDefinitions = useMemo(() => {
-    if (schemaData?.status !== 200) return []
+    if (schemaData?.status !== 200) {return []}
     return schemaData.data.user || []
   }, [schemaData])
 
@@ -333,9 +334,9 @@ const PreferencesSettings = () => {
   // Save category
   const handleSaveCategory = async (category: Category) => {
     const keysToSave = Object.keys(editedValues).filter((k) =>
-      k.startsWith(category + '.')
+      k.startsWith(`${category  }.`)
     )
-    if (keysToSave.length === 0) return
+    if (keysToSave.length === 0) {return}
 
     setSavingCategory(category)
 
@@ -361,7 +362,7 @@ const PreferencesSettings = () => {
       })
 
       toast.success('Settings saved')
-    } catch (err) {
+    } catch {
       toast.error('Failed to save settings')
     } finally {
       setSavingCategory(null)
@@ -373,7 +374,7 @@ const PreferencesSettings = () => {
     setEditedValues((prev) => {
       const next = { ...prev }
       Object.keys(next)
-        .filter((k) => k.startsWith(category + '.'))
+        .filter((k) => k.startsWith(`${category  }.`))
         .forEach((k) => delete next[k])
       return next
     })

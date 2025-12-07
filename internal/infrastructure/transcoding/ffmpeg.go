@@ -11,12 +11,81 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/ffmpeg"
 )
 
 // ffmpegExecutor handles FFmpeg command execution with progress tracking.
 type ffmpegExecutor struct {
 	config         *TranscodeConfig
-	processManager *ProcessManager
+	processManager *ffmpeg.ProcessManager
+}
+
+// convertToFFmpegTranscodeOptions converts our TranscodeOptions to ffmpeg.TranscodeOptions
+func convertToFFmpegTranscodeOptions(opts TranscodeOptions) ffmpeg.TranscodeOptions {
+	return ffmpeg.TranscodeOptions{
+		InputPath:                  opts.InputPath,
+		OutputDir:                  opts.OutputDir,
+		Profile:                    convertToFFmpegProfile(opts.Profile),
+		ProgressHandler:            opts.ProgressHandler,
+		AudioTrackIndex:            opts.AudioTrackIndex,
+		UseSpecificAudioTrack:      opts.UseSpecificAudioTrack,
+		StartPosition:              opts.StartPosition,
+		UseStartPosition:           opts.UseStartPosition,
+		VideoInfo:                  convertToFFmpegVideoInfo(opts.VideoInfo),
+		ToneMappingEnabled:         opts.ToneMappingEnabled,
+		ToneMappingAlgorithm:       opts.ToneMappingAlgorithm,
+		ToneMappingBackend:         opts.ToneMappingBackend,
+		LibPlaceboPeakDetect:       opts.LibPlaceboPeakDetect,
+		LibPlaceboContrastRecovery: opts.LibPlaceboContrastRecovery,
+		VideoCodec:                 ffmpeg.VideoCodec(opts.VideoCodec),
+	}
+}
+
+// convertToFFmpegProfile converts AdaptiveProfile to ffmpeg.AdaptiveProfile
+func convertToFFmpegProfile(p *AdaptiveProfile) *ffmpeg.AdaptiveProfile {
+	if p == nil {
+		return nil
+	}
+	return &ffmpeg.AdaptiveProfile{
+		Width:           p.Width,
+		Height:          p.Height,
+		VideoBitrate:    p.VideoBitrate,
+		VideoMaxRate:    p.VideoMaxRate,
+		VideoBufSize:    p.VideoBufSize,
+		AudioBitrate:    p.AudioBitrate,
+		AudioChannels:   p.AudioChannels,
+		AudioSampleRate: p.AudioSampleRate,
+		SegmentDuration: p.SegmentDuration,
+		GOPSize:         p.GOPSize,
+		PreferredCodec:  p.PreferredCodec,
+	}
+}
+
+// convertToFFmpegVideoInfo converts VideoInfo to ffmpeg.VideoInfo
+func convertToFFmpegVideoInfo(v *VideoInfo) *ffmpeg.VideoInfo {
+	if v == nil {
+		return nil
+	}
+	return &ffmpeg.VideoInfo{
+		Width:         v.Width,
+		Height:        v.Height,
+		AudioChannels: v.AudioChannels,
+		IsHDR:         v.IsHDR,
+	}
+}
+
+// convertToFFmpegConfig converts TranscodeConfig to ffmpeg.TranscodeConfig
+func convertToFFmpegConfig(c *TranscodeConfig) *ffmpeg.TranscodeConfig {
+	if c == nil {
+		return nil
+	}
+	return &ffmpeg.TranscodeConfig{
+		HardwareAccel:    ffmpeg.HardwareAccel(c.HardwareAccel),
+		HardwareDevice:   c.HardwareDevice,
+		ProcessGroupKill: c.ProcessGroupKill,
+		MaxMemoryMB:      c.MaxMemoryMB,
+	}
 }
 
 // newFFmpegExecutor creates a new FFmpeg executor.
@@ -39,7 +108,7 @@ func newFFmpegExecutorWithConfig(config *TranscodeConfig) (*ffmpegExecutor, erro
 
 	return &ffmpegExecutor{
 		config:         config,
-		processManager: NewProcessManager(config),
+		processManager: ffmpeg.NewProcessManager(convertToFFmpegConfig(config)),
 	}, nil
 }
 
@@ -49,17 +118,17 @@ type TranscodeOptions struct {
 	OutputDir                  string
 	Profile                    *AdaptiveProfile
 	ProgressHandler            func(progress int)
-	AudioTrackIndex            int        // Specific audio track to use (for -map 0:a:N)
-	UseSpecificAudioTrack      bool       // If true, use AudioTrackIndex; if false, use default (first)
-	StartPosition              int        // Start position in seconds (for seek-based transcoding)
-	UseStartPosition           bool       // If true, use StartPosition for seeking
-	VideoInfo                  *VideoInfo // Video metadata including HDR info (optional)
-	ToneMappingEnabled         bool       // Enable HDR to SDR tone mapping for HDR content
-	ToneMappingAlgorithm       string     // Tone mapping algorithm: none, linear, gamma, clip, reinhard, hable, mobius, bt.2390, bt.2446a, spline
-	ToneMappingBackend         string     // Tone mapping backend: auto, libplacebo, opencl, vaapi, cpu
-	LibPlaceboPeakDetect       bool       // Enable dynamic peak detection for libplacebo (default: true)
-	LibPlaceboContrastRecovery float64    // Contrast recovery for libplacebo (0.0-3.0, default: 0.3)
-	VideoCodec                 VideoCodec // Target codec: h264, h265, vp9, av1 (default: h264)
+	AudioTrackIndex            int                // Specific audio track to use (for -map 0:a:N)
+	UseSpecificAudioTrack      bool               // If true, use AudioTrackIndex; if false, use default (first)
+	StartPosition              int                // Start position in seconds (for seek-based transcoding)
+	UseStartPosition           bool               // If true, use StartPosition for seeking
+	VideoInfo                  *VideoInfo         // Video metadata including HDR info (optional)
+	ToneMappingEnabled         bool               // Enable HDR to SDR tone mapping for HDR content
+	ToneMappingAlgorithm       string             // Tone mapping algorithm: none, linear, gamma, clip, reinhard, hable, mobius, bt.2390, bt.2446a, spline
+	ToneMappingBackend         string             // Tone mapping backend: auto, libplacebo, opencl, vaapi, cpu
+	LibPlaceboPeakDetect       bool               // Enable dynamic peak detection for libplacebo (default: true)
+	LibPlaceboContrastRecovery float64            // Contrast recovery for libplacebo (0.0-3.0, default: 0.3)
+	VideoCodec                 ffmpeg.VideoCodec  // Target codec: h264, h265, vp9, av1 (default: h264)
 }
 
 // TranscodeToHLS executes FFmpeg to transcode a video file to HLS format.
@@ -144,18 +213,21 @@ func (e *ffmpegExecutor) executeFFmpeg(ctx context.Context, opts TranscodeOption
 // buildFFmpegArgs constructs the FFmpeg command line arguments for HLS transcoding.
 func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 	// Get codec from profile's preferred codec (e.g., h265 for 4K profiles)
-	targetCodec := CodecH264 // Default fallback
+	targetCodec := ffmpeg.CodecH264 // Default fallback
 	if opts.Profile != nil && opts.Profile.PreferredCodec != "" {
-		targetCodec = VideoCodec(opts.Profile.PreferredCodec)
+		targetCodec = ffmpeg.VideoCodec(opts.Profile.PreferredCodec)
 	}
 
 	// Set the target codec in opts so builder's getVideoCodec() returns correct codec
 	opts.VideoCodec = targetCodec
 
-	videoEncoder, videoPreset := GetVideoCodecAndPresetForCodec(e.config.HardwareAccel, targetCodec)
-	builder := NewFFmpegArgsBuilder(opts).
+	hwAccel := ffmpeg.HardwareAccel(e.config.HardwareAccel)
+	videoEncoder, videoPreset := ffmpeg.GetVideoCodecAndPresetForCodec(hwAccel, targetCodec)
+
+	ffmpegOpts := convertToFFmpegTranscodeOptions(opts)
+	builder := ffmpeg.NewFFmpegArgsBuilder(ffmpegOpts).
 		AddLogLevel("error").
-		AddHardwareAccel(GetHardwareAccelArgsWithDevice(e.config.HardwareAccel, e.config.HardwareDevice)).
+		AddHardwareAccel(ffmpeg.GetHardwareAccelArgsWithDevice(hwAccel, e.config.HardwareDevice)).
 		AddFastInputOptions()
 
 	// Add memory safety options for ALL transcoding operations to prevent OOM crashes
@@ -170,8 +242,8 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 		AddVideoCodec(videoEncoder, videoPreset)
 
 	// Use hardware or software encoding based on configuration
-	if e.config.HardwareAccel != AccelNone {
-		builder.AddHardwareVideoEncoding(e.config.HardwareAccel)
+	if hwAccel != ffmpeg.AccelNone {
+		builder.AddHardwareVideoEncoding(hwAccel)
 	} else {
 		builder.AddVideoEncoding()
 	}
@@ -190,7 +262,8 @@ func (e *ffmpegExecutor) buildFFmpegArgs(opts TranscodeOptions) []string {
 // This is used when video is already H.264 and audio is stereo, but container format needs conversion.
 // Note: force_key_frames doesn't apply to copy mode since we're not re-encoding.
 func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
-	return NewFFmpegArgsBuilder(opts).
+	ffmpegOpts := convertToFFmpegTranscodeOptions(opts)
+	return ffmpeg.NewFFmpegArgsBuilder(ffmpegOpts).
 		AddLogLevel("error").
 		AddFastInputOptions().
 		AddSeekPosition().
@@ -210,7 +283,8 @@ func (e *ffmpegExecutor) buildRemuxArgs(opts TranscodeOptions) []string {
 // This copies the video stream but re-encodes multi-channel audio to stereo for browser compatibility.
 // Note: force_key_frames doesn't apply to copy mode since we're not re-encoding video.
 func (e *ffmpegExecutor) buildRemuxWithAudioDownmixArgs(opts TranscodeOptions) []string {
-	return NewFFmpegArgsBuilder(opts).
+	ffmpegOpts := convertToFFmpegTranscodeOptions(opts)
+	return ffmpeg.NewFFmpegArgsBuilder(ffmpegOpts).
 		AddLogLevel("error").
 		AddFastInputOptions().
 		AddSeekPosition().

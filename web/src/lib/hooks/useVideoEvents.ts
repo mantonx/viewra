@@ -5,12 +5,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-
-// Helper to ensure video is unmuted
-const ensureVideoUnmuted = (video: HTMLVideoElement) => {
-  video.muted = false
-  video.volume = 1.0
-}
+import { ensureVideoUnmuted } from '@/lib/utils/videoUtils'
 
 export interface UseVideoEventsOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>
@@ -244,7 +239,7 @@ export const useVideoEvents = ({
       }
     }
   // Note: All callbacks and changing values are stored in refs to avoid re-attaching event listeners
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [videoRef, mediaId, streamOffsetRef, isSeekingRef])
 
   return {

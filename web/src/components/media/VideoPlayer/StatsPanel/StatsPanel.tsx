@@ -77,15 +77,15 @@ const getTrendColor = (trend: NetworkStats['trend']): string => {
 }
 
 const getStabilityColor = (stability: number): string => {
-  if (stability > 0.7) return 'text-green-400'
-  if (stability > 0.4) return 'text-yellow-400'
+  if (stability > 0.7) {return 'text-green-400'}
+  if (stability > 0.4) {return 'text-yellow-400'}
   return 'text-red-400'
 }
 
 const getConnectionQuality = (throughputMbps: number): { label: string; color: string } => {
-  if (throughputMbps >= 20) return { label: 'Excellent', color: 'text-green-400' }
-  if (throughputMbps >= 8) return { label: 'Good', color: 'text-green-400' }
-  if (throughputMbps >= 2) return { label: 'Fair', color: 'text-yellow-400' }
+  if (throughputMbps >= 20) {return { label: 'Excellent', color: 'text-green-400' }}
+  if (throughputMbps >= 8) {return { label: 'Good', color: 'text-green-400' }}
+  if (throughputMbps >= 2) {return { label: 'Fair', color: 'text-yellow-400' }}
   return { label: 'Poor', color: 'text-red-400' }
 }
 
@@ -309,14 +309,14 @@ export const StatsPanel = memo(({
   }
 
   const getBufferColor = (buffer: number) => {
-    if (buffer > 10) return 'text-green-400'
-    if (buffer > 5) return 'text-yellow-400'
+    if (buffer > 10) {return 'text-green-400'}
+    if (buffer > 5) {return 'text-yellow-400'}
     return 'text-red-400'
   }
 
   const getDroppedFrameColor = (rate: number) => {
-    if (rate < 0.1) return 'text-green-400'
-    if (rate < 1) return 'text-yellow-400'
+    if (rate < 0.1) {return 'text-green-400'}
+    if (rate < 1) {return 'text-yellow-400'}
     return 'text-red-400'
   }
 

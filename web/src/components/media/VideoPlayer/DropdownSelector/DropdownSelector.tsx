@@ -3,7 +3,7 @@ import type { DropdownOption, DropdownSelectorProps } from './DropdownSelector.t
 
 export type { DropdownOption }
 
-export function DropdownSelector<T>({
+export const DropdownSelector = <T,>({
   displayText,
   icon,
   title,
@@ -14,7 +14,7 @@ export function DropdownSelector<T>({
   panelWidth = 'w-56',
   ariaLabel,
   footer,
-}: DropdownSelectorProps<T>) {
+}: DropdownSelectorProps<T>) => {
   const [showPanel, setShowPanel] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -138,5 +138,3 @@ export function DropdownSelector<T>({
     </div>
   )
 }
-
-export default DropdownSelector

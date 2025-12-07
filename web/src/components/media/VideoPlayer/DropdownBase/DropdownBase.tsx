@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import { cn } from '@/lib/utils'
+import { videoOverlay } from '@/styles/semantic'
 import type { DropdownBaseProps } from './DropdownBase.types'
 
 export const DropdownBase = ({
@@ -43,7 +45,11 @@ export const DropdownBase = ({
       <button
         ref={buttonRef}
         onClick={() => setShowPanel(!showPanel)}
-        className="bg-white/10 backdrop-blur-sm text-white text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer border border-white/20 focus:outline-none focus:ring-2 focus:ring-primary-500/50 flex items-center gap-1"
+        className={cn(
+          'text-xs sm:text-sm rounded-md px-2 sm:px-3 py-1.5 cursor-pointer flex items-center gap-1',
+          videoOverlay.patterns.button,
+          videoOverlay.ring.focus
+        )}
         style={{ minWidth: minButtonWidth }}
         aria-label={ariaLabel}
         aria-expanded={showPanel}
@@ -53,7 +59,7 @@ export const DropdownBase = ({
         <span>{buttonContent}</span>
         {/* Chevron */}
         <svg
-          className={`w-3 h-3 transition-transform ${showPanel ? 'rotate-180' : ''}`}
+          className={cn('w-3 h-3 transition-transform', showPanel && 'rotate-180')}
           fill="currentColor"
           viewBox="0 0 20 20"
         >
@@ -69,7 +75,11 @@ export const DropdownBase = ({
       {showPanel && (
         <div
           ref={panelRef}
-          className={`absolute bottom-full right-0 mb-2 ${panelWidth} bg-black/95 backdrop-blur-md rounded-lg shadow-xl border border-white/20 overflow-hidden z-50`}
+          className={cn(
+            'absolute bottom-full right-0 mb-2 rounded-lg overflow-hidden z-50',
+            panelWidth,
+            videoOverlay.patterns.panel
+          )}
           role="listbox"
         >
           {children({ close })}
@@ -78,5 +88,3 @@ export const DropdownBase = ({
     </div>
   )
 }
-
-export default DropdownBase

@@ -293,10 +293,10 @@ const Movies = () => {
 
     // Trigger playback via hook, passing URL time if available
     await playMedia(movieId, mediaItem, startTime)
-  }, [allMovies, navigate, playMedia, setDirectPlayMovie])
+  }, [allMovies, navigate, playMedia, setDirectPlayMovie, search.q, search.sort, search.genres, search.yearMin, search.yearMax, search.qualities, search.watched, search.view])
 
   // Handle time position updates from video player
-  const handleTimeUpdate = (time: number) => {
+  const handleTimeUpdate = useCallback((time: number) => {
     if (urlMovieId && time > 0) {
       navigate({
         to: '/movies',
@@ -315,7 +315,7 @@ const Movies = () => {
         replace: true, // Use replace to avoid polluting browser history
       })
     }
-  }
+  }, [urlMovieId, navigate, search.q, search.sort, search.genres, search.yearMin, search.yearMax, search.qualities, search.watched, search.view])
 
   // Refs for auto-play control
   const lastPlayedIdRef = useRef<number | undefined>(undefined)

@@ -7,34 +7,13 @@
  */
 
 import { useState, useMemo, useEffect } from 'react'
+import { cn } from '@/lib/utils'
+import { videoOverlay } from '@/styles/semantic'
 import { DropdownBase } from '../DropdownBase'
+import { SettingsIcon, CheckIcon, ChevronIcon } from '../icons'
+import { formatBitrate } from '@/lib/types/streamStats'
 import type { QualityOption } from '@/lib/types/video'
 import type { QualitySelectorProps } from './QualitySelector.types'
-
-const formatBandwidth = (bps: number): string => {
-  if (bps >= 1_000_000) {
-    return `${(bps / 1_000_000).toFixed(0)} Mbps`
-  }
-  return `${(bps / 1_000).toFixed(0)} kbps`
-}
-
-const SettingsIcon = () => (
-  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
-  </svg>
-)
-
-const CheckIcon = () => (
-  <svg className="w-4 h-4 text-primary-400" fill="currentColor" viewBox="0 0 20 20">
-    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-  </svg>
-)
-
-const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
-  <svg className={`w-4 h-4 text-white/50 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-  </svg>
-)
 
 export const QualitySelector = ({
   currentQuality,
@@ -75,12 +54,6 @@ export const QualitySelector = ({
     return grouped
   }, [availableQualities])
 
-  const hasMultipleBitrates = useMemo(() => {
-    for (const options of qualitiesByResolution.values()) {
-      if (options.length > 1) return true
-    }
-    return false
-  }, [qualitiesByResolution])
 
   const sortedHeights = useMemo(() => {
     return Array.from(qualitiesByResolution.keys()).sort((a, b) => b - a)
@@ -111,14 +84,14 @@ export const QualitySelector = ({
 
   // Check if a specific quality option is currently active
   const isQualityActive = (q: QualityOption) => {
-    if (currentQuality !== q.height) return false
-    if (currentBandwidth && q.bandwidth !== currentBandwidth) return false
+    if (currentQuality !== q.height) { return false }
+    if (currentBandwidth && q.bandwidth !== currentBandwidth) { return false }
     return true
   }
 
   // Get the selected option within a resolution group
   const getActiveOptionInGroup = (height: number): QualityOption | null => {
-    if (currentQuality !== height) return null
+    if (currentQuality !== height) { return null }
     const options = qualitiesByResolution.get(height) || []
     return options.find(q => q.bandwidth === currentBandwidth) || null
   }
@@ -134,22 +107,27 @@ export const QualitySelector = ({
           onQualityChange(quality.height, quality.bandwidth)
           close()
         }}
-        className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${isActive ? 'bg-primary-500/20' : ''} ${isNested ? 'pl-6 bg-white/5' : ''}`}
+        className={cn(
+          'w-full px-3 py-2.5 flex items-center justify-between cursor-pointer',
+          videoOverlay.patterns.listItem,
+          isActive && videoOverlay.bg.active,
+          isNested && 'pl-6 bg-white/5'
+        )}
         role="option"
         aria-selected={isActive}
       >
         <div className="flex items-center gap-2">
           {isNested ? (
             <>
-              <span className="text-white text-sm">{formatBandwidth(quality.bandwidth)}</span>
+              <span className={cn('text-sm', videoOverlay.text.primary)}>{formatBitrate(quality.bandwidth)}</span>
               {quality.isOriginal && (
                 <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
               )}
             </>
           ) : (
             <>
-              <span className="text-white text-sm font-medium">{quality.height}p</span>
-              <span className="text-white/50 text-xs">{formatBandwidth(quality.bandwidth)}</span>
+              <span className={cn('text-sm font-medium', videoOverlay.text.primary)}>{quality.height}p</span>
+              <span className={cn('text-xs', videoOverlay.text.tertiary)}>{formatBitrate(quality.bandwidth)}</span>
               {quality.isOriginal && (
                 <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
               )}
@@ -178,16 +156,20 @@ export const QualitySelector = ({
       <div key={height}>
         <button
           onClick={() => toggleExpanded(height)}
-          className={`w-full px-3 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer ${isGroupActive ? 'bg-primary-500/10' : ''}`}
+          className={cn(
+            'w-full px-3 py-2.5 flex items-center justify-between cursor-pointer',
+            videoOverlay.patterns.listItem,
+            isGroupActive && 'bg-primary-500/10'
+          )}
         >
           <div className="flex items-center gap-2">
-            <span className="text-white text-sm font-medium">{height}p</span>
+            <span className={cn('text-sm font-medium', videoOverlay.text.primary)}>{height}p</span>
             {isGroupActive && !isExpanded ? (
               <span className="text-primary-400 text-xs">
-                {formatBandwidth(activeOption.bandwidth)}
+                {formatBitrate(activeOption.bandwidth)}
               </span>
             ) : (
-              <span className="text-white/50 text-xs">{options.length} bitrates</span>
+              <span className={cn('text-xs', videoOverlay.text.tertiary)}>{options.length} bitrates</span>
             )}
           </div>
           <div className="flex items-center gap-1.5">
@@ -196,7 +178,7 @@ export const QualitySelector = ({
           </div>
         </button>
         {isExpanded && (
-          <div className="border-l-2 border-white/10 ml-3">
+          <div className={cn('border-l-2 ml-3', videoOverlay.border.subtle)}>
             {options.map((opt) => renderQualityOption(opt, close, true))}
           </div>
         )}
@@ -215,24 +197,30 @@ export const QualitySelector = ({
       {({ close }) => (
         <>
           {/* Header */}
-          <div className="px-3 py-2.5 border-b border-white/10">
-            <div className="text-white text-sm font-semibold">Video Quality</div>
+          <div className={cn('px-3 py-2.5 border-b', videoOverlay.border.subtle)}>
+            <div className={cn('text-sm font-semibold', videoOverlay.text.primary)}>Video Quality</div>
           </div>
 
           <div className="max-h-80 overflow-y-auto">
             {/* Auto mode toggle */}
-            <div className="px-3 py-3 flex items-center justify-between border-b border-white/10">
+            <div className={cn('px-3 py-3 flex items-center justify-between border-b', videoOverlay.border.subtle)}>
               <div>
-                <div className="text-white text-sm font-medium">Auto</div>
-                <div className="text-white/50 text-xs">Adapts to network speed</div>
+                <div className={cn('text-sm font-medium', videoOverlay.text.primary)}>Auto</div>
+                <div className={cn('text-xs', videoOverlay.text.tertiary)}>Adapts to network speed</div>
               </div>
               <button
                 onClick={() => onAutoToggle()}
-                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${autoMode ? 'bg-primary-500' : 'bg-white/20'}`}
+                className={cn(
+                  'relative w-11 h-6 rounded-full transition-colors cursor-pointer',
+                  autoMode ? 'bg-primary-500' : videoOverlay.bg.prominent
+                )}
                 role="switch"
                 aria-checked={autoMode}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${autoMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                <div className={cn(
+                  'absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform',
+                  autoMode ? 'translate-x-6' : 'translate-x-1'
+                )} />
               </button>
             </div>
 
@@ -242,11 +230,11 @@ export const QualitySelector = ({
 
           {/* Footer - current quality info */}
           {currentQuality && currentBandwidth && (
-            <div className="px-3 py-2 border-t border-white/10 bg-white/5">
-              <div className="text-white/60 text-xs flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${autoMode ? 'bg-green-400' : 'bg-primary-400'}`} />
+            <div className={cn('px-3 py-2 border-t', videoOverlay.border.subtle, videoOverlay.patterns.sectionHeader)}>
+              <div className={cn('text-xs flex items-center gap-1.5', videoOverlay.text.secondary)}>
+                <span className={cn('w-2 h-2 rounded-full', autoMode ? 'bg-green-400' : 'bg-primary-400')} />
                 <span>
-                  {autoMode ? 'Auto' : 'Manual'}: {currentQuality}p @ {formatBandwidth(currentBandwidth)}
+                  {autoMode ? 'Auto' : 'Manual'}: {currentQuality}p @ {formatBitrate(currentBandwidth)}
                 </span>
               </div>
             </div>
@@ -256,5 +244,3 @@ export const QualitySelector = ({
     </DropdownBase>
   )
 }
-
-export default QualitySelector

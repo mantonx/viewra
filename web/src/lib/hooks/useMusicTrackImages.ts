@@ -48,9 +48,8 @@ export const useMusicTrackImages = ({ trackId, albumId, enabled = true }: UseMus
           // Track has its own images (embedded album art)
           return { images: trackData.images, source: 'track' as const }
         }
-      } catch (error) {
+      } catch {
         // Track images not found, continue to fallback
-        console.debug('No track images found, falling back to album images')
       }
 
       // Fallback: Try to get album images if albumId is provided
@@ -62,8 +61,8 @@ export const useMusicTrackImages = ({ trackId, albumId, enabled = true }: UseMus
           if (albumData.images && albumData.images.length > 0) {
             return { images: albumData.images, source: 'album' as const }
           }
-        } catch (error) {
-          console.debug('No album images found')
+        } catch {
+          // No album images found
         }
       }
 

@@ -151,25 +151,25 @@ export const formatFileSize = (bytes: number): string => {
 
 // Helper to format resolution
 export const formatResolution = (height: number): string => {
-  if (height >= 2160) return '4K'
-  if (height >= 1440) return '1440p'
-  if (height >= 1080) return '1080p'
-  if (height >= 720) return '720p'
-  if (height >= 480) return '480p'
+  if (height >= 2160) {return '4K'}
+  if (height >= 1440) {return '1440p'}
+  if (height >= 1080) {return '1080p'}
+  if (height >= 720) {return '720p'}
+  if (height >= 480) {return '480p'}
   return `${height}p`
 }
 
 // Helper to format frame rate
 export const formatFrameRate = (fps: number): string => {
   // Common frame rates
-  if (Math.abs(fps - 23.976) < 0.01) return '23.976'
-  if (Math.abs(fps - 24) < 0.01) return '24'
-  if (Math.abs(fps - 25) < 0.01) return '25'
-  if (Math.abs(fps - 29.97) < 0.01) return '29.97'
-  if (Math.abs(fps - 30) < 0.01) return '30'
-  if (Math.abs(fps - 50) < 0.01) return '50'
-  if (Math.abs(fps - 59.94) < 0.01) return '59.94'
-  if (Math.abs(fps - 60) < 0.01) return '60'
+  if (Math.abs(fps - 23.976) < 0.01) {return '23.976'}
+  if (Math.abs(fps - 24) < 0.01) {return '24'}
+  if (Math.abs(fps - 25) < 0.01) {return '25'}
+  if (Math.abs(fps - 29.97) < 0.01) {return '29.97'}
+  if (Math.abs(fps - 30) < 0.01) {return '30'}
+  if (Math.abs(fps - 50) < 0.01) {return '50'}
+  if (Math.abs(fps - 59.94) < 0.01) {return '59.94'}
+  if (Math.abs(fps - 60) < 0.01) {return '60'}
   return fps.toFixed(2)
 }
 

@@ -4,6 +4,7 @@
  */
 
 import type { ExtendedNavigator } from './browser-types'
+import type { CodecSupport } from './types'
 
 // Re-export detectDeviceType from DeviceDetector for convenience
 export { detectDeviceType } from './DeviceDetector'
@@ -29,4 +30,28 @@ export const getConnectionType = (): string => {
  */
 export const isMeteredConnection = (): boolean => {
   return getNavigatorConnection()?.saveData ?? false
+}
+
+/**
+ * Converts CodecSupport to a comma-separated header value for API requests.
+ * Used to inform the backend which codecs the client can decode.
+ */
+export const getSupportedCodecsHeader = (codecSupport: CodecSupport | null): string => {
+  if (!codecSupport) {
+    return 'h264' // Safe fallback
+  }
+  const supported: string[] = []
+  if (codecSupport.h264.supported) {
+    supported.push('h264')
+  }
+  if (codecSupport.h265.supported) {
+    supported.push('h265')
+  }
+  if (codecSupport.vp9.supported) {
+    supported.push('vp9')
+  }
+  if (codecSupport.av1.supported) {
+    supported.push('av1')
+  }
+  return supported.join(',')
 }

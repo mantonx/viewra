@@ -64,7 +64,7 @@ const ScanErrorsDialog = ({ libraryId, jobId, isOpen, onClose, onRetrySuccess }:
   }
 
   // Count warnings vs errors
-  const warningCount = errorData ? Object.values(errorData.by_category || {}).flat().filter((item: any) => item.status === 'warning').length : 0
+  const warningCount = errorData ? Object.values(errorData.by_category || {}).flat().filter((item: InternalApiHandlersScanErrorDetail) => item.status === 'warning').length : 0
   const errorCount = (errorData?.total_errors || 0) - warningCount
 
   return (

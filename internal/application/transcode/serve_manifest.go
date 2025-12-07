@@ -126,18 +126,19 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 
 	// Create or reuse transcode session
 	// Pass client's supported video codecs for intelligent codec selection
-	session, err := uc.sessionManager.GetOrCreateSession(
-		req.MediaID,
-		req.Quality,
-		req.StartPosition,
-		req.AudioTrackIndex,
-		mediaEntity.FilePath,
-		profile,
-		strategy,
-		req.OutputDir,
-		videoInfo,
-		req.SupportedVideoCodecs,
-	)
+	session, err := uc.sessionManager.GetOrCreateSession(transcoding.GetOrCreateSessionParams{
+		MediaID:               req.MediaID,
+		Quality:               req.Quality,
+		StartPosition:         req.StartPosition,
+		AudioTrackIndex:       req.AudioTrackIndex,
+		InputPath:             mediaEntity.FilePath,
+		Profile:               profile,
+		Strategy:              string(strategy),
+		OutputDir:             req.OutputDir,
+		VideoInfo:             videoInfo,
+		ClientSupportedCodecs: req.SupportedVideoCodecs,
+		// HWAccel and HWDevice use manager's defaults (from TranscodeConfig)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcode session: %w", err)
 	}

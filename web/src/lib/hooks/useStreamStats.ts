@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type Hls from 'hls.js'
 import { useGetApiMediaIdStreamInfo } from '@/lib/api/generated/media/media'
-import { detectCodecSupport } from '@/lib/capabilities'
+import { detectCodecSupport, getSupportedCodecsHeader } from '@/lib/capabilities'
 import type { CodecSupport } from '@/lib/capabilities'
 import type { NetworkStats } from '@/lib/network/NetworkMonitor'
 import type {
@@ -17,27 +17,6 @@ import type {
   PlaybackMode,
   ToneMappingInfo,
 } from '@/lib/types/streamStats'
-
-// Helper to convert CodecSupport to header value
-const getSupportedCodecsHeader = (codecSupport: CodecSupport | null): string => {
-  if (!codecSupport) {
-    return 'h264' // Safe fallback
-  }
-  const supported: string[] = []
-  if (codecSupport.h264.supported) {
-    supported.push('h264')
-  }
-  if (codecSupport.h265.supported) {
-    supported.push('h265')
-  }
-  if (codecSupport.vp9.supported) {
-    supported.push('vp9')
-  }
-  if (codecSupport.av1.supported) {
-    supported.push('av1')
-  }
-  return supported.join(',')
-}
 
 export interface UseStreamStatsOptions {
   mediaId: number | null
@@ -70,10 +49,10 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
     mediaId,
     videoRef,
     hlsRef,
-    networkStats,
+    networkStats: _networkStats,
     isPlaying,
     playbackMode,
-    selectedAudioIndex = 0,
+    selectedAudioIndex: _selectedAudioIndex = 0,
     streamOffset = 0,
     enabled = true,
   } = options
@@ -403,5 +382,3 @@ export const useStreamStats = (options: UseStreamStatsOptions): UseStreamStatsRe
     refresh,
   }
 }
-
-export default useStreamStats

@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
-import { authFetch, getAuthHeaders } from '@/lib/utils/authFetch'
-import { detectCodecSupport } from '@/lib/capabilities'
+import { authFetch } from '@/lib/utils/authFetch'
+import { detectCodecSupport, getSupportedCodecsHeader } from '@/lib/capabilities'
 import type { CodecSupport } from '@/lib/capabilities'
 import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
@@ -21,27 +21,6 @@ interface UseMediaPlaybackReturn {
   playbackState: PlaybackState
   playMedia: (mediaId: number, media: Media, urlTime?: number) => Promise<void>
   stopPlayback: () => void
-}
-
-// Helper to convert CodecSupport to header values
-const getSupportedCodecsHeader = (codecSupport: CodecSupport | null): string => {
-  if (!codecSupport) {
-    return 'h264' // Safe fallback
-  }
-  const supported: string[] = []
-  if (codecSupport.h264.supported) {
-    supported.push('h264')
-  }
-  if (codecSupport.h265.supported) {
-    supported.push('h265')
-  }
-  if (codecSupport.vp9.supported) {
-    supported.push('vp9')
-  }
-  if (codecSupport.av1.supported) {
-    supported.push('av1')
-  }
-  return supported.join(',')
 }
 
 // Supported containers - detected from browser capabilities

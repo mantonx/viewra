@@ -105,7 +105,9 @@ const TVShows = () => {
     isFetchingNextPage,
   } = useInfiniteTVShows({ libraryId, sort: apiSort, search: debouncedSearch })
 
-  const allShows = data ? flattenTVShows(data.pages as Array<{ shows?: GithubComMantonxViewraInternalApplicationTvTVShowSummary[] }>) : []
+  const allShows = useMemo(() => {
+    return data ? flattenTVShows(data.pages as Array<{ shows?: GithubComMantonxViewraInternalApplicationTvTVShowSummary[] }>) : []
+  }, [data])
 
   // Extract unique genres and year range from shows
   const { genres, yearRange } = useMemo(() => {

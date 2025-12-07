@@ -166,7 +166,7 @@ const SystemInfoCard = () => {
   }
 
   const info = systemInfo?.status === 200 ? systemInfo.data : null
-  if (!info) return null
+  if (!info) {return null}
 
   const cpuInfo = info.cpu
   const memoryInfo = info.memory
@@ -680,7 +680,7 @@ const SystemSettings = () => {
     .filter((s) => s.category !== 'system')
     .reduce<Record<string, EffectiveSetting[]>>((acc, setting) => {
       const category = setting.category || 'other'
-      if (!acc[category]) acc[category] = []
+      if (!acc[category]) {acc[category] = []}
       acc[category].push(setting)
       return acc
     }, {})
@@ -702,7 +702,7 @@ const SystemSettings = () => {
     const categoryKeys = (groupedSettings[category] || []).map((s) => s.key || '')
     const changes = Object.entries(editedValues).filter(([key]) => categoryKeys.includes(key))
 
-    if (changes.length === 0) return
+    if (changes.length === 0) {return}
 
     setSavingCategory(category)
     try {

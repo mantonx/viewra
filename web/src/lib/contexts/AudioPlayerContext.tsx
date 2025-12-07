@@ -497,8 +497,10 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
   }, [isPlaying, isMinimized])
 
   // Expand player when a new track starts (but be smart about it)
+  // Intentionally only depend on currentTrack.id to avoid re-running when other track properties change
+  const currentTrackId = currentTrack?.id
   useEffect(() => {
-    if (currentTrack) {
+    if (currentTrackId) {
       // Only auto-expand on new track if:
       // 1. User hasn't established a pattern of preferring minimized (< 3 consecutive auto-minimizes)
       // 2. OR it's a brand new listening session (queue was empty before)
@@ -509,7 +511,7 @@ export const AudioPlayerProvider = ({ children }: AudioPlayerProviderProps) => {
       }
       lastUserInteractionRef.current = Date.now()
     }
-  }, [currentTrack?.id])
+  }, [currentTrackId])
 
   // Helper to check if a path is a music page
   const isMusicPath = (pathname: string): boolean => {

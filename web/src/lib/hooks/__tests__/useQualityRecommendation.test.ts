@@ -12,6 +12,8 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { useQualityRecommendation } from '../useQualityRecommendation'
 import * as adaptiveApi from '@/lib/api/adaptive'
 import * as capabilityDetector from '@/lib/capabilities/CapabilityDetector'
+import type { ClientCapabilities } from '@/lib/capabilities/types'
+import type { QualityRecommendationResponse } from '@/lib/api/adaptive'
 
 // Mock the API and capability detector
 vi.mock('@/lib/api/adaptive')
@@ -113,10 +115,10 @@ describe('useQualityRecommendation', () => {
 
   it('should allow manual refresh', async () => {
     vi.spyOn(capabilityDetector.capabilityDetector, 'detectCapabilities')
-      .mockResolvedValue({} as any)
+      .mockResolvedValue({} as ClientCapabilities)
 
     vi.spyOn(adaptiveApi.adaptiveApi, 'recommendQuality')
-      .mockResolvedValue({} as any)
+      .mockResolvedValue({} as QualityRecommendationResponse)
 
     const { result } = renderHook(() =>
       useQualityRecommendation({ skipAutoDetect: true })

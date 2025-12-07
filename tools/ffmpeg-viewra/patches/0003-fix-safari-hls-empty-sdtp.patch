@@ -1,0 +1,29 @@
+From: ViewRA <viewra@localhost>
+Subject: [PATCH] avformat/movenc: fix Safari HLS playback with empty SDTP box
+
+Safari's HLS player fails when encountering an empty Sample Dependency
+Type (SDTP) box in fMP4 segments. This can occur with libx265-encoded
+content where track->has_disposable is set but no samples exist yet.
+
+Add a check to ensure track->entry is non-zero before writing the SDTP
+box, preventing malformed containers that break Safari playback.
+
+Based on jellyfin-ffmpeg patch 0045.
+
+---
+ libavformat/movenc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: FFmpeg/libavformat/movenc.c
+===================================================================
+--- FFmpeg.orig/libavformat/movenc.c
++++ FFmpeg/libavformat/movenc.c
+@@ -3202,7 +3202,7 @@ static int mov_write_stbl_tag(AVFormatCo
+          track->par->codec_tag == MKTAG('r','t','p',' ')) &&
+         track->has_keyframes && track->has_keyframes < track->entry)
+         mov_write_stss_tag(pb, track, MOV_SYNC_SAMPLE);
+-    if (track->par->codec_type == AVMEDIA_TYPE_VIDEO && track->has_disposable)
++    if (track->par->codec_type == AVMEDIA_TYPE_VIDEO && track->has_disposable && track->entry)
+         mov_write_sdtp_tag(pb, track);
+     if (track->mode == MODE_MOV && track->flags & MOV_TRACK_STPS)
+         mov_write_stss_tag(pb, track, MOV_PARTIAL_SYNC_SAMPLE);
