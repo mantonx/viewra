@@ -7,6 +7,9 @@ import (
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg"
 )
 
+// These tests verify that the re-exports from the config subpackage work correctly.
+// The detailed implementation tests are in internal/infrastructure/transcoding/config/config_test.go
+
 func TestDefaultTranscodeConfig(t *testing.T) {
 	config := DefaultTranscodeConfig()
 
@@ -68,9 +71,9 @@ func TestDefaultTranscodeConfig(t *testing.T) {
 
 func TestDefaultTranscodeConfigFromProfile(t *testing.T) {
 	tests := []struct {
-		name           string
-		hwAccelType    string
-		expectedAccel  HardwareAccel
+		name          string
+		hwAccelType   string
+		expectedAccel HardwareAccel
 	}{
 		{
 			name:          "Explicit NVENC",
@@ -266,291 +269,6 @@ func TestOutputDirEnvironmentOverride(t *testing.T) {
 	}
 }
 
-func TestToneMappingEnvironmentOverrides(t *testing.T) {
-	tests := []struct {
-		name               string
-		enabledValue       string
-		algorithmValue     string
-		backendValue       string
-		peakDetectValue    string
-		contrastRecovValue string
-		expectedEnabled    bool
-		expectedAlgorithm  string
-		expectedBackend    string
-		expectedPeakDetect bool
-		expectedContrast   float64
-	}{
-		{
-			name:               "All defaults",
-			enabledValue:       "",
-			algorithmValue:     "",
-			backendValue:       "",
-			peakDetectValue:    "",
-			contrastRecovValue: "",
-			expectedEnabled:    true,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "auto",
-			expectedPeakDetect: true,
-			expectedContrast:   0.3,
-		},
-		{
-			name:               "Disable tone mapping",
-			enabledValue:       "false",
-			algorithmValue:     "",
-			backendValue:       "",
-			peakDetectValue:    "",
-			contrastRecovValue: "",
-			expectedEnabled:    false,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "auto",
-			expectedPeakDetect: true,
-			expectedContrast:   0.3,
-		},
-		{
-			name:               "Enable with 0",
-			enabledValue:       "0",
-			algorithmValue:     "",
-			backendValue:       "",
-			peakDetectValue:    "",
-			contrastRecovValue: "",
-			expectedEnabled:    false,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "auto",
-			expectedPeakDetect: true,
-			expectedContrast:   0.3,
-		},
-		{
-			name:               "Enable with 1",
-			enabledValue:       "1",
-			algorithmValue:     "",
-			backendValue:       "",
-			peakDetectValue:    "",
-			contrastRecovValue: "",
-			expectedEnabled:    true,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "auto",
-			expectedPeakDetect: true,
-			expectedContrast:   0.3,
-		},
-		{
-			name:               "Custom algorithm",
-			enabledValue:       "",
-			algorithmValue:     "hable",
-			backendValue:       "",
-			peakDetectValue:    "",
-			contrastRecovValue: "",
-			expectedEnabled:    true,
-			expectedAlgorithm:  "hable",
-			expectedBackend:    "auto",
-			expectedPeakDetect: true,
-			expectedContrast:   0.3,
-		},
-		{
-			name:               "Custom backend",
-			enabledValue:       "",
-			algorithmValue:     "",
-			backendValue:       "libplacebo",
-			peakDetectValue:    "",
-			contrastRecovValue: "",
-			expectedEnabled:    true,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "libplacebo",
-			expectedPeakDetect: true,
-			expectedContrast:   0.3,
-		},
-		{
-			name:               "Disable peak detect",
-			enabledValue:       "",
-			algorithmValue:     "",
-			backendValue:       "",
-			peakDetectValue:    "false",
-			contrastRecovValue: "",
-			expectedEnabled:    true,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "auto",
-			expectedPeakDetect: false,
-			expectedContrast:   0.3,
-		},
-		{
-			name:               "Custom contrast recovery",
-			enabledValue:       "",
-			algorithmValue:     "",
-			backendValue:       "",
-			peakDetectValue:    "",
-			contrastRecovValue: "1.5",
-			expectedEnabled:    true,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "auto",
-			expectedPeakDetect: true,
-			expectedContrast:   1.5,
-		},
-		{
-			name:               "Invalid contrast keeps default",
-			enabledValue:       "",
-			algorithmValue:     "",
-			backendValue:       "",
-			peakDetectValue:    "",
-			contrastRecovValue: "invalid",
-			expectedEnabled:    true,
-			expectedAlgorithm:  "bt.2390",
-			expectedBackend:    "auto",
-			expectedPeakDetect: true,
-			expectedContrast:   0.3,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore environment
-			envVars := map[string]string{
-				"TONE_MAPPING_ENABLED":          tt.enabledValue,
-				"TONE_MAPPING_ALGORITHM":        tt.algorithmValue,
-				"TONE_MAPPING_BACKEND":          tt.backendValue,
-				"LIBPLACEBO_PEAK_DETECT":        tt.peakDetectValue,
-				"LIBPLACEBO_CONTRAST_RECOVERY":  tt.contrastRecovValue,
-			}
-
-			originals := make(map[string]string)
-			for key, val := range envVars {
-				originals[key] = os.Getenv(key)
-				if val != "" {
-					os.Setenv(key, val)
-				} else {
-					os.Unsetenv(key)
-				}
-			}
-
-			defer func() {
-				for key, orig := range originals {
-					if orig == "" {
-						os.Unsetenv(key)
-					} else {
-						os.Setenv(key, orig)
-					}
-				}
-			}()
-
-			config := DefaultTranscodeConfig()
-
-			if config.ToneMappingEnabled != tt.expectedEnabled {
-				t.Errorf("ToneMappingEnabled = %v, want %v", config.ToneMappingEnabled, tt.expectedEnabled)
-			}
-
-			if config.ToneMappingAlgorithm != tt.expectedAlgorithm {
-				t.Errorf("ToneMappingAlgorithm = %s, want %s", config.ToneMappingAlgorithm, tt.expectedAlgorithm)
-			}
-
-			if config.ToneMappingBackend != tt.expectedBackend {
-				t.Errorf("ToneMappingBackend = %s, want %s", config.ToneMappingBackend, tt.expectedBackend)
-			}
-
-			if config.LibPlaceboPeakDetect != tt.expectedPeakDetect {
-				t.Errorf("LibPlaceboPeakDetect = %v, want %v", config.LibPlaceboPeakDetect, tt.expectedPeakDetect)
-			}
-
-			if config.LibPlaceboContrastRecovery != tt.expectedContrast {
-				t.Errorf("LibPlaceboContrastRecovery = %f, want %f", config.LibPlaceboContrastRecovery, tt.expectedContrast)
-			}
-		})
-	}
-}
-
-func TestFFmpegLogEnvironmentOverrides(t *testing.T) {
-	tests := []struct {
-		name                string
-		enabledValue        string
-		retentionValue      string
-		expectedEnabled     bool
-		expectedRetention   int
-	}{
-		{
-			name:              "Defaults",
-			enabledValue:      "",
-			retentionValue:    "",
-			expectedEnabled:   true,
-			expectedRetention: 48,
-		},
-		{
-			name:              "Disable logging",
-			enabledValue:      "false",
-			retentionValue:    "",
-			expectedEnabled:   false,
-			expectedRetention: 48,
-		},
-		{
-			name:              "Custom retention",
-			enabledValue:      "",
-			retentionValue:    "72",
-			expectedEnabled:   true,
-			expectedRetention: 72,
-		},
-		{
-			name:              "Invalid retention keeps default",
-			enabledValue:      "",
-			retentionValue:    "invalid",
-			expectedEnabled:   true,
-			expectedRetention: 48,
-		},
-		{
-			name:              "Zero retention keeps default",
-			enabledValue:      "",
-			retentionValue:    "0",
-			expectedEnabled:   true,
-			expectedRetention: 48,
-		},
-		{
-			name:              "Negative retention keeps default",
-			enabledValue:      "",
-			retentionValue:    "-10",
-			expectedEnabled:   true,
-			expectedRetention: 48,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore environment
-			origEnabled := os.Getenv("FFMPEG_LOG_ENABLED")
-			origRetention := os.Getenv("FFMPEG_LOG_RETENTION_HOURS")
-
-			defer func() {
-				if origEnabled == "" {
-					os.Unsetenv("FFMPEG_LOG_ENABLED")
-				} else {
-					os.Setenv("FFMPEG_LOG_ENABLED", origEnabled)
-				}
-				if origRetention == "" {
-					os.Unsetenv("FFMPEG_LOG_RETENTION_HOURS")
-				} else {
-					os.Setenv("FFMPEG_LOG_RETENTION_HOURS", origRetention)
-				}
-			}()
-
-			if tt.enabledValue != "" {
-				os.Setenv("FFMPEG_LOG_ENABLED", tt.enabledValue)
-			} else {
-				os.Unsetenv("FFMPEG_LOG_ENABLED")
-			}
-
-			if tt.retentionValue != "" {
-				os.Setenv("FFMPEG_LOG_RETENTION_HOURS", tt.retentionValue)
-			} else {
-				os.Unsetenv("FFMPEG_LOG_RETENTION_HOURS")
-			}
-
-			config := DefaultTranscodeConfig()
-
-			if config.FFmpegLogEnabled != tt.expectedEnabled {
-				t.Errorf("FFmpegLogEnabled = %v, want %v", config.FFmpegLogEnabled, tt.expectedEnabled)
-			}
-
-			if config.FFmpegLogRetentionHours != tt.expectedRetention {
-				t.Errorf("FFmpegLogRetentionHours = %d, want %d", config.FFmpegLogRetentionHours, tt.expectedRetention)
-			}
-		})
-	}
-}
-
 func TestHardwareAccelConstants(t *testing.T) {
 	tests := []struct {
 		accel    HardwareAccel
@@ -640,20 +358,6 @@ func TestFFmpegPathsEnvironmentOverride(t *testing.T) {
 	}
 }
 
-func TestGetDefaultMaxMemoryMB(t *testing.T) {
-	// This function depends on system RAM, so we test the constraints
-	maxMem := getDefaultMaxMemoryMB()
-
-	// Should be between 1GB and 4GB
-	if maxMem < 1024 {
-		t.Errorf("getDefaultMaxMemoryMB() = %d MB, want >= 1024 MB", maxMem)
-	}
-
-	if maxMem > 4096 {
-		t.Errorf("getDefaultMaxMemoryMB() = %d MB, want <= 4096 MB", maxMem)
-	}
-}
-
 func TestCheckFFmpegEncoder(t *testing.T) {
 	// Test with software encoder (should always exist if FFmpeg is installed)
 	hasLibx264 := CheckFFmpegEncoder("libx264")
@@ -688,3 +392,6 @@ func TestDetectHardwareAccel(t *testing.T) {
 		t.Errorf("detectHardwareAccel() = %v, want one of %v", accel, validAccels)
 	}
 }
+
+// Note: TestGetDefaultMaxMemoryMB is now in config/config_test.go
+// since getDefaultMaxMemoryMB is internal to the config package.
