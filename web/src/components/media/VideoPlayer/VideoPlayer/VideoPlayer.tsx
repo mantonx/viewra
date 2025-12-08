@@ -11,7 +11,6 @@
 
 import { Button } from '@/components/ui'
 import { useProgressUpdater } from '@/lib/hooks/useProgress'
-import { useQualityRecommendation } from '@/lib/hooks/useQualityRecommendation'
 import { useAutoQuality } from '@/lib/hooks/useAutoQuality'
 import { usePlaybackAnalytics } from '@/lib/hooks/usePlaybackAnalytics'
 import { useStreamStats } from '@/lib/hooks/useStreamStats'
@@ -92,13 +91,9 @@ export const VideoPlayer = ({
   // Initialize progress updater
   const progressUpdater = useProgressUpdater(mediaId, videoDuration)
 
-  // Get quality recommendation (provides initial hint to HLS.js)
-  // This runs in the background - we don't block HLS startup for it
-  const qualityRecommendation = useQualityRecommendation()
-
   // HLS player hook - handles HLS.js lifecycle, quality
-  // Audio tracks are now managed via API, not HLS.js (since audio is muxed into video segments)
-  // Start immediately with default bandwidth, recommendation enhances initial quality if ready in time
+  // Uses Navigator Connection API for instant bandwidth estimate (no slow speed test)
+  // Audio tracks are managed via API, not HLS.js (since audio is muxed into video segments)
   const {
     hlsRef,
     availableQualities,
@@ -113,14 +108,6 @@ export const VideoPlayer = ({
     isHlsStream,
     onError: setError,
     onFragLoaded: (bytes, durationMs) => recordSample(bytes, durationMs),
-    // Pass recommendation if available - HLS.js will use it for initial bandwidth estimate
-    qualityRecommendation: qualityRecommendation.recommendation
-      ? {
-          height: qualityRecommendation.recommendation.height,
-          bandwidth: qualityRecommendation.recommendation.videoBitrate,
-          isReady: qualityRecommendation.isReady,
-        }
-      : null,
   })
 
   // Convert API audio tracks to the format expected by VideoControls

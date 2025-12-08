@@ -28,6 +28,7 @@ export type { NetworkDetectorState } from './NetworkDetector'
 // Media capability detection
 export {
   detectCodecSupport,
+  detectCodecSupportSync,
   detectHardwareAcceleration,
   detectMaxDecodingProfile,
   probeAllCodecSupport,

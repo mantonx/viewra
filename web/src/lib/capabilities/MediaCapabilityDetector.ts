@@ -218,27 +218,32 @@ export const probeAllCodecSupport = (): Record<string, Array<{ codec: string; su
   return support
 }
 
-// Detect detailed codec support for all codecs
-export const detectCodecSupport = async (): Promise<CodecSupport> => {
-  // Detect all codecs in parallel
-  const [h264, h265, vp9, av1] = await Promise.all([
-    detectCodecCapability('h264'),
-    detectCodecCapability('h265'),
-    detectCodecCapability('vp9'),
-    detectCodecCapability('av1'),
-  ])
+// Fast synchronous codec detection using MediaSource.isTypeSupported()
+// This is what HLS.js actually uses, and it's instant (<1ms)
+const detectCodecSupportFast = (codec: CodecName): CodecCapability => {
+  const variants = CODEC_VARIANTS[codec]
+  const { supported } = probeCodecSupport(variants)
 
-  // Add browser-specific notes
-  h264.notes = getCodecNotes('h264')
-  h265.notes = getCodecNotes('h265')
-  vp9.notes = getCodecNotes('vp9')
-  av1.notes = getCodecNotes('av1')
+  if (!supported) {
+    return createUnsupportedCodec(codec)
+  }
 
-  // Determine preferred order based on:
-  // 1. Must be supported
-  // 2. Prefer better compression (AV1 > H.265/VP9 > H.264)
-  // 3. Prefer hardware accelerated
-  // 4. Prefer power efficient
+  // Return basic support info - detailed capability can be detected later if needed
+  return {
+    codec,
+    supported: true,
+    hardwareAccelerated: false, // Unknown without async check
+    powerEfficient: false,
+    smooth: true, // Assume smooth if supported
+    maxWidth: 3840, // Assume 4K capable if supported
+    maxHeight: 2160,
+    maxFps: 60,
+    notes: getCodecNotes(codec),
+  }
+}
+
+// Build preferred order from supported codecs
+const buildPreferredOrder = (h264: CodecCapability, h265: CodecCapability, vp9: CodecCapability, av1: CodecCapability): CodecSupport['preferredOrder'] => {
   const codecs = [
     { cap: av1, name: 'av1' as const, compression: 4 },
     { cap: h265, name: 'h265' as const, compression: 3 },
@@ -272,12 +277,49 @@ export const detectCodecSupport = async (): Promise<CodecSupport> => {
     preferredOrder.push('h264')
   }
 
+  return preferredOrder
+}
+
+// Fast synchronous codec detection - instant, no async calls
+// Uses MediaSource.isTypeSupported() which is what HLS.js uses anyway
+export const detectCodecSupportSync = (): CodecSupport => {
+  const h264 = detectCodecSupportFast('h264')
+  const h265 = detectCodecSupportFast('h265')
+  const vp9 = detectCodecSupportFast('vp9')
+  const av1 = detectCodecSupportFast('av1')
+
   return {
     h264,
     h265,
     vp9,
     av1,
-    preferredOrder,
+    preferredOrder: buildPreferredOrder(h264, h265, vp9, av1),
+  }
+}
+
+// Detect detailed codec support for all codecs (async, slower but more accurate)
+// Use detectCodecSupportSync() for instant results during playback start
+export const detectCodecSupport = async (): Promise<CodecSupport> => {
+  // Detect all codecs in parallel
+  const [h264, h265, vp9, av1] = await Promise.all([
+    detectCodecCapability('h264'),
+    detectCodecCapability('h265'),
+    detectCodecCapability('vp9'),
+    detectCodecCapability('av1'),
+  ])
+
+  // Add browser-specific notes
+  h264.notes = getCodecNotes('h264')
+  h265.notes = getCodecNotes('h265')
+  vp9.notes = getCodecNotes('vp9')
+  av1.notes = getCodecNotes('av1')
+
+  return {
+    h264,
+    h265,
+    vp9,
+    av1,
+    preferredOrder: buildPreferredOrder(h264, h265, vp9, av1),
   }
 }
 

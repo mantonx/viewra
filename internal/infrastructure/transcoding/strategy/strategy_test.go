@@ -76,11 +76,13 @@ func TestDetermineStrategyWithCapabilities(t *testing.T) {
 		expectedStrategy StreamStrategy
 		expectedReason   string
 	}{
-		{"HEVC transcode - client supports but remux disabled", &VideoInfo{Codec: "hevc", AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, Transcode, "incompatible"},
+		// HEVC remux is now enabled for non-HDR content when client supports HEVC
+		{"HEVC remux - client supports, non-HDR", &VideoInfo{Codec: "hevc", AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska", IsHDR: false}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, RemuxHEVC, "remuxing to HLS"},
+		{"HEVC transcode - HDR content", &VideoInfo{Codec: "hevc", AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska", IsHDR: true}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, Transcode, "incompatible"},
 		{"HEVC transcode - no client support", &VideoInfo{Codec: "hevc", AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264"}}, Transcode, "incompatible"},
 		{"HEVC transcode - nil caps", &VideoInfo{Codec: "hevc", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, nil, Transcode, "incompatible"},
 		{"HEVC direct play - client supports", &VideoInfo{Codec: "hevc", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, DirectPlay, "direct playback"},
-		{"HEV1 transcode - remux disabled", &VideoInfo{Codec: "hev1", AudioCodec: "flac", AudioChannels: 2, ContainerFormat: "matroska"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, Transcode, "incompatible"},
+		{"HEV1 remux - client supports, non-HDR", &VideoInfo{Codec: "hev1", AudioCodec: "flac", AudioChannels: 2, ContainerFormat: "matroska", IsHDR: false}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, RemuxHEVC, "remuxing to HLS"},
 		{"H265 direct play - client supports", &VideoInfo{Codec: "h265", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, DirectPlay, "direct playback"},
 
 		{"VP9 direct play - client supports", &VideoInfo{Codec: "vp9", AudioCodec: "opus", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "vp9"}}, DirectPlay, "direct playback"},

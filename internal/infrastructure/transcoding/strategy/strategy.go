@@ -103,14 +103,11 @@ func DetermineStrategyWithCapabilities(videoInfo *VideoInfo, clientCaps *ClientC
 	// Audio still needs transcoding (AC3/DTS → AAC) for browser compatibility
 	//
 	// IMPORTANT: HDR content should NOT be remuxed - browsers may support HEVC decoding but
-	// NOT HDR tone mapping. Also, HEVC remuxing causes green blocky video on seeking due to
-	// long GOP intervals. Seeking lands between keyframes and the decoder shows corruption
-	// until the next keyframe. Full transcode with proper keyframe alignment is required
-	// for reliable seek behavior.
+	// NOT HDR tone mapping. HDR content goes to Tier 5 (full transcode with tone mapping).
 	//
-	// TODO: Re-enable HEVC remux when we implement keyframe-aligned seeking (segment-aware seeking)
-	// For now, always transcode HEVC to ensure proper seeking behavior.
-	if isHEVC && isVideoCodecSupported && false { // Disabled: causes seek corruption
+	// NOTE: HEVC remux now uses -noaccurate_seek which seeks to the nearest keyframe,
+	// avoiding the previous "green blocky video" corruption issue from seeking between keyframes.
+	if isHEVC && isVideoCodecSupported && !videoInfo.IsHDR {
 		return RemuxHEVC, fmt.Sprintf("HEVC video supported by client, remuxing to HLS with %s audio transcode to AAC",
 			videoInfo.AudioCodec)
 	}

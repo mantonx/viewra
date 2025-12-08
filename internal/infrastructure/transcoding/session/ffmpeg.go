@@ -67,11 +67,21 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 	// Add memory safety options
 	builder.AddMemorySafetyOptions(params.Config.MaxMemoryMB)
 
-	// Determine if we need -noaccurate_seek for A/V sync
-	needNoAccurateSeek := strategy == "remux_audio" || strategy == "remux_hevc"
+	// Determine if we need -noaccurate_seek for A/V sync and faster seeking.
+	// For all remux strategies (pure remux, remux_audio, remux_hevc), we want to:
+	// 1. Skip to the nearest keyframe immediately (faster startup)
+	// 2. Align audio with video keyframes (proper A/V sync)
+	// For transcode, we want accurate seeking since we'll re-encode anyway.
+	isRemuxStrategy := strategy == "remux" || strategy == "remux_audio" || strategy == "remux_hevc"
+
+	// Add fast input options for remux to reduce startup latency.
+	// For transcode this is handled differently due to filter chain requirements.
+	if isRemuxStrategy {
+		builder.AddFastInputOptions()
+	}
 
 	builder.AddSeekPosition(int(s.StartPosition))
-	if needNoAccurateSeek {
+	if isRemuxStrategy {
 		builder.AddNoAccurateSeek()
 	}
 	builder.AddInput().AddTimestampHandling()

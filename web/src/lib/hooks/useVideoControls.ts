@@ -7,8 +7,11 @@ import { useCallback, useRef } from 'react'
 import Hls from 'hls.js'
 import { logger } from '@/lib/utils/logger'
 
-// Threshold for triggering backend FFmpeg restart on seek
-const LARGE_SEEK_THRESHOLD_SECONDS = 30
+// Threshold for triggering backend FFmpeg restart on seek.
+// This should match the backend's session reuse window (60s for remux, 30s for transcode).
+// Using 60s here since most playback is remux (codec copy), and even for transcode
+// the backend will restart the session if needed.
+const LARGE_SEEK_THRESHOLD_SECONDS = 60
 
 // Helper to ensure video is unmuted
 const ensureVideoUnmuted = (video: HTMLVideoElement) => {

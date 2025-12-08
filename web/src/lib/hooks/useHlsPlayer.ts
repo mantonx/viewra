@@ -18,23 +18,26 @@ import { logger } from '@/lib/utils/logger'
 import { ensureVideoUnmuted } from '@/lib/utils/videoUtils'
 
 // HLS configuration constants
-// Optimized for progressive transcoding where segments are generated on-demand
+// Optimized for on-demand transcoding where segments are generated progressively.
+// Balance between fast startup and smooth seeking (segments may not be ready yet).
 const HLS_CONFIG = {
-  // Buffer settings: Minimize for fastest startup with progressive transcoding
-  // With 2-second segments, we can start playback after just 1 segment
-  MAX_BUFFER_LENGTH: 2, // Start playback after 1 segment (2s) - was 4s
-  MAX_MAX_BUFFER_LENGTH: 15, // Cap total buffer - was 20s
-  MAX_BUFFER_SIZE: 20 * 1000 * 1000, // Reduced from 30MB
-  MAX_BUFFER_HOLE: 1.0, // Reduced from 2.0 for tighter sync
+  // Buffer settings: Allow more buffer for on-demand transcoding
+  // This gives FFmpeg time to generate segments ahead of playback
+  MAX_BUFFER_LENGTH: 6, // Buffer 3 segments (6s) before playback - allows headroom
+  MAX_MAX_BUFFER_LENGTH: 30, // Allow larger buffer for seeking ahead
+  MAX_BUFFER_SIZE: 60 * 1000 * 1000, // 60MB for 4K segments
+  MAX_BUFFER_HOLE: 0.5, // Tighter sync to avoid jumps
   ENABLE_WORKER: true, // Enable for better performance
-  LOW_LATENCY_MODE: true, // Reduces buffer requirements
+  LOW_LATENCY_MODE: false, // Disable for on-demand transcoding - we need buffer headroom
   DEBUG: false,
-  BACK_BUFFER_LENGTH: 20, // Reduced from 30s
-  HIGH_BUFFER_WATCHDOG_PERIOD: 1,
-  FRAG_LOADING_MAX_RETRY: 6,
+  BACK_BUFFER_LENGTH: 30, // Keep 30s back buffer for seeking backward
+  HIGH_BUFFER_WATCHDOG_PERIOD: 2, // Less aggressive watchdog
+  FRAG_LOADING_MAX_RETRY: 8, // More retries for slow segment generation
   FRAG_LOADING_MAX_RETRY_TIMEOUT: 64000,
   NUDGE_OFFSET: 0.1,
   NUDGE_MAX_RETRY: 10,
+  // Start loading next segments earlier to stay ahead of playback
+  START_FRAG_PREFETCH: true,
 } as const
 
 export interface QualityLevel {
@@ -63,11 +66,6 @@ export interface UseHlsPlayerOptions {
   isHlsStream: boolean
   onError: (error: string | null) => void
   onFragLoaded?: (bytes: number, durationMs: number) => void
-  qualityRecommendation?: {
-    height?: number
-    bandwidth?: number
-    isReady?: boolean
-  } | null
 }
 
 export interface UseHlsPlayerReturn {
@@ -152,7 +150,6 @@ export const useHlsPlayer = ({
   isHlsStream,
   onError,
   onFragLoaded,
-  qualityRecommendation,
 }: UseHlsPlayerOptions): UseHlsPlayerReturn => {
   const hlsRef = useRef<Hls | null>(null)
   const streamOffsetRef = useRef<number>(0)
@@ -170,10 +167,6 @@ export const useHlsPlayer = ({
   onErrorRef.current = onError
   const onFragLoadedRef = useRef(onFragLoaded)
   onFragLoadedRef.current = onFragLoaded
-
-  // Store recommendation in ref for use in HLS config
-  const qualityRecommendationRef = useRef(qualityRecommendation)
-  qualityRecommendationRef.current = qualityRecommendation
 
   /**
    * Change quality level manually
@@ -269,18 +262,21 @@ export const useHlsPlayer = ({
       return
     }
 
-    // Get bandwidth estimate from backend recommendation
-    // This tells HLS.js ABR what bandwidth to assume before measuring
-    const rec = qualityRecommendationRef.current
-    let abrBandwidthEstimate = 5_000_000 // Default 5 Mbps
+    // Get bandwidth estimate instantly from Navigator Connection API
+    // This avoids the slow speed test - HLS.js ABR will refine during playback
+    const connection = (navigator as { connection?: { downlink?: number } }).connection
+    let abrBandwidthEstimate = 20_000_000 // Default 20 Mbps (reasonable for modern connections)
 
-    if (rec?.isReady && rec?.bandwidth) {
-      // Use recommended bandwidth as the initial estimate
-      // Add 20% headroom so ABR picks the recommended quality
-      abrBandwidthEstimate = rec.bandwidth * 1.2
-      logger.info('[HLS] Using recommendation for ABR estimate', {
-        height: rec.height,
-        bandwidth: rec.bandwidth,
+    if (connection?.downlink && connection.downlink > 0) {
+      // Navigator API gives Mbps, convert to bps for HLS.js
+      // Add 20% headroom so ABR picks appropriate quality
+      abrBandwidthEstimate = connection.downlink * 1_000_000 * 1.2
+      logger.info('[HLS] Using navigator.connection for ABR estimate', {
+        downlinkMbps: connection.downlink,
+        abrEstimate: abrBandwidthEstimate,
+      })
+    } else {
+      logger.info('[HLS] Navigator connection API unavailable, using default', {
         abrEstimate: abrBandwidthEstimate,
       })
     }
@@ -300,6 +296,7 @@ export const useHlsPlayer = ({
       fragLoadingMaxRetryTimeout: HLS_CONFIG.FRAG_LOADING_MAX_RETRY_TIMEOUT,
       nudgeOffset: HLS_CONFIG.NUDGE_OFFSET,
       nudgeMaxRetry: HLS_CONFIG.NUDGE_MAX_RETRY,
+      startFragPrefetch: HLS_CONFIG.START_FRAG_PREFETCH,
       // ABR configuration:
       // - startLevel=-1: Let ABR choose based on bandwidth estimate
       // - abrEwmaDefaultEstimate: Our backend-recommended bandwidth

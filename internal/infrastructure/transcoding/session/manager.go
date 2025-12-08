@@ -172,8 +172,19 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 	if existing, ok := m.sessions.Load(key); ok {
 		session := existing.(*TranscodeSession)
 
+		// Determine reuse window based on strategy.
+		// Remux strategies have fast startup (~1-3s), so we can afford a larger window
+		// to reduce unnecessary session restarts during typical navigation patterns.
+		// Transcode has slow startup (~10-30s), so use a smaller window to avoid
+		// long waits when the user seeks far ahead.
+		reuseWindowSec := 30.0 // Default for transcode
+		isRemuxStrategy := params.Strategy == "remux" || params.Strategy == "remux_audio" || params.Strategy == "remux_hevc"
+		if isRemuxStrategy {
+			reuseWindowSec = 60.0 // Larger window for fast-startup remux
+		}
+
 		positionDiff := params.StartPosition - session.StartPosition
-		canReuse := (positionDiff >= 0 && positionDiff <= 30)
+		canReuse := (positionDiff >= 0 && positionDiff <= reuseWindowSec)
 
 		if canReuse {
 			session.UpdateLastAccessed()
@@ -184,7 +195,8 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 				"quality", params.Quality,
 				"session_start", session.StartPosition,
 				"requested_start", params.StartPosition,
-				"position_diff", positionDiff)
+				"position_diff", positionDiff,
+				"reuse_window_sec", reuseWindowSec)
 
 			return session, nil
 		}
@@ -196,7 +208,8 @@ func (m *Manager) GetOrCreateSession(params GetOrCreateSessionParams) (*Transcod
 			"quality", params.Quality,
 			"session_start", session.StartPosition,
 			"requested_start", params.StartPosition,
-			"position_diff", positionDiff)
+			"position_diff", positionDiff,
+			"reuse_window_sec", reuseWindowSec)
 
 		session.Stop()
 		m.sessions.Delete(key)

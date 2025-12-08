@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { getProgressSeconds } from '../utils'
 import { API_BASE_URL } from '@/lib/config'
 import { logger } from '@/lib/utils/logger'
 import { authFetch } from '@/lib/utils/authFetch'
-import { detectCodecSupport, getSupportedCodecsHeader } from '@/lib/capabilities'
-import type { CodecSupport } from '@/lib/capabilities'
+import { detectCodecSupportSync, getSupportedCodecsHeader } from '@/lib/capabilities'
 import type { GithubComMantonxViewraInternalApplicationMediaMediaResponse as Media } from '@/lib/api/generated/models'
 
 type TranscodeState = 'idle' | 'checking' | 'ready' | 'direct'
@@ -29,42 +28,22 @@ const getSupportedContainersHeader = (): string => {
   return 'mp4,webm'
 }
 
+// Detect codec support once at module load (instant, synchronous)
+// Uses MediaSource.isTypeSupported() which is what HLS.js uses
+const codecSupport = detectCodecSupportSync()
+logger.debug('Detected codec support (sync):', {
+  h264: codecSupport.h264.supported,
+  h265: codecSupport.h265.supported,
+  vp9: codecSupport.vp9.supported,
+  av1: codecSupport.av1.supported,
+})
+
 export const useMediaPlayback = (): UseMediaPlaybackReturn => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [mediaId, setMediaId] = useState<number | null>(null)
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [initialPosition, setInitialPosition] = useState(0)
   const [transcodeState, setTranscodeState] = useState<TranscodeState>('idle')
-
-  // Cache codec support detection (runs once on mount)
-  const codecSupportRef = useRef<CodecSupport | null>(null)
-  const codecDetectionPromiseRef = useRef<Promise<CodecSupport> | null>(null)
-
-  useEffect(() => {
-    // Start codec detection on mount (non-blocking)
-    if (!codecDetectionPromiseRef.current) {
-      codecDetectionPromiseRef.current = detectCodecSupport().then(support => {
-        codecSupportRef.current = support
-        logger.debug('Detected codec support:', {
-          h264: support.h264.supported,
-          h265: support.h265.supported,
-          vp9: support.vp9.supported,
-          av1: support.av1.supported,
-        })
-        return support
-      }).catch(err => {
-        logger.warn('Failed to detect codec support:', err)
-        // Return minimal fallback
-        return {
-          h264: { codec: 'h264' as const, supported: true, hardwareAccelerated: false, powerEfficient: false, smooth: true, maxWidth: 1920, maxHeight: 1080, maxFps: 30 },
-          h265: { codec: 'h265' as const, supported: false, hardwareAccelerated: false, powerEfficient: false, smooth: false, maxWidth: 0, maxHeight: 0, maxFps: 0 },
-          vp9: { codec: 'vp9' as const, supported: false, hardwareAccelerated: false, powerEfficient: false, smooth: false, maxWidth: 0, maxHeight: 0, maxFps: 0 },
-          av1: { codec: 'av1' as const, supported: false, hardwareAccelerated: false, powerEfficient: false, smooth: false, maxWidth: 0, maxHeight: 0, maxFps: 0 },
-          preferredOrder: ['h264' as const],
-        }
-      })
-    }
-  }, [])
 
   const fallbackToDirectStream = (id: number) => {
     const directUrl = `${API_BASE_URL}/api/stream/${id}`
@@ -103,16 +82,6 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
       }
     }
 
-    // Wait for codec detection if still in progress (should be fast, <100ms typically)
-    let codecSupport = codecSupportRef.current
-    if (!codecSupport && codecDetectionPromiseRef.current) {
-      try {
-        codecSupport = await codecDetectionPromiseRef.current
-      } catch {
-        // Use fallback - will be handled by getSupportedCodecsHeader
-      }
-    }
-
     // Build master manifest URL with query parameters
     // We pass codec support via URL params because custom headers may not survive
     // CORS preflight in all browsers, especially with redirect: 'manual'
@@ -120,6 +89,7 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     if (resumePosition > 0) {
       params.set('start', String(resumePosition))
     }
+    // Use module-level codec detection (instant, no async wait)
     params.set('codecs', getSupportedCodecsHeader(codecSupport))
     params.set('containers', getSupportedContainersHeader())
 
