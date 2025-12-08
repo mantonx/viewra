@@ -44,6 +44,9 @@ export const VideoPlayerContainer = ({
     return null
   }
 
+  // Show loading overlay while waiting for stream URL
+  const isLoadingStream = !playbackState.streamUrl
+
   // Get poster URL based on media type
   let posterUrl: string | undefined
   if (media.show_title) {
@@ -73,11 +76,49 @@ export const VideoPlayerContainer = ({
         posterUrl,
       }
 
+  // Show full-screen loading state while fetching stream URL
+  if (isLoadingStream) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+        {/* Close button */}
+        <div className="absolute top-4 right-4 z-30">
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 px-3 py-1.5 rounded text-sm cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Loading spinner */}
+        <div
+          className="w-16 h-16 rounded-full animate-spin"
+          style={{
+            border: '4px solid transparent',
+            borderTopColor: 'white',
+            borderRightColor: 'rgba(255, 255, 255, 0.3)',
+            borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+          }}
+        />
+
+        {/* Media title */}
+        <div className="mt-6 text-white text-lg">
+          {metadata.title}
+        </div>
+        {metadata.subtitle && (
+          <div className="mt-1 text-white/60 text-sm">
+            {metadata.subtitle}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="relative">
       <VideoPlayer
         mediaId={media.id || 0}
-        streamUrl={playbackState.streamUrl || ''}
+        streamUrl={playbackState.streamUrl}
         initialPosition={playbackState.initialPosition}
         duration={media.duration}
         metadata={metadata}

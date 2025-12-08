@@ -58,29 +58,33 @@ export const useMediaPlayback = (): UseMediaPlaybackReturn => {
     setTranscodeState('checking')
 
     // Determine resume position: URL time takes precedence, then saved progress
+    // Fetch progress in parallel with other setup to minimize perceived latency
     let resumePosition = 0
 
     if (urlTime !== undefined && urlTime > 0) {
       // URL time specified - use it directly (from bookmarked link)
       resumePosition = urlTime
-      setInitialPosition(resumePosition)
     } else {
-      // Fetch progress to determine resume position (usually fast, <50ms from cache)
-      try {
-        const response = await authFetch(`/api/progress/${id}`)
-        const progressData = response.ok ? await response.json() : null
-        const progressSecs = progressData ? getProgressSeconds(progressData) : 0
-        const durationSecs = progressData?.duration_seconds ?? 0
+      // Start progress fetch - we'll await it in parallel with manifest check
+      const progressPromise = authFetch(`/api/progress/${id}`)
+        .then(async (response) => {
+          const progressData = response.ok ? await response.json() : null
+          const progressSecs = progressData ? getProgressSeconds(progressData) : 0
+          const durationSecs = progressData?.duration_seconds ?? 0
 
-        // Resume unless user finished watching (within 1 second of end)
-        const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
-        resumePosition = (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
-        setInitialPosition(resumePosition)
-      } catch (error) {
-        logger.error('Error fetching progress:', error)
-        setInitialPosition(0)
-      }
+          // Resume unless user finished watching (within 1 second of end)
+          const isNearEnd = durationSecs > 0 && progressSecs >= durationSecs - 1
+          return (progressSecs > 0 && !isNearEnd) ? progressSecs : 0
+        })
+        .catch((error) => {
+          logger.error('Error fetching progress:', error)
+          return 0
+        })
+
+      resumePosition = await progressPromise
     }
+
+    setInitialPosition(resumePosition)
 
     // Build master manifest URL with query parameters
     // We pass codec support via URL params because custom headers may not survive

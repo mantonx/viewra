@@ -25,34 +25,41 @@ func (m *Manager) cleanupOutputDir(path string, sessionID string) {
 }
 
 // stopOtherMediaSessions stops all sessions for media IDs other than the specified one.
+// This runs asynchronously to avoid blocking the new video from starting.
 func (m *Manager) stopOtherMediaSessions(currentMediaID int64) {
-	var toStop []string
+	var toStop []*TranscodeSession
 
 	m.sessions.Range(func(key, value interface{}) bool {
 		session := value.(*TranscodeSession)
 		if session.MediaID != currentMediaID {
-			toStop = append(toStop, key.(string))
+			toStop = append(toStop, session)
+			// Delete from map immediately so the session isn't found by other requests
+			m.sessions.Delete(key)
 		}
 		return true
 	})
 
-	for _, key := range toStop {
-		if existing, ok := m.sessions.Load(key); ok {
-			session := existing.(*TranscodeSession)
+	if len(toStop) == 0 {
+		return
+	}
 
+	// Stop sessions asynchronously to avoid blocking the new video request.
+	// We're not cleaning up output dirs here (keeping segments for potential reuse),
+	// so there's no race condition with file access.
+	go func() {
+		for _, session := range toStop {
 			m.logger.Info("Stopping session for different media (keeping segments)",
 				"session_id", session.ID,
 				"media_id", session.MediaID,
 				"current_media_id", currentMediaID)
 
 			session.Stop()
-			m.sessions.Delete(key)
 
 			if m.logStore != nil {
 				m.logStore.CloseLogWriter(session.ID)
 			}
 		}
-	}
+	}()
 }
 
 // StopOtherQualitySessions stops actively transcoding sessions for the same media but different qualities.

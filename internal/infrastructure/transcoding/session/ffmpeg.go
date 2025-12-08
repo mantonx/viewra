@@ -84,7 +84,15 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 	if isRemuxStrategy {
 		builder.AddNoAccurateSeek()
 	}
-	builder.AddInput().AddTimestampHandling()
+	builder.AddInput()
+
+	// Only add timestamp handling for transcode (HLS muxer).
+	// For remux strategies using the segment muxer, -copyts -start_at_zero
+	// causes incorrect PTS calculations that prevent segment splitting.
+	// The segment muxer handles timestamps correctly without these flags.
+	if !isRemuxStrategy {
+		builder.AddTimestampHandling()
+	}
 
 	// Add encoding based on strategy
 	useSegmentMuxer := false

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/session"
 	streamstrategy "github.com/mantonx/viewra/internal/infrastructure/transcoding/strategy"
@@ -83,13 +82,17 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		return nil, fmt.Errorf("media not found: %w", err)
 	}
 
-	// Step 2: Analyze video to get duration and determine strategy
-	videoInfo, err := videoinfo.GetVideoInfo(mediaEntity.FilePath)
+	// Step 2: Get audio tracks for building video info
+	audioTracks, err := uc.mediaRepo.GetAudioTracksByMediaID(ctx, req.MediaID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to analyze video: %w", err)
+		// Non-fatal: continue without audio track info
+		audioTracks = nil
 	}
 
-	// Step 3: Determine streaming strategy
+	// Step 3: Build VideoInfo from database instead of calling ffprobe (slow on network files)
+	videoInfo := buildVideoInfoFromDatabase(mediaEntity, audioTracks)
+
+	// Step 4: Determine streaming strategy
 	// Use strategy hint from master playlist if available (ensures consistency)
 	// Otherwise determine from client capabilities
 	var streamStrategy streamstrategy.StreamStrategy

@@ -103,49 +103,34 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 		subtitleTracks = nil
 	}
 
-	// Check if direct play is possible
-	videoInfo, err := videoinfo.GetVideoInfo(mediaItem.FilePath)
-	if err == nil && videoInfo != nil {
-		var clientCaps *strategy.ClientCapabilities
-		if len(req.SupportedVideoCodecs) > 0 || len(req.SupportedContainers) > 0 {
-			clientCaps = &strategy.ClientCapabilities{
-				SupportedVideoCodecs: req.SupportedVideoCodecs,
-				SupportedContainers:  req.SupportedContainers,
-			}
+	// Build VideoInfo from database instead of calling ffprobe (which is slow on network files)
+	videoInfo := buildVideoInfoFromDatabase(mediaItem, audioTracks)
+
+	// Determine streaming strategy based on client capabilities
+	var clientCaps *strategy.ClientCapabilities
+	if len(req.SupportedVideoCodecs) > 0 || len(req.SupportedContainers) > 0 {
+		clientCaps = &strategy.ClientCapabilities{
+			SupportedVideoCodecs: req.SupportedVideoCodecs,
+			SupportedContainers:  req.SupportedContainers,
 		}
+	}
 
-		streamStrategy, reason := strategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
+	streamStrategy, reason := strategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
 
-		// DirectPlay is allowed - subtitles are handled client-side via overlay
-		if streamStrategy == strategy.DirectPlay {
-			return &ServeMasterPlaylistResponse{
-				Strategy:      StrategyMasterDirectPlay,
-				DirectPlayURL: fmt.Sprintf("/api/stream/%d", req.MediaID),
-				Reason:        reason,
-			}, nil
-		}
-
-		// Build master playlist with strategy encoded in variant URLs
-		// This ensures HLS.js requests use the correct strategy even without codec headers
-		variantParams := buildVariantParams{
-			startPosition:        req.StartPosition,
-			strategy:             streamStrategy,
-			supportedVideoCodecs: req.SupportedVideoCodecs,
-			audioTrackIndex:      req.AudioTrackIndex,
-		}
-		playlist := uc.buildMasterPlaylist(mediaItem, audioTracks, subtitleTracks, variantParams, req.PreferredAudioLanguage, req.PreferredSubtitleLanguage)
-
+	// DirectPlay is allowed - subtitles are handled client-side via overlay
+	if streamStrategy == strategy.DirectPlay {
 		return &ServeMasterPlaylistResponse{
-			Strategy:        StrategyServePlaylist,
-			PlaylistContent: playlist,
-			Reason:          fmt.Sprintf("Master playlist generated with strategy: %s", streamStrategy),
+			Strategy:      StrategyMasterDirectPlay,
+			DirectPlayURL: fmt.Sprintf("/api/stream/%d", req.MediaID),
+			Reason:        reason,
 		}, nil
 	}
 
-	// Fallback: build playlist without strategy (will default to transcode)
+	// Build master playlist with strategy encoded in variant URLs
+	// This ensures HLS.js requests use the correct strategy even without codec headers
 	variantParams := buildVariantParams{
 		startPosition:        req.StartPosition,
-		strategy:             strategy.Transcode,
+		strategy:             streamStrategy,
 		supportedVideoCodecs: req.SupportedVideoCodecs,
 		audioTrackIndex:      req.AudioTrackIndex,
 	}
@@ -154,8 +139,68 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 	return &ServeMasterPlaylistResponse{
 		Strategy:        StrategyServePlaylist,
 		PlaylistContent: playlist,
-		Reason:          "Master playlist generated with quality variants and audio tracks",
+		Reason:          fmt.Sprintf("Master playlist generated with strategy: %s", streamStrategy),
 	}, nil
+}
+
+// buildVideoInfoFromDatabase creates a VideoInfo struct from database entities.
+// This avoids the slow ffprobe call for network-mounted files since we already
+// scanned and stored this information during library scanning.
+// This is a package-level function so it can be used by both ServeManifestUseCase
+// and ServeMasterPlaylistUseCase.
+func buildVideoInfoFromDatabase(mediaItem *media.Media, audioTracks []*media.AudioTrack) *videoinfo.VideoInfo {
+	info := &videoinfo.VideoInfo{
+		Codec:           mediaItem.VideoCodec,
+		Width:           mediaItem.Width,
+		Height:          mediaItem.Height,
+		Bitrate:         mediaItem.Bitrate,
+		ContainerFormat: mediaItem.ContainerFormat,
+		ColorSpace:      mediaItem.ColorSpace,
+		ColorPrimaries:  mediaItem.ColorPrimaries,
+		AudioTracks:     make([]videoinfo.AudioTrack, 0, len(audioTracks)),
+	}
+
+	// Determine HDR status from stored HDRFormat or color metadata
+	if mediaItem.HDRFormat != "" {
+		info.IsHDR = true
+	} else if mediaItem.ColorPrimaries == "bt2020" {
+		// BT.2020 with no explicit HDR format - check if it might be HDR
+		// This is a conservative check; if in doubt, we'll transcode
+		info.IsHDR = videoinfo.IsHDRContent("", mediaItem.ColorPrimaries)
+	}
+
+	// Convert audio tracks from domain model to videoinfo format
+	for _, at := range audioTracks {
+		info.AudioTracks = append(info.AudioTracks, videoinfo.AudioTrack{
+			Index:        at.StreamIndex,
+			Codec:        at.Codec,
+			Channels:     at.Channels,
+			Bitrate:      int64(at.BitRate),
+			Language:     at.Language,
+			Title:        at.Title,
+			IsCommentary: at.IsCommentary,
+		})
+	}
+
+	// Select best audio track and populate main audio fields
+	if bestTrack := videoinfo.SelectBestAudioTrack(info.AudioTracks); bestTrack != nil {
+		info.AudioCodec = bestTrack.Codec
+		info.AudioChannels = bestTrack.Channels
+		info.AudioBitrate = bestTrack.Bitrate
+		info.SelectedAudioTrackIndex = bestTrack.Index
+	} else if len(info.AudioTracks) > 0 {
+		// Fallback to first track
+		info.AudioCodec = info.AudioTracks[0].Codec
+		info.AudioChannels = info.AudioTracks[0].Channels
+		info.AudioBitrate = info.AudioTracks[0].Bitrate
+		info.SelectedAudioTrackIndex = info.AudioTracks[0].Index
+	} else {
+		// No audio tracks from database - use media's default audio codec
+		// This handles cases where audio tracks weren't scanned separately
+		info.AudioCodec = mediaItem.AudioCodec
+	}
+
+	return info
 }
 
 // buildMasterPlaylist creates the HLS master playlist content with multi-audio and subtitle support.
