@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { formatTime } from '@/lib/utils'
 import { NerdMenu } from '../NerdMenu'
 import { QualitySelector } from '../QualitySelector'
@@ -13,6 +13,45 @@ const formatBandwidth = (bps: number): string => {
     return `${(bps / 1_000_000).toFixed(1)} Mbps`
   }
   return `${(bps / 1_000).toFixed(0)} kbps`
+}
+
+// Quality indicator component - shows current quality with Original badge when applicable
+const QualityIndicator = ({
+  currentQuality,
+  currentBandwidth,
+  availableQualities,
+}: {
+  currentQuality: number
+  currentBandwidth: number | null
+  availableQualities: { height: number; bandwidth: number }[]
+}) => {
+  // Find the original quality (highest resolution + highest bitrate at that resolution)
+  const originalQuality = useMemo(() => {
+    if (availableQualities.length === 0) return null
+    const maxHeight = Math.max(...availableQualities.map(q => q.height))
+    const atMaxHeight = availableQualities.filter(q => q.height === maxHeight)
+    const maxBandwidth = Math.max(...atMaxHeight.map(q => q.bandwidth))
+    return { height: maxHeight, bandwidth: maxBandwidth }
+  }, [availableQualities])
+
+  const isOriginal = originalQuality &&
+    currentQuality === originalQuality.height &&
+    currentBandwidth === originalQuality.bandwidth
+
+  return (
+    <div className="text-xs text-white/50 hidden lg:flex items-center gap-1.5 ml-2">
+      <span className={`w-1.5 h-1.5 rounded-full ${isOriginal ? 'bg-amber-400' : 'bg-green-400'} animate-pulse`} />
+      <span>
+        {currentQuality}p
+        {isOriginal && <span className="text-amber-400/80 ml-1">✦</span>}
+        {currentBandwidth && (
+          <span className="text-white/40 ml-1">
+            ({formatBandwidth(currentBandwidth)})
+          </span>
+        )}
+      </span>
+    </div>
+  )
 }
 
 export const VideoControls = ({
@@ -320,17 +359,11 @@ export const VideoControls = ({
 
             {/* Current quality indicator - subtle display of what's playing */}
             {currentQuality && currentQuality > 0 && (
-              <div className="text-xs text-white/50 hidden lg:flex items-center gap-1.5 ml-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                <span>
-                  {currentQuality}p
-                  {currentBandwidth && (
-                    <span className="text-white/40 ml-1">
-                      ({formatBandwidth(currentBandwidth)})
-                    </span>
-                  )}
-                </span>
-              </div>
+              <QualityIndicator
+                currentQuality={currentQuality}
+                currentBandwidth={currentBandwidth ?? null}
+                availableQualities={availableQualities}
+              />
             )}
           </div>
 

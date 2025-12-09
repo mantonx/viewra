@@ -118,7 +118,7 @@ export const VideoPlayerContainer = ({
     <div className="relative">
       <VideoPlayer
         mediaId={media.id || 0}
-        streamUrl={playbackState.streamUrl}
+        streamUrl={playbackState.streamUrl!}
         initialPosition={playbackState.initialPosition}
         duration={media.duration}
         metadata={metadata}

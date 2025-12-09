@@ -71,6 +71,21 @@ export const QualitySelector = ({
     })
   }
 
+  // Find the original quality (highest resolution + highest bitrate at that resolution)
+  // This represents the closest to source quality
+  const originalQuality = useMemo(() => {
+    if (availableQualities.length === 0) return null
+    const maxHeight = Math.max(...availableQualities.map(q => q.height))
+    const atMaxHeight = availableQualities.filter(q => q.height === maxHeight)
+    const maxBandwidth = Math.max(...atMaxHeight.map(q => q.bandwidth))
+    return { height: maxHeight, bandwidth: maxBandwidth }
+  }, [availableQualities])
+
+  // Check if current quality is the original (highest res + highest bitrate)
+  const isCurrentOriginal = originalQuality &&
+    currentQuality === originalQuality.height &&
+    currentBandwidth === originalQuality.bandwidth
+
   // Get display text for the button
   const getQualityDisplayText = () => {
     if (!currentQuality) {
@@ -78,6 +93,10 @@ export const QualitySelector = ({
     }
     if (autoMode) {
       return `Auto · ${currentQuality}p`
+    }
+    // Show "Original" badge when playing at source resolution
+    if (isCurrentOriginal) {
+      return `${currentQuality}p ✦`
     }
     return `${currentQuality}p`
   }
@@ -98,6 +117,10 @@ export const QualitySelector = ({
 
   const renderQualityOption = (quality: QualityOption, close: () => void, isNested = false) => {
     const isActive = isQualityActive(quality)
+    // Check if this specific option is the original (highest res + highest bitrate)
+    const isOriginalOption = originalQuality &&
+      quality.height === originalQuality.height &&
+      quality.bandwidth === originalQuality.bandwidth
 
     return (
       <button
@@ -118,17 +141,19 @@ export const QualitySelector = ({
       >
         <div className="flex items-center gap-2">
           {isNested ? (
+            // Nested items (bitrate variants) - show Original badge on the highest bitrate
             <>
               <span className={cn('text-sm', videoOverlay.text.primary)}>{formatBitrate(quality.bandwidth)}</span>
-              {quality.isOriginal && (
+              {isOriginalOption && (
                 <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
               )}
             </>
           ) : (
+            // Top-level single-bitrate option - show Original badge if it's the original quality
             <>
               <span className={cn('text-sm font-medium', videoOverlay.text.primary)}>{quality.height}p</span>
               <span className={cn('text-xs', videoOverlay.text.tertiary)}>{formatBitrate(quality.bandwidth)}</span>
-              {quality.isOriginal && (
+              {isOriginalOption && (
                 <span className="text-amber-400 text-xs font-medium px-1.5 py-0.5 bg-amber-400/20 rounded">Original</span>
               )}
             </>
@@ -232,9 +257,10 @@ export const QualitySelector = ({
           {currentQuality && currentBandwidth && (
             <div className={cn('px-3 py-2 border-t', videoOverlay.border.subtle, videoOverlay.patterns.sectionHeader)}>
               <div className={cn('text-xs flex items-center gap-1.5', videoOverlay.text.secondary)}>
-                <span className={cn('w-2 h-2 rounded-full', autoMode ? 'bg-green-400' : 'bg-primary-400')} />
+                <span className={cn('w-2 h-2 rounded-full', autoMode ? 'bg-green-400' : isCurrentOriginal ? 'bg-amber-400' : 'bg-primary-400')} />
                 <span>
                   {autoMode ? 'Auto' : 'Manual'}: {currentQuality}p @ {formatBitrate(currentBandwidth)}
+                  {isCurrentOriginal && !autoMode && ' · Original'}
                 </span>
               </div>
             </div>

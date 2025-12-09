@@ -326,11 +326,15 @@ export const useHlsPlayer = ({
       const levels = hls.levels
 
       if (levels && levels.length > 0) {
+        // Find the highest resolution available - this is the "original" (source) quality
+        // since we filter out qualities higher than source in the backend
+        const maxHeight = Math.max(...levels.map(l => l.height).filter(h => h > 0))
+
         // Build quality list for UI
         const qualities = levels
           .map((level, index) => {
-            const url = level.url?.[0] || ''
-            const isOriginal = url.includes('/original/') || level.name === 'original'
+            // Mark the highest resolution as "original" - it matches the source
+            const isOriginal = level.height === maxHeight
             return {
               height: level.height,
               bandwidth: level.bitrate,
