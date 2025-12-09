@@ -32,9 +32,55 @@ impl MkvContainer {
         })
     }
 
-    /// Try native seek using Cues - returns true if successful
-    fn try_native_seek(&mut self, target_ms: u64) -> bool {
-        self.mkv.seek(target_ms).is_ok()
+    /// Try native seek and verify it landed in the right place
+    /// Returns Some(true) if seek worked and is accurate
+    /// Returns Some(false) if seek worked but landed in wrong place (broken Cues)
+    /// Returns None if seek failed entirely
+    fn try_native_seek_verified(&mut self, target_ms: u64, _track_num: u64) -> Option<bool> {
+        if self.mkv.seek(target_ms).is_err() {
+            return None;
+        }
+
+        // Read a few frames to verify seek landed near the target
+        // We check ANY track's frame since MKV seeks to cluster positions
+        // and all tracks share the same cluster structure
+        let mut frame = Frame::default();
+        for _ in 0..10 {
+            match self.mkv.next_frame(&mut frame) {
+                Ok(true) => {
+                    // Got a frame - check if it's reasonably close to target
+                    let frame_ms = self.timestamp_to_ms(frame.timestamp);
+
+                    // MKV Cues typically point to keyframes, which may be up to a GOP
+                    // (typically 2-10 seconds) before the target. Allow generous tolerance:
+                    // - Up to 60 seconds before target (some files have sparse keyframes)
+                    // - Up to 10 seconds after (minor overshoot is acceptable)
+                    let acceptable = frame_ms + 60000 >= target_ms && frame_ms <= target_ms + 10000;
+
+                    if !acceptable {
+                        // Cues are broken - seek landed in wrong place
+                        return Some(false);
+                    }
+
+                    // Seek back to target for actual extraction
+                    // (we consumed a frame during verification)
+                    let _ = self.mkv.seek(target_ms);
+                    return Some(true);
+                }
+                Ok(false) => {
+                    // End of file - seek was to the end, that's valid
+                    let _ = self.mkv.seek(target_ms);
+                    return Some(true);
+                }
+                Err(_) => {
+                    // Error reading frame
+                    return None;
+                }
+            }
+        }
+
+        // Couldn't get any frames - something's wrong
+        None
     }
 
     pub fn tracks(&self) -> Result<Vec<TrackInfo>> {
@@ -107,12 +153,35 @@ impl MkvContainer {
         let codec = self.get_track_codec(track_num)?;
         let is_text = Self::is_text_codec(&codec);
 
-        // Always use our optimized cluster cache + frame streamer for subtitles
-        // This is MUCH faster than matroska-demuxer for large files because:
-        // 1. Binary search seeking via ClusterCache (3-5 reads to any position)
-        // 2. Track filtering skips video/audio block data entirely
-        //
-        // The matroska-demuxer path is kept only as a fallback if our parser fails.
+        // Strategy for fast seeking:
+        // 1. Try native Cues seek first (O(1) if Cues are valid)
+        // 2. Verify the seek landed correctly
+        // 3. If Cues work, use demuxer path (fast)
+        // 4. If Cues are broken/missing, use binary search cluster cache
+
+        if start_ms > 0 {
+            // Try native Cues seek with verification
+            match self.try_native_seek_verified(start_ms, track_num) {
+                Some(true) => {
+                    // Cues work! Use demuxer path (it's already seeked)
+                    return self.stream_with_demuxer(track_num, start_ms, end_ms, &codec, is_text, format, out);
+                }
+                Some(false) => {
+                    // Cues are broken - they returned success but wrong position
+                    // Fall through to cluster cache
+                }
+                None => {
+                    // Seek failed entirely - fall through to cluster cache
+                }
+            }
+        } else {
+            // Starting from beginning - demuxer is fine
+            return self.stream_with_demuxer(track_num, start_ms, end_ms, &codec, is_text, format, out);
+        }
+
+        // Use our optimized cluster cache + frame streamer
+        // This handles files with broken/missing Cues via binary search seeking
+        // and also filters by track to skip video/audio block data
         match self.stream_with_cache(track_num, start_ms, end_ms, &codec, is_text, format, out) {
             Ok(()) => return Ok(()),
             Err(e) => {
@@ -121,18 +190,8 @@ impl MkvContainer {
             }
         }
 
-        // Fallback: Use matroska-demuxer (slower but more robust)
-        let native_seek_ok = if start_ms > 0 {
-            self.try_native_seek(start_ms)
-        } else {
-            true
-        };
-
-        if !native_seek_ok {
-            // Can't seek - start from beginning
-            self.mkv.seek(0).ok();
-        }
-
+        // Final fallback: Use matroska-demuxer from beginning (slowest)
+        self.mkv.seek(0).ok();
         self.stream_with_demuxer(track_num, start_ms, end_ms, &codec, is_text, format, out)
     }
 
