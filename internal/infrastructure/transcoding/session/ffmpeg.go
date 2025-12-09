@@ -52,8 +52,9 @@ func (s *TranscodeSession) buildFFmpegArgs(params StartParams) []string {
 	if hwAccel != hls.AccelNone && strategy == "transcode" {
 		builder.AddHardwareAccel(hls.GetHardwareAccelArgsWithDevice(hwAccel, params.HWDevice))
 
-		// For QSV with HDR content, initialize OpenCL device for GPU tone mapping
-		if hwAccel == hls.AccelQSV && params.Config.ToneMappingEnabled && params.VideoInfo != nil && params.VideoInfo.IsHDR {
+		// For NVENC/QSV with HDR content, initialize OpenCL device for GPU tone mapping
+		// OpenCL is the default backend for NVENC (tonemap_cuda has issues with Dolby Vision)
+		if (hwAccel == hls.AccelNVENC || hwAccel == hls.AccelQSV) && params.Config.ToneMappingEnabled && params.VideoInfo != nil && params.VideoInfo.IsHDR {
 			backend := params.Config.ToneMappingBackend
 			if backend == "" {
 				backend = "auto"

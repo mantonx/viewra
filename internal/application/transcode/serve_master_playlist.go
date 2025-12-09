@@ -161,12 +161,23 @@ func buildVideoInfoFromDatabase(mediaItem *media.Media, audioTracks []*media.Aud
 	}
 
 	// Determine HDR status from stored HDRFormat or color metadata
-	if mediaItem.HDRFormat != "" {
+	if mediaItem.HDRFormat != "" && mediaItem.HDRFormat != "SDR" {
 		info.IsHDR = true
 	} else if mediaItem.ColorPrimaries == "bt2020" {
 		// BT.2020 with no explicit HDR format - check if it might be HDR
 		// This is a conservative check; if in doubt, we'll transcode
 		info.IsHDR = videoinfo.IsHDRContent("", mediaItem.ColorPrimaries)
+	} else if mediaItem.HDRFormat == "" && mediaItem.ColorPrimaries == "" {
+		// No HDR metadata in database - be conservative for 4K HEVC content
+		// These are likely HDR files where the scanner didn't extract metadata
+		codecLower := strings.ToLower(mediaItem.VideoCodec)
+		isHEVC := codecLower == "hevc" || codecLower == "h265" || codecLower == "hev1"
+		is4K := mediaItem.Width >= 3840 || mediaItem.Height >= 2160
+		if isHEVC && is4K {
+			// Assume 4K HEVC without color metadata might be HDR
+			// This triggers full transcode with tone mapping to be safe
+			info.IsHDR = true
+		}
 	}
 
 	// Convert audio tracks from domain model to videoinfo format

@@ -19,38 +19,36 @@ func (b *Builder) buildToneMappingFilter(hwAccel HardwareAccel) string {
 
 	p := b.opts.Profile
 
-	// For NVENC, try tonemap_cuda first (fastest - stays entirely in CUDA memory)
-	if hwAccel == AccelNVENC && b.shouldUseToneCuda() {
-		algorithm := b.getToneMappingCudaAlgorithm()
-		// tonemap_cuda: fully CUDA-native, no memory transfers
-		// Output is nv12 in CUDA memory, ready for NVENC
-		// scale_cuda handles resolution changes after tone mapping
-		return fmt.Sprintf("tonemap_cuda=tonemap=%s:desat=0:format=nv12,scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
-			algorithm, p.Width, p.Height, p.Width, p.Height)
+	// For NVENC, use OpenCL tone mapping (reliable and fast)
+	// tonemap_cuda has issues with Dolby Vision content, so we default to OpenCL
+	if hwAccel == AccelNVENC && b.shouldUseOpenCL() {
+		algorithm := b.getToneMappingAlgorithm()
+		// NVENC with OpenCL: CUDA → CPU → OpenCL (tonemap) → CPU → CUDA
+		// - hwdownload: transfer from CUDA to CPU
+		// - format=p010le: ensure 10-bit HDR format for tonemap input
+		// - hwupload: upload to OpenCL context (uses -filter_hw_device ocl)
+		// - tonemap_opencl: HDR→SDR conversion
+		// - hwdownload,format=nv12: back to CPU in nv12 format
+		// - hwupload_cuda: transfer to CUDA for NVENC encoding
+		// - scale_cuda: GPU-accelerated scaling (no pad_cuda available in standard FFmpeg)
+		return fmt.Sprintf("hwdownload,format=p010le,hwupload,tonemap_opencl=tonemap=%s:desat=0:format=nv12:t=bt709:m=bt709:p=bt709,hwdownload,format=nv12,hwupload_cuda,scale_cuda=%d:%d:force_original_aspect_ratio=decrease:format=nv12",
+			algorithm, p.Width, p.Height)
 	}
 
-	// Try libplacebo next (best quality, works for NVENC and software)
-	if b.shouldUseLibPlacebo(hwAccel) {
+	// Try libplacebo for software encoding (best quality)
+	if hwAccel == AccelNone && b.shouldUseLibPlacebo(hwAccel) {
 		algorithm := b.getToneMappingLibPlaceboAlgorithm()
 		peakDetect := "false"
 		if b.opts.LibPlaceboPeakDetect {
 			peakDetect = "true"
 		}
 		contrastRecovery := b.opts.LibPlaceboContrastRecovery
-
-		switch hwAccel {
-		case AccelNVENC:
-			// CUDA → CPU → libplacebo (Vulkan) → CPU → CUDA
-			return fmt.Sprintf("hwdownload,format=p010le,libplacebo=w=%d:h=%d:tonemapping=%s:peak_detect=%s:contrast_recovery=%.2f:format=yuv420p,hwupload_cuda",
-				p.Width, p.Height, algorithm, peakDetect, contrastRecovery)
-		case AccelNone:
-			// Software encoding with libplacebo (CPU-optimized)
-			return fmt.Sprintf("libplacebo=w=%d:h=%d:tonemapping=%s:peak_detect=%s:contrast_recovery=%.2f:format=yuv420p",
-				p.Width, p.Height, algorithm, peakDetect, contrastRecovery)
-		}
+		// Software encoding with libplacebo (CPU-optimized)
+		return fmt.Sprintf("libplacebo=w=%d:h=%d:tonemapping=%s:peak_detect=%s:contrast_recovery=%.2f:format=yuv420p",
+			p.Width, p.Height, algorithm, peakDetect, contrastRecovery)
 	}
 
-	// Fallback to OpenCL/VAAPI/CPU tone mapping
+	// Fallback to VAAPI/CPU tone mapping
 	algorithm := b.getToneMappingAlgorithm()
 
 	switch hwAccel {
@@ -215,6 +213,31 @@ func (b *Builder) getToneMappingLibPlaceboAlgorithm() string {
 	default:
 		return "bt.2390" // Default to broadcast standard
 	}
+}
+
+// shouldUseOpenCL determines if tonemap_opencl should be used for tone mapping.
+// OpenCL is the most reliable option for HDR tone mapping on NVIDIA GPUs.
+// Returns true if:
+//  1. Tone mapping backend is "auto" or "opencl"
+//  2. tonemap_opencl filter is available in FFmpeg
+func (b *Builder) shouldUseOpenCL() bool {
+	backend := b.opts.ToneMappingBackend
+	if backend == "" {
+		backend = "auto"
+	}
+
+	// If explicitly set to opencl, try to use it
+	if backend == "opencl" {
+		return CheckFFmpegFilter("tonemap_opencl")
+	}
+
+	// If explicitly set to something else (cuda, libplacebo), don't use opencl
+	if backend != "auto" {
+		return false
+	}
+
+	// Auto mode: prefer tonemap_opencl for NVENC (most reliable)
+	return CheckFFmpegFilter("tonemap_opencl")
 }
 
 // shouldUseToneCuda determines if tonemap_cuda should be used for NVENC tone mapping.
