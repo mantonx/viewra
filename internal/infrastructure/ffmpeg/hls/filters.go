@@ -106,17 +106,19 @@ func (b *Builder) buildScalingFilter(hwAccel HardwareAccel, skipIfLibPlacebo boo
 			// No scaling needed - just upload to CUDA for encoding
 			return "hwupload_cuda"
 		}
-		// Scale on CUDA then pad
-		return fmt.Sprintf("hwupload_cuda,scale_cuda=%d:%d:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
+		// Scale on CUDA - no pad_cuda available in standard FFmpeg builds
+		// Use force_original_aspect_ratio=decrease to maintain aspect ratio (may letterbox)
+		// Download to CPU for padding, then re-upload to CUDA
+		return fmt.Sprintf("hwupload_cuda,scale_cuda=%d:%d:force_original_aspect_ratio=decrease:format=nv12,hwdownload,format=nv12,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,hwupload_cuda",
 			p.Width, p.Height, p.Width, p.Height)
 	}
 
 	switch hwAccel {
 	case AccelNVENC:
-		// NVENC: GPU-accelerated scaling and padding (non-HDR path)
+		// NVENC: GPU-accelerated scaling (non-HDR path)
 		// Add format=nv12 to scale_cuda to convert 10-bit (yuv420p10le) to 8-bit (nv12)
-		// pad_cuda doesn't support 10-bit input, so conversion must happen in scale_cuda
-		return fmt.Sprintf("scale_cuda=%d:%d:format=nv12:force_original_aspect_ratio=decrease,pad_cuda=%d:%d:(ow-iw)/2:(oh-ih)/2",
+		// No pad_cuda available in standard FFmpeg - download, pad on CPU, re-upload
+		return fmt.Sprintf("scale_cuda=%d:%d:format=nv12:force_original_aspect_ratio=decrease,hwdownload,format=nv12,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,hwupload_cuda",
 			p.Width, p.Height, p.Width, p.Height)
 	case AccelQSV:
 		// QSV: GPU scaling (no pad_qsv available, encoder handles padding)

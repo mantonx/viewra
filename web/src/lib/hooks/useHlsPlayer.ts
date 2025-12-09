@@ -86,12 +86,18 @@ export interface UseHlsPlayerReturn {
 
 
 // Initialize stream offset for progressive transcoding
+// This sets the offset between video.currentTime (starts at 0) and actual media time
 const initializeStreamOffset = (
   streamOffsetRef: { current: number },
   initialPosition: number
 ) => {
-  if (initialPosition > 0 && streamOffsetRef.current === 0) {
+  // Always update the offset to match the new initial position
+  // This handles both initial load and quality/audio track switches
+  if (initialPosition > 0) {
     streamOffsetRef.current = initialPosition
+  } else if (streamOffsetRef.current > 0) {
+    // Reset offset when going back to start
+    streamOffsetRef.current = 0
   }
 }
 

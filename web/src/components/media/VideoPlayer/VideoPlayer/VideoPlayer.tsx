@@ -69,16 +69,41 @@ export const VideoPlayer = ({
   // -1 means default (first audio track)
   const [currentAudioStreamIndex, setCurrentAudioStreamIndex] = useState<number>(-1)
 
-  // Position override for when we switch audio tracks - maintains playback position
-  const [audioSwitchPosition, setAudioSwitchPosition] = useState<number | null>(null)
+  // Position override for when we switch audio tracks or quality - maintains playback position
+  const [trackSwitchPosition, setTrackSwitchPosition] = useState<number | null>(null)
 
-  // Build stream URL with audio track parameter if non-default
-  const effectiveStreamUrl = currentAudioStreamIndex > 0
-    ? `${streamUrl}${streamUrl.includes('?') ? '&' : '?'}audioTrack=${currentAudioStreamIndex}`
-    : streamUrl
+  // Build stream URL with audio track parameter and potentially updated start position
+  // When quality changes to a different resolution, we need to reload with the current position
+  const buildEffectiveStreamUrl = () => {
+    let url = streamUrl
+    const params = new URLSearchParams()
 
-  // Use audio switch position if set, otherwise use initial position from props
-  const effectiveInitialPosition = audioSwitchPosition ?? initialPosition
+    // Parse existing params from URL
+    const urlParts = streamUrl.split('?')
+    if (urlParts.length > 1) {
+      const existingParams = new URLSearchParams(urlParts[1])
+      existingParams.forEach((value, key) => params.set(key, value))
+      url = urlParts[0]
+    }
+
+    // Update audio track if non-default
+    if (currentAudioStreamIndex > 0) {
+      params.set('audioTrack', String(currentAudioStreamIndex))
+    }
+
+    // Update start position if we're doing a track/quality switch
+    if (trackSwitchPosition !== null) {
+      params.set('start', String(Math.floor(trackSwitchPosition)))
+    }
+
+    const paramStr = params.toString()
+    return paramStr ? `${url}?${paramStr}` : url
+  }
+
+  const effectiveStreamUrl = buildEffectiveStreamUrl()
+
+  // Use track switch position if set (from audio or quality change), otherwise use initial position from props
+  const effectiveInitialPosition = trackSwitchPosition ?? initialPosition
 
   // Subtitle track management
   const { availableSubtitles, currentSubtitle, setCurrentSubtitle, textStreamIndex, bitmapStreamIndex } = useSubtitles({
@@ -267,13 +292,16 @@ export const VideoPlayer = ({
   }, [isAutoMode, setAutoMode, changeQuality])
 
   // Handle quality change with analytics
+  // For on-demand transcoding, switching to a different resolution requires reloading
+  // the entire stream because each resolution has its own FFmpeg transcode session
   const handleQualityChange = useCallback(
     (height: number, bandwidth?: number) => {
       const video = videoRef.current
       const previousQuality = currentQuality ? `${currentQuality}p` : null
 
       if (height === 0) {
-        // Auto mode
+        // Auto mode - let HLS.js handle it
+        // Note: Auto mode may cause position jumps if sessions started at different times
         changeQuality(0)
         setAutoMode(true)
         recordQualitySwitch(
@@ -285,22 +313,42 @@ export const VideoPlayer = ({
           null
         )
       } else {
-        // Manual mode - specific quality selected
-        const levelIndex = changeQuality(height, bandwidth)
-        if (levelIndex !== null) {
-          setAutoMode(false)
-          recordQualitySwitch(
-            previousQuality,
-            `${height}p`,
-            'user_manual',
-            video?.currentTime || 0,
-            null,
-            null
-          )
+        // Check if resolution is changing - requires stream reload for on-demand transcoding
+        const resolutionChanging = currentQuality !== null && currentQuality !== height
+
+        if (resolutionChanging && video) {
+          // Capture current playback position before quality switch
+          const actualTime = video.currentTime + (streamOffsetRef.current || 0)
+
+          // Update URL with new start position - this triggers HLS player to reload
+          // The new quality session will start transcoding from the current position
+          setTrackSwitchPosition(actualTime)
+
+          // Force HLS to pick the right level after reload by setting it
+          // (will be applied after MANIFEST_PARSED event in useHlsPlayer)
+          setTimeout(() => {
+            changeQuality(height, bandwidth)
+            setAutoMode(false)
+          }, 100)
+        } else {
+          // Same resolution, different bitrate - HLS.js level switch works fine
+          const levelIndex = changeQuality(height, bandwidth)
+          if (levelIndex !== null) {
+            setAutoMode(false)
+          }
         }
+
+        recordQualitySwitch(
+          previousQuality,
+          `${height}p`,
+          'user_manual',
+          video?.currentTime || 0,
+          null,
+          null
+        )
       }
     },
-    [changeQuality, currentQuality, recordQualitySwitch, setAutoMode]
+    [changeQuality, currentQuality, recordQualitySwitch, setAutoMode, streamOffsetRef]
   )
 
   // Handle audio track change
@@ -312,7 +360,7 @@ export const VideoPlayer = ({
       if (video) {
         // Calculate the actual media time (accounting for stream offset in progressive transcoding)
         const actualTime = video.currentTime + (streamOffsetRef.current || 0)
-        setAudioSwitchPosition(actualTime)
+        setTrackSwitchPosition(actualTime)
       }
       // Setting stream index will update effectiveStreamUrl via state change
       // which triggers HLS.js to reload with the new audio track

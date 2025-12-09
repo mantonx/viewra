@@ -114,6 +114,27 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 		streamStrategy, reason = streamstrategy.DetermineStrategyWithCapabilities(videoInfo, clientCaps)
 	}
 
+	// Step 4b: Override to transcode if quality differs from source resolution
+	// Remux strategies copy video as-is, so selecting a different resolution requires transcoding
+	adaptiveProfile, err := profile.GetAdaptiveProfileForQuality(req.Quality)
+	if err != nil {
+		return nil, fmt.Errorf("invalid quality: %w", err)
+	}
+
+	isRemuxStrategy := streamStrategy == streamstrategy.Remux ||
+		streamStrategy == streamstrategy.RemuxWithAudioDownmix ||
+		streamStrategy == streamstrategy.RemuxHEVC
+
+	// Check if requested quality differs significantly from source
+	// Allow some tolerance (e.g., 1080p source can remux to 1080p-10m, 1080p-20m, etc.)
+	qualityDiffersFromSource := adaptiveProfile.Height < mediaEntity.Height
+
+	if isRemuxStrategy && qualityDiffersFromSource {
+		streamStrategy = streamstrategy.Transcode
+		reason = fmt.Sprintf("transcoding required: requested %dp but source is %dp",
+			adaptiveProfile.Height, mediaEntity.Height)
+	}
+
 	// Step 4: Handle DirectPlay (no transcoding needed)
 	if streamStrategy == streamstrategy.DirectPlay {
 		return &ServeManifestResponse{
@@ -124,12 +145,6 @@ func (uc *ServeManifestUseCase) Execute(ctx context.Context, req ServeManifestRe
 	}
 
 	// Step 5: Get or create progressive transcode session
-	// Get adaptive profile for this quality level
-	adaptiveProfile, err := profile.GetAdaptiveProfileForQuality(req.Quality)
-	if err != nil {
-		return nil, fmt.Errorf("invalid quality: %w", err)
-	}
-
 	// Create or reuse transcode session
 	// Pass client's supported video codecs for intelligent codec selection
 	transcodeSession, err := uc.sessionManager.GetOrCreateSession(session.GetOrCreateSessionParams{

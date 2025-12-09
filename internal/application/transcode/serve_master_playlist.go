@@ -504,22 +504,16 @@ func (uc *ServeMasterPlaylistUseCase) getFilteredABRLadder(sourceWidth, sourceHe
 	return uc.filterVariants(profile.ABRLadder, sourceWidth, sourceHeight, sourceBitrate)
 }
 
-// filterVariants selects the single best quality variant for the source media.
-// Only one video quality is included to minimize FFmpeg processes and ensure fast startup.
-// The player will use this single quality; ABR switching is not supported in this mode.
+// filterVariants returns all quality variants appropriate for the source media.
+// Includes all qualities at or below the source resolution, giving users full control
+// over quality selection while HLS.js ABR handles automatic switching.
 func (uc *ServeMasterPlaylistUseCase) filterVariants(variants []ABRVariant, sourceWidth, sourceHeight int, sourceBitrate int64) []ABRVariant {
-	// Find the best matching variant for this source
-	var bestVariant *ABRVariant
+	var filtered []ABRVariant
 
 	for i := range variants {
 		variant := &variants[i]
 
-		// Skip variants with bitrate significantly higher than source (allow 10% tolerance)
-		if sourceBitrate > 0 && int64(variant.Bandwidth) > (sourceBitrate*110/100) {
-			continue
-		}
-
-		// Skip qualities higher than source if we know resolution
+		// Skip qualities higher than source resolution
 		if sourceHeight > 0 && sourceWidth > 0 {
 			is4KSource := sourceWidth >= 3840
 			is4KVariant := variant.Width >= 3840
@@ -529,7 +523,7 @@ func (uc *ServeMasterPlaylistUseCase) filterVariants(variants []ABRVariant, sour
 				continue
 			}
 
-			// For non-4K variants, use height-based comparison
+			// For non-4K variants, skip if higher than source height
 			if !is4KVariant && variant.Height > sourceHeight {
 				continue
 			}
@@ -540,20 +534,21 @@ func (uc *ServeMasterPlaylistUseCase) filterVariants(variants []ABRVariant, sour
 			}
 		}
 
-		// Select the highest quality variant that passes all filters
-		// Variants are ordered from lowest to highest in ABRLadder
-		bestVariant = variant
+		// Skip variants with bitrate significantly higher than source (allow 20% tolerance)
+		// Only skip if we know the source bitrate and the variant is at the same resolution
+		if sourceBitrate > 0 && variant.Height == sourceHeight {
+			if int64(variant.Bandwidth) > (sourceBitrate * 120 / 100) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, *variant)
 	}
 
-	// Return single best variant (or empty if none matched)
-	if bestVariant != nil {
-		return []ABRVariant{*bestVariant}
-	}
-
-	// Fallback: return the lowest quality if nothing matched
-	if len(variants) > 0 {
+	// Fallback: return at least the lowest quality if nothing matched
+	if len(filtered) == 0 && len(variants) > 0 {
 		return []ABRVariant{variants[0]}
 	}
 
-	return nil
+	return filtered
 }
