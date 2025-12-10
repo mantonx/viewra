@@ -11,7 +11,6 @@ import (
 	"github.com/mantonx/viewra/internal/app/repositories"
 	"github.com/mantonx/viewra/internal/application/settings"
 	"github.com/mantonx/viewra/internal/application/transcode"
-	apptranscoding "github.com/mantonx/viewra/internal/application/transcoding"
 	domaintranscode "github.com/mantonx/viewra/internal/domain/transcode"
 	"github.com/mantonx/viewra/internal/infrastructure/auth"
 	infraimages "github.com/mantonx/viewra/internal/infrastructure/images"
@@ -208,7 +207,7 @@ func BuildServices(
 
 	// Wire settings service into session manager for dynamic config
 	// This enables runtime changes to tone mapping settings without restart
-	configProvider := apptranscoding.NewSettingsConfigProvider(settingsService, transcodeConfig)
+	configProvider := transcode.NewSettingsConfigProvider(settingsService, transcodeConfig)
 	sessionManager.SetConfigProvider(configProvider)
 
 	// Initialize subtitle converter (for WebVTT conversion)

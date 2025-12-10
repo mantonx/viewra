@@ -1,5 +1,4 @@
-// Package transcoding provides application-level transcoding configuration.
-package transcoding
+package transcode
 
 import (
 	"context"
