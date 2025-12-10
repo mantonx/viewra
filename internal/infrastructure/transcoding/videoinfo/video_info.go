@@ -175,7 +175,21 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 		return nil, fmt.Errorf("ffprobe failed: %w", err)
 	}
 
-	// Parse JSON output properly
+	info, err := ParseFFprobeOutput(output)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result for future requests
+	GlobalCache.Set(inputPath, info)
+
+	return info, nil
+}
+
+// ParseFFprobeOutput parses ffprobe JSON output and extracts video metadata.
+// This function is exported to enable testing of the parsing logic without
+// requiring actual ffprobe execution.
+func ParseFFprobeOutput(output []byte) (*VideoInfo, error) {
 	var ffprobe ffprobeOutput
 	if err := json.Unmarshal(output, &ffprobe); err != nil {
 		return nil, fmt.Errorf("failed to parse ffprobe output: %w", err)
@@ -254,9 +268,6 @@ func GetVideoInfo(inputPath string) (*VideoInfo, error) {
 	if ffprobe.Format.BitRate != "" {
 		info.Bitrate, _ = strconv.ParseInt(ffprobe.Format.BitRate, 10, 64)
 	}
-
-	// Cache the result for future requests
-	GlobalCache.Set(inputPath, info)
 
 	return info, nil
 }

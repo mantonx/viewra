@@ -413,6 +413,102 @@ func TestBuildRemuxArgs(t *testing.T) {
 	}
 }
 
+// TestBuildRemuxArgs_WithStartPosition tests remuxing with seek position.
+func TestBuildRemuxArgs_WithStartPosition(t *testing.T) {
+	opts := TranscodeOptions{
+		InputPath: "/path/to/input.mkv",
+		OutputDir: "/tmp/output",
+		Profile: &AdaptiveProfile{
+			Width:           1920,
+			Height:          1080,
+			VideoBitrate:    8_000_000,
+			AudioBitrate:    192_000,
+			AudioChannels:   2,
+			AudioSampleRate: 48000,
+			GOPSize:         60,
+			SegmentDuration: 4,
+		},
+		StartPosition:    3600, // 1 hour
+		UseStartPosition: true,
+	}
+
+	config := &TranscodeConfig{
+		FFmpegPaths: &infraffmpeg.Paths{
+			FFmpeg:  "/usr/bin/ffmpeg",
+			FFprobe: "/usr/bin/ffprobe",
+		},
+		HardwareAccel:    AccelNone,
+		ProcessGroupKill: true,
+	}
+
+	executor := &FFmpegExecutor{
+		Cfg:            config,
+		processManager: newTestProcessManager(config),
+	}
+
+	args := executor.buildRemuxArgs(opts)
+
+	// Check for seek position - should have -ss with the start position
+	if !argsContainFlag(args, "-ss") {
+		t.Errorf("Expected args to contain -ss for start position, args: %v", args)
+	}
+
+	// Verify other key remux args are present
+	if !argsContain(args, "-c:v", "copy") {
+		t.Errorf("Expected args to contain -c:v copy, args: %v", args)
+	}
+}
+
+// TestBuildRemuxWithAudioDownmixArgs_WithStartPosition tests remuxing with seek.
+func TestBuildRemuxWithAudioDownmixArgs_WithStartPosition(t *testing.T) {
+	opts := TranscodeOptions{
+		InputPath: "/path/to/input.mkv",
+		OutputDir: "/tmp/output",
+		Profile: &AdaptiveProfile{
+			Width:           1920,
+			Height:          1080,
+			VideoBitrate:    8_000_000,
+			AudioBitrate:    192_000,
+			AudioChannels:   2,
+			AudioSampleRate: 48000,
+			GOPSize:         60,
+			SegmentDuration: 4,
+		},
+		StartPosition:    1800, // 30 minutes
+		UseStartPosition: true,
+	}
+
+	config := &TranscodeConfig{
+		FFmpegPaths: &infraffmpeg.Paths{
+			FFmpeg:  "/usr/bin/ffmpeg",
+			FFprobe: "/usr/bin/ffprobe",
+		},
+		HardwareAccel:    AccelNone,
+		ProcessGroupKill: true,
+	}
+
+	executor := &FFmpegExecutor{
+		Cfg:            config,
+		processManager: newTestProcessManager(config),
+	}
+
+	args := executor.buildRemuxWithAudioDownmixArgs(opts)
+
+	// Check for seek position
+	if !argsContainFlag(args, "-ss") {
+		t.Errorf("Expected args to contain -ss for start position, args: %v", args)
+	}
+
+	// Verify audio downmix is still present with seek
+	if !argsContain(args, "-ac", "2") {
+		t.Errorf("Expected args to contain -ac 2 for stereo downmix, args: %v", args)
+	}
+
+	if !argsContain(args, "-c:v", "copy") {
+		t.Errorf("Expected args to contain -c:v copy, args: %v", args)
+	}
+}
+
 // TestBuildRemuxWithAudioDownmixArgs tests remuxing with audio downmix.
 func TestBuildRemuxWithAudioDownmixArgs(t *testing.T) {
 	opts := TranscodeOptions{

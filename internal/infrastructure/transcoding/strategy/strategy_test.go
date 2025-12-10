@@ -222,6 +222,28 @@ func TestIsWebCompatibleAudioCodec(t *testing.T) {
 	}
 }
 
+func TestIsWebCompatibleAudioCodec_Exported(t *testing.T) {
+	// The exported function should behave identically to the internal one
+	// Just verify it works for a few key codecs
+	tests := []struct {
+		codec    string
+		expected bool
+	}{
+		{"aac", true},
+		{"ac3", false},
+		{"truehd", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.codec, func(t *testing.T) {
+			result := IsWebCompatibleAudioCodec(tt.codec)
+			if result != tt.expected {
+				t.Errorf("IsWebCompatibleAudioCodec(%q) = %v, want %v", tt.codec, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestShouldTranscode(t *testing.T) {
 	tests := []struct {
 		name            string

@@ -647,3 +647,86 @@ func TestEncoderChecker(t *testing.T) {
 	// We just verify it doesn't panic
 	_ = called
 }
+
+func TestDefaultWithChecker(t *testing.T) {
+	t.Run("nil checker uses simple check", func(t *testing.T) {
+		cfg := DefaultWithChecker(nil)
+		if cfg == nil {
+			t.Fatal("expected non-nil config")
+		}
+
+		// Config should have defaults set
+		if cfg.MinFreeDiskGB == 0 {
+			t.Error("MinFreeDiskGB should be set")
+		}
+
+		// Verify other defaults are set
+		if cfg.FFmpegPaths == nil {
+			t.Error("FFmpegPaths should not be nil")
+		}
+
+		if !cfg.ProcessGroupKill {
+			t.Error("ProcessGroupKill should be true by default")
+		}
+
+		if !cfg.ToneMappingEnabled {
+			t.Error("ToneMappingEnabled should be true by default")
+		}
+	})
+
+	t.Run("custom checker returning true for all", func(t *testing.T) {
+		// Reset environment to ensure detection runs
+		origAccel := os.Getenv("HARDWARE_ACCEL")
+		os.Unsetenv("HARDWARE_ACCEL")
+		defer func() {
+			if origAccel != "" {
+				os.Setenv("HARDWARE_ACCEL", origAccel)
+			}
+		}()
+
+		checker := func(encoder string) bool { return true }
+		cfg := DefaultWithChecker(checker)
+		if cfg == nil {
+			t.Fatal("expected non-nil config")
+		}
+
+		// With a checker that returns true for everything,
+		// hardware accel detection should find NVENC/QSV/VAAPI
+		// depending on what's available on the system.
+		// We just verify that a valid accel type is set.
+		validAccels := []HardwareAccel{AccelNone, AccelVAAPI, AccelQSV, AccelNVENC, AccelVideoToolbox}
+		valid := false
+		for _, v := range validAccels {
+			if cfg.HardwareAccel == v {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			t.Errorf("HardwareAccel = %v, want one of %v", cfg.HardwareAccel, validAccels)
+		}
+	})
+
+	t.Run("custom checker returning false for all", func(t *testing.T) {
+		// Reset environment to ensure detection runs
+		origAccel := os.Getenv("HARDWARE_ACCEL")
+		os.Unsetenv("HARDWARE_ACCEL")
+		defer func() {
+			if origAccel != "" {
+				os.Setenv("HARDWARE_ACCEL", origAccel)
+			}
+		}()
+
+		checker := func(encoder string) bool { return false }
+		cfg := DefaultWithChecker(checker)
+		if cfg == nil {
+			t.Fatal("expected non-nil config")
+		}
+
+		// With a checker that returns false for everything,
+		// hardware accel should fall back to "none"
+		if cfg.HardwareAccel != AccelNone {
+			t.Errorf("HardwareAccel = %v, want %v (checker returns false for all)", cfg.HardwareAccel, AccelNone)
+		}
+	})
+}

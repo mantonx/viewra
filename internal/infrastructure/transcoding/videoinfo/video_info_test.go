@@ -431,3 +431,452 @@ func TestCacheOperations(t *testing.T) {
 		}
 	})
 }
+
+func TestParseFFprobeOutput(t *testing.T) {
+	t.Run("valid_h264_stereo", func(t *testing.T) {
+		// Realistic ffprobe JSON output for H.264 video with AAC stereo audio
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "h264",
+					"codec_type": "video",
+					"width": 1920,
+					"height": 1080,
+					"pix_fmt": "yuv420p",
+					"color_space": "bt709",
+					"color_primaries": "bt709",
+					"color_transfer": "bt709",
+					"bits_per_raw_sample": "8"
+				},
+				{
+					"index": 1,
+					"codec_name": "aac",
+					"codec_type": "audio",
+					"channels": 2,
+					"bit_rate": "128000",
+					"tags": {
+						"language": "eng",
+						"title": "English"
+					}
+				}
+			],
+			"format": {
+				"format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+				"duration": "7200.123",
+				"bit_rate": "5000000"
+			}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Video checks
+		if info.Codec != "h264" {
+			t.Errorf("Codec = %q, want h264", info.Codec)
+		}
+		if info.Width != 1920 {
+			t.Errorf("Width = %d, want 1920", info.Width)
+		}
+		if info.Height != 1080 {
+			t.Errorf("Height = %d, want 1080", info.Height)
+		}
+		if info.BitDepth != 8 {
+			t.Errorf("BitDepth = %d, want 8", info.BitDepth)
+		}
+		if info.IsHDR {
+			t.Error("IsHDR should be false for bt709 content")
+		}
+
+		// Audio checks
+		if info.AudioCodec != "aac" {
+			t.Errorf("AudioCodec = %q, want aac", info.AudioCodec)
+		}
+		if info.AudioChannels != 2 {
+			t.Errorf("AudioChannels = %d, want 2", info.AudioChannels)
+		}
+		if len(info.AudioTracks) != 1 {
+			t.Errorf("AudioTracks count = %d, want 1", len(info.AudioTracks))
+		}
+
+		// Format checks
+		if info.ContainerFormat != "mov,mp4,m4a,3gp,3g2,mj2" {
+			t.Errorf("ContainerFormat = %q, want mov,mp4,...", info.ContainerFormat)
+		}
+		if info.Duration != 7200.123 {
+			t.Errorf("Duration = %f, want 7200.123", info.Duration)
+		}
+		if info.Bitrate != 5000000 {
+			t.Errorf("Bitrate = %d, want 5000000", info.Bitrate)
+		}
+	})
+
+	t.Run("valid_hevc_hdr10", func(t *testing.T) {
+		// HDR10 HEVC content with multiple audio tracks
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "hevc",
+					"codec_type": "video",
+					"width": 3840,
+					"height": 2160,
+					"pix_fmt": "yuv420p10le",
+					"color_space": "bt2020nc",
+					"color_primaries": "bt2020",
+					"color_transfer": "smpte2084",
+					"bits_per_raw_sample": "10"
+				},
+				{
+					"index": 1,
+					"codec_name": "truehd",
+					"codec_type": "audio",
+					"channels": 8,
+					"bit_rate": "4000000",
+					"tags": {
+						"language": "eng",
+						"title": "English TrueHD Atmos"
+					}
+				},
+				{
+					"index": 2,
+					"codec_name": "aac",
+					"codec_type": "audio",
+					"channels": 2,
+					"bit_rate": "192000",
+					"tags": {
+						"language": "eng",
+						"title": "English Stereo"
+					}
+				},
+				{
+					"index": 3,
+					"codec_name": "aac",
+					"codec_type": "audio",
+					"channels": 2,
+					"bit_rate": "128000",
+					"tags": {
+						"language": "eng",
+						"title": "Director Commentary"
+					}
+				}
+			],
+			"format": {
+				"format_name": "matroska,webm",
+				"duration": "9000.5",
+				"bit_rate": "50000000"
+			}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Video checks - HDR
+		if info.Codec != "hevc" {
+			t.Errorf("Codec = %q, want hevc", info.Codec)
+		}
+		if info.Width != 3840 {
+			t.Errorf("Width = %d, want 3840", info.Width)
+		}
+		if info.BitDepth != 10 {
+			t.Errorf("BitDepth = %d, want 10", info.BitDepth)
+		}
+		if !info.IsHDR {
+			t.Error("IsHDR should be true for smpte2084 content")
+		}
+		if info.ColorTransfer != "smpte2084" {
+			t.Errorf("ColorTransfer = %q, want smpte2084", info.ColorTransfer)
+		}
+
+		// Audio checks - should select AAC stereo (non-commentary)
+		if len(info.AudioTracks) != 3 {
+			t.Errorf("AudioTracks count = %d, want 3", len(info.AudioTracks))
+		}
+		if info.AudioCodec != "aac" {
+			t.Errorf("AudioCodec = %q, want aac (stereo selected)", info.AudioCodec)
+		}
+		if info.AudioChannels != 2 {
+			t.Errorf("AudioChannels = %d, want 2", info.AudioChannels)
+		}
+		// Should select track index 2 (non-commentary AAC stereo)
+		if info.SelectedAudioTrackIndex != 2 {
+			t.Errorf("SelectedAudioTrackIndex = %d, want 2", info.SelectedAudioTrackIndex)
+		}
+	})
+
+	t.Run("valid_hlg_content", func(t *testing.T) {
+		// HLG (Hybrid Log-Gamma) HDR content
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "hevc",
+					"codec_type": "video",
+					"width": 3840,
+					"height": 2160,
+					"pix_fmt": "yuv420p10le",
+					"color_space": "bt2020nc",
+					"color_primaries": "bt2020",
+					"color_transfer": "arib-std-b67"
+				}
+			],
+			"format": {
+				"format_name": "mpegts",
+				"duration": "3600.0",
+				"bit_rate": "20000000"
+			}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !info.IsHDR {
+			t.Error("IsHDR should be true for HLG (arib-std-b67) content")
+		}
+		if info.BitDepth != 10 {
+			t.Errorf("BitDepth = %d, want 10 (from yuv420p10le)", info.BitDepth)
+		}
+	})
+
+	t.Run("video_no_audio", func(t *testing.T) {
+		// Video file with no audio tracks
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "h264",
+					"codec_type": "video",
+					"width": 1280,
+					"height": 720,
+					"pix_fmt": "yuv420p"
+				}
+			],
+			"format": {
+				"format_name": "mp4",
+				"duration": "60.0"
+			}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(info.AudioTracks) != 0 {
+			t.Errorf("AudioTracks count = %d, want 0", len(info.AudioTracks))
+		}
+		if info.AudioCodec != "" {
+			t.Errorf("AudioCodec = %q, want empty", info.AudioCodec)
+		}
+	})
+
+	t.Run("audio_only", func(t *testing.T) {
+		// Audio-only file (no video stream)
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "aac",
+					"codec_type": "audio",
+					"channels": 2,
+					"bit_rate": "256000",
+					"tags": {
+						"language": "eng"
+					}
+				}
+			],
+			"format": {
+				"format_name": "aac",
+				"duration": "180.0"
+			}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if info.Codec != "" {
+			t.Errorf("Codec = %q, want empty (no video)", info.Codec)
+		}
+		if info.AudioCodec != "aac" {
+			t.Errorf("AudioCodec = %q, want aac", info.AudioCodec)
+		}
+	})
+
+	t.Run("bit_depth_fallback", func(t *testing.T) {
+		// Test bit depth fallback when bits_per_raw_sample is not provided
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "hevc",
+					"codec_type": "video",
+					"width": 3840,
+					"height": 2160,
+					"pix_fmt": "yuv420p12le"
+				}
+			],
+			"format": {
+				"format_name": "mkv"
+			}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Should detect 12-bit from pixel format
+		if info.BitDepth != 12 {
+			t.Errorf("BitDepth = %d, want 12 (from yuv420p12le)", info.BitDepth)
+		}
+	})
+
+	t.Run("multiple_video_streams", func(t *testing.T) {
+		// Multiple video streams - should only use first one
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "h264",
+					"codec_type": "video",
+					"width": 1920,
+					"height": 1080
+				},
+				{
+					"index": 1,
+					"codec_name": "mjpeg",
+					"codec_type": "video",
+					"width": 640,
+					"height": 480
+				}
+			],
+			"format": {
+				"format_name": "mkv"
+			}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Should use first video stream
+		if info.Codec != "h264" {
+			t.Errorf("Codec = %q, want h264 (first stream)", info.Codec)
+		}
+		if info.Width != 1920 {
+			t.Errorf("Width = %d, want 1920", info.Width)
+		}
+	})
+
+	t.Run("invalid_json", func(t *testing.T) {
+		invalidJSON := `{"invalid json`
+		_, err := ParseFFprobeOutput([]byte(invalidJSON))
+		if err == nil {
+			t.Error("expected error for invalid JSON")
+		}
+	})
+
+	t.Run("empty_json", func(t *testing.T) {
+		emptyJSON := `{}`
+		info, err := ParseFFprobeOutput([]byte(emptyJSON))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Should return empty VideoInfo
+		if info.Codec != "" {
+			t.Errorf("Codec = %q, want empty", info.Codec)
+		}
+		if len(info.AudioTracks) != 0 {
+			t.Errorf("AudioTracks = %d, want 0", len(info.AudioTracks))
+		}
+	})
+
+	t.Run("empty_streams", func(t *testing.T) {
+		jsonData := `{
+			"streams": [],
+			"format": {
+				"format_name": "unknown"
+			}
+		}`
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if info.Codec != "" {
+			t.Errorf("Codec = %q, want empty", info.Codec)
+		}
+	})
+
+	t.Run("commentary_detection", func(t *testing.T) {
+		// Test commentary track detection
+		jsonData := `{
+			"streams": [
+				{
+					"index": 0,
+					"codec_name": "h264",
+					"codec_type": "video",
+					"width": 1920,
+					"height": 1080
+				},
+				{
+					"index": 1,
+					"codec_name": "aac",
+					"codec_type": "audio",
+					"channels": 2,
+					"tags": {
+						"title": "Director's Commentary"
+					}
+				},
+				{
+					"index": 2,
+					"codec_name": "aac",
+					"codec_type": "audio",
+					"channels": 2,
+					"tags": {
+						"title": "Cast Comment Track"
+					}
+				},
+				{
+					"index": 3,
+					"codec_name": "ac3",
+					"codec_type": "audio",
+					"channels": 6,
+					"tags": {
+						"title": "English 5.1"
+					}
+				}
+			],
+			"format": {"format_name": "mkv"}
+		}`
+
+		info, err := ParseFFprobeOutput([]byte(jsonData))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Check commentary flags
+		if !info.AudioTracks[0].IsCommentary {
+			t.Error("Track 0 should be commentary")
+		}
+		if !info.AudioTracks[1].IsCommentary {
+			t.Error("Track 1 should be commentary (contains 'comment')")
+		}
+		if info.AudioTracks[2].IsCommentary {
+			t.Error("Track 2 should NOT be commentary")
+		}
+
+		// Should select ac3 5.1 (only non-commentary track)
+		if info.SelectedAudioTrackIndex != 3 {
+			t.Errorf("SelectedAudioTrackIndex = %d, want 3", info.SelectedAudioTrackIndex)
+		}
+	})
+}
