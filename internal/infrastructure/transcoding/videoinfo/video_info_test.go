@@ -2,6 +2,8 @@ package videoinfo
 
 import (
 	"testing"
+
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 )
 
 func TestIsHDRContent(t *testing.T) {
@@ -222,42 +224,42 @@ func TestVideoInfoEdgeCases(t *testing.T) {
 	})
 
 	t.Run("missing_codec", func(t *testing.T) {
-		info := &VideoInfo{Codec: "", Width: 1920, Height: 1080}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "", Width: 1920, Height: 1080}}
 		if info.Codec != "" {
 			t.Errorf("expected empty codec, got %q", info.Codec)
 		}
 	})
 
 	t.Run("zero_dimensions", func(t *testing.T) {
-		info := &VideoInfo{Codec: "h264", Width: 0, Height: 0}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", Width: 0, Height: 0}}
 		if info.Width != 0 || info.Height != 0 {
 			t.Errorf("expected zero dimensions, got %dx%d", info.Width, info.Height)
 		}
 	})
 
 	t.Run("negative_bitrate", func(t *testing.T) {
-		info := &VideoInfo{Codec: "h264", Bitrate: -1000}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", Bitrate: -1000}}
 		if info.Bitrate >= 0 {
 			t.Errorf("expected negative bitrate preserved, got %d", info.Bitrate)
 		}
 	})
 
 	t.Run("zero_duration", func(t *testing.T) {
-		info := &VideoInfo{Codec: "h264", Duration: 0.0}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", Duration: 0.0}}
 		if info.Duration != 0.0 {
 			t.Errorf("expected zero duration, got %f", info.Duration)
 		}
 	})
 
 	t.Run("no_audio_tracks", func(t *testing.T) {
-		info := &VideoInfo{Codec: "h264", AudioTracks: []AudioTrack{}}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264"}, AudioTracks: []AudioTrack{}}
 		if len(info.AudioTracks) != 0 {
 			t.Errorf("expected zero audio tracks, got %d", len(info.AudioTracks))
 		}
 	})
 
 	t.Run("nil_audio_tracks", func(t *testing.T) {
-		info := &VideoInfo{Codec: "h264", AudioTracks: nil}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264"}, AudioTracks: nil}
 		if info.AudioTracks != nil {
 			t.Errorf("expected nil audio tracks, got %+v", info.AudioTracks)
 		}
@@ -265,10 +267,12 @@ func TestVideoInfoEdgeCases(t *testing.T) {
 
 	t.Run("hdr_missing_color_metadata", func(t *testing.T) {
 		info := &VideoInfo{
-			Codec:       "hevc",
-			PixelFormat: "yuv420p10le",
-			BitDepth:    10,
-			IsHDR:       false,
+			VideoInfo: hls.VideoInfo{
+				Codec:       "hevc",
+				PixelFormat: "yuv420p10le",
+				BitDepth:    10,
+				IsHDR:       false,
+			},
 		}
 		if info.IsHDR {
 			t.Error("expected IsHDR=false when color metadata missing")
@@ -277,12 +281,14 @@ func TestVideoInfoEdgeCases(t *testing.T) {
 
 	t.Run("sdr_with_10bit", func(t *testing.T) {
 		info := &VideoInfo{
-			Codec:          "h264",
-			PixelFormat:    "yuv420p10le",
-			ColorTransfer:  "bt709",
-			ColorPrimaries: "bt709",
-			BitDepth:       10,
-			IsHDR:          false,
+			VideoInfo: hls.VideoInfo{
+				Codec:          "h264",
+				PixelFormat:    "yuv420p10le",
+				ColorTransfer:  "bt709",
+				ColorPrimaries: "bt709",
+				BitDepth:       10,
+				IsHDR:          false,
+			},
 		}
 		if info.IsHDR {
 			t.Error("expected IsHDR=false for SDR in 10-bit")
@@ -307,28 +313,28 @@ func TestVideoInfoEdgeCases(t *testing.T) {
 	})
 
 	t.Run("container_format_multiple_values", func(t *testing.T) {
-		info := &VideoInfo{Codec: "h264", ContainerFormat: "matroska,webm"}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", ContainerFormat: "matroska,webm"}}
 		if info.ContainerFormat != "matroska,webm" {
 			t.Errorf("expected 'matroska,webm', got %q", info.ContainerFormat)
 		}
 	})
 
 	t.Run("high_bitrate_4k_hdr", func(t *testing.T) {
-		info := &VideoInfo{Bitrate: 100_000_000}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Bitrate: 100_000_000}}
 		if info.Bitrate != 100_000_000 {
 			t.Errorf("expected 100000000, got %d", info.Bitrate)
 		}
 	})
 
 	t.Run("long_duration", func(t *testing.T) {
-		info := &VideoInfo{Duration: 25200.0}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Duration: 25200.0}}
 		if info.Duration != 25200.0 {
 			t.Errorf("expected 25200.0, got %f", info.Duration)
 		}
 	})
 
 	t.Run("ultrawide_aspect_ratio", func(t *testing.T) {
-		info := &VideoInfo{Width: 2560, Height: 1080}
+		info := &VideoInfo{VideoInfo: hls.VideoInfo{Width: 2560, Height: 1080}}
 		aspectRatio := float64(info.Width) / float64(info.Height)
 		expected := 2560.0 / 1080.0
 		if aspectRatio != expected {
@@ -347,10 +353,12 @@ func TestVideoInfoHDRScenarios(t *testing.T) {
 		{
 			name: "hdr10_movie",
 			info: VideoInfo{
-				PixelFormat:    "yuv420p10le",
-				ColorTransfer:  "smpte2084",
-				ColorPrimaries: "bt2020",
-				BitDepth:       10,
+				VideoInfo: hls.VideoInfo{
+					PixelFormat:    "yuv420p10le",
+					ColorTransfer:  "smpte2084",
+					ColorPrimaries: "bt2020",
+					BitDepth:       10,
+				},
 			},
 			expectHDR:  true,
 			expectBits: 10,
@@ -358,10 +366,12 @@ func TestVideoInfoHDRScenarios(t *testing.T) {
 		{
 			name: "hlg_broadcast",
 			info: VideoInfo{
-				PixelFormat:    "yuv420p10le",
-				ColorTransfer:  "arib-std-b67",
-				ColorPrimaries: "bt2020",
-				BitDepth:       10,
+				VideoInfo: hls.VideoInfo{
+					PixelFormat:    "yuv420p10le",
+					ColorTransfer:  "arib-std-b67",
+					ColorPrimaries: "bt2020",
+					BitDepth:       10,
+				},
 			},
 			expectHDR:  true,
 			expectBits: 10,
@@ -369,10 +379,12 @@ func TestVideoInfoHDRScenarios(t *testing.T) {
 		{
 			name: "sdr_uhd",
 			info: VideoInfo{
-				PixelFormat:    "yuv420p",
-				ColorTransfer:  "bt709",
-				ColorPrimaries: "bt709",
-				BitDepth:       8,
+				VideoInfo: hls.VideoInfo{
+					PixelFormat:    "yuv420p",
+					ColorTransfer:  "bt709",
+					ColorPrimaries: "bt709",
+					BitDepth:       8,
+				},
 			},
 			expectHDR:  false,
 			expectBits: 8,
@@ -380,10 +392,12 @@ func TestVideoInfoHDRScenarios(t *testing.T) {
 		{
 			name: "dolby_vision",
 			info: VideoInfo{
-				PixelFormat:    "yuv420p10le",
-				ColorTransfer:  "smpte2084",
-				ColorPrimaries: "bt2020",
-				BitDepth:       10,
+				VideoInfo: hls.VideoInfo{
+					PixelFormat:    "yuv420p10le",
+					ColorTransfer:  "smpte2084",
+					ColorPrimaries: "bt2020",
+					BitDepth:       10,
+				},
 			},
 			expectHDR:  true,
 			expectBits: 10,

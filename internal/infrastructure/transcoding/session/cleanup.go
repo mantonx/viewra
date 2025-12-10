@@ -8,6 +8,21 @@ import (
 	"time"
 )
 
+// tryRemoveEmptyDir attempts to remove a directory if it's empty.
+// This is used to clean up parent directories after removing their contents.
+// Errors are silently ignored since the directory may not be empty or may not exist.
+func (m *Manager) tryRemoveEmptyDir(path string) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return // Directory doesn't exist or can't be read
+	}
+	if len(entries) == 0 {
+		if err := os.Remove(path); err == nil {
+			m.logger.Debug("Removed empty media directory", "path", path)
+		}
+	}
+}
+
 // cleanupOutputDir removes a session's output directory and logs any errors.
 func (m *Manager) cleanupOutputDir(path string, sessionID string) {
 	if err := os.RemoveAll(path); err != nil {
@@ -117,6 +132,10 @@ func (m *Manager) CleanupIdleSessions(idleTimeout time.Duration) int {
 			}
 
 			m.cleanupOutputDir(session.OutputDir, session.ID)
+
+			// Try to remove the parent media directory if it's now empty
+			mediaDir := filepath.Dir(session.OutputDir)
+			m.tryRemoveEmptyDir(mediaDir)
 		}
 
 		return true
@@ -155,8 +174,10 @@ func (m *Manager) StartIdleCleanup(interval time.Duration, idleTimeout time.Dura
 }
 
 // CleanupSessionOutput removes the output directory for a session.
+// If the parent media directory becomes empty after cleanup, it is also removed.
 func (m *Manager) CleanupSessionOutput(mediaID int64, quality string, outputDir string) error {
-	sessionOutputDir := filepath.Join(outputDir, fmt.Sprintf("%d", mediaID), quality)
+	mediaDir := filepath.Join(outputDir, fmt.Sprintf("%d", mediaID))
+	sessionOutputDir := filepath.Join(mediaDir, quality)
 
 	if err := os.RemoveAll(sessionOutputDir); err != nil {
 		return fmt.Errorf("failed to clean up session output: %w", err)
@@ -166,6 +187,9 @@ func (m *Manager) CleanupSessionOutput(mediaID int64, quality string, outputDir 
 		"media_id", mediaID,
 		"quality", quality,
 		"path", sessionOutputDir)
+
+	// Try to remove the parent media directory if it's now empty
+	m.tryRemoveEmptyDir(mediaDir)
 
 	return nil
 }

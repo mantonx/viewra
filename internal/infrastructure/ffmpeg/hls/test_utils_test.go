@@ -4,89 +4,37 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/paths"
 )
 
 func TestSetFFmpegPath(t *testing.T) {
-	// Save original values
-	origPath := configuredFFmpegPath
-	origLibDir := configuredFFmpegLibDir
+	// Save original value
+	origPaths := paths.Global()
 	defer func() {
-		configuredFFmpegPath = origPath
-		configuredFFmpegLibDir = origLibDir
+		paths.SetGlobal(origPaths)
 	}()
 
 	// Test setting path
 	SetFFmpegPath("/custom/ffmpeg", "/custom/lib")
 
-	if configuredFFmpegPath != "/custom/ffmpeg" {
-		t.Errorf("configuredFFmpegPath = %s, want /custom/ffmpeg", configuredFFmpegPath)
+	p := paths.Global()
+	if p == nil {
+		t.Fatal("paths.Global() returned nil after SetFFmpegPath")
 	}
-	if configuredFFmpegLibDir != "/custom/lib" {
-		t.Errorf("configuredFFmpegLibDir = %s, want /custom/lib", configuredFFmpegLibDir)
+	if p.FFmpeg != "/custom/ffmpeg" {
+		t.Errorf("FFmpeg = %s, want /custom/ffmpeg", p.FFmpeg)
 	}
-}
-
-func TestGetFFmpegPath(t *testing.T) {
-	// Save original value
-	origPath := configuredFFmpegPath
-	defer func() {
-		configuredFFmpegPath = origPath
-	}()
-
-	tests := []struct {
-		name         string
-		configuredPath string
-		want         string
-	}{
-		{"default", "", "ffmpeg"},
-		{"custom path", "/usr/local/bin/ffmpeg", "/usr/local/bin/ffmpeg"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			configuredFFmpegPath = tt.configuredPath
-			got := getFFmpegPath()
-			if got != tt.want {
-				t.Errorf("getFFmpegPath() = %s, want %s", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGetFFmpegLibDir(t *testing.T) {
-	// Save original value
-	origLibDir := configuredFFmpegLibDir
-	defer func() {
-		configuredFFmpegLibDir = origLibDir
-	}()
-
-	tests := []struct {
-		name      string
-		libDir    string
-		want      string
-	}{
-		{"empty", "", ""},
-		{"custom lib dir", "/opt/ffmpeg/lib", "/opt/ffmpeg/lib"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			configuredFFmpegLibDir = tt.libDir
-			got := getFFmpegLibDir()
-			if got != tt.want {
-				t.Errorf("getFFmpegLibDir() = %s, want %s", got, tt.want)
-			}
-		})
+	if p.LibPath != "/custom/lib" {
+		t.Errorf("LibPath = %s, want /custom/lib", p.LibPath)
 	}
 }
 
 func TestPrepareFFmpegCommand(t *testing.T) {
-	// Save original values
-	origPath := configuredFFmpegPath
-	origLibDir := configuredFFmpegLibDir
+	// Save original value
+	origPaths := paths.Global()
 	defer func() {
-		configuredFFmpegPath = origPath
-		configuredFFmpegLibDir = origLibDir
+		paths.SetGlobal(origPaths)
 	}()
 
 	tests := []struct {
@@ -125,7 +73,11 @@ func TestPrepareFFmpegCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			SetFFmpegPath(tt.ffmpegPath, tt.libDir)
+			if tt.ffmpegPath == "" {
+				paths.SetGlobal(nil) // Clear to use fallback
+			} else {
+				SetFFmpegPath(tt.ffmpegPath, tt.libDir)
+			}
 			cmd := prepareFFmpegCommand(tt.args...)
 
 			if cmd.Path != tt.wantPath && !strings.HasSuffix(cmd.Path, tt.wantPath) {
@@ -289,12 +241,6 @@ func TestHardwareInitArgsNVENCStructure(t *testing.T) {
 }
 
 func TestCheckFFmpegEncoder(t *testing.T) {
-	// Save original values
-	origPath := configuredFFmpegPath
-	defer func() {
-		configuredFFmpegPath = origPath
-	}()
-
 	// This test will only work if ffmpeg is in PATH
 	// We'll check for a common encoder
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
@@ -309,12 +255,6 @@ func TestCheckFFmpegEncoder(t *testing.T) {
 }
 
 func TestCheckFFmpegFilter(t *testing.T) {
-	// Save original values
-	origPath := configuredFFmpegPath
-	defer func() {
-		configuredFFmpegPath = origPath
-	}()
-
 	// This test will only work if ffmpeg is in PATH
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not in PATH, skipping CheckFFmpegFilter test")
@@ -368,13 +308,19 @@ func TestPrepareFFmpegCommandArgs(t *testing.T) {
 }
 
 func TestSetFFmpegPathConcurrency(t *testing.T) {
+	// Save original value
+	origPaths := paths.Global()
+	defer func() {
+		paths.SetGlobal(origPaths)
+	}()
+
 	// Test that concurrent reads/writes don't panic
 	done := make(chan bool)
 
 	// Writer goroutine
 	go func() {
 		for i := 0; i < 100; i++ {
-			SetFFmpegPath("/path/"+string(rune(i)), "/lib/"+string(rune(i)))
+			SetFFmpegPath("/path/"+string(rune('a'+i%26)), "/lib/"+string(rune('a'+i%26)))
 		}
 		done <- true
 	}()
@@ -383,8 +329,11 @@ func TestSetFFmpegPathConcurrency(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		go func() {
 			for j := 0; j < 100; j++ {
-				_ = getFFmpegPath()
-				_ = getFFmpegLibDir()
+				p := paths.Global()
+				if p != nil {
+					_ = p.FFmpeg
+					_ = p.LibPath
+				}
 			}
 			done <- true
 		}()

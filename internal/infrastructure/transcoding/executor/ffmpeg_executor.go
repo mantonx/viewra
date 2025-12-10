@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/paths"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/process"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/config"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
@@ -67,17 +68,13 @@ func convertToFFmpegProfile(p *profile.AdaptiveProfile) *hls.Profile {
 	}
 }
 
-// convertToFFmpegVideoInfo converts videoinfo.VideoInfo to hls.VideoInfo
+// convertToFFmpegVideoInfo converts videoinfo.VideoInfo to hls.VideoInfo.
+// Since videoinfo.VideoInfo embeds hls.VideoInfo, this is a zero-copy operation.
 func convertToFFmpegVideoInfo(v *videoinfo.VideoInfo) *hls.VideoInfo {
 	if v == nil {
 		return nil
 	}
-	return &hls.VideoInfo{
-		Width:         v.Width,
-		Height:        v.Height,
-		AudioChannels: v.AudioChannels,
-		IsHDR:         v.IsHDR,
-	}
+	return v.ToHLSVideoInfo()
 }
 
 // convertToProcessConfig converts config.TranscodeConfig to process.Config
@@ -111,10 +108,9 @@ func NewFFmpegExecutorWithConfig(cfg *config.TranscodeConfig) (*FFmpegExecutor, 
 		return nil, fmt.Errorf("ffmpeg paths not configured")
 	}
 
-	// Set the FFmpeg path for filter/encoder checks (used by CheckFFmpegFilter, etc.)
+	// Set the global FFmpeg paths for filter/encoder checks (used by CheckFFmpegFilter, etc.)
 	// This ensures tonemap_cuda detection uses the correct FFmpeg binary
-	// SetFFmpegPath also logs the FFmpeg configuration at startup
-	hls.SetFFmpegPath(cfg.FFmpegPaths.FFmpeg, cfg.FFmpegPaths.LibPath)
+	paths.SetGlobal(cfg.FFmpegPaths)
 
 	return &FFmpegExecutor{
 		Cfg:            cfg,

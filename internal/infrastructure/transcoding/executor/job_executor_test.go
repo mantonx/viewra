@@ -328,20 +328,24 @@ func TestConvertToFFmpegVideoInfo(t *testing.T) {
 		{
 			name: "HDR video info converts correctly",
 			videoInfo: &videoinfo.VideoInfo{
-				Width:         3840,
-				Height:        2160,
-				AudioChannels: 6,
-				IsHDR:         true,
+				VideoInfo: hls.VideoInfo{
+					Width:         3840,
+					Height:        2160,
+					AudioChannels: 6,
+					IsHDR:         true,
+				},
 			},
 			wantNil: false,
 		},
 		{
 			name: "SDR video info converts correctly",
 			videoInfo: &videoinfo.VideoInfo{
-				Width:         1920,
-				Height:        1080,
-				AudioChannels: 2,
-				IsHDR:         false,
+				VideoInfo: hls.VideoInfo{
+					Width:         1920,
+					Height:        1080,
+					AudioChannels: 2,
+					IsHDR:         false,
+				},
 			},
 			wantNil: false,
 		},
@@ -606,9 +610,11 @@ func TestJobExecutor_prepareOptions(t *testing.T) {
 		}
 		adaptiveProfile := &profile.AdaptiveProfile{}
 		videoInfo := &videoinfo.VideoInfo{
+			VideoInfo: hls.VideoInfo{
+				AudioCodec:    "ac3",
+				AudioChannels: 6,
+			},
 			SelectedAudioTrackIndex: 2,
-			AudioCodec:              "ac3",
-			AudioChannels:           6,
 		}
 
 		opts := jobExecutor.prepareOptions(job, "/input.mp4", "/output", adaptiveProfile, videoInfo)
@@ -823,9 +829,11 @@ func TestConvertToFFmpegTranscodeOptions(t *testing.T) {
 			VideoBitrate: 8_000_000,
 		},
 		VideoInfo: &videoinfo.VideoInfo{
-			Width:  3840,
-			Height: 2160,
-			IsHDR:  true,
+			VideoInfo: hls.VideoInfo{
+				Width:  3840,
+				Height: 2160,
+				IsHDR:  true,
+			},
 		},
 	}
 
@@ -913,9 +921,11 @@ func TestJobExecutor_checkDiskSpace(t *testing.T) {
 
 	t.Run("video info without duration returns no error", func(t *testing.T) {
 		videoInfo := &videoinfo.VideoInfo{
-			Width:    1920,
-			Height:   1080,
-			Duration: 0, // No duration
+			VideoInfo: hls.VideoInfo{
+				Width:    1920,
+				Height:   1080,
+				Duration: 0, // No duration
+			},
 		}
 		err := jobExecutor.checkDiskSpace(context.Background(), job, "/tmp", adaptiveProfile, videoInfo)
 		if err != nil {
@@ -925,9 +935,11 @@ func TestJobExecutor_checkDiskSpace(t *testing.T) {
 
 	t.Run("video info with duration calculates size", func(t *testing.T) {
 		videoInfo := &videoinfo.VideoInfo{
-			Width:    1920,
-			Height:   1080,
-			Duration: 3600.0, // 1 hour
+			VideoInfo: hls.VideoInfo{
+				Width:    1920,
+				Height:   1080,
+				Duration: 3600.0, // 1 hour
+			},
 		}
 		tempDir := t.TempDir()
 		err := jobExecutor.checkDiskSpace(context.Background(), job, tempDir, adaptiveProfile, videoInfo)

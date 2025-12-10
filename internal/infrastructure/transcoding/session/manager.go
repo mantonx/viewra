@@ -403,26 +403,11 @@ func sessionKey(mediaID int64, quality string, audioTrackIndex int) string {
 	return fmt.Sprintf("%d:%s", mediaID, quality)
 }
 
-// convertProbeToHLSVideoInfo converts videoinfo.VideoInfo to hls.VideoInfo
+// convertProbeToHLSVideoInfo converts videoinfo.VideoInfo to hls.VideoInfo.
+// Since videoinfo.VideoInfo embeds hls.VideoInfo, this is a zero-copy operation.
 func convertProbeToHLSVideoInfo(v *videoinfo.VideoInfo) *hls.VideoInfo {
 	if v == nil {
 		return nil
 	}
-	return &hls.VideoInfo{
-		Codec:           v.Codec,
-		Width:           v.Width,
-		Height:          v.Height,
-		Bitrate:         v.Bitrate,
-		Duration:        v.Duration,
-		AudioCodec:      v.AudioCodec,
-		AudioBitrate:    v.AudioBitrate,
-		AudioChannels:   v.AudioChannels,
-		ContainerFormat: v.ContainerFormat,
-		PixelFormat:     v.PixelFormat,
-		ColorSpace:      v.ColorSpace,
-		ColorPrimaries:  v.ColorPrimaries,
-		ColorTransfer:   v.ColorTransfer,
-		BitDepth:        v.BitDepth,
-		IsHDR:           v.IsHDR,
-	}
+	return v.ToHLSVideoInfo()
 }

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 )
 
 // TestVideoInfoCache_SetAndGet tests basic cache set and get operations
@@ -25,15 +27,17 @@ func TestVideoInfoCache_SetAndGet(t *testing.T) {
 
 	// Create test video info
 	testInfo := &VideoInfo{
-		Codec:           "h264",
-		Width:           1920,
-		Height:          1080,
-		Bitrate:         5000000,
-		Duration:        120.5,
-		AudioCodec:      "aac",
-		AudioBitrate:    128000,
-		AudioChannels:   2,
-		ContainerFormat: "mp4",
+		VideoInfo: hls.VideoInfo{
+			Codec:           "h264",
+			Width:           1920,
+			Height:          1080,
+			Bitrate:         5000000,
+			Duration:        120.5,
+			AudioCodec:      "aac",
+			AudioBitrate:    128000,
+			AudioChannels:   2,
+			ContainerFormat: "mp4",
+		},
 	}
 
 	// Test set
@@ -91,7 +95,7 @@ func TestVideoInfoCache_GetDeletedFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	testInfo := &VideoInfo{Codec: "h264"}
+	testInfo := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264"}}
 	cache.Set(testFile, testInfo)
 
 	// Delete the file
@@ -123,7 +127,7 @@ func TestVideoInfoCache_FileModificationDoesNotInvalidate(t *testing.T) {
 	}
 
 	// Cache the info
-	testInfo := &VideoInfo{Codec: "h264", Width: 1920}
+	testInfo := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", Width: 1920}}
 	cache.Set(testFile, testInfo)
 
 	// Verify it's cached
@@ -158,7 +162,7 @@ func TestVideoInfoCache_Expiration(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	testInfo := &VideoInfo{Codec: "h264"}
+	testInfo := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264"}}
 	cache.Set(testFile, testInfo)
 
 	// Manually set the cachedAt time to be older than cacheMaxAge
@@ -186,7 +190,7 @@ func TestVideoInfoCache_ExpirationBoundary(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	testInfo := &VideoInfo{Codec: "h264", Width: 1920}
+	testInfo := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", Width: 1920}}
 	cache.Set(testFile, testInfo)
 
 	// Set time to just before expiration (should still be valid)
@@ -213,7 +217,7 @@ func TestVideoInfoCache_SetNonExistentFile(t *testing.T) {
 	}
 
 	// Cache info for non-existent file (now allowed since we skip stat)
-	testInfo := &VideoInfo{Codec: "h264"}
+	testInfo := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264"}}
 	cache.Set("/nonexistent/path/video.mp4", testInfo)
 
 	// Cache should store entry (we don't stat on Set anymore for performance)
@@ -252,8 +256,10 @@ func TestVideoInfoCache_MultipleFiles(t *testing.T) {
 		}
 
 		info := &VideoInfo{
-			Codec: f.codec,
-			Width: f.width,
+			VideoInfo: hls.VideoInfo{
+				Codec: f.codec,
+				Width: f.width,
+			},
 		}
 		cache.Set(filePath, info)
 	}
@@ -288,11 +294,11 @@ func TestVideoInfoCache_UpdateEntry(t *testing.T) {
 	}
 
 	// Set initial info
-	initialInfo := &VideoInfo{Codec: "h264", Width: 1920}
+	initialInfo := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", Width: 1920}}
 	cache.Set(testFile, initialInfo)
 
 	// Update with new info
-	updatedInfo := &VideoInfo{Codec: "hevc", Width: 3840}
+	updatedInfo := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "hevc", Width: 3840}}
 	cache.Set(testFile, updatedInfo)
 
 	// Should retrieve updated info
@@ -322,27 +328,29 @@ func TestVideoInfoCache_ComplexVideoInfo(t *testing.T) {
 
 	// Create complex VideoInfo with all fields
 	complexInfo := &VideoInfo{
-		Codec:           "hevc",
-		Width:           3840,
-		Height:          2160,
-		Bitrate:         50000000,
-		Duration:        7200.5,
-		AudioCodec:      "aac",
-		AudioBitrate:    256000,
-		AudioChannels:   6,
+		VideoInfo: hls.VideoInfo{
+			Codec:           "hevc",
+			Width:           3840,
+			Height:          2160,
+			Bitrate:         50000000,
+			Duration:        7200.5,
+			AudioCodec:      "aac",
+			AudioBitrate:    256000,
+			AudioChannels:   6,
+			ContainerFormat: "matroska,webm",
+			PixelFormat:     "yuv420p10le",
+			ColorSpace:      "bt2020nc",
+			ColorPrimaries:  "bt2020",
+			ColorTransfer:   "smpte2084",
+			BitDepth:        10,
+			IsHDR:           true,
+		},
 		AudioTracks: []AudioTrack{
 			{Index: 0, Codec: "aac", Channels: 6, Language: "eng", Title: "English 5.1"},
 			{Index: 1, Codec: "aac", Channels: 2, Language: "eng", Title: "English Stereo"},
 			{Index: 2, Codec: "ac3", Channels: 6, Language: "fra", Title: "French 5.1"},
 		},
 		SelectedAudioTrackIndex: 0,
-		ContainerFormat:         "matroska,webm",
-		PixelFormat:             "yuv420p10le",
-		ColorSpace:              "bt2020nc",
-		ColorPrimaries:          "bt2020",
-		ColorTransfer:           "smpte2084",
-		BitDepth:                10,
-		IsHDR:                   true,
 	}
 
 	cache.Set(testFile, complexInfo)
@@ -483,9 +491,11 @@ func TestGetVideoInfo_CacheHit(t *testing.T) {
 
 	// Manually populate the cache
 	testInfo := &VideoInfo{
-		Codec:  "h264",
-		Width:  1920,
-		Height: 1080,
+		VideoInfo: hls.VideoInfo{
+			Codec:  "h264",
+			Width:  1920,
+			Height: 1080,
+		},
 	}
 
 	GlobalCache.mu.Lock()
@@ -606,8 +616,10 @@ func TestVideoInfoCache_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < numFiles; i++ {
 		go func(index int) {
 			info := &VideoInfo{
-				Codec: "h264",
-				Width: 1920 + index*100,
+				VideoInfo: hls.VideoInfo{
+					Codec: "h264",
+					Width: 1920 + index*100,
+				},
 			}
 			cache.Set(testFiles[index], info)
 			done <- true
@@ -665,8 +677,8 @@ func TestVideoInfoCache_KeyGeneration(t *testing.T) {
 	}
 
 	// Cache different info for each file
-	info1 := &VideoInfo{Codec: "h264", Width: 1920}
-	info2 := &VideoInfo{Codec: "hevc", Width: 3840}
+	info1 := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264", Width: 1920}}
+	info2 := &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "hevc", Width: 3840}}
 
 	cache.Set(file1, info1)
 	cache.Set(file2, info2)
@@ -707,11 +719,13 @@ func TestVideoInfoCache_ZeroValues(t *testing.T) {
 
 	// VideoInfo with mostly zero values (edge case)
 	zeroInfo := &VideoInfo{
-		Codec:       "",
-		Width:       0,
-		Height:      0,
-		Bitrate:     0,
-		Duration:    0,
+		VideoInfo: hls.VideoInfo{
+			Codec:    "",
+			Width:    0,
+			Height:   0,
+			Bitrate:  0,
+			Duration: 0,
+		},
 		AudioTracks: []AudioTrack{},
 	}
 
@@ -758,7 +772,7 @@ func TestCacheClearAndSize(t *testing.T) {
 		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
 			t.Fatalf("Failed to create test file %d: %v", i, err)
 		}
-		cache.Set(testFile, &VideoInfo{Codec: "h264"})
+		cache.Set(testFile, &VideoInfo{VideoInfo: hls.VideoInfo{Codec: "h264"}})
 	}
 
 	// Check size

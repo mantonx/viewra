@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/mantonx/viewra/internal/domain/media"
-	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/profile"
 	"github.com/mantonx/viewra/internal/infrastructure/transcoding/strategy"
+	"github.com/mantonx/viewra/internal/infrastructure/transcoding/videoinfo"
 )
 
 // ServeMasterPlaylistRequest represents a request for the master HLS playlist.
@@ -150,14 +151,16 @@ func (uc *ServeMasterPlaylistUseCase) Execute(ctx context.Context, req ServeMast
 // and ServeMasterPlaylistUseCase.
 func buildVideoInfoFromDatabase(mediaItem *media.Media, audioTracks []*media.AudioTrack) *videoinfo.VideoInfo {
 	info := &videoinfo.VideoInfo{
-		Codec:           mediaItem.VideoCodec,
-		Width:           mediaItem.Width,
-		Height:          mediaItem.Height,
-		Bitrate:         mediaItem.Bitrate,
-		ContainerFormat: mediaItem.ContainerFormat,
-		ColorSpace:      mediaItem.ColorSpace,
-		ColorPrimaries:  mediaItem.ColorPrimaries,
-		AudioTracks:     make([]videoinfo.AudioTrack, 0, len(audioTracks)),
+		VideoInfo: hls.VideoInfo{
+			Codec:           mediaItem.VideoCodec,
+			Width:           mediaItem.Width,
+			Height:          mediaItem.Height,
+			Bitrate:         mediaItem.Bitrate,
+			ContainerFormat: mediaItem.ContainerFormat,
+			ColorSpace:      mediaItem.ColorSpace,
+			ColorPrimaries:  mediaItem.ColorPrimaries,
+		},
+		AudioTracks: make([]videoinfo.AudioTrack, 0, len(audioTracks)),
 	}
 
 	// Determine HDR status from stored HDRFormat or color metadata

@@ -374,6 +374,85 @@ func TestCleanupSessionOutput_NestedFiles(t *testing.T) {
 	}
 }
 
+// TestCleanupSessionOutput_RemovesEmptyParent tests that parent media dir is removed when empty
+func TestCleanupSessionOutput_RemovesEmptyParent(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	manager := testManager(t, logger)
+
+	tmpDir := t.TempDir()
+	mediaID := int64(789)
+	quality := "1080p"
+
+	// Create session output directory with a file
+	mediaDir := filepath.Join(tmpDir, fmt.Sprintf("%d", mediaID))
+	sessionDir := filepath.Join(mediaDir, quality)
+	if err := os.MkdirAll(sessionDir, 0755); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	os.WriteFile(filepath.Join(sessionDir, "segment0.ts"), []byte("test"), 0644)
+
+	// Cleanup session output
+	err := manager.CleanupSessionOutput(mediaID, quality, tmpDir)
+	if err != nil {
+		t.Fatalf("CleanupSessionOutput() error = %v", err)
+	}
+
+	// Verify session directory was removed
+	if _, err := os.Stat(sessionDir); !os.IsNotExist(err) {
+		t.Error("Session output directory should be removed")
+	}
+
+	// Verify parent media directory was also removed (since it's now empty)
+	if _, err := os.Stat(mediaDir); !os.IsNotExist(err) {
+		t.Error("Empty parent media directory should be removed")
+	}
+}
+
+// TestCleanupSessionOutput_KeepsNonEmptyParent tests that parent dir is kept if not empty
+func TestCleanupSessionOutput_KeepsNonEmptyParent(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	manager := testManager(t, logger)
+
+	tmpDir := t.TempDir()
+	mediaID := int64(101)
+	quality1 := "1080p"
+	quality2 := "720p"
+
+	// Create two quality directories under the same media
+	mediaDir := filepath.Join(tmpDir, fmt.Sprintf("%d", mediaID))
+	sessionDir1 := filepath.Join(mediaDir, quality1)
+	sessionDir2 := filepath.Join(mediaDir, quality2)
+	if err := os.MkdirAll(sessionDir1, 0755); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	if err := os.MkdirAll(sessionDir2, 0755); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	os.WriteFile(filepath.Join(sessionDir1, "segment0.ts"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(sessionDir2, "segment0.ts"), []byte("test"), 0644)
+
+	// Cleanup only one quality
+	err := manager.CleanupSessionOutput(mediaID, quality1, tmpDir)
+	if err != nil {
+		t.Fatalf("CleanupSessionOutput() error = %v", err)
+	}
+
+	// Verify session directory was removed
+	if _, err := os.Stat(sessionDir1); !os.IsNotExist(err) {
+		t.Error("Session output directory should be removed")
+	}
+
+	// Verify parent media directory still exists (has another quality)
+	if _, err := os.Stat(mediaDir); os.IsNotExist(err) {
+		t.Error("Parent media directory should still exist (has other quality)")
+	}
+
+	// Verify other quality still exists
+	if _, err := os.Stat(sessionDir2); os.IsNotExist(err) {
+		t.Error("Other quality directory should still exist")
+	}
+}
+
 // TestStartPeriodicCleanup tests periodic cleanup functionality
 func TestStartPeriodicCleanup(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))

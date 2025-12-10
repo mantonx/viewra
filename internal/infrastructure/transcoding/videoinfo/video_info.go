@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/paths"
 )
 
@@ -32,26 +33,27 @@ type AudioTrack struct {
 }
 
 // VideoInfo contains metadata about a video file extracted via ffprobe.
+// It embeds hls.VideoInfo for the core video/audio metadata fields, and adds
+// additional fields for multi-track audio support used during transcoding.
 type VideoInfo struct {
-	Codec                   string
-	Width                   int
-	Height                  int
-	Bitrate                 int64
-	Duration                float64
-	AudioCodec              string       // Codec of the best/selected audio track
-	AudioBitrate            int64        // Bitrate of the best/selected audio track
-	AudioChannels           int          // Number of audio channels (1=mono, 2=stereo, 6=5.1, 8=7.1)
+	hls.VideoInfo // Embeds: Codec, Width, Height, Bitrate, Duration, AudioCodec, AudioBitrate,
+	//              AudioChannels, ContainerFormat, PixelFormat, ColorSpace,
+	//              ColorPrimaries, ColorTransfer, BitDepth, IsHDR
+
+	// Additional fields for multi-track audio support
 	AudioTracks             []AudioTrack // All available audio tracks
 	SelectedAudioTrackIndex int          // Index of the selected audio track (for FFmpeg -map)
-	ContainerFormat         string
+}
 
-	// HDR and color space metadata
-	PixelFormat    string // e.g., "yuv420p" (8-bit), "yuv420p10le" (10-bit), "yuv420p12le" (12-bit)
-	ColorSpace     string // e.g., "bt709" (SDR), "bt2020nc" (HDR)
-	ColorPrimaries string // e.g., "bt709" (SDR), "bt2020" (HDR)
-	ColorTransfer  string // e.g., "bt709" (SDR), "smpte2084" (HDR10/PQ), "arib-std-b67" (HLG)
-	BitDepth       int    // 8, 10, or 12 bits per channel
-	IsHDR          bool   // True if video is HDR (computed from color metadata)
+// NewVideoInfo creates a VideoInfo from an hls.VideoInfo with optional audio tracks.
+// This is a convenience constructor that avoids the need for embedded struct syntax
+// in struct literals.
+func NewVideoInfo(v hls.VideoInfo, audioTracks []AudioTrack, selectedAudioTrackIndex int) *VideoInfo {
+	return &VideoInfo{
+		VideoInfo:               v,
+		AudioTracks:             audioTracks,
+		SelectedAudioTrackIndex: selectedAudioTrackIndex,
+	}
 }
 
 // videoInfoCache provides thread-safe caching of video metadata to avoid repeated ffprobe calls.
@@ -270,6 +272,12 @@ func ParseFFprobeOutput(output []byte) (*VideoInfo, error) {
 	}
 
 	return info, nil
+}
+
+// ToHLSVideoInfo returns the embedded hls.VideoInfo for use with FFmpeg encoding.
+// This provides zero-copy conversion since the fields are embedded.
+func (v *VideoInfo) ToHLSVideoInfo() *hls.VideoInfo {
+	return &v.VideoInfo
 }
 
 // SelectBestAudioTrack chooses the most suitable audio track from available options.

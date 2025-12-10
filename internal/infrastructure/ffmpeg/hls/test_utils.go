@@ -3,53 +3,29 @@ package hls
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
-	"sync"
+
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/paths"
 )
 
-// Package-level FFmpeg path configuration.
-// These are set once during initialization and used by CheckFFmpegEncoder/CheckFFmpegFilter.
-var (
-	configuredFFmpegPath   string
-	configuredFFmpegLibDir string
-	configMu               sync.RWMutex
-)
-
-// SetFFmpegPath sets the FFmpeg binary path and optional library directory for filter/encoder checks.
-// This should be called once during service initialization before any filter checks are performed.
-// If libDir is non-empty, LD_LIBRARY_PATH will be set when running FFmpeg commands.
+// SetFFmpegPath sets the FFmpeg binary path and optional library directory.
+// Deprecated: Use paths.SetGlobal() instead. This function is kept for backwards
+// compatibility and delegates to paths.SetGlobal().
 func SetFFmpegPath(ffmpegPath, libDir string) {
-	configMu.Lock()
-	configuredFFmpegPath = ffmpegPath
-	configuredFFmpegLibDir = libDir
-	configMu.Unlock()
-}
-
-// getFFmpegPath returns the configured FFmpeg path, falling back to "ffmpeg" if not set.
-func getFFmpegPath() string {
-	configMu.RLock()
-	defer configMu.RUnlock()
-	if configuredFFmpegPath != "" {
-		return configuredFFmpegPath
-	}
-	return "ffmpeg"
-}
-
-// getFFmpegLibDir returns the configured library directory (may be empty).
-func getFFmpegLibDir() string {
-	configMu.RLock()
-	defer configMu.RUnlock()
-	return configuredFFmpegLibDir
+	paths.SetGlobal(&paths.Paths{
+		FFmpeg:  ffmpegPath,
+		FFprobe: ffmpegPath, // Use same path, will be corrected by caller if needed
+		LibPath: libDir,
+	})
 }
 
 // prepareFFmpegCommand creates an exec.Cmd with the configured FFmpeg path and LD_LIBRARY_PATH.
 func prepareFFmpegCommand(args ...string) *exec.Cmd {
-	cmd := exec.Command(getFFmpegPath(), args...)
-	if libDir := getFFmpegLibDir(); libDir != "" {
-		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+libDir)
+	if p := paths.Global(); p != nil {
+		return p.PrepareCommand("ffmpeg", args...)
 	}
-	return cmd
+	// Fallback to system ffmpeg
+	return exec.Command("ffmpeg", args...)
 }
 
 // HardwareTestEncoder provides utilities for testing hardware encoder availability.
@@ -139,28 +115,14 @@ func (h *HardwareTestEncoder) getHardwareInitArgsWithDevice(hwAccel HardwareAcce
 
 // CheckFFmpegEncoder verifies that FFmpeg has support for a specific encoder.
 // Returns true if the encoder is available, false otherwise.
-// Uses the FFmpeg path configured via SetFFmpegPath, or falls back to system "ffmpeg".
+// Uses the global paths configured via paths.SetGlobal(), or falls back to system "ffmpeg".
 func CheckFFmpegEncoder(encoderName string) bool {
-	cmd := prepareFFmpegCommand("-encoders")
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-
-	// Check if the encoder name appears in the output
-	return bytes.Contains(output, []byte(encoderName))
+	return paths.CheckFFmpegEncoder(encoderName)
 }
 
 // CheckFFmpegFilter verifies that FFmpeg has support for a specific filter.
 // Returns true if the filter is available, false otherwise.
-// Uses the FFmpeg path configured via SetFFmpegPath, or falls back to system "ffmpeg".
+// Uses the global paths configured via paths.SetGlobal(), or falls back to system "ffmpeg".
 func CheckFFmpegFilter(filterName string) bool {
-	cmd := prepareFFmpegCommand("-filters")
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-
-	// Check if the filter name appears in the output
-	return bytes.Contains(output, []byte(filterName))
+	return paths.CheckFFmpegFilter(filterName)
 }

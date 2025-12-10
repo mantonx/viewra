@@ -396,15 +396,15 @@ func getToneMappingInfo(videoInfo *videoinfo.VideoInfo, s strategy.StreamStrateg
 		// Auto mode: determine based on hardware acceleration
 		// NVENC uses libplacebo, VAAPI uses native, others use OpenCL/CPU
 		switch cfg.HardwareAccel {
-		case config.AccelNVENC:
+		case hls.AccelNVENC:
 			if hls.CheckFFmpegFilter("libplacebo") {
 				backend = "libplacebo"
 			} else {
 				backend = "opencl"
 			}
-		case config.AccelVAAPI:
+		case hls.AccelVAAPI:
 			backend = "vaapi"
-		case config.AccelNone:
+		case hls.AccelNone:
 			if hls.CheckFFmpegFilter("libplacebo") {
 				backend = "libplacebo"
 			} else {

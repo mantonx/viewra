@@ -7,27 +7,21 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/paths"
 )
 
-// HardwareAccel represents hardware acceleration type.
-type HardwareAccel string
+// HardwareAccel is an alias for hls.HardwareAccel.
+// This provides backwards compatibility for code using config.HardwareAccel.
+type HardwareAccel = hls.HardwareAccel
 
+// Hardware acceleration constants - re-exported from hls package for convenience.
 const (
-	// AccelNone uses software encoding (slowest, most compatible)
-	AccelNone HardwareAccel = "none"
-
-	// AccelVAAPI uses Intel/AMD GPU via VAAPI (Linux)
-	AccelVAAPI HardwareAccel = "vaapi"
-
-	// AccelNVENC uses NVIDIA GPU (Linux/Windows)
-	AccelNVENC HardwareAccel = "nvenc"
-
-	// AccelQSV uses Intel Quick Sync Video (Linux/Windows)
-	AccelQSV HardwareAccel = "qsv"
-
-	// AccelVideoToolbox uses Apple VideoToolbox (macOS)
-	AccelVideoToolbox HardwareAccel = "videotoolbox"
+	AccelNone         = hls.AccelNone
+	AccelVAAPI        = hls.AccelVAAPI
+	AccelNVENC        = hls.AccelNVENC
+	AccelQSV          = hls.AccelQSV
+	AccelVideoToolbox = hls.AccelVideoToolbox
 )
 
 // TranscodeConfig holds transcoding configuration.

@@ -2,7 +2,25 @@ package strategy
 
 import (
 	"testing"
+
+	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg/hls"
 )
+
+// vi is a helper to create VideoInfo with embedded hls.VideoInfo fields for tests.
+func vi(codec string, width, height int, audioCodec string, audioChannels int, containerFormat string, isHDR bool, bitrate int64) *VideoInfo {
+	return &VideoInfo{
+		VideoInfo: hls.VideoInfo{
+			Codec:           codec,
+			Width:           width,
+			Height:          height,
+			Bitrate:         bitrate,
+			AudioCodec:      audioCodec,
+			AudioChannels:   audioChannels,
+			ContainerFormat: containerFormat,
+			IsHDR:           isHDR,
+		},
+	}
+}
 
 func TestDetermineStrategy(t *testing.T) {
 	tests := []struct {
@@ -11,29 +29,29 @@ func TestDetermineStrategy(t *testing.T) {
 		expectedStrategy StreamStrategy
 		expectedReason   string
 	}{
-		{"Direct Play - H.264 + stereo + MP4", &VideoInfo{Codec: "h264", Width: 1920, Height: 1080, AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, DirectPlay, "direct playback"},
-		{"Direct Play - AVC1 variant", &VideoInfo{Codec: "avc1", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, DirectPlay, "direct playback"},
-		{"Direct Play - FFprobe multi-format", &VideoInfo{Codec: "h264", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mov,mp4,m4a,3gp,3g2,mj2"}, DirectPlay, "direct playback"},
-		{"Direct Play - Mono MP3", &VideoInfo{Codec: "h264", AudioCodec: "mp3", AudioChannels: 1, ContainerFormat: "mp4"}, DirectPlay, "direct playback"},
+		{"Direct Play - H.264 + stereo + MP4", vi("h264", 1920, 1080, "aac", 2, "mp4", false, 0), DirectPlay, "direct playback"},
+		{"Direct Play - AVC1 variant", vi("avc1", 0, 0, "aac", 2, "mp4", false, 0), DirectPlay, "direct playback"},
+		{"Direct Play - FFprobe multi-format", vi("h264", 0, 0, "aac", 2, "mov,mp4,m4a,3gp,3g2,mj2", false, 0), DirectPlay, "direct playback"},
+		{"Direct Play - Mono MP3", vi("h264", 0, 0, "mp3", 1, "mp4", false, 0), DirectPlay, "direct playback"},
 
-		{"Remux - H.264 + stereo + MKV", &VideoInfo{Codec: "h264", Width: 1920, Height: 1080, AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "matroska"}, Remux, "container remux"},
-		{"Remux - H.264 + stereo + WebM", &VideoInfo{Codec: "h264", Width: 1280, Height: 720, AudioCodec: "opus", AudioChannels: 1, ContainerFormat: "webm"}, Remux, "container remux"},
-		{"Remux - H.264 + MP3 + AVI", &VideoInfo{Codec: "h264", Width: 1280, Height: 720, AudioCodec: "mp3", AudioChannels: 2, ContainerFormat: "avi"}, Remux, "container remux"},
-		{"Remux - matroska,webm format", &VideoInfo{Codec: "h264", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "matroska,webm"}, Remux, "container remux"},
+		{"Remux - H.264 + stereo + MKV", vi("h264", 1920, 1080, "aac", 2, "matroska", false, 0), Remux, "container remux"},
+		{"Remux - H.264 + stereo + WebM", vi("h264", 1280, 720, "opus", 1, "webm", false, 0), Remux, "container remux"},
+		{"Remux - H.264 + MP3 + AVI", vi("h264", 1280, 720, "mp3", 2, "avi", false, 0), Remux, "container remux"},
+		{"Remux - matroska,webm format", vi("h264", 0, 0, "aac", 2, "matroska,webm", false, 0), Remux, "container remux"},
 
-		{"Remux with Audio Downmix - 5.1 AAC", &VideoInfo{Codec: "h264", Width: 1920, Height: 1080, AudioCodec: "aac", AudioChannels: 6, ContainerFormat: "mp4"}, RemuxWithAudioDownmix, "audio needs transcode"},
-		{"Remux with Audio Downmix - 7.1 DTS", &VideoInfo{Codec: "h264", Width: 3840, Height: 2160, AudioCodec: "dts", AudioChannels: 8, ContainerFormat: "matroska,webm"}, RemuxWithAudioDownmix, "audio needs transcode"},
-		{"Remux with Audio Downmix - stereo DTS", &VideoInfo{Codec: "h264", AudioCodec: "dts", AudioChannels: 2, ContainerFormat: "matroska"}, RemuxWithAudioDownmix, "audio needs transcode"},
-		{"Remux with Audio Downmix - stereo AC3", &VideoInfo{Codec: "h264", AudioCodec: "ac3", AudioChannels: 2, ContainerFormat: "mp4"}, RemuxWithAudioDownmix, "audio needs transcode"},
-		{"Remux with Audio Downmix - stereo TrueHD", &VideoInfo{Codec: "h264", AudioCodec: "truehd", AudioChannels: 2, ContainerFormat: "matroska"}, RemuxWithAudioDownmix, "audio needs transcode"},
-		{"Remux with Audio Downmix - 4 channels", &VideoInfo{Codec: "h264", AudioCodec: "aac", AudioChannels: 4, ContainerFormat: "mp4"}, RemuxWithAudioDownmix, "audio needs transcode"},
-		{"Remux with Audio Downmix - 3 channels", &VideoInfo{Codec: "h264", AudioCodec: "aac", AudioChannels: 3, ContainerFormat: "mp4"}, RemuxWithAudioDownmix, "audio needs transcode"},
+		{"Remux with Audio Downmix - 5.1 AAC", vi("h264", 1920, 1080, "aac", 6, "mp4", false, 0), RemuxWithAudioDownmix, "audio needs transcode"},
+		{"Remux with Audio Downmix - 7.1 DTS", vi("h264", 3840, 2160, "dts", 8, "matroska,webm", false, 0), RemuxWithAudioDownmix, "audio needs transcode"},
+		{"Remux with Audio Downmix - stereo DTS", vi("h264", 0, 0, "dts", 2, "matroska", false, 0), RemuxWithAudioDownmix, "audio needs transcode"},
+		{"Remux with Audio Downmix - stereo AC3", vi("h264", 0, 0, "ac3", 2, "mp4", false, 0), RemuxWithAudioDownmix, "audio needs transcode"},
+		{"Remux with Audio Downmix - stereo TrueHD", vi("h264", 0, 0, "truehd", 2, "matroska", false, 0), RemuxWithAudioDownmix, "audio needs transcode"},
+		{"Remux with Audio Downmix - 4 channels", vi("h264", 0, 0, "aac", 4, "mp4", false, 0), RemuxWithAudioDownmix, "audio needs transcode"},
+		{"Remux with Audio Downmix - 3 channels", vi("h264", 0, 0, "aac", 3, "mp4", false, 0), RemuxWithAudioDownmix, "audio needs transcode"},
 
-		{"Transcode - HEVC", &VideoInfo{Codec: "hevc", Width: 3840, Height: 2160, AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, Transcode, "incompatible"},
-		{"Transcode - VP9", &VideoInfo{Codec: "vp9", Width: 1920, Height: 1080, AudioCodec: "opus", AudioChannels: 2, ContainerFormat: "webm"}, Transcode, "incompatible"},
-		{"Transcode - H.265 + 5.1", &VideoInfo{Codec: "h265", Width: 3840, Height: 2160, AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska,webm"}, Transcode, "incompatible"},
+		{"Transcode - HEVC", vi("hevc", 3840, 2160, "aac", 2, "mp4", false, 0), Transcode, "incompatible"},
+		{"Transcode - VP9", vi("vp9", 1920, 1080, "opus", 2, "webm", false, 0), Transcode, "incompatible"},
+		{"Transcode - H.265 + 5.1", vi("h265", 3840, 2160, "ac3", 6, "matroska,webm", false, 0), Transcode, "incompatible"},
 		{"Transcode - nil VideoInfo", nil, Transcode, "no video info"},
-		{"Transcode - empty codec", &VideoInfo{Codec: "", Width: 1920, Height: 1080, AudioChannels: 2, ContainerFormat: "mp4"}, Transcode, "incompatible"},
+		{"Transcode - empty codec", vi("", 1920, 1080, "", 2, "mp4", false, 0), Transcode, "incompatible"},
 	}
 
 	for _, tt := range tests {
@@ -77,20 +95,20 @@ func TestDetermineStrategyWithCapabilities(t *testing.T) {
 		expectedReason   string
 	}{
 		// HEVC remux is now enabled for non-HDR content when client supports HEVC
-		{"HEVC remux - client supports, non-HDR", &VideoInfo{Codec: "hevc", AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska", IsHDR: false}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, RemuxHEVC, "remuxing to HLS"},
-		{"HEVC transcode - HDR content", &VideoInfo{Codec: "hevc", AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska", IsHDR: true}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, Transcode, "incompatible"},
-		{"HEVC transcode - no client support", &VideoInfo{Codec: "hevc", AudioCodec: "ac3", AudioChannels: 6, ContainerFormat: "matroska"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264"}}, Transcode, "incompatible"},
-		{"HEVC transcode - nil caps", &VideoInfo{Codec: "hevc", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, nil, Transcode, "incompatible"},
-		{"HEVC direct play - client supports", &VideoInfo{Codec: "hevc", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, DirectPlay, "direct playback"},
-		{"HEV1 remux - client supports, non-HDR", &VideoInfo{Codec: "hev1", AudioCodec: "flac", AudioChannels: 2, ContainerFormat: "matroska", IsHDR: false}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, RemuxHEVC, "remuxing to HLS"},
-		{"H265 direct play - client supports", &VideoInfo{Codec: "h265", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, DirectPlay, "direct playback"},
+		{"HEVC remux - client supports, non-HDR", vi("hevc", 0, 0, "ac3", 6, "matroska", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, RemuxHEVC, "remuxing to HLS"},
+		{"HEVC transcode - HDR content", vi("hevc", 0, 0, "ac3", 6, "matroska", true, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, Transcode, "incompatible"},
+		{"HEVC transcode - no client support", vi("hevc", 0, 0, "ac3", 6, "matroska", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264"}}, Transcode, "incompatible"},
+		{"HEVC transcode - nil caps", vi("hevc", 0, 0, "aac", 2, "mp4", false, 0), nil, Transcode, "incompatible"},
+		{"HEVC direct play - client supports", vi("hevc", 0, 0, "aac", 2, "mp4", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, DirectPlay, "direct playback"},
+		{"HEV1 remux - client supports, non-HDR", vi("hev1", 0, 0, "flac", 2, "matroska", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, RemuxHEVC, "remuxing to HLS"},
+		{"H265 direct play - client supports", vi("h265", 0, 0, "aac", 2, "mp4", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "hevc"}}, DirectPlay, "direct playback"},
 
-		{"VP9 direct play - client supports", &VideoInfo{Codec: "vp9", AudioCodec: "opus", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "vp9"}}, DirectPlay, "direct playback"},
-		{"VP9 transcode - no client support", &VideoInfo{Codec: "vp9", AudioCodec: "opus", AudioChannels: 2, ContainerFormat: "webm"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264"}}, Transcode, "incompatible"},
+		{"VP9 direct play - client supports", vi("vp9", 0, 0, "opus", 2, "mp4", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "vp9"}}, DirectPlay, "direct playback"},
+		{"VP9 transcode - no client support", vi("vp9", 0, 0, "opus", 2, "webm", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264"}}, Transcode, "incompatible"},
 
-		{"AV1 direct play - client supports", &VideoInfo{Codec: "av1", Width: 3840, Height: 2160, AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "av1"}}, DirectPlay, "direct playback"},
-		{"AV1 transcode - no client support", &VideoInfo{Codec: "av1", AudioCodec: "opus", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264"}}, Transcode, "incompatible"},
-		{"AV01 direct play - client supports", &VideoInfo{Codec: "av01", AudioCodec: "aac", AudioChannels: 2, ContainerFormat: "mp4"}, &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "av1"}}, DirectPlay, "direct playback"},
+		{"AV1 direct play - client supports", vi("av1", 3840, 2160, "aac", 2, "mp4", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "av1"}}, DirectPlay, "direct playback"},
+		{"AV1 transcode - no client support", vi("av1", 0, 0, "opus", 2, "mp4", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264"}}, Transcode, "incompatible"},
+		{"AV01 direct play - client supports", vi("av01", 0, 0, "aac", 2, "mp4", false, 0), &ClientCapabilities{SupportedVideoCodecs: []string{"h264", "av1"}}, DirectPlay, "direct playback"},
 	}
 
 	for _, tt := range tests {
@@ -253,14 +271,14 @@ func TestShouldTranscode(t *testing.T) {
 		reasonContains  string
 	}{
 		{"Nil video info", nil, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "unable to determine"},
-		{"Empty codec", &VideoInfo{Codec: "", Width: 1920, Height: 1080}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "unable to determine"},
-		{"Non-H264 codec", &VideoInfo{Codec: "hevc", Width: 3840, Height: 2160, Bitrate: 20000000}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "needs transcoding to H.264"},
-		{"H264 lower resolution", &VideoInfo{Codec: "h264", Width: 1280, Height: 720, Bitrate: 3000000}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, false, "lower than target"},
-		{"H264 matching resolution", &VideoInfo{Codec: "h264", Width: 1920, Height: 1080, Bitrate: 5000000}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, false, "already matches target"},
-		{"H264 lower bitrate", &VideoInfo{Codec: "h264", Width: 2560, Height: 1440, Bitrate: 2000000}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, false, "already lower than target"},
-		{"H264 needs downscaling", &VideoInfo{Codec: "h264", Width: 3840, Height: 2160, Bitrate: 20000000}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "transcoding from h264"},
-		{"H264 multi-channel audio", &VideoInfo{Codec: "h264", AudioCodec: "ac3", AudioChannels: 6, Width: 1920, Height: 1080, Bitrate: 5000000}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "audio needs processing"},
-		{"H264 FLAC audio", &VideoInfo{Codec: "h264", AudioCodec: "flac", AudioChannels: 2, Width: 1920, Height: 1080, Bitrate: 3000000}, &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "audio needs processing"},
+		{"Empty codec", vi("", 1920, 1080, "", 0, "", false, 0), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "unable to determine"},
+		{"Non-H264 codec", vi("hevc", 3840, 2160, "", 0, "", false, 20000000), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "needs transcoding to H.264"},
+		{"H264 lower resolution", vi("h264", 1280, 720, "", 0, "", false, 3000000), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, false, "lower than target"},
+		{"H264 matching resolution", vi("h264", 1920, 1080, "", 0, "", false, 5000000), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, false, "already matches target"},
+		{"H264 lower bitrate", vi("h264", 2560, 1440, "", 0, "", false, 2000000), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, false, "already lower than target"},
+		{"H264 needs downscaling", vi("h264", 3840, 2160, "", 0, "", false, 20000000), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "transcoding from h264"},
+		{"H264 multi-channel audio", vi("h264", 1920, 1080, "ac3", 6, "", false, 5000000), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "audio needs processing"},
+		{"H264 FLAC audio", vi("h264", 1920, 1080, "flac", 2, "", false, 3000000), &AdaptiveProfile{Width: 1920, Height: 1080, VideoBitrate: 5_000_000}, true, "audio needs processing"},
 	}
 
 	for _, tt := range tests {

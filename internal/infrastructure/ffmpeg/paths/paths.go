@@ -7,10 +7,12 @@
 package paths
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // Paths holds FFmpeg and FFprobe binary paths with optional library path.
@@ -97,4 +99,60 @@ func (p *Paths) PrepareCommand(name string, args ...string) *exec.Cmd {
 		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+p.LibPath)
 	}
 	return cmd
+}
+
+// Global singleton for package-level functions.
+// This is initialized once via SetGlobal and accessed by CheckFFmpegEncoder/CheckFFmpegFilter.
+var (
+	globalPaths *Paths
+	globalMu    sync.RWMutex
+)
+
+// SetGlobal sets the global FFmpeg paths for use by package-level functions.
+// This should be called once during application startup after paths are resolved.
+// Thread-safe: can be called concurrently with Global().
+func SetGlobal(p *Paths) {
+	globalMu.Lock()
+	globalPaths = p
+	globalMu.Unlock()
+}
+
+// Global returns the global FFmpeg paths, or nil if not set.
+// Thread-safe: can be called concurrently with SetGlobal().
+func Global() *Paths {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
+	return globalPaths
+}
+
+// CheckFFmpegEncoder verifies that FFmpeg has support for a specific encoder.
+// Uses the global paths set via SetGlobal, or falls back to system "ffmpeg".
+func CheckFFmpegEncoder(encoderName string) bool {
+	cmd := prepareGlobalCommand("-encoders")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return bytes.Contains(output, []byte(encoderName))
+}
+
+// CheckFFmpegFilter verifies that FFmpeg has support for a specific filter.
+// Uses the global paths set via SetGlobal, or falls back to system "ffmpeg".
+func CheckFFmpegFilter(filterName string) bool {
+	cmd := prepareGlobalCommand("-filters")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return bytes.Contains(output, []byte(filterName))
+}
+
+// prepareGlobalCommand creates an FFmpeg command using global paths or fallback.
+func prepareGlobalCommand(args ...string) *exec.Cmd {
+	p := Global()
+	if p != nil {
+		return p.PrepareCommand("ffmpeg", args...)
+	}
+	// Fallback to system ffmpeg
+	return exec.Command("ffmpeg", args...)
 }
