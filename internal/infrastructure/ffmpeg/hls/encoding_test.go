@@ -613,3 +613,43 @@ func TestAddVideoFilterChain(t *testing.T) {
 		t.Error("addVideoFilterChain should add -vf")
 	}
 }
+
+// TestAddCodecProfile tests all codec profile branches.
+func TestAddCodecProfile(t *testing.T) {
+	tests := []struct {
+		name    string
+		codec   VideoCodec
+		hwAccel HardwareAccel
+	}{
+		{"H264 software", CodecH264, AccelNone},
+		{"H264 nvenc", CodecH264, AccelNVENC},
+		{"H265 software", CodecH265, AccelNone},
+		{"H265 nvenc", CodecH265, AccelNVENC},
+		{"H265 vaapi", CodecH265, AccelVAAPI},
+		{"VP9 software", CodecVP9, AccelNone},
+		{"VP9 vaapi", CodecVP9, AccelVAAPI},
+		{"AV1 software", CodecAV1, AccelNone},
+		{"AV1 nvenc", CodecAV1, AccelNVENC},
+		{"empty codec (default H264)", "", AccelNone},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := Options{
+				VideoCodec: tt.codec,
+				Profile: &Profile{
+					Width:  1920,
+					Height: 1080,
+				},
+			}
+			builder := NewBuilder(opts)
+			builder.addCodecProfile(tt.codec, tt.hwAccel)
+			args := builder.Build()
+
+			// Just verify it doesn't panic and produces some args
+			if len(args) == 0 {
+				t.Error("addCodecProfile should produce arguments")
+			}
+		})
+	}
+}

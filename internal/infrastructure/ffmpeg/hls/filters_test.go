@@ -457,3 +457,53 @@ func TestToneMappingFilterIntegration(t *testing.T) {
 		}
 	}
 }
+
+func TestShouldUseOpenCL(t *testing.T) {
+	// Check if tonemap_opencl is available in this environment
+	hasOpenCLFilter := CheckFFmpegFilter("tonemap_opencl")
+
+	tests := []struct {
+		name    string
+		backend string
+		want    bool
+	}{
+		{"backend opencl explicit", "opencl", hasOpenCLFilter}, // Returns true if filter is available
+		{"backend auto", "auto", hasOpenCLFilter},              // Auto mode uses opencl if available
+		{"backend cuda", "cuda", false},                        // Explicitly set to cuda, should not use opencl
+		{"backend libplacebo", "libplacebo", false},            // Explicitly set to libplacebo, should not use opencl
+		{"backend cpu", "cpu", false},                          // Explicitly set to cpu, should not use opencl
+		{"backend empty defaults to auto", "", hasOpenCLFilter},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := Options{
+				ToneMappingBackend: tt.backend,
+			}
+			builder := NewBuilder(opts)
+			got := builder.shouldUseOpenCL()
+			if got != tt.want {
+				t.Errorf("shouldUseOpenCL() = %v, want %v (hasOpenCLFilter=%v)", got, tt.want, hasOpenCLFilter)
+			}
+		})
+	}
+}
+
+func TestShouldUseOpenCL_ExplicitNonOpenCL(t *testing.T) {
+	// Test that explicitly setting backends other than "auto" and "opencl"
+	// returns false without checking for the filter
+	backends := []string{"cuda", "libplacebo", "cpu", "native"}
+
+	for _, backend := range backends {
+		t.Run(backend, func(t *testing.T) {
+			opts := Options{
+				ToneMappingBackend: backend,
+			}
+			builder := NewBuilder(opts)
+			got := builder.shouldUseOpenCL()
+			if got {
+				t.Errorf("shouldUseOpenCL() = true for backend %s, want false", backend)
+			}
+		})
+	}
+}
