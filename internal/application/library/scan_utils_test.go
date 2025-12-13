@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -436,6 +437,64 @@ func TestMediaExtensions(t *testing.T) {
 		if mediaExtensions[ext] {
 			t.Errorf("non-media extension %q should not be in mediaExtensions", ext)
 		}
+	}
+}
+
+func TestIsConstraintError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "SQLite UNIQUE constraint error",
+			err:      fmt.Errorf("UNIQUE constraint failed: media.file_path"),
+			expected: true,
+		},
+		{
+			name:     "PostgreSQL duplicate key error",
+			err:      fmt.Errorf("duplicate key value violates unique constraint"),
+			expected: true,
+		},
+		{
+			name:     "wrapped SQLite error",
+			err:      fmt.Errorf("failed to create: %w", fmt.Errorf("UNIQUE constraint failed: media.file_path")),
+			expected: true,
+		},
+		{
+			name:     "wrapped PostgreSQL error",
+			err:      fmt.Errorf("database error: %w", fmt.Errorf("duplicate key value violates")),
+			expected: true,
+		},
+		{
+			name:     "generic database error",
+			err:      fmt.Errorf("some other database error"),
+			expected: false,
+		},
+		{
+			name:     "connection error",
+			err:      fmt.Errorf("connection refused"),
+			expected: false,
+		},
+		{
+			name:     "timeout error",
+			err:      context.DeadlineExceeded,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isConstraintError(tt.err)
+			if result != tt.expected {
+				t.Errorf("isConstraintError(%v) = %v, want %v", tt.err, result, tt.expected)
+			}
+		})
 	}
 }
 

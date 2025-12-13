@@ -2443,8 +2443,8 @@ func TestScanLibraryUseCase_processMovie_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to update base media record after collision") {
-					t.Errorf("Expected 'failed to update base media record after collision' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to update base media record") {
+					t.Errorf("Expected 'failed to update base media record' error, got: %v", err)
 				}
 			},
 		},
@@ -2485,8 +2485,8 @@ func TestScanLibraryUseCase_processMovie_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to update movie metadata after collision") {
-					t.Errorf("Expected 'failed to update movie metadata after collision' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to update movie metadata") {
+					t.Errorf("Expected 'failed to update movie metadata' error, got: %v", err)
 				}
 			},
 		},
@@ -2510,8 +2510,8 @@ func TestScanLibraryUseCase_processMovie_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to create base media record") {
-					t.Errorf("Expected 'failed to create base media record' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to create movie") {
+					t.Errorf("Expected 'failed to create movie' error, got: %v", err)
 				}
 			},
 		},
@@ -2827,8 +2827,8 @@ func TestScanLibraryUseCase_processTVEpisode_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to update base media record after collision") {
-					t.Errorf("Expected 'failed to update base media record after collision' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to update base media record") {
+					t.Errorf("Expected 'failed to update base media record' error, got: %v", err)
 				}
 			},
 		},
@@ -2874,8 +2874,8 @@ func TestScanLibraryUseCase_processTVEpisode_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to update TV episode metadata after collision") {
-					t.Errorf("Expected 'failed to update TV episode metadata after collision' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to update TV episode metadata") {
+					t.Errorf("Expected 'failed to update TV episode metadata' error, got: %v", err)
 				}
 			},
 		},
@@ -2902,8 +2902,8 @@ func TestScanLibraryUseCase_processTVEpisode_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to create base media record") {
-					t.Errorf("Expected 'failed to create base media record' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to create TV episode") {
+					t.Errorf("Expected 'failed to create TV episode' error, got: %v", err)
 				}
 			},
 		},
@@ -3153,8 +3153,8 @@ func TestScanLibraryUseCase_processMusicTrack_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to update base media record after collision") {
-					t.Errorf("Expected 'failed to update base media record after collision' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to update base media record") {
+					t.Errorf("Expected 'failed to update base media record' error, got: %v", err)
 				}
 			},
 		},
@@ -3196,8 +3196,8 @@ func TestScanLibraryUseCase_processMusicTrack_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to update music track metadata after collision") {
-					t.Errorf("Expected 'failed to update music track metadata after collision' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to update music track metadata") {
+					t.Errorf("Expected 'failed to update music track metadata' error, got: %v", err)
 				}
 			},
 		},
@@ -3222,8 +3222,8 @@ func TestScanLibraryUseCase_processMusicTrack_AdditionalCoverage(t *testing.T) {
 			expectMediaID: false,
 			expectError:   true,
 			checkError: func(t *testing.T, err error) {
-				if !strings.Contains(err.Error(), "failed to create base media record") {
-					t.Errorf("Expected 'failed to create base media record' error, got: %v", err)
+				if !strings.Contains(err.Error(), "failed to create music track") {
+					t.Errorf("Expected 'failed to create music track' error, got: %v", err)
 				}
 			},
 		},

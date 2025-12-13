@@ -141,71 +141,33 @@ func (uc *ScanLibraryUseCase) processTVEpisode(ctx context.Context, libraryID in
 		}
 	}
 
-	// Check if episode already exists using in-memory cache (major performance optimization!)
-	// This eliminates individual database SELECTs for every file
-	if value, found := existingMediaCache.Load(result.FilePath); found {
-		// Update existing entry
-		episode.Media.ID = value.(int64)
-		episode.Media.Type = "tv_episode"
-		if err := uc.mediaRepos.Media.Update(ctx, &episode.Media); err != nil {
-			return nil, fmt.Errorf("failed to update base media record: %w", err)
-		}
-		if err := uc.mediaRepos.TV.UpdateTVEpisode(ctx, episode); err != nil {
-			return nil, fmt.Errorf("failed to update TV episode metadata: %w", err)
-		}
-		// Extract and catalog images (even for existing episodes to populate cache)
-		uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
-		// Persist audio and subtitle tracks
-		uc.persistMediaTracks(ctx, episode.Media.ID, result)
-		return &episode.Media.ID, nil
-	}
-
-	// Create new entry - let TV repository handle both media and episode records
+	// Use shared cache-based upsert pattern with race condition handling
 	episode.Media.Type = "tv_episode"
-	if err := uc.mediaRepos.TV.CreateTVEpisode(ctx, episode); err != nil {
-		// Handle race condition: Another worker may have created this episode between our check and insert
-		// TV episodes have a UNIQUE constraint on (show_id, season_number, episode_number)
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
-			// Check cache again (another worker may have just added it)
-			if value, found := existingMediaCache.Load(result.FilePath); found {
-				// Update the existing record
-				episode.Media.ID = value.(int64)
-			} else {
-				// Cache miss - fetch from database (race condition: created after our initial cache load)
-				existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-				if fetchErr != nil || existing == nil {
-					return nil, fmt.Errorf("failed to fetch existing media after collision: %w", fetchErr)
-				}
-				episode.Media.ID = existing.ID
-				// Add to cache for future lookups
-				existingMediaCache.Store(result.FilePath, existing.ID)
+	return uc.processMediaWithCache(ctx, libraryID, result.FilePath, existingMediaCache, MediaUpsertCallbacks{
+		GetMediaID: func() int64 { return episode.Media.ID },
+		SetMediaID: func(id int64) { episode.Media.ID = id },
+		Update: func(ctx context.Context) error {
+			if err := uc.mediaRepos.Media.Update(ctx, &episode.Media); err != nil {
+				return fmt.Errorf("failed to update base media record: %w", err)
 			}
-
-			// Update the existing record
-			episode.Media.Type = "tv_episode"
-			if updateErr := uc.mediaRepos.Media.Update(ctx, &episode.Media); updateErr != nil {
-				return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
+			if err := uc.mediaRepos.TV.UpdateTVEpisode(ctx, episode); err != nil {
+				return fmt.Errorf("failed to update TV episode metadata: %w", err)
 			}
-			if updateErr := uc.mediaRepos.TV.UpdateTVEpisode(ctx, episode); updateErr != nil {
-				return nil, fmt.Errorf("failed to update TV episode metadata after collision: %w", updateErr)
+			return nil
+		},
+		Create: func(ctx context.Context) error {
+			if err := uc.mediaRepos.TV.CreateTVEpisode(ctx, episode); err != nil {
+				return fmt.Errorf("failed to create TV episode: %w", err)
 			}
+			return nil
+		},
+		PostSave: func(ctx context.Context) {
+			// Extract and catalog images for the episode, show, and season
+			// NOTE: Image extraction also triggers show metadata enrichment from NFO files
 			uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
-			// Persist audio and subtitle tracks
 			uc.persistMediaTracks(ctx, episode.Media.ID, result)
-			return &episode.Media.ID, nil
-		}
-		return nil, fmt.Errorf("failed to create base media record: %w", err)
-	}
-
-	// Add newly created media to cache so other workers don't try to create it again
-	existingMediaCache.Store(result.FilePath, episode.Media.ID)
-
-	// Extract and catalog images for the episode, show, and season
-	// NOTE: Image extraction also triggers show metadata enrichment from NFO files
-	uc.extractImagesForEpisode(ctx, episode, result.FilePath, libraryID)
-	// Persist audio and subtitle tracks
-	uc.persistMediaTracks(ctx, episode.Media.ID, result)
-	return &episode.Media.ID, nil
+		},
+	})
 }
 
 // enrichTVShowMetadataFromNFO attempts to load and update TV show metadata from tvshow.nfo files
@@ -365,7 +327,7 @@ func (uc *ScanLibraryUseCase) processMultiEpisodeFile(
 		episode.Media.Type = "tv_episode"
 		if err := uc.mediaRepos.TV.CreateTVEpisode(ctx, episode); err != nil {
 			// Handle UNIQUE constraint - episode may already exist
-			if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
+			if isConstraintError(err) {
 				uc.logger.Debug("multi-episode already exists, skipping",
 					"file_path", filePath,
 					"season", season,

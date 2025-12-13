@@ -7,6 +7,18 @@ import (
 	"github.com/mantonx/viewra/internal/domain/images"
 )
 
+// These mock types implement the following interfaces from internal/application/library:
+// - MovieImageExtractor
+// - TVEpisodeImageExtractor
+// - TVShowImageExtractor
+// - TVSeasonImageExtractor
+// - MusicTrackImageExtractor
+// - MusicAlbumImageExtractor
+// - MusicArtistImageExtractor
+//
+// Note: We cannot add compile-time interface checks here due to import cycle
+// (mocks imports library, library tests import mocks)
+
 // MovieImageExtractor is a mock implementation for testing
 type MovieImageExtractor struct {
 	t            testing.TB

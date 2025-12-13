@@ -3,7 +3,6 @@ package library
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -147,19 +146,14 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		MusicBrainzArtistID: musicBrainzArtistID,
 	}
 
-	// Check if track already exists using in-memory cache (major performance optimization!)
-	// This eliminates individual database SELECTs for every file
-	if value, found := existingMediaCache.Load(result.FilePath); found {
-		// Update existing entry
-		track.Media.ID = value.(int64)
-
-		// Look up or create artist entity and set artist_id
+	// Helper to resolve artist/album entities (used both in update and race condition recovery paths)
+	resolveEntities := func(ctx context.Context) {
+		// Look up or create artist entity
 		if artist != "" {
 			existingArtist, err := uc.mediaRepos.Music.FindArtistByName(ctx, libraryID, artist)
 			if err == nil && existingArtist != nil {
 				track.ArtistID = existingArtist.ID
 			} else {
-				// Create new artist if it doesn't exist
 				artistEntity := &media.Artist{
 					LibraryID:           libraryID,
 					Name:                artist,
@@ -172,7 +166,7 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 			}
 		}
 
-		// Look up or create album entity and set album_id
+		// Look up or create album entity
 		if album != "" {
 			effectiveAlbumArtist := albumArtist
 			if effectiveAlbumArtist == "" {
@@ -182,7 +176,6 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 			if err == nil && existingAlbum != nil {
 				track.AlbumID = existingAlbum.ID
 			} else {
-				// Create new album if it doesn't exist
 				albumEntity := &media.Album{
 					LibraryID:          libraryID,
 					Title:              album,
@@ -197,26 +190,16 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 					ReleaseType:        releaseType,
 					Compilation:        compilation,
 					MusicBrainzAlbumID: musicBrainzAlbumID,
-					ArtistID:           track.ArtistID, // Link album to artist if we just created one
+					ArtistID:           track.ArtistID,
 				}
 				if createErr := uc.mediaRepos.Music.CreateAlbum(ctx, albumEntity); createErr == nil {
 					track.AlbumID = albumEntity.ID
 				}
 			}
 		}
-
-		if err := uc.mediaRepos.Media.Update(ctx, &track.Media); err != nil {
-			return nil, fmt.Errorf("failed to update base media record: %w", err)
-		}
-		if err := uc.mediaRepos.Music.UpdateMusicTrack(ctx, track); err != nil {
-			return nil, fmt.Errorf("failed to update music track metadata: %w", err)
-		}
-		// Extract album and artist images (even for existing tracks to populate cache)
-		uc.extractImagesForTrack(ctx, track, result.FilePath)
-		return &track.Media.ID, nil
 	}
 
-	// Prepare artist entity if artist info is available
+	// Prepare artist/album entities for create path (transaction-based creation)
 	var artistEntity *media.Artist
 	if artist != "" {
 		artistEntity = &media.Artist{
@@ -227,15 +210,12 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		}
 	}
 
-	// Prepare album entity if album info is available
 	var albumEntity *media.Album
 	if album != "" {
-		// Use album artist if available, otherwise fall back to track artist
 		effectiveAlbumArtist := albumArtist
 		if effectiveAlbumArtist == "" {
 			effectiveAlbumArtist = artist
 		}
-
 		albumEntity = &media.Album{
 			LibraryID:          libraryID,
 			Title:              album,
@@ -253,96 +233,30 @@ func (uc *ScanLibraryUseCase) processMusicTrack(ctx context.Context, libraryID i
 		}
 	}
 
-	// Create track with artist and album entities in a single transaction
-	// This ensures all-or-nothing semantics - no orphaned records on failure
-	if err := uc.mediaRepos.Music.CreateMusicTrackWithEntities(ctx, track, artistEntity, albumEntity); err != nil {
-		// Handle race condition: Another worker may have created this record between our check and insert
-		// If we get a UNIQUE constraint error, retry with update logic
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
-			// Check cache again (another worker may have just added it)
-			if value, found := existingMediaCache.Load(result.FilePath); found {
-				// Update the existing record
-				track.Media.ID = value.(int64)
-			} else {
-				// Cache miss - fetch from database (race condition: created after our initial cache load)
-				existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, result.FilePath)
-				if fetchErr != nil || existing == nil {
-					return nil, fmt.Errorf("failed to fetch existing media after collision: %w", fetchErr)
-				}
-				track.Media.ID = existing.ID
-				// Add to cache for future lookups
-				existingMediaCache.Store(result.FilePath, existing.ID)
+	// Use shared cache-based upsert pattern with race condition handling
+	return uc.processMediaWithCache(ctx, libraryID, result.FilePath, existingMediaCache, MediaUpsertCallbacks{
+		GetMediaID: func() int64 { return track.Media.ID },
+		SetMediaID: func(id int64) { track.Media.ID = id },
+		Update: func(ctx context.Context) error {
+			// Resolve artist/album entities for update path
+			resolveEntities(ctx)
+			if err := uc.mediaRepos.Media.Update(ctx, &track.Media); err != nil {
+				return fmt.Errorf("failed to update base media record: %w", err)
 			}
-
-			// Look up or create artist entity and set artist_id
-			if artist != "" {
-				existingArtist, findErr := uc.mediaRepos.Music.FindArtistByName(ctx, libraryID, artist)
-				if findErr == nil && existingArtist != nil {
-					track.ArtistID = existingArtist.ID
-				} else {
-					// Create new artist if it doesn't exist
-					newArtist := &media.Artist{
-						LibraryID:           libraryID,
-						Name:                artist,
-						MusicBrainzArtistID: musicBrainzArtistID,
-						Genre:               genre,
-					}
-					if createErr := uc.mediaRepos.Music.CreateArtist(ctx, newArtist); createErr == nil {
-						track.ArtistID = newArtist.ID
-					}
-				}
+			if err := uc.mediaRepos.Music.UpdateMusicTrack(ctx, track); err != nil {
+				return fmt.Errorf("failed to update music track metadata: %w", err)
 			}
-
-			// Look up or create album entity and set album_id
-			if album != "" {
-				effectiveAlbumArtist := albumArtist
-				if effectiveAlbumArtist == "" {
-					effectiveAlbumArtist = artist
-				}
-				existingAlbum, findErr := uc.mediaRepos.Music.FindAlbumByTitle(ctx, libraryID, album, effectiveAlbumArtist)
-				if findErr == nil && existingAlbum != nil {
-					track.AlbumID = existingAlbum.ID
-				} else {
-					// Create new album if it doesn't exist
-					newAlbum := &media.Album{
-						LibraryID:          libraryID,
-						Title:              album,
-						AlbumArtist:        effectiveAlbumArtist,
-						Artist:             artist,
-						Year:               year,
-						ReleaseDate:        releaseDate,
-						Genre:              genre,
-						TotalTracks:        totalTracks,
-						TotalDiscs:         totalDiscs,
-						RecordLabel:        publisher,
-						ReleaseType:        releaseType,
-						Compilation:        compilation,
-						MusicBrainzAlbumID: musicBrainzAlbumID,
-						ArtistID:           track.ArtistID, // Link album to artist if we just created one
-					}
-					if createErr := uc.mediaRepos.Music.CreateAlbum(ctx, newAlbum); createErr == nil {
-						track.AlbumID = newAlbum.ID
-					}
-				}
+			return nil
+		},
+		Create: func(ctx context.Context) error {
+			// Create track with artist and album entities in a single transaction
+			if err := uc.mediaRepos.Music.CreateMusicTrackWithEntities(ctx, track, artistEntity, albumEntity); err != nil {
+				return fmt.Errorf("failed to create music track: %w", err)
 			}
-
-			// Update the existing record
-			if updateErr := uc.mediaRepos.Media.Update(ctx, &track.Media); updateErr != nil {
-				return nil, fmt.Errorf("failed to update base media record after collision: %w", updateErr)
-			}
-			if updateErr := uc.mediaRepos.Music.UpdateMusicTrack(ctx, track); updateErr != nil {
-				return nil, fmt.Errorf("failed to update music track metadata after collision: %w", updateErr)
-			}
+			return nil
+		},
+		PostSave: func(ctx context.Context) {
 			uc.extractImagesForTrack(ctx, track, result.FilePath)
-			return &track.Media.ID, nil
-		}
-		return nil, fmt.Errorf("failed to create base media record: %w", err)
-	}
-
-	// Add newly created media to cache so other workers don't try to create it again
-	existingMediaCache.Store(result.FilePath, track.Media.ID)
-
-	// Extract and catalog images for the album and artist
-	uc.extractImagesForTrack(ctx, track, result.FilePath)
-	return &track.Media.ID, nil
+		},
+	})
 }

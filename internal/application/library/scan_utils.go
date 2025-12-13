@@ -188,6 +188,98 @@ func (uc *ScanLibraryUseCase) validateDiscovery(
 	return warnings
 }
 
+// MediaUpsertCallbacks defines the operations needed to upsert media with cache and race condition handling.
+// This enables a single implementation of the complex cache-check → create → handle-race pattern
+// used across movie, TV, and music processing.
+type MediaUpsertCallbacks struct {
+	// GetMediaID returns the ID from the media entity (used after cache hit or DB fetch)
+	GetMediaID func() int64
+	// SetMediaID sets the ID on the media entity (called when ID is retrieved from cache/DB)
+	SetMediaID func(id int64)
+	// Update performs the update operations on an existing media entity
+	Update func(ctx context.Context) error
+	// Create performs the create operation for a new media entity
+	Create func(ctx context.Context) error
+	// PostSave performs post-save operations like image extraction and track persistence
+	PostSave func(ctx context.Context)
+}
+
+// processMediaWithCache handles the common pattern of cache-based media upsert with race condition handling.
+// This eliminates ~100 lines of duplicated code across movie, TV, and music processors.
+//
+// The pattern handled is:
+//  1. Check cache for existing media ID → if found, update and return
+//  2. Try to create new media → if successful, add to cache and return
+//  3. On UNIQUE constraint error (race condition):
+//     a. Check cache again (another worker may have added it)
+//     b. If still not in cache, fetch from database
+//     c. Update the existing record
+//     d. Add to cache for future lookups
+func (uc *ScanLibraryUseCase) processMediaWithCache(
+	ctx context.Context,
+	libraryID int64,
+	filePath string,
+	cache *sync.Map,
+	callbacks MediaUpsertCallbacks,
+) (*int64, error) {
+	// Check if media already exists using in-memory cache (major performance optimization!)
+	// This eliminates individual database SELECTs for every file
+	if value, found := cache.Load(filePath); found {
+		callbacks.SetMediaID(value.(int64))
+		if err := callbacks.Update(ctx); err != nil {
+			return nil, err
+		}
+		callbacks.PostSave(ctx)
+		id := callbacks.GetMediaID()
+		return &id, nil
+	}
+
+	// Try to create new entry
+	if err := callbacks.Create(ctx); err != nil {
+		// Handle race condition: Another worker may have created this between our check and insert
+		if !isConstraintError(err) {
+			return nil, err
+		}
+
+		// Check cache again (another worker may have just added it)
+		if value, found := cache.Load(filePath); found {
+			callbacks.SetMediaID(value.(int64))
+		} else {
+			// Cache miss - fetch from database (race condition: created after our initial cache load)
+			existing, fetchErr := uc.mediaRepos.Media.GetByFilePath(ctx, libraryID, filePath)
+			if fetchErr != nil || existing == nil {
+				return nil, fmt.Errorf("failed to fetch existing media after collision: %w", fetchErr)
+			}
+			callbacks.SetMediaID(existing.ID)
+			// Add to cache for future lookups
+			cache.Store(filePath, existing.ID)
+		}
+
+		// Update the existing record
+		if updateErr := callbacks.Update(ctx); updateErr != nil {
+			return nil, updateErr
+		}
+		callbacks.PostSave(ctx)
+		id := callbacks.GetMediaID()
+		return &id, nil
+	}
+
+	// Success: add newly created media to cache so other workers don't try to create it again
+	cache.Store(filePath, callbacks.GetMediaID())
+	callbacks.PostSave(ctx)
+	id := callbacks.GetMediaID()
+	return &id, nil
+}
+
+// isConstraintError checks if an error is a UNIQUE constraint violation (SQLite or PostgreSQL)
+func isConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "UNIQUE constraint failed") || strings.Contains(errStr, "duplicate key")
+}
+
 // isExtra determines if a file is an extra (trailer, deleted scene, featurette, etc.)
 // based on common filename patterns
 func isExtra(filepath string) bool {

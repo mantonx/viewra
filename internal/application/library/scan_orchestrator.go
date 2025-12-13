@@ -8,7 +8,6 @@ import (
 	"runtime/debug"
 	"time"
 
-	appImages "github.com/mantonx/viewra/internal/application/images"
 	domainImages "github.com/mantonx/viewra/internal/domain/images"
 	"github.com/mantonx/viewra/internal/domain/library"
 	"github.com/mantonx/viewra/internal/domain/scanner"
@@ -28,14 +27,14 @@ type ScanLibraryUseCase struct {
 	systemProfile      *system.Profile
 	logger             *slog.Logger
 
-	// Image extraction use cases - called directly instead of through adapter
-	movieImageExtractor   *appImages.ExtractMovieImagesUseCase
-	episodeImageExtractor *appImages.ExtractTVEpisodeImagesUseCase
-	showImageExtractor    *appImages.ExtractTVShowImagesUseCase
-	seasonImageExtractor  *appImages.ExtractTVSeasonImagesUseCase
-	albumImageExtractor   *appImages.ExtractMusicAlbumImagesUseCase
-	artistImageExtractor  *appImages.ExtractMusicArtistImagesUseCase
-	trackImageExtractor   *appImages.ExtractMusicTrackImagesUseCase
+	// Image extraction use cases - using interfaces for testability
+	movieImageExtractor   MovieImageExtractor
+	episodeImageExtractor TVEpisodeImageExtractor
+	showImageExtractor    TVShowImageExtractor
+	seasonImageExtractor  TVSeasonImageExtractor
+	albumImageExtractor   MusicAlbumImageExtractor
+	artistImageExtractor  MusicArtistImageExtractor
+	trackImageExtractor   MusicTrackImageExtractor
 
 	// Artist deduplication tracking (per scan session)
 	// Using AtomicDeduplicator for lock-free concurrent access (fixes race condition)
@@ -50,13 +49,13 @@ type ScanLibraryUseCase struct {
 func NewScanLibraryUseCase(
 	mediaRepos *MediaRepositories,
 	scanRepos *ScanRepositories,
-	movieImageExtractor *appImages.ExtractMovieImagesUseCase,
-	episodeImageExtractor *appImages.ExtractTVEpisodeImagesUseCase,
-	showImageExtractor *appImages.ExtractTVShowImagesUseCase,
-	seasonImageExtractor *appImages.ExtractTVSeasonImagesUseCase,
-	albumImageExtractor *appImages.ExtractMusicAlbumImagesUseCase,
-	artistImageExtractor *appImages.ExtractMusicArtistImagesUseCase,
-	trackImageExtractor *appImages.ExtractMusicTrackImagesUseCase,
+	movieImageExtractor MovieImageExtractor,
+	episodeImageExtractor TVEpisodeImageExtractor,
+	showImageExtractor TVShowImageExtractor,
+	seasonImageExtractor TVSeasonImageExtractor,
+	albumImageExtractor MusicAlbumImageExtractor,
+	artistImageExtractor MusicArtistImageExtractor,
+	trackImageExtractor MusicTrackImageExtractor,
 	imageRepo domainImages.Repository,
 	imageCleanup ImageCleanupExecutor,
 	config ScanConfig,

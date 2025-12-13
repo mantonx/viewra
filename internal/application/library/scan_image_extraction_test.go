@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mantonx/viewra/internal/domain/media"
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
@@ -433,4 +434,586 @@ func BenchmarkTryMarkArtistProcessed(b *testing.B) {
 			i++
 		}
 	})
+}
+
+// Tests for image extraction orchestration with mock extractors
+
+func TestScanLibraryUseCase_extractImagesForMovie_success(t *testing.T) {
+	mockExtractor := mocks.NewMovieImageExtractor(t)
+	mockScanState := mocks.NewScanStateRepository(t)
+
+	uc := &ScanLibraryUseCase{
+		movieImageExtractor: mockExtractor,
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	movie := &media.Movie{
+		Media: media.Media{
+			ID:        123,
+			LibraryID: 1,
+		},
+	}
+
+	uc.extractImagesForMovie(context.Background(), movie, "/path/to/movie.mkv")
+
+	if mockExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 Execute call, got %d", mockExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForMovie_error(t *testing.T) {
+	mockExtractor := mocks.NewMovieImageExtractor(t)
+	mockExtractor.ExecuteErr = errors.New("extraction failed")
+
+	mockScanState := mocks.NewScanStateRepository(t)
+	mockScanState.WithStates(&scanner.ScanState{
+		LibraryID: 1,
+		FilePath:  "/path/to/movie.mkv",
+	})
+
+	uc := &ScanLibraryUseCase{
+		movieImageExtractor: mockExtractor,
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	movie := &media.Movie{
+		Media: media.Media{
+			ID:        123,
+			LibraryID: 1,
+		},
+	}
+
+	// Should not panic on error, should record warning
+	uc.extractImagesForMovie(context.Background(), movie, "/path/to/movie.mkv")
+
+	if mockExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 Execute call, got %d", mockExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForEpisode_success(t *testing.T) {
+	mockExtractor := mocks.NewEpisodeImageExtractor(t)
+	mockShowExtractor := mocks.NewShowImageExtractor(t)
+	mockSeasonExtractor := mocks.NewSeasonImageExtractor(t)
+	mockScanState := mocks.NewScanStateRepository(t)
+	mockTVRepo := mocks.NewTVRepository(t)
+
+	// Set up mock show and season for the extractTVShowAndSeasonImages call
+	testShow := media.TVShow{
+		ID:        100,
+		LibraryID: 1,
+		Title:     "Test Show",
+	}
+	testSeason := media.TVSeason{
+		ID:           200,
+		ShowID:       100,
+		SeasonNumber: 1,
+	}
+	mockTVRepo.WithShows(testShow)
+	mockTVRepo.WithSeasons(testSeason)
+
+	uc := &ScanLibraryUseCase{
+		episodeImageExtractor: mockExtractor,
+		showImageExtractor:    mockShowExtractor,
+		seasonImageExtractor:  mockSeasonExtractor,
+		processedShows:        AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	episode := &media.TVEpisode{
+		Media: media.Media{
+			ID:        456,
+			LibraryID: 1,
+		},
+		ShowTitle: "Test Show",
+		Season:    1,
+		Episode:   1,
+	}
+
+	uc.extractImagesForEpisode(context.Background(), episode, "/path/to/episode.mkv", 1)
+
+	if mockExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 episode Execute call, got %d", mockExtractor.ExecuteCalls)
+	}
+	if mockShowExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 show Execute call, got %d", mockShowExtractor.ExecuteCalls)
+	}
+	if mockSeasonExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 season Execute call, got %d", mockSeasonExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForTrack_success(t *testing.T) {
+	mockTrackExtractor := mocks.NewTrackImageExtractor(t)
+	mockAlbumExtractor := mocks.NewAlbumImageExtractor(t)
+	mockArtistExtractor := mocks.NewArtistImageExtractor(t)
+	mockScanState := mocks.NewScanStateRepository(t)
+
+	uc := &ScanLibraryUseCase{
+		trackImageExtractor:  mockTrackExtractor,
+		albumImageExtractor:  mockAlbumExtractor,
+		artistImageExtractor: mockArtistExtractor,
+		processedArtists:     AtomicDeduplicator{},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	track := &media.MusicTrack{
+		Media: media.Media{
+			ID:        789,
+			LibraryID: 1,
+		},
+		Artist:   "Test Artist",
+		ArtistID: 10,
+		Album:    "Test Album",
+		AlbumID:  20,
+	}
+
+	uc.extractImagesForTrack(context.Background(), track, "/music/artist/album/track.flac")
+
+	if mockTrackExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 track Execute call, got %d", mockTrackExtractor.ExecuteCalls)
+	}
+	if mockAlbumExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 album Execute call, got %d", mockAlbumExtractor.ExecuteCalls)
+	}
+	if mockArtistExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 artist Execute call, got %d", mockArtistExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForTrack_artistDedup(t *testing.T) {
+	mockTrackExtractor := mocks.NewTrackImageExtractor(t)
+	mockArtistExtractor := mocks.NewArtistImageExtractor(t)
+	mockScanState := mocks.NewScanStateRepository(t)
+
+	uc := &ScanLibraryUseCase{
+		trackImageExtractor:  mockTrackExtractor,
+		albumImageExtractor:  nil, // Skip album
+		artistImageExtractor: mockArtistExtractor,
+		processedArtists:     AtomicDeduplicator{},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	track := &media.MusicTrack{
+		Media: media.Media{
+			ID:        789,
+			LibraryID: 1,
+		},
+		Artist:   "Same Artist",
+		ArtistID: 10,
+	}
+
+	// Extract images for same artist twice
+	uc.extractImagesForTrack(context.Background(), track, "/music/artist/album1/track1.flac")
+	uc.extractImagesForTrack(context.Background(), track, "/music/artist/album1/track2.flac")
+
+	// Track extractor should be called twice
+	if mockTrackExtractor.ExecuteCalls != 2 {
+		t.Errorf("Expected 2 track Execute calls, got %d", mockTrackExtractor.ExecuteCalls)
+	}
+
+	// Artist extractor should only be called once (deduplication)
+	if mockArtistExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 artist Execute call (deduplicated), got %d", mockArtistExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForTrack_noAlbumOrArtist(t *testing.T) {
+	mockTrackExtractor := mocks.NewTrackImageExtractor(t)
+	mockAlbumExtractor := mocks.NewAlbumImageExtractor(t)
+	mockArtistExtractor := mocks.NewArtistImageExtractor(t)
+	mockScanState := mocks.NewScanStateRepository(t)
+
+	uc := &ScanLibraryUseCase{
+		trackImageExtractor:  mockTrackExtractor,
+		albumImageExtractor:  mockAlbumExtractor,
+		artistImageExtractor: mockArtistExtractor,
+		processedArtists:     AtomicDeduplicator{},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// Track with no album or artist info
+	track := &media.MusicTrack{
+		Media: media.Media{
+			ID:        789,
+			LibraryID: 1,
+		},
+		// No Artist, Album, ArtistID, or AlbumID
+	}
+
+	uc.extractImagesForTrack(context.Background(), track, "/music/unknown/track.flac")
+
+	// Only track extractor should be called
+	if mockTrackExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 track Execute call, got %d", mockTrackExtractor.ExecuteCalls)
+	}
+	if mockAlbumExtractor.ExecuteCalls != 0 {
+		t.Errorf("Expected 0 album Execute calls (no album info), got %d", mockAlbumExtractor.ExecuteCalls)
+	}
+	if mockArtistExtractor.ExecuteCalls != 0 {
+		t.Errorf("Expected 0 artist Execute calls (no artist info), got %d", mockArtistExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForEpisode_error(t *testing.T) {
+	mockExtractor := mocks.NewEpisodeImageExtractor(t)
+	mockExtractor.ExecuteErr = errors.New("episode extraction failed")
+
+	mockShowExtractor := mocks.NewShowImageExtractor(t)
+	mockSeasonExtractor := mocks.NewSeasonImageExtractor(t)
+	mockScanState := mocks.NewScanStateRepository(t)
+	mockTVRepo := mocks.NewTVRepository(t)
+
+	// Set up mock show and season
+	testShow := media.TVShow{ID: 100, LibraryID: 1, Title: "Test Show"}
+	testSeason := media.TVSeason{ID: 200, ShowID: 100, SeasonNumber: 1}
+	mockTVRepo.WithShows(testShow)
+	mockTVRepo.WithSeasons(testSeason)
+
+	// Pre-populate scan state so SetWarning can find it
+	mockScanState.WithStates(&scanner.ScanState{
+		LibraryID: 1,
+		FilePath:  "/path/to/episode.mkv",
+	})
+
+	uc := &ScanLibraryUseCase{
+		episodeImageExtractor: mockExtractor,
+		showImageExtractor:    mockShowExtractor,
+		seasonImageExtractor:  mockSeasonExtractor,
+		processedShows:        AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	episode := &media.TVEpisode{
+		Media:     media.Media{ID: 456, LibraryID: 1},
+		ShowTitle: "Test Show",
+		Season:    1,
+		Episode:   1,
+	}
+
+	// Should not panic on error, should record warning
+	uc.extractImagesForEpisode(context.Background(), episode, "/path/to/episode.mkv", 1)
+
+	if mockExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 episode Execute call, got %d", mockExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForEpisode_seasonSubdir(t *testing.T) {
+	mockExtractor := mocks.NewEpisodeImageExtractor(t)
+	mockShowExtractor := mocks.NewShowImageExtractor(t)
+	mockSeasonExtractor := mocks.NewSeasonImageExtractor(t)
+	mockScanState := mocks.NewScanStateRepository(t)
+	mockTVRepo := mocks.NewTVRepository(t)
+
+	testShow := media.TVShow{ID: 100, LibraryID: 1, Title: "Test Show"}
+	testSeason := media.TVSeason{ID: 200, ShowID: 100, SeasonNumber: 2}
+	mockTVRepo.WithShows(testShow)
+	mockTVRepo.WithSeasons(testSeason)
+
+	uc := &ScanLibraryUseCase{
+		episodeImageExtractor: mockExtractor,
+		showImageExtractor:    mockShowExtractor,
+		seasonImageExtractor:  mockSeasonExtractor,
+		processedShows:        AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	episode := &media.TVEpisode{
+		Media:     media.Media{ID: 456, LibraryID: 1},
+		ShowTitle: "Test Show",
+		Season:    2,
+		Episode:   1,
+	}
+
+	// Episode in season subdirectory: /tv/ShowName/Season 02/episode.mkv
+	uc.extractImagesForEpisode(context.Background(), episode, "/tv/ShowName/Season 02/episode.mkv", 1)
+
+	if mockExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 episode Execute call, got %d", mockExtractor.ExecuteCalls)
+	}
+	if mockShowExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 show Execute call, got %d", mockShowExtractor.ExecuteCalls)
+	}
+	if mockSeasonExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 season Execute call, got %d", mockSeasonExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForTrack_trackError(t *testing.T) {
+	mockTrackExtractor := mocks.NewTrackImageExtractor(t)
+	mockTrackExtractor.ExecuteErr = errors.New("track extraction failed")
+
+	mockScanState := mocks.NewScanStateRepository(t)
+	mockScanState.WithStates(&scanner.ScanState{
+		LibraryID: 1,
+		FilePath:  "/music/artist/album/track.flac",
+	})
+
+	uc := &ScanLibraryUseCase{
+		trackImageExtractor:  mockTrackExtractor,
+		albumImageExtractor:  nil,
+		artistImageExtractor: nil,
+		processedArtists:     AtomicDeduplicator{},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	track := &media.MusicTrack{
+		Media: media.Media{ID: 789, LibraryID: 1},
+	}
+
+	// Should not panic on error
+	uc.extractImagesForTrack(context.Background(), track, "/music/artist/album/track.flac")
+
+	if mockTrackExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 track Execute call, got %d", mockTrackExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForTrack_albumError(t *testing.T) {
+	mockTrackExtractor := mocks.NewTrackImageExtractor(t)
+	mockAlbumExtractor := mocks.NewAlbumImageExtractor(t)
+	mockAlbumExtractor.ExecuteErr = errors.New("album extraction failed")
+
+	mockScanState := mocks.NewScanStateRepository(t)
+	mockScanState.WithStates(&scanner.ScanState{
+		LibraryID: 1,
+		FilePath:  "/music/artist/album/track.flac",
+	})
+
+	uc := &ScanLibraryUseCase{
+		trackImageExtractor:  mockTrackExtractor,
+		albumImageExtractor:  mockAlbumExtractor,
+		artistImageExtractor: nil,
+		processedArtists:     AtomicDeduplicator{},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	track := &media.MusicTrack{
+		Media:   media.Media{ID: 789, LibraryID: 1},
+		Album:   "Test Album",
+		AlbumID: 20,
+	}
+
+	// Should not panic on error
+	uc.extractImagesForTrack(context.Background(), track, "/music/artist/album/track.flac")
+
+	if mockAlbumExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 album Execute call, got %d", mockAlbumExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractImagesForTrack_artistError(t *testing.T) {
+	mockTrackExtractor := mocks.NewTrackImageExtractor(t)
+	mockArtistExtractor := mocks.NewArtistImageExtractor(t)
+	mockArtistExtractor.ExecuteErr = errors.New("artist extraction failed")
+
+	mockScanState := mocks.NewScanStateRepository(t)
+
+	uc := &ScanLibraryUseCase{
+		trackImageExtractor:  mockTrackExtractor,
+		albumImageExtractor:  nil,
+		artistImageExtractor: mockArtistExtractor,
+		processedArtists:     AtomicDeduplicator{},
+		scanRepos: &ScanRepositories{
+			ScanState: mockScanState,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	track := &media.MusicTrack{
+		Media:    media.Media{ID: 789, LibraryID: 1},
+		Artist:   "Test Artist",
+		ArtistID: 10,
+	}
+
+	// Should not panic on error
+	uc.extractImagesForTrack(context.Background(), track, "/music/artist/album/track.flac")
+
+	if mockArtistExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 artist Execute call, got %d", mockArtistExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractTVShowAndSeasonImages_showNotFound(t *testing.T) {
+	mockShowExtractor := mocks.NewShowImageExtractor(t)
+	mockSeasonExtractor := mocks.NewSeasonImageExtractor(t)
+	mockTVRepo := mocks.NewTVRepository(t)
+	// Don't populate shows - lookup will return sql.ErrNoRows
+
+	uc := &ScanLibraryUseCase{
+		showImageExtractor:   mockShowExtractor,
+		seasonImageExtractor: mockSeasonExtractor,
+		processedShows:       AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// Should return early when show not found
+	uc.extractTVShowAndSeasonImages(context.Background(), "Unknown Show", 1, "/tv/Unknown Show", 1)
+
+	// Show extractor should not be called since show lookup failed
+	if mockShowExtractor.ExecuteCalls != 0 {
+		t.Errorf("Expected 0 show Execute calls, got %d", mockShowExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractTVShowAndSeasonImages_seasonNotFound(t *testing.T) {
+	mockShowExtractor := mocks.NewShowImageExtractor(t)
+	mockSeasonExtractor := mocks.NewSeasonImageExtractor(t)
+	mockTVRepo := mocks.NewTVRepository(t)
+
+	testShow := media.TVShow{ID: 100, LibraryID: 1, Title: "Test Show"}
+	mockTVRepo.WithShows(testShow)
+	// Don't populate seasons - lookup will return sql.ErrNoRows
+
+	uc := &ScanLibraryUseCase{
+		showImageExtractor:   mockShowExtractor,
+		seasonImageExtractor: mockSeasonExtractor,
+		processedShows:       AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// Should extract show images but return early when season not found
+	uc.extractTVShowAndSeasonImages(context.Background(), "Test Show", 1, "/tv/Test Show", 1)
+
+	if mockShowExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 show Execute call, got %d", mockShowExtractor.ExecuteCalls)
+	}
+	// Season extractor should not be called since season lookup failed
+	if mockSeasonExtractor.ExecuteCalls != 0 {
+		t.Errorf("Expected 0 season Execute calls, got %d", mockSeasonExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractTVShowAndSeasonImages_showExtractorError(t *testing.T) {
+	mockShowExtractor := mocks.NewShowImageExtractor(t)
+	mockShowExtractor.ExecuteErr = errors.New("show extraction failed")
+
+	mockSeasonExtractor := mocks.NewSeasonImageExtractor(t)
+	mockTVRepo := mocks.NewTVRepository(t)
+
+	testShow := media.TVShow{ID: 100, LibraryID: 1, Title: "Test Show"}
+	testSeason := media.TVSeason{ID: 200, ShowID: 100, SeasonNumber: 1}
+	mockTVRepo.WithShows(testShow)
+	mockTVRepo.WithSeasons(testSeason)
+
+	uc := &ScanLibraryUseCase{
+		showImageExtractor:   mockShowExtractor,
+		seasonImageExtractor: mockSeasonExtractor,
+		processedShows:       AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// Should continue to season extraction even if show extraction fails
+	uc.extractTVShowAndSeasonImages(context.Background(), "Test Show", 1, "/tv/Test Show", 1)
+
+	if mockShowExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 show Execute call, got %d", mockShowExtractor.ExecuteCalls)
+	}
+	if mockSeasonExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 season Execute call, got %d", mockSeasonExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractTVShowAndSeasonImages_seasonExtractorError(t *testing.T) {
+	mockShowExtractor := mocks.NewShowImageExtractor(t)
+	mockSeasonExtractor := mocks.NewSeasonImageExtractor(t)
+	mockSeasonExtractor.ExecuteErr = errors.New("season extraction failed")
+
+	mockTVRepo := mocks.NewTVRepository(t)
+
+	testShow := media.TVShow{ID: 100, LibraryID: 1, Title: "Test Show"}
+	testSeason := media.TVSeason{ID: 200, ShowID: 100, SeasonNumber: 1}
+	mockTVRepo.WithShows(testShow)
+	mockTVRepo.WithSeasons(testSeason)
+
+	uc := &ScanLibraryUseCase{
+		showImageExtractor:   mockShowExtractor,
+		seasonImageExtractor: mockSeasonExtractor,
+		processedShows:       AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// Should not panic on season extraction error
+	uc.extractTVShowAndSeasonImages(context.Background(), "Test Show", 1, "/tv/Test Show", 1)
+
+	if mockShowExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 show Execute call, got %d", mockShowExtractor.ExecuteCalls)
+	}
+	if mockSeasonExtractor.ExecuteCalls != 1 {
+		t.Errorf("Expected 1 season Execute call, got %d", mockSeasonExtractor.ExecuteCalls)
+	}
+}
+
+func TestScanLibraryUseCase_extractTVShowAndSeasonImages_nilExtractors(t *testing.T) {
+	mockTVRepo := mocks.NewTVRepository(t)
+
+	testShow := media.TVShow{ID: 100, LibraryID: 1, Title: "Test Show"}
+	testSeason := media.TVSeason{ID: 200, ShowID: 100, SeasonNumber: 1}
+	mockTVRepo.WithShows(testShow)
+	mockTVRepo.WithSeasons(testSeason)
+
+	uc := &ScanLibraryUseCase{
+		showImageExtractor:   nil,
+		seasonImageExtractor: nil,
+		processedShows:       AtomicDeduplicator{},
+		mediaRepos: &MediaRepositories{
+			TV: mockTVRepo,
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// Should not panic when extractors are nil
+	uc.extractTVShowAndSeasonImages(context.Background(), "Test Show", 1, "/tv/Test Show", 1)
 }
