@@ -176,6 +176,10 @@ func (r *ScanJobRepository) UpdateProgress(ctx context.Context, id int64, progre
 	job.FilesProcessed = progress.FilesProcessed
 	job.BytesProcessed = progress.BytesProcessed
 	job.ErrorCount = progress.ErrorCount
+	job.WarningCount = progress.WarningCount
+	job.Phase = progress.Phase
+	job.EstimatedTotal = progress.EstimatedTotal
+	job.DiscoveryDone = progress.DiscoveryDone
 
 	now := time.Now()
 	job.UpdatedAt = now

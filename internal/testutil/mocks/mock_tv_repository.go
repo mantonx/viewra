@@ -413,3 +413,37 @@ func (r *TVRepository) ListTVShowIDsByLibraryPaginated(ctx context.Context, libr
 
 	return allIDs[start:end], nil
 }
+
+// GetTVShowByID retrieves a TV show by its ID.
+func (r *TVRepository) GetTVShowByID(ctx context.Context, id int64) (media.TVShow, error) {
+	if r.GetErr != nil {
+		return media.TVShow{}, r.GetErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	show, exists := r.shows[id]
+	if !exists {
+		return media.TVShow{}, sql.ErrNoRows
+	}
+
+	return show, nil
+}
+
+// UpdateTVShow updates an existing TV show's metadata.
+func (r *TVRepository) UpdateTVShow(ctx context.Context, show media.TVShow) error {
+	if r.UpdateErr != nil {
+		return r.UpdateErr
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.shows[show.ID]; !exists {
+		return sql.ErrNoRows
+	}
+
+	r.shows[show.ID] = show
+	return nil
+}

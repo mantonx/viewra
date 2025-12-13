@@ -631,3 +631,61 @@ func (r *MusicRepository) ListMusicTracksByAlbumID(ctx context.Context, albumID 
 
 	return result, nil
 }
+
+// CountSearchArtistsByName returns the count of artists matching a search query.
+func (r *MusicRepository) CountSearchArtistsByName(ctx context.Context, libraryID int64, query string) (int64, error) {
+	if r.CountErr != nil {
+		return 0, r.CountErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	queryLower := strings.ToLower(query)
+	matchingArtists := make(map[string]bool)
+
+	for _, artist := range r.artists {
+		if artist.LibraryID == libraryID {
+			if strings.Contains(strings.ToLower(artist.Name), queryLower) {
+				matchingArtists[artist.Name] = true
+			}
+		}
+	}
+
+	return int64(len(matchingArtists)), nil
+}
+
+// SearchArtistsByName searches for artists by name with pagination.
+func (r *MusicRepository) SearchArtistsByName(ctx context.Context, libraryID int64, query string, pagination *common.PaginationParams) ([]*media.Artist, error) {
+	if r.SearchErr != nil {
+		return nil, r.SearchErr
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	queryLower := strings.ToLower(query)
+	var matchingArtists []*media.Artist
+
+	for _, artist := range r.artists {
+		if artist.LibraryID == libraryID {
+			if strings.Contains(strings.ToLower(artist.Name), queryLower) {
+				matchingArtists = append(matchingArtists, artist)
+			}
+		}
+	}
+
+	// Apply pagination
+	start := int(pagination.Offset)
+	end := start + int(pagination.Limit)
+
+	if start >= len(matchingArtists) {
+		return []*media.Artist{}, nil
+	}
+
+	if end > len(matchingArtists) {
+		end = len(matchingArtists)
+	}
+
+	return matchingArtists[start:end], nil
+}

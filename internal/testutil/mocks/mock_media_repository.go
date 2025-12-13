@@ -16,25 +16,38 @@ type MediaRepository struct {
 	media  map[int64]*media.Media
 	nextID int64
 
+	// Track storage for testing
+	audioTracks    map[int64][]*media.AudioTrack
+	subtitleTracks map[int64][]*media.SubtitleTrack
+
 	// Error injection
-	CreateErr           error
-	GetErr              error
-	GetByFilePathErr    error
-	ListErr             error
-	UpdateErr           error
-	DeleteErr           error
-	ExistsInLibraryErr  error
-	CountErr            error
-	DeleteWithTxErr     error
-	ListByLibraryWithTxErr error
+	CreateErr                     error
+	GetErr                        error
+	GetByFilePathErr              error
+	ListErr                       error
+	UpdateErr                     error
+	DeleteErr                     error
+	ExistsInLibraryErr            error
+	CountErr                      error
+	DeleteWithTxErr               error
+	ListByLibraryWithTxErr        error
+	DeleteAudioTracksErr          error
+	DeleteSubtitleTracksErr       error
+	InsertAudioTrackErr           error
+	InsertSubtitleTrackErr        error
+	GetAudioTracksErr             error
+	GetSubtitleTracksErr          error
+	GetFilePathCacheErr           error
 }
 
 // NewMediaRepository creates a new mock media repository.
 func NewMediaRepository(t testing.TB) *MediaRepository {
 	return &MediaRepository{
-		t:      t,
-		media:  make(map[int64]*media.Media),
-		nextID: 1,
+		t:              t,
+		media:          make(map[int64]*media.Media),
+		audioTracks:    make(map[int64][]*media.AudioTrack),
+		subtitleTracks: make(map[int64][]*media.SubtitleTrack),
+		nextID:         1,
 	}
 }
 
@@ -67,6 +80,30 @@ func (m *MediaRepository) WithGetError(err error) *MediaRepository {
 // WithDeleteError injects an error for Delete operations.
 func (m *MediaRepository) WithDeleteError(err error) *MediaRepository {
 	m.DeleteErr = err
+	return m
+}
+
+// WithDeleteAudioTracksError injects an error for DeleteAudioTracksByMediaID operations.
+func (m *MediaRepository) WithDeleteAudioTracksError(err error) *MediaRepository {
+	m.DeleteAudioTracksErr = err
+	return m
+}
+
+// WithDeleteSubtitleTracksError injects an error for DeleteSubtitleTracksByMediaID operations.
+func (m *MediaRepository) WithDeleteSubtitleTracksError(err error) *MediaRepository {
+	m.DeleteSubtitleTracksErr = err
+	return m
+}
+
+// WithInsertAudioTrackError injects an error for InsertAudioTrack operations.
+func (m *MediaRepository) WithInsertAudioTrackError(err error) *MediaRepository {
+	m.InsertAudioTrackErr = err
+	return m
+}
+
+// WithInsertSubtitleTrackError injects an error for InsertSubtitleTrack operations.
+func (m *MediaRepository) WithInsertSubtitleTrackError(err error) *MediaRepository {
+	m.InsertSubtitleTrackErr = err
 	return m
 }
 
@@ -295,4 +332,118 @@ func (m *MediaRepository) ListByLibraryWithTx(ctx context.Context, tx *sql.Tx, l
 
 	// In mock, just delegate to regular ListByLibrary
 	return m.ListByLibrary(ctx, libraryID)
+}
+
+// DeleteAudioTracksByMediaID deletes all audio tracks for a media item.
+func (m *MediaRepository) DeleteAudioTracksByMediaID(ctx context.Context, mediaID int64) error {
+	if m.DeleteAudioTracksErr != nil {
+		return m.DeleteAudioTracksErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.audioTracks, mediaID)
+	return nil
+}
+
+// DeleteExternalSubtitlesByMediaID deletes all external subtitles for a media item.
+func (m *MediaRepository) DeleteExternalSubtitlesByMediaID(ctx context.Context, mediaID int64) error {
+	// Mock implementation - no-op since we don't track external subtitles separately
+	return nil
+}
+
+// GetFilePathCache retrieves a map of file_path -> id for all media in a library.
+func (m *MediaRepository) GetFilePathCache(ctx context.Context, libraryID int64) (map[string]int64, error) {
+	if m.GetFilePathCacheErr != nil {
+		return nil, m.GetFilePathCacheErr
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	cache := make(map[string]int64)
+	for _, item := range m.media {
+		if item.LibraryID == libraryID {
+			cache[item.FilePath] = item.ID
+		}
+	}
+	return cache, nil
+}
+
+// InsertAudioTrack inserts an audio track for a media item.
+func (m *MediaRepository) InsertAudioTrack(ctx context.Context, track *media.AudioTrack) error {
+	if m.InsertAudioTrackErr != nil {
+		return m.InsertAudioTrackErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.audioTracks[track.MediaID] == nil {
+		m.audioTracks[track.MediaID] = []*media.AudioTrack{}
+	}
+	m.audioTracks[track.MediaID] = append(m.audioTracks[track.MediaID], track)
+	return nil
+}
+
+// GetAudioTracksByMediaID retrieves all audio tracks for a media item.
+func (m *MediaRepository) GetAudioTracksByMediaID(ctx context.Context, mediaID int64) ([]*media.AudioTrack, error) {
+	if m.GetAudioTracksErr != nil {
+		return nil, m.GetAudioTracksErr
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	tracks := m.audioTracks[mediaID]
+	if tracks == nil {
+		return []*media.AudioTrack{}, nil
+	}
+	return tracks, nil
+}
+
+// InsertSubtitleTrack inserts a subtitle track for a media item.
+func (m *MediaRepository) InsertSubtitleTrack(ctx context.Context, track *media.SubtitleTrack) error {
+	if m.InsertSubtitleTrackErr != nil {
+		return m.InsertSubtitleTrackErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.subtitleTracks[track.MediaID] == nil {
+		m.subtitleTracks[track.MediaID] = []*media.SubtitleTrack{}
+	}
+	m.subtitleTracks[track.MediaID] = append(m.subtitleTracks[track.MediaID], track)
+	return nil
+}
+
+// GetSubtitleTracksByMediaID retrieves all subtitle tracks for a media item.
+func (m *MediaRepository) GetSubtitleTracksByMediaID(ctx context.Context, mediaID int64) ([]*media.SubtitleTrack, error) {
+	if m.GetSubtitleTracksErr != nil {
+		return nil, m.GetSubtitleTracksErr
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	tracks := m.subtitleTracks[mediaID]
+	if tracks == nil {
+		return []*media.SubtitleTrack{}, nil
+	}
+	return tracks, nil
+}
+
+// DeleteSubtitleTracksByMediaID deletes all subtitle tracks for a media item.
+func (m *MediaRepository) DeleteSubtitleTracksByMediaID(ctx context.Context, mediaID int64) error {
+	if m.DeleteSubtitleTracksErr != nil {
+		return m.DeleteSubtitleTracksErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.subtitleTracks, mediaID)
+	return nil
 }
