@@ -1,4 +1,4 @@
-package filesystem
+package hash
 
 import (
 	"encoding/hex"
@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	// HashChunkSize is the size of data to read from start and end of file
-	// 64KB from start + 64KB from end = 128KB total read
-	// This is fast and sufficient for duplicate detection (same as Plex/Jellyfin)
-	HashChunkSize = 64 * 1024 // 64 KB
+	// ChunkSize is the size of data to read from start and end of file.
+	// 64KB from start + 64KB from end = 128KB total read.
+	// This is fast and sufficient for duplicate detection (same as Plex/Jellyfin).
+	ChunkSize = 64 * 1024 // 64 KB
 )
 
 // Hasher computes partial file hashes for duplicate detection
@@ -24,20 +24,19 @@ type Hasher struct {
 // NewHasher creates a new file hasher with default chunk size
 func NewHasher() *Hasher {
 	return &Hasher{
-		chunkSize: HashChunkSize,
+		chunkSize: ChunkSize,
 	}
 }
 
-// Hash computes a partial hash of a file (first 64KB + last 64KB)
-// This provides fast duplicate detection without reading entire file
+// Hash computes a partial hash of a file (first 64KB + last 64KB).
+// This provides fast duplicate detection without reading entire file.
 func (h *Hasher) Hash(path string) (string, error) {
-	file, cleanup, err := openFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %w", err)
 	}
-	defer cleanup()
+	defer file.Close()
 
-	// Get file size
 	stat, err := file.Stat()
 	if err != nil {
 		return "", fmt.Errorf("failed to stat file: %w", err)
@@ -73,7 +72,7 @@ func (h *Hasher) Hash(path string) (string, error) {
 	// Include file size in hash to avoid collisions
 	fmt.Fprintf(hasher, "%d", fileSize)
 
-	// Use Sum128() for 128-bit hash instead of Sum64()
+	// Use Sum128() for 128-bit hash
 	hash128 := hasher.Sum128()
 	hashBytes := hash128.Bytes()
 	return hex.EncodeToString(hashBytes[:]), nil
@@ -85,7 +84,6 @@ func (h *Hasher) hashEntireFile(file *os.File) (string, error) {
 	if _, err := io.Copy(hasher, file); err != nil {
 		return "", fmt.Errorf("failed to hash file: %w", err)
 	}
-	// Use Sum128() for 128-bit hash instead of Sum64()
 	hash128 := hasher.Sum128()
 	hashBytes := hash128.Bytes()
 	return hex.EncodeToString(hashBytes[:]), nil

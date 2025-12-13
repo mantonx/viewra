@@ -1,4 +1,4 @@
-package filesystem
+package scan
 
 import (
 	"context"
@@ -13,37 +13,15 @@ import (
 	"github.com/mantonx/viewra/internal/domain/scanner"
 	"github.com/mantonx/viewra/internal/domain/scanner/parsers"
 	"github.com/mantonx/viewra/internal/infrastructure/ffmpeg"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem/filter"
+	"github.com/mantonx/viewra/internal/infrastructure/filesystem/walker"
 	"github.com/mantonx/viewra/internal/infrastructure/metadata/music"
 	pkgLogger "github.com/mantonx/viewra/internal/pkg/logger"
 )
 
-// CoordinatorConfig holds configuration for the scanner coordinator
-type CoordinatorConfig struct {
-	// NumWorkers is the number of concurrent workers for file processing
-	NumWorkers int
-	// ResultBufferSize is the size of the result channel buffer
-	ResultBufferSize int
-	// EnableIncrementalScan enables smart file skipping based on ModTime
-	EnableIncrementalScan bool
-	// FileCache stores previously scanned file metadata
-	FileCache map[string]*scanner.FileCacheEntry
-	// Logger for diagnostic output (optional, uses default if nil)
-	Logger *slog.Logger
-}
-
-// DefaultCoordinatorConfig returns sensible defaults
-func DefaultCoordinatorConfig() CoordinatorConfig {
-	return CoordinatorConfig{
-		NumWorkers:            4,
-		ResultBufferSize:      100,
-		EnableIncrementalScan: false,
-		FileCache:             make(map[string]*scanner.FileCacheEntry),
-	}
-}
-
 // Coordinator orchestrates the scanning process with worker pool
 type Coordinator struct {
-	config        CoordinatorConfig
+	config        Config
 	walker        scanner.FileWalker
 	filter        scanner.FileFilter
 	parser        scanner.FilenameParser
@@ -63,23 +41,20 @@ type Coordinator struct {
 }
 
 // NewCoordinator creates a new scanner coordinator
-func NewCoordinator(config CoordinatorConfig) *Coordinator {
-	// Use provided logger or default
+func NewCoordinator(config Config) *Coordinator {
 	logger := pkgLogger.DefaultIfNil(config.Logger)
 
 	ffmpegService, err := ffmpeg.NewService(logger)
 	if err != nil {
-		// Log warning but don't fail - metadata extraction will be skipped
 		logger.Warn("FFmpeg not available, technical metadata extraction disabled", "error", err)
 	}
 
-	// Create metadata extractor for music files
 	metadataExtractor := music.NewExtractor()
 
 	return &Coordinator{
 		config:        config,
-		walker:        NewWalker(),
-		filter:        NewFilter(),
+		walker:        walker.New(),
+		filter:        filter.New(),
 		parser:        parsers.NewDefaultParserWithMetadata(metadataExtractor),
 		ffmpegService: ffmpegService,
 		logger:        logger,
@@ -88,7 +63,6 @@ func NewCoordinator(config CoordinatorConfig) *Coordinator {
 
 // Scan starts a library scan with concurrent file processing
 func (c *Coordinator) Scan(ctx context.Context, libraryPath string, resultChan chan<- scanner.ScanResult) error {
-	// Mark as running
 	c.mu.Lock()
 	if c.isRunning {
 		c.mu.Unlock()
@@ -99,35 +73,28 @@ func (c *Coordinator) Scan(ctx context.Context, libraryPath string, resultChan c
 	c.resetCounters()
 	c.mu.Unlock()
 
-	// Ensure we mark as not running when done
 	defer func() {
 		c.mu.Lock()
 		c.isRunning = false
 		c.mu.Unlock()
 	}()
 
-	// Phase 1: Discovery - walk directory tree and find all media files
-	// Files are discovered and counted progressively (no pre-counting pass)
 	fileChan := make(chan scanner.FileInfo, c.config.ResultBufferSize)
 	discoveryErrChan := make(chan error, 1)
 
 	go c.discoverFiles(ctx, libraryPath, fileChan, discoveryErrChan)
 
-	// Phase 2: Processing - worker pool processes discovered files
 	var wg sync.WaitGroup
 	processingCtx, cancelProcessing := context.WithCancel(ctx)
 	defer cancelProcessing()
 
-	// Start worker pool
 	for i := 0; i < c.config.NumWorkers; i++ {
 		wg.Add(1)
 		go c.worker(processingCtx, &wg, fileChan, resultChan)
 	}
 
-	// Wait for all workers to finish
 	wg.Wait()
 
-	// Check for discovery errors
 	select {
 	case err := <-discoveryErrChan:
 		if err != nil {
@@ -141,19 +108,15 @@ func (c *Coordinator) Scan(ctx context.Context, libraryPath string, resultChan c
 
 // shouldProcessFile checks if a file should be processed based on filter criteria
 func (c *Coordinator) shouldProcessFile(info scanner.FileInfo) bool {
-	// Skip directories
 	if info.IsDir {
 		return false
 	}
 
-	// Convert to os.FileInfo for filter
 	osInfo, err := os.Stat(info.Path)
 	if err != nil {
-		// Skip files we can't stat
 		return false
 	}
 
-	// Check if file should be processed
 	return c.filter.ShouldProcess(info.Path, osInfo)
 }
 
@@ -163,7 +126,6 @@ func isRealError(err error) bool {
 }
 
 // discoverFiles walks the directory tree and sends files to the channel
-// Files are counted progressively as they are discovered
 func (c *Coordinator) discoverFiles(
 	ctx context.Context,
 	root string,
@@ -177,10 +139,8 @@ func (c *Coordinator) discoverFiles(
 			return nil
 		}
 
-		// Increment found counter as we discover files
 		c.filesFound.Add(1)
 
-		// Send to processing queue
 		select {
 		case fileChan <- info:
 			return nil
@@ -209,20 +169,17 @@ func (c *Coordinator) worker(
 			return
 		case fileInfo, ok := <-fileChan:
 			if !ok {
-				return // Channel closed, worker done
+				return
 			}
 
-			// Process the file
 			result := c.ProcessFile(ctx, fileInfo)
 
-			// Send result
 			select {
 			case resultChan <- result:
 			case <-ctx.Done():
 				return
 			}
 
-			// Update counters
 			c.filesProcessed.Add(1)
 			if result.Error != nil {
 				c.errorCount.Add(1)
@@ -241,7 +198,6 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 		BytesProcessed: fileInfo.Size,
 	}
 
-	// Check for cancellation
 	select {
 	case <-ctx.Done():
 		result.Error = ctx.Err()
@@ -249,14 +205,13 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 	default:
 	}
 
-	// Check if file is in cache and unchanged (incremental scan optimization)
+	// Check cache for incremental scan
 	if c.config.EnableIncrementalScan {
 		c.mu.RLock()
 		cached, exists := c.config.FileCache[fileInfo.Path]
 		c.mu.RUnlock()
 
 		if exists && cached.IsUnchanged(fileInfo.ModTime, fileInfo.Size) {
-			// File unchanged, use cached metadata
 			result.MediaType = cached.MediaType
 			result.Title = cached.Title
 			result.Artist = cached.Artist
@@ -270,38 +225,17 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 		}
 	}
 
-	// Determine media type
 	mediaType := c.filter.GetMediaType(fileInfo.Extension)
 	result.MediaType = mediaType
 
 	// Parse based on media type
+	// Note: Episode detection happens at the application layer based on library type,
+	// not here. The filter only returns MediaTypeMovie (video) or MediaTypeTrack (audio).
 	switch mediaType {
 	case scanner.MediaTypeMovie:
 		if movieInfo, err := c.parser.ParseMovie(fileInfo.Path); err == nil && movieInfo != nil {
 			result.Title = movieInfo.Title
 			result.Year = &movieInfo.Year
-		}
-
-	case scanner.MediaTypeEpisode:
-		// Try TV episode parser
-		if tvInfo, err := c.parser.ParseTVEpisode(fileInfo.Path); err == nil && tvInfo != nil {
-			result.MediaType = scanner.MediaTypeEpisode
-			result.Title = tvInfo.EpisodeTitle
-			result.ShowName = tvInfo.ShowName // Add show name to avoid duplicate parsing later
-			result.Year = &tvInfo.Year
-			result.SeasonNumber = &tvInfo.Season
-			result.EpisodeNumber = &tvInfo.Episode
-			// Track multi-episode files (e.g., S01E01-E02)
-			if tvInfo.EpisodeEnd > 0 {
-				result.EpisodeEndNumber = &tvInfo.EpisodeEnd
-			}
-		} else {
-			// Fallback to movie parser if TV parsing fails
-			if movieInfo, err := c.parser.ParseMovie(fileInfo.Path); err == nil && movieInfo != nil {
-				result.MediaType = scanner.MediaTypeMovie
-				result.Title = movieInfo.Title
-				result.Year = &movieInfo.Year
-			}
 		}
 
 	case scanner.MediaTypeTrack:
@@ -316,22 +250,18 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 		}
 	}
 
-	// Extract technical metadata using FFmpeg (for all media files: video and audio)
-	if c.ffmpegService != nil && (mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode || mediaType == scanner.MediaTypeTrack) {
+	// Extract technical metadata using FFmpeg
+	if c.ffmpegService != nil && (mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeTrack) {
 		metadata, err := c.ffmpegService.ExtractMetadata(ctx, fileInfo.Path)
 		if err != nil {
-			// Log warning but don't fail the entire scan
-			// Some files might be corrupted or in unsupported formats
 			c.logger.Warn("Failed to extract FFmpeg metadata",
 				"file_path", fileInfo.Path,
 				"media_type", mediaType,
 				"error", err)
 
-			// Set warning on result so it gets tracked in checkpoints
 			result.Warning = fmt.Errorf("failed to extract metadata: %w", err)
 			result.WarningCategory = "ffmpeg"
 		} else {
-			// Populate result with technical metadata
 			result.FileSize = metadata.FileSize
 			result.Width = metadata.Width
 			result.Height = metadata.Height
@@ -341,25 +271,21 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 			result.FrameRate = metadata.FrameRate
 			result.Duration = int64(metadata.Duration.Seconds())
 
-			// Populate advanced video quality metadata (primarily for video files)
 			result.CodecProfile = metadata.CodecProfile
 			result.ScanType = metadata.ScanType
 			result.HDRFormat = metadata.HDRFormat
 			result.ColorSpace = metadata.ColorSpace
 			result.ColorPrimaries = metadata.ColorPrimaries
 
-			// Determine container format from file extension (remove dot)
 			result.ContainerFormat = strings.TrimPrefix(fileInfo.Extension, ".")
 
-			// Extract audio and subtitle tracks for video files
-			if mediaType == scanner.MediaTypeMovie || mediaType == scanner.MediaTypeEpisode {
+			if mediaType == scanner.MediaTypeMovie {
 				tracks, err := c.ffmpegService.ExtractTracks(ctx, fileInfo.Path)
 				if err != nil {
 					c.logger.Warn("Failed to extract audio/subtitle tracks",
 						"file_path", fileInfo.Path,
 						"error", err)
 				} else {
-					// Convert FFmpeg track info to scanner track info
 					result.AudioTracks = make([]scanner.AudioTrackInfo, len(tracks.AudioTracks))
 					for i, t := range tracks.AudioTracks {
 						result.AudioTracks[i] = scanner.AudioTrackInfo{
@@ -396,10 +322,6 @@ func (c *Coordinator) ProcessFile(ctx context.Context, fileInfo scanner.FileInfo
 		}
 	}
 
-	// File hashing is now handled at checkpoint creation level (scan_library.go)
-	// The coordinator is only responsible for metadata extraction
-
-	// Update file cache if incremental scanning is enabled
 	if c.config.EnableIncrementalScan {
 		c.updateFileCache(fileInfo, &result)
 	}
@@ -458,5 +380,3 @@ func (c *Coordinator) resetCounters() {
 	c.bytesProcessed.Store(0)
 	c.errorCount.Store(0)
 }
-
-// shouldHashFile determines if a file should be hashed based on strategy

@@ -1,4 +1,4 @@
-package filesystem
+package walker
 
 import (
 	"os"

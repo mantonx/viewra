@@ -1,4 +1,4 @@
-package filesystem
+package filter
 
 import (
 	"os"
@@ -72,7 +72,7 @@ func TestFilter_GetMediaType(t *testing.T) {
 		{name: "no extension", extension: "noext", want: scanner.MediaTypeUnknown},
 	}
 
-	filter := NewFilter()
+	filter := New()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestFilter_IsMediaFile(t *testing.T) {
 		{name: "no extension", path: "/files/noext", want: false},
 	}
 
-	filter := NewFilter()
+	filter := New()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -380,7 +380,7 @@ func TestFilter_ShouldProcess(t *testing.T) {
 		},
 	}
 
-	filter := NewFilter()
+	filter := New()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -442,7 +442,7 @@ func TestFilter_isArtworkFile(t *testing.T) {
 		{name: "nfo file", fileName: "movie.nfo", want: false},
 	}
 
-	filter := NewFilter()
+	filter := New()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -488,7 +488,7 @@ func TestFilter_isMetadataFile(t *testing.T) {
 		{name: "image", fileName: "poster.jpg", want: false},
 	}
 
-	filter := NewFilter()
+	filter := New()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -528,7 +528,7 @@ func TestFilter_isSystemFile(t *testing.T) {
 		{name: "document", fileName: "readme.txt", want: false},
 	}
 
-	filter := NewFilter()
+	filter := New()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -555,7 +555,7 @@ func TestFilter_isHidden(t *testing.T) {
 		{name: "dot in name", path: "/path/file.with.dots.txt", want: false},
 	}
 
-	filter := NewFilter()
+	filter := New()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

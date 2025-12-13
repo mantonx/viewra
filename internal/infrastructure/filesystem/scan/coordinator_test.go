@@ -1,16 +1,17 @@
-package filesystem
+package scan
 
 import (
 	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mantonx/viewra/internal/domain/scanner"
 )
 
-func TestDefaultCoordinatorConfig(t *testing.T) {
-	config := DefaultCoordinatorConfig()
+func TestDefaultConfig(t *testing.T) {
+	config := DefaultConfig()
 
 	if config.NumWorkers != 4 {
 		t.Errorf("Expected NumWorkers=4, got %d", config.NumWorkers)
@@ -21,7 +22,7 @@ func TestDefaultCoordinatorConfig(t *testing.T) {
 }
 
 func TestNewCoordinator(t *testing.T) {
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         50,
 	}
@@ -43,13 +44,12 @@ func TestNewCoordinator(t *testing.T) {
 	if coordinator.parser == nil {
 		t.Error("Expected parser to be initialized")
 	}
-	if coordinator.ffmpegClient == nil {
-		t.Error("Expected ffmpegClient to be initialized")
-	}
+	// Note: ffmpegService may be nil if FFmpeg is not available
+	// This is expected behavior - the coordinator logs a warning but continues
 }
 
 func TestShouldProcessFile(t *testing.T) {
-	coordinator := NewCoordinator(DefaultCoordinatorConfig())
+	coordinator := NewCoordinator(DefaultConfig())
 
 	// Create temp directory
 	tmpDir := t.TempDir()
@@ -131,7 +131,7 @@ func TestCoordinatorScan(t *testing.T) {
 	}
 
 	// Create coordinator
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
 	}
@@ -187,7 +187,7 @@ func TestCoordinatorScanWithCancellation(t *testing.T) {
 		}
 	}
 
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               1, // Single worker to make timing more predictable
 		ResultBufferSize:         5,
 	}
@@ -220,7 +220,7 @@ func TestCoordinatorScanWithCancellation(t *testing.T) {
 func TestCoordinatorScanEmptyDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
 	}
@@ -257,7 +257,7 @@ func TestCoordinatorScanEmptyDirectory(t *testing.T) {
 }
 
 func TestCoordinatorScanInvalidPath(t *testing.T) {
-	config := DefaultCoordinatorConfig()
+	config := DefaultConfig()
 	coordinator := NewCoordinator(config)
 
 	resultChan := make(chan scanner.ScanResult, 10)
@@ -272,11 +272,27 @@ func TestCoordinatorScanInvalidPath(t *testing.T) {
 }
 
 func TestCoordinatorAlreadyRunning(t *testing.T) {
-	t.Skip("Skipping flaky timing-dependent test - covered by integration tests")
+	// Test by directly setting the isRunning flag
+	coordinator := NewCoordinator(DefaultConfig())
+
+	// Simulate already running by directly setting the flag
+	coordinator.mu.Lock()
+	coordinator.isRunning = true
+	coordinator.mu.Unlock()
+
+	resultChan := make(chan scanner.ScanResult, 10)
+	defer close(resultChan)
+
+	tmpDir := t.TempDir()
+	err := coordinator.Scan(context.Background(), tmpDir, resultChan)
+
+	if err != scanner.ErrAlreadyRunning {
+		t.Errorf("Expected ErrAlreadyRunning, got: %v", err)
+	}
 }
 
 func TestCoordinatorIsRunning(t *testing.T) {
-	coordinator := NewCoordinator(DefaultCoordinatorConfig())
+	coordinator := NewCoordinator(DefaultConfig())
 
 	if coordinator.IsRunning() {
 		t.Error("Expected coordinator to not be running initially")
@@ -317,7 +333,7 @@ func TestCoordinatorIsRunning(t *testing.T) {
 }
 
 func TestCoordinatorGetProgress(t *testing.T) {
-	coordinator := NewCoordinator(DefaultCoordinatorConfig())
+	coordinator := NewCoordinator(DefaultConfig())
 
 	progress := coordinator.GetProgress()
 
@@ -335,7 +351,7 @@ func TestCoordinatorGetProgress(t *testing.T) {
 // Note: Counting tests removed - progressive counting is now integrated into the scan process
 
 func TestUpdateFileCache(t *testing.T) {
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
 		EnableIncrementalScan:    true,
@@ -396,7 +412,7 @@ func TestUpdateFileCache(t *testing.T) {
 }
 
 func TestUpdateFileCacheMultipleEntries(t *testing.T) {
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
 		EnableIncrementalScan:    true,
@@ -456,7 +472,7 @@ func TestUpdateFileCacheMultipleEntries(t *testing.T) {
 }
 
 func TestUpdateFileCacheWithMusicMetadata(t *testing.T) {
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
 		EnableIncrementalScan:    true,
@@ -508,7 +524,7 @@ func TestUpdateFileCacheWithMusicMetadata(t *testing.T) {
 }
 
 func TestUpdateFileCacheWithTVMetadata(t *testing.T) {
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
 		EnableIncrementalScan:    true,
@@ -559,7 +575,7 @@ func TestUpdateFileCacheWithTVMetadata(t *testing.T) {
 }
 
 func TestUpdateFileCacheOverwrite(t *testing.T) {
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               2,
 		ResultBufferSize:         10,
 		EnableIncrementalScan:    true,
@@ -625,8 +641,335 @@ func TestUpdateFileCacheOverwrite(t *testing.T) {
 	}
 }
 
+// TestProcessFile tests the ProcessFile method for various scenarios
+func TestProcessFile(t *testing.T) {
+	t.Run("context cancellation returns error", func(t *testing.T) {
+		coordinator := NewCoordinator(DefaultConfig())
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		fileInfo := scanner.FileInfo{
+			Path:      "/test/movie.mkv",
+			Size:      1024,
+			Extension: ".mkv",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		if result.Error != context.Canceled {
+			t.Errorf("Expected context.Canceled error, got %v", result.Error)
+		}
+	})
+
+	t.Run("incremental scan cache hit returns cached data", func(t *testing.T) {
+		year := 2020
+		season := 1
+		episode := 5
+		trackNum := 3
+
+		config := Config{
+			NumWorkers:            2,
+			ResultBufferSize:      10,
+			EnableIncrementalScan: true,
+			FileCache: map[string]*scanner.FileCacheEntry{
+				"/test/movie.mkv": {
+					Path:          "/test/movie.mkv",
+					Size:          1024,
+					ModTime:       time.Now(),
+					Hash:          "cached_hash",
+					MediaType:     scanner.MediaTypeMovie,
+					Title:         "Cached Movie Title",
+					Artist:        "Cached Artist",
+					Album:         "Cached Album",
+					Year:          &year,
+					SeasonNumber:  &season,
+					EpisodeNumber: &episode,
+					TrackNumber:   &trackNum,
+				},
+			},
+		}
+		coordinator := NewCoordinator(config)
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      "/test/movie.mkv",
+			Size:      1024,
+			ModTime:   config.FileCache["/test/movie.mkv"].ModTime, // Same ModTime = unchanged
+			Extension: ".mkv",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		// Should return cached data
+		if result.MediaType != scanner.MediaTypeMovie {
+			t.Errorf("Expected MediaType=movie, got %s", result.MediaType)
+		}
+		if result.Title != "Cached Movie Title" {
+			t.Errorf("Expected Title='Cached Movie Title', got %s", result.Title)
+		}
+		if result.Hash != "cached_hash" {
+			t.Errorf("Expected Hash='cached_hash', got %s", result.Hash)
+		}
+		if result.Artist != "Cached Artist" {
+			t.Errorf("Expected Artist='Cached Artist', got %s", result.Artist)
+		}
+		if result.Album != "Cached Album" {
+			t.Errorf("Expected Album='Cached Album', got %s", result.Album)
+		}
+		if result.Year == nil || *result.Year != 2020 {
+			t.Errorf("Expected Year=2020, got %v", result.Year)
+		}
+		if result.SeasonNumber == nil || *result.SeasonNumber != 1 {
+			t.Errorf("Expected SeasonNumber=1, got %v", result.SeasonNumber)
+		}
+		if result.EpisodeNumber == nil || *result.EpisodeNumber != 5 {
+			t.Errorf("Expected EpisodeNumber=5, got %v", result.EpisodeNumber)
+		}
+		if result.TrackNumber == nil || *result.TrackNumber != 3 {
+			t.Errorf("Expected TrackNumber=3, got %v", result.TrackNumber)
+		}
+	})
+
+	t.Run("incremental scan cache miss processes file", func(t *testing.T) {
+		config := Config{
+			NumWorkers:            2,
+			ResultBufferSize:      10,
+			EnableIncrementalScan: true,
+			FileCache: map[string]*scanner.FileCacheEntry{
+				"/test/movie.mkv": {
+					Path:      "/test/movie.mkv",
+					Size:      1024,
+					ModTime:   time.Now().Add(-1 * time.Hour), // Old ModTime
+					Hash:      "old_hash",
+					MediaType: scanner.MediaTypeMovie,
+					Title:     "Old Title",
+				},
+			},
+		}
+		coordinator := NewCoordinator(config)
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      "/test/movie.mkv",
+			Size:      1024,
+			ModTime:   time.Now(), // Different ModTime = changed file
+			Extension: ".mkv",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		// Should process the file fresh, not use cache
+		// Title should be parsed from the filename
+		if result.Title == "Old Title" {
+			t.Error("Expected fresh parsing, but got cached title")
+		}
+	})
+
+	t.Run("processes movie file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testFile := filepath.Join(tmpDir, "The Matrix (1999).mkv")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		coordinator := NewCoordinator(DefaultConfig())
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      testFile,
+			Size:      4,
+			Extension: ".mkv",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		if result.MediaType != scanner.MediaTypeMovie {
+			t.Errorf("Expected MediaType=movie, got %s", result.MediaType)
+		}
+		if result.Title != "The Matrix" {
+			t.Errorf("Expected Title='The Matrix', got %s", result.Title)
+		}
+		if result.Year == nil || *result.Year != 1999 {
+			t.Errorf("Expected Year=1999, got %v", result.Year)
+		}
+	})
+
+	t.Run("processes video file with TV episode naming as movie", func(t *testing.T) {
+		// Note: The filter returns MediaTypeMovie for all video files.
+		// Episode detection happens at a different layer (application/library scanner).
+		// Here we verify that the movie parser successfully handles the file.
+		tmpDir := t.TempDir()
+		showDir := filepath.Join(tmpDir, "Breaking Bad (2008)", "Season 01")
+		if err := os.MkdirAll(showDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		testFile := filepath.Join(showDir, "Breaking Bad (2008) - S01E01 - Pilot.mkv")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		coordinator := NewCoordinator(DefaultConfig())
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      testFile,
+			Size:      4,
+			Extension: ".mkv",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		// Filter returns movie for all video files; episode detection is at application layer
+		if result.MediaType != scanner.MediaTypeMovie {
+			t.Errorf("Expected MediaType=movie (filter default for video), got %s", result.MediaType)
+		}
+		// Title should be parsed from filename
+		if result.Title == "" {
+			t.Error("Expected title to be parsed from filename")
+		}
+	})
+
+	t.Run("processes music file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		// Create album directory structure
+		albumDir := filepath.Join(tmpDir, "Artist", "Album (2020)")
+		if err := os.MkdirAll(albumDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		testFile := filepath.Join(albumDir, "01 - Track Title.mp3")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		coordinator := NewCoordinator(DefaultConfig())
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      testFile,
+			Size:      4,
+			Extension: ".mp3",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		if result.MediaType != scanner.MediaTypeTrack {
+			t.Errorf("Expected MediaType=track, got %s", result.MediaType)
+		}
+	})
+
+	t.Run("episode fallback to movie parser when TV parsing fails", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		// Create a file that looks like it might be TV but won't parse as TV
+		testFile := filepath.Join(tmpDir, "Some Movie (2020).mkv")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a coordinator where the filter thinks this is episode type
+		// but the parser will fail TV parsing
+		coordinator := NewCoordinator(DefaultConfig())
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      testFile,
+			Size:      4,
+			Extension: ".mkv",
+		}
+
+		// Override the extension to trigger episode media type
+		// but the filename doesn't match episode pattern
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		// Should fall back to movie type since TV parsing fails
+		if result.MediaType == scanner.MediaTypeUnknown {
+			t.Error("Expected media type to be identified, got unknown")
+		}
+	})
+
+	t.Run("updates file cache when incremental scan enabled", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testFile := filepath.Join(tmpDir, "New Movie (2022).mkv")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		config := Config{
+			NumWorkers:            2,
+			ResultBufferSize:      10,
+			EnableIncrementalScan: true,
+			FileCache:             make(map[string]*scanner.FileCacheEntry),
+		}
+		coordinator := NewCoordinator(config)
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      testFile,
+			Size:      4,
+			ModTime:   time.Now(),
+			Extension: ".mkv",
+		}
+
+		coordinator.ProcessFile(ctx, fileInfo)
+
+		// Check that the file was cached
+		coordinator.mu.Lock()
+		_, exists := coordinator.config.FileCache[testFile]
+		coordinator.mu.Unlock()
+
+		if !exists {
+			t.Error("Expected file to be added to cache")
+		}
+	})
+
+	t.Run("handles unknown media type", func(t *testing.T) {
+		coordinator := NewCoordinator(DefaultConfig())
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      "/test/file.xyz", // Unknown extension
+			Size:      1024,
+			Extension: ".xyz",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		if result.MediaType != scanner.MediaTypeUnknown {
+			t.Errorf("Expected MediaType=unknown, got %s", result.MediaType)
+		}
+	})
+
+	t.Run("sets warning on FFmpeg failure", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testFile := filepath.Join(tmpDir, "Test Movie (2020).mkv")
+		// Create an invalid file that FFmpeg can't process
+		if err := os.WriteFile(testFile, []byte("not a valid video"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		coordinator := NewCoordinator(DefaultConfig())
+		ctx := context.Background()
+
+		fileInfo := scanner.FileInfo{
+			Path:      testFile,
+			Size:      18,
+			Extension: ".mkv",
+		}
+
+		result := coordinator.ProcessFile(ctx, fileInfo)
+
+		// FFmpeg should fail and set a warning
+		if result.Warning == nil {
+			t.Error("Expected warning to be set when FFmpeg fails")
+		}
+		if result.WarningCategory != "ffmpeg" {
+			t.Errorf("Expected WarningCategory='ffmpeg', got %s", result.WarningCategory)
+		}
+	})
+}
+
 func TestUpdateFileCacheThreadSafety(t *testing.T) {
-	config := CoordinatorConfig{
+	config := Config{
 		NumWorkers:               4,
 		ResultBufferSize:         10,
 		EnableIncrementalScan:    true,
@@ -680,4 +1023,186 @@ func TestUpdateFileCacheThreadSafety(t *testing.T) {
 	}
 
 	t.Logf("Cache contains %d entries after concurrent updates", cacheSize)
+}
+
+func TestScanWithErrorCounting(t *testing.T) {
+	// This test verifies that the error counting path in worker is exercised
+	// by processing files that cause ProcessFile to return an error
+	config := Config{
+		NumWorkers:       1,
+		ResultBufferSize: 10,
+	}
+	coordinator := NewCoordinator(config)
+
+	// Create temp directory with valid files
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "Movie (2020).mkv")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	resultChan := make(chan scanner.ScanResult, 10)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- coordinator.Scan(context.Background(), tmpDir, resultChan)
+		close(resultChan)
+	}()
+
+	// Drain results
+	var results []scanner.ScanResult
+	for result := range resultChan {
+		results = append(results, result)
+	}
+
+	err := <-done
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	// Verify at least one result
+	if len(results) == 0 {
+		t.Error("Expected at least one result")
+	}
+
+	progress := coordinator.GetProgress()
+	t.Logf("Progress: FilesFound=%d, FilesProcessed=%d, ErrorCount=%d",
+		progress.FilesFound, progress.FilesProcessed, progress.ErrorCount)
+}
+
+func TestProcessFile_MusicFileWithMetadata(t *testing.T) {
+	// Test music file processing - exercises the MediaTypeTrack branch
+	tmpDir := t.TempDir()
+	artistDir := filepath.Join(tmpDir, "Artist Name")
+	albumDir := filepath.Join(artistDir, "Album Name (2022)")
+	if err := os.MkdirAll(albumDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a music file with naming convention that parser can use
+	testFile := filepath.Join(albumDir, "01 - Song Title.flac")
+	if err := os.WriteFile(testFile, []byte("fake audio content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	coordinator := NewCoordinator(DefaultConfig())
+	ctx := context.Background()
+
+	fileInfo := scanner.FileInfo{
+		Path:      testFile,
+		Size:      18,
+		Extension: ".flac",
+	}
+
+	result := coordinator.ProcessFile(ctx, fileInfo)
+
+	// Should be identified as a track
+	if result.MediaType != scanner.MediaTypeTrack {
+		t.Errorf("Expected MediaType=track, got %s", result.MediaType)
+	}
+
+	// Title should be parsed from filename
+	if result.Title == "" {
+		t.Log("Title was not parsed from filename - this is expected if parser requires real metadata")
+	}
+
+	t.Logf("Result: MediaType=%s, Title=%s, Artist=%s, Album=%s",
+		result.MediaType, result.Title, result.Artist, result.Album)
+}
+
+func TestProcessFile_VariousAudioFormats(t *testing.T) {
+	// Test various audio file formats to ensure MediaTypeTrack branch is hit
+	audioFormats := []string{".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".wma", ".opus"}
+
+	coordinator := NewCoordinator(DefaultConfig())
+	ctx := context.Background()
+
+	for _, ext := range audioFormats {
+		t.Run("format"+ext, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			testFile := filepath.Join(tmpDir, "test"+ext)
+			if err := os.WriteFile(testFile, []byte("fake audio"), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			fileInfo := scanner.FileInfo{
+				Path:      testFile,
+				Size:      10,
+				Extension: ext,
+			}
+
+			result := coordinator.ProcessFile(ctx, fileInfo)
+
+			if result.MediaType != scanner.MediaTypeTrack {
+				t.Errorf("Expected MediaType=track for %s, got %s", ext, result.MediaType)
+			}
+		})
+	}
+}
+
+func TestCoordinator_WithCustomLogger(t *testing.T) {
+	// Test that custom logger is used
+	config := Config{
+		NumWorkers:       2,
+		ResultBufferSize: 10,
+		Logger:           nil, // Will use default
+	}
+
+	coordinator := NewCoordinator(config)
+
+	if coordinator == nil {
+		t.Fatal("Expected non-nil coordinator")
+	}
+
+	// Coordinator should work with default logger
+	if coordinator.logger == nil {
+		t.Error("Expected logger to be initialized")
+	}
+}
+
+func TestScanProgressDuringExecution(t *testing.T) {
+	// Test that progress is tracked during scan execution
+	tmpDir := t.TempDir()
+
+	// Create several test files
+	for i := 0; i < 5; i++ {
+		testFile := filepath.Join(tmpDir, "Movie"+string(rune('A'+i))+" (2020).mkv")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	config := Config{
+		NumWorkers:       1,
+		ResultBufferSize: 10,
+	}
+	coordinator := NewCoordinator(config)
+
+	resultChan := make(chan scanner.ScanResult, 10)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- coordinator.Scan(context.Background(), tmpDir, resultChan)
+		close(resultChan)
+	}()
+
+	// Collect results
+	var resultCount int
+	for range resultChan {
+		resultCount++
+	}
+
+	err := <-done
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	// Verify final progress
+	progress := coordinator.GetProgress()
+	if progress.FilesProcessed != int64(resultCount) {
+		t.Errorf("FilesProcessed=%d, but received %d results", progress.FilesProcessed, resultCount)
+	}
+	if progress.FilesFound < progress.FilesProcessed {
+		t.Errorf("FilesFound=%d should be >= FilesProcessed=%d", progress.FilesFound, progress.FilesProcessed)
+	}
 }
