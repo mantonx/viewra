@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"runtime/debug"
-	"sync"
 	"time"
 
 	appImages "github.com/mantonx/viewra/internal/application/images"
@@ -39,12 +38,12 @@ type ScanLibraryUseCase struct {
 	trackImageExtractor   *appImages.ExtractMusicTrackImagesUseCase
 
 	// Artist deduplication tracking (per scan session)
-	// Using sync.Map for lock-free concurrent access (fixes race condition)
-	processedArtists sync.Map // string -> bool
+	// Using AtomicDeduplicator for lock-free concurrent access (fixes race condition)
+	processedArtists AtomicDeduplicator
 
 	// TV show metadata enrichment tracking (per scan session)
 	// Ensures we only parse tvshow.nfo and update show metadata once per show
-	processedShows sync.Map // string -> bool
+	processedShows AtomicDeduplicator
 }
 
 // NewScanLibraryUseCase creates a new instance of ScanLibraryUseCase
@@ -330,8 +329,9 @@ func (uc *ScanLibraryUseCase) runScan(ctx context.Context, jobID int64, lib *lib
 
 // initializeScanSession prepares for a scan by resetting tracking state and detecting storage
 func (uc *ScanLibraryUseCase) initializeScanSession(ctx context.Context, lib *library.Library) {
-	// Reset artist deduplication tracking for this scan session
-	uc.processedArtists = sync.Map{}
+	// Reset deduplication tracking for this scan session
+	uc.processedArtists.Reset()
+	uc.processedShows.Reset()
 
 	// Update system profile with library-specific storage detection
 	if uc.systemProfile != nil {
@@ -501,16 +501,22 @@ func (uc *ScanLibraryUseCase) completeJobWithError(ctx context.Context, jobID in
 	_ = uc.scanRepos.ScanJob.Complete(ctx, job)
 }
 
+// logPanic logs a panic with full stack trace. This is the shared logging
+// implementation used by all panic recovery functions.
+func (uc *ScanLibraryUseCase) logPanic(r any, description string, fields ...any) {
+	allFields := append([]any{
+		"panic", r,
+		"stack_trace", string(debug.Stack()),
+	}, fields...)
+	uc.logger.Error("PANIC: "+description, allFields...)
+}
+
 // recoverFromPanic handles panic recovery for scan goroutines.
 // It logs the panic with stack trace and marks the job as failed.
 // Usage: defer uc.recoverFromPanic(jobID, libraryID, "context description")
 func (uc *ScanLibraryUseCase) recoverFromPanic(jobID, libraryID int64, description string) {
 	if r := recover(); r != nil {
-		uc.logger.Error("PANIC: "+description,
-			"job_id", jobID,
-			"library_id", libraryID,
-			"panic", r,
-			"stack_trace", string(debug.Stack()))
+		uc.logPanic(r, description, "job_id", jobID, "library_id", libraryID)
 
 		failedJob := &scanner.ScanJob{
 			ID:           jobID,
@@ -531,11 +537,7 @@ func (uc *ScanLibraryUseCase) recoverFromPanic(jobID, libraryID int64, descripti
 // Usage: defer uc.recoverFromPanicWithError(jobID, libraryID, "context", errChan)
 func (uc *ScanLibraryUseCase) recoverFromPanicWithError(jobID, libraryID int64, description string, errChan chan<- error) {
 	if r := recover(); r != nil {
-		uc.logger.Error("PANIC: "+description,
-			"job_id", jobID,
-			"library_id", libraryID,
-			"panic", r,
-			"stack_trace", string(debug.Stack()))
+		uc.logPanic(r, description, "job_id", jobID, "library_id", libraryID)
 
 		err := fmt.Errorf("%s: %v", description, r)
 		select {
@@ -550,10 +552,6 @@ func (uc *ScanLibraryUseCase) recoverFromPanicWithError(jobID, libraryID int64, 
 // Usage: defer uc.recoverWorkerPanic(jobID, workerID)
 func (uc *ScanLibraryUseCase) recoverWorkerPanic(jobID int64, workerID int) {
 	if r := recover(); r != nil {
-		uc.logger.Error("PANIC: worker goroutine panicked",
-			"worker_id", workerID,
-			"job_id", jobID,
-			"panic", r,
-			"stack_trace", string(debug.Stack()))
+		uc.logPanic(r, "worker goroutine panicked", "worker_id", workerID, "job_id", jobID)
 	}
 }

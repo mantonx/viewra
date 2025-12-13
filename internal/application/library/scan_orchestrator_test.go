@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"sync"
 	"testing"
 
 	"github.com/mantonx/viewra/internal/domain/library"
@@ -1415,27 +1414,31 @@ func TestScanLibraryUseCase_initializeScanSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &ScanLibraryUseCase{
-				processedArtists: sync.Map{},
+				processedArtists: AtomicDeduplicator{},
+				processedShows:   AtomicDeduplicator{},
 				systemProfile:    tt.systemProfile,
 				logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
 
 			// Pre-populate processedArtists to verify reset
-			uc.processedArtists.Store("Artist1", true)
-			uc.processedArtists.Store("Artist2", true)
+			uc.processedArtists.TryMark("Artist1")
+			uc.processedArtists.TryMark("Artist2")
+
+			// Verify they were marked
+			if uc.processedArtists.TryMark("Artist1") {
+				t.Error("Artist1 should already be marked before reset")
+			}
 
 			// Call the function
 			uc.initializeScanSession(ctx, tt.lib)
 
-			// Verify processedArtists was reset (should be empty after init)
+			// Verify processedArtists was reset (TryMark should return true after reset)
 			if tt.verifyReset {
-				count := 0
-				uc.processedArtists.Range(func(key, value interface{}) bool {
-					count++
-					return true
-				})
-				if count != 0 {
-					t.Errorf("expected processedArtists to be reset, but has %d entries", count)
+				if !uc.processedArtists.TryMark("Artist1") {
+					t.Error("expected processedArtists to be reset, but Artist1 is still marked")
+				}
+				if !uc.processedArtists.TryMark("Artist2") {
+					t.Error("expected processedArtists to be reset, but Artist2 is still marked")
 				}
 			}
 		})

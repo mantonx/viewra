@@ -21,12 +21,7 @@ func (uc *ScanLibraryUseCase) extractImagesForMovie(ctx context.Context, movie *
 		uc.logger.Warn("failed to extract images for movie",
 			"file_path", filePath,
 			"error", err)
-		// Track as warning in scan_state for user visibility
-		if setErr := uc.scanRepos.ScanState.SetWarning(ctx, movie.Media.LibraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
-			uc.logger.Warn("failed to set image extraction warning in scan_state",
-				"file_path", filePath,
-				"error", setErr)
-		}
+		uc.recordImageWarning(ctx, movie.Media.LibraryID, filePath, err)
 	}
 }
 
@@ -43,12 +38,7 @@ func (uc *ScanLibraryUseCase) extractImagesForEpisode(ctx context.Context, episo
 		uc.logger.Warn("failed to extract images for episode",
 			"file_path", filePath,
 			"error", err)
-		// Track as warning in scan_state for user visibility
-		if setErr := uc.scanRepos.ScanState.SetWarning(ctx, libraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
-			uc.logger.Warn("failed to set image extraction warning in scan_state",
-				"file_path", filePath,
-				"error", setErr)
-		}
+		uc.recordImageWarning(ctx, libraryID, filePath, err)
 	}
 
 	// Extract show and season images
@@ -79,12 +69,7 @@ func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *
 				"track", track.Title,
 				"file_path", filePath,
 				"error", err)
-			// Track as warning in scan_state for user visibility
-			if setErr := uc.scanRepos.ScanState.SetWarning(ctx, track.Media.LibraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
-				uc.logger.Warn("failed to set image extraction warning in scan_state",
-					"file_path", filePath,
-					"error", setErr)
-			}
+			uc.recordImageWarning(ctx, track.Media.LibraryID, filePath, err)
 		}
 	}
 
@@ -98,12 +83,7 @@ func (uc *ScanLibraryUseCase) extractImagesForTrack(ctx context.Context, track *
 				"album_id", track.AlbumID,
 				"file_path", filePath,
 				"error", err)
-			// Track as warning in scan_state for user visibility
-			if setErr := uc.scanRepos.ScanState.SetWarning(ctx, track.Media.LibraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
-				uc.logger.Warn("failed to set image extraction warning in scan_state",
-					"file_path", filePath,
-					"error", setErr)
-			}
+			uc.recordImageWarning(ctx, track.Media.LibraryID, filePath, err)
 		}
 	}
 
@@ -178,18 +158,29 @@ func (uc *ScanLibraryUseCase) extractTVShowAndSeasonImages(ctx context.Context, 
 	}
 }
 
-// tryMarkArtistProcessed atomically checks if an artist has been processed and marks it as processed
-// Returns true if this is the first time the artist is being processed (caller should extract images)
-// Returns false if the artist was already processed (caller should skip extraction)
-// This uses LoadOrStore for atomic check-and-set to prevent race conditions
+// tryMarkArtistProcessed atomically checks if an artist has been processed and marks it as processed.
+// Returns true if this is the first time the artist is being processed (caller should extract images).
+// Returns false if the artist was already processed (caller should skip extraction).
 func (uc *ScanLibraryUseCase) tryMarkArtistProcessed(artistName string) bool {
-	_, alreadyProcessed := uc.processedArtists.LoadOrStore(artistName, true)
-	return !alreadyProcessed // Return true if this is the first time
+	return uc.processedArtists.TryMark(artistName)
 }
 
 // tryMarkShowMetadataProcessed atomically checks if a show's metadata has been processed
 // and marks it as processed if not. Returns true if this is the first time processing this show.
 func (uc *ScanLibraryUseCase) tryMarkShowMetadataProcessed(showTitle string) bool {
-	_, alreadyProcessed := uc.processedShows.LoadOrStore(showTitle, true)
-	return !alreadyProcessed // Return true if this is the first time
+	return uc.processedShows.TryMark(showTitle)
+}
+
+// recordImageWarning persists an image extraction warning to scan_state for user visibility.
+// If the warning cannot be persisted (e.g., database error), it logs the failure but doesn't
+// propagate the error - image extraction warnings are informational, not critical.
+func (uc *ScanLibraryUseCase) recordImageWarning(ctx context.Context, libraryID int64, filePath string, err error) {
+	if setErr := uc.scanRepos.ScanState.SetWarning(ctx, libraryID, filePath, err.Error(), "image_extraction"); setErr != nil {
+		uc.logger.Warn("failed to set image extraction warning in scan_state",
+			"library_id", libraryID,
+			"file_path", filePath,
+			"original_error", err.Error(),
+			"set_warning_error", setErr.Error(),
+		)
+	}
 }

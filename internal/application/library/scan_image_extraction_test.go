@@ -1,11 +1,147 @@
 package library
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"sync"
 	"testing"
+
+	"github.com/mantonx/viewra/internal/domain/scanner"
+	"github.com/mantonx/viewra/internal/testutil/mocks"
 )
+
+func TestAtomicDeduplicator_TryMark(t *testing.T) {
+	tests := []struct {
+		name           string
+		key            string
+		expectedFirst  bool
+		expectedSecond bool
+	}{
+		{
+			name:           "first call returns true",
+			key:            "key1",
+			expectedFirst:  true,
+			expectedSecond: false,
+		},
+		{
+			name:           "second call returns false",
+			key:            "key2",
+			expectedFirst:  true,
+			expectedSecond: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &AtomicDeduplicator{}
+
+			// First call
+			result1 := d.TryMark(tt.key)
+			if result1 != tt.expectedFirst {
+				t.Errorf("First call: got %v, want %v", result1, tt.expectedFirst)
+			}
+
+			// Second call
+			result2 := d.TryMark(tt.key)
+			if result2 != tt.expectedSecond {
+				t.Errorf("Second call: got %v, want %v", result2, tt.expectedSecond)
+			}
+		})
+	}
+}
+
+func TestAtomicDeduplicator_TryMark_DifferentKeys(t *testing.T) {
+	d := &AtomicDeduplicator{}
+
+	// Different keys should both return true on first call
+	if !d.TryMark("key1") {
+		t.Error("First key should return true")
+	}
+	if !d.TryMark("key2") {
+		t.Error("Different key should return true")
+	}
+
+	// Same keys should return false
+	if d.TryMark("key1") {
+		t.Error("Repeated key1 should return false")
+	}
+	if d.TryMark("key2") {
+		t.Error("Repeated key2 should return false")
+	}
+}
+
+func TestAtomicDeduplicator_Reset(t *testing.T) {
+	d := &AtomicDeduplicator{}
+
+	// Mark a key
+	if !d.TryMark("key1") {
+		t.Error("First mark should return true")
+	}
+
+	// Verify it's marked
+	if d.TryMark("key1") {
+		t.Error("Second mark should return false")
+	}
+
+	// Reset
+	d.Reset()
+
+	// After reset, key should be unmarked
+	if !d.TryMark("key1") {
+		t.Error("After reset, mark should return true")
+	}
+}
+
+func TestAtomicDeduplicator_Concurrent(t *testing.T) {
+	d := &AtomicDeduplicator{}
+
+	const numGoroutines = 100
+	const key = "testKey"
+
+	var wg sync.WaitGroup
+	results := make(chan bool, numGoroutines)
+
+	// Launch concurrent goroutines trying to mark the same key
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- d.TryMark(key)
+		}()
+	}
+
+	wg.Wait()
+	close(results)
+
+	// Count how many got true (should be exactly 1)
+	trueCount := 0
+	for result := range results {
+		if result {
+			trueCount++
+		}
+	}
+
+	if trueCount != 1 {
+		t.Errorf("Expected exactly 1 goroutine to get true, got %d", trueCount)
+	}
+}
+
+func BenchmarkAtomicDeduplicator_TryMark(b *testing.B) {
+	d := &AtomicDeduplicator{}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			// Use different keys to avoid contention
+			key := string(rune('A' + (i % 26)))
+			d.TryMark(key)
+			i++
+		}
+	})
+}
 
 func TestScanLibraryUseCase_tryMarkArtistProcessed(t *testing.T) {
 	tests := []struct {
@@ -41,7 +177,7 @@ func TestScanLibraryUseCase_tryMarkArtistProcessed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &ScanLibraryUseCase{
-				processedArtists: sync.Map{},
+				processedArtists: AtomicDeduplicator{},
 				logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
 
@@ -72,7 +208,7 @@ func TestScanLibraryUseCase_tryMarkArtistProcessed(t *testing.T) {
 
 func TestScanLibraryUseCase_tryMarkArtistProcessed_concurrent(t *testing.T) {
 	uc := &ScanLibraryUseCase{
-		processedArtists: sync.Map{},
+		processedArtists: AtomicDeduplicator{},
 		logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -141,7 +277,7 @@ func TestScanLibraryUseCase_tryMarkShowMetadataProcessed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &ScanLibraryUseCase{
-				processedShows: sync.Map{},
+				processedShows: AtomicDeduplicator{},
 				logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 			}
 
@@ -172,7 +308,7 @@ func TestScanLibraryUseCase_tryMarkShowMetadataProcessed(t *testing.T) {
 
 func TestScanLibraryUseCase_tryMarkShowMetadataProcessed_concurrent(t *testing.T) {
 	uc := &ScanLibraryUseCase{
-		processedShows: sync.Map{},
+		processedShows: AtomicDeduplicator{},
 		logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -234,7 +370,7 @@ func TestScanLibraryUseCase_extractImagesForTrack_nilExtractors(t *testing.T) {
 		trackImageExtractor:  nil,
 		albumImageExtractor:  nil,
 		artistImageExtractor: nil,
-		processedArtists:     sync.Map{},
+		processedArtists:     AtomicDeduplicator{},
 		logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -244,10 +380,46 @@ func TestScanLibraryUseCase_extractImagesForTrack_nilExtractors(t *testing.T) {
 	_ = uc
 }
 
+func TestScanLibraryUseCase_recordImageWarning(t *testing.T) {
+	t.Run("success - warning recorded", func(t *testing.T) {
+		mockScanState := mocks.NewScanStateRepository(t)
+		// Pre-populate with a state so SetWarning can find it
+		mockScanState.WithStates(&scanner.ScanState{
+			LibraryID: 1,
+			FilePath:  "/test/file.mkv",
+		})
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &ScanRepositories{
+				ScanState: mockScanState,
+			},
+			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		// Should not panic
+		uc.recordImageWarning(context.Background(), 1, "/test/file.mkv", errors.New("extraction failed"))
+	})
+
+	t.Run("failure - logs when SetWarning fails", func(t *testing.T) {
+		mockScanState := mocks.NewScanStateRepository(t)
+		mockScanState.SetWarningErr = errors.New("database error")
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &ScanRepositories{
+				ScanState: mockScanState,
+			},
+			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		// Should not panic even when SetWarning fails
+		uc.recordImageWarning(context.Background(), 1, "/test/file.mkv", errors.New("extraction failed"))
+	})
+}
+
 // Benchmark for concurrent artist processing
 func BenchmarkTryMarkArtistProcessed(b *testing.B) {
 	uc := &ScanLibraryUseCase{
-		processedArtists: sync.Map{},
+		processedArtists: AtomicDeduplicator{},
 		logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
