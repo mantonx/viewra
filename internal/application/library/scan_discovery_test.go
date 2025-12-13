@@ -34,10 +34,14 @@ func TestScanLibraryUseCase_createWalker(t *testing.T) {
 			},
 			systemProfile: &system.Profile{
 				Storage: system.StorageProfile{
-					Type: "network",
+					Type:     "network",
+					IsRemote: true, // Required for ScanWalkers to be set
+				},
+				CPU: system.CPUProfile{
+					NumCPU: 8,
 				},
 			},
-			expectedParallel:    true, // systemProfile.Calculate() will set this
+			expectedParallel:    true, // systemProfile.Calculate() will set ScanWalkers
 			expectedProgressLog: false,
 		},
 		{
@@ -657,4 +661,931 @@ func TestScanLibraryUseCase_phaseHashAndProcess_Metrics(t *testing.T) {
 		// Should process all files and log metrics
 		uc.phaseHashAndProcess(context.Background(), dctx, diff)
 	})
+}
+
+func TestScanLibraryUseCase_phaseHashAndProcess_CheckpointCreationError(t *testing.T) {
+	t.Run("handles checkpoint creation error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create a test file
+		testFile := filepath.Join(tmpDir, "movie.mp4")
+		if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		checkpointRepo := mocks.NewCheckpointRepository(t)
+		scanJobRepo := mocks.NewScanJobRepository(t)
+
+		job := &scanner.ScanJob{
+			ID:        100,
+			LibraryID: 1,
+			Status:    scanner.ScanStatusRunning,
+		}
+		scanJobRepo.WithJobs(job)
+
+		// Inject error when creating checkpoints
+		checkpointRepo.CreateBatchErr = errors.New("database connection failed")
+
+		uc := &ScanLibraryUseCase{
+			scanRepos: &ScanRepositories{
+				Checkpoint: checkpointRepo,
+				ScanJob:    scanJobRepo,
+			},
+			config: ScanConfig{
+				CheckpointBatchSize:   10,
+				CheckpointBufferSize:  10,
+				MaxRetries:            3,
+				WorkerTimeout:         5 * time.Minute,
+				HashProgressLogEvery:  1000,
+				ProgressUpdateTick:    100 * time.Millisecond,
+			},
+			logger: discardLogger(),
+		}
+
+		dctx := &discoveryContext{
+			jobID: 100,
+			lib:   &library.Library{ID: 1, Path: tmpDir},
+			discoveryStats: &filesystem.WalkStats{
+				FilesDiscovered: 1,
+			},
+		}
+
+		diff := &scanner.ScanDiff{
+			NewFiles: []scanner.FileInfo{
+				{Path: testFile, Size: 12, ModTime: time.Now()},
+			},
+			ModifiedFiles:  []scanner.FileInfo{},
+			UnchangedFiles: []string{},
+		}
+
+		// Should handle error gracefully and mark job as failed
+		uc.phaseHashAndProcess(context.Background(), dctx, diff)
+
+		// Verify job was marked as failed
+		updatedJob, err := scanJobRepo.GetByID(context.Background(), 100)
+		if err != nil {
+			t.Fatalf("failed to get job: %v", err)
+		}
+		if updatedJob.Status != scanner.ScanStatusFailed {
+			t.Errorf("expected job status %v, got %v", scanner.ScanStatusFailed, updatedJob.Status)
+		}
+	})
+}
+
+// Tests for runFreshScan
+
+func TestScanLibraryUseCase_runFreshScan(t *testing.T) {
+	tests := []struct {
+		name              string
+		setupTempDir      func(*testing.T) string
+		setupRepos        func(*testing.T) (*ScanRepositories, *IncrementalScanner)
+		jobID             int64
+		expectJobComplete bool
+		expectError       bool
+	}{
+		{
+			name: "completes full scan successfully with new files",
+			setupTempDir: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				// Create test files
+				for i := 0; i < 3; i++ {
+					filename := filepath.Join(tmpDir, fmt.Sprintf("movie%d.mp4", i))
+					if err := os.WriteFile(filename, []byte("test content"), 0644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return tmpDir
+			},
+			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+				checkpointRepo := mocks.NewCheckpointRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:             100,
+					LibraryID:      1,
+					Status:         scanner.ScanStatusRunning,
+					EstimatedTotal: 0,
+				}
+				scanJobRepo.WithJobs(job)
+
+				repos := &ScanRepositories{
+					ScanJob:    scanJobRepo,
+					ScanState:  scanStateRepo,
+					Checkpoint: checkpointRepo,
+				}
+
+				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+
+				return repos, incScanner
+			},
+			jobID:             100,
+			expectJobComplete: false, // Job completes via phaseHashAndProcess
+			expectError:       false,
+		},
+		{
+			name: "handles no changes detected - marks job complete",
+			setupTempDir: func(t *testing.T) string {
+				// For this test, we don't need actual files to match scan state
+				// since we're testing the no-change detection logic
+				return t.TempDir()
+			},
+			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+				checkpointRepo := mocks.NewCheckpointRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:             100,
+					LibraryID:      1,
+					Status:         scanner.ScanStatusRunning,
+					EstimatedTotal: 0,
+				}
+				scanJobRepo.WithJobs(job)
+
+				// This test validates behavior when no files are discovered
+				// (empty discovery = no changes, job should complete)
+				// We intentionally don't add any scan state
+
+				repos := &ScanRepositories{
+					ScanJob:    scanJobRepo,
+					ScanState:  scanStateRepo,
+					Checkpoint: checkpointRepo,
+				}
+
+				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+
+				return repos, incScanner
+			},
+			jobID:             100,
+			expectJobComplete: true,
+			expectError:       false,
+		},
+		{
+			name: "handles deleted files",
+			setupTempDir: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				// Create one file (simulate deletion by not creating the old file)
+				filename := filepath.Join(tmpDir, "new_movie.mp4")
+				if err := os.WriteFile(filename, []byte("test"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				return tmpDir
+			},
+			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+				checkpointRepo := mocks.NewCheckpointRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:             100,
+					LibraryID:      1,
+					Status:         scanner.ScanStatusRunning,
+					EstimatedTotal: 0,
+				}
+				scanJobRepo.WithJobs(job)
+
+				// Pre-populate with scan state for a deleted file
+				scanState := &scanner.ScanState{
+					LibraryID: 1,
+					FilePath:  "/deleted/old_movie.mp4",
+					FileSize:  1000,
+					FileMTime: time.Now().Add(-2 * time.Hour),
+				}
+				scanStateRepo.WithStates(scanState)
+
+				repos := &ScanRepositories{
+					ScanJob:    scanJobRepo,
+					ScanState:  scanStateRepo,
+					Checkpoint: checkpointRepo,
+				}
+
+				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+
+				return repos, incScanner
+			},
+			jobID:             100,
+			expectJobComplete: false,
+			expectError:       false,
+		},
+		{
+			name: "handles initialization error gracefully",
+			setupTempDir: func(t *testing.T) string {
+				return t.TempDir()
+			},
+			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+				checkpointRepo := mocks.NewCheckpointRepository(t)
+
+				// Inject error to fail initialization
+				scanJobRepo.GetErr = errors.New("database error")
+
+				repos := &ScanRepositories{
+					ScanJob:    scanJobRepo,
+					ScanState:  scanStateRepo,
+					Checkpoint: checkpointRepo,
+				}
+
+				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+
+				return repos, incScanner
+			},
+			jobID:             100,
+			expectJobComplete: false,
+			expectError:       true,
+		},
+		{
+			name: "handles walk directory error",
+			setupTempDir: func(t *testing.T) string {
+				// Return non-existent path to trigger walk error
+				return "/nonexistent/path/that/does/not/exist"
+			},
+			setupRepos: func(t *testing.T) (*ScanRepositories, *IncrementalScanner) {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+				checkpointRepo := mocks.NewCheckpointRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:             100,
+					LibraryID:      1,
+					Status:         scanner.ScanStatusRunning,
+					EstimatedTotal: 0,
+				}
+				scanJobRepo.WithJobs(job)
+
+				repos := &ScanRepositories{
+					ScanJob:    scanJobRepo,
+					ScanState:  scanStateRepo,
+					Checkpoint: checkpointRepo,
+				}
+
+				incScanner := NewIncrementalScanner(scanStateRepo, discardLogger())
+
+				return repos, incScanner
+			},
+			jobID:             100,
+			expectJobComplete: false,
+			expectError:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := tt.setupTempDir(t)
+			repos, incScanner := tt.setupRepos(t)
+
+			lib := &library.Library{
+				ID:   1,
+				Path: tmpDir,
+			}
+
+			uc := &ScanLibraryUseCase{
+				scanRepos:          repos,
+				incrementalScanner: incScanner,
+				config: ScanConfig{
+					DiscoveryBufferSize:  100,
+					DiscoveryLogEvery:    10,
+					CheckpointBatchSize:  10,
+					MaxRetries:           3,
+					WorkerTimeout:        5 * time.Minute,
+					HashProgressLogEvery: 1000,
+				},
+				logger: discardLogger(),
+			}
+
+			// Execute the scan
+			uc.runFreshScan(context.Background(), tt.jobID, lib)
+
+			// Wait a bit for async operations
+			time.Sleep(100 * time.Millisecond)
+
+			// Verify job state if expected to complete
+			if tt.expectJobComplete {
+				job, err := repos.ScanJob.GetByID(context.Background(), tt.jobID)
+				if err != nil {
+					if !tt.expectError {
+						t.Fatalf("failed to get job: %v", err)
+					}
+				} else {
+					if job.Status != scanner.ScanStatusCompleted {
+						t.Errorf("expected job status %v, got %v", scanner.ScanStatusCompleted, job.Status)
+					}
+				}
+			}
+		})
+	}
+}
+
+// Tests for initDiscoveryContext
+
+func TestScanLibraryUseCase_initDiscoveryContext(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupRepos     func(*testing.T) *ScanRepositories
+		jobID          int64
+		lib            *library.Library
+		expectError    bool
+		validateResult func(*testing.T, *discoveryContext)
+	}{
+		{
+			name: "initializes context successfully",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				job := &scanner.ScanJob{
+					ID:             100,
+					LibraryID:      1,
+					Status:         scanner.ScanStatusRunning,
+					EstimatedTotal: 1000,
+				}
+				scanJobRepo.WithJobs(job)
+
+				return &ScanRepositories{
+					ScanJob: scanJobRepo,
+				}
+			},
+			jobID: 100,
+			lib: &library.Library{
+				ID:   1,
+				Path: "/media",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, dctx *discoveryContext) {
+				if dctx == nil {
+					t.Fatal("expected non-nil discoveryContext")
+				}
+				if dctx.jobID != 100 {
+					t.Errorf("expected jobID 100, got %d", dctx.jobID)
+				}
+				if dctx.lib.ID != 1 {
+					t.Errorf("expected library ID 1, got %d", dctx.lib.ID)
+				}
+				if dctx.currentJob == nil {
+					t.Error("expected non-nil currentJob")
+				}
+				if dctx.walker == nil {
+					t.Error("expected non-nil walker")
+				}
+			},
+		},
+		{
+			name: "handles job not found error",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				// No jobs created - will return not found
+
+				return &ScanRepositories{
+					ScanJob: scanJobRepo,
+				}
+			},
+			jobID: 999,
+			lib: &library.Library{
+				ID:   1,
+				Path: "/media",
+			},
+			expectError: true,
+			validateResult: func(t *testing.T, dctx *discoveryContext) {
+				if dctx != nil {
+					t.Error("expected nil discoveryContext on error")
+				}
+			},
+		},
+		{
+			name: "handles repository error",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanJobRepo.GetErr = errors.New("database connection failed")
+
+				return &ScanRepositories{
+					ScanJob: scanJobRepo,
+				}
+			},
+			jobID: 100,
+			lib: &library.Library{
+				ID:   1,
+				Path: "/media",
+			},
+			expectError: true,
+			validateResult: func(t *testing.T, dctx *discoveryContext) {
+				if dctx != nil {
+					t.Error("expected nil discoveryContext on error")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repos := tt.setupRepos(t)
+
+			uc := &ScanLibraryUseCase{
+				scanRepos: repos,
+				config:    ScanConfig{},
+				logger:    discardLogger(),
+			}
+
+			dctx, err := uc.initDiscoveryContext(context.Background(), tt.jobID, tt.lib)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+
+			tt.validateResult(t, dctx)
+		})
+	}
+}
+
+// Tests for phaseDetermineChanges
+
+func TestScanLibraryUseCase_phaseDetermineChanges(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupRepos      func(*testing.T) *ScanRepositories
+		setupIncScanner func(*testing.T, *ScanRepositories) *IncrementalScanner
+		discoveredFiles []scanner.FileInfo
+		expectNil       bool // Expect nil diff when no changes
+		validateDiff    func(*testing.T, *scanner.ScanDiff)
+	}{
+		{
+			name: "detects new files",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:        100,
+					LibraryID: 1,
+				}
+				scanJobRepo.WithJobs(job)
+
+				return &ScanRepositories{
+					ScanJob:   scanJobRepo,
+					ScanState: scanStateRepo,
+				}
+			},
+			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
+				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			},
+			discoveredFiles: []scanner.FileInfo{
+				{Path: "/media/new1.mp4", Size: 1000, ModTime: time.Now()},
+				{Path: "/media/new2.mp4", Size: 2000, ModTime: time.Now()},
+			},
+			expectNil: false,
+			validateDiff: func(t *testing.T, diff *scanner.ScanDiff) {
+				if diff == nil {
+					t.Fatal("expected non-nil diff")
+				}
+				if len(diff.NewFiles) != 2 {
+					t.Errorf("expected 2 new files, got %d", len(diff.NewFiles))
+				}
+				if len(diff.ModifiedFiles) != 0 {
+					t.Errorf("expected 0 modified files, got %d", len(diff.ModifiedFiles))
+				}
+			},
+		},
+		{
+			name: "detects modified files",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:        100,
+					LibraryID: 1,
+				}
+				scanJobRepo.WithJobs(job)
+
+				// Pre-populate with old file state
+				scanState := &scanner.ScanState{
+					LibraryID: 1,
+					FilePath:  "/media/modified.mp4",
+					FileSize:  1000,
+					FileMTime: time.Now().Add(-2 * time.Hour),
+				}
+				scanStateRepo.WithStates(scanState)
+
+				return &ScanRepositories{
+					ScanJob:   scanJobRepo,
+					ScanState: scanStateRepo,
+				}
+			},
+			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
+				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			},
+			discoveredFiles: []scanner.FileInfo{
+				{Path: "/media/modified.mp4", Size: 2000, ModTime: time.Now()}, // Size changed
+			},
+			expectNil: false,
+			validateDiff: func(t *testing.T, diff *scanner.ScanDiff) {
+				if diff == nil {
+					t.Fatal("expected non-nil diff")
+				}
+				if len(diff.ModifiedFiles) != 1 {
+					t.Errorf("expected 1 modified file, got %d", len(diff.ModifiedFiles))
+				}
+			},
+		},
+		{
+			name: "detects no changes - marks job complete",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:        100,
+					LibraryID: 1,
+				}
+				scanJobRepo.WithJobs(job)
+
+				// Use fixed time to ensure exact match
+				modTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+				scanState := &scanner.ScanState{
+					LibraryID: 1,
+					FilePath:  "/media/unchanged.mp4",
+					FileSize:  1000,
+					FileMTime: modTime,
+				}
+				scanStateRepo.WithStates(scanState)
+
+				return &ScanRepositories{
+					ScanJob:   scanJobRepo,
+					ScanState: scanStateRepo,
+				}
+			},
+			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
+				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			},
+			discoveredFiles: []scanner.FileInfo{
+				{Path: "/media/unchanged.mp4", Size: 1000, ModTime: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
+			},
+			expectNil: true, // Returns nil when no changes
+			validateDiff: func(t *testing.T, diff *scanner.ScanDiff) {
+				if diff != nil {
+					t.Errorf("expected nil diff when no changes, got %+v", diff)
+				}
+			},
+		},
+		{
+			name: "falls back to full scan on incremental error",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:        100,
+					LibraryID: 1,
+				}
+				scanJobRepo.WithJobs(job)
+
+				// Inject error to trigger fallback
+				scanStateRepo.GetLibraryStateErr = errors.New("database error")
+
+				return &ScanRepositories{
+					ScanJob:   scanJobRepo,
+					ScanState: scanStateRepo,
+				}
+			},
+			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
+				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			},
+			discoveredFiles: []scanner.FileInfo{
+				{Path: "/media/file1.mp4", Size: 1000, ModTime: time.Now()},
+				{Path: "/media/file2.mp4", Size: 2000, ModTime: time.Now()},
+			},
+			expectNil: false,
+			validateDiff: func(t *testing.T, diff *scanner.ScanDiff) {
+				if diff == nil {
+					t.Fatal("expected non-nil diff on fallback")
+				}
+				// Fallback treats all files as new
+				if len(diff.NewFiles) != 2 {
+					t.Errorf("expected 2 new files in fallback, got %d", len(diff.NewFiles))
+				}
+				if len(diff.ModifiedFiles) != 0 {
+					t.Errorf("expected 0 modified files in fallback, got %d", len(diff.ModifiedFiles))
+				}
+			},
+		},
+		{
+			name: "handles complete job error gracefully",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanJobRepo := mocks.NewScanJobRepository(t)
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				job := &scanner.ScanJob{
+					ID:        100,
+					LibraryID: 1,
+				}
+				scanJobRepo.WithJobs(job)
+
+				// Inject error when completing job
+				scanJobRepo.CompleteErr = errors.New("complete error")
+
+				// Use fixed time to ensure exact match
+				modTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+				scanState := &scanner.ScanState{
+					LibraryID: 1,
+					FilePath:  "/media/unchanged.mp4",
+					FileSize:  1000,
+					FileMTime: modTime,
+				}
+				scanStateRepo.WithStates(scanState)
+
+				return &ScanRepositories{
+					ScanJob:   scanJobRepo,
+					ScanState: scanStateRepo,
+				}
+			},
+			setupIncScanner: func(t *testing.T, repos *ScanRepositories) *IncrementalScanner {
+				return NewIncrementalScanner(repos.ScanState, discardLogger())
+			},
+			discoveredFiles: []scanner.FileInfo{
+				{Path: "/media/unchanged.mp4", Size: 1000, ModTime: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
+			},
+			expectNil: true, // Still returns nil despite complete error
+			validateDiff: func(t *testing.T, diff *scanner.ScanDiff) {
+				if diff != nil {
+					t.Error("expected nil diff even with complete error")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repos := tt.setupRepos(t)
+			incScanner := tt.setupIncScanner(t, repos)
+
+			uc := &ScanLibraryUseCase{
+				scanRepos:          repos,
+				incrementalScanner: incScanner,
+				logger:             discardLogger(),
+			}
+
+			dctx := &discoveryContext{
+				jobID: 100,
+				lib:   &library.Library{ID: 1, Path: "/media"},
+			}
+
+			diff := uc.phaseDetermineChanges(context.Background(), dctx, tt.discoveredFiles)
+
+			if tt.expectNil && diff != nil {
+				t.Errorf("expected nil diff, got %+v", diff)
+			}
+
+			if !tt.expectNil && diff == nil {
+				t.Error("expected non-nil diff, got nil")
+			}
+
+			tt.validateDiff(t, diff)
+		})
+	}
+}
+
+// Tests for logDiscoveryStats
+
+func TestScanLibraryUseCase_logDiscoveryStats(t *testing.T) {
+	tests := []struct {
+		name  string
+		stats *filesystem.WalkStats
+	}{
+		{
+			name:  "handles nil stats gracefully",
+			stats: nil,
+		},
+		{
+			name: "logs normal stats without errors",
+			stats: &filesystem.WalkStats{
+				FilesDiscovered:  100,
+				DirsScanned:      20,
+				DirsSkipped:      0,
+				FilesSkipped:     0,
+				PermissionErrors: 0,
+				NetworkErrors:    0,
+				OtherErrors:      0,
+			},
+		},
+		{
+			name: "logs stats with dirs skipped (triggers HasErrors)",
+			stats: &filesystem.WalkStats{
+				FilesDiscovered:  90,
+				DirsScanned:      18,
+				DirsSkipped:      2, // Triggers HasErrors()
+				FilesSkipped:     0,
+				PermissionErrors: 2,
+				NetworkErrors:    0,
+				OtherErrors:      0,
+				SkippedPaths:     []string{"/media/restricted", "/media/protected"},
+			},
+		},
+		{
+			name: "logs stats with files skipped (triggers HasErrors)",
+			stats: &filesystem.WalkStats{
+				FilesDiscovered:  95,
+				DirsScanned:      20,
+				DirsSkipped:      0,
+				FilesSkipped:     5, // Triggers HasErrors()
+				PermissionErrors: 0,
+				NetworkErrors:    3,
+				OtherErrors:      2,
+				SkippedPaths:     []string{"/media/file1.mp4", "/media/file2.mp4", "/media/file3.mp4"},
+			},
+		},
+		{
+			name: "logs stats with both dirs and files skipped",
+			stats: &filesystem.WalkStats{
+				FilesDiscovered:  80,
+				DirsScanned:      15,
+				DirsSkipped:      5,
+				FilesSkipped:     10,
+				PermissionErrors: 8,
+				NetworkErrors:    4,
+				OtherErrors:      3,
+				SkippedPaths:     []string{"/media/dir1", "/media/dir2", "/media/file1.mp4"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uc := &ScanLibraryUseCase{
+				logger: discardLogger(),
+			}
+
+			// Should not panic for any input
+			uc.logDiscoveryStats(100, tt.stats)
+		})
+	}
+}
+
+// Tests for phaseHandleDeleted
+
+func TestScanLibraryUseCase_phaseHandleDeleted(t *testing.T) {
+	tests := []struct {
+		name         string
+		setupRepos   func(*testing.T) *ScanRepositories
+		diff         *scanner.ScanDiff
+		validateRepo func(*testing.T, *ScanRepositories)
+	}{
+		{
+			name: "deletes scan state for deleted files",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				// Pre-populate with states
+				states := []*scanner.ScanState{
+					{LibraryID: 1, FilePath: "/media/deleted1.mp4", FileSize: 1000},
+					{LibraryID: 1, FilePath: "/media/deleted2.mp4", FileSize: 2000},
+					{LibraryID: 1, FilePath: "/media/kept.mp4", FileSize: 3000},
+				}
+				scanStateRepo.WithStates(states...)
+
+				return &ScanRepositories{
+					ScanState: scanStateRepo,
+				}
+			},
+			diff: &scanner.ScanDiff{
+				DeletedFiles: []string{"/media/deleted1.mp4", "/media/deleted2.mp4"},
+			},
+			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+				// Verify deleted files are removed
+				_, err := repos.ScanState.GetByPath(context.Background(), 1, "/media/deleted1.mp4")
+				if !errors.Is(err, scanner.ErrNotFound) {
+					t.Error("expected deleted1.mp4 to be removed")
+				}
+
+				_, err = repos.ScanState.GetByPath(context.Background(), 1, "/media/deleted2.mp4")
+				if !errors.Is(err, scanner.ErrNotFound) {
+					t.Error("expected deleted2.mp4 to be removed")
+				}
+
+				// Verify kept file still exists
+				_, err = repos.ScanState.GetByPath(context.Background(), 1, "/media/kept.mp4")
+				if err != nil {
+					t.Errorf("expected kept.mp4 to remain, got error: %v", err)
+				}
+			},
+		},
+		{
+			name: "handles empty deleted files list",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				state := &scanner.ScanState{
+					LibraryID: 1,
+					FilePath:  "/media/file.mp4",
+					FileSize:  1000,
+				}
+				scanStateRepo.WithStates(state)
+
+				return &ScanRepositories{
+					ScanState: scanStateRepo,
+				}
+			},
+			diff: &scanner.ScanDiff{
+				DeletedFiles: []string{},
+			},
+			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+				// Verify file still exists (nothing deleted)
+				_, err := repos.ScanState.GetByPath(context.Background(), 1, "/media/file.mp4")
+				if err != nil {
+					t.Errorf("expected file to remain, got error: %v", err)
+				}
+			},
+		},
+		{
+			name: "handles deletion errors gracefully",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				// Inject error
+				scanStateRepo.DeleteByPathsErr = errors.New("database error")
+
+				state := &scanner.ScanState{
+					LibraryID: 1,
+					FilePath:  "/media/deleted.mp4",
+					FileSize:  1000,
+				}
+				scanStateRepo.WithStates(state)
+
+				return &ScanRepositories{
+					ScanState: scanStateRepo,
+				}
+			},
+			diff: &scanner.ScanDiff{
+				DeletedFiles: []string{"/media/deleted.mp4"},
+			},
+			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+				// Function should not panic despite error
+				// Error is logged but doesn't stop execution
+			},
+		},
+		{
+			name: "handles multiple deleted files efficiently",
+			setupRepos: func(t *testing.T) *ScanRepositories {
+				scanStateRepo := mocks.NewScanStateRepository(t)
+
+				var states []*scanner.ScanState
+				for i := 0; i < 100; i++ {
+					states = append(states, &scanner.ScanState{
+						LibraryID: 1,
+						FilePath:  fmt.Sprintf("/media/deleted%d.mp4", i),
+						FileSize:  int64(i * 1000),
+					})
+				}
+				scanStateRepo.WithStates(states...)
+
+				return &ScanRepositories{
+					ScanState: scanStateRepo,
+				}
+			},
+			diff: &scanner.ScanDiff{
+				DeletedFiles: func() []string {
+					var files []string
+					for i := 0; i < 100; i++ {
+						files = append(files, fmt.Sprintf("/media/deleted%d.mp4", i))
+					}
+					return files
+				}(),
+			},
+			validateRepo: func(t *testing.T, repos *ScanRepositories) {
+				// Verify all deleted files are removed
+				count, err := repos.ScanState.CountByLibrary(context.Background(), 1)
+				if err != nil {
+					t.Fatalf("failed to count states: %v", err)
+				}
+				if count != 0 {
+					t.Errorf("expected 0 remaining states, got %d", count)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repos := tt.setupRepos(t)
+
+			uc := &ScanLibraryUseCase{
+				scanRepos: repos,
+				logger:    discardLogger(),
+			}
+
+			dctx := &discoveryContext{
+				jobID: 100,
+				lib:   &library.Library{ID: 1, Path: "/media"},
+			}
+
+			// Execute - should not panic
+			uc.phaseHandleDeleted(context.Background(), dctx, tt.diff)
+
+			// Validate results
+			tt.validateRepo(t, repos)
+		})
+	}
 }

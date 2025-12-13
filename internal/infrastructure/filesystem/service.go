@@ -53,6 +53,7 @@ var (
 	WithProgressLogging  = walker.WithProgressLogging
 	WithProgressCallback = walker.WithProgressCallback
 	WithLogger           = walker.WithLogger
+	CalculateDirSize     = walker.CalculateDirSize
 )
 
 // Filter types and functions

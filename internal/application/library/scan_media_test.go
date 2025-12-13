@@ -1533,6 +1533,249 @@ func TestScanLibraryUseCase_processMultiEpisodeFile(t *testing.T) {
 	}
 }
 
+// Tests for processMultiEpisodeFile error paths
+
+func TestScanLibraryUseCase_processMultiEpisodeFile_ErrorPaths(t *testing.T) {
+	t.Run("handles media update error gracefully", func(t *testing.T) {
+		mediaRepo := mocks.NewMediaRepository(t)
+		tvRepo := mocks.NewTVRepository(t)
+		libraryRepo := mocks.NewLibraryRepository(t).WithLibraries(&domainLibrary.Library{
+			ID:   2,
+			Name: "Test TV Library",
+			Path: "/test",
+			Type: domainLibrary.LibraryTypeTV,
+		})
+
+		// Pre-create existing episodes in cache
+		mediaRepo.WithMedia(&media.Media{
+			ID:        300,
+			LibraryID: 2,
+			FilePath:  "/tv/Show/S01E01-E02.mp4",
+			Type:      "tv_episode",
+		})
+		// Simulate update failure
+		mediaRepo.UpdateErr = errors.New("database error")
+
+		uc := &ScanLibraryUseCase{
+			mediaRepos: &MediaRepositories{
+				Library: libraryRepo,
+				Media:   mediaRepo,
+				TV:      tvRepo,
+			},
+			logger: discardLogger(),
+		}
+
+		existingMediaCache := &sync.Map{}
+		existingMediaCache.Store("/tv/Show/S01E01-E02.mp4", int64(300))
+
+		result := &scanner.ScanResult{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			Duration: 5400,
+		}
+		checkpoint := &scanner.ScanCheckpoint{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			FileSize: 2048,
+			FileHash: "hash",
+		}
+
+		// Should continue despite update error
+		_, err := uc.processMultiEpisodeFile(
+			context.Background(),
+			2,
+			result,
+			checkpoint,
+			existingMediaCache,
+			"Test Show",
+			1,
+			1,
+			2,
+			"Episode Title",
+		)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("handles TV episode update error gracefully", func(t *testing.T) {
+		mediaRepo := mocks.NewMediaRepository(t)
+		tvRepo := mocks.NewTVRepository(t)
+		libraryRepo := mocks.NewLibraryRepository(t).WithLibraries(&domainLibrary.Library{
+			ID:   2,
+			Name: "Test TV Library",
+			Path: "/test",
+			Type: domainLibrary.LibraryTypeTV,
+		})
+
+		// Pre-create existing episodes
+		mediaRepo.WithMedia(&media.Media{
+			ID:        300,
+			LibraryID: 2,
+			FilePath:  "/tv/Show/S01E01-E02.mp4",
+			Type:      "tv_episode",
+		})
+		tvRepo.WithEpisodes(&media.TVEpisode{
+			Media: media.Media{
+				ID:        300,
+				LibraryID: 2,
+				FilePath:  "/tv/Show/S01E01-E02.mp4",
+				Type:      "tv_episode",
+			},
+			ShowTitle: "Test Show",
+			Season:    1,
+			Episode:   1,
+		})
+		// Simulate TV episode update failure
+		tvRepo.UpdateErr = errors.New("database error")
+
+		uc := &ScanLibraryUseCase{
+			mediaRepos: &MediaRepositories{
+				Library: libraryRepo,
+				Media:   mediaRepo,
+				TV:      tvRepo,
+			},
+			logger: discardLogger(),
+		}
+
+		existingMediaCache := &sync.Map{}
+		existingMediaCache.Store("/tv/Show/S01E01-E02.mp4", int64(300))
+
+		result := &scanner.ScanResult{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			Duration: 5400,
+		}
+		checkpoint := &scanner.ScanCheckpoint{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			FileSize: 2048,
+			FileHash: "hash",
+		}
+
+		// Should continue despite update error
+		_, err := uc.processMultiEpisodeFile(
+			context.Background(),
+			2,
+			result,
+			checkpoint,
+			existingMediaCache,
+			"Test Show",
+			1,
+			1,
+			2,
+			"Episode Title",
+		)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("handles UNIQUE constraint violation gracefully", func(t *testing.T) {
+		mediaRepo := mocks.NewMediaRepository(t)
+		tvRepo := mocks.NewTVRepository(t)
+		libraryRepo := mocks.NewLibraryRepository(t).WithLibraries(&domainLibrary.Library{
+			ID:   2,
+			Name: "Test TV Library",
+			Path: "/test",
+			Type: domainLibrary.LibraryTypeTV,
+		})
+
+		// Simulate UNIQUE constraint failure on create
+		tvRepo.CreateErr = errors.New("UNIQUE constraint failed: media.file_path")
+
+		uc := &ScanLibraryUseCase{
+			mediaRepos: &MediaRepositories{
+				Library: libraryRepo,
+				Media:   mediaRepo,
+				TV:      tvRepo,
+			},
+			logger: discardLogger(),
+		}
+
+		existingMediaCache := &sync.Map{}
+
+		result := &scanner.ScanResult{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			Duration: 5400,
+		}
+		checkpoint := &scanner.ScanCheckpoint{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			FileSize: 2048,
+			FileHash: "hash",
+		}
+
+		// Should continue despite UNIQUE constraint error
+		_, err := uc.processMultiEpisodeFile(
+			context.Background(),
+			2,
+			result,
+			checkpoint,
+			existingMediaCache,
+			"Test Show",
+			1,
+			1,
+			2,
+			"Episode Title",
+		)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("handles non-unique create error gracefully", func(t *testing.T) {
+		mediaRepo := mocks.NewMediaRepository(t)
+		tvRepo := mocks.NewTVRepository(t)
+		libraryRepo := mocks.NewLibraryRepository(t).WithLibraries(&domainLibrary.Library{
+			ID:   2,
+			Name: "Test TV Library",
+			Path: "/test",
+			Type: domainLibrary.LibraryTypeTV,
+		})
+
+		// Simulate non-UNIQUE error on create
+		tvRepo.CreateErr = errors.New("database connection timeout")
+
+		uc := &ScanLibraryUseCase{
+			mediaRepos: &MediaRepositories{
+				Library: libraryRepo,
+				Media:   mediaRepo,
+				TV:      tvRepo,
+			},
+			logger: discardLogger(),
+		}
+
+		existingMediaCache := &sync.Map{}
+
+		result := &scanner.ScanResult{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			Duration: 5400,
+		}
+		checkpoint := &scanner.ScanCheckpoint{
+			FilePath: "/tv/Show/S01E01-E02.mp4",
+			FileSize: 2048,
+			FileHash: "hash",
+		}
+
+		// Should continue despite create error
+		_, err := uc.processMultiEpisodeFile(
+			context.Background(),
+			2,
+			result,
+			checkpoint,
+			existingMediaCache,
+			"Test Show",
+			1,
+			1,
+			2,
+			"Episode Title",
+		)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+	})
+}
+
 // Tests for enrichTVShowMetadataFromNFO
 
 func TestScanLibraryUseCase_enrichTVShowMetadataFromNFO(t *testing.T) {
